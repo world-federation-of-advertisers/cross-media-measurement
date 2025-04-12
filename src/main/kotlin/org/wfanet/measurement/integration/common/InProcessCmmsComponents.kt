@@ -18,6 +18,7 @@ package org.wfanet.measurement.integration.common
 
 import com.google.protobuf.ByteString
 import com.google.protobuf.TypeRegistry
+import com.sun.org.apache.xpath.internal.operations.Bool
 import java.security.cert.X509Certificate
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.runBlocking
@@ -167,9 +168,9 @@ class InProcessCmmsComponents(
   val typeRegistry: TypeRegistry
     get() = _typeRegistry
 
-  private lateinit var mcResourceName: String
+  lateinit var mcResourceName: String
   private lateinit var apiAuthenticationKey: String
-  private lateinit var edpDisplayNameToResourceMap: Map<String, Resources.Resource>
+  lateinit var edpDisplayNameToResourceMap: Map<String, Resources.Resource>
   private lateinit var duchyCertMap: Map<String, String>
   private lateinit var eventGroups: List<EventGroup>
   private lateinit var populationDataProviderResource: Resources.Resource
@@ -281,14 +282,12 @@ class InProcessCmmsComponents(
     return edpDisplayNameToResourceMap.values.map { it.name }
   }
 
-  fun startDaemons(alreadyEnsuredEventGroups: List<EventGroup>? = null) = runBlocking {
+  fun startDaemons(ensureEventGroups: Boolean = true) = runBlocking {
     // Create all resources
     createAllResources()
     // Start daemons. Mills and EDP simulators can only be started after resources have been
     // created.
-    if (alreadyEnsuredEventGroups != null) {
-      eventGroups = alreadyEnsuredEventGroups
-    } else {
+    if (ensureEventGroups) {
       eventGroups = edpSimulators.map { it.ensureEventGroup() }
       edpSimulators.forEach { it.start() }
       edpSimulators.forEach { it.waitUntilHealthy() }

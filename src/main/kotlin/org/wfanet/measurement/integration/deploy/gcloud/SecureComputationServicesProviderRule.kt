@@ -14,41 +14,36 @@
 
 package org.wfanet.measurement.integration.deploy.gcloud
 
-import java.time.Clock
 import org.junit.runner.Description
 import org.junit.runners.model.Statement
-import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
-import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.TestMetadataMessage
-import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.common.testing.ProviderRule
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerDatabaseAdmin
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.InternalApiServices
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.testing.Schemata
 import org.wfanet.measurement.securecomputation.service.internal.QueueMapping
+import org.wfanet.measurement.securecomputation.service.internal.Services
 import org.wfanet.measurement.securecomputation.service.internal.WorkItemPublisher
 
 class SecureComputationServicesProviderRule(
-  workItemPublisher: WorkItemPublisher,
-  queueMapping: QueueMapping,
-  emulatorDatabaseAdmin: SpannerDatabaseAdmin) :
-  ProviderRule<InternalApiServices> {
+  private val workItemPublisher: WorkItemPublisher,
+  private val queueMapping: QueueMapping,
+  emulatorDatabaseAdmin: SpannerDatabaseAdmin,
+) : ProviderRule<Services> {
   private val spannerDatabase =
     SpannerEmulatorDatabaseRule(emulatorDatabaseAdmin, Schemata.SECURECOMPUTATION_CHANGELOG_PATH)
 
-  private lateinit var internalServices: InternalApiServices
+  private lateinit var internalServices: Services
 
   override val value
     get() = internalServices
-
-
 
   override fun apply(base: Statement, description: Description): Statement {
     val statement =
       object : Statement() {
         override fun evaluate() {
           internalServices =
-            InternalApiServices(
+            InternalApiServices.build(
               workItemPublisher,
               spannerDatabase.databaseClient,
               queueMapping,
@@ -58,5 +53,4 @@ class SecureComputationServicesProviderRule(
       }
     return spannerDatabase.apply(statement, description)
   }
-
 }

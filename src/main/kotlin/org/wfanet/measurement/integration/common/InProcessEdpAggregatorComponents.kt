@@ -19,22 +19,28 @@ package org.wfanet.measurement.integration.common
 import com.google.protobuf.ByteString
 import io.grpc.Channel
 import java.security.cert.X509Certificate
+import java.time.Clock
+import java.time.Duration
 import java.util.Timer
 import kotlin.concurrent.fixedRateTimer
-import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.runBlocking
 import org.junit.rules.TestRule
 import org.junit.runner.Description
 import org.junit.runners.model.Statement
 import org.wfanet.measurement.api.v2alpha.EventGroup as ExternalEventGroup
-import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
+import com.google.protobuf.timestamp
+import com.google.type.interval
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.common.crypto.subjectKeyIdentifier
 import org.wfanet.measurement.common.crypto.tink.TinkPrivateKeyHandle
 import org.wfanet.measurement.common.testing.ProviderRule
 import org.wfanet.measurement.common.testing.chainRulesSequentially
-import org.wfanet.measurement.common.throttler.Throttler
+import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.edpaggregator.eventgroups.EventGroupSync
+import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup
+import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.eventGroup
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionFetcher
 import org.wfanet.measurement.gcloud.pubsub.GooglePubSubClient
 import org.wfanet.measurement.gcloud.pubsub.Subscriber
@@ -47,60 +53,46 @@ import org.wfanet.measurement.securecomputation.datawatcher.DataWatcher
 import org.wfanet.measurement.securecomputation.service.internal.Services
 import org.wfanet.measurement.securecomputation.teesdk.testing.FakeFulfillingRequisitionTeeApp
 import org.wfanet.measurement.storage.StorageClient
-import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
-import java.time.Clock
-import kotlinx.coroutines.flow.emptyFlow
-import java.time.Duration
-import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup
+import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
+import org.wfanet.measurement.common.identity.withPrincipalName
+import org.wfanet.measurement.loadtest.resourcesetup.Resources.Resource
 
 class InProcessEdpAggregatorComponents(
   private val internalServicesRule: ProviderRule<Services>,
   private val pubSubClient: GooglePubSubClient,
-  private val kingdomChannel: Channel,
   private val storageClient: StorageClient,
 ) : TestRule {
 
   private val internalServices: Services
     get() = internalServicesRule.value
 
+  private lateinit var edpResourceName: String
+
+  private lateinit var publicApiChannel: Channel
+
   val secureComputationPublicApi =
     InProcessSecureComputationPublicApi(internalServicesProvider = { internalServices })
 
   private val workItemsClient: WorkItemsCoroutineStub by lazy {
     WorkItemsCoroutineStub(secureComputationPublicApi.publicApiChannel)
+      //.withPrincipalName(edpResourceName)
   }
 
   private val requisitionsClient: RequisitionsCoroutineStub by lazy {
-    RequisitionsCoroutineStub(kingdomChannel)
+    RequisitionsCoroutineStub(publicApiChannel)
+      .withPrincipalName(edpResourceName)
   }
 
   private val eventGroupsClient: EventGroupsCoroutineStub by lazy {
-    EventGroupsCoroutineStub(kingdomChannel)
+    EventGroupsCoroutineStub(publicApiChannel)
+      .withPrincipalName(edpResourceName)
   }
 
   private val dataWatcher: DataWatcher by lazy { DataWatcher(workItemsClient, DATA_WATCHER_CONFIG) }
 
-  private val requisitionFetcher: RequisitionFetcher by lazy {
-    RequisitionFetcher(
-      requisitionsClient,
-      storageClient,
-      "some-data-prover",
-      "some-storage-prefix",
-      10,
-    )
-  }
+  private lateinit var requisitionFetcher: RequisitionFetcher
 
-  private val eventGroupSync: EventGroupSync by lazy {
-    EventGroupSync(
-      "some-edp-name",
-      eventGroupsClient,
-      emptyFlow<EventGroup>(),
-      MinimumIntervalThrottler(
-        Clock.systemUTC(),
-        Duration.ofMillis(1000L),
-      ),
-    )
-  }
+  private lateinit var eventGroupSync: EventGroupSync
 
   private val subscriber = Subscriber(PROJECT_ID, pubSubClient)
 
@@ -130,17 +122,46 @@ class InProcessEdpAggregatorComponents(
   lateinit var requisitionFetcherTimer: Timer
   lateinit var eventGroupSyncTimer: Timer
 
-  fun startDaemons() = runBlocking {
+  fun startDaemons(
+    kingdomChannel: Channel,
+    measurementConsumerData: MeasurementConsumerData,
+    edpDisplayNameToResourceMap: Map<String, Resource>,
+    ) = runBlocking {
     // Create all resources
     createAllResources()
+    edpResourceName = edpDisplayNameToResourceMap["edp1"]!!.name
+    publicApiChannel = kingdomChannel
+    requisitionFetcher = RequisitionFetcher(
+      requisitionsClient,
+      storageClient,
+      edpResourceName,
+      "some-storage-prefix",
+      10,
+    )
     requisitionFetcherTimer =
       fixedRateTimer("timer", false, 0L, 1000L) {
         runBlocking { requisitionFetcher.fetchAndStoreRequisitions() }
       }
-    eventGroupSyncTimer =
-      fixedRateTimer("timer", false, 0L, 1000L) {
-        runBlocking { eventGroupSync.sync() }
+    print(measurementConsumerData)
+    print(edpDisplayNameToResourceMap)
+    val eventGroups = listOf(
+      eventGroup {
+        eventGroupReferenceId = "sim-eg-reference-id-1"
+        measurementConsumer = measurementConsumerData.name
+        dataAvailabilityInterval = interval {
+          startTime = timestamp { seconds = 200 }
+          endTime = timestamp { seconds = 300 }
+        }
       }
+    )
+    eventGroupSync = EventGroupSync(
+      edpResourceName,
+      eventGroupsClient,
+      eventGroups.asFlow(),
+      MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000L)),
+    )
+    eventGroupSyncTimer =
+      fixedRateTimer("timer", false, 0L, 1000L) { runBlocking { eventGroupSync.sync().collect{} } }
   }
 
   suspend fun stopDaemons() {

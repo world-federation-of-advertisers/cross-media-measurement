@@ -14,58 +14,53 @@
 
 package org.wfanet.measurement.integration.common
 
-import org.wfanet.measurement.api.v2alpha.EventGroup
-import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulator
 import java.time.Instant
 import java.time.LocalDate
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.delay
 import org.junit.After
 import org.junit.Before
 import org.junit.BeforeClass
 import org.junit.Ignore
 import org.junit.Rule
+import org.junit.rules.RuleChain
 import org.junit.Test
+import org.junit.rules.TemporaryFolder
+import org.junit.rules.TestRule
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.DataProviderKt
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
+import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub
-import org.wfanet.measurement.api.v2alpha.ModelLine
 import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt.ModelLinesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ModelReleasesGrpcKt.ModelReleasesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ModelRolloutsGrpcKt.ModelRolloutsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ModelSuitesGrpcKt.ModelSuitesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig.NoiseMechanism
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
-import org.wfanet.measurement.api.v2alpha.createModelLineRequest
-import org.wfanet.measurement.api.v2alpha.createModelReleaseRequest
-import org.wfanet.measurement.api.v2alpha.createModelRolloutRequest
-import org.wfanet.measurement.api.v2alpha.createModelSuiteRequest
-import org.wfanet.measurement.api.v2alpha.dateInterval
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
-import org.wfanet.measurement.api.v2alpha.modelLine
-import org.wfanet.measurement.api.v2alpha.modelRelease
-import org.wfanet.measurement.api.v2alpha.modelRollout
-import org.wfanet.measurement.api.v2alpha.modelSuite
 import org.wfanet.measurement.common.identity.withPrincipalName
 import org.wfanet.measurement.common.testing.ProviderRule
+import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.common.toProtoDate
 import org.wfanet.measurement.common.toProtoTime
+import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorClient
+import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorProvider
+import org.wfanet.measurement.gcloud.spanner.testing.SpannerDatabaseAdmin
+import org.wfanet.measurement.integration.deploy.gcloud.SecureComputationServicesProviderRule
 import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerSimulator
 import org.wfanet.measurement.loadtest.measurementconsumer.MetadataSyntheticGeneratorEventQuery
-import org.wfanet.measurement.securecomputation.service.internal.Services
-import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
-import org.wfanet.measurement.storage.StorageClient
-import org.wfanet.measurement.gcloud.pubsub.GooglePubSubClient
-import org.wfanet.measurement.integration.deploy.gcloud.GCloudEdpAggregatorLifeOfAMeasurementIntegrationTest
-import org.wfanet.measurement.integration.deploy.gcloud.SecureComputationServicesProviderRule
 import org.wfanet.measurement.securecomputation.deploy.gcloud.publisher.GoogleWorkItemPublisher
 import org.wfanet.measurement.securecomputation.service.internal.QueueMapping
+import org.wfanet.measurement.storage.StorageClient
+import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
+import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub
 
 /**
  * Test that everything is wired up properly.
@@ -76,32 +71,46 @@ import org.wfanet.measurement.securecomputation.service.internal.QueueMapping
 abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
   kingdomDataServicesRule: ProviderRule<DataServices>,
   duchyDependenciesRule:
-  ProviderRule<(String, ComputationLogEntriesCoroutineStub) -> InProcessDuchy.DuchyDependencies>,
-  secureComputationDatabaseAdmin: SpannerDatabaseAdmin,
+    ProviderRule<(String, ComputationLogEntriesCoroutineStub) -> InProcessDuchy.DuchyDependencies>,
+  private val secureComputationDatabaseAdmin: SpannerDatabaseAdmin,
 ) {
 
   @get:Rule
   val inProcessCmmsComponents =
     InProcessCmmsComponents(kingdomDataServicesRule, duchyDependenciesRule)
 
-
-  @get:Rule
-  val inProcessEdpAggregatorComponents =
-    InProcessEdpAggregatorComponents(
-      internalServicesRule = SecureComputationServicesProviderRule(
-        workItemPublisher = workItemPublisher,
-        queueMapping = QueueMapping(QUEUE_CONFIG),
-        emulatorDatabaseAdmin = secureComputationDatabaseAdmin,),
-      kingdomChannel = inProcessCmmsComponents.kingdom.publicApiChannel,
+  @Rule @JvmField val pubSubEmulatorProvider = GooglePubSubEmulatorProvider()
+  private lateinit var inProcessEdpAggregatorComponents: InProcessEdpAggregatorComponents
+  @Before
+  fun setup() {
+    storageClient = FileSystemStorageClient(tempDirectory.root)
+    val googlePubSubClientInstance =
+      GooglePubSubEmulatorClient(
+        host = pubSubEmulatorProvider.host,
+        port = pubSubEmulatorProvider.port,
+      )
+    inProcessEdpAggregatorComponents = InProcessEdpAggregatorComponents(
+      internalServicesRule =
+      SecureComputationServicesProviderRule(
+        workItemPublisher = GoogleWorkItemPublisher(PROJECT_ID, googlePubSubClientInstance),
+        queueMapping = QueueMapping(QUEUES_CONFIG),
+        emulatorDatabaseAdmin = secureComputationDatabaseAdmin,
+      ),
       storageClient = storageClient,
-      pubSubClient = pubSubClient,
+      pubSubClient = googlePubSubClientInstance,
     )
-
-  private
-
-  private val workItemPublisher by lazy {
-    GoogleWorkItemPublisher(PROJECT_ID, googlePubSubClient)
+    inProcessCmmsComponents.startDaemons(ensureEventGroups = false)
+    val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
+    val edpDisplayNameToResourceMap = inProcessCmmsComponents.edpDisplayNameToResourceMap
+    val kingdomChannel = inProcessCmmsComponents.kingdom.publicApiChannel
+    inProcessEdpAggregatorComponents.startDaemons(kingdomChannel, measurementConsumerData, edpDisplayNameToResourceMap)
+    initMcSimulator()
   }
+
+  @Rule @JvmField val tempDirectory = TemporaryFolder()
+  @Before fun createGooglePubSubEmulator() {}
+
+  private lateinit var storageClient: StorageClient
 
   private lateinit var mcSimulator: MeasurementConsumerSimulator
 
@@ -120,41 +129,8 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
   private val publicDataProvidersClient by lazy {
     DataProvidersCoroutineStub(inProcessCmmsComponents.kingdom.publicApiChannel)
   }
-  private val publicRequisitionsClient by lazy {
-    RequisitionsCoroutineStub(inProcessCmmsComponents.kingdom.publicApiChannel)
-  }
 
-  private val publicModelSuitesClient by lazy {
-    ModelSuitesCoroutineStub(inProcessCmmsComponents.kingdom.publicApiChannel)
-      .withPrincipalName(inProcessCmmsComponents.modelProviderResourceName)
-  }
-
-  private val publicModelLinesClient by lazy {
-    ModelLinesCoroutineStub(inProcessCmmsComponents.kingdom.publicApiChannel)
-      .withPrincipalName(inProcessCmmsComponents.modelProviderResourceName)
-  }
-
-  private val publicModelReleasesClient by lazy {
-    ModelReleasesCoroutineStub(inProcessCmmsComponents.kingdom.publicApiChannel)
-      .withPrincipalName(inProcessCmmsComponents.modelProviderResourceName)
-  }
-
-  private val publicModelRolloutClient by lazy {
-    ModelRolloutsCoroutineStub(inProcessCmmsComponents.kingdom.publicApiChannel)
-      .withPrincipalName(inProcessCmmsComponents.modelProviderResourceName)
-  }
-
-  private val publicWorkItemsClient by lazy {
-    WorkItemsCoroutineStub(inProcessEdpAggregatorComponents.secureComputationPublicApi.publicApiChannel)
-  }
-
-  private val eventGroups:List<EventGroup> = emptyList()
-
-  @Before
-  fun startDaemons() {
-    inProcessCmmsComponents.startDaemons(eventGroups)
-    initMcSimulator()
-  }
+  private val eventGroups: List<EventGroup> = emptyList()
 
   private fun initMcSimulator() {
     val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
@@ -232,6 +208,7 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
   @Test
   fun `create a direct reach-only measurement and check the result is equal to the expected result`() =
     runBlocking {
+      delay(1000)
       // Use frontend simulator to create a direct reach-only measurement and verify its result.
       mcSimulator.testDirectReachOnly("1234")
     }
@@ -308,17 +285,6 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
       epsilon = 1.0
       delta = 1e-15
     }
-
-    private const val MODEL_SUITE_DISPLAY_NAME = "ModelSuite1"
-
-    private val MODEL_LINE_ACTIVE_START_TIME = Instant.now().plusSeconds(2000L).toProtoTime()
-
-    private const val DEFAULT_POPULATION_FILTER_EXPRESSION =
-      "person.age_group == ${Person.AgeGroup.YEARS_18_TO_34_VALUE}"
-
-    private val ROLLOUT_PERIOD_START_DATE = LocalDate.now().plusDays(10).toProtoDate()
-
-    private val ROLLOUT_PERIOD_END_DATE = LocalDate.now().plusDays(20).toProtoDate()
 
     @BeforeClass
     @JvmStatic

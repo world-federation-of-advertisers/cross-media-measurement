@@ -229,6 +229,10 @@ SECRET_FILES = [
     "pdp1_enc_private.tink",
     "pdp1_enc_public.tink",
     "data_watcher_config.textproto",
+    "queues_config.textproto",
+    "secure_computation_root.pem",
+    "secure_computation_tls.key",
+    "secure_computation_tls.pem",
 ]
 
 filegroup(

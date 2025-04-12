@@ -22,8 +22,8 @@ import org.wfanet.measurement.integration.common.ALL_DUCHY_NAMES
 import org.wfanet.measurement.integration.common.InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest
 
 /**
- * Implementation of [InProcessLifeOfAMeasurementIntegrationTest] for GCloud backends with Spanner
- * database.
+ * Implementation of [InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest] for GCloud backends
+ * with Spanner database.
  */
 class GCloudEdpAggregatorLifeOfAMeasurementIntegrationTest :
   InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(

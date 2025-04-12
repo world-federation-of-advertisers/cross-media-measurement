@@ -498,3 +498,50 @@ cue_dump(
         "//src/main/k8s:open_telemetry",
     ],
 )
+
+cue_dump(
+    name = "secure_computation_gke",
+    srcs = ["secure_computation_gke.cue"],
+    cue_tags = {
+        "secret_name": SIGNING_SECRET_NAME,
+        "container_registry": IMAGE_REPOSITORY_SETTINGS.container_registry,
+        "image_repo_prefix": IMAGE_REPOSITORY_SETTINGS.repository_prefix,
+        "image_tag": IMAGE_REPOSITORY_SETTINGS.image_tag,
+        "google_cloud_project": GCLOUD_SETTINGS.project,
+        "spanner_instance": GCLOUD_SETTINGS.spanner_instance,
+    },
+    tags = ["manual"],
+    deps = [
+        ":base_gke",
+        ":config_gke",
+        "//src/main/k8s:secure_computation",
+    ],
+)
+
+kustomization_dir(
+    name = "secure_computation_config_files",
+    testonly = True,
+    srcs = [
+        "secure_computation_config_files_kustomization.yaml",
+    ],
+    renames = {"secure_computation_config_files_kustomization.yaml": "kustomization.yaml"},
+)
+
+kustomization_dir(
+    name = "secure_computation_secrets",
+)
+
+kustomization_dir(
+    name = "secure_computation",
+    testonly = True,
+    srcs = [
+        "resource_requirements.yaml",
+        ":secure_computation_gke",
+    ],
+    generate_kustomization = True,
+    tags = ["manual"],
+    deps = [
+        ":secure_computation_config_files",
+        ":secure_computation_secrets",
+    ],
+)
