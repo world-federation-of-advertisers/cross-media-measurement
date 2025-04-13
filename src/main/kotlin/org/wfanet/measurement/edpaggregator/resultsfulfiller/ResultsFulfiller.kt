@@ -603,8 +603,8 @@ class ResultsFulfiller(
   ): Boolean {
     // Check if impression is within collection time interval
     val isInCollectionInterval =
-      labeledImpression.impressionTime.toInstant() >= collectionInterval.startTime.toInstant() &&
-        labeledImpression.impressionTime.toInstant() < collectionInterval.endTime.toInstant()
+      labeledImpression.eventTime.toInstant() >= collectionInterval.startTime.toInstant() &&
+        labeledImpression.eventTime.toInstant() < collectionInterval.endTime.toInstant()
 
     // Check if VID is in sampling bucket
     val isInSamplingInterval = sampler.vidIsInSamplingBucket(
