@@ -57,8 +57,8 @@ jobs:
         run: |
           cat << EOF > ~/.bazelrc
           common --config=ci
-          build --define container_registry=${{ env.CONTAINER_REGISTRY }}
-          build --define image_repo_prefix=${{ env.GAR_PROJECT_ID }}/${{ env.AR_REPO_NAME }}
+          build --define container_registry=$CONTAINER_REGISTRY
+          build --define image_repo_prefix=$GAR_PROJECT_ID/$AR_REPO_NAME
           build --define image_tag=$IMAGE_TAG
           EOF
 
