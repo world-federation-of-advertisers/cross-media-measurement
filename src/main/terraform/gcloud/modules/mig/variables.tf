@@ -72,12 +72,6 @@ variable "machine_type" {
   nullable    = false
 }
 
-variable "subscription_id" {
-  description = "The pubsub subscription id to grant access to."
-  type        = string
-  nullable    = false
-}
-
 variable "storage_bucket_name" {
   description = "The bucket to grant access to."
   type        = string

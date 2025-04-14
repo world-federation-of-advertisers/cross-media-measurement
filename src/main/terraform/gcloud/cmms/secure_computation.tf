@@ -33,12 +33,13 @@ module "control_plane_default_node_pool" {
   max_node_count  = 4
 }
 
-mig_configs = {
+queue_configs = {
   requisition_fulfiller = {
     instance_template_name      = "req-fulfiller-template"
     base_instance_name          = "sc"
     managed_instance_group_name = "req-fulfiller-mig"
-    subscription_id             = "sub-requisition"
+    subscription_name           = "requisition-fulfiller-subscription"
+    topic_name                  = "requisition-fulfiller-queue"
     mig_service_account_name    = "req-fulfiller-sa"
     single_instance_assignment  = 1
     min_replicas                = 1
@@ -46,6 +47,7 @@ mig_configs = {
     app_args                    = []
     machine_type                = "n2d-standard-2"
     kms_key_id                  = var.kms_key_id
+    docker_image                = "" # @TODO(MarcoPremier): set this value once TEE APP is merged
   }
 }
 
@@ -59,14 +61,12 @@ module "secure_computation" {
   secure_computation_bucket_name            = "secure-computation-storage"
   secure_computation_bucket_location        = local.secure_computation_bucket_location
 
-  requisition_fulfiller_topic_name          = "requisition-fulfiller-queue"
-  requisition_fulfiller_subscription_name   = "requisition-fulfiller-subscription"
   ack_deadline_seconds                      = 600
 
   key_ring_name                             = "secure-computation-test-key-ring"
   key_ring_location                         = local.key_ring_location
   kms_key_name                              = "secure-computation-test-kek"
 
-  mig_names                                 = mig_configs
+  queue_configs                             = queue_configs
 }
 
