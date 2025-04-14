@@ -66,4 +66,3 @@ kt_jvm_proto_library(
         ":results_fulfiller_params_proto",
     ],
 )
-
