@@ -2,6 +2,9 @@ load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
 
 package(default_visibility = [
     "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner:__subpackages__",
+    # TODO(world-federation-of-advertisers/cross-media-measurement#2187):
+    #     Remove this once KingdomInternalException is no longer in this package.
+    "//src/main/kotlin/org/wfanet/measurement/kingdom/service/internal/testing:__pkg__",
     "//src/test/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner:__subpackages__",
     "//src/test/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:__subpackages__",
 ])
