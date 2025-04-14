@@ -32,6 +32,8 @@ import org.wfanet.measurement.internal.kingdom.ReplaceDataProviderRequiredDuchie
 import org.wfanet.measurement.internal.kingdom.batchGetDataProvidersResponse
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelLineNotFoundException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.RequiredFieldNotSetException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.DataProviderReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateDataProvider
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.ReplaceDataAvailabilityInterval
@@ -49,7 +51,27 @@ class SpannerDataProvidersService(
     grpcRequire(!request.details.publicKey.isEmpty && !request.details.publicKeySignature.isEmpty) {
       "Details field of DataProvider is missing fields."
     }
-    return CreateDataProvider(request).execute(client, idGenerator)
+    request.dataAvailabilityIntervalsList.forEachIndexed {
+      index: Int,
+      entry: DataProvider.DataAvailabilityMapEntry ->
+      if (!entry.hasKey()) {
+        throw RequiredFieldNotSetException("data_availability_intervals[$index].key")
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      }
+      if (!entry.value.hasStartTime()) {
+        throw RequiredFieldNotSetException("data_availability_intervals[$index].value.start_time")
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      }
+      if (!entry.value.hasEndTime()) {
+        throw RequiredFieldNotSetException("data_availability_intervals[$index].value.end_time")
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      }
+    }
+    return try {
+      CreateDataProvider(request).execute(client, idGenerator)
+    } catch (e: ModelLineNotFoundException) {
+      throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+    }
   }
 
   override suspend fun getDataProvider(request: GetDataProviderRequest): DataProvider {

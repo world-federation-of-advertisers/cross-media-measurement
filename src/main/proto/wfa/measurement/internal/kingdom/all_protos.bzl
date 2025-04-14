@@ -74,6 +74,7 @@ KINGDOM_INTERNAL_ENTITY_PROTOS = [
     "//src/main/proto/wfa/measurement/internal/kingdom:model_suite_kt_jvm_proto",
     "//src/main/proto/wfa/measurement/internal/kingdom:model_release_kt_jvm_proto",
     "//src/main/proto/wfa/measurement/internal/kingdom:model_line_kt_jvm_proto",
+    "//src/main/proto/wfa/measurement/internal/kingdom:model_line_key_kt_jvm_proto",
     "//src/main/proto/wfa/measurement/internal/kingdom:model_outage_kt_jvm_proto",
     "//src/main/proto/wfa/measurement/internal/kingdom:model_rollout_kt_jvm_proto",
     "//src/main/proto/wfa/measurement/internal/kingdom:population_kt_jvm_proto",
