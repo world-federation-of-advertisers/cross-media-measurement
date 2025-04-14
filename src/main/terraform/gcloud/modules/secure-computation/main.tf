@@ -95,6 +95,7 @@ module "secure_computation_migs" {
   for_each = var.queue_configs
   source   = "../mig"
 
+  tee_app_artifacts_repo_name   = var.tee_app_artifacts_repo_name
   instance_template_name        = each.value.instance_template_name
   base_instance_name            = each.value.base_instance_name
   managed_instance_group_name   = each.value.managed_instance_group_name
