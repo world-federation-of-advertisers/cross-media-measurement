@@ -79,5 +79,5 @@ message ResultsFulfillerParams {
 
   ConsentDetails consent_details = 2 [(google.api.field_behavior) = REQUIRED];
 
-  StorageDetails prefix_details = 3 [(google.api.field_behavior) = REQUIRED];
+  StorageDetails storage_details = 3 [(google.api.field_behavior) = REQUIRED];
 }
