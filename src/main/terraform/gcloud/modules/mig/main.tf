@@ -44,6 +44,12 @@ resource "google_kms_crypto_key_iam_member" "mig_kms_user" {
   member        = "serviceAccount:${google_service_account.mig_service_account.email}"
 }
 
+resource "google_artifact_registry_repository_iam_member" "mig_artifacts" {
+  repository = var.tee_app_artifacts_repo_name
+  role       = "roles/artifactregistry.reader"
+  member     = "serviceAccount:${google_service_account.mig_service_account.email}"
+}
+
 resource "google_compute_instance_template" "confidential_vm_template" {
   machine_type = var.machine_type
 

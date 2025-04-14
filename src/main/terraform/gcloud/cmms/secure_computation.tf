@@ -55,18 +55,15 @@ module "secure_computation" {
   source = "../modules/secure-computation"
 
   spanner_instance                          = google_spanner_instance.spanner_instance
-
   data_watcher_trigger_service_account_name = "data-watcher-invoker"
   data_watcher_service_account_name         = "data-watcher"
   secure_computation_bucket_name            = "secure-computation-storage"
   secure_computation_bucket_location        = local.secure_computation_bucket_location
-
   ack_deadline_seconds                      = 600
-
   key_ring_name                             = "secure-computation-test-key-ring"
   key_ring_location                         = local.key_ring_location
   kms_key_name                              = "secure-computation-test-kek"
-
+  tee_app_artifacts_repo_name               = "secure-computation-tee-app"
   queue_configs                             = queue_configs
 }
 
