@@ -30,6 +30,7 @@ import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.GetDataProviderRequest
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerPrincipal
 import org.wfanet.measurement.api.v2alpha.MeasurementPrincipal
+import org.wfanet.measurement.api.v2alpha.ModelLineKey
 import org.wfanet.measurement.api.v2alpha.ModelProviderPrincipal
 import org.wfanet.measurement.api.v2alpha.ReplaceDataAvailabilityIntervalRequest
 import org.wfanet.measurement.api.v2alpha.ReplaceDataProviderCapabilitiesRequest
@@ -43,11 +44,13 @@ import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.ApiId
+import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.internal.kingdom.DataProvider as InternalDataProvider
 import org.wfanet.measurement.internal.kingdom.DataProviderCapabilities as InternalDataProviderCapabilities
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineStub
+import org.wfanet.measurement.internal.kingdom.ModelLineKey as InternalModelLineKey
 import org.wfanet.measurement.internal.kingdom.dataProviderCapabilities as internalDataProviderCapabilities
 import org.wfanet.measurement.internal.kingdom.getDataProviderRequest
 import org.wfanet.measurement.internal.kingdom.replaceDataAvailabilityIntervalRequest
@@ -241,6 +244,20 @@ private fun InternalDataProvider.toDataProvider(): DataProvider {
       signatureAlgorithmOid = source.details.publicKeySignatureAlgorithmOid
     }
     requiredDuchies += source.requiredExternalDuchyIdsList.map { DuchyKey(it).toName() }
+    for (internalEntry in source.dataAvailabilityIntervalsList) {
+      val internalKey: InternalModelLineKey = internalEntry.key
+      dataAvailabilityIntervals +=
+        DataProviderKt.dataAvailabilityMapEntry {
+          key =
+            ModelLineKey(
+                ExternalId(internalKey.externalModelProviderId).apiId.value,
+                ExternalId(internalKey.externalModelSuiteId).apiId.value,
+                ExternalId(internalKey.externalModelLineId).apiId.value,
+              )
+              .toName()
+          value = internalEntry.value
+        }
+    }
     dataAvailabilityInterval = source.details.dataAvailabilityInterval
     capabilities = source.details.capabilities.toCapabilities()
   }

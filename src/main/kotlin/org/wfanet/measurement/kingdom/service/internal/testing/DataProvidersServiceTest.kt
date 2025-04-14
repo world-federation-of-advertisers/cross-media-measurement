@@ -21,6 +21,9 @@ import com.google.protobuf.timestamp
 import com.google.type.interval
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
+import java.time.Clock
+import java.time.Instant
+import java.time.temporal.ChronoUnit
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
@@ -32,10 +35,16 @@ import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.common.identity.RandomIdGenerator
+import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.internal.kingdom.Certificate
 import org.wfanet.measurement.internal.kingdom.DataProvider
+import org.wfanet.measurement.internal.kingdom.DataProviderKt
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.GetDataProviderRequest
+import org.wfanet.measurement.internal.kingdom.ModelLine
+import org.wfanet.measurement.internal.kingdom.ModelLinesGrpcKt
+import org.wfanet.measurement.internal.kingdom.ModelProvidersGrpcKt
+import org.wfanet.measurement.internal.kingdom.ModelSuitesGrpcKt
 import org.wfanet.measurement.internal.kingdom.batchGetDataProvidersRequest
 import org.wfanet.measurement.internal.kingdom.certificate
 import org.wfanet.measurement.internal.kingdom.certificateDetails
@@ -44,6 +53,7 @@ import org.wfanet.measurement.internal.kingdom.dataProvider
 import org.wfanet.measurement.internal.kingdom.dataProviderCapabilities
 import org.wfanet.measurement.internal.kingdom.dataProviderDetails
 import org.wfanet.measurement.internal.kingdom.getDataProviderRequest
+import org.wfanet.measurement.internal.kingdom.modelLineKey
 import org.wfanet.measurement.internal.kingdom.replaceDataAvailabilityIntervalRequest
 import org.wfanet.measurement.internal.kingdom.replaceDataProviderCapabilitiesRequest
 import org.wfanet.measurement.internal.kingdom.replaceDataProviderRequiredDuchiesRequest
@@ -58,14 +68,20 @@ abstract class DataProvidersServiceTest<T : DataProvidersCoroutineImplBase> {
   protected val idGenerator: IdGenerator
     get() = recordingIdGenerator
 
-  protected lateinit var dataProvidersService: T
+  private val clock = Clock.systemUTC()
+  private val population = Population(clock, idGenerator)
+
+  protected lateinit var services: Services<T>
     private set
 
-  protected abstract fun newService(idGenerator: IdGenerator): T
+  protected val dataProvidersService: T
+    get() = services.dataProvidersService
+
+  protected abstract fun newServices(idGenerator: IdGenerator): Services<T>
 
   @Before
-  fun initService() {
-    dataProvidersService = newService(idGenerator)
+  fun initServices() {
+    services = newServices(idGenerator)
   }
 
   @Test
@@ -110,6 +126,50 @@ abstract class DataProvidersServiceTest<T : DataProvidersCoroutineImplBase> {
       .isEqualTo(externalDataProviderId)
     assertThat(ExternalId(response.certificate.externalCertificateId)).isIn(remainingExternalIds)
   }
+
+  @Test
+  fun `createDataProvider returns created DataProvider with availability intervals`() =
+    runBlocking {
+      val now: Instant = clock.instant()
+      val modelLines: List<ModelLine> =
+        (1..3).map {
+          population.createModelLine(
+            services.modelProvidersService,
+            services.modelSuitesService,
+            services.modelLinesService,
+          )
+        }
+      val request =
+        CREATE_DATA_PROVIDER_REQUEST.copy {
+          modelLines.forEachIndexed { index, modelLine ->
+            dataAvailabilityIntervals +=
+              DataProviderKt.dataAvailabilityMapEntry {
+                key = modelLineKey {
+                  externalModelProviderId = modelLine.externalModelProviderId
+                  externalModelSuiteId = modelLine.externalModelSuiteId
+                  externalModelLineId = modelLine.externalModelLineId
+                }
+                value = interval {
+                  val start = now.minus((index + 3) * 90L, ChronoUnit.DAYS)
+                  startTime = start.toProtoTime()
+                  endTime = start.plus(180L, ChronoUnit.DAYS).toProtoTime()
+                }
+              }
+          }
+        }
+
+      val response: DataProvider = dataProvidersService.createDataProvider(request)
+
+      assertThat(response.dataAvailabilityIntervalsList)
+        .isEqualTo(request.dataAvailabilityIntervalsList)
+      assertThat(response)
+        .ignoringRepeatedFieldOrderOfFields(DataProvider.DATA_AVAILABILITY_INTERVALS_FIELD_NUMBER)
+        .isEqualTo(
+          dataProvidersService.getDataProvider(
+            getDataProviderRequest { externalDataProviderId = response.externalDataProviderId }
+          )
+        )
+    }
 
   @Test
   fun `createDataProvider succeeds when requiredExternalDuchyIds is empty`() = runBlocking {
@@ -354,6 +414,13 @@ abstract class DataProvidersServiceTest<T : DataProvidersCoroutineImplBase> {
       return delegate.generateInternalId().also { mutableInternalIds.add(it) }
     }
   }
+
+  protected data class Services<T>(
+    val dataProvidersService: T,
+    val modelProvidersService: ModelProvidersGrpcKt.ModelProvidersCoroutineImplBase,
+    val modelSuitesService: ModelSuitesGrpcKt.ModelSuitesCoroutineImplBase,
+    val modelLinesService: ModelLinesGrpcKt.ModelLinesCoroutineImplBase,
+  )
 
   companion object {
     private val EXTERNAL_ID_FIELD_DESCRIPTORS =

@@ -17,15 +17,12 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 import java.time.Clock
 import org.junit.ClassRule
 import org.junit.Rule
-import org.junit.runner.RunWith
-import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.Schemata
 import org.wfanet.measurement.kingdom.service.internal.testing.DataProvidersServiceTest
 
-@RunWith(JUnit4::class)
 class SpannerDataProvidersServiceTest : DataProvidersServiceTest<SpannerDataProvidersService>() {
 
   @get:Rule
@@ -33,10 +30,15 @@ class SpannerDataProvidersServiceTest : DataProvidersServiceTest<SpannerDataProv
     SpannerEmulatorDatabaseRule(spannerEmulator, Schemata.KINGDOM_CHANGELOG_PATH)
   private val clock = Clock.systemUTC()
 
-  override fun newService(idGenerator: IdGenerator): SpannerDataProvidersService {
-    return SpannerDataServices(clock, idGenerator, spannerDatabase.databaseClient)
-      .buildDataServices()
-      .dataProvidersService as SpannerDataProvidersService
+  override fun newServices(idGenerator: IdGenerator): Services<SpannerDataProvidersService> {
+    val dataServices =
+      SpannerDataServices(clock, idGenerator, spannerDatabase.databaseClient).buildDataServices()
+    return Services(
+      dataServices.dataProvidersService as SpannerDataProvidersService,
+      dataServices.modelProvidersService,
+      dataServices.modelSuitesService,
+      dataServices.modelLinesService,
+    )
   }
 
   companion object {

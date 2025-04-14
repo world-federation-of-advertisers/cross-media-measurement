@@ -22,6 +22,8 @@ option java_multiple_files = true;
 enum ErrorCode {
   UNKNOWN_ERROR = 0;
 
+  /** A required field was not set. */
+  REQUIRED_FIELD_NOT_SET = 45;
   /** MeasurementConsumer resource queried could not be found. */
   MEASUREMENT_CONSUMER_NOT_FOUND = 1;
   /** DataProvider resource queried could not be found. */
