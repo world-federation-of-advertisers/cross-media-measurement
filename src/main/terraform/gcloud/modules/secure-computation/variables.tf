@@ -59,18 +59,6 @@ variable "data_watcher_trigger_service_account_name" {
   nullable    = false
 }
 
-variable "requisition_fulfiller_topic_name" {
-  description = "Name of the Pub/Sub topic"
-  type        = string
-  nullable    = false
-}
-
-variable "requisition_fulfiller_subscription_name" {
-  description = "Name of the Pub/Sub subscription"
-  type        = string
-  nullable    = false
-}
-
 variable "ack_deadline_seconds" {
   description = "The time (in seconds) allowed for subscribers to acknowledge messages. If the acknowledgment period is not extended or the message is not acknowledged within this time, the message will be re-delivered."
   type        = number
@@ -131,13 +119,14 @@ variable "kms_key_id" {
   nullable    = false
 }
 
-variable "mig_names" {
-  description = "Naming config for the MIG"
+variable "queue_configs" {
+  description = "Naming config for the PubSub and related MIG"
   type = map(object({
     instance_template_name      = string
     base_instance_name          = string
     managed_instance_group_name = string
-    subscription_id             = string
+    subscription_name           = string
+    topic_name                  = string
     mig_service_account_name    = string
     single_instance_assignment  = number
     min_replicas                = number
@@ -145,6 +134,7 @@ variable "mig_names" {
     app_args                    = list(string)
     machine_type                = string
     kms_key_id                  = string
+    docker_image                = string
   }))
 }
 
