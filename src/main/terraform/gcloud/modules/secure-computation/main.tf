@@ -28,20 +28,6 @@ resource "google_spanner_database" "secure_computation" {
   database_dialect = "GOOGLE_STANDARD_SQL"
 }
 
-module "requisition_fulfiller_queue" {
-    source = "../pubsub"
-
-    topic_name              = var.requisition_fulfiller_topic_name
-    subscription_name       = var.requisition_fulfiller_subscription_name
-    ack_deadline_seconds    = var.ack_deadline_seconds
-}
-
-resource "google_pubsub_topic_iam_member" "publisher" {
-  topic  = requisition_fulfiller_queue.pubsub_topic.id
-  role   = "roles/pubsub.publisher"
-  member = local.iam_service_account.member
-}
-
 resource "google_spanner_database_iam_member" "secure_computation_internal" {
   instance = google_spanner_database.secure_computation.instance
   database = google_spanner_database.secure_computation.name
@@ -56,6 +42,23 @@ resource "google_spanner_database_iam_member" "secure_computation_internal" {
 resource "google_compute_address" "api_server" {
   name    = "secure-computation-public"
   address = var.secure_computation_api_server_ip_address
+}
+
+module "secure_computation_queues" {
+  for_each = var.queue_configs
+  source   = "../pubsub"
+
+  topic_name              = each.value.topic_name
+  subscription_name       = each.value.subscription_name
+  ack_deadline_seconds    = each.value.ack_deadline_seconds
+}
+
+resource "google_pubsub_topic_iam_member" "publisher" {
+  for_each = var.queue_configs
+
+  topic  = module.secure_computation_queues[each.key].topic.id
+  role   = "roles/pubsub.publisher"
+  member = local.iam_service_account.member
 }
 
 module "secure_computation_bucket" {
@@ -88,14 +91,14 @@ resource "google_kms_crypto_key" "secure_computation_kek" {
   purpose  = "ENCRYPT_DECRYPT"
 }
 
-module "requisition_fulfiller_mig" {
-  for_each = var.mig_names
+module "secure_computation_migs" {
+  for_each = var.queue_configs
   source   = "../mig"
 
   instance_template_name        = each.value.instance_template_name
   base_instance_name            = each.value.base_instance_name
   managed_instance_group_name   = each.value.managed_instance_group_name
-  subscription_id               = each.value.subscription_id
+  subscription_id               = module.secure_computation_queues[each.key].subscription.id
   mig_service_account_name      = each.value.mig_service_account_name
   single_instance_assignment    = each.value.single_instance_assignment
   min_replicas                  = each.value.min_replicas
@@ -104,4 +107,5 @@ module "requisition_fulfiller_mig" {
   machine_type                  = each.value.machine_type
   kms_key_id                    = google_kms_crypto_key.secure_computation_kek.id
   storage_bucket_name           = module.secure_computation_bucket.storage_bucket.name
+  docker_image                  = each.value.docker_image
 }
