@@ -1,0 +1,83 @@
+// Copyright 2025 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.edpaggregator.v1alpha;
+
+import "google/api/field_behavior.proto";
+import "google/api/resource.proto";
+
+option java_package = "org.wfanet.measurement.edpaggregator.v1alpha";
+option java_multiple_files = true;
+option java_outer_classname = "ResultsFulfillerParamsProto";
+
+// Message representing the params used for the results fulfiller tee app
+message ResultsFulfillerParams {
+  // Message representing the details needed to connect to the kingdom
+  message ConnectionDetails {
+    // gRPC target of Kingdom public API server.
+    string kingdom_public_api_target = 1
+        [(google.api.field_behavior) = REQUIRED];
+
+    // Expected hostname (DNS-ID) in the Kingdom public API server's TLS
+    // certificate.
+    string kingdom_public_api_cert_host = 2
+        [(google.api.field_behavior) = REQUIRED];
+
+    // The client certificate bytestring
+    bytes client_cert = 3 [(google.api.field_behavior) = REQUIRED];
+
+    // The client's private key bytestring
+    bytes client_private_key = 4 [(google.api.field_behavior) = REQUIRED];
+
+    // The client certificate collection bytestring
+    bytes client_collection_cert = 5 [(google.api.field_behavior) = REQUIRED];
+  }
+
+  // Message representing the details needed to generate certificates
+  message ConsentDetails {
+    // The DER-encoded certificate bytestring used for result signing
+    bytes result_cs_cert_der_blob_uri = 1
+        [(google.api.field_behavior) = REQUIRED];
+
+    // The DER-encoded private key bytestring used for result signing
+    bytes result_cs_private_key_der_blob_uri = 2
+        [(google.api.field_behavior) = REQUIRED];
+
+    // The private encryption key bytestring
+    bytes private_encryption_key_blob_uri = 3
+        [(google.api.field_behavior) = REQUIRED];
+
+    // The name for the certificate used by the EDP
+    string edp_certificate_name = 4 [
+      (google.api.resource_reference).type = "halo.wfanet.org/Certificate",
+      (google.api.field_behavior) = REQUIRED
+    ];
+  }
+
+  // Message representing the storage details
+  message StorageDetails {
+    // The prefix path for labeled impression storage
+    string labeled_impressions_metadata_blob_uri_prefix = 1
+        [(google.api.field_behavior) = REQUIRED];
+  }
+
+  ConnectionDetails connection_details = 1
+      [(google.api.field_behavior) = REQUIRED];
+
+  ConsentDetails consent_details = 2 [(google.api.field_behavior) = REQUIRED];
+
+  StorageDetails prefix_details = 3 [(google.api.field_behavior) = REQUIRED];
+}
