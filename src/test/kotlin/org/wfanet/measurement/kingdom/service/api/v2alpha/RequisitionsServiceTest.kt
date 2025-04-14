@@ -103,6 +103,7 @@ import org.wfanet.measurement.internal.kingdom.ProtocolConfig as InternalProtoco
 import org.wfanet.measurement.internal.kingdom.ProtocolConfigKt as InternalProtocolConfigKt
 import org.wfanet.measurement.internal.kingdom.Requisition as InternalRequisition
 import org.wfanet.measurement.internal.kingdom.Requisition.State as InternalState
+import org.wfanet.measurement.internal.kingdom.RequisitionDetailsKt
 import org.wfanet.measurement.internal.kingdom.RequisitionKt as InternalRequisitionKt
 import org.wfanet.measurement.internal.kingdom.RequisitionRefusal as InternalRefusal
 import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCoroutineImplBase
@@ -858,44 +859,52 @@ class RequisitionsServiceTest {
   @Test
   fun `fulfillDirectRequisition fulfills the requisition when direct protocol config is specified`() =
     runBlocking {
-      whenever(internalRequisitionMock.fulfillRequisition(any()))
-        .thenReturn(
-          INTERNAL_REQUISITION.copy {
-            state = InternalState.FULFILLED
-            details = details.copy { encryptedData = ENCRYPTED_RESULT.ciphertext }
-            parentMeasurement =
-              parentMeasurement.copy {
-                protocolConfig = internalProtocolConfig {
-                  externalProtocolConfigId = "direct"
-                  direct = INTERNAL_DIRECT_RF_PROTOCOL_CONFIG
+      val internalRequisition =
+        INTERNAL_REQUISITION.copy {
+          state = InternalState.FULFILLED
+          details =
+            details.copy {
+              encryptedData = ENCRYPTED_RESULT.ciphertext
+              fulfillmentContext =
+                RequisitionDetailsKt.fulfillmentContext {
+                  buildLabel = "nightly-20250414.1"
+                  warnings += "The data smell funny"
                 }
+            }
+          parentMeasurement =
+            parentMeasurement.copy {
+              protocolConfig = internalProtocolConfig {
+                externalProtocolConfigId = "direct"
+                direct = INTERNAL_DIRECT_RF_PROTOCOL_CONFIG
               }
-          }
-        )
+            }
+        }
+      whenever(internalRequisitionMock.fulfillRequisition(any())).thenReturn(internalRequisition)
 
       val request = fulfillDirectRequisitionRequest {
         name = REQUISITION_NAME
         encryptedResult = ENCRYPTED_RESULT
         nonce = NONCE
         certificate = DATA_PROVIDER_CERTIFICATE_NAME
+        fulfillmentContext =
+          RequisitionKt.fulfillmentContext {
+            buildLabel = internalRequisition.details.fulfillmentContext.buildLabel
+            warnings += internalRequisition.details.fulfillmentContext.warningsList
+          }
       }
 
-      val result =
-        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
-          runBlocking { service.fulfillDirectRequisition(request) }
-        }
-
-      val expected = fulfillDirectRequisitionResponse { state = State.FULFILLED }
+      val response =
+        withDataProviderPrincipal(DATA_PROVIDER_NAME) { service.fulfillDirectRequisition(request) }
 
       verifyProtoArgument(
           internalRequisitionMock,
           RequisitionsCoroutineImplBase::fulfillRequisition,
         )
-        .comparingExpectedFieldsOnly()
         .isEqualTo(
           internalFulfillRequisitionRequest {
             externalRequisitionId = EXTERNAL_REQUISITION_ID
             nonce = NONCE
+            fulfillmentContext = internalRequisition.details.fulfillmentContext
             directParams = directRequisitionParams {
               externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
               encryptedData = ENCRYPTED_RESULT.ciphertext
@@ -904,8 +913,7 @@ class RequisitionsServiceTest {
             }
           }
         )
-
-      assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
+      assertThat(response).isEqualTo(fulfillDirectRequisitionResponse { state = State.FULFILLED })
     }
 
   @Test
