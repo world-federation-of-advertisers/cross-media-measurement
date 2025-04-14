@@ -21,11 +21,11 @@ import "google/api/resource.proto";
 
 option java_package = "org.wfanet.measurement.edpaggregator.v1alpha";
 option java_multiple_files = true;
-option java_outer_classname = "ResultsFulfillerConfigProto";
+option java_outer_classname = "ResultsFulfillerParamsProto";
 
-// Resource representing the config used for the results fulfiller tee app
-message ResultsFulfillerConfig {
-  // Resource representing the details needed to connect to the kingdom
+// Message representing the params used for the results fulfiller tee app
+message ResultsFulfillerParams {
+  // Message representing the details needed to connect to the kingdom
   message ConnectionDetails {
     // gRPC target of Kingdom public API server.
     string kingdom_public_api_target = 1
@@ -36,37 +36,42 @@ message ResultsFulfillerConfig {
     string kingdom_public_api_cert_host = 2
         [(google.api.field_behavior) = REQUIRED];
 
-    // Path to the client certificate file
-    string client_cert_blob_uri = 3 [(google.api.field_behavior) = REQUIRED];
+    // The client certificate bytestring
+    bytes client_cert = 3 [(google.api.field_behavior) = REQUIRED];
 
-    // Path to the client's private key file
-    string client_private_key_blob_uri = 4
-        [(google.api.field_behavior) = REQUIRED];
+    // The client's private key bytestring
+    bytes client_private_key = 4 [(google.api.field_behavior) = REQUIRED];
 
-    // Path to the client certificate collection file
-    string client_collection_cert_blob_uri = 5
-        [(google.api.field_behavior) = REQUIRED];
+    // The client certificate collection bytestring
+    bytes client_collection_cert = 5 [(google.api.field_behavior) = REQUIRED];
   }
 
-  // Resource representing the details needed to generate certificates
+  // Message representing the details needed to generate certificates
   message ConsentDetails {
-    // Path to the DER-encoded certificate file used for result signing
-    string result_cs_cert_der_blob_uri = 1
+    // The DER-encoded certificate bytestring used for result signing
+    bytes result_cs_cert_der_blob_uri = 1
         [(google.api.field_behavior) = REQUIRED];
 
-    // Path to the DER-encoded private key file used for result signing
-    string result_cs_private_key_der_blob_uri = 2
+    // The DER-encoded private key bytestring used for result signing
+    bytes result_cs_private_key_der_blob_uri = 2
         [(google.api.field_behavior) = REQUIRED];
 
-    // Path to the private encryption key file
-    string private_encryption_key_blob_uri = 3
+    // The private encryption key bytestring
+    bytes private_encryption_key_blob_uri = 3
         [(google.api.field_behavior) = REQUIRED];
 
-    // Name for the certificate used by the EDP
+    // The name for the certificate used by the EDP
     string edp_certificate_name = 4 [
       (google.api.resource_reference).type = "halo.wfanet.org/Certificate",
       (google.api.field_behavior) = REQUIRED
     ];
+  }
+
+  // Message representing the storage details
+  message StorageDetails {
+    // The prefix path for labeled impression storage
+    string labeled_impressions_metadata_blob_uri_prefix = 1
+        [(google.api.field_behavior) = REQUIRED];
   }
 
   ConnectionDetails connection_details = 1
@@ -74,7 +79,5 @@ message ResultsFulfillerConfig {
 
   ConsentDetails consent_details = 2 [(google.api.field_behavior) = REQUIRED];
 
-  // Prefix path for labeled impression storage
-  string labeled_impressions_metadata_blob_uri_prefix = 3
-      [(google.api.field_behavior) = REQUIRED];
+  StorageDetails prefix_details = 3 [(google.api.field_behavior) = REQUIRED];
 }
