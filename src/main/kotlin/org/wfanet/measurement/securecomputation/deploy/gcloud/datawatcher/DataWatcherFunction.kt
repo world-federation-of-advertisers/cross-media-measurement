@@ -60,10 +60,9 @@ class DataWatcherFunction : CloudEventsFunction {
         )
 
     val workItemsStub = WorkItemsCoroutineStub(publicChannel)
-    val config =
-      checkNotNull(
-        CLASS_LOADER.getJarResourceFile(System.getenv("DATA_WATCHER_CONFIG_RESOURCE_PATH"))
-      )
+    val config = checkNotNull(CLASS_LOADER.getJarResourceFile(CONFIG_RESOURCE_PATH)) {
+      "Missing embedded config file at $CONFIG_RESOURCE_PATH"
+    }
     val dataWatcherConfigs = parseTextProto(config, DataWatcherConfigs.getDefaultInstance())
     val dataWatcher =
       DataWatcher(
@@ -108,5 +107,6 @@ class DataWatcherFunction : CloudEventsFunction {
         "CONTROL_PLANE_TARGET",
         "CONTROL_PLANE_CERT_HOST",
       )
+    private const val CONFIG_RESOURCE_PATH = "securecomputation/datawatcher/data_watcher_config.textproto"
   }
 }
