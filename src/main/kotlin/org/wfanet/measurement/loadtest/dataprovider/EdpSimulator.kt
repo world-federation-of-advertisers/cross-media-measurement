@@ -559,6 +559,10 @@ class EdpSimulator(
   /** Executes the requisition fulfillment workflow. */
   override suspend fun executeRequisitionFulfillingWorkflow() {
     logger.info("Executing requisitionFulfillingWorkflow...")
+
+    val threads = mutableListOf<Thread>()
+    for (i in 0 until 50) {}
+
     val requisitions =
       getRequisitions().filter {
         checkNotNull(MeasurementKey.fromName(it.measurement)).measurementConsumerId ==
@@ -1588,22 +1592,28 @@ class EdpSimulator(
     eventGroupSpecs: Iterable<EventQuery.EventGroupSpec>,
     directProtocol: DirectProtocol,
   ) {
-    chargeDirectPrivacyBudget(
-      requisition.name,
-      measurementSpec,
-      eventGroupSpecs.map { it.spec },
-      directProtocol.selectedDirectNoiseMechanism,
-    )
-
+    //    chargeDirectPrivacyBudget(
+    //      requisition.name,
+    //      measurementSpec,
+    //      eventGroupSpecs.map { it.spec },
+    //      directProtocol.selectedDirectNoiseMechanism,
+    //    )
+    //
     logger.info("Calculating impression...")
-    val measurementResult =
-      buildDirectMeasurementResult(
-        directProtocol,
-        measurementSpec,
-        sampleVids(eventGroupSpecs, measurementSpec.vidSamplingInterval),
-      )
+    //    val measurementResult =
+    //      buildDirectMeasurementResult(
+    //        directProtocol,
+    //        measurementSpec,
+    //        sampleVids(eventGroupSpecs, measurementSpec.vidSamplingInterval),
+    //      )
+    val fakeMeasurementResult = Measurement.Result.getDefaultInstance()
 
-    fulfillDirectMeasurement(requisition, measurementSpec, requisitionSpec.nonce, measurementResult)
+    fulfillDirectMeasurement(
+      requisition,
+      measurementSpec,
+      requisitionSpec.nonce,
+      fakeMeasurementResult,
+    )
   }
 
   private suspend fun fulfillDurationMeasurement(
