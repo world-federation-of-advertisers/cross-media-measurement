@@ -12,7 +12,7 @@ kt_jvm_library(
     srcs = ["DataWatcherFunction.kt"],
     resources = [
         "//src/main/k8s/testing/secretfiles:data_watcher_secret_files",
-        "//src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/datawatcher/testing:config",
+        "//src/main/resources/securecomputation/datawatcher:config",
     ],
     deps = [
         "//imports/java/com/google/cloud/functions/invoker:java_function_invoker",
