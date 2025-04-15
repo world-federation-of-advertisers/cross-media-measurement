@@ -7,4 +7,3 @@ node_modules/
 **/.terraform.lock.hcl
 pnpm-lock.yaml
 pnpm-workspace.yaml
-.codecov.yml
