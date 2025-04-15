@@ -36,7 +36,7 @@ module "secure_computation" {
   source = "../modules/secure-computation"
 
   spanner_instance                          = google_spanner_instance.spanner_instance
-  data_watcher_trigger_service_account_name = "data-watcher-invoker"
+  data_watcher_trigger_service_account_name = "data-watcher-trigger"
   data_watcher_service_account_name         = "data-watcher"
   secure_computation_bucket_name            = "secure-computation-storage"
   secure_computation_bucket_location        = local.secure_computation_bucket_location
