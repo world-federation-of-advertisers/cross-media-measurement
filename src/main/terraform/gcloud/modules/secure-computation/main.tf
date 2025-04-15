@@ -95,7 +95,7 @@ module "secure_computation_migs" {
   for_each = var.queue_configs
   source   = "../mig"
 
-  tee_app_artifacts_repo_name   = var.tee_app_artifacts_repo_name
+  artifacts_registry_repo_name  = var.artifacts_registry_repo_name
   instance_template_name        = each.value.instance_template_name
   base_instance_name            = each.value.base_instance_name
   managed_instance_group_name   = each.value.managed_instance_group_name
@@ -107,6 +107,21 @@ module "secure_computation_migs" {
   app_args                      = each.value.app_args
   machine_type                  = each.value.machine_type
   kms_key_id                    = google_kms_crypto_key.secure_computation_kek.id
-  storage_bucket_name           = module.secure_computation_bucket.storage_bucket.name
   docker_image                  = each.value.docker_image
+}
+
+resource "google_storage_bucket_iam_member" "mig_storage_viewer" {
+  for_each = module.secure_computation_migs
+
+  bucket = module.secure_computation_bucket.storage_bucket.name
+  role   = "roles/storage.objectViewer"
+  member = "serviceAccount:${each.value.mig_service_account.email}"
+}
+
+resource "google_storage_bucket_iam_member" "mig_storage_creator" {
+  for_each = module.secure_computation_migs
+
+  bucket = module.secure_computation_bucket.storage_bucket.name
+  role   = "roles/storage.objectCreator"
+  member = "serviceAccount:${each.value.mig_service_account.email}"
 }
