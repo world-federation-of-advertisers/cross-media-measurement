@@ -20,7 +20,9 @@ import "google/api/annotations.proto";
 import "google/api/client.proto";
 import "google/api/field_behavior.proto";
 import "google/api/resource.proto";
+import "google/protobuf/timestamp.proto";
 import "wfa/measurement/reporting/v2alpha/event_group.proto";
+import "wfa/measurement/reporting/v2alpha/media_type.proto";
 
 option java_package = "org.wfanet.measurement.reporting.v2alpha";
 option java_multiple_files = true;
@@ -60,9 +62,51 @@ message ListEventGroupsRequest {
   // https://aip.dev/158.
   string page_token = 3 [(google.api.field_behavior) = OPTIONAL];
 
-  // Result filter. Raw CEL expression that is applied to a message which has a
-  // field for each event group template.
-  string filter = 4 [(google.api.field_behavior) = OPTIONAL];
+  // Structured filter criteria.
+  //
+  // Each field represents a term in a conjunction. If a field is not specified,
+  // its value is not considered as part of the criteria.
+  // (-- api-linter: core::0140::prepositions=disabled
+  //     api-linter: core::0142::time-field-names=disabled
+  //     aip.dev/not-precedent: Using structured filter instead of AIP-160. --)
+  message Filter {
+    // Set of CMMS [DataProvider][wfa.measurement.api.v2alpha.DataProvider]
+    // resource names which [EventGroup.cmms_data_provider][] must be in.
+    repeated string cmms_data_provider_in = 1 [
+      (google.api.resource_reference).type = "halo.wfanet.org/DataProvider",
+      (google.api.field_behavior) = OPTIONAL
+    ];
+    // Set of [MediaType][] values which [EventGroup.media_types][] must
+    // intersect.
+    repeated MediaType media_types_intersect = 2
+        [(google.api.field_behavior) = OPTIONAL];
+    // Time which
+    // [EventGroup.data_availability_interval.start_time][google.type.Interval.start_time]
+    // must be on or after.
+    google.protobuf.Timestamp data_availability_start_time_on_or_after = 3
+        [(google.api.field_behavior) = OPTIONAL];
+    // Time which
+    // [EventGroup.data_availability_interval.end_time][google.type.Interval.end_time]
+    // must be on or before.
+    google.protobuf.Timestamp data_availability_end_time_on_or_before = 4
+        [(google.api.field_behavior) = OPTIONAL];
+    // Query for text search on string fields in
+    // [EventGroup.event_group_metadata][].
+    string metadata_search_query = 5 [(google.api.field_behavior) = OPTIONAL];
+  }
+
+  // Filter criteria for results. Optional.
+  oneof filter_criteria {
+    // Result filter. Raw CEL expression that is applied to a message which has
+    // a field for each event group template.
+    string filter = 4 [(google.api.field_behavior) = OPTIONAL];
+
+    // Result filter.
+    // (-- api-linter: core::0132::request-unknown-fields=disabled
+    //     aip.dev/not-precedent: Using structured filter instead of AIP-160.
+    //     --)
+    Filter structured_filter = 5 [(google.api.field_behavior) = OPTIONAL];
+  }
 }
 
 // Response message for `ListEventGroups` method.
