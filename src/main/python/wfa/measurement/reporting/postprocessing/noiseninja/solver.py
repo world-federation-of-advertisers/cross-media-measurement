@@ -268,6 +268,9 @@ class Solver:
     )
     return best_solution, report_post_processor_status
 
+  def dummy_function(self):
+    logging.info("Dummy line to check coverage")
+
   def solve(self) -> tuple[Solution, ReportPostProcessorStatus]:
     logging.info(
         "Solving the quadratic program with the HIGHS solver."
@@ -281,6 +284,7 @@ class Solver:
       logging.info(
           "Switching to OSQP solver as HIGHS solver failed to converge."
       )
+      logging.info("Dummy line to check coverage")
       solution, report_post_processor_status = self._solve(OSQP_SOLVER)
 
     return solution, report_post_processor_status
