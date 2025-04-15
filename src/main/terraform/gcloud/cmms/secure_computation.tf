@@ -12,26 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-module "secure_computation_cluster" {
-  source = "../modules/cluster"
-
-  deletion_protection = false
-
-  name            = local.secure_computation_cluster_name
-  location        = local.cluster_location
-  release_channel = var.cluster_release_channel
-  secret_key      = module.common.cluster_secret_key
-}
-
-module "control_plane_default_node_pool" {
-  source = "../modules/node-pool"
-
-  name            = "default"
-  cluster         = module.control_plane_cluster.cluster
-  service_account = module.common.cluster_service_account
-  machine_type    = "e2-custom-2-4096"
-  max_node_count  = 4
-}
+#TODO(@MarcoPremier): Update `configure-secure-computation-control-plane.yml` to use kingdom cluster (https://github.com/world-federation-of-advertisers/cross-media-measurement/blob/main/.github/workflows/configure-secure-computation-control-plane.yml#L98)
 
 queue_configs = {
   requisition_fulfiller = {
@@ -63,7 +44,7 @@ module "secure_computation" {
   key_ring_name                             = "secure-computation-test-key-ring"
   key_ring_location                         = local.key_ring_location
   kms_key_name                              = "secure-computation-test-kek"
-  tee_app_artifacts_repo_name               = "secure-computation-tee-app"
+  artifacts_registry_repo_name              = "secure-computation-tee-app"
   queue_configs                             = queue_configs
 }
 
