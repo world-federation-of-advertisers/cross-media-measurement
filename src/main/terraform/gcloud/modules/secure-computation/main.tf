@@ -72,7 +72,7 @@ module "data_watcher_function_service_accounts" {
   source    = "../gcs-bucket-cloud-function"
 
   cloud_function_service_account_name       = var.data_watcher_service_account_name
-  cloud_function_trigger_service_account    = var.data_watcher_trigger_service_account_name
+  cloud_function_trigger_service_account_name    = var.data_watcher_trigger_service_account_name
   trigger_bucket_name                       = module.secure_computation_bucket.storage_bucket.name
 }
 
