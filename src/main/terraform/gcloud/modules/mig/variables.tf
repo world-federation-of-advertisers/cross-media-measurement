@@ -72,19 +72,13 @@ variable "machine_type" {
   nullable    = false
 }
 
-variable "storage_bucket_name" {
-  description = "The bucket to grant access to."
-  type        = string
-  nullable    = false
-}
-
 variable "kms_key_id" {
   description = "The kms key id of the key encryption key to grant access to."
   type        = string
   nullable    = false
 }
 
-variable "tee_app_artifacts_repo_name" {
+variable "artifacts_registry_repo_name" {
   description = "The name of Artifact Registry where approved TEE app are stored."
   type        = string
   nullable    = false

@@ -156,7 +156,7 @@ variable "kms_key_name" {
   nullable    = false
 }
 
-variable "tee_app_artifacts_repo_name" {
+variable "artifacts_registry_repo_name" {
   description = "The name of Artifact Registry where approved TEE app are stored."
   type        = string
   nullable    = false
