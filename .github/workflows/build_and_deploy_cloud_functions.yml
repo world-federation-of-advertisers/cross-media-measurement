@@ -72,7 +72,7 @@ jobs:
           SECURE_COMPUTATION_PUBLIC_API_TARGET: ${{ vars.SECURE_COMPUTATION_PUBLIC_API_TARGET }}
           DATA_WATCHER_TRIGGER_BUCKET: ${{ vars.DATA_WATCHER_TRIGGER_BUCKET }}
           DATA_WATCHER_SERVICE_ACCOUNT: ${{ vars.DATA_WATCHER_SERVICE_ACCOUNT }}
-          TRIGGER_SERVICE_ACCOUNT: ${{ vars.TRIGGER_SERVICE_ACCOUNT }}
+          DATA_WATCHER_TRIGGER_SERVICE_ACCOUNT: ${{ vars.DATA_WATCHER_TRIGGER_SERVICE_ACCOUNT }}
         run: >
           gcloud functions deploy TestDeploy
           --gen2
@@ -84,5 +84,5 @@ jobs:
           --trigger-event-filters="bucket=$DATA_WATCHER_TRIGGER_BUCKET"
           --source="$RUNNER_TEMP/data_watcher_source"
           --run-service-account=$DATA_WATCHER_SERVICE_ACCOUNT
-          --trigger-service-account=$TRIGGER_SERVICE_ACCOUNT
+          --trigger-service-account=$DATA_WATCHER_TRIGGER_SERVICE_ACCOUNT
           --set-env-vars="CERT_FILE_PATH=src/main/k8s/testing/secretfiles/data_watcher_tls.pem,PRIVATE_KEY_FILE_PATH=src/main/k8s/testing/secretfiles/data_watcher_tls.key,CERT_COLLECTION_FILE_PATH=src/main/k8s/testing/secretfiles/secure_computation_root.pem,CONTROL_PLANE_TARGET=$SECURE_COMPUTATION_PUBLIC_API_TARGET"
