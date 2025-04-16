@@ -1,4 +1,4 @@
 
-# Control Plane System
+# Secure Computation System
 
-Control Plane components for Google Cloud.
+Secure Computation components for Google Cloud.
