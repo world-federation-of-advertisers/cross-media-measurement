@@ -41,5 +41,5 @@ message ResultsFulfillerParams {
     string labeled_impression_storage_project_id = 4;
   }
 
-  StorageDetails storage_details = 3 [(google.api.field_behavior) = REQUIRED];
+  StorageDetails storage_details = 1 [(google.api.field_behavior) = REQUIRED];
 }
