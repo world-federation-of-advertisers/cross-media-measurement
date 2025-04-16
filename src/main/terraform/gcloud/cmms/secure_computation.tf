@@ -39,12 +39,18 @@ module "secure_computation" {
   data_watcher_trigger_service_account_name = "data-watcher-trigger"
   data_watcher_service_account_name         = "data-watcher"
   secure_computation_bucket_name            = "secure-computation-storage"
-  secure_computation_bucket_location        = local.secure_computation_bucket_location
+  secure_computation_bucket_location        = local.storage_bucket_location
   ack_deadline_seconds                      = 600
+}
+
+module "edp_aggregator" {
+  source = "../modules/edp-aggregator"
+
   key_ring_name                             = "secure-computation-test-key-ring"
   key_ring_location                         = local.key_ring_location
   kms_key_name                              = "secure-computation-test-kek"
-  artifacts_registry_repo_name              = "secure-computation-tee-app"
   queue_configs                             = queue_configs
+  artifacts_registry_repo_name              = "secure-computation-tee-app"
+  pubsub_iam_service_account_member         = module.secure_computation.pubsub_iam_service_account_member
 }
 

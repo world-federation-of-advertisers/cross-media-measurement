@@ -19,10 +19,17 @@ variable "secure_computation_api_server_ip_address" {
   default     = null
 }
 
-variable "iam_service_account_name" {
-  description = "IAM `google_service_account.name`."
+variable "internal_iam_service_account_name" {
+  description = "IAM `google_service_account.name` for internal service."
   type        = string
   default     = "secure-computation-internal"
+  nullable    = false
+}
+
+variable "pubsub_iam_service_account_name" {
+  description = "IAM `google_service_account.name` for public api to access pubsub."
+  type        = string
+  default     = "secure-computation-pubsub"
   nullable    = false
 }
 
@@ -115,49 +122,6 @@ variable "subscription_id" {
 
 variable "kms_key_id" {
   description = "The kms key id to grant access to."
-  type        = string
-  nullable    = false
-}
-
-variable "queue_configs" {
-  description = "Naming config for the PubSub and related MIG"
-  type = map(object({
-    instance_template_name      = string
-    base_instance_name          = string
-    managed_instance_group_name = string
-    subscription_name           = string
-    topic_name                  = string
-    mig_service_account_name    = string
-    single_instance_assignment  = number
-    min_replicas                = number
-    max_replicas                = number
-    app_args                    = list(string)
-    machine_type                = string
-    kms_key_id                  = string
-    docker_image                = string
-  }))
-}
-
-variable "key_ring_name" {
-  description = "Name of the KMS key ring."
-  type        = string
-  nullable    = false
-}
-
-variable "key_ring_location" {
-  description = "Location of the KMS key ring."
-  type        = string
-  nullable    = false
-}
-
-variable "kms_key_name" {
-  description = "Name of the KMS KEK."
-  type        = string
-  nullable    = false
-}
-
-variable "artifacts_registry_repo_name" {
-  description = "The name of Artifact Registry where approved TEE app are stored."
   type        = string
   nullable    = false
 }
