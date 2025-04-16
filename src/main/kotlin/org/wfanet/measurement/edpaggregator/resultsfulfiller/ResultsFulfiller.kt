@@ -21,7 +21,6 @@ import com.google.common.hash.Hashing
 import com.google.crypto.tink.KmsClient
 import com.google.protobuf.Descriptors.Descriptor
 import com.google.protobuf.DynamicMessage
-import com.google.protobuf.TextFormat
 import com.google.protobuf.TypeRegistry
 import com.google.protobuf.kotlin.unpack
 import com.google.type.Interval

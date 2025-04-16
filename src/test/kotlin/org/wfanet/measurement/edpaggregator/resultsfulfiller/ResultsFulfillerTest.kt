@@ -26,7 +26,6 @@ import com.google.crypto.tink.streamingaead.StreamingAeadConfig
 import com.google.protobuf.ByteString
 import com.google.protobuf.Timestamp
 import com.google.protobuf.TypeRegistry
-import com.google.protobuf.kotlin.toByteStringUtf8
 import com.google.type.interval
 import java.nio.file.Files
 import java.nio.file.Path
