@@ -51,6 +51,15 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
+    name = "results_fulfiller_app",
+    srcs = ["ResultsFulfillerApp.kt"],
+    deps = [
+        ":results_fulfiller",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:results_fulfiller_params_kt_jvm_proto",
+    ],
+)
+
+kt_jvm_library(
     name = "measurement_results",
     srcs = ["MeasurementResults.kt"],
     deps = [

@@ -72,6 +72,14 @@ message ResultsFulfillerParams {
     // The prefix path for labeled impression storage
     string labeled_impressions_metadata_blob_uri_prefix = 1
         [(google.api.field_behavior) = REQUIRED];
+
+    // The GCS project ID for the requisitions storage
+    string requisitions_storage_project_id = 2;
+    // The GCS project ID for the labeled impression metadata storage
+    string labeled_impression_metadata_storage_project_id = 3;
+    // The GCS project ID for the labeled impression storage
+    string labeled_impression_storage_project_id = 4;
+
   }
 
   ConnectionDetails connection_details = 1
