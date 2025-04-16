@@ -31,17 +31,15 @@ jobs:
       GCLOUD_REGION: ${{ vars.GCLOUD_REGION }}
       GAR_PROJECT_ID: ${{ vars.GCLOUD_PROJECT }}
       AR_REPO_NAME: ${{ vars.TEE_APP_ARTIFACTS_REPO }}
+      CONTAINER_REGISTRY: ${{ vars.GCLOUD_REGION }}-docker.pkg.dev
     steps:
       - uses: actions/checkout@v4
-
-      - name: Set CONTAINER_REGISTRY
-        run: echo "CONTAINER_REGISTRY=${GCLOUD_REGION}-docker.pkg.dev" >> $GITHUB_ENV
 
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
         with:
           workload_identity_provider: ${{ vars.WORKLOAD_IDENTITY_PROVIDER }}
-          service_account: ${{ vars.EDP_AGGREGATOR_SERVICE_ACCOUNT }}
+          service_account: ${{ vars.TF_SERVICE_ACCOUNT }}
 
       - name: Write auth.bazelrc
         env:
