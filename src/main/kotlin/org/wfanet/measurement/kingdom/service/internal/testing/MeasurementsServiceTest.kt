@@ -990,12 +990,6 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
               dataProviderPublicKeySignatureAlgorithmOid =
                 dataProviderValue.dataProviderPublicKeySignatureAlgorithmOid
             }
-            duchies[Population.AGGREGATOR_DUCHY.externalDuchyId] =
-              Requisition.DuchyValue.getDefaultInstance()
-            duchies[Population.WORKER1_DUCHY.externalDuchyId] =
-              Requisition.DuchyValue.getDefaultInstance()
-            duchies[Population.WORKER2_DUCHY.externalDuchyId] =
-              Requisition.DuchyValue.getDefaultInstance()
           }
         )
 
