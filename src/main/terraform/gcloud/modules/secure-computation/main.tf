@@ -20,14 +20,6 @@ module "secure_computation_internal" {
   iam_service_account_description = "Secure Computation internal API server."
 }
 
-module "pubsub_user" {
-  source = "../workload-identity-user"
-
-  k8s_service_account_name        = "pubsub"
-  iam_service_account_name        = var.pubsub_iam_service_account_name
-  iam_service_account_description = "Secure Computation public api pubsub access."
-}
-
 resource "google_spanner_database" "secure_computation" {
   instance         = var.spanner_instance.name
   name             = var.spanner_database_name

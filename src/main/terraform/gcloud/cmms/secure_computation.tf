@@ -51,6 +51,6 @@ module "edp_aggregator" {
   kms_key_name                              = "secure-computation-test-kek"
   queue_configs                             = queue_configs
   artifacts_registry_repo_name              = "secure-computation-tee-app"
-  pubsub_iam_service_account_member         = module.secure_computation.pubsub_iam_service_account_member
+  pubsub_iam_service_account_member         = module.secure_computation.secure_computation_internal_iam_service_account_member
 }
 

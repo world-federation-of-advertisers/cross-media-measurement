@@ -26,13 +26,6 @@ variable "internal_iam_service_account_name" {
   nullable    = false
 }
 
-variable "pubsub_iam_service_account_name" {
-  description = "IAM `google_service_account.name` for public api to access pubsub."
-  type        = string
-  default     = "secure-computation-pubsub"
-  nullable    = false
-}
-
 variable "spanner_instance" {
   description = "`google_spanner_instance` for the system."
   type = object({
