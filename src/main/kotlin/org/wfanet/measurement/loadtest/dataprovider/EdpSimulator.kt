@@ -568,15 +568,15 @@ class EdpSimulator(
     val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     var num = 0
     while (num < listRequisitionsThreadCount) {
+      val currentThreadId = num
       applicationScope.launch(Dispatchers.IO) {
-        val threadId = num
         while (true) {
           val listStartTime = System.currentTimeMillis()
           getRequisitions()
           val listEndTime = System.currentTimeMillis()
           val elapsedMs = listEndTime - listStartTime
           logger.log(Level.INFO) {
-            "Elapsed time for listRequisitions is $elapsedMs ms. threadId=$threadId"
+            "Elapsed time for listRequisitions is $elapsedMs ms. threadId=$currentThreadId"
           }
           delay(listRequisitionsThreadDelay)
         }
