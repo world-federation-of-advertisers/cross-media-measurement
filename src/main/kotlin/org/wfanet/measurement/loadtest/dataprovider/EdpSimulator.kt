@@ -186,6 +186,8 @@ class EdpSimulator(
   private val health: SettableHealth = SettableHealth(),
   private val blockingCoroutineContext: @BlockingExecutor CoroutineContext = Dispatchers.IO,
   private val targetQps: Double = 0.0,
+  private val listRequisitionsThreadCount: Int = 5,
+  private val listRequisitionsThreadDelay: Long = 1,
 ) :
   RequisitionFulfiller(edpData, certificatesStub, requisitionsStub, throttler, trustedCertificates),
   Health by health {
@@ -565,18 +567,18 @@ class EdpSimulator(
 
     val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     var num = 0
-    while (num < 5) {
+    while (num < listRequisitionsThreadCount) {
       applicationScope.launch(Dispatchers.IO) {
         val threadId = num
         while (true) {
           val listStartTime = System.currentTimeMillis()
           getRequisitions()
           val listEndTime = System.currentTimeMillis()
-          val elapsedMs = listStartTime - listEndTime
+          val elapsedMs = listEndTime - listStartTime
           logger.log(Level.INFO) {
             "Elapsed time for listRequisitions is $elapsedMs ms. threadId=$threadId"
           }
-          delay(1)
+          delay(listRequisitionsThreadDelay)
         }
       }
       num += 1

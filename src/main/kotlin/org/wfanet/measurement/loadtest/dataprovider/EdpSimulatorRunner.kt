@@ -127,6 +127,8 @@ abstract class EdpSimulatorRunner : Runnable {
         logSketchDetails = flags.logSketchDetails,
         health = health,
         targetQps = flags.targetQps,
+        listRequisitionsThreadCount = flags.listRequisitionsThreadCount,
+        listRequisitionsThreadDelay = flags.listRequisitionsThreadDelay,
       )
     runBlocking {
       edpSimulator.ensureEventGroups(eventTemplates, metadataByReferenceIdSuffix)

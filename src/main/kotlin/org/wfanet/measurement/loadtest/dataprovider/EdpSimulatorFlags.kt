@@ -139,4 +139,20 @@ class EdpSimulatorFlags {
   )
   var targetQps: Double = 0.0
     private set
+
+  @CommandLine.Option(
+    names = ["--list-requisitions-thread-count"],
+    description = ["Number of threads calling getRequisitions"],
+    required = false,
+  )
+  var listRequisitionsThreadCount: Int = 5
+    private set
+
+  @CommandLine.Option(
+    names = ["--list-requisitions-thread-delay"],
+    description = ["Time of delay between get requisitions in ms"],
+    required = false,
+  )
+  var listRequisitionsThreadDelay: Long = 1
+    private set
 }
