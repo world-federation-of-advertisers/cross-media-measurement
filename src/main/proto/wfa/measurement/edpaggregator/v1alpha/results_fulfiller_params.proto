@@ -27,17 +27,30 @@ option java_outer_classname = "ResultsFulfillerParamsProto";
 message ResultsFulfillerParams {
   // Message representing the storage details used by the results fulfiller app
   message StorageDetails {
-    // The prefix path for labeled impression storage
-    string labeled_impressions_metadata_blob_uri_prefix = 1
+    // The blob uri prefix for the labeled impressions `BlobDetails` that is
+    // stored in GCS for a given EDP
+    string labeled_impressions_blob_details_uri_prefix = 1
         [(google.api.field_behavior) = REQUIRED];
 
-    // The GCS project ID for the requisitions storage
+    // The optional project ID for the requisitions GCS instance that can be
+    // used with a blob URI to retrieve the storage client using
+    // SelectedStorageClient
+    // See reference:
+    // https://github.com/world-federation-of-advertisers/common-jvm/blob/main/src/main/kotlin/org/wfanet/measurement/storage/SelectedStorageClient.kt
     string requisitions_storage_project_id = 2;
 
-    // The GCS project ID for the labeled impression metadata storage
+    // The optional project ID for the labeled impression metadata GCS instance
+    // that can be used with a blob URI to retrieve the storage client using
+    // SelectedStorageClient
+    // See reference:
+    // https://github.com/world-federation-of-advertisers/common-jvm/blob/main/src/main/kotlin/org/wfanet/measurement/storage/SelectedStorageClient.kt
     string labeled_impression_metadata_storage_project_id = 3;
 
-    // The GCS project ID for the labeled impression storage
+    // The optional project ID for the labeled impression GCS instance that can
+    // be used with a blob URI to retrieve the storage client using
+    // SelectedStorageClient
+    // See reference:
+    // https://github.com/world-federation-of-advertisers/common-jvm/blob/main/src/main/kotlin/org/wfanet/measurement/storage/SelectedStorageClient.kt
     string labeled_impression_storage_project_id = 4;
   }
 
