@@ -56,5 +56,7 @@ kt_jvm_library(
     deps = [
         "//imports/java/org/projectnessie/cel",
         "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
     ],
 )
