@@ -25,7 +25,7 @@ option java_outer_classname = "ResultsFulfillerParamsProto";
 
 // Message representing the params used for the results fulfiller tee app
 message ResultsFulfillerParams {
-  // Message representing the storage details used
+  // Message representing the storage details used by the results fulfiller app
   message StorageDetails {
     // The prefix path for labeled impression storage
     string labeled_impressions_metadata_blob_uri_prefix = 1
