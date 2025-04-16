@@ -157,11 +157,6 @@ abstract class InProcessMeasurementSystemProberIntegrationTest(
     var measurements = listMeasurements()
     assertThat(measurements.size).isEqualTo(1)
 
-    clock.tickSeconds(
-      "Time buffer to allow the first prober measurement to finish",
-      Duration.ofSeconds(5).toSeconds(),
-    )
-
     try {
       publicMeasurementsClient
         .withAuthenticationKey(
@@ -172,7 +167,13 @@ abstract class InProcessMeasurementSystemProberIntegrationTest(
       throw Exception("Unable to cancel measurement ${measurements.single().name}")
     }
 
+    clock.tickSeconds(
+      "Time buffer to allow the first prober measurement to finish",
+      Duration.ofSeconds(6).toSeconds(),
+    )
+
     prober.run()
+    measurements = listMeasurements()
     assertThat(measurements.size).isEqualTo(2)
   }
 
