@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-output "pubsub_iam_service_account_member" {
-  value       = "serviceAccount:${module.pubsub_user.iam_service_account.email}"
-  description = "The created PubSub service account"
+output "secure_computation_internal_iam_service_account_member" {
+  value       = "serviceAccount:${module.secure_computation_internal.iam_service_account.email}"
+  description = "The created service account for Secure Computation internal api"
 }
