@@ -239,7 +239,7 @@ class RequisitionReader(primaryTable: PrimaryTable) : SpannerReader<RequisitionR
       }
       for ((externalDuchyId, participantStruct) in participantStructs) {
         val duchyValue = buildDuchyValue(participantStruct)
-        if (duchyValue.protocolCase != null) {
+        if (duchyValue.protocolCase != Requisition.DuchyValue.ProtocolCase.PROTOCOL_NOT_SET) {
           duchies[externalDuchyId] = duchyValue
         }
       }
