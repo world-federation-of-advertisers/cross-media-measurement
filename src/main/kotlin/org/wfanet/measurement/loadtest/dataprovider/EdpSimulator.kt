@@ -35,8 +35,10 @@ import kotlin.math.max
 import kotlin.math.roundToInt
 import kotlin.random.Random
 import kotlin.random.asJavaRandom
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.asFlow
@@ -44,6 +46,7 @@ import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.apache.commons.math3.distribution.ConstantRealDistribution
 import org.jetbrains.annotations.BlockingExecutor
@@ -560,8 +563,24 @@ class EdpSimulator(
   override suspend fun executeRequisitionFulfillingWorkflow() {
     logger.info("Executing requisitionFulfillingWorkflow...")
 
-    val threads = mutableListOf<Thread>()
-    for (i in 0 until 50) {}
+    val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    var num = 0
+    while (num < 5) {
+      applicationScope.launch(Dispatchers.IO) {
+        val threadId = num
+        while (true) {
+          val listStartTime = System.currentTimeMillis()
+          getRequisitions()
+          val listEndTime = System.currentTimeMillis()
+          val elapsedMs = listStartTime - listEndTime
+          logger.log(Level.INFO) {
+            "Elapsed time for listRequisitions is $elapsedMs ms. threadId=$threadId"
+          }
+          delay(1)
+        }
+      }
+      num += 1
+    }
 
     val requisitions =
       getRequisitions().filter {
