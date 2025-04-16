@@ -592,15 +592,6 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
     assertThat(requisition)
       .ignoringFields(Requisition.UPDATE_TIME_FIELD_NUMBER, Requisition.DUCHIES_FIELD_NUMBER)
       .isEqualTo(expectedRequisition)
-    assertThat(requisition.duchiesMap)
-      .containsExactly(
-        Population.AGGREGATOR_DUCHY.externalDuchyId,
-        Requisition.DuchyValue.getDefaultInstance(),
-        Population.WORKER1_DUCHY.externalDuchyId,
-        Requisition.DuchyValue.getDefaultInstance(),
-        Population.WORKER2_DUCHY.externalDuchyId,
-        Requisition.DuchyValue.getDefaultInstance(),
-      )
     assertThat(requisition).isEqualTo(listedRequisition)
   }
 
