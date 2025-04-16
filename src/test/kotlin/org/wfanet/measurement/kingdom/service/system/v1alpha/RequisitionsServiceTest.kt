@@ -36,6 +36,7 @@ import org.wfanet.measurement.common.identity.testing.DuchyIdSetter
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.internal.kingdom.FulfillRequisitionRequestKt.computedRequisitionParams
 import org.wfanet.measurement.internal.kingdom.Requisition as InternalRequisition
+import org.wfanet.measurement.internal.kingdom.RequisitionDetailsKt
 import org.wfanet.measurement.internal.kingdom.RequisitionKt as InternalRequisitionKt
 import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCoroutineImplBase as InternalRequisitionsCoroutineService
 import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCoroutineStub as InternalRequisitionsCoroutineStub
@@ -46,6 +47,9 @@ import org.wfanet.measurement.internal.kingdom.requisition as internalRequisitio
 import org.wfanet.measurement.internal.kingdom.requisitionDetails
 import org.wfanet.measurement.system.v1alpha.FulfillRequisitionRequest
 import org.wfanet.measurement.system.v1alpha.Requisition
+import org.wfanet.measurement.system.v1alpha.RequisitionKt
+import org.wfanet.measurement.system.v1alpha.fulfillRequisitionRequest
+import org.wfanet.measurement.system.v1alpha.requisition
 
 private const val PUBLIC_API_VERSION = "v2alpha"
 private const val DUCHY_ID: String = "some-duchy-id"
@@ -76,6 +80,11 @@ private val INTERNAL_REQUISITION = internalRequisition {
     encryptedRequisitionSpec = ByteString.copyFromUtf8("foo")
     nonceHash = NONCE_HASH.bytes
     nonce = NONCE
+    fulfillmentContext =
+      RequisitionDetailsKt.fulfillmentContext {
+        buildLabel = "nightly-20250414.1"
+        warnings += "The data smell funny"
+      }
   }
   dataProviderCertificate = internalCertificate {
     externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
@@ -107,29 +116,30 @@ class RequisitionsServiceTest {
     whenever(internalRequisitionsServiceMock.fulfillRequisition(any()))
       .thenReturn(INTERNAL_REQUISITION)
 
-    val request =
-      FulfillRequisitionRequest.newBuilder()
-        .apply {
-          name = SYSTEM_REQUISITION_NAME
-          nonce = NONCE
+    val request = fulfillRequisitionRequest {
+      name = SYSTEM_REQUISITION_NAME
+      nonce = NONCE
+      fulfillmentContext =
+        RequisitionKt.fulfillmentContext {
+          buildLabel = INTERNAL_REQUISITION.details.fulfillmentContext.buildLabel
+          warnings += INTERNAL_REQUISITION.details.fulfillmentContext.warningsList
         }
-        .build()
+    }
 
     val response = service.fulfillRequisition(request)
 
     assertThat(response)
       .isEqualTo(
-        Requisition.newBuilder()
-          .apply {
-            name = SYSTEM_REQUISITION_NAME
-            state = Requisition.State.FULFILLED
-            requisitionSpecHash = REQUISITION_SPEC_HASH.bytes
-            nonceHash = NONCE_HASH.bytes
-            fulfillingComputationParticipant =
-              "computations/$EXTERNAL_COMPUTATION_ID_STRING/participants/$DUCHY_ID"
-            nonce = NONCE
-          }
-          .build()
+        requisition {
+          name = SYSTEM_REQUISITION_NAME
+          state = Requisition.State.FULFILLED
+          requisitionSpecHash = REQUISITION_SPEC_HASH.bytes
+          nonceHash = NONCE_HASH.bytes
+          fulfillingComputationParticipant =
+            "computations/$EXTERNAL_COMPUTATION_ID_STRING/participants/$DUCHY_ID"
+          nonce = NONCE
+          fulfillmentContext = request.fulfillmentContext
+        }
       )
     verifyProtoArgument(
         internalRequisitionsServiceMock,
@@ -143,6 +153,7 @@ class RequisitionsServiceTest {
             externalComputationId = EXTERNAL_COMPUTATION_ID
             externalFulfillingDuchyId = DUCHY_ID
           }
+          fulfillmentContext = INTERNAL_REQUISITION.details.fulfillmentContext
         }
       )
   }
