@@ -59,6 +59,12 @@ sealed class KingdomInternalException : Exception {
   }
 }
 
+class RequiredFieldNotSetException(val fieldName: String) :
+  KingdomInternalException(ErrorCode.REQUIRED_FIELD_NOT_SET, "Required field $fieldName not set") {
+  override val context: Map<String, String>
+    get() = mapOf("field_name" to fieldName)
+}
+
 class MeasurementConsumerNotFoundException(
   val externalMeasurementConsumerId: ExternalId,
   provideDescription: () -> String = { "MeasurementConsumer not found" },
@@ -85,8 +91,12 @@ class ModelLineNotFoundException(
   val externalModelProviderId: ExternalId,
   val externalModelSuiteId: ExternalId,
   val externalModelLineId: ExternalId,
-  provideDescription: () -> String = { "ModelLine not found" },
-) : KingdomInternalException(ErrorCode.MODEL_LINE_NOT_FOUND, provideDescription) {
+) :
+  KingdomInternalException(
+    ErrorCode.MODEL_LINE_NOT_FOUND,
+    "ModelLine with key ($externalModelProviderId, $externalModelSuiteId, $externalModelLineId) " +
+      "not found",
+  ) {
   override val context
     get() =
       mapOf(

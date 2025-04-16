@@ -37,7 +37,9 @@ LIBS = [
     "measurement_log_entry",
     "measurement_failure",
     "measurement",
+    "media_type",
     "model_line",
+    "model_line_key",
     "model_outage",
     "model_provider",
     "model_release",
@@ -176,6 +178,8 @@ proto_library(
     deps = [
         ":certificate_proto",
         ":data_provider_details_proto",
+        ":model_line_key_proto",
+        "@com_google_googleapis//google/type:interval_proto",
     ],
 )
 
@@ -294,6 +298,12 @@ proto_library(
 )
 
 proto_library(
+    name = "media_type_proto",
+    srcs = ["media_type.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+)
+
+proto_library(
     name = "event_group_details_proto",
     srcs = ["event_group_details.proto"],
     strip_import_prefix = IMPORT_PREFIX,
@@ -309,6 +319,7 @@ proto_library(
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
         ":event_group_details_proto",
+        ":media_type_proto",
         "@com_google_protobuf//:timestamp_proto",
     ],
 )
@@ -671,6 +682,12 @@ proto_library(
     deps = [
         "@com_google_protobuf//:timestamp_proto",
     ],
+)
+
+proto_library(
+    name = "model_line_key_proto",
+    srcs = ["model_line_key.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
 )
 
 proto_library(

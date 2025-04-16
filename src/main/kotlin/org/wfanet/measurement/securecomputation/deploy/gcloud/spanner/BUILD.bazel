@@ -2,15 +2,18 @@ load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
 
 kt_jvm_library(
     name = "services",
-    srcs = glob(["*Service.kt"]),
+    srcs = glob(["*.kt"]),
     visibility =
         [
+            "//src/main/kotlin/org/wfanet/measurement/integration/common:__subpackages__",
             "//src/main/kotlin/org/wfanet/measurement/securecomputation/deploy:__subpackages__",
             "//src/test/kotlin/org/wfanet/measurement/securecomputation/deploy:__subpackages__",
         ],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/common:id_generator",
+        "//src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/publisher:google_work_item_publisher",
         "//src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/spanner/db",
+        "//src/main/kotlin/org/wfanet/measurement/securecomputation/service/internal:services",
         "//src/main/kotlin/org/wfanet/measurement/securecomputation/service/internal:work_item_publisher",
         "//src/main/proto/wfa/measurement/internal/securecomputation/controlplane:work_item_attempts_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/internal/securecomputation/controlplane:work_items_service_kt_jvm_grpc_proto",
@@ -18,6 +21,8 @@ kt_jvm_library(
         "@wfa_common_jvm//imports/java/io/grpc:api",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/pubsub:default_google_pub_sub_client",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner",
     ],
 )

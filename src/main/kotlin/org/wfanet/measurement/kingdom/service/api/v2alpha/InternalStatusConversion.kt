@@ -73,6 +73,10 @@ fun Status.toExternalStatusRuntimeException(
   val errorCode = ErrorCode.valueOf(errorInfo.reason)
   val metadataMap = buildMap {
     when (errorCode) {
+      ErrorCode.REQUIRED_FIELD_NOT_SET -> {
+        put("fieldName", errorInfo.metadataMap.getValue("field_name"))
+        Unit
+      }
       ErrorCode.MEASUREMENT_NOT_FOUND -> {
         val measurementName =
           MeasurementKey(

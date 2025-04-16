@@ -14,7 +14,6 @@
 
 package org.wfanet.measurement.reporting.postprocessing.v2alpha
 
-import com.google.gson.GsonBuilder
 import java.io.BufferedReader
 import java.io.File
 import java.io.InputStreamReader
@@ -111,9 +110,9 @@ interface ReportProcessor {
         outputStream.flush()
       }
 
-      // Reads the output of the above process.
-      val processOutput =
-        BufferedReader(InputStreamReader(process.inputStream)).use { it.readText() }
+      // Reads the report post processor result.
+      val result: ReportPostProcessorResult =
+        ReportPostProcessorResult.parseFrom(process.inputStream)
 
       // Logs from python program, which are written to stderr, are read and re-logged. When
       // encountering an error or a critical log, throws a RuntimeException.
@@ -130,12 +129,17 @@ interface ReportProcessor {
 
       logger.info { "Finished processing report.." }
 
-      // TODO(@ple13): Use protocol buffers for passing messages.
-      // Converts the process output to the correction map.
       val correctedMeasurementsMap = mutableMapOf<String, Long>()
-      GsonBuilder().create().fromJson(processOutput, Map::class.java).forEach { (key, value) ->
-        correctedMeasurementsMap[key as String] = (value as Double).toLong()
+
+      // Extracts the list of updated measurements if a solution is found.
+      if (result.status.statusCode != ReportPostProcessorStatus.StatusCode.SOLUTION_NOT_FOUND) {
+        result.updatedMeasurementsMap.forEach { (key, value) ->
+          correctedMeasurementsMap[key] = value
+        }
+      } else {
+        logger.info { "No solution found.." }
       }
+
       return correctedMeasurementsMap
     }
 
