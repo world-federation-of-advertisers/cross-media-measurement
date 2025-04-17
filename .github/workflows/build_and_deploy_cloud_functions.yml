@@ -20,14 +20,12 @@ on:
       environment:
         description: "GitHub-managed environment"
         type: string
-        required: true
         default: dev
   workflow_call:
     inputs:
       environment:
         description: "GitHub-managed environment"
         type: string
-        required: true
         default: dev
 
 permissions:

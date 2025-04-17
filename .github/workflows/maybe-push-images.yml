@@ -54,3 +54,8 @@ jobs:
     secrets: inherit
     with:
       image-tag: ${{ needs.get-image-tag.outputs.image-tag }}
+  push-tee-images:
+    uses: ./.github/workflows/build_and_push_tee_app.yml
+    needs: get-image-tag
+    with:
+      image-tag: ${{ needs.get-image-tag.outputs.image-tag }}
