@@ -12,19 +12,34 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+module "edp_aggregator_bucket" {
+  source   = "../storage-bucket"
+
+  name     = var.edp_aggregator_bucket_name
+  location = var.edp_aggregator_bucket_location
+}
+
+module "data_watcher_function_service_accounts" {
+  source    = "../gcs-bucket-cloud-function"
+
+  cloud_function_service_account_name       = var.data_watcher_service_account_name
+  cloud_function_trigger_service_account_name    = var.data_watcher_trigger_service_account_name
+  trigger_bucket_name                       = module.edp_aggregator_bucket.storage_bucket.name
+}
+
 module "edp_aggregator_queues" {
-  for_each = var.queue_configs
+  for_each = var.queue_worker_configs
   source   = "../pubsub"
 
-  topic_name              = each.value.topic_name
-  subscription_name       = each.value.subscription_name
-  ack_deadline_seconds    = each.value.ack_deadline_seconds
+  topic_name              = each.value.queue.topic_name
+  subscription_name       = each.value.queue.subscription_name
+  ack_deadline_seconds    = each.value.queue.ack_deadline_seconds
 }
 
 resource "google_pubsub_topic_iam_member" "publisher" {
-  for_each = var.queue_configs
+  for_each = var.queue_worker_configs
 
-  topic  = module.edp_aggregator_queues[each.key].topic.id
+  topic  = module.edp_aggregator_queues[each.key].pubsub_topic.id
   role   = "roles/pubsub.publisher"
   member = var.pubsub_iam_service_account_member
 }
@@ -45,22 +60,22 @@ resource "google_kms_crypto_key" "edp_aggregator_kek" {
 }
 
 module "tee_apps" {
-  for_each = var.queue_configs
+  for_each = var.queue_worker_configs
   source   = "../mig"
 
   artifacts_registry_repo_name  = var.artifacts_registry_repo_name
-  instance_template_name        = each.value.instance_template_name
-  base_instance_name            = each.value.base_instance_name
-  managed_instance_group_name   = each.value.managed_instance_group_name
-  subscription_id               = module.edp_aggregator_queues[each.key].subscription.id
-  mig_service_account_name      = each.value.mig_service_account_name
-  single_instance_assignment    = each.value.single_instance_assignment
-  min_replicas                  = each.value.min_replicas
-  max_replicas                  = each.value.max_replicas
-  app_args                      = each.value.app_args
-  machine_type                  = each.value.machine_type
+  instance_template_name        = each.value.worker.instance_template_name
+  base_instance_name            = each.value.worker.base_instance_name
+  managed_instance_group_name   = each.value.worker.managed_instance_group_name
+  subscription_id               = module.edp_aggregator_queues[each.key].pubsub_subscription.id
+  mig_service_account_name      = each.value.worker.mig_service_account_name
+  single_instance_assignment    = each.value.worker.single_instance_assignment
+  min_replicas                  = each.value.worker.min_replicas
+  max_replicas                  = each.value.worker.max_replicas
+  app_args                      = each.value.worker.app_args
+  machine_type                  = each.value.worker.machine_type
   kms_key_id                    = google_kms_crypto_key.edp_aggregator_kek.id
-  docker_image                  = each.value.docker_image
+  docker_image                  = each.value.worker.docker_image
 }
 
 resource "google_storage_bucket_iam_member" "mig_storage_viewer" {

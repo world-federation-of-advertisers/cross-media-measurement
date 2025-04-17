@@ -30,22 +30,26 @@ variable "kms_key_name" {
   nullable    = false
 }
 
-variable "queue_configs" {
-  description = "Naming config for the PubSub and related MIG"
+variable "queue_worker_configs" {
+  description = "Combined config for each Pub/Sub queue and its corresponding MIG worker"
   type = map(object({
-    instance_template_name      = string
-    base_instance_name          = string
-    managed_instance_group_name = string
-    subscription_name           = string
-    topic_name                  = string
-    mig_service_account_name    = string
-    single_instance_assignment  = number
-    min_replicas                = number
-    max_replicas                = number
-    app_args                    = list(string)
-    machine_type                = string
-    kms_key_id                  = string
-    docker_image                = string
+    queue = object({
+      subscription_name     = string
+      topic_name            = string
+      ack_deadline_seconds  = number
+    })
+    worker = object({
+      instance_template_name      = string
+      base_instance_name          = string
+      managed_instance_group_name = string
+      mig_service_account_name    = string
+      single_instance_assignment  = number
+      min_replicas                = number
+      max_replicas                = number
+      app_args                    = list(string)
+      machine_type                = string
+      docker_image                = string
+    })
   }))
 }
 
@@ -59,5 +63,29 @@ variable "pubsub_iam_service_account_member" {
   description = "IAM `google_service_account` for public api to access pubsub."
   type        = string
   default     = "secure-computation-pubsub"
+  nullable    = false
+}
+
+variable "edp_aggregator_bucket_name" {
+  description = "Name of the Google Cloud Storage bucket used by the Edp Aggregator."
+  type        = string
+  nullable    = false
+}
+
+variable "edp_aggregator_bucket_location" {
+  description = "Location of the Storage bucket used by the Edp Aggregator."
+  type        = string
+  nullable    = false
+}
+
+variable "data_watcher_service_account_name" {
+  description = "Name of the DataWatcher service account."
+  type        = string
+  nullable    = false
+}
+
+variable "data_watcher_trigger_service_account_name" {
+  description = "The name of the service account used to trigger the Cloud Function."
+  type        = string
   nullable    = false
 }
