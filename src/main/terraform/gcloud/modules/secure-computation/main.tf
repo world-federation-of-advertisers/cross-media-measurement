@@ -42,18 +42,3 @@ resource "google_compute_address" "api_server" {
   address = var.secure_computation_api_server_ip_address
 }
 
-module "secure_computation_bucket" {
-  source   = "../storage-bucket"
-
-  name     = var.secure_computation_bucket_name
-  location = var.secure_computation_bucket_location
-}
-
-module "data_watcher_function_service_accounts" {
-  source    = "../gcs-bucket-cloud-function"
-
-  cloud_function_service_account_name       = var.data_watcher_service_account_name
-  cloud_function_trigger_service_account_name    = var.data_watcher_trigger_service_account_name
-  trigger_bucket_name                       = module.secure_computation_bucket.storage_bucket.name
-}
-
