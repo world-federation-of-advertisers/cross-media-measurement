@@ -43,11 +43,12 @@ jobs:
         run: |
           cat << EOF > ~/.bazelrc
           common --config=ci
+          build --remote_download_all
           EOF
 
       - name: Build CLI uber jars
         run: >
-          bazel build --remote_download_all
+          bazel build
           //src/main/kotlin/org/wfanet/measurement/api/v2alpha/tools:MeasurementSystem_deploy.jar
           //src/main/kotlin/org/wfanet/measurement/api/v2alpha/tools:EncryptionPublicKeys_deploy.jar
           //src/main/kotlin/org/wfanet/measurement/api/v2alpha/tools:EventTemplateValidator_deploy.jar
