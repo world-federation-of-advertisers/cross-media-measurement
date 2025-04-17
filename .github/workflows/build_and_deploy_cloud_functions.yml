@@ -16,14 +16,19 @@ name: "Build and Deploy cloud functions"
 
 on:
   workflow_dispatch:
+    inputs:
+      environment:
+        description: "GitHub-managed environment"
+        type: string
+        default: dev
   workflow_call:
     inputs:
       environment:
         type: string
-        required: true
-      secure-computation-public-public-api-target:
-        type: string
-        required: true
+        default: dev
+
+permissions:
+  id-token: write
 
 jobs:
   build-and-deploy-cloud-functions:
