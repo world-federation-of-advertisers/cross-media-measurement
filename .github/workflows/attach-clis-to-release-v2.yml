@@ -46,11 +46,12 @@ jobs:
         run: |
           cat << EOF > ~/.bazelrc
           common --config=ci
+          build --remote_download_all
           EOF
 
       - name: Build CLI uber jars
         run: >
-          bazel build --remote_download_all
+          bazel build
           //src/main/kotlin/org/wfanet/measurement/api/v2alpha/tools:MeasurementSystem_deploy.jar
           //src/main/kotlin/org/wfanet/measurement/api/v2alpha/tools:EncryptionPublicKeys_deploy.jar
           //src/main/kotlin/org/wfanet/measurement/api/v2alpha/tools:EventTemplateValidator_deploy.jar
@@ -63,6 +64,11 @@ jobs:
           ls -lh ./bazel-bin/
           ls -lh ./bazel-bin/src/main/kotlin/org/wfanet/measurement/api/v2alpha/tools/
           ls -lh bazel-out/k8-opt/bin/src/main/kotlin/org/wfanet/measurement/api/v2alpha/tools/
+          ls -lh ./bazel-bin/src/main/kotlin/org/wfanet/measurement/api/v2alpha/tools/MeasurementSystem_deploy.jar
+          ls -lh ./bazel-bin/src/main/kotlin/org/wfanet/measurement/api/v2alpha/tools/EncryptionPublicKeys_deploy.jar
+          ls -lh ./bazel-bin/src/main/kotlin/org/wfanet/measurement/api/v2alpha/tools/EventTemplateValidator_deploy.jar
+          ls -lh ./bazel-bin/src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha/tools/Reporting_deploy.jar
+          ls -lh ./bazel-bin/src/main/kotlin/org/wfanet/measurement/access/deploy/tools/Access_deploy.jar
 
       - name: Bazel cquery
         run: bazel cquery --output=files //src/main/kotlin/org/wfanet/measurement/api/v2alpha/tools:MeasurementSystem_deploy.jar
