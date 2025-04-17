@@ -47,7 +47,7 @@ jobs:
 
       - name: Build CLI uber jars
         run: >
-          bazel build 
+          bazel build --remote_download_all
           //src/main/kotlin/org/wfanet/measurement/api/v2alpha/tools:MeasurementSystem_deploy.jar
           //src/main/kotlin/org/wfanet/measurement/api/v2alpha/tools:EncryptionPublicKeys_deploy.jar
           //src/main/kotlin/org/wfanet/measurement/api/v2alpha/tools:EventTemplateValidator_deploy.jar
