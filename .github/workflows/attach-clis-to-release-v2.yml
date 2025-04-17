@@ -15,8 +15,9 @@
 name: Attach CLIs to release
 
 on:
-  release:
-    types: [published]
+#  release:
+#    types: [published]
+  workflow_dispatch:    
 
 jobs:
   attach-clis-to-release:
@@ -54,14 +55,22 @@ jobs:
           //src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha/tools:Reporting_deploy.jar
           //src/main/kotlin/org/wfanet/measurement/access/deploy/tools:Access_deploy.jar
 
-      - name: Attach CLI uber jars to release
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: >
-          gh release upload "${{ github.event.release.tag_name }}"
-          ./bazel-bin/src/main/kotlin/org/wfanet/measurement/api/v2alpha/tools/MeasurementSystem_deploy.jar
-          ./bazel-bin/src/main/kotlin/org/wfanet/measurement/api/v2alpha/tools/EncryptionPublicKeys_deploy.jar
-          ./bazel-bin/src/main/kotlin/org/wfanet/measurement/api/v2alpha/tools/EventTemplateValidator_deploy.jar
-          ./bazel-bin/src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha/tools/Reporting_deploy.jar
-          ./bazel-bin/src/main/kotlin/org/wfanet/measurement/access/deploy/tools/Access_deploy.jar
-          --clobber
+      - name: List files
+        run: |
+          ls -lh 
+          ls -lh .bazel-bin/
+
+      - name: Bazel cquery
+        run: bazel cquery --output=files //src/main/kotlin/org/wfanet/measurement/api/v2alpha/tools:MeasurementSystem_deploy.jar
+
+#      - name: Attach CLI uber jars to release
+#        env:
+#          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+#        run: >
+#          gh release upload "${{ github.event.release.tag_name }}"
+#          ./bazel-bin/src/main/kotlin/org/wfanet/measurement/api/v2alpha/tools/MeasurementSystem_deploy.jar
+#          ./bazel-bin/src/main/kotlin/org/wfanet/measurement/api/v2alpha/tools/EncryptionPublicKeys_deploy.jar
+#          ./bazel-bin/src/main/kotlin/org/wfanet/measurement/api/v2alpha/tools/EventTemplateValidator_deploy.jar
+#          ./bazel-bin/src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha/tools/Reporting_deploy.jar
+#          ./bazel-bin/src/main/kotlin/org/wfanet/measurement/access/deploy/tools/Access_deploy.jar
+#          --clobber
