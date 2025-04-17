@@ -58,6 +58,6 @@ java_binary(
 java_image(
     name = "internal_api_server_image",
     binary = ":InternalApiServer",
-    main_class = "org.wfanet.measurement.kingdom.deploy.common.server.InternalApiServerKt",
+    main_class = "org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.InternalApiServerKt",
     visibility = ["//src:docker_image_deployment"],
 )
