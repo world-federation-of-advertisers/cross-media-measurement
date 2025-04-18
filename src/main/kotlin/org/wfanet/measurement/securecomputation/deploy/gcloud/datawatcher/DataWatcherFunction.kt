@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-package org.wfanet.measurement.securecomputation.datawatcher
+package org.wfanet.measurement.securecomputation.deploy.gcloud.datawatcher
 
-import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsService
+import com.google.cloud.functions.CloudEventsFunction
 import com.google.events.cloud.storage.v1.StorageObjectData
 import com.google.protobuf.util.JsonFormat
 import io.cloudevents.CloudEvent
@@ -33,7 +33,8 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGr
 import org.wfanet.measurement.securecomputation.datawatcher.DataWatcher
 
 /*
- * The DataWatcherFunction receives a CloudEvent and calls the DataWatcher with the path and config.
+ * Cloud Function receives a CloudEvent. If the cloud event path matches config, it calls the
+ * DataWatcher with the path and config.
  */
 class DataWatcherFunction : CloudEventsFunction {
 
@@ -47,10 +48,10 @@ class DataWatcherFunction : CloudEventsFunction {
     logger.fine("Starting DataWatcherFunction")
     val publicChannel =
       buildMutualTlsChannel(
-          System.getenv("CONTROL_PLANE_TARGET"),
-          getClientCerts(),
-          System.getenv("CONTROL_PLANE_CERT_HOST"),
-        )
+        System.getenv("CONTROL_PLANE_TARGET"),
+        getClientCerts(),
+        System.getenv("CONTROL_PLANE_CERT_HOST"),
+      )
         .withShutdownTimeout(
           Duration.ofSeconds(
             System.getenv("CONTROL_PLANE_CHANNEL_SHUTDOWN_DURATION_SECONDS")?.toLong()
@@ -59,10 +60,9 @@ class DataWatcherFunction : CloudEventsFunction {
         )
 
     val workItemsStub = WorkItemsCoroutineStub(publicChannel)
-    val config =
-      checkNotNull(
-        DataWatcherFunction::class.java.classLoader.getJarResourceFile(System.getenv("DATA_WATCHER_CONFIG_RESOURCE_PATH"))
-      )
+    val config = checkNotNull(CLASS_LOADER.getJarResourceFile(CONFIG_RESOURCE_PATH)) {
+      "Missing embedded config file at $CONFIG_RESOURCE_PATH"
+    }
     val dataWatcherConfigs = parseTextProto(config, DataWatcherConfigs.getDefaultInstance())
     val dataWatcher =
       DataWatcher(
@@ -83,22 +83,13 @@ class DataWatcherFunction : CloudEventsFunction {
   }
 
   private fun getClientCerts(): SigningCerts {
-    println("GET CLIENT CERT: ${System.getenv("CERT_FILE_PATH")}")
-    val resourceUrl = DataWatcherFunction::class.java.classLoader.getResource("data_watcher_tls.pem")
-    println("Resource URL for data_watcher_tls.pem: $resourceUrl --")
-    val stream1 = DataWatcherFunction::class.java.classLoader.getResourceAsStream("data_watcher_tls.pem")
-    val stream2 = DataWatcherFunction::class.java.getResourceAsStream("/data_watcher_tls.pem")
-    println("Stream1: $stream1 -")
-    println("Stream2: $stream2 -")
-    val resourceUrl2 = javaClass.getResource("/data_watcher_tls.pem")
-    println("Resource URL from javaClass2: $resourceUrl2 -")
     return SigningCerts.fromPemFiles(
       certificateFile =
-        checkNotNull(DataWatcherFunction::class.java.classLoader.getJarResourceFile(System.getenv("CERT_FILE_PATH"))),
+      checkNotNull(CLASS_LOADER.getJarResourceFile(System.getenv("CERT_FILE_PATH"))),
       privateKeyFile =
-        checkNotNull(DataWatcherFunction::class.java.classLoader.getJarResourceFile(System.getenv("PRIVATE_KEY_FILE_PATH"))),
+      checkNotNull(CLASS_LOADER.getJarResourceFile(System.getenv("PRIVATE_KEY_FILE_PATH"))),
       trustedCertCollectionFile =
-        checkNotNull(DataWatcherFunction::class.java.classLoader.getJarResourceFile(System.getenv("CERT_COLLECTION_FILE_PATH"))),
+      checkNotNull(CLASS_LOADER.getJarResourceFile(System.getenv("CERT_COLLECTION_FILE_PATH"))),
     )
   }
 
@@ -112,9 +103,9 @@ class DataWatcherFunction : CloudEventsFunction {
         "CERT_FILE_PATH",
         "PRIVATE_KEY_FILE_PATH",
         "CERT_COLLECTION_FILE_PATH",
-        "DATA_WATCHER_CONFIG_RESOURCE_PATH",
         "CONTROL_PLANE_TARGET",
         "CONTROL_PLANE_CERT_HOST",
       )
+    private const val CONFIG_RESOURCE_PATH = "securecomputation/datawatcher/data_watcher_config.textproto"
   }
 }
