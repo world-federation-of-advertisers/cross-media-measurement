@@ -16,6 +16,10 @@
 
 package org.wfanet.measurement.securecomputation.datawatcher
 
+import java.net.URI
+import java.net.http.HttpClient
+import java.net.http.HttpRequest
+import java.net.http.HttpResponse.BodyHandlers
 import java.util.UUID
 import java.util.logging.Logger
 import kotlin.text.matches
@@ -66,9 +70,9 @@ class DataWatcher(
     val workItemId = UUID.randomUUID().toString()
     val workItemParams =
       workItemParams {
-          appParams = queueConfig.appParams
-          this.dataPathParams = dataPathParams { this.dataPath = path }
-        }
+        appParams = queueConfig.appParams
+        this.dataPathParams = dataPathParams { this.dataPath = path }
+      }
         .pack()
     val request = createWorkItemRequest {
       this.workItemId = workItemId

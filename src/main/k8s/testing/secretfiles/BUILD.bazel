@@ -242,7 +242,7 @@ DATA_WATCHER_SECRET_FILES = [
 ]
 
 filegroup(
-    name = "data_watcher_certs",
+    name = "data_watcher_secret_files",
     srcs = DATA_WATCHER_SECRET_FILES,
     visibility = ["//visibility:public"],
 )
