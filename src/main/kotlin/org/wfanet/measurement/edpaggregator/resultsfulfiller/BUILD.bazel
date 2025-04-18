@@ -1,0 +1,69 @@
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
+
+package(
+    default_testonly = True,
+    default_visibility = ["//visibility:public"],
+)
+
+kt_jvm_library(
+    name = "results_fulfiller",
+    srcs = ["ResultsFulfiller.kt"],
+    deps = [
+        ":measurement_results",
+        "//imports/java/com/google/crypto/tink/integration/gcpkms",
+        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:packed_messages",
+        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
+        "//src/main/kotlin/org/wfanet/measurement/common:health",
+        "//src/main/kotlin/org/wfanet/measurement/common/api/grpc:list_resources",
+        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/eventfiltration:event_filters",
+        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/noiser",
+        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/privacybudgetmanagement:privacy_budget_manager",
+        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/privacybudgetmanagement/api/v2alpha:privacy_query_mapper",
+        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/shareshuffle/v2alpha:shareshuffle",
+        "//src/main/kotlin/org/wfanet/measurement/securecomputation/teesdk:base_tee_application",
+        "//src/main/kotlin/org/wfanet/panelmatch/client/storage/gcloud/gcs",
+        "//src/main/proto/wfa/any_sketch:frequency_vector_kt_jvm_proto",
+        "//src/main/proto/wfa/any_sketch:sketch_kt_jvm_proto",
+        "//src/main/proto/wfa/frequency_count:secret_share_kt_jvm_proto",
+        "//src/main/proto/wfa/frequency_count:secret_share_methods_kt_jvm__proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:certificates_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:crypto_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:data_providers_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:direct_computation_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:event_group_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:event_group_metadata_descriptors_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:event_groups_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:requisition_fulfillment_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:requisition_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:requisitions_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:blob_details_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:labeled_impression_kt_jvm_proto",
+        "@any_sketch_java//src/main/java/org/wfanet/anysketch",
+        "@any_sketch_java//src/main/java/org/wfanet/frequencycount",
+        "@any_sketch_java//src/main/java/org/wfanet/sampling",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:mesos_recordio_storage_client",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:selected_storage_client",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage/testing",
+        "@wfa_consent_signaling_client//src/main/kotlin/org/wfanet/measurement/consent/client/measurementconsumer",
+    ],
+)
+
+kt_jvm_library(
+    name = "results_fulfiller_app",
+    srcs = ["ResultsFulfillerApp.kt"],
+    deps = [
+        ":results_fulfiller",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:results_fulfiller_params_kt_jvm_proto",
+    ],
+)
+
+kt_jvm_library(
+    name = "measurement_results",
+    srcs = ["MeasurementResults.kt"],
+    deps = [
+        "//imports/java/org/projectnessie/cel",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+    ],
+)
