@@ -28,7 +28,6 @@ import kotlin.properties.Delegates
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.TimeSource
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.async
@@ -44,10 +43,11 @@ import org.wfanet.measurement.common.getRuntimePath
 
 /**
  * Wrapper for a Cloud Function binary process. Exposes a port where the process can receive data.
+ * This class is used for starting a process that invokes Google Cloud Functions for tests.
  *
  * @param javaBinaryPath the runfiles-relative path of the binary that runs the Cloud Run Invoker
- * @param classTarget the class that the invoker will run. This is the classpath that the Invoker
- *   will run
+ * @param classTarget the class name that the invoker will run. This must be in the class path of
+ *   the binary that will be run.
  * @param coroutineContext the context under which the process will run
  */
 class FunctionsFrameworkInvokerProcess(
@@ -104,13 +104,13 @@ class FunctionsFrameworkInvokerProcess(
 
         val processBuilder =
           ProcessBuilder(
-              runtimePath.toString(),
-              // Add HTTP port configuration
-              "--port",
-              localPort.toString(),
-              "--target",
-              classTarget,
-            )
+            runtimePath.toString(),
+            // Add HTTP port configuration
+            "--port",
+            localPort.toString(),
+            "--target",
+            classTarget,
+          )
             .redirectErrorStream(true)
             .redirectOutput(ProcessBuilder.Redirect.PIPE)
 
@@ -130,6 +130,10 @@ class FunctionsFrameworkInvokerProcess(
             if (line.contains(readyPattern)) {
               isReady = true
             }
+          }
+        } catch (e: Exception) {
+          if (process.isAlive) {
+            logger.log(Level.WARNING, "Error reading process output: ${e.message}")
           }
         }
 
