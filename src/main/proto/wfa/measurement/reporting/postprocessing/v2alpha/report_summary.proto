@@ -67,4 +67,6 @@ message MeasurementDetail {
 
 message ReportSummary {
   repeated MeasurementDetail measurement_details = 1;
+  repeated string demographic_groups = 2;
+  int64 population = 3;
 }

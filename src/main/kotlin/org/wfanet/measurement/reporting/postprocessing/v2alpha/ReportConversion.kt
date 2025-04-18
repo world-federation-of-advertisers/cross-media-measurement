@@ -23,6 +23,8 @@ import org.wfanet.measurement.reporting.v2alpha.MetricResult
 import org.wfanet.measurement.reporting.v2alpha.Report
 import org.wfanet.measurement.reporting.v2alpha.Report.MetricCalculationResult
 
+const val POPULATION_KEY = "population"
+
 /** Represents a summary of a reporting set. */
 data class ReportingSetSummary(
   /** The measurement policy used for the reporting set. */
@@ -63,6 +65,27 @@ object ReportConversion {
     }
     return protoBuilder.build()
   }
+
+  // TODO(ple13): Read the population mapping from the report when it is available,
+  //  instead of using this hardcoded map.
+
+  /**
+   * A map where the key is a canonical list of predicate strings defining a demographic group and
+   * the value is the corresponding canonical string constant representing that group (e.g.,
+   * "MALE_YEARS_16_TO_34").
+   *
+   * This map facilitates looking up the string constant based on the set of predicates that define
+   * it.
+   */
+  val groupingPredicatesToStringMap: Map<List<String>, String> =
+    mapOf(
+      listOf("common.sex==1", "common.age_group==1") to "MALE_YEARS_16_TO_34",
+      listOf("common.sex==1", "common.age_group==2") to "MALE_YEARS_35_TO_54",
+      listOf("common.sex==1", "common.age_group==3") to "MALE_YEARS_55_PLUS",
+      listOf("common.sex==2", "common.age_group==1") to "FEMALE_YEARS_16_TO_34",
+      listOf("common.sex==2", "common.age_group==2") to "FEMALE_YEARS_35_TO_54",
+      listOf("common.sex==2", "common.age_group==3") to "FEMALE_YEARS_55_PLUS",
+    )
 
   // TODO(@ple13): Move this function to a separate Origin-specific package.
   fun getReportingSetSummaryFromTag(tag: String): ReportingSetSummary {
@@ -110,6 +133,20 @@ object ReportConversion {
     )
   }
 
+  /** Parses the population tag into a map representing demographic group populations. */
+  fun getDemographicGroupPopulationFromTag(tag: String): Map<String, Long> {
+    val keyValuePairs: List<String> = tag.split(';')
+    val populationMap = mutableMapOf<String, Long>()
+
+    for (pair in keyValuePairs) {
+      val (key, value) = pair.split("=", limit = 2)
+      populationMap[key] =
+        value.toLongOrNull()
+          ?: throw IllegalArgumentException("Value for key '$key' is not a valid Long: '$value'")
+    }
+    return populationMap
+  }
+
   // TODO(@ple13): Move this function to a separate Origin-specific package.
   fun convertJsontoReportSummaries(reportAsJsonString: String): List<ReportSummary> {
     return getReportFromJsonString(reportAsJsonString).toReportSummaries()
@@ -136,12 +173,30 @@ fun Report.toReportSummaries(): List<ReportSummary> {
       specId to ReportConversion.getMetricCalculationSpecFromTag(tag)
     }
 
+  // Reads the population map from the tags.
+  val populationPerDemographicGroup: Map<String, Long> =
+    if (tags.containsKey(POPULATION_KEY)) {
+      ReportConversion.getDemographicGroupPopulationFromTag(tags.getValue(POPULATION_KEY))
+    } else {
+      emptyMap()
+    }
+
   val targetByReportingSetId: Map<String, List<String>> =
     reportingSetSummaryById
       .map { (reportingSetId, reportingSetSummary) ->
         reportingSetId.substringAfterLast("/") to reportingSetSummary.target
       }
       .toMap()
+
+  // Extracts the demographic filter groups.
+  //
+  // All metric calculation specs must have the same common filter. The value of the common filter
+  // field is either '-' (i.e. no filtering) or a list of demographic groups separated by
+  // semicolons.
+  val demographicFilterGroups: List<String> =
+    metricCalculationSpecById.values.firstOrNull()?.commonFilter?.trim(';')?.split(';')?.filter {
+      it.isNotEmpty()
+    } ?: emptyList()
 
   // Generates a set of demographic groups. If the report doesn't support demographic slicing,
   // the set contains an empty list, otherwise, it contains all the demographic groups.
@@ -154,9 +209,8 @@ fun Report.toReportSummaries(): List<ReportSummary> {
         when {
           sexes.isNotEmpty() && ageGroups.isNotEmpty() ->
             sexes.flatMap { sex -> ageGroups.map { ageGroup -> listOf(sex, ageGroup) } }
-          sexes.isEmpty() && ageGroups.isNotEmpty() -> ageGroups.map { listOf(it) }
-          sexes.isNotEmpty() && ageGroups.isEmpty() -> sexes.map { listOf(it) }
-          else -> listOf(emptyList())
+          sexes.isEmpty() && ageGroups.isEmpty() -> listOf(emptyList())
+          else -> throw IllegalArgumentException("AgeGroup and Sex must be both set or empty.")
         }
       }
       .toSet()
@@ -171,6 +225,32 @@ fun Report.toReportSummaries(): List<ReportSummary> {
   // slicing, all measurements belong to the same report summary.
   for (demographicGroup in demographicGroups) {
     val reportSummary = reportSummary {
+      if (demographicGroup.isEmpty()) {
+        // demographicGroups contains an empty list indicates that this report supports demographic
+        // filtering. The population is the sum of all the filtered demographic groups.
+        // When common filter is equal to '-', all groups are selected. If the population
+        // information is not available in the report, use the default value of 0 as the population.
+        this.population =
+          if (demographicFilterGroups.contains("-")) {
+            populationPerDemographicGroup.values.sum()
+          } else {
+            demographicFilterGroups.sumOf { group ->
+              populationPerDemographicGroup.getOrDefault(group, 0L)
+            }
+          }
+        this.demographicGroups += demographicFilterGroups
+      } else {
+        // This report supports demographic slicing. If population information is not available in
+        // the report, assign the value 0 to the population of that slice.
+        this.population =
+          populationPerDemographicGroup.getOrDefault(
+            ReportConversion.groupingPredicatesToStringMap.getValue(demographicGroup),
+            0L,
+          )
+        this.demographicGroups +=
+          ReportConversion.groupingPredicatesToStringMap.getValue(demographicGroup)
+      }
+
       for ((key, value) in measurementSets) {
         val reportingSetSummary: ReportingSetSummary = reportingSetSummaryById.getValue(key.first)
         val metricCalculationSpec: MetricCalculationSpec =

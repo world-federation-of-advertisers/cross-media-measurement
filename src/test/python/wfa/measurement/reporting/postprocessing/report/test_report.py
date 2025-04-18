@@ -26,6 +26,7 @@ from src.main.proto.wfa.measurement.reporting.postprocessing.v2alpha import \
   report_post_processor_result_pb2
 
 StatusCode = report_post_processor_result_pb2.ReportPostProcessorStatus.StatusCode
+ReportQuality = report_post_processor_result_pb2.ReportQuality
 
 EXPECTED_PRECISION = 1
 EDP_ONE = "EDP_ONE"
@@ -43,26 +44,26 @@ SAMPLE_REPORT = Report(
                     Measurement(1, 0, "measurement_02")
                 ],
                 frozenset({EDP_TWO}): [
-                    Measurement(1, 0, "measurement_03"),
-                    Measurement(1, 0, "measurement_04")
+                    Measurement(1, 1, "measurement_03"),
+                    Measurement(1, 1, "measurement_04")
                 ],
                 frozenset({EDP_THREE}): [
-                    Measurement(1, 0, "measurement_05"),
-                    Measurement(1, 0, "measurement_06")
+                    Measurement(1, 1, "measurement_05"),
+                    Measurement(1, 1, "measurement_06")
                 ],
                 frozenset({EDP_ONE, EDP_TWO, EDP_THREE}): [
-                    Measurement(1, 0, "measurement_07"),
-                    Measurement(1, 0, "measurement_08")
+                    Measurement(1, 1, "measurement_07"),
+                    Measurement(1, 1, "measurement_08")
                 ],
             },
             reach_whole_campaign={
                 frozenset({EDP_ONE}): Measurement(1, 0, "measurement_09"),
-                frozenset({EDP_TWO}): Measurement(1, 0, "measurement_10"),
-                frozenset({EDP_THREE}): Measurement(1, 0, "measurement_11"),
+                frozenset({EDP_TWO}): Measurement(1, 1, "measurement_10"),
+                frozenset({EDP_THREE}): Measurement(1, 1, "measurement_11"),
                 frozenset({EDP_ONE, EDP_TWO}):
-                  Measurement(1, 0, "measurement_12"),
+                  Measurement(1, 1, "measurement_12"),
                 frozenset({EDP_ONE, EDP_TWO, EDP_THREE}):
-                  Measurement(1, 0, "measurement_13"),
+                  Measurement(1, 1, "measurement_13"),
             },
             k_reach={
                 frozenset({EDP_ONE}): {
@@ -70,26 +71,26 @@ SAMPLE_REPORT = Report(
                     2: Measurement(1, 0, "measurement_15"),
                 },
                 frozenset({EDP_TWO}): {
-                    1: Measurement(1, 0, "measurement_16"),
-                    2: Measurement(1, 0, "measurement_17"),
+                    1: Measurement(1, 1, "measurement_16"),
+                    2: Measurement(1, 1, "measurement_17"),
                 },
                 frozenset({EDP_THREE}): {
-                    1: Measurement(1, 0, "measurement_18"),
-                    2: Measurement(1, 0, "measurement_19"),
+                    1: Measurement(1, 1, "measurement_18"),
+                    2: Measurement(1, 1, "measurement_19"),
                 },
                 frozenset({EDP_ONE, EDP_TWO, EDP_THREE}): {
-                    1: Measurement(1, 0, "measurement_20"),
-                    2: Measurement(1, 0, "measurement_21"),
+                    1: Measurement(1, 1, "measurement_20"),
+                    2: Measurement(1, 1, "measurement_21"),
                 },
             },
             impression={
                 frozenset({EDP_ONE}): Measurement(1, 0, "measurement_22"),
-                frozenset({EDP_TWO}): Measurement(1, 0, "measurement_23"),
-                frozenset({EDP_THREE}): Measurement(1, 0, "measurement_24"),
+                frozenset({EDP_TWO}): Measurement(1, 1, "measurement_23"),
+                frozenset({EDP_THREE}): Measurement(1, 1, "measurement_24"),
                 frozenset({EDP_ONE, EDP_TWO}):
-                  Measurement(1, 0, "measurement_25"),
+                  Measurement(1, 1, "measurement_25"),
                 frozenset({EDP_ONE, EDP_TWO, EDP_THREE}):
-                  Measurement(1, 0, "measurement_26"),
+                  Measurement(1, 1, "measurement_26"),
             }
         ),
         "mrc": MetricReport(
@@ -99,24 +100,24 @@ SAMPLE_REPORT = Report(
                     Measurement(1, 0, "measurement_28")
                 ],
                 frozenset({EDP_TWO}): [
-                    Measurement(1, 0, "measurement_29"),
-                    Measurement(1, 0, "measurement_30")
+                    Measurement(1, 1, "measurement_29"),
+                    Measurement(1, 1, "measurement_30")
                 ],
                 frozenset({EDP_THREE}): [
-                    Measurement(1, 0, "measurement_31"),
-                    Measurement(1, 0, "measurement_32")
+                    Measurement(1, 1, "measurement_31"),
+                    Measurement(1, 1, "measurement_32")
                 ],
                 frozenset({EDP_ONE, EDP_TWO, EDP_THREE}): [
-                    Measurement(1, 0, "measurement_33"),
-                    Measurement(1, 0, "measurement_34")
+                    Measurement(1, 1, "measurement_33"),
+                    Measurement(1, 1, "measurement_34")
                 ],
             },
             reach_whole_campaign={
                 frozenset({EDP_ONE}): Measurement(1, 0, "measurement_35"),
-                frozenset({EDP_TWO}): Measurement(1, 0, "measurement_36"),
-                frozenset({EDP_THREE}): Measurement(1, 0, "measurement_37"),
+                frozenset({EDP_TWO}): Measurement(1, 1, "measurement_36"),
+                frozenset({EDP_THREE}): Measurement(1, 1, "measurement_37"),
                 frozenset({EDP_TWO, EDP_THREE}):
-                  Measurement(1, 0, "measurement_38"),
+                  Measurement(1, 1, "measurement_38"),
             },
             k_reach={
                 frozenset({EDP_ONE}): {
@@ -124,25 +125,25 @@ SAMPLE_REPORT = Report(
                     2: Measurement(1, 0, "measurement_40"),
                 },
                 frozenset({EDP_TWO}): {
-                    1: Measurement(1, 0, "measurement_41"),
-                    2: Measurement(1, 0, "measurement_42"),
+                    1: Measurement(1, 1, "measurement_41"),
+                    2: Measurement(1, 1, "measurement_42"),
                 },
                 frozenset({EDP_THREE}): {
-                    1: Measurement(1, 0, "measurement_43"),
-                    2: Measurement(1, 0, "measurement_44"),
+                    1: Measurement(1, 1, "measurement_43"),
+                    2: Measurement(1, 1, "measurement_44"),
                 },
                 frozenset({EDP_TWO, EDP_THREE}): {
-                    1: Measurement(1, 0, "measurement_45"),
-                    2: Measurement(1, 0, "measurement_46"),
+                    1: Measurement(1, 1, "measurement_45"),
+                    2: Measurement(1, 1, "measurement_46"),
                 },
             },
             impression={
                 frozenset({EDP_ONE}): Measurement(1, 0, "measurement_47"),
-                frozenset({EDP_TWO}): Measurement(1, 0, "measurement_48"),
+                frozenset({EDP_TWO}): Measurement(1, 1, "measurement_48"),
                 frozenset({EDP_THREE}):
-                  Measurement(1, 0, "measurement_49"),
+                  Measurement(1, 1, "measurement_49"),
                 frozenset({EDP_TWO, EDP_THREE}):
-                  Measurement(1, 0, "measurement_50"),
+                  Measurement(1, 1, "measurement_50"),
             }
         ),
         "custom": MetricReport(
@@ -152,24 +153,24 @@ SAMPLE_REPORT = Report(
                     Measurement(1, 0, "measurement_52")
                 ],
                 frozenset({EDP_TWO}): [
-                    Measurement(1, 0, "measurement_53"),
-                    Measurement(1, 0, "measurement_54")
+                    Measurement(1, 1, "measurement_53"),
+                    Measurement(1, 1, "measurement_54")
                 ],
                 frozenset({EDP_THREE}): [
-                    Measurement(1, 0, "measurement_55"),
-                    Measurement(1, 0, "measurement_56")
+                    Measurement(1, 1, "measurement_55"),
+                    Measurement(1, 1, "measurement_56")
                 ],
                 frozenset({EDP_ONE, EDP_TWO, EDP_THREE}): [
-                    Measurement(1, 0, "measurement_57"),
-                    Measurement(1, 0, "measurement_58")
+                    Measurement(1, 1, "measurement_57"),
+                    Measurement(1, 1, "measurement_58")
                 ],
             },
             reach_whole_campaign={
                 frozenset({EDP_ONE}): Measurement(1, 0, "measurement_59"),
-                frozenset({EDP_TWO}): Measurement(1, 0, "measurement_60"),
-                frozenset({EDP_THREE}): Measurement(1, 0, "measurement_61"),
+                frozenset({EDP_TWO}): Measurement(1, 1, "measurement_60"),
+                frozenset({EDP_THREE}): Measurement(1, 1, "measurement_61"),
                 frozenset({EDP_ONE, EDP_THREE}):
-                  Measurement(1, 0, "measurement_62"),
+                  Measurement(1, 1, "measurement_62"),
             },
             k_reach={
                 frozenset({EDP_ONE}): {
@@ -177,25 +178,25 @@ SAMPLE_REPORT = Report(
                     2: Measurement(1, 0, "measurement_64"),
                 },
                 frozenset({EDP_TWO}): {
-                    1: Measurement(1, 0, "measurement_65"),
-                    2: Measurement(1, 0, "measurement_66"),
+                    1: Measurement(1, 1, "measurement_65"),
+                    2: Measurement(1, 1, "measurement_66"),
                 },
                 frozenset({EDP_THREE}): {
-                    1: Measurement(1, 0, "measurement_67"),
-                    2: Measurement(1, 0, "measurement_68"),
+                    1: Measurement(1, 1, "measurement_67"),
+                    2: Measurement(1, 1, "measurement_68"),
                 },
                 frozenset({EDP_TWO, EDP_THREE}): {
-                    1: Measurement(1, 0, "measurement_69"),
-                    2: Measurement(1, 0, "measurement_70"),
+                    1: Measurement(1, 1, "measurement_69"),
+                    2: Measurement(1, 1, "measurement_70"),
                 },
             },
             impression={
                 frozenset({EDP_ONE}): Measurement(1, 0, "measurement_71"),
-                frozenset({EDP_TWO}): Measurement(1, 0, "measurement_72"),
+                frozenset({EDP_TWO}): Measurement(1, 1, "measurement_72"),
                 frozenset({EDP_THREE}):
-                  Measurement(1, 0, "measurement_73"),
+                  Measurement(1, 1, "measurement_73"),
                 frozenset({EDP_ONE, EDP_THREE}):
-                  Measurement(1, 0, "measurement_74"),
+                  Measurement(1, 1, "measurement_74"),
             }
         )
     },
@@ -258,24 +259,24 @@ class TestReport(unittest.TestCase):
   def test_get_cover_relationships(self):
     metric_report = MetricReport(
         reach_time_series={
-            frozenset({EDP_ONE}): [Measurement(1, 0, "measurement_01")],
-            frozenset({EDP_TWO}): [Measurement(1, 0, "measurement_02")],
-            frozenset({EDP_THREE}): [Measurement(1, 0, "measurement_03")],
+            frozenset({EDP_ONE}): [Measurement(1, 1, "measurement_01")],
+            frozenset({EDP_TWO}): [Measurement(1, 1, "measurement_02")],
+            frozenset({EDP_THREE}): [Measurement(1, 1, "measurement_03")],
             frozenset({EDP_ONE, EDP_TWO}): [
-                Measurement(1, 0, "measurement_04")],
+                Measurement(1, 1, "measurement_04")],
             frozenset({EDP_TWO, EDP_THREE}): [
-                Measurement(1, 0, "measurement_05")],
+                Measurement(1, 1, "measurement_05")],
             frozenset({EDP_ONE, EDP_THREE}): [
-                Measurement(1, 0, "measurement_06")],
+                Measurement(1, 1, "measurement_06")],
             frozenset({EDP_ONE, EDP_TWO, EDP_THREE}): [
-                Measurement(1, 0, "measurement_07")],
+                Measurement(1, 1, "measurement_07")],
         },
         reach_whole_campaign={},
         k_reach={
-            frozenset({EDP_ONE}): {1: Measurement(1, 0, "measurement_08")},
+            frozenset({EDP_ONE}): {1: Measurement(1, 1, "measurement_08")},
         },
         impression={
-            frozenset({EDP_ONE}): [Measurement(1, 0, "measurement_09")]
+            frozenset({EDP_ONE}): [Measurement(1, 1, "measurement_09")]
         },
     )
 
@@ -1069,7 +1070,7 @@ class TestReport(unittest.TestCase):
     # 2. Reach of the child set is less than or equal to reach of the parent set
     # for all period, e.g. reach[edp1][i] <= reach[edp1 U edp2][i].
     # 3. All reach values are non-negative.
-    corrected, report_post_processor_status = report.get_corrected_report()
+    corrected, report_post_processor_result = report.get_corrected_report()
 
     expected = Report(
         metric_reports={
@@ -1095,12 +1096,14 @@ class TestReport(unittest.TestCase):
         cumulative_inconsistency_allowed_edp_combinations={},
     )
 
-    self.assertEqual(report_post_processor_status.status_code,
+    self.assertEqual(report_post_processor_result.status.status_code,
                      StatusCode.SOLUTION_FOUND_WITH_HIGHS)
-    self.assertLess(report_post_processor_status.primal_equality_residual,
-                    NOISE_CORRECTION_TOLERANCE)
-    self.assertLess(report_post_processor_status.primal_inequality_residual,
-                    NOISE_CORRECTION_TOLERANCE)
+    self.assertLess(
+        report_post_processor_result.status.primal_equality_residual,
+        NOISE_CORRECTION_TOLERANCE)
+    self.assertLess(
+        report_post_processor_result.status.primal_inequality_residual,
+        NOISE_CORRECTION_TOLERANCE)
     self._assertReportsAlmostEqual(expected, corrected, corrected.to_array())
 
   def test_can_correct_time_series_for_three_edps(self):
@@ -1168,7 +1171,7 @@ class TestReport(unittest.TestCase):
     # 3. Reach of the child set is less than or equal to reach of the parent set
     # for all period, e.g. reach[edp1][i] <= reach[edp1 U edp2][i].
     # 4. All reach values are non-negative.
-    corrected, report_post_processor_status = report.get_corrected_report()
+    corrected, report_post_processor_result = report.get_corrected_report()
 
     expected = Report(
         metric_reports={
@@ -1222,12 +1225,14 @@ class TestReport(unittest.TestCase):
         cumulative_inconsistency_allowed_edp_combinations={},
     )
 
-    self.assertEqual(report_post_processor_status.status_code,
+    self.assertEqual(report_post_processor_result.status.status_code,
                      StatusCode.SOLUTION_FOUND_WITH_HIGHS)
-    self.assertLess(report_post_processor_status.primal_equality_residual,
-                    NOISE_CORRECTION_TOLERANCE)
-    self.assertLess(report_post_processor_status.primal_inequality_residual,
-                    NOISE_CORRECTION_TOLERANCE)
+    self.assertLess(
+        report_post_processor_result.status.primal_equality_residual,
+        NOISE_CORRECTION_TOLERANCE)
+    self.assertLess(
+        report_post_processor_result.status.primal_inequality_residual,
+        NOISE_CORRECTION_TOLERANCE)
     self._assertReportsAlmostEqual(expected, corrected, corrected.to_array())
 
   def test_correct_report_with_both_time_series_and_whole_campaign_measurements_three_edps(
@@ -1310,7 +1315,7 @@ class TestReport(unittest.TestCase):
     # 4. Last time series reach is equal to whole campaign reach,
     # e.g. cumulative_reach[edp1][#num_periods - 1] = whole_campaign_reach[edp1].
     # 5. All reach values are non-negative.
-    corrected, report_post_processor_status = report.get_corrected_report()
+    corrected, report_post_processor_result = report.get_corrected_report()
 
     expected = Report(
         metric_reports={
@@ -1375,12 +1380,14 @@ class TestReport(unittest.TestCase):
         cumulative_inconsistency_allowed_edp_combinations={},
     )
 
-    self.assertEqual(report_post_processor_status.status_code,
+    self.assertEqual(report_post_processor_result.status.status_code,
                      StatusCode.SOLUTION_FOUND_WITH_HIGHS)
-    self.assertLess(report_post_processor_status.primal_equality_residual,
-                    NOISE_CORRECTION_TOLERANCE)
-    self.assertLess(report_post_processor_status.primal_inequality_residual,
-                    NOISE_CORRECTION_TOLERANCE)
+    self.assertLess(
+        report_post_processor_result.status.primal_equality_residual,
+        NOISE_CORRECTION_TOLERANCE)
+    self.assertLess(
+        report_post_processor_result.status.primal_inequality_residual,
+        NOISE_CORRECTION_TOLERANCE)
     self._assertReportsAlmostEqual(expected, corrected, corrected.to_array())
 
   def test_correct_report_with_whole_campaign_has_more_edp_combinations(self):
@@ -1440,7 +1447,7 @@ class TestReport(unittest.TestCase):
     # whole campaign reach: the last time series reach is equal to whole
     # campaign reach, e.g. cumulative_reach[edp1][#num_period - 1] =
     # whole_campaign_reach[edp1]. All reach values must be non-negative.
-    corrected, report_post_processor_status = report.get_corrected_report()
+    corrected, report_post_processor_result = report.get_corrected_report()
 
     expected = Report(
         metric_reports={
@@ -1492,12 +1499,14 @@ class TestReport(unittest.TestCase):
         cumulative_inconsistency_allowed_edp_combinations={},
     )
 
-    self.assertEqual(report_post_processor_status.status_code,
+    self.assertEqual(report_post_processor_result.status.status_code,
                      StatusCode.SOLUTION_FOUND_WITH_HIGHS)
-    self.assertLess(report_post_processor_status.primal_equality_residual,
-                    NOISE_CORRECTION_TOLERANCE)
-    self.assertLess(report_post_processor_status.primal_inequality_residual,
-                    NOISE_CORRECTION_TOLERANCE)
+    self.assertLess(
+        report_post_processor_result.status.primal_equality_residual,
+        NOISE_CORRECTION_TOLERANCE)
+    self.assertLess(
+        report_post_processor_result.status.primal_inequality_residual,
+        NOISE_CORRECTION_TOLERANCE)
     self._assertReportsAlmostEqual(expected, corrected, corrected.to_array())
 
   def test_allows_incorrect_time_series(self):
@@ -1531,7 +1540,7 @@ class TestReport(unittest.TestCase):
     # monotonic increasing, e.g. reach[edp1][i] <= reach[edp1][i+1], except for
     # the one in the exception list, e.g. edp1. All reach values must be
     # non-negative.
-    corrected, report_post_processor_status = report.get_corrected_report()
+    corrected, report_post_processor_result = report.get_corrected_report()
 
     expected = Report(
         metric_reports={
@@ -1558,12 +1567,14 @@ class TestReport(unittest.TestCase):
             frozenset({EDP_ONE})),
     )
 
-    self.assertEqual(report_post_processor_status.status_code,
+    self.assertEqual(report_post_processor_result.status.status_code,
                      StatusCode.SOLUTION_FOUND_WITH_HIGHS)
-    self.assertLess(report_post_processor_status.primal_equality_residual,
-                    NOISE_CORRECTION_TOLERANCE)
-    self.assertLess(report_post_processor_status.primal_inequality_residual,
-                    NOISE_CORRECTION_TOLERANCE)
+    self.assertLess(
+        report_post_processor_result.status.primal_equality_residual,
+        NOISE_CORRECTION_TOLERANCE)
+    self.assertLess(
+        report_post_processor_result.status.primal_inequality_residual,
+        NOISE_CORRECTION_TOLERANCE)
     self._assertReportsAlmostEqual(expected, corrected, corrected.to_array())
 
   def test_can_correct_related_metrics(self):
@@ -1603,7 +1614,7 @@ class TestReport(unittest.TestCase):
     # measurements are less than or equal to the AMI measurements, e.g.
     # mrc_reach[edp1][0] <= ami_reach[edp1][0]. All reach values must be
     # non-negative.
-    corrected, report_post_processor_status = report.get_corrected_report()
+    corrected, report_post_processor_result = report.get_corrected_report()
 
     expected = Report(
         metric_reports={
@@ -1635,91 +1646,327 @@ class TestReport(unittest.TestCase):
         cumulative_inconsistency_allowed_edp_combinations={},
     )
 
-    self.assertEqual(report_post_processor_status.status_code,
+    self.assertEqual(report_post_processor_result.status.status_code,
                      StatusCode.SOLUTION_FOUND_WITH_HIGHS)
-    self.assertLess(report_post_processor_status.primal_equality_residual,
-                    NOISE_CORRECTION_TOLERANCE)
-    self.assertLess(report_post_processor_status.primal_inequality_residual,
-                    NOISE_CORRECTION_TOLERANCE)
+    self.assertLess(
+        report_post_processor_result.status.primal_equality_residual,
+        NOISE_CORRECTION_TOLERANCE)
+    self.assertLess(
+        report_post_processor_result.status.primal_inequality_residual,
+        NOISE_CORRECTION_TOLERANCE)
     self._assertReportsAlmostEqual(expected, corrected, corrected.to_array())
 
-  def test_get_corrected_multiple_metric_report_with_different_edp_combinations(
+  def test_correct_report_with_consistent_linear_tv_return_consistent_status(
       self):
     report = Report(
         metric_reports={
             "ami": MetricReport(
                 reach_time_series={
-                    frozenset({EDP_ONE, EDP_TWO}): [
-                        Measurement(50, 1, "measurement_01")],
                     frozenset({EDP_ONE}): [
-                        Measurement(48, 0, "measurement_02")],
-                    frozenset({EDP_TWO}): [
-                        Measurement(1, 1, "measurement_03")],
+                        Measurement(35, 0, "measurement_01"),
+                        Measurement(48.0, 0, "measurement_02")
+                    ],
                 },
-                reach_whole_campaign={},
-                k_reach={},
-                impression={},
+                reach_whole_campaign={
+                    frozenset({EDP_ONE}): Measurement(48, 0, "measurement_03"),
+                },
+                k_reach={
+                    frozenset({EDP_ONE}): {
+                        1: Measurement(20, 0, "measurement_04"),
+                        2: Measurement(28, 0, "measurement_05"),
+                    },
+                },
+                impression={
+                    frozenset({EDP_ONE}): Measurement(100, 0, "measurement_06"),
+                },
             ),
             "mrc": MetricReport(
                 reach_time_series={
-                    frozenset({EDP_ONE, EDP_TWO}): [
-                        Measurement(45, 1, "measurement_04")],
-                    frozenset({EDP_TWO}): [
-                        Measurement(2, 1, "measurement_05")],
+                    frozenset({EDP_ONE}): [
+                        Measurement(30, 0, "measurement_07"),
+                        Measurement(40.0, 0, "measurement_08")
+                    ],
                 },
-                reach_whole_campaign={},
-                k_reach={},
-                impression={},
-            ),
+                reach_whole_campaign={
+                    frozenset({EDP_ONE}): Measurement(40, 0, "measurement_09"),
+                },
+                k_reach={
+                    frozenset({EDP_ONE}): {
+                        1: Measurement(20, 0, "measurement_10"),
+                        2: Measurement(20, 0, "measurement_11"),
+                    },
+                },
+                impression={
+                    frozenset({EDP_ONE}): Measurement(80, 0, "measurement_12"),
+                },
+            )
         },
         metric_subsets_by_parent={"ami": ["mrc"]},
         cumulative_inconsistency_allowed_edp_combinations={},
     )
 
-    # The corrected report should be consistent for metric relations: MRC
-    # measurements are less than or equal to the AMI measurements, e.g.
-    # mrc_reach[edp1][0] <= ami_reach[edp1][0]. All reach values must be
-    # non-negative.
-    corrected, report_post_processor_status = report.get_corrected_report()
+    corrected, report_post_processor_result = report.get_corrected_report()
 
-    expected = Report(
+    self.assertEqual(report_post_processor_result.status.status_code,
+                     StatusCode.SOLUTION_FOUND_WITH_HIGHS)
+    self.assertLess(
+        report_post_processor_result.status.primal_equality_residual,
+        NOISE_CORRECTION_TOLERANCE)
+    self.assertLess(
+        report_post_processor_result.status.primal_inequality_residual,
+        NOISE_CORRECTION_TOLERANCE)
+    self.assertEqual(
+        report_post_processor_result.pre_correction_quality.tv_status,
+        ReportQuality.LinearTVStatus.CONSISTENT)
+    self.assertEqual(
+        report_post_processor_result.post_correction_quality.tv_status,
+        ReportQuality.LinearTVStatus.CONSISTENT)
+    # No union check status as population size is not specified.
+    self.assertEqual(
+        report_post_processor_result.pre_correction_quality.union_status,
+        ReportQuality.UnionCheckStatus.UNION_CHECK_STATUS_UNSPECIFIED
+    )
+    self.assertEqual(
+        report_post_processor_result.post_correction_quality.union_status,
+        ReportQuality.UnionCheckStatus.UNION_CHECK_STATUS_UNSPECIFIED
+    )
+    self._assertReportsAlmostEqual(report, corrected, corrected.to_array())
+
+  def test_correct_report_with_not_consistent_linear_tv_return_not_consistent_status(
+      self):
+    # Report has inconsistent unnoised data.
+    # measurement 7 should be less than measurement 1.
+    report = Report(
         metric_reports={
             "ami": MetricReport(
                 reach_time_series={
-                    frozenset({EDP_ONE, EDP_TWO}): [
-                        Measurement(49.667, 1, "measurement_01")],
                     frozenset({EDP_ONE}): [
-                        Measurement(48, 0, "measurement_02")],
-                    frozenset({EDP_TWO}): [
-                        Measurement(1.667, 1, "measurement_03")],
+                        Measurement(35, 0, "measurement_01"),
+                        Measurement(48.0, 0, "measurement_02")
+                    ],
                 },
-                reach_whole_campaign={},
-                k_reach={},
-                impression={},
+                reach_whole_campaign={
+                    frozenset({EDP_ONE}): Measurement(48, 0, "measurement_03"),
+                },
+                k_reach={
+                    frozenset({EDP_ONE}): {
+                        1: Measurement(20, 0, "measurement_04"),
+                        2: Measurement(28, 0, "measurement_05"),
+                    },
+                },
+                impression={
+                    frozenset({EDP_ONE}): Measurement(100, 0, "measurement_06"),
+                },
             ),
             "mrc": MetricReport(
                 reach_time_series={
-                    frozenset({EDP_ONE, EDP_TWO}): [
-                        Measurement(45, 1, "measurement_04")],
-                    frozenset({EDP_TWO}): [
-                        Measurement(1.667, 1, "measurement_05")],
+                    frozenset({EDP_ONE}): [
+                        Measurement(40, 0, "measurement_07"),
+                        Measurement(40.0, 0, "measurement_08")
+                    ],
                 },
-                reach_whole_campaign={},
-                k_reach={},
-                impression={},
-            ),
+                reach_whole_campaign={
+                    frozenset({EDP_ONE}): Measurement(40, 0, "measurement_09"),
+                },
+                k_reach={
+                    frozenset({EDP_ONE}): {
+                        1: Measurement(20, 0, "measurement_10"),
+                        2: Measurement(20, 0, "measurement_11"),
+                    },
+                },
+                impression={
+                    frozenset({EDP_ONE}): Measurement(80, 0, "measurement_12"),
+                },
+            )
         },
         metric_subsets_by_parent={"ami": ["mrc"]},
         cumulative_inconsistency_allowed_edp_combinations={},
     )
 
-    self.assertEqual(report_post_processor_status.status_code,
+    corrected, report_post_processor_result = report.get_corrected_report()
+
+    self.assertEqual(report_post_processor_result.status.status_code,
+                     StatusCode.SOLUTION_NOT_FOUND)
+    self.assertEqual(
+        report_post_processor_result.status.primal_equality_residual,
+        float('inf')
+    )
+    self.assertEqual(
+        report_post_processor_result.status.primal_inequality_residual,
+        float('inf')
+    )
+    self.assertEqual(
+        report_post_processor_result.pre_correction_quality.tv_status,
+        ReportQuality.LinearTVStatus.NOT_CONSISTENT)
+    self.assertEqual(
+        report_post_processor_result.post_correction_quality.tv_status,
+        ReportQuality.LinearTVStatus.LINEAR_TV_STATUS_UNSPECIFIED)
+    self.assertEqual(
+        report_post_processor_result.pre_correction_quality.union_status,
+        ReportQuality.UnionCheckStatus.UNION_CHECK_STATUS_UNSPECIFIED
+    )
+    self.assertEqual(
+        report_post_processor_result.post_correction_quality.union_status,
+        ReportQuality.UnionCheckStatus.UNION_CHECK_STATUS_UNSPECIFIED
+    )
+    self.assertIsNone(corrected,
+                      "Corrected report is None as QP solver fails.")
+
+  def test_correct_report_with_valid_union_statistics(self):
+    # The union differences are less than 5000, and fall within the confidence
+    # interval [-7sigma, 7sigma] where sigma = sqrt(1300^2 + 1300^2) = 1838.
+    report = Report(
+        metric_reports={
+            "ami": MetricReport(
+                reach_time_series={
+                    frozenset({EDP_ONE}): [
+                        Measurement(10000000, 0, "measurement_02")
+                    ],
+                    frozenset({EDP_TWO}): [
+                        Measurement(2998700, 1300, "measurement_03")],
+                    frozenset({EDP_ONE, EDP_TWO}): [
+                        Measurement(12460000, 1300, "measurement_01")
+                    ],
+                },
+                reach_whole_campaign={
+                    frozenset({EDP_ONE}): Measurement(10000000, 0,
+                                                      "measurement_04"),
+                    frozenset({EDP_TWO}): Measurement(3001000, 1300,
+                                                      "measurement_05"),
+                    frozenset({EDP_ONE, EDP_TWO}):
+                      Measurement(12458000, 1300, "measurement_06"),
+                },
+                k_reach={
+                    frozenset({EDP_ONE}): {
+                        1: Measurement(3000000, 0, "measurement_07"),
+                        2: Measurement(7000000, 0, "measurement_08"),
+                    },
+                    frozenset({EDP_TWO}): {
+                        1: Measurement(1000300, 300, "measurement_09"),
+                        2: Measurement(2000700, 300, "measurement_10"),
+                    },
+                    frozenset({EDP_ONE, EDP_TWO}): {
+                        1: Measurement(4002000, 300, "measurement_11"),
+                        2: Measurement(8456000, 300, "measurement_12"),
+                    },
+                },
+                impression={
+                    frozenset({EDP_ONE}): Measurement(20000000, 0,
+                                                      "measurement_13"),
+                    frozenset({EDP_TWO}): Measurement(5995000, 2800,
+                                                      "measurement_14"),
+                    frozenset({EDP_ONE, EDP_TWO}):
+                      Measurement(26002000, 2800, "measurement_15"),
+                },
+            )
+        },
+        metric_subsets_by_parent={},
+        cumulative_inconsistency_allowed_edp_combinations={},
+        population_size=55000000,
+    )
+
+    corrected, report_post_processor_result = report.get_corrected_report()
+
+    self.assertEqual(report_post_processor_result.status.status_code,
                      StatusCode.SOLUTION_FOUND_WITH_HIGHS)
-    self.assertLess(report_post_processor_status.primal_equality_residual,
-                    NOISE_CORRECTION_TOLERANCE)
-    self.assertLess(report_post_processor_status.primal_inequality_residual,
-                    NOISE_CORRECTION_TOLERANCE)
-    self._assertReportsAlmostEqual(expected, corrected, corrected.to_array())
+    self.assertLess(
+        report_post_processor_result.status.primal_equality_residual,
+        NOISE_CORRECTION_TOLERANCE)
+    self.assertLess(
+        report_post_processor_result.status.primal_inequality_residual,
+        NOISE_CORRECTION_TOLERANCE)
+    self.assertEqual(
+        report_post_processor_result.pre_correction_quality.tv_status,
+        ReportQuality.LinearTVStatus.CONSISTENT)
+    self.assertEqual(
+        report_post_processor_result.post_correction_quality.tv_status,
+        ReportQuality.LinearTVStatus.CONSISTENT)
+    self.assertEqual(
+        report_post_processor_result.pre_correction_quality.union_status,
+        ReportQuality.UnionCheckStatus.WITHIN_CONFIDENCE_RANGE
+    )
+    self.assertEqual(
+        report_post_processor_result.post_correction_quality.union_status,
+        ReportQuality.UnionCheckStatus.WITHIN_CONFIDENCE_RANGE
+    )
+
+  def test_correct_report_with_invalid_union_statistics(self):
+    # The union differences are around 47000, and fall outside the confidence
+    # interval [-7sigma, 7sigma] where sigma = sqrt(1300^2 + 1300^2) = 1838.
+    report = Report(
+        metric_reports={
+            "ami": MetricReport(
+                reach_time_series={
+                    frozenset({EDP_ONE}): [
+                        Measurement(10000000, 0, "measurement_02")
+                    ],
+                    frozenset({EDP_TWO}): [
+                        Measurement(2998700, 1300, "measurement_03")],
+                    frozenset({EDP_ONE, EDP_TWO}): [
+                        Measurement(12502000, 1300, "measurement_01")
+                    ],
+                },
+                reach_whole_campaign={
+                    frozenset({EDP_ONE}): Measurement(10000000, 0,
+                                                      "measurement_04"),
+                    frozenset({EDP_TWO}): Measurement(3001000, 1300,
+                                                      "measurement_05"),
+                    frozenset({EDP_ONE, EDP_TWO}):
+                      Measurement(12500500, 1300, "measurement_06"),
+                },
+                k_reach={
+                    frozenset({EDP_ONE}): {
+                        1: Measurement(3000000, 0, "measurement_07"),
+                        2: Measurement(7000000, 0, "measurement_08"),
+                    },
+                    frozenset({EDP_TWO}): {
+                        1: Measurement(1000300, 300, "measurement_09"),
+                        2: Measurement(2000700, 300, "measurement_10"),
+                    },
+                    frozenset({EDP_ONE, EDP_TWO}): {
+                        1: Measurement(4002000, 300, "measurement_11"),
+                        2: Measurement(8498500, 300, "measurement_12"),
+                    },
+                },
+                impression={
+                    frozenset({EDP_ONE}): Measurement(20000000, 0,
+                                                      "measurement_13"),
+                    frozenset({EDP_TWO}): Measurement(5995000, 2800,
+                                                      "measurement_14"),
+                    frozenset({EDP_ONE, EDP_TWO}):
+                      Measurement(26002000, 2800, "measurement_15"),
+                },
+            )
+        },
+        metric_subsets_by_parent={},
+        cumulative_inconsistency_allowed_edp_combinations={},
+        population_size=55000000,
+    )
+
+    corrected, report_post_processor_result = report.get_corrected_report()
+
+    self.assertEqual(report_post_processor_result.status.status_code,
+                     StatusCode.SOLUTION_FOUND_WITH_HIGHS)
+    self.assertLess(
+        report_post_processor_result.status.primal_equality_residual,
+        NOISE_CORRECTION_TOLERANCE)
+    self.assertLess(
+        report_post_processor_result.status.primal_inequality_residual,
+        NOISE_CORRECTION_TOLERANCE)
+    self.assertEqual(
+        report_post_processor_result.pre_correction_quality.tv_status,
+        ReportQuality.LinearTVStatus.CONSISTENT)
+    self.assertEqual(
+        report_post_processor_result.post_correction_quality.tv_status,
+        ReportQuality.LinearTVStatus.CONSISTENT)
+    self.assertEqual(
+        report_post_processor_result.pre_correction_quality.union_status,
+        ReportQuality.UnionCheckStatus.OUTSIDE_CONFIDENCE_RANGE
+    )
+    self.assertEqual(
+        report_post_processor_result.post_correction_quality.union_status,
+        ReportQuality.UnionCheckStatus.OUTSIDE_CONFIDENCE_RANGE
+    )
 
   def test_get_corrected_report_multiple_filter_single_edp(self):
     report = Report(
@@ -1789,7 +2036,7 @@ class TestReport(unittest.TestCase):
         cumulative_inconsistency_allowed_edp_combinations={},
     )
 
-    corrected, report_post_processor_status = report.get_corrected_report()
+    corrected, report_post_processor_result = report.get_corrected_report()
 
     # The corrected report should be consistent:
     # 1. Within the same metric report:
@@ -1878,12 +2125,14 @@ class TestReport(unittest.TestCase):
         cumulative_inconsistency_allowed_edp_combinations={},
     )
 
-    self.assertEqual(report_post_processor_status.status_code,
+    self.assertEqual(report_post_processor_result.status.status_code,
                      StatusCode.SOLUTION_FOUND_WITH_HIGHS)
-    self.assertLess(report_post_processor_status.primal_equality_residual,
-                    NOISE_CORRECTION_TOLERANCE)
-    self.assertLess(report_post_processor_status.primal_inequality_residual,
-                    NOISE_CORRECTION_TOLERANCE)
+    self.assertLess(
+        report_post_processor_result.status.primal_equality_residual,
+        NOISE_CORRECTION_TOLERANCE)
+    self.assertLess(
+        report_post_processor_result.status.primal_inequality_residual,
+        NOISE_CORRECTION_TOLERANCE)
     self._assertReportsAlmostEqual(expected, corrected, corrected.to_array())
 
   def test_get_corrected_report_single_metric_multiple_edps(self):
@@ -1931,7 +2180,7 @@ class TestReport(unittest.TestCase):
         cumulative_inconsistency_allowed_edp_combinations={},
     )
 
-    corrected, report_post_processor_status = report.get_corrected_report()
+    corrected, report_post_processor_result = report.get_corrected_report()
 
     # The corrected report should be consistent:
     # a) Time series measurements form a non-decreasing sequences.
@@ -1949,7 +2198,7 @@ class TestReport(unittest.TestCase):
             "ami": MetricReport(
                 reach_time_series={
                     frozenset({EDP_ONE}): [
-                        Measurement(48.0, 0, "measurement_02")
+                        Measurement(48.0, 1, "measurement_02")
                     ],
                     frozenset({EDP_TWO}): [
                         Measurement(0.7142, 1, "measurement_03")
@@ -1992,12 +2241,14 @@ class TestReport(unittest.TestCase):
         cumulative_inconsistency_allowed_edp_combinations={},
     )
 
-    self.assertEqual(report_post_processor_status.status_code,
+    self.assertEqual(report_post_processor_result.status.status_code,
                      StatusCode.SOLUTION_FOUND_WITH_HIGHS)
-    self.assertLess(report_post_processor_status.primal_equality_residual,
-                    NOISE_CORRECTION_TOLERANCE)
-    self.assertLess(report_post_processor_status.primal_inequality_residual,
-                    NOISE_CORRECTION_TOLERANCE)
+    self.assertLess(
+        report_post_processor_result.status.primal_equality_residual,
+        NOISE_CORRECTION_TOLERANCE)
+    self.assertLess(
+        report_post_processor_result.status.primal_inequality_residual,
+        NOISE_CORRECTION_TOLERANCE)
     self._assertReportsAlmostEqual(expected, corrected, corrected.to_array())
 
   def test_get_corrected_report_when_cumulative_reaches_are_consistent(self):
@@ -2084,7 +2335,7 @@ class TestReport(unittest.TestCase):
         cumulative_inconsistency_allowed_edp_combinations={},
     )
 
-    corrected, report_post_processor_status = report.get_corrected_report()
+    corrected, report_post_processor_result = report.get_corrected_report()
 
     # The corrected report should be consistent:
     # a) Time series measurements form a non-decreasing sequences.
@@ -2156,12 +2407,14 @@ class TestReport(unittest.TestCase):
         cumulative_inconsistency_allowed_edp_combinations={},
     )
 
-    self.assertEqual(report_post_processor_status.status_code,
+    self.assertEqual(report_post_processor_result.status.status_code,
                      StatusCode.SOLUTION_FOUND_WITH_HIGHS)
-    self.assertLess(report_post_processor_status.primal_equality_residual,
-                    NOISE_CORRECTION_TOLERANCE)
-    self.assertLess(report_post_processor_status.primal_inequality_residual,
-                    NOISE_CORRECTION_TOLERANCE)
+    self.assertLess(
+        report_post_processor_result.status.primal_equality_residual,
+        NOISE_CORRECTION_TOLERANCE)
+    self.assertLess(
+        report_post_processor_result.status.primal_inequality_residual,
+        NOISE_CORRECTION_TOLERANCE)
     self._assertReportsAlmostEqual(expected, corrected, corrected.to_array())
 
   def _assertMeasurementAlmostEquals(
