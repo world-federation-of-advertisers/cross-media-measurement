@@ -20,10 +20,10 @@ queues_config = {
 
 workers_config = {
   requisition_fulfiller = {
-    instance_template_name      = "req-fulfiller-template"
-    base_instance_name          = "sc"
-    managed_instance_group_name = "req-fulfiller-mig"
-    mig_service_account_name    = "req-fulfiller-sa"
+    instance_template_name      = "requisition-fulfiller-template"
+    base_instance_name          = "secure-computation"
+    managed_instance_group_name = "requisition-fulfiller-mig"
+    mig_service_account_name    = "requisition-fulfiller-sa"
     single_instance_assignment  = 1
     min_replicas                = 1
     max_replicas                = 10
