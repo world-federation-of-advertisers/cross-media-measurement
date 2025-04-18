@@ -12,20 +12,32 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-variable "cloud_function_service_account_name" {
-  description = "The name of the service account assigned to the Cloud Function (`google_service_account.name`)."
+variable "secure_computation_api_server_ip_address" {
+  description = "IP address for public API server"
   type        = string
+  nullable    = true
+  default     = null
+}
+
+variable "internal_iam_service_account_name" {
+  description = "IAM `google_service_account.name` for internal service."
+  type        = string
+  default     = "secure-computation-internal"
   nullable    = false
 }
 
-variable "cloud_function_trigger_service_account_name" {
-  description = "The name of the service account used to trigger the Cloud Function (`google_service_account.name`)."
+variable "spanner_instance" {
+  description = "`google_spanner_instance` for the system."
+  type = object({
+    name = string
+  })
+  nullable = false
+}
+
+variable "spanner_database_name" {
+  description = "Name of the Spanner database."
   type        = string
+  default     = "secure-computation"
   nullable    = false
 }
 
-variable "trigger_bucket_name" {
-  description = "The name of the Google Cloud Storage bucket that triggers the Cloud Function. The Cloud Function will be invoked when a specific file is uploaded in this bucket."
-  type        = string
-  nullable    = false
-}

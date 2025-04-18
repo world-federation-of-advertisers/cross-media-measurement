@@ -19,6 +19,11 @@ resource "google_pubsub_topic" "topic" {
   name    = var.topic_name
 }
 
+resource "google_pubsub_topic" "dead_letter_topic" {
+  project = data.google_project.project.name
+  name = "${var.topic_name}-dlq"
+}
+
 resource "google_pubsub_subscription" "subscription" {
   name  = var.subscription_name
   topic = google_pubsub_topic.topic.id
@@ -27,10 +32,16 @@ resource "google_pubsub_subscription" "subscription" {
   message_retention_duration = var.subscription_queue_retention_period
 
   dead_letter_policy {
-    dead_letter_topic     = google_pubsub_topic.topic.id
+    dead_letter_topic     = google_pubsub_topic.dead_letter_topic.id
     max_delivery_attempts = var.max_delivery_attempts
   }
 
   enable_exactly_once_delivery = true
 
+}
+
+resource "google_pubsub_topic_iam_member" "dead_letter_writer" {
+  topic = google_pubsub_topic.dead_letter_topic.name
+  role  = "roles/pubsub.publisher"
+  member = "serviceAccount:service-${data.google_project.project.number}@gcp-sa-pubsub.iam.gserviceaccount.com"
 }

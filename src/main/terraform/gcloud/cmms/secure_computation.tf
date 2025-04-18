@@ -12,10 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-output "cloud_function_service_account_email" {
-  value = google_service_account.cloud_function_service_account.email
-}
+#TODO(@MarcoPremier): Update `configure-secure-computation-control-plane.yml` to use kingdom cluster (https://github.com/world-federation-of-advertisers/cross-media-measurement/blob/main/.github/workflows/configure-secure-computation-control-plane.yml#L98)
 
-output "cloud_function_trigger_service_account_email" {
-  value = google_service_account.cloud_function_trigger_service_account.email
+module "secure_computation" {
+  source = "../modules/secure-computation"
+
+  spanner_instance                          = google_spanner_instance.spanner_instance
 }

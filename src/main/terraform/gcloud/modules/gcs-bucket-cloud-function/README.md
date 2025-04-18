@@ -1,4 +1,3 @@
 # Google Cloud Function
 
-Terraform script to deploy a Google Cloud Function triggered by a Google Storage
-event.
+Terraform script to provision the Service Accounts required by the Cloud Function.

@@ -112,18 +112,18 @@ class InvokeDataWatcherFunctionTest() {
           mapOf(
             "DATA_WATCHER_CONFIG_RESOURCE_PATH" to
               Paths.get(
-                  "main",
-                  "kotlin",
-                  "org",
-                  "wfanet",
-                  "measurement",
-                  "securecomputation",
-                  "deploy",
-                  "gcloud",
-                  "datawatcher",
-                  "testing",
-                  "data_watcher_config.textproto",
-                )
+                "main",
+                "kotlin",
+                "org",
+                "wfanet",
+                "measurement",
+                "securecomputation",
+                "deploy",
+                "gcloud",
+                "datawatcher",
+                "testing",
+                "data_watcher_config.textproto",
+              )
                 .toString(),
             "CONTROL_PLANE_PROJECT_ID" to projectId,
             "CONTROL_PLANE_TARGET" to "localhost:${grpcServer.port}",
@@ -202,11 +202,11 @@ class InvokeDataWatcherFunctionTest() {
     private val serverCerts =
       SigningCerts.fromPemFiles(
         certificateFile =
-          CLASS_LOADER.getJarResourceFile(SECRETS_DIR.resolve("kingdom_tls.pem").toString())!!,
+        CLASS_LOADER.getJarResourceFile(SECRETS_DIR.resolve("kingdom_tls.pem").toString())!!,
         privateKeyFile =
-          CLASS_LOADER.getJarResourceFile(SECRETS_DIR.resolve("kingdom_tls.key").toString())!!,
+        CLASS_LOADER.getJarResourceFile(SECRETS_DIR.resolve("kingdom_tls.key").toString())!!,
         trustedCertCollectionFile =
-          CLASS_LOADER.getJarResourceFile(SECRETS_DIR.resolve("edp1_root.pem").toString())!!,
+        CLASS_LOADER.getJarResourceFile(SECRETS_DIR.resolve("edp1_root.pem").toString())!!,
       )
     private val logger: Logger = Logger.getLogger(this::class.java.name)
   }
