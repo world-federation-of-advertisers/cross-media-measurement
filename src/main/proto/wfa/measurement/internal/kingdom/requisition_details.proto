@@ -51,4 +51,19 @@ message RequisitionDetails {
   // `data_provider_certificate` should be used. Set when Requisition
   // state is FULFILLED and the protocol is Direct.
   fixed64 external_certificate_id = 10;
+
+  // Context information related to the fulfillment of a [Requisition][].
+  message FulfillmentContext {
+    // Build label from the [DataProvider][].
+    string build_label = 1;
+
+    // Human-readable warnings about the fulfillment.
+    //
+    // This must not include sensitive data.
+    repeated string warnings = 2;
+  }
+  // Context information related to the fulfillment of the [Requisition][]. May
+  // only be set when [Requisition.state][] is
+  // [FULFILLED][Requisition.State.FULFILLED].
+  FulfillmentContext fulfillment_context = 11;
 }

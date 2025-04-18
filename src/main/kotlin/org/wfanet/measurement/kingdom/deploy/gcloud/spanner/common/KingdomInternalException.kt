@@ -32,6 +32,12 @@ import org.wfanet.measurement.internal.kingdom.ModelLine
 import org.wfanet.measurement.internal.kingdom.ModelOutage
 import org.wfanet.measurement.internal.kingdom.Requisition
 
+/**
+ * [Exception] type for known Kingdom internal API service errors.
+ *
+ * TODO(world-federation-of-advertisers/cross-media-measurement#2187): Move out of `spanner`
+ *   package, since it's not Spanner-specific.
+ */
 sealed class KingdomInternalException : Exception {
   val code: ErrorCode
   protected abstract val context: Map<String, String>
@@ -48,7 +54,7 @@ sealed class KingdomInternalException : Exception {
   ): StatusRuntimeException {
     val errorInfo = errorInfo {
       reason = this@KingdomInternalException.code.toString()
-      domain = ErrorCode.getDescriptor().fullName
+      domain = DOMAIN
       metadata.putAll(context)
     }
     return Errors.buildStatusRuntimeException(statusCode, message, errorInfo, this)
@@ -57,6 +63,16 @@ sealed class KingdomInternalException : Exception {
   override fun toString(): String {
     return super.toString() + " " + context.toString()
   }
+
+  companion object {
+    val DOMAIN = ErrorCode.getDescriptor().fullName
+  }
+}
+
+class RequiredFieldNotSetException(val fieldName: String) :
+  KingdomInternalException(ErrorCode.REQUIRED_FIELD_NOT_SET, "Required field $fieldName not set") {
+  override val context: Map<String, String>
+    get() = mapOf("field_name" to fieldName)
 }
 
 class MeasurementConsumerNotFoundException(
@@ -85,8 +101,12 @@ class ModelLineNotFoundException(
   val externalModelProviderId: ExternalId,
   val externalModelSuiteId: ExternalId,
   val externalModelLineId: ExternalId,
-  provideDescription: () -> String = { "ModelLine not found" },
-) : KingdomInternalException(ErrorCode.MODEL_LINE_NOT_FOUND, provideDescription) {
+) :
+  KingdomInternalException(
+    ErrorCode.MODEL_LINE_NOT_FOUND,
+    "ModelLine with key ($externalModelProviderId, $externalModelSuiteId, $externalModelLineId) " +
+      "not found",
+  ) {
   override val context
     get() =
       mapOf(

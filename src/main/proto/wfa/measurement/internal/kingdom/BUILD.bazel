@@ -39,6 +39,7 @@ LIBS = [
     "measurement",
     "media_type",
     "model_line",
+    "model_line_key",
     "model_outage",
     "model_provider",
     "model_release",
@@ -177,6 +178,8 @@ proto_library(
     deps = [
         ":certificate_proto",
         ":data_provider_details_proto",
+        ":model_line_key_proto",
+        "@com_google_googleapis//google/type:interval_proto",
     ],
 )
 
@@ -636,6 +639,7 @@ proto_library(
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
         ":measurement_proto",
+        ":requisition_details_proto",
         ":requisition_refusal_proto",
         "@com_google_protobuf//:timestamp_proto",
     ],
@@ -679,6 +683,12 @@ proto_library(
     deps = [
         "@com_google_protobuf//:timestamp_proto",
     ],
+)
+
+proto_library(
+    name = "model_line_key_proto",
+    srcs = ["model_line_key.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
 )
 
 proto_library(
