@@ -95,12 +95,12 @@ class InvokeDataWatcherFunctionTest() {
     /** Start gRPC server with mock Requisitions service */
     grpcServer =
       CommonServer.fromParameters(
-          verboseGrpcLogging = true,
-          certs = serverCerts,
-          clientAuth = ClientAuth.REQUIRE,
-          nameForLogging = "WorkItemsServer",
-          services = listOf(workItemsServiceMock.bindService()),
-        )
+        verboseGrpcLogging = true,
+        certs = serverCerts,
+        clientAuth = ClientAuth.REQUIRE,
+        nameForLogging = "WorkItemsServer",
+        services = listOf(workItemsServiceMock.bindService()),
+      )
         .start()
     logger.info("Started gRPC server on port ${grpcServer.port}")
     /** Start the DataWatcherFunction process */
@@ -112,18 +112,18 @@ class InvokeDataWatcherFunctionTest() {
           mapOf(
             "DATA_WATCHER_CONFIG_RESOURCE_PATH" to
               Paths.get(
-                  "main",
-                  "kotlin",
-                  "org",
-                  "wfanet",
-                  "measurement",
-                  "securecomputation",
-                  "deploy",
-                  "gcloud",
-                  "datawatcher",
-                  "testing",
-                  "data_watcher_config.textproto",
-                )
+                "main",
+                "kotlin",
+                "org",
+                "wfanet",
+                "measurement",
+                "securecomputation",
+                "deploy",
+                "gcloud",
+                "datawatcher",
+                "testing",
+                "data_watcher_config.textproto",
+              )
                 .toString(),
             "CONTROL_PLANE_PROJECT_ID" to projectId,
             "CONTROL_PLANE_TARGET" to "localhost:${grpcServer.port}",
@@ -147,7 +147,7 @@ class InvokeDataWatcherFunctionTest() {
 
   /** Tests the DataWatcherFunction as a local process. */
   @Test
-  fun `verify DataWatcherFunction returns a 200`() {
+  fun `verify DataWatcherFunction returns a 200 and creates work item`() {
     val url = "http://localhost:${functionProcess.port}"
     logger.info("Testing Cloud Function at: $url")
 
@@ -202,11 +202,11 @@ class InvokeDataWatcherFunctionTest() {
     private val serverCerts =
       SigningCerts.fromPemFiles(
         certificateFile =
-          CLASS_LOADER.getJarResourceFile(SECRETS_DIR.resolve("kingdom_tls.pem").toString())!!,
+        CLASS_LOADER.getJarResourceFile(SECRETS_DIR.resolve("kingdom_tls.pem").toString())!!,
         privateKeyFile =
-          CLASS_LOADER.getJarResourceFile(SECRETS_DIR.resolve("kingdom_tls.key").toString())!!,
+        CLASS_LOADER.getJarResourceFile(SECRETS_DIR.resolve("kingdom_tls.key").toString())!!,
         trustedCertCollectionFile =
-          CLASS_LOADER.getJarResourceFile(SECRETS_DIR.resolve("edp1_root.pem").toString())!!,
+        CLASS_LOADER.getJarResourceFile(SECRETS_DIR.resolve("edp1_root.pem").toString())!!,
       )
     private val logger: Logger = Logger.getLogger(this::class.java.name)
   }

@@ -14,39 +14,44 @@
 
 syntax = "proto3";
 
-package wfa.measurement.securecomputation;
+package wfa.measurement.config.securecomputation;
+
 import "google/protobuf/any.proto";
 import "google/api/field_behavior.proto";
-import "google/api/resource.proto";
+import "google/protobuf/struct.proto";
 
-option java_package = "org.wfanet.measurement.securecomputation";
+option java_package = "org.wfanet.measurement.config.securecomputation";
 option java_multiple_files = true;
 option java_outer_classname = "DataWatcherConfigProto";
 
+// Individual application-specific config that maps a path of data to the
+// application sink and application config.
 message DataWatcherConfig {
-
-  message DiscoveredWork {
-    // The packed message
-    google.protobuf.Any config = 1;
-    // Path that matched the work
-    string path = 2;
-  }
-
+  // Resource name.
+  string name = 1 [(google.api.field_behavior) = IDENTIFIER];
   // The path to watch
   string source_path_regex = 2;
 
-  message QueueConfig {
-    string queue_name = 1;
-    google.protobuf.Any app_config = 2;
+  // The config used for control plane apps
+  message ControlPlaneQueueSink {
+    // The Control Plane queue that will execute this work item.
+    string queue = 1;
+    // Params passed to TEE Apps
+    google.protobuf.Any app_params = 2;
   }
-
-  message CloudFunctionConfig {
-    // TODO
+  // The config used for any Webhooks
+  message HttpEndpointsSink {
+    // The endpoint to trigger.
+    string endpoint_uri = 1;
+    // Json payload to send to endpoint of application-specific config.
+    google.protobuf.Struct app_params = 2;
   }
 
   oneof sink_config {
-    QueueConfig queue = 2;
-    CloudFunctionConfig cloud_function = 3;
+    // The sink used to send event to the Control Plane.
+    ControlPlaneQueueSink control_plane_queue_sink = 3;
+    // The sink used to send events to a web hook.
+    HttpEndpointsSink http_endpoints_sink = 4;
   }
 }
 
