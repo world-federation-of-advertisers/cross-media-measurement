@@ -121,6 +121,7 @@ kingdom: #Kingdom & {
 					"--latest-requisition-read-table=latest_requisition_read",
 					"--computation-participant-stages-table=computation_participant_stages",
 					"--latest-computation-read-table=latest_computation_read",
+					"--batch-size=1000",
 					"--tls-cert-file=/var/run/secrets/files/kingdom_tls.pem",
 					"--tls-key-file=/var/run/secrets/files/kingdom_tls.key",
 					"--cert-collection-file=/var/run/secrets/files/kingdom_root.pem",
