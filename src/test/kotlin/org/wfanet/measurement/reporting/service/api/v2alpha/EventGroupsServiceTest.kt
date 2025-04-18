@@ -19,12 +19,15 @@ package org.wfanet.measurement.reporting.service.api.v2alpha
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.Any
+import com.google.type.interval
 import io.grpc.Deadline
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import java.nio.file.Path
 import java.nio.file.Paths
 import java.time.Duration
+import java.time.LocalDate
+import java.time.ZoneOffset
 import java.util.concurrent.TimeUnit
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
@@ -80,6 +83,7 @@ import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.common.testing.verifyProtoArgument
+import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.config.reporting.measurementConsumerConfig
 import org.wfanet.measurement.config.reporting.measurementConsumerConfigs
 import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
@@ -791,6 +795,10 @@ class EventGroupsServiceTest {
       eventGroupReferenceId = EVENT_GROUP_REFERENCE_ID
       measurementConsumerPublicKey = ENCRYPTION_PUBLIC_KEY.toEncryptionPublicKey().pack()
       eventTemplates += CmmsEventGroupKt.eventTemplate { type = TestEvent.getDescriptor().fullName }
+      dataAvailabilityInterval = interval {
+        startTime = LocalDate.of(2025, 1, 11).atStartOfDay().toInstant(ZoneOffset.UTC).toProtoTime()
+        endTime = LocalDate.of(2025, 4, 11).atStartOfDay().toInstant(ZoneOffset.UTC).toProtoTime()
+      }
       mediaTypes += CmmsMediaType.VIDEO
       eventGroupMetadata = eventGroupMetadata {
         adMetadata =
@@ -840,6 +848,7 @@ class EventGroupsServiceTest {
       cmmsDataProvider = DATA_PROVIDER_NAME
       eventGroupReferenceId = EVENT_GROUP_REFERENCE_ID
       eventTemplates += EventGroupKt.eventTemplate { type = TestEvent.getDescriptor().fullName }
+      dataAvailabilityInterval = CMMS_EVENT_GROUP.dataAvailabilityInterval
       mediaTypes += MediaType.VIDEO
       eventGroupMetadata =
         EventGroupKt.eventGroupMetadata {

@@ -271,6 +271,9 @@ class EventGroupsService(
       eventTemplates +=
         source.eventTemplatesList.map { EventGroupKt.eventTemplate { type = it.type } }
       mediaTypes += source.mediaTypesList.map { it.toMediaType() }
+      if (source.hasDataAvailabilityInterval()) {
+        dataAvailabilityInterval = source.dataAvailabilityInterval
+      }
       if (source.hasEventGroupMetadata()) {
         eventGroupMetadata =
           EventGroupKt.eventGroupMetadata {
