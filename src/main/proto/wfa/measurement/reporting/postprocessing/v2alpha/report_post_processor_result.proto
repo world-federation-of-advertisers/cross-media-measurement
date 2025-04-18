@@ -106,7 +106,6 @@ message ReportQuality {
   UnionCheckStatus union_status = 2;
 }
 
-
 // The result message encapsulating the entire outcome of the post-processing
 // pipeline for a single report.
 message ReportPostProcessorResult {
