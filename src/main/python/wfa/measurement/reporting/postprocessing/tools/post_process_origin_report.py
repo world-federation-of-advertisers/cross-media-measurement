@@ -131,13 +131,21 @@ class ReportSummaryProcessor:
         cumulative_inconsistency_allowed_edp_combinations={},
     )
 
-    corrected_report, report_post_processor_status = report.get_corrected_report()
-    logging.info("Finished correcting the report.")
+    corrected_report, report_post_processor_result = \
+      report.get_corrected_report()
 
     logging.info(
         "Generating the mapping between between measurement name and its "
         "adjusted value."
     )
+
+    # If the QP solver does not converge, return the report post processor
+    # result that contains an empty map of updated measurements.
+    if not corrected_report:
+      return report_post_processor_result
+
+    # If the QP solver finds a solution, update the report post processor result
+    # with the updated measurements map.
     metric_name_to_value: dict[str, int] = {}
     measurements_policies = corrected_report.get_metrics()
     for policy in measurements_policies:
@@ -164,10 +172,14 @@ class ReportSummaryProcessor:
     for key, value in self._set_difference_map.items():
       metric_name_to_value.update({key: round(
           metric_name_to_value[value[0]] - metric_name_to_value[value[1]])})
-    return ReportPostProcessorResult(
-        updated_measurements=metric_name_to_value,
-        status=report_post_processor_status,
-    )
+
+    logging.info("Finished correcting the report.")
+
+    # Update the report post processor result with the new measurements.
+    report_post_processor_result.updated_measurements.update(
+      metric_name_to_value)
+
+    return report_post_processor_result
 
   def _process_primitive_measurements(self):
     """Extract the primitive measurements from the report summary.

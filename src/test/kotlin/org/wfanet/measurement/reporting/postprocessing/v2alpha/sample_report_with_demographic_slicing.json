@@ -6036,6 +6036,7 @@
     "measurementConsumers/fLhOpt2Z4x8/reportingSets/e791e5045444543ad2cb72e1d0fdc93": "{anchor=Linear TV, campaign_id=, channels=Linear TV, incrementality_type=CHANNEL, lhs_reporting_set_ids=, measured_entity=, measurement_entities=Digital, measurement_policy=AMI, measurement_policy_incrementality=AMI, media_type=VIDEO, position_in_incrementality=, primitive_egroup_id=RQhwfyTdJhc, rhs_reporting_set_ids=, set_operation=union,incrementality,cumulative,marked unions for reach only, target=edp1, unique_Reach_Target=, version=1.0, video_completion=, viewability=}",
     "measurementConsumers/fLhOpt2Z4x8/reportingSets/ed0e5e5a2e4a6fa40cac1a918cda0c": "{anchor=Linear TV, campaign_id=, channels=Linear TV, incrementality_type=CHANNEL, lhs_reporting_set_ids=e791e5045444543ad2cb72e1d0fdc93, measured_entity=, measurement_entities=Digital, measurement_policy=AMI, measurement_policy_incrementality=AMI, media_type=OTHER VIDEO, position_in_incrementality=, primitive_egroup_id=, rhs_reporting_set_ids=ceb94b2231de40a6827739c96bc87241, set_operation=difference,incrementality, target=edp2,edp1, unique_Reach_Target=edp1, version=1.0, video_completion=, viewability=}",
     "media_types": "OTHER VIDEO",
+    "population": "MALE_YEARS_16_TO_34=74254;MALE_YEARS_35_TO_54=75427;MALE_YEARS_55_PLUS=92201;FEMALE_YEARS_16_TO_34=71124;FEMALE_YEARS_35_TO_54=83950;FEMALE_YEARS_55_PLUS=103044",
     "report_name": "ID-3538_testreport_111",
     "start_date": "2024-08-21T00:00:00Z",
     "target": "'edp2' 'edp1'"

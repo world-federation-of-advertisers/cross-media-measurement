@@ -219,6 +219,9 @@ class ReportConversionTest {
         unionCustomEdp2MeasurementDetail,
         cummulativeCustomEdp1Edp2MeasurementDetail,
       )
+    assertThat(reportSummary[0].demographicGroupsList)
+      .isEqualTo(listOf("FEMALE_YEARS_35_TO_54", "MALE_YEARS_35_TO_54"))
+    assertThat(reportSummary[0].population).isEqualTo(159377L)
   }
 
   @Test
@@ -227,6 +230,8 @@ class ReportConversionTest {
     val reportAsJson = reportFile.readText()
     val reportSummary = ReportConversion.convertJsontoReportSummaries(reportAsJson)
     val expectedReportSummary = reportSummary {
+      demographicGroups += "-"
+      population = 500000
       measurementDetails += measurementDetail {
         measurementPolicy = "ami"
         setOperation = "cumulative"
@@ -553,6 +558,8 @@ class ReportConversionTest {
           metric = "measurementConsumers/TjyUnormbAg/metrics/difference/unique_reach_edp3"
         }
       }
+      demographicGroups += "FEMALE_YEARS_35_TO_54"
+      population = 0
     }
     assertThat(reportSummary).hasSize(1)
     assertThat(reportSummary[0]).isEqualTo(expectedReportSummary)
@@ -812,6 +819,8 @@ class ReportConversionTest {
           metric = "measurementConsumers/fLhOpt2Z4x8/metrics/aff225199-571a-4e16-b33d-a71cbbff8a70"
         }
       }
+      demographicGroups += "MALE_YEARS_35_TO_54"
+      population = 75427
     }
     assertThat(reportSummaries).contains(expectedReportSummary12)
   }
