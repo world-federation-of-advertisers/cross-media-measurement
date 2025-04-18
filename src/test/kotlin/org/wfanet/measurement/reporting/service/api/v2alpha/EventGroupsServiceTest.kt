@@ -54,12 +54,15 @@ import org.wfanet.measurement.api.v2alpha.EventGroupKt as CmmsEventGroupKt
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorKey
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.EventGroupMetadataKt as CmmsEventGroupMetadataKt
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ListEventGroupsRequest
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
+import org.wfanet.measurement.api.v2alpha.MediaType as CmmsMediaType
 import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.eventGroup as cmmsEventGroup
+import org.wfanet.measurement.api.v2alpha.eventGroupMetadata
 import org.wfanet.measurement.api.v2alpha.eventGroupMetadataDescriptor
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.TestMetadataMessage
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.testMetadataMessage
@@ -85,6 +88,7 @@ import org.wfanet.measurement.reporting.service.api.CelEnvCacheProvider
 import org.wfanet.measurement.reporting.service.api.InMemoryEncryptionKeyPairStore
 import org.wfanet.measurement.reporting.v2alpha.EventGroup
 import org.wfanet.measurement.reporting.v2alpha.EventGroupKt
+import org.wfanet.measurement.reporting.v2alpha.MediaType
 import org.wfanet.measurement.reporting.v2alpha.eventGroup
 import org.wfanet.measurement.reporting.v2alpha.listEventGroupsRequest
 
@@ -787,6 +791,17 @@ class EventGroupsServiceTest {
       eventGroupReferenceId = EVENT_GROUP_REFERENCE_ID
       measurementConsumerPublicKey = ENCRYPTION_PUBLIC_KEY.toEncryptionPublicKey().pack()
       eventTemplates += CmmsEventGroupKt.eventTemplate { type = TestEvent.getDescriptor().fullName }
+      mediaTypes += CmmsMediaType.VIDEO
+      eventGroupMetadata = eventGroupMetadata {
+        adMetadata =
+          CmmsEventGroupMetadataKt.adMetadata {
+            campaignMetadata =
+              CmmsEventGroupMetadataKt.AdMetadataKt.campaignMetadata {
+                brandName = "Blammo!"
+                campaignName = "Log: Better Than Bad"
+              }
+          }
+      }
       encryptedMetadata =
         encryptMetadata(
           CmmsEventGroupKt.metadata {
@@ -825,6 +840,20 @@ class EventGroupsServiceTest {
       cmmsDataProvider = DATA_PROVIDER_NAME
       eventGroupReferenceId = EVENT_GROUP_REFERENCE_ID
       eventTemplates += EventGroupKt.eventTemplate { type = TestEvent.getDescriptor().fullName }
+      mediaTypes += MediaType.VIDEO
+      eventGroupMetadata =
+        EventGroupKt.eventGroupMetadata {
+          adMetadata =
+            EventGroupKt.EventGroupMetadataKt.adMetadata {
+              campaignMetadata =
+                EventGroupKt.EventGroupMetadataKt.AdMetadataKt.campaignMetadata {
+                  brandName =
+                    CMMS_EVENT_GROUP.eventGroupMetadata.adMetadata.campaignMetadata.brandName
+                  campaignName =
+                    CMMS_EVENT_GROUP.eventGroupMetadata.adMetadata.campaignMetadata.campaignName
+                }
+            }
+        }
       metadata =
         EventGroupKt.metadata {
           eventGroupMetadataDescriptor = EVENT_GROUP_METADATA_DESCRIPTOR_NAME
