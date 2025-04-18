@@ -104,13 +104,13 @@ class FunctionsFrameworkInvokerProcess(
 
         val processBuilder =
           ProcessBuilder(
-              runtimePath.toString(),
-              // Add HTTP port configuration
-              "--port",
-              localPort.toString(),
-              "--target",
-              classTarget,
-            )
+            runtimePath.toString(),
+            // Add HTTP port configuration
+            "--port",
+            localPort.toString(),
+            "--target",
+            classTarget,
+          )
             .redirectErrorStream(true)
             .redirectOutput(ProcessBuilder.Redirect.PIPE)
 
