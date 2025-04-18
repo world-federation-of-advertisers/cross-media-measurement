@@ -34,4 +34,9 @@ message Queue {
 
   // Resource name.
   string name = 1 [(google.api.field_behavior) = IDENTIFIER];
+
+  // The type url for params that apps in this queue support
+  // (-- api-linter: core::0140::uri=disabled
+  //     aip.dev/not-precedent: Referring to a type url. --)
+  string app_params_type_url = 2 [(google.api.field_behavior) = REQUIRED];
 }
