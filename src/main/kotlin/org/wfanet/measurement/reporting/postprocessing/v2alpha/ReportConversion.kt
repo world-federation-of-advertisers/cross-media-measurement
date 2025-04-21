@@ -23,8 +23,6 @@ import org.wfanet.measurement.reporting.v2alpha.MetricResult
 import org.wfanet.measurement.reporting.v2alpha.Report
 import org.wfanet.measurement.reporting.v2alpha.Report.MetricCalculationResult
 
-const val POPULATION_KEY = "population"
-
 /** Represents a summary of a reporting set. */
 data class ReportingSetSummary(
   /** The measurement policy used for the reporting set. */
@@ -56,6 +54,8 @@ data class MetricCalculationSpec(
 )
 
 object ReportConversion {
+  const val POPULATION_KEY = "population"
+
   fun getReportFromJsonString(reportAsJsonString: String): Report {
     val protoBuilder = Report.newBuilder()
     try {
@@ -66,9 +66,6 @@ object ReportConversion {
     return protoBuilder.build()
   }
 
-  // TODO(ple13): Read the population mapping from the report when it is available,
-  //  instead of using this hardcoded map.
-
   /**
    * A map where the key is a canonical list of predicate strings defining a demographic group and
    * the value is the corresponding canonical string constant representing that group (e.g.,
@@ -76,6 +73,9 @@ object ReportConversion {
    *
    * This map facilitates looking up the string constant based on the set of predicates that define
    * it.
+   *
+   * TODO(ple13): Read the population mapping from the report when it is available, instead of using
+   *   this hardcoded map.
    */
   val groupingPredicatesToStringMap: Map<List<String>, String> =
     mapOf(
@@ -175,8 +175,10 @@ fun Report.toReportSummaries(): List<ReportSummary> {
 
   // Reads the population map from the tags.
   val populationPerDemographicGroup: Map<String, Long> =
-    if (tags.containsKey(POPULATION_KEY)) {
-      ReportConversion.getDemographicGroupPopulationFromTag(tags.getValue(POPULATION_KEY))
+    if (tags.containsKey(ReportConversion.POPULATION_KEY)) {
+      ReportConversion.getDemographicGroupPopulationFromTag(
+        tags.getValue(ReportConversion.POPULATION_KEY)
+      )
     } else {
       emptyMap()
     }

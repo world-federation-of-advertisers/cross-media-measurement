@@ -1717,10 +1717,10 @@ class TestReport(unittest.TestCase):
         NOISE_CORRECTION_TOLERANCE)
     self.assertEqual(
         report_post_processor_result.pre_correction_quality.tv_status,
-        ReportQuality.LinearTVStatus.CONSISTENT)
+        ReportQuality.LinearTvStatus.CONSISTENT)
     self.assertEqual(
         report_post_processor_result.post_correction_quality.tv_status,
-        ReportQuality.LinearTVStatus.CONSISTENT)
+        ReportQuality.LinearTvStatus.CONSISTENT)
     # No union check status as population size is not specified.
     self.assertEqual(
         report_post_processor_result.pre_correction_quality.union_status,
@@ -1797,10 +1797,10 @@ class TestReport(unittest.TestCase):
     )
     self.assertEqual(
         report_post_processor_result.pre_correction_quality.tv_status,
-        ReportQuality.LinearTVStatus.NOT_CONSISTENT)
+        ReportQuality.LinearTvStatus.INCONSISTENT)
     self.assertEqual(
         report_post_processor_result.post_correction_quality.tv_status,
-        ReportQuality.LinearTVStatus.LINEAR_TV_STATUS_UNSPECIFIED)
+        ReportQuality.LinearTvStatus.LINEAR_TV_STATUS_UNSPECIFIED)
     self.assertEqual(
         report_post_processor_result.pre_correction_quality.union_status,
         ReportQuality.UnionCheckStatus.UNION_CHECK_STATUS_UNSPECIFIED
@@ -1877,10 +1877,10 @@ class TestReport(unittest.TestCase):
         NOISE_CORRECTION_TOLERANCE)
     self.assertEqual(
         report_post_processor_result.pre_correction_quality.tv_status,
-        ReportQuality.LinearTVStatus.CONSISTENT)
+        ReportQuality.LinearTvStatus.CONSISTENT)
     self.assertEqual(
         report_post_processor_result.post_correction_quality.tv_status,
-        ReportQuality.LinearTVStatus.CONSISTENT)
+        ReportQuality.LinearTvStatus.CONSISTENT)
     self.assertEqual(
         report_post_processor_result.pre_correction_quality.union_status,
         ReportQuality.UnionCheckStatus.WITHIN_CONFIDENCE_RANGE
@@ -1955,10 +1955,10 @@ class TestReport(unittest.TestCase):
         NOISE_CORRECTION_TOLERANCE)
     self.assertEqual(
         report_post_processor_result.pre_correction_quality.tv_status,
-        ReportQuality.LinearTVStatus.CONSISTENT)
+        ReportQuality.LinearTvStatus.CONSISTENT)
     self.assertEqual(
         report_post_processor_result.post_correction_quality.tv_status,
-        ReportQuality.LinearTVStatus.CONSISTENT)
+        ReportQuality.LinearTvStatus.CONSISTENT)
     self.assertEqual(
         report_post_processor_result.pre_correction_quality.union_status,
         ReportQuality.UnionCheckStatus.OUTSIDE_CONFIDENCE_RANGE

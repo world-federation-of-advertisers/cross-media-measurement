@@ -444,7 +444,7 @@ class Report:
         corrected_report.get_report_quality()
         if corrected_report
         else ReportQuality(
-            tv_status=ReportQuality.LinearTVStatus.LINEAR_TV_STATUS_UNSPECIFIED,
+            tv_status=ReportQuality.LinearTvStatus.LINEAR_TV_STATUS_UNSPECIFIED,
             union_status=ReportQuality.UnionCheckStatus.UNION_CHECK_STATUS_UNSPECIFIED
         )
     )
@@ -1208,16 +1208,16 @@ class Report:
     """
     # Gets the tv quality status.
     tv_edp_combinations = self._get_linear_tv_edp()
-    tv_quality_status: ReportQuality.LinearTVStatus
+    tv_quality_status: ReportQuality.LinearTvStatus
     if tv_edp_combinations:
-      tv_quality_status = ReportQuality.LinearTVStatus.CONSISTENT
+      tv_quality_status = ReportQuality.LinearTvStatus.CONSISTENT
       for edp_combination in tv_edp_combinations:
         if not self._are_edp_measurements_consistent(edp_combination):
-          tv_quality_status = ReportQuality.LinearTVStatus.NOT_CONSISTENT
+          tv_quality_status = ReportQuality.LinearTvStatus.INCONSISTENT
           break
     else:
-      tv_quality_status: ReportQuality.LinearTVStatus = \
-        ReportQuality.LinearTVStatus.LINEAR_TV_STATUS_UNSPECIFIED
+      tv_quality_status: ReportQuality.LinearTvStatus = \
+        ReportQuality.LinearTvStatus.LINEAR_TV_STATUS_UNSPECIFIED
 
     # Gets the union check status.
     union_check_status: ReportQuality.UnionCheckStatus
