@@ -24,7 +24,7 @@ import "wfa/measurement/api/v2alpha/model_line.proto";
 
 option java_package = "org.wfanet.measurement.reporting.v2alpha";
 option java_multiple_files = true;
-option java_outer_classname = "BasicReportsServiceProto";
+option java_outer_classname = "ModelLinesServiceProto";
 option go_package = "github.com/world-federation-of-advertisers/cross-media-measurement/reporting/apiv2alpha/reportingpb";
 
 // Service for managing `ModelLine` resources.
