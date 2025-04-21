@@ -34,7 +34,7 @@ service ModelLines {
   // `HOLDBACK` to `DEV`, `active_start_time` descending, `active_end_time`
   // descending.
   rpc ListValidModelLines(ListValidModelLinesRequest)
-    returns (ListValidModelLinesResponse) {}
+      returns (ListValidModelLinesResponse) {}
 }
 
 // Request message for `ListValidModelLines` method
@@ -42,19 +42,22 @@ message ListValidModelLinesRequest {
   // Only `ModelLine`s with this interval contained between `active_start_time`
   // and `active_end_time` are considered.
   google.type.Interval time_interval = 1
-    [(google.api.field_behavior) = REQUIRED];
+      [(google.api.field_behavior) = REQUIRED];
 
   // `time_interval` must be covered by all the `data_availability_interval`s of
   // the event groups and all the `data_availability_interval`s of their parent
   // data providers for any `ModelLine` to be considered.
   repeated string event_groups = 2 [
     (google.api.field_behavior) = REQUIRED,
-    (google.api.resource_reference) = { type: "reporting.halo-cmm.org/EventGroup" }
+    (google.api.resource_reference) = {
+      type: "reporting.halo-cmm.org/EventGroup"
+    }
   ];
 }
 
 // Response message for `ListValidModelLines` method.
 message ListValidModelLinesResponse {
   // The valid `ModelLine`s that met the criteria
-  repeated wfa.measurement.api.v2alpha.ModelLine model_lines = 1 [(google.api.field_behavior) = OPTIONAL];
+  repeated wfa.measurement.api.v2alpha.ModelLine model_lines = 1
+      [(google.api.field_behavior) = OPTIONAL];
 }

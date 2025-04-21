@@ -22,7 +22,6 @@ import com.google.type.Interval
 import com.google.type.interval
 import org.wfanet.measurement.api.v2alpha.ModelLine
 
-
 /**
  * Returns true if the interval formed by the active timestamps of the [ModelLine] completely covers
  * the [Interval] to check against, and returns false otherwise.
@@ -49,7 +48,7 @@ fun Interval.isFullyContainedWithin(modelLine: ModelLine): Boolean {
  */
 fun Interval.isFullyContainedWithin(interval: Interval): Boolean {
   return (Timestamps.compare(this.startTime, interval.startTime) >= 0 &&
-      Timestamps.compare(this.endTime, interval.endTime) <= 0)
+    Timestamps.compare(this.endTime, interval.endTime) <= 0)
 }
 
 /**
@@ -64,4 +63,3 @@ fun List<Interval>.areFullyContainedWithin(modelLine: ModelLine): Boolean {
   }
   return true
 }
-
