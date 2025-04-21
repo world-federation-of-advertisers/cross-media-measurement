@@ -37,6 +37,7 @@ object Errors {
     INVALID_METRIC_STATE_TRANSITION,
     ARGUMENT_CHANGED_IN_REQUEST_FOR_NEXT_PAGE,
     IMPRESSION_QUALIFICATION_FILTER_NOT_FOUND,
+    EVENT_GROUP_NOT_FOUND,
   }
 
   enum class Metadata(val key: String) {
@@ -46,7 +47,8 @@ object Errors {
     NEW_METRIC_STATE("newMetricState"),
     REPORTING_SET("reportingSet"),
     FIELD_NAME("fieldName"),
-    IMPRESSION_QUALIFICATION_FILTER("impressionQualificationFilter");
+    IMPRESSION_QUALIFICATION_FILTER("impressionQualificationFilter"),
+    EVENT_GROUP("eventGroup");
 
     companion object {
       private val METADATA_BY_KEY by lazy { entries.associateBy { it.key } }
@@ -173,4 +175,12 @@ class ImpressionQualificationFilterNotFoundException(name: String, cause: Throwa
     "Impression Qualification Filter $name not found",
     mapOf(Errors.Metadata.IMPRESSION_QUALIFICATION_FILTER to name),
     cause,
-  ) {}
+  )
+
+class EventGroupNotFoundException(name: String, cause: Throwable? = null) :
+  ServiceException(
+    Errors.Reason.EVENT_GROUP_NOT_FOUND,
+    "Event Group $name not found",
+    mapOf(Errors.Metadata.EVENT_GROUP to name),
+    cause,
+  )

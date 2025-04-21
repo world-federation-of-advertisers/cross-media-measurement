@@ -51,3 +51,17 @@ fun Interval.isFullyContainedWithin(interval: Interval): Boolean {
   return (Timestamps.compare(this.startTime, interval.startTime) >= 0 &&
       Timestamps.compare(this.endTime, interval.endTime) <= 0)
 }
+
+/**
+ * Returns true if the interval formed by the active timestamps of the [ModelLine] completely covers
+ * the list of [Interval]s to check against, and returns false otherwise.
+ */
+fun List<Interval>.areFullyContainedWithin(modelLine: ModelLine): Boolean {
+  for (interval in this) {
+    if (interval.isFullyContainedWithin(modelLine)) {
+      continue
+    } else return false
+  }
+  return true
+}
+
