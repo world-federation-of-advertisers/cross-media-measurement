@@ -238,8 +238,7 @@ class RequisitionReader(primaryTable: PrimaryTable) : SpannerReader<RequisitionR
           }
       }
       for ((externalDuchyId, participantStruct) in participantStructs) {
-        val duchyValue = buildDuchyValue(participantStruct)
-        duchies[externalDuchyId] = duchyValue
+        duchies[externalDuchyId] = buildDuchyValue(participantStruct)
       }
       details =
         requisitionStruct.getProtoMessage(
