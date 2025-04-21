@@ -441,6 +441,7 @@ proto_library(
 GO_IMPORT_PATH = "github.com/world-federation-of-advertisers/cross-media-measurement/reporting/apiv2alpha/reportingpb"
 
 GO_DEPS = [
+    "//src/main/proto/wfa/measurement/api/v2alpha:cmmspb_go_grpc_proto",
     "@org_golang_google_genproto//googleapis/type/date",
     "@org_golang_google_genproto//googleapis/type/datetime",
     "@org_golang_google_genproto//googleapis/type/dayofweek",
