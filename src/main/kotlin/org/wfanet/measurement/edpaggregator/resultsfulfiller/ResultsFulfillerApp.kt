@@ -45,7 +45,7 @@ abstract class ResultsFulfillerApp(
     workItemAttemptsStub = workItemAttemptsClient
   ) {
 
-  val messageProcessed = CompletableDeferred<WorkItem>()
+  val messageProcessed = CompletableDeferred<WorkItemParams>()
 
   abstract fun createStorageClient(
     blobUri: String,
@@ -60,9 +60,8 @@ abstract class ResultsFulfillerApp(
   abstract fun getStorageConfig(configType: StorageConfigType, storageDetails: StorageDetails): StorageConfig
 
   override suspend fun runWork(message: Any) {
-    val workItem = message.unpack(WorkItem::class.java)
-    val workItemParams = workItem.workItemParams.unpack(WorkItemParams::class.java)
-    val fulfillerParams: ResultsFulfillerParams = workItemParams.appParams.unpack(ResultsFulfillerParams::class.java)
+    val workItemParams = message.unpack(WorkItemParams::class.java)
+    val fulfillerParams = workItemParams.appParams.unpack(ResultsFulfillerParams::class.java)
 
     val typeRegistry = getTypeRegistry()
     val requisitionsBlobUri = workItemParams.dataPathParams.dataPath
@@ -89,6 +88,6 @@ abstract class ResultsFulfillerApp(
       requisitionsStorageConfig,
     ).fulfillRequisitions()
 
-    messageProcessed.complete(workItem)
+    messageProcessed.complete(workItemParams)
   }
 }

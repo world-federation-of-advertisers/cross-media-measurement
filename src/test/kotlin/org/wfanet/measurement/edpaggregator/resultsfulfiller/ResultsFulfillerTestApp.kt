@@ -31,6 +31,7 @@ class ResultsFulfillerTestApp(
   private val requisitionsRootDirectory: File,
   private val labeledImpressionsRootDirectory: File,
   private val labeledImpressionsMetadataRootDirectory: File,
+  private val kmsClient: FakeKmsClient
 ): ResultsFulfillerApp(
   subscriptionId,
   queueSubscriber,
@@ -51,7 +52,7 @@ class ResultsFulfillerTestApp(
   }
 
   override fun getKmsClient(): KmsClient {
-    return FakeKmsClient()
+    return kmsClient
   }
 
   override fun getTypeRegistry(): TypeRegistry {

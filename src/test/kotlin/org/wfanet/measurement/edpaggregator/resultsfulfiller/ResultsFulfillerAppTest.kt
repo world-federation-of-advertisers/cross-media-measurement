@@ -3,9 +3,17 @@ package org.wfanet.measurement.edpaggregator.resultsfulfiller
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt
 import org.wfanet.measurement.api.v2alpha.fulfillDirectRequisitionResponse
 import com.google.common.truth.Truth.assertThat
+import com.google.crypto.tink.Aead
+import com.google.crypto.tink.KeyTemplates
+import com.google.crypto.tink.KeysetHandle
+import com.google.crypto.tink.TinkProtoKeysetFormat
+import com.google.crypto.tink.aead.AeadConfig
+import com.google.crypto.tink.streamingaead.StreamingAeadConfig
 import com.google.protobuf.Any
+import com.google.protobuf.ByteString
 import com.google.protobuf.Parser
 import com.google.protobuf.Timestamp
+import com.google.protobuf.kotlin.toByteStringUtf8
 import com.google.type.interval
 import java.nio.file.Files
 import java.nio.file.Path
@@ -14,6 +22,7 @@ import java.time.LocalDate
 import kotlin.random.Random
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -49,6 +58,8 @@ import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.tink.TinkPrivateKeyHandle
 import org.wfanet.measurement.common.crypto.tink.loadPrivateKey
 import org.wfanet.measurement.common.crypto.tink.loadPublicKey
+import org.wfanet.measurement.common.crypto.tink.testing.FakeKmsClient
+import org.wfanet.measurement.common.crypto.tink.withEnvelopeEncryption
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
@@ -59,8 +70,12 @@ import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
 import org.wfanet.measurement.consent.client.measurementconsumer.encryptRequisitionSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.signMeasurementSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.signRequisitionSpec
+import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
+import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
+import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParamsKt
+import org.wfanet.measurement.edpaggregator.v1alpha.copy
 import org.wfanet.measurement.edpaggregator.v1alpha.resultsFulfillerParams
 import org.wfanet.measurement.gcloud.pubsub.Publisher
 import org.wfanet.measurement.gcloud.pubsub.Subscriber
@@ -69,12 +84,18 @@ import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorProvider
 import org.wfanet.measurement.integration.common.loadEncryptionPrivateKey
 import org.wfanet.measurement.queue.QueueSubscriber
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem.WorkItemParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineImplBase
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineStub
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemKt
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemKt.workItemParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineImplBase
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItemAttempt
+import org.wfanet.measurement.storage.MesosRecordIoStorageClient
+import org.wfanet.measurement.storage.SelectedStorageClient
+import org.wfanet.panelmatch.client.storage.storageDetails
 
 class ResultsFulfillerAppTest {
   private lateinit var emulatorClient: GooglePubSubEmulatorClient
@@ -129,7 +150,8 @@ class ResultsFulfillerAppTest {
     val testWorkItemAttempt = workItemAttempt {
       name = "workItems/workItem/workItemAttempts/workItemAttempt"
     }
-    val testWorkItem = workItem { name = "workItems/workItem" }
+    val workItemParams = createWorkItemParams()
+    val workItem = createWorkItem(workItemParams)
     workItemAttemptsServiceMock.stub {
       onBlocking { createWorkItemAttempt(any()) } doReturn testWorkItemAttempt
     }
@@ -139,19 +161,81 @@ class ResultsFulfillerAppTest {
     workItemAttemptsServiceMock.stub {
       onBlocking { failWorkItemAttempt(any()) } doReturn testWorkItemAttempt
     }
-    workItemsServiceMock.stub { onBlocking { failWorkItem(any()) } doReturn testWorkItem }
+    workItemsServiceMock.stub { onBlocking { failWorkItem(any()) } doReturn workItem }
 
     // Create requisitions storage client
     val requisitionsTmpPath = Files.createTempDirectory(null).toFile()
     Files.createDirectories(requisitionsTmpPath.resolve(REQUISITIONS_BUCKET).toPath())
+    val requisitionsStorageClient = SelectedStorageClient(REQUISITIONS_FILE_URI, requisitionsTmpPath)
+
+    // Add requisitions to storage
+    requisitionsStorageClient.writeBlob(
+      REQUISITIONS_BLOB_KEY,
+      REQUISITION.toString().toByteStringUtf8()
+    )
 
     // Create impressions storage client
     val impressionsTmpPath = Files.createTempDirectory(null).toFile()
     Files.createDirectories(impressionsTmpPath.resolve(IMPRESSIONS_BUCKET).toPath())
+    val impressionsStorageClient = SelectedStorageClient(IMPRESSIONS_FILE_URI, impressionsTmpPath)
+
+    // Set up KMS
+    val kmsClient = FakeKmsClient()
+    val kekUri = FakeKmsClient.KEY_URI_PREFIX + "kek"
+    val kmsKeyHandle = KeysetHandle.generateNew(KeyTemplates.get("AES128_GCM"))
+    kmsClient.setAead(kekUri, kmsKeyHandle.getPrimitive(Aead::class.java))
+
+    // Set up streaming encryption
+    val tinkKeyTemplateType = "AES128_GCM_HKDF_1MB"
+    val aeadKeyTemplate = KeyTemplates.get(tinkKeyTemplateType)
+    val keyEncryptionHandle = KeysetHandle.generateNew(aeadKeyTemplate)
+    val serializedEncryptionKey =
+      ByteString.copyFrom(
+        TinkProtoKeysetFormat.serializeEncryptedKeyset(
+          keyEncryptionHandle,
+          kmsClient.getAead(kekUri),
+          byteArrayOf(),
+        )
+      )
+    val aeadStorageClient =
+      impressionsStorageClient.withEnvelopeEncryption(kmsClient, kekUri, serializedEncryptionKey)
+
+    // Wrap aead client in mesos client
+    val mesosRecordIoStorageClient = MesosRecordIoStorageClient(aeadStorageClient)
+
+    val impressions =
+      List(130) {
+        LABELED_IMPRESSION.copy {
+          vid = it.toLong()
+          eventTime = TIME_RANGE.start.toProtoTime()
+        }
+      }
+
+    val impressionsFlow = flow {
+      impressions.forEach { impression -> emit(impression.toByteString()) }
+    }
+
+    // Write impressions to storage
+    mesosRecordIoStorageClient.writeBlob(IMPRESSIONS_BLOB_KEY, impressionsFlow)
 
     // Create the impressions metadata store
     val metadataTmpPath = Files.createTempDirectory(null).toFile()
     Files.createDirectories(metadataTmpPath.resolve(IMPRESSIONS_METADATA_BUCKET).toPath())
+    val impressionsMetadataStorageClient =
+      SelectedStorageClient(IMPRESSIONS_METADATA_FILE_URI, metadataTmpPath)
+
+    val encryptedDek =
+      EncryptedDek.newBuilder().setKekUri(kekUri).setEncryptedDek(serializedEncryptionKey).build()
+    val blobDetails =
+      BlobDetails.newBuilder()
+        .setBlobUri(IMPRESSIONS_FILE_URI)
+        .setEncryptedDek(encryptedDek)
+        .build()
+
+    impressionsMetadataStorageClient.writeBlob(
+      IMPRESSION_METADATA_BLOB_KEY,
+      blobDetails.toString().toByteStringUtf8()
+    )
 
     val app = ResultsFulfillerTestApp(
       subscriptionId = SUBSCRIPTION_ID,
@@ -166,40 +250,44 @@ class ResultsFulfillerAppTest {
       requisitionsTmpPath,
       impressionsTmpPath,
       metadataTmpPath,
+      kmsClient
     )
-
     val job = launch { app.run() }
-
-    val testWork = createTestWork()
-    val workItem = createWorkItem(testWork)
 
     publisher.publishMessage(TOPIC_ID, workItem)
 
     val processedMessage = app.messageProcessed.await()
-    assertThat(processedMessage).isEqualTo(testWork)
+
+    assertThat(processedMessage).isEqualTo(workItemParams)
 
     job.cancelAndJoin()
   }
 
-  private fun createTestWork(): ResultsFulfillerParams {
-    return ResultsFulfillerParams
-      .newBuilder()
-      .setStorageDetails(
-        ResultsFulfillerParams
-          .StorageDetails
-          .newBuilder()
-          .setLabeledImpressionsMetadataBlobUriPrefix(IMPRESSIONS_METADATA_FILE_URI_PREFIX)
-          .build()
-      )
-      .build()
+  private fun createWorkItemParams(): WorkItemParams {
+    return workItemParams {
+      appParams = resultsFulfillerParams {
+        storageDetails = ResultsFulfillerParamsKt.storageDetails {
+          labeledImpressionsMetadataBlobUriPrefix = IMPRESSIONS_METADATA_FILE_URI_PREFIX
+        }
+      }.pack()
+
+      dataPathParams = WorkItemKt.WorkItemParamsKt.dataPathParams {
+        dataPath = REQUISITIONS_FILE_URI
+      }
+    }
   }
 
-  private fun createWorkItem(testWork: ResultsFulfillerParams): WorkItem {
-    val packedWorkItemParams = Any.pack(testWork)
+  private fun createWorkItem(workItemParams: WorkItemParams): WorkItem {
+    val packedWorkItemParams = Any.pack(workItemParams)
     return workItem {
       name = "workItems/workItem"
-      workItemParams = packedWorkItemParams
+      this.workItemParams = packedWorkItemParams
     }
+  }
+
+  init {
+    AeadConfig.register()
+    StreamingAeadConfig.register()
   }
 
   companion object {
