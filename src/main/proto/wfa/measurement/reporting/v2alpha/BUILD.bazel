@@ -27,6 +27,7 @@ MESSAGE_LIBS = [
     ":metric_calculation_spec_proto",
     ":metric_frequency_spec_proto",
     ":metric_proto",
+    "//src/main/proto/wfa/measurement/api/v2alpha:model_line_proto",
     ":result_group_proto",
     ":page_token_proto",
     ":report_proto",
