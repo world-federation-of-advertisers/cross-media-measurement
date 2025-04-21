@@ -20,12 +20,12 @@ import com.google.protobuf.util.Timestamps
 import com.google.type.Interval
 import io.grpc.Status
 import io.grpc.StatusException
+import java.util.logging.Level
+import java.util.logging.Logger
 import org.wfanet.measurement.access.client.v1alpha.Authorization
 import org.wfanet.measurement.access.client.v1alpha.check
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventGroupKey as KingdomEventGroupKey
-import java.util.logging.Level
-import java.util.logging.Logger
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ModelLine
 import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt.ModelLinesCoroutineStub
@@ -160,7 +160,10 @@ class ModelLinesService(
             if (listModelRolloutsResponse.modelRolloutsList.size == 1) {
               add(modelLine)
             } else {
-              logger.log(Level.WARNING, "Must have 1 model rollout per model line to have a valid model line.")
+              logger.log(
+                Level.WARNING,
+                "Must have 1 model rollout per model line to have a valid model line.",
+              )
             }
           }
         }
