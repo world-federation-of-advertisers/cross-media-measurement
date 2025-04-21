@@ -300,31 +300,17 @@ class MeasurementSystemProberTest {
 
     metricReader.forceFlush()
     val metricData: List<MetricData> = metricExporter.finishedMetricItems
-    assertThat(metricData).hasSize(2)
+    assertThat(metricData).hasSize(1)
     val metricNameToPoints: Map<String, List<DoublePointData>> =
       metricData.associateBy({ it.name }, { it.doubleGaugeData.points.map { point -> point } })
     assertThat(metricNameToPoints.keys)
-      .containsExactly(
-        LAST_TERMINAL_MEASUREMENT_TIME_GAUGE_METRIC_NAME,
-        LAST_TERMINAL_REQUISITION_TIME_GAUGE_METRIC_NAME,
-      )
+      .containsExactly(LAST_TERMINAL_MEASUREMENT_TIME_GAUGE_METRIC_NAME)
     assertThat(
         metricNameToPoints.getValue(LAST_TERMINAL_MEASUREMENT_TIME_GAUGE_METRIC_NAME)[0].value
       )
       .isEqualTo(
         oldCancelledMeasurement.updateTime.toInstant().toEpochMilli() / MILLISECONDS_PER_SECOND
       )
-    assertThat(
-        metricNameToPoints.getValue(LAST_TERMINAL_REQUISITION_TIME_GAUGE_METRIC_NAME)[0].value
-      )
-      .isEqualTo(REQUISITION.updateTime.toInstant().toEpochMilli() / MILLISECONDS_PER_SECOND)
-    assertThat(
-        metricNameToPoints
-          .getValue(LAST_TERMINAL_REQUISITION_TIME_GAUGE_METRIC_NAME)[0]
-          .attributes
-          .get(DATA_PROVIDER_ATTRIBUTE_KEY)
-      )
-      .isEqualTo(CanonicalRequisitionKey.fromName(REQUISITION.name)!!.dataProviderId)
   }
 
   @Test
