@@ -298,6 +298,7 @@ private object V2AlphaPublicApiServer {
             metricSpecConfig,
             authorization,
             SecureRandom().asKotlinRandom(),
+            reportingApiServerFlags.allowSamplingIntervalWrapping,
           )
           .withInterceptor(principalAuthInterceptor),
         ReportSchedulesService(

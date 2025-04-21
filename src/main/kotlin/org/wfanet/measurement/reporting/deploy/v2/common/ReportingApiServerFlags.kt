@@ -89,4 +89,12 @@ class ReportingApiServerFlags {
   )
   var measurementConsumerModelLines: Map<String, String> = emptyMap()
     private set
+
+  @set:CommandLine.Option(
+    names = ["--allow-sampling-interval-wrapping"],
+    description = ["Enable random sampling interval to wrap around 1."],
+    defaultValue = "false",
+  )
+  var allowSamplingIntervalWrapping by Delegates.notNull<Boolean>()
+    private set
 }

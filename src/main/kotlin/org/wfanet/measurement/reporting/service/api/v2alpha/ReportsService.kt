@@ -109,6 +109,7 @@ class ReportsService(
   private val metricSpecConfig: MetricSpecConfig,
   private val authorization: Authorization,
   private val secureRandom: Random,
+  private val allowSamplingIntervalWrapping: Boolean = false,
 ) : ReportsCoroutineImplBase() {
   private data class CreateReportInfo(
     val parent: String,
@@ -802,7 +803,11 @@ class ReportsService(
                       try {
                         metricSpec
                           .toMetricSpec()
-                          .withDefaults(metricSpecConfig, secureRandom)
+                          .withDefaults(
+                            metricSpecConfig,
+                            secureRandom,
+                            allowSamplingIntervalWrapping,
+                          )
                           .toInternal()
                       } catch (e: MetricSpecDefaultsException) {
                         failGrpc(Status.INVALID_ARGUMENT) {
