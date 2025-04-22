@@ -51,7 +51,7 @@ permissions:
   id-token: write
 
 env:
-  KUSTOMIZATION_PATH: "k8s/secure_computation_control_plane"
+  KUSTOMIZATION_PATH: "k8s/secure_computation"
 
 jobs:
   update-secure-computation-control-plane:
@@ -109,21 +109,21 @@ jobs:
 
     - name: Extract Kustomization archive
       run: >
-        tar -xf "$BAZEL_BIN/src/main/k8s/dev/secure_computation_control_plane.tar"
+        tar -xf "$BAZEL_BIN/src/main/k8s/dev/secure_computation.tar"
         -C "$KUSTOMIZATION_PATH"
 
     - name: Extract secret files archive
       run: >
         tar -xf "$BAZEL_BIN/src/main/k8s/testing/secretfiles/archive.tar"
-        -C "$KUSTOMIZATION_PATH/src/main/k8s/dev/secure_computation_control_plane_secrets"
+        -C "$KUSTOMIZATION_PATH/src/main/k8s/dev/secure_computation_secrets"
 
     - name: Copy secret generator
       run: >
-        cp src/main/k8s/testing/secretfiles/secure_computation_control_plane_secrets_kustomization.yaml
-        "$KUSTOMIZATION_PATH/src/main/k8s/dev/secure_computation_control_plane_secrets/kustomization.yaml"
+        cp src/main/k8s/testing/secretfiles/secure_computation_secrets_kustomization.yaml
+        "$KUSTOMIZATION_PATH/src/main/k8s/dev/secure_computation_secrets/kustomization.yaml"
 
     - name: Export KUSTOMIZE_PATH
-      run: echo "KUSTOMIZE_PATH=$KUSTOMIZATION_PATH/src/main/k8s/dev/secure_computation_control_plane" >> $GITHUB_ENV
+      run: echo "KUSTOMIZE_PATH=$KUSTOMIZATION_PATH/src/main/k8s/dev/secure_computation" >> $GITHUB_ENV
 
     - name: kubectl diff
       id: kubectl-diff
