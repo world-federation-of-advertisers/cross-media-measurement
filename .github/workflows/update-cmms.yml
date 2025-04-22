@@ -66,9 +66,9 @@ jobs:
       image-repo-prefix: ${{ github.repository_owner }}
       image-tag: ${{ needs.publish-images.outputs.image-tag }}
 
-  publish-tee-app-images:
-    uses: ./.github/workflows/build_and_push_tee_app.yml
-    secrets: inherit
+#  publish-tee-app-images:
+#    uses: ./.github/workflows/build_and_push_tee_app.yml
+#    secrets: inherit
 
   terraform:
     uses: ./.github/workflows/terraform-cmms.yml
@@ -93,13 +93,13 @@ jobs:
       environment: ${{ inputs.environment }}
       apply: ${{ inputs.apply }}
 
-  update-secure-computation:
-    uses: ./.github/workflows/configure-secure-computation-control-plane.yml
-    needs: [ publish-images, terraform ]
-    secrets: inherit
-    with:
-      environment: ${{ inputs.environment }}
-      apply: ${{ inputs.apply }}
+#  update-secure-computation:
+#    uses: ./.github/workflows/configure-secure-computation-control-plane.yml
+#    needs: [ publish-images, terraform ]
+#    secrets: inherit
+#    with:
+#      environment: ${{ inputs.environment }}
+#      apply: ${{ inputs.apply }}
 
   update-aggregator-duchy:
     uses: ./.github/workflows/configure-duchy.yml
