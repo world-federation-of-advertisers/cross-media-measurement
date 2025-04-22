@@ -46,6 +46,10 @@ resource "google_compute_instance_template" "confidential_vm_template" {
     confidential_instance_type  = "SEV_SNP"
   }
 
+  scheduling {
+    on_host_maintenance = "TERMINATE"
+  }
+
   name = var.instance_template_name
 
   disk {
