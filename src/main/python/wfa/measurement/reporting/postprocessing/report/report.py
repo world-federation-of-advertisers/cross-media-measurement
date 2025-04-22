@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import math
 import numpy as np
 import random
 from functools import reduce
@@ -47,7 +48,7 @@ CONSISTENCY_TEST_TOLERANCE = 1.0
 
 def fuzzy_equal(val: float, target: float, tolerance: float) -> bool:
   """Checks if two float values are approximately equal within an absolute tolerance."""
-  return abs(val - target) < tolerance
+  return math.isclose(val, target, rel_tol=0.0, abs_tol=tolerance)
 
 
 def fuzzy_less_equal(smaller: float, larger: float, tolerance: float) -> bool:
@@ -161,6 +162,62 @@ def get_cover_relationships(edp_combinations: list[FrozenSet[str]]) -> list[
     cover_relationship = get_covers(possible_covered, other_sets)
     cover_relationships.extend(cover_relationship)
   return cover_relationships
+
+
+def is_union_reach_consistent(
+    union_measurement: Measurement,
+    component_measurements: list[Measurement], population_size: float) -> bool:
+  """Verifies that the expected union reach is statistically consistent with
+  individual EDP measurements assuming conditional independence between the sets
+  of VIDs reached by the different EDPs.
+
+  The check is done by comparing the absolute difference between the observed
+  union reach and the expected union reach against a confidence range.
+
+  Let U be the population size, X_1, ..., X_n be the single EDPs. If the reach
+  of the EDPs are independent of one another, the expected union reach is:
+      |X_1 union … union Xn_| = U - (U - |X_1|)...(U - |X_n|)/U^{n-1}
+
+  Let D = expected union - measuremed union.
+
+  The standard deviation of the difference between the expected union reach
+  and the measured union reach is bounded by
+  std(D) <= sqrt(var(|X_1|) + ... + var(|X_n|) + var(measured union)).
+
+  Returns:
+    True if D is in [-7*std(D); 7*std(D)].
+    False otherwise.
+  """
+
+  if population_size <= 0:
+    raise ValueError(
+        f"The population size must be greater than 0, but got"
+        f" {population_size}."
+    )
+
+  if len(component_measurements) <= 1:
+    raise ValueError(
+        f"The length of individual reaches must be at least 2, but got"
+        f" {len(component_measurements)}."
+    )
+
+  variance = union_measurement.sigma ** 2
+
+  probability = 1.0
+
+  for measurement in component_measurements:
+    probability *= max(0.0, 1.0 - measurement.value / population_size)
+    variance += measurement.sigma ** 2
+
+  probability = min(1.0, probability)
+
+  expected_union_measurement = population_size * (1.0 - probability)
+
+  # An upperbound of STDDEV(expected union - measured union).
+  standard_deviation = np.sqrt(variance)
+
+  return abs(expected_union_measurement - union_measurement.value) <= \
+    STANDARD_DEVIATION_TEST_THRESHOLD * standard_deviation
 
 
 class MetricReport:
@@ -443,10 +500,7 @@ class Report:
     post_correction_quality = (
         corrected_report.get_report_quality()
         if corrected_report
-        else ReportQuality(
-            tv_status=ReportQuality.LinearTvStatus.LINEAR_TV_STATUS_UNSPECIFIED,
-            union_status=ReportQuality.UnionCheckStatus.UNION_CHECK_STATUS_UNSPECIFIED
-        )
+        else ReportQuality()
     )
 
     return corrected_report, \
@@ -1008,7 +1062,7 @@ class Report:
             ]
         )
 
-    return all(fuzzy_equal(val, 0.0, TOLERANCE) for val in standard_deviations)
+    return all(val == 0.0 for val in standard_deviations)
 
   def _are_edp_measurements_consistent(self,
       edp_combination: FrozenSet[str]) -> bool:
@@ -1113,79 +1167,51 @@ class Report:
 
     return True
 
-  def _is_union_within_confidence_interval(self,
+  def _validate_independence_checks(self,
       edp_combination: FrozenSet[str]) -> bool:
-    """Checks if the observed union measurement is consistent with the value
-    derived from the individual EDP measurements assuming the conditional
-    independent model.
-
-    Let U be the population size, X_1, ..., X_n be the single EDPs. If the reach
-    of the EDPs are independent from one another, the expected union reach is:
-        |X_1 union … union Xn_| = U - (U - |X_1|)...(U - |X_n|)/U^{n-1}
-
-    Let D = expected union - measuremed union.
-
-    The standard deviation of the difference between the expected union reach
-    and the measured union reach is bounded by
-    std(D) <= sqrt(var(|X_1|) + ... + var(|X_n|) + var(measured union)).
-
-    Returns:
-      True if D is in [-7*std(D); 7*std(D)].
-      False otherwise.
+    """Verifies if the observed union measurements for the edp_combination meet
+    the independence check.
     """
-    if len(edp_combination) <= 1:
-      return True
-
     single_edps = [frozenset({element}) for element in edp_combination]
 
     for metric in self._metric_reports.keys():
       metric_report = self._metric_reports[metric]
+
       # Check if the whole campaign measurements follow the CI model.
       union_measurement = metric_report.get_whole_campaign_measurement(
           edp_combination)
+      component_measurements = [
+          metric_report.get_whole_campaign_measurement(single_edp)
+          for single_edp in single_edps
+      ]
 
-      probability = 1.0
-      variance = union_measurement.sigma ** 2
-      for single_edp in single_edps:
-        measurement = self._metric_reports[
-          metric].get_whole_campaign_measurement(single_edp)
-        probability *= max(0.0, 1.0 - measurement.value / self._population_size)
-        variance += measurement.sigma ** 2
-
-      probability = min(1.0, probability)
-      expected_union_measurement = self._population_size * (1.0 - probability)
-      standard_deviation = np.sqrt(variance)
-
-      if abs(expected_union_measurement - union_measurement.value) > \
-          STANDARD_DEVIATION_TEST_THRESHOLD * standard_deviation:
+      if not is_union_reach_consistent(union_measurement,
+                                       component_measurements,
+                                       self._population_size):
         return False
 
       # Check if the cumulative measurements follow the CI model.
       for period in range(self._num_periods):
         union_measurement = metric_report.get_cumulative_measurement(
             edp_combination, period)
+        component_measurements = [
+            metric_report.get_cumulative_measurement(single_edp, period)
+            for single_edp in single_edps
+        ]
 
-        probability = 1.0
-        variance = union_measurement.sigma ** 2
-        for single_edp in single_edps:
-          measurement = metric_report.get_cumulative_measurement(single_edp,
-                                                                 period)
-          probability *= max(0.0,
-                             1.0 - measurement.value / self._population_size)
-          variance += measurement.sigma ** 2
-
-        probability = min(1.0, probability)
-        expected_union_measurement = self._population_size * (1.0 - probability)
-        standard_deviation = np.sqrt(variance)
-
-        if abs(expected_union_measurement - union_measurement.value) > \
-            STANDARD_DEVIATION_TEST_THRESHOLD * standard_deviation:
+        if not is_union_reach_consistent(union_measurement,
+                                         component_measurements,
+                                         self._population_size):
           return False
 
     return True
 
-  def _get_linear_tv_edp(self) -> list[str]:
-    """Get the Linear TV EDPs."""
+  def _get_linear_tv_edp(self) -> Optional[str]:
+    """Get the Linear TV EDP.
+
+    Returns:
+       The Linear TV EDP or None if not found.
+    """
     tv_edp_combinations: list[str] = []
     if self._metric_reports.keys() is None:
       raise ValueError("The report does not contain any measurements.")
@@ -1197,7 +1223,16 @@ class Report:
       if self._is_linear_tv(edp_combination):
         tv_edp_combinations.append(edp_combination)
 
-    return tv_edp_combinations
+    if len(tv_edp_combinations) > 1:
+      raise ValueError(
+          f"Expected at most one Linear TV EDP combination, but found "
+          f"{len(tv_edp_combinations)}: {tv_edp_combinations}"
+      )
+
+    if tv_edp_combinations:
+      return tv_edp_combinations[0]
+    else:
+      return None
 
   def get_report_quality(self) -> ReportQuality:
     """Calculates and returns the overall data quality status for the report.
@@ -1207,37 +1242,32 @@ class Report:
         outcomes (`tv_status`, `union_status`) from the performed checks.
     """
     # Gets the tv quality status.
-    tv_edp_combinations = self._get_linear_tv_edp()
-    tv_quality_status: ReportQuality.LinearTvStatus
-    if tv_edp_combinations:
-      tv_quality_status = ReportQuality.LinearTvStatus.CONSISTENT
-      for edp_combination in tv_edp_combinations:
-        if not self._are_edp_measurements_consistent(edp_combination):
-          tv_quality_status = ReportQuality.LinearTvStatus.INCONSISTENT
-          break
-    else:
-      tv_quality_status: ReportQuality.LinearTvStatus = \
-        ReportQuality.LinearTvStatus.LINEAR_TV_STATUS_UNSPECIFIED
+    tv_edp_combination = self._get_linear_tv_edp()
+    tv_quality_status = \
+      ReportQuality.LinearTvStatus.LINEAR_TV_STATUS_UNSPECIFIED
+    if tv_edp_combination:
+      if self._are_edp_measurements_consistent(tv_edp_combination):
+        tv_quality_status = ReportQuality.LinearTvStatus.CONSISTENT
+      else:
+        tv_quality_status = ReportQuality.LinearTvStatus.INCONSISTENT
 
     # Gets the union check status.
-    union_check_status: ReportQuality.UnionCheckStatus
-    if self._population_size == 0:
-      union_check_status = \
-        ReportQuality.UnionCheckStatus.UNION_CHECK_STATUS_UNSPECIFIED
-    else:
-      union_check_status = \
-        ReportQuality.UnionCheckStatus.WITHIN_CONFIDENCE_RANGE
+    independence_check_status = \
+      ReportQuality.IndependenceCheckStatus.INDEPENDENCE_CHECK_STATUS_UNSPECIFIED
+    if self._population_size > 0:
+      independence_check_status = \
+        ReportQuality.IndependenceCheckStatus.WITHIN_CONFIDENCE_RANGE
       edp_combinations = self._metric_reports[
         next(iter(self._metric_reports.keys()))
       ].get_whole_campaign_edp_combinations()
       for edp_combination in edp_combinations:
         if len(edp_combination) > 1:
-          if not self._is_union_within_confidence_interval(edp_combination):
-            union_check_status = \
-              ReportQuality.UnionCheckStatus.OUTSIDE_CONFIDENCE_RANGE
+          if not self._validate_independence_checks(edp_combination):
+            independence_check_status = \
+              ReportQuality.IndependenceCheckStatus.OUTSIDE_CONFIDENCE_RANGE
             break
 
     return ReportQuality(
         tv_status=tv_quality_status,
-        union_status=union_check_status,
+        union_status=independence_check_status,
     )

@@ -21,6 +21,7 @@ from report.report import MetricReport
 from report.report import Report
 from report.report import get_covers
 from report.report import is_cover
+from report.report import is_union_reach_consistent
 
 from src.main.proto.wfa.measurement.reporting.postprocessing.v2alpha import \
   report_post_processor_result_pb2
@@ -1038,6 +1039,261 @@ class TestReport(unittest.TestCase):
       self.assertCountEqual(spec._weighted_sum_upperbound_sets[key],
                             expected_weighted_sum_upperbound_sets[key])
 
+  def test_linear_tv_with_invalid_cumulative_reach_is_not_consistent(self):
+    # The cumulative reaches are decreasing.
+    report = Report(
+        metric_reports={
+            "ami": MetricReport(
+                reach_time_series={
+                    frozenset({EDP_ONE}): [
+                        Measurement(55, 0, "measurement_01"),
+                        Measurement(48.0, 0, "measurement_02")
+                    ],
+                },
+                reach_whole_campaign={
+                    frozenset({EDP_ONE}): Measurement(48, 0, "measurement_03"),
+                },
+                k_reach={
+                    frozenset({EDP_ONE}): {
+                        1: Measurement(20, 0, "measurement_04"),
+                        2: Measurement(28, 0, "measurement_05"),
+                    },
+                },
+                impression={
+                    frozenset({EDP_ONE}): Measurement(100, 0, "measurement_06"),
+                },
+            )
+        },
+        metric_subsets_by_parent={},
+        cumulative_inconsistency_allowed_edp_combinations={},
+    )
+
+    self.assertFalse(
+        report._are_edp_measurements_consistent(frozenset({EDP_ONE}))
+    )
+
+  def test_linear_tv_with_mismatch_cumulative_and_total_reach_is_not_consistent(
+      self):
+    # The total reach is not equal to the last cumulative reach.
+    report = Report(
+        metric_reports={
+            "ami": MetricReport(
+                reach_time_series={
+                    frozenset({EDP_ONE}): [
+                        Measurement(25, 0, "measurement_01"),
+                        Measurement(35.0, 0, "measurement_02")
+                    ],
+                },
+                reach_whole_campaign={
+                    frozenset({EDP_ONE}): Measurement(48, 0, "measurement_03"),
+                },
+                k_reach={
+                    frozenset({EDP_ONE}): {
+                        1: Measurement(20, 0, "measurement_04"),
+                        2: Measurement(28, 0, "measurement_05"),
+                    },
+                },
+                impression={
+                    frozenset({EDP_ONE}): Measurement(100, 0, "measurement_06"),
+                },
+            )
+        },
+        metric_subsets_by_parent={},
+        cumulative_inconsistency_allowed_edp_combinations={},
+    )
+
+    self.assertFalse(
+        report._are_edp_measurements_consistent(frozenset({EDP_ONE}))
+    )
+
+  def test_linear_tv_with_mismatch_total_reach_and_k_reach_is_not_consistent(
+      self):
+    # The total reach is not equal to the sum of k reaches.
+    report = Report(
+        metric_reports={
+            "ami": MetricReport(
+                reach_time_series={
+                    frozenset({EDP_ONE}): [
+                        Measurement(25, 0, "measurement_01"),
+                        Measurement(48.0, 0, "measurement_02")
+                    ],
+                },
+                reach_whole_campaign={
+                    frozenset({EDP_ONE}): Measurement(48, 0, "measurement_03"),
+                },
+                k_reach={
+                    frozenset({EDP_ONE}): {
+                        1: Measurement(20, 0, "measurement_04"),
+                        2: Measurement(20, 0, "measurement_05"),
+                    },
+                },
+                impression={
+                    frozenset({EDP_ONE}): Measurement(100, 0, "measurement_06"),
+                },
+            )
+        },
+        metric_subsets_by_parent={},
+        cumulative_inconsistency_allowed_edp_combinations={},
+    )
+
+    self.assertFalse(
+        report._are_edp_measurements_consistent(frozenset({EDP_ONE}))
+    )
+
+  def test_linear_tv_with_impression_count_less_than_weighted_sum_of_k_reaches_is_not_consistent(
+      self):
+    # The impression count is much less than the weighted sum of k reaches.
+    report = Report(
+        metric_reports={
+            "ami": MetricReport(
+                reach_time_series={
+                    frozenset({EDP_ONE}): [
+                        Measurement(25, 0, "measurement_01"),
+                        Measurement(48.0, 0, "measurement_02")
+                    ],
+                },
+                reach_whole_campaign={
+                    frozenset({EDP_ONE}): Measurement(48, 0, "measurement_03"),
+                },
+                k_reach={
+                    frozenset({EDP_ONE}): {
+                        1: Measurement(20, 0, "measurement_04"),
+                        2: Measurement(28, 0, "measurement_05"),
+                    },
+                },
+                impression={
+                    frozenset({EDP_ONE}): Measurement(50, 0, "measurement_06"),
+                },
+            )
+        },
+        metric_subsets_by_parent={},
+        cumulative_inconsistency_allowed_edp_combinations={},
+    )
+
+    self.assertFalse(
+        report._are_edp_measurements_consistent(frozenset({EDP_ONE}))
+    )
+
+  def test_linear_tv_with_inconsistent_metric_relation_is_not_consistent(self):
+    # The first mrc cumulative week has higher reach than that of ami.
+    report = Report(
+        metric_reports={
+            "ami": MetricReport(
+                reach_time_series={
+                    frozenset({EDP_ONE}): [
+                        Measurement(35, 0, "measurement_01"),
+                        Measurement(48.0, 0, "measurement_02")
+                    ],
+                },
+                reach_whole_campaign={
+                    frozenset({EDP_ONE}): Measurement(48, 0, "measurement_03"),
+                },
+                k_reach={
+                    frozenset({EDP_ONE}): {
+                        1: Measurement(20, 0, "measurement_04"),
+                        2: Measurement(28, 0, "measurement_05"),
+                    },
+                },
+                impression={
+                    frozenset({EDP_ONE}): Measurement(100, 0, "measurement_06"),
+                },
+            ),
+            "mrc": MetricReport(
+                reach_time_series={
+                    frozenset({EDP_ONE}): [
+                        Measurement(40, 0, "measurement_07"),
+                        Measurement(40.0, 0, "measurement_08")
+                    ],
+                },
+                reach_whole_campaign={
+                    frozenset({EDP_ONE}): Measurement(40, 0, "measurement_09"),
+                },
+                k_reach={
+                    frozenset({EDP_ONE}): {
+                        1: Measurement(20, 0, "measurement_10"),
+                        2: Measurement(20, 0, "measurement_11"),
+                    },
+                },
+                impression={
+                    frozenset({EDP_ONE}): Measurement(80, 0, "measurement_12"),
+                },
+            )
+        },
+        metric_subsets_by_parent={"ami": ["mrc"]},
+        cumulative_inconsistency_allowed_edp_combinations={},
+    )
+
+    self.assertFalse(
+        report._are_edp_measurements_consistent(frozenset({EDP_ONE}))
+    )
+
+  def test_union_consistent_check_throws_exception_when_population_is_zero(
+      self):
+    with self.assertRaises(ValueError) as ex:
+      is_union_reach_consistent(
+          Measurement(4.00, 1, "measurement_03"),
+          [
+              Measurement(0.00, 1, "measurement_01"),
+              Measurement(3.30, 1, "measurement_02")
+          ],
+          0
+      )
+
+    self.assertTrue(
+        str(ex.exception).startswith(
+            "The population size must be greater than 0"
+        )
+    )
+
+  def test_union_consistent_check_throws_exception_when_there_are_less_than_two_components(
+      self):
+    with self.assertRaises(ValueError) as ex:
+      is_union_reach_consistent(
+          Measurement(4.00, 1, "measurement_03"),
+          [
+              Measurement(0.00, 1, "measurement_01")
+          ],
+          10000000
+      )
+
+    self.assertTrue(
+        str(ex.exception).startswith(
+            "The length of individual reaches must be at least 2"
+        )
+    )
+
+  def test_union_consistent_check_passes_when_expected_union_is_within_confidence_interval(
+      self):
+    # The difference between the expected union and the measured one is
+    # abs(12453482 - 12460000), which is 6518. The standard deviation upperbound
+    # is 1838.5. The test passes as 6518 < 7*1838.5.
+    self.assertTrue(
+        is_union_reach_consistent(
+            union_measurement=Measurement(12460000, 1300, "measurement_01"),
+            component_measurements=[
+                Measurement(10000000, 0, "measurement_02"),
+                Measurement(2998700, 1300, "measurement_03"),
+            ],
+            population_size=55000000
+        )
+    )
+
+  def test_union_consistent_check_fails_when_expected_union_is_outside_confidence_interval(
+      self):
+    # The difference between the expected union and the measured one is
+    # abs(12453482 - 12502000), which is 48518. The standard deviation upperbound
+    # is 1838.5. The test passes as 48518 > 7*1838.5.
+    self.assertFalse(
+        is_union_reach_consistent(
+            union_measurement=Measurement(12502000, 1300, "measurement_01"),
+            component_measurements=[
+                Measurement(10000000, 0, "measurement_02"),
+                Measurement(2998700, 1300, "measurement_03"),
+            ],
+            population_size=55000000
+        )
+    )
+
   def test_can_correct_time_series(self):
     ami = "ami"
     report = Report(
@@ -1724,11 +1980,11 @@ class TestReport(unittest.TestCase):
     # No union check status as population size is not specified.
     self.assertEqual(
         report_post_processor_result.pre_correction_quality.union_status,
-        ReportQuality.UnionCheckStatus.UNION_CHECK_STATUS_UNSPECIFIED
+        ReportQuality.IndependenceCheckStatus.INDEPENDENCE_CHECK_STATUS_UNSPECIFIED
     )
     self.assertEqual(
         report_post_processor_result.post_correction_quality.union_status,
-        ReportQuality.UnionCheckStatus.UNION_CHECK_STATUS_UNSPECIFIED
+        ReportQuality.IndependenceCheckStatus.INDEPENDENCE_CHECK_STATUS_UNSPECIFIED
     )
     self._assertReportsAlmostEqual(report, corrected, corrected.to_array())
 
@@ -1803,11 +2059,11 @@ class TestReport(unittest.TestCase):
         ReportQuality.LinearTvStatus.LINEAR_TV_STATUS_UNSPECIFIED)
     self.assertEqual(
         report_post_processor_result.pre_correction_quality.union_status,
-        ReportQuality.UnionCheckStatus.UNION_CHECK_STATUS_UNSPECIFIED
+        ReportQuality.IndependenceCheckStatus.INDEPENDENCE_CHECK_STATUS_UNSPECIFIED
     )
     self.assertEqual(
         report_post_processor_result.post_correction_quality.union_status,
-        ReportQuality.UnionCheckStatus.UNION_CHECK_STATUS_UNSPECIFIED
+        ReportQuality.IndependenceCheckStatus.INDEPENDENCE_CHECK_STATUS_UNSPECIFIED
     )
     self.assertIsNone(corrected,
                       "Corrected report is None as QP solver fails.")
@@ -1883,11 +2139,11 @@ class TestReport(unittest.TestCase):
         ReportQuality.LinearTvStatus.CONSISTENT)
     self.assertEqual(
         report_post_processor_result.pre_correction_quality.union_status,
-        ReportQuality.UnionCheckStatus.WITHIN_CONFIDENCE_RANGE
+        ReportQuality.IndependenceCheckStatus.WITHIN_CONFIDENCE_RANGE
     )
     self.assertEqual(
         report_post_processor_result.post_correction_quality.union_status,
-        ReportQuality.UnionCheckStatus.WITHIN_CONFIDENCE_RANGE
+        ReportQuality.IndependenceCheckStatus.WITHIN_CONFIDENCE_RANGE
     )
 
   def test_correct_report_with_invalid_union_statistics(self):
@@ -1961,11 +2217,11 @@ class TestReport(unittest.TestCase):
         ReportQuality.LinearTvStatus.CONSISTENT)
     self.assertEqual(
         report_post_processor_result.pre_correction_quality.union_status,
-        ReportQuality.UnionCheckStatus.OUTSIDE_CONFIDENCE_RANGE
+        ReportQuality.IndependenceCheckStatus.OUTSIDE_CONFIDENCE_RANGE
     )
     self.assertEqual(
         report_post_processor_result.post_correction_quality.union_status,
-        ReportQuality.UnionCheckStatus.OUTSIDE_CONFIDENCE_RANGE
+        ReportQuality.IndependenceCheckStatus.OUTSIDE_CONFIDENCE_RANGE
     )
 
   def test_get_corrected_report_multiple_filter_single_edp(self):
