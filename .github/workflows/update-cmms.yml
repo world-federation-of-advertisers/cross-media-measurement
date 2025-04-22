@@ -59,6 +59,12 @@ env:
   RUN_TESTS: ${{ inputs.run-tests || 'false' }}
 
 jobs:
+  debug:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Print GitHub context
+        run: echo "${{ toJson(github) }}"
+
   publish-images:
     uses: ./.github/workflows/maybe-push-images.yml
     secrets: inherit
