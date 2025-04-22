@@ -28,7 +28,8 @@ message MeasurementDetail {
   // Specifies the set operation (e.g. union, difference).
   string set_operation = 2;
 
-  // Indicates if this contains the details of a list of cumulative measurements.
+  // Indicates if this contains the details of a list of cumulative
+  // measurements.
   bool is_cumulative = 3;
 
   // The list of data providers involve in the measurement.
