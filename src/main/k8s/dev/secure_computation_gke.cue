@@ -14,7 +14,7 @@
 
 package k8s
 
-_secureComputationSecretName: string @tag("secret_name")
+_secretName: string @tag("secret_name")
 _publicApiAddressName:        "secure-computation-public"
 
 // Name of K8s service account for the ControlPlane internal API server.
@@ -41,7 +41,7 @@ objectSets: [
 
 secureComputation: #SecureComputation & {
 
-	_secretName:               _secureComputationSecretName
+	_secureComputationSecretName:               _secretName
 	_verboseGrpcServerLogging: true
 
 	_spannerConfig: database: "secure-computation"
