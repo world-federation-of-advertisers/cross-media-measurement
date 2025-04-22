@@ -19,6 +19,7 @@ package org.wfanet.measurement.securecomputation.deploy.gcloud.spanner
 import io.grpc.BindableService
 import java.io.File
 import kotlinx.coroutines.runBlocking
+import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.grpc.CommonServer
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.config.securecomputation.QueuesConfig
@@ -69,5 +70,6 @@ class InternalApiServer : Runnable {
 
   companion object {
     const val SERVER_NAME = "SecureComputationInternalApiServer"
+    @JvmStatic fun main(args: Array<String>) = commandLineMain(InternalApiServer(), args)
   }
 }
