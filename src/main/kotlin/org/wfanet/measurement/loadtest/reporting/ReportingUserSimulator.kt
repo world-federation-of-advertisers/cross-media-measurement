@@ -383,7 +383,7 @@ class ReportingUserSimulator(
 
     val url =
       HttpUrl.Builder()
-        .scheme("http")
+        .scheme("https")
         .host(reportingGatewayHost)
         .port(reportingGatewayPort)
         .addPathSegments(
