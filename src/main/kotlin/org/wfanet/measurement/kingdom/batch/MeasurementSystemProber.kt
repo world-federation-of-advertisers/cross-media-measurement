@@ -119,8 +119,14 @@ class MeasurementSystemProber(
     if (lastUpdatedMeasurement != null) {
       updateLastTerminalRequisitionGauge(lastUpdatedMeasurement)
       if (lastUpdatedMeasurement.state in COMPLETED_MEASUREMENT_STATES) {
+        val attributes =
+          Attributes.of(
+            MEASUREMENT_SUCCESS_ATTRIBUTE_KEY,
+            lastUpdatedMeasurement.state == Measurement.State.SUCCEEDED,
+          )
         lastTerminalMeasurementTimeGauge.set(
-          lastUpdatedMeasurement.updateTime.toInstant().toEpochMilli() / MILLISECONDS_PER_SECOND
+          lastUpdatedMeasurement.updateTime.toInstant().toEpochMilli() / MILLISECONDS_PER_SECOND,
+          attributes,
         )
       }
     }
@@ -358,18 +364,22 @@ class MeasurementSystemProber(
   private suspend fun updateLastTerminalRequisitionGauge(lastUpdatedMeasurement: Measurement) {
     val requisitions = getRequisitionsForMeasurement(lastUpdatedMeasurement.name)
     requisitions.collect { requisition ->
-      if (requisition.state == Requisition.State.FULFILLED) {
-        val requisitionKey =
-          requireNotNull(CanonicalRequisitionKey.fromName(requisition.name)) {
-            "Requisition name ${requisition.name} is invalid"
-          }
-        val dataProviderName: String = requisitionKey.dataProviderId
-        val attributes = Attributes.of(DATA_PROVIDER_ATTRIBUTE_KEY, dataProviderName)
-        lastTerminalRequisitionTimeGauge.set(
-          requisition.updateTime.toInstant().toEpochMilli() / MILLISECONDS_PER_SECOND,
-          attributes,
+      val requisitionKey =
+        requireNotNull(CanonicalRequisitionKey.fromName(requisition.name)) {
+          "Requisition name ${requisition.name} is invalid"
+        }
+      val dataProviderName: String = requisitionKey.dataProviderId
+      val attributes =
+        Attributes.of(
+          DATA_PROVIDER_ATTRIBUTE_KEY,
+          dataProviderName,
+          REQUISITION_SUCCESS_ATTRIBUTE_KEY,
+          requisition.state == Requisition.State.FULFILLED,
         )
-      }
+      lastTerminalRequisitionTimeGauge.set(
+        requisition.updateTime.toInstant().toEpochMilli() / MILLISECONDS_PER_SECOND,
+        attributes,
+      )
     }
   }
 
@@ -384,5 +394,9 @@ class MeasurementSystemProber(
     private const val PROBER_NAMESPACE = "${Instrumentation.ROOT_NAMESPACE}.prober"
     private val DATA_PROVIDER_ATTRIBUTE_KEY =
       AttributeKey.stringKey("${Instrumentation.ROOT_NAMESPACE}.data_provider")
+    private val REQUISITION_SUCCESS_ATTRIBUTE_KEY =
+      AttributeKey.booleanKey("${Instrumentation.ROOT_NAMESPACE}.requisition.success")
+    private val MEASUREMENT_SUCCESS_ATTRIBUTE_KEY =
+      AttributeKey.booleanKey("${Instrumentation.ROOT_NAMESPACE}.measurement.success")
   }
 }
