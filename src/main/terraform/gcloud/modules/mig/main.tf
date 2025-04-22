@@ -89,14 +89,6 @@ resource "google_compute_region_instance_group_manager" "mig" {
   version {
     instance_template = google_compute_instance_template.confidential_vm_template.id
   }
-
-  update_policy {
-    type                    = "PROACTIVE"
-    minimal_action          = "REPLACE"
-    max_unavailable_fixed   = 1
-    replacement_method      = "RECREATE"
-  }
-
 }
 
 resource "google_compute_region_autoscaler" "mig_autoscaler" {
