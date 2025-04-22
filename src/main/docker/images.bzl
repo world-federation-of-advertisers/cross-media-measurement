@@ -306,6 +306,27 @@ REPORTING_V2_GKE_IMAGES = [
     ),
 ]
 
+SECURE_COMPUTATION_COMMON_IMAGES = [
+    struct(
+        name = "secure_computation_public_api_server_image",
+        image = "//src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/common/server:public_api_server_image",
+        repository = _PREFIX + "/secure-computation/public-api",
+    ),
+]
+
+SECURE_COMPUTATION_GKE_IMAGES = [
+    struct(
+        name = "gcloud_secure_computation_internal_api_server_image",
+        image = "//src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/spanner:internal_api_server_image",
+        repository = _PREFIX + "/secure-computation/internal-server",
+    ),
+    struct(
+        name = "gcloud_secure_computation_update_schema_image",
+        image = "//src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/spanner/tools:update_schema_image",
+        repository = _PREFIX + "/secure-computation/update-schema",
+    ),
+]
+
 SECURE_COMPUTATION_TEE_APP_IMAGES = [
     #TODO(@marcopremier) add images here when PR is ready
 ]
