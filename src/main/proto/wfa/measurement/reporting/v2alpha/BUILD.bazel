@@ -68,6 +68,7 @@ proto_library(
     srcs = ["event_group.proto"],
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
+        ":media_type_proto",
         "@com_google_googleapis//google/api:field_behavior_proto",
         "@com_google_googleapis//google/api:resource_proto",
         "@com_google_protobuf//:any_proto",
@@ -109,8 +110,6 @@ proto_library(
     name = "media_type_proto",
     srcs = ["media_type.proto"],
     strip_import_prefix = IMPORT_PREFIX,
-    deps = [
-    ],
 )
 
 proto_library(
@@ -316,8 +315,6 @@ proto_library(
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
         ":impression_qualification_filter_proto",
-        ":impression_qualification_filter_spec_proto",
-        ":media_type_proto",
         "@com_google_googleapis//google/api:annotations_proto",
         "@com_google_googleapis//google/api:client_proto",
         "@com_google_googleapis//google/api:field_behavior_proto",
