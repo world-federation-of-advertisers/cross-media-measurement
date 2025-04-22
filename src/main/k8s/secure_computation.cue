@@ -142,6 +142,11 @@ package k8s
 	configMaps: [Name=string]: #ConfigMap & {
 		metadata: name: Name
 	}
+	configMaps: "access-config": {
+        data: {
+            "queues_config.textproto": #QueuesConfig
+        }
+    }
 
 	serviceAccounts: [Name=string]: #ServiceAccount & {
 		metadata: name: Name
