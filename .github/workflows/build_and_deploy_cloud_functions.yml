@@ -33,6 +33,7 @@ permissions:
 jobs:
   build-and-deploy-cloud-functions:
     runs-on: ubuntu-22.04
+    environment: ${{ inputs.environment }}
     steps:
       - uses: actions/checkout@v4
       - name: Authenticate to Google Cloud
