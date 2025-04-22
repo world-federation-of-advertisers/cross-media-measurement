@@ -69,6 +69,7 @@ import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventGroupEntry
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt
+import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.createMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.dataProvider
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
@@ -262,6 +263,13 @@ class MeasurementSystemProberTest {
         oldFinishedMeasurement.updateTime.toInstant().toEpochMilli() / MILLISECONDS_PER_SECOND
       )
     assertThat(
+        metricNameToPoints
+          .getValue(LAST_TERMINAL_MEASUREMENT_TIME_GAUGE_METRIC_NAME)[0]
+          .attributes
+          .get(MEASUREMENT_SUCCESS_ATTRIBUTE_KEY)
+      )
+      .isEqualTo(true)
+    assertThat(
         metricNameToPoints.getValue(LAST_TERMINAL_REQUISITION_TIME_GAUGE_METRIC_NAME)[0].value
       )
       .isEqualTo(REQUISITION.updateTime.toInstant().toEpochMilli() / MILLISECONDS_PER_SECOND)
@@ -272,6 +280,13 @@ class MeasurementSystemProberTest {
           .get(DATA_PROVIDER_ATTRIBUTE_KEY)
       )
       .isEqualTo(CanonicalRequisitionKey.fromName(REQUISITION.name)!!.dataProviderId)
+    assertThat(
+        metricNameToPoints
+          .getValue(LAST_TERMINAL_REQUISITION_TIME_GAUGE_METRIC_NAME)[0]
+          .attributes
+          .get(REQUISITION_SUCCESS_ATTRIBUTE_KEY)
+      )
+      .isEqualTo(true)
   }
 
   @Test
@@ -281,6 +296,12 @@ class MeasurementSystemProberTest {
       state = Measurement.State.CANCELLED
       updateTime = now.minus(DURATION_BETWEEN_MEASUREMENT).toProtoTime()
     }
+    whenever(requisitionsMock.listRequisitions(any()))
+      .thenReturn(
+        listRequisitionsResponse {
+          requisitions += REQUISITION.copy { state = Requisition.State.WITHDRAWN }
+        }
+      )
     whenever(measurementsMock.listMeasurements(any()))
       .thenReturn(listMeasurementsResponse { measurements += oldCancelledMeasurement })
 
@@ -315,6 +336,13 @@ class MeasurementSystemProberTest {
         oldCancelledMeasurement.updateTime.toInstant().toEpochMilli() / MILLISECONDS_PER_SECOND
       )
     assertThat(
+        metricNameToPoints
+          .getValue(LAST_TERMINAL_MEASUREMENT_TIME_GAUGE_METRIC_NAME)[0]
+          .attributes
+          .get(MEASUREMENT_SUCCESS_ATTRIBUTE_KEY)
+      )
+      .isEqualTo(false)
+    assertThat(
         metricNameToPoints.getValue(LAST_TERMINAL_REQUISITION_TIME_GAUGE_METRIC_NAME)[0].value
       )
       .isEqualTo(REQUISITION.updateTime.toInstant().toEpochMilli() / MILLISECONDS_PER_SECOND)
@@ -325,6 +353,13 @@ class MeasurementSystemProberTest {
           .get(DATA_PROVIDER_ATTRIBUTE_KEY)
       )
       .isEqualTo(CanonicalRequisitionKey.fromName(REQUISITION.name)!!.dataProviderId)
+    assertThat(
+        metricNameToPoints
+          .getValue(LAST_TERMINAL_REQUISITION_TIME_GAUGE_METRIC_NAME)[0]
+          .attributes
+          .get(REQUISITION_SUCCESS_ATTRIBUTE_KEY)
+      )
+      .isEqualTo(false)
   }
 
   @Test
@@ -334,6 +369,12 @@ class MeasurementSystemProberTest {
       state = Measurement.State.FAILED
       updateTime = now.minus(DURATION_BETWEEN_MEASUREMENT).toProtoTime()
     }
+    whenever(requisitionsMock.listRequisitions(any()))
+      .thenReturn(
+        listRequisitionsResponse {
+          requisitions += REQUISITION.copy { state = Requisition.State.REFUSED }
+        }
+      )
     whenever(measurementsMock.listMeasurements(any()))
       .thenReturn(listMeasurementsResponse { measurements += oldFailedMeasurement })
 
@@ -368,6 +409,13 @@ class MeasurementSystemProberTest {
         oldFailedMeasurement.updateTime.toInstant().toEpochMilli() / MILLISECONDS_PER_SECOND
       )
     assertThat(
+        metricNameToPoints
+          .getValue(LAST_TERMINAL_MEASUREMENT_TIME_GAUGE_METRIC_NAME)[0]
+          .attributes
+          .get(MEASUREMENT_SUCCESS_ATTRIBUTE_KEY)
+      )
+      .isEqualTo(false)
+    assertThat(
         metricNameToPoints.getValue(LAST_TERMINAL_REQUISITION_TIME_GAUGE_METRIC_NAME)[0].value
       )
       .isEqualTo(REQUISITION.updateTime.toInstant().toEpochMilli() / MILLISECONDS_PER_SECOND)
@@ -378,6 +426,13 @@ class MeasurementSystemProberTest {
           .get(DATA_PROVIDER_ATTRIBUTE_KEY)
       )
       .isEqualTo(CanonicalRequisitionKey.fromName(REQUISITION.name)!!.dataProviderId)
+    assertThat(
+        metricNameToPoints
+          .getValue(LAST_TERMINAL_REQUISITION_TIME_GAUGE_METRIC_NAME)[0]
+          .attributes
+          .get(REQUISITION_SUCCESS_ATTRIBUTE_KEY)
+      )
+      .isEqualTo(false)
   }
 
   @Test
@@ -409,6 +464,13 @@ class MeasurementSystemProberTest {
         newFinishedMeasurement.updateTime.toInstant().toEpochMilli() / MILLISECONDS_PER_SECOND
       )
     assertThat(
+        metricNameToPoints
+          .getValue(LAST_TERMINAL_MEASUREMENT_TIME_GAUGE_METRIC_NAME)[0]
+          .attributes
+          .get(MEASUREMENT_SUCCESS_ATTRIBUTE_KEY)
+      )
+      .isEqualTo(true)
+    assertThat(
         metricNameToPoints.getValue(LAST_TERMINAL_REQUISITION_TIME_GAUGE_METRIC_NAME)[0].value
       )
       .isEqualTo(REQUISITION.updateTime.toInstant().toEpochMilli() / MILLISECONDS_PER_SECOND)
@@ -419,6 +481,13 @@ class MeasurementSystemProberTest {
           .get(DATA_PROVIDER_ATTRIBUTE_KEY)
       )
       .isEqualTo(CanonicalRequisitionKey.fromName(REQUISITION.name)!!.dataProviderId)
+    assertThat(
+        metricNameToPoints
+          .getValue(LAST_TERMINAL_REQUISITION_TIME_GAUGE_METRIC_NAME)[0]
+          .attributes
+          .get(REQUISITION_SUCCESS_ATTRIBUTE_KEY)
+      )
+      .isEqualTo(true)
   }
 
   @Test
@@ -448,6 +517,13 @@ class MeasurementSystemProberTest {
           .get(DATA_PROVIDER_ATTRIBUTE_KEY)
       )
       .isEqualTo(CanonicalRequisitionKey.fromName(REQUISITION.name)!!.dataProviderId)
+    assertThat(
+        metricNameToPoints
+          .getValue(LAST_TERMINAL_REQUISITION_TIME_GAUGE_METRIC_NAME)[0]
+          .attributes
+          .get(REQUISITION_SUCCESS_ATTRIBUTE_KEY)
+      )
+      .isEqualTo(true)
   }
 
   companion object {
@@ -604,6 +680,10 @@ class MeasurementSystemProberTest {
       "${PROBER_NAMESPACE}.last_terminal_requisition.timestamp"
     private val DATA_PROVIDER_ATTRIBUTE_KEY =
       AttributeKey.stringKey("${Instrumentation.ROOT_NAMESPACE}.data_provider")
+    private val REQUISITION_SUCCESS_ATTRIBUTE_KEY =
+      AttributeKey.booleanKey("${Instrumentation.ROOT_NAMESPACE}.requisition.success")
+    private val MEASUREMENT_SUCCESS_ATTRIBUTE_KEY =
+      AttributeKey.booleanKey("${Instrumentation.ROOT_NAMESPACE}.measurement.success")
     private const val MILLISECONDS_PER_SECOND = 1000.0
   }
 }
