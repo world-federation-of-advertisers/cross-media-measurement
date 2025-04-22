@@ -103,9 +103,16 @@ class DataWatcherFunction : CloudEventsFunction {
         "CERT_FILE_PATH",
         "PRIVATE_KEY_FILE_PATH",
         "CERT_COLLECTION_FILE_PATH",
+<<<<<<< HEAD
         "CONTROL_PLANE_TARGET",
         "CONTROL_PLANE_CERT_HOST",
       )
     private const val CONFIG_RESOURCE_PATH = "securecomputation/datawatcher/data_watcher_config.textproto"
+=======
+        "DATA_WATCHER_CONFIG_RESOURCE_PATH",
+        "CONTROL_PLANE_TARGET",
+        "CONTROL_PLANE_CERT_HOST",
+      )
+>>>>>>> jojijacob-results-fulfiller-app
   }
 }

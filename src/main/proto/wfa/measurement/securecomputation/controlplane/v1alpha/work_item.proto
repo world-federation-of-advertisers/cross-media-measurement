@@ -51,6 +51,7 @@ message WorkItem {
     //
     // The [type_url][google.protobuf.Any.type_url] must match the one in the configuration for this [Queue]
     google.protobuf.Any app_params = 1 [(google.api.field_behavior) = IMMUTABLE];
+
     // Parameters for a data path work item.
     message DataPathParams {
       // The data path to process

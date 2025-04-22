@@ -78,6 +78,7 @@ class RequisitionFetcherFunctionTest {
     /** Start the RequisitionFetcherFunction process */
     functionProcess =
       FunctionsFrameworkInvokerProcess(javaBinaryPath = FETCHER_BINARY_PATH, classTarget = GCF_TARGET)
+
     runBlocking {
       val port =
         functionProcess.start(
