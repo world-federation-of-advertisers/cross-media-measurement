@@ -117,9 +117,7 @@ class MeasurementSystemProber(
   suspend fun run() {
     val lastUpdatedMeasurement = getLastUpdatedMeasurement()
     if (lastUpdatedMeasurement != null) {
-      if (lastUpdatedMeasurement.state != Measurement.State.CANCELLED) {
-        updateLastTerminalRequisitionGauge(lastUpdatedMeasurement)
-      }
+      updateLastTerminalRequisitionGauge(lastUpdatedMeasurement)
       if (lastUpdatedMeasurement.state in COMPLETED_MEASUREMENT_STATES) {
         lastTerminalMeasurementTimeGauge.set(
           lastUpdatedMeasurement.updateTime.toInstant().toEpochMilli() / MILLISECONDS_PER_SECOND
