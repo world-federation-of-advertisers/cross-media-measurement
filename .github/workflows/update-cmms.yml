@@ -15,6 +15,9 @@
 name: Update CMMS
 
 on:
+  push:
+    branches:
+      - marcopremier/secure_computation_deployment_integration
   workflow_call:
     inputs:
       environment:
@@ -50,6 +53,11 @@ on:
         description: "Tag of existing published images (skips push)"
         type: string
 
+env:
+  ENVIRONMENT: ${{ inputs.environment || 'dev' }}
+  APPLY: ${{ inputs.apply || 'true' }}
+  RUN_TESTS: ${{ inputs.run-tests || 'false' }}
+
 jobs:
   publish-images:
     uses: ./.github/workflows/maybe-push-images.yml
@@ -73,16 +81,21 @@ jobs:
   terraform:
     uses: ./.github/workflows/terraform-cmms.yml
     secrets: inherit
+#    with:
+#      environment: ${{ inputs.environment }}
+#      apply: ${{ inputs.apply }}
     with:
-      environment: ${{ inputs.environment }}
-      apply: ${{ inputs.apply }}
+      environment: ${{ env.ENVIRONMENT }}
+      apply: ${{ env.APPLY }}
 
   deploy-cloud-function:
-    if: ${{ inputs.apply }}
+#    if: ${{ inputs.apply }}
+    if: ${{enf.APPLY}}
     needs: terraform
     uses: ./.github/workflows/build_and_deploy_cloud_functions.yml
     with:
-      environment: ${{ inputs.environment }}
+#      environment: ${{ inputs.environment }}
+      environment: ${{ env.ENVIRONMENT }}
 
   update-kingdom:
     uses: ./.github/workflows/configure-kingdom.yml
@@ -90,8 +103,20 @@ jobs:
     secrets: inherit
     with:
       image-tag: ${{ needs.publish-images.outputs.image-tag }}
-      environment: ${{ inputs.environment }}
-      apply: ${{ inputs.apply }}
+#      environment: ${{ inputs.environment }}
+#      apply: ${{ inputs.apply }}
+      environment: ${{ env.ENVIRONMENT }}
+      apply: ${{ env.APPLY }}
+
+  update-secure-computation:
+    uses: ./.github/workflows/configure-secure-computation-control-plane.yml
+    needs: [ publish-images, terraform ]
+    secrets: inherit
+    with:
+#      environment: ${{ inputs.environment }}
+#      apply: ${{ inputs.apply }}
+      environment: ${{ env.ENVIRONMENT }}
+      apply: ${{ env.APPLY }}
 
   update-aggregator-duchy:
     uses: ./.github/workflows/configure-duchy.yml
@@ -100,8 +125,10 @@ jobs:
     with:
       duchy-name: aggregator
       image-tag: ${{ needs.publish-images.outputs.image-tag }}
-      environment: ${{ inputs.environment }}
-      apply: ${{ inputs.apply }}
+#      environment: ${{ inputs.environment }}
+#      apply: ${{ inputs.apply }}
+      environment: ${{ env.ENVIRONMENT }}
+      apply: ${{ env.APPLY }}
 
   update-worker1-duchy:
     uses: ./.github/workflows/configure-duchy.yml
@@ -110,8 +137,10 @@ jobs:
     with:
       duchy-name: worker1
       image-tag: ${{ needs.publish-images.outputs.image-tag }}
-      environment: ${{ inputs.environment }}
-      apply: ${{ inputs.apply }}
+#      environment: ${{ inputs.environment }}
+#      apply: ${{ inputs.apply }}
+      environment: ${{ env.ENVIRONMENT }}
+      apply: ${{ env.APPLY }}
 
   update-worker2-duchy:
     uses: ./.github/workflows/configure-duchy.yml
@@ -120,8 +149,10 @@ jobs:
     with:
       duchy-name: worker2
       image-tag: ${{ needs.publish-images.outputs.image-tag }}
-      environment: ${{ inputs.environment }}
-      apply: ${{ inputs.apply }}
+#      environment: ${{ inputs.environment }}
+#      apply: ${{ inputs.apply }}
+      environment: ${{ env.ENVIRONMENT }}
+      apply: ${{ env.APPLY }}
 
   update-simulators:
     uses: ./.github/workflows/configure-simulators.yml
@@ -129,8 +160,10 @@ jobs:
     secrets: inherit
     with:
       image-tag: ${{ needs.publish-images.outputs.image-tag }}
-      environment: ${{ inputs.environment }}
-      apply: ${{ inputs.apply }}
+#      environment: ${{ inputs.environment }}
+#      apply: ${{ inputs.apply }}
+      environment: ${{ env.ENVIRONMENT }}
+      apply: ${{ env.APPLY }}
 
   # Update the Reporting system.
   #
@@ -141,11 +174,14 @@ jobs:
     needs: [ publish-images, terraform ]
     with:
       image-tag: ${{ needs.publish-images.outputs.image-tag }}
-      environment: ${{ inputs.environment }}
-      apply: ${{ inputs.apply }}
+#      environment: ${{ inputs.environment }}
+#      apply: ${{ inputs.apply }}
+      environment: ${{ env.ENVIRONMENT }}
+      apply: ${{ env.APPLY }}
 
   run-tests:
-    if: inputs.run-tests
+#    if: inputs.run-tests
+    if: env.RUN_TESTS == 'true'
     needs: [
       update-kingdom,
       update-aggregator-duchy,
@@ -157,4 +193,5 @@ jobs:
     uses: ./.github/workflows/run-k8s-tests.yml
     secrets: inherit
     with:
-      environment: ${{ inputs.environment }}
+#      environment: ${{ inputs.environment }}
+      environment: ${{ env.ENVIRONMENT }}

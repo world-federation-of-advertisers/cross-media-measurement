@@ -95,7 +95,7 @@ jobs:
     - name: Get GKE cluster credentials
       uses: google-github-actions/get-gke-credentials@v2
       with:
-        cluster_name: secure-computation-control-plane
+        cluster_name: kingdom
         location: ${{ vars.GCLOUD_ZONE }}
 
     - name: Generate archives
