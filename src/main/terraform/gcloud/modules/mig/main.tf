@@ -91,10 +91,10 @@ resource "google_compute_region_instance_group_manager" "mig" {
   }
 
   update_policy {
-    type                  = "PROACTIVE"
-    minimal_action        = "RESTART"
-    max_unavailable_fixed = 0
-    replacement_method    = "RECREATE"
+    type                    = "PROACTIVE"
+    minimal_action          = "REPLACE"
+    max_unavailable_fixed   = 1
+    replacement_method      = "RECREATE"
   }
 
 }
