@@ -53,6 +53,8 @@ jobs:
         MC_API_KEY: ${{ secrets.MC_API_KEY }}
         GCLOUD_PROJECT: ${{ vars.GCLOUD_PROJECT }}
         REPORTING_PUBLIC_API_TARGET: ${{ vars.REPORTING_PUBLIC_API_TARGET }}
+        REPORTING_INTERNAL_API_TARGET: ${{ vars.REPORTING_INTERNAL_API_TARGET }}
+        REPORTING_GATEWAY_TARGET: ${{ vars.REPORTING_GATEWAY_TARGET }}
       run: |
         cat << EOF > ~/.bazelrc
         common --config=ci
@@ -61,6 +63,7 @@ jobs:
         build --define mc_api_key=$MC_API_KEY
         build --define google_cloud_project=$GCLOUD_PROJECT
         build --define reporting_public_api_target=$REPORTING_PUBLIC_API_TARGET
+        build --define reporting_gateway_target=$REPORTING_GATEWAY_TARGET
         build --define basic_reports_enabled=true
         test --test_output=streamed
         test --test_timeout=3600

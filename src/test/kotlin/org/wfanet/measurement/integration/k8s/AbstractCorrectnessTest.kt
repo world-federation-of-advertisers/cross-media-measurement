@@ -72,6 +72,11 @@ abstract class AbstractCorrectnessTest(private val measurementSystem: Measuremen
     reportingTestHarness.testCreateReport("$runId-test-report")
   }
 
+  @Test(timeout = 1 * 60 * 1000)
+  fun `basic report can be retrieved`() = runBlocking {
+    reportingTestHarness.testGetBasicReport("$runId-test-basic-report")
+  }
+
   interface MeasurementSystem {
     val runId: String
     val testHarness: MeasurementConsumerSimulator

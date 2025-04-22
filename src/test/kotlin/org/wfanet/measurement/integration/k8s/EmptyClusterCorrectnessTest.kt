@@ -66,6 +66,8 @@ import org.wfanet.measurement.integration.common.createEntityContent
 import org.wfanet.measurement.integration.common.loadEncryptionPrivateKey
 import org.wfanet.measurement.integration.common.loadTestCertDerFile
 import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt
+import org.wfanet.measurement.internal.reporting.v2.BasicReportsGrpcKt as InternalBasicReportsGrpcKt
+import okhttp3.OkHttpClient
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerSimulator
 import org.wfanet.measurement.loadtest.measurementconsumer.MetadataSyntheticGeneratorEventQuery
@@ -281,7 +283,6 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
       measurementConsumerData: MeasurementConsumerData
     ): ReportingUserSimulator {
       val reportingPublicPod: V1Pod = getPod(REPORTING_PUBLIC_DEPLOYMENT_NAME)
-
       val publicApiForwarder = PortForwarder(reportingPublicPod, SERVER_PORT)
       portForwarders.add(publicApiForwarder)
 
@@ -289,6 +290,27 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
         withContext(Dispatchers.IO) { publicApiForwarder.start() }
       val publicApiChannel: Channel =
         buildMutualTlsChannel(publicApiAddress.toTarget(), REPORTING_SIGNING_CERTS)
+          .also { channels.add(it) }
+          .withDefaultDeadline(DEFAULT_RPC_DEADLINE)
+
+      val reportingGatewayPod: V1Pod = getPod(REPORTING_GATEWAY_DEPLOYMENT_NAME)
+      val gatewayForwarder = PortForwarder(reportingGatewayPod, HTTPS_SERVER_PORT)
+      portForwarders.add(gatewayForwarder)
+
+      val gatewayAddress: InetSocketAddress =
+        withContext(Dispatchers.IO) { gatewayForwarder.start() }
+
+      val okHttpReportingClient = OkHttpClient.Builder()
+        .build()
+
+      val reportingInternalPod: V1Pod = getPod(REPORTING_INTERNAL_DEPLOYMENT_NAME)
+      val internalApiForwarder = PortForwarder(reportingInternalPod, SERVER_PORT)
+      portForwarders.add(internalApiForwarder)
+
+      val internalApiAddress: InetSocketAddress =
+        withContext(Dispatchers.IO) { internalApiForwarder.start() }
+      val internalApiChannel: Channel =
+        buildMutualTlsChannel(internalApiAddress.toTarget(), REPORTING_SIGNING_CERTS)
           .also { channels.add(it) }
           .withDefaultDeadline(DEFAULT_RPC_DEADLINE)
 
@@ -303,6 +325,10 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
         metricCalculationSpecsClient =
           MetricCalculationSpecsGrpcKt.MetricCalculationSpecsCoroutineStub(publicApiChannel),
         reportsClient = ReportsGrpcKt.ReportsCoroutineStub(publicApiChannel),
+        okHttpReportingClient = okHttpReportingClient,
+        reportingGatewayHost = gatewayAddress.hostName,
+        internalBasicReportsClient =
+          InternalBasicReportsGrpcKt.BasicReportsCoroutineStub(internalApiChannel),
       )
     }
 
@@ -518,11 +544,16 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
     }
 
     private const val SERVER_PORT: Int = 8443
+    private const val HTTPS_SERVER_PORT: Int = 443
     private val DEFAULT_RPC_DEADLINE = Duration.ofSeconds(30)
     private const val KINGDOM_INTERNAL_DEPLOYMENT_NAME = "gcp-kingdom-data-server-deployment"
     private const val KINGDOM_PUBLIC_DEPLOYMENT_NAME = "v2alpha-public-api-server-deployment"
     private const val REPORTING_PUBLIC_DEPLOYMENT_NAME =
       "reporting-v2alpha-public-api-server-deployment"
+    private const val REPORTING_INTERNAL_DEPLOYMENT_NAME =
+      "postgres-internal-reporting-server-deployment"
+    private const val REPORTING_GATEWAY_DEPLOYMENT_NAME =
+      "reporting-grpc-gateway-deployment"
     private const val NUM_DATA_PROVIDERS = 6
     private val EDP_DISPLAY_NAMES: List<String> = (1..NUM_DATA_PROVIDERS).map { "edp$it" }
     private val READY_TIMEOUT = Duration.ofMinutes(2L)

@@ -37,6 +37,8 @@ import org.wfanet.measurement.common.grpc.withDefaultDeadline
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.integration.common.SyntheticGenerationSpecs
+import org.wfanet.measurement.internal.reporting.v2.BasicReportsGrpcKt as InternalBasicReportsGrpcKt
+import okhttp3.OkHttpClient
 import org.wfanet.measurement.loadtest.dataprovider.SyntheticGeneratorEventQuery
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerSimulator
@@ -129,6 +131,18 @@ class SyntheticGeneratorCorrectnessTest : AbstractCorrectnessTest(measurementSys
           .also { channels.add(it) }
           .withDefaultDeadline(RPC_DEADLINE_DURATION)
 
+      val internalApiChannel =
+        buildMutualTlsChannel(
+            TEST_CONFIG.reportingPublicApiTarget,
+            REPORTING_SIGNING_CERTS,
+            TEST_CONFIG.reportingPublicApiCertHost,
+          )
+          .also { channels.add(it) }
+          .withDefaultDeadline(RPC_DEADLINE_DURATION)
+
+      val okHttpReportingClient = OkHttpClient.Builder()
+        .build()
+
       return ReportingUserSimulator(
         measurementConsumerName = TEST_CONFIG.measurementConsumer,
         dataProvidersClient = DataProvidersGrpcKt.DataProvidersCoroutineStub(publicApiChannel),
@@ -143,6 +157,10 @@ class SyntheticGeneratorCorrectnessTest : AbstractCorrectnessTest(measurementSys
         metricCalculationSpecsClient =
           MetricCalculationSpecsGrpcKt.MetricCalculationSpecsCoroutineStub(publicApiChannel),
         reportsClient = ReportsGrpcKt.ReportsCoroutineStub(publicApiChannel),
+        okHttpReportingClient = okHttpReportingClient,
+        reportingGatewayHost = TEST_CONFIG.reportingGatewayTarget,
+        internalBasicReportsClient =
+          InternalBasicReportsGrpcKt.BasicReportsCoroutineStub(internalApiChannel),
       )
     }
 
