@@ -19,6 +19,7 @@ package wfa.measurement.reporting.v2alpha;
 import "google/api/field_behavior.proto";
 import "google/api/resource.proto";
 import "google/protobuf/any.proto";
+import "google/type/interval.proto";
 import "wfa/measurement/reporting/v2alpha/media_type.proto";
 
 option java_package = "org.wfanet.measurement.reporting.v2alpha";
@@ -70,6 +71,12 @@ message EventGroup {
   // Possible media types for events in this [EventGroup][].
   repeated MediaType media_types = 7
       [(google.api.field_behavior) = UNORDERED_LIST];
+
+  // Interval for which this [EventGroup][] is known to have events, subject to
+  // [DataProvider.data_availability_intervals][wfa.measurement.api.v2alpha.DataProvider.data_availability_intervals].
+  //
+  // If this field is set then [google.type.Interval.start_time][] is required.
+  google.type.Interval data_availability_interval = 9;
 
   // Common metadata structure for an [EventGroup][].
   message EventGroupMetadata {
