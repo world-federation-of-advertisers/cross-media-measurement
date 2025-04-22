@@ -20,6 +20,7 @@ import io.grpc.ManagedChannel
 import java.nio.file.Paths
 import java.time.Duration
 import java.util.UUID
+import okhttp3.OkHttpClient
 import org.junit.ClassRule
 import org.junit.rules.TemporaryFolder
 import org.junit.rules.TestRule
@@ -38,7 +39,6 @@ import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.integration.common.SyntheticGenerationSpecs
 import org.wfanet.measurement.internal.reporting.v2.BasicReportsGrpcKt as InternalBasicReportsGrpcKt
-import okhttp3.OkHttpClient
 import org.wfanet.measurement.loadtest.dataprovider.SyntheticGeneratorEventQuery
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerSimulator
@@ -140,8 +140,7 @@ class SyntheticGeneratorCorrectnessTest : AbstractCorrectnessTest(measurementSys
           .also { channels.add(it) }
           .withDefaultDeadline(RPC_DEADLINE_DURATION)
 
-      val okHttpReportingClient = OkHttpClient.Builder()
-        .build()
+      val okHttpReportingClient = OkHttpClient.Builder().build()
 
       return ReportingUserSimulator(
         measurementConsumerName = TEST_CONFIG.measurementConsumer,

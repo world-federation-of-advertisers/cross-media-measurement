@@ -19,6 +19,7 @@ package org.wfanet.measurement.loadtest.reporting
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth
 import com.google.protobuf.timestamp
+import com.google.protobuf.util.JsonFormat
 import com.google.type.DayOfWeek
 import com.google.type.date
 import com.google.type.dateTime
@@ -27,6 +28,9 @@ import io.grpc.StatusException
 import java.time.Duration
 import java.util.logging.Logger
 import kotlinx.coroutines.time.delay
+import okhttp3.HttpUrl
+import okhttp3.OkHttpClient
+import okhttp3.Request
 import org.wfanet.measurement.api.v2alpha.DataProvider
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt
@@ -49,10 +53,6 @@ import org.wfanet.measurement.internal.reporting.v2.metricFrequencySpec as inter
 import org.wfanet.measurement.internal.reporting.v2.reportingImpressionQualificationFilter as internalReportingImpressionQualificationFilter
 import org.wfanet.measurement.internal.reporting.v2.reportingInterval as internalReportingInterval
 import org.wfanet.measurement.internal.reporting.v2.resultGroup as internalResultGroup
-import com.google.protobuf.util.JsonFormat
-import okhttp3.HttpUrl
-import okhttp3.OkHttpClient
-import okhttp3.Request
 import org.wfanet.measurement.loadtest.config.TestIdentifiers
 import org.wfanet.measurement.reporting.service.api.v2alpha.BasicReportKey
 import org.wfanet.measurement.reporting.service.api.v2alpha.EventGroupKey
@@ -380,15 +380,16 @@ class ReportingUserSimulator(
         insertBasicReportRequest { basicReport = internalBasicReport }
       )
 
-    val url = HttpUrl.Builder()
-      .scheme("https")
-      .host(reportingGatewayHost)
-      .addPathSegments("v2alpha/measurementConsumers/${basicReportKey.parentKey.measurementConsumerId}/basicReports/${basicReportKey.basicReportId}}")
-      .build()
+    val url =
+      HttpUrl.Builder()
+        .scheme("http")
+        .host(reportingGatewayHost)
+        .addPathSegments(
+          "v2alpha/measurementConsumers/${basicReportKey.parentKey.measurementConsumerId}/basicReports/${basicReportKey.basicReportId}}"
+        )
+        .build()
 
-    val getBasicReportRequest = Request.Builder()
-      .url(url)
-      .build()
+    val getBasicReportRequest = Request.Builder().url(url).build()
 
     val retrievedBasicReportJson: String =
       try {
@@ -398,7 +399,9 @@ class ReportingUserSimulator(
       }
 
     val retrievedBasicReportBuilder = BasicReport.newBuilder()
-    JsonFormat.parser().ignoringUnknownFields().merge(retrievedBasicReportJson, retrievedBasicReportBuilder)
+    JsonFormat.parser()
+      .ignoringUnknownFields()
+      .merge(retrievedBasicReportJson, retrievedBasicReportBuilder)
 
     ProtoTruth.assertThat(retrievedBasicReportBuilder.build())
       .isEqualTo(

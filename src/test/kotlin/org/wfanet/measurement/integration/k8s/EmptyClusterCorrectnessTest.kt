@@ -35,6 +35,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.time.withTimeout
 import kotlinx.coroutines.withContext
+import okhttp3.OkHttpClient
 import org.jetbrains.annotations.Blocking
 import org.junit.ClassRule
 import org.junit.rules.TemporaryFolder
@@ -67,7 +68,6 @@ import org.wfanet.measurement.integration.common.loadEncryptionPrivateKey
 import org.wfanet.measurement.integration.common.loadTestCertDerFile
 import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt
 import org.wfanet.measurement.internal.reporting.v2.BasicReportsGrpcKt as InternalBasicReportsGrpcKt
-import okhttp3.OkHttpClient
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerSimulator
 import org.wfanet.measurement.loadtest.measurementconsumer.MetadataSyntheticGeneratorEventQuery
@@ -294,14 +294,13 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
           .withDefaultDeadline(DEFAULT_RPC_DEADLINE)
 
       val reportingGatewayPod: V1Pod = getPod(REPORTING_GATEWAY_DEPLOYMENT_NAME)
-      val gatewayForwarder = PortForwarder(reportingGatewayPod, HTTPS_SERVER_PORT)
+      val gatewayForwarder = PortForwarder(reportingGatewayPod, HTTP_SERVER_PORT)
       portForwarders.add(gatewayForwarder)
 
       val gatewayAddress: InetSocketAddress =
         withContext(Dispatchers.IO) { gatewayForwarder.start() }
 
-      val okHttpReportingClient = OkHttpClient.Builder()
-        .build()
+      val okHttpReportingClient = OkHttpClient.Builder().build()
 
       val reportingInternalPod: V1Pod = getPod(REPORTING_INTERNAL_DEPLOYMENT_NAME)
       val internalApiForwarder = PortForwarder(reportingInternalPod, SERVER_PORT)
@@ -544,7 +543,7 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
     }
 
     private const val SERVER_PORT: Int = 8443
-    private const val HTTPS_SERVER_PORT: Int = 443
+    private const val HTTP_SERVER_PORT: Int = 80
     private val DEFAULT_RPC_DEADLINE = Duration.ofSeconds(30)
     private const val KINGDOM_INTERNAL_DEPLOYMENT_NAME = "gcp-kingdom-data-server-deployment"
     private const val KINGDOM_PUBLIC_DEPLOYMENT_NAME = "v2alpha-public-api-server-deployment"
@@ -552,8 +551,7 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
       "reporting-v2alpha-public-api-server-deployment"
     private const val REPORTING_INTERNAL_DEPLOYMENT_NAME =
       "postgres-internal-reporting-server-deployment"
-    private const val REPORTING_GATEWAY_DEPLOYMENT_NAME =
-      "reporting-grpc-gateway-deployment"
+    private const val REPORTING_GATEWAY_DEPLOYMENT_NAME = "reporting-grpc-gateway-deployment"
     private const val NUM_DATA_PROVIDERS = 6
     private val EDP_DISPLAY_NAMES: List<String> = (1..NUM_DATA_PROVIDERS).map { "edp$it" }
     private val READY_TIMEOUT = Duration.ofMinutes(2L)
