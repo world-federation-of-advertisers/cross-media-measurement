@@ -90,7 +90,7 @@ jobs:
 
   deploy-cloud-function:
 #    if: ${{ inputs.apply }}
-    if: ${{enf.APPLY}}
+    if: ${{ env.APPLY == 'true' }}
     needs: terraform
     uses: ./.github/workflows/build_and_deploy_cloud_functions.yml
     with:
