@@ -116,12 +116,9 @@ class InvokeDataWatcherFunctionTest() {
                   "kotlin",
                   "org",
                   "wfanet",
-                  "measurement",
+                  "resources",
                   "securecomputation",
-                  "deploy",
-                  "gcloud",
                   "datawatcher",
-                  "testing",
                   "data_watcher_config.textproto",
                 )
                 .toString(),
