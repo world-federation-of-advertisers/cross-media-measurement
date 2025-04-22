@@ -387,7 +387,7 @@ private fun DuchyValue.availableForFulfillment(): Boolean {
     DuchyValue.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE -> {
       !honestMajorityShareShuffle.tinkPublicKey.isEmpty
     }
-    DuchyValue.ProtocolCase.PROTOCOL_NOT_SET -> error("protocol not set")
+    DuchyValue.ProtocolCase.PROTOCOL_NOT_SET -> false
   }
 }
 
@@ -460,7 +460,7 @@ private fun DuchyValue.toDuchyEntryValue(
             DuchyEntry.HonestMajorityShareShuffle.getDefaultInstance()
           }
       }
-      DuchyValue.ProtocolCase.PROTOCOL_NOT_SET -> error("protocol not set")
+      DuchyValue.ProtocolCase.PROTOCOL_NOT_SET -> Unit
     }
   }
 }
