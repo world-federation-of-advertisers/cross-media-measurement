@@ -63,12 +63,13 @@ jobs:
     uses: ./.github/workflows/maybe-push-images.yml
     secrets: inherit
     with:
-      existing-image-tag: ${{ inputs.existing-image-tag }}
-
+#      existing-image-tag: ${{ inputs.existing-image-tag }}
+      existing-image-tag: ${{ inputs.existing-image-tag || '' }}
   scan-images:
     uses: ./.github/workflows/scan-images.yml
     needs: [publish-images]
-    if: inputs.existing-image-tag == ''
+#    if: inputs.existing-image-tag == ''
+    if: ${{ (inputs.existing-image-tag || '') == '' }}
     with:
       container-registry: ghcr.io
       image-repo-prefix: ${{ github.repository_owner }}
