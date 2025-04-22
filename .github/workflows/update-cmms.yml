@@ -57,14 +57,14 @@ jobs:
     with:
       existing-image-tag: ${{ inputs.existing-image-tag }}
 
-#  scan-images:
-#    uses: ./.github/workflows/scan-images.yml
-#    needs: [publish-images]
-#    if: inputs.existing-image-tag == ''
-#    with:
-#      container-registry: ghcr.io
-#      image-repo-prefix: ${{ github.repository_owner }}
-#      image-tag: ${{ needs.publish-images.outputs.image-tag }}
+  scan-images:
+    uses: ./.github/workflows/scan-images.yml
+    needs: [publish-images]
+    if: inputs.existing-image-tag == ''
+    with:
+      container-registry: ghcr.io
+      image-repo-prefix: ${{ github.repository_owner }}
+      image-tag: ${{ needs.publish-images.outputs.image-tag }}
 
 #  publish-tee-app-images:
 #    uses: ./.github/workflows/build_and_push_tee_app.yml
