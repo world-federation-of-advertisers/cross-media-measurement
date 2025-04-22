@@ -158,6 +158,7 @@ class SyntheticGeneratorCorrectnessTest : AbstractCorrectnessTest(measurementSys
         reportsClient = ReportsGrpcKt.ReportsCoroutineStub(publicApiChannel),
         okHttpReportingClient = okHttpReportingClient,
         reportingGatewayHost = TEST_CONFIG.reportingGatewayTarget,
+        reportingGatewayPort = 8443,
         internalBasicReportsClient =
           InternalBasicReportsGrpcKt.BasicReportsCoroutineStub(internalApiChannel),
       )

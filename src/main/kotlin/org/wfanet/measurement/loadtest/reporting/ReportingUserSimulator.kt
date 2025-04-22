@@ -104,6 +104,7 @@ class ReportingUserSimulator(
   private val reportsClient: ReportsGrpcKt.ReportsCoroutineStub,
   private val okHttpReportingClient: OkHttpClient,
   private val reportingGatewayHost: String,
+  private val reportingGatewayPort: Int,
   private val internalBasicReportsClient: InternalBasicReportsGrpcKt.BasicReportsCoroutineStub,
   private val initialResultPollingDelay: Duration = Duration.ofSeconds(1),
   private val maximumResultPollingDelay: Duration = Duration.ofMinutes(1),
@@ -384,6 +385,7 @@ class ReportingUserSimulator(
       HttpUrl.Builder()
         .scheme("http")
         .host(reportingGatewayHost)
+        .port(reportingGatewayPort)
         .addPathSegments(
           "v2alpha/measurementConsumers/${basicReportKey.parentKey.measurementConsumerId}/basicReports/${basicReportKey.basicReportId}}"
         )

@@ -294,7 +294,7 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
           .withDefaultDeadline(DEFAULT_RPC_DEADLINE)
 
       val reportingGatewayPod: V1Pod = getPod(REPORTING_GATEWAY_DEPLOYMENT_NAME)
-      val gatewayForwarder = PortForwarder(reportingGatewayPod, HTTP_SERVER_PORT)
+      val gatewayForwarder = PortForwarder(reportingGatewayPod, SERVER_PORT)
       portForwarders.add(gatewayForwarder)
 
       val gatewayAddress: InetSocketAddress =
@@ -326,6 +326,7 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
         reportsClient = ReportsGrpcKt.ReportsCoroutineStub(publicApiChannel),
         okHttpReportingClient = okHttpReportingClient,
         reportingGatewayHost = gatewayAddress.hostName,
+        reportingGatewayPort = SERVER_PORT,
         internalBasicReportsClient =
           InternalBasicReportsGrpcKt.BasicReportsCoroutineStub(internalApiChannel),
       )
@@ -543,7 +544,6 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
     }
 
     private const val SERVER_PORT: Int = 8443
-    private const val HTTP_SERVER_PORT: Int = 80
     private val DEFAULT_RPC_DEADLINE = Duration.ofSeconds(30)
     private const val KINGDOM_INTERNAL_DEPLOYMENT_NAME = "gcp-kingdom-data-server-deployment"
     private const val KINGDOM_PUBLIC_DEPLOYMENT_NAME = "v2alpha-public-api-server-deployment"
