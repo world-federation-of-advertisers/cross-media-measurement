@@ -27,6 +27,7 @@ import org.wfanet.measurement.internal.kingdom.DataProvider
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.GetDataProviderRequest
 import org.wfanet.measurement.internal.kingdom.ReplaceDataAvailabilityIntervalRequest
+import org.wfanet.measurement.internal.kingdom.ReplaceDataAvailabilityIntervalsRequest
 import org.wfanet.measurement.internal.kingdom.ReplaceDataProviderCapabilitiesRequest
 import org.wfanet.measurement.internal.kingdom.ReplaceDataProviderRequiredDuchiesRequest
 import org.wfanet.measurement.internal.kingdom.batchGetDataProvidersResponse
@@ -37,6 +38,7 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.RequiredField
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.DataProviderReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateDataProvider
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.ReplaceDataAvailabilityInterval
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.ReplaceDataAvailabilityIntervals
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.ReplaceDataProviderCapabilities
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.ReplaceDataProviderRequiredDuchies
 
@@ -51,22 +53,13 @@ class SpannerDataProvidersService(
     grpcRequire(!request.details.publicKey.isEmpty && !request.details.publicKeySignature.isEmpty) {
       "Details field of DataProvider is missing fields."
     }
-    request.dataAvailabilityIntervalsList.forEachIndexed {
-      index: Int,
-      entry: DataProvider.DataAvailabilityMapEntry ->
-      if (!entry.hasKey()) {
-        throw RequiredFieldNotSetException("data_availability_intervals[$index].key")
-          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-      }
-      if (!entry.value.hasStartTime()) {
-        throw RequiredFieldNotSetException("data_availability_intervals[$index].value.start_time")
-          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-      }
-      if (!entry.value.hasEndTime()) {
-        throw RequiredFieldNotSetException("data_availability_intervals[$index].value.end_time")
-          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-      }
+
+    try {
+      validateDataAvailabilityIntervals(request.dataAvailabilityIntervalsList)
+    } catch (e: RequiredFieldNotSetException) {
+      throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
+
     return try {
       CreateDataProvider(request).execute(client, idGenerator)
     } catch (e: ModelLineNotFoundException) {
@@ -114,6 +107,28 @@ class SpannerDataProvidersService(
     }
   }
 
+  override suspend fun replaceDataAvailabilityIntervals(
+    request: ReplaceDataAvailabilityIntervalsRequest
+  ): DataProvider {
+    if (request.externalDataProviderId == 0L) {
+      throw RequiredFieldNotSetException("external_data_provider_id")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    try {
+      validateDataAvailabilityIntervals(request.dataAvailabilityIntervalsList)
+    } catch (e: RequiredFieldNotSetException) {
+      throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+
+    try {
+      return ReplaceDataAvailabilityIntervals(request).execute(client, idGenerator)
+    } catch (e: DataProviderNotFoundException) {
+      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
+    } catch (e: ModelLineNotFoundException) {
+      throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+    }
+  }
+
   override suspend fun replaceDataAvailabilityInterval(
     request: ReplaceDataAvailabilityIntervalRequest
   ): DataProvider {
@@ -135,6 +150,29 @@ class SpannerDataProvidersService(
       return ReplaceDataProviderCapabilities(request).execute(client, idGenerator)
     } catch (e: DataProviderNotFoundException) {
       throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "DataProvider not found.")
+    }
+  }
+
+  companion object {
+    /**
+     * Validates a `data_availability_intervals` field.
+     *
+     * @throws RequiredFieldNotSetException
+     */
+    private fun validateDataAvailabilityIntervals(
+      value: List<DataProvider.DataAvailabilityMapEntry>
+    ) {
+      value.forEachIndexed { index: Int, entry: DataProvider.DataAvailabilityMapEntry ->
+        if (!entry.hasKey()) {
+          throw RequiredFieldNotSetException("data_availability_intervals[$index].key")
+        }
+        if (!entry.value.hasStartTime()) {
+          throw RequiredFieldNotSetException("data_availability_intervals[$index].value.start_time")
+        }
+        if (!entry.value.hasEndTime()) {
+          throw RequiredFieldNotSetException("data_availability_intervals[$index].value.end_time")
+        }
+      }
     }
   }
 }
