@@ -36,6 +36,26 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
+    name = "results_fulfiller_app_impl",
+    srcs = ["ResultsFulfillerAppImpl.kt"],
+    deps = [
+        ":results_fulfiller_app",
+        "//imports/java/com/google/crypto/tink/integration/gcpkms",
+    ],
+)
+
+kt_jvm_library(
+    name = "results_fulfiller_app_runner",
+    srcs = ["ResultsFulfillerAppRunner.kt"],
+    deps = [
+        ":results_fulfiller_app_impl",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/pubsub:google_pub_sub_client",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/pubsub:publisher",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/pubsub:subscriber",
+    ],
+)
+
+kt_jvm_library(
     name = "measurement_results",
     srcs = ["MeasurementResults.kt"],
     deps = [
