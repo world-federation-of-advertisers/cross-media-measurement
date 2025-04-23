@@ -40,9 +40,13 @@ class DataWatcherFunction : CloudEventsFunction {
 
   init {
     for (envVar in requiredEnvVals) {
+<<<<<<< HEAD
       checkNotNull(System.getenv(envVar)) {
         "Missing env var: $envVar"
       }
+=======
+      checkNotNull(System.getenv(envVar))
+>>>>>>> origin/stevenwarejones_data_watcher
     }
   }
 
@@ -50,10 +54,17 @@ class DataWatcherFunction : CloudEventsFunction {
     logger.fine("Starting DataWatcherFunction")
     val publicChannel =
       buildMutualTlsChannel(
+<<<<<<< HEAD
           System.getenv("CONTROL_PLANE_TARGET"),
           getClientCerts(),
           System.getenv("CONTROL_PLANE_CERT_HOST"),
         )
+=======
+        System.getenv("CONTROL_PLANE_TARGET"),
+        getClientCerts(),
+        System.getenv("CONTROL_PLANE_CERT_HOST"),
+      )
+>>>>>>> origin/stevenwarejones_data_watcher
         .withShutdownTimeout(
           Duration.ofSeconds(
             System.getenv("CONTROL_PLANE_CHANNEL_SHUTDOWN_DURATION_SECONDS")?.toLong()
@@ -88,19 +99,32 @@ class DataWatcherFunction : CloudEventsFunction {
   private fun getClientCerts(): SigningCerts {
     return SigningCerts.fromPemFiles(
       certificateFile =
+<<<<<<< HEAD
         checkNotNull(CLASS_LOADER.getJarResourceFile(System.getenv("CERT_FILE_PATH"))),
       privateKeyFile =
         checkNotNull(CLASS_LOADER.getJarResourceFile(System.getenv("PRIVATE_KEY_FILE_PATH"))),
       trustedCertCollectionFile =
         checkNotNull(CLASS_LOADER.getJarResourceFile(System.getenv("CERT_COLLECTION_FILE_PATH"))),
+=======
+      checkNotNull(CLASS_LOADER.getJarResourceFile(System.getenv("CERT_FILE_PATH"))),
+      privateKeyFile =
+      checkNotNull(CLASS_LOADER.getJarResourceFile(System.getenv("PRIVATE_KEY_FILE_PATH"))),
+      trustedCertCollectionFile =
+      checkNotNull(CLASS_LOADER.getJarResourceFile(System.getenv("CERT_COLLECTION_FILE_PATH"))),
+>>>>>>> origin/stevenwarejones_data_watcher
     )
   }
 
   companion object {
     private const val scheme = "gs"
     private val logger: Logger = Logger.getLogger(this::class.java.name)
+<<<<<<< HEAD
     private const val DEFAULT_CHANNEL_SHUTDOWN_DURATION_SECONDS: Long = 3L
     private val CLASS_LOADER: ClassLoader = this::class.java.enclosingClass.classLoader
+=======
+    private val DEFAULT_CHANNEL_SHUTDOWN_DURATION_SECONDS: Long = 3L
+    private val CLASS_LOADER: ClassLoader = Thread.currentThread().contextClassLoader
+>>>>>>> origin/stevenwarejones_data_watcher
     private val requiredEnvVals: List<String> =
       listOf(
         "CERT_FILE_PATH",

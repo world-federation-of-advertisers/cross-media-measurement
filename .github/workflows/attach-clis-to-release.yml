@@ -1,0 +1,67 @@
+# Copyright 2025 The Cross-Media Measurement Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: Attach CLIs to release
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  attach-clis-to-release:
+    name: Attach CLIs to release
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    steps:
+      - name: Check out revision
+        uses: actions/checkout@v4
+
+      - name: Set up Bazel
+        uses: world-federation-of-advertisers/actions/setup-bazel@v2
+
+      - name: Write auth.bazelrc
+        env:
+          BUILDBUDDY_API_KEY: ${{ secrets.BUILDBUDDY_API_KEY }}
+        run: |
+          cat << EOF > auth.bazelrc
+          build --remote_header=x-buildbuddy-api-key=$BUILDBUDDY_API_KEY
+          EOF
+
+      - name: Write ~/.bazelrc
+        run: |
+          cat << EOF > ~/.bazelrc
+          common --config=ci
+          EOF
+
+      - name: Build CLI uber jars
+        run: >
+          bazel build 
+          //src/main/kotlin/org/wfanet/measurement/api/v2alpha/tools:MeasurementSystem_deploy.jar
+          //src/main/kotlin/org/wfanet/measurement/api/v2alpha/tools:EncryptionPublicKeys_deploy.jar
+          //src/main/kotlin/org/wfanet/measurement/api/v2alpha/tools:EventTemplateValidator_deploy.jar
+          //src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha/tools:Reporting_deploy.jar
+          //src/main/kotlin/org/wfanet/measurement/access/deploy/tools:Access_deploy.jar
+
+      - name: Attach CLI uber jars to release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: >
+          gh release upload "${{ github.event.release.tag_name }}"
+          ./bazel-bin/src/main/kotlin/org/wfanet/measurement/api/v2alpha/tools/MeasurementSystem_deploy.jar
+          ./bazel-bin/src/main/kotlin/org/wfanet/measurement/api/v2alpha/tools/EncryptionPublicKeys_deploy.jar
+          ./bazel-bin/src/main/kotlin/org/wfanet/measurement/api/v2alpha/tools/EventTemplateValidator_deploy.jar
+          ./bazel-bin/src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha/tools/Reporting_deploy.jar
+          ./bazel-bin/src/main/kotlin/org/wfanet/measurement/access/deploy/tools/Access_deploy.jar
+          --clobber

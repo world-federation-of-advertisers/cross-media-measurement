@@ -17,13 +17,20 @@
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers
 
 import com.google.cloud.spanner.Struct
+import com.google.cloud.spanner.Type
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.singleOrNull
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.appendClause
+import org.wfanet.measurement.gcloud.spanner.getInternalId
+import org.wfanet.measurement.gcloud.spanner.statement
+import org.wfanet.measurement.gcloud.spanner.struct
 import org.wfanet.measurement.internal.kingdom.ModelLine
+import org.wfanet.measurement.internal.kingdom.ModelLineKey
 import org.wfanet.measurement.internal.kingdom.modelLine
+import org.wfanet.measurement.internal.kingdom.modelLineKey
 
 class ModelLineReader : SpannerReader<ModelLineReader.Result>() {
 
@@ -51,11 +58,11 @@ class ModelLineReader : SpannerReader<ModelLineReader.Result>() {
       ModelSuites.ExternalModelSuiteId,
       ModelProviders.ExternalModelProviderId,
       HoldbackModelLine.ExternalModelLineId as ExternalHoldbackModelLineId,
-      FROM ModelLines
-      JOIN ModelSuites USING (ModelSuiteId)
-      JOIN ModelProviders ON (ModelSuites.ModelProviderId = ModelProviders.ModelProviderId)
-      LEFT JOIN ModelLines as HoldbackModelLine
-      ON (
+    FROM
+      ModelProviders
+      JOIN ModelSuites USING (ModelProviderId)
+      JOIN ModelLines USING (ModelProviderId, ModelSuiteId)
+      LEFT JOIN ModelLines AS HoldbackModelLine ON (
         ModelLines.ModelProviderId = HoldbackModelLine.ModelProviderId
         AND ModelLines.ModelSuiteId = HoldbackModelLine.ModelSuiteId
         AND ModelLines.HoldbackModelLineId = HoldbackModelLine.ModelLineId
@@ -118,4 +125,74 @@ class ModelLineReader : SpannerReader<ModelLineReader.Result>() {
       .execute(readContext)
       .singleOrNull()
   }
+
+  companion object {
+    private val MODEL_LINE_KEY_STRUCT =
+      Type.struct(
+        Type.StructField.of("ExternalModelProviderId", Type.int64()),
+        Type.StructField.of("ExternalModelSuiteId", Type.int64()),
+        Type.StructField.of("ExternalModelLineId", Type.int64()),
+      )
+
+    suspend fun readInternalIds(
+      readContext: AsyncDatabaseClient.ReadContext,
+      keys: Iterable<ModelLineKey>,
+    ): Map<ModelLineKey, ModelLineInternalKey> {
+      val sql =
+        """
+        SELECT
+          ModelProviderId,
+          ModelSuiteId,
+          ModelLineId,
+          ExternalModelProviderId,
+          ExternalModelSuiteId,
+          ExternalModelLineId,
+        FROM
+          ModelProviders
+          JOIN ModelSuites USING (ModelProviderId)
+          JOIN ModelLines USING (ModelProviderId, ModelSuiteId)
+        WHERE
+          STRUCT(ExternalModelProviderId, ExternalModelSuiteId, ExternalModelLineId) IN UNNEST(@modelLineKeys)
+        """
+          .trimIndent()
+      val query =
+        statement(sql) {
+          bind("modelLineKeys")
+            .toStructArray(
+              MODEL_LINE_KEY_STRUCT,
+              keys.map {
+                struct {
+                  set("ExternalModelProviderId").to(it.externalModelProviderId)
+                  set("ExternalModelSuiteId").to(it.externalModelSuiteId)
+                  set("ExternalModelLineId").to(it.externalModelLineId)
+                }
+              },
+            )
+        }
+
+      val results: Flow<Struct> = readContext.executeQuery(query)
+      return buildMap {
+        results.collect { row ->
+          val key = modelLineKey {
+            externalModelProviderId = row.getLong("ExternalModelProviderId")
+            externalModelSuiteId = row.getLong("ExternalModelSuiteId")
+            externalModelLineId = row.getLong("ExternalModelLineId")
+          }
+          val value =
+            ModelLineInternalKey(
+              row.getInternalId("ModelProviderId"),
+              row.getInternalId("ModelSuiteId"),
+              row.getInternalId("ModelLineId"),
+            )
+          put(key, value)
+        }
+      }
+    }
+  }
 }
+
+data class ModelLineInternalKey(
+  val modelProviderId: InternalId,
+  val modelSuiteId: InternalId,
+  val modelLineId: InternalId,
+)

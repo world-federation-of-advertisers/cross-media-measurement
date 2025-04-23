@@ -3328,6 +3328,102 @@ class ReportsServiceTest {
   }
 
   @Test
+  fun `getReport returns FAILED report when report has missing metric`() = runBlocking {
+    val reportId = "123"
+    val reportingSetId = "123"
+    val metricCalculationSpecId =
+      INTERNAL_REACH_METRIC_CALCULATION_SPEC.externalMetricCalculationSpecId
+    val measurementConsumerId = MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId
+    val reportWithMissingMetricId = internalReport {
+      externalReportId = reportId
+      cmmsMeasurementConsumerId = measurementConsumerId
+      reportingMetricEntries[reportingSetId] =
+        InternalReportKt.reportingMetricCalculationSpec {
+          metricCalculationSpecReportingMetrics +=
+            InternalReportKt.metricCalculationSpecReportingMetrics {
+              externalMetricCalculationSpecId = metricCalculationSpecId
+              reportingMetrics +=
+                InternalReportKt.reportingMetric {
+                  details =
+                    InternalReportKt.ReportingMetricKt.details {
+                      metricSpec = internalMetricSpec {
+                        reach =
+                          InternalMetricSpecKt.reachParams {
+                            multipleDataProviderParams =
+                              InternalMetricSpecKt.samplingAndPrivacyParams {
+                                privacyParams =
+                                  InternalMetricSpecKt.differentialPrivacyParams {
+                                    epsilon = 1.0
+                                    delta = 2.0
+                                  }
+                                vidSamplingInterval =
+                                  InternalMetricSpecKt.vidSamplingInterval {
+                                    start = 0.1f
+                                    width = 0.5f
+                                  }
+                              }
+                          }
+                      }
+                      timeInterval = interval {
+                        startTime = timestamp { seconds = 100 }
+                        endTime = timestamp { seconds = 200 }
+                      }
+                      groupingPredicates += listOf("predicate1", "predicate2")
+                    }
+                }
+            }
+        }
+      createTime = timestamp { seconds = 50 }
+      details =
+        InternalReportKt.details {
+          timeIntervals = internalTimeIntervals {
+            timeIntervals += interval {
+              startTime = timestamp { seconds = 100 }
+              endTime = timestamp { seconds = 200 }
+            }
+          }
+        }
+    }
+
+    whenever(internalReportsMock.getReport(any())).thenReturn(reportWithMissingMetricId)
+
+    val request = getReportRequest { name = ReportKey(measurementConsumerId, reportId).toName() }
+
+    val result =
+      withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.getReport(request) } }
+
+    val expected = report {
+      name = ReportKey(measurementConsumerId, reportId).toName()
+      reportingMetricEntries +=
+        ReportKt.reportingMetricEntry {
+          key = ReportingSetKey(measurementConsumerId, reportingSetId).toName()
+          value =
+            ReportKt.reportingMetricCalculationSpec {
+              metricCalculationSpecs +=
+                MetricCalculationSpecKey(measurementConsumerId, metricCalculationSpecId).toName()
+            }
+        }
+      state = Report.State.FAILED
+      createTime = timestamp { seconds = 50 }
+      timeIntervals = timeIntervals {
+        timeIntervals += interval {
+          startTime = timestamp { seconds = 100 }
+          endTime = timestamp { seconds = 200 }
+        }
+      }
+      metricCalculationResults +=
+        ReportKt.metricCalculationResult {
+          metricCalculationSpec +=
+            MetricCalculationSpecKey(measurementConsumerId, metricCalculationSpecId).toName()
+          displayName = DISPLAY_NAME
+          reportingSet = ReportingSetKey(measurementConsumerId, reportingSetId).toName()
+        }
+    }
+
+    assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
+  }
+
+  @Test
   fun `getReport returns the report when caller has permission on Report resource`() {
     reset(permissionsServiceMock)
     wheneverBlocking {
@@ -3736,6 +3832,111 @@ class ReportsServiceTest {
 
       assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
     }
+
+  @Test
+  fun `listReports returns FAILED report when report has missing metric`() = runBlocking {
+    val reportId = "123"
+    val reportingSetId = "123"
+    val metricCalculationSpecId =
+      INTERNAL_REACH_METRIC_CALCULATION_SPEC.externalMetricCalculationSpecId
+    val measurementConsumerId = MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId
+    val reportWithMissingMetricId = internalReport {
+      externalReportId = reportId
+      cmmsMeasurementConsumerId = measurementConsumerId
+      reportingMetricEntries[reportingSetId] =
+        InternalReportKt.reportingMetricCalculationSpec {
+          metricCalculationSpecReportingMetrics +=
+            InternalReportKt.metricCalculationSpecReportingMetrics {
+              externalMetricCalculationSpecId = metricCalculationSpecId
+              reportingMetrics +=
+                InternalReportKt.reportingMetric {
+                  details =
+                    InternalReportKt.ReportingMetricKt.details {
+                      metricSpec = internalMetricSpec {
+                        reach =
+                          InternalMetricSpecKt.reachParams {
+                            multipleDataProviderParams =
+                              InternalMetricSpecKt.samplingAndPrivacyParams {
+                                privacyParams =
+                                  InternalMetricSpecKt.differentialPrivacyParams {
+                                    epsilon = 1.0
+                                    delta = 2.0
+                                  }
+                                vidSamplingInterval =
+                                  InternalMetricSpecKt.vidSamplingInterval {
+                                    start = 0.1f
+                                    width = 0.5f
+                                  }
+                              }
+                          }
+                      }
+                      timeInterval = interval {
+                        startTime = timestamp { seconds = 100 }
+                        endTime = timestamp { seconds = 200 }
+                      }
+                      groupingPredicates += listOf("predicate1", "predicate2")
+                    }
+                }
+            }
+        }
+      createTime = timestamp { seconds = 50 }
+      details =
+        InternalReportKt.details {
+          timeIntervals = internalTimeIntervals {
+            timeIntervals += interval {
+              startTime = timestamp { seconds = 100 }
+              endTime = timestamp { seconds = 200 }
+            }
+          }
+        }
+    }
+
+    whenever(internalReportsMock.streamReports(any())).thenReturn(flowOf(reportWithMissingMetricId))
+
+    val pageSize = 1
+    val request = listReportsRequest {
+      parent = MEASUREMENT_CONSUMER_KEYS.first().toName()
+      this.pageSize = pageSize
+    }
+
+    val result =
+      withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.listReports(request) } }
+
+    val expected = listReportsResponse {
+      reports.add(
+        report {
+          name = ReportKey(measurementConsumerId, reportId).toName()
+          reportingMetricEntries +=
+            ReportKt.reportingMetricEntry {
+              key = ReportingSetKey(measurementConsumerId, reportingSetId).toName()
+              value =
+                ReportKt.reportingMetricCalculationSpec {
+                  metricCalculationSpecs +=
+                    MetricCalculationSpecKey(measurementConsumerId, metricCalculationSpecId)
+                      .toName()
+                }
+            }
+          state = Report.State.FAILED
+          createTime = timestamp { seconds = 50 }
+          timeIntervals = timeIntervals {
+            timeIntervals += interval {
+              startTime = timestamp { seconds = 100 }
+              endTime = timestamp { seconds = 200 }
+            }
+          }
+          metricCalculationResults +=
+            ReportKt.metricCalculationResult {
+              metricCalculationSpec +=
+                MetricCalculationSpecKey(measurementConsumerId, metricCalculationSpecId).toName()
+              displayName = DISPLAY_NAME
+              reportingSet = ReportingSetKey(measurementConsumerId, reportingSetId).toName()
+            }
+        }
+      )
+    }
+
+    assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
+  }
 
   @Test
   fun `listReports with page size replaced with a valid value and no previous page token`() {

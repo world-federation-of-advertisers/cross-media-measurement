@@ -16,6 +16,7 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers
 
 import com.google.cloud.spanner.Key
 import com.google.cloud.spanner.Struct
+import com.google.type.interval
 import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
@@ -26,6 +27,9 @@ import org.wfanet.measurement.gcloud.spanner.getInternalId
 import org.wfanet.measurement.internal.kingdom.Certificate
 import org.wfanet.measurement.internal.kingdom.DataProvider
 import org.wfanet.measurement.internal.kingdom.DataProviderDetails
+import org.wfanet.measurement.internal.kingdom.DataProviderKt
+import org.wfanet.measurement.internal.kingdom.dataProvider
+import org.wfanet.measurement.internal.kingdom.modelLineKey
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderNotFoundException
 
@@ -59,6 +63,21 @@ class DataProviderReader : SpannerReader<DataProviderReader.Result>() {
         WHERE
           DataProviderRequiredDuchies.DataProviderId = DataProviders.DataProviderId
       ) AS DataProviderRequiredDuchies,
+      ARRAY(
+        SELECT AS STRUCT
+          ExternalModelProviderId,
+          ExternalModelSuiteId,
+          ExternalModelLineId,
+          StartTime,
+          EndTime,
+        FROM
+          DataProviderAvailabilityIntervals
+          JOIN ModelLines USING (ModelProviderId, ModelSuiteId, ModelLineId)
+          JOIN ModelSuites USING (ModelProviderId, ModelSuiteId)
+          JOIN ModelProviders USING (ModelProviderId)
+        WHERE
+          DataProviderAvailabilityIntervals.DataProviderId = DataProviders.DataProviderId
+      ) AS DataAvailabilityIntervals,
     FROM DataProviders
     JOIN DataProviderCertificates ON (
       DataProviderCertificates.DataProviderId = DataProviders.DataProviderId
@@ -113,16 +132,27 @@ class DataProviderReader : SpannerReader<DataProviderReader.Result>() {
     }
   }
 
-  private fun buildDataProvider(struct: Struct): DataProvider =
-    DataProvider.newBuilder()
-      .apply {
-        externalDataProviderId = struct.getLong("ExternalDataProviderId")
-        details =
-          struct.getProtoMessage("DataProviderDetails", DataProviderDetails.getDefaultInstance())
-        certificate = CertificateReader.buildDataProviderCertificate(struct)
-        addAllRequiredExternalDuchyIds(buildExternalDuchyIdList(struct))
+  private fun buildDataProvider(struct: Struct) = dataProvider {
+    externalDataProviderId = struct.getLong("ExternalDataProviderId")
+    details =
+      struct.getProtoMessage("DataProviderDetails", DataProviderDetails.getDefaultInstance())
+    certificate = CertificateReader.buildDataProviderCertificate(struct)
+    requiredExternalDuchyIds += buildExternalDuchyIdList(struct)
+    dataAvailabilityIntervals +=
+      struct.getStructList("DataAvailabilityIntervals").map {
+        DataProviderKt.dataAvailabilityMapEntry {
+          key = modelLineKey {
+            externalModelProviderId = it.getLong("ExternalModelProviderId")
+            externalModelSuiteId = it.getLong("ExternalModelSuiteId")
+            externalModelLineId = it.getLong("ExternalModelLineId")
+          }
+          value = interval {
+            startTime = it.getTimestamp("StartTime").toProto()
+            endTime = it.getTimestamp("EndTime").toProto()
+          }
+        }
       }
-      .build()
+  }
 
   private fun buildExternalDuchyIdList(struct: Struct): List<String> {
     return struct.getStructList("DataProviderRequiredDuchies").map {

@@ -59,4 +59,8 @@ message DataWatcherConfig {
 message DataWatcherConfigs {
   // All the configs that the DataWatcher will match
   repeated DataWatcherConfig configs = 1;
+<<<<<<< HEAD
 }
+=======
+}
+>>>>>>> origin/stevenwarejones_data_watcher
