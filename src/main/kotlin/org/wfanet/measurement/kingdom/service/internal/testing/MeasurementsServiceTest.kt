@@ -58,7 +58,6 @@ import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCo
 import org.wfanet.measurement.internal.kingdom.ProtocolConfig
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.Requisition.DuchyValue
-import org.wfanet.measurement.internal.kingdom.RequisitionKt.duchyValue
 import org.wfanet.measurement.internal.kingdom.RequisitionKt.parentMeasurement
 import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequestKt
@@ -1231,13 +1230,12 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
         requisition { state = Requisition.State.WITHDRAWN },
       )
 
-    val requisitionDuchyMap1 = requisitions[0].duchiesMap
-    for (entry in requisitionDuchyMap1) {
-      assertThat(entry.value).comparingExpectedFieldsOnly().isEqualTo(duchyValue {})
-    }
-    val requisitionDuchyMap2 = requisitions[1].duchiesMap
-    for (entry in requisitionDuchyMap2) {
-      assertThat(entry.value).comparingExpectedFieldsOnly().isEqualTo(duchyValue {})
+    for (requisition in requisitions) {
+      for (duchyValue in requisition.duchiesMap.values) {
+        assertThat(duchyValue)
+          .comparingExpectedFieldsOnly()
+          .isEqualTo(DuchyValue.getDefaultInstance())
+      }
     }
   }
 
