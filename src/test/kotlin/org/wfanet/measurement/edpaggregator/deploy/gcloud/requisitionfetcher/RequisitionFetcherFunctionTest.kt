@@ -95,7 +95,8 @@ class RequisitionFetcherFunctionTest {
             "STORAGE_PATH_PREFIX" to STORAGE_PATH_PREFIX,
             "CERT_JAR_RESOURCE_PATH" to JAR_SECRETS_DIR.resolve("edp1_tls.pem").toString(),
             "PRIVATE_KEY_JAR_RESOURCE_PATH" to JAR_SECRETS_DIR.resolve("edp1_tls.key").toString(),
-            "CERT_COLLECTION_JAR_RESOURCE_PATH" to JAR_SECRETS_DIR.resolve("kingdom_root.pem").toString(),
+            "CERT_COLLECTION_JAR_RESOURCE_PATH" to
+              JAR_SECRETS_DIR.resolve("kingdom_root.pem").toString(),
           )
         )
       logger.info("Started RequisitionFetcher process on port $port")

@@ -87,11 +87,15 @@ class DataWatcherFunction : CloudEventsFunction {
   private fun getClientCerts(): SigningCerts {
     return SigningCerts.fromPemFiles(
       certificateFile =
-      checkNotNull(CLASS_LOADER.getJarResourceFile(System.getenv("CERT_JAR_RESOURCE_PATH"))),
+        checkNotNull(CLASS_LOADER.getJarResourceFile(System.getenv("CERT_JAR_RESOURCE_PATH"))),
       privateKeyFile =
-      checkNotNull(CLASS_LOADER.getJarResourceFile(System.getenv("PRIVATE_KEY_JAR_RESOURCE_PATH"))),
+        checkNotNull(
+          CLASS_LOADER.getJarResourceFile(System.getenv("PRIVATE_KEY_JAR_RESOURCE_PATH"))
+        ),
       trustedCertCollectionFile =
-      checkNotNull(CLASS_LOADER.getJarResourceFile(System.getenv("CERT_COLLECTION_JAR_RESOURCE_PATH"))),
+        checkNotNull(
+          CLASS_LOADER.getJarResourceFile(System.getenv("CERT_COLLECTION_JAR_RESOURCE_PATH"))
+        ),
     )
   }
 
