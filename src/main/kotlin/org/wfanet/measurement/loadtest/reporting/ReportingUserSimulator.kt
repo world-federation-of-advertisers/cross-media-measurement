@@ -391,14 +391,27 @@ class ReportingUserSimulator(
         )
         .build()
 
+    println("request url for test: $url")
+
     val getBasicReportRequest = Request.Builder().url(url).build()
 
     val retrievedBasicReportJson: String =
       try {
-        okHttpReportingClient.newCall(getBasicReportRequest).execute().body!!.bytes().decodeToString()
+        val response = okHttpReportingClient
+          .newCall(getBasicReportRequest)
+          .execute()
+
+        println("response for test: ${response.isSuccessful}")
+        println("response for test: ${response.message}")
+
+        response.body!!
+          .bytes()
+          .decodeToString()
       } catch (e: StatusException) {
         throw Exception("Error retrieving Basic Report", e)
       }
+
+    println("response logging for test: ${retrievedBasicReportJson}")
 
     val retrievedBasicReportBuilder = BasicReport.newBuilder()
     JsonFormat.parser()
