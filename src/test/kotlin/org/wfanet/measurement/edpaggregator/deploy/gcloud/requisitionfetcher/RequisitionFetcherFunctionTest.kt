@@ -91,12 +91,9 @@ class RequisitionFetcherFunctionTest {
             "DATA_PROVIDER_NAME" to DATA_PROVIDER_NAME,
             "PAGE_SIZE" to "10",
             "STORAGE_PATH_PREFIX" to STORAGE_PATH_PREFIX,
-            "CERT_FILE_PATH" to JAR_SECRETS_DIR.resolve("edp1_tls.pem").toString(),
-//            "CERT_FILE_PATH" to SECRETS_DIR.resolve("edp1_tls.pem").toString(),
-//            "PRIVATE_KEY_FILE_PATH" to SECRETS_DIR.resolve("edp1_tls.key").toString(),
-//            "CERT_COLLECTION_FILE_PATH" to SECRETS_DIR.resolve("kingdom_root.pem").toString(),
-            "PRIVATE_KEY_FILE_PATH" to JAR_SECRETS_DIR.resolve("edp1_tls.key").toString(),
-            "CERT_COLLECTION_FILE_PATH" to JAR_SECRETS_DIR.resolve("kingdom_root.pem").toString(),
+            "CERT_JAR_RESOURCE_PATH" to JAR_SECRETS_DIR.resolve("edp1_tls.pem").toString(),
+            "PRIVATE_KEY_JAR_RESOURCE_PATH" to JAR_SECRETS_DIR.resolve("edp1_tls.key").toString(),
+            "CERT_COLLECTION_JAR_RESOURCE_PATH" to JAR_SECRETS_DIR.resolve("kingdom_root.pem").toString(),
           )
         )
       logger.info("Started RequisitionFetcher process on port $port")
@@ -154,17 +151,7 @@ class RequisitionFetcherFunctionTest {
     private val PACKED_REQUISITION = Any.pack(REQUISITION)
     private val STORAGE_PATH_PREFIX = "storage-path-prefix"
     private val SECRETS_DIR: Path = Paths.get("src", "main", "k8s", "testing", "secretfiles")
-//    private val SECRETS_DIR: Path =
-//      getRuntimePath(
-//        Paths.get("wfa_measurement_system", "src", "main", "k8s", "testing", "secretfiles")
-//      )!!
     private val JAR_SECRETS_DIR: Path = Paths.get("main", "k8s", "testing", "secretfiles")
-//    private val serverCerts =
-//      SigningCerts.fromPemFiles(
-//        certificateFile = SECRETS_DIR.resolve("kingdom_tls.pem").toFile(),
-//        privateKeyFile = SECRETS_DIR.resolve("kingdom_tls.key").toFile(),
-//        trustedCertCollectionFile = SECRETS_DIR.resolve("edp1_root.pem").toFile(),
-//      )
     private val CLASS_LOADER: ClassLoader = Thread.currentThread().contextClassLoader
     private val serverCerts =
       SigningCerts.fromPemFiles(

@@ -21,7 +21,6 @@ import com.google.cloud.functions.HttpRequest
 import com.google.cloud.functions.HttpResponse
 import com.google.cloud.storage.StorageOptions
 import java.io.File
-import kotlin.io.path.Path
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.common.crypto.SigningCerts
@@ -32,6 +31,13 @@ import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 
 class RequisitionFetcherFunction : HttpFunction {
+
+  init {
+    for (envVar in requiredEnvVals) {
+      checkNotNull(System.getenv(envVar))
+    }
+  }
+
   override fun service(request: HttpRequest, response: HttpResponse) {
     runBlocking { requisitionFetcher.fetchAndStoreRequisitions() }
   }
@@ -77,14 +83,32 @@ class RequisitionFetcherFunction : HttpFunction {
         pageSize,
       )
 
+    private val requiredEnvVals: List<String> =
+      listOf(
+        "CERT_JAR_RESOURCE_PATH",
+        "CERT_JAR_RESOURCE_PATH",
+        "PRIVATE_KEY_JAR_RESOURCE_PATH",
+        "CERT_COLLECTION_JAR_RESOURCE_PATH",
+        "DATA_PROVIDER_NAME",
+        "STORAGE_PATH_PREFIX",
+        "PAGE_SIZE",
+        "REQUISITIONS_GCS_BUCKET",
+        "KINGDOM_TARGET",
+        "KINGDOM_CERT_HOST",
+      )
+
     private fun getClientCerts(): SigningCerts {
-      print("\n\n~~~~~~~~~~~~~~~-> ${System.getenv("CERT_FILE_PATH")}-\n")
       return SigningCerts.fromPemFiles(
-//        certificateFile = Path(System.getenv("CERT_FILE_PATH")).toFile(),
         certificateFile =
-        checkNotNull(CLASS_LOADER.getJarResourceFile(System.getenv("CERT_FILE_PATH"))),
-        privateKeyFile = Path(System.getenv("PRIVATE_KEY_FILE_PATH")).toFile(),
-        trustedCertCollectionFile = Path(System.getenv("CERT_COLLECTION_FILE_PATH")).toFile(),
+          checkNotNull(CLASS_LOADER.getJarResourceFile(System.getenv("CERT_JAR_RESOURCE_PATH"))),
+        privateKeyFile =
+          checkNotNull(
+            CLASS_LOADER.getJarResourceFile(System.getenv("PRIVATE_KEY_JAR_RESOURCE_PATH"))
+          ),
+        trustedCertCollectionFile =
+          checkNotNull(
+            CLASS_LOADER.getJarResourceFile(System.getenv("CERT_COLLECTION_JAR_RESOURCE_PATH"))
+          ),
       )
     }
   }
