@@ -395,7 +395,7 @@ class ReportingUserSimulator(
 
     val retrievedBasicReportJson: String =
       try {
-        okHttpReportingClient.newCall(getBasicReportRequest).execute().body.toString()
+        okHttpReportingClient.newCall(getBasicReportRequest).execute().body!!.bytes().decodeToString()
       } catch (e: StatusException) {
         throw Exception("Error retrieving Basic Report", e)
       }
