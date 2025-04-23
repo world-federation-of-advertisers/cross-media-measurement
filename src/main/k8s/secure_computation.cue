@@ -81,6 +81,7 @@ package k8s
 						"--tls-cert-file=/var/run/secrets/files/secure_computation_tls.pem",
 						"--tls-key-file=/var/run/secrets/files/secure_computation_tls.key",
 						"--queue-config=/etc/\(#AppName)/config-files/queue_config.textproto",
+						"--google-project-id=" + #GCloudProject,
 			] + _spannerConfig.flags
 
 			_updateSchemaContainer: Container=#Container & {
