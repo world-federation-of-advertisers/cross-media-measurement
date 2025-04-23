@@ -16,6 +16,10 @@
 
 package org.wfanet.measurement.kingdom.service.api.v2alpha
 
+import org.wfanet.measurement.internal.kingdom.Requisition as InternalRequisition
+import org.wfanet.measurement.internal.kingdom.Requisition.State as InternalState
+import org.wfanet.measurement.internal.kingdom.RequisitionRefusal as InternalRefusal
+import org.wfanet.measurement.internal.kingdom.requisitionRefusal as internalRequisitionRefusal
 import com.google.protobuf.any
 import com.google.protobuf.kotlin.unpack
 import io.grpc.Status
@@ -71,17 +75,13 @@ import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.internal.kingdom.FulfillRequisitionRequestKt.directRequisitionParams
 import org.wfanet.measurement.internal.kingdom.HonestMajorityShareShuffleParams
 import org.wfanet.measurement.internal.kingdom.LiquidLegionsV2Params
-import org.wfanet.measurement.internal.kingdom.Requisition as InternalRequisition
 import org.wfanet.measurement.internal.kingdom.Requisition.DuchyValue
-import org.wfanet.measurement.internal.kingdom.Requisition.State as InternalState
 import org.wfanet.measurement.internal.kingdom.RequisitionDetailsKt
-import org.wfanet.measurement.internal.kingdom.RequisitionRefusal as InternalRefusal
 import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequest
 import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequestKt
 import org.wfanet.measurement.internal.kingdom.fulfillRequisitionRequest
 import org.wfanet.measurement.internal.kingdom.refuseRequisitionRequest
-import org.wfanet.measurement.internal.kingdom.requisitionRefusal as internalRequisitionRefusal
 import org.wfanet.measurement.internal.kingdom.streamRequisitionsRequest
 
 private const val DEFAULT_PAGE_SIZE = 10
@@ -387,7 +387,7 @@ private fun DuchyValue.availableForFulfillment(): Boolean {
     DuchyValue.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE -> {
       !honestMajorityShareShuffle.tinkPublicKey.isEmpty
     }
-    DuchyValue.ProtocolCase.PROTOCOL_NOT_SET -> error("protocol not set")
+    DuchyValue.ProtocolCase.PROTOCOL_NOT_SET -> false
   }
 }
 
@@ -460,7 +460,7 @@ private fun DuchyValue.toDuchyEntryValue(
             DuchyEntry.HonestMajorityShareShuffle.getDefaultInstance()
           }
       }
-      DuchyValue.ProtocolCase.PROTOCOL_NOT_SET -> error("protocol not set")
+      DuchyValue.ProtocolCase.PROTOCOL_NOT_SET -> Unit
     }
   }
 }
