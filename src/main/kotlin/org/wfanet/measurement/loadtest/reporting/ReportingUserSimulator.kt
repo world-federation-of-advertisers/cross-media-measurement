@@ -387,7 +387,7 @@ class ReportingUserSimulator(
         .host(reportingGatewayHost)
         .port(reportingGatewayPort)
         .addPathSegments(
-          "v2alpha/measurementConsumers/${basicReportKey.parentKey.measurementConsumerId}/basicReports/${basicReportKey.basicReportId}}"
+          "v2alpha/${basicReportKey.toName()}}"
         )
         .build()
 
@@ -405,6 +405,7 @@ class ReportingUserSimulator(
           .execute()
 
         println("response for test: ${response.isSuccessful}")
+        println("response for test: ${response.headers.toMultimap()}")
         println("response for test: ${response.message}")
 
         response.body!!
