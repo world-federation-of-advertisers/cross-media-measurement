@@ -52,8 +52,6 @@ message MetricSpec {
     // The start of the sampling interval in [0, 1)
     float start = 1 [(google.api.field_behavior) = OPTIONAL];
     // The width of the sampling interval.
-    //
-    // start + width cannot be larger than 1.
     float width = 2 [(google.api.field_behavior) = REQUIRED];
   }
 

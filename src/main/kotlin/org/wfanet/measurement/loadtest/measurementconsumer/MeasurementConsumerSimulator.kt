@@ -1412,8 +1412,8 @@ class MeasurementConsumerSimulator(
     // For a 99.9999% Confidence Interval.
     private const val CONFIDENCE_INTERVAL_MULTIPLIER = 5.0
     private val DEFAULT_VID_SAMPLING_INTERVAL = vidSamplingInterval {
-      start = 0.0f
-      width = 1.0f
+      start = 0.2f
+      width = 0.5f
     }
     private val logger: Logger = Logger.getLogger(this::class.java.name)
   }
