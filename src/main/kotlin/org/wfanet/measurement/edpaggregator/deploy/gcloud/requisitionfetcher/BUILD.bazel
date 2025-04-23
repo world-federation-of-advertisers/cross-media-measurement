@@ -7,8 +7,13 @@ package(default_visibility = [
 
 kt_jvm_library(
     name = "requisition_fetcher_function",
+    testonly = True,
     srcs = ["RequisitionFetcherFunction.kt"],
+    resources = [
+        "//src/main/k8s/testing/secretfiles:secret_files",
+    ],
     deps = [
+        "//src/main/kotlin/org/wfanet/measurement/common:class_loader_resources",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/requisitionfetcher:requisition_fetcher",
         "@wfa_common_jvm//imports/java/com/google/cloud/functions:functions_framework_api",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/gcs",
@@ -18,6 +23,7 @@ kt_jvm_library(
 
 java_binary(
     name = "RequisitionFetcherFunction",
+    testonly = True,
     main_class = "org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionFetcherFunction",
     runtime_deps = [":requisition_fetcher_function"],
 )

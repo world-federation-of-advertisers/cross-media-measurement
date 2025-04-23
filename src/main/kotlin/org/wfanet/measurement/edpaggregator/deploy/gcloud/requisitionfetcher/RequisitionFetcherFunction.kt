@@ -25,6 +25,7 @@ import kotlin.io.path.Path
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.common.crypto.SigningCerts
+import org.wfanet.measurement.common.getJarResourceFile
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionFetcher
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
@@ -36,6 +37,8 @@ class RequisitionFetcherFunction : HttpFunction {
   }
 
   companion object {
+    private val CLASS_LOADER: ClassLoader = Thread.currentThread().contextClassLoader
+
     val publicChannel =
       buildMutualTlsChannel(
         System.getenv("KINGDOM_TARGET"),
@@ -75,8 +78,11 @@ class RequisitionFetcherFunction : HttpFunction {
       )
 
     private fun getClientCerts(): SigningCerts {
+      print("\n\n~~~~~~~~~~~~~~~-> ${System.getenv("CERT_FILE_PATH")}-\n")
       return SigningCerts.fromPemFiles(
-        certificateFile = Path(System.getenv("CERT_FILE_PATH")).toFile(),
+//        certificateFile = Path(System.getenv("CERT_FILE_PATH")).toFile(),
+        certificateFile =
+        checkNotNull(CLASS_LOADER.getJarResourceFile(System.getenv("CERT_FILE_PATH"))),
         privateKeyFile = Path(System.getenv("PRIVATE_KEY_FILE_PATH")).toFile(),
         trustedCertCollectionFile = Path(System.getenv("CERT_COLLECTION_FILE_PATH")).toFile(),
       )

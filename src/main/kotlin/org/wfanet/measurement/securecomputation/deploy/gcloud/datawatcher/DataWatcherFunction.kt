@@ -83,6 +83,7 @@ class DataWatcherFunction : CloudEventsFunction {
   }
 
   private fun getClientCerts(): SigningCerts {
+    print("\n\n~~~~~~~~~~~~~~~-> ${System.getenv("CERT_FILE_PATH")}-\n")
     return SigningCerts.fromPemFiles(
       certificateFile =
       checkNotNull(CLASS_LOADER.getJarResourceFile(System.getenv("CERT_FILE_PATH"))),

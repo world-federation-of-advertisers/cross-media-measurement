@@ -24,6 +24,7 @@ on:
   workflow_call:
     inputs:
       environment:
+        description: "GitHub-managed environment"
         type: string
         default: dev
 
@@ -59,8 +60,9 @@ jobs:
 
       - name: Copy fat JAR of DataWatcher to temp directory
         run: |
-          mkdir -p tmp_datawatcher
-          cp bazel-bin/src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/datawatcher/DataWatcherFunction_deploy.jar tmp_datawatcher/
+          mkdir -p "$RUNNER_TEMP/data_watcher_source"
+          cp bazel-bin/src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/datawatcher/DataWatcherFunction_deploy.jar "$RUNNER_TEMP/data_watcher_source"
+      
 
       - name: Build RequisitionFetcher Function
         run: >
@@ -74,32 +76,54 @@ jobs:
 
       - name: Copy fat JAR of RequisitionFetcher to temp directory
         run: |
-          mkdir -p tmp_requisitionfetcher
-          cp bazel-bin/src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/requisitionfetcher:RequisitionFetcherFunction_deploy.jar tmp_requisitionfetcher/
+          mkdir -p "$RUNNER_TEMP/requisition_fetcher_source"
+          cp bazel-bin/src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/requisitionfetcher:RequisitionFetcherFunction_deploy.jar "$RUNNER_TEMP/requisition_fetcher_source"
 
       - name: Deploy Data Watcher Function
+        env:
+          GCLOUD_REGION: ${{ vars.GCLOUD_REGION }}
+          SECURE_COMPUTATION_PUBLIC_API_TARGET: ${{ vars.SECURE_COMPUTATION_PUBLIC_API_TARGET }}
+          DATA_WATCHER_TRIGGER_BUCKET: ${{ vars.DATA_WATCHER_TRIGGER_BUCKET }}
+          DATA_WATCHER_SERVICE_ACCOUNT: ${{ vars.DATA_WATCHER_SERVICE_ACCOUNT }}
+          DATA_WATCHER_TRIGGER_SERVICE_ACCOUNT: ${{ vars.DATA_WATCHER_TRIGGER_SERVICE_ACCOUNT }}
         run: >
           gcloud functions deploy TestDeploy
           --gen2
           --runtime=java17
           --entry-point=org.wfanet.measurement.securecomputation.deploy.gcloud.datawatcher.DataWatcherFunction
           --memory=512MB
-          --region=us-central1
-          --trigger-event-filters="type=google.cloud.storage.object.v1.finalized"
-          --trigger-event-filters="bucket=cf_deploy_test"
-          --source=tmp_datawatcher
-          --service-account=${{ vars.SECURE_COMPUTATION_SERVICE_ACCOUNT }}
-          --set-env-vars=CERT_FILE_PATH=src/main/k8s/testing/secretfiles/data_watcher_tls.pem,PRIVATE_KEY_FILE_PATH=src/main/k8s/testing/secretfiles/data_watcher_tls.key,CERT_COLLECTION_FILE_PATH=src/main/k8s/testing/secretfiles/secure_computation_root.pem,CONTROL_PLANE_TARGET=${{ inputs.secure-computation-public-public-api-target }},CONTROL_PLANE_CERT_HOST=data-watcher.secure-computation.dev.halo-cmm.org,DATA_WATCHER_CONFIG_RESOURCE_PATH=org/wfanet/measurement/securecomputation/deploy/gcloud/datawatcher/testing/data_watcher_config.textproto
+          --region=$GCLOUD_REGION
+          --trigger-event-filters='type=google.cloud.storage.object.v1.finalized'
+          --trigger-event-filters="bucket=$DATA_WATCHER_TRIGGER_BUCKET"
+          --source="$RUNNER_TEMP/data_watcher_source"
+          --run-service-account=$DATA_WATCHER_SERVICE_ACCOUNT
+          --trigger-service-account=$DATA_WATCHER_TRIGGER_SERVICE_ACCOUNT
+          --set-env-vars="CERT_FILE_PATH=src/main/k8s/testing/secretfiles/data_watcher_tls.pem,PRIVATE_KEY_FILE_PATH=src/main/k8s/testing/secretfiles/data_watcher_tls.key,CERT_COLLECTION_FILE_PATH=src/main/k8s/testing/secretfiles/secure_computation_root.pem,CONTROL_PLANE_TARGET=$SECURE_COMPUTATION_PUBLIC_API_TARGET,CONTROL_PLANE_CERT_HOST=data-watcher.secure-computation.dev.halo-cmm.org"
 
       - name: Deploy Requisition Fetcher Function
+        env:
+          GCLOUD_REGION: ${{ vars.GCLOUD_REGION }}
+          KINGDOM_PUBLIC_API_TARGET: ${{ vars.KINGDOM_PUBLIC_API_TARGET }}
+          STORAGE_BUCKET: ${{ vars.DATA_WATCHER_TRIGGER_BUCKET }}
+          REQUISITION_FETCHER_SERVICE_ACCOUNT: ${{ vars.REQUISITION_FETCHER_SERVICE_ACCOUNT }}
         run: >
           gcloud functions deploy requisition-fetcher
           --gen2
           --runtime=java17
           --entry-point=org.wfanet.measurement.edpaggregator.deploy.gcloud.requisitionfetcher.RequisitionFetcherFunction
           --memory=512MB
-          --region=us-central1
+          --region=$GCLOUD_REGION
           --trigger-http
           --allow-unauthenticated
-          --source=tmp_requisitionfetcher
-          --service-account=${{ vars.REQUISITION_FETCHER_SERVICE_ACCOUNT }}
+          --source="$RUNNER_TEMP/requisition_fetcher_source"
+          --run-service-account=$REQUISITION_FETCHER_SERVICE_ACCOUNT
+          
+          KINGDOM_TARGET=$KINGDOM_PUBLIC_API_TARGET
+          KINGDOM_CERT_HOST=dev.halo-cmm.org
+          REQUISITIONS_GCS_PROJECT_ID
+          REQUISITIONS_GCS_BUCKET
+          DATA_PROVIDER_NAME
+          STORAGE_PATH_PREFIX
+          CERT_FILE_PATH=src/main/k8s/testing/secretfiles/edp1_tls.pem
+          PRIVATE_KEY_FILE_PATH=src/main/k8s/testing/secretfiles/edp1_tls.key
+          CERT_COLLECTION_FILE_PATH=src/main/k8s/testing/secretfiles/kingdom_root.pem
