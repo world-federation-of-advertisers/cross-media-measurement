@@ -36,6 +36,9 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.time.withTimeout
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
+import okhttp3.tls.decodeCertificatePem
+import okhttp3.tls.HandshakeCertificates
+import okhttp3.tls.HeldCertificate
 import org.jetbrains.annotations.Blocking
 import org.junit.ClassRule
 import org.junit.rules.TemporaryFolder
@@ -68,6 +71,9 @@ import org.wfanet.measurement.integration.common.loadEncryptionPrivateKey
 import org.wfanet.measurement.integration.common.loadTestCertDerFile
 import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt
 import org.wfanet.measurement.internal.reporting.v2.BasicReportsGrpcKt as InternalBasicReportsGrpcKt
+import java.security.KeyPair
+import java.security.cert.X509Certificate
+import org.wfanet.measurement.common.crypto.readPrivateKey
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerSimulator
 import org.wfanet.measurement.loadtest.measurementconsumer.MetadataSyntheticGeneratorEventQuery
@@ -300,7 +306,25 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
       val gatewayAddress: InetSocketAddress =
         withContext(Dispatchers.IO) { gatewayForwarder.start() }
 
-      val okHttpReportingClient = OkHttpClient.Builder().build()
+      val secretFiles = getRuntimePath(SECRET_FILES_PATH)
+      val trustedCerts = secretFiles.resolve("reporting_root.pem").toFile()
+      val cert = secretFiles.resolve("mc_tls.pem").toFile()
+      val key = secretFiles.resolve("mc_tls.key").toFile()
+
+      val clientCertificate: X509Certificate = cert.readText().decodeCertificatePem()
+      val keyAlgorithm = clientCertificate.publicKey.algorithm
+      val certificates =
+        HandshakeCertificates
+          .Builder()
+          .addTrustedCertificate(trustedCerts.readText().decodeCertificatePem())
+          .heldCertificate(
+            HeldCertificate(KeyPair(clientCertificate.publicKey, readPrivateKey(key, keyAlgorithm)), clientCertificate)
+          )
+          .build()
+
+      val okHttpReportingClient = OkHttpClient.Builder()
+        .sslSocketFactory(certificates.sslSocketFactory(), certificates.trustManager)
+        .build()
 
       val reportingInternalPod: V1Pod = getPod(REPORTING_INTERNAL_DEPLOYMENT_NAME)
       val internalApiForwarder = PortForwarder(reportingInternalPod, SERVER_PORT)

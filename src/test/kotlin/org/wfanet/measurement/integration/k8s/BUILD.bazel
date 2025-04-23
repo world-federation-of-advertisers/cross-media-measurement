@@ -34,6 +34,8 @@ kt_jvm_library(
         ":abstract_correctness_test",
         "//imports/java/io/kubernetes/client",
         "//imports/java/io/kubernetes/client/extended",
+        "//imports/java/okhttp3",
+        "//imports/java/okhttp3/tls",
         "//src/main/kotlin/org/wfanet/measurement/common/k8s:client",
         "//src/main/kotlin/org/wfanet/measurement/common/k8s/testing:port_forwarder",
         "//src/main/kotlin/org/wfanet/measurement/common/k8s/testing:processes",
@@ -57,6 +59,8 @@ kt_jvm_library(
     srcs = ["SyntheticGeneratorCorrectnessTest.kt"],
     deps = [
         ":abstract_correctness_test",
+        "//imports/java/okhttp3",
+        "//imports/java/okhttp3/tls",
         "//src/main/kotlin/org/wfanet/measurement/integration/common:synthetic_generation_specs",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/config:vid_sampling",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/measurementconsumer:synthetic_generator_event_query",
