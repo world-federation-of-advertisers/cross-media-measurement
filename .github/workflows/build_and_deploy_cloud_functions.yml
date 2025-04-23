@@ -47,7 +47,7 @@ jobs:
         with:
           project_id: ${{ env.GCLOUD_PROJECT }}
 
-      - name: Build DataWatcherFunction
+      - name: Build DataWatcher Function
         run: >
           bazel build
           //src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/datawatcher:DataWatcherFunction
@@ -57,12 +57,27 @@ jobs:
           bazel build
           //src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/datawatcher:DataWatcherFunction_deploy.jar
 
-      - name: Copy fat JAR to temp directory
+      - name: Copy fat JAR of DataWatcher to temp directory
         run: |
-          mkdir -p tmp_function
-          cp bazel-bin/src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/datawatcher/DataWatcherFunction_deploy.jar tmp_function/
+          mkdir -p tmp_datawatcher
+          cp bazel-bin/src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/datawatcher/DataWatcherFunction_deploy.jar tmp_datawatcher/
 
-      - name: Deploy Cloud Function
+      - name: Build RequisitionFetcher Function
+        run: >
+          bazel build
+          //src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/requisitionfetcher:RequisitionFetcherFunction
+
+      - name: Build Bazel fat JAR
+        run: >
+          bazel build
+          //src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/requisitionfetcher:RequisitionFetcherFunction_deploy.jar
+
+      - name: Copy fat JAR of RequisitionFetcher to temp directory
+        run: |
+          mkdir -p tmp_requisitionfetcher
+          cp bazel-bin/src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/requisitionfetcher:RequisitionFetcherFunction_deploy.jar tmp_requisitionfetcher/
+
+      - name: Deploy Data Watcher Function
         run: >
           gcloud functions deploy TestDeploy
           --gen2
@@ -72,7 +87,19 @@ jobs:
           --region=us-central1
           --trigger-event-filters="type=google.cloud.storage.object.v1.finalized"
           --trigger-event-filters="bucket=cf_deploy_test"
-          --source=tmp_function
-          --quiet
+          --source=tmp_datawatcher
           --service-account=${{ vars.SECURE_COMPUTATION_SERVICE_ACCOUNT }}
           --set-env-vars=CERT_FILE_PATH=src/main/k8s/testing/secretfiles/data_watcher_tls.pem,PRIVATE_KEY_FILE_PATH=src/main/k8s/testing/secretfiles/data_watcher_tls.key,CERT_COLLECTION_FILE_PATH=src/main/k8s/testing/secretfiles/secure_computation_root.pem,CONTROL_PLANE_TARGET=${{ inputs.secure-computation-public-public-api-target }},CONTROL_PLANE_CERT_HOST=data-watcher.secure-computation.dev.halo-cmm.org,DATA_WATCHER_CONFIG_RESOURCE_PATH=org/wfanet/measurement/securecomputation/deploy/gcloud/datawatcher/testing/data_watcher_config.textproto
+
+      - name: Deploy Requisition Fetcher Function
+        run: >
+          gcloud functions deploy requisition-fetcher
+          --gen2
+          --runtime=java17
+          --entry-point=org.wfanet.measurement.edpaggregator.deploy.gcloud.requisitionfetcher.RequisitionFetcherFunction
+          --memory=512MB
+          --region=us-central1
+          --trigger-http
+          --allow-unauthenticated
+          --source=tmp_requisitionfetcher
+          --service-account=${{ vars.REQUISITION_FETCHER_SERVICE_ACCOUNT }}

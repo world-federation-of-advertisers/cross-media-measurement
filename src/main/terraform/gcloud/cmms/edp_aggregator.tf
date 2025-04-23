@@ -49,5 +49,6 @@ module "edp_aggregator" {
   edp_aggregator_bucket_location            = local.storage_bucket_location
   data_watcher_service_account_name         = "data-watcher"
   data_watcher_trigger_service_account_name = "data-watcher-trigger"
+  requisition_fetcher_service_account_name  = "requisition-fetcher"
 }
 
