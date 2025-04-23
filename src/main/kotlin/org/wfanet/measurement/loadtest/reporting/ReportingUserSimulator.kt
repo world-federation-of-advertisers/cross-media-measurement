@@ -393,7 +393,10 @@ class ReportingUserSimulator(
 
     println("request url for test: $url")
 
-    val getBasicReportRequest = Request.Builder().url(url).build()
+    val getBasicReportRequest = Request.Builder()
+      .url(url)
+      .get()
+      .build()
 
     val retrievedBasicReportJson: String =
       try {
