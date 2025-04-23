@@ -353,7 +353,7 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
         reportsClient = ReportsGrpcKt.ReportsCoroutineStub(publicApiChannel),
         okHttpReportingClient = okHttpReportingClient,
         reportingGatewayHost = gatewayAddress.hostName,
-        reportingGatewayPort = SERVER_PORT,
+        reportingGatewayPort = gatewayAddress.port,
         internalBasicReportsClient =
           InternalBasicReportsGrpcKt.BasicReportsCoroutineStub(internalApiChannel),
       )
