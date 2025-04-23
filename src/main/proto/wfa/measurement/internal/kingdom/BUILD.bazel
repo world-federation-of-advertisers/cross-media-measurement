@@ -639,6 +639,7 @@ proto_library(
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
         ":measurement_proto",
+        ":requisition_details_proto",
         ":requisition_refusal_proto",
         "@com_google_protobuf//:timestamp_proto",
     ],
