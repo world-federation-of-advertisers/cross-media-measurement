@@ -95,21 +95,12 @@ class InvokeDataWatcherFunctionTest() {
     /** Start gRPC server with mock Requisitions service */
     grpcServer =
       CommonServer.fromParameters(
-<<<<<<< HEAD
           verboseGrpcLogging = true,
           certs = serverCerts,
           clientAuth = ClientAuth.REQUIRE,
           nameForLogging = "WorkItemsServer",
           services = listOf(workItemsServiceMock.bindService()),
         )
-=======
-        verboseGrpcLogging = true,
-        certs = serverCerts,
-        clientAuth = ClientAuth.REQUIRE,
-        nameForLogging = "WorkItemsServer",
-        services = listOf(workItemsServiceMock.bindService()),
-      )
->>>>>>> origin/stevenwarejones_data_watcher
         .start()
     logger.info("Started gRPC server on port ${grpcServer.port}")
     /** Start the DataWatcherFunction process */
@@ -121,7 +112,6 @@ class InvokeDataWatcherFunctionTest() {
           mapOf(
             "DATA_WATCHER_CONFIG_RESOURCE_PATH" to
               Paths.get(
-<<<<<<< HEAD
                   "main",
                   "kotlin",
                   "org",
@@ -134,28 +124,15 @@ class InvokeDataWatcherFunctionTest() {
                   "testing",
                   "data_watcher_config.textproto",
                 )
-=======
-                "main",
-                "kotlin",
-                "org",
-                "wfanet",
-                "measurement",
-                "securecomputation",
-                "deploy",
-                "gcloud",
-                "datawatcher",
-                "testing",
-                "data_watcher_config.textproto",
-              )
->>>>>>> origin/stevenwarejones_data_watcher
                 .toString(),
             "CONTROL_PLANE_PROJECT_ID" to projectId,
             "CONTROL_PLANE_TARGET" to "localhost:${grpcServer.port}",
             "CONTROL_PLANE_CERT_HOST" to "localhost",
             "CONTROL_PLANE_CHANNEL_SHUTDOWN_DURATION_SECONDS" to "3",
-            "CERT_FILE_PATH" to JAR_SECRETS_DIR.resolve("edp1_tls.pem").toString(),
-            "PRIVATE_KEY_FILE_PATH" to JAR_SECRETS_DIR.resolve("edp1_tls.key").toString(),
-            "CERT_COLLECTION_FILE_PATH" to JAR_SECRETS_DIR.resolve("kingdom_root.pem").toString(),
+            "CERT_JAR_RESOURCE_PATH" to JAR_SECRETS_DIR.resolve("edp1_tls.pem").toString(),
+            "PRIVATE_KEY_JAR_RESOURCE_PATH" to JAR_SECRETS_DIR.resolve("edp1_tls.key").toString(),
+            "CERT_COLLECTION_JAR_RESOURCE_PATH" to
+              JAR_SECRETS_DIR.resolve("kingdom_root.pem").toString(),
           ) + additionalFlags
         )
       logger.info("Started DataWatcher process on port $port")
@@ -226,19 +203,11 @@ class InvokeDataWatcherFunctionTest() {
     private val serverCerts =
       SigningCerts.fromPemFiles(
         certificateFile =
-<<<<<<< HEAD
           CLASS_LOADER.getJarResourceFile(SECRETS_DIR.resolve("kingdom_tls.pem").toString())!!,
         privateKeyFile =
           CLASS_LOADER.getJarResourceFile(SECRETS_DIR.resolve("kingdom_tls.key").toString())!!,
         trustedCertCollectionFile =
           CLASS_LOADER.getJarResourceFile(SECRETS_DIR.resolve("edp1_root.pem").toString())!!,
-=======
-        CLASS_LOADER.getJarResourceFile(SECRETS_DIR.resolve("kingdom_tls.pem").toString())!!,
-        privateKeyFile =
-        CLASS_LOADER.getJarResourceFile(SECRETS_DIR.resolve("kingdom_tls.key").toString())!!,
-        trustedCertCollectionFile =
-        CLASS_LOADER.getJarResourceFile(SECRETS_DIR.resolve("edp1_root.pem").toString())!!,
->>>>>>> origin/stevenwarejones_data_watcher
       )
     private val logger: Logger = Logger.getLogger(this::class.java.name)
   }

@@ -28,7 +28,7 @@ import org.wfanet.measurement.common.getJarResourceFile
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withShutdownTimeout
 import org.wfanet.measurement.common.parseTextProto
-import org.wfanet.measurement.config.securecomputation.DataWatcherConfigs
+import org.wfanet.measurement.config.securecomputation.DataWatcherConfig
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
 import org.wfanet.measurement.securecomputation.datawatcher.DataWatcher
 
@@ -40,13 +40,8 @@ class DataWatcherFunction : CloudEventsFunction {
 
   init {
     for (envVar in requiredEnvVals) {
-<<<<<<< HEAD
-      checkNotNull(System.getenv(envVar)) {
-        "Missing env var: $envVar"
-      }
-=======
-      checkNotNull(System.getenv(envVar))
->>>>>>> origin/stevenwarejones_data_watcher
+      checkNotNull(System.getenv(envVar)) { "Missing env var: $envVar" }
+        .also { require(it.isNotBlank()) }
     }
   }
 
@@ -54,17 +49,10 @@ class DataWatcherFunction : CloudEventsFunction {
     logger.fine("Starting DataWatcherFunction")
     val publicChannel =
       buildMutualTlsChannel(
-<<<<<<< HEAD
           System.getenv("CONTROL_PLANE_TARGET"),
           getClientCerts(),
           System.getenv("CONTROL_PLANE_CERT_HOST"),
         )
-=======
-        System.getenv("CONTROL_PLANE_TARGET"),
-        getClientCerts(),
-        System.getenv("CONTROL_PLANE_CERT_HOST"),
-      )
->>>>>>> origin/stevenwarejones_data_watcher
         .withShutdownTimeout(
           Duration.ofSeconds(
             System.getenv("CONTROL_PLANE_CHANNEL_SHUTDOWN_DURATION_SECONDS")?.toLong()
@@ -77,11 +65,11 @@ class DataWatcherFunction : CloudEventsFunction {
       checkNotNull(
         CLASS_LOADER.getJarResourceFile(System.getenv("DATA_WATCHER_CONFIG_RESOURCE_PATH"))
       )
-    val dataWatcherConfigs = parseTextProto(config, DataWatcherConfigs.getDefaultInstance())
+    val dataWatcherConfigs = parseTextProto(config, DataWatcherConfig.getDefaultInstance())
     val dataWatcher =
       DataWatcher(
         workItemsStub = workItemsStub,
-        dataWatcherConfigs = dataWatcherConfigs.configsList,
+        dataWatcherConfigs = dataWatcherConfigs.watchedPathsList,
       )
     val cloudEventData =
       requireNotNull(event.getData()) { "event must have data" }.toBytes().decodeToString()
@@ -99,37 +87,24 @@ class DataWatcherFunction : CloudEventsFunction {
   private fun getClientCerts(): SigningCerts {
     return SigningCerts.fromPemFiles(
       certificateFile =
-<<<<<<< HEAD
-        checkNotNull(CLASS_LOADER.getJarResourceFile(System.getenv("CERT_FILE_PATH"))),
+      checkNotNull(CLASS_LOADER.getJarResourceFile(System.getenv("CERT_JAR_RESOURCE_PATH"))),
       privateKeyFile =
-        checkNotNull(CLASS_LOADER.getJarResourceFile(System.getenv("PRIVATE_KEY_FILE_PATH"))),
+      checkNotNull(CLASS_LOADER.getJarResourceFile(System.getenv("PRIVATE_KEY_JAR_RESOURCE_PATH"))),
       trustedCertCollectionFile =
-        checkNotNull(CLASS_LOADER.getJarResourceFile(System.getenv("CERT_COLLECTION_FILE_PATH"))),
-=======
-      checkNotNull(CLASS_LOADER.getJarResourceFile(System.getenv("CERT_FILE_PATH"))),
-      privateKeyFile =
-      checkNotNull(CLASS_LOADER.getJarResourceFile(System.getenv("PRIVATE_KEY_FILE_PATH"))),
-      trustedCertCollectionFile =
-      checkNotNull(CLASS_LOADER.getJarResourceFile(System.getenv("CERT_COLLECTION_FILE_PATH"))),
->>>>>>> origin/stevenwarejones_data_watcher
+      checkNotNull(CLASS_LOADER.getJarResourceFile(System.getenv("CERT_COLLECTION_JAR_RESOURCE_PATH"))),
     )
   }
 
   companion object {
     private const val scheme = "gs"
     private val logger: Logger = Logger.getLogger(this::class.java.name)
-<<<<<<< HEAD
     private const val DEFAULT_CHANNEL_SHUTDOWN_DURATION_SECONDS: Long = 3L
-    private val CLASS_LOADER: ClassLoader = this::class.java.enclosingClass.classLoader
-=======
-    private val DEFAULT_CHANNEL_SHUTDOWN_DURATION_SECONDS: Long = 3L
     private val CLASS_LOADER: ClassLoader = Thread.currentThread().contextClassLoader
->>>>>>> origin/stevenwarejones_data_watcher
     private val requiredEnvVals: List<String> =
       listOf(
-        "CERT_FILE_PATH",
-        "PRIVATE_KEY_FILE_PATH",
-        "CERT_COLLECTION_FILE_PATH",
+        "CERT_JAR_RESOURCE_PATH",
+        "PRIVATE_KEY_JAR_RESOURCE_PATH",
+        "CERT_COLLECTION_JAR_RESOURCE_PATH",
         "DATA_WATCHER_CONFIG_RESOURCE_PATH",
         "CONTROL_PLANE_TARGET",
         "CONTROL_PLANE_CERT_HOST",

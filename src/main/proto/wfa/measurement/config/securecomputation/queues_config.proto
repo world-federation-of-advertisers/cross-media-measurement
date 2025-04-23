@@ -23,6 +23,10 @@ option java_outer_classname = "QueuesConfigProto";
 message QueuesConfig {
   message QueueInfo {
     string queue_resource_id = 1;
+    // The type url for params that the queue supports
+    // (-- api-linter: core::0140::uri=disabled
+    //     aip.dev/not-precedent: Referring to a type url. --)
+    string app_params_type_url = 2 [(google.api.field_behavior) = REQUIRED];
   }
 
   repeated QueueInfo queueInfos = 1;

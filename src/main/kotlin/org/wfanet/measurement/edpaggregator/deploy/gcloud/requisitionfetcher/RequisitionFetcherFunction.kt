@@ -21,31 +21,40 @@ import com.google.cloud.functions.HttpRequest
 import com.google.cloud.functions.HttpResponse
 import com.google.cloud.storage.StorageOptions
 import java.io.File
-import kotlin.io.path.Path
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.common.crypto.SigningCerts
+import org.wfanet.measurement.common.getJarResourceFile
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionFetcher
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 
 class RequisitionFetcherFunction : HttpFunction {
+
+  init {
+    for (envVar in requiredEnvVals) {
+      checkNotNull(System.getenv(envVar)) { "Missing env var: $envVar" }
+        .also { require(it.isNotBlank()) }
+    }
+  }
+
   override fun service(request: HttpRequest, response: HttpResponse) {
     runBlocking { requisitionFetcher.fetchAndStoreRequisitions() }
   }
 
   companion object {
-    val publicChannel =
+    val publicChannel by lazy {
       buildMutualTlsChannel(
         System.getenv("KINGDOM_TARGET"),
         getClientCerts(),
         System.getenv("KINGDOM_CERT_HOST"),
       )
+    }
 
-    val requisitionsStub = RequisitionsCoroutineStub(publicChannel)
+    val requisitionsStub by lazy { RequisitionsCoroutineStub(publicChannel) }
 
-    val requisitionsStorageClient =
+    val requisitionsStorageClient by lazy {
       if (System.getenv("REQUISITION_FILE_SYSTEM_PATH").isNotEmpty()) {
         FileSystemStorageClient(File(System.getenv("REQUISITION_FILE_SYSTEM_PATH")))
       } else {
@@ -57,6 +66,7 @@ class RequisitionFetcherFunction : HttpFunction {
           System.getenv("REQUISITIONS_GCS_BUCKET"),
         )
       }
+    }
 
     val pageSize =
       if (System.getenv("PAGE_SIZE").isNotEmpty()) {
@@ -65,7 +75,7 @@ class RequisitionFetcherFunction : HttpFunction {
         null
       }
 
-    val requisitionFetcher =
+    val requisitionFetcher by lazy {
       RequisitionFetcher(
         requisitionsStub,
         requisitionsStorageClient,
@@ -73,12 +83,35 @@ class RequisitionFetcherFunction : HttpFunction {
         System.getenv("STORAGE_PATH_PREFIX"),
         pageSize,
       )
+    }
+
+    private val requiredEnvVals: List<String> =
+      listOf(
+        "CERT_JAR_RESOURCE_PATH",
+        "PRIVATE_KEY_JAR_RESOURCE_PATH",
+        "CERT_COLLECTION_JAR_RESOURCE_PATH",
+        "DATA_PROVIDER_NAME",
+        "STORAGE_PATH_PREFIX",
+        "PAGE_SIZE",
+        "REQUISITIONS_GCS_BUCKET",
+        "KINGDOM_TARGET",
+        "KINGDOM_CERT_HOST",
+      )
+
+    private val CLASS_LOADER: ClassLoader = Thread.currentThread().contextClassLoader
 
     private fun getClientCerts(): SigningCerts {
       return SigningCerts.fromPemFiles(
-        certificateFile = Path(System.getenv("CERT_FILE_PATH")).toFile(),
-        privateKeyFile = Path(System.getenv("PRIVATE_KEY_FILE_PATH")).toFile(),
-        trustedCertCollectionFile = Path(System.getenv("CERT_COLLECTION_FILE_PATH")).toFile(),
+        certificateFile =
+          checkNotNull(CLASS_LOADER.getJarResourceFile(System.getenv("CERT_JAR_RESOURCE_PATH"))),
+        privateKeyFile =
+          checkNotNull(
+            CLASS_LOADER.getJarResourceFile(System.getenv("PRIVATE_KEY_JAR_RESOURCE_PATH"))
+          ),
+        trustedCertCollectionFile =
+          checkNotNull(
+            CLASS_LOADER.getJarResourceFile(System.getenv("CERT_COLLECTION_JAR_RESOURCE_PATH"))
+          ),
       )
     }
   }

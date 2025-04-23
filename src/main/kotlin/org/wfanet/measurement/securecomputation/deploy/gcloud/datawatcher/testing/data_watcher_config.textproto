@@ -1,6 +1,6 @@
 # proto-file: wfa/measurement/config/securecomputation/data_watcher_config.proto
 # proto-message: wfa.measurement.config.securecomputation.DataWatcherConfig
-configs {
+watched_paths {
   source_path_regex: "gs://test-bucket/control-plane-sink-path-to-watch/(.*)"
   control_plane_queue_sink {
     queue: "some-topic-id"
@@ -10,9 +10,9 @@ configs {
     }
   }
 }
-configs {
+watched_paths {
   source_path_regex: "gs://test-bucket/webhook-sink-path-to-watch/(.*)"
-  http_endpoints_sink {
+  http_endpoint_sink {
     endpoint_uri: "http://localhost:9999"
     app_params {
       fields {

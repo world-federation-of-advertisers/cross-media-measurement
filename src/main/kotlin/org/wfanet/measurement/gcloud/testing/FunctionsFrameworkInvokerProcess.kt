@@ -16,43 +16,23 @@
 
 package org.wfanet.measurement.gcloud.testing
 
-<<<<<<< HEAD
 import java.io.IOException
-=======
-import java.io.BufferedReader
->>>>>>> origin/stevenwarejones_data_watcher
 import java.net.ServerSocket
 import java.nio.file.Files
 import java.nio.file.Path
 import java.util.concurrent.TimeUnit
-<<<<<<< HEAD
-=======
-import java.util.logging.Level
->>>>>>> origin/stevenwarejones_data_watcher
 import java.util.logging.Logger
 import kotlin.coroutines.CoroutineContext
 import kotlin.properties.Delegates
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.TimeSource
-<<<<<<< HEAD
 import kotlinx.coroutines.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
-=======
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.TimeoutCancellationException
-import kotlinx.coroutines.async
-import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
-import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeout
->>>>>>> origin/stevenwarejones_data_watcher
 import kotlinx.coroutines.yield
 import org.jetbrains.annotations.BlockingExecutor
 import org.wfanet.measurement.common.getRuntimePath
@@ -145,7 +125,7 @@ class FunctionsFrameworkInvokerProcess(
                 if (line != null && line!!.contains(readyPattern)) {
                   isReady = true
                 }
-                println(line)
+                logger.info(line)
               }
             } catch (e: IOException) {
               logger.info(e.message)
