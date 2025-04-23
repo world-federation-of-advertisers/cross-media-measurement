@@ -460,7 +460,7 @@ private fun DuchyValue.toDuchyEntryValue(
             DuchyEntry.HonestMajorityShareShuffle.getDefaultInstance()
           }
       }
-      DuchyValue.ProtocolCase.PROTOCOL_NOT_SET -> Unit
+      DuchyValue.ProtocolCase.PROTOCOL_NOT_SET -> error("protocol not set")
     }
   }
 }
