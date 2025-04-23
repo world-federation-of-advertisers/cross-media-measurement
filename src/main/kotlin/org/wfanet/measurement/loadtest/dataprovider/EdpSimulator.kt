@@ -572,6 +572,9 @@ class EdpSimulator(
       applicationScope.launch(Dispatchers.IO) {
         while (true) {
           val listStartTime = System.currentTimeMillis()
+          logger.log(Level.INFO) {
+            "Start listRequisitions. threadId=$currentThreadId"
+          }
           getRequisitions()
           val listEndTime = System.currentTimeMillis()
           val elapsedMs = listEndTime - listStartTime
