@@ -18,9 +18,14 @@ package org.wfanet.measurement.integration.k8s
 
 import io.grpc.ManagedChannel
 import java.nio.file.Paths
+import java.security.KeyPair
+import java.security.cert.X509Certificate
 import java.time.Duration
 import java.util.UUID
 import okhttp3.OkHttpClient
+import okhttp3.tls.HandshakeCertificates
+import okhttp3.tls.HeldCertificate
+import okhttp3.tls.decodeCertificatePem
 import org.junit.ClassRule
 import org.junit.rules.TemporaryFolder
 import org.junit.rules.TestRule
@@ -33,18 +38,13 @@ import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
+import org.wfanet.measurement.common.crypto.readPrivateKey
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withDefaultDeadline
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.integration.common.SyntheticGenerationSpecs
 import org.wfanet.measurement.internal.reporting.v2.BasicReportsGrpcKt as InternalBasicReportsGrpcKt
-import java.security.KeyPair
-import java.security.cert.X509Certificate
-import okhttp3.tls.HandshakeCertificates
-import okhttp3.tls.HeldCertificate
-import okhttp3.tls.decodeCertificatePem
-import org.wfanet.measurement.common.crypto.readPrivateKey
 import org.wfanet.measurement.loadtest.dataprovider.SyntheticGeneratorEventQuery
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerSimulator
@@ -154,17 +154,20 @@ class SyntheticGeneratorCorrectnessTest : AbstractCorrectnessTest(measurementSys
       val clientCertificate: X509Certificate = cert.readText().decodeCertificatePem()
       val keyAlgorithm = clientCertificate.publicKey.algorithm
       val certificates =
-        HandshakeCertificates
-          .Builder()
+        HandshakeCertificates.Builder()
           .addTrustedCertificate(trustedCerts.readText().decodeCertificatePem())
           .heldCertificate(
-            HeldCertificate(KeyPair(clientCertificate.publicKey, readPrivateKey(key, keyAlgorithm)), clientCertificate)
+            HeldCertificate(
+              KeyPair(clientCertificate.publicKey, readPrivateKey(key, keyAlgorithm)),
+              clientCertificate,
+            )
           )
           .build()
 
-      val okHttpReportingClient = OkHttpClient.Builder()
-        .sslSocketFactory(certificates.sslSocketFactory(), certificates.trustManager)
-        .build()
+      val okHttpReportingClient =
+        OkHttpClient.Builder()
+          .sslSocketFactory(certificates.sslSocketFactory(), certificates.trustManager)
+          .build()
 
       return ReportingUserSimulator(
         measurementConsumerName = TEST_CONFIG.measurementConsumer,

@@ -27,7 +27,9 @@ import java.io.File
 import java.net.InetSocketAddress
 import java.nio.charset.StandardCharsets
 import java.nio.file.Paths
+import java.security.KeyPair
 import java.security.Security
+import java.security.cert.X509Certificate
 import java.time.Duration
 import java.util.UUID
 import java.util.logging.Logger
@@ -36,9 +38,9 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.time.withTimeout
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
-import okhttp3.tls.decodeCertificatePem
 import okhttp3.tls.HandshakeCertificates
 import okhttp3.tls.HeldCertificate
+import okhttp3.tls.decodeCertificatePem
 import org.jetbrains.annotations.Blocking
 import org.junit.ClassRule
 import org.junit.rules.TemporaryFolder
@@ -55,6 +57,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.common.crypto.jceProvider
+import org.wfanet.measurement.common.crypto.readPrivateKey
 import org.wfanet.measurement.common.crypto.tink.TinkPrivateKeyHandle
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withDefaultDeadline
@@ -71,9 +74,6 @@ import org.wfanet.measurement.integration.common.loadEncryptionPrivateKey
 import org.wfanet.measurement.integration.common.loadTestCertDerFile
 import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt
 import org.wfanet.measurement.internal.reporting.v2.BasicReportsGrpcKt as InternalBasicReportsGrpcKt
-import java.security.KeyPair
-import java.security.cert.X509Certificate
-import org.wfanet.measurement.common.crypto.readPrivateKey
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerSimulator
 import org.wfanet.measurement.loadtest.measurementconsumer.MetadataSyntheticGeneratorEventQuery
@@ -314,17 +314,20 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
       val clientCertificate: X509Certificate = cert.readText().decodeCertificatePem()
       val keyAlgorithm = clientCertificate.publicKey.algorithm
       val certificates =
-        HandshakeCertificates
-          .Builder()
+        HandshakeCertificates.Builder()
           .addTrustedCertificate(trustedCerts.readText().decodeCertificatePem())
           .heldCertificate(
-            HeldCertificate(KeyPair(clientCertificate.publicKey, readPrivateKey(key, keyAlgorithm)), clientCertificate)
+            HeldCertificate(
+              KeyPair(clientCertificate.publicKey, readPrivateKey(key, keyAlgorithm)),
+              clientCertificate,
+            )
           )
           .build()
 
-      val okHttpReportingClient = OkHttpClient.Builder()
-        .sslSocketFactory(certificates.sslSocketFactory(), certificates.trustManager)
-        .build()
+      val okHttpReportingClient =
+        OkHttpClient.Builder()
+          .sslSocketFactory(certificates.sslSocketFactory(), certificates.trustManager)
+          .build()
 
       val reportingInternalPod: V1Pod = getPod(REPORTING_INTERNAL_DEPLOYMENT_NAME)
       val internalApiForwarder = PortForwarder(reportingInternalPod, SERVER_PORT)
