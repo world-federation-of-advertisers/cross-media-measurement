@@ -75,6 +75,18 @@ message ResultsFulfillerParams {
     ];
   }
 
-  ConsentDetails connection_details = 2
+  ConsentDetails consent_details = 2 [(google.api.field_behavior) = REQUIRED];
+
+  // Message representing the details needed to connect to the kingdom
+  message ConnectionDetails {
+    // The client certificate
+    bytes client_cert = 1 [(google.api.field_behavior) = REQUIRED];
+
+    // The client private key
+    string client_private_key_blob_uri = 2
+        [(google.api.field_behavior) = REQUIRED];
+  }
+
+  ConnectionDetails connection_details = 3
       [(google.api.field_behavior) = REQUIRED];
 }
