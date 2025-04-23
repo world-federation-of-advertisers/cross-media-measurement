@@ -815,11 +815,15 @@ class MeasurementConsumerSimulator(
     measurementConsumer: MeasurementConsumer,
     runId: String,
     newMeasurementSpec:
-      (packedMeasurementPublicKey: ProtoAny, nonceHashes: List<ByteString>) -> MeasurementSpec,
+      (
+        packedMeasurementPublicKey: ProtoAny,
+        nonceHashes: List<ByteString>,
+        vidSamplingInterval: VidSamplingInterval,
+      ) -> MeasurementSpec,
     requiredCapabilities: DataProvider.Capabilities =
       DataProvider.Capabilities.getDefaultInstance(),
     maxDataProviders: Int = 20,
-    vidSamplingInterval: VidSamplingInterval? = null,
+    vidSamplingInterval: VidSamplingInterval = DEFAULT_VID_SAMPLING_INTERVAL,
   ): MeasurementInfo {
     val eventGroups: List<EventGroup> =
       listEventGroups(measurementConsumer.name)
@@ -858,13 +862,7 @@ class MeasurementConsumerSimulator(
         }
 
     val measurementSpec =
-      newMeasurementSpec(measurementConsumer.publicKey.message, nonceHashes).let {
-        if (vidSamplingInterval != null) {
-          it.copy { this.vidSamplingInterval = vidSamplingInterval }
-        } else {
-          it
-        }
-      }
+      newMeasurementSpec(measurementConsumer.publicKey.message, nonceHashes, vidSamplingInterval)
 
     return createMeasurementInfo(measurementConsumer, measurementSpec, requisitions, runId)
   }
@@ -1180,6 +1178,7 @@ class MeasurementConsumerSimulator(
   private fun newReachAndFrequencyMeasurementSpec(
     packedMeasurementPublicKey: ProtoAny,
     nonceHashes: List<ByteString>,
+    vidSamplingInterval: VidSamplingInterval = DEFAULT_VID_SAMPLING_INTERVAL,
   ): MeasurementSpec {
     return measurementSpec {
       measurementPublicKey = packedMeasurementPublicKey
@@ -1188,10 +1187,7 @@ class MeasurementConsumerSimulator(
         frequencyPrivacyParams = outputDpParams
         maximumFrequency = 10
       }
-      vidSamplingInterval = vidSamplingInterval {
-        start = 0.0f
-        width = 0.27f
-      }
+      this.vidSamplingInterval = vidSamplingInterval
       this.nonceHashes += nonceHashes
     }
   }
@@ -1199,14 +1195,12 @@ class MeasurementConsumerSimulator(
   private fun newReachOnlyMeasurementSpec(
     packedMeasurementPublicKey: ProtoAny,
     nonceHashes: List<ByteString>,
+    vidSamplingInterval: VidSamplingInterval = DEFAULT_VID_SAMPLING_INTERVAL,
   ): MeasurementSpec {
     return measurementSpec {
       measurementPublicKey = packedMeasurementPublicKey
       reach = MeasurementSpecKt.reach { privacyParams = outputDpParams }
-      vidSamplingInterval = vidSamplingInterval {
-        start = 0.0f
-        width = 0.27f
-      }
+      this.vidSamplingInterval = vidSamplingInterval
       this.nonceHashes += nonceHashes
     }
   }
@@ -1214,6 +1208,7 @@ class MeasurementConsumerSimulator(
   private fun newInvalidReachAndFrequencyMeasurementSpec(
     packedMeasurementPublicKey: ProtoAny,
     nonceHashes: List<ByteString>,
+    vidSamplingInterval: VidSamplingInterval = DEFAULT_VID_SAMPLING_INTERVAL,
   ): MeasurementSpec {
     val invalidPrivacyParams = differentialPrivacyParams {
       epsilon = 1.0
@@ -1231,6 +1226,7 @@ class MeasurementConsumerSimulator(
   private fun newImpressionMeasurementSpec(
     packedMeasurementPublicKey: ProtoAny,
     nonceHashes: List<ByteString>,
+    vidSamplingInterval: VidSamplingInterval = DEFAULT_VID_SAMPLING_INTERVAL,
   ): MeasurementSpec {
     return measurementSpec {
       measurementPublicKey = packedMeasurementPublicKey
@@ -1238,7 +1234,7 @@ class MeasurementConsumerSimulator(
         privacyParams = outputDpParams
         maximumFrequencyPerUser = 10
       }
-      vidSamplingInterval = DEFAULT_VID_SAMPLING_INTERVAL
+      this.vidSamplingInterval = vidSamplingInterval
       this.nonceHashes += nonceHashes
     }
   }
@@ -1246,6 +1242,7 @@ class MeasurementConsumerSimulator(
   private fun newDurationMeasurementSpec(
     packedMeasurementPublicKey: ProtoAny,
     nonceHashes: List<ByteString>,
+    vidSamplingInterval: VidSamplingInterval = DEFAULT_VID_SAMPLING_INTERVAL,
   ): MeasurementSpec {
     return measurementSpec {
       measurementPublicKey = packedMeasurementPublicKey
