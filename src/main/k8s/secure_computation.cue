@@ -80,7 +80,7 @@ package k8s
 						"--cert-collection-file=/var/run/secrets/files/secure_computation_root.pem",
 						"--tls-cert-file=/var/run/secrets/files/secure_computation_tls.pem",
 						"--tls-key-file=/var/run/secrets/files/secure_computation_tls.key",
-						"--queue-config=/etc/\(#AppName)/config-files/queue_config.textproto",
+						"--queue-config=/etc/\(#AppName)/config-files/queues_config.textproto",
 						"--google-project-id=" + #GCloudProject,
 			] + _spannerConfig.flags
 
