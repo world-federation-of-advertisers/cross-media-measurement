@@ -1224,7 +1224,6 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
           }
         )
         .toList()
-    println("debug requisitions: " + requisitions)
     assertThat(requisitions)
       .comparingExpectedFieldsOnly()
       .containsExactly(
