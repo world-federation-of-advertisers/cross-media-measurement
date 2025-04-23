@@ -262,7 +262,7 @@ class ResultsFulfillerAppTest {
     return workItemParams {
       appParams = resultsFulfillerParams {
         storageDetails = ResultsFulfillerParamsKt.storageDetails {
-          labeledImpressionsMetadataBlobUriPrefix = IMPRESSIONS_METADATA_FILE_URI_PREFIX
+          labeledImpressionsBlobDetailsUriPrefix = IMPRESSIONS_METADATA_FILE_URI_PREFIX
         }
       }.pack()
 

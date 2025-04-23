@@ -81,7 +81,7 @@ abstract class ResultsFulfillerApp(
       dataProviderSigningKeyHandle,
       typeRegistry,
       requisitionsBlobUri,
-      fulfillerParams.storageDetails.labeledImpressionsMetadataBlobUriPrefix,
+      fulfillerParams.storageDetails.labeledImpressionsBlobDetailsUriPrefix,
       kmsClient,
       impressionsStorageConfig,
       impressionsMetadataStorageConfig,
