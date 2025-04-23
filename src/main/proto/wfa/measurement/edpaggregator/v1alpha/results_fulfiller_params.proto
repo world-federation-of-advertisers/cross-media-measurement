@@ -77,7 +77,7 @@ message ResultsFulfillerParams {
     ];
   }
 
-  ConnectionDetails connection_details = 2
+  ConsentDetails connection_details = 2
   [(google.api.field_behavior) = REQUIRED];
 
 }
