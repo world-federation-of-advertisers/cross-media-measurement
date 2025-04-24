@@ -12,6 +12,7 @@ import com.google.crypto.tink.streamingaead.StreamingAeadConfig
 import com.google.protobuf.Any
 import com.google.protobuf.ByteString
 import com.google.protobuf.Timestamp
+import com.google.protobuf.kotlin.toByteString
 import com.google.protobuf.kotlin.toByteStringUtf8
 import com.google.type.interval
 import java.nio.file.Files
@@ -63,6 +64,7 @@ import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.pack
+import org.wfanet.measurement.common.readByteString
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
 import org.wfanet.measurement.consent.client.measurementconsumer.encryptRequisitionSpec
@@ -72,6 +74,8 @@ import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParamsKt
+import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParamsKt.connectionDetails
+import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParamsKt.consentDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.copy
 import org.wfanet.measurement.edpaggregator.v1alpha.resultsFulfillerParams
 import org.wfanet.measurement.gcloud.pubsub.Publisher
@@ -263,6 +267,16 @@ class ResultsFulfillerAppTest {
       appParams = resultsFulfillerParams {
         storageDetails = ResultsFulfillerParamsKt.storageDetails {
           labeledImpressionsBlobDetailsUriPrefix = IMPRESSIONS_METADATA_FILE_URI_PREFIX
+        }
+        connectionDetails = connectionDetails {
+          clientCert = SECRET_FILES_PATH.resolve("edp1_tls.pem").toFile().readByteString()
+          clientPrivateKey = SECRET_FILES_PATH.resolve("edp1_tls.key").toFile().readByteString()
+        }
+        consentDetails = consentDetails {
+          resultCsCertDer = EDP_RESULT_SIGNING_KEY.toString().encodeToByteArray().toByteString()
+          resultCsPrivateKeyDer = DATA_PROVIDER_CERTIFICATE_KEY.toString().encodeToByteArray().toByteString()
+          privateEncryptionKey = PRIVATE_ENCRYPTION_KEY.toString().encodeToByteArray().toByteString()
+          edpCertificateName = DATA_PROVIDER_CERTIFICATE_KEY.toName()
         }
       }.pack()
 

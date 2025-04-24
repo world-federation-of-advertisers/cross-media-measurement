@@ -28,6 +28,9 @@ class ResultsFulfillerTestApp(
   dataProviderCertificateKey: DataProviderCertificateKey,
   dataProviderSigningKeyHandle: SigningKeyHandle,
   dataProviderPrivateEncryptionKey: TinkPrivateKeyHandle,
+  kingdomPublicApiTarget: String,
+  kingdomPublicApiCertHost:String,
+  trustedCertCollectionFile: File,
   private val requisitionsRootDirectory: File,
   private val labeledImpressionsRootDirectory: File,
   private val labeledImpressionsMetadataRootDirectory: File,
@@ -38,10 +41,9 @@ class ResultsFulfillerTestApp(
   parser,
   workItemsClient,
   workItemAttemptsClient,
-  requisitionsStub,
-  dataProviderCertificateKey,
-  dataProviderSigningKeyHandle,
-  dataProviderPrivateEncryptionKey,
+  kingdomPublicApiTarget,
+  kingdomPublicApiCertHost,
+  trustedCertCollectionFile,
 ) {
   override fun createStorageClient(
     blobUri: String,

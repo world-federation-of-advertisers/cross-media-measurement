@@ -26,16 +26,8 @@ import org.wfanet.measurement.queue.QueueSubscriber
 @CommandLine.Command(name = "results_fulfiller_app_runner")
 class ResultsFulfillerAppRunner : Runnable {
   @CommandLine.Mixin
-  lateinit var tlsFlags: TlsFlags
+  lateinit var workItemTlsFlags: TlsFlags
     private set
-
-
-  @CommandLine.Option(
-    names = ["--subscription-id"],
-    description = ["Subscription ID for the queue"],
-    required = true
-  )
-  private lateinit var subscriptionId: String
 
   @CommandLine.Option(
     names = ["--kingdom-public-api-target"],
@@ -55,34 +47,19 @@ class ResultsFulfillerAppRunner : Runnable {
   private var kingdomPublicApiCertHost: String? = null
 
   @CommandLine.Option(
-    names = ["--edp-certificate-name"],
-    description = ["Data provider certificate name"],
+    names = ["--kingdom-cert-collection-file"],
+    description = ["Kingdom root collections file"],
     required = true
   )
-  private lateinit var edpCertificateName: String
+  private lateinit var kingdomCertCollectionFile: File
+
 
   @CommandLine.Option(
-    names = ["--private-encryption-key-file"],
-    description = ["Path to the private encryption key file"],
+    names = ["--subscription-id"],
+    description = ["Subscription ID for the queue"],
     required = true
   )
-  private lateinit var privateEncryptionKeyFile: File
-
-  @CommandLine.Option(
-    names = ["--edp-cert-der-file"],
-    description = ["EDP cert (DER format) file."],
-    required = true,
-  )
-  lateinit var edpCertDerFile: File
-    private set
-
-  @CommandLine.Option(
-    names = ["--edp-key-der-file"],
-    description = ["EDP private key (DER format) file."],
-    required = true,
-  )
-  lateinit var edpKeyDerFile: File
-    private set
+  private lateinit var subscriptionId: String
 
   @CommandLine.Option(
     names = ["--google-pub-sub-project-id"],
@@ -97,34 +74,24 @@ class ResultsFulfillerAppRunner : Runnable {
     val queueSubscriber = createQueueSubscriber()
     val parser = createWorkItemParser()
 
+
     // Get client certificates from server flags
-    val clientCerts = SigningCerts.fromPemFiles(
-      certificateFile = tlsFlags.certFile,
-      privateKeyFile = tlsFlags.privateKeyFile,
-      trustedCertCollectionFile = tlsFlags.certCollectionFile
+    val workItemClientCerts = SigningCerts.fromPemFiles(
+      certificateFile = workItemTlsFlags.certFile,
+      privateKeyFile = workItemTlsFlags.privateKeyFile,
+      trustedCertCollectionFile = workItemTlsFlags.certCollectionFile
     )
 
     // Build the mutual TLS channel for kingdom public API
     val publicChannel = buildMutualTlsChannel(
       kingdomPublicApiTarget,
-      clientCerts,
+      workItemClientCerts,
       kingdomPublicApiCertHost
     )
 
     // TODO: may need to change if work items client and work item attempts clients use different certs and targets
-    val requisitionsStub = RequisitionsGrpcKt.RequisitionsCoroutineStub(publicChannel)
     val workItemsClient = WorkItemsGrpcKt.WorkItemsCoroutineStub(publicChannel)
     val workItemAttemptsClient = WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineStub(publicChannel)
-
-    // Create data provider certificate key from name
-    val dataProviderCertificateKey = DataProviderCertificateKey.fromName(edpCertificateName)
-      ?: throw Exception("Invalid data provider certificate")
-
-    // Load private encryption key from file
-    val dataProviderPrivateEncryptionKey = loadPrivateKey(privateEncryptionKeyFile)
-
-    // Create signing key handle using the same certificates used for the channel
-    val dataProviderSigningKeyHandle = loadSigningKey(edpCertDerFile, edpKeyDerFile)
 
     // Create and run the ResultsFulfillerApp
     val resultsFulfillerApp = ResultsFulfillerAppImpl(
@@ -133,10 +100,9 @@ class ResultsFulfillerAppRunner : Runnable {
       parser = parser,
       workItemsClient = workItemsClient,
       workItemAttemptsClient = workItemAttemptsClient,
-      requisitionsStub = requisitionsStub,
-      dataProviderCertificateKey = dataProviderCertificateKey,
-      dataProviderSigningKeyHandle = dataProviderSigningKeyHandle,
-      dataProviderPrivateEncryptionKey = dataProviderPrivateEncryptionKey
+      kingdomPublicApiTarget = kingdomPublicApiTarget,
+      kingdomPublicApiCertHost = kingdomPublicApiCertHost!!,
+      trustedCertCollectionFile = kingdomCertCollectionFile
     )
 
     runBlocking {
