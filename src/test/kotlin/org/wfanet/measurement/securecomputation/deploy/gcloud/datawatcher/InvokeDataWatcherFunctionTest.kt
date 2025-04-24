@@ -75,7 +75,7 @@ class InvokeDataWatcherFunctionTest() {
 
   private lateinit var storageClient: GcsStorageClient
   private lateinit var grpcServer: CommonServer
-  /** Process for RequisitionFetcher Google cloud function. */
+  /** Process for Google cloud function. */
   private lateinit var functionProcess: FunctionsFrameworkInvokerProcess
 
   private val workItemsServiceMock: WorkItemsCoroutineImplBase = mockService {
@@ -92,7 +92,7 @@ class InvokeDataWatcherFunctionTest() {
 
   @Before
   fun startInfra() {
-    /** Start gRPC server with mock Requisitions service */
+    /** Start gRPC server with mock Work Items service */
     grpcServer =
       CommonServer.fromParameters(
           verboseGrpcLogging = true,
