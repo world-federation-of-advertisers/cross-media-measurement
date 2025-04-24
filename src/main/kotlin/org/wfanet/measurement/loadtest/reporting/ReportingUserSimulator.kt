@@ -407,6 +407,7 @@ class ReportingUserSimulator(
         println("response for test: ${response.isSuccessful}")
         println("response for test: ${response.headers.toMultimap()}")
         println("response for test: ${response.message}")
+        println("response code for test: ${response.code}")
 
         response.body!!
           .bytes()
