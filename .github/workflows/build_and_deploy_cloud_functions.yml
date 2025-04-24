@@ -53,7 +53,7 @@ jobs:
           bazel build
           //src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/datawatcher:DataWatcherFunction
 
-      - name: Build Bazel fat JAR
+      - name: Build Bazel fat JAR for DataWatcher
         run: >
           bazel build
           //src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/datawatcher:DataWatcherFunction_deploy.jar
@@ -69,7 +69,7 @@ jobs:
           bazel build
           //src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/requisitionfetcher:RequisitionFetcherFunction
 
-      - name: Build Bazel fat JAR
+      - name: Build Bazel fat JAR for RequisitionFetcher
         run: >
           bazel build
           //src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/requisitionfetcher:RequisitionFetcherFunction_deploy.jar
@@ -102,6 +102,7 @@ jobs:
 
       - name: Deploy Requisition Fetcher Function
         env:
+          REQUISITIONS_GCS_PROJECT_ID: ${{ vars.GCLOUD_PROJECT }}
           GCLOUD_REGION: ${{ vars.GCLOUD_REGION }}
           KINGDOM_PUBLIC_API_TARGET: ${{ vars.KINGDOM_PUBLIC_API_TARGET }}
           STORAGE_BUCKET: ${{ vars.DATA_WATCHER_TRIGGER_BUCKET }}
@@ -117,13 +118,4 @@ jobs:
           --allow-unauthenticated
           --source="$RUNNER_TEMP/requisition_fetcher_source"
           --run-service-account=$REQUISITION_FETCHER_SERVICE_ACCOUNT
-          
-          KINGDOM_TARGET=$KINGDOM_PUBLIC_API_TARGET
-          KINGDOM_CERT_HOST=dev.halo-cmm.org
-          REQUISITIONS_GCS_PROJECT_ID
-          REQUISITIONS_GCS_BUCKET
-          DATA_PROVIDER_NAME
-          STORAGE_PATH_PREFIX
-          CERT_FILE_PATH=src/main/k8s/testing/secretfiles/edp1_tls.pem
-          PRIVATE_KEY_FILE_PATH=src/main/k8s/testing/secretfiles/edp1_tls.key
-          CERT_COLLECTION_FILE_PATH=src/main/k8s/testing/secretfiles/kingdom_root.pem
+          --set-env-vars="KINGDOM_TARGET=$KINGDOM_PUBLIC_API_TARGET,KINGDOM_CERT_HOST=dev.halo-cmm.org,REQUISITIONS_GCS_PROJECT_ID=$REQUISITIONS_GCS_PROJECT_ID,REQUISITIONS_GCS_BUCKET=$STORAGE_BUCKET,DATA_PROVIDER_NAME=edp1,STORAGE_PATH_PREFIX=requisitions,CERT_FILE_PATH=src/main/k8s/testing/secretfiles/edp1_tls.pem,PRIVATE_KEY_FILE_PATH=src/main/k8s/testing/secretfiles/edp1_tls.key,CERT_COLLECTION_FILE_PATH=src/main/k8s/testing/secretfiles/kingdom_root.pem"
