@@ -15,6 +15,9 @@
 name: "Build and Deploy cloud functions"
 
 on:
+  push:
+    branches:
+      - "marcopremier/add_requisition_fetcher_deployment"
   workflow_dispatch:
     inputs:
       environment:
@@ -34,7 +37,8 @@ permissions:
 jobs:
   build-and-deploy-cloud-functions:
     runs-on: ubuntu-22.04
-    environment: ${{ inputs.environment }}
+    #    environment: ${{ inputs.environment }}
+    environment: "dev"
     steps:
       - uses: actions/checkout@v4
       - name: Authenticate to Google Cloud
