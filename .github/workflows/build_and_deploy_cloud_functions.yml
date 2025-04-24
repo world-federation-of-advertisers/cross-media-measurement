@@ -83,6 +83,14 @@ jobs:
           mkdir -p "$RUNNER_TEMP/requisition_fetcher_source"
           cp bazel-bin/src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/requisitionfetcher/RequisitionFetcherFunction_deploy.jar "$RUNNER_TEMP/requisition_fetcher_source"
 
+      - name: List files in source directory (DataWatcher)
+        run: |
+          ls -lh "$RUNNER_TEMP/data_watcher_source"
+
+      - name: List files in source directory (RequisitionFetcher)
+        run: |
+          ls -lh "$RUNNER_TEMP/requisition_fetcher_source"
+
       - name: Deploy Data Watcher Function
         env:
           GCLOUD_REGION: ${{ vars.GCLOUD_REGION }}
