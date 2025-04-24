@@ -68,7 +68,7 @@ class RequisitionFetcherFunction : HttpFunction {
         )
       }
 
-    val envPageSize = System.getenv("REQUISITION_FILE_SYSTEM_PATH")
+    val envPageSize = System.getenv("PAGE_SIZE")
     val pageSize =
       if (!envPageSize.isNullOrEmpty()) {
         System.getenv("PAGE_SIZE").toInt()
@@ -93,7 +93,6 @@ class RequisitionFetcherFunction : HttpFunction {
         "CERT_COLLECTION_JAR_RESOURCE_PATH",
         "DATA_PROVIDER_NAME",
         "STORAGE_PATH_PREFIX",
-        "PAGE_SIZE",
         "REQUISITIONS_GCS_BUCKET",
         "KINGDOM_TARGET",
         "KINGDOM_CERT_HOST",
