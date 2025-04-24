@@ -147,7 +147,7 @@ class SyntheticGeneratorCorrectnessTest : AbstractCorrectnessTest(measurementSys
           .withDefaultDeadline(RPC_DEADLINE_DURATION)
 
       val secretFiles = getRuntimePath(SECRET_FILES_PATH)
-      val trustedCerts = secretFiles.resolve("reporting_root.pem").toFile()
+      val trustedCerts = secretFiles.resolve("mc_root.pem").toFile()
       val cert = secretFiles.resolve("mc_tls.pem").toFile()
       val key = secretFiles.resolve("mc_tls.key").toFile()
 
