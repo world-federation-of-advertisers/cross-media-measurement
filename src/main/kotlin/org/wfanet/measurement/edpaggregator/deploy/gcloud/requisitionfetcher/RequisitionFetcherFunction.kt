@@ -68,8 +68,9 @@ class RequisitionFetcherFunction : HttpFunction {
         )
       }
 
+    val envPageSize = System.getenv("REQUISITION_FILE_SYSTEM_PATH")
     val pageSize =
-      if (System.getenv("PAGE_SIZE").isNotEmpty()) {
+      if (!envPageSize.isNullOrEmpty()) {
         System.getenv("PAGE_SIZE").toInt()
       } else {
         null
