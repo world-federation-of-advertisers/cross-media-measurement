@@ -525,6 +525,7 @@ kustomization_dir(
     testonly = True,
     srcs = [
         "secure_computation_config_files_kustomization.yaml",
+        "//src/main/k8s/testing/secretfiles:queues_config.textproto",
     ],
     renames = {"secure_computation_config_files_kustomization.yaml": "kustomization.yaml"},
 )
