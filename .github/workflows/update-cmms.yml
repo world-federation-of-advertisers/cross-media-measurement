@@ -66,10 +66,6 @@ jobs:
       image-repo-prefix: ${{ github.repository_owner }}
       image-tag: ${{ needs.publish-images.outputs.image-tag }}
 
-#  publish-tee-app-images:
-#    uses: ./.github/workflows/build_and_push_tee_app.yml
-#    secrets: inherit
-
   terraform:
     uses: ./.github/workflows/terraform-cmms.yml
     secrets: inherit
