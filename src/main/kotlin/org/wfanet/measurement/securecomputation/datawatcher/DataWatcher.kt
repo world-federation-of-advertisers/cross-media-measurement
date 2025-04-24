@@ -46,7 +46,7 @@ class DataWatcher(
       try {
         val regex = config.sourcePathRegex.toRegex()
         if (regex.matches(path)) {
-          logger.info("${config.name}: Matched path: $path")
+          logger.info("${config.identifier}: Matched path: $path")
           when (config.sinkConfigCase) {
             WatchedPath.SinkConfigCase.CONTROL_PLANE_QUEUE_SINK -> {
               sendToControlPlane(config, path)
@@ -55,11 +55,11 @@ class DataWatcher(
               sendToHttpEndpoint(config)
             }
             WatchedPath.SinkConfigCase.SINKCONFIG_NOT_SET ->
-              error("${config.name}: Invalid sink config: ${config.sinkConfigCase}")
+              error("${config.identifier}: Invalid sink config: ${config.sinkConfigCase}")
           }
         }
       } catch (e: Exception) {
-        logger.severe("${config.name}: Unable to process $path for $config: ${e.message}")
+        logger.severe("${config.identifier}: Unable to process $path for $config: ${e.message}")
       }
     }
   }
@@ -93,8 +93,8 @@ class DataWatcher(
         .POST(HttpRequest.BodyPublishers.ofString(httpEndpointConfig.appParams.toJson()))
         .build()
     val response = client.send(request, BodyHandlers.ofString())
-    logger.fine("${config.name}: Response status: ${response.statusCode()}")
-    logger.fine("${config.name}: Response body: ${response.body()}")
+    logger.fine("${config.identifier}: Response status: ${response.statusCode()}")
+    logger.fine("${config.identifier}: Response body: ${response.body()}")
     check(response.statusCode() == 200)
   }
 

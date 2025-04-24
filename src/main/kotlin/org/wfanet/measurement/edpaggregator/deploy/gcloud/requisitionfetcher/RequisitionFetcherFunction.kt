@@ -21,98 +21,113 @@ import com.google.cloud.functions.HttpRequest
 import com.google.cloud.functions.HttpResponse
 import com.google.cloud.storage.StorageOptions
 import java.io.File
+import java.nio.file.Paths
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.getJarResourceFile
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
+import org.wfanet.measurement.common.parseTextProto
+import org.wfanet.measurement.config.edpaggregator.RequisitionFetcherConfig
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionFetcher
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 
 class RequisitionFetcherFunction : HttpFunction {
 
-  init {
-    for (envVar in requiredEnvVals) {
-      checkNotNull(System.getenv(envVar)) { "Missing env var: $envVar" }
-        .also { require(it.isNotBlank()) }
-    }
-  }
-
   override fun service(request: HttpRequest, response: HttpResponse) {
-    runBlocking { requisitionFetcher.fetchAndStoreRequisitions() }
+    for (dataProviderConfig in requisitionFetcherConfig.configsList) {
+
+      val requisitionsStorageClient by lazy {
+        if (dataProviderConfig.hasFileSystemStorageDetails()) {
+          FileSystemStorageClient(File(checkIsPath("REQUISITION_FILE_SYSTEM_PATH")))
+        } else {
+          val requisitionsGcsBucket = dataProviderConfig.gcsStorageDetails.bucketName
+          GcsStorageClient(
+            StorageOptions.newBuilder()
+              .also {
+                if (dataProviderConfig.gcsStorageDetails.projectId.isNotEmpty()) {
+                  it.setProjectId(dataProviderConfig.gcsStorageDetails.projectId)
+                }
+              }
+              .build()
+              .service,
+            requisitionsGcsBucket,
+          )
+        }
+      }
+      val signingCerts =
+        SigningCerts.fromPemFiles(
+          certificateFile =
+            checkNotNull(
+              CLASS_LOADER.getJarResourceFile(
+                dataProviderConfig.connectionDetails.certJarResourcePath
+              )
+            ),
+          privateKeyFile =
+            checkNotNull(
+              CLASS_LOADER.getJarResourceFile(
+                dataProviderConfig.connectionDetails.privateKeyJarResourcePath
+              )
+            ),
+          trustedCertCollectionFile =
+            checkNotNull(
+              CLASS_LOADER.getJarResourceFile(
+                dataProviderConfig.connectionDetails.certCollectionJarResourcePath
+              )
+            ),
+        )
+      val publicChannel by lazy {
+        buildMutualTlsChannel(kingdomTarget, signingCerts, kingdomCertHost)
+      }
+
+      val requisitionsStub = RequisitionsCoroutineStub(publicChannel)
+      val requisitionFetcher =
+        RequisitionFetcher(
+          requisitionsStub,
+          requisitionsStorageClient,
+          dataProviderConfig.dataProvider,
+          dataProviderConfig.storagePathPrefix,
+          pageSize,
+        )
+
+      runBlocking { requisitionFetcher.fetchAndStoreRequisitions() }
+    }
   }
 
   companion object {
-    val publicChannel by lazy {
-      buildMutualTlsChannel(
-        System.getenv("KINGDOM_TARGET"),
-        getClientCerts(),
-        System.getenv("KINGDOM_CERT_HOST"),
-      )
-    }
+    private val kingdomTarget = checkNotEmpty("KINGDOM_TARGET")
+    private val kingdomCertHost = checkNotEmpty("KINGDOM_CERT_HOST")
 
-    val requisitionsStub by lazy { RequisitionsCoroutineStub(publicChannel) }
-
-    val requisitionsStorageClient by lazy {
-      if (System.getenv("REQUISITION_FILE_SYSTEM_PATH").isNotEmpty()) {
-        FileSystemStorageClient(File(System.getenv("REQUISITION_FILE_SYSTEM_PATH")))
-      } else {
-        GcsStorageClient(
-          StorageOptions.newBuilder()
-            .setProjectId(System.getenv("REQUISITIONS_GCS_PROJECT_ID"))
-            .build()
-            .service,
-          System.getenv("REQUISITIONS_GCS_BUCKET"),
-        )
-      }
-    }
-
-    val pageSize =
-      if (System.getenv("PAGE_SIZE").isNotEmpty()) {
-        System.getenv("PAGE_SIZE").toInt()
+    val pageSize = run {
+      val value = System.getenv("PAGE_SIZE")
+      if (value.isNotEmpty()) {
+        value.toInt()
       } else {
         null
       }
-
-    val requisitionFetcher by lazy {
-      RequisitionFetcher(
-        requisitionsStub,
-        requisitionsStorageClient,
-        System.getenv("DATA_PROVIDER_NAME"),
-        System.getenv("STORAGE_PATH_PREFIX"),
-        pageSize,
-      )
+    }
+    private val CLASS_LOADER: ClassLoader = Thread.currentThread().contextClassLoader
+    private val requisitionFetcherConfigResourcePath =
+      checkIsPath("REQUISITION_FETCHER_CONFIG_RESOURCE_PATH")
+    private val config by lazy {
+      checkNotNull(CLASS_LOADER.getJarResourceFile(requisitionFetcherConfigResourcePath))
+    }
+    private val requisitionFetcherConfig: RequisitionFetcherConfig by lazy {
+      runBlocking { parseTextProto(config, RequisitionFetcherConfig.getDefaultInstance()) }
     }
 
-    private val requiredEnvVals: List<String> =
-      listOf(
-        "CERT_JAR_RESOURCE_PATH",
-        "PRIVATE_KEY_JAR_RESOURCE_PATH",
-        "CERT_COLLECTION_JAR_RESOURCE_PATH",
-        "DATA_PROVIDER_NAME",
-        "STORAGE_PATH_PREFIX",
-        "PAGE_SIZE",
-        "REQUISITIONS_GCS_BUCKET",
-        "KINGDOM_TARGET",
-        "KINGDOM_CERT_HOST",
-      )
+    private fun checkNotEmpty(envVar: String): String {
+      val value = System.getenv(envVar)
+      checkNotNull(value) { "Missing env var: $envVar" }
+      check(value.isNotBlank())
+      return value
+    }
 
-    private val CLASS_LOADER: ClassLoader = Thread.currentThread().contextClassLoader
-
-    private fun getClientCerts(): SigningCerts {
-      return SigningCerts.fromPemFiles(
-        certificateFile =
-          checkNotNull(CLASS_LOADER.getJarResourceFile(System.getenv("CERT_JAR_RESOURCE_PATH"))),
-        privateKeyFile =
-          checkNotNull(
-            CLASS_LOADER.getJarResourceFile(System.getenv("PRIVATE_KEY_JAR_RESOURCE_PATH"))
-          ),
-        trustedCertCollectionFile =
-          checkNotNull(
-            CLASS_LOADER.getJarResourceFile(System.getenv("CERT_COLLECTION_JAR_RESOURCE_PATH"))
-          ),
-      )
+    private fun checkIsPath(envVar: String): String {
+      val value = System.getenv(envVar)
+      Paths.get(value)
+      return value
     }
   }
 }

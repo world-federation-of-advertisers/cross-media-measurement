@@ -27,8 +27,8 @@ option java_outer_classname = "DataWatcherConfigProto";
 // Individual application-specific config that maps a path of data to the
 // application sink and application config.
 message WatchedPath {
-  // Resource name.
-  string name = 1 [(google.api.field_behavior) = IDENTIFIER];
+  // Unique watched path identifier.
+  string identifier = 1;
   // The path to watch
   string source_path_regex = 2;
 

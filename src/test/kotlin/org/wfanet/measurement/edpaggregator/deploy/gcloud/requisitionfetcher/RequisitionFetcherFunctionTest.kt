@@ -85,18 +85,26 @@ class RequisitionFetcherFunctionTest {
       val port =
         functionProcess.start(
           mapOf(
+            "REQUISITION_FETCHER_CONFIG_RESOURCE_PATH" to
+              Paths.get(
+                "main",
+                "kotlin",
+                "org",
+                "wfanet",
+                "measurement",
+                "edpaggregator",
+                "deploy",
+                "gcloud",
+                "requisitionfetcher",
+                "testing",
+                "requisition_fetcher_config.textproto",
+              )
+                .toString(),
             "REQUISITION_FILE_SYSTEM_PATH" to tempFolder.root.path,
             "KINGDOM_TARGET" to "localhost:${grpcServer.port}",
             "KINGDOM_CERT_HOST" to "localhost",
-            "REQUISITIONS_GCS_PROJECT_ID" to "test-project-id",
-            "REQUISITIONS_GCS_BUCKET" to "test-bucket",
-            "DATA_PROVIDER_NAME" to DATA_PROVIDER_NAME,
             "PAGE_SIZE" to "10",
             "STORAGE_PATH_PREFIX" to STORAGE_PATH_PREFIX,
-            "CERT_JAR_RESOURCE_PATH" to JAR_SECRETS_DIR.resolve("edp1_tls.pem").toString(),
-            "PRIVATE_KEY_JAR_RESOURCE_PATH" to JAR_SECRETS_DIR.resolve("edp1_tls.key").toString(),
-            "CERT_COLLECTION_JAR_RESOURCE_PATH" to
-              JAR_SECRETS_DIR.resolve("kingdom_root.pem").toString(),
           )
         )
       logger.info("Started RequisitionFetcher process on port $port")
@@ -153,12 +161,11 @@ class RequisitionFetcherFunctionTest {
     private const val REQUISITION_NAME = "$DATA_PROVIDER_NAME/requisitions/foo"
     private val REQUISITION = requisition { name = REQUISITION_NAME }
     private val PACKED_REQUISITION = Any.pack(REQUISITION)
-    private val STORAGE_PATH_PREFIX = "storage-path-prefix"
+    private val STORAGE_PATH_PREFIX = "edp1"
     private val SECRETS_DIR: Path =
       getRuntimePath(
         Paths.get("wfa_measurement_system", "src", "main", "k8s", "testing", "secretfiles")
       )!!
-    private val JAR_SECRETS_DIR: Path = Paths.get("main", "k8s", "testing", "secretfiles")
     private val serverCerts =
       SigningCerts.fromPemFiles(
         certificateFile = SECRETS_DIR.resolve("kingdom_tls.pem").toFile(),
