@@ -19,12 +19,15 @@ package org.wfanet.measurement.reporting.service.api.v2alpha
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.Any
+import com.google.type.interval
 import io.grpc.Deadline
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import java.nio.file.Path
 import java.nio.file.Paths
 import java.time.Duration
+import java.time.LocalDate
+import java.time.ZoneOffset
 import java.util.concurrent.TimeUnit
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
@@ -54,12 +57,15 @@ import org.wfanet.measurement.api.v2alpha.EventGroupKt as CmmsEventGroupKt
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorKey
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.EventGroupMetadataKt as CmmsEventGroupMetadataKt
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ListEventGroupsRequest
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
+import org.wfanet.measurement.api.v2alpha.MediaType as CmmsMediaType
 import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.eventGroup as cmmsEventGroup
+import org.wfanet.measurement.api.v2alpha.eventGroupMetadata
 import org.wfanet.measurement.api.v2alpha.eventGroupMetadataDescriptor
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.TestMetadataMessage
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.testMetadataMessage
@@ -77,6 +83,7 @@ import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.common.testing.verifyProtoArgument
+import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.config.reporting.measurementConsumerConfig
 import org.wfanet.measurement.config.reporting.measurementConsumerConfigs
 import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
@@ -85,6 +92,7 @@ import org.wfanet.measurement.reporting.service.api.CelEnvCacheProvider
 import org.wfanet.measurement.reporting.service.api.InMemoryEncryptionKeyPairStore
 import org.wfanet.measurement.reporting.v2alpha.EventGroup
 import org.wfanet.measurement.reporting.v2alpha.EventGroupKt
+import org.wfanet.measurement.reporting.v2alpha.MediaType
 import org.wfanet.measurement.reporting.v2alpha.eventGroup
 import org.wfanet.measurement.reporting.v2alpha.listEventGroupsRequest
 
@@ -787,6 +795,21 @@ class EventGroupsServiceTest {
       eventGroupReferenceId = EVENT_GROUP_REFERENCE_ID
       measurementConsumerPublicKey = ENCRYPTION_PUBLIC_KEY.toEncryptionPublicKey().pack()
       eventTemplates += CmmsEventGroupKt.eventTemplate { type = TestEvent.getDescriptor().fullName }
+      dataAvailabilityInterval = interval {
+        startTime = LocalDate.of(2025, 1, 11).atStartOfDay().toInstant(ZoneOffset.UTC).toProtoTime()
+        endTime = LocalDate.of(2025, 4, 11).atStartOfDay().toInstant(ZoneOffset.UTC).toProtoTime()
+      }
+      mediaTypes += CmmsMediaType.VIDEO
+      eventGroupMetadata = eventGroupMetadata {
+        adMetadata =
+          CmmsEventGroupMetadataKt.adMetadata {
+            campaignMetadata =
+              CmmsEventGroupMetadataKt.AdMetadataKt.campaignMetadata {
+                brandName = "Blammo!"
+                campaignName = "Log: Better Than Bad"
+              }
+          }
+      }
       encryptedMetadata =
         encryptMetadata(
           CmmsEventGroupKt.metadata {
@@ -825,6 +848,21 @@ class EventGroupsServiceTest {
       cmmsDataProvider = DATA_PROVIDER_NAME
       eventGroupReferenceId = EVENT_GROUP_REFERENCE_ID
       eventTemplates += EventGroupKt.eventTemplate { type = TestEvent.getDescriptor().fullName }
+      dataAvailabilityInterval = CMMS_EVENT_GROUP.dataAvailabilityInterval
+      mediaTypes += MediaType.VIDEO
+      eventGroupMetadata =
+        EventGroupKt.eventGroupMetadata {
+          adMetadata =
+            EventGroupKt.EventGroupMetadataKt.adMetadata {
+              campaignMetadata =
+                EventGroupKt.EventGroupMetadataKt.AdMetadataKt.campaignMetadata {
+                  brandName =
+                    CMMS_EVENT_GROUP.eventGroupMetadata.adMetadata.campaignMetadata.brandName
+                  campaignName =
+                    CMMS_EVENT_GROUP.eventGroupMetadata.adMetadata.campaignMetadata.campaignName
+                }
+            }
+        }
       metadata =
         EventGroupKt.metadata {
           eventGroupMetadataDescriptor = EVENT_GROUP_METADATA_DESCRIPTOR_NAME
