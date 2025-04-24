@@ -38,7 +38,7 @@ class RequisitionFetcherFunction : HttpFunction {
   override fun service(request: HttpRequest, response: HttpResponse) {
     for (dataProviderConfig in requisitionFetcherConfig.configsList) {
 
-      val requisitionsStorageClient by lazy {
+      val requisitionsStorageClient =
         if (dataProviderConfig.hasFileSystemStorageDetails()) {
           FileSystemStorageClient(File(checkIsPath("REQUISITION_FILE_SYSTEM_PATH")))
         } else {
@@ -55,7 +55,6 @@ class RequisitionFetcherFunction : HttpFunction {
             requisitionsGcsBucket,
           )
         }
-      }
       val signingCerts =
         SigningCerts.fromPemFiles(
           certificateFile =
