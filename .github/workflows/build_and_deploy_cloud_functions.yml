@@ -81,7 +81,7 @@ jobs:
       - name: Copy fat JAR of RequisitionFetcher to temp directory
         run: |
           mkdir -p "$RUNNER_TEMP/requisition_fetcher_source"
-          cp bazel-bin/src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/requisitionfetcher:RequisitionFetcherFunction_deploy.jar "$RUNNER_TEMP/requisition_fetcher_source"
+          cp bazel-bin/src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/requisitionfetcher/RequisitionFetcherFunction_deploy.jar "$RUNNER_TEMP/requisition_fetcher_source"
 
       - name: Deploy Data Watcher Function
         env:
