@@ -2867,6 +2867,9 @@ private fun buildWeightedReachMeasurementVarianceParams(
       throw MetricResultNotComputableException("Reach measurement should've had reach results.")
     }
 
+
+  println("reach result: $reachResult")
+
   val statsNoiseMechanism: StatsNoiseMechanism =
     try {
       reachResult.noiseMechanism.toStatsNoiseMechanism()
@@ -2875,6 +2878,8 @@ private fun buildWeightedReachMeasurementVarianceParams(
     }
 
   val methodology: Methodology = buildStatsMethodology(reachResult) ?: return null
+
+  println("methodology: $methodology")
 
   return WeightedReachMeasurementVarianceParams(
     binaryRepresentation = weightedMeasurement.binaryRepresentation,
