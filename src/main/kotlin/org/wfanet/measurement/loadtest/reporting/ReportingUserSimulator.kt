@@ -404,10 +404,10 @@ class ReportingUserSimulator(
           .newCall(getBasicReportRequest)
           .execute()
 
-        println("response for test: ${response.isSuccessful}")
-        println("response for test: ${response.headers.toMultimap()}")
-        println("response for test: ${response.message}")
-        println("response code for test: ${response.code}")
+        println("response isSuccessful for test: ${response.isSuccessful}")
+        println("response headers for test: ${response.headers.toMultimap()}")
+        println("response http status message for test: ${response.message}")
+        println("response http status code for test: ${response.code}")
 
         response.body!!
           .bytes()
@@ -416,7 +416,7 @@ class ReportingUserSimulator(
         throw Exception("Error retrieving Basic Report", e)
       }
 
-    println("response logging for test: ${retrievedBasicReportJson}")
+    println("response body logging for test: ${retrievedBasicReportJson}")
 
     val retrievedBasicReportBuilder = BasicReport.newBuilder()
     JsonFormat.parser()
