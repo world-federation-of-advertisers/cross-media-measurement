@@ -87,18 +87,18 @@ class RequisitionFetcherFunctionTest {
           mapOf(
             "REQUISITION_FETCHER_CONFIG_RESOURCE_PATH" to
               Paths.get(
-                "main",
-                "kotlin",
-                "org",
-                "wfanet",
-                "measurement",
-                "edpaggregator",
-                "deploy",
-                "gcloud",
-                "requisitionfetcher",
-                "testing",
-                "requisition_fetcher_config.textproto",
-              )
+                  "main",
+                  "kotlin",
+                  "org",
+                  "wfanet",
+                  "measurement",
+                  "edpaggregator",
+                  "deploy",
+                  "gcloud",
+                  "requisitionfetcher",
+                  "testing",
+                  "requisition_fetcher_config.textproto",
+                )
                 .toString(),
             "REQUISITION_FILE_SYSTEM_PATH" to tempFolder.root.path,
             "KINGDOM_TARGET" to "localhost:${grpcServer.port}",

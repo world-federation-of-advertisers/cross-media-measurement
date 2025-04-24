@@ -36,8 +36,7 @@ message DataProviderRequisitionConfig {
     string bucket_name = 2;
   }
   // Config for requisitions written to file system
-  message FileSystemStorageDetails {
-  }
+  message FileSystemStorageDetails {}
   // The type of storage
   oneof storage {
     // Used for gcs
@@ -51,14 +50,13 @@ message DataProviderRequisitionConfig {
   message ConnectionDetails {
     // The path in the jar to the cert
     string cert_jar_resource_path = 1;
-    //The path in the jar to the private key
+    // The path in the jar to the private key
     string private_key_jar_resource_path = 2;
     // The path in the jar to the cert collection
     string cert_collection_jar_resource_path = 3;
   }
   // How the EDP connects to the Kingdom
   ConnectionDetails connection_details = 5;
-
 }
 
 // The Requisition Fetcher configuration

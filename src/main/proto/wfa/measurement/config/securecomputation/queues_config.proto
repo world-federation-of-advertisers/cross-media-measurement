@@ -16,6 +16,8 @@ syntax = "proto3";
 
 package wfa.measurement.config.securecomputation;
 
+import "google/api/field_behavior.proto";
+
 option java_package = "org.wfanet.measurement.config.securecomputation";
 option java_multiple_files = true;
 option java_outer_classname = "QueuesConfigProto";
