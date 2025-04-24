@@ -307,7 +307,8 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
         withContext(Dispatchers.IO) { gatewayForwarder.start() }
 
       val secretFiles = getRuntimePath(SECRET_FILES_PATH)
-      val trustedCerts = secretFiles.resolve("mc_root.pem").toFile()
+      val mcRootCert = secretFiles.resolve("mc_root.pem").toFile()
+      val reportingRootCert = secretFiles.resolve("reporting_root.pem").toFile()
       val cert = secretFiles.resolve("mc_tls.pem").toFile()
       val key = secretFiles.resolve("mc_tls.key").toFile()
 
@@ -315,7 +316,8 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
       val keyAlgorithm = clientCertificate.publicKey.algorithm
       val certificates =
         HandshakeCertificates.Builder()
-          .addTrustedCertificate(trustedCerts.readText().decodeCertificatePem())
+          .addTrustedCertificate(mcRootCert.readText().decodeCertificatePem())
+          .addTrustedCertificate(reportingRootCert.readText().decodeCertificatePem())
           .heldCertificate(
             HeldCertificate(
               KeyPair(clientCertificate.publicKey, readPrivateKey(key, keyAlgorithm)),
