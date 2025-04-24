@@ -12,6 +12,7 @@ kt_jvm_library(
     name = "abstract_correctness_test",
     srcs = ["AbstractCorrectnessTest.kt"],
     data = [
+        "//src/main/k8s/testing/secretfiles:mc_root.pem",
         "//src/main/k8s/testing/secretfiles:mc_trusted_certs.pem",
         "//src/main/k8s/testing/secretfiles:reporting_root.pem",
         "//src/main/k8s/testing/secretfiles:secret_files",
