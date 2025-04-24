@@ -14,9 +14,9 @@
 
 syntax = "proto3";
 
-package wfa.measurement.edpaggregator.eventgroups;
+package wfa.measurement.config.edpaggregator;
 
-option java_package = "org.wfanet.measurement.edpaggregator.eventgroups";
+option java_package = "org.wfanet.measurement.config.edpaggregator";
 option java_multiple_files = true;
 option java_outer_classname = "EventGroupSyncConfigProto";
 

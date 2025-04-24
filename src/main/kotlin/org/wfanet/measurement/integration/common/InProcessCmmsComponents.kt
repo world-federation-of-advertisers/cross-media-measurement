@@ -282,12 +282,12 @@ class InProcessCmmsComponents(
     return edpDisplayNameToResourceMap.values.map { it.name }
   }
 
-  fun startDaemons(ensureEventGroups: Boolean = true) = runBlocking {
+  fun startDaemons(useEdpSimulators: Boolean = true) = runBlocking {
     // Create all resources
     createAllResources()
     // Start daemons. Mills and EDP simulators can only be started after resources have been
     // created.
-    if (ensureEventGroups) {
+    if (useEdpSimulators) {
       eventGroups = edpSimulators.map { it.ensureEventGroup() }
       edpSimulators.forEach { it.start() }
       edpSimulators.forEach { it.waitUntilHealthy() }

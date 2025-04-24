@@ -14,6 +14,7 @@
 
 package org.wfanet.measurement.integration.common
 
+import com.google.protobuf.Any
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import com.google.protobuf.ByteString
@@ -46,7 +47,12 @@ import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 import org.wfanet.measurement.loadtest.resourcesetup.EntityContent
 import org.wfanet.measurement.gcloud.testing.CloudFunctionProcessDetails
 import org.wfanet.measurement.config.securecomputation.DataWatcherConfig
+import org.wfanet.measurement.config.securecomputation.DataWatcherConfigKt
+import org.wfanet.measurement.config.securecomputation.dataWatcherConfig
+import org.wfanet.measurement.config.edpaggregator.eventGroupSyncConfig
+import org.wfanet.measurement.config.edpaggregator.EventGroupSyncConfig
 import org.wfanet.measurement.config.securecomputation.QueuesConfig
+import org.wfanet.measurement.common.toJson
 
 private const val REPO_NAME = "wfa_measurement_system"
 
@@ -210,6 +216,43 @@ val DATA_WATCHER_CONFIG: List<DataWatcherConfig>
     val configFile =
       getRuntimePath(configPath.resolve("data_watcher_config.textproto"))!!.toFile()
     return listOf(parseTextProto(configFile, DataWatcherConfig.getDefaultInstance()))
+  }
+
+// TODO: Replace Any with RequisitionFulfillerConfig
+fun getDataWatcherConfig(
+  blobPrefix: String,
+  eventGroupCloudFunctionHost: String,
+  edpConfigs: Map<String, Pair<EventGroupSyncConfig, Any>>,
+): List<DataWatcherConfig> {
+  return edpConfigs.map {(edpName, configs) ->
+    listOf(
+      dataWatcherConfig {
+        sourcePathRegex = "$blobPrefix/$edpName/requisitions(.*)"
+        this.controlPlaneQueueSink = DataWatcherConfigKt.controlPlaneQueueSink {
+          queue = TOPIC_ID
+          appParams = configs.second
+        }
+      },
+      dataWatcherConfig {
+        sourcePathRegex = "$blobPrefix/$edpName/event-groups"
+        this.httpEndpointsSink = DataWatcherConfigKt.httpEndpointsSink {
+          endpointUri = eventGroupCloudFunctionHost
+          appParams.putAll = configs.first.toJson()
+        }
+      }
+    )
+  }.flatten()
+}
+
+fun getEventGroupConfig(
+  blobPrefix: String
+  edpConfigs: Map<String, String): List<EventGroupSyncConfig> =
+  edpConfigs.map { (edpName, edpResourceName) ->
+    eventGroupSyncConfig {
+      dataProvider = edpResourceName
+      eventGroupsBlobUri = "$blobPrefix/$edpName/event-groups"
+      eventGroupMapUri = "$blobPrefix/$edpName/event-group-map"
+    }
   }
 
 /** Used to configure Secure Computation Control Plane */

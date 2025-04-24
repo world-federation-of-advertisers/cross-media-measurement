@@ -99,7 +99,7 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
       storageClient = storageClient,
       pubSubClient = googlePubSubClientInstance,
     )
-    inProcessCmmsComponents.startDaemons(ensureEventGroups = false)
+    inProcessCmmsComponents.startDaemons(useEdpSimulators = false)
     val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
     val edpDisplayNameToResourceMap = inProcessCmmsComponents.edpDisplayNameToResourceMap
     val kingdomChannel = inProcessCmmsComponents.kingdom.publicApiChannel
