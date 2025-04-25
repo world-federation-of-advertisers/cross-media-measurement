@@ -70,9 +70,9 @@ class DataWatcher(
     val workItemId = UUID.randomUUID().toString()
     val workItemParams =
       workItemParams {
-        appParams = queueConfig.appParams
-        this.dataPathParams = dataPathParams { this.dataPath = path }
-      }
+          appParams = queueConfig.appParams
+          this.dataPathParams = dataPathParams { this.dataPath = path }
+        }
         .pack()
     val request = createWorkItemRequest {
       this.workItemId = workItemId
