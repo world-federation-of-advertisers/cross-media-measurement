@@ -21,6 +21,7 @@ import io.grpc.StatusException
 import kotlin.math.min
 import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.v2alpha.CreateModelLineRequest
+import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.DataProviderPrincipal
 import org.wfanet.measurement.api.v2alpha.ListModelLinesPageToken
 import org.wfanet.measurement.api.v2alpha.ListModelLinesPageTokenKt.previousPageEnd
@@ -31,6 +32,7 @@ import org.wfanet.measurement.api.v2alpha.ModelLine
 import org.wfanet.measurement.api.v2alpha.ModelLineKey
 import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt.ModelLinesCoroutineImplBase as ModelLinesCoroutineService
 import org.wfanet.measurement.api.v2alpha.ModelProviderPrincipal
+import org.wfanet.measurement.internal.kingdom.ModelRolloutsGrpcKt.ModelRolloutsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ModelSuiteKey
 import org.wfanet.measurement.api.v2alpha.SetModelLineActiveEndTimeRequest
 import org.wfanet.measurement.api.v2alpha.SetModelLineHoldbackModelLineRequest
@@ -50,13 +52,28 @@ import org.wfanet.measurement.internal.kingdom.StreamModelLinesRequest
 import org.wfanet.measurement.internal.kingdom.StreamModelLinesRequestKt.afterFilter
 import org.wfanet.measurement.internal.kingdom.StreamModelLinesRequestKt.filter
 import org.wfanet.measurement.internal.kingdom.setActiveEndTimeRequest as internalSetActiveEndTimeRequest
+import com.google.protobuf.util.Timestamps
+import com.google.type.Interval
+import java.util.logging.Level
+import java.util.logging.Logger
+import org.wfanet.measurement.api.v2alpha.DataProviderKey
+import org.wfanet.measurement.api.v2alpha.SearchValidModelLinesRequest
+import org.wfanet.measurement.api.v2alpha.SearchValidModelLinesResponse
+import org.wfanet.measurement.api.v2alpha.searchValidModelLinesResponse
+import org.wfanet.measurement.internal.kingdom.StreamModelRolloutsRequestKt
+import org.wfanet.measurement.internal.kingdom.getDataProviderRequest
 import org.wfanet.measurement.internal.kingdom.setModelLineHoldbackModelLineRequest
 import org.wfanet.measurement.internal.kingdom.streamModelLinesRequest
+import org.wfanet.measurement.internal.kingdom.streamModelRolloutsRequest
 
 private const val DEFAULT_PAGE_SIZE = 50
 private const val MAX_PAGE_SIZE = 1000
 
-class ModelLinesService(private val internalClient: ModelLinesCoroutineStub) :
+class ModelLinesService(
+  private val internalClient: ModelLinesCoroutineStub,
+  private val internalDataProvidersClient: DataProvidersCoroutineStub,
+  private val internalModelRolloutsClient: ModelRolloutsCoroutineStub,
+) :
   ModelLinesCoroutineService() {
 
   override suspend fun createModelLine(request: CreateModelLineRequest): ModelLine {
@@ -219,6 +236,151 @@ class ModelLinesService(private val internalClient: ModelLinesCoroutineStub) :
     }
   }
 
+  override suspend fun searchValidModelLines(request: SearchValidModelLinesRequest): SearchValidModelLinesResponse {
+    val parent =
+      grpcRequireNotNull(ModelSuiteKey.fromName(request.parent)) {
+        "parent is either unspecified or invalid"
+      }
+
+    when (val principal: MeasurementPrincipal = principalFromCurrentContext) {
+      is ModelProviderPrincipal -> {
+        if (principal.resourceKey.modelProviderId != parent.modelProviderId) {
+          failGrpc(Status.PERMISSION_DENIED) { "Cannot list ModelLines for another ModelProvider" }
+        }
+      }
+      is DataProviderPrincipal -> {}
+      else -> {
+        failGrpc(Status.PERMISSION_DENIED) { "Caller does not have permission to list ModelLines" }
+      }
+    }
+
+    if (!request.hasTimeInterval()) {
+      failGrpc(Status.INVALID_ARGUMENT) { "Missing time_interval" }
+    }
+
+    if (!Timestamps.isValid(request.timeInterval.startTime)) {
+      failGrpc(Status.INVALID_ARGUMENT) { "Missing time_interval.start_time" }
+    }
+
+    if (!Timestamps.isValid(request.timeInterval.endTime)) {
+      failGrpc(Status.INVALID_ARGUMENT) { "Missing time_interval.end_time" }
+    }
+
+    if (Timestamps.compare(request.timeInterval.startTime, request.timeInterval.endTime) >= 0) {
+      failGrpc(Status.INVALID_ARGUMENT) { "time_interval.start_time must be before time_interval.end_time" }
+    }
+
+    if (request.dataProvidersList.size == 0) {
+      failGrpc(Status.INVALID_ARGUMENT) { "Missing data_providers" }
+    }
+
+    for (dataProviderName in request.dataProvidersList) {
+      DataProviderKey.fromName(dataProviderName)
+        ?: failGrpc(Status.INVALID_ARGUMENT) { "$dataProviderName in data_providers is invalid" }
+    }
+
+    val dataProvidersSet = mutableSetOf<String>()
+    // Map of external ModelLine IDs to data availability intervals.
+    val dataProvidersDataAvailabilityIntervalMap: Map<Long, MutableList<Interval>> = buildMap {
+      for (dataProviderName in request.dataProvidersList) {
+        if (!dataProvidersSet.contains(dataProviderName)) {
+          dataProvidersSet.add(dataProviderName)
+          val dataProviderKey = DataProviderKey.fromName(dataProviderName)
+          val dataProvider =
+            try {
+              internalDataProvidersClient.getDataProvider(getDataProviderRequest {
+                externalDataProviderId = apiIdToExternalId(dataProviderKey!!.dataProviderId)
+              })
+            } catch (e: StatusException) {
+              throw when (e.status.code) {
+                Status.Code.NOT_FOUND ->
+                  failGrpc(Status.NOT_FOUND) { "$dataProviderName in data_providers not found" }
+
+                Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED.asRuntimeException()
+                else -> Status.UNKNOWN.asRuntimeException()
+              }
+            }
+
+          for (dataAvailabilityInterval in dataProvider.dataAvailabilityIntervalsList) {
+            val intervalList =
+              getOrDefault(dataAvailabilityInterval.key.externalModelLineId, mutableListOf())
+            intervalList.add(dataAvailabilityInterval.value)
+            put(dataAvailabilityInterval.key.externalModelLineId, intervalList)
+          }
+        }
+      }
+    }
+
+    val modelSuiteKey = ModelSuiteKey.fromName(request.parent)
+
+    val internalModelLines: List<InternalModelLine> =
+      try {
+        internalClient
+          .streamModelLines(streamModelLinesRequest {
+            filter = filter {
+              externalModelProviderId = apiIdToExternalId(modelSuiteKey!!.modelProviderId)
+              externalModelSuiteId = apiIdToExternalId(modelSuiteKey.modelSuiteId)
+              if (request.typesList.isEmpty()) {
+                this.type += InternalModelLine.Type.PROD
+              } else {
+                for (type in request.typesList) {
+                  this.type += type.toInternalType()
+                }
+              }
+            }
+          }).toList()
+      } catch (e: StatusException) {
+        throw when (e.status.code) {
+          Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
+          else -> Status.UNKNOWN
+        }.asRuntimeException()
+      }
+
+    val validModelLines: List<ModelLine> = buildList {
+      for (internalModelLine in internalModelLines) {
+        val modelLine = internalModelLine.toModelLine()
+        if (request.timeInterval.isFullyContainedWithin(modelLine)) {
+          val dataAvailabilityIntervals: List<Interval>? = dataProvidersDataAvailabilityIntervalMap[internalModelLine.externalModelLineId]
+          if (dataAvailabilityIntervals != null) {
+            if (request.timeInterval.isFullyContainedWithin(dataAvailabilityIntervals)) {
+              val streamModelRolloutsResponse =
+                try {
+                  internalModelRolloutsClient.streamModelRollouts(
+                    streamModelRolloutsRequest {
+                      filter = StreamModelRolloutsRequestKt.filter {
+                        externalModelProviderId = internalModelLine.externalModelProviderId
+                        externalModelSuiteId = internalModelLine.externalModelSuiteId
+                        externalModelLineId = internalModelLine.externalModelLineId
+                      }
+                    }
+                  ).toList()
+                } catch (e: StatusException) {
+                  throw when (e.status.code) {
+                    Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
+                    else -> Status.UNKNOWN
+                  }.asRuntimeException()
+                }
+
+              // Currently, there is only 1 `ModelRollout` per `ModelLine`
+              if (streamModelRolloutsResponse.size == 1) {
+                add(modelLine)
+              } else {
+                logger.log(
+                  Level.WARNING,
+                  "Must have 1 model rollout per model line to have a valid model line.",
+                )
+              }
+            }
+          }
+        }
+      }
+    }
+
+    return searchValidModelLinesResponse {
+      this.modelLines += validModelLines.sortedWith(modelLineComparator())
+    }
+  }
+
   /** Converts a public [ListModelLinesRequest] to an internal [ListModelLinesPageToken]. */
   private fun ListModelLinesRequest.toListModelLinesPageToken(): ListModelLinesPageToken {
     val source = this
@@ -280,5 +442,31 @@ class ModelLinesService(private val internalClient: ModelLinesCoroutineStub) :
         }
       }
     }
+  }
+
+  /**
+   * [ModelLine.Type.PROD] appears first before [ModelLine.Type.HOLDBACK] and
+   * [ModelLine.Type.HOLDBACK] appears first before [ModelLine.Type.DEV]. If the types are the same,
+   * then the more recent `activeStartTime` appears first.
+   */
+  private fun modelLineComparator() =
+    Comparator<ModelLine> { a, b ->
+      when {
+        a.type == b.type -> {
+          Timestamps.compare(a.activeStartTime, b.activeStartTime) * -1
+        }
+        a.type == ModelLine.Type.PROD -> -1
+        a.type == ModelLine.Type.HOLDBACK -> {
+          if (b.type == ModelLine.Type.PROD) {
+            1
+          } else -1
+        }
+        a.type == ModelLine.Type.DEV -> 1
+        else -> -1
+      }
+    }
+
+  companion object {
+    private val logger: Logger = Logger.getLogger(this::class.java.name)
   }
 }

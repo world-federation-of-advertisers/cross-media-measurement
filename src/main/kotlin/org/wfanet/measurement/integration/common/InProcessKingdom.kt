@@ -185,7 +185,11 @@ class InProcessKingdom(
           ModelSuitesService(internalModelSuitesClient)
             .withMetadataPrincipalIdentities()
             .withApiKeyAuthenticationServerInterceptor(internalApiKeysClient),
-          ModelLinesService(internalModelLinesClient)
+          ModelLinesService(
+            internalModelLinesClient,
+            internalDataProvidersClient,
+            internalModelRolloutsClient,
+          )
             .withMetadataPrincipalIdentities()
             .withApiKeyAuthenticationServerInterceptor(internalApiKeysClient),
           PopulationsService(internalPopulationsClient)

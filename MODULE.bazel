@@ -366,3 +366,9 @@ single_version_override(
     module_name = "boringssl",
     version = BORINGSSL_VERSION,
 )
+
+archive_override(
+    module_name = "cross-media-measurement-api",
+    strip_prefix = "cross-media-measurement-api-1ccd68442afc9bc1e6ff5817a6cdf25e9a91662d",
+    urls = ["https://github.com/world-federation-of-advertisers/cross-media-measurement-api/archive/1ccd68442afc9bc1e6ff5817a6cdf25e9a91662d.tar.gz"],
+)
