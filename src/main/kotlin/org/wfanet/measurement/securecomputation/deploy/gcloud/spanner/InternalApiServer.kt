@@ -70,6 +70,7 @@ class InternalApiServer : Runnable {
 
   companion object {
     const val SERVER_NAME = "SecureComputationInternalApiServer"
+
     @JvmStatic fun main(args: Array<String>) = commandLineMain(InternalApiServer(), args)
   }
 }

@@ -19,6 +19,8 @@ package wfa.measurement.reporting.v2alpha;
 import "google/api/field_behavior.proto";
 import "google/api/resource.proto";
 import "google/protobuf/any.proto";
+import "google/type/interval.proto";
+import "wfa/measurement/reporting/v2alpha/media_type.proto";
 
 option java_package = "org.wfanet.measurement.reporting.v2alpha";
 option java_multiple_files = true;
@@ -66,6 +68,42 @@ message EventGroup {
   // to.
   repeated EventTemplate event_templates = 5;
 
+  // Possible media types for events in this [EventGroup][].
+  repeated MediaType media_types = 7
+      [(google.api.field_behavior) = UNORDERED_LIST];
+
+  // Interval for which this [EventGroup][] is known to have events, subject to
+  // [DataProvider.data_availability_intervals][wfa.measurement.api.v2alpha.DataProvider.data_availability_intervals].
+  //
+  // If this field is set then [google.type.Interval.start_time][] is required.
+  google.type.Interval data_availability_interval = 9;
+
+  // Common metadata structure for an [EventGroup][].
+  message EventGroupMetadata {
+    // Metadata for an [EventGroup][] containing ad impression events.
+    message AdMetadata {
+      // Metadata for a brand advertising campaign.
+      message CampaignMetadata {
+        // Name of the brand.
+        string brand_name = 1 [(google.api.field_behavior) = REQUIRED];
+        // Name of the ad campaign.
+        string campaign_name = 2 [(google.api.field_behavior) = REQUIRED];
+      }
+      // Metadata for an advertising campaign.
+      CampaignMetadata campaign_metadata = 1
+          [(google.api.field_behavior) = REQUIRED];
+    }
+
+    // Metadata. Required.
+    oneof metadata {
+      // Metadata for an [EventGroup][] containing ad impression events.
+      AdMetadata ad_metadata = 1;
+    }
+  }
+  // Metadata for this [EventGroup][]. This will eventually replace [metadata][]
+  // and be required.
+  EventGroupMetadata event_group_metadata = 8;
+
   // Wrapper for per-EDP Event Group metadata.
   message Metadata {
     // The resource name of the metadata descriptor.
@@ -76,7 +114,7 @@ message EventGroup {
     // The serialized value of the metadata message.
     google.protobuf.Any metadata = 2;
   }
-
-  // The metadata of the event group.
+  // The metadata of the event group. This will eventually be deprecated in
+  // favor of [event_group_metadata][].
   Metadata metadata = 6;
 }

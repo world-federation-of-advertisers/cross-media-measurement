@@ -49,19 +49,22 @@ message WorkItem {
   message WorkItemParams {
     // Queue-specific parameters for this [WorkItem].
     //
-    // The [type_url][google.protobuf.Any.type_url] must match the one in the configuration for this [Queue]
-    google.protobuf.Any app_params = 1 [(google.api.field_behavior) = IMMUTABLE];
+    // The [type_url][google.protobuf.Any.type_url] must match the one in the
+    // configuration for this [Queue]
+    google.protobuf.Any app_params = 1
+        [(google.api.field_behavior) = IMMUTABLE];
     // Parameters for a data path work item.
     message DataPathParams {
       // The data path to process
       string data_path = 1 [(google.api.field_behavior) = REQUIRED];
     }
     // The data path params for this [WorkItem]
-    DataPathParams data_path_params = 2 [(google.api.field_behavior) = IMMUTABLE];
-
+    DataPathParams data_path_params = 2
+        [(google.api.field_behavior) = IMMUTABLE];
   }
   // The parameters to be delivered to the TEE application.
-  google.protobuf.Any work_item_params = 3 [(google.api.field_behavior) = IMMUTABLE];
+  google.protobuf.Any work_item_params = 3
+      [(google.api.field_behavior) = IMMUTABLE];
 
   // State of a `WorkItem`.
   enum State {

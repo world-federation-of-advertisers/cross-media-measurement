@@ -20,6 +20,7 @@ import com.google.cloud.functions.CloudEventsFunction
 import com.google.events.cloud.storage.v1.StorageObjectData
 import com.google.protobuf.util.JsonFormat
 import io.cloudevents.CloudEvent
+import java.nio.file.Paths
 import java.time.Duration
 import java.util.logging.Logger
 import kotlinx.coroutines.runBlocking
@@ -28,7 +29,7 @@ import org.wfanet.measurement.common.getJarResourceFile
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withShutdownTimeout
 import org.wfanet.measurement.common.parseTextProto
-import org.wfanet.measurement.config.securecomputation.DataWatcherConfigs
+import org.wfanet.measurement.config.securecomputation.DataWatcherConfig
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
 import org.wfanet.measurement.securecomputation.datawatcher.DataWatcher
 
@@ -38,37 +39,8 @@ import org.wfanet.measurement.securecomputation.datawatcher.DataWatcher
  */
 class DataWatcherFunction : CloudEventsFunction {
 
-  init {
-    for (envVar in requiredEnvVals) {
-      checkNotNull(System.getenv(envVar))
-    }
-  }
-
   override fun accept(event: CloudEvent) {
     logger.fine("Starting DataWatcherFunction")
-    val publicChannel =
-      buildMutualTlsChannel(
-        System.getenv("CONTROL_PLANE_TARGET"),
-        getClientCerts(),
-        System.getenv("CONTROL_PLANE_CERT_HOST"),
-      )
-        .withShutdownTimeout(
-          Duration.ofSeconds(
-            System.getenv("CONTROL_PLANE_CHANNEL_SHUTDOWN_DURATION_SECONDS")?.toLong()
-              ?: DEFAULT_CHANNEL_SHUTDOWN_DURATION_SECONDS
-          )
-        )
-
-    val workItemsStub = WorkItemsCoroutineStub(publicChannel)
-    val config = checkNotNull(CLASS_LOADER.getJarResourceFile(CONFIG_RESOURCE_PATH)) {
-      "Missing embedded config file at $CONFIG_RESOURCE_PATH"
-    }
-    val dataWatcherConfigs = parseTextProto(config, DataWatcherConfigs.getDefaultInstance())
-    val dataWatcher =
-      DataWatcher(
-        workItemsStub = workItemsStub,
-        dataWatcherConfigs = dataWatcherConfigs.configsList,
-      )
     val cloudEventData =
       requireNotNull(event.getData()) { "event must have data" }.toBytes().decodeToString()
     val data =
@@ -82,30 +54,63 @@ class DataWatcherFunction : CloudEventsFunction {
     runBlocking { dataWatcher.receivePath(path) }
   }
 
-  private fun getClientCerts(): SigningCerts {
-    return SigningCerts.fromPemFiles(
-      certificateFile =
-      checkNotNull(CLASS_LOADER.getJarResourceFile(System.getenv("CERT_FILE_PATH"))),
-      privateKeyFile =
-      checkNotNull(CLASS_LOADER.getJarResourceFile(System.getenv("PRIVATE_KEY_FILE_PATH"))),
-      trustedCertCollectionFile =
-      checkNotNull(CLASS_LOADER.getJarResourceFile(System.getenv("CERT_COLLECTION_FILE_PATH"))),
-    )
-  }
-
   companion object {
     private const val scheme = "gs"
     private val logger: Logger = Logger.getLogger(this::class.java.name)
-    private val DEFAULT_CHANNEL_SHUTDOWN_DURATION_SECONDS: Long = 3L
+    private const val DEFAULT_CHANNEL_SHUTDOWN_DURATION_SECONDS: Long = 3L
     private val CLASS_LOADER: ClassLoader = Thread.currentThread().contextClassLoader
-    private val requiredEnvVals: List<String> =
-      listOf(
-        "CERT_FILE_PATH",
-        "PRIVATE_KEY_FILE_PATH",
-        "CERT_COLLECTION_FILE_PATH",
-        "CONTROL_PLANE_TARGET",
-        "CONTROL_PLANE_CERT_HOST",
+    private val certJarResourcePath = checkIsPath("CERT_JAR_RESOURCE_PATH")
+    private val privateKeyJarResourcePath = checkIsPath("PRIVATE_KEY_JAR_RESOURCE_PATH")
+    private val certCollectionJarResourcePath = checkIsPath("CERT_COLLECTION_JAR_RESOURCE_PATH")
+    private const val dataWatcherConfigResourcePath =
+      "securecomputation/datawatcher/data_watcher_config.textproto"
+    private val controlPlaneTarget = checkNotEmpty("CONTROL_PLANE_TARGET")
+    private val controlPlaneCertHost = checkNotEmpty("CONTROL_PLANE_CERT_HOST")
+    private val channelShutdownTimeout =
+      Duration.ofSeconds(
+        System.getenv("CONTROL_PLANE_CHANNEL_SHUTDOWN_DURATION_SECONDS")?.toLong()
+          ?: DEFAULT_CHANNEL_SHUTDOWN_DURATION_SECONDS
       )
-    private const val CONFIG_RESOURCE_PATH = "securecomputation/datawatcher/data_watcher_config.textproto"
+
+    private fun checkNotEmpty(envVar: String): String {
+      val value = System.getenv(envVar)
+      checkNotNull(value) { "Missing env var: $envVar" }
+      check(value.isNotBlank())
+      return value
+    }
+
+    private fun checkIsPath(envVar: String): String {
+      val value = System.getenv(envVar)
+      Paths.get(value)
+      return value
+    }
+
+    private fun getClientCerts(): SigningCerts {
+      return SigningCerts.fromPemFiles(
+        certificateFile = checkNotNull(CLASS_LOADER.getJarResourceFile(certJarResourcePath)),
+        privateKeyFile = checkNotNull(CLASS_LOADER.getJarResourceFile(privateKeyJarResourcePath)),
+        trustedCertCollectionFile =
+          checkNotNull(CLASS_LOADER.getJarResourceFile(certCollectionJarResourcePath)),
+      )
+    }
+
+    private val publicChannel by lazy {
+      buildMutualTlsChannel(controlPlaneTarget, getClientCerts(), controlPlaneCertHost)
+        .withShutdownTimeout(channelShutdownTimeout)
+    }
+
+    private val workItemsStub by lazy { WorkItemsCoroutineStub(publicChannel) }
+    private val config by lazy {
+      checkNotNull(CLASS_LOADER.getJarResourceFile(dataWatcherConfigResourcePath))
+    }
+    private val dataWatcherConfig by lazy {
+      runBlocking { parseTextProto(config, DataWatcherConfig.getDefaultInstance()) }
+    }
+    private val dataWatcher by lazy {
+      DataWatcher(
+        workItemsStub = workItemsStub,
+        dataWatcherConfigs = dataWatcherConfig.watchedPathsList,
+      )
+    }
   }
 }

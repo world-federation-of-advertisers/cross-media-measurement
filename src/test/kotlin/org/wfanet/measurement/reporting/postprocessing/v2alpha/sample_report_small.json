@@ -253,6 +253,7 @@
     "end_date": "2024-01-08T10:00:00Z",
     "brands": "'Cloud' 'Global'",
     "target": "'edp2' 'edp1'",
+    "population": "MALE_YEARS_16_TO_34=74254;MALE_YEARS_35_TO_54=75427;MALE_YEARS_55_PLUS=92201;FEMALE_YEARS_16_TO_34=71124;FEMALE_YEARS_35_TO_54=83950;FEMALE_YEARS_55_PLUS=103044",
     "measurementConsumers/TjyUnormbAg/reportingSets/f4fee2bcb73a4cf08a6bd1ad33a61e48": "{measured_entity=edp2, viewability=, set_operation=union,incrementality,cumulative,marked unions for reach only, position_in_incrementality=, version=1.0, lhs_reporting_set_ids=, rhs_reporting_set_ids=, target=edp2, incrementality_type=ENTITY, video_completion=, channels=, unique_Reach_Target=, media_type=DISPLAY, anchor=edp1, primitive_egroup_id=aDnfoB_curE, measurement_entities=edp2, measurement_policy_incrementality=AMI, campaign_id=0568606a-910b-4a36-a439-b38fc66fc4ae, measurement_policy=AMI}",
     "measurementConsumers/TjyUnormbAg/metricCalculationSpecs/ami/union": "{metrics=impressions,reach, grouping=-, cumulative=false, common_filter=-, set_operation=union, metric_frequency=-}",
     "measurementConsumers/TjyUnormbAg/metricCalculationSpecs/ami/cumulative": "{metrics=reach, grouping=-, cumulative=true, common_filter=-, set_operation=cumulative, metric_frequency=weekly1}"
