@@ -1,0 +1,62 @@
+// Copyright 2025 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.config.securecomputation;
+
+import "google/protobuf/any.proto";
+import "google/api/field_behavior.proto";
+import "google/protobuf/struct.proto";
+
+option java_package = "org.wfanet.measurement.config.securecomputation";
+option java_multiple_files = true;
+option java_outer_classname = "DataWatcherConfigProto";
+
+// Individual application-specific config that maps a path of data to the
+// application sink and application config.
+message WatchedPath {
+  // Unique watched path identifier.
+  string identifier = 1;
+  // The path to watch
+  string source_path_regex = 2;
+
+  // The config used for control plane apps
+  message ControlPlaneQueueSink {
+    // The Control Plane queue that will execute this work item.
+    string queue = 1;
+    // Params passed to TEE Apps
+    google.protobuf.Any app_params = 2;
+  }
+  // The config used for any Webhooks
+  message HttpEndpointSink {
+    // The endpoint to trigger.
+    string endpoint_uri = 1;
+    // Json payload to send to endpoint of application-specific config.
+    google.protobuf.Struct app_params = 2;
+  }
+
+  oneof sink_config {
+    // The sink used to send event to the Control Plane.
+    ControlPlaneQueueSink control_plane_queue_sink = 3;
+    // The sink used to send events to a web hook.
+    HttpEndpointSink http_endpoint_sink = 4;
+  }
+}
+
+// The DataWatcher configuration
+message DataWatcherConfig {
+  // All the configs that the DataWatcher will match
+  repeated WatchedPath watched_paths = 1;
+}
