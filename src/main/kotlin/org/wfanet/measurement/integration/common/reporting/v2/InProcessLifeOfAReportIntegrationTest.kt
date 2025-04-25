@@ -416,14 +416,15 @@ abstract class InProcessLifeOfAReportIntegrationTest(
   }
 
   @Test
-  fun `report with union reach across 2 edps has the expected result`() = runBlocking {
+  fun `report with LLv2 union reach across 2 edps has the expected result`() = runBlocking {
     val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
-    val eventGroups = listEventGroups()
+    val eventGroups = listEventGroups().sortedBy { it.eventGroupReferenceId }
 
     val eventGroupEntries: List<Pair<EventGroup, String>> =
       listOf(
         eventGroups[0] to "person.age_group == ${Person.AgeGroup.YEARS_18_TO_34_VALUE}",
         eventGroups[1] to "person.age_group == ${Person.AgeGroup.YEARS_55_PLUS_VALUE}",
+        eventGroups[2] to "person.age_group == ${Person.AgeGroup.YEARS_55_PLUS_VALUE}",
       )
 
     val createdPrimitiveReportingSets: List<ReportingSet> =
@@ -443,6 +444,114 @@ abstract class InProcessLifeOfAReportIntegrationTest(
               rhs =
                 ReportingSetKt.SetExpressionKt.operand {
                   reportingSet = createdPrimitiveReportingSets[1].name
+                }
+            }
+        }
+    }
+
+    val createdCompositeReportingSet =
+      publicReportingSetsClient
+        .withCallCredentials(credentials)
+        .createReportingSet(
+          createReportingSetRequest {
+            parent = measurementConsumerData.name
+            reportingSet = compositeReportingSet
+            reportingSetId = "def"
+          }
+        )
+
+    val createdMetricCalculationSpec =
+      publicMetricCalculationSpecsClient
+        .withCallCredentials(credentials)
+        .createMetricCalculationSpec(
+          createMetricCalculationSpecRequest {
+            parent = measurementConsumerData.name
+            metricCalculationSpec = metricCalculationSpec {
+              displayName = "union reach"
+              metricSpecs += metricSpec {
+                reach = MetricSpecKt.reachParams { privacyParams = DP_PARAMS }
+                vidSamplingInterval = VID_SAMPLING_INTERVAL
+              }
+            }
+            metricCalculationSpecId = "fed"
+          }
+        )
+
+    val report = report {
+      reportingMetricEntries +=
+        ReportKt.reportingMetricEntry {
+          key = createdCompositeReportingSet.name
+          value =
+            ReportKt.reportingMetricCalculationSpec {
+              metricCalculationSpecs += createdMetricCalculationSpec.name
+            }
+        }
+      timeIntervals = timeIntervals { timeIntervals += EVENT_RANGE.toInterval() }
+    }
+
+    val createdReport =
+      publicReportsClient
+        .withCallCredentials(credentials)
+        .createReport(
+          createReportRequest {
+            parent = measurementConsumerData.name
+            this.report = report
+            reportId = "report"
+          }
+        )
+
+    val retrievedReport = pollForCompletedReport(createdReport.name)
+    assertThat(retrievedReport.state).isEqualTo(Report.State.SUCCEEDED)
+
+    val eventGroupSpecs: Iterable<EventQuery.EventGroupSpec> =
+      eventGroupEntries.map { (eventGroup, filter) ->
+        buildEventGroupSpec(eventGroup, filter, EVENT_RANGE.toInterval())
+      }
+    val expectedResult = calculateExpectedReachMeasurementResult(eventGroupSpecs)
+
+    val reachResult =
+      retrievedReport.metricCalculationResultsList
+        .single()
+        .resultAttributesList
+        .single()
+        .metricResult
+        .reach
+    val actualResult =
+      MeasurementKt.result { reach = MeasurementKt.ResultKt.reach { value = reachResult.value } }
+    val tolerance = computeErrorMargin(reachResult.univariateStatistics.standardDeviation)
+
+    assertThat(actualResult).reachValue().isWithin(tolerance).of(expectedResult.reach.value)
+  }
+
+  @Test
+  fun `report with HMSS union reach across 2 edps has the expected result`() = runBlocking {
+    val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
+    val eventGroups = listEventGroups().sortedBy { it.eventGroupReferenceId }
+
+    val eventGroupEntries: List<Pair<EventGroup, String>> =
+      listOf(
+        eventGroups[0] to "person.age_group == ${Person.AgeGroup.YEARS_18_TO_34_VALUE}",
+        eventGroups[1] to "person.age_group == ${Person.AgeGroup.YEARS_55_PLUS_VALUE}",
+        eventGroups[2] to "person.age_group == ${Person.AgeGroup.YEARS_55_PLUS_VALUE}",
+      )
+
+    val createdPrimitiveReportingSets: List<ReportingSet> =
+      createPrimitiveReportingSets(eventGroupEntries, measurementConsumerData.name)
+
+    val compositeReportingSet = reportingSet {
+      displayName = "composite"
+      composite =
+        ReportingSetKt.composite {
+          expression =
+            ReportingSetKt.setExpression {
+              operation = ReportingSet.SetExpression.Operation.UNION
+              lhs =
+                ReportingSetKt.SetExpressionKt.operand {
+                  reportingSet = createdPrimitiveReportingSets[0].name
+                }
+              rhs =
+                ReportingSetKt.SetExpressionKt.operand {
+                  reportingSet = createdPrimitiveReportingSets[2].name
                 }
             }
         }

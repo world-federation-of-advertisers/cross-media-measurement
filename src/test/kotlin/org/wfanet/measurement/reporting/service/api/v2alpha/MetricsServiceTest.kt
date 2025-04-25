@@ -2669,6 +2669,26 @@ class MetricsServiceTest {
   }
 
   @Test
+  fun `normalize relative frequency distribution with some negative values succeeds`() {
+    val relativeFrequencyDistribution = mapOf(1 to 0.3, 2 to -0.1, 3 to 0.0, 4 to 0.4, 5 to 0.4)
+
+    val expectedNormalizedRelativeFrequencyDistribution =
+      mapOf(1 to 0.3 / 1.1, 2 to 0.0, 3 to 0.0, 4 to 0.4 / 1.1, 5 to 0.4 / 1.1)
+    assertThat(normalizeRelativeFrequencyDistribution(relativeFrequencyDistribution))
+      .isEqualTo(expectedNormalizedRelativeFrequencyDistribution)
+  }
+
+  @Test
+  fun `normalize relative frequency distribution with regular values succeeds`() {
+    val relativeFrequencyDistribution = mapOf(1 to 0.1, 2 to 0.2, 3 to 0.3, 4 to 0.4, 5 to 0.0)
+
+    val expectedNormalizedRelativeFrequencyDistribution =
+      mapOf(1 to 0.1, 2 to 0.2, 3 to 0.3, 4 to 0.4, 5 to 0.0)
+    assertThat(normalizeRelativeFrequencyDistribution(relativeFrequencyDistribution))
+      .isEqualTo(expectedNormalizedRelativeFrequencyDistribution)
+  }
+
+  @Test
   fun `createMetric creates measurements for single pub reach when single edp params set`() {
     // Create a local service with an empty measurement consumer model line map so that the
     // default model line behavior can be tested.

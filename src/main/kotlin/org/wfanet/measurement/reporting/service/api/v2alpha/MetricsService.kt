@@ -2627,7 +2627,9 @@ fun buildWeightedFrequencyMeasurementVarianceParams(
         totalReach = weightedReachMeasurementVarianceParams.measurementVarianceParams.reach,
         reachMeasurementVariance = reachMeasurementVariance,
         relativeFrequencyDistribution =
-          frequencyResult.relativeFrequencyDistributionMap.mapKeys { it.key.toInt() },
+          normalizeRelativeFrequencyDistribution(
+            frequencyResult.relativeFrequencyDistributionMap.mapKeys { it.key.toInt() }
+          ),
         measurementParams =
           FrequencyMeasurementParams(
             vidSamplingInterval = vidSamplingInterval.toStatsVidSamplingInterval(),
@@ -2638,6 +2640,33 @@ fun buildWeightedFrequencyMeasurementVarianceParams(
       ),
     methodology = frequencyMethodology,
   )
+}
+
+/**
+ * Given a map<Int, Double>, generates a new map that:
+ * 1. Clamps all negative Double values to 0.0.
+ * 2. Normalizes the resulting values so that their sum is at most 1.0.
+ *
+ * @param relativeFrequencyDistribution The original map with Int keys and Double values.
+ * @return A new map with the same keys but with clamped and normalized Double values.
+ */
+fun normalizeRelativeFrequencyDistribution(
+  relativeFrequencyDistribution: Map<Int, Double>
+): Map<Int, Double> {
+  val clampedRelativeFrequencyDistribution =
+    relativeFrequencyDistribution.mapValues { max(0.0, it.value) }
+
+  val sumOfClampedFrequencyDistributions =
+    max(0.0, clampedRelativeFrequencyDistribution.values.sum())
+
+  // Handles the singularity where all frequencies are zero.
+  if (sumOfClampedFrequencyDistributions >= 1.0) {
+    return clampedRelativeFrequencyDistribution.mapValues {
+      it.value / sumOfClampedFrequencyDistributions
+    }
+  } else {
+    return clampedRelativeFrequencyDistribution
+  }
 }
 
 /**
