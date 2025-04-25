@@ -54,8 +54,8 @@ import org.wfanet.measurement.api.v2alpha.listModelLinesPageToken
 import org.wfanet.measurement.api.v2alpha.listModelLinesRequest
 import org.wfanet.measurement.api.v2alpha.listModelLinesResponse
 import org.wfanet.measurement.api.v2alpha.modelLine
-import org.wfanet.measurement.api.v2alpha.searchValidModelLinesRequest
-import org.wfanet.measurement.api.v2alpha.searchValidModelLinesResponse
+import org.wfanet.measurement.api.v2alpha.enumerateValidModelLinesRequest
+import org.wfanet.measurement.api.v2alpha.enumerateValidModelLinesResponse
 import org.wfanet.measurement.api.v2alpha.setModelLineActiveEndTimeRequest
 import org.wfanet.measurement.api.v2alpha.setModelLineHoldbackModelLineRequest
 import org.wfanet.measurement.api.v2alpha.withDataProviderPrincipal
@@ -1270,7 +1270,7 @@ class ModelLinesServiceTest {
   }
 
   @Test
-  fun `searchValidModelLines returns model lines in order`(): Unit = runBlocking {
+  fun `enumerateValidModelLines returns model lines in order`(): Unit = runBlocking {
     val externalModelLineId4 = 1234L
     val modelLineName4 =
       ModelLineKey(
@@ -1390,10 +1390,10 @@ class ModelLinesServiceTest {
         )
       )
 
-    val searchValidModelLinesResponse =
+    val enumerateValidModelLinesResponse =
       withModelProviderPrincipal(MODEL_PROVIDER_NAME) {
-        service.searchValidModelLines(
-          searchValidModelLinesRequest {
+        service.enumerateValidModelLines(
+          enumerateValidModelLinesRequest {
             parent = MODEL_SUITE_NAME
             timeInterval = interval {
               startTime = timestamp { seconds = 75 }
@@ -1407,9 +1407,9 @@ class ModelLinesServiceTest {
         )
       }
 
-    assertThat(searchValidModelLinesResponse)
+    assertThat(enumerateValidModelLinesResponse)
       .isEqualTo(
-        searchValidModelLinesResponse {
+        enumerateValidModelLinesResponse {
           modelLines += modelLine {
             name = MODEL_LINE_NAME_2
             activeStartTime = timestamp { seconds = 40 }
@@ -1498,7 +1498,7 @@ class ModelLinesServiceTest {
   }
 
   @Test
-  fun `searchValidModelLines does not return model line if 2 rollouts`(): Unit = runBlocking {
+  fun `enumerateValidModelLines does not return model line if 2 rollouts`(): Unit = runBlocking {
     whenever(
         internalDataProvidersMock.getDataProvider(
           getDataProviderRequest { externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID }
@@ -1536,10 +1536,10 @@ class ModelLinesServiceTest {
         )
       )
 
-    val searchValidModelLinesResponse =
+    val enumerateValidModelLinesResponse =
       withModelProviderPrincipal(MODEL_PROVIDER_NAME) {
-        service.searchValidModelLines(
-          searchValidModelLinesRequest {
+        service.enumerateValidModelLines(
+          enumerateValidModelLinesRequest {
             parent = MODEL_SUITE_NAME
             timeInterval = interval {
               startTime = timestamp { seconds = 50 }
@@ -1550,7 +1550,7 @@ class ModelLinesServiceTest {
         )
       }
 
-    assertThat(searchValidModelLinesResponse).isEqualTo(searchValidModelLinesResponse {})
+    assertThat(enumerateValidModelLinesResponse).isEqualTo(enumerateValidModelLinesResponse {})
 
     verifyProtoArgument(internalModelLinesMock, ModelLinesCoroutineImplBase::streamModelLines)
       .isEqualTo(
@@ -1581,7 +1581,7 @@ class ModelLinesServiceTest {
   }
 
   @Test
-  fun `searchValidModelLines does not return model line if 0 rollouts`(): Unit = runBlocking {
+  fun `enumerateValidModelLines does not return model line if 0 rollouts`(): Unit = runBlocking {
     whenever(
         internalDataProvidersMock.getDataProvider(
           getDataProviderRequest { externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID }
@@ -1618,10 +1618,10 @@ class ModelLinesServiceTest {
         )
       )
 
-    val searchValidModelLinesResponse =
+    val enumerateValidModelLinesResponse =
       withModelProviderPrincipal(MODEL_PROVIDER_NAME) {
-        service.searchValidModelLines(
-          searchValidModelLinesRequest {
+        service.enumerateValidModelLines(
+          enumerateValidModelLinesRequest {
             parent = MODEL_SUITE_NAME
             timeInterval = interval {
               startTime = timestamp { seconds = 50 }
@@ -1632,7 +1632,7 @@ class ModelLinesServiceTest {
         )
       }
 
-    assertThat(searchValidModelLinesResponse).isEqualTo(searchValidModelLinesResponse {})
+    assertThat(enumerateValidModelLinesResponse).isEqualTo(enumerateValidModelLinesResponse {})
 
     verifyProtoArgument(internalModelLinesMock, ModelLinesCoroutineImplBase::streamModelLines)
       .isEqualTo(
@@ -1663,7 +1663,7 @@ class ModelLinesServiceTest {
   }
 
   @Test
-  fun `searchValidModelLines does not return model line if time interval not in active interval`():
+  fun `enumerateValidModelLines does not return model line if time interval not in active interval`():
     Unit = runBlocking {
     whenever(
         internalDataProvidersMock.getDataProvider(
@@ -1699,10 +1699,10 @@ class ModelLinesServiceTest {
         )
       )
 
-    val searchValidModelLinesResponse =
+    val enumerateValidModelLinesResponse =
       withModelProviderPrincipal(MODEL_PROVIDER_NAME) {
-        service.searchValidModelLines(
-          searchValidModelLinesRequest {
+        service.enumerateValidModelLines(
+          enumerateValidModelLinesRequest {
             parent = MODEL_SUITE_NAME
             timeInterval = interval {
               startTime = timestamp { seconds = 10 }
@@ -1713,7 +1713,7 @@ class ModelLinesServiceTest {
         )
       }
 
-    assertThat(searchValidModelLinesResponse).isEqualTo(searchValidModelLinesResponse {})
+    assertThat(enumerateValidModelLinesResponse).isEqualTo(enumerateValidModelLinesResponse {})
 
     verifyProtoArgument(internalModelLinesMock, ModelLinesCoroutineImplBase::streamModelLines)
       .isEqualTo(
@@ -1729,7 +1729,7 @@ class ModelLinesServiceTest {
   }
 
   @Test
-  fun `searchValidModelLines returns no model lines if time interval not in edp interval`(): Unit =
+  fun `enumerateValidModelLines returns no model lines if time interval not in edp interval`(): Unit =
     runBlocking {
       whenever(
           internalDataProvidersMock.getDataProvider(
@@ -1765,10 +1765,10 @@ class ModelLinesServiceTest {
           )
         )
 
-      val searchValidModelLinesResponse =
+      val enumerateValidModelLinesResponse =
         withModelProviderPrincipal(MODEL_PROVIDER_NAME) {
-          service.searchValidModelLines(
-            searchValidModelLinesRequest {
+          service.enumerateValidModelLines(
+            enumerateValidModelLinesRequest {
               parent = MODEL_SUITE_NAME
               timeInterval = interval {
                 startTime = timestamp { seconds = 40 }
@@ -1779,7 +1779,7 @@ class ModelLinesServiceTest {
           )
         }
 
-      assertThat(searchValidModelLinesResponse).isEqualTo(searchValidModelLinesResponse {})
+      assertThat(enumerateValidModelLinesResponse).isEqualTo(enumerateValidModelLinesResponse {})
 
       verifyProtoArgument(internalModelLinesMock, ModelLinesCoroutineImplBase::streamModelLines)
         .isEqualTo(
@@ -1795,7 +1795,7 @@ class ModelLinesServiceTest {
     }
 
   @Test
-  fun `searchValidModelLines returns no model lines if no edp interval for model line`(): Unit =
+  fun `enumerateValidModelLines returns no model lines if no edp interval for model line`(): Unit =
     runBlocking {
       whenever(
           internalDataProvidersMock.getDataProvider(
@@ -1831,10 +1831,10 @@ class ModelLinesServiceTest {
           )
         )
 
-      val searchValidModelLinesResponse =
+      val enumerateValidModelLinesResponse =
         withModelProviderPrincipal(MODEL_PROVIDER_NAME) {
-          service.searchValidModelLines(
-            searchValidModelLinesRequest {
+          service.enumerateValidModelLines(
+            enumerateValidModelLinesRequest {
               parent = MODEL_SUITE_NAME
               timeInterval = interval {
                 startTime = timestamp { seconds = 40 }
@@ -1845,7 +1845,7 @@ class ModelLinesServiceTest {
           )
         }
 
-      assertThat(searchValidModelLinesResponse).isEqualTo(searchValidModelLinesResponse {})
+      assertThat(enumerateValidModelLinesResponse).isEqualTo(enumerateValidModelLinesResponse {})
 
       verifyProtoArgument(internalModelLinesMock, ModelLinesCoroutineImplBase::streamModelLines)
         .isEqualTo(
@@ -1861,15 +1861,15 @@ class ModelLinesServiceTest {
     }
 
   @Test
-  fun `searchValidModelLines throws NOT_FOUND when data provider not found`(): Unit = runBlocking {
+  fun `enumerateValidModelLines throws NOT_FOUND when data provider not found`(): Unit = runBlocking {
     whenever(internalDataProvidersMock.getDataProvider(any()))
       .thenThrow(StatusRuntimeException(Status.NOT_FOUND))
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
         withModelProviderPrincipal(MODEL_PROVIDER_NAME) {
-          service.searchValidModelLines(
-            searchValidModelLinesRequest {
+          service.enumerateValidModelLines(
+            enumerateValidModelLinesRequest {
               parent = MODEL_SUITE_NAME
               timeInterval = interval {
                 startTime = timestamp { seconds = 100 }
@@ -1886,13 +1886,13 @@ class ModelLinesServiceTest {
   }
 
   @Test
-  fun `searchValidModelLines throws PERMISSION_DENIED when wrong model provider`() {
+  fun `enumerateValidModelLines throws PERMISSION_DENIED when wrong model provider`() {
     val exception =
       assertFailsWith<StatusRuntimeException> {
         withModelProviderPrincipal(MODEL_PROVIDER_NAME_2) {
           runBlocking {
-            service.searchValidModelLines(
-              searchValidModelLinesRequest {
+            service.enumerateValidModelLines(
+              enumerateValidModelLinesRequest {
                 parent = MODEL_SUITE_NAME
                 timeInterval = interval {
                   startTime = timestamp { seconds = 100 }
@@ -1909,13 +1909,13 @@ class ModelLinesServiceTest {
   }
 
   @Test
-  fun `searchValidModelLines throws PERMISSION_DENIED when wrong principal`() {
+  fun `enumerateValidModelLines throws PERMISSION_DENIED when wrong principal`() {
     val exception =
       assertFailsWith<StatusRuntimeException> {
         withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
           runBlocking {
-            service.searchValidModelLines(
-              searchValidModelLinesRequest {
+            service.enumerateValidModelLines(
+              enumerateValidModelLinesRequest {
                 parent = MODEL_SUITE_NAME
                 timeInterval = interval {
                   startTime = timestamp { seconds = 100 }
@@ -1932,13 +1932,13 @@ class ModelLinesServiceTest {
   }
 
   @Test
-  fun `searchValidModelLines throws INVALID_ARGUMENT when parent is missing`() = runBlocking {
+  fun `enumerateValidModelLines throws INVALID_ARGUMENT when parent is missing`() = runBlocking {
     val exception =
       assertFailsWith<StatusRuntimeException> {
         withModelProviderPrincipal(MODEL_PROVIDER_NAME) {
           runBlocking {
-            service.searchValidModelLines(
-              searchValidModelLinesRequest {
+            service.enumerateValidModelLines(
+              enumerateValidModelLinesRequest {
                 timeInterval = interval {
                   startTime = timestamp { seconds = 100 }
                   endTime = timestamp { seconds = 200 }
@@ -1955,13 +1955,13 @@ class ModelLinesServiceTest {
   }
 
   @Test
-  fun `searchValidModelLines throws INVALID_ARGUMENT when parent is invalid`() = runBlocking {
+  fun `enumerateValidModelLines throws INVALID_ARGUMENT when parent is invalid`() = runBlocking {
     val exception =
       assertFailsWith<StatusRuntimeException> {
         withModelProviderPrincipal(MODEL_PROVIDER_NAME) {
           runBlocking {
-            service.searchValidModelLines(
-              searchValidModelLinesRequest {
+            service.enumerateValidModelLines(
+              enumerateValidModelLinesRequest {
                 parent = "invalid_name"
                 timeInterval = interval {
                   startTime = timestamp { seconds = 100 }
@@ -1979,14 +1979,14 @@ class ModelLinesServiceTest {
   }
 
   @Test
-  fun `searchValidModelLines throws INVALID_ARGUMENT when time_interval is missing`() =
+  fun `enumerateValidModelLines throws INVALID_ARGUMENT when time_interval is missing`() =
     runBlocking {
       val exception =
         assertFailsWith<StatusRuntimeException> {
           withModelProviderPrincipal(MODEL_PROVIDER_NAME) {
             runBlocking {
-              service.searchValidModelLines(
-                searchValidModelLinesRequest {
+              service.enumerateValidModelLines(
+                enumerateValidModelLinesRequest {
                   parent = MODEL_SUITE_NAME
                   dataProviders += DATA_PROVIDER_NAME
                 }
@@ -2000,14 +2000,14 @@ class ModelLinesServiceTest {
     }
 
   @Test
-  fun `searchValidModelLines throws INVALID_ARGUMENT when time_interval start_time is invalid`() =
+  fun `enumerateValidModelLines throws INVALID_ARGUMENT when time_interval start_time is invalid`() =
     runBlocking {
       val exception =
         assertFailsWith<StatusRuntimeException> {
           withModelProviderPrincipal(MODEL_PROVIDER_NAME) {
             runBlocking {
-              service.searchValidModelLines(
-                searchValidModelLinesRequest {
+              service.enumerateValidModelLines(
+                enumerateValidModelLinesRequest {
                   parent = MODEL_SUITE_NAME
                   timeInterval = interval {
                     startTime = timestamp { seconds = Long.MAX_VALUE }
@@ -2025,14 +2025,14 @@ class ModelLinesServiceTest {
     }
 
   @Test
-  fun `searchValidModelLines throws INVALID_ARGUMENT when time_interval end_time is invalid`() =
+  fun `enumerateValidModelLines throws INVALID_ARGUMENT when time_interval end_time is invalid`() =
     runBlocking {
       val exception =
         assertFailsWith<StatusRuntimeException> {
           withModelProviderPrincipal(MODEL_PROVIDER_NAME) {
             runBlocking {
-              service.searchValidModelLines(
-                searchValidModelLinesRequest {
+              service.enumerateValidModelLines(
+                enumerateValidModelLinesRequest {
                   parent = MODEL_SUITE_NAME
                   timeInterval = interval {
                     startTime = timestamp { seconds = 100 }
@@ -2050,14 +2050,14 @@ class ModelLinesServiceTest {
     }
 
   @Test
-  fun `searchValidModelLines throws INVALID_ARGUMENT when time_interval start equals end`() =
+  fun `enumerateValidModelLines throws INVALID_ARGUMENT when time_interval start equals end`() =
     runBlocking {
       val exception =
         assertFailsWith<StatusRuntimeException> {
           withModelProviderPrincipal(MODEL_PROVIDER_NAME) {
             runBlocking {
-              service.searchValidModelLines(
-                searchValidModelLinesRequest {
+              service.enumerateValidModelLines(
+                enumerateValidModelLinesRequest {
                   parent = MODEL_SUITE_NAME
                   timeInterval = interval {
                     startTime = timestamp { seconds = 100 }
@@ -2075,14 +2075,14 @@ class ModelLinesServiceTest {
     }
 
   @Test
-  fun `searchValidModelLines throws INVALID_ARGUMENT when time_interval start greater than end`() =
+  fun `enumerateValidModelLines throws INVALID_ARGUMENT when time_interval start greater than end`() =
     runBlocking {
       val exception =
         assertFailsWith<StatusRuntimeException> {
           withModelProviderPrincipal(MODEL_PROVIDER_NAME) {
             runBlocking {
-              service.searchValidModelLines(
-                searchValidModelLinesRequest {
+              service.enumerateValidModelLines(
+                enumerateValidModelLinesRequest {
                   parent = MODEL_SUITE_NAME
                   timeInterval = interval {
                     startTime = timestamp { seconds = 200 }
@@ -2100,14 +2100,14 @@ class ModelLinesServiceTest {
     }
 
   @Test
-  fun `searchValidModelLines throws INVALID_ARGUMENT when data_providers is missing`() =
+  fun `enumerateValidModelLines throws INVALID_ARGUMENT when data_providers is missing`() =
     runBlocking {
       val exception =
         assertFailsWith<StatusRuntimeException> {
           withModelProviderPrincipal(MODEL_PROVIDER_NAME) {
             runBlocking {
-              service.searchValidModelLines(
-                searchValidModelLinesRequest {
+              service.enumerateValidModelLines(
+                enumerateValidModelLinesRequest {
                   parent = MODEL_SUITE_NAME
                   timeInterval = interval {
                     startTime = timestamp { seconds = 100 }
@@ -2124,14 +2124,14 @@ class ModelLinesServiceTest {
     }
 
   @Test
-  fun `searchValidModelLines throws INVALID_ARGUMENT when dataProviders has invalid name`() =
+  fun `enumerateValidModelLines throws INVALID_ARGUMENT when dataProviders has invalid name`() =
     runBlocking {
       val exception =
         assertFailsWith<StatusRuntimeException> {
           withModelProviderPrincipal(MODEL_PROVIDER_NAME) {
             runBlocking {
-              service.searchValidModelLines(
-                searchValidModelLinesRequest {
+              service.enumerateValidModelLines(
+                enumerateValidModelLinesRequest {
                   parent = MODEL_SUITE_NAME
                   timeInterval = interval {
                     startTime = timestamp { seconds = 100 }

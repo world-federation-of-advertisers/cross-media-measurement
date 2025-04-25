@@ -369,6 +369,6 @@ single_version_override(
 
 archive_override(
     module_name = "cross-media-measurement-api",
-    strip_prefix = "cross-media-measurement-api-1ccd68442afc9bc1e6ff5817a6cdf25e9a91662d",
-    urls = ["https://github.com/world-federation-of-advertisers/cross-media-measurement-api/archive/1ccd68442afc9bc1e6ff5817a6cdf25e9a91662d.tar.gz"],
+    strip_prefix = "cross-media-measurement-api-655f35625ad64da6508ce8c8973650a40314e10f",
+    urls = ["https://github.com/world-federation-of-advertisers/cross-media-measurement-api/archive/655f35625ad64da6508ce8c8973650a40314e10f.tar.gz"],
 )

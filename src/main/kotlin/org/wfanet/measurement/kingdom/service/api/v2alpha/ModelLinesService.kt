@@ -37,15 +37,15 @@ import org.wfanet.measurement.api.v2alpha.ModelLineKey
 import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt.ModelLinesCoroutineImplBase as ModelLinesCoroutineService
 import org.wfanet.measurement.api.v2alpha.ModelProviderPrincipal
 import org.wfanet.measurement.api.v2alpha.ModelSuiteKey
-import org.wfanet.measurement.api.v2alpha.SearchValidModelLinesRequest
-import org.wfanet.measurement.api.v2alpha.SearchValidModelLinesResponse
+import org.wfanet.measurement.api.v2alpha.EnumerateValidModelLinesRequest
+import org.wfanet.measurement.api.v2alpha.EnumerateValidModelLinesResponse
 import org.wfanet.measurement.api.v2alpha.SetModelLineActiveEndTimeRequest
 import org.wfanet.measurement.api.v2alpha.SetModelLineHoldbackModelLineRequest
 import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.listModelLinesPageToken
 import org.wfanet.measurement.api.v2alpha.listModelLinesResponse
 import org.wfanet.measurement.api.v2alpha.principalFromCurrentContext
-import org.wfanet.measurement.api.v2alpha.searchValidModelLinesResponse
+import org.wfanet.measurement.api.v2alpha.enumerateValidModelLinesResponse
 import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.grpc.failGrpc
@@ -235,9 +235,9 @@ class ModelLinesService(
     }
   }
 
-  override suspend fun searchValidModelLines(
-    request: SearchValidModelLinesRequest
-  ): SearchValidModelLinesResponse {
+  override suspend fun enumerateValidModelLines(
+    request: EnumerateValidModelLinesRequest
+  ): EnumerateValidModelLinesResponse {
     val parent =
       grpcRequireNotNull(ModelSuiteKey.fromName(request.parent)) {
         "parent is either unspecified or invalid"
@@ -388,7 +388,7 @@ class ModelLinesService(
       }
     }
 
-    return searchValidModelLinesResponse {
+    return enumerateValidModelLinesResponse {
       this.modelLines += validModelLines.sortedWith(modelLineComparator())
     }
   }
