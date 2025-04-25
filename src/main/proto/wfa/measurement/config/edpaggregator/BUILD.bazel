@@ -9,22 +9,8 @@ package(default_visibility = ["//visibility:public"])
 IMPORT_PREFIX = "/src/main/proto"
 
 proto_library(
-    name = "queues_config_proto",
-    srcs = ["queues_config.proto"],
-    strip_import_prefix = IMPORT_PREFIX,
-    deps = [
-        "@com_google_googleapis//google/api:field_behavior_proto",
-    ],
-)
-
-kt_jvm_proto_library(
-    name = "queues_config_kt_jvm_proto",
-    deps = [":queues_config_proto"],
-)
-
-proto_library(
-    name = "data_watcher_config_proto",
-    srcs = ["data_watcher_config.proto"],
+    name = "requisition_fetcher_config_proto",
+    srcs = ["requisition_fetcher_config.proto"],
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
         "@com_google_googleapis//google/api:field_behavior_proto",
@@ -34,6 +20,6 @@ proto_library(
 )
 
 kt_jvm_proto_library(
-    name = "data_watcher_config_kt_jvm_proto",
-    deps = [":data_watcher_config_proto"],
+    name = "requisition_fetcher_config_kt_jvm_proto",
+    deps = [":requisition_fetcher_config_proto"],
 )

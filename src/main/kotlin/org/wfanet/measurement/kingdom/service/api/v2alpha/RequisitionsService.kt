@@ -44,6 +44,7 @@ import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.Requisition.DuchyEntry
 import org.wfanet.measurement.api.v2alpha.Requisition.Refusal
 import org.wfanet.measurement.api.v2alpha.Requisition.State
+import org.wfanet.measurement.api.v2alpha.RequisitionKt
 import org.wfanet.measurement.api.v2alpha.RequisitionKt.DuchyEntryKt
 import org.wfanet.measurement.api.v2alpha.RequisitionKt.DuchyEntryKt.value
 import org.wfanet.measurement.api.v2alpha.RequisitionKt.duchyEntry
@@ -73,6 +74,7 @@ import org.wfanet.measurement.internal.kingdom.LiquidLegionsV2Params
 import org.wfanet.measurement.internal.kingdom.Requisition as InternalRequisition
 import org.wfanet.measurement.internal.kingdom.Requisition.DuchyValue
 import org.wfanet.measurement.internal.kingdom.Requisition.State as InternalState
+import org.wfanet.measurement.internal.kingdom.RequisitionDetailsKt
 import org.wfanet.measurement.internal.kingdom.RequisitionRefusal as InternalRefusal
 import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequest
@@ -239,6 +241,13 @@ class RequisitionsService(private val internalRequisitionStub: RequisitionsCorou
     val fulfillRequest = fulfillRequisitionRequest {
       externalRequisitionId = apiIdToExternalId(key.requisitionId)
       nonce = request.nonce
+      if (request.hasFulfillmentContext()) {
+        fulfillmentContext =
+          RequisitionDetailsKt.fulfillmentContext {
+            buildLabel = request.fulfillmentContext.buildLabel
+            warnings += request.fulfillmentContext.warningsList
+          }
+      }
       directParams = directRequisitionParams {
         externalDataProviderId = apiIdToExternalId(key.dataProviderId)
         encryptedData = encryptedResultCiphertext
@@ -357,6 +366,13 @@ private fun InternalRequisition.toRequisition(): Requisition {
         justification = details.refusal.justification.toRefusalJustification()
         message = details.refusal.message
       }
+    }
+    if (details.hasFulfillmentContext()) {
+      fulfillmentContext =
+        RequisitionKt.fulfillmentContext {
+          buildLabel = details.fulfillmentContext.buildLabel
+          warnings += details.fulfillmentContext.warningsList
+        }
     }
     measurementState = this@toRequisition.parentMeasurement.state.toState()
     updateTime = this@toRequisition.updateTime

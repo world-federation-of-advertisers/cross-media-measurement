@@ -26,9 +26,9 @@ option java_outer_classname = "DataWatcherConfigProto";
 
 // Individual application-specific config that maps a path of data to the
 // application sink and application config.
-message DataWatcherConfig {
-  // Resource name.
-  string name = 1 [(google.api.field_behavior) = IDENTIFIER];
+message WatchedPath {
+  // Unique watched path identifier.
+  string identifier = 1;
   // The path to watch
   string source_path_regex = 2;
 
@@ -40,7 +40,7 @@ message DataWatcherConfig {
     google.protobuf.Any app_params = 2;
   }
   // The config used for any Webhooks
-  message HttpEndpointsSink {
+  message HttpEndpointSink {
     // The endpoint to trigger.
     string endpoint_uri = 1;
     // Json payload to send to endpoint of application-specific config.
@@ -51,12 +51,12 @@ message DataWatcherConfig {
     // The sink used to send event to the Control Plane.
     ControlPlaneQueueSink control_plane_queue_sink = 3;
     // The sink used to send events to a web hook.
-    HttpEndpointsSink http_endpoints_sink = 4;
+    HttpEndpointSink http_endpoint_sink = 4;
   }
 }
 
 // The DataWatcher configuration
-message DataWatcherConfigs {
+message DataWatcherConfig {
   // All the configs that the DataWatcher will match
-  repeated DataWatcherConfig configs = 1;
+  repeated WatchedPath watched_paths = 1;
 }

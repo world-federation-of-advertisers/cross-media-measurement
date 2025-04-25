@@ -75,7 +75,7 @@ class InvokeDataWatcherFunctionTest() {
 
   private lateinit var storageClient: GcsStorageClient
   private lateinit var grpcServer: CommonServer
-  /** Process for RequisitionFetcher Google cloud function. */
+  /** Process for Google cloud function. */
   private lateinit var functionProcess: FunctionsFrameworkInvokerProcess
 
   private val workItemsServiceMock: WorkItemsCoroutineImplBase = mockService {
@@ -92,7 +92,7 @@ class InvokeDataWatcherFunctionTest() {
 
   @Before
   fun startInfra() {
-    /** Start gRPC server with mock Requisitions service */
+    /** Start gRPC server with mock Work Items service */
     grpcServer =
       CommonServer.fromParameters(
         verboseGrpcLogging = true,
@@ -112,23 +112,27 @@ class InvokeDataWatcherFunctionTest() {
           mapOf(
             "DATA_WATCHER_CONFIG_RESOURCE_PATH" to
               Paths.get(
-                  "main",
-                  "kotlin",
-                  "org",
-                  "wfanet",
-                  "resources",
-                  "securecomputation",
-                  "datawatcher",
-                  "data_watcher_config.textproto",
-                )
+                "main",
+                "kotlin",
+                "org",
+                "wfanet",
+                "measurement",
+                "securecomputation",
+                "deploy",
+                "gcloud",
+                "datawatcher",
+                "testing",
+                "data_watcher_config.textproto",
+              )
                 .toString(),
             "CONTROL_PLANE_PROJECT_ID" to projectId,
             "CONTROL_PLANE_TARGET" to "localhost:${grpcServer.port}",
             "CONTROL_PLANE_CERT_HOST" to "localhost",
             "CONTROL_PLANE_CHANNEL_SHUTDOWN_DURATION_SECONDS" to "3",
-            "CERT_FILE_PATH" to JAR_SECRETS_DIR.resolve("edp1_tls.pem").toString(),
-            "PRIVATE_KEY_FILE_PATH" to JAR_SECRETS_DIR.resolve("edp1_tls.key").toString(),
-            "CERT_COLLECTION_FILE_PATH" to JAR_SECRETS_DIR.resolve("kingdom_root.pem").toString(),
+            "CERT_JAR_RESOURCE_PATH" to JAR_SECRETS_DIR.resolve("edp1_tls.pem").toString(),
+            "PRIVATE_KEY_JAR_RESOURCE_PATH" to JAR_SECRETS_DIR.resolve("edp1_tls.key").toString(),
+            "CERT_COLLECTION_JAR_RESOURCE_PATH" to
+              JAR_SECRETS_DIR.resolve("kingdom_root.pem").toString(),
           ) + additionalFlags
         )
       logger.info("Started DataWatcher process on port $port")
@@ -144,7 +148,7 @@ class InvokeDataWatcherFunctionTest() {
 
   /** Tests the DataWatcherFunction as a local process. */
   @Test
-  fun `verify DataWatcherFunction returns a 200`() {
+  fun `verify DataWatcherFunction returns a 200 and creates work item`() {
     val url = "http://localhost:${functionProcess.port}"
     logger.info("Testing Cloud Function at: $url")
 
@@ -199,11 +203,11 @@ class InvokeDataWatcherFunctionTest() {
     private val serverCerts =
       SigningCerts.fromPemFiles(
         certificateFile =
-          CLASS_LOADER.getJarResourceFile(SECRETS_DIR.resolve("kingdom_tls.pem").toString())!!,
+        CLASS_LOADER.getJarResourceFile(SECRETS_DIR.resolve("kingdom_tls.pem").toString())!!,
         privateKeyFile =
-          CLASS_LOADER.getJarResourceFile(SECRETS_DIR.resolve("kingdom_tls.key").toString())!!,
+        CLASS_LOADER.getJarResourceFile(SECRETS_DIR.resolve("kingdom_tls.key").toString())!!,
         trustedCertCollectionFile =
-          CLASS_LOADER.getJarResourceFile(SECRETS_DIR.resolve("edp1_root.pem").toString())!!,
+        CLASS_LOADER.getJarResourceFile(SECRETS_DIR.resolve("edp1_root.pem").toString())!!,
       )
     private val logger: Logger = Logger.getLogger(this::class.java.name)
   }
