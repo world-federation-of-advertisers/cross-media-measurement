@@ -75,7 +75,7 @@ class InvokeDataWatcherFunctionTest() {
 
   private lateinit var storageClient: GcsStorageClient
   private lateinit var grpcServer: CommonServer
-  /** Process for RequisitionFetcher Google cloud function. */
+  /** Process for Google cloud function. */
   private lateinit var functionProcess: FunctionsFrameworkInvokerProcess
 
   private val workItemsServiceMock: WorkItemsCoroutineImplBase = mockService {
@@ -92,15 +92,15 @@ class InvokeDataWatcherFunctionTest() {
 
   @Before
   fun startInfra() {
-    /** Start gRPC server with mock Requisitions service */
+    /** Start gRPC server with mock Work Items service */
     grpcServer =
       CommonServer.fromParameters(
-        verboseGrpcLogging = true,
-        certs = serverCerts,
-        clientAuth = ClientAuth.REQUIRE,
-        nameForLogging = "WorkItemsServer",
-        services = listOf(workItemsServiceMock.bindService()),
-      )
+          verboseGrpcLogging = true,
+          certs = serverCerts,
+          clientAuth = ClientAuth.REQUIRE,
+          nameForLogging = "WorkItemsServer",
+          services = listOf(workItemsServiceMock.bindService()),
+        )
         .start()
     logger.info("Started gRPC server on port ${grpcServer.port}")
     /** Start the DataWatcherFunction process */
@@ -110,25 +110,14 @@ class InvokeDataWatcherFunctionTest() {
       val port =
         functionProcess.start(
           mapOf(
-            "DATA_WATCHER_CONFIG_RESOURCE_PATH" to
-              Paths.get(
-                "main",
-                "kotlin",
-                "org",
-                "wfanet",
-                "resources",
-                "securecomputation",
-                "datawatcher",
-                "data_watcher_config.textproto",
-              )
-                .toString(),
             "CONTROL_PLANE_PROJECT_ID" to projectId,
             "CONTROL_PLANE_TARGET" to "localhost:${grpcServer.port}",
             "CONTROL_PLANE_CERT_HOST" to "localhost",
             "CONTROL_PLANE_CHANNEL_SHUTDOWN_DURATION_SECONDS" to "3",
-            "CERT_FILE_PATH" to JAR_SECRETS_DIR.resolve("edp1_tls.pem").toString(),
-            "PRIVATE_KEY_FILE_PATH" to JAR_SECRETS_DIR.resolve("edp1_tls.key").toString(),
-            "CERT_COLLECTION_FILE_PATH" to JAR_SECRETS_DIR.resolve("kingdom_root.pem").toString(),
+            "CERT_JAR_RESOURCE_PATH" to JAR_SECRETS_DIR.resolve("edp1_tls.pem").toString(),
+            "PRIVATE_KEY_JAR_RESOURCE_PATH" to JAR_SECRETS_DIR.resolve("edp1_tls.key").toString(),
+            "CERT_COLLECTION_JAR_RESOURCE_PATH" to
+              JAR_SECRETS_DIR.resolve("kingdom_root.pem").toString(),
           ) + additionalFlags
         )
       logger.info("Started DataWatcher process on port $port")
@@ -144,10 +133,9 @@ class InvokeDataWatcherFunctionTest() {
 
   /** Tests the DataWatcherFunction as a local process. */
   @Test
-  fun `verify DataWatcherFunction returns a 200`() {
+  fun `verify DataWatcherFunction returns a 200 and creates work item`() {
     val url = "http://localhost:${functionProcess.port}"
     logger.info("Testing Cloud Function at: $url")
-
     val client = HttpClient.newHttpClient()
     val jsonData =
       """
@@ -166,6 +154,7 @@ class InvokeDataWatcherFunctionTest() {
       }
     """
         .trimIndent()
+
     val getRequest =
       HttpRequest.newBuilder()
         .uri(URI.create(url))
@@ -181,11 +170,14 @@ class InvokeDataWatcherFunctionTest() {
     val getResponse = client.send(getRequest, BodyHandlers.ofString())
     logger.info("Response status: ${getResponse.statusCode()}")
     logger.info("Response body: ${getResponse.body()}")
+
     // Verify the function worked
     // Note that this always returns 200 in spite of the documentation saying that it will return
     // a 500 if the cloud function throws an exception.
     assertThat(getResponse.statusCode()).isEqualTo(200)
+
     val createWorkItemRequestCaptor = argumentCaptor<CreateWorkItemRequest>()
+
     verifyBlocking(workItemsServiceMock, times(1)) {
       createWorkItem(createWorkItemRequestCaptor.capture())
     }

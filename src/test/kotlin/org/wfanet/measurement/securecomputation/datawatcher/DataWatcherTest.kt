@@ -38,9 +38,9 @@ import org.mockito.kotlin.times
 import org.mockito.kotlin.verifyBlocking
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
-import org.wfanet.measurement.config.securecomputation.DataWatcherConfigKt.controlPlaneQueueSink
-import org.wfanet.measurement.config.securecomputation.DataWatcherConfigKt.httpEndpointsSink
-import org.wfanet.measurement.config.securecomputation.dataWatcherConfig
+import org.wfanet.measurement.config.securecomputation.WatchedPathKt.controlPlaneQueueSink
+import org.wfanet.measurement.config.securecomputation.WatchedPathKt.httpEndpointSink
+import org.wfanet.measurement.config.securecomputation.watchedPath
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.CreateWorkItemRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem.WorkItemParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineImplBase
@@ -63,7 +63,7 @@ class DataWatcherTest() {
       val topicId = "test-topic-id"
       val appParams = Int32Value.newBuilder().setValue(5).build()
 
-      val dataWatcherConfig = dataWatcherConfig {
+      val config = watchedPath {
         sourcePathRegex = "test-schema://test-bucket/path-to-watch/(.*)"
         this.controlPlaneQueueSink = controlPlaneQueueSink {
           queue = topicId
@@ -71,7 +71,7 @@ class DataWatcherTest() {
         }
       }
 
-      val dataWatcher = DataWatcher(workItemsStub, listOf(dataWatcherConfig))
+      val dataWatcher = DataWatcher(workItemsStub, listOf(config))
 
       dataWatcher.receivePath("test-schema://test-bucket/path-to-watch/some-data")
       val createWorkItemRequestCaptor = argumentCaptor<CreateWorkItemRequest>()
@@ -100,9 +100,9 @@ class DataWatcherTest() {
           .putFields("some-key", Value.newBuilder().setStringValue("some-value").build())
           .build()
       val localPort = ServerSocket(0).use { it.localPort }
-      val dataWatcherConfig = dataWatcherConfig {
+      val config = watchedPath {
         sourcePathRegex = "test-schema://test-bucket/path-to-watch/(.*)"
-        this.httpEndpointsSink = httpEndpointsSink {
+        this.httpEndpointSink = httpEndpointSink {
           endpointUri = "http://localhost:$localPort"
           this.appParams = appParams
         }
@@ -110,7 +110,7 @@ class DataWatcherTest() {
       val server = TestServer()
       server.start(localPort)
 
-      val dataWatcher = DataWatcher(workItemsStub, listOf(dataWatcherConfig))
+      val dataWatcher = DataWatcher(workItemsStub, listOf(config))
 
       dataWatcher.receivePath("test-schema://test-bucket/path-to-watch/some-data")
       val createWorkItemRequestCaptor = argumentCaptor<CreateWorkItemRequest>()
@@ -129,7 +129,7 @@ class DataWatcherTest() {
     runBlocking {
       val topicId = "test-topic-id"
 
-      val dataWatcherConfig = dataWatcherConfig {
+      val config = watchedPath {
         sourcePathRegex = "test-schema://test-bucket/path-to-watch/(.*)"
         this.controlPlaneQueueSink = controlPlaneQueueSink {
           queue = topicId
@@ -137,7 +137,7 @@ class DataWatcherTest() {
         }
       }
 
-      val dataWatcher = DataWatcher(workItemsStub, listOf(dataWatcherConfig))
+      val dataWatcher = DataWatcher(workItemsStub, listOf(config))
       dataWatcher.receivePath("test-schema://test-bucket/some-other-path/some-data")
 
       val createWorkItemRequestCaptor = argumentCaptor<CreateWorkItemRequest>()

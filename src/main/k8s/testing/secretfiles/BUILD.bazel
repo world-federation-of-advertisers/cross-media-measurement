@@ -7,6 +7,7 @@ package(
     default_testonly = True,
     default_visibility = [
         "//src/main/k8s:__subpackages__",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/requisitionfetcher/testing:__subpackages__",
         "//src/main/kotlin/org/wfanet/measurement/integration:__subpackages__",
         "//src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/datawatcher/testing:__subpackages__",
         "//src/main/kotlin/org/wfanet/measurement/testing:__subpackages__",
@@ -244,7 +245,7 @@ DATA_WATCHER_SECRET_FILES = [
 filegroup(
     name = "data_watcher_secret_files",
     srcs = DATA_WATCHER_SECRET_FILES,
-    visibility = ["//visibility:public"],
+    visibility = ["//src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/datawatcher:__subpackages__"],
 )
 
 pkg_tar(
