@@ -100,10 +100,6 @@ generated using Bazel rules from files written in [CUE](https://cuelang.org/).
 To generate the `dev` Kustomization, run the following (substituting your own
 values):
 
-If "--basic-reports-enabled=true" is passed in, then "--spanner-instance" is required.
-
-If "--basic-reports-enabled" is set to false or unspecified, then any dummy value can be passed to "--spanner-instance".
-
 ```shell
 bazel build //src/main/k8s/dev:reporting_v2.tar \
   --define reporting_public_api_address_name=reporting-v2alpha \
@@ -115,6 +111,10 @@ bazel build //src/main/k8s/dev:reporting_v2.tar \
   --define image_repo_prefix=halo-reporting-demo --define image_tag=build-0001 \
   --define basic_reports_enabled=true --define spanner_instance=instance
 ```
+
+Note: The value of the `spanner_instance` variable is only used when
+`basic_reports_enabled` is `true`. When `basic_reports` is `false`, you can use
+a dummy value for `spanner_instance`.
 
 Extract the generated archive to some directory.
 
@@ -244,8 +244,9 @@ configuration uses one named `config-files`.
     *   Protobuf `FileDescriptorSet` containing known `EventGroup` metadata
         types.
 *   `impression_qualification_filter_config.textproto`
-    * [`ImpressionQualificationFilterConfig`](../../src/main/proto/wfa/measurement/config/reporting/impression_qualification_filter_config.proto)
-    * This is unused if `--basic-reports-enabled` is false
+    *   [`ImpressionQualificationFilterConfig`](../../src/main/proto/wfa/measurement/config/reporting/impression_qualification_filter_config.proto)
+        *   This is unused if the `basic_reports_enabled` variable was set to
+            `false` when generating the Kustomization.
 
 Place these files into the `src/main/k8s/dev/reporting_v2_config_files/` path
 within the Kustomization directory.

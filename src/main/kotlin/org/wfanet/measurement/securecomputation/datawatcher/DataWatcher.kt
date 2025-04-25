@@ -25,7 +25,7 @@ import java.util.logging.Logger
 import kotlin.text.matches
 import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.common.toJson
-import org.wfanet.measurement.config.securecomputation.DataWatcherConfig
+import org.wfanet.measurement.config.securecomputation.WatchedPath
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemKt.WorkItemParamsKt.dataPathParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemKt.workItemParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
@@ -39,40 +39,40 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
  */
 class DataWatcher(
   private val workItemsStub: WorkItemsCoroutineStub,
-  private val dataWatcherConfigs: List<DataWatcherConfig>,
+  private val dataWatcherConfigs: List<WatchedPath>,
 ) {
   suspend fun receivePath(path: String) {
     for (config in dataWatcherConfigs) {
       try {
         val regex = config.sourcePathRegex.toRegex()
         if (regex.matches(path)) {
-          logger.info("${config.name}: Matched path: $path")
+          logger.info("${config.identifier}: Matched path: $path")
           when (config.sinkConfigCase) {
-            DataWatcherConfig.SinkConfigCase.CONTROL_PLANE_QUEUE_SINK -> {
-              send_to_control_plane(config, path)
+            WatchedPath.SinkConfigCase.CONTROL_PLANE_QUEUE_SINK -> {
+              sendToControlPlane(config, path)
             }
-            DataWatcherConfig.SinkConfigCase.HTTP_ENDPOINTS_SINK -> {
-              send_to_http_endpoint(config)
+            WatchedPath.SinkConfigCase.HTTP_ENDPOINT_SINK -> {
+              sendToHttpEndpoint(config)
             }
-            DataWatcherConfig.SinkConfigCase.SINKCONFIG_NOT_SET ->
-              error("${config.name}: Invalid sink config: ${config.sinkConfigCase}")
+            WatchedPath.SinkConfigCase.SINKCONFIG_NOT_SET ->
+              error("${config.identifier}: Invalid sink config: ${config.sinkConfigCase}")
           }
         }
       } catch (e: Exception) {
-        logger.severe("${config.name}: Unable to process $path for $config: ${e.message}")
+        logger.severe("${config.identifier}: Unable to process $path for $config: ${e.message}")
       }
     }
   }
 
-  private suspend fun send_to_control_plane(config: DataWatcherConfig, path: String) {
+  private suspend fun sendToControlPlane(config: WatchedPath, path: String) {
 
     val queueConfig = config.controlPlaneQueueSink
     val workItemId = UUID.randomUUID().toString()
     val workItemParams =
       workItemParams {
-        appParams = queueConfig.appParams
-        this.dataPathParams = dataPathParams { this.dataPath = path }
-      }
+          appParams = queueConfig.appParams
+          this.dataPathParams = dataPathParams { this.dataPath = path }
+        }
         .pack()
     val request = createWorkItemRequest {
       this.workItemId = workItemId
@@ -84,8 +84,8 @@ class DataWatcher(
     workItemsStub.createWorkItem(request)
   }
 
-  private suspend fun send_to_http_endpoint(config: DataWatcherConfig) {
-    val httpEndpointConfig = config.httpEndpointsSink
+  private suspend fun sendToHttpEndpoint(config: WatchedPath) {
+    val httpEndpointConfig = config.httpEndpointSink
     val client = HttpClient.newHttpClient()
     val request =
       HttpRequest.newBuilder()
@@ -93,8 +93,8 @@ class DataWatcher(
         .POST(HttpRequest.BodyPublishers.ofString(httpEndpointConfig.appParams.toJson()))
         .build()
     val response = client.send(request, BodyHandlers.ofString())
-    logger.info("${config.name}: Response status: ${response.statusCode()}")
-    logger.info("${config.name}: Response body: ${response.body()}")
+    logger.fine("${config.identifier}: Response status: ${response.statusCode()}")
+    logger.fine("${config.identifier}: Response body: ${response.body()}")
     check(response.statusCode() == 200)
   }
 
