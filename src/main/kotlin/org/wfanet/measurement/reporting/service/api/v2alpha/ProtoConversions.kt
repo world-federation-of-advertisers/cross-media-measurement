@@ -707,17 +707,7 @@ private fun Measurement.Result.Frequency.toInternal(
           .first { it.hasHonestMajorityShareShuffle() }
           .honestMajorityShareShuffle
       noiseMechanism = cmmsProtocol.noiseMechanism.toInternal()
-      @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
-      when (source.methodologyCase) {
-        Measurement.Result.Frequency.MethodologyCase.HONEST_MAJORITY_SHARE_SHUFFLE -> {
-          honestMajorityShareShuffle = source.honestMajorityShareShuffle.toInternal()
-        }
-        Measurement.Result.Frequency.MethodologyCase.CUSTOM_DIRECT_METHODOLOGY,
-        Measurement.Result.Frequency.MethodologyCase.DETERMINISTIC_DISTRIBUTION,
-        Measurement.Result.Frequency.MethodologyCase.LIQUID_LEGIONS_DISTRIBUTION,
-        Measurement.Result.Frequency.MethodologyCase.LIQUID_LEGIONS_V2,
-        Measurement.Result.Frequency.MethodologyCase.METHODOLOGY_NOT_SET -> {}
-      }
+      honestMajorityShareShuffle = source.honestMajorityShareShuffle.toInternal()
     } else {
       error("Measurement protocol is not set or not supported.")
     }
@@ -769,18 +759,7 @@ private fun Measurement.Result.Reach.toInternal(
           .first { it.hasHonestMajorityShareShuffle() }
           .honestMajorityShareShuffle
       noiseMechanism = cmmsProtocol.noiseMechanism.toInternal()
-      @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
-      when (source.methodologyCase) {
-        Measurement.Result.Reach.MethodologyCase.HONEST_MAJORITY_SHARE_SHUFFLE -> {
-          honestMajorityShareShuffle = source.honestMajorityShareShuffle.toInternal()
-        }
-        Measurement.Result.Reach.MethodologyCase.CUSTOM_DIRECT_METHODOLOGY,
-        Measurement.Result.Reach.MethodologyCase.DETERMINISTIC_COUNT_DISTINCT,
-        Measurement.Result.Reach.MethodologyCase.LIQUID_LEGIONS_COUNT_DISTINCT,
-        Measurement.Result.Reach.MethodologyCase.LIQUID_LEGIONS_V2,
-        Measurement.Result.Reach.MethodologyCase.REACH_ONLY_LIQUID_LEGIONS_V2,
-        Measurement.Result.Reach.MethodologyCase.METHODOLOGY_NOT_SET -> {}
-      }
+      honestMajorityShareShuffle = source.honestMajorityShareShuffle.toInternal()
     } else {
       error("Measurement protocol is not set or not supported.")
     }
