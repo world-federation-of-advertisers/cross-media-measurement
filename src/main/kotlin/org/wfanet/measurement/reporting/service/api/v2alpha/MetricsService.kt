@@ -2877,6 +2877,8 @@ private fun buildWeightedReachMeasurementVarianceParams(
       return null
     }
 
+  println("stats noise mechanism")
+
   val methodology: Methodology = buildStatsMethodology(reachResult) ?: return null
 
   println("methodology: $methodology")
@@ -2905,6 +2907,8 @@ private fun buildWeightedReachMeasurementVarianceParams(
  *   methodology missing variance information
  */
 fun buildStatsMethodology(reachResult: InternalMeasurement.Result.Reach): Methodology? {
+  println("build stats methodology****************************")
+  println(reachResult.methodologyCase)
   @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
   return when (reachResult.methodologyCase) {
     InternalMeasurement.Result.Reach.MethodologyCase.CUSTOM_DIRECT_METHODOLOGY -> {
