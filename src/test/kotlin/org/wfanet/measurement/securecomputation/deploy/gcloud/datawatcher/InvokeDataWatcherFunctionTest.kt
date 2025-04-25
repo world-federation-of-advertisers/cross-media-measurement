@@ -110,21 +110,6 @@ class InvokeDataWatcherFunctionTest() {
       val port =
         functionProcess.start(
           mapOf(
-            "DATA_WATCHER_CONFIG_RESOURCE_PATH" to
-              Paths.get(
-                "main",
-                "kotlin",
-                "org",
-                "wfanet",
-                "measurement",
-                "securecomputation",
-                "deploy",
-                "gcloud",
-                "datawatcher",
-                "testing",
-                "data_watcher_config.textproto",
-              )
-                .toString(),
             "CONTROL_PLANE_PROJECT_ID" to projectId,
             "CONTROL_PLANE_TARGET" to "localhost:${grpcServer.port}",
             "CONTROL_PLANE_CERT_HOST" to "localhost",
@@ -151,7 +136,6 @@ class InvokeDataWatcherFunctionTest() {
   fun `verify DataWatcherFunction returns a 200 and creates work item`() {
     val url = "http://localhost:${functionProcess.port}"
     logger.info("Testing Cloud Function at: $url")
-
     val client = HttpClient.newHttpClient()
     val jsonData =
       """
@@ -170,6 +154,7 @@ class InvokeDataWatcherFunctionTest() {
       }
     """
         .trimIndent()
+
     val getRequest =
       HttpRequest.newBuilder()
         .uri(URI.create(url))
@@ -185,14 +170,18 @@ class InvokeDataWatcherFunctionTest() {
     val getResponse = client.send(getRequest, BodyHandlers.ofString())
     logger.info("Response status: ${getResponse.statusCode()}")
     logger.info("Response body: ${getResponse.body()}")
+
     // Verify the function worked
     // Note that this always returns 200 in spite of the documentation saying that it will return
     // a 500 if the cloud function throws an exception.
     assertThat(getResponse.statusCode()).isEqualTo(200)
+
     val createWorkItemRequestCaptor = argumentCaptor<CreateWorkItemRequest>()
+
     verifyBlocking(workItemsServiceMock, times(1)) {
       createWorkItem(createWorkItemRequestCaptor.capture())
     }
+
   }
 
   companion object {
