@@ -1,0 +1,26 @@
+load("@rules_java//java:java_binary.bzl", "java_binary")
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
+
+package(default_visibility = [
+    "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/requisitionfetcher/testing:__subpackages__",
+    "//src/test/kotlin/org/wfanet/measurement/edpaggregator:__subpackages__",
+])
+
+kt_jvm_library(
+    name = "requisition_fetcher_function",
+    srcs = ["RequisitionFetcherFunction.kt"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/requisitionfetcher:requisition_fetcher",
+        "//src/main/proto/wfa/measurement/config/edpaggregator:requisition_fetcher_config_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/cloud/functions:functions_framework_api",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/gcs",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage/filesystem:client",
+    ],
+)
+
+java_binary(
+    name = "RequisitionFetcherFunction",
+    main_class = "org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionFetcherFunction",
+    runtime_deps = [":requisition_fetcher_function"],
+)
