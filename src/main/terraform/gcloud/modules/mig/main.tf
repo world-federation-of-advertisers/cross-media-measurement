@@ -46,9 +46,13 @@ resource "google_compute_instance_template" "confidential_vm_template" {
     confidential_instance_type  = "SEV_SNP"
   }
 
+  scheduling {
+    on_host_maintenance = "TERMINATE"
+  }
+
   name = var.instance_template_name
 
-  disks {
+  disk {
     source_image = "projects/cos-cloud/global/images/family/cos-stable"
   }
 
@@ -73,6 +77,9 @@ EOT
 
   service_account {
     email = google_service_account.mig_service_account.email
+    scopes = [
+        "https://www.googleapis.com/auth/cloud-platform"
+    ]
   }
 }
 
@@ -82,19 +89,11 @@ resource "google_compute_region_instance_group_manager" "mig" {
   version {
     instance_template = google_compute_instance_template.confidential_vm_template.id
   }
-
-  update_policy {
-    type                  = "PROACTIVE"
-    minimal_action        = "RESTART"
-    max_unavailable_fixed = 1
-    replacement_method    = "RECREATE"
-  }
-
 }
 
-resource "google_compute_autoscaler" "mig_autoscaler" {
-  name   = "autoscaler-for-${google_compute_instance_group_manager.mig.name}"
-  target = google_compute_instance_group_manager.mig.id
+resource "google_compute_region_autoscaler" "mig_autoscaler" {
+  name   = "autoscaler-for-${google_compute_region_instance_group_manager.mig.name}"
+  target = google_compute_region_instance_group_manager.mig.id
 
   autoscaling_policy {
     max_replicas = var.max_replicas
