@@ -60,6 +60,8 @@ import org.wfanet.measurement.api.v2alpha.DeterministicCount
 import org.wfanet.measurement.api.v2alpha.DeterministicCountDistinct
 import org.wfanet.measurement.api.v2alpha.DeterministicDistribution
 import org.wfanet.measurement.api.v2alpha.DifferentialPrivacyParams
+import org.wfanet.measurement.api.v2alpha.liquidLegionsCountDistinct
+import org.wfanet.measurement.api.v2alpha.liquidLegionsDistribution
 import org.wfanet.measurement.api.v2alpha.ElGamalPublicKey
 import org.wfanet.measurement.api.v2alpha.EncryptedMessage
 import org.wfanet.measurement.api.v2alpha.EventAnnotationsProto
@@ -1424,12 +1426,18 @@ class EdpSimulator(
           reach = reach {
             value = scaledNoisedReachValue
             this.noiseMechanism = protocolConfigNoiseMechanism
-            deterministicCountDistinct = DeterministicCountDistinct.getDefaultInstance()
+            liquidLegionsCountDistinct = liquidLegionsCountDistinct {
+              decayRate = 5.6
+              maxSize = 1000000L
+            }
           }
           frequency = frequency {
             relativeFrequencyDistribution.putAll(noisedFrequencyMap.mapKeys { it.key.toLong() })
             this.noiseMechanism = protocolConfigNoiseMechanism
-            deterministicDistribution = DeterministicDistribution.getDefaultInstance()
+            liquidLegionsDistribution = liquidLegionsDistribution {
+              decayRate = 5.6
+              maxSize = 1000000L
+            }
           }
         }
       }
