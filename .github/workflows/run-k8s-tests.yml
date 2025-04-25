@@ -70,13 +70,24 @@ jobs:
     - name: Set TCP keepalive
       run: sudo sysctl -w net.ipv4.tcp_keepalive_time=60
 
-    - name: Run tests
-      id: run-tests
+    - name: Run EdpAggregatorCorrectnessTest
+      id: run-edp-aggregator-correctness-tests
+      run: >
+        bazelisk test
+        //src/test/kotlin/org/wfanet/measurement/integration/k8s:EdpAggregatorCorrectnessTest
+
+    - name: Upload Bazel testlogs (EdpAggregatorCorrectnessTest)
+      continue-on-error: true
+      uses: world-federation-of-advertisers/actions/bazel-upload-testlogs@v2
+      if: failure() && steps.run-edp-aggregator-correctness-tests.outcome == 'failure'
+
+    - name: Run SyntheticGeneratorCorrectnessTest
+      id: run-synthetic-generator-correctness-test
       run: >
         bazelisk test
         //src/test/kotlin/org/wfanet/measurement/integration/k8s:SyntheticGeneratorCorrectnessTest
         
-    - name: Upload Bazel testlogs
+    - name: Upload Bazel testlogs (SyntheticGeneratorCorrectnessTest)
       continue-on-error: true
       uses: world-federation-of-advertisers/actions/bazel-upload-testlogs@v2
-      if: failure() && steps.run-tests.outcome == 'failure'
+      if: failure() && steps.run-synthetic-generator-correctness-test.outcome == 'failure'

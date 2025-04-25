@@ -121,3 +121,54 @@ java_test(
     test_class = "org.wfanet.measurement.integration.k8s.SyntheticGeneratorCorrectnessTest",
     runtime_deps = [":synthetic_data_generator_correctness_test"],
 )
+
+kt_jvm_library(
+    name = "abstract_edp_aggregatorcorrectness_test",
+    srcs = ["AbstractEdpAggregatorCorrectnessTest.kt"],
+    data = [
+        "//src/main/k8s/testing/secretfiles:mc_trusted_certs.pem",
+        "//src/main/k8s/testing/secretfiles:reporting_root.pem",
+        "//src/main/k8s/testing/secretfiles:secret_files",
+    ],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/integration/common:configs",
+        "//src/main/kotlin/org/wfanet/measurement/loadtest/measurementconsumer:simulator",
+        "//src/main/kotlin/org/wfanet/measurement/loadtest/reporting:simulator",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+    ],
+)
+
+kt_jvm_library(
+    name = "edp_aggregator_correctness_test",
+    srcs = ["EdpAggregatorCorrectnessTest.kt"],
+    deps = [
+        ":abstract_edp_aggregatorcorrectness_test",
+        "//src/main/kotlin/org/wfanet/measurement/integration/common:synthetic_generation_specs",
+        "//src/main/kotlin/org/wfanet/measurement/loadtest/config:vid_sampling",
+        "//src/main/kotlin/org/wfanet/measurement/loadtest/measurementconsumer:synthetic_generator_event_query",
+        "//src/main/proto/wfa/measurement/integration/k8s/testing:correctness_test_config_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/testing",
+    ],
+)
+
+java_test(
+    name = "EdpAggregatorCorrectnessTest",
+    timeout = "long",
+    data = [
+        ":correctness_test_config.textproto",
+    ],
+    tags = [
+        "exclusive",
+        "external",
+        "manual",
+        "no-remote-exec",
+    ],
+    test_class = "org.wfanet.measurement.integration.k8s.EdpAggregatorCorrectnessTest",
+    runtime_deps = [":edp_aggregator_correctness_test"],
+)
