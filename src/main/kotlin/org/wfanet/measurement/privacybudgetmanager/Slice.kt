@@ -13,11 +13,18 @@
  */
 package org.wfanet.measurement.privacybudgetmanager
 
-
+/** A key for a given row of the underlying Backing store. PBM is opinionated about this structure. */
 data class RowKey(measurementConsumerId: String, eventGroupId: String, date: Date)
 
-class Delta() {
+/** Represents a PrivacyBucket. PopulationIndexes are created by adhering to a PrivacyLandscape. */
+data class PrivacyBucket(rowKey : RowKey, populationIndex: Int, vidIntervalIndex: Int)
 
-    fun getBuckets() : List<PrivacyBucket>  = TODO("uakyol: implement this")
+/** Represents a slice of the Privacy Landscape together with charges. */
+class Slice() {
+
+    /** Returns the row keys for this slice. */
     fun getRowKeys() : List<RowKey> = TODO("uakyol: implement this")
+
+    /** Adds the given Privacy Buckets to this Slice */
+    fun add(privacyBuckets : List<PrivacyBucket>, charge : Charge) : Unit = TODO("uakyol: implement this")
 }

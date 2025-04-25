@@ -13,21 +13,29 @@
 -- limitations under the License.
 
 
-
 CREATE TYPE ChargesTableState
 AS ENUM('NOT_READY', 'BACKFILLING', 'READY');
 
 -- Holds the state and privacyLandscapeName for all the previous (deleted) and current PrivacyCharges tables.
 CREATE TABLE PrivacyChargesMetadata (
+    -- The id of the PrivacyCharges table.
     id SERIAL PRIMARY KEY,
+    -- The state of the PrivacyCharges table.
     state ChargesTableState,
+    -- Name of the Privacy Landscape that is used to map the charges column of this table.
     privacyLandscapeName TEXT,
+    -- Time this PrivacyCharges table was created.
     CreateTime TIMESTAMP NOT NULL,
+    -- Time this PrivacyCharges table was deleted, if it was.
     DeleteTime TIMESTAMP
 );
 
--- Holds all the charges for an EDP.
+-- Holds all the charges. As the privacy landscapes are updated, old PrivacyCharges tables
+-- get deleted and migrated to the new PrivacyCharges table which holds in its Charges column, a proto
+-- that adheres to the new Privacy Landscape
 CREATE TABLE PrivacyCharges(
+  -- The EDP these charges belong to.
+  EdpId text NOT NULl,
   -- The Measurement Consumer these charges belong to.
   MeasurementConsumerId text NOT NULL,
   -- The Event Group these charges belong to.
@@ -37,10 +45,12 @@ CREATE TABLE PrivacyCharges(
   -- A wfa.measurement.privacybudgetmanager.Charges proto capturing charges for each bucket.
   Charges BYTEA,
   -- There can be only one entry per MeasurementConsumerId, EventGroupId, Date triplet.
-  PRIMARY KEY (MeasurementConsumerId, EventGroupId, Date));
+  PRIMARY KEY (EdpId, MeasurementConsumerId, EventGroupId, Date));
 
--- Holds all the ledger Entries for an EDP.
+-- Holds all the ledger Entries.
 CREATE TABLE LedgerEntries(
+  -- The EDP these charges belong to.
+  EdpId text NOT NULl,
   -- The Measurement Consumer this Ledger Entry belongs to.
   MeasurementConsumerId text NOT NULL,
   -- ID from an external system that uniquely identifies the source all charges in a transaction
@@ -54,4 +64,4 @@ CREATE TABLE LedgerEntries(
 -- Used to query references quickly
 CREATE
   INDEX LedgerEntriesByReferenceId
-ON LedgerEntries(MeasurementConsumerId, ReferenceId);
+ON LedgerEntries(EdpId, MeasurementConsumerId, ReferenceId);

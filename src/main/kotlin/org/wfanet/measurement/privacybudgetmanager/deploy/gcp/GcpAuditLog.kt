@@ -16,7 +16,7 @@
 package org.wfanet.measurement.privacybudgetmanager.deploy.gcp
 
 
-class GcpAuditLog : AuditLog {
+class GcpAuditLog() : AuditLog {
 
     override fun write(queries : List<Query>, groupId: String) : String = TODO("uakyol : implement this")
 }
