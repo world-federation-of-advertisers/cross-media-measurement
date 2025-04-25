@@ -93,9 +93,9 @@ class WorkItemAttemptsServiceTest {
     val response = service.createWorkItemAttempt(request)
 
     verifyProtoArgument(
-      internalServiceMock,
-      WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineImplBase::createWorkItemAttempt,
-    )
+        internalServiceMock,
+        WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineImplBase::createWorkItemAttempt,
+      )
       .isEqualTo(
         internalCreateWorkItemAttemptRequest {
           internalWorkItemAttempt {
@@ -264,9 +264,9 @@ class WorkItemAttemptsServiceTest {
     val response = service.getWorkItemAttempt(request)
 
     verifyProtoArgument(
-      internalServiceMock,
-      WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineImplBase::getWorkItemAttempt,
-    )
+        internalServiceMock,
+        WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineImplBase::getWorkItemAttempt,
+      )
       .isEqualTo(
         internalGetWorkItemAttemptRequest {
           workItemResourceId = internalWorkItemAttempt.workItemResourceId
@@ -363,9 +363,9 @@ class WorkItemAttemptsServiceTest {
       workItemAttemptResourceId = internalWorkItemAttempt.workItemAttemptResourceId
     }
     verifyProtoArgument(
-      internalServiceMock,
-      WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineImplBase::failWorkItemAttempt,
-    )
+        internalServiceMock,
+        WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineImplBase::failWorkItemAttempt,
+      )
       .isEqualTo(internalRequest)
 
     assertThat(response.state).isEqualTo(WorkItemAttempt.State.FAILED)
@@ -435,10 +435,10 @@ class WorkItemAttemptsServiceTest {
     internalServiceMock.stub {
       onBlocking { failWorkItemAttempt(any()) } doThrow
         WorkItemAttemptInvalidStateException(
-          "workItem",
-          "workItemAttempt",
-          InternalWorkItemAttempt.State.SUCCEEDED,
-        )
+            "workItem",
+            "workItemAttempt",
+            InternalWorkItemAttempt.State.SUCCEEDED,
+          )
           .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
     }
     val request = failWorkItemAttemptRequest {
@@ -480,9 +480,9 @@ class WorkItemAttemptsServiceTest {
       workItemAttemptResourceId = internalWorkItemAttempt.workItemAttemptResourceId
     }
     verifyProtoArgument(
-      internalServiceMock,
-      WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineImplBase::completeWorkItemAttempt,
-    )
+        internalServiceMock,
+        WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineImplBase::completeWorkItemAttempt,
+      )
       .isEqualTo(internalRequest)
 
     assertThat(response.state).isEqualTo(WorkItemAttempt.State.SUCCEEDED)
@@ -554,10 +554,10 @@ class WorkItemAttemptsServiceTest {
       internalServiceMock.stub {
         onBlocking { completeWorkItemAttempt(any()) } doThrow
           WorkItemAttemptInvalidStateException(
-            "workItem",
-            "workItemAttempt",
-            InternalWorkItemAttempt.State.SUCCEEDED,
-          )
+              "workItem",
+              "workItemAttempt",
+              InternalWorkItemAttempt.State.SUCCEEDED,
+            )
             .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
       }
       val request = completeWorkItemAttemptRequest {
@@ -604,9 +604,9 @@ class WorkItemAttemptsServiceTest {
     val response = service.listWorkItemAttempts(listWorkItemAttemptsRequest { pageSize = 1 })
 
     verifyProtoArgument(
-      internalServiceMock,
-      WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineImplBase::listWorkItemAttempts,
-    )
+        internalServiceMock,
+        WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineImplBase::listWorkItemAttempts,
+      )
       .isEqualTo(internalListWorkItemAttemptsRequest { pageSize = 1 })
     assertThat(response)
       .isEqualTo(
