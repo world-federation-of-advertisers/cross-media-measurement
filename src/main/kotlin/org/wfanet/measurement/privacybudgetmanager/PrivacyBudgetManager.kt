@@ -30,32 +30,11 @@ class PrivacyBudgetManager(
   private val maximumTotalDelta: Float = MAXIMUM_DELTA_PER_BUCKET,
 ) {
 
-    suspend fun getDelta(queries : List<Query>): Slice {
-
-        val delta = Slice()
-        
-        for(query in queries){
-            // Check if the query's landscape mask is current.
-            if(query.privacyLandscapeName == activePrivacyLandscape.name){
-                delta.add(Filter.getBuckets(query.event_group_landscape_mask, activePrivacyLandscape), query.charge)
-            }
-            // If the query's landscape is not active, then get the mapping to old landscape and convert the charges
-            else{
-                val (inactivePrivacyLandscape, privacyLandscapeMapping) = privacyLandscapeMappings.getOrElse(query.privacyLandscapeName) {
-                    throw IllegalStateException("PrivacyLandscapeMappings does not contain a mappping for ${query.privacyLandscapeName}")
-                }
-
-                val mappedBuckets = Filter.getBuckets(query.event_group_landscape_mask, privacyLandscapeMapping, inactivePrivacyLandscape, activePrivacyLandscape)
-
-                delta.add(mappedBuckets, query.charge)
-            }
-
-            return delta
-        }
-    }
-
-    suspend fun checkAndAggregate(delta: Slice,  targettedSlice: Slice): Slice = TODO("uakyol: implement this")
-    
+    /**
+     * Charges the PBM in batch with given queries and writes the successful charge operation to the audit log.
+     *
+     * @throws PrivacyBudgetManager exception if either the charge or audit log write operations is unsuccessful.
+     */
     suspend fun charge(queries : List<Query>, groupId: String) : String {
 
         backingStore.startTransaction().use { context: TransactionContext ->
@@ -88,15 +67,42 @@ class PrivacyBudgetManager(
         //  2. PBM is then called at a later time with queries B,C,D -> charges are committed succesfully
         //     for only D, PBM did not commit charges from B,C because they are already in the backing store.
         //     In this case, all B,C,D should be written to the audit log because if you only write D, then
-        //     the auditor will conclude less queries are wrritten to the audit log then in the PBM.
+        //     the auditor will conclude less queries are wrritten to the audit log than in the PBM.
         // 
         // This brings about the following scenario: 
         //  1. PBM is charged with A,B,C all commited, all successfully written to audit log.
-        //  2. Then, PBM is charged with B,C,D. Again, all committed and all successfully written
+        //  2. Then, PBM is charged with B,C,D. Again, D is committed, all B,C,D written successfully
         //     to audit log. 
         // In this scenario, auditor will find duplicate entries for B and C. This won't be a problem
         // because in the replay scenario, the PBM code will check the references and conclude they were
         // already written to the DB.
         return auditLog.write(queries, groupId)
     }  
+
+    private suspend fun getDelta(queries : List<Query>): Slice {
+
+        val delta = Slice()
+        
+        for(query in queries){
+            // Check if the query's landscape mask is current.
+            if(query.privacyLandscapeName == activePrivacyLandscape.name){
+                delta.add(Filter.getBuckets(query.event_group_landscape_mask, activePrivacyLandscape), query.charge)
+            }
+            // If the query's landscape is not active, then get the mapping to old landscape and convert the charges
+            else{
+                val (inactivePrivacyLandscape, privacyLandscapeMapping) = privacyLandscapeMappings.getOrElse(query.privacyLandscapeName) {
+                    throw IllegalStateException("PrivacyLandscapeMappings does not contain a mappping for ${query.privacyLandscapeName}")
+                }
+
+                val mappedBuckets = Filter.getBuckets(query.event_group_landscape_mask, privacyLandscapeMapping, inactivePrivacyLandscape, activePrivacyLandscape)
+
+                delta.add(mappedBuckets, query.charge)
+            }
+
+            return delta
+        }
+    }
+
+    private suspend fun checkAndAggregate(delta: Slice,  targettedSlice: Slice): Slice = TODO("uakyol: implement this")
+    
 }
