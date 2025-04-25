@@ -47,34 +47,42 @@ import org.wfanet.measurement.system.v1alpha.ComputationParticipantKt
 import org.wfanet.measurement.system.v1alpha.DifferentialPrivacyParams
 import org.wfanet.measurement.system.v1alpha.Requisition
 import org.wfanet.measurement.system.v1alpha.RequisitionKey
+import org.wfanet.measurement.system.v1alpha.RequisitionKt
 import org.wfanet.measurement.system.v1alpha.StageAttempt
 import org.wfanet.measurement.system.v1alpha.computation
 import org.wfanet.measurement.system.v1alpha.computationParticipant
+import org.wfanet.measurement.system.v1alpha.requisition
 
 /** Converts a kingdom internal Requisition to system Api Requisition. */
 fun InternalRequisition.toSystemRequisition(): Requisition {
-  return Requisition.newBuilder()
-    .also {
-      it.name =
-        RequisitionKey(
-            externalIdToApiId(externalComputationId),
-            externalIdToApiId(externalRequisitionId),
+  val source = this
+  return requisition {
+    name =
+      RequisitionKey(
+          externalIdToApiId(source.externalComputationId),
+          externalIdToApiId(source.externalRequisitionId),
+        )
+        .toName()
+    requisitionSpecHash = Hashing.hashSha256(source.details.encryptedRequisitionSpec)
+    nonceHash = source.details.nonceHash
+    state = source.state.toSystemRequisitionState()
+    nonce = source.details.nonce
+    if (source.externalFulfillingDuchyId.isNotBlank()) {
+      fulfillingComputationParticipant =
+        ComputationParticipantKey(
+            externalIdToApiId(source.externalComputationId),
+            source.externalFulfillingDuchyId,
           )
           .toName()
-      it.requisitionSpecHash = Hashing.hashSha256(details.encryptedRequisitionSpec)
-      it.nonceHash = details.nonceHash
-      it.state = state.toSystemRequisitionState()
-      it.nonce = details.nonce
-      if (externalFulfillingDuchyId.isNotBlank()) {
-        it.fulfillingComputationParticipant =
-          ComputationParticipantKey(
-              externalIdToApiId(externalComputationId),
-              externalFulfillingDuchyId,
-            )
-            .toName()
-      }
     }
-    .build()
+    if (source.details.hasFulfillmentContext()) {
+      fulfillmentContext =
+        RequisitionKt.fulfillmentContext {
+          buildLabel = source.details.fulfillmentContext.buildLabel
+          warnings += source.details.fulfillmentContext.warningsList
+        }
+    }
+  }
 }
 
 /** Converts a kingdom internal Requisition.State to system Api Requisition.State. */

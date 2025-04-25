@@ -12,12 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import math
 import numpy as np
 import random
 from functools import reduce
 from itertools import combinations
 from typing import Any
 from typing import FrozenSet
+from typing import Optional
 from typing import Tuple
 
 from absl import logging
@@ -26,9 +28,32 @@ from qpsolvers import Solution
 from noiseninja.noised_measurements import Measurement
 from noiseninja.noised_measurements import SetMeasurementsSpec
 from noiseninja.solver import Solver
+from src.main.proto.wfa.measurement.reporting.postprocessing.v2alpha import \
+  report_post_processor_result_pb2
+
+ReportPostProcessorResult = report_post_processor_result_pb2.ReportPostProcessorResult
+ReportPostProcessorStatus = report_post_processor_result_pb2.ReportPostProcessorStatus
+ReportQuality = report_post_processor_result_pb2.ReportQuality
 
 MIN_STANDARD_VARIATION_RATIO = 0.001
 UNIT_SCALING_FACTOR = 1.0
+TOLERANCE = 1e-6
+
+# The probability of a value falling outside the [-7*STDDEV; 7*STDDEV] range is
+# approximately 2^{-38.5}.
+STANDARD_DEVIATION_TEST_THRESHOLD = 7.0
+
+CONSISTENCY_TEST_TOLERANCE = 1.0
+
+
+def fuzzy_equal(val: float, target: float, tolerance: float) -> bool:
+  """Checks if two float values are approximately equal within an absolute tolerance."""
+  return math.isclose(val, target, rel_tol=0.0, abs_tol=tolerance)
+
+
+def fuzzy_less_equal(smaller: float, larger: float, tolerance: float) -> bool:
+  """Checks if one float value is less than or equal to another within a tolerance."""
+  return larger - smaller + tolerance >= 0
 
 
 def get_subset_relationships(edp_combinations: list[FrozenSet[str]]) -> list[
@@ -139,6 +164,62 @@ def get_cover_relationships(edp_combinations: list[FrozenSet[str]]) -> list[
   return cover_relationships
 
 
+def is_union_reach_consistent(
+    union_measurement: Measurement,
+    component_measurements: list[Measurement], population_size: float) -> bool:
+  """Verifies that the expected union reach is statistically consistent with
+  individual EDP measurements assuming conditional independence between the sets
+  of VIDs reached by the different EDPs.
+
+  The check is done by comparing the absolute difference between the observed
+  union reach and the expected union reach against a confidence range.
+
+  Let U be the population size, X_1, ..., X_n be the single EDPs. If the reach
+  of the EDPs are independent of one another, the expected union reach is:
+      |X_1 union … union Xn_| = U - (U - |X_1|)...(U - |X_n|)/U^{n-1}
+
+  Let D = expected union - measuremed union.
+
+  The standard deviation of the difference between the expected union reach
+  and the measured union reach is bounded by
+  std(D) <= sqrt(var(|X_1|) + ... + var(|X_n|) + var(measured union)).
+
+  Returns:
+    True if D is in [-7*std(D); 7*std(D)].
+    False otherwise.
+  """
+
+  if population_size <= 0:
+    raise ValueError(
+        f"The population size must be greater than 0, but got"
+        f" {population_size}."
+    )
+
+  if len(component_measurements) <= 1:
+    raise ValueError(
+        f"The length of individual reaches must be at least 2, but got"
+        f" {len(component_measurements)}."
+    )
+
+  variance = union_measurement.sigma ** 2
+
+  probability = 1.0
+
+  for measurement in component_measurements:
+    probability *= max(0.0, 1.0 - measurement.value / population_size)
+    variance += measurement.sigma ** 2
+
+  probability = min(1.0, probability)
+
+  expected_union_measurement = population_size * (1.0 - probability)
+
+  # An upperbound of STDDEV(expected union - measured union).
+  standard_deviation = np.sqrt(variance)
+
+  return abs(expected_union_measurement - union_measurement.value) <= \
+    STANDARD_DEVIATION_TEST_THRESHOLD * standard_deviation
+
+
 class MetricReport:
   """Represents a metric sub-report view (e.g., MRC, AMI) within a report.
 
@@ -209,6 +290,10 @@ class MetricReport:
         }
     )
 
+  def get_cumulative_measurements(self, edp_combination: FrozenSet[str]) -> \
+      list[Measurement]:
+    return self._reach_time_series[edp_combination]
+
   def get_cumulative_measurement(self, edp_combination: FrozenSet[str],
       period: int) -> Measurement:
     return self._reach_time_series[edp_combination][period]
@@ -220,6 +305,11 @@ class MetricReport:
   def get_impression_measurement(self,
       edp_combination: FrozenSet[str]) -> Measurement:
     return self._impression[edp_combination]
+
+  def get_k_reach_measurements(self, edp_combination: FrozenSet[str]) -> list[
+    Measurement]:
+    return [measurement for measurement in
+            self._k_reach[edp_combination].values()]
 
   def get_k_reach_measurement(self, edp_combination: FrozenSet[str],
       frequency: int) -> Measurement:
@@ -292,6 +382,7 @@ class Report:
                                                             measurements are
                                                             allowed. This is for
                                                             TV measurements.
+        _population_size: The size of the population.
     """
 
   def __init__(
@@ -299,6 +390,7 @@ class Report:
       metric_reports: dict[str, MetricReport],
       metric_subsets_by_parent: dict[str, list[str]],
       cumulative_inconsistency_allowed_edp_combinations: set[str],
+      population_size: float = 0.0,
   ):
     """
     Args:
@@ -313,6 +405,7 @@ class Report:
     self._cumulative_inconsistency_allowed_edp_combinations = (
         cumulative_inconsistency_allowed_edp_combinations
     )
+    self._population_size = population_size
 
     # All metrics in the set relationships must have a corresponding report.
     for parent in metric_subsets_by_parent.keys():
@@ -393,24 +486,46 @@ class Report:
   def get_metrics(self) -> set[str]:
     return set(self._metric_reports.keys())
 
-  def get_corrected_report(self) -> "Report":
-    """Returns a corrected, consistent report.
-    Note all measurements in the corrected report are set to have 0 variance
-    """
-    spec = self.to_set_measurement_spec()
-    solution = Solver(spec).solve_and_translate()
-    return self.report_from_solution(solution)
+  def get_corrected_report(self) -> tuple["Report", ReportPostProcessorResult]:
+    """Returns a corrected, consistent report."""
+    pre_correction_quality = self.get_report_quality()
 
-  def report_from_solution(self, solution: Solution) -> "Report":
-    logging.info("Generating the adjusted report from the solution.")
-    return Report(
-        metric_reports={
-            metric: self._metric_report_from_solution(metric, solution)
-            for metric in self._metric_reports
-        },
-        metric_subsets_by_parent=self._metric_subsets_by_parent,
-        cumulative_inconsistency_allowed_edp_combinations=self._cumulative_inconsistency_allowed_edp_combinations,
+    spec = self.to_set_measurement_spec()
+    solution, report_post_processor_status = Solver(spec).solve_and_translate()
+
+    corrected_report = self.report_from_solution(solution)
+
+    # If a solution is found, get the report quality. Otherwise, return default
+    # ReportQuality.
+    post_correction_quality = (
+        corrected_report.get_report_quality()
+        if corrected_report
+        else ReportQuality()
     )
+
+    return corrected_report, \
+      ReportPostProcessorResult(
+          updated_measurements={},
+          status=report_post_processor_status,
+          pre_correction_quality=pre_correction_quality,
+          post_correction_quality=post_correction_quality,
+      )
+
+  def report_from_solution(self, solution: Solution) -> Optional["Report"]:
+    logging.info("Generating the adjusted report from the solution.")
+
+    if solution:
+      return Report(
+          metric_reports={
+              metric: self._metric_report_from_solution(metric, solution)
+              for metric in self._metric_reports
+          },
+          metric_subsets_by_parent=self._metric_subsets_by_parent,
+          cumulative_inconsistency_allowed_edp_combinations=self._cumulative_inconsistency_allowed_edp_combinations,
+          population_size=self._population_size
+      )
+    else:
+      return None
 
   def sample_with_noise(self) -> "Report":
     """Returns a new report sampled according to the mean and variance of
@@ -847,68 +962,312 @@ class Report:
     solution_k_reach = {}
     solution_impression = {}
 
-    for edp_combination in self._metric_reports[
-      metric].get_cumulative_edp_combinations():
+    metric_report = self._metric_reports[metric]
+    for edp_combination in metric_report.get_cumulative_edp_combinations():
       solution_time_series[edp_combination] = [
           Measurement(
               solution[
-                self._get_measurement_index(self._metric_reports[
-                  metric].get_cumulative_measurement(
-                    edp_combination, period))
+                self._get_measurement_index(
+                    metric_report.get_cumulative_measurement(
+                        edp_combination, period))
               ],
-              self._metric_reports[metric].get_cumulative_measurement(
+              metric_report.get_cumulative_measurement(
                   edp_combination, period).sigma,
-              self._metric_reports[metric].get_cumulative_measurement(
+              metric_report.get_cumulative_measurement(
                   edp_combination, period).name,
           )
           for period in range(0, self._num_periods)
       ]
-    for edp_combination in self._metric_reports[
-      metric].get_whole_campaign_edp_combinations():
+    for edp_combination in metric_report.get_whole_campaign_edp_combinations():
       solution_whole_campaign[edp_combination] = Measurement(
           solution[
-            self._get_measurement_index(self._metric_reports[
-              metric].get_whole_campaign_measurement(
-                edp_combination))
+            self._get_measurement_index(
+                metric_report.get_whole_campaign_measurement(edp_combination)
+            )
           ],
-          self._metric_reports[metric].get_whole_campaign_measurement(
-              edp_combination).sigma,
-          self._metric_reports[metric].get_whole_campaign_measurement(
-              edp_combination).name,
+          metric_report.get_whole_campaign_measurement(edp_combination).sigma,
+          metric_report.get_whole_campaign_measurement(edp_combination).name,
       )
-    for edp_combination in self._metric_reports[
-      metric].get_k_reach_edp_combinations():
+    for edp_combination in metric_report.get_k_reach_edp_combinations():
       solution_k_reach[edp_combination] = {
           frequency: Measurement(
               solution[
-                self._get_measurement_index(self._metric_reports[
-                  metric].get_k_reach_measurement(
-                    edp_combination, frequency))
+                self._get_measurement_index(
+                    metric_report.get_k_reach_measurement(edp_combination,
+                                                          frequency))
               ],
-              self._metric_reports[metric].get_k_reach_measurement(
-                  edp_combination, frequency).sigma,
-              self._metric_reports[metric].get_k_reach_measurement(
-                  edp_combination, frequency).name
+              metric_report.get_k_reach_measurement(edp_combination,
+                                                    frequency).sigma,
+              metric_report.get_k_reach_measurement(edp_combination,
+                                                    frequency).name
           )
           for frequency in range(1, self._num_frequencies + 1)
       }
 
-    for edp_combination in self._metric_reports[
-      metric].get_impression_edp_combinations():
+    for edp_combination in metric_report.get_impression_edp_combinations():
       solution_impression[edp_combination] = Measurement(
           solution[
-            self._get_measurement_index(self._metric_reports[
-              metric].get_impression_measurement(
-                edp_combination))
+            self._get_measurement_index(
+                metric_report.get_impression_measurement(
+                    edp_combination))
           ],
-          self._metric_reports[metric].get_impression_measurement(
-              edp_combination).sigma,
-          self._metric_reports[metric].get_impression_measurement(
-              edp_combination).name,
+          metric_report.get_impression_measurement(edp_combination).sigma,
+          metric_report.get_impression_measurement(edp_combination).name,
       )
     return MetricReport(
         reach_time_series=solution_time_series,
         reach_whole_campaign=solution_whole_campaign,
         k_reach=solution_k_reach,
         impression=solution_impression,
+    )
+
+  def _is_linear_tv(self, edp_combination: FrozenSet[str]) -> bool:
+    """Checks if a given EDP combination represents Linear TV EDP.
+
+    An EDP is Linear TV EDP if the standard deviation is zero for all
+    measurements.
+
+    Args:
+        edp_combination: A frozenset of strings representing the EDP identifiers
+                         to check.
+
+    Returns:
+        True or False.
+    """
+    standard_deviations: list[float] = []
+    for metric in self._metric_reports.keys():
+      metric_report = self._metric_reports[metric]
+      if edp_combination in metric_report.get_cumulative_edp_combinations():
+        standard_deviations.extend(
+            [
+                measurement.sigma
+                for measurement in
+                metric_report.get_cumulative_measurements(edp_combination)
+            ]
+        )
+      if edp_combination in metric_report.get_whole_campaign_edp_combinations():
+        standard_deviations.append(
+            metric_report.get_whole_campaign_measurement(edp_combination).sigma
+        )
+      if edp_combination in metric_report.get_impression_edp_combinations():
+        standard_deviations.append(
+            metric_report.get_impression_measurement(edp_combination).sigma
+        )
+      if edp_combination in metric_report.get_k_reach_edp_combinations():
+        standard_deviations.extend(
+            [
+                measurement.sigma
+                for measurement in
+                metric_report.get_k_reach_measurements(edp_combination)
+            ]
+        )
+
+    return all(val == 0.0 for val in standard_deviations)
+
+  def _are_edp_measurements_consistent(self,
+      edp_combination: FrozenSet[str]) -> bool:
+    """Checks if all measurements of a specific edp combination are consistent."""
+    # Check for the consistency within a metric.
+    for metric in self._metric_reports.keys():
+      metric_report = self._metric_reports[metric]
+
+      cumulative_measurements = [
+          metric_report.get_cumulative_measurement(
+              edp_combination,
+              period
+          ).value
+          for period in range(0, self._num_periods)
+      ]
+      whole_campaign_measurement = metric_report.get_whole_campaign_measurement(
+          edp_combination).value
+      impression_measurement = metric_report.get_impression_measurement(
+          edp_combination).value
+      k_reach_measurements = {
+          frequency: metric_report.get_k_reach_measurement(
+              edp_combination,
+              frequency
+          ).value
+          for frequency in range(1, self._num_frequencies + 1)
+      }
+
+      # Cumulative measurements are non-decreasing.
+      for period in range(0, self._num_periods - 1):
+        if not fuzzy_less_equal(cumulative_measurements[period],
+                                cumulative_measurements[period + 1],
+                                CONSISTENCY_TEST_TOLERANCE):
+          return False
+
+      # Whole campaign reach matches last cumulative reach.
+      if not fuzzy_equal(cumulative_measurements[-1],
+                         whole_campaign_measurement,
+                         CONSISTENCY_TEST_TOLERANCE):
+        return False
+
+      sum_of_k_reach_keys = sum(k_reach_measurements.keys())
+      sum_of_k_reach_values = sum(k_reach_measurements.values())
+      weighted_sum_of_k_reach_values = sum(
+          key * value for key, value in k_reach_measurements.items())
+
+      # Whole campaign reach equals to the sum of k-reaches.
+      if not fuzzy_equal(
+          whole_campaign_measurement,
+          sum_of_k_reach_values,
+          sum_of_k_reach_keys * CONSISTENCY_TEST_TOLERANCE):
+        return False
+
+      # Impression is greater than or equal to weighted sum of k-reaches.
+      if not fuzzy_less_equal(
+          weighted_sum_of_k_reach_values,
+          impression_measurement,
+          sum_of_k_reach_keys * CONSISTENCY_TEST_TOLERANCE):
+        return False
+
+    # Check for the consistency between ordered metrics.
+    for parent_metric in self._metric_subsets_by_parent:
+      for child_metric in self._metric_subsets_by_parent[parent_metric]:
+        parent_metric_report = self._metric_reports[parent_metric]
+        child_metric_report = self._metric_reports[child_metric]
+
+        # Handles cumulative measurements.
+        cumulative_edp_combinations = \
+          parent_metric_report.get_cumulative_edp_combinations()
+        for edp_combination in cumulative_edp_combinations:
+          for period in range(0, self._num_periods):
+            if not fuzzy_less_equal(
+                child_metric_report.get_cumulative_measurement(edp_combination,
+                                                               period).value,
+                parent_metric_report.get_cumulative_measurement(edp_combination,
+                                                                period).value,
+                CONSISTENCY_TEST_TOLERANCE):
+              return False
+
+        # Handles whole campaign measurements.
+        whole_campaign_edp_combinations = \
+          parent_metric_report.get_whole_campaign_edp_combinations()
+        for edp_combination in whole_campaign_edp_combinations:
+          if not fuzzy_less_equal(
+              child_metric_report.get_whole_campaign_measurement(
+                  edp_combination).value,
+              parent_metric_report.get_whole_campaign_measurement(
+                  edp_combination).value,
+              CONSISTENCY_TEST_TOLERANCE):
+            return False
+
+        # Handles impression measurements.
+        impression_edp_combinations = \
+          parent_metric_report.get_impression_edp_combinations()
+        for edp_combination in impression_edp_combinations:
+          if not fuzzy_less_equal(
+              child_metric_report.get_impression_measurement(
+                  edp_combination).value,
+              parent_metric_report.get_impression_measurement(
+                  edp_combination).value,
+              CONSISTENCY_TEST_TOLERANCE):
+            return False
+
+    return True
+
+  def _validate_independence_checks(self,
+      edp_combination: FrozenSet[str]) -> bool:
+    """Verifies if the observed union measurements for the edp_combination meet
+    the independence check.
+    """
+    single_edps = [frozenset({element}) for element in edp_combination]
+
+    for metric in self._metric_reports.keys():
+      metric_report = self._metric_reports[metric]
+
+      # Check if the whole campaign measurements follow the CI model.
+      union_measurement = metric_report.get_whole_campaign_measurement(
+          edp_combination)
+      component_measurements = [
+          metric_report.get_whole_campaign_measurement(single_edp)
+          for single_edp in single_edps
+      ]
+
+      if not is_union_reach_consistent(union_measurement,
+                                       component_measurements,
+                                       self._population_size):
+        return False
+
+      # Check if the cumulative measurements follow the CI model.
+      for period in range(self._num_periods):
+        union_measurement = metric_report.get_cumulative_measurement(
+            edp_combination, period)
+        component_measurements = [
+            metric_report.get_cumulative_measurement(single_edp, period)
+            for single_edp in single_edps
+        ]
+
+        if not is_union_reach_consistent(union_measurement,
+                                         component_measurements,
+                                         self._population_size):
+          return False
+
+    return True
+
+  def _get_linear_tv_edp(self) -> Optional[str]:
+    """Get the Linear TV EDP.
+
+    Returns:
+       The Linear TV EDP or None if not found.
+    """
+    tv_edp_combinations: list[str] = []
+    if self._metric_reports.keys() is None:
+      raise ValueError("The report does not contain any measurements.")
+
+    edp_combinations = self._metric_reports[
+      next(iter(self._metric_reports.keys()))].get_cumulative_edp_combinations()
+
+    for edp_combination in edp_combinations:
+      if self._is_linear_tv(edp_combination):
+        tv_edp_combinations.append(edp_combination)
+
+    if len(tv_edp_combinations) > 1:
+      raise ValueError(
+          f"Expected at most one Linear TV EDP combination, but found "
+          f"{len(tv_edp_combinations)}: {tv_edp_combinations}"
+      )
+
+    if tv_edp_combinations:
+      return tv_edp_combinations[0]
+    else:
+      return None
+
+  def get_report_quality(self) -> ReportQuality:
+    """Calculates and returns the overall data quality status for the report.
+
+    Returns:
+        A ReportQuality protobuf message instance populated with the status
+        outcomes (`tv_status`, `union_status`) from the performed checks.
+    """
+    # Gets the tv quality status.
+    tv_edp_combination = self._get_linear_tv_edp()
+    tv_quality_status = \
+      ReportQuality.LinearTvStatus.LINEAR_TV_STATUS_UNSPECIFIED
+    if tv_edp_combination:
+      if self._are_edp_measurements_consistent(tv_edp_combination):
+        tv_quality_status = ReportQuality.LinearTvStatus.CONSISTENT
+      else:
+        tv_quality_status = ReportQuality.LinearTvStatus.INCONSISTENT
+
+    # Gets the union check status.
+    independence_check_status = \
+      ReportQuality.IndependenceCheckStatus.INDEPENDENCE_CHECK_STATUS_UNSPECIFIED
+    if self._population_size > 0:
+      independence_check_status = \
+        ReportQuality.IndependenceCheckStatus.WITHIN_CONFIDENCE_RANGE
+      edp_combinations = self._metric_reports[
+        next(iter(self._metric_reports.keys()))
+      ].get_whole_campaign_edp_combinations()
+      for edp_combination in edp_combinations:
+        if len(edp_combination) > 1:
+          if not self._validate_independence_checks(edp_combination):
+            independence_check_status = \
+              ReportQuality.IndependenceCheckStatus.OUTSIDE_CONFIDENCE_RANGE
+            break
+
+    return ReportQuality(
+        tv_status=tv_quality_status,
+        union_status=independence_check_status,
     )

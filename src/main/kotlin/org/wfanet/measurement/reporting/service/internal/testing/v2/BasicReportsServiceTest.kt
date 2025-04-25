@@ -50,6 +50,7 @@ import org.wfanet.measurement.internal.reporting.v2.listBasicReportsPageToken
 import org.wfanet.measurement.internal.reporting.v2.listBasicReportsRequest
 import org.wfanet.measurement.internal.reporting.v2.listBasicReportsResponse
 import org.wfanet.measurement.internal.reporting.v2.measurementConsumer
+import org.wfanet.measurement.internal.reporting.v2.reportingImpressionQualificationFilter
 import org.wfanet.measurement.internal.reporting.v2.reportingSet
 import org.wfanet.measurement.internal.reporting.v2.resultGroup
 import org.wfanet.measurement.reporting.service.internal.Errors
@@ -178,6 +179,52 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
           metadata[Errors.Metadata.CMMS_MEASUREMENT_CONSUMER_ID.key] =
             basicReport.cmmsMeasurementConsumerId
           metadata[Errors.Metadata.EXTERNAL_BASIC_REPORT_ID.key] = basicReport.externalBasicReportId
+        }
+      )
+  }
+
+  @Test
+  fun `insertBasicReport throws IMPRESSION_QUALIFICATION_FILTER_NOT_FOUND when impression qualification filter not found`():
+    Unit = runBlocking {
+    measurementConsumersService.createMeasurementConsumer(
+      measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
+    )
+
+    reportingSetsService.createReportingSet(
+      createReportingSetRequest {
+        reportingSet = REPORTING_SET
+        externalReportingSetId = REPORTING_SET.externalReportingSetId
+      }
+    )
+
+    val resultGroup = resultGroup { title = "title" }
+
+    val basicReport = basicReport {
+      cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+      externalBasicReportId = "1237"
+      externalCampaignGroupId = REPORTING_SET.externalReportingSetId
+      campaignGroupDisplayName = REPORTING_SET.displayName
+      details = basicReportDetails {
+        title = "title"
+        impressionQualificationFilters += reportingImpressionQualificationFilter {
+          externalImpressionQualificationFilterId = "abc"
+        }
+      }
+      resultDetails = basicReportResultDetails { resultGroups += resultGroup }
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.insertBasicReport(insertBasicReportRequest { this.basicReport = basicReport })
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.IMPRESSION_QUALIFICATION_FILTER_NOT_FOUND.name
+          metadata[Errors.Metadata.IMPRESSION_QUALIFICATION_FILTER_ID.key] = "abc"
         }
       )
   }

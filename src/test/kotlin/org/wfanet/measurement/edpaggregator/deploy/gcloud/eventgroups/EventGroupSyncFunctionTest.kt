@@ -45,16 +45,16 @@ import org.mockito.kotlin.any
 import org.mockito.kotlin.times
 import org.mockito.kotlin.verifyBlocking
 import org.wfanet.measurement.api.v2alpha.CreateEventGroupRequest
-import org.wfanet.measurement.api.v2alpha.EventGroup as ExternalEventGroup
-import org.wfanet.measurement.api.v2alpha.EventGroupMetadataKt.AdMetadataKt.campaignMetadata as externalCampaignMetadata
-import org.wfanet.measurement.api.v2alpha.EventGroupMetadataKt.adMetadata as externalAdMetadata
+import org.wfanet.measurement.api.v2alpha.EventGroup as CmmsEventGroup
+import org.wfanet.measurement.api.v2alpha.EventGroupMetadataKt.AdMetadataKt.campaignMetadata as cmmsCampaignMetadata
+import org.wfanet.measurement.api.v2alpha.EventGroupMetadataKt.adMetadata as cmmsAdMetadata
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.ListEventGroupsRequest
-import org.wfanet.measurement.api.v2alpha.MediaType as ExternalMediaType
+import org.wfanet.measurement.api.v2alpha.MediaType as CmmsMediaType
 import org.wfanet.measurement.api.v2alpha.UpdateEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.copy
-import org.wfanet.measurement.api.v2alpha.eventGroup as externalEventGroup
-import org.wfanet.measurement.api.v2alpha.eventGroupMetadata as externalEventGroupMetadata
+import org.wfanet.measurement.api.v2alpha.eventGroup as cmmsEventGroup
+import org.wfanet.measurement.api.v2alpha.eventGroupMetadata as cmmsEventGroupMetadata
 import org.wfanet.measurement.api.v2alpha.listEventGroupsResponse
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.getRuntimePath
@@ -62,11 +62,13 @@ import org.wfanet.measurement.common.grpc.CommonServer
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.toJson
+import org.wfanet.measurement.edpaggregator.eventgroups.EventGroupSyncConfigKt.connectionDetails
+import org.wfanet.measurement.edpaggregator.eventgroups.EventGroupSyncConfigKt.fileSystemStorageDetails
 import org.wfanet.measurement.edpaggregator.eventgroups.eventGroupSyncConfig
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup
-import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.EventGroupMetadataKt.AdMetadataKt.campaignMetadata
-import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.EventGroupMetadataKt.adMetadata
-import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.eventGroupMetadata
+import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.MetadataKt.AdMetadataKt.campaignMetadata
+import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.MetadataKt.adMetadata
+import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.metadata as eventGroupMetadata
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.MappedEventGroup
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.eventGroup
 import org.wfanet.measurement.gcloud.testing.FunctionsFrameworkInvokerProcess
@@ -166,9 +168,9 @@ class EventGroupSyncFunctionTest() {
           eventGroups += campaigns[1].toEventGroup()
           eventGroups +=
             campaigns[2].toEventGroup().copy {
-              this.eventGroupMetadata = externalEventGroupMetadata {
-                this.adMetadata = externalAdMetadata {
-                  this.campaignMetadata = externalCampaignMetadata { brandName = "new-brand-name" }
+              this.eventGroupMetadata = cmmsEventGroupMetadata {
+                this.adMetadata = cmmsAdMetadata {
+                  this.campaignMetadata = cmmsCampaignMetadata { brandName = "new-brand-name" }
                 }
               }
             }
@@ -226,6 +228,13 @@ class EventGroupSyncFunctionTest() {
       dataProvider = "some-data-provider"
       eventGroupsBlobUri = "file:///some/path/campaigns-blob-uri"
       eventGroupMapUri = "file:///some/other/path/event-groups-map-uri"
+      this.connectionDetails = connectionDetails {
+        certJarResourcePath = "main/k8s/testing/secretfiles/edp1_tls.pem"
+        privateKeyJarResourcePath = "main/k8s/testing/secretfiles/edp1_tls.key"
+        certCollectionJarResourcePath = "main/k8s/testing/secretfiles/kingdom_root.pem"
+      }
+      eventGroupFileSystemStorageDetails = fileSystemStorageDetails {}
+      eventGroupMapFileSystemStorageDetails = fileSystemStorageDetails {}
     }
     File("${tempFolder.root}/some/path").mkdirs()
     File("${tempFolder.root}/some/other/path").mkdirs()
@@ -233,13 +242,9 @@ class EventGroupSyncFunctionTest() {
       functionProcess.start(
         mapOf(
           "FILE_STORAGE_ROOT" to tempFolder.root.toString(),
-          "GCS_PROJECT_ID" to "some-project-id",
           "KINGDOM_TARGET" to "localhost:${grpcServer.port}",
           "KINGDOM_CERT_HOST" to "localhost",
           "KINGDOM_SHUTDOWN_DURATION_SECONDS" to "3",
-          "CERT_FILE_PATH" to SECRETS_DIR.resolve("edp1_tls.pem").toString(),
-          "PRIVATE_KEY_FILE_PATH" to SECRETS_DIR.resolve("edp1_tls.key").toString(),
-          "CERT_COLLECTION_FILE_PATH" to SECRETS_DIR.resolve("kingdom_root.pem").toString(),
         )
       )
     }
@@ -302,21 +307,21 @@ class EventGroupSyncFunctionTest() {
   }
 }
 
-private fun EventGroup.toEventGroup(): ExternalEventGroup {
+private fun EventGroup.toEventGroup(): CmmsEventGroup {
   val campaign = this
-  return externalEventGroup {
+  return cmmsEventGroup {
     name = "resource-name-for-${campaign.eventGroupReferenceId}"
     measurementConsumer = campaign.measurementConsumer
     eventGroupReferenceId = campaign.eventGroupReferenceId
-    this.eventGroupMetadata = externalEventGroupMetadata {
-      this.adMetadata = externalAdMetadata {
-        this.campaignMetadata = externalCampaignMetadata {
+    this.eventGroupMetadata = cmmsEventGroupMetadata {
+      this.adMetadata = cmmsAdMetadata {
+        this.campaignMetadata = cmmsCampaignMetadata {
           brandName = campaign.eventGroupMetadata.adMetadata.campaignMetadata.brand
           campaignName = campaign.eventGroupMetadata.adMetadata.campaignMetadata.campaign
         }
       }
     }
-    mediaTypes += campaign.mediaTypesList.map { ExternalMediaType.valueOf(it) }
+    mediaTypes += campaign.mediaTypesList.map { CmmsMediaType.valueOf(it) }
     dataAvailabilityInterval = campaign.dataAvailabilityInterval
   }
 }

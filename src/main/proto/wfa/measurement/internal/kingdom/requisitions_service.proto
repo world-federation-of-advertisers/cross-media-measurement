@@ -18,6 +18,7 @@ package wfa.measurement.internal.kingdom;
 
 import "google/protobuf/timestamp.proto";
 import "wfa/measurement/internal/kingdom/measurement.proto";
+import "wfa/measurement/internal/kingdom/requisition_details.proto";
 import "wfa/measurement/internal/kingdom/requisition_refusal.proto";
 
 option java_package = "org.wfanet.measurement.internal.kingdom";
@@ -75,6 +76,7 @@ message FulfillRequisitionRequest {
   fixed64 external_requisition_id = 1;
   // Cryptographic nonce from the `RequisitionSpec`.
   fixed64 nonce = 2;
+  RequisitionDetails.FulfillmentContext fulfillment_context = 5;
 
   // Requisition parameters for a Computed Measurement
   message ComputedRequisitionParams {
