@@ -4,7 +4,7 @@ load(
     "container_push_all",
 )
 load("//build:variables.bzl", "IMAGE_REPOSITORY_SETTINGS")
-load(":images.bzl", "ALL_EKS_IMAGES", "ALL_GKE_IMAGES", "ALL_IMAGES", "ALL_LOCAL_IMAGES", "ALL_REPORTING_GKE_IMAGES")
+load(":images.bzl", "ALL_EKS_IMAGES", "ALL_GKE_IMAGES", "ALL_IMAGES", "ALL_LOCAL_IMAGES", "ALL_REPORTING_GKE_IMAGES", "ALL_TEE_APP_GKE_IMAGES")
 
 package(
     default_testonly = True,  #TODO: delete when InMemoryKeyStore and FakeHybridCipher are not used.
@@ -76,7 +76,7 @@ container_push_all(
         name = image_spec.repository,
         registry = IMAGE_REPOSITORY_SETTINGS.container_registry,
         tag = IMAGE_REPOSITORY_SETTINGS.image_tag,
-    ): image_spec.image for image_spec in ALL_TEE_APP_IMAGES},
+    ): image_spec.image for image_spec in ALL_TEE_APP_GKE_IMAGES},
     tags = [
         "manual",
         "no-remote",
