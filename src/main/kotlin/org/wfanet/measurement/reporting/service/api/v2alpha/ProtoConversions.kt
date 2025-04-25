@@ -703,7 +703,9 @@ private fun Measurement.Result.Frequency.toInternal(
       liquidLegionsV2 = cmmsProtocol.toInternal()
     } else if (protocolConfig.protocolsList.any { it.hasHonestMajorityShareShuffle() }) {
       val cmmsProtocol =
-        protocolConfig.protocolsList.first { it.hasHonestMajorityShareShuffle() }.honestMajorityShareShuffle
+        protocolConfig.protocolsList
+          .first { it.hasHonestMajorityShareShuffle() }
+          .honestMajorityShareShuffle
       noiseMechanism = cmmsProtocol.noiseMechanism.toInternal()
       @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
       when (source.methodologyCase) {
@@ -762,7 +764,11 @@ private fun Measurement.Result.Reach.toInternal(
       noiseMechanism = cmmsProtocol.noiseMechanism.toInternal()
       reachOnlyLiquidLegionsV2 = cmmsProtocol.toInternal()
     } else if (protocolConfig.protocolsList.any { it.hasHonestMajorityShareShuffle() }) {
-      noiseMechanism = source.noiseMechanism.toInternal()
+      val cmmsProtocol =
+        protocolConfig.protocolsList
+          .first { it.hasHonestMajorityShareShuffle() }
+          .honestMajorityShareShuffle
+      noiseMechanism = cmmsProtocol.noiseMechanism.toInternal()
       @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
       when (source.methodologyCase) {
         Measurement.Result.Reach.MethodologyCase.HONEST_MAJORITY_SHARE_SHUFFLE -> {
