@@ -212,7 +212,7 @@ object Covariances {
   }
 
   /** Computes the width of the union of two sampling intervals. */
-  private fun computeUnionSamplingWidth(
+  fun computeUnionSamplingWidth(
     vidSamplingInterval: VidSamplingInterval,
     otherVidSamplingInterval: VidSamplingInterval,
   ): Double {

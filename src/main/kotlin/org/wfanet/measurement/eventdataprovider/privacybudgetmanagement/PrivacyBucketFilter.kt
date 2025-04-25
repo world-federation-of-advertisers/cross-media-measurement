@@ -65,6 +65,8 @@ class PrivacyBucketFilter(
         if (vidSamplingIntervalEnd > vidSamplingIntervalStart) {
           it in vidSamplingIntervalStart..vidSamplingIntervalEnd
         } else {
+          // When interval is wrapping around 1.0, the VID range is [0, vidSamplingIntervalStart] +
+          // [vidSamplingIntervalEnd, 1.0]
           it <= vidSamplingIntervalStart || it >= vidSamplingIntervalEnd
         }
       }

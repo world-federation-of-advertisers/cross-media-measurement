@@ -680,6 +680,10 @@ private fun MeasurementSpec.validate() {
       grpcRequire(vidSamplingInterval.width > 0 && vidSamplingInterval.width <= 1.0) {
         "Vid sampling interval is invalid"
       }
+
+      require(vidSamplingInterval.start in 0.0..1.0) {
+        "Vid sampling interval start must be >= 0 and <= 1"
+      }
     }
     MeasurementSpec.MeasurementTypeCase.REACH_AND_FREQUENCY -> {
       grpcRequire(reachAndFrequency.reachPrivacyParams.hasValidEpsilonAndDelta()) {
@@ -695,6 +699,10 @@ private fun MeasurementSpec.validate() {
 
       grpcRequire(vidSamplingInterval.width > 0 && vidSamplingInterval.width <= 1.0) {
         "Vid sampling interval is invalid"
+      }
+
+      grpcRequire(vidSamplingInterval.start in 0.0..1.0) {
+        "Vid sampling interval start should be within [0, 1]"
       }
     }
     MeasurementSpec.MeasurementTypeCase.IMPRESSION -> {
@@ -894,6 +902,9 @@ private fun validateSamplingInterval(
   val interval = measurementSpec.vidSamplingInterval
   when (internalProtocolConfig.protocolCase) {
     ProtocolConfig.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE -> {
+      grpcRequire(interval.start in 0.0..1.0) {
+        "VidSamplingInterval start should be within [0, 1]"
+      }
       grpcRequire(interval.width <= 1.0) { "VidSamplingInterval width cannot be larger than 1.0" }
     }
     else -> {

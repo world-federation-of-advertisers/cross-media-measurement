@@ -23,6 +23,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.eventdataprovider.noiser.DpParams
+import org.wfanet.measurement.measurementconsumer.stats.Covariances.computeUnionSamplingWidth
 
 @RunWith(JUnit4::class)
 class CovariancesTest {
@@ -628,6 +629,93 @@ class CovariancesTest {
     assertThat(covariance).isWithin(tolerance).of(expected)
   }
 
+  @Test
+  fun `computeUnionSamplingWidth is correct with no overlap`() {
+    val interval1 = VidSamplingInterval(0.1, 0.2) // [0.1, 0.3]
+    val interval2 = VidSamplingInterval(0.3, 0.4) // [0.3, 0.7]
+    val expectedWidth = 0.6
+
+    val actualWidth = computeUnionSamplingWidth(interval1, interval2)
+    assertThat(actualWidth).isWithin(TOLERANCE).of(expectedWidth)
+  }
+
+  @Test
+  fun `computeUnionSamplingWidth is correct with partial overlap`() {
+    val interval1 = VidSamplingInterval(0.1, 0.3) // [0.1, 0.4]
+    val interval2 = VidSamplingInterval(0.2, 0.4) // [0.2, 0.6]
+
+    val expectedWidth = 0.5
+
+    val actualWidth = computeUnionSamplingWidth(interval1, interval2)
+    assertThat(actualWidth).isWithin(TOLERANCE).of(expectedWidth)
+  }
+
+  @Test
+  fun `computeUnionSamplingWidth is correct when one interval contains another`() {
+    val interval1 = VidSamplingInterval(0.1, 0.4) // [0.1, 0.5]
+    val interval2 = VidSamplingInterval(0.2, 0.3) // [0.2, 0.5]
+
+    val expectedWidth = 0.4
+
+    val actualWidth = computeUnionSamplingWidth(interval1, interval2)
+    assertThat(actualWidth).isWithin(TOLERANCE).of(expectedWidth)
+  }
+
+  @Test
+  fun `computeUnionSamplingWidth when intervals are identical`() {
+    val interval1 = VidSamplingInterval(0.1, 0.3) // [0.1, 0.4]
+    val interval2 = VidSamplingInterval(0.1, 0.3) // [0.1, 0.4]
+
+    val expectedWidth = 0.3
+
+    val actualWidth = computeUnionSamplingWidth(interval1, interval2)
+    assertThat(actualWidth).isWithin(TOLERANCE).of(expectedWidth)
+  }
+
+  @Test
+  fun `computeUnionSamplingWidth is correct when intervals touch`() {
+    val interval1 = VidSamplingInterval(0.1, 0.2)
+    val interval2 = VidSamplingInterval(0.3, 0.3)
+
+    val expectedWidth = 0.5
+
+    val actualWidth = computeUnionSamplingWidth(interval1, interval2)
+    assertThat(actualWidth).isWithin(TOLERANCE).of(expectedWidth)
+  }
+
+  @Test
+  fun `computeUnionSamplingWidth is correct without overlap in wrapping`() {
+    val interval1 = VidSamplingInterval(0.8, 0.3)
+    val interval2 = VidSamplingInterval(0.3, 0.4)
+
+    val expectedWidth = 0.7
+
+    val actualWidth = computeUnionSamplingWidth(interval1, interval2)
+    assertThat(actualWidth).isWithin(TOLERANCE).of(expectedWidth)
+  }
+
+  @Test
+  fun `computeUnionSampling is correct when intervals are wrapping and overlap`() {
+    val interval1 = VidSamplingInterval(0.5, 0.7)
+    val interval2 = VidSamplingInterval(0.8, 0.5)
+
+    val expectedWidth = 0.8
+
+    val actualWidth = computeUnionSamplingWidth(interval1, interval2)
+    assertThat(actualWidth).isWithin(TOLERANCE).of(expectedWidth)
+  }
+
+  @Test
+  fun `computeUnionSamplingWidth is correct when one interval contains another in wrapping`() {
+    val interval1 = VidSamplingInterval(0.8, 0.3)
+    val interval2 = VidSamplingInterval(0.7, 0.6)
+
+    val expectedWidth = 0.6
+
+    val actualWidth = computeUnionSamplingWidth(interval1, interval2)
+    assertThat(actualWidth).isWithin(TOLERANCE).of(expectedWidth)
+  }
+
   companion object {
     fun computeErrorTolerance(actual: Double, expected: Double): Double {
       return if (expected == 0.0 || actual == 0.0) {
@@ -638,5 +726,7 @@ class CovariancesTest {
     }
 
     private const val ERROR_TOLERANCE_PERCENTAGE = 5e-3
+
+    private const val TOLERANCE = 1e-9
   }
 }

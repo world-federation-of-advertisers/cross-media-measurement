@@ -90,6 +90,7 @@ class ReportingApiServerFlags {
   var measurementConsumerModelLines: Map<String, String> = emptyMap()
     private set
 
+  // TODO(@renjiez): Remove this flag when LLv2 is deprecated.
   @set:CommandLine.Option(
     names = ["--allow-sampling-interval-wrapping"],
     description = ["Enable random sampling interval to wrap around 1."],

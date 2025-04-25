@@ -324,7 +324,7 @@ class MeasurementConsumerSimulator(
           runId,
           ::newInvalidReachAndFrequencyMeasurementSpec,
           requiredCapabilities,
-          vidSamplingInterval = vidSamplingInterval,
+          vidSamplingInterval,
         )
         .measurement
     logger.info(
@@ -357,8 +357,8 @@ class MeasurementConsumerSimulator(
         runId,
         ::newReachAndFrequencyMeasurementSpec,
         DataProviderKt.capabilities { honestMajorityShareShuffleSupported = false },
+        DEFAULT_VID_SAMPLING_INTERVAL,
         1,
-        vidSamplingInterval = DEFAULT_VID_SAMPLING_INTERVAL,
       )
     val measurementName = measurementInfo.measurement.name
     logger.info("Created direct reach and frequency measurement $measurementName.")
@@ -417,8 +417,8 @@ class MeasurementConsumerSimulator(
         runId,
         ::newReachMeasurementSpec,
         DataProviderKt.capabilities { honestMajorityShareShuffleSupported = false },
+        DEFAULT_VID_SAMPLING_INTERVAL,
         1,
-        vidSamplingInterval = DEFAULT_VID_SAMPLING_INTERVAL,
       )
     val measurementName = measurementInfo.measurement.name
     logger.info("Created direct reach measurement $measurementName.")
@@ -464,6 +464,7 @@ class MeasurementConsumerSimulator(
         runId,
         ::newReachOnlyMeasurementSpec,
         requiredCapabilities,
+        DEFAULT_VID_SAMPLING_INTERVAL,
       )
     val measurementName = measurementInfo.measurement.name
     logger.info("Created reach-only measurement $measurementName.")
@@ -572,6 +573,7 @@ class MeasurementConsumerSimulator(
         runId,
         ::newImpressionMeasurementSpec,
         DataProviderKt.capabilities { honestMajorityShareShuffleSupported = false },
+        DEFAULT_VID_SAMPLING_INTERVAL,
       )
     val measurementName = measurementInfo.measurement.name
     logger.info("Created impression Measurement $measurementName.")
@@ -610,6 +612,7 @@ class MeasurementConsumerSimulator(
         runId,
         ::newDurationMeasurementSpec,
         DataProviderKt.capabilities { honestMajorityShareShuffleSupported = false },
+        DEFAULT_VID_SAMPLING_INTERVAL,
       )
     val measurementName = measurementInfo.measurement.name
     logger.info("Created duration Measurement $measurementName.")
@@ -822,8 +825,8 @@ class MeasurementConsumerSimulator(
       ) -> MeasurementSpec,
     requiredCapabilities: DataProvider.Capabilities =
       DataProvider.Capabilities.getDefaultInstance(),
+    vidSamplingInterval: VidSamplingInterval,
     maxDataProviders: Int = 20,
-    vidSamplingInterval: VidSamplingInterval = DEFAULT_VID_SAMPLING_INTERVAL,
   ): MeasurementInfo {
     val eventGroups: List<EventGroup> =
       listEventGroups(measurementConsumer.name)
