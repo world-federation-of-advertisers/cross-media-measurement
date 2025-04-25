@@ -18,12 +18,11 @@ AS ENUM('NOT_READY', 'BACKFILLING', 'READY');
 
 -- Holds the state and privacyLandscapeName for all the previous (deleted) and current PrivacyCharges tables.
 CREATE TABLE PrivacyChargesMetadata (
-    -- The id of the PrivacyCharges table.
-    id SERIAL PRIMARY KEY,
-    -- The state of the PrivacyCharges table.
-    state ChargesTableState,
     -- Name of the Privacy Landscape that is used to map the charges column of this table.
-    privacyLandscapeName TEXT,
+    -- There can be only one table hence, on entry in the metadata table per privacyLandscapeName.
+    PrivacyLandscapeName TEXT PRIMARY KEY,
+    -- The state of the PrivacyCharges table.
+    State ChargesTableState,
     -- Time this PrivacyCharges table was created.
     CreateTime TIMESTAMP NOT NULL,
     -- Time this PrivacyCharges table was deleted, if it was.

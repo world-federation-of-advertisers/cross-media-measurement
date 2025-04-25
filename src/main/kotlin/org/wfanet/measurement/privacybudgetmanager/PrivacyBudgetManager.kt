@@ -66,20 +66,37 @@ class PrivacyBudgetManager(
             // Get slice intended to be committed to the PBM, defined by queriesToCommit.
             val delta: Slice = getDelta(queriesToCommit) 
 
-            // Read the backing store for the rows those buckets target.
+            // Read the backing store for the rows that slice targets.
             val targettedSlice = context.read(delta.getRowKeys())
 
-            // Check if any of the updated buckets exceed the budget and aggregate to find the rows to commit. 
+            // Check if any of the updated buckets exceed the budget and aggregate to find the slice to commit. 
             val sliceToCommit = checkAndAggregate(delta, targettedSlice)
 
-            // Write Delta and the selected Queries to the Backing Store.
-            context.write(sliceToCommit, queriesToCommit)
+            // Write aggregated slice and the selected Queries to the Backing Store.
+            context.write(sliceToCommit, queries)
 
             // Commit the transaction
             context.commit()
         }
         
-        // Write the commited queries to the EDP owned audit log and return the audit reference.
-        return auditLog.write(queriesToCommit, groupId)
+        // Write all the given queries to the EDP owned audit log and return the audit reference.
+        // The detail of writing all the given queries and not the queriesToCommit is important
+        // due to the following scenario: 
+        //  1. PBM is charged with queries A,B,C -> charges are committed successfully but 
+        //     the audit log write failed - so the audit log doesn't contain A,B,C. The caller shouldn't
+        //     fulfill requisitions for A,B,C.
+        //  2. PBM is then called at a later time with queries B,C,D -> charges are committed succesfully
+        //     for only D, PBM did not commit charges from B,C because they are already in the backing store.
+        //     In this case, all B,C,D should be written to the audit log because if you only write D, then
+        //     the auditor will conclude less queries are wrritten to the audit log then in the PBM.
+        // 
+        // This brings about the following scenario: 
+        //  1. PBM is charged with A,B,C all commited, all successfully written to audit log.
+        //  2. Then, PBM is charged with B,C,D. Again, all committed and all successfully written
+        //     to audit log. 
+        // In this scenario, auditor will find duplicate entries for B and C. This won't be a problem
+        // because in the replay scenario, the PBM code will check the references and conclude they were
+        // already written to the DB.
+        return auditLog.write(queries, groupId)
     }  
 }
