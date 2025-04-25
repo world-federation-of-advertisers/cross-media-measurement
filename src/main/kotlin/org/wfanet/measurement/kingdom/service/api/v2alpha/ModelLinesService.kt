@@ -16,12 +16,16 @@
 
 package org.wfanet.measurement.kingdom.service.api.v2alpha
 
+import com.google.protobuf.util.Timestamps
+import com.google.type.Interval
 import io.grpc.Status
 import io.grpc.StatusException
+import java.util.logging.Level
+import java.util.logging.Logger
 import kotlin.math.min
 import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.v2alpha.CreateModelLineRequest
-import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineStub
+import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.DataProviderPrincipal
 import org.wfanet.measurement.api.v2alpha.ListModelLinesPageToken
 import org.wfanet.measurement.api.v2alpha.ListModelLinesPageTokenKt.previousPageEnd
@@ -32,36 +36,32 @@ import org.wfanet.measurement.api.v2alpha.ModelLine
 import org.wfanet.measurement.api.v2alpha.ModelLineKey
 import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt.ModelLinesCoroutineImplBase as ModelLinesCoroutineService
 import org.wfanet.measurement.api.v2alpha.ModelProviderPrincipal
-import org.wfanet.measurement.internal.kingdom.ModelRolloutsGrpcKt.ModelRolloutsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ModelSuiteKey
+import org.wfanet.measurement.api.v2alpha.SearchValidModelLinesRequest
+import org.wfanet.measurement.api.v2alpha.SearchValidModelLinesResponse
 import org.wfanet.measurement.api.v2alpha.SetModelLineActiveEndTimeRequest
 import org.wfanet.measurement.api.v2alpha.SetModelLineHoldbackModelLineRequest
 import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.listModelLinesPageToken
 import org.wfanet.measurement.api.v2alpha.listModelLinesResponse
 import org.wfanet.measurement.api.v2alpha.principalFromCurrentContext
+import org.wfanet.measurement.api.v2alpha.searchValidModelLinesResponse
 import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.apiIdToExternalId
+import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.internal.kingdom.ModelLine as InternalModelLine
 import org.wfanet.measurement.internal.kingdom.ModelLinesGrpcKt.ModelLinesCoroutineStub
+import org.wfanet.measurement.internal.kingdom.ModelRolloutsGrpcKt.ModelRolloutsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.StreamModelLinesRequest
 import org.wfanet.measurement.internal.kingdom.StreamModelLinesRequestKt.afterFilter
 import org.wfanet.measurement.internal.kingdom.StreamModelLinesRequestKt.filter
-import org.wfanet.measurement.internal.kingdom.setActiveEndTimeRequest as internalSetActiveEndTimeRequest
-import com.google.protobuf.util.Timestamps
-import com.google.type.Interval
-import java.util.logging.Level
-import java.util.logging.Logger
-import org.wfanet.measurement.api.v2alpha.DataProviderKey
-import org.wfanet.measurement.api.v2alpha.SearchValidModelLinesRequest
-import org.wfanet.measurement.api.v2alpha.SearchValidModelLinesResponse
-import org.wfanet.measurement.api.v2alpha.searchValidModelLinesResponse
 import org.wfanet.measurement.internal.kingdom.StreamModelRolloutsRequestKt
 import org.wfanet.measurement.internal.kingdom.getDataProviderRequest
+import org.wfanet.measurement.internal.kingdom.setActiveEndTimeRequest as internalSetActiveEndTimeRequest
 import org.wfanet.measurement.internal.kingdom.setModelLineHoldbackModelLineRequest
 import org.wfanet.measurement.internal.kingdom.streamModelLinesRequest
 import org.wfanet.measurement.internal.kingdom.streamModelRolloutsRequest
@@ -73,8 +73,7 @@ class ModelLinesService(
   private val internalClient: ModelLinesCoroutineStub,
   private val internalDataProvidersClient: DataProvidersCoroutineStub,
   private val internalModelRolloutsClient: ModelRolloutsCoroutineStub,
-) :
-  ModelLinesCoroutineService() {
+) : ModelLinesCoroutineService() {
 
   override suspend fun createModelLine(request: CreateModelLineRequest): ModelLine {
     val parentKey =
@@ -236,7 +235,9 @@ class ModelLinesService(
     }
   }
 
-  override suspend fun searchValidModelLines(request: SearchValidModelLinesRequest): SearchValidModelLinesResponse {
+  override suspend fun searchValidModelLines(
+    request: SearchValidModelLinesRequest
+  ): SearchValidModelLinesResponse {
     val parent =
       grpcRequireNotNull(ModelSuiteKey.fromName(request.parent)) {
         "parent is either unspecified or invalid"
@@ -267,7 +268,9 @@ class ModelLinesService(
     }
 
     if (Timestamps.compare(request.timeInterval.startTime, request.timeInterval.endTime) >= 0) {
-      failGrpc(Status.INVALID_ARGUMENT) { "time_interval.start_time must be before time_interval.end_time" }
+      failGrpc(Status.INVALID_ARGUMENT) {
+        "time_interval.start_time must be before time_interval.end_time"
+      }
     }
 
     if (request.dataProvidersList.size == 0) {
@@ -288,9 +291,11 @@ class ModelLinesService(
           val dataProviderKey = DataProviderKey.fromName(dataProviderName)
           val dataProvider =
             try {
-              internalDataProvidersClient.getDataProvider(getDataProviderRequest {
-                externalDataProviderId = apiIdToExternalId(dataProviderKey!!.dataProviderId)
-              })
+              internalDataProvidersClient.getDataProvider(
+                getDataProviderRequest {
+                  externalDataProviderId = apiIdToExternalId(dataProviderKey!!.dataProviderId)
+                }
+              )
             } catch (e: StatusException) {
               throw when (e.status.code) {
                 Status.Code.NOT_FOUND ->
@@ -316,19 +321,22 @@ class ModelLinesService(
     val internalModelLines: List<InternalModelLine> =
       try {
         internalClient
-          .streamModelLines(streamModelLinesRequest {
-            filter = filter {
-              externalModelProviderId = apiIdToExternalId(modelSuiteKey!!.modelProviderId)
-              externalModelSuiteId = apiIdToExternalId(modelSuiteKey.modelSuiteId)
-              if (request.typesList.isEmpty()) {
-                this.type += InternalModelLine.Type.PROD
-              } else {
-                for (type in request.typesList) {
-                  this.type += type.toInternalType()
+          .streamModelLines(
+            streamModelLinesRequest {
+              filter = filter {
+                externalModelProviderId = apiIdToExternalId(modelSuiteKey!!.modelProviderId)
+                externalModelSuiteId = apiIdToExternalId(modelSuiteKey.modelSuiteId)
+                if (request.typesList.isEmpty()) {
+                  this.type += InternalModelLine.Type.PROD
+                } else {
+                  for (type in request.typesList) {
+                    this.type += type.toInternalType()
+                  }
                 }
               }
             }
-          }).toList()
+          )
+          .toList()
       } catch (e: StatusException) {
         throw when (e.status.code) {
           Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
@@ -340,20 +348,24 @@ class ModelLinesService(
       for (internalModelLine in internalModelLines) {
         val modelLine = internalModelLine.toModelLine()
         if (request.timeInterval.isFullyContainedWithin(modelLine)) {
-          val dataAvailabilityIntervals: List<Interval>? = dataProvidersDataAvailabilityIntervalMap[internalModelLine.externalModelLineId]
+          val dataAvailabilityIntervals: List<Interval>? =
+            dataProvidersDataAvailabilityIntervalMap[internalModelLine.externalModelLineId]
           if (dataAvailabilityIntervals != null) {
             if (request.timeInterval.isFullyContainedWithin(dataAvailabilityIntervals)) {
               val streamModelRolloutsResponse =
                 try {
-                  internalModelRolloutsClient.streamModelRollouts(
-                    streamModelRolloutsRequest {
-                      filter = StreamModelRolloutsRequestKt.filter {
-                        externalModelProviderId = internalModelLine.externalModelProviderId
-                        externalModelSuiteId = internalModelLine.externalModelSuiteId
-                        externalModelLineId = internalModelLine.externalModelLineId
+                  internalModelRolloutsClient
+                    .streamModelRollouts(
+                      streamModelRolloutsRequest {
+                        filter =
+                          StreamModelRolloutsRequestKt.filter {
+                            externalModelProviderId = internalModelLine.externalModelProviderId
+                            externalModelSuiteId = internalModelLine.externalModelSuiteId
+                            externalModelLineId = internalModelLine.externalModelLineId
+                          }
                       }
-                    }
-                  ).toList()
+                    )
+                    .toList()
                 } catch (e: StatusException) {
                   throw when (e.status.code) {
                     Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED

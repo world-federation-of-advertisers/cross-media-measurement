@@ -186,10 +186,10 @@ class InProcessKingdom(
             .withMetadataPrincipalIdentities()
             .withApiKeyAuthenticationServerInterceptor(internalApiKeysClient),
           ModelLinesService(
-            internalModelLinesClient,
-            internalDataProvidersClient,
-            internalModelRolloutsClient,
-          )
+              internalModelLinesClient,
+              internalDataProvidersClient,
+              internalModelRolloutsClient,
+            )
             .withMetadataPrincipalIdentities()
             .withApiKeyAuthenticationServerInterceptor(internalApiKeysClient),
           PopulationsService(internalPopulationsClient)

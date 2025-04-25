@@ -19,6 +19,8 @@ package org.wfanet.measurement.kingdom.service.api.v2alpha
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.Timestamp
+import com.google.protobuf.timestamp
+import com.google.type.interval
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import java.time.Instant
@@ -31,8 +33,13 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
+import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.stub
+import org.mockito.kotlin.times
 import org.mockito.kotlin.verify
+import org.mockito.kotlin.verifyBlocking
+import org.mockito.kotlin.whenever
+import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.ListModelLinesPageTokenKt.previousPageEnd
 import org.wfanet.measurement.api.v2alpha.ListModelLinesRequest
 import org.wfanet.measurement.api.v2alpha.ListModelLinesRequestKt.filter
@@ -46,8 +53,9 @@ import org.wfanet.measurement.api.v2alpha.createModelLineRequest
 import org.wfanet.measurement.api.v2alpha.listModelLinesPageToken
 import org.wfanet.measurement.api.v2alpha.listModelLinesRequest
 import org.wfanet.measurement.api.v2alpha.listModelLinesResponse
-import org.wfanet.measurement.api.v2alpha.searchValidModelLinesRequest
 import org.wfanet.measurement.api.v2alpha.modelLine
+import org.wfanet.measurement.api.v2alpha.searchValidModelLinesRequest
+import org.wfanet.measurement.api.v2alpha.searchValidModelLinesResponse
 import org.wfanet.measurement.api.v2alpha.setModelLineActiveEndTimeRequest
 import org.wfanet.measurement.api.v2alpha.setModelLineHoldbackModelLineRequest
 import org.wfanet.measurement.api.v2alpha.withDataProviderPrincipal
@@ -65,38 +73,30 @@ import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.testing.captureFirst
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.common.toProtoTime
+import org.wfanet.measurement.internal.kingdom.DataProviderKt
+import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.internal.kingdom.ModelLine as InternalModelLine
 import org.wfanet.measurement.internal.kingdom.ModelLine.Type as InternalType
 import org.wfanet.measurement.internal.kingdom.ModelLinesGrpcKt.ModelLinesCoroutineImplBase
-import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
-import org.wfanet.measurement.internal.kingdom.ModelRolloutsGrpcKt.ModelRolloutsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ModelLinesGrpcKt.ModelLinesCoroutineStub
-import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineStub
+import org.wfanet.measurement.internal.kingdom.ModelRolloutsGrpcKt.ModelRolloutsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ModelRolloutsGrpcKt.ModelRolloutsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.StreamModelLinesRequest
+import org.wfanet.measurement.internal.kingdom.StreamModelLinesRequestKt
 import org.wfanet.measurement.internal.kingdom.StreamModelLinesRequestKt.afterFilter
 import org.wfanet.measurement.internal.kingdom.StreamModelLinesRequestKt.filter as internalFilter
+import org.wfanet.measurement.internal.kingdom.StreamModelRolloutsRequest
+import org.wfanet.measurement.internal.kingdom.StreamModelRolloutsRequestKt
 import org.wfanet.measurement.internal.kingdom.copy
+import org.wfanet.measurement.internal.kingdom.dataProvider
+import org.wfanet.measurement.internal.kingdom.getDataProviderRequest
 import org.wfanet.measurement.internal.kingdom.modelLine as internalModelLine
+import org.wfanet.measurement.internal.kingdom.modelLineKey
+import org.wfanet.measurement.internal.kingdom.modelRollout
 import org.wfanet.measurement.internal.kingdom.setActiveEndTimeRequest as internalsetActiveEndTimeRequest
 import org.wfanet.measurement.internal.kingdom.setModelLineHoldbackModelLineRequest as internalSetModelLineHoldbackModelLineRequest
 import org.wfanet.measurement.internal.kingdom.streamModelLinesRequest as internalStreamModelLinesRequest
-import com.google.protobuf.timestamp
-import com.google.type.interval
-import org.mockito.kotlin.argumentCaptor
-import org.mockito.kotlin.times
-import org.mockito.kotlin.verifyBlocking
-import org.mockito.kotlin.whenever
-import org.wfanet.measurement.api.v2alpha.DataProviderKey
-import org.wfanet.measurement.api.v2alpha.searchValidModelLinesResponse
-import org.wfanet.measurement.internal.kingdom.DataProviderKt
-import org.wfanet.measurement.internal.kingdom.StreamModelLinesRequestKt
-import org.wfanet.measurement.internal.kingdom.StreamModelRolloutsRequest
-import org.wfanet.measurement.internal.kingdom.StreamModelRolloutsRequestKt
-import org.wfanet.measurement.internal.kingdom.dataProvider
-import org.wfanet.measurement.internal.kingdom.getDataProviderRequest
-import org.wfanet.measurement.internal.kingdom.modelLineKey
-import org.wfanet.measurement.internal.kingdom.modelRollout
 import org.wfanet.measurement.internal.kingdom.streamModelLinesRequest
 import org.wfanet.measurement.internal.kingdom.streamModelRolloutsRequest
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelLineInvalidArgsException
@@ -205,35 +205,42 @@ class ModelLinesServiceTest {
   }
 
   private val internalDataProvidersMock: DataProvidersCoroutineImplBase = mockService {
-    onBlocking { getDataProvider(getDataProviderRequest {
-      externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
-    }) }
+    onBlocking {
+        getDataProvider(
+          getDataProviderRequest { externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID }
+        )
+      }
       .thenReturn(
         dataProvider {
-          dataAvailabilityIntervals += DataProviderKt.dataAvailabilityMapEntry {
-            value = interval {
-              startTime = timestamp { seconds = 50 }
-              endTime = timestamp { seconds = 100 }
+          dataAvailabilityIntervals +=
+            DataProviderKt.dataAvailabilityMapEntry {
+              value = interval {
+                startTime = timestamp { seconds = 50 }
+                endTime = timestamp { seconds = 100 }
+              }
             }
-          }
         }
       )
   }
 
   private val internalModelRolloutsMock: ModelRolloutsCoroutineImplBase = mockService {
-    onBlocking { streamModelRollouts(streamModelRolloutsRequest {
-      filter = StreamModelRolloutsRequestKt.filter {
-        externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
-        externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
-        externalModelLineId = EXTERNAL_MODEL_LINE_ID
+    onBlocking {
+        streamModelRollouts(
+          streamModelRolloutsRequest {
+            filter =
+              StreamModelRolloutsRequestKt.filter {
+                externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
+                externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
+                externalModelLineId = EXTERNAL_MODEL_LINE_ID
+              }
+          }
+        )
       }
-    }) }
-      .thenReturn(
-        flowOf(modelRollout {  })
-      )
+      .thenReturn(flowOf(modelRollout {}))
   }
 
-  @get:Rule val grpcTestServerRule = GrpcTestServerRule {
+  @get:Rule
+  val grpcTestServerRule = GrpcTestServerRule {
     addService(internalModelLinesMock)
     addService(internalDataProvidersMock)
     addService(internalModelRolloutsMock)
@@ -243,11 +250,12 @@ class ModelLinesServiceTest {
 
   @Before
   fun initService() {
-    service = ModelLinesService(
-      ModelLinesCoroutineStub(grpcTestServerRule.channel),
-      DataProvidersCoroutineStub(grpcTestServerRule.channel),
-      ModelRolloutsCoroutineStub(grpcTestServerRule.channel),
-    )
+    service =
+      ModelLinesService(
+        ModelLinesCoroutineStub(grpcTestServerRule.channel),
+        DataProvidersCoroutineStub(grpcTestServerRule.channel),
+        ModelRolloutsCoroutineStub(grpcTestServerRule.channel),
+      )
   }
 
   @Test
@@ -1264,62 +1272,73 @@ class ModelLinesServiceTest {
   @Test
   fun `searchValidModelLines returns model lines in order`(): Unit = runBlocking {
     val externalModelLineId4 = 1234L
-    val modelLineName4 = ModelLineKey(externalIdToApiId(EXTERNAL_MODEL_PROVIDER_ID), externalIdToApiId(
-      EXTERNAL_MODEL_SUITE_ID), externalIdToApiId(externalModelLineId4)).toName()
-    whenever(internalDataProvidersMock.getDataProvider(getDataProviderRequest {
-      externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
-    }))
+    val modelLineName4 =
+      ModelLineKey(
+          externalIdToApiId(EXTERNAL_MODEL_PROVIDER_ID),
+          externalIdToApiId(EXTERNAL_MODEL_SUITE_ID),
+          externalIdToApiId(externalModelLineId4),
+        )
+        .toName()
+    whenever(
+        internalDataProvidersMock.getDataProvider(
+          getDataProviderRequest { externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID }
+        )
+      )
       .thenReturn(
         dataProvider {
-          dataAvailabilityIntervals += DataProviderKt.dataAvailabilityMapEntry {
-            key = modelLineKey {
-              externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
-              externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
-              externalModelLineId = EXTERNAL_MODEL_LINE_ID
+          dataAvailabilityIntervals +=
+            DataProviderKt.dataAvailabilityMapEntry {
+              key = modelLineKey {
+                externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
+                externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
+                externalModelLineId = EXTERNAL_MODEL_LINE_ID
+              }
+              value = interval {
+                startTime = timestamp { seconds = 50 }
+                endTime = timestamp { seconds = 100 }
+              }
             }
-            value = interval {
-              startTime = timestamp { seconds = 50 }
-              endTime = timestamp { seconds = 100 }
+          dataAvailabilityIntervals +=
+            DataProviderKt.dataAvailabilityMapEntry {
+              key = modelLineKey {
+                externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
+                externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
+                externalModelLineId = EXTERNAL_MODEL_LINE_ID_2
+              }
+              value = interval {
+                startTime = timestamp { seconds = 50 }
+                endTime = timestamp { seconds = 100 }
+              }
             }
-          }
-          dataAvailabilityIntervals += DataProviderKt.dataAvailabilityMapEntry {
-            key = modelLineKey {
-              externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
-              externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
-              externalModelLineId = EXTERNAL_MODEL_LINE_ID_2
+          dataAvailabilityIntervals +=
+            DataProviderKt.dataAvailabilityMapEntry {
+              key = modelLineKey {
+                externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
+                externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
+                externalModelLineId = EXTERNAL_MODEL_LINE_ID_3
+              }
+              value = interval {
+                startTime = timestamp { seconds = 50 }
+                endTime = timestamp { seconds = 100 }
+              }
             }
-            value = interval {
-              startTime = timestamp { seconds = 50 }
-              endTime = timestamp { seconds = 100 }
+          dataAvailabilityIntervals +=
+            DataProviderKt.dataAvailabilityMapEntry {
+              key = modelLineKey {
+                externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
+                externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
+                externalModelLineId = externalModelLineId4
+              }
+              value = interval {
+                startTime = timestamp { seconds = 50 }
+                endTime = timestamp { seconds = 100 }
+              }
             }
-          }
-          dataAvailabilityIntervals += DataProviderKt.dataAvailabilityMapEntry {
-            key = modelLineKey {
-              externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
-              externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
-              externalModelLineId = EXTERNAL_MODEL_LINE_ID_3
-            }
-            value = interval {
-              startTime = timestamp { seconds = 50 }
-              endTime = timestamp { seconds = 100 }
-            }
-          }
-          dataAvailabilityIntervals += DataProviderKt.dataAvailabilityMapEntry {
-            key = modelLineKey {
-              externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
-              externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
-              externalModelLineId = externalModelLineId4
-            }
-            value = interval {
-              startTime = timestamp { seconds = 50 }
-              endTime = timestamp { seconds = 100 }
-            }
-          }
         }
       )
 
     whenever(internalModelRolloutsMock.streamModelRollouts(any()))
-      .thenReturn(flowOf(modelRollout {  }))
+      .thenReturn(flowOf(modelRollout {}))
 
     val internalProdModelLine = internalModelLine {
       externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
@@ -1367,7 +1386,7 @@ class ModelLinesServiceTest {
           internalDevModelLine,
           internalHoldBackModelLine,
           internalProdModelLine,
-          internalProdModelLine2
+          internalProdModelLine2,
         )
       )
 
@@ -1425,13 +1444,14 @@ class ModelLinesServiceTest {
     verifyProtoArgument(internalModelLinesMock, ModelLinesCoroutineImplBase::streamModelLines)
       .isEqualTo(
         streamModelLinesRequest {
-          filter = StreamModelLinesRequestKt.filter {
-            externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
-            externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
-            type += InternalModelLine.Type.PROD
-            type += InternalModelLine.Type.HOLDBACK
-            type += InternalModelLine.Type.DEV
-          }
+          filter =
+            StreamModelLinesRequestKt.filter {
+              externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
+              externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
+              type += InternalModelLine.Type.PROD
+              type += InternalModelLine.Type.HOLDBACK
+              type += InternalModelLine.Type.DEV
+            }
         }
       )
 
@@ -1441,33 +1461,37 @@ class ModelLinesServiceTest {
         assertThat(allValues)
           .containsExactly(
             streamModelRolloutsRequest {
-              filter = StreamModelRolloutsRequestKt.filter {
-                externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
-                externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
-                externalModelLineId = EXTERNAL_MODEL_LINE_ID
-              }
+              filter =
+                StreamModelRolloutsRequestKt.filter {
+                  externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
+                  externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
+                  externalModelLineId = EXTERNAL_MODEL_LINE_ID
+                }
             },
             streamModelRolloutsRequest {
-              filter = StreamModelRolloutsRequestKt.filter {
-                externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
-                externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
-                externalModelLineId = EXTERNAL_MODEL_LINE_ID_2
-              }
+              filter =
+                StreamModelRolloutsRequestKt.filter {
+                  externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
+                  externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
+                  externalModelLineId = EXTERNAL_MODEL_LINE_ID_2
+                }
             },
             streamModelRolloutsRequest {
-              filter = StreamModelRolloutsRequestKt.filter {
-                externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
-                externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
-                externalModelLineId = EXTERNAL_MODEL_LINE_ID_3
-              }
+              filter =
+                StreamModelRolloutsRequestKt.filter {
+                  externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
+                  externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
+                  externalModelLineId = EXTERNAL_MODEL_LINE_ID_3
+                }
             },
             streamModelRolloutsRequest {
-              filter = StreamModelRolloutsRequestKt.filter {
-                externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
-                externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
-                externalModelLineId = externalModelLineId4
-              }
-            }
+              filter =
+                StreamModelRolloutsRequestKt.filter {
+                  externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
+                  externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
+                  externalModelLineId = externalModelLineId4
+                }
+            },
           )
       }
     }
@@ -1475,41 +1499,41 @@ class ModelLinesServiceTest {
 
   @Test
   fun `searchValidModelLines does not return model line if 2 rollouts`(): Unit = runBlocking {
-    whenever(internalDataProvidersMock.getDataProvider(getDataProviderRequest {
-      externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
-    }))
+    whenever(
+        internalDataProvidersMock.getDataProvider(
+          getDataProviderRequest { externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID }
+        )
+      )
       .thenReturn(
         dataProvider {
-          dataAvailabilityIntervals += DataProviderKt.dataAvailabilityMapEntry {
-            key = modelLineKey {
-              externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
-              externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
-              externalModelLineId = EXTERNAL_MODEL_LINE_ID
+          dataAvailabilityIntervals +=
+            DataProviderKt.dataAvailabilityMapEntry {
+              key = modelLineKey {
+                externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
+                externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
+                externalModelLineId = EXTERNAL_MODEL_LINE_ID
+              }
+              value = interval {
+                startTime = timestamp { seconds = 50 }
+                endTime = timestamp { seconds = 100 }
+              }
             }
-            value = interval {
-              startTime = timestamp { seconds = 50 }
-              endTime = timestamp { seconds = 100 }
-            }
-          }
         }
       )
 
     whenever(internalModelRolloutsMock.streamModelRollouts(any()))
-      .thenReturn(flowOf(
-        modelRollout {  },
-        modelRollout {  }
-      ))
+      .thenReturn(flowOf(modelRollout {}, modelRollout {}))
 
     whenever(internalModelLinesMock.streamModelLines(any()))
       .thenReturn(
-        flowOf(internalModelLine {
-          externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
-          externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
-          externalModelLineId = EXTERNAL_MODEL_LINE_ID
-          activeStartTime = timestamp {
-            seconds = 25
+        flowOf(
+          internalModelLine {
+            externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
+            externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
+            externalModelLineId = EXTERNAL_MODEL_LINE_ID
+            activeStartTime = timestamp { seconds = 25 }
           }
-        })
+        )
       )
 
     val searchValidModelLinesResponse =
@@ -1518,12 +1542,8 @@ class ModelLinesServiceTest {
           searchValidModelLinesRequest {
             parent = MODEL_SUITE_NAME
             timeInterval = interval {
-              startTime = timestamp {
-                seconds = 50
-              }
-              endTime = timestamp {
-                seconds = 100
-              }
+              startTime = timestamp { seconds = 50 }
+              endTime = timestamp { seconds = 100 }
             }
             dataProviders += DATA_PROVIDER_NAME
           }
@@ -1535,136 +1555,148 @@ class ModelLinesServiceTest {
     verifyProtoArgument(internalModelLinesMock, ModelLinesCoroutineImplBase::streamModelLines)
       .isEqualTo(
         streamModelLinesRequest {
-          filter = StreamModelLinesRequestKt.filter {
-            externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
-            externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
-            type += InternalModelLine.Type.PROD
-          }
+          filter =
+            StreamModelLinesRequestKt.filter {
+              externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
+              externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
+              type += InternalModelLine.Type.PROD
+            }
         }
       )
 
-    verifyProtoArgument(internalModelRolloutsMock, ModelRolloutsCoroutineImplBase::streamModelRollouts)
+    verifyProtoArgument(
+        internalModelRolloutsMock,
+        ModelRolloutsCoroutineImplBase::streamModelRollouts,
+      )
       .isEqualTo(
         streamModelRolloutsRequest {
-          filter = StreamModelRolloutsRequestKt.filter {
-            externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
-            externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
-            externalModelLineId = EXTERNAL_MODEL_LINE_ID
-          }
+          filter =
+            StreamModelRolloutsRequestKt.filter {
+              externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
+              externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
+              externalModelLineId = EXTERNAL_MODEL_LINE_ID
+            }
         }
       )
   }
 
   @Test
   fun `searchValidModelLines does not return model line if 0 rollouts`(): Unit = runBlocking {
-    whenever(internalDataProvidersMock.getDataProvider(getDataProviderRequest {
-      externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
-    }))
+    whenever(
+        internalDataProvidersMock.getDataProvider(
+          getDataProviderRequest { externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID }
+        )
+      )
       .thenReturn(
         dataProvider {
-          dataAvailabilityIntervals += DataProviderKt.dataAvailabilityMapEntry {
-            key = modelLineKey {
-              externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
-              externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
-              externalModelLineId = EXTERNAL_MODEL_LINE_ID
+          dataAvailabilityIntervals +=
+            DataProviderKt.dataAvailabilityMapEntry {
+              key = modelLineKey {
+                externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
+                externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
+                externalModelLineId = EXTERNAL_MODEL_LINE_ID
+              }
+              value = interval {
+                startTime = timestamp { seconds = 50 }
+                endTime = timestamp { seconds = 100 }
+              }
             }
-            value = interval {
-              startTime = timestamp { seconds = 50 }
-              endTime = timestamp { seconds = 100 }
-            }
-          }
         }
       )
 
-    whenever(internalModelRolloutsMock.streamModelRollouts(any()))
-      .thenReturn(flowOf())
+    whenever(internalModelRolloutsMock.streamModelRollouts(any())).thenReturn(flowOf())
 
     whenever(internalModelLinesMock.streamModelLines(any()))
       .thenReturn(
-        flowOf(internalModelLine {
-          externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
-          externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
-          externalModelLineId = EXTERNAL_MODEL_LINE_ID
-          activeStartTime = timestamp {
-            seconds = 25
-          }
-        })
-      )
-
-    val searchValidModelLinesResponse =
-      withModelProviderPrincipal(MODEL_PROVIDER_NAME) {
-        service.searchValidModelLines(
-          searchValidModelLinesRequest {
-            parent = MODEL_SUITE_NAME
-            timeInterval = interval {
-              startTime = timestamp {
-                seconds = 50
-              }
-              endTime = timestamp {
-                seconds = 100
-              }
-            }
-            dataProviders += DATA_PROVIDER_NAME
-          }
-        )
-      }
-
-    assertThat(searchValidModelLinesResponse).isEqualTo(searchValidModelLinesResponse {})
-
-    verifyProtoArgument(internalModelLinesMock, ModelLinesCoroutineImplBase::streamModelLines)
-      .isEqualTo(
-        streamModelLinesRequest {
-          filter = StreamModelLinesRequestKt.filter {
-            externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
-            externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
-            type += InternalModelLine.Type.PROD
-          }
-        }
-      )
-
-    verifyProtoArgument(internalModelRolloutsMock, ModelRolloutsCoroutineImplBase::streamModelRollouts)
-      .isEqualTo(
-        streamModelRolloutsRequest {
-          filter = StreamModelRolloutsRequestKt.filter {
+        flowOf(
+          internalModelLine {
             externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
             externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
             externalModelLineId = EXTERNAL_MODEL_LINE_ID
+            activeStartTime = timestamp { seconds = 25 }
           }
+        )
+      )
+
+    val searchValidModelLinesResponse =
+      withModelProviderPrincipal(MODEL_PROVIDER_NAME) {
+        service.searchValidModelLines(
+          searchValidModelLinesRequest {
+            parent = MODEL_SUITE_NAME
+            timeInterval = interval {
+              startTime = timestamp { seconds = 50 }
+              endTime = timestamp { seconds = 100 }
+            }
+            dataProviders += DATA_PROVIDER_NAME
+          }
+        )
+      }
+
+    assertThat(searchValidModelLinesResponse).isEqualTo(searchValidModelLinesResponse {})
+
+    verifyProtoArgument(internalModelLinesMock, ModelLinesCoroutineImplBase::streamModelLines)
+      .isEqualTo(
+        streamModelLinesRequest {
+          filter =
+            StreamModelLinesRequestKt.filter {
+              externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
+              externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
+              type += InternalModelLine.Type.PROD
+            }
         }
       )
-  }
 
-  @Test
-  fun `searchValidModelLines does not return model line if time interval not in active interval`(): Unit = runBlocking {
-    whenever(internalDataProvidersMock.getDataProvider(getDataProviderRequest {
-      externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
-    }))
-      .thenReturn(
-        dataProvider {
-          dataAvailabilityIntervals += DataProviderKt.dataAvailabilityMapEntry {
-            key = modelLineKey {
+    verifyProtoArgument(
+        internalModelRolloutsMock,
+        ModelRolloutsCoroutineImplBase::streamModelRollouts,
+      )
+      .isEqualTo(
+        streamModelRolloutsRequest {
+          filter =
+            StreamModelRolloutsRequestKt.filter {
               externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
               externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
               externalModelLineId = EXTERNAL_MODEL_LINE_ID
             }
-            value = interval {
-              startTime = timestamp { seconds = 50 }
-              endTime = timestamp { seconds = 100 }
+        }
+      )
+  }
+
+  @Test
+  fun `searchValidModelLines does not return model line if time interval not in active interval`():
+    Unit = runBlocking {
+    whenever(
+        internalDataProvidersMock.getDataProvider(
+          getDataProviderRequest { externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID }
+        )
+      )
+      .thenReturn(
+        dataProvider {
+          dataAvailabilityIntervals +=
+            DataProviderKt.dataAvailabilityMapEntry {
+              key = modelLineKey {
+                externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
+                externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
+                externalModelLineId = EXTERNAL_MODEL_LINE_ID
+              }
+              value = interval {
+                startTime = timestamp { seconds = 50 }
+                endTime = timestamp { seconds = 100 }
+              }
             }
-          }
         }
       )
 
     whenever(internalModelLinesMock.streamModelLines(any()))
       .thenReturn(
-        flowOf(internalModelLine {
-          externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
-          externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
-          externalModelLineId = EXTERNAL_MODEL_LINE_ID
-          activeStartTime = timestamp {
-            seconds = 25
+        flowOf(
+          internalModelLine {
+            externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
+            externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
+            externalModelLineId = EXTERNAL_MODEL_LINE_ID
+            activeStartTime = timestamp { seconds = 25 }
           }
-        })
+        )
       )
 
     val searchValidModelLinesResponse =
@@ -1673,12 +1705,8 @@ class ModelLinesServiceTest {
           searchValidModelLinesRequest {
             parent = MODEL_SUITE_NAME
             timeInterval = interval {
-              startTime = timestamp {
-                seconds = 10
-              }
-              endTime = timestamp {
-                seconds = 50
-              }
+              startTime = timestamp { seconds = 10 }
+              endTime = timestamp { seconds = 50 }
             }
             dataProviders += DATA_PROVIDER_NAME
           }
@@ -1690,144 +1718,147 @@ class ModelLinesServiceTest {
     verifyProtoArgument(internalModelLinesMock, ModelLinesCoroutineImplBase::streamModelLines)
       .isEqualTo(
         streamModelLinesRequest {
-          filter = StreamModelLinesRequestKt.filter {
-            externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
-            externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
-            type += InternalModelLine.Type.PROD
-          }
+          filter =
+            StreamModelLinesRequestKt.filter {
+              externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
+              externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
+              type += InternalModelLine.Type.PROD
+            }
         }
       )
   }
 
   @Test
-  fun `searchValidModelLines returns no model lines if time interval not in edp interval`(): Unit = runBlocking {
-    whenever(internalDataProvidersMock.getDataProvider(getDataProviderRequest {
-      externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
-    }))
-      .thenReturn(
-        dataProvider {
-          dataAvailabilityIntervals += DataProviderKt.dataAvailabilityMapEntry {
-            key = modelLineKey {
+  fun `searchValidModelLines returns no model lines if time interval not in edp interval`(): Unit =
+    runBlocking {
+      whenever(
+          internalDataProvidersMock.getDataProvider(
+            getDataProviderRequest { externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID }
+          )
+        )
+        .thenReturn(
+          dataProvider {
+            dataAvailabilityIntervals +=
+              DataProviderKt.dataAvailabilityMapEntry {
+                key = modelLineKey {
+                  externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
+                  externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
+                  externalModelLineId = EXTERNAL_MODEL_LINE_ID
+                }
+                value = interval {
+                  startTime = timestamp { seconds = 50 }
+                  endTime = timestamp { seconds = 100 }
+                }
+              }
+          }
+        )
+
+      whenever(internalModelLinesMock.streamModelLines(any()))
+        .thenReturn(
+          flowOf(
+            internalModelLine {
               externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
               externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
               externalModelLineId = EXTERNAL_MODEL_LINE_ID
+              activeStartTime = timestamp { seconds = 25 }
             }
-            value = interval {
-              startTime = timestamp { seconds = 50 }
-              endTime = timestamp { seconds = 100 }
+          )
+        )
+
+      val searchValidModelLinesResponse =
+        withModelProviderPrincipal(MODEL_PROVIDER_NAME) {
+          service.searchValidModelLines(
+            searchValidModelLinesRequest {
+              parent = MODEL_SUITE_NAME
+              timeInterval = interval {
+                startTime = timestamp { seconds = 40 }
+                endTime = timestamp { seconds = 100 }
+              }
+              dataProviders += DATA_PROVIDER_NAME
             }
-          }
+          )
         }
-      )
 
-    whenever(internalModelLinesMock.streamModelLines(any()))
-      .thenReturn(
-        flowOf(internalModelLine {
-          externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
-          externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
-          externalModelLineId = EXTERNAL_MODEL_LINE_ID
-          activeStartTime = timestamp {
-            seconds = 25
-          }
-        })
-      )
+      assertThat(searchValidModelLinesResponse).isEqualTo(searchValidModelLinesResponse {})
 
-    val searchValidModelLinesResponse =
-      withModelProviderPrincipal(MODEL_PROVIDER_NAME) {
-        service.searchValidModelLines(
-          searchValidModelLinesRequest {
-            parent = MODEL_SUITE_NAME
-            timeInterval = interval {
-              startTime = timestamp {
-                seconds = 40
+      verifyProtoArgument(internalModelLinesMock, ModelLinesCoroutineImplBase::streamModelLines)
+        .isEqualTo(
+          streamModelLinesRequest {
+            filter =
+              StreamModelLinesRequestKt.filter {
+                externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
+                externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
+                type += InternalModelLine.Type.PROD
               }
-              endTime = timestamp {
-                seconds = 100
-              }
-            }
-            dataProviders += DATA_PROVIDER_NAME
           }
         )
-      }
-
-    assertThat(searchValidModelLinesResponse).isEqualTo(searchValidModelLinesResponse {})
-
-    verifyProtoArgument(internalModelLinesMock, ModelLinesCoroutineImplBase::streamModelLines)
-      .isEqualTo(
-        streamModelLinesRequest {
-          filter = StreamModelLinesRequestKt.filter {
-            externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
-            externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
-            type += InternalModelLine.Type.PROD
-          }
-        }
-      )
-  }
+    }
 
   @Test
-  fun `searchValidModelLines returns no model lines if no edp interval for model line`(): Unit = runBlocking {
-    whenever(internalDataProvidersMock.getDataProvider(getDataProviderRequest {
-      externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
-    }))
-      .thenReturn(
-        dataProvider {
-          dataAvailabilityIntervals += DataProviderKt.dataAvailabilityMapEntry {
-            key = modelLineKey {
-              externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
-              externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
-              externalModelLineId = EXTERNAL_MODEL_LINE_ID_2
-            }
-            value = interval {
-              startTime = timestamp { seconds = 50 }
-              endTime = timestamp { seconds = 100 }
-            }
-          }
-        }
-      )
-
-    whenever(internalModelLinesMock.streamModelLines(any()))
-      .thenReturn(
-        flowOf(internalModelLine {
-          externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
-          externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
-          externalModelLineId = EXTERNAL_MODEL_LINE_ID
-          activeStartTime = timestamp {
-            seconds = 25
-          }
-        })
-      )
-
-    val searchValidModelLinesResponse =
-      withModelProviderPrincipal(MODEL_PROVIDER_NAME) {
-        service.searchValidModelLines(
-          searchValidModelLinesRequest {
-            parent = MODEL_SUITE_NAME
-            timeInterval = interval {
-              startTime = timestamp {
-                seconds = 40
+  fun `searchValidModelLines returns no model lines if no edp interval for model line`(): Unit =
+    runBlocking {
+      whenever(
+          internalDataProvidersMock.getDataProvider(
+            getDataProviderRequest { externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID }
+          )
+        )
+        .thenReturn(
+          dataProvider {
+            dataAvailabilityIntervals +=
+              DataProviderKt.dataAvailabilityMapEntry {
+                key = modelLineKey {
+                  externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
+                  externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
+                  externalModelLineId = EXTERNAL_MODEL_LINE_ID_2
+                }
+                value = interval {
+                  startTime = timestamp { seconds = 50 }
+                  endTime = timestamp { seconds = 100 }
+                }
               }
-              endTime = timestamp {
-                seconds = 100
-              }
-            }
-            dataProviders += DATA_PROVIDER_NAME
           }
         )
-      }
 
-    assertThat(searchValidModelLinesResponse).isEqualTo(searchValidModelLinesResponse {})
+      whenever(internalModelLinesMock.streamModelLines(any()))
+        .thenReturn(
+          flowOf(
+            internalModelLine {
+              externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
+              externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
+              externalModelLineId = EXTERNAL_MODEL_LINE_ID
+              activeStartTime = timestamp { seconds = 25 }
+            }
+          )
+        )
 
-    verifyProtoArgument(internalModelLinesMock, ModelLinesCoroutineImplBase::streamModelLines)
-      .isEqualTo(
-        streamModelLinesRequest {
-          filter = StreamModelLinesRequestKt.filter {
-            externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
-            externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
-            type += InternalModelLine.Type.PROD
-          }
+      val searchValidModelLinesResponse =
+        withModelProviderPrincipal(MODEL_PROVIDER_NAME) {
+          service.searchValidModelLines(
+            searchValidModelLinesRequest {
+              parent = MODEL_SUITE_NAME
+              timeInterval = interval {
+                startTime = timestamp { seconds = 40 }
+                endTime = timestamp { seconds = 100 }
+              }
+              dataProviders += DATA_PROVIDER_NAME
+            }
+          )
         }
-      )
-  }
+
+      assertThat(searchValidModelLinesResponse).isEqualTo(searchValidModelLinesResponse {})
+
+      verifyProtoArgument(internalModelLinesMock, ModelLinesCoroutineImplBase::streamModelLines)
+        .isEqualTo(
+          streamModelLinesRequest {
+            filter =
+              StreamModelLinesRequestKt.filter {
+                externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
+                externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
+                type += InternalModelLine.Type.PROD
+              }
+          }
+        )
+    }
 
   @Test
   fun `searchValidModelLines throws NOT_FOUND when data provider not found`(): Unit = runBlocking {
@@ -1901,63 +1932,17 @@ class ModelLinesServiceTest {
   }
 
   @Test
-  fun `searchValidModelLines throws INVALID_ARGUMENT when parent is missing`() =
-    runBlocking {
-      val exception =
-        assertFailsWith<StatusRuntimeException> {
-          withModelProviderPrincipal(MODEL_PROVIDER_NAME) {
-            runBlocking {
-              service.searchValidModelLines(
-                searchValidModelLinesRequest {
-                  timeInterval = interval {
-                    startTime = timestamp { seconds = 100 }
-                    endTime = timestamp { seconds = 200 }
-                  }
-                  dataProviders += DATA_PROVIDER_NAME
-                }
-              )
-            }
-          }
-        }
-
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception.message).contains("parent")
-    }
-
-  @Test
-  fun `searchValidModelLines throws INVALID_ARGUMENT when parent is invalid`() =
-    runBlocking {
-      val exception =
-        assertFailsWith<StatusRuntimeException> {
-          withModelProviderPrincipal(MODEL_PROVIDER_NAME) {
-            runBlocking {
-              service.searchValidModelLines(
-                searchValidModelLinesRequest {
-                  parent = "invalid_name"
-                  timeInterval = interval {
-                    startTime = timestamp { seconds = 100 }
-                    endTime = timestamp { seconds = 200 }
-                  }
-                  dataProviders += DATA_PROVIDER_NAME
-                }
-              )
-            }
-          }
-        }
-
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception.message).contains("parent")
-    }
-
-  @Test
-  fun `searchValidModelLines throws INVALID_ARGUMENT when time_interval is missing`() = runBlocking {
+  fun `searchValidModelLines throws INVALID_ARGUMENT when parent is missing`() = runBlocking {
     val exception =
       assertFailsWith<StatusRuntimeException> {
         withModelProviderPrincipal(MODEL_PROVIDER_NAME) {
           runBlocking {
             service.searchValidModelLines(
               searchValidModelLinesRequest {
-                parent = MODEL_SUITE_NAME
+                timeInterval = interval {
+                  startTime = timestamp { seconds = 100 }
+                  endTime = timestamp { seconds = 200 }
+                }
                 dataProviders += DATA_PROVIDER_NAME
               }
             )
@@ -1966,8 +1951,53 @@ class ModelLinesServiceTest {
       }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.message).contains("time_interval")
+    assertThat(exception.message).contains("parent")
   }
+
+  @Test
+  fun `searchValidModelLines throws INVALID_ARGUMENT when parent is invalid`() = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withModelProviderPrincipal(MODEL_PROVIDER_NAME) {
+          runBlocking {
+            service.searchValidModelLines(
+              searchValidModelLinesRequest {
+                parent = "invalid_name"
+                timeInterval = interval {
+                  startTime = timestamp { seconds = 100 }
+                  endTime = timestamp { seconds = 200 }
+                }
+                dataProviders += DATA_PROVIDER_NAME
+              }
+            )
+          }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.message).contains("parent")
+  }
+
+  @Test
+  fun `searchValidModelLines throws INVALID_ARGUMENT when time_interval is missing`() =
+    runBlocking {
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          withModelProviderPrincipal(MODEL_PROVIDER_NAME) {
+            runBlocking {
+              service.searchValidModelLines(
+                searchValidModelLinesRequest {
+                  parent = MODEL_SUITE_NAME
+                  dataProviders += DATA_PROVIDER_NAME
+                }
+              )
+            }
+          }
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.message).contains("time_interval")
+    }
 
   @Test
   fun `searchValidModelLines throws INVALID_ARGUMENT when time_interval start_time is invalid`() =
@@ -2070,27 +2100,28 @@ class ModelLinesServiceTest {
     }
 
   @Test
-  fun `searchValidModelLines throws INVALID_ARGUMENT when data_providers is missing`() = runBlocking {
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
-        withModelProviderPrincipal(MODEL_PROVIDER_NAME) {
-          runBlocking {
-            service.searchValidModelLines(
-              searchValidModelLinesRequest {
-                parent = MODEL_SUITE_NAME
-                timeInterval = interval {
-                  startTime = timestamp { seconds = 100 }
-                  endTime = timestamp { seconds = 200 }
+  fun `searchValidModelLines throws INVALID_ARGUMENT when data_providers is missing`() =
+    runBlocking {
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          withModelProviderPrincipal(MODEL_PROVIDER_NAME) {
+            runBlocking {
+              service.searchValidModelLines(
+                searchValidModelLinesRequest {
+                  parent = MODEL_SUITE_NAME
+                  timeInterval = interval {
+                    startTime = timestamp { seconds = 100 }
+                    endTime = timestamp { seconds = 200 }
+                  }
                 }
-              }
-            )
+              )
+            }
           }
         }
-      }
 
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.message).contains("data_providers")
-  }
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.message).contains("data_providers")
+    }
 
   @Test
   fun `searchValidModelLines throws INVALID_ARGUMENT when dataProviders has invalid name`() =

@@ -190,10 +190,10 @@ private fun run(
         )
         .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup),
       ModelLinesService(
-        InternalModelLinesCoroutineStub(channel),
-        InternalDataProvidersCoroutineStub(channel),
-        InternalModelRolloutsCoroutineStub(channel),
-      )
+          InternalModelLinesCoroutineStub(channel),
+          InternalDataProvidersCoroutineStub(channel),
+          InternalModelRolloutsCoroutineStub(channel),
+        )
         .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup),
       ModelShardsService(InternalModelShardsCoroutineStub(channel))
         .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup),
