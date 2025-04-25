@@ -15,51 +15,52 @@
 package org.wfanet.measurement.privacybudgetmanager
 
 interface BackingStore {
-    
+
     /**
      * Manages accesses to the privacy budget ledger in the context of a single transaction.
      *
-     * A primary purpose of the TransactionContext is to guarantee ACID properties for the underlying
-     * data store.
+     * A primary purpose of the TransactionContext is to guarantee ACID properties for the
+     * underlying data store.
      *
      * The privacy budget manager will not use more than one thread per requisition, however it is
-     * possible that several requisitions may be in process simultaneously by different threads. Also,
-     * if the privacy budget manager is replicated across nodes, it is conceivable that different nodes
-     * could be processing privacy budget management operations simultaneously. Implementors of the
-     * BackingStore should take this into account.
+     * possible that several requisitions may be in process simultaneously by different threads.
+     * Also, if the privacy budget manager is replicated across nodes, it is conceivable that
+     * different nodes could be processing privacy budget management operations simultaneously.
+     * Implementors of the BackingStore should take this into account.
      */
     interface TransactionContext : AutoCloseable {
 
         /**
-         * Reads the [BackingStore] and returns the Queries that are already present.
+         * Reads the [BackingStore] and returns the Queries that are already present with their
+         * CreateTime read from the DB.
          *
          * @throws PrivacyBudgetManager exception if the read operation was unsuccessful.
          */
-        suspend fun read(queries : List<Query>) : Query
+        suspend fun read(queries: List<Query>): List<Query>
 
-         /**
+        /**
          * Reads the rows specified by the [rowKeys] from the backing store.
          *
          * @throws PrivacyBudgetManager exception if the read operation was unsuccessful.
          */
-        suspend fun read(rowKeys : List<RowKey>) : Slice
+        suspend fun read(rowKeys: List<RowKey>): Slice
 
-         /**
-         * Writes a [Slice] to the backing store together with the [queries] responsible 
-         * for its creation.
+        /**
+         * Writes a [Slice] to the backing store together with the [queries] responsible for its
+         * creation. Returns the Queries that are written with their CreateTime read from the DB.
          *
          * @throws PrivacyBudgetManager exception if the write operation was unsuccessful.
          */
-        suspend fun write(delta: Slice, queries : List<Query>)
+        suspend fun write(delta: Slice, queries: List<Query>): List<Query>
 
         /**
          * Commits the current transaction.
          *
-         * After calling this method, it is an error to call any additional methods on this instance.
+         * After calling this method, it is an error to call any additional methods on this
+         * instance.
          *
          * @throws PrivacyBudgetManager exception if the commit operation was unsuccessful.
          */
         suspend fun commit()
     }
-
 }

@@ -12,7 +12,6 @@
  * the License.
  */
 
- 
 package org.wfanet.measurement.privacybudgetmanager
 
 interface AuditLog {
@@ -21,5 +20,5 @@ interface AuditLog {
      *
      * @throws PrivacyBudgetManager exception if the write operation was unsuccessful.
      */
-    fun write(queries : List<Query>, groupId: String) : String
+    fun write(queries: List<Query>, groupId: String): String
 }
