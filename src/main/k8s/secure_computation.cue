@@ -48,7 +48,7 @@ package k8s
 		}
 	}
 
-	_secretName: string
+	_secureComputationSecretName: string
 
 	_debugVerboseGrpcClientLoggingFlag: "--debug-verbose-grpc-client-logging=\(_verboseGrpcClientLogging)"
 	_debugVerboseGrpcServerLoggingFlag: "--debug-verbose-grpc-server-logging=\(_verboseGrpcServerLogging)"
@@ -67,7 +67,7 @@ package k8s
 
 	deployments: [Name=_]: #ServerDeployment & {
 		_name:       Name
-		_secretName: SecureComputation._secretName
+		_secretName: _secureComputationSecretName
 		_system:     "secure-computation"
 		_container: {
 			image: _images[_name]
@@ -80,7 +80,8 @@ package k8s
 						"--cert-collection-file=/var/run/secrets/files/secure_computation_root.pem",
 						"--tls-cert-file=/var/run/secrets/files/secure_computation_tls.pem",
 						"--tls-key-file=/var/run/secrets/files/secure_computation_tls.key",
-						"--queue-config=/etc/\(#AppName)/config-files/queue_config.textproto",
+						"--queue-config=/etc/\(#AppName)/config-files/queues_config.textproto",
+						"--google-project-id=" + #GCloudProject,
 			] + _spannerConfig.flags
 
 			_updateSchemaContainer: Container=#Container & {
