@@ -15,10 +15,12 @@
 package org.wfanet.measurement.integration.common
 
 import com.google.protobuf.Any
+import com.google.protobuf.Value
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import com.google.protobuf.ByteString
 import com.google.protobuf.Message
+import com.google.protobuf.Struct
 import io.grpc.serviceconfig.ServiceConfig
 import java.nio.file.Path
 import java.nio.file.Paths
@@ -235,25 +237,17 @@ fun getDataWatcherConfig(
       },
       dataWatcherConfig {
         sourcePathRegex = "$blobPrefix/$edpName/event-groups"
+        val appParams = Struct.newBuilder()
+          .putFields("data_provider", Value.newBuilder().setStringValue(configs.first.dataProvider)
+          .build()).build()
         this.httpEndpointsSink = DataWatcherConfigKt.httpEndpointsSink {
           endpointUri = eventGroupCloudFunctionHost
-          appParams.putAll = configs.first.toJson()
+          this.appParams = appParams
         }
       }
     )
   }.flatten()
 }
-
-fun getEventGroupConfig(
-  blobPrefix: String
-  edpConfigs: Map<String, String): List<EventGroupSyncConfig> =
-  edpConfigs.map { (edpName, edpResourceName) ->
-    eventGroupSyncConfig {
-      dataProvider = edpResourceName
-      eventGroupsBlobUri = "$blobPrefix/$edpName/event-groups"
-      eventGroupMapUri = "$blobPrefix/$edpName/event-group-map"
-    }
-  }
 
 /** Used to configure Secure Computation Control Plane */
 const val PROJECT_ID = "some-project-id"
@@ -265,4 +259,16 @@ val QUEUES_CONFIG: QueuesConfig
     val configFile =
       getRuntimePath(configPath.resolve("queues_config.textproto"))!!.toFile()
     return parseTextProto(configFile, QueuesConfig.getDefaultInstance())
+  }
+
+fun getEventGroupConfig(
+  blobPrefix: String,
+  edpConfigs: Map<String, String>): List<EventGroupSyncConfig> {
+    return edpConfigs.map { (edpName, edpResourceName) ->
+      eventGroupSyncConfig {
+        dataProvider = edpResourceName
+        eventGroupsBlobUri = "$blobPrefix/$edpName/event-groups"
+        eventGroupMapUri = "$blobPrefix/$edpName/event-group-map"
+      }
+}
   }
