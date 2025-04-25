@@ -16,8 +16,6 @@
 
 package org.wfanet.measurement.integration.common.reporting.v2
 
-import com.google.common.truth.Truth.assertThat
-import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.timestamp
 import com.google.type.DayOfWeek
 import com.google.type.Interval
@@ -418,7 +416,11 @@ abstract class InProcessLifeOfAReportIntegrationTest(
   @Test
   fun `report with LLv2 union reach across 2 edps has the expected result`() = runBlocking {
     val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
+    // Gets the eventGroups and sort them based on the eventGroupReferenceId. This allows the
+    // selection of EDPs that only supports LLv2 (which is edp2).
     val eventGroups = listEventGroups().sortedBy { it.eventGroupReferenceId }
+
+    assertThat(eventGroups[1].eventGroupReferenceId).contains("edp2")
 
     val eventGroupEntries: List<Pair<EventGroup, String>> =
       listOf(
@@ -525,7 +527,12 @@ abstract class InProcessLifeOfAReportIntegrationTest(
   @Test
   fun `report with HMSS union reach across 2 edps has the expected result`() = runBlocking {
     val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
+    // Gets the eventGroups and sort them based on the eventGroupReferenceId. This allows the
+    // selection of EDPs that supports HMSS (which are edp1 and edp3).
     val eventGroups = listEventGroups().sortedBy { it.eventGroupReferenceId }
+
+    assertThat(eventGroups[0].eventGroupReferenceId).contains("edp1")
+    assertThat(eventGroups[2].eventGroupReferenceId).contains("edp3")
 
     val eventGroupEntries: List<Pair<EventGroup, String>> =
       listOf(
