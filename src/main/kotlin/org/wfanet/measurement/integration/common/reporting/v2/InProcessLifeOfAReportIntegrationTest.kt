@@ -424,7 +424,6 @@ abstract class InProcessLifeOfAReportIntegrationTest(
       listOf(
         eventGroups[0] to "person.age_group == ${Person.AgeGroup.YEARS_18_TO_34_VALUE}",
         eventGroups[1] to "person.age_group == ${Person.AgeGroup.YEARS_55_PLUS_VALUE}",
-        eventGroups[2] to "person.age_group == ${Person.AgeGroup.YEARS_55_PLUS_VALUE}",
       )
 
     val createdPrimitiveReportingSets: List<ReportingSet> =
@@ -531,7 +530,6 @@ abstract class InProcessLifeOfAReportIntegrationTest(
     val eventGroupEntries: List<Pair<EventGroup, String>> =
       listOf(
         eventGroups[0] to "person.age_group == ${Person.AgeGroup.YEARS_18_TO_34_VALUE}",
-        eventGroups[1] to "person.age_group == ${Person.AgeGroup.YEARS_55_PLUS_VALUE}",
         eventGroups[2] to "person.age_group == ${Person.AgeGroup.YEARS_55_PLUS_VALUE}",
       )
 
@@ -551,7 +549,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
                 }
               rhs =
                 ReportingSetKt.SetExpressionKt.operand {
-                  reportingSet = createdPrimitiveReportingSets[2].name
+                  reportingSet = createdPrimitiveReportingSets[1].name
                 }
             }
         }
