@@ -216,12 +216,12 @@ object Covariances {
     vidSamplingInterval: VidSamplingInterval,
     otherVidSamplingInterval: VidSamplingInterval,
   ): Double {
-    val intervals = mutableListOf<ClosedRange<Double>>()
-
-    intervals += vidSamplingInterval.toNonWrappingIntervals()
-    intervals += otherVidSamplingInterval.toNonWrappingIntervals()
-
-    intervals.sortWith(compareBy { it.start })
+    val intervals: List<ClosedRange<Double>> =
+      buildList {
+          addAll(vidSamplingInterval.toNonWrappingIntervals())
+          addAll(otherVidSamplingInterval.toNonWrappingIntervals())
+        }
+        .sortedWith(compareBy { it.start })
 
     var currentStart = intervals[0].start
     var currentEnd = intervals[0].endInclusive

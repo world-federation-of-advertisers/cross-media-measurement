@@ -1168,7 +1168,7 @@ class MeasurementConsumerSimulator(
   private fun newReachMeasurementSpec(
     packedMeasurementPublicKey: ProtoAny,
     nonceHashes: List<ByteString>,
-    vidSamplingInterval: VidSamplingInterval = DEFAULT_VID_SAMPLING_INTERVAL,
+    vidSamplingInterval: VidSamplingInterval,
   ): MeasurementSpec {
     return measurementSpec {
       measurementPublicKey = packedMeasurementPublicKey
@@ -1181,7 +1181,7 @@ class MeasurementConsumerSimulator(
   private fun newReachAndFrequencyMeasurementSpec(
     packedMeasurementPublicKey: ProtoAny,
     nonceHashes: List<ByteString>,
-    vidSamplingInterval: VidSamplingInterval = DEFAULT_VID_SAMPLING_INTERVAL,
+    vidSamplingInterval: VidSamplingInterval,
   ): MeasurementSpec {
     return measurementSpec {
       measurementPublicKey = packedMeasurementPublicKey
@@ -1198,7 +1198,7 @@ class MeasurementConsumerSimulator(
   private fun newReachOnlyMeasurementSpec(
     packedMeasurementPublicKey: ProtoAny,
     nonceHashes: List<ByteString>,
-    vidSamplingInterval: VidSamplingInterval = DEFAULT_VID_SAMPLING_INTERVAL,
+    vidSamplingInterval: VidSamplingInterval,
   ): MeasurementSpec {
     return measurementSpec {
       measurementPublicKey = packedMeasurementPublicKey
@@ -1211,25 +1211,30 @@ class MeasurementConsumerSimulator(
   private fun newInvalidReachAndFrequencyMeasurementSpec(
     packedMeasurementPublicKey: ProtoAny,
     nonceHashes: List<ByteString>,
-    vidSamplingInterval: VidSamplingInterval = DEFAULT_VID_SAMPLING_INTERVAL,
+    vidSamplingInterval: VidSamplingInterval,
   ): MeasurementSpec {
     val invalidPrivacyParams = differentialPrivacyParams {
       epsilon = 1.0
       delta = 0.0
     }
-    return newReachAndFrequencyMeasurementSpec(packedMeasurementPublicKey, nonceHashes).copy {
-      reachAndFrequency = reachAndFrequency {
-        reachPrivacyParams = invalidPrivacyParams
-        frequencyPrivacyParams = invalidPrivacyParams
-        maximumFrequency = 10
+    return newReachAndFrequencyMeasurementSpec(
+        packedMeasurementPublicKey,
+        nonceHashes,
+        vidSamplingInterval,
+      )
+      .copy {
+        reachAndFrequency = reachAndFrequency {
+          reachPrivacyParams = invalidPrivacyParams
+          frequencyPrivacyParams = invalidPrivacyParams
+          maximumFrequency = 10
+        }
       }
-    }
   }
 
   private fun newImpressionMeasurementSpec(
     packedMeasurementPublicKey: ProtoAny,
     nonceHashes: List<ByteString>,
-    vidSamplingInterval: VidSamplingInterval = DEFAULT_VID_SAMPLING_INTERVAL,
+    vidSamplingInterval: VidSamplingInterval,
   ): MeasurementSpec {
     return measurementSpec {
       measurementPublicKey = packedMeasurementPublicKey
@@ -1245,7 +1250,7 @@ class MeasurementConsumerSimulator(
   private fun newDurationMeasurementSpec(
     packedMeasurementPublicKey: ProtoAny,
     nonceHashes: List<ByteString>,
-    vidSamplingInterval: VidSamplingInterval = DEFAULT_VID_SAMPLING_INTERVAL,
+    vidSamplingInterval: VidSamplingInterval,
   ): MeasurementSpec {
     return measurementSpec {
       measurementPublicKey = packedMeasurementPublicKey
