@@ -39,13 +39,13 @@ class PrivacyBudgetManager(
             if(query.privacyLandscapeName == activePrivacyLandscape.name){
                 delta.add(Filter.getBuckets(query.event_group_landscape_mask, activePrivacyLandscape), query.charge)
             }
-            // If the query's landscape is not current, then get the mapping to old landscape and convert the charges
+            // If the query's landscape is not active, then get the mapping to old landscape and convert the charges
             else{
-                val (inactiveprivacyLandscape, privacyLandscapeMapping) = privacyLandscapeMappings.getOrElse(query.privacyLandscapeName) {
+                val (inactivePrivacyLandscape, privacyLandscapeMapping) = privacyLandscapeMappings.getOrElse(query.privacyLandscapeName) {
                     throw IllegalStateException("PrivacyLandscapeMappings does not contain a mappping for ${query.privacyLandscapeName}")
                 }
 
-                val mappedBuckets = Filter.getBuckets(query.event_group_landscape_mask, privacyLandscapeMapping, inactiveprivacyLandscape, activePrivacyLandscape)
+                val mappedBuckets = Filter.getBuckets(query.event_group_landscape_mask, privacyLandscapeMapping, inactivePrivacyLandscape, activePrivacyLandscape)
 
                 delta.add(mappedBuckets, query.charge)
             }
@@ -58,10 +58,13 @@ class PrivacyBudgetManager(
     
     suspend fun charge(queries : List<Query>, groupId: String) : String {
 
-        // Get delta that is intended to be committed to the PBM, defined by queries.
-        val delta: Slice = getDelta(queries) 
-
         backingStore.startTransaction().use { context: TransactionContext ->
+            
+            // Filter out the queries that were already committed before.
+            val queriesToCommit = queries.filter{ query -> !context.read(queries).contains(query)  }
+
+            // Get slice intended to be committed to the PBM, defined by queriesToCommit.
+            val delta: Slice = getDelta(queriesToCommit) 
 
             // Read the backing store for the rows those buckets target.
             val targettedSlice = context.read(delta.getRowKeys())
@@ -75,7 +78,6 @@ class PrivacyBudgetManager(
             // Commit the transaction
             context.commit()
         }
-
         
         // Write the commited queries to the EDP owned audit log and return the audit reference.
         return auditLog.write(queriesToCommit, groupId)

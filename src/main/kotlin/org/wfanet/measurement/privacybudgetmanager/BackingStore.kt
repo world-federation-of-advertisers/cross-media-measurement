@@ -30,15 +30,23 @@ interface BackingStore {
      */
     interface TransactionContext : AutoCloseable {
 
+        /**
+         * Reads the [BackingStore] and returns the Queries that are already present.
+         *
+         * @throws PrivacyBudgetManager exception if the read operation was unsuccessful.
+         */
+        suspend fun read(queries : List<Query>) : Query
+
          /**
-         * Reads the rows from the backing store.
+         * Reads the rows specified by the [rowKeys] from the backing store.
          *
          * @throws PrivacyBudgetManager exception if the read operation was unsuccessful.
          */
         suspend fun read(rowKeys : List<RowKey>) : Slice
 
          /**
-         * Writes the slice to the backing store.
+         * Writes a [Slice] to the backing store together with the [queries] responsible 
+         * for its creation.
          *
          * @throws PrivacyBudgetManager exception if the write operation was unsuccessful.
          */
