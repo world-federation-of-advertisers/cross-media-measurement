@@ -344,7 +344,7 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
 
       val bearerTokenCallCredentials: BearerTokenCallCredentials = OpenIdProvider("test")
         .generateCredentials(
-          audience = reportingPublicPod.kind,
+          audience = publicApiAddress.hostName,
           subject = "client",
           scopes = setOf("reporting.basicReports.get"),
         )
