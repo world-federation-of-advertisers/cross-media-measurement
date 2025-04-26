@@ -345,12 +345,12 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
           .also { channels.add(it) }
           .withDefaultDeadline(DEFAULT_RPC_DEADLINE)
 
-      val mcPrivateTink = secretFiles.resolve("mc_enc_private.tink").toFile()
+      val openIdProviderTink = secretFiles.resolve("open_id_provider.tink").toFile()
 
       val bearerTokenCallCredentials: BearerTokenCallCredentials =
         OpenIdProvider(
-          "test",
-          TinkProtoKeysetFormat.parseKeyset(mcPrivateTink.readBytes(), InsecureSecretKeyAccess.get()),
+          "https://auth.halo-cmm.local",
+          TinkProtoKeysetFormat.parseKeyset(openIdProviderTink.readBytes(), InsecureSecretKeyAccess.get()),
         )
         .generateCredentials(
           audience = publicApiAddress.hostName,
