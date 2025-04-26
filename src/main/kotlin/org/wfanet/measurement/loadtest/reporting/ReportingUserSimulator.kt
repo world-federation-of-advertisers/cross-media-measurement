@@ -105,6 +105,7 @@ class ReportingUserSimulator(
   private val okHttpReportingClient: OkHttpClient,
   private val reportingGatewayHost: String,
   private val reportingGatewayPort: Int,
+  private val reportingAccessToken: String,
   private val internalBasicReportsClient: InternalBasicReportsGrpcKt.BasicReportsCoroutineStub,
   private val initialResultPollingDelay: Duration = Duration.ofSeconds(1),
   private val maximumResultPollingDelay: Duration = Duration.ofMinutes(1),
@@ -396,6 +397,7 @@ class ReportingUserSimulator(
     val getBasicReportRequest = Request.Builder()
       .url(url)
       .get()
+      .header("Authorization", "Bearer $reportingAccessToken")
       .build()
 
     val retrievedBasicReportJson: String =

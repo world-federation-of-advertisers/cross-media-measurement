@@ -12,7 +12,6 @@ kt_jvm_library(
     name = "abstract_correctness_test",
     srcs = ["AbstractCorrectnessTest.kt"],
     data = [
-        "//src/main/k8s/testing/secretfiles:mc_root.pem",
         "//src/main/k8s/testing/secretfiles:mc_trusted_certs.pem",
         "//src/main/k8s/testing/secretfiles:reporting_root.pem",
         "//src/main/k8s/testing/secretfiles:secret_files",
@@ -51,6 +50,7 @@ kt_jvm_library(
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto:security_provider",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc/testing",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/testing",
     ],
 )
@@ -70,6 +70,7 @@ kt_jvm_library(
         "@wfa_common_jvm//imports/java/org/junit",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc/testing",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/testing",
     ],
 )

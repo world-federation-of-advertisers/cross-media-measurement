@@ -74,6 +74,8 @@ import org.wfanet.measurement.integration.common.loadEncryptionPrivateKey
 import org.wfanet.measurement.integration.common.loadTestCertDerFile
 import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt
 import org.wfanet.measurement.internal.reporting.v2.BasicReportsGrpcKt as InternalBasicReportsGrpcKt
+import org.wfanet.measurement.common.grpc.BearerTokenCallCredentials
+import org.wfanet.measurement.common.grpc.testing.OpenIdProvider
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerSimulator
 import org.wfanet.measurement.loadtest.measurementconsumer.MetadataSyntheticGeneratorEventQuery
@@ -307,7 +309,6 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
         withContext(Dispatchers.IO) { gatewayForwarder.start() }
 
       val secretFiles = getRuntimePath(SECRET_FILES_PATH)
-      val mcRootCert = secretFiles.resolve("mc_root.pem").toFile()
       val reportingRootCert = secretFiles.resolve("reporting_root.pem").toFile()
       val cert = secretFiles.resolve("mc_tls.pem").toFile()
       val key = secretFiles.resolve("mc_tls.key").toFile()
@@ -316,7 +317,6 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
       val keyAlgorithm = clientCertificate.publicKey.algorithm
       val certificates =
         HandshakeCertificates.Builder()
-          .addTrustedCertificate(mcRootCert.readText().decodeCertificatePem())
           .addTrustedCertificate(reportingRootCert.readText().decodeCertificatePem())
           .heldCertificate(
             HeldCertificate(
@@ -342,6 +342,13 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
           .also { channels.add(it) }
           .withDefaultDeadline(DEFAULT_RPC_DEADLINE)
 
+      val bearerTokenCallCredentials: BearerTokenCallCredentials = OpenIdProvider("test")
+        .generateCredentials(
+          audience = reportingPublicPod.kind,
+          subject = "client",
+          scopes = setOf("reporting.basicReports.get"),
+        )
+
       return ReportingUserSimulator(
         measurementConsumerName = measurementConsumerData.name,
         dataProvidersClient = DataProvidersGrpcKt.DataProvidersCoroutineStub(publicApiChannel),
@@ -356,6 +363,7 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
         okHttpReportingClient = okHttpReportingClient,
         reportingGatewayHost = gatewayAddress.hostName,
         reportingGatewayPort = gatewayAddress.port,
+        reportingAccessToken = bearerTokenCallCredentials.token,
         internalBasicReportsClient =
           InternalBasicReportsGrpcKt.BasicReportsCoroutineStub(internalApiChannel),
       )

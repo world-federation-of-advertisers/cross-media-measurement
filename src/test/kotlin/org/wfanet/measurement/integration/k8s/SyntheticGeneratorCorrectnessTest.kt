@@ -45,6 +45,8 @@ import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.integration.common.SyntheticGenerationSpecs
 import org.wfanet.measurement.internal.reporting.v2.BasicReportsGrpcKt as InternalBasicReportsGrpcKt
+import org.wfanet.measurement.common.grpc.BearerTokenCallCredentials
+import org.wfanet.measurement.common.grpc.testing.OpenIdProvider
 import org.wfanet.measurement.loadtest.dataprovider.SyntheticGeneratorEventQuery
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerSimulator
@@ -147,7 +149,7 @@ class SyntheticGeneratorCorrectnessTest : AbstractCorrectnessTest(measurementSys
           .withDefaultDeadline(RPC_DEADLINE_DURATION)
 
       val secretFiles = getRuntimePath(SECRET_FILES_PATH)
-      val trustedCerts = secretFiles.resolve("mc_root.pem").toFile()
+      val reportingRootCert = secretFiles.resolve("reporting_root.pem").toFile()
       val cert = secretFiles.resolve("mc_tls.pem").toFile()
       val key = secretFiles.resolve("mc_tls.key").toFile()
 
@@ -155,7 +157,7 @@ class SyntheticGeneratorCorrectnessTest : AbstractCorrectnessTest(measurementSys
       val keyAlgorithm = clientCertificate.publicKey.algorithm
       val certificates =
         HandshakeCertificates.Builder()
-          .addTrustedCertificate(trustedCerts.readText().decodeCertificatePem())
+          .addTrustedCertificate(reportingRootCert.readText().decodeCertificatePem())
           .heldCertificate(
             HeldCertificate(
               KeyPair(clientCertificate.publicKey, readPrivateKey(key, keyAlgorithm)),
@@ -168,6 +170,13 @@ class SyntheticGeneratorCorrectnessTest : AbstractCorrectnessTest(measurementSys
         OkHttpClient.Builder()
           .sslSocketFactory(certificates.sslSocketFactory(), certificates.trustManager)
           .build()
+
+      val bearerTokenCallCredentials: BearerTokenCallCredentials = OpenIdProvider("test")
+        .generateCredentials(
+          audience = TEST_CONFIG.reportingPublicApiTarget,
+          subject = "client",
+          scopes = setOf("reporting.basicReports.get"),
+        )
 
       return ReportingUserSimulator(
         measurementConsumerName = TEST_CONFIG.measurementConsumer,
@@ -186,6 +195,7 @@ class SyntheticGeneratorCorrectnessTest : AbstractCorrectnessTest(measurementSys
         okHttpReportingClient = okHttpReportingClient,
         reportingGatewayHost = TEST_CONFIG.reportingGatewayTarget,
         reportingGatewayPort = 8443,
+        reportingAccessToken = bearerTokenCallCredentials.token,
         internalBasicReportsClient =
           InternalBasicReportsGrpcKt.BasicReportsCoroutineStub(internalApiChannel),
       )
