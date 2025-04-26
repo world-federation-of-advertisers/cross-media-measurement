@@ -406,7 +406,6 @@ class ReportingUserSimulator(
           .newCall(getBasicReportRequest)
           .execute()
 
-        println("response isSuccessful for test: ${response.isSuccessful}")
         println("response headers for test: ${response.headers.toMultimap()}")
         println("response http status message for test: ${response.message}")
         println("response http status code for test: ${response.code}")
