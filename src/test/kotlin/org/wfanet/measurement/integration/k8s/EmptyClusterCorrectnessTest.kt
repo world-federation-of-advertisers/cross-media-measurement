@@ -353,7 +353,7 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
           TinkProtoKeysetFormat.parseKeyset(openIdProviderTink.readBytes(), InsecureSecretKeyAccess.get()),
         )
         .generateCredentials(
-          audience = publicApiAddress.hostName,
+          audience = "reporting.halo-cmm.local",
           subject = "client",
           scopes = setOf("reporting.basicReports.get"),
         )
