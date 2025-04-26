@@ -310,25 +310,9 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
 
       val secretFiles = getRuntimePath(SECRET_FILES_PATH)
       val reportingRootCert = secretFiles.resolve("reporting_root.pem").toFile()
-      val cert = secretFiles.resolve("mc_tls.pem").toFile()
-      val key = secretFiles.resolve("mc_tls.key").toFile()
-
-      val clientCertificate: X509Certificate = cert.readText().decodeCertificatePem()
-      val keyAlgorithm = clientCertificate.publicKey.algorithm
-      val certificates =
-        HandshakeCertificates.Builder()
-          .addTrustedCertificate(reportingRootCert.readText().decodeCertificatePem())
-          .heldCertificate(
-            HeldCertificate(
-              KeyPair(clientCertificate.publicKey, readPrivateKey(key, keyAlgorithm)),
-              clientCertificate,
-            )
-          )
-          .build()
 
       val okHttpReportingClient =
         OkHttpClient.Builder()
-          .sslSocketFactory(certificates.sslSocketFactory(), certificates.trustManager)
           .build()
 
       val reportingInternalPod: V1Pod = getPod(REPORTING_INTERNAL_DEPLOYMENT_NAME)
