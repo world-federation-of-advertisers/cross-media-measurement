@@ -74,6 +74,9 @@ import org.wfanet.measurement.integration.common.loadEncryptionPrivateKey
 import org.wfanet.measurement.integration.common.loadTestCertDerFile
 import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt
 import org.wfanet.measurement.internal.reporting.v2.BasicReportsGrpcKt as InternalBasicReportsGrpcKt
+import com.google.crypto.tink.InsecureSecretKeyAccess
+import com.google.crypto.tink.TinkProtoKeysetFormat
+import org.wfanet.measurement.common.crypto.tink.loadPrivateKey
 import org.wfanet.measurement.common.grpc.BearerTokenCallCredentials
 import org.wfanet.measurement.common.grpc.testing.OpenIdProvider
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
@@ -310,9 +313,25 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
 
       val secretFiles = getRuntimePath(SECRET_FILES_PATH)
       val reportingRootCert = secretFiles.resolve("reporting_root.pem").toFile()
+      val cert = secretFiles.resolve("mc_tls.pem").toFile()
+      val key = secretFiles.resolve("mc_tls.key").toFile()
+
+      val clientCertificate: X509Certificate = cert.readText().decodeCertificatePem()
+      val keyAlgorithm = clientCertificate.publicKey.algorithm
+      val certificates =
+        HandshakeCertificates.Builder()
+          .addTrustedCertificate(reportingRootCert.readText().decodeCertificatePem())
+          .heldCertificate(
+            HeldCertificate(
+              KeyPair(clientCertificate.publicKey, readPrivateKey(key, keyAlgorithm)),
+              clientCertificate,
+            )
+          )
+          .build()
 
       val okHttpReportingClient =
         OkHttpClient.Builder()
+          .sslSocketFactory(certificates.sslSocketFactory(), certificates.trustManager)
           .build()
 
       val reportingInternalPod: V1Pod = getPod(REPORTING_INTERNAL_DEPLOYMENT_NAME)
@@ -326,7 +345,13 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
           .also { channels.add(it) }
           .withDefaultDeadline(DEFAULT_RPC_DEADLINE)
 
-      val bearerTokenCallCredentials: BearerTokenCallCredentials = OpenIdProvider("test")
+      val mcPrivateTink = secretFiles.resolve("mc_enc_private.tink").toFile()
+
+      val bearerTokenCallCredentials: BearerTokenCallCredentials =
+        OpenIdProvider(
+          "test",
+          TinkProtoKeysetFormat.parseKeyset(mcPrivateTink.readBytes(), InsecureSecretKeyAccess.get()),
+        )
         .generateCredentials(
           audience = publicApiAddress.hostName,
           subject = "client",
