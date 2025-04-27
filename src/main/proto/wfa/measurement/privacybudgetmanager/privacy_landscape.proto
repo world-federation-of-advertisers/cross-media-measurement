@@ -27,7 +27,7 @@ message PrivacyLandscape {
   string name  =  1;
 
   // Qualifying name of the top level message e.g. UKEventTemplate.TestEvent
-  string eventTemplateName = 2;
+  string event_template_name = 2;
 
   // Representing all possible values for each of the Dimensions 
   repeated Dimension dimensions = 3;

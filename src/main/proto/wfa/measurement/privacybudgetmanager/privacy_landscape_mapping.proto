@@ -23,21 +23,22 @@ option java_outer_classname = "PrivacyLandscapeMappingProto";
 
 message PrivacyLandscapeMapping {
    
-   string fromLandscape = 1;
-   string toLandscape = 2;
+   string from_landscape = 1;
+   string to_landscape = 2;
 
    repeated DimensionMapping mappings = 3;
    repeated DimensionAddition addition = 4; 
  
-   // Tells the code that everything should be fanned out to this new dim
+   // Represents that every row represented [fromLandscape] should be fanned out 
+   // to this new dimension represented by all the newDimensionValues
    message DimensionAddition {
-     repeated DimensionValue newDimension = 1;
+     repeated DimensionValue new_dimension_values = 1;
    }
 
    // Tells the code that all dimvaluesFrom should be carried to dimvaluesTo
    message DimensionMapping {
-     repeated DimensionValue dimvaluesFrom = 1;
-     repeated DimensionValue dimvaluesTo = 2;
+     repeated DimensionValue from_dimension_values = 1;
+     repeated DimensionValue to_dimension_values = 2;
    }
    
    message DimensionValue {
@@ -51,11 +52,11 @@ message PrivacyLandscapeMapping {
      message Value {
        oneof option {
          // E.g 18_24 for Age
-         string enumValue = 1;
+         string enum_value = 1;
          // E.g 23 for Geo Code
-         int32 intValue = 2;
+         int32 int_value = 2;
           // E.g 0.1 some watch time?
-         float floatValue = 3;
+         float float_value = 3;
        }
      }
   }

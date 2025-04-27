@@ -16,6 +16,7 @@ syntax = "proto3";
 
 package wfa.measurement.privacybudgetmanager;
 
+import "google/type/date.proto";
 import "wfa/measurement/privacybudgetmanager/charges.proto";
 
 option java_package = "org.wfanet.measurement.privacybudgetmanager";
@@ -31,11 +32,9 @@ message Reference {
   bool is_refund = 3;
 }
 
-message OpenEndTimeRange {
-  // Represents the start time. Can be absent if the range is open at the beginning.
-  optional int64 start_time_millis = 1;
-  // Represents the end time. Can be absent if the range is open at the end.
-  optional int64 end_time_millis = 2;
+message DateRange {
+  google.type.Date start = 1;
+  google.type.Date end_exclusive = 2;
 }
 
 message EventGroupLandscapeMask {
@@ -44,8 +43,8 @@ message EventGroupLandscapeMask {
   // CEL event filter used to determine the filter the population 
   // fields to get the targetted buckets.
   string event_filter = 2;
-  // Time range filter used to get the targetted buckets.
-  OpenEndTimeRange time_range = 3;
+  // Date range filter used to get the targetted buckets.
+  DateRange date_range = 3;
   // Vid ranges used to get the targetted buckets.
   float vid_sample_start = 4;
   float vid_sample_width = 5;

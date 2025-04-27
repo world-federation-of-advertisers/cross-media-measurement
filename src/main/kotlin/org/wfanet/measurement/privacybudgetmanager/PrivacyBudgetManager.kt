@@ -14,10 +14,9 @@
 
 package org.wfanet.measurement.privacybudgetmanager
 
-
-import org.wfanet.measurement.privacybudgetmanager.Query
 import org.wfanet.measurement.privacybudgetmanager.PrivacyLandscape
 import org.wfanet.measurement.privacybudgetmanager.PrivacyLandscapeMapping
+import org.wfanet.measurement.privacybudgetmanager.Query
 
 /**
  * This is the default value for the total amount that can be charged to a single privacy bucket.
@@ -25,6 +24,18 @@ import org.wfanet.measurement.privacybudgetmanager.PrivacyLandscapeMapping
 private const val MAXIMUM_PRIVACY_USAGE_PER_BUCKET = 1.0f
 private const val MAXIMUM_DELTA_PER_BUCKET = 1.0e-9f
 
+/**
+ * Instantiates a privacy budget manager.
+ *
+ * @param auditLog: An object that transactionally logs the charged [Query]s to an EDP owned log.
+ * @param activePrivacyLandscape: A [PrivacyLandscape] object specifiying the current landscape 
+ *  in use by the [ledger]
+ * @param inactivePrivacyLandscapes: A list of [PrivacyLandscape] objects specifiying older landscapes
+ *  used by the [ledger]
+ * @param privacyLandscapeMappings: A list of [PrivacyLandscapeMapping] specifiying how to convert 
+ *  [PrivacyBucket]s from an inactivePrivacyLandscape to [activePrivacyLandscape]
+ * @param ledger: A [Ledger] object where the [PrivacyCharge]s and [Query]s are stored
+ */
 class PrivacyBudgetManager(
   val auditLog: AuditLog,
   val activePrivacyLandscape: PrivacyLandscape,
@@ -63,8 +74,7 @@ class PrivacyBudgetManager(
 
     ledger.startTransaction().use { context: TransactionContext ->
 
-
-      val alreadyCommitedQueries : List<Query> = context.readQueries(queries)
+      val alreadyCommitedQueries: List<Query> = context.readQueries(queries)
       val alreadyCommittedReferenceIds = alreadyCommitedQueries.map { it.reference.id }
       // Filter out the queries that were already committed before.
       val queriesToCommit =

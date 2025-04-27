@@ -21,7 +21,10 @@ kt_jvm_proto_library(
 proto_library(
     name = "query_proto",
     srcs = ["query.proto"],
-    deps = ["charges_proto"],
+    deps = [
+        "charges_proto",
+        "@com_google_googleapis//google/type:date_proto",
+    ],
     strip_import_prefix = IMPORT_PREFIX,
 )
 
