@@ -59,4 +59,13 @@ message CorrectnessTestConfig {
 
   // gRPC target of Reporting gateway server.
   string reporting_gateway_target = 9;
+
+  // gRPC target of Access public API server.
+  string access_public_api_target = 10;
+
+  // Expected hostname (DNS-ID) in the access public API server's TLS
+  // certificate.
+  //
+  // If not specified, standard TLS DNS-ID derivation will be used.
+  string access_public_api_cert_host = 11;
 }

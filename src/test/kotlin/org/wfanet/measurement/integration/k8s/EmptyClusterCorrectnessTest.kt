@@ -76,22 +76,10 @@ import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt
 import org.wfanet.measurement.internal.reporting.v2.BasicReportsGrpcKt as InternalBasicReportsGrpcKt
 import com.google.crypto.tink.InsecureSecretKeyAccess
 import com.google.crypto.tink.TinkProtoKeysetFormat
-import org.wfanet.measurement.access.service.PermissionKey
-import org.wfanet.measurement.access.v1alpha.PoliciesGrpc
-import org.wfanet.measurement.access.v1alpha.PolicyKt
-import org.wfanet.measurement.access.v1alpha.Principal
-import org.wfanet.measurement.access.v1alpha.PrincipalKt
-import org.wfanet.measurement.access.v1alpha.PrincipalsGrpc
-import org.wfanet.measurement.access.v1alpha.RolesGrpc
-import org.wfanet.measurement.access.v1alpha.createPolicyRequest
-import org.wfanet.measurement.access.v1alpha.createPrincipalRequest
-import org.wfanet.measurement.access.v1alpha.createRoleRequest
-import org.wfanet.measurement.access.v1alpha.policy
-import org.wfanet.measurement.access.v1alpha.principal
-import org.wfanet.measurement.access.v1alpha.role
+import com.google.protobuf.util.JsonFormat
 import org.wfanet.measurement.common.grpc.BearerTokenCallCredentials
 import org.wfanet.measurement.common.grpc.testing.OpenIdProvider
-import org.wfanet.measurement.integration.common.PERMISSIONS_CONFIG
+import org.wfanet.measurement.config.access.OpenIdProvidersConfig
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerSimulator
 import org.wfanet.measurement.loadtest.measurementconsumer.MetadataSyntheticGeneratorEventQuery
@@ -344,6 +332,7 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
 
       val okHttpReportingClient =
         OkHttpClient.Builder()
+          .sslSocketFactory(certificates.sslSocketFactory(), certificates.trustManager)
           .build()
 
       val reportingInternalPod: V1Pod = getPod(REPORTING_INTERNAL_DEPLOYMENT_NAME)
@@ -368,17 +357,21 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
           .also { channels.add(it) }
           .withDefaultDeadline(DEFAULT_RPC_DEADLINE)
 
-      val principal = createAccessPrincipal(measurementConsumerData, accessPublicApiChannel)
+      val openIdProvidersConfigBuilder = OpenIdProvidersConfig.newBuilder()
+      JsonFormat.parser()
+        .ignoringUnknownFields()
+        .merge(OPEN_ID_PROVIDERS_CONFIG_JSON_FILE.readText(), openIdProvidersConfigBuilder)
+      val openIdProvidersConfig = openIdProvidersConfigBuilder.build()
 
-      val openIdProviderTink = secretFiles.resolve("open_id_provider.tink").toFile()
+      val principal = createAccessPrincipal(measurementConsumerData.name, accessPublicApiChannel, openIdProvidersConfig.providerConfigByIssuerMap.keys.first())
 
       val bearerTokenCallCredentials: BearerTokenCallCredentials =
         OpenIdProvider(
           principal.user.issuer,
-          TinkProtoKeysetFormat.parseKeyset(openIdProviderTink.readBytes(), InsecureSecretKeyAccess.get()),
+          TinkProtoKeysetFormat.parseKeyset(OPEN_ID_PROVIDERS_TINK_FILE.readBytes(), InsecureSecretKeyAccess.get()),
         )
         .generateCredentials(
-          audience = "reporting.halo-cmm.local",
+          audience = openIdProvidersConfig.audience,
           subject = principal.user.subject,
           scopes = setOf("reporting.basicReports.get"),
         )
@@ -401,85 +394,6 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
         internalBasicReportsClient =
           InternalBasicReportsGrpcKt.BasicReportsCoroutineStub(internalApiChannel),
       )
-    }
-
-    fun createAccessPrincipal(measurementConsumerData: MeasurementConsumerData, accessChannel: Channel): Principal {
-      val rolesStub = RolesGrpc.newBlockingStub(accessChannel)
-      val mcResourceType = "halo.wfanet.org/MeasurementConsumer"
-      val mcUserRole =
-        rolesStub.createRole(
-          createRoleRequest {
-            roleId = "mcUser"
-            role = role {
-              resourceTypes += mcResourceType
-              permissions +=
-                PERMISSIONS_CONFIG.permissionsMap
-                  .filterValues { it.protectedResourceTypesList.contains(mcResourceType) }
-                  .keys
-                  .map { PermissionKey(it).toName() }
-            }
-          }
-        )
-      val rootResourceType = "reporting.halo-cmm.org/Root"
-      val kingdomUserRole =
-        rolesStub.createRole(
-          createRoleRequest {
-            roleId = "kingdomUser"
-            role = role {
-              resourceTypes += rootResourceType
-              permissions +=
-                PERMISSIONS_CONFIG.permissionsMap
-                  .filterValues { it.protectedResourceTypesList.contains(rootResourceType) }
-                  .keys
-                  .map { PermissionKey(it).toName() }
-            }
-          }
-        )
-
-      val principalsStub = PrincipalsGrpc.newBlockingStub(accessChannel)
-      val principal =
-        principalsStub.createPrincipal(
-          createPrincipalRequest {
-            principalId = "mc-user"
-            this.principal = principal {
-              user =
-                PrincipalKt.oAuthUser {
-                  issuer = "https://auth.halo-cmm.local"
-                  subject = "mc-user@example.com"
-                }
-            }
-          }
-        )
-
-      val policiesStub = PoliciesGrpc.newBlockingStub(accessChannel)
-      policiesStub.createPolicy(
-        createPolicyRequest {
-          policyId = "test-mc-policy"
-          policy = policy {
-            protectedResource = measurementConsumerData.name
-            bindings +=
-              PolicyKt.binding {
-                this.role = mcUserRole.name
-                members += principal.name
-              }
-          }
-        }
-      )
-      policiesStub.createPolicy(
-        createPolicyRequest {
-          policyId = "test-root-policy"
-          policy = policy {
-            protectedResource = "" // Root
-            bindings +=
-              PolicyKt.binding {
-                this.role = kingdomUserRole.name
-                members += principal.name
-              }
-          }
-        }
-      )
-
-      return principal
     }
 
     fun stopPortForwarding() {
@@ -707,7 +621,6 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
     private val EDP_DISPLAY_NAMES: List<String> = (1..NUM_DATA_PROVIDERS).map { "edp$it" }
     private val READY_TIMEOUT = Duration.ofMinutes(2L)
 
-    private val LOCAL_K8S_PATH = Paths.get("src", "main", "k8s", "local")
     private val LOCAL_K8S_TESTING_PATH = LOCAL_K8S_PATH.resolve("testing")
     private val CONFIG_FILES_PATH = LOCAL_K8S_TESTING_PATH.resolve("config_files")
     private val MC_CONFIG_PATH = LOCAL_K8S_TESTING_PATH.resolve("mc_config")

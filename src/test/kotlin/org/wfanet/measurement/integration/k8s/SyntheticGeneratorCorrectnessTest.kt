@@ -45,8 +45,12 @@ import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.integration.common.SyntheticGenerationSpecs
 import org.wfanet.measurement.internal.reporting.v2.BasicReportsGrpcKt as InternalBasicReportsGrpcKt
+import com.google.crypto.tink.InsecureSecretKeyAccess
+import com.google.crypto.tink.TinkProtoKeysetFormat
+import com.google.protobuf.util.JsonFormat
 import org.wfanet.measurement.common.grpc.BearerTokenCallCredentials
 import org.wfanet.measurement.common.grpc.testing.OpenIdProvider
+import org.wfanet.measurement.config.access.OpenIdProvidersConfig
 import org.wfanet.measurement.loadtest.dataprovider.SyntheticGeneratorEventQuery
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerSimulator
@@ -148,6 +152,15 @@ class SyntheticGeneratorCorrectnessTest : AbstractCorrectnessTest(measurementSys
           .also { channels.add(it) }
           .withDefaultDeadline(RPC_DEADLINE_DURATION)
 
+      val accessPublicApiChannel =
+        buildMutualTlsChannel(
+          TEST_CONFIG.accessPublicApiTarget,
+          ACCESS_SIGNING_CERTS,
+          TEST_CONFIG.accessPublicApiCertHost,
+        )
+          .also { channels.add(it) }
+          .withDefaultDeadline(RPC_DEADLINE_DURATION)
+
       val secretFiles = getRuntimePath(SECRET_FILES_PATH)
       val reportingRootCert = secretFiles.resolve("reporting_root.pem").toFile()
       val cert = secretFiles.resolve("mc_tls.pem").toFile()
@@ -171,12 +184,24 @@ class SyntheticGeneratorCorrectnessTest : AbstractCorrectnessTest(measurementSys
           .sslSocketFactory(certificates.sslSocketFactory(), certificates.trustManager)
           .build()
 
-      val bearerTokenCallCredentials: BearerTokenCallCredentials = OpenIdProvider("test")
-        .generateCredentials(
-          audience = TEST_CONFIG.reportingPublicApiTarget,
-          subject = "client",
-          scopes = setOf("reporting.basicReports.get"),
+      val openIdProvidersConfigBuilder = OpenIdProvidersConfig.newBuilder()
+      JsonFormat.parser()
+        .ignoringUnknownFields()
+        .merge(OPEN_ID_PROVIDERS_CONFIG_JSON_FILE.readText(), openIdProvidersConfigBuilder)
+      val openIdProvidersConfig = openIdProvidersConfigBuilder.build()
+
+      val principal = createAccessPrincipal(TEST_CONFIG.measurementConsumer, accessPublicApiChannel, openIdProvidersConfig.providerConfigByIssuerMap.keys.first())
+
+      val bearerTokenCallCredentials: BearerTokenCallCredentials =
+        OpenIdProvider(
+          principal.user.issuer,
+          TinkProtoKeysetFormat.parseKeyset(OPEN_ID_PROVIDERS_TINK_FILE.readBytes(), InsecureSecretKeyAccess.get()),
         )
+          .generateCredentials(
+            audience = TEST_CONFIG.reportingPublicApiTarget,
+            subject = principal.user.subject,
+            scopes = setOf("reporting.basicReports.get"),
+          )
 
       return ReportingUserSimulator(
         measurementConsumerName = TEST_CONFIG.measurementConsumer,

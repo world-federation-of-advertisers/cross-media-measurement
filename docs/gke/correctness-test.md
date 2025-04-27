@@ -83,7 +83,8 @@ bazel test //src/test/kotlin/org/wfanet/measurement/integration/k8s:SyntheticGen
 --define=mc_api_key=W9q4zad246g \
 --define=reporting_public_api_target=v2alpha.reporting.dev.halo-cmm.org:8443 \
 --define=reporting_internal_api_target=internal.reporting.dev.halo-cmm.org:8443 \
---define=reporting_gateway_target=gateway.reporting.dev.halo-cmm.org:443
+--define=reporting_gateway_target=gateway.reporting.dev.halo-cmm.org:443 \
+--define=access_public_api_target=access.reporting.dev.halo-cmm.org:8443
 ```
 
 The time the test takes depends on the size of the data set. With the default
