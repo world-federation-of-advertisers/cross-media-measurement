@@ -38,6 +38,7 @@ import org.wfanet.measurement.securecomputation.service.WorkItemAlreadyExistsExc
 import org.wfanet.measurement.securecomputation.service.WorkItemKey
 import org.wfanet.measurement.securecomputation.service.WorkItemNotFoundException
 import org.wfanet.measurement.securecomputation.service.internal.Errors as InternalErrors
+import java.util.logging.Logger
 
 class WorkItemsService(private val internalWorkItemsStub: InternalWorkItemsCoroutineStub) :
   WorkItemsCoroutineImplBase() {
@@ -63,6 +64,12 @@ class WorkItemsService(private val internalWorkItemsStub: InternalWorkItemsCorou
 
     val internalResponse: InternalWorkItem =
       try {
+        logger.info("zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz")
+        logger.info(internalWorkItem {
+          queueResourceId = request.workItem.queue
+          workItemResourceId = request.workItemId
+          workItemParams = request.workItem.workItemParams
+        }.toString())
         internalWorkItemsStub.createWorkItem(
           internalCreateWorkItemRequest {
             internalWorkItem {
@@ -209,6 +216,7 @@ class WorkItemsService(private val internalWorkItemsStub: InternalWorkItemsCorou
   }
 
   companion object {
+    private val logger: Logger = Logger.getLogger(this::class.java.name)
     private const val DEFAULT_PAGE_SIZE = 50
     private const val MAX_PAGE_SIZE = 100
   }

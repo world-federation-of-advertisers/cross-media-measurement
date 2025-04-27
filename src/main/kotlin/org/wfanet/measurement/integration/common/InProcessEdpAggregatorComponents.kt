@@ -152,12 +152,12 @@ class InProcessEdpAggregatorComponents(
     pubSubClient.createTopic(PROJECT_ID, TOPIC_ID)
     pubSubClient.createSubscription(PROJECT_ID, SUBSCRIPTION_ID, TOPIC_ID)
     edpResourceName = edpDisplayNameToResourceMap["edp1"]!!.name
-    workItemsClient.createWorkItem(createWorkItemRequest {
+    /*workItemsClient.createWorkItem(createWorkItemRequest {
       workItemId = "some-work-item"
       this.workItem = workItem {
         queue = TOPIC_ID
       }
-    })
+    })*/
     publicApiChannel = kingdomChannel
     val watchedPaths =
       getDataWatcherConfig(

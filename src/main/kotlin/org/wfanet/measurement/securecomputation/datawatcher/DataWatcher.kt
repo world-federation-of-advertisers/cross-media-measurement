@@ -64,10 +64,28 @@ class DataWatcher(
     }
   }
 
+  private fun generateRandomName(): String {
+    val firstChar = ('a'..'z').random() // random lowercase letter
+    val middlePart = List((1..61).random()) { // random length between 1 and 61
+      when ((0..2).random()) {
+        0 -> ('a'..'z').random() // random lowercase letter
+        1 -> ('A'..'Z').random() // random uppercase letter
+        2 -> ('0'..'9').random() // random digit
+        else -> '-' // hyphen (shouldn't happen, but just in case)
+      }
+    }.joinToString("")
+    val lastChar = if (middlePart.last() == '-') { // ensure last char is not a hyphen
+      ('a'..'z').random()
+    } else {
+      middlePart.last()
+    }
+    return "$firstChar$middlePart$lastChar"
+  }
+
   private suspend fun sendToControlPlane(config: WatchedPath, path: String) {
 
     val queueConfig = config.controlPlaneQueueSink
-    val workItemId = UUID.randomUUID().toString()
+    val workItemId = generateRandomName()
     val workItemParams =
       workItemParams {
           appParams = queueConfig.appParams

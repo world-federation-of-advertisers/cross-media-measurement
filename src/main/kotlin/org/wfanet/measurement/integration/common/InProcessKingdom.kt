@@ -129,7 +129,6 @@ class InProcessKingdom(
       defaultServiceConfig = DEFAULT_SERVICE_CONFIG_MAP,
     ) {
       logger.info("Building Kingdom's internal Data services")
-      logger.info("0000000000000000000000000000000000000000000000000000000000000000000000000")
       kingdomDataServices.buildDataServices().toList().forEach { addService(it) }
     }
   private val systemApiServer =

@@ -63,15 +63,13 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
   private val secureComputationDatabaseAdmin: SpannerDatabaseAdmin,
 ) {
 
-  @get:Rule
   val inProcessCmmsComponents = run {
     logger.info("77777777777777777777777777777777777777777777777777777777")
     InProcessCmmsComponents(kingdomDataServicesRule, duchyDependenciesRule)
   }
 
-  @Rule @JvmField val tempDirectory = TemporaryFolder()
+  @JvmField val tempDirectory = TemporaryFolder()
 
-  @get:Rule
   val inProcessEdpAggregatorComponents: InProcessEdpAggregatorComponents = run {
     tempDirectory.create()
     val storageClient = FileSystemStorageClient(tempDirectory.root)
@@ -81,6 +79,7 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
         port = pubSubEmulatorProvider.port,
       )
     logger.info("888888888888888888888888888888888888888888888888888888888")
+    logger.info(QUEUES_CONFIG.toString())
     InProcessEdpAggregatorComponents(
       internalServicesRule =
         SecureComputationServicesProviderRule(
@@ -101,7 +100,7 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
       .around(tempDirectory)
       .around(inProcessEdpAggregatorComponents)
 
-  /*(@get:Rule
+  /*@get:Rule
   val ruleChain: RuleChain = RuleChain
     .outerRule(inProcessEdpAggregatorComponents)
     .around(tempDirectory)
