@@ -16,51 +16,64 @@
 
 package org.wfanet.measurement.integration.common
 
+import com.google.protobuf.Any
 import com.google.protobuf.ByteString
+import com.google.protobuf.Int32Value
+import com.google.protobuf.timestamp
+import com.google.type.interval
 import io.grpc.Channel
 import java.security.cert.X509Certificate
 import java.time.Clock
 import java.time.Duration
 import java.util.Timer
-import kotlin.concurrent.fixedRateTimer
+import java.util.logging.Level
+import java.util.logging.Logger
+import kotlinx.coroutines.CoroutineExceptionHandler
+import kotlinx.coroutines.CoroutineName
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.asFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import org.junit.rules.TestRule
 import org.junit.runner.Description
 import org.junit.runners.model.Statement
 import org.wfanet.measurement.api.v2alpha.EventGroup as ExternalEventGroup
-import com.google.protobuf.timestamp
-import com.google.type.interval
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.common.crypto.subjectKeyIdentifier
 import org.wfanet.measurement.common.crypto.tink.TinkPrivateKeyHandle
+import org.wfanet.measurement.common.identity.withPrincipalName
 import org.wfanet.measurement.common.testing.ProviderRule
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
+import org.wfanet.measurement.config.edpaggregator.eventGroupSyncConfig
 import org.wfanet.measurement.edpaggregator.eventgroups.EventGroupSync
-import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.eventGroup
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionFetcher
-import org.wfanet.measurement.gcloud.pubsub.GooglePubSubClient
 import org.wfanet.measurement.gcloud.pubsub.Subscriber
+import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorClient
+import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
 import org.wfanet.measurement.loadtest.resourcesetup.EntityContent
 import org.wfanet.measurement.loadtest.resourcesetup.Resources
+import org.wfanet.measurement.loadtest.resourcesetup.Resources.Resource
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineStub
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
 import org.wfanet.measurement.securecomputation.datawatcher.DataWatcher
+import org.wfanet.measurement.securecomputation.datawatcher.testing.DataWatcherSubscribingStorageClient
 import org.wfanet.measurement.securecomputation.service.internal.Services
 import org.wfanet.measurement.securecomputation.teesdk.testing.FakeFulfillingRequisitionTeeApp
 import org.wfanet.measurement.storage.StorageClient
-import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
-import org.wfanet.measurement.common.identity.withPrincipalName
-import org.wfanet.measurement.loadtest.resourcesetup.Resources.Resource
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.createWorkItemRequest
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
 
 class InProcessEdpAggregatorComponents(
   private val internalServicesRule: ProviderRule<Services>,
-  private val pubSubClient: GooglePubSubClient,
+  private val pubSubClient: GooglePubSubEmulatorClient,
   private val storageClient: StorageClient,
+  private val storagePrefix: String,
 ) : TestRule {
 
   private val internalServices: Services
@@ -75,28 +88,25 @@ class InProcessEdpAggregatorComponents(
 
   private val workItemsClient: WorkItemsCoroutineStub by lazy {
     WorkItemsCoroutineStub(secureComputationPublicApi.publicApiChannel)
-      //.withPrincipalName(edpResourceName)
+      .withPrincipalName(edpResourceName)
   }
 
   private val requisitionsClient: RequisitionsCoroutineStub by lazy {
-    RequisitionsCoroutineStub(publicApiChannel)
-      .withPrincipalName(edpResourceName)
+    RequisitionsCoroutineStub(publicApiChannel).withPrincipalName(edpResourceName)
   }
 
   private val eventGroupsClient: EventGroupsCoroutineStub by lazy {
-    EventGroupsCoroutineStub(publicApiChannel)
-      .withPrincipalName(edpResourceName)
+    EventGroupsCoroutineStub(publicApiChannel).withPrincipalName(edpResourceName)
   }
 
-  private val dataWatcher: DataWatcher by lazy { DataWatcher(workItemsClient, DATA_WATCHER_CONFIG) }
+  private lateinit var dataWatcher: DataWatcher
 
   private lateinit var requisitionFetcher: RequisitionFetcher
 
   private lateinit var eventGroupSync: EventGroupSync
 
-  private val subscriber = Subscriber(PROJECT_ID, pubSubClient)
-
-  private val teeApp =
+  private val teeApp by lazy {
+    val subscriber = Subscriber(PROJECT_ID, pubSubClient)
     FakeFulfillingRequisitionTeeApp(
       parser = WorkItem.parser(),
       subscriptionId = "some-subscription",
@@ -105,6 +115,7 @@ class InProcessEdpAggregatorComponents(
         WorkItemAttemptsCoroutineStub(secureComputationPublicApi.publicApiChannel),
       queueSubscriber = subscriber,
     )
+  }
 
   val ruleChain: TestRule by lazy {
     chainRulesSequentially(internalServicesRule, secureComputationPublicApi)
@@ -121,54 +132,92 @@ class InProcessEdpAggregatorComponents(
 
   lateinit var requisitionFetcherTimer: Timer
   lateinit var eventGroupSyncTimer: Timer
+  private val loggingName = javaClass.simpleName
+  private val backgroundScope =
+    CoroutineScope(
+      Dispatchers.Default +
+        CoroutineName(loggingName) +
+        CoroutineExceptionHandler { _, e ->
+          logger.log(Level.SEVERE, e) { "Error in $loggingName" }
+        }
+    )
 
   fun startDaemons(
     kingdomChannel: Channel,
     measurementConsumerData: MeasurementConsumerData,
     edpDisplayNameToResourceMap: Map<String, Resource>,
-    ) = runBlocking {
+  ) = runBlocking {
     // Create all resources
     createAllResources()
+    pubSubClient.createTopic(PROJECT_ID, TOPIC_ID)
+    pubSubClient.createSubscription(PROJECT_ID, SUBSCRIPTION_ID, TOPIC_ID)
     edpResourceName = edpDisplayNameToResourceMap["edp1"]!!.name
+    workItemsClient.createWorkItem(createWorkItemRequest {
+      workItemId = "some-work-item"
+      this.workItem = workItem {
+        queue = TOPIC_ID
+      }
+    })
     publicApiChannel = kingdomChannel
-    requisitionFetcher = RequisitionFetcher(
-      requisitionsClient,
-      storageClient,
-      edpResourceName,
-      "some-storage-prefix",
-      10,
-    )
-    requisitionFetcherTimer =
-      fixedRateTimer("timer", false, 0L, 1000L) {
-        runBlocking { requisitionFetcher.fetchAndStoreRequisitions() }
+    val watchedPaths =
+      getDataWatcherConfig(
+        blobPrefix = "some-storage-prefix",
+        eventGroupCloudFunctionHost = "some-event-group-cloud-function-host",
+        edpConfigs =
+          mapOf(
+            edpResourceName to
+              Pair(eventGroupSyncConfig {}, Any.pack(Int32Value.newBuilder().setValue(5).build()))
+          ),
+      )
+    dataWatcher = DataWatcher(workItemsClient, watchedPaths)
+
+    val subscribingStorageClient = DataWatcherSubscribingStorageClient(storageClient, storagePrefix)
+    subscribingStorageClient.subscribe(dataWatcher)
+
+    requisitionFetcher =
+      RequisitionFetcher(
+        requisitionsClient,
+        subscribingStorageClient,
+        edpResourceName,
+        "some-storage-prefix",
+        10,
+      )
+    backgroundScope.launch {
+      while (true) {
+        requisitionFetcher.fetchAndStoreRequisitions()
+        delay(1000)
       }
-    print(measurementConsumerData)
-    print(edpDisplayNameToResourceMap)
-    val eventGroups = listOf(
-      eventGroup {
-        eventGroupReferenceId = "sim-eg-reference-id-1"
-        measurementConsumer = measurementConsumerData.name
-        dataAvailabilityInterval = interval {
-          startTime = timestamp { seconds = 200 }
-          endTime = timestamp { seconds = 300 }
+    }
+    logger.info("$measurementConsumerData")
+    logger.info("$edpDisplayNameToResourceMap")
+    val eventGroups =
+      listOf(
+        eventGroup {
+          eventGroupReferenceId = "sim-eg-reference-id-1"
+          measurementConsumer = measurementConsumerData.name
+          dataAvailabilityInterval = interval {
+            startTime = timestamp { seconds = 200 }
+            endTime = timestamp { seconds = 300 }
+          }
         }
-      }
-    )
-    eventGroupSync = EventGroupSync(
-      edpResourceName,
-      eventGroupsClient,
-      eventGroups.asFlow(),
-      MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000L)),
-    )
-    eventGroupSyncTimer =
-      fixedRateTimer("timer", false, 0L, 1000L) { runBlocking { eventGroupSync.sync().collect{} } }
+      )
+    eventGroupSync =
+      EventGroupSync(
+        edpResourceName,
+        eventGroupsClient,
+        eventGroups.asFlow(),
+        MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000L)),
+      )
+    runBlocking { eventGroupSync.sync().collect {} }
   }
 
-  suspend fun stopDaemons() {
-    pubSubClient.deleteTopic(PROJECT_ID, TOPIC_ID)
-    // pubSubClient.deleteSubscription(PROJECT_ID, SUBSCRIPTION_ID)
-    requisitionFetcherTimer.cancel()
-    eventGroupSyncTimer.cancel()
+  fun stopDaemons() {
+    runBlocking {
+      pubSubClient.deleteTopic(PROJECT_ID, TOPIC_ID)
+      pubSubClient.deleteSubscription(PROJECT_ID, SUBSCRIPTION_ID)
+    }
+    // requisitionFetcherTimer.cancel()
+    // eventGroupSyncTimer.cancel()
   }
 
   override fun apply(statement: Statement, description: Description): Statement {
@@ -176,14 +225,6 @@ class InProcessEdpAggregatorComponents(
   }
 
   companion object {
-    val MC_ENTITY_CONTENT: EntityContent = createEntityContent(MC_DISPLAY_NAME)
-    val MC_ENCRYPTION_PRIVATE_KEY: TinkPrivateKeyHandle =
-      loadEncryptionPrivateKey("${MC_DISPLAY_NAME}_enc_private.tink")
-    val TRUSTED_CERTIFICATES: Map<ByteString, X509Certificate> =
-      loadTestCertCollection("all_root_certs.pem").associateBy {
-        checkNotNull(it.subjectKeyIdentifier)
-      }
-
-    @JvmStatic fun initConfig() {}
+    private val logger: Logger = Logger.getLogger(this::class.java.name)
   }
 }

@@ -44,6 +44,7 @@ class RequisitionFetcher(
   private val storagePathPrefix: String,
   private val responsePageSize: Int? = null,
 ) {
+  var times = 0
 
   /**
    * Fetches and stores unfulfilled requisitions from a data provider.
@@ -55,9 +56,7 @@ class RequisitionFetcher(
    * @throws Exception if there is an error while listing requisitions.
    */
   suspend fun fetchAndStoreRequisitions() {
-    logger.info("Executing requisitionFetchingWorkflow for $dataProviderName...")
-
-    var requisitionsCount = 0
+    //logger.info("Executing requisitionFetchingWorkflow for $dataProviderName...")
 
     // TODO(world-federation-of-advertisers/cross-media-measurement#2095): Update logic once we have
     // a more efficient way to pull only the Requisitions that have not been stored in storage.
@@ -67,7 +66,7 @@ class RequisitionFetcher(
           val request = listRequisitionsRequest {
             parent = dataProviderName
             filter = ListRequisitionsRequestKt.filter { states += Requisition.State.UNFULFILLED }
-            if (responsePageSize != null) {
+            if (responsePageSize != null && responsePageSize > 0) {
               pageSize = responsePageSize
             }
             this.pageToken = pageToken
@@ -78,19 +77,15 @@ class RequisitionFetcher(
             } catch (e: StatusException) {
               throw Exception("Error listing requisitions", e)
             }
-          requisitionsCount += response.requisitionsList.size
           ResourceList(response.requisitionsList, response.nextPageToken)
         }
         .flattenConcat()
-
-    logger.fine {
-      "$requisitionsCount unfulfilled requisitions have been retrieved for $dataProviderName"
-    }
-
     val storedRequisitions: Int = storeRequisitions(requisitions)
 
-    logger.fine {
-      "$storedRequisitions unfulfilled requisitions have been persisted to storage for $dataProviderName"
+    if (storedRequisitions > 0) {
+      logger.fine {
+        "$storedRequisitions unfulfilled requisitions have been persisted to storage for $dataProviderName"
+      }
     }
   }
 
@@ -113,6 +108,8 @@ class RequisitionFetcher(
       // Only stores the requisition if it does not already exist in storage by checking if
       // the blob key(created using the requisition name, ensuring uniqueness) is populated.
       if (storageClient.getBlob(blobKey) == null) {
+        logger.info("***********************************")
+        logger.info("Writing Requisition: $blobKey")
         storageClient.writeBlob(blobKey, Any.pack(requisition).toByteString())
         storedRequisitions += 1
       }

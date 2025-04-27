@@ -14,19 +14,19 @@
 
 package org.wfanet.measurement.integration.common
 
-import java.time.Instant
-import java.time.LocalDate
-import kotlinx.coroutines.runBlocking
+import java.util.logging.Logger
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import org.junit.After
 import org.junit.Before
 import org.junit.BeforeClass
+import org.junit.ClassRule
 import org.junit.Ignore
 import org.junit.Rule
-import org.junit.rules.RuleChain
 import org.junit.Test
+import org.junit.rules.RuleChain
 import org.junit.rules.TemporaryFolder
-import org.junit.rules.TestRule
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.DataProviderKt
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
@@ -34,19 +34,9 @@ import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub
-import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt.ModelLinesCoroutineStub
-import org.wfanet.measurement.api.v2alpha.ModelReleasesGrpcKt.ModelReleasesCoroutineStub
-import org.wfanet.measurement.api.v2alpha.ModelRolloutsGrpcKt.ModelRolloutsCoroutineStub
-import org.wfanet.measurement.api.v2alpha.ModelSuitesGrpcKt.ModelSuitesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig.NoiseMechanism
-import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
-import org.wfanet.measurement.common.identity.withPrincipalName
 import org.wfanet.measurement.common.testing.ProviderRule
-import org.wfanet.measurement.common.testing.chainRulesSequentially
-import org.wfanet.measurement.common.toProtoDate
-import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorClient
 import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorProvider
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerDatabaseAdmin
@@ -55,10 +45,8 @@ import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerSimulator
 import org.wfanet.measurement.loadtest.measurementconsumer.MetadataSyntheticGeneratorEventQuery
-import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
 import org.wfanet.measurement.securecomputation.deploy.gcloud.publisher.GoogleWorkItemPublisher
 import org.wfanet.measurement.securecomputation.service.internal.QueueMapping
-import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub
 
@@ -76,41 +64,70 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
 ) {
 
   @get:Rule
-  val inProcessCmmsComponents =
+  val inProcessCmmsComponents = run {
+    logger.info("77777777777777777777777777777777777777777777777777777777")
     InProcessCmmsComponents(kingdomDataServicesRule, duchyDependenciesRule)
+  }
 
-  @Rule @JvmField val pubSubEmulatorProvider = GooglePubSubEmulatorProvider()
-  private lateinit var inProcessEdpAggregatorComponents: InProcessEdpAggregatorComponents
-  @Before
-  fun setup() {
-    storageClient = FileSystemStorageClient(tempDirectory.root)
-    val googlePubSubClientInstance =
+  @Rule @JvmField val tempDirectory = TemporaryFolder()
+
+  @get:Rule
+  val inProcessEdpAggregatorComponents: InProcessEdpAggregatorComponents = run {
+    tempDirectory.create()
+    val storageClient = FileSystemStorageClient(tempDirectory.root)
+    val pubSubClient =
       GooglePubSubEmulatorClient(
         host = pubSubEmulatorProvider.host,
         port = pubSubEmulatorProvider.port,
       )
-    inProcessEdpAggregatorComponents = InProcessEdpAggregatorComponents(
+    logger.info("888888888888888888888888888888888888888888888888888888888")
+    InProcessEdpAggregatorComponents(
       internalServicesRule =
-      SecureComputationServicesProviderRule(
-        workItemPublisher = GoogleWorkItemPublisher(PROJECT_ID, googlePubSubClientInstance),
-        queueMapping = QueueMapping(QUEUES_CONFIG),
-        emulatorDatabaseAdmin = secureComputationDatabaseAdmin,
-      ),
+        SecureComputationServicesProviderRule(
+          workItemPublisher = GoogleWorkItemPublisher(PROJECT_ID, pubSubClient),
+          queueMapping = QueueMapping(QUEUES_CONFIG),
+          emulatorDatabaseAdmin = secureComputationDatabaseAdmin,
+        ),
       storageClient = storageClient,
-      pubSubClient = googlePubSubClientInstance,
+      storagePrefix = tempDirectory.root.toPath().toString(),
+      pubSubClient = pubSubClient,
     )
+  }
+
+  @get:Rule
+  val ruleChain: RuleChain =
+    RuleChain.outerRule(inProcessCmmsComponents)
+      .around(pubSubEmulatorProvider)
+      .around(tempDirectory)
+      .around(inProcessEdpAggregatorComponents)
+
+  /*(@get:Rule
+  val ruleChain: RuleChain = RuleChain
+    .outerRule(inProcessEdpAggregatorComponents)
+    .around(tempDirectory)
+    .around(pubSubEmulatorProvider)
+    .around(inProcessCmmsComponents)*/
+
+  /*@Before
+  fun setupRules() {
+    ruleChain.apply(this, Description.EMPTY)
+  }*/
+
+  @Before
+  fun setup() {
     inProcessCmmsComponents.startDaemons(useEdpSimulators = false)
     val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
     val edpDisplayNameToResourceMap = inProcessCmmsComponents.edpDisplayNameToResourceMap
     val kingdomChannel = inProcessCmmsComponents.kingdom.publicApiChannel
-    inProcessEdpAggregatorComponents.startDaemons(kingdomChannel, measurementConsumerData, edpDisplayNameToResourceMap)
+    inProcessEdpAggregatorComponents.startDaemons(
+      kingdomChannel,
+      measurementConsumerData,
+      edpDisplayNameToResourceMap,
+    )
     initMcSimulator()
   }
 
-  @Rule @JvmField val tempDirectory = TemporaryFolder()
   @Before fun createGooglePubSubEmulator() {}
-
-  private lateinit var storageClient: StorageClient
 
   private lateinit var mcSimulator: MeasurementConsumerSimulator
 
@@ -160,13 +177,9 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
   }
 
   @After
-  fun stopEdpSimulators() {
-    inProcessCmmsComponents.stopEdpSimulators()
-  }
-
-  @After
   fun stopDuchyDaemons() {
     inProcessCmmsComponents.stopDuchyDaemons()
+    inProcessEdpAggregatorComponents.stopDaemons()
   }
 
   @After
@@ -208,9 +221,11 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
   @Test
   fun `create a direct reach-only measurement and check the result is equal to the expected result`() =
     runBlocking {
-      delay(1000)
-      // Use frontend simulator to create a direct reach-only measurement and verify its result.
-      mcSimulator.testDirectReachOnly("1234")
+      withTimeout(10000) {
+        delay(1000)
+        // Use frontend simulator to create a direct reach-only measurement and verify its result.
+        mcSimulator.testDirectReachOnly("1234")
+      }
     }
 
   @Ignore
@@ -275,9 +290,8 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
       )
     }
 
-  // TODO(@renjiez): Add Multi-round test given the same input to verify correctness.
-
   companion object {
+    private val logger: Logger = Logger.getLogger(this::class.java.name)
     // Epsilon can vary from 0.0001 to 1.0, delta = 1e-15 is a realistic value.
     // Set epsilon higher without exceeding privacy budget so the noise is smaller in the
     // integration test. Check sample values in CompositionTest.kt.
@@ -291,5 +305,7 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
     fun initConfig() {
       InProcessCmmsComponents.initConfig()
     }
+
+    @get:ClassRule @JvmStatic val pubSubEmulatorProvider = GooglePubSubEmulatorProvider()
   }
 }

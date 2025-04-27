@@ -40,6 +40,7 @@ import org.wfanet.measurement.common.readByteString
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.common.toJson
 import org.wfanet.measurement.config.access.PermissionsConfig
+import org.wfanet.measurement.config.reporting.ImpressionQualificationFilterConfig
 import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
 import org.wfanet.measurement.internal.duchy.config.ProtocolsSetupConfig
 import org.wfanet.measurement.internal.kingdom.DuchyIdConfig
@@ -48,13 +49,16 @@ import org.wfanet.measurement.internal.kingdom.Llv2ProtocolConfigConfig
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 import org.wfanet.measurement.loadtest.resourcesetup.EntityContent
 import org.wfanet.measurement.gcloud.testing.CloudFunctionProcessDetails
+import org.wfanet.measurement.config.securecomputation.WatchedPath
+import org.wfanet.measurement.config.securecomputation.watchedPath
 import org.wfanet.measurement.config.securecomputation.DataWatcherConfig
-import org.wfanet.measurement.config.securecomputation.DataWatcherConfigKt
+import org.wfanet.measurement.config.securecomputation.WatchedPathKt
 import org.wfanet.measurement.config.securecomputation.dataWatcherConfig
 import org.wfanet.measurement.config.edpaggregator.eventGroupSyncConfig
 import org.wfanet.measurement.config.edpaggregator.EventGroupSyncConfig
 import org.wfanet.measurement.config.securecomputation.QueuesConfig
 import org.wfanet.measurement.common.toJson
+import org.wfanet.measurement.reporting.service.internal.ImpressionQualificationFilterMapping
 
 private const val REPO_NAME = "wfa_measurement_system"
 
@@ -92,6 +96,13 @@ val HMSS_PROTOCOL_CONFIG_CONFIG: HmssProtocolConfigConfig =
     "hmss_protocol_config_config.textproto",
     HmssProtocolConfigConfig.getDefaultInstance(),
   )
+val IMPRESSION_QUALIFICATION_FILTER_CONFIG: ImpressionQualificationFilterConfig =
+  loadTextProto(
+    "impression_qualification_filter_config.textproto",
+    ImpressionQualificationFilterConfig.getDefaultInstance(),
+  )
+val IMPRESSION_QUALIFICATION_FILTER_MAPPING: ImpressionQualificationFilterMapping =
+  ImpressionQualificationFilterMapping(IMPRESSION_QUALIFICATION_FILTER_CONFIG)
 
 val AGGREGATOR_NAME =
   AGGREGATOR_PROTOCOLS_SETUP_CONFIG.honestMajorityShareShuffle.aggregatorDuchyId!!
@@ -212,12 +223,12 @@ val DEFAULT_SERVICE_CONFIG_MAP: Map<String, *>?
   }
 
 /** Used to configure DataWatcher **/
-val DATA_WATCHER_CONFIG: List<DataWatcherConfig>
+val DATA_WATCHER_CONFIG: List<WatchedPath>
   get() {
     val configPath = Paths.get("wfa_measurement_system", "src", "main", "k8s", "testing", "secretfiles")
     val configFile =
       getRuntimePath(configPath.resolve("data_watcher_config.textproto"))!!.toFile()
-    return listOf(parseTextProto(configFile, DataWatcherConfig.getDefaultInstance()))
+    return listOf(parseTextProto(configFile, WatchedPath.getDefaultInstance()))
   }
 
 // TODO: Replace Any with RequisitionFulfillerConfig
@@ -225,22 +236,22 @@ fun getDataWatcherConfig(
   blobPrefix: String,
   eventGroupCloudFunctionHost: String,
   edpConfigs: Map<String, Pair<EventGroupSyncConfig, Any>>,
-): List<DataWatcherConfig> {
+): List<WatchedPath> {
   return edpConfigs.map {(edpName, configs) ->
     listOf(
-      dataWatcherConfig {
+      watchedPath {
         sourcePathRegex = "$blobPrefix/$edpName/requisitions(.*)"
-        this.controlPlaneQueueSink = DataWatcherConfigKt.controlPlaneQueueSink {
+        this.controlPlaneQueueSink = WatchedPathKt.controlPlaneQueueSink {
           queue = TOPIC_ID
           appParams = configs.second
         }
       },
-      dataWatcherConfig {
+      watchedPath {
         sourcePathRegex = "$blobPrefix/$edpName/event-groups"
         val appParams = Struct.newBuilder()
           .putFields("data_provider", Value.newBuilder().setStringValue(configs.first.dataProvider)
           .build()).build()
-        this.httpEndpointsSink = DataWatcherConfigKt.httpEndpointsSink {
+        this.httpEndpointSink = WatchedPathKt.httpEndpointSink {
           endpointUri = eventGroupCloudFunctionHost
           this.appParams = appParams
         }

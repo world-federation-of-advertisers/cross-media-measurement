@@ -21,16 +21,11 @@ import org.junit.runner.Description
 import org.junit.runners.model.Statement
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.testing.chainRulesSequentially
-import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineStub as InternalWorkItemAttemptsCoroutineStub
 import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItemsGrpcKt.WorkItemsCoroutineStub as InternalWorkItemsCoroutineStub
-import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
 import org.wfanet.measurement.kingdom.deploy.common.service.toList
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAttemptsService
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsService
-import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.InternalApiServices
-import org.wfanet.measurement.securecomputation.service.internal.QueueMapping
-import org.wfanet.measurement.securecomputation.service.internal.WorkItemPublisher
 import org.wfanet.measurement.securecomputation.service.internal.Services
 
 /** TestRule that starts and stops all Control Plane gRPC services. */
@@ -42,12 +37,17 @@ class InProcessSecureComputationPublicApi(
   private val internalServices: Services by lazy { internalServicesProvider() }
 
   private val internalApiServer =
-    GrpcTestServerRule(logAllRequests = verboseGrpcLogging) {
+    GrpcTestServerRule(
+      logAllRequests = verboseGrpcLogging,
+      //defaultServiceConfig = DEFAULT_SERVICE_CONFIG_MAP,
+      ) {
+      logger.info("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!a")
       logger.info("Building Control Plane's internal API services")
       internalServices.toList().forEach { addService(it) }
     }
   private val publicApiServer =
     GrpcTestServerRule(logAllRequests = verboseGrpcLogging) {
+      logger.info("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!b")
       logger.info("Building Control Plane's public API services")
 
       val internalWorkItemsClient = InternalWorkItemsCoroutineStub(internalApiChannel)

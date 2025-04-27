@@ -27,8 +27,8 @@ option java_outer_classname = "EventGroupProto";
 
 // The Data Providers Event Group information
 message EventGroup {
-  // Event Group metadata for a campaign
-  message EventGroupMetadata {
+  // Event Group metadata
+  message Metadata {
     // Metadata specific to ad impressions.
     message AdMetadata {
       // Metadata that pertains to a campaign.
@@ -68,20 +68,19 @@ message EventGroup {
   // ID referencing the campaign in an external system, provided by the
   // `DataProvider`. This value should be used to help the `DataProvider`
   // synchronize their metadata with the EventGroupsService. See
-  // `EventGroupMetadata` which provides a set of identifiers with better
+  // `Metadata` which provides a set of identifiers with better
   // defined semantics.
   string event_group_reference_id = 1 [(google.api.field_behavior) = REQUIRED];
 
   // Metadata that describes the events entailed by the EventGroup.
-  EventGroupMetadata event_group_metadata = 2
+  Metadata event_group_metadata = 2
       [(google.api.field_behavior) = REQUIRED];
 
   // The start and end dates of the campaign. May contain future dates.
   google.type.Interval data_availability_interval = 3
       [(google.api.field_behavior) = REQUIRED];
 
-  // Resource name referencing the `MeasurementConsumer` in an external system,
-  // provided out-of-band.
+  // Resource name of the `MeasurementConsumer` from the CMMS public API
   string measurement_consumer = 4 [
     (google.api.resource_reference).type =
         "wfa.halo-cmm.org/MeasurementConsumer",

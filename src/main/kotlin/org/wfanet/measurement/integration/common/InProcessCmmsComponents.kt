@@ -18,7 +18,6 @@ package org.wfanet.measurement.integration.common
 
 import com.google.protobuf.ByteString
 import com.google.protobuf.TypeRegistry
-import com.sun.org.apache.xpath.internal.operations.Bool
 import java.security.cert.X509Certificate
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.runBlocking
@@ -313,8 +312,10 @@ class InProcessCmmsComponents(
     populationRequisitionFulfiller.stop()
   }
 
-  fun stopDaemons() {
-    stopEdpSimulators()
+  fun stopDaemons(useEdpSimulators: Boolean = true) {
+    if (useEdpSimulators) {
+      stopEdpSimulators()
+    }
     stopDuchyDaemons()
     stopPopulationRequisitionFulfillerDaemon()
   }

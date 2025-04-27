@@ -22,14 +22,15 @@ import com.google.cloud.functions.HttpResponse
 import com.google.protobuf.util.JsonFormat
 import java.io.BufferedReader
 import java.io.File
+import java.nio.file.Paths
 import java.time.Clock
 import java.time.Duration
 import java.util.logging.Logger
-import kotlin.io.path.Path
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.common.crypto.SigningCerts
+import org.wfanet.measurement.common.getJarResourceFile
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withShutdownTimeout
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
@@ -45,12 +46,6 @@ import org.wfanet.measurement.storage.SelectedStorageClient
  */
 class EventGroupSyncFunction() : HttpFunction {
 
-  init {
-    for (envVar in requiredEnvVars) {
-      checkNotNull(System.getenv(envVar))
-    }
-  }
-
   override fun service(request: HttpRequest, response: HttpResponse) {
     logger.fine("Starting EventGroupSyncFunction")
     val requestBody: BufferedReader = request.getReader()
@@ -58,18 +53,30 @@ class EventGroupSyncFunction() : HttpFunction {
       EventGroupSyncConfig.newBuilder()
         .apply { JsonFormat.parser().merge(requestBody, this) }
         .build()
+    val signingCerts =
+      SigningCerts.fromPemFiles(
+        certificateFile =
+          checkNotNull(
+            CLASS_LOADER.getJarResourceFile(
+              eventGroupSyncConfig.connectionDetails.certJarResourcePath
+            )
+          ),
+        privateKeyFile =
+          checkNotNull(
+            CLASS_LOADER.getJarResourceFile(
+              eventGroupSyncConfig.connectionDetails.privateKeyJarResourcePath
+            )
+          ),
+        trustedCertCollectionFile =
+          checkNotNull(
+            CLASS_LOADER.getJarResourceFile(
+              eventGroupSyncConfig.connectionDetails.certCollectionJarResourcePath
+            )
+          ),
+      )
     val publicChannel =
-      buildMutualTlsChannel(
-          System.getenv("KINGDOM_TARGET"),
-          getClientCerts(),
-          System.getenv("KINGDOM_CERT_HOST"),
-        )
-        .withShutdownTimeout(
-          Duration.ofSeconds(
-            System.getenv("KINGDOM_SHUTDOWN_DURATION_SECONDS")?.toLong()
-              ?: KINGDOM_SHUTDOWN_DURATION_SECONDS
-          )
-        )
+      buildMutualTlsChannel(kingdomTarget, signingCerts, kingdomCertHost)
+        .withShutdownTimeout(channelShutdownDuration)
 
     val eventGroupsClient = EventGroupsCoroutineStub(publicChannel)
     val eventGroups = runBlocking {
@@ -79,10 +86,10 @@ class EventGroupSyncFunction() : HttpFunction {
           SelectedStorageClient(
             blobUri = eventGroupsBlobUri,
             rootDirectory =
-              if (System.getenv("FILE_STORAGE_ROOT") != null)
-                File(System.getenv("FILE_STORAGE_ROOT"))
+              if (eventGroupSyncConfig.hasEventGroupFileSystemStorageDetails())
+                File(checkNotNull(fileSystemStorageRoot))
               else null,
-            projectId = System.getenv("GCS_PROJECT_ID"),
+            projectId = eventGroupSyncConfig.eventGroupGcsStorageDetails.projectId,
           )
         )
         .getBlob(eventGroupsBlobUri.key)!!
@@ -94,13 +101,7 @@ class EventGroupSyncFunction() : HttpFunction {
         edpName = eventGroupSyncConfig.dataProvider,
         eventGroupsStub = eventGroupsClient,
         eventGroups = eventGroups,
-        throttler =
-          MinimumIntervalThrottler(
-            Clock.systemUTC(),
-            Duration.ofMillis(
-              System.getenv("THROTTLER_MILLIS")?.toLong() ?: THROTTLER_DURATION_MILLIS
-            ),
-          ),
+        throttler = MinimumIntervalThrottler(Clock.systemUTC(), throttlerDuration),
       )
     val mappedData = runBlocking { eventGroupSync.sync() }
     runBlocking {
@@ -110,35 +111,44 @@ class EventGroupSyncFunction() : HttpFunction {
           SelectedStorageClient(
             blobUri = mappedDataBlobUri,
             rootDirectory =
-              if (System.getenv("FILE_STORAGE_ROOT") != null)
-                File(System.getenv("FILE_STORAGE_ROOT"))
+              if (eventGroupSyncConfig.hasEventGroupMapFileSystemStorageDetails())
+                File(checkNotNull(fileSystemStorageRoot))
               else null,
-            projectId = System.getenv("GCS_PROJECT_ID"),
+            projectId = eventGroupSyncConfig.eventGroupMapGcsStorageDetails.projectId,
           )
         )
         .writeBlob(mappedDataBlobUri.key, mappedData.map { it.toByteString() })
     }
   }
 
-  private fun getClientCerts(): SigningCerts {
-    return SigningCerts.fromPemFiles(
-      certificateFile = Path(System.getenv("CERT_FILE_PATH")).toFile(),
-      privateKeyFile = Path(System.getenv("PRIVATE_KEY_FILE_PATH")).toFile(),
-      trustedCertCollectionFile = Path(System.getenv("CERT_COLLECTION_FILE_PATH")).toFile(),
-    )
-  }
-
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
     private const val KINGDOM_SHUTDOWN_DURATION_SECONDS: Long = 3L
     private const val THROTTLER_DURATION_MILLIS = 1000L
-    private val requiredEnvVars: List<String> =
-      listOf(
-        "CERT_FILE_PATH",
-        "PRIVATE_KEY_FILE_PATH",
-        "CERT_COLLECTION_FILE_PATH",
-        "KINGDOM_TARGET",
-        "KINGDOM_CERT_HOST",
+    private val CLASS_LOADER: ClassLoader = Thread.currentThread().contextClassLoader
+
+    private val kingdomTarget = checkNotEmpty("KINGDOM_TARGET")
+    private val kingdomCertHost = checkNotEmpty("KINGDOM_CERT_HOST")
+    private val throttlerDuration =
+      Duration.ofMillis(System.getenv("THROTTLER_MILLIS")?.toLong() ?: THROTTLER_DURATION_MILLIS)
+    private val channelShutdownDuration =
+      Duration.ofSeconds(
+        System.getenv("KINGDOM_SHUTDOWN_DURATION_SECONDS")?.toLong()
+          ?: KINGDOM_SHUTDOWN_DURATION_SECONDS
       )
+    private val fileSystemStorageRoot = System.getenv("FILE_STORAGE_ROOT")
+
+    private fun checkNotEmpty(envVar: String): String {
+      val value = System.getenv(envVar)
+      checkNotNull(value) { "Missing env var: $envVar" }
+      check(value.isNotBlank())
+      return value
+    }
+
+    private fun checkIsPath(envVar: String): String {
+      val value = System.getenv(envVar)
+      Paths.get(value)
+      return value
+    }
   }
 }

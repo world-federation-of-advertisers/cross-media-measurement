@@ -16,15 +16,56 @@ syntax = "proto3";
 
 package wfa.measurement.config.edpaggregator;
 
+import "google/api/resource.proto";
+
 option java_package = "org.wfanet.measurement.config.edpaggregator";
 option java_multiple_files = true;
 option java_outer_classname = "EventGroupSyncConfigProto";
 
+// The Event Group config for a single EDP
 message EventGroupSyncConfig {
   // Resource name referencing the `DataProvider` in an external system, provided out-of-band.
-  string data_provider = 1;
+  string data_provider = 1 [(google.api.resource_reference).type = "halo.wfanet.org/DataProvider"];
   // The blob uri for the event groups stored in Mesos RecordIo
   string event_groups_blob_uri = 2;
-  // Contains serialized event_group_info. Only the EventGroupSyncFunction should have write access.
+  // Contains MappedEventGroup(s) in Mesos RecordIO.
   string event_group_map_uri = 3;
+  // The details to connect as the EDP to the CMMS Public API
+  message ConnectionDetails {
+    // The path in the jar to the cert
+    string cert_jar_resource_path = 1;
+    // The path in the jar to the private key
+    string private_key_jar_resource_path = 2;
+    // The path in the jar to the cert collection
+    string cert_collection_jar_resource_path = 3;
+  }
+  // How the EDP connects to the CMMS Public API
+  ConnectionDetails connection_details = 4;
+
+  // Config for requisitions written to GCS
+  message GcsStorageDetails {
+    // The GCS project id. Optional.
+    string project_id = 1;
+    // The GCS bucket name
+    string bucket_name = 2;
+  }
+
+  // Config for requisitions written to file system
+  message FileSystemStorageDetails {}
+
+  // The type of event group storage
+  oneof event_group_storage {
+    // Used for gcs
+    GcsStorageDetails event_group_gcs_storage_details = 5;
+    // Used for file system
+    FileSystemStorageDetails event_group_file_system_storage_details = 6;
+  }
+
+  // The type of event group map storage
+  oneof event_group_map_storage {
+    // Used for gcs
+    GcsStorageDetails event_group_map_gcs_storage_details = 7;
+    // Used for file system
+    FileSystemStorageDetails event_group_map_file_system_storage_details = 8;
+  }
 }

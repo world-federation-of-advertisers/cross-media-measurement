@@ -12,6 +12,9 @@ proto_library(
     name = "queues_config_proto",
     srcs = ["queues_config.proto"],
     strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        "@com_google_googleapis//google/api:field_behavior_proto",
+    ],
 )
 
 kt_jvm_proto_library(

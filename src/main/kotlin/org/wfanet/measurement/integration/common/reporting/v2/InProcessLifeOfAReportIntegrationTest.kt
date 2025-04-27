@@ -71,6 +71,7 @@ import org.wfanet.measurement.api.v2alpha.getMeasurementConsumerRequest
 import org.wfanet.measurement.api.v2alpha.testing.MeasurementResultSubject.Companion.assertThat
 import org.wfanet.measurement.api.withAuthenticationKey
 import org.wfanet.measurement.common.OpenEndTimeRange
+import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.crypto.readCertificateCollection
 import org.wfanet.measurement.common.crypto.subjectKeyIdentifier
 import org.wfanet.measurement.common.getRuntimePath
@@ -89,6 +90,7 @@ import org.wfanet.measurement.integration.common.PERMISSIONS_CONFIG
 import org.wfanet.measurement.integration.common.SyntheticGenerationSpecs
 import org.wfanet.measurement.internal.reporting.v2.EventTemplateFieldKt as InternalEventTemplateFieldKt
 import org.wfanet.measurement.internal.reporting.v2.ImpressionQualificationFilterSpec as InternalImpressionQualificationFilterSpec
+import org.wfanet.measurement.internal.reporting.v2.ListImpressionQualificationFiltersPageTokenKt
 import org.wfanet.measurement.internal.reporting.v2.ResultGroupKt as InternalResultGroupKt
 import org.wfanet.measurement.internal.reporting.v2.basicReport as internalBasicReport
 import org.wfanet.measurement.internal.reporting.v2.basicReportDetails
@@ -97,6 +99,7 @@ import org.wfanet.measurement.internal.reporting.v2.eventFilter as internalEvent
 import org.wfanet.measurement.internal.reporting.v2.eventTemplateField as internalEventTemplateField
 import org.wfanet.measurement.internal.reporting.v2.impressionQualificationFilterSpec as internalImpressionQualificationFilterSpec
 import org.wfanet.measurement.internal.reporting.v2.insertBasicReportRequest
+import org.wfanet.measurement.internal.reporting.v2.listImpressionQualificationFiltersPageToken
 import org.wfanet.measurement.internal.reporting.v2.metricFrequencySpec as internalMetricFrequencySpec
 import org.wfanet.measurement.internal.reporting.v2.reportingImpressionQualificationFilter as internalReportingImpressionQualificationFilter
 import org.wfanet.measurement.internal.reporting.v2.reportingInterval as internalReportingInterval
@@ -114,6 +117,7 @@ import org.wfanet.measurement.reporting.v2alpha.BasicReportsGrpcKt.BasicReportsC
 import org.wfanet.measurement.reporting.v2alpha.EventGroup
 import org.wfanet.measurement.reporting.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.reporting.v2alpha.EventTemplateFieldKt
+import org.wfanet.measurement.reporting.v2alpha.ImpressionQualificationFiltersGrpcKt.ImpressionQualificationFiltersCoroutineStub
 import org.wfanet.measurement.reporting.v2alpha.MediaType
 import org.wfanet.measurement.reporting.v2alpha.Metric
 import org.wfanet.measurement.reporting.v2alpha.MetricCalculationSpec
@@ -137,12 +141,16 @@ import org.wfanet.measurement.reporting.v2alpha.createReportingSetRequest
 import org.wfanet.measurement.reporting.v2alpha.eventFilter
 import org.wfanet.measurement.reporting.v2alpha.eventTemplateField
 import org.wfanet.measurement.reporting.v2alpha.getBasicReportRequest
+import org.wfanet.measurement.reporting.v2alpha.getImpressionQualificationFilterRequest
 import org.wfanet.measurement.reporting.v2alpha.getMetricRequest
 import org.wfanet.measurement.reporting.v2alpha.getReportRequest
 import org.wfanet.measurement.reporting.v2alpha.getReportingSetRequest
+import org.wfanet.measurement.reporting.v2alpha.impressionQualificationFilter
 import org.wfanet.measurement.reporting.v2alpha.impressionQualificationFilterSpec
 import org.wfanet.measurement.reporting.v2alpha.invalidateMetricRequest
 import org.wfanet.measurement.reporting.v2alpha.listEventGroupsRequest
+import org.wfanet.measurement.reporting.v2alpha.listImpressionQualificationFiltersRequest
+import org.wfanet.measurement.reporting.v2alpha.listImpressionQualificationFiltersResponse
 import org.wfanet.measurement.reporting.v2alpha.listMetricsRequest
 import org.wfanet.measurement.reporting.v2alpha.listReportingSetsRequest
 import org.wfanet.measurement.reporting.v2alpha.listReportsRequest
@@ -372,6 +380,10 @@ abstract class InProcessLifeOfAReportIntegrationTest(
 
   private val publicBasicReportsClient by lazy {
     BasicReportsCoroutineStub(reportingServer.publicApiChannel)
+  }
+
+  private val publicImpressionQualificationFiltersClient by lazy {
+    ImpressionQualificationFiltersCoroutineStub(reportingServer.publicApiChannel)
   }
 
   @Test
@@ -2231,6 +2243,76 @@ abstract class InProcessLifeOfAReportIntegrationTest(
         }
       )
   }
+
+  @Test
+  fun `getImpressionQualificationFilter retrives ImpressionQualificationFilter`() = runBlocking {
+    val impressionQualificationFilter =
+      publicImpressionQualificationFiltersClient
+        .withCallCredentials(credentials)
+        .getImpressionQualificationFilter(
+          getImpressionQualificationFilterRequest { name = "impressionQualificationFilters/ami" }
+        )
+
+    assertThat(impressionQualificationFilter)
+      .isEqualTo(
+        impressionQualificationFilter {
+          name = "impressionQualificationFilters/ami"
+          displayName = "ami"
+          filterSpecs += impressionQualificationFilterSpec { mediaType = MediaType.VIDEO }
+          filterSpecs += impressionQualificationFilterSpec { mediaType = MediaType.DISPLAY }
+          filterSpecs += impressionQualificationFilterSpec { mediaType = MediaType.OTHER }
+        }
+      )
+  }
+
+  @Test
+  fun `listImpressionQualificationFilters with page size and page token retrives ImpressionQualificationFilter`() =
+    runBlocking {
+      val internalPageToken = listImpressionQualificationFiltersPageToken {
+        after =
+          ListImpressionQualificationFiltersPageTokenKt.after {
+            externalImpressionQualificationFilterId = "ami"
+          }
+      }
+
+      val listImpressionQualificationFiltersResponse =
+        publicImpressionQualificationFiltersClient
+          .withCallCredentials(credentials)
+          .listImpressionQualificationFilters(
+            listImpressionQualificationFiltersRequest {
+              pageSize = 1
+              pageToken = internalPageToken.toByteString().base64UrlEncode()
+            }
+          )
+
+      assertThat(listImpressionQualificationFiltersResponse)
+        .isEqualTo(
+          listImpressionQualificationFiltersResponse {
+            impressionQualificationFilters += impressionQualificationFilter {
+              name = "impressionQualificationFilters/mrc"
+              displayName = "mrc"
+              filterSpecs += impressionQualificationFilterSpec {
+                mediaType = MediaType.DISPLAY
+                filters += eventFilter {
+                  terms += eventTemplateField {
+                    path = "banner_ad.viewable_fraction_1_second"
+                    value = EventTemplateFieldKt.fieldValue { floatValue = 0.5F }
+                  }
+                }
+              }
+              filterSpecs += impressionQualificationFilterSpec {
+                mediaType = MediaType.VIDEO
+                filters += eventFilter {
+                  terms += eventTemplateField {
+                    path = "video.viewable_fraction_1_second"
+                    value = EventTemplateFieldKt.fieldValue { floatValue = 1.0F }
+                  }
+                }
+              }
+            }
+          }
+        )
+    }
 
   private suspend fun listEventGroups(): List<EventGroup> {
     val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()

@@ -20,6 +20,7 @@ import org.wfanet.measurement.common.identity.DuchyIdentity
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.duchyIdentityFromContext
 import org.wfanet.measurement.internal.kingdom.FulfillRequisitionRequestKt.computedRequisitionParams
+import org.wfanet.measurement.internal.kingdom.RequisitionDetailsKt
 import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCoroutineStub as InternalRequisitionsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.fulfillRequisitionRequest as internalFulfillRequisitionRequest
 import org.wfanet.measurement.system.v1alpha.FulfillRequisitionRequest
@@ -44,6 +45,13 @@ class RequisitionsService(
         internalFulfillRequisitionRequest {
           externalRequisitionId = apiIdToExternalId(requisitionKey.requisitionId)
           nonce = request.nonce
+          if (request.hasFulfillmentContext()) {
+            fulfillmentContext =
+              RequisitionDetailsKt.fulfillmentContext {
+                buildLabel = request.fulfillmentContext.buildLabel
+                warnings += request.fulfillmentContext.warningsList
+              }
+          }
           computedParams = computedRequisitionParams {
             externalComputationId = apiIdToExternalId(requisitionKey.computationId)
             externalFulfillingDuchyId = duchyIdentityProvider().id

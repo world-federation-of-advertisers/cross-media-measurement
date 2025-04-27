@@ -1,4 +1,4 @@
-load("@rules_proto//proto:defs.bzl", "proto_library")
+load("@com_google_protobuf//bazel:proto_library.bzl", "proto_library")
 load(
     "@wfa_rules_kotlin_jvm//kotlin:defs.bzl",
     "kt_jvm_proto_library",
@@ -17,6 +17,7 @@ proto_library(
     srcs = ["event_group_sync_config.proto"],
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
+        "@com_google_googleapis//google/api:resource_proto",
         "@com_google_protobuf//:timestamp_proto",
     ],
 )
@@ -24,4 +25,21 @@ proto_library(
 kt_jvm_proto_library(
     name = "event_group_sync_config_kt_jvm_proto",
     deps = [":event_group_sync_config_proto"],
+)
+
+proto_library(
+    name = "requisition_fetcher_config_proto",
+    srcs = ["requisition_fetcher_config.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        "@com_google_googleapis//google/api:field_behavior_proto",
+        "@com_google_googleapis//google/api:resource_proto",
+        "@com_google_protobuf//:any_proto",
+        "@com_google_protobuf//:struct_proto",
+    ],
+)
+
+kt_jvm_proto_library(
+    name = "requisition_fetcher_config_kt_jvm_proto",
+    deps = [":requisition_fetcher_config_proto"],
 )

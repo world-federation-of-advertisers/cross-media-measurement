@@ -27,7 +27,7 @@ import kotlin.properties.Delegates
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.TimeSource
-import kotlinx.coroutines.*
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
@@ -71,7 +71,7 @@ class FunctionsFrameworkInvokerProcess(
    */
   val port: Int
     get() {
-      check(started) { "Cloud function process not started" }
+      check(started) { "CloudFunction process not started" }
       return localPort
     }
 
@@ -131,7 +131,7 @@ class FunctionsFrameworkInvokerProcess(
                 if (line != null && line!!.contains(readyPattern)) {
                   isReady = true
                 }
-                println(line)
+                logger.info(line)
               }
             } catch (e: IOException) {
               logger.info(e.message)
@@ -156,7 +156,6 @@ class FunctionsFrameworkInvokerProcess(
 
   /** Closes the process if it has been started. */
   override fun close() {
-
     if (started) {
       process.destroy()
       try {
