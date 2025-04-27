@@ -202,6 +202,8 @@ class ReportingUserSimulator(
         basicReportId = "basicReport-$runId",
       )
 
+    println("basic report name: ${basicReportKey.toName()}")
+
     val internalBasicReport = internalBasicReport {
       this.cmmsMeasurementConsumerId = basicReportKey.cmmsMeasurementConsumerId
       externalBasicReportId = basicReportKey.basicReportId
