@@ -390,7 +390,7 @@ class ReportingUserSimulator(
         .host(reportingGatewayHost)
         .port(reportingGatewayPort)
         .addPathSegments(
-          "v2alpha/${basicReportKey.toName()}}"
+          "v2alpha/${basicReportKey.toName()}"
         )
         .build()
 
