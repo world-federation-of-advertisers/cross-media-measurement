@@ -76,9 +76,22 @@ import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt
 import org.wfanet.measurement.internal.reporting.v2.BasicReportsGrpcKt as InternalBasicReportsGrpcKt
 import com.google.crypto.tink.InsecureSecretKeyAccess
 import com.google.crypto.tink.TinkProtoKeysetFormat
-import org.wfanet.measurement.common.crypto.tink.loadPrivateKey
+import org.wfanet.measurement.access.service.PermissionKey
+import org.wfanet.measurement.access.v1alpha.PoliciesGrpc
+import org.wfanet.measurement.access.v1alpha.PolicyKt
+import org.wfanet.measurement.access.v1alpha.Principal
+import org.wfanet.measurement.access.v1alpha.PrincipalKt
+import org.wfanet.measurement.access.v1alpha.PrincipalsGrpc
+import org.wfanet.measurement.access.v1alpha.RolesGrpc
+import org.wfanet.measurement.access.v1alpha.createPolicyRequest
+import org.wfanet.measurement.access.v1alpha.createPrincipalRequest
+import org.wfanet.measurement.access.v1alpha.createRoleRequest
+import org.wfanet.measurement.access.v1alpha.policy
+import org.wfanet.measurement.access.v1alpha.principal
+import org.wfanet.measurement.access.v1alpha.role
 import org.wfanet.measurement.common.grpc.BearerTokenCallCredentials
 import org.wfanet.measurement.common.grpc.testing.OpenIdProvider
+import org.wfanet.measurement.integration.common.PERMISSIONS_CONFIG
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerSimulator
 import org.wfanet.measurement.loadtest.measurementconsumer.MetadataSyntheticGeneratorEventQuery
@@ -345,16 +358,29 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
           .also { channels.add(it) }
           .withDefaultDeadline(DEFAULT_RPC_DEADLINE)
 
+      val accessPublicPod: V1Pod = getPod(ACCESS_PUBLIC_API_DEPLOYMENT_NAME)
+      val accessPublicApiForwarder = PortForwarder(accessPublicPod, SERVER_PORT)
+      portForwarders.add(accessPublicApiForwarder)
+
+      val accessPublicApiAddress: InetSocketAddress =
+        withContext(Dispatchers.IO) { accessPublicApiForwarder.start() }
+      val accessPublicApiChannel: Channel =
+        buildMutualTlsChannel(accessPublicApiAddress.toTarget(), ACCESS_SIGNING_CERTS)
+          .also { channels.add(it) }
+          .withDefaultDeadline(DEFAULT_RPC_DEADLINE)
+
+      val principal = createAccessPrincipal(measurementConsumerData, accessPublicApiChannel)
+
       val openIdProviderTink = secretFiles.resolve("open_id_provider.tink").toFile()
 
       val bearerTokenCallCredentials: BearerTokenCallCredentials =
         OpenIdProvider(
-          "https://auth.halo-cmm.local",
+          principal.user.issuer,
           TinkProtoKeysetFormat.parseKeyset(openIdProviderTink.readBytes(), InsecureSecretKeyAccess.get()),
         )
         .generateCredentials(
           audience = "reporting.halo-cmm.local",
-          subject = "client",
+          subject = principal.user.subject,
           scopes = setOf("reporting.basicReports.get"),
         )
 
@@ -376,6 +402,85 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
         internalBasicReportsClient =
           InternalBasicReportsGrpcKt.BasicReportsCoroutineStub(internalApiChannel),
       )
+    }
+
+    fun createAccessPrincipal(measurementConsumerData: MeasurementConsumerData, accessChannel: Channel): Principal {
+      val rolesStub = RolesGrpc.newBlockingStub(accessChannel)
+      val mcResourceType = "halo.wfanet.org/MeasurementConsumer"
+      val mcUserRole =
+        rolesStub.createRole(
+          createRoleRequest {
+            roleId = "mcUser"
+            role = role {
+              resourceTypes += mcResourceType
+              permissions +=
+                PERMISSIONS_CONFIG.permissionsMap
+                  .filterValues { it.protectedResourceTypesList.contains(mcResourceType) }
+                  .keys
+                  .map { PermissionKey(it).toName() }
+            }
+          }
+        )
+      val rootResourceType = "reporting.halo-cmm.org/Root"
+      val kingdomUserRole =
+        rolesStub.createRole(
+          createRoleRequest {
+            roleId = "kingdomUser"
+            role = role {
+              resourceTypes += rootResourceType
+              permissions +=
+                PERMISSIONS_CONFIG.permissionsMap
+                  .filterValues { it.protectedResourceTypesList.contains(rootResourceType) }
+                  .keys
+                  .map { PermissionKey(it).toName() }
+            }
+          }
+        )
+
+      val principalsStub = PrincipalsGrpc.newBlockingStub(accessChannel)
+      val principal =
+        principalsStub.createPrincipal(
+          createPrincipalRequest {
+            principalId = "mc-user"
+            this.principal = principal {
+              user =
+                PrincipalKt.oAuthUser {
+                  issuer = "example.com"
+                  subject = "mc-user@example.com"
+                }
+            }
+          }
+        )
+
+      val policiesStub = PoliciesGrpc.newBlockingStub(accessChannel)
+      policiesStub.createPolicy(
+        createPolicyRequest {
+          policyId = "test-mc-policy"
+          policy = policy {
+            protectedResource = measurementConsumerData.name
+            bindings +=
+              PolicyKt.binding {
+                this.role = mcUserRole.name
+                members += principal.name
+              }
+          }
+        }
+      )
+      policiesStub.createPolicy(
+        createPolicyRequest {
+          policyId = "test-root-policy"
+          policy = policy {
+            protectedResource = "" // Root
+            bindings +=
+              PolicyKt.binding {
+                this.role = kingdomUserRole.name
+                members += principal.name
+              }
+          }
+        }
+      )
+
+      return principal
     }
 
     fun stopPortForwarding() {
@@ -598,6 +703,7 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
     private const val REPORTING_INTERNAL_DEPLOYMENT_NAME =
       "postgres-internal-reporting-server-deployment"
     private const val REPORTING_GATEWAY_DEPLOYMENT_NAME = "reporting-grpc-gateway-deployment"
+    private const val ACCESS_PUBLIC_API_DEPLOYMENT_NAME = "access-public-api-server-deployment"
     private const val NUM_DATA_PROVIDERS = 6
     private val EDP_DISPLAY_NAMES: List<String> = (1..NUM_DATA_PROVIDERS).map { "edp$it" }
     private val READY_TIMEOUT = Duration.ofMinutes(2L)
