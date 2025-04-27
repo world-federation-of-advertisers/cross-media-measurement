@@ -16,6 +16,9 @@
 
 package org.wfanet.measurement.integration.k8s
 
+import com.google.crypto.tink.InsecureSecretKeyAccess
+import com.google.crypto.tink.TinkProtoKeysetFormat
+import com.google.protobuf.util.JsonFormat
 import io.grpc.ManagedChannel
 import java.nio.file.Paths
 import java.security.KeyPair
@@ -39,18 +42,15 @@ import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.common.crypto.readPrivateKey
+import org.wfanet.measurement.common.grpc.BearerTokenCallCredentials
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
+import org.wfanet.measurement.common.grpc.testing.OpenIdProvider
 import org.wfanet.measurement.common.grpc.withDefaultDeadline
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.testing.chainRulesSequentially
+import org.wfanet.measurement.config.access.OpenIdProvidersConfig
 import org.wfanet.measurement.integration.common.SyntheticGenerationSpecs
 import org.wfanet.measurement.internal.reporting.v2.BasicReportsGrpcKt as InternalBasicReportsGrpcKt
-import com.google.crypto.tink.InsecureSecretKeyAccess
-import com.google.crypto.tink.TinkProtoKeysetFormat
-import com.google.protobuf.util.JsonFormat
-import org.wfanet.measurement.common.grpc.BearerTokenCallCredentials
-import org.wfanet.measurement.common.grpc.testing.OpenIdProvider
-import org.wfanet.measurement.config.access.OpenIdProvidersConfig
 import org.wfanet.measurement.loadtest.dataprovider.SyntheticGeneratorEventQuery
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerSimulator
@@ -154,10 +154,10 @@ class SyntheticGeneratorCorrectnessTest : AbstractCorrectnessTest(measurementSys
 
       val accessPublicApiChannel =
         buildMutualTlsChannel(
-          TEST_CONFIG.accessPublicApiTarget,
-          ACCESS_SIGNING_CERTS,
-          TEST_CONFIG.accessPublicApiCertHost,
-        )
+            TEST_CONFIG.accessPublicApiTarget,
+            ACCESS_SIGNING_CERTS,
+            TEST_CONFIG.accessPublicApiCertHost,
+          )
           .also { channels.add(it) }
           .withDefaultDeadline(RPC_DEADLINE_DURATION)
 
@@ -190,13 +190,21 @@ class SyntheticGeneratorCorrectnessTest : AbstractCorrectnessTest(measurementSys
         .merge(OPEN_ID_PROVIDERS_CONFIG_JSON_FILE.readText(), openIdProvidersConfigBuilder)
       val openIdProvidersConfig = openIdProvidersConfigBuilder.build()
 
-      val principal = createAccessPrincipal(TEST_CONFIG.measurementConsumer, accessPublicApiChannel, openIdProvidersConfig.providerConfigByIssuerMap.keys.first())
+      val principal =
+        createAccessPrincipal(
+          TEST_CONFIG.measurementConsumer,
+          accessPublicApiChannel,
+          openIdProvidersConfig.providerConfigByIssuerMap.keys.first(),
+        )
 
       val bearerTokenCallCredentials: BearerTokenCallCredentials =
         OpenIdProvider(
-          principal.user.issuer,
-          TinkProtoKeysetFormat.parseKeyset(OPEN_ID_PROVIDERS_TINK_FILE.readBytes(), InsecureSecretKeyAccess.get()),
-        )
+            principal.user.issuer,
+            TinkProtoKeysetFormat.parseKeyset(
+              OPEN_ID_PROVIDERS_TINK_FILE.readBytes(),
+              InsecureSecretKeyAccess.get(),
+            ),
+          )
           .generateCredentials(
             audience = TEST_CONFIG.reportingPublicApiTarget,
             subject = principal.user.subject,

@@ -16,6 +16,9 @@
 
 package org.wfanet.measurement.integration.k8s
 
+import com.google.crypto.tink.InsecureSecretKeyAccess
+import com.google.crypto.tink.TinkProtoKeysetFormat
+import com.google.protobuf.util.JsonFormat
 import io.grpc.Channel
 import io.grpc.ManagedChannel
 import io.kubernetes.client.common.KubernetesObject
@@ -59,13 +62,16 @@ import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.common.crypto.jceProvider
 import org.wfanet.measurement.common.crypto.readPrivateKey
 import org.wfanet.measurement.common.crypto.tink.TinkPrivateKeyHandle
+import org.wfanet.measurement.common.grpc.BearerTokenCallCredentials
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
+import org.wfanet.measurement.common.grpc.testing.OpenIdProvider
 import org.wfanet.measurement.common.grpc.withDefaultDeadline
 import org.wfanet.measurement.common.k8s.KubernetesClient
 import org.wfanet.measurement.common.k8s.KubernetesClientImpl
 import org.wfanet.measurement.common.k8s.testing.PortForwarder
 import org.wfanet.measurement.common.k8s.testing.Processes
 import org.wfanet.measurement.common.testing.chainRulesSequentially
+import org.wfanet.measurement.config.access.OpenIdProvidersConfig
 import org.wfanet.measurement.integration.common.ALL_DUCHY_NAMES
 import org.wfanet.measurement.integration.common.MC_DISPLAY_NAME
 import org.wfanet.measurement.integration.common.SyntheticGenerationSpecs
@@ -74,12 +80,6 @@ import org.wfanet.measurement.integration.common.loadEncryptionPrivateKey
 import org.wfanet.measurement.integration.common.loadTestCertDerFile
 import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt
 import org.wfanet.measurement.internal.reporting.v2.BasicReportsGrpcKt as InternalBasicReportsGrpcKt
-import com.google.crypto.tink.InsecureSecretKeyAccess
-import com.google.crypto.tink.TinkProtoKeysetFormat
-import com.google.protobuf.util.JsonFormat
-import org.wfanet.measurement.common.grpc.BearerTokenCallCredentials
-import org.wfanet.measurement.common.grpc.testing.OpenIdProvider
-import org.wfanet.measurement.config.access.OpenIdProvidersConfig
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerSimulator
 import org.wfanet.measurement.loadtest.measurementconsumer.MetadataSyntheticGeneratorEventQuery
@@ -363,18 +363,26 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
         .merge(OPEN_ID_PROVIDERS_CONFIG_JSON_FILE.readText(), openIdProvidersConfigBuilder)
       val openIdProvidersConfig = openIdProvidersConfigBuilder.build()
 
-      val principal = createAccessPrincipal(measurementConsumerData.name, accessPublicApiChannel, openIdProvidersConfig.providerConfigByIssuerMap.keys.first())
+      val principal =
+        createAccessPrincipal(
+          measurementConsumerData.name,
+          accessPublicApiChannel,
+          openIdProvidersConfig.providerConfigByIssuerMap.keys.first(),
+        )
 
       val bearerTokenCallCredentials: BearerTokenCallCredentials =
         OpenIdProvider(
-          principal.user.issuer,
-          TinkProtoKeysetFormat.parseKeyset(OPEN_ID_PROVIDERS_TINK_FILE.readBytes(), InsecureSecretKeyAccess.get()),
-        )
-        .generateCredentials(
-          audience = openIdProvidersConfig.audience,
-          subject = principal.user.subject,
-          scopes = setOf("reporting.basicReports.get"),
-        )
+            principal.user.issuer,
+            TinkProtoKeysetFormat.parseKeyset(
+              OPEN_ID_PROVIDERS_TINK_FILE.readBytes(),
+              InsecureSecretKeyAccess.get(),
+            ),
+          )
+          .generateCredentials(
+            audience = openIdProvidersConfig.audience,
+            subject = principal.user.subject,
+            scopes = setOf("reporting.basicReports.get"),
+          )
 
       return ReportingUserSimulator(
         measurementConsumerName = measurementConsumerData.name,

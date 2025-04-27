@@ -159,8 +159,10 @@ abstract class AbstractCorrectnessTest(private val measurementSystem: Measuremen
     }
 
     val LOCAL_K8S_PATH = Paths.get("src", "main", "k8s", "local")
-    val OPEN_ID_PROVIDERS_CONFIG_JSON_FILE: File = LOCAL_K8S_PATH.resolve("open_id_providers_config.json").toFile()
-    val OPEN_ID_PROVIDERS_TINK_FILE: File = SECRET_FILES_PATH.resolve("open_id_provider.tink").toFile()
+    val OPEN_ID_PROVIDERS_CONFIG_JSON_FILE: File =
+      LOCAL_K8S_PATH.resolve("open_id_providers_config.json").toFile()
+    val OPEN_ID_PROVIDERS_TINK_FILE: File =
+      SECRET_FILES_PATH.resolve("open_id_provider.tink").toFile()
 
     fun getRuntimePath(workspaceRelativePath: Path): Path {
       return checkNotNull(
@@ -168,15 +170,17 @@ abstract class AbstractCorrectnessTest(private val measurementSystem: Measuremen
       )
     }
 
-    fun createAccessPrincipal(measurementConsumer: String, accessChannel: Channel, issuer: String): Principal {
+    fun createAccessPrincipal(
+      measurementConsumer: String,
+      accessChannel: Channel,
+      issuer: String,
+    ): Principal {
       val rolesStub = RolesGrpc.newBlockingStub(accessChannel)
       val mcUserRoleKey = RoleKey("mcUser")
       val mcResourceType = "halo.wfanet.org/MeasurementConsumer"
       val mcUserRole =
         try {
-          rolesStub.getRole(getRoleRequest {
-            name = mcUserRoleKey.toName()
-          })
+          rolesStub.getRole(getRoleRequest { name = mcUserRoleKey.toName() })
         } catch (e: Exception) {
           rolesStub.createRole(
             createRoleRequest {
@@ -197,9 +201,7 @@ abstract class AbstractCorrectnessTest(private val measurementSystem: Measuremen
       val principalKey = PrincipalKey("mc-user")
       val principal =
         try {
-          principalsStub.getPrincipal(getPrincipalRequest {
-            name = principalKey.toName()
-          })
+          principalsStub.getPrincipal(getPrincipalRequest { name = principalKey.toName() })
         } catch (e: Exception) {
           principalsStub.createPrincipal(
             createPrincipalRequest {
@@ -218,9 +220,7 @@ abstract class AbstractCorrectnessTest(private val measurementSystem: Measuremen
       val policiesStub = PoliciesGrpc.newBlockingStub(accessChannel)
       val policyKey = PolicyKey("test-mc-policy")
       try {
-        policiesStub.getPolicy(getPolicyRequest {
-          name = policyKey.toName()
-        })
+        policiesStub.getPolicy(getPolicyRequest { name = policyKey.toName() })
       } catch (e: Exception) {
         policiesStub.createPolicy(
           createPolicyRequest {
