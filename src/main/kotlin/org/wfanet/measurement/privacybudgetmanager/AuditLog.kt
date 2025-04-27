@@ -15,10 +15,13 @@
 package org.wfanet.measurement.privacybudgetmanager
 
 interface AuditLog {
-    /**
-     * Writes the list of Queries and the groupId to the audit log .
-     *
-     * @throws PrivacyBudgetManager exception if the write operation was unsuccessful.
-     */
-    fun write(queries: List<Query>, groupId: String): String
+  /**
+   * Writes the list of Queries and the groupId to the audit log .
+   *
+   * @throws PrivacyBudgetManager exception if the write operation was unsuccessful.
+   */
+  fun write(
+    queries: List<Query>,
+    groupId: String,
+  ): String
 }

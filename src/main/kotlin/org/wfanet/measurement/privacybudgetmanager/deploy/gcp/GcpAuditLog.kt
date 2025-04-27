@@ -12,11 +12,11 @@
  * the License.
  */
 
-
 package org.wfanet.measurement.privacybudgetmanager.deploy.gcp
 
-
-class GcpAuditLog() : AuditLog {
-
-    override fun write(queries : List<Query>, groupId: String) : String = TODO("uakyol : implement this")
+class GcpAuditLog : AuditLog {
+  override fun write(
+    queries: List<Query>,
+    groupId: String,
+  ): String = TODO("uakyol: implement this")
 }
