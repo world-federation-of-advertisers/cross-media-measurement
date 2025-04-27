@@ -445,7 +445,7 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
             this.principal = principal {
               user =
                 PrincipalKt.oAuthUser {
-                  issuer = "example.com"
+                  issuer = "https://auth.halo-cmm.local"
                   subject = "mc-user@example.com"
                 }
             }
