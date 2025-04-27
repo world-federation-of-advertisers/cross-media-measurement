@@ -387,26 +387,21 @@ class ReportingUserSimulator(
         .scheme("https")
         .host(reportingGatewayHost)
         .port(reportingGatewayPort)
-        .addPathSegments(
-          "v2alpha/${basicReportKey.toName()}"
-        )
+        .addPathSegments("v2alpha/${basicReportKey.toName()}")
         .build()
 
-    val getBasicReportRequest = Request.Builder()
-      .url(url)
-      .get()
-      .header("Authorization", "Bearer $reportingAccessToken")
-      .build()
+    val getBasicReportRequest =
+      Request.Builder()
+        .url(url)
+        .get()
+        .header("Authorization", "Bearer $reportingAccessToken")
+        .build()
 
     val retrievedBasicReportJson: String =
       try {
-        val response = okHttpReportingClient
-          .newCall(getBasicReportRequest)
-          .execute()
+        val response = okHttpReportingClient.newCall(getBasicReportRequest).execute()
 
-        response.body!!
-          .bytes()
-          .decodeToString()
+        response.body!!.bytes().decodeToString()
       } catch (e: StatusException) {
         throw Exception("Error retrieving Basic Report", e)
       }
