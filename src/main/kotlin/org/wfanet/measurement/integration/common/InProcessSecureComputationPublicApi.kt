@@ -30,47 +30,45 @@ import org.wfanet.measurement.securecomputation.service.internal.QueueMapping
 import org.wfanet.measurement.securecomputation.service.internal.WorkItemPublisher
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerDatabaseAdmin
+import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItemsGrpcKt as InternalWorkItemsGrpcKt
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsService
+import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.InternalApiServices
+import org.wfanet.measurement.api.v2alpha.testing.withMetadataPrincipalIdentities
 
 /** TestRule that starts and stops all Control Plane gRPC services. */
 class InProcessSecureComputationPublicApi(
-  internalServicesProvider: () -> InternalServices,
-  databaseClient: AsyncDatabaseClient,
-  queueMapping: QueueMapping,
-  workItemPublisher: WorkItemPublisher,
-  idGenerator: IdGenerator = IdGenerator.Default,
+  internalServicesProvider: () -> InternalApiServices,
   val verboseGrpcLogging: Boolean = true,
 ) : TestRule {
 
-  private val internalServices: InternalServices by lazy { internalServicesProvider() }
-
-  private val internalWorkItemsClient by lazy {
-    SpannerWorkItemsService(databaseClient, queueMapping, idGenerator, workItemPublisher)
-  }
+  private val internalServices: InternalApiServices by lazy { internalServicesProvider() }
 
   private val internalApiServer =
     GrpcTestServerRule(
       logAllRequests = verboseGrpcLogging,
       defaultServiceConfig = DEFAULT_SERVICE_CONFIG_MAP,
     ) {
-      logger.info("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!a")
       logger.info("Building Control Plane's internal API services")
-
-
-      internalServices.toList().forEach {
+      internalServices.build().toList().forEach {
         logger.info("Adding service $it")
-        //addService(it)
+        addService(it)
       }
-      addService(internalWorkItemsClient)
     }
+  // TODO: figure out why calling directly works
+  // TODO: Delete later
+  val internalWorkItemsStub by lazy {
+    InternalWorkItemsGrpcKt.WorkItemsCoroutineStub(internalApiChannel)
+  }
   private val publicApiServer =
     GrpcTestServerRule(logAllRequests = verboseGrpcLogging) {
-      logger.info(
-        "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!b"
-      )
       logger.info("Building Control Plane's public API services")
       Services.build(internalApiChannel).toList().forEach {
         logger.info("Adding service $it")
-        addService(it) }
+        addService(it)
+      }
+      /*listOf(WorkItemsService(internalWorkItemsStub).withMetadataPrincipalIdentities()).forEach {
+        addService(it)
+      }*/
     }
 
   /** Provides a gRPC channel to the Control Plane's public API. */
@@ -78,8 +76,7 @@ class InProcessSecureComputationPublicApi(
     get() = publicApiServer.channel
 
   /** Provides a gRPC channel to the Control Plane's internal API. */
-  private val internalApiChannel: Channel
-    get() = internalApiServer.channel
+  private val internalApiChannel: Channel by lazy { internalApiServer.channel }
 
   override fun apply(statement: Statement, description: Description): Statement {
     return chainRulesSequentially(internalApiServer, publicApiServer).apply(statement, description)

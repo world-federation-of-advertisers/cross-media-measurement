@@ -72,30 +72,28 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
 import org.wfanet.measurement.securecomputation.service.internal.QueueMapping
 import org.wfanet.measurement.securecomputation.service.internal.WorkItemPublisher
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
+import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItemsGrpcKt as InternalWorkItemsGrpcKt
+import org.wfanet.measurement.internal.securecomputation.controlplane.createWorkItemRequest as internalCreateWorkItemRequest
+import org.wfanet.measurement.internal.securecomputation.controlplane.workItem as internalWorkItem
+import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.InternalApiServices
 
 class InProcessEdpAggregatorComponents(
-  private val internalServicesRule: ProviderRule<Services>,
+  private val internalServicesRule: ProviderRule<InternalApiServices>,
   private val pubSubClient: GooglePubSubEmulatorClient,
   private val storageClient: StorageClient,
   private val storagePrefix: String,
-  databaseClient: AsyncDatabaseClient,
-  queueMapping: QueueMapping,
-  workItemPublisher: WorkItemPublisher,
 ) : TestRule {
 
-  private val internalServices: Services
+  private val internalServices: InternalApiServices
     get() = internalServicesRule.value
 
   private lateinit var edpResourceName: String
 
   private lateinit var publicApiChannel: Channel
 
-  val secureComputationPublicApi =
+  private val secureComputationPublicApi =
     InProcessSecureComputationPublicApi(
       internalServicesProvider = { internalServices },
-      databaseClient,
-      queueMapping,
-      workItemPublisher,
       )
 
   private val workItemsClient: WorkItemsCoroutineStub by lazy {
@@ -164,12 +162,17 @@ class InProcessEdpAggregatorComponents(
     pubSubClient.createTopic(PROJECT_ID, TOPIC_ID)
     pubSubClient.createSubscription(PROJECT_ID, SUBSCRIPTION_ID, TOPIC_ID)
     edpResourceName = edpDisplayNameToResourceMap["edp1"]!!.name
-    workItemsClient.createWorkItem(createWorkItemRequest {
-      workItemId = "some-work-item-abc"
-      this.workItem = workItem {
-        queue = TOPIC_ID
+    // TODO: Figure out why calling the internal api directly works
+    /*
+    secureComputationPublicApi.internalWorkItemsStub.createWorkItem(internalCreateWorkItemRequest {
+      this.workItem = internalWorkItem {
+        workItemResourceId = "some-work-item-abc"
+        queueResourceId =  TOPIC_ID
+        workItemParams = Any.getDefaultInstance()
+
       }
     })
+    */
     publicApiChannel = kingdomChannel
     val watchedPaths =
       getDataWatcherConfig(

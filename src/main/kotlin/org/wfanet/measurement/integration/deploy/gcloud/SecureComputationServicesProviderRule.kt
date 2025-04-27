@@ -29,11 +29,11 @@ class SecureComputationServicesProviderRule(
   private val workItemPublisher: WorkItemPublisher,
   private val queueMapping: QueueMapping,
   emulatorDatabaseAdmin: SpannerDatabaseAdmin,
-) : ProviderRule<Services> {
+) : ProviderRule<InternalApiServices> {
   private val spannerDatabase =
     SpannerEmulatorDatabaseRule(emulatorDatabaseAdmin, Schemata.SECURECOMPUTATION_CHANGELOG_PATH)
 
-  private lateinit var internalServices: Services
+  private lateinit var internalServices: InternalApiServices
 
   override val value
     get() = internalServices
@@ -43,7 +43,7 @@ class SecureComputationServicesProviderRule(
       object : Statement() {
         override fun evaluate() {
           internalServices =
-            InternalApiServices.build(
+            InternalApiServices(
               workItemPublisher,
               spannerDatabase.databaseClient,
               queueMapping,

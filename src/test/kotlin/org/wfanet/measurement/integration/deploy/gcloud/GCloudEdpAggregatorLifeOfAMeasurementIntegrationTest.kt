@@ -32,7 +32,6 @@ class GCloudEdpAggregatorLifeOfAMeasurementIntegrationTest :
     kingdomDataServicesRule = KingdomDataServicesProviderRule(spannerEmulator),
     duchyDependenciesRule = SpannerDuchyDependencyProviderRule(spannerEmulator, ALL_DUCHY_NAMES),
     secureComputationDatabaseAdmin = spannerEmulator,
-    spannerDatabase = spannerDatabase,
   ) {
 
   /**
@@ -42,12 +41,7 @@ class GCloudEdpAggregatorLifeOfAMeasurementIntegrationTest :
    */
   @get:Rule val timeout: Timeout = Timeout.seconds(180)
 
-  /*@get:Rule
-  val spannerDatabase =
-    SpannerEmulatorDatabaseRule(spannerEmulator, Schemata.SECURECOMPUTATION_CHANGELOG_PATH)
-*/
   companion object {
     @get:ClassRule @JvmStatic val spannerEmulator = SpannerEmulatorRule()
-    @get:ClassRule @JvmStatic val spannerDatabase = SpannerEmulatorDatabaseRule(spannerEmulator, Schemata.SECURECOMPUTATION_CHANGELOG_PATH)
   }
 }

@@ -59,7 +59,7 @@ class InternalApiServer : Runnable {
         val googlePubSubClient = DefaultGooglePubSubClient()
         val workItemPublisher = GoogleWorkItemPublisher(googleProjectId, googlePubSubClient)
         val services: List<BindableService> =
-          InternalApiServices.build(workItemPublisher, databaseClient, queueMapping).toList()
+          InternalApiServices(workItemPublisher, databaseClient, queueMapping).build().toList()
         val server = CommonServer.fromFlags(serverFlags, SERVER_NAME, services)
 
         server.start().blockUntilShutdown()

@@ -63,7 +63,6 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
   duchyDependenciesRule:
     ProviderRule<(String, ComputationLogEntriesCoroutineStub) -> InProcessDuchy.DuchyDependencies>,
   private val secureComputationDatabaseAdmin: SpannerDatabaseAdmin,
-  private val spannerDatabase: SpannerEmulatorDatabaseRule,
 ) {
 
   val inProcessCmmsComponents = run {
@@ -93,9 +92,6 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
       storageClient = storageClient,
       storagePrefix = tempDirectory.root.toPath().toString(),
       pubSubClient = pubSubClient,
-      databaseClient = spannerDatabase.databaseClient,
-      queueMapping = QueueMapping(QUEUES_CONFIG),
-      workItemPublisher = GoogleWorkItemPublisher(PROJECT_ID, pubSubClient),
     )
   }
 
@@ -104,7 +100,6 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
     RuleChain.outerRule(inProcessCmmsComponents)
       .around(pubSubEmulatorProvider)
       .around(tempDirectory)
-      .around(spannerDatabase)
       .around(inProcessEdpAggregatorComponents)
 
   /*@get:Rule
