@@ -66,7 +66,8 @@ class DataWatcher(
 
   private fun generateRandomName(): String {
     val firstChar = ('a'..'z').random() // random lowercase letter
-    val middlePart = List((1..61).random()) { // random length between 1 and 61
+    val middlePartLength = 61 // fixed length for middle part
+    val middlePart = List(middlePartLength) { // fixed length middle part
       when ((0..2).random()) {
         0 -> ('a'..'z').random() // random lowercase letter
         1 -> ('A'..'Z').random() // random uppercase letter
