@@ -20,6 +20,10 @@ option java_package = "org.wfanet.measurement.privacybudgetmanager";
 option java_multiple_files = true;
 option java_outer_classname = "Charges";
 
+message AcdpCharge {
+  float rho = 1;
+  float theta = 2;
+}
 
 message Charges {
 
@@ -33,11 +37,5 @@ message Charges {
     // Maximum 300 charges each corresponding to a vid interval charge. 
     // Key is the ids from 0 to 299 representing the vid interval.
     map<Int, AcdpCharge>  acdp_charges = 5;
-
-    // An ACDP charge.
-    message AcdpCharge {
-      float rho = 1;
-      float theta = 2;
-    }
   }
 }

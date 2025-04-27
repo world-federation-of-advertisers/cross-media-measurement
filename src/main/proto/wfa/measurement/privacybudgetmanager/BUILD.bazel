@@ -1,0 +1,54 @@
+load("@com_google_protobuf//bazel:proto_library.bzl", "proto_library")
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_proto_library")
+
+package(
+    default_testonly = True,
+    default_visibility = ["//visibility:public"],
+)
+
+IMPORT_PREFIX = "/src/main/proto"
+
+
+proto_library(
+    name = "charges_proto",
+    srcs = ["charges.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+)
+
+kt_jvm_proto_library(
+    name = "charges_kt_jvm_proto",
+    deps = [":charges_proto"],
+)
+
+proto_library(
+    name = "query_proto",
+    srcs = ["query.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+)
+
+kt_jvm_proto_library(
+    name = "query_kt_jvm_proto",
+    deps = [":query_proto"],
+)
+
+proto_library(
+    name = "privacy_lanscape_proto",
+    srcs = ["privacy_lanscape.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+)
+
+kt_jvm_proto_library(
+    name = "privacy_lanscape_kt_jvm_proto",
+    deps = [":privacy_lanscape_proto"],
+)
+
+proto_library(
+    name = "privacy_lanscape_mapping_proto",
+    srcs = ["privacy_lanscape_mapping.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+)
+
+kt_jvm_proto_library(
+    name = "privacy_lanscape_mapping_kt_jvm_proto",
+    deps = [":privacy_lanscape_mapping_proto"],
+)

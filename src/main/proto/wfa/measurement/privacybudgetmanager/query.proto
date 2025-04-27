@@ -18,12 +18,7 @@ package wfa.measurement.privacybudgetmanager.api.v2alpha;
 
 option java_package = "org.wfanet.measurement.privacybudgetmanager.api.v2alpha";
 option java_multiple_files = true;
-option java_outer_classname = "Charges";
-
-message AcdpCharge {
-  double rho = 1;
-  double theta = 2;
-}
+option java_outer_classname = "Query";
 
 message Reference {
   // The id of the measurement consumre this charge belongs to.
