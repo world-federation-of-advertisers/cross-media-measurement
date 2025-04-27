@@ -15,6 +15,7 @@
 package org.wfanet.measurement.privacybudgetmanager.testing
 
 import org.wfanet.measurement.privacybudgetmanager.AuditLog
+import org.wfanet.measurement.privacybudgetmanager.Query
 
 class TestInMemoryAuditLog : AuditLog {
   override fun write(

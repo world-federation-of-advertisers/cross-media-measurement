@@ -14,17 +14,19 @@
 
 syntax = "proto3";
 
-package wfa.measurement.privacybudgetmanager.api.v2alpha;
+package wfa.measurement.privacybudgetmanager;
 
-option java_package = "org.wfanet.measurement.privacybudgetmanager.api.v2alpha";
+import "wfa/measurement/privacybudgetmanager/charges.proto";
+
+option java_package = "org.wfanet.measurement.privacybudgetmanager";
 option java_multiple_files = true;
-option java_outer_classname = "Query";
+option java_outer_classname = "QueryProto";
 
 message Reference {
-  // The id of the measurement consumre this charge belongs to.
-  string measurement_consumer_id = 1;
   // The external system reference id. This is likely the requisition id.
-  string reference_id = 2;
+  string id = 1;
+  // The id of the measurement consumre this charge belongs to.
+  string measurement_consumer_id = 2;
   // Specifies if the charge is a refund or not.
   bool is_refund = 3;
 }
@@ -53,9 +55,9 @@ message Query {
   // Represents the external system reference for the query.
   Reference reference = 1;
   // Contains all the information to find the buckets to charge.
-  repeated EventGroupLandscapeMask event_group_landscape_mask = 2;
+  repeated EventGroupLandscapeMask event_group_landscape_masks = 2;
   // The charge itself.
   AcdpCharge acdp_charge = 3;
   // Which privacy landscape the targetted buckets belong to.
-  String privacy_landscape_name = 4;
+  string privacy_landscape_name = 4;
 }

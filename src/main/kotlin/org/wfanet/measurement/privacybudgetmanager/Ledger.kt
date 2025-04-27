@@ -14,7 +14,9 @@
 
 package org.wfanet.measurement.privacybudgetmanager
 
-interface BackingStore {
+import org.wfanet.measurement.privacybudgetmanager.Query
+
+interface Ledger {
   /**
    * Informs the backing store that the processing of new requisitions has commenced. All
    * accesses to the backing store between the call to startTransaction() and the final call to
@@ -45,14 +47,14 @@ interface TransactionContext : AutoCloseable {
    *
    * @throws PrivacyBudgetManager exception if the read operation was unsuccessful.
    */
-  suspend fun read(queries: List<Query>): List<Query>
+  suspend fun readQueries(queries: List<Query>): List<Query>
 
   /**
    * Reads the rows specified by the [rowKeys] from the backing store.
    *
    * @throws PrivacyBudgetManager exception if the read operation was unsuccessful.
    */
-  suspend fun read(rowKeys: List<RowKey>): Slice
+  suspend fun readChargeRows(rowKeys: List<RowKey>): Slice
 
   /**
    * Writes a [Slice] to the backing store together with the [queries] responsible for its

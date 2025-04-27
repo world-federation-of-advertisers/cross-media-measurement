@@ -14,6 +14,8 @@
 
 package org.wfanet.measurement.privacybudgetmanager
 
+import org.wfanet.measurement.privacybudgetmanager.Query
+
 interface AuditLog {
   /**
    * Writes the list of Queries and the groupId to the audit log .

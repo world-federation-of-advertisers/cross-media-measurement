@@ -14,6 +14,11 @@
 
 package org.wfanet.measurement.privacybudgetmanager
 
+
+import org.wfanet.measurement.privacybudgetmanager.Query
+import org.wfanet.measurement.privacybudgetmanager.PrivacyLandscape
+import org.wfanet.measurement.privacybudgetmanager.PrivacyLandscapeMapping
+
 /**
  * This is the default value for the total amount that can be charged to a single privacy bucket.
  */
@@ -25,7 +30,7 @@ class PrivacyBudgetManager(
   val activePrivacyLandscape: PrivacyLandscape,
   val inactivePrivacyLandscapes: List<PrivacyLandscape>,
   val privacyLandscapeMappings: List<PrivacyLandscapeMapping>,
-  private val backingStore: BackingStore,
+  private val ledger: Ledger,
   private val maximumPrivacyBudget: Float = MAXIMUM_PRIVACY_USAGE_PER_BUCKET,
   private val maximumTotalDelta: Float = MAXIMUM_DELTA_PER_BUCKET,
 ) {
@@ -36,8 +41,8 @@ class PrivacyBudgetManager(
         privacyLandscapeMappings
           .filter { it.fromLandscape == inactivePrivacyLandscape.name }
           .filter { it.toLandscape == activeLandScapeName }
-      require(mapping.length == 1) {
-        "There must be exactly 1 mapping from each inactive landscape to an active landscape"
+      require(mapping.size == 1) {
+        "There must be exactly 1 mapping from each inactive landscape to the active landscape."
       }
     }
   }
@@ -56,19 +61,22 @@ class PrivacyBudgetManager(
     // Declare newQueries outside the use block
     val queriesWithCommitTime: List<Query>
 
-    backingStore.startTransaction().use { context: TransactionContext ->
-      val alreadyCommitedQueries = context.read(queries)
+    ledger.startTransaction().use { context: TransactionContext ->
+
+
+      val alreadyCommitedQueries : List<Query> = context.readQueries(queries)
+      val alreadyCommittedReferenceIds = alreadyCommitedQueries.map { it.reference.id }
       // Filter out the queries that were already committed before.
       val queriesToCommit =
         queries.filter { query ->
-          !alreadyCommitedQueries.map { it.referenceId }.contains(query.referenceId)
+          !alreadyCommittedReferenceIds.contains(query.reference.id)
         }
 
       // Get slice intended to be committed to the PBM, defined by queriesToCommit.
       val delta: Slice = getDelta(queriesToCommit)
 
       // Read the backing store for the rows that slice targets.
-      val targettedSlice = context.read(delta.getRowKeys())
+      val targettedSlice = context.readChargeRows(delta.getRowKeys())
 
       // Check if any of the updated buckets exceed the budget and aggregate to find the slice
       // to commit.
@@ -117,8 +125,8 @@ class PrivacyBudgetManager(
       // Check if the query's landscape mask is current.
       if (query.privacyLandscapeName == activePrivacyLandscape.name) {
         delta.add(
-          Filter.getBuckets(query.event_group_landscape_mask, activePrivacyLandscape),
-          query.charge,
+          Filter.getBuckets(query.eventGroupLandscapeMasksList, activePrivacyLandscape),
+          query.acdpCharge,
         )
       }
 
@@ -142,17 +150,16 @@ class PrivacyBudgetManager(
 
         val mappedBuckets =
           Filter.getBuckets(
-            query.event_group_landscape_mask,
+            query.eventGroupLandscapeMasksList,
             privacyLandscapeMapping,
             inactivePrivacyLandscape,
             activePrivacyLandscape,
           )
 
-        delta.add(mappedBuckets, query.charge)
+        delta.add(mappedBuckets, query.acdpCharge)
       }
-
-      return delta
     }
+    return delta
   }
 
   private suspend fun checkAndAggregate(

@@ -13,20 +13,22 @@
  */
 package org.wfanet.measurement.privacybudgetmanager
 
+import java.time.LocalDate
+
 /**
  * A key for a given row of the underlying Backing store. PBM is opinionated about this structure.
  */
 data class RowKey(
-  measurementConsumerId: String,
-  eventGroupId: String,
-  date: Date,
+  val measurementConsumerId: String,
+  val eventGroupId: String,
+  val date: LocalDate,
 )
 
 /** Represents a PrivacyBucket. PopulationIndexes are created by adhering to a PrivacyLandscape. */
 data class PrivacyBucket(
-  rowKey: RowKey,
-  populationIndex: Int,
-  vidIntervalIndex: Int,
+  val rowKey: RowKey,
+  val populationIndex: Int,
+  val vidIntervalIndex: Int,
 )
 
 /** Represents a slice of the Privacy Landscape together with charges. */

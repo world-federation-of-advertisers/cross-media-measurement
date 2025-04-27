@@ -14,28 +14,28 @@
 
 syntax = "proto3";
 
-package wfa.measurement.privacybudgetmanager.api.v2alpha;
+package wfa.measurement.privacybudgetmanager;
 
-option java_package = "org.wfanet.measurement.privacybudgetmanager.api.v2alpha";
+option java_package = "org.wfanet.measurement.privacybudgetmanager";
 option java_multiple_files = true;
-option java_outer_classname = "Charges";
+option java_outer_classname = "PrivacyLandscapeMappingProto";
 
 
 message PrivacyLandscapeMapping {
    
-   String fromLandscape = 1;
-   String toLandscape = 2;
+   string fromLandscape = 1;
+   string toLandscape = 2;
 
    repeated DimensionMapping mappings = 3;
    repeated DimensionAddition addition = 4; 
  
    // Tells the code that everything should be fanned out to this new dim
-   DimensionAddition {
+   message DimensionAddition {
      repeated DimensionValue newDimension = 1;
    }
 
    // Tells the code that all dimvaluesFrom should be carried to dimvaluesTo
-   DimensionMapping {
+   message DimensionMapping {
      repeated DimensionValue dimvaluesFrom = 1;
      repeated DimensionValue dimvaluesTo = 2;
    }
@@ -44,7 +44,7 @@ message PrivacyLandscapeMapping {
      
      // Qualifying name that will be used in the proto reflection 
      // on the event template. e.g. person.age or person.geo
-     String name = 1; 
+     string name = 1; 
      
      Value value = 2;
 

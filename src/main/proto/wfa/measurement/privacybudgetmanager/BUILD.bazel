@@ -2,12 +2,10 @@ load("@com_google_protobuf//bazel:proto_library.bzl", "proto_library")
 load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_proto_library")
 
 package(
-    default_testonly = True,
     default_visibility = ["//visibility:public"],
 )
 
 IMPORT_PREFIX = "/src/main/proto"
-
 
 proto_library(
     name = "charges_proto",
@@ -23,6 +21,7 @@ kt_jvm_proto_library(
 proto_library(
     name = "query_proto",
     srcs = ["query.proto"],
+    deps = ["charges_proto"],
     strip_import_prefix = IMPORT_PREFIX,
 )
 
@@ -32,23 +31,23 @@ kt_jvm_proto_library(
 )
 
 proto_library(
-    name = "privacy_lanscape_proto",
-    srcs = ["privacy_lanscape.proto"],
+    name = "privacy_landscape_proto",
+    srcs = ["privacy_landscape.proto"],
     strip_import_prefix = IMPORT_PREFIX,
 )
 
 kt_jvm_proto_library(
-    name = "privacy_lanscape_kt_jvm_proto",
-    deps = [":privacy_lanscape_proto"],
+    name = "privacy_landscape_kt_jvm_proto",
+    deps = [":privacy_landscape_proto"],
 )
 
 proto_library(
-    name = "privacy_lanscape_mapping_proto",
-    srcs = ["privacy_lanscape_mapping.proto"],
+    name = "privacy_landscape_mapping_proto",
+    srcs = ["privacy_landscape_mapping.proto"],
     strip_import_prefix = IMPORT_PREFIX,
 )
 
 kt_jvm_proto_library(
-    name = "privacy_lanscape_mapping_kt_jvm_proto",
-    deps = [":privacy_lanscape_mapping_proto"],
+    name = "privacy_landscape_mapping_kt_jvm_proto",
+    deps = [":privacy_landscape_mapping_proto"],
 )

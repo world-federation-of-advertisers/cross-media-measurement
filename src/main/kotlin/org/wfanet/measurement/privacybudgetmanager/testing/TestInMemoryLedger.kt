@@ -14,17 +14,21 @@
 
 package org.wfanet.measurement.privacybudgetmanager.testing
 
-import org.wfanet.measurement.privacybudgetmanager.BackingStore
+import org.wfanet.measurement.privacybudgetmanager.Ledger
+import org.wfanet.measurement.privacybudgetmanager.Query
+import org.wfanet.measurement.privacybudgetmanager.RowKey
+import org.wfanet.measurement.privacybudgetmanager.Slice
 import org.wfanet.measurement.privacybudgetmanager.TransactionContext
 
-class TestInMemoryBackingStore : BackingStore {
+class TestInMemoryLedger : Ledger {
   override fun startTransaction(): TransactionContext = TODO("uakyol: implement this")
 }
 
-class InMemoryBackingStoreTransactionContext : TransactionContext {
-  override suspend fun read(queries: List<Query>): List<Query> = TODO("uakyol: implement this")
+class TestInMemoryLedgerTransactionContext : TransactionContext {
+  override suspend fun readQueries(queries: List<Query>): List<Query> =
+    TODO("uakyol: implement this")
 
-  override suspend fun read(rowKeys: List<RowKey>): Slice = TODO("uakyol: implement this")
+  override suspend fun readChargeRows(rowKeys: List<RowKey>): Slice = TODO("uakyol: implement this")
 
   override suspend fun write(
     delta: Slice,
@@ -32,4 +36,6 @@ class InMemoryBackingStoreTransactionContext : TransactionContext {
   ): List<Query> = TODO("uakyol: implement this")
 
   override suspend fun commit() = TODO("uakyol: implement this")
+
+  override fun close() = TODO("uakyol: implement this")
 }

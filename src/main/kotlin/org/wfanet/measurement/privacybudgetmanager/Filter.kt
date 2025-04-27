@@ -21,7 +21,7 @@ object Filter {
    * mask to filter it.
    */
   fun getBuckets(
-    eventGroupLandscapeMask: EventGroupLandscapeMask,
+    eventGroupLandscapeMasks: List<EventGroupLandscapeMask>,
     privacyLandscape: PrivacyLandscape,
   ): List<PrivacyBucket> = TODO("uakyol: implement this")
 
@@ -31,7 +31,7 @@ object Filter {
    * [ActivePrivacyLandsapce] by using [privacyLandscapeMapping].
    */
   fun getBuckets(
-    eventGroupLandscapeMask: EventGroupLandscapeMask,
+    eventGroupLandscapeMasks: List<EventGroupLandscapeMask>,
     privacyLandscapeMapping: PrivacyLandscapeMapping,
     inactiveprivacyLandscape: PrivacyLandscape,
     activeprivacyLandscape: PrivacyLandscape,
