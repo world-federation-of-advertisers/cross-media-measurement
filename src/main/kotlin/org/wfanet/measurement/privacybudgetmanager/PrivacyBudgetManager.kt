@@ -132,7 +132,7 @@ class PrivacyBudgetManager(
   }
 
   /**
-   * Creates the Slice that the union of all the given [queries] specify.
+   * Creates the [Slice] that the union of all the given [queries] specify.
    *
    * @throws IllegalStateException exception if there is no mapping for any one of the [queries]
    *   from the inactive landscape it targets to the active landscape

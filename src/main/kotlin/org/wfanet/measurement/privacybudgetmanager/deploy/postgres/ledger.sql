@@ -53,7 +53,7 @@ CREATE TABLE LedgerEntries(
   -- The Measurement Consumer this Ledger Entry belongs to.
   MeasurementConsumerId text NOT NULL,
   -- ID from an external system that uniquely identifies the source all charges in a transaction
-  -- for a given MeasurementConsumer.
+  -- for a given MeasurementConsumer. Likely the requisition id.
   ReferenceId text NOT NULL,
   -- Whether or not the charge is a refund.
   IsRefund Boolean NOT NULL,
