@@ -19,15 +19,20 @@ package org.wfanet.measurement.privacybudgetmanager
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.measurement.privacybudgetmanager.testing.TestInMemoryAuditLog
+import org.wfanet.measurement.privacybudgetmanager.testing.TestInMemoryBackingStore
 
 @RunWith(JUnit4::class)
 class PrivacyBudgetManagerTest {
-  // TODO(uakyol) : delete this test as the PBM implementation is completed.
+
+  // TODO(uakyol) : Delete this test as the PBM implementation is completed.
   @Test
   fun `Privacy Budget Manager Compiles but throws not implemented`() {
-    val auditLog = AuditLog()
+    
+    val auditLog = TestInMemoryAuditLog()
     val activePrivacyLandscape = AuditLog()
-    val backingStore = BackingStore()
+    val backingStore = TestInMemoryBackingStore()
+
     val pbm =
       PrivacyBudgetManager(
         auditLog,
