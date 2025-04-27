@@ -90,9 +90,6 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
       storageClient = storageClient,
       storagePrefix = tempDirectory.root.toPath().toString(),
       pubSubClient = pubSubClient,
-      workItemPublisher = GoogleWorkItemPublisher(PROJECT_ID, pubSubClient),
-      queueMapping = QueueMapping(QUEUES_CONFIG),
-      emulatorDatabaseAdmin = secureComputationDatabaseAdmin,
     )
   }
 
