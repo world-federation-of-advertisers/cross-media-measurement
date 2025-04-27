@@ -31,7 +31,7 @@ data class PrivacyBucket(
   val vidIntervalIndex: Int,
 )
 
-/** Represents a slice of the Privacy Landscape together with charges. */
+/** Represents a list of the Privacy Buckets together with their charges. */
 class Slice {
   /** Returns the row keys for this slice. */
   fun getRowKeys(): List<RowKey> = TODO("uakyol: implement this")

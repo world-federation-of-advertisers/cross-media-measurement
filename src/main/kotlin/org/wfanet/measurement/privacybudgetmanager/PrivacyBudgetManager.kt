@@ -180,7 +180,7 @@ class PrivacyBudgetManager(
   /**
    * Creates the Slice that will be commited to the [ledger]. Does this by
    *  aggregating the charges from the Slice in ledger - [targettedSlice]
-   *  and slice specified by the given queries [delta].All the buckets in
+   *  and slice specified by the given queries [delta]. All the buckets in
    *  this slice are checked to be within the privacy budget.
    *
    * @throws PrivacyBudgetManagerException if any of the buckets in the slice
