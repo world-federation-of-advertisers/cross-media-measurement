@@ -24,14 +24,28 @@ import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.kingdom.deploy.common.service.toList
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.Services
 import org.wfanet.measurement.securecomputation.service.internal.Services as InternalServices
+import org.wfanet.measurement.common.IdGenerator
+import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.SpannerWorkItemsService
+import org.wfanet.measurement.securecomputation.service.internal.QueueMapping
+import org.wfanet.measurement.securecomputation.service.internal.WorkItemPublisher
+import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
+import org.wfanet.measurement.gcloud.spanner.testing.SpannerDatabaseAdmin
 
 /** TestRule that starts and stops all Control Plane gRPC services. */
 class InProcessSecureComputationPublicApi(
   internalServicesProvider: () -> InternalServices,
+  databaseClient: AsyncDatabaseClient,
+  queueMapping: QueueMapping,
+  workItemPublisher: WorkItemPublisher,
+  idGenerator: IdGenerator = IdGenerator.Default,
   val verboseGrpcLogging: Boolean = true,
 ) : TestRule {
 
   private val internalServices: InternalServices by lazy { internalServicesProvider() }
+
+  private val internalWorkItemsClient by lazy {
+    SpannerWorkItemsService(databaseClient, queueMapping, idGenerator, workItemPublisher)
+  }
 
   private val internalApiServer =
     GrpcTestServerRule(
@@ -40,10 +54,13 @@ class InProcessSecureComputationPublicApi(
     ) {
       logger.info("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!a")
       logger.info("Building Control Plane's internal API services")
+
+
       internalServices.toList().forEach {
         logger.info("Adding service $it")
-        addService(it)
+        //addService(it)
       }
+      addService(internalWorkItemsClient)
     }
   private val publicApiServer =
     GrpcTestServerRule(logAllRequests = verboseGrpcLogging) {

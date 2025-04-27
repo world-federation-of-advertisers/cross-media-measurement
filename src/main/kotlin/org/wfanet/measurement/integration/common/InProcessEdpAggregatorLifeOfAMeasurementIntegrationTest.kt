@@ -49,7 +49,9 @@ import org.wfanet.measurement.securecomputation.deploy.gcloud.publisher.GoogleWo
 import org.wfanet.measurement.securecomputation.service.internal.QueueMapping
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub
+import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 
+import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
 /**
  * Test that everything is wired up properly.
  *
@@ -61,6 +63,7 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
   duchyDependenciesRule:
     ProviderRule<(String, ComputationLogEntriesCoroutineStub) -> InProcessDuchy.DuchyDependencies>,
   private val secureComputationDatabaseAdmin: SpannerDatabaseAdmin,
+  private val spannerDatabase: SpannerEmulatorDatabaseRule,
 ) {
 
   val inProcessCmmsComponents = run {
@@ -90,6 +93,9 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
       storageClient = storageClient,
       storagePrefix = tempDirectory.root.toPath().toString(),
       pubSubClient = pubSubClient,
+      databaseClient = spannerDatabase.databaseClient,
+      queueMapping = QueueMapping(QUEUES_CONFIG),
+      workItemPublisher = GoogleWorkItemPublisher(PROJECT_ID, pubSubClient),
     )
   }
 
@@ -98,6 +104,7 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
     RuleChain.outerRule(inProcessCmmsComponents)
       .around(pubSubEmulatorProvider)
       .around(tempDirectory)
+      .around(spannerDatabase)
       .around(inProcessEdpAggregatorComponents)
 
   /*@get:Rule

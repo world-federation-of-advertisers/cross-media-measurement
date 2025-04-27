@@ -20,6 +20,8 @@ import org.junit.rules.Timeout
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
 import org.wfanet.measurement.integration.common.ALL_DUCHY_NAMES
 import org.wfanet.measurement.integration.common.InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest
+import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
+import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.testing.Schemata
 
 /**
  * Implementation of [InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest] for GCloud backends
@@ -30,6 +32,7 @@ class GCloudEdpAggregatorLifeOfAMeasurementIntegrationTest :
     kingdomDataServicesRule = KingdomDataServicesProviderRule(spannerEmulator),
     duchyDependenciesRule = SpannerDuchyDependencyProviderRule(spannerEmulator, ALL_DUCHY_NAMES),
     secureComputationDatabaseAdmin = spannerEmulator,
+    spannerDatabase = spannerDatabase,
   ) {
 
   /**
@@ -39,7 +42,12 @@ class GCloudEdpAggregatorLifeOfAMeasurementIntegrationTest :
    */
   @get:Rule val timeout: Timeout = Timeout.seconds(180)
 
+  /*@get:Rule
+  val spannerDatabase =
+    SpannerEmulatorDatabaseRule(spannerEmulator, Schemata.SECURECOMPUTATION_CHANGELOG_PATH)
+*/
   companion object {
     @get:ClassRule @JvmStatic val spannerEmulator = SpannerEmulatorRule()
+    @get:ClassRule @JvmStatic val spannerDatabase = SpannerEmulatorDatabaseRule(spannerEmulator, Schemata.SECURECOMPUTATION_CHANGELOG_PATH)
   }
 }

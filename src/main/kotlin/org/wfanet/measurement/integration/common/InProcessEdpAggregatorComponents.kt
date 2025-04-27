@@ -42,6 +42,7 @@ import org.junit.runners.model.Statement
 import org.wfanet.measurement.api.v2alpha.EventGroup as ExternalEventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
+import org.wfanet.measurement.common.IdGenerator
 import org.wfanet.measurement.common.crypto.subjectKeyIdentifier
 import org.wfanet.measurement.common.crypto.tink.TinkPrivateKeyHandle
 import org.wfanet.measurement.common.identity.withPrincipalName
@@ -68,12 +69,18 @@ import org.wfanet.measurement.securecomputation.teesdk.testing.FakeFulfillingReq
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.createWorkItemRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
+import org.wfanet.measurement.securecomputation.service.internal.QueueMapping
+import org.wfanet.measurement.securecomputation.service.internal.WorkItemPublisher
+import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 
 class InProcessEdpAggregatorComponents(
   private val internalServicesRule: ProviderRule<Services>,
   private val pubSubClient: GooglePubSubEmulatorClient,
   private val storageClient: StorageClient,
   private val storagePrefix: String,
+  databaseClient: AsyncDatabaseClient,
+  queueMapping: QueueMapping,
+  workItemPublisher: WorkItemPublisher,
 ) : TestRule {
 
   private val internalServices: Services
@@ -84,7 +91,12 @@ class InProcessEdpAggregatorComponents(
   private lateinit var publicApiChannel: Channel
 
   val secureComputationPublicApi =
-    InProcessSecureComputationPublicApi(internalServicesProvider = { internalServices })
+    InProcessSecureComputationPublicApi(
+      internalServicesProvider = { internalServices },
+      databaseClient,
+      queueMapping,
+      workItemPublisher,
+      )
 
   private val workItemsClient: WorkItemsCoroutineStub by lazy {
     WorkItemsCoroutineStub(secureComputationPublicApi.publicApiChannel)
@@ -152,12 +164,12 @@ class InProcessEdpAggregatorComponents(
     pubSubClient.createTopic(PROJECT_ID, TOPIC_ID)
     pubSubClient.createSubscription(PROJECT_ID, SUBSCRIPTION_ID, TOPIC_ID)
     edpResourceName = edpDisplayNameToResourceMap["edp1"]!!.name
-    /*workItemsClient.createWorkItem(createWorkItemRequest {
-      workItemId = "some-work-item"
+    workItemsClient.createWorkItem(createWorkItemRequest {
+      workItemId = "some-work-item-abc"
       this.workItem = workItem {
         queue = TOPIC_ID
       }
-    })*/
+    })
     publicApiChannel = kingdomChannel
     val watchedPaths =
       getDataWatcherConfig(
