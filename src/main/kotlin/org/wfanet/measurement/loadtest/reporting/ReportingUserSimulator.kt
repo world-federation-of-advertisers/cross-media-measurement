@@ -202,8 +202,6 @@ class ReportingUserSimulator(
         basicReportId = "basicReport-$runId",
       )
 
-    println("basic report name: ${basicReportKey.toName()}")
-
     val internalBasicReport = internalBasicReport {
       this.cmmsMeasurementConsumerId = basicReportKey.cmmsMeasurementConsumerId
       externalBasicReportId = basicReportKey.basicReportId
@@ -394,8 +392,6 @@ class ReportingUserSimulator(
         )
         .build()
 
-    println("request url for test: $url")
-
     val getBasicReportRequest = Request.Builder()
       .url(url)
       .get()
@@ -408,18 +404,12 @@ class ReportingUserSimulator(
           .newCall(getBasicReportRequest)
           .execute()
 
-        println("response headers for test: ${response.headers.toMultimap()}")
-        println("response http status message for test: ${response.message}")
-        println("response http status code for test: ${response.code}")
-
         response.body!!
           .bytes()
           .decodeToString()
       } catch (e: StatusException) {
         throw Exception("Error retrieving Basic Report", e)
       }
-
-    println("response body logging for test: ${retrievedBasicReportJson}")
 
     val retrievedBasicReportBuilder = BasicReport.newBuilder()
     JsonFormat.parser()

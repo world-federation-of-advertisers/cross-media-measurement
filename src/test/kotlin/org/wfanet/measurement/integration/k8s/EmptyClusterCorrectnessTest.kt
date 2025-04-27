@@ -344,7 +344,6 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
 
       val okHttpReportingClient =
         OkHttpClient.Builder()
-          .sslSocketFactory(certificates.sslSocketFactory(), certificates.trustManager)
           .build()
 
       val reportingInternalPod: V1Pod = getPod(REPORTING_INTERNAL_DEPLOYMENT_NAME)
