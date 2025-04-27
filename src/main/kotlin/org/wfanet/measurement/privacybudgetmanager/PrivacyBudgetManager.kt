@@ -28,13 +28,16 @@ private const val MAXIMUM_DELTA_PER_BUCKET = 1.0e-9f
  * Instantiates a privacy budget manager.
  *
  * @param auditLog: An object that transactionally logs the charged [Query]s to an EDP owned log.
- * @param activePrivacyLandscape: A [PrivacyLandscape] object specifiying the current landscape 
+ * @param activePrivacyLandscape: A [PrivacyLandscape] object specifiying the current landscape
  *  in use by the [ledger]
  * @param inactivePrivacyLandscapes: A list of [PrivacyLandscape] objects specifiying older landscapes
  *  used by the [ledger]
- * @param privacyLandscapeMappings: A list of [PrivacyLandscapeMapping] specifiying how to convert 
+ * @param privacyLandscapeMappings: A list of [PrivacyLandscapeMapping] specifiying how to convert
  *  [PrivacyBucket]s from an inactivePrivacyLandscape to [activePrivacyLandscape]
  * @param ledger: A [Ledger] object where the [PrivacyCharge]s and [Query]s are stored
+ * @param maximumPrivacyBudget: The maximum privacy budget that can be used in any privacy bucket.
+ * @param maximumTotalDelta: Maximum total value of the delta parameter that can be used in any
+ *   privacy bucket.
  */
 class PrivacyBudgetManager(
   val auditLog: AuditLog,
@@ -69,7 +72,7 @@ class PrivacyBudgetManager(
     queries: List<Query>,
     groupId: String,
   ): String {
-    // Declare newQueries outside the use block
+    // Holds the quries written to the ledger with their commit times read from the ledger.
     val queriesWithCommitTime: List<Query>
 
     ledger.startTransaction().use { context: TransactionContext ->
@@ -128,35 +131,37 @@ class PrivacyBudgetManager(
     return auditLog.write(queriesWithCommitTime, groupId)
   }
 
+  /**
+   * Creates the Slice that the union of all the given [queries] specify.
+   *
+   * @throws IllegalStateException exception if there is no mapping for any one of the [queries]
+   *   from the inactive landscape it targets to the active landscape
+   */
   private suspend fun getDelta(queries: List<Query>): Slice {
     val delta = Slice()
 
     for (query in queries) {
-      // Check if the query's landscape mask is current.
       if (query.privacyLandscapeName == activePrivacyLandscape.name) {
         delta.add(
           Filter.getBuckets(query.eventGroupLandscapeMasksList, activePrivacyLandscape),
           query.acdpCharge,
         )
-      }
-
-      // If the query's landscape is not active, then get the mapping to old landscape and
-      // convert the charges
-      else {
+      } else {
         val inactivePrivacyLandscape =
           inactivePrivacyLandscapes.find { it.name == query.privacyLandscapeName }
-            ?: requireNotNull(null) {
-              "Privacy landscape with name '${query.privacyLandscapeName}' not found."
-            }
+            ?: throw IllegalStateException(
+              "Privacy landscape with name '${query.privacyLandscapeName}' not found.",
+            )
 
         val privacyLandscapeMapping =
           privacyLandscapeMappings.find {
             it.fromLandscape == query.privacyLandscapeName &&
               it.toLandscape == activePrivacyLandscape.name
           }
-            ?: requireNotNull(null) {
-              "Privacy landscape mapping with not found."
-            }
+            ?: throw IllegalStateException(
+              "Privacy landscape mapping not found for fromLandscape" +
+                "'${query.privacyLandscapeName}' and toLandscape '${activePrivacyLandscape.name}'.",
+            )
 
         val mappedBuckets =
           Filter.getBuckets(
@@ -172,6 +177,15 @@ class PrivacyBudgetManager(
     return delta
   }
 
+  /**
+   * Creates the Slice that will be commited to the [ledger]. Does this by
+   *  aggregating the charges from the Slice in ledger - [targettedSlice]
+   *  and slice specified by the given queries [delta].All the buckets in
+   *  this slice are checked to be within the privacy budget.
+   *
+   * @throws PrivacyBudgetManagerException if any of the buckets in the slice
+   *   exceed the budget
+   */
   private suspend fun checkAndAggregate(
     delta: Slice,
     targettedSlice: Slice,
