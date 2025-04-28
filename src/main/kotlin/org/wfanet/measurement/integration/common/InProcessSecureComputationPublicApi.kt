@@ -21,7 +21,6 @@ import org.junit.runner.Description
 import org.junit.runners.model.Statement
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.testing.chainRulesSequentially
-import org.wfanet.measurement.kingdom.deploy.common.service.toList
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.Services
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.InternalApiServices
 
