@@ -104,6 +104,8 @@ import org.wfanet.measurement.internal.reporting.v2.metricFrequencySpec as inter
 import org.wfanet.measurement.internal.reporting.v2.reportingImpressionQualificationFilter as internalReportingImpressionQualificationFilter
 import org.wfanet.measurement.internal.reporting.v2.reportingInterval as internalReportingInterval
 import org.wfanet.measurement.internal.reporting.v2.resultGroup as internalResultGroup
+import org.wfanet.measurement.integration.common.ALL_EDP_WITHOUT_HMSS_CAPABILITIES_DISPLAY_NAMES
+import org.wfanet.measurement.integration.common.ALL_EDP_WITH_HMSS_CAPABILITIES_DISPLAY_NAMES
 import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
 import org.wfanet.measurement.loadtest.dataprovider.EventQuery
 import org.wfanet.measurement.loadtest.dataprovider.MeasurementResults
@@ -418,14 +420,33 @@ abstract class InProcessLifeOfAReportIntegrationTest(
   @Test
   fun `report with LLv2 union reach across 2 edps has the expected result`() = runBlocking {
     val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
-    // Gets the eventGroups and sort them based on the eventGroupReferenceId. This allows the
-    // selection of EDPs that only supports LLv2 (which is edp2).
-    val eventGroups = listEventGroups().sortedBy { it.eventGroupReferenceId }
+    val eventGroups = listEventGroups()
+
+    val eventGroupsWithDisplayNames =
+      eventGroups.map { eventGroup ->
+        val displayName =
+          inProcessCmmsComponents.getDataProviderDisplayNameFromEventGroupName(eventGroup.name)
+        eventGroup to displayName
+      }
+
+    val llv2EventGroups =
+      eventGroupsWithDisplayNames
+        .filter { (_, displayName) ->
+          displayName != null && displayName in ALL_EDP_WITHOUT_HMSS_CAPABILITIES_DISPLAY_NAMES
+        }
+        .map { it.first }
+
+    val hmssEventGroups =
+      eventGroupsWithDisplayNames
+        .filter { (_, displayName) ->
+          displayName != null && displayName in ALL_EDP_WITH_HMSS_CAPABILITIES_DISPLAY_NAMES
+        }
+        .map { it.first }
 
     val eventGroupEntries: List<Pair<EventGroup, String>> =
       listOf(
-        eventGroups[0] to "person.age_group == ${Person.AgeGroup.YEARS_18_TO_34_VALUE}",
-        eventGroups[1] to "person.age_group == ${Person.AgeGroup.YEARS_55_PLUS_VALUE}",
+        llv2EventGroups[0] to "person.age_group == ${Person.AgeGroup.YEARS_18_TO_34_VALUE}",
+        hmssEventGroups[0] to "person.age_group == ${Person.AgeGroup.YEARS_55_PLUS_VALUE}",
       )
 
     val createdPrimitiveReportingSets: List<ReportingSet> =
@@ -527,14 +548,26 @@ abstract class InProcessLifeOfAReportIntegrationTest(
   @Test
   fun `report with HMSS union reach across 2 edps has the expected result`() = runBlocking {
     val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
-    // Gets the eventGroups and sort them based on the eventGroupReferenceId. This allows the
-    // selection of EDPs that supports HMSS (which are edp1 and edp3).
     val eventGroups = listEventGroups().sortedBy { it.eventGroupReferenceId }
+
+    val eventGroupsWithDisplayNames =
+      eventGroups.map { eventGroup ->
+        val displayName =
+          inProcessCmmsComponents.getDataProviderDisplayNameFromEventGroupName(eventGroup.name)
+        eventGroup to displayName
+      }
+
+    val hmssEventGroups =
+      eventGroupsWithDisplayNames
+        .filter { (_, displayName) ->
+          displayName != null && displayName in ALL_EDP_WITH_HMSS_CAPABILITIES_DISPLAY_NAMES
+        }
+        .map { it.first }
 
     val eventGroupEntries: List<Pair<EventGroup, String>> =
       listOf(
-        eventGroups[0] to "person.age_group == ${Person.AgeGroup.YEARS_18_TO_34_VALUE}",
-        eventGroups[2] to "person.age_group == ${Person.AgeGroup.YEARS_55_PLUS_VALUE}",
+        hmssEventGroups[0] to "person.age_group == ${Person.AgeGroup.YEARS_18_TO_34_VALUE}",
+        hmssEventGroups[1] to "person.age_group == ${Person.AgeGroup.YEARS_55_PLUS_VALUE}",
       )
 
     val createdPrimitiveReportingSets: List<ReportingSet> =
