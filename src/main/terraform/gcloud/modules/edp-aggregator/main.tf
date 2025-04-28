@@ -81,7 +81,7 @@ module "tee_apps" {
 resource "google_storage_bucket_iam_member" "mig_storage_viewer" {
   for_each = module.tee_apps
 
-  bucket = module.secure_computation_bucket.storage_bucket.name
+  bucket = module.edp_aggregator_bucket.storage_bucket.name
   role   = "roles/storage.objectViewer"
   member = "serviceAccount:${each.value.mig_service_account.email}"
 }
@@ -89,7 +89,7 @@ resource "google_storage_bucket_iam_member" "mig_storage_viewer" {
 resource "google_storage_bucket_iam_member" "mig_storage_creator" {
   for_each = module.tee_apps
 
-  bucket = module.secure_computation_bucket.storage_bucket.name
+  bucket = module.edp_aggregator_bucket.storage_bucket.name
   role   = "roles/storage.objectCreator"
   member = "serviceAccount:${each.value.mig_service_account.email}"
 }
