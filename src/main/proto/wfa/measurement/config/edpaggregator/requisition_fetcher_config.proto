@@ -29,7 +29,8 @@ option java_outer_classname = "RequisitionFetcherConfigProto";
 // Individual config per EDP.
 message DataProviderRequisitionConfig {
   // Data Provider Name
-  string data_provider = 1 [(google.api.resource_reference).type = "halo.wfanet.org/DataProvider"];
+  string data_provider = 1
+      [(google.api.resource_reference).type = "halo.wfanet.org/DataProvider"];
   // Requisition storage
   Storage requisition_storage = 2;
   // Storage path prefix

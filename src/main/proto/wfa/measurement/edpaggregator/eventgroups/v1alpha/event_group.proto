@@ -73,8 +73,7 @@ message EventGroup {
   string event_group_reference_id = 1 [(google.api.field_behavior) = REQUIRED];
 
   // Metadata that describes the events entailed by the EventGroup.
-  Metadata event_group_metadata = 2
-      [(google.api.field_behavior) = REQUIRED];
+  Metadata event_group_metadata = 2 [(google.api.field_behavior) = REQUIRED];
 
   // The start and end dates of the campaign. May contain future dates.
   google.type.Interval data_availability_interval = 3
