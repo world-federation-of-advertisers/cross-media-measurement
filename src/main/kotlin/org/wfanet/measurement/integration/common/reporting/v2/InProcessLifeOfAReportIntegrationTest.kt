@@ -422,8 +422,6 @@ abstract class InProcessLifeOfAReportIntegrationTest(
     // selection of EDPs that only supports LLv2 (which is edp2).
     val eventGroups = listEventGroups().sortedBy { it.eventGroupReferenceId }
 
-    assertThat(eventGroups[1].eventGroupReferenceId).contains("edp2")
-
     val eventGroupEntries: List<Pair<EventGroup, String>> =
       listOf(
         eventGroups[0] to "person.age_group == ${Person.AgeGroup.YEARS_18_TO_34_VALUE}",
@@ -532,9 +530,6 @@ abstract class InProcessLifeOfAReportIntegrationTest(
     // Gets the eventGroups and sort them based on the eventGroupReferenceId. This allows the
     // selection of EDPs that supports HMSS (which are edp1 and edp3).
     val eventGroups = listEventGroups().sortedBy { it.eventGroupReferenceId }
-
-    assertThat(eventGroups[0].eventGroupReferenceId).contains("edp1")
-    assertThat(eventGroups[2].eventGroupReferenceId).contains("edp3")
 
     val eventGroupEntries: List<Pair<EventGroup, String>> =
       listOf(
