@@ -25,39 +25,37 @@ option java_outer_classname = "ResultsFulfillerParamsProto";
 
 // Message representing the params used for the results fulfiller tee app
 message ResultsFulfillerParams {
-  // Message representing the details needed to connect to the kingdom
-  message ConnectionDetails {
-    // gRPC target of Kingdom public API server.
-    string kingdom_public_api_target = 1
+  // Message representing the storage details used by the results fulfiller app
+  message Storage {
+    // The blob uri prefix for the labeled impressions `BlobDetails` that is
+    // stored in GCS for a given EDP
+    // See reference:
+    // https://github.com/world-federation-of-advertisers/common-jvm/blob/main/src/main/kotlin/org/wfanet/measurement/storage/SelectedStorageClient.kt
+    string labeled_impressions_blob_details_uri_prefix = 1
         [(google.api.field_behavior) = REQUIRED];
 
-    // Expected hostname (DNS-ID) in the Kingdom public API server's TLS
-    // certificate.
-    string kingdom_public_api_cert_host = 2
-        [(google.api.field_behavior) = REQUIRED];
-
-    // The client certificate bytestring
-    bytes client_cert = 3 [(google.api.field_behavior) = REQUIRED];
-
-    // The client's private key bytestring
-    bytes client_private_key = 4 [(google.api.field_behavior) = REQUIRED];
-
-    // The client certificate collection bytestring
-    bytes client_collection_cert = 5 [(google.api.field_behavior) = REQUIRED];
+    // The Project ID for the requisitions GCS instance that can be
+    // used with a blob URI to retrieve the data. Optional.
+    string gcs_project_id = 4;
   }
 
+  // The storage used by the tee app
+  Storage storage = 1 [(google.api.field_behavior) = REQUIRED];
+
   // Message representing the details needed to generate certificates
-  message ConsentDetails {
-    // The DER-encoded certificate bytestring used for result signing
-    bytes result_cs_cert_der_blob_uri = 1
+  message Consent {
+    // The resource key of the DER-encoded certificate file used for result
+    // signing
+    string result_cs_cert_der_resource_path = 1
         [(google.api.field_behavior) = REQUIRED];
 
-    // The DER-encoded private key bytestring used for result signing
-    bytes result_cs_private_key_der_blob_uri = 2
+    // The resource key of the DER-encoded private key file used for result
+    // signing
+    string result_cs_private_key_der_resource_path = 2
         [(google.api.field_behavior) = REQUIRED];
 
-    // The private encryption key bytestring
-    bytes private_encryption_key_blob_uri = 3
+    // The resource key of the private encryption key file
+    bytes private_encryption_key_resource_path = 3
         [(google.api.field_behavior) = REQUIRED];
 
     // The name for the certificate used by the EDP
@@ -67,10 +65,17 @@ message ResultsFulfillerParams {
     ];
   }
 
-  // Message representing the storage details
-  message StorageDetails {
-    // The prefix path for labeled impression storage
-    string labeled_impressions_metadata_blob_uri_prefix = 1
+  // Information necessary for EDP Consent signalingq
+  Consent consent = 2 [(google.api.field_behavior) = REQUIRED];
+
+  // Message representing the details needed to connect to the kingdom
+  message Connection {
+    // The resource key of the client certificate
+    string client_cert_resource_path = 1
+        [(google.api.field_behavior) = REQUIRED];
+
+    // The resource key of the client private key
+    string client_private_key_resource_path = 2
         [(google.api.field_behavior) = REQUIRED];
 
     // The GCS project ID for the requisitions storage
@@ -82,10 +87,6 @@ message ResultsFulfillerParams {
 
   }
 
-  ConnectionDetails connection_details = 1
-      [(google.api.field_behavior) = REQUIRED];
-
-  ConsentDetails consent_details = 2 [(google.api.field_behavior) = REQUIRED];
-
-  StorageDetails storage_details = 3 [(google.api.field_behavior) = REQUIRED];
+  // The connection to the Cmms API
+  Connection cmms_connection = 3 [(google.api.field_behavior) = REQUIRED];
 }
