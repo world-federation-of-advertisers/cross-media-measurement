@@ -83,6 +83,8 @@ import org.wfanet.measurement.config.reporting.EncryptionKeyPairConfigKt.princip
 import org.wfanet.measurement.config.reporting.encryptionKeyPairConfig
 import org.wfanet.measurement.config.reporting.measurementConsumerConfig
 import org.wfanet.measurement.consent.client.dataprovider.encryptMetadata
+import org.wfanet.measurement.integration.common.ALL_EDP_WITHOUT_HMSS_CAPABILITIES_DISPLAY_NAMES
+import org.wfanet.measurement.integration.common.ALL_EDP_WITH_HMSS_CAPABILITIES_DISPLAY_NAMES
 import org.wfanet.measurement.integration.common.AccessServicesFactory
 import org.wfanet.measurement.integration.common.InProcessCmmsComponents
 import org.wfanet.measurement.integration.common.InProcessDuchy
@@ -104,8 +106,6 @@ import org.wfanet.measurement.internal.reporting.v2.metricFrequencySpec as inter
 import org.wfanet.measurement.internal.reporting.v2.reportingImpressionQualificationFilter as internalReportingImpressionQualificationFilter
 import org.wfanet.measurement.internal.reporting.v2.reportingInterval as internalReportingInterval
 import org.wfanet.measurement.internal.reporting.v2.resultGroup as internalResultGroup
-import org.wfanet.measurement.integration.common.ALL_EDP_WITHOUT_HMSS_CAPABILITIES_DISPLAY_NAMES
-import org.wfanet.measurement.integration.common.ALL_EDP_WITH_HMSS_CAPABILITIES_DISPLAY_NAMES
 import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
 import org.wfanet.measurement.loadtest.dataprovider.EventQuery
 import org.wfanet.measurement.loadtest.dataprovider.MeasurementResults
@@ -420,28 +420,19 @@ abstract class InProcessLifeOfAReportIntegrationTest(
   @Test
   fun `report with LLv2 union reach across 2 edps has the expected result`() = runBlocking {
     val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
-    val eventGroups = listEventGroups()
+    val eventGroups: List<EventGroup> = listEventGroups()
 
-    val eventGroupsWithDisplayNames =
-      eventGroups.map { eventGroup ->
-        val displayName =
-          inProcessCmmsComponents.getDataProviderDisplayNameFromEventGroupName(eventGroup.name)
-        eventGroup to displayName
+    val llv2EventGroups: List<EventGroup> =
+      eventGroups.filter {
+        inProcessCmmsComponents.getDataProviderDisplayNameFromEventGroupName(it.name) in
+          ALL_EDP_WITHOUT_HMSS_CAPABILITIES_DISPLAY_NAMES
       }
 
-    val llv2EventGroups =
-      eventGroupsWithDisplayNames
-        .filter { (_, displayName) ->
-          displayName != null && displayName in ALL_EDP_WITHOUT_HMSS_CAPABILITIES_DISPLAY_NAMES
-        }
-        .map { it.first }
-
-    val hmssEventGroups =
-      eventGroupsWithDisplayNames
-        .filter { (_, displayName) ->
-          displayName != null && displayName in ALL_EDP_WITH_HMSS_CAPABILITIES_DISPLAY_NAMES
-        }
-        .map { it.first }
+    val hmssEventGroups: List<EventGroup> =
+      eventGroups.filter {
+        inProcessCmmsComponents.getDataProviderDisplayNameFromEventGroupName(it.name) in
+          ALL_EDP_WITH_HMSS_CAPABILITIES_DISPLAY_NAMES
+      }
 
     val eventGroupEntries: List<Pair<EventGroup, String>> =
       listOf(
@@ -550,19 +541,11 @@ abstract class InProcessLifeOfAReportIntegrationTest(
     val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
     val eventGroups = listEventGroups().sortedBy { it.eventGroupReferenceId }
 
-    val eventGroupsWithDisplayNames =
-      eventGroups.map { eventGroup ->
-        val displayName =
-          inProcessCmmsComponents.getDataProviderDisplayNameFromEventGroupName(eventGroup.name)
-        eventGroup to displayName
+    val hmssEventGroups: List<EventGroup> =
+      eventGroups.filter {
+        inProcessCmmsComponents.getDataProviderDisplayNameFromEventGroupName(it.name) in
+          ALL_EDP_WITH_HMSS_CAPABILITIES_DISPLAY_NAMES
       }
-
-    val hmssEventGroups =
-      eventGroupsWithDisplayNames
-        .filter { (_, displayName) ->
-          displayName != null && displayName in ALL_EDP_WITH_HMSS_CAPABILITIES_DISPLAY_NAMES
-        }
-        .map { it.first }
 
     val eventGroupEntries: List<Pair<EventGroup, String>> =
       listOf(
