@@ -55,7 +55,7 @@ message ResultsFulfillerParams {
         [(google.api.field_behavior) = REQUIRED];
 
     // The resource key of the private encryption key file
-    bytes private_encryption_key_resource_path = 3
+    string private_encryption_key_resource_path = 3
         [(google.api.field_behavior) = REQUIRED];
 
     // The name for the certificate used by the EDP
