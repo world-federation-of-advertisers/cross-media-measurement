@@ -218,6 +218,9 @@ class InProcessCmmsComponents(
         }
       }
 
+    println("*********************EDP DISPLAYNAME TO RESOURCE MAP")
+    println(edpDisplayNameToResourceMap)
+
     createPopulationResources(resourceSetup)
 
     // Create all duchy certificates.

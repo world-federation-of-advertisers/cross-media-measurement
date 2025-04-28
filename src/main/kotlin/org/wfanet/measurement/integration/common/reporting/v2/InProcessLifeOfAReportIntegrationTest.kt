@@ -419,6 +419,8 @@ abstract class InProcessLifeOfAReportIntegrationTest(
   fun `report with union reach across 2 edps has the expected result`() = runBlocking {
     val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
     val eventGroups = listEventGroups()
+    println("*****************************EVENTGROUPS**************************")
+    println(eventGroups)
 
     val eventGroupEntries: List<Pair<EventGroup, String>> =
       listOf(
