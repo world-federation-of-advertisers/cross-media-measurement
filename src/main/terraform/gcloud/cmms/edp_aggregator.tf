@@ -12,24 +12,27 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-queues_config = {
-  subscription_name           = "requisition-fulfiller-subscription"
-  topic_name                  = "requisition-fulfiller-queue"
-  ack_deadline_seconds        = 600
-}
-
-workers_config = {
-  requisition_fulfiller = {
-    instance_template_name      = "requisition-fulfiller-template"
-    base_instance_name          = "secure-computation"
-    managed_instance_group_name = "requisition-fulfiller-mig"
-    mig_service_account_name    = "requisition-fulfiller-sa"
-    single_instance_assignment  = 1
-    min_replicas                = 1
-    max_replicas                = 10
-    app_args                    = []
-    machine_type                = "n2d-standard-2"
-    docker_image                = "" # @TODO(MarcoPremier): set this value once TEE APP is merged
+locals {
+  queue_worker_configs = {
+    requisition_fulfiller = {
+      queue = {
+        subscription_name     = "requisition-fulfiller-subscription"
+        topic_name            = "requisition-fulfiller-queue"
+        ack_deadline_seconds  = 600
+      }
+      worker = {
+        instance_template_name      = "requisition-fulfiller-template"
+        base_instance_name          = "secure-computation"
+        managed_instance_group_name = "requisition-fulfiller-mig"
+        mig_service_account_name    = "requisition-fulfiller-sa"
+        single_instance_assignment  = 1
+        min_replicas                = 1
+        max_replicas                = 10
+        app_args                    = []
+        machine_type                = "n2d-standard-2"
+        docker_image                = "" # @TODO(MarcoPremier): set this value once TEE APP is merged
+      }
+    }
   }
 }
 
@@ -39,8 +42,7 @@ module "edp_aggregator" {
   key_ring_name                             = "secure-computation-test-key-ring"
   key_ring_location                         = local.key_ring_location
   kms_key_name                              = "secure-computation-test-kek"
-  queues_config                             = queues_config
-  workers_config                            = workers_config
+  queue_worker_configs                      = local.queue_worker_configs
   artifacts_registry_repo_name              = "secure-computation-tee-app"
   pubsub_iam_service_account_member         = module.secure_computation.secure_computation_internal_iam_service_account_member
   edp_aggregator_bucket_name                = "secure-computation-storage"
