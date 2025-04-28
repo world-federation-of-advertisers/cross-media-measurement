@@ -66,6 +66,54 @@ message ReportPostProcessorStatus {
   double primal_inequality_residual = 3;
 }
 
+// Stores the results of various data quality checks performed on an Origin
+// report.
+message ReportQuality {
+  // Enum representing the outcome of consistency checks performed on noise-free
+  // Linear TV measurements.
+  enum LinearTvStatus {
+    // Default value, status was not determined or is unknown.
+    LINEAR_TV_STATUS_UNSPECIFIED = 0;
+
+    // All Linear TV measurements are consistent: the cumulative reaches are
+    // non-decreasing, the total reach is equal to the last cumulative reach,
+    // the total reach is equal to the sum of the k-reaches, the impression is
+    // greater than or equal to weighted sum of the k-reaches.
+    CONSISTENT = 1;
+
+    // One of the constraints are violated.
+    INCONSISTENT = 2;
+  }
+
+  // The outcome of the independence check, which tests if the reported reach
+  // of a union of EDPs is statistically consistent with the reported reaches of
+  // the individual EDPs, considering their variance. The calculation of the
+  // expected range of the union reach assumes conditional independence between
+  // the sets of VIDs reached by the different EDPs.
+  enum IndependenceCheckStatus {
+    // Default value, status was not determined or is unknown.
+    INDEPENDENCE_CHECK_STATUS_UNSPECIFIED = 0;
+
+    // The observed noisy union reach value falls within the calculated
+    // statistical confidence interval derived from individual reaches and their
+    // variances. Let sigma be an upper bound of the variance of (expected union
+    // - noisy variance), the noisy union reach is tested if it is in
+    // [expected union - 7*sigma, expected union +7*sigma].
+    WITHIN_CONFIDENCE_RANGE = 1;
+
+    // The observed noisy union reach value falls outside the calculated
+    // statistical confidence interval, suggesting a potential inconsistency
+    // beyond expected noise levels.
+    OUTSIDE_CONFIDENCE_RANGE = 2;
+  }
+
+  // The outcome of the Linear TV consistency check.
+  LinearTvStatus tv_status = 1;
+
+  // The outcome of the independence check.
+  IndependenceCheckStatus union_status = 2;
+}
+
 // The result message encapsulating the entire outcome of the post-processing
 // pipeline for a single report.
 message ReportPostProcessorResult {
@@ -79,4 +127,14 @@ message ReportPostProcessorResult {
   // solution, or fail to find any. It also provides metrics such as the primal
   // equality and inequality residuals.
   ReportPostProcessorStatus status = 2;
+
+  // Contains the results of data quality checks (e.g., Linear TV consistency,
+  // Union Test) performed on the original noisy report data before noise
+  // correction was applied.
+  ReportQuality pre_correction_quality = 3;
+
+  // Contains the results of data quality checks performed after applying
+  // the corrected measurements from the 'updated_measurements' map (if a
+  // solution was found).
+  ReportQuality post_correction_quality = 4;
 }

@@ -7,16 +7,19 @@ package(
     default_testonly = True,
     default_visibility = [
         "//src/main/k8s:__subpackages__",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/requisitionfetcher/testing:__subpackages__",
         "//src/main/kotlin/org/wfanet/measurement/integration:__subpackages__",
+        "//src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/datawatcher/testing:__subpackages__",
         "//src/main/kotlin/org/wfanet/measurement/testing:__subpackages__",
         "//src/test/kotlin/org/wfanet/measurement/access:__subpackages__",
         "//src/test/kotlin/org/wfanet/measurement/api:__subpackages__",
-        "//src/test/kotlin/org/wfanet/measurement/edpaggregator/requisitionfetcher:__subpackages__",
-        "//src/test/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:__subpackages__",
+        "//src/test/kotlin/org/wfanet/measurement/edpaggregator:__subpackages__",
         "//src/test/kotlin/org/wfanet/measurement/integration:__subpackages__",
         "//src/test/kotlin/org/wfanet/measurement/kingdom/batch:__subpackages__",
         "//src/test/kotlin/org/wfanet/measurement/loadtest:__subpackages__",
         "//src/test/kotlin/org/wfanet/measurement/reporting:__subpackages__",
+        "//src/test/kotlin/org/wfanet/measurement/securecomputation:__subpackages__",
+        "//src/test/kotlin/org/wfanet/panelmatch/edpaggregator:__subpackages__",
         "//src/test/kotlin/org/wfanet/panelmatch/integration:__subpackages__",
     ],
 )
@@ -235,6 +238,18 @@ SECRET_FILES = [
 filegroup(
     name = "secret_files",
     srcs = SECRET_FILES,
+)
+
+DATA_WATCHER_SECRET_FILES = [
+    "data_watcher_tls.key",
+    "data_watcher_tls.pem",
+    "secure_computation_root.pem",
+]
+
+filegroup(
+    name = "data_watcher_secret_files",
+    srcs = DATA_WATCHER_SECRET_FILES,
+    visibility = ["//src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/datawatcher:__subpackages__"],
 )
 
 pkg_tar(
