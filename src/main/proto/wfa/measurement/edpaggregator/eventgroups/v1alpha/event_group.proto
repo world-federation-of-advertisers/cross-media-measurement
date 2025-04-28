@@ -83,7 +83,7 @@ message EventGroup {
   // Resource name of the `MeasurementConsumer` from the CMMS public API
   string measurement_consumer = 4 [
     (google.api.resource_reference).type =
-        "wfa.halo-cmm.org/MeasurementConsumer",
+        "halo.wfanet.org/MeasurementConsumer",
     (google.api.field_behavior) = REQUIRED
   ];
 

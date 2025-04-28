@@ -21,7 +21,6 @@ import com.google.cloud.functions.HttpRequest
 import com.google.cloud.functions.HttpResponse
 import com.google.cloud.storage.StorageOptions
 import java.io.File
-import java.nio.file.Paths
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.common.crypto.SigningCerts
@@ -29,6 +28,8 @@ import org.wfanet.measurement.common.getJarResourceFile
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.config.edpaggregator.RequisitionFetcherConfig
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.Utils.checkEnvNotNullOrEmpty
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.Utils.checkIsPath
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionFetcher
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
@@ -39,15 +40,15 @@ class RequisitionFetcherFunction : HttpFunction {
     for (dataProviderConfig in requisitionFetcherConfig.configsList) {
 
       val requisitionsStorageClient =
-        if (dataProviderConfig.hasFileSystemStorageDetails()) {
+        if (dataProviderConfig.requisitionStorage.hasFileSystem()) {
           FileSystemStorageClient(File(checkIsPath("REQUISITION_FILE_SYSTEM_PATH")))
         } else {
-          val requisitionsGcsBucket = dataProviderConfig.gcsStorageDetails.bucketName
+          val requisitionsGcsBucket = dataProviderConfig.requisitionStorage.gcs.bucketName
           GcsStorageClient(
             StorageOptions.newBuilder()
               .also {
-                if (dataProviderConfig.gcsStorageDetails.projectId.isNotEmpty()) {
-                  it.setProjectId(dataProviderConfig.gcsStorageDetails.projectId)
+                if (dataProviderConfig.requisitionStorage.gcs.projectId.isNotEmpty()) {
+                  it.setProjectId(dataProviderConfig.requisitionStorage.gcs.projectId)
                 }
               }
               .build()
@@ -59,20 +60,18 @@ class RequisitionFetcherFunction : HttpFunction {
         SigningCerts.fromPemFiles(
           certificateFile =
             checkNotNull(
-              CLASS_LOADER.getJarResourceFile(
-                dataProviderConfig.connectionDetails.certJarResourcePath
-              )
+              CLASS_LOADER.getJarResourceFile(dataProviderConfig.cmmsConnection.certJarResourcePath)
             ),
           privateKeyFile =
             checkNotNull(
               CLASS_LOADER.getJarResourceFile(
-                dataProviderConfig.connectionDetails.privateKeyJarResourcePath
+                dataProviderConfig.cmmsConnection.privateKeyJarResourcePath
               )
             ),
           trustedCertCollectionFile =
             checkNotNull(
               CLASS_LOADER.getJarResourceFile(
-                dataProviderConfig.connectionDetails.certCollectionJarResourcePath
+                dataProviderConfig.cmmsConnection.certCollectionJarResourcePath
               )
             ),
         )
@@ -95,8 +94,8 @@ class RequisitionFetcherFunction : HttpFunction {
   }
 
   companion object {
-    private val kingdomTarget = checkNotEmpty("KINGDOM_TARGET")
-    private val kingdomCertHost = checkNotEmpty("KINGDOM_CERT_HOST")
+    private val kingdomTarget = checkEnvNotNullOrEmpty("KINGDOM_TARGET")
+    private val kingdomCertHost = checkEnvNotNullOrEmpty("KINGDOM_CERT_HOST")
 
     val pageSize = run {
       val value = System.getenv("PAGE_SIZE")
@@ -114,19 +113,6 @@ class RequisitionFetcherFunction : HttpFunction {
     }
     private val requisitionFetcherConfig: RequisitionFetcherConfig by lazy {
       runBlocking { parseTextProto(config, RequisitionFetcherConfig.getDefaultInstance()) }
-    }
-
-    private fun checkNotEmpty(envVar: String): String {
-      val value = System.getenv(envVar)
-      checkNotNull(value) { "Missing env var: $envVar" }
-      check(value.isNotBlank())
-      return value
-    }
-
-    private fun checkIsPath(envVar: String): String {
-      val value = System.getenv(envVar)
-      Paths.get(value)
-      return value
     }
   }
 }

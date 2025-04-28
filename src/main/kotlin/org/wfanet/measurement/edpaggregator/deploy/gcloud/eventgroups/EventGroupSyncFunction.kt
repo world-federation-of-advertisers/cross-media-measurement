@@ -22,7 +22,6 @@ import com.google.cloud.functions.HttpResponse
 import com.google.protobuf.util.JsonFormat
 import java.io.BufferedReader
 import java.io.File
-import java.nio.file.Paths
 import java.time.Clock
 import java.time.Duration
 import java.util.logging.Logger
@@ -34,8 +33,9 @@ import org.wfanet.measurement.common.getJarResourceFile
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withShutdownTimeout
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
+import org.wfanet.measurement.config.edpaggregator.EventGroupSyncConfig
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.Utils.checkEnvNotNullOrEmpty
 import org.wfanet.measurement.edpaggregator.eventgroups.EventGroupSync
-import org.wfanet.measurement.edpaggregator.eventgroups.EventGroupSyncConfig
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup
 import org.wfanet.measurement.storage.MesosRecordIoStorageClient
 import org.wfanet.measurement.storage.SelectedStorageClient
@@ -57,20 +57,18 @@ class EventGroupSyncFunction() : HttpFunction {
       SigningCerts.fromPemFiles(
         certificateFile =
           checkNotNull(
-            CLASS_LOADER.getJarResourceFile(
-              eventGroupSyncConfig.connectionDetails.certJarResourcePath
-            )
+            CLASS_LOADER.getJarResourceFile(eventGroupSyncConfig.cmmsConnection.certJarResourcePath)
           ),
         privateKeyFile =
           checkNotNull(
             CLASS_LOADER.getJarResourceFile(
-              eventGroupSyncConfig.connectionDetails.privateKeyJarResourcePath
+              eventGroupSyncConfig.cmmsConnection.privateKeyJarResourcePath
             )
           ),
         trustedCertCollectionFile =
           checkNotNull(
             CLASS_LOADER.getJarResourceFile(
-              eventGroupSyncConfig.connectionDetails.certCollectionJarResourcePath
+              eventGroupSyncConfig.cmmsConnection.certCollectionJarResourcePath
             )
           ),
       )
@@ -86,10 +84,10 @@ class EventGroupSyncFunction() : HttpFunction {
           SelectedStorageClient(
             blobUri = eventGroupsBlobUri,
             rootDirectory =
-              if (eventGroupSyncConfig.hasEventGroupFileSystemStorageDetails())
+              if (eventGroupSyncConfig.eventGroupStorage.hasFileSystem())
                 File(checkNotNull(fileSystemStorageRoot))
               else null,
-            projectId = eventGroupSyncConfig.eventGroupGcsStorageDetails.projectId,
+            projectId = eventGroupSyncConfig.eventGroupStorage.gcs.projectId,
           )
         )
         .getBlob(eventGroupsBlobUri.key)!!
@@ -106,15 +104,15 @@ class EventGroupSyncFunction() : HttpFunction {
     val mappedData = runBlocking { eventGroupSync.sync() }
     runBlocking {
       val mappedDataBlobUri =
-        SelectedStorageClient.parseBlobUri(eventGroupSyncConfig.eventGroupMapUri)
+        SelectedStorageClient.parseBlobUri(eventGroupSyncConfig.eventGroupMapBlobUri)
       MesosRecordIoStorageClient(
           SelectedStorageClient(
             blobUri = mappedDataBlobUri,
             rootDirectory =
-              if (eventGroupSyncConfig.hasEventGroupMapFileSystemStorageDetails())
+              if (eventGroupSyncConfig.eventGroupMapStorage.hasFileSystem())
                 File(checkNotNull(fileSystemStorageRoot))
               else null,
-            projectId = eventGroupSyncConfig.eventGroupMapGcsStorageDetails.projectId,
+            projectId = eventGroupSyncConfig.eventGroupMapStorage.gcs.projectId,
           )
         )
         .writeBlob(mappedDataBlobUri.key, mappedData.map { it.toByteString() })
@@ -127,8 +125,8 @@ class EventGroupSyncFunction() : HttpFunction {
     private const val THROTTLER_DURATION_MILLIS = 1000L
     private val CLASS_LOADER: ClassLoader = Thread.currentThread().contextClassLoader
 
-    private val kingdomTarget = checkNotEmpty("KINGDOM_TARGET")
-    private val kingdomCertHost = checkNotEmpty("KINGDOM_CERT_HOST")
+    private val kingdomTarget = checkEnvNotNullOrEmpty("KINGDOM_TARGET")
+    private val kingdomCertHost = checkEnvNotNullOrEmpty("KINGDOM_CERT_HOST")
     private val throttlerDuration =
       Duration.ofMillis(System.getenv("THROTTLER_MILLIS")?.toLong() ?: THROTTLER_DURATION_MILLIS)
     private val channelShutdownDuration =
@@ -137,18 +135,5 @@ class EventGroupSyncFunction() : HttpFunction {
           ?: KINGDOM_SHUTDOWN_DURATION_SECONDS
       )
     private val fileSystemStorageRoot = System.getenv("FILE_STORAGE_ROOT")
-
-    private fun checkNotEmpty(envVar: String): String {
-      val value = System.getenv(envVar)
-      checkNotNull(value) { "Missing env var: $envVar" }
-      check(value.isNotBlank())
-      return value
-    }
-
-    private fun checkIsPath(envVar: String): String {
-      val value = System.getenv(envVar)
-      Paths.get(value)
-      return value
-    }
   }
 }
