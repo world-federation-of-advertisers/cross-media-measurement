@@ -60,6 +60,7 @@ import org.wfanet.measurement.securecomputation.datawatcher.DataWatcher
 import org.wfanet.measurement.securecomputation.datawatcher.testing.DataWatcherSubscribingStorageClient
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.InternalApiServices
 import org.wfanet.measurement.storage.StorageClient
+import org.wfanet.measurement.edpaggregator.resultsfulfiller.ResultsFulfillerTestApp
 
 class InProcessEdpAggregatorComponents(
   private val internalServicesRule: ProviderRule<InternalApiServices>,
