@@ -15,7 +15,6 @@
 variable "instance_template_name" {
   description = "The name of the instance template."
   type        = string
-  default     = null
 }
 
 variable "base_instance_name" {
@@ -43,8 +42,8 @@ variable "app_args" {
 }
 
 variable "subscription_id" {
-  description = "The ID of the Pub/Sub subscription to which the service account will be granted access."
-  type        = string
+  description = "The subscription used to determine the amount of undelivered messages."
+  type        = number
   nullable    = false
 }
 
@@ -72,22 +71,20 @@ variable "machine_type" {
   nullable    = false
 }
 
+variable "topic_id" {
+  description = "The pubsub topic id to grant access to."
+  type        = string
+  nullable    = false
+}
+
+variable "storage_bucket_name" {
+  description = "The bucket to grant access to."
+  type        = string
+  nullable    = false
+}
+
 variable "kms_key_id" {
-  description = "The kms key id of the key encryption key to grant access to."
+  description = "The kms key id to grant access to."
   type        = string
   nullable    = false
 }
-
-variable "artifacts_registry_repo_name" {
-  description = "The name of Artifact Registry where approved TEE app are stored."
-  type        = string
-  nullable    = false
-}
-
-variable "docker_image" {
-  description = "The docker image to be deployed."
-  type        = string
-  nullable    = false
-}
-
-
