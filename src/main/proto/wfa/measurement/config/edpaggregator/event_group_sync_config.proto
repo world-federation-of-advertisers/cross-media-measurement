@@ -25,8 +25,10 @@ option java_outer_classname = "EventGroupSyncConfigProto";
 
 // The Event Group config for a single EDP
 message EventGroupSyncConfig {
-  // Resource name referencing the `DataProvider` in an external system, provided out-of-band.
-  string data_provider = 1 [(google.api.resource_reference).type = "halo.wfanet.org/DataProvider"];
+  // Resource name referencing the `DataProvider` in an external system,
+  // provided out-of-band.
+  string data_provider = 1
+      [(google.api.resource_reference).type = "halo.wfanet.org/DataProvider"];
   // The blob uri for the event groups stored in Mesos RecordIo
   string event_groups_blob_uri = 2;
   // The blob uri that contains MappedEventGroup(s) in Mesos RecordIO.
