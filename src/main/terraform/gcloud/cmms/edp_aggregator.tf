@@ -39,9 +39,9 @@ locals {
 module "edp_aggregator" {
   source = "../modules/edp-aggregator"
 
-  key_ring_name                             = "secure-computation-test-key-ring"
+  key_ring_name                             = "secure-computation-key-ring"
   key_ring_location                         = local.key_ring_location
-  kms_key_name                              = "secure-computation-test-kek"
+  kms_key_name                              = "secure-computation-kek"
   queue_worker_configs                      = local.queue_worker_configs
   artifacts_registry_repo_name              = "secure-computation-tee-app"
   pubsub_iam_service_account_member         = module.secure_computation.secure_computation_internal_iam_service_account_member
