@@ -16,7 +16,7 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem.Wo
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAttemptsGrpcKt
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
-import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams.StorageDetails
+import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams.Storage
 import org.wfanet.measurement.securecomputation.teesdk.BaseTeeApplication
 import org.wfanet.measurement.storage.StorageClient
 
@@ -57,7 +57,7 @@ abstract class ResultsFulfillerApp(
 
   abstract fun getTypeRegistry(): TypeRegistry
 
-  abstract fun getStorageConfig(configType: StorageConfigType, storageDetails: StorageDetails): StorageConfig
+  abstract fun getStorageConfig(configType: StorageConfigType, storageDetails: Storage): StorageConfig
 
   override suspend fun runWork(message: Any) {
     val workItemParams = message.unpack(WorkItemParams::class.java)
@@ -66,7 +66,7 @@ abstract class ResultsFulfillerApp(
     val typeRegistry = getTypeRegistry()
     val requisitionsBlobUri = workItemParams.dataPathParams.dataPath
 
-    val storageDetails = fulfillerParams.storageDetails
+    val storageDetails = fulfillerParams.storage
 
     val requisitionsStorageConfig = getStorageConfig(StorageConfigType.REQUISITION, storageDetails)
     val impressionsMetadataStorageConfig = getStorageConfig(StorageConfigType.IMPRESSION_METADATA, storageDetails)
@@ -81,7 +81,7 @@ abstract class ResultsFulfillerApp(
       dataProviderSigningKeyHandle,
       typeRegistry,
       requisitionsBlobUri,
-      fulfillerParams.storageDetails.labeledImpressionsMetadataBlobUriPrefix,
+      fulfillerParams.storage.labeledImpressionsBlobUriPrefix,
       kmsClient,
       impressionsStorageConfig,
       impressionsMetadataStorageConfig,

@@ -62,7 +62,7 @@ class ResultsFulfillerTestApp(
     return typeRegistry
   }
 
-  override fun getStorageConfig(configType: StorageConfigType, storageDetails: ResultsFulfillerParams.StorageDetails): StorageConfig {
+  override fun getStorageConfig(configType: StorageConfigType, storageDetails: ResultsFulfillerParams.Storage): StorageConfig {
     return StorageConfig(
       rootDirectory = when (configType) {
         StorageConfigType.REQUISITION -> requisitionsRootDirectory

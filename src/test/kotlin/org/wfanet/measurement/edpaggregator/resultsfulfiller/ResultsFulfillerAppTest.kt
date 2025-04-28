@@ -95,7 +95,7 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItemAttempt
 import org.wfanet.measurement.storage.MesosRecordIoStorageClient
 import org.wfanet.measurement.storage.SelectedStorageClient
-import org.wfanet.panelmatch.client.storage.storageDetails
+import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParamsKt.storage
 
 class ResultsFulfillerAppTest {
   private lateinit var emulatorClient: GooglePubSubEmulatorClient
@@ -266,8 +266,8 @@ class ResultsFulfillerAppTest {
   private fun createWorkItemParams(): WorkItemParams {
     return workItemParams {
       appParams = resultsFulfillerParams {
-        storageDetails = ResultsFulfillerParamsKt.storageDetails {
-          labeledImpressionsMetadataBlobUriPrefix = IMPRESSIONS_METADATA_FILE_URI_PREFIX
+        this.storage = ResultsFulfillerParamsKt.storage {
+          labeledImpressionsBlobUriPrefix = IMPRESSIONS_METADATA_FILE_URI_PREFIX
         }
       }.pack()
 

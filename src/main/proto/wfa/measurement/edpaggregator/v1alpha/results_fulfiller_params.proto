@@ -31,7 +31,7 @@ message ResultsFulfillerParams {
     // stored in GCS for a given EDP
     // See reference:
     // https://github.com/world-federation-of-advertisers/common-jvm/blob/main/src/main/kotlin/org/wfanet/measurement/storage/SelectedStorageClient.kt
-    string labeled_impressions_blob_details_uri_prefix = 1
+    string labeled_impressions_blob_uri_prefix = 1
         [(google.api.field_behavior) = REQUIRED];
 
     // The Project ID for the requisitions GCS instance that can be
@@ -77,14 +77,6 @@ message ResultsFulfillerParams {
     // The resource key of the client private key
     string client_private_key_resource_path = 2
         [(google.api.field_behavior) = REQUIRED];
-
-    // The GCS project ID for the requisitions storage
-    string requisitions_storage_project_id = 2;
-    // The GCS project ID for the labeled impression metadata storage
-    string labeled_impression_metadata_storage_project_id = 3;
-    // The GCS project ID for the labeled impression storage
-    string labeled_impression_storage_project_id = 4;
-
   }
 
   // The connection to the Cmms API
