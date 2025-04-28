@@ -19,7 +19,6 @@ package org.wfanet.measurement.securecomputation.deploy.gcloud.spanner
 import io.grpc.BindableService
 import java.io.File
 import kotlinx.coroutines.runBlocking
-import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.grpc.CommonServer
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.config.securecomputation.QueuesConfig
@@ -60,7 +59,7 @@ class InternalApiServer : Runnable {
         val googlePubSubClient = DefaultGooglePubSubClient()
         val workItemPublisher = GoogleWorkItemPublisher(googleProjectId, googlePubSubClient)
         val services: List<BindableService> =
-          InternalApiServices.build(workItemPublisher, databaseClient, queueMapping).toList()
+          InternalApiServices(workItemPublisher, databaseClient, queueMapping).build().toList()
         val server = CommonServer.fromFlags(serverFlags, SERVER_NAME, services)
 
         server.start().blockUntilShutdown()
@@ -70,7 +69,5 @@ class InternalApiServer : Runnable {
 
   companion object {
     const val SERVER_NAME = "SecureComputationInternalApiServer"
-
-    @JvmStatic fun main(args: Array<String>) = commandLineMain(InternalApiServer(), args)
   }
 }
