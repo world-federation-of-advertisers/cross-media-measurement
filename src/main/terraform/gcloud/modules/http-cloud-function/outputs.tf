@@ -12,9 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-data "google_project" "project" {}
-
-resource "google_service_account" "http_cloud_function_service_account" {
-  account_id   = var.http_cloud_function_service_account_name
-  display_name = "Service account for Cloud Function"
+output "cloud_function_service_account" {
+  value = google_service_account.http_cloud_function_service_account
 }
