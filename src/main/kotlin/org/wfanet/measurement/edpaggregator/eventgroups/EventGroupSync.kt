@@ -27,11 +27,11 @@ import org.wfanet.measurement.api.v2alpha.EventGroup as CmmsEventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataKt as CmmsEventGroupMetadataKt
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataKt.AdMetadataKt as CmmsAdMetadataKt
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
-import org.wfanet.measurement.api.v2alpha.MediaType as ExternalMediaType
+import org.wfanet.measurement.api.v2alpha.MediaType as CmmsMediaType
 import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.createEventGroupRequest
-import org.wfanet.measurement.api.v2alpha.eventGroup as externalEventGroup
 import kotlinx.coroutines.flow.forEach
+import org.wfanet.measurement.api.v2alpha.eventGroup as cmmsEventGroup
 import org.wfanet.measurement.api.v2alpha.eventGroupMetadata as cmmsEventGroupMetadata
 import org.wfanet.measurement.api.v2alpha.listEventGroupsRequest
 import org.wfanet.measurement.api.v2alpha.updateEventGroupRequest
@@ -107,7 +107,7 @@ class EventGroupSync(
   ): CmmsEventGroup {
     val request = createEventGroupRequest {
       parent = edpName
-      this.eventGroup = externalEventGroup {
+      this.eventGroup = cmmsEventGroup {
         measurementConsumer = eventGroup.measurementConsumer
         eventGroupReferenceId = eventGroup.eventGroupReferenceId
         this.eventGroupMetadata = cmmsEventGroupMetadata {
@@ -120,7 +120,7 @@ class EventGroupSync(
                 }
             }
         }
-        mediaTypes += eventGroup.mediaTypesList.map { ExternalMediaType.valueOf(it) }
+        mediaTypes += eventGroup.mediaTypesList.map { CmmsMediaType.valueOf(it) }
         dataAvailabilityInterval = eventGroup.dataAvailabilityInterval
       }
     }
@@ -150,7 +150,7 @@ class EventGroupSync(
           }
       }
       mediaTypes.clear()
-      mediaTypes += eventGroup.mediaTypesList.map { ExternalMediaType.valueOf(it) }
+      mediaTypes += eventGroup.mediaTypesList.map { CmmsMediaType.valueOf(it) }
       dataAvailabilityInterval = eventGroup.dataAvailabilityInterval
     }
   }
