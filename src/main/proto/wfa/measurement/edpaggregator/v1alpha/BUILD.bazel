@@ -22,28 +22,11 @@ kt_jvm_proto_library(
 )
 
 proto_library(
-    name = "results_fulfiller_config_proto",
-    srcs = ["results_fulfiller_config.proto"],
-    strip_import_prefix = _IMPORT_PREFIX,
-    deps = [
-        "@com_google_googleapis//google/api:field_behavior_proto",
-        "@com_google_googleapis//google/api:resource_proto",
-    ],
-)
-
-proto_library(
     name = "encrypted_dek_proto",
     srcs = ["encrypted_dek.proto"],
     strip_import_prefix = _IMPORT_PREFIX,
     deps = [
         "@com_google_googleapis//google/api:field_behavior_proto",
-    ],
-)
-
-kt_jvm_proto_library(
-    name = "results_fulfiller_config_kt_jvm_proto",
-    deps = [
-        ":results_fulfiller_config_proto",
     ],
 )
 
@@ -65,4 +48,21 @@ proto_library(
 kt_jvm_proto_library(
     name = "blob_details_kt_jvm_proto",
     deps = [":blob_details_proto"],
+)
+
+proto_library(
+    name = "results_fulfiller_params_proto",
+    srcs = ["results_fulfiller_params.proto"],
+    strip_import_prefix = _IMPORT_PREFIX,
+    deps = [
+        "@com_google_googleapis//google/api:field_behavior_proto",
+        "@com_google_googleapis//google/api:resource_proto",
+    ],
+)
+
+kt_jvm_proto_library(
+    name = "results_fulfiller_params_kt_jvm_proto",
+    deps = [
+        ":results_fulfiller_params_proto",
+    ],
 )

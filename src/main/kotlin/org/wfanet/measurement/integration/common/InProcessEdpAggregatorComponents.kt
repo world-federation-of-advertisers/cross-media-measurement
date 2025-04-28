@@ -59,7 +59,6 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGr
 import org.wfanet.measurement.securecomputation.datawatcher.DataWatcher
 import org.wfanet.measurement.securecomputation.datawatcher.testing.DataWatcherSubscribingStorageClient
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.InternalApiServices
-import org.wfanet.measurement.securecomputation.teesdk.testing.FakeFulfillingRequisitionTeeApp
 import org.wfanet.measurement.storage.StorageClient
 
 class InProcessEdpAggregatorComponents(
@@ -99,7 +98,7 @@ class InProcessEdpAggregatorComponents(
 
   private lateinit var eventGroupSync: EventGroupSync
 
-  private val teeApp by lazy {
+  /*private val teeApp by lazy {
     val subscriber = Subscriber(PROJECT_ID, pubSubClient)
     FakeFulfillingRequisitionTeeApp(
       parser = WorkItem.parser(),
@@ -109,7 +108,7 @@ class InProcessEdpAggregatorComponents(
         WorkItemAttemptsCoroutineStub(secureComputationPublicApi.publicApiChannel),
       queueSubscriber = subscriber,
     )
-  }
+  }*/
 
   val ruleChain: TestRule by lazy {
     chainRulesSequentially(internalServicesRule, secureComputationPublicApi)

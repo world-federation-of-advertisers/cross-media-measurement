@@ -114,5 +114,6 @@ class RequisitionFetcherFunction : HttpFunction {
     private val requisitionFetcherConfig: RequisitionFetcherConfig by lazy {
       runBlocking { parseTextProto(config, RequisitionFetcherConfig.getDefaultInstance()) }
     }
+
   }
 }

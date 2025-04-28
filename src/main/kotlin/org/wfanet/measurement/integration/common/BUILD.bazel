@@ -7,6 +7,7 @@ package(
     default_visibility = [
         "//src/main/kotlin/org/wfanet/measurement/integration:__subpackages__",
         "//src/main/kotlin/org/wfanet/measurement/loadtest:__subpackages__",
+        "//src/test/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:__subpackages__",
         "//src/test/kotlin/org/wfanet/measurement/integration:__subpackages__",
         "//src/test/kotlin/org/wfanet/measurement/loadtest:__subpackages__",
         "//src/test/kotlin/org/wfanet/panelmatch/integration:__subpackages__",
@@ -281,7 +282,6 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common/service:data_services",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/measurementconsumer:simulator",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/resourcesetup:resource_setup",
-        "//src/main/kotlin/org/wfanet/measurement/securecomputation/teesdk/testing:fake_fulfilling_tee_app",
         "@wfa_common_jvm//imports/java/org/junit",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/testing",
@@ -317,7 +317,6 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/securecomputation/service/internal:queue_mapping",
         "//src/main/kotlin/org/wfanet/measurement/securecomputation/service/internal:services",
         "//src/main/kotlin/org/wfanet/measurement/securecomputation/service/internal:work_item_publisher",
-        "//src/main/kotlin/org/wfanet/measurement/securecomputation/teesdk/testing:fake_fulfilling_tee_app",
         "//src/main/proto/wfa/measurement/api/v2alpha:event_group_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha/event_group_metadata/testing:simulator_synthetic_data_spec_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:test_event_kt_jvm_proto",

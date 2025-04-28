@@ -279,7 +279,7 @@ fun getEventGroupConfig(
       eventGroupSyncConfig {
         dataProvider = edpResourceName
         eventGroupsBlobUri = "$blobPrefix/$edpName/event-groups"
-        eventGroupMapUri = "$blobPrefix/$edpName/event-group-map"
+        eventGroupMapBlobUri = "$blobPrefix/$edpName/event-group-map"
       }
 }
   }
