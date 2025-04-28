@@ -99,11 +99,11 @@ class InProcessEdpAggregatorComponents(
 
   private lateinit var eventGroupSync: EventGroupSync
 
-  /*private val teeApp by lazy {
+  private val resultFulfillerApp by lazy {
     val subscriber = Subscriber(PROJECT_ID, pubSubClient)
-    FakeFulfillingRequisitionTeeApp(
+    ResultsFulfillerTestApp(
       parser = WorkItem.parser(),
-      subscriptionId = "some-subscription",
+      subscriptionId = SUBSCRIPTION_ID,
       workItemsClient = workItemsClient,
       workItemAttemptsClient =
         WorkItemAttemptsCoroutineStub(secureComputationPublicApi.publicApiChannel),
