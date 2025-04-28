@@ -17,12 +17,10 @@
 package org.wfanet.measurement.integration.common
 
 import com.google.protobuf.Any
-import com.google.protobuf.ByteString
 import com.google.protobuf.Int32Value
 import com.google.protobuf.timestamp
 import com.google.type.interval
 import io.grpc.Channel
-import java.security.cert.X509Certificate
 import java.time.Clock
 import java.time.Duration
 import java.util.Timer
@@ -42,9 +40,6 @@ import org.junit.runners.model.Statement
 import org.wfanet.measurement.api.v2alpha.EventGroup as ExternalEventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
-import org.wfanet.measurement.common.IdGenerator
-import org.wfanet.measurement.common.crypto.subjectKeyIdentifier
-import org.wfanet.measurement.common.crypto.tink.TinkPrivateKeyHandle
 import org.wfanet.measurement.common.identity.withPrincipalName
 import org.wfanet.measurement.common.testing.ProviderRule
 import org.wfanet.measurement.common.testing.chainRulesSequentially
@@ -56,7 +51,6 @@ import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionFetche
 import org.wfanet.measurement.gcloud.pubsub.Subscriber
 import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorClient
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
-import org.wfanet.measurement.loadtest.resourcesetup.EntityContent
 import org.wfanet.measurement.loadtest.resourcesetup.Resources
 import org.wfanet.measurement.loadtest.resourcesetup.Resources.Resource
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
@@ -64,18 +58,9 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAtt
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
 import org.wfanet.measurement.securecomputation.datawatcher.DataWatcher
 import org.wfanet.measurement.securecomputation.datawatcher.testing.DataWatcherSubscribingStorageClient
-import org.wfanet.measurement.securecomputation.service.internal.Services
+import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.InternalApiServices
 import org.wfanet.measurement.securecomputation.teesdk.testing.FakeFulfillingRequisitionTeeApp
 import org.wfanet.measurement.storage.StorageClient
-import org.wfanet.measurement.securecomputation.controlplane.v1alpha.createWorkItemRequest
-import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
-import org.wfanet.measurement.securecomputation.service.internal.QueueMapping
-import org.wfanet.measurement.securecomputation.service.internal.WorkItemPublisher
-import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
-import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItemsGrpcKt as InternalWorkItemsGrpcKt
-import org.wfanet.measurement.internal.securecomputation.controlplane.createWorkItemRequest as internalCreateWorkItemRequest
-import org.wfanet.measurement.internal.securecomputation.controlplane.workItem as internalWorkItem
-import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.InternalApiServices
 
 class InProcessEdpAggregatorComponents(
   private val internalServicesRule: ProviderRule<InternalApiServices>,
@@ -91,10 +76,9 @@ class InProcessEdpAggregatorComponents(
 
   private lateinit var publicApiChannel: Channel
 
-  private val secureComputationPublicApi =
-    InProcessSecureComputationPublicApi(
-      internalServicesProvider = { internalServices },
-      )
+  private val secureComputationPublicApi by lazy {
+    InProcessSecureComputationPublicApi(internalServicesProvider = { internalServices })
+  }
 
   private val workItemsClient: WorkItemsCoroutineStub by lazy {
     WorkItemsCoroutineStub(secureComputationPublicApi.publicApiChannel)
@@ -231,8 +215,6 @@ class InProcessEdpAggregatorComponents(
       pubSubClient.deleteTopic(PROJECT_ID, TOPIC_ID)
       pubSubClient.deleteSubscription(PROJECT_ID, SUBSCRIPTION_ID)
     }
-    // requisitionFetcherTimer.cancel()
-    // eventGroupSyncTimer.cancel()
   }
 
   override fun apply(statement: Statement, description: Description): Statement {

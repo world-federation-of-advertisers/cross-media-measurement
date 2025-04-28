@@ -64,15 +64,9 @@ class WorkItemsService(private val internalWorkItemsStub: InternalWorkItemsCorou
 
     val internalResponse: InternalWorkItem =
       try {
-        logger.info("zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz")
-        logger.info(internalWorkItem {
-          queueResourceId = request.workItem.queue
-          workItemResourceId = request.workItemId
-          workItemParams = request.workItem.workItemParams
-        }.toString())
         internalWorkItemsStub.createWorkItem(
           internalCreateWorkItemRequest {
-            internalWorkItem {
+            this.workItem = internalWorkItem {
               queueResourceId = request.workItem.queue
               workItemResourceId = request.workItemId
               workItemParams = request.workItem.workItemParams

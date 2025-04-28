@@ -48,11 +48,13 @@ class InProcessSecureComputationPublicApi(
       logAllRequests = verboseGrpcLogging,
       defaultServiceConfig = DEFAULT_SERVICE_CONFIG_MAP,
     ) {
+      logger.info("77777777777777777777777777777777777777777777777777777777777")
       logger.info("Building Control Plane's internal API services")
       internalServices.build().toList().forEach {
         logger.info("Adding service $it")
         addService(it)
       }
+
     }
   // TODO: figure out why calling directly works
   // TODO: Delete later
