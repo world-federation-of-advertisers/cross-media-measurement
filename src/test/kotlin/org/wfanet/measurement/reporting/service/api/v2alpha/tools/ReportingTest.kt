@@ -69,10 +69,12 @@ import org.wfanet.measurement.reporting.v2alpha.CreateReportingSetRequest
 import org.wfanet.measurement.reporting.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineImplBase
 import org.wfanet.measurement.reporting.v2alpha.ListEventGroupsResponse
 import org.wfanet.measurement.reporting.v2alpha.ListReportingSetsResponse
+import org.wfanet.measurement.reporting.v2alpha.Metric
 import org.wfanet.measurement.reporting.v2alpha.MetricCalculationSpec
 import org.wfanet.measurement.reporting.v2alpha.MetricCalculationSpecKt
 import org.wfanet.measurement.reporting.v2alpha.MetricCalculationSpecsGrpcKt.MetricCalculationSpecsCoroutineImplBase
 import org.wfanet.measurement.reporting.v2alpha.MetricSpec
+import org.wfanet.measurement.reporting.v2alpha.MetricsGrpcKt.MetricsCoroutineImplBase
 import org.wfanet.measurement.reporting.v2alpha.Report
 import org.wfanet.measurement.reporting.v2alpha.ReportKt
 import org.wfanet.measurement.reporting.v2alpha.ReportingSet
@@ -85,6 +87,7 @@ import org.wfanet.measurement.reporting.v2alpha.createReportingSetRequest
 import org.wfanet.measurement.reporting.v2alpha.eventGroup
 import org.wfanet.measurement.reporting.v2alpha.getMetricCalculationSpecRequest
 import org.wfanet.measurement.reporting.v2alpha.getReportRequest
+import org.wfanet.measurement.reporting.v2alpha.invalidateMetricRequest
 import org.wfanet.measurement.reporting.v2alpha.listEventGroupsRequest
 import org.wfanet.measurement.reporting.v2alpha.listEventGroupsResponse
 import org.wfanet.measurement.reporting.v2alpha.listMetricCalculationSpecsRequest
@@ -93,6 +96,7 @@ import org.wfanet.measurement.reporting.v2alpha.listReportingSetsRequest
 import org.wfanet.measurement.reporting.v2alpha.listReportingSetsResponse
 import org.wfanet.measurement.reporting.v2alpha.listReportsRequest
 import org.wfanet.measurement.reporting.v2alpha.listReportsResponse
+import org.wfanet.measurement.reporting.v2alpha.metric
 import org.wfanet.measurement.reporting.v2alpha.metricCalculationSpec
 import org.wfanet.measurement.reporting.v2alpha.report
 import org.wfanet.measurement.reporting.v2alpha.reportingSet
@@ -139,6 +143,9 @@ class ReportingTest {
           }
         )
     }
+  private val metricsServiceMock: MetricsCoroutineImplBase = mockService {
+    onBlocking { invalidateMetric(any()) }.thenReturn(METRIC)
+  }
 
   private val serverCerts =
     SigningCerts.fromPemFiles(
@@ -151,6 +158,7 @@ class ReportingTest {
     listOf(
       reportingSetsServiceMock.bindService(),
       reportsServiceMock.bindService(),
+      metricsServiceMock.bindService(),
       metricCalculationSpecsServiceMock.bindService(),
       eventGroupsServiceMock.bindService(),
       dataProvidersServiceMock.bindService(),
@@ -1415,6 +1423,42 @@ class ReportingTest {
       )
   }
 
+  @Test
+  fun `invalidate metric returns a Metric`() {
+    val args =
+      arrayOf(
+        "--tls-cert-file=$SECRETS_DIR/mc_tls.pem",
+        "--tls-key-file=$SECRETS_DIR/mc_tls.key",
+        "--cert-collection-file=$SECRETS_DIR/reporting_root.pem",
+        "--reporting-server-api-target=$HOST:${server.port}",
+        "metrics",
+        "invalidate",
+        METRIC_NAME,
+      )
+    val output = callCli(args)
+
+    verifyProtoArgument(metricsServiceMock, MetricsCoroutineImplBase::invalidateMetric)
+      .isEqualTo(invalidateMetricRequest { name = METRIC_NAME })
+
+    assertThat(parseTextProto(output.out.reader(), Metric.getDefaultInstance())).isEqualTo(METRIC)
+  }
+
+  @Test
+  fun `invalidate metric without metric name fails`() {
+    val args =
+      arrayOf(
+        "--tls-cert-file=$SECRETS_DIR/mc_tls.pem",
+        "--tls-key-file=$SECRETS_DIR/mc_tls.key",
+        "--cert-collection-file=$SECRETS_DIR/reporting_root.pem",
+        "--reporting-server-api-target=$HOST:${server.port}",
+        "metrics",
+        "invalidate",
+      )
+
+    val capturedOutput = callCli(args)
+    assertThat(capturedOutput).status().isEqualTo(2)
+  }
+
   companion object {
     init {
       System.setSecurityManager(ExitInterceptingSecurityManager)
@@ -1458,6 +1502,13 @@ class ReportingTest {
     private const val REPORT_ID = "abc"
     private const val REPORT_NAME = "$MEASUREMENT_CONSUMER_NAME/reports/$REPORT_ID"
     private val REPORT = report { name = REPORT_NAME }
+
+    private const val METRIC_ID = "views"
+    private const val METRIC_NAME = "$MEASUREMENT_CONSUMER_NAME/metrics/$METRIC_ID"
+    private val METRIC = metric {
+      name = METRIC_NAME
+      state = Metric.State.INVALID
+    }
 
     private const val METRIC_CALCULATION_SPEC_ID = "b123"
     private const val METRIC_CALCULATION_SPEC_NAME =

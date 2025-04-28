@@ -16,6 +16,9 @@
 
 package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.fold
+
 /** Utilities for computing Measurement results. */
 object MeasurementResults {
   data class ReachAndFrequency(val reach: Int, val relativeFrequencyDistribution: Map<Int, Double>)
@@ -24,8 +27,13 @@ object MeasurementResults {
    * Computes reach and frequency using the "deterministic count distinct" methodology and the
    * "deterministic distribution" methodology.
    */
-  fun computeReachAndFrequency(filteredVids: Iterable<Long>, maxFrequency: Int): ReachAndFrequency {
-    val eventsPerVid: Map<Long, Int> = filteredVids.groupingBy { it }.eachCount()
+  suspend fun computeReachAndFrequency(filteredVids: Flow<Long>, maxFrequency: Int): ReachAndFrequency {
+    // Count occurrences of each VID using fold operation on the flow
+    val eventsPerVid = filteredVids.fold(mutableMapOf<Long, Int>()) { acc, vid ->
+      acc[vid] = acc.getOrDefault(vid, 0) + 1
+      acc
+    }
+
     val reach: Int = eventsPerVid.keys.size
 
     // If the filtered VIDs is empty, set the distribution with all 0s up to maxFrequency.
@@ -46,7 +54,14 @@ object MeasurementResults {
   }
 
   /** Computes reach using the "deterministic count distinct" methodology. */
-  fun computeReach(filteredVids: Iterable<Long>): Int {
-    return filteredVids.distinct().size
+  suspend fun computeReach(filteredVids: Flow<Long>): Int {
+    // Use a mutable set to track distinct VIDs as they flow through
+    val distinctVids = mutableSetOf<Long>()
+
+    filteredVids.collect { vid ->
+      distinctVids.add(vid)
+    }
+
+    return distinctVids.size
   }
 }

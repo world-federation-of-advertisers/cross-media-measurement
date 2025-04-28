@@ -26,13 +26,13 @@ import com.google.crypto.tink.streamingaead.StreamingAeadConfig
 import com.google.protobuf.ByteString
 import com.google.protobuf.Timestamp
 import com.google.protobuf.TypeRegistry
-import com.google.protobuf.kotlin.toByteStringUtf8
 import com.google.type.interval
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
 import java.time.LocalDate
 import kotlin.random.Random
+import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.runBlocking
 import org.junit.Rule
@@ -119,7 +119,7 @@ class ResultsFulfillerTest {
     // Add requisitions to storage
     requisitionsStorageClient.writeBlob(
       REQUISITIONS_BLOB_KEY,
-      REQUISITION.toString().toByteStringUtf8()
+      REQUISITION.toByteString()
     )
 
     // Create impressions storage client
@@ -182,7 +182,7 @@ class ResultsFulfillerTest {
 
     impressionsMetadataStorageClient.writeBlob(
       IMPRESSION_METADATA_BLOB_KEY,
-      blobDetails.toString().toByteStringUtf8()
+      blobDetails.toByteString()
     )
 
     val typeRegistry = TypeRegistry.newBuilder().add(TestEvent.getDescriptor()).build()
@@ -237,7 +237,9 @@ class ResultsFulfillerTest {
     measurementSpec: MeasurementSpec,
   ): Long {
     val sampledVids = sampleVids(impressionsList.map { it.vid }, measurementSpec)
-    val sampledReach = MeasurementResults.computeReach(sampledVids)
+    val sampledReach = runBlocking {
+      MeasurementResults.computeReach(sampledVids.asFlow())
+    }
     return (sampledReach / measurementSpec.vidSamplingInterval.width).toLong()
   }
 
@@ -246,11 +248,12 @@ class ResultsFulfillerTest {
     measurementSpec: MeasurementSpec,
   ): Map<Long, Double> {
     val sampledVids = sampleVids(impressionsList.map { it.vid }, measurementSpec)
-    val (_, frequencyMap) =
-      MeasurementResults.computeReachAndFrequency(
-        sampledVids,
-        measurementSpec.reachAndFrequency.maximumFrequency,
-      )
+    val (_, frequencyMap) = runBlocking {
+        MeasurementResults.computeReachAndFrequency(
+          sampledVids.asFlow(),
+          measurementSpec.reachAndFrequency.maximumFrequency,
+        )
+    }
     return frequencyMap.mapKeys { it.key.toLong() }
   }
 

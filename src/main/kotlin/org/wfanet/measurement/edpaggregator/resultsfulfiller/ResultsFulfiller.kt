@@ -21,7 +21,6 @@ import com.google.common.hash.Hashing
 import com.google.crypto.tink.KmsClient
 import com.google.protobuf.Descriptors.Descriptor
 import com.google.protobuf.DynamicMessage
-import com.google.protobuf.TextFormat
 import com.google.protobuf.TypeRegistry
 import com.google.protobuf.kotlin.unpack
 import com.google.type.Interval
@@ -34,8 +33,11 @@ import kotlin.math.max
 import kotlin.math.roundToInt
 import kotlin.random.Random
 import kotlin.random.asJavaRandom
-import kotlinx.coroutines.flow.reduce
-import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.asFlow
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.flatMapConcat
+import kotlinx.coroutines.flow.map
 import org.apache.commons.math3.distribution.ConstantRealDistribution
 import org.projectnessie.cel.Program
 import org.projectnessie.cel.common.types.BoolT
@@ -59,6 +61,7 @@ import org.wfanet.measurement.api.v2alpha.unpack
 import org.wfanet.measurement.common.crypto.PrivateKeyHandle
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.tink.withEnvelopeEncryption
+import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.consent.client.dataprovider.decryptRequisitionSpec
 import org.wfanet.measurement.consent.client.dataprovider.encryptResult
@@ -98,7 +101,7 @@ class ResultsFulfiller(
 ) {
   suspend fun fulfillRequisitions() {
     val requisitions = getRequisitions()
-    for (requisition in requisitions) {
+    requisitions.collect { requisition ->
       val signedRequisitionSpec: SignedMessage =
         try {
           decryptRequisitionSpec(
@@ -136,9 +139,9 @@ class ResultsFulfiller(
             requisitionSpec.nonce,
           )
         } else if (measurementSpec.hasDuration()) {
-          // TODO
+          TODO("Not yet implemented")
         } else if (measurementSpec.hasImpression()) {
-          // TODO
+          TODO("Not yet implemented")
         } else {
           throw RequisitionRefusalException(
             Requisition.Refusal.Justification.SPEC_INVALID,
@@ -146,11 +149,11 @@ class ResultsFulfiller(
           )
         }
       } else if (protocols.any { it.hasLiquidLegionsV2() }) {
-        // TODO
+        TODO("Not yet implemented")
       } else if (protocols.any { it.hasReachOnlyLiquidLegionsV2() }) {
-        // TODO
+        TODO("Not yet implemented")
       } else if (protocols.any { it.hasHonestMajorityShareShuffle() }) {
-        // TODO
+        TODO("Not yet implemented")
       } else {
         throw Exception("Protocol not supported")
       }
@@ -175,7 +178,7 @@ class ResultsFulfiller(
   private suspend fun fulfillDirectReachAndFrequencyMeasurement(
     requisition: Requisition,
     measurementSpec: MeasurementSpec,
-    sampledVids: List<Long>,
+    sampledVids: Flow<Long>,
     directProtocolConfig: ProtocolConfig.Direct,
     directNoiseMechanism: DirectNoiseMechanism,
     nonce: Long,
@@ -237,11 +240,11 @@ class ResultsFulfiller(
    * @param samples sampled events.
    * @return [Measurement.Result].
    */
-  private fun buildDirectMeasurementResult(
+  private suspend fun buildDirectMeasurementResult(
     directProtocolConfig: ProtocolConfig.Direct,
     directNoiseMechanism: DirectNoiseMechanism,
     measurementSpec: MeasurementSpec,
-    samples: Iterable<Long>,
+    samples: Flow<Long>,
   ): Measurement.Result {
     val protocolConfigNoiseMechanism = when (directNoiseMechanism) {
       DirectNoiseMechanism.NONE -> {
@@ -311,25 +314,25 @@ class ResultsFulfiller(
 
       MeasurementSpec.MeasurementTypeCase.IMPRESSION -> {
         MeasurementKt.result {
-          // TODO
+          TODO("Not yet implemented")
         }
       }
 
       MeasurementSpec.MeasurementTypeCase.DURATION -> {
         MeasurementKt.result {
-          // TODO
+          TODO("Not yet implemented")
         }
       }
 
       MeasurementSpec.MeasurementTypeCase.POPULATION -> {
         MeasurementKt.result {
-          // TODO
+          TODO("Not yet implemented")
         }
       }
 
       MeasurementSpec.MeasurementTypeCase.REACH -> {
         MeasurementKt.result {
-          // TODO
+          TODO("Not yet implemented")
         }
       }
 
@@ -469,27 +472,18 @@ class ResultsFulfiller(
    * 3. Reads and concatenates all data from the blob
    * 4. Parses the UTF-8 encoded string data into a Requisition object using TextFormat
    *
-   * @return A list containing the single requisition retrieved from blob storage
+   * @return A Flow containing the single requisition retrieved from blob storage
    * @throws NullPointerException If the requisition blob cannot be found at the specified URI
    */
-  private suspend fun getRequisitions(): List<Requisition> {
+  private suspend fun getRequisitions(): Flow<Requisition> {
     // Create storage client based on blob URI
     val storageClientUri = SelectedStorageClient.parseBlobUri(requisitionsBlobUri)
     val requisitionsStorageClient = createStorageClient(storageClientUri, requisitionsStorageConfig)
-    val requisitionBlob = requireNotNull(requisitionsStorageClient.getBlob(storageClientUri.key)) {
-      "No requisitions for blob key '${storageClientUri.key}'"
-    }
-    val requisitionData = requisitionBlob.read().reduce { acc, byteString -> acc.concat(byteString) }.toStringUtf8()
-    val requisition = Requisition.getDefaultInstance()
-      .newBuilderForType()
-      .apply {
-        TextFormat.Parser.newBuilder()
-          .build()
-          .merge(requisitionData, this)
-      }
-      .build() as Requisition
 
-    return listOf(requisition)
+    // TODO(@jojijac0b): Refactor once grouped requisitions are supported
+    val requisition = Requisition.parseFrom(requisitionsStorageClient.getBlob(storageClientUri.key)!!.read().flatten())
+
+    return listOf(requisition).asFlow()
   }
 
   /**
@@ -503,7 +497,7 @@ class ResultsFulfiller(
    * @param vidSamplingInterval The interval parameters defining which VIDs to sample:
    *                            - start: The starting point of the sampling interval (must be between 0 and 1)
    *                            - width: The width of the sampling interval (must be between 0 and 1)
-   * @return A list of VIDs that fall within the specified sampling interval
+   * @return A Flow of VIDs that fall within the specified sampling interval
    * @throws IllegalArgumentException If the sampling interval parameters are invalid:
    *                                  - Width must be greater than 0 and less than or equal to 1
    *                                  - Start must be between 0 (inclusive) and 1 (exclusive)
@@ -512,7 +506,7 @@ class ResultsFulfiller(
   private suspend fun getSampledVids(
     requisitionSpec: RequisitionSpec,
     vidSamplingInterval: MeasurementSpec.VidSamplingInterval,
-  ): List<Long> {
+  ): Flow<Long> {
     val vidSamplingIntervalStart = vidSamplingInterval.start
     val vidSamplingIntervalWidth = vidSamplingInterval.width
     require(vidSamplingIntervalWidth > 0 && vidSamplingIntervalWidth <= 1.0) {
@@ -528,18 +522,19 @@ class ResultsFulfiller(
         "$vidSamplingIntervalWidth"
     }
 
-    return requisitionSpec.events.eventGroupsList.map { eventGroup ->
-      val collectionInterval = eventGroup.value.collectionInterval
-      val blobDetails = getBlobDetails(collectionInterval, eventGroup.key)
+    // Return a Flow that processes event groups and extracts valid VIDs
+    return requisitionSpec.events.eventGroupsList
+      .asFlow()
+      .flatMapConcat { eventGroup ->
+        val collectionInterval = eventGroup.value.collectionInterval
+        val blobDetails = getBlobDetails(collectionInterval, eventGroup.key)
 
-      val labeledImpressions = getLabeledImpressions(blobDetails)
-
-      labeledImpressions.filter { labeledImpression ->
-        isValidImpression(labeledImpression, collectionInterval, eventGroup, vidSamplingIntervalStart, vidSamplingIntervalWidth)
-      }.map { labeledImpression ->
-        labeledImpression.vid
+        getLabeledImpressions(blobDetails)
+          .filter { labeledImpression ->
+            isValidImpression(labeledImpression, collectionInterval, eventGroup, vidSamplingIntervalStart, vidSamplingIntervalWidth)
+          }
+          .map { labeledImpression -> labeledImpression.vid }
       }
-    }.flatten()
   }
 
   /**
@@ -550,12 +545,12 @@ class ResultsFulfiller(
    * LabeledImpression protocol buffer messages.
    *
    * @param blobDetails The [BlobDetails] that contain the blob uri and encrypted dek
-   * @return List of parsed LabeledImpression objects
+   * @return Flow of parsed LabeledImpression objects
    * @throws IllegalStateException if impression data cannot be read or parsed
    */
   private suspend fun getLabeledImpressions(
     blobDetails: BlobDetails,
-  ): List<LabeledImpression> {
+  ): Flow<LabeledImpression> {
     // Get blob URI from encrypted DEK
     val storageClientUri = SelectedStorageClient.parseBlobUri(blobDetails.blobUri)
 
@@ -574,9 +569,7 @@ class ResultsFulfiller(
       ?: throw IllegalStateException("Could not retrieve impression blob from ${storageClientUri.key}")
 
     // Parse raw data into LabeledImpression objects
-    val readResult = impressionBlob.read()
-    val impressionRecords = readResult.toList()
-    return impressionRecords.map { impressionByteString ->
+    return impressionBlob.read().map { impressionByteString ->
       LabeledImpression.parseFrom(impressionByteString)
         ?: throw IllegalStateException("Failed to parse LabeledImpression from bytes")
     }
@@ -632,13 +625,7 @@ class ResultsFulfiller(
     val metadataStorageClientUri = SelectedStorageClient.parseBlobUri(metadataBlobUri)
     val impressionsMetadataStorageClient = createStorageClient(metadataStorageClientUri, impressionMetadataStorageConfig)
     // Get EncryptedDek message from storage using the blobKey made up of the ds and eventGroupId
-    val blobDetailsBlob = impressionsMetadataStorageClient.getBlob(metadataBlobKey)!! // SELECTED STORAGE CLIENT
-    val blobDetailsData =
-      blobDetailsBlob.read().reduce { acc, byteString -> acc.concat(byteString) }.toStringUtf8()
-    return BlobDetails.getDefaultInstance()
-      .newBuilderForType()
-      .apply { TextFormat.Parser.newBuilder().build().merge(blobDetailsData, this) }
-      .build() as BlobDetails
+    return BlobDetails.parseFrom(impressionsMetadataStorageClient.getBlob(metadataBlobKey)!!.read().flatten())
   }
   /**
    * Creates a storage client for accessing blob data.

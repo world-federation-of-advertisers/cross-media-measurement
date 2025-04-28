@@ -16,27 +16,23 @@
 
 package org.wfanet.measurement.gcloud.testing
 
-import java.io.BufferedReader
+import java.io.IOException
 import java.net.ServerSocket
 import java.nio.file.Files
 import java.nio.file.Path
 import java.util.concurrent.TimeUnit
-import java.util.logging.Level
 import java.util.logging.Logger
 import kotlin.coroutines.CoroutineContext
 import kotlin.properties.Delegates
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.TimeSource
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.TimeoutCancellationException
-import kotlinx.coroutines.async
-import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.yield
 import org.jetbrains.annotations.BlockingExecutor
 import org.wfanet.measurement.common.getRuntimePath
@@ -111,8 +107,8 @@ class FunctionsFrameworkInvokerProcess(
               "--target",
               classTarget,
             )
-            .redirectErrorStream(true)
             .redirectOutput(ProcessBuilder.Redirect.PIPE)
+            .redirectErrorStream(true)
 
         // Set environment variables
         processBuilder.environment().putAll(env)
@@ -121,19 +117,19 @@ class FunctionsFrameworkInvokerProcess(
         reader = process.inputStream.bufferedReader()
         val readyPattern = "Serving function..."
         var isReady = false
-
-        try {
-          while (!isReady) {
-            val line = (reader as BufferedReader).readLine() ?: break
-            logger.info("Process output: $line")
-            // Check if the ready message is in the output
-            if (line.contains(readyPattern)) {
-              isReady = true
+        CoroutineScope(Dispatchers.IO).launch {
+          process.inputStream.bufferedReader().use { reader ->
+            var line: String?
+            try {
+              while (reader.readLine().also { line = it } != null) {
+                if (line != null && line!!.contains(readyPattern)) {
+                  isReady = true
+                }
+                logger.info(line)
+              }
+            } catch (e: IOException) {
+              logger.info(e.message)
             }
-          }
-        } catch (e: Exception) {
-          if (process.isAlive) {
-            logger.log(Level.WARNING, "Error reading process output: ${e.message}")
           }
         }
 
@@ -154,26 +150,6 @@ class FunctionsFrameworkInvokerProcess(
 
   /** Closes the process if it has been started. */
   override fun close() {
-    // Print all the logs
-    runBlocking {
-      val channel = Channel<String>()
-      val job = async {
-        var line: String? = (reader as BufferedReader).readLine()
-        while (!line.isNullOrEmpty()) {
-          channel.send(line)
-          line = (reader as BufferedReader).readLine()
-        }
-        channel.close()
-      }
-      try {
-        withTimeout(1000L) { job.await() }
-      } catch (e: TimeoutCancellationException) {
-        // Handle timeout
-        job.cancel()
-        channel.close()
-        (reader as BufferedReader).close() // Close the underlying reader
-      }
-    }
     if (started) {
       process.destroy()
       try {
