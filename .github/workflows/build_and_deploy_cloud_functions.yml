@@ -124,4 +124,4 @@ jobs:
           --allow-unauthenticated
           --source="$RUNNER_TEMP/requisition_fetcher_source"
           --run-service-account=$REQUISITION_FETCHER_SERVICE_ACCOUNT
-          --set-env-vars="KINGDOM_TARGET=$KINGDOM_PUBLIC_API_TARGET,KINGDOM_CERT_HOST=requisition-fetcher.kingdom.dev.halo-cmm.org,REQUISITIONS_GCS_PROJECT_ID=$REQUISITIONS_GCS_PROJECT_ID,REQUISITIONS_GCS_BUCKET=$STORAGE_BUCKET,DATA_PROVIDER_NAME=dataProviders/foo1,STORAGE_PATH_PREFIX=requisitions,CERT_JAR_RESOURCE_PATH=src/main/k8s/testing/secretfiles/edp1_tls.pem,PRIVATE_KEY_JAR_RESOURCE_PATH=src/main/k8s/testing/secretfiles/edp1_tls.key,CERT_COLLECTION_JAR_RESOURCE_PATH=src/main/k8s/testing/secretfiles/kingdom_root.pem"
+          --set-env-vars="KINGDOM_TARGET=$KINGDOM_PUBLIC_API_TARGET,KINGDOM_CERT_HOST=requisition-fetcher.kingdom.dev.halo-cmm.org"
