@@ -45,11 +45,12 @@ resource "google_pubsub_topic_iam_member" "publisher" {
 }
 
 resource "google_kms_key_ring" "edp_aggregator_key_ring" {
+
   name     = var.key_ring_name
   location = var.key_ring_location
 
   lifecycle {
-    prevent_destroy = true
+    prevent_destroy = false
   }
 }
 
