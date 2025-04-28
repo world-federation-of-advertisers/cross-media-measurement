@@ -109,7 +109,7 @@ jobs:
           GCLOUD_REGION: ${{ vars.GCLOUD_REGION }}
           KINGDOM_PUBLIC_API_TARGET: ${{ vars.KINGDOM_PUBLIC_API_TARGET }}
           STORAGE_BUCKET: ${{ vars.DATA_WATCHER_TRIGGER_BUCKET }}
-          REQUISITION_FETCHER_SERVICE_ACCOUNT: ${{ vars.REQUISITION_FETCHER_SERVICE_ACCOUNT }}
+          EVENT_GROUP_SYNC_SERVICE_ACCOUNT: ${{ vars.EVENT_GROUP_SYNC_SERVICE_ACCOUNT }}
         run: >
           gcloud functions deploy event-group-sync
           --gen2
@@ -121,4 +121,3 @@ jobs:
           --allow-unauthenticated
           --source="$RUNNER_TEMP/event_group_sync_source"
           --run-service-account=$EVENT_GROUP_SYNC_SERVICE_ACCOUNT
-          --set-env-vars="FILE_STORAGE_ROOT="
