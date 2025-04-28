@@ -89,3 +89,9 @@ variable "data_watcher_trigger_service_account_name" {
   type        = string
   nullable    = false
 }
+
+variable "requisition_fetcher_service_account_name" {
+  description = "Name of the RequisitionFetcher service account."
+  type        = string
+  nullable    = false
+}
