@@ -50,5 +50,5 @@ module "edp_aggregator" {
   data_watcher_service_account_name         = "data-watcher"
   data_watcher_trigger_service_account_name = "data-watcher-trigger"
   terraform_service_account                 = var.terraform_service_account
+  requisition_fetcher_service_account_name  = "requisition-fetcher"
 }
-

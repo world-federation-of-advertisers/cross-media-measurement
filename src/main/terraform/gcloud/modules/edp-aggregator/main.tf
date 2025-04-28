@@ -28,6 +28,13 @@ module "data_watcher_function_service_accounts" {
   terraform_service_account                 = var.terraform_service_account
 }
 
+module "requisition_fetcher_function_service_account" {
+  source    = "../http-cloud-function"
+
+  http_cloud_function_service_account_name  = var.requisition_fetcher_service_account_name
+  bucket_name                               = module.edp_aggregator_bucket.storage_bucket.name
+}
+
 module "edp_aggregator_queues" {
   for_each = var.queue_worker_configs
   source   = "../pubsub"
