@@ -91,7 +91,7 @@ variable "postgres_password" {
 }
 
 variable "secure_computation_storage_bucket_name" {
-  description = "Name of Google Cloud Storage bucket."
+  description = "Name of Google Cloud Storage bucket for Secure Computation."
   type        = string
   nullable    = false
 }
