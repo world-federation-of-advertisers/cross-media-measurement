@@ -93,7 +93,7 @@ jobs:
           DATA_WATCHER_SERVICE_ACCOUNT: ${{ vars.DATA_WATCHER_SERVICE_ACCOUNT }}
           DATA_WATCHER_TRIGGER_SERVICE_ACCOUNT: ${{ vars.DATA_WATCHER_TRIGGER_SERVICE_ACCOUNT }}
         run: >
-          gcloud functions deploy TestDeploy
+          gcloud functions deploy data-watcher
           --gen2
           --runtime=java17
           --entry-point=org.wfanet.measurement.securecomputation.deploy.gcloud.datawatcher.DataWatcherFunction

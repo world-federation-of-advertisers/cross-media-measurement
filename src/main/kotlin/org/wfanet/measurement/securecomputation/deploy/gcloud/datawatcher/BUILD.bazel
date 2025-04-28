@@ -9,6 +9,9 @@ package(default_visibility = [
 kt_jvm_library(
     name = "data_watcher_function",
     srcs = ["DataWatcherFunction.kt"],
+    resources = [
+        "//src/main/resources/securecomputation/datawatcher:config",
+    ],
     deps = [
         "//imports/java/com/google/cloud/functions/invoker:java_function_invoker",
         "//src/main/kotlin/org/wfanet/measurement/securecomputation/controlplane/v1alpha:work_items_service",
