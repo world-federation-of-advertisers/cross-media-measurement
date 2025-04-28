@@ -2,5 +2,5 @@
 # proto-message: wfa.measurement.config.securecomputation.QueuesConfig
 
 queueInfos {
-  queue_resource_id: "some-topic-id"
+  queue_resource_id: "requisition-fulfiller-queue"
 }

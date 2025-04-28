@@ -24,15 +24,15 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.v2alpha.EventGroup as CmmsEventGroup
-import org.wfanet.measurement.api.v2alpha.EventGroupMetadataKt.AdMetadataKt.campaignMetadata as externalCampaignMetadata
-import org.wfanet.measurement.api.v2alpha.EventGroupMetadataKt.adMetadata as externalAdMetadata
+import org.wfanet.measurement.api.v2alpha.EventGroupMetadataKt as CmmsEventGroupMetadataKt
+import org.wfanet.measurement.api.v2alpha.EventGroupMetadataKt.AdMetadataKt as CmmsAdMetadataKt
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MediaType as ExternalMediaType
 import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.createEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.eventGroup as externalEventGroup
-import org.wfanet.measurement.api.v2alpha.eventGroupMetadata as externalEventGroupMetadata
 import kotlinx.coroutines.flow.forEach
+import org.wfanet.measurement.api.v2alpha.eventGroupMetadata as cmmsEventGroupMetadata
 import org.wfanet.measurement.api.v2alpha.listEventGroupsRequest
 import org.wfanet.measurement.api.v2alpha.updateEventGroupRequest
 import org.wfanet.measurement.common.api.grpc.ResourceList
@@ -60,18 +60,18 @@ class EventGroupSync(
     val syncedEventGroups: Map<String, CmmsEventGroup> =
       fetchEventGroups().toList().associateBy { it.eventGroupReferenceId }
     eventGroups.collect { eventGroup: EventGroup ->
-      val syncedEventGroup =
+      val syncedEventGroup: CmmsEventGroup =
         if (eventGroup.eventGroupReferenceId in syncedEventGroups) {
           val existingEventGroup: CmmsEventGroup =
             syncedEventGroups.getValue(eventGroup.eventGroupReferenceId)
-          val updatedEventGroup = updateEventGroup(existingEventGroup, eventGroup)
+          val updatedEventGroup: CmmsEventGroup = updateEventGroup(existingEventGroup, eventGroup)
           if (updatedEventGroup != existingEventGroup) {
-            updateKingdomEventGroup(existingEventGroup, eventGroup)
+            updateCmmsEventGroup(updatedEventGroup)
           } else {
             existingEventGroup
           }
         } else {
-          createKingdomEventGroup(edpName, eventGroup)
+          createCmmsEventGroup(edpName, eventGroup)
         }
       println("*******MAPPED***********************\n")
       print(mappedEventGroup {
@@ -89,32 +89,19 @@ class EventGroupSync(
     }
   }
 
-  private suspend fun updateKingdomEventGroup(
-    existingEventGroup: CmmsEventGroup,
-    eventGroup: EventGroup,
-  ): CmmsEventGroup {
-    val request = updateEventGroupRequest {
-      this.eventGroup =
-        existingEventGroup.copy {
-          measurementConsumer = eventGroup.measurementConsumer
-          eventGroupReferenceId = eventGroup.eventGroupReferenceId
-          this.eventGroupMetadata = externalEventGroupMetadata {
-            this.adMetadata = externalAdMetadata {
-              this.campaignMetadata = externalCampaignMetadata {
-                brandName = eventGroup.eventGroupMetadata.adMetadata.campaignMetadata.brand
-                campaignName = eventGroup.eventGroupMetadata.adMetadata.campaignMetadata.campaign
-              }
-            }
-          }
-          mediaTypes.clear()
-          mediaTypes += eventGroup.mediaTypesList.map { ExternalMediaType.valueOf(it) }
-          dataAvailabilityInterval = eventGroup.dataAvailabilityInterval
-        }
+  /*
+   * Updates the Cmms Public API with a [CmmsEventGroup].
+   */
+  private suspend fun updateCmmsEventGroup(eventGroup: CmmsEventGroup): CmmsEventGroup {
+    return throttler.onReady {
+      eventGroupsStub.updateEventGroup(updateEventGroupRequest { this.eventGroup = eventGroup })
     }
-    return throttler.onReady { eventGroupsStub.updateEventGroup(request) }
   }
 
-  private suspend fun createKingdomEventGroup(
+  /*
+   * Calls the Cmms Public API to create a [CmmsEventGroup] from an [EventGroup].
+   */
+  private suspend fun createCmmsEventGroup(
     edpName: String,
     eventGroup: EventGroup,
   ): CmmsEventGroup {
@@ -123,13 +110,15 @@ class EventGroupSync(
       this.eventGroup = externalEventGroup {
         measurementConsumer = eventGroup.measurementConsumer
         eventGroupReferenceId = eventGroup.eventGroupReferenceId
-        this.eventGroupMetadata = externalEventGroupMetadata {
-          this.adMetadata = externalAdMetadata {
-            this.campaignMetadata = externalCampaignMetadata {
-              brandName = eventGroup.eventGroupMetadata.adMetadata.campaignMetadata.brand
-              campaignName = eventGroup.eventGroupMetadata.adMetadata.campaignMetadata.campaign
+        this.eventGroupMetadata = cmmsEventGroupMetadata {
+          this.adMetadata =
+            CmmsEventGroupMetadataKt.adMetadata {
+              this.campaignMetadata =
+                CmmsAdMetadataKt.campaignMetadata {
+                  brandName = eventGroup.eventGroupMetadata.adMetadata.campaignMetadata.brand
+                  campaignName = eventGroup.eventGroupMetadata.adMetadata.campaignMetadata.campaign
+                }
             }
-          }
         }
         mediaTypes += eventGroup.mediaTypesList.map { ExternalMediaType.valueOf(it) }
         dataAvailabilityInterval = eventGroup.dataAvailabilityInterval
@@ -139,6 +128,10 @@ class EventGroupSync(
     return throttler.onReady { eventGroupsStub.createEventGroup(request) }
   }
 
+  /*
+   * Updates an existing [CmmsEventGroup] with information from an [EventGroup].
+   * Used to determine if a CmmsEventGroup needs updating.
+   */
   private fun updateEventGroup(
     existingEventGroup: CmmsEventGroup,
     eventGroup: EventGroup,
@@ -146,13 +139,15 @@ class EventGroupSync(
     return existingEventGroup.copy {
       measurementConsumer = eventGroup.measurementConsumer
       eventGroupReferenceId = eventGroup.eventGroupReferenceId
-      this.eventGroupMetadata = externalEventGroupMetadata {
-        this.adMetadata = externalAdMetadata {
-          this.campaignMetadata = externalCampaignMetadata {
-            brandName = eventGroup.eventGroupMetadata.adMetadata.campaignMetadata.brand
-            campaignName = eventGroup.eventGroupMetadata.adMetadata.campaignMetadata.campaign
+      this.eventGroupMetadata = cmmsEventGroupMetadata {
+        this.adMetadata =
+          CmmsEventGroupMetadataKt.adMetadata {
+            this.campaignMetadata =
+              CmmsAdMetadataKt.campaignMetadata {
+                brandName = eventGroup.eventGroupMetadata.adMetadata.campaignMetadata.brand
+                campaignName = eventGroup.eventGroupMetadata.adMetadata.campaignMetadata.campaign
+              }
           }
-        }
       }
       mediaTypes.clear()
       mediaTypes += eventGroup.mediaTypesList.map { ExternalMediaType.valueOf(it) }

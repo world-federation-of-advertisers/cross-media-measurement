@@ -13,10 +13,26 @@ package(default_visibility = [
 IMPORT_PREFIX = "/src/main/proto"
 
 proto_library(
+    name = "config_proto",
+    srcs = ["config.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        "@com_google_googleapis//google/api:resource_proto",
+        "@com_google_protobuf//:timestamp_proto",
+    ],
+)
+
+kt_jvm_proto_library(
+    name = "config_kt_jvm_proto",
+    deps = [":config_proto"],
+)
+
+proto_library(
     name = "event_group_sync_config_proto",
     srcs = ["event_group_sync_config.proto"],
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
+        ":config_proto",
         "@com_google_googleapis//google/api:resource_proto",
         "@com_google_protobuf//:timestamp_proto",
     ],
@@ -32,6 +48,7 @@ proto_library(
     srcs = ["requisition_fetcher_config.proto"],
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
+        ":config_proto",
         "@com_google_googleapis//google/api:field_behavior_proto",
         "@com_google_googleapis//google/api:resource_proto",
         "@com_google_protobuf//:any_proto",

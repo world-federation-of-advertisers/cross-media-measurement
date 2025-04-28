@@ -49,9 +49,9 @@ import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup
-import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.EventGroupMetadataKt.AdMetadataKt.campaignMetadata
-import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.EventGroupMetadataKt.adMetadata
-import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.eventGroupMetadata
+import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.MetadataKt.AdMetadataKt.campaignMetadata
+import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.MetadataKt.adMetadata
+import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.metadata as eventGroupMetadata
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.eventGroup
 
 @RunWith(JUnit4::class)

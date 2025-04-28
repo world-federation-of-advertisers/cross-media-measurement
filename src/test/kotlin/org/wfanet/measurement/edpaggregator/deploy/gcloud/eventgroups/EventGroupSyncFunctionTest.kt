@@ -62,9 +62,10 @@ import org.wfanet.measurement.common.grpc.CommonServer
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.toJson
-import org.wfanet.measurement.edpaggregator.eventgroups.EventGroupSyncConfigKt.connectionDetails
-import org.wfanet.measurement.edpaggregator.eventgroups.EventGroupSyncConfigKt.fileSystemStorageDetails
-import org.wfanet.measurement.edpaggregator.eventgroups.eventGroupSyncConfig
+import org.wfanet.measurement.config.edpaggregator.StorageKt.fileSystemStorage
+import org.wfanet.measurement.config.edpaggregator.connection
+import org.wfanet.measurement.config.edpaggregator.eventGroupSyncConfig
+import org.wfanet.measurement.config.edpaggregator.storage
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.MetadataKt.AdMetadataKt.campaignMetadata
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.MetadataKt.adMetadata
@@ -227,14 +228,14 @@ class EventGroupSyncFunctionTest() {
     val config = eventGroupSyncConfig {
       dataProvider = "some-data-provider"
       eventGroupsBlobUri = "file:///some/path/campaigns-blob-uri"
-      eventGroupMapUri = "file:///some/other/path/event-groups-map-uri"
-      this.connectionDetails = connectionDetails {
+      eventGroupMapBlobUri = "file:///some/other/path/event-groups-map-uri"
+      this.cmmsConnection = connection {
         certJarResourcePath = "main/k8s/testing/secretfiles/edp1_tls.pem"
         privateKeyJarResourcePath = "main/k8s/testing/secretfiles/edp1_tls.key"
         certCollectionJarResourcePath = "main/k8s/testing/secretfiles/kingdom_root.pem"
       }
-      eventGroupFileSystemStorageDetails = fileSystemStorageDetails {}
-      eventGroupMapFileSystemStorageDetails = fileSystemStorageDetails {}
+      eventGroupStorage = storage { fileSystem = fileSystemStorage {} }
+      eventGroupMapStorage = storage { fileSystem = fileSystemStorage {} }
     }
     File("${tempFolder.root}/some/path").mkdirs()
     File("${tempFolder.root}/some/other/path").mkdirs()
