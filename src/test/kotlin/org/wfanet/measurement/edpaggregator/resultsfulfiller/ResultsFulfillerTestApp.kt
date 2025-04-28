@@ -25,12 +25,7 @@ class ResultsFulfillerTestApp(
   workItemsClient: WorkItemsGrpcKt.WorkItemsCoroutineStub,
   workItemAttemptsClient: WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineStub,
   requisitionsStub: RequisitionsGrpcKt.RequisitionsCoroutineStub,
-  dataProviderCertificateKey: DataProviderCertificateKey,
-  dataProviderSigningKeyHandle: SigningKeyHandle,
-  dataProviderPrivateEncryptionKey: TinkPrivateKeyHandle,
-  private val requisitionsRootDirectory: File,
-  private val labeledImpressionsRootDirectory: File,
-  private val labeledImpressionsMetadataRootDirectory: File,
+  private val fileSystemRootDirectory: File,
   private val kmsClient: FakeKmsClient
 ): ResultsFulfillerApp(
   subscriptionId,
@@ -39,9 +34,6 @@ class ResultsFulfillerTestApp(
   workItemsClient,
   workItemAttemptsClient,
   requisitionsStub,
-  dataProviderCertificateKey,
-  dataProviderSigningKeyHandle,
-  dataProviderPrivateEncryptionKey,
 ) {
   override fun createStorageClient(
     blobUri: String,
@@ -64,12 +56,7 @@ class ResultsFulfillerTestApp(
 
   override fun getStorageConfig(configType: StorageConfigType, storageDetails: ResultsFulfillerParams.Storage): StorageConfig {
     return StorageConfig(
-      rootDirectory = when (configType) {
-        StorageConfigType.REQUISITION -> requisitionsRootDirectory
-        StorageConfigType.IMPRESSION -> labeledImpressionsRootDirectory
-        StorageConfigType.IMPRESSION_METADATA ->
-          labeledImpressionsMetadataRootDirectory
-      }
+      rootDirectory = fileSystemRootDirectory
     )
   }
 }

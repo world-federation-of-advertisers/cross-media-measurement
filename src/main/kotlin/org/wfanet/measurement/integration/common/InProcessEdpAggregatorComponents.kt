@@ -108,8 +108,11 @@ class InProcessEdpAggregatorComponents(
       workItemAttemptsClient =
         WorkItemAttemptsCoroutineStub(secureComputationPublicApi.publicApiChannel),
       queueSubscriber = subscriber,
+      publicApi = publicApiChannel,
+      fileSystemRootDirectory = File(),
+        kmsClient = kmsClient,
     )
-  }*/
+  }
 
   val ruleChain: TestRule by lazy {
     chainRulesSequentially(internalServicesRule, secureComputationPublicApi)
