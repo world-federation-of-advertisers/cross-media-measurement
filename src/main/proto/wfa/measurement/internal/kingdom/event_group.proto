@@ -17,6 +17,7 @@ syntax = "proto3";
 package wfa.measurement.internal.kingdom;
 
 import "google/protobuf/timestamp.proto";
+import "google/type/interval.proto";
 import "wfa/measurement/internal/kingdom/event_group_details.proto";
 import "wfa/measurement/internal/kingdom/media_type.proto";
 
@@ -37,6 +38,7 @@ message EventGroup {
   google.protobuf.Timestamp update_time = 7;
 
   repeated MediaType media_types = 10;
+  google.type.Interval data_availability_interval = 11;
   EventGroupDetails details = 8;
 
   // Possible states of Event Group.

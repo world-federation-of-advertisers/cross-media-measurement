@@ -17,9 +17,12 @@ package org.wfanet.measurement.kingdom.service.internal.testing
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
+import com.google.type.interval
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import java.time.Clock
+import java.time.Instant
+import java.time.temporal.ChronoUnit
 import kotlin.random.Random
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.flow.toList
@@ -33,7 +36,9 @@ import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.RandomIdGenerator
+import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt.AccountsCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.DataProvider
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.EventGroup
 import org.wfanet.measurement.internal.kingdom.EventGroupDetailsKt.EventGroupMetadataKt.AdMetadataKt.campaignMetadata
@@ -41,6 +46,7 @@ import org.wfanet.measurement.internal.kingdom.EventGroupDetailsKt.EventGroupMet
 import org.wfanet.measurement.internal.kingdom.EventGroupDetailsKt.eventGroupMetadata
 import org.wfanet.measurement.internal.kingdom.EventGroupsGrpcKt.EventGroupsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.GetEventGroupRequest
+import org.wfanet.measurement.internal.kingdom.MeasurementConsumer
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.MediaType
 import org.wfanet.measurement.internal.kingdom.StreamEventGroupsRequestKt.filter
@@ -239,6 +245,38 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
   }
 
   @Test
+  fun `createEventGroup returns created EventGroup with data availability interval`() =
+    runBlocking {
+      val measurementConsumer: MeasurementConsumer =
+        population.createMeasurementConsumer(measurementConsumersService, accountsService)
+      val dataProvider: DataProvider = population.createDataProvider(dataProvidersService)
+      val request = createEventGroupRequest {
+        this.eventGroup = eventGroup {
+          externalDataProviderId = dataProvider.externalDataProviderId
+          externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+          providedEventGroupId = PROVIDED_EVENT_GROUP_ID
+          mediaTypes += MediaType.VIDEO
+          dataAvailabilityInterval = interval { startTime = testClock.instant().toProtoTime() }
+          details = DETAILS
+        }
+      }
+
+      val response: EventGroup = eventGroupsService.createEventGroup(request)
+
+      assertThat(response.dataAvailabilityInterval)
+        .isEqualTo(request.eventGroup.dataAvailabilityInterval)
+      assertThat(response)
+        .isEqualTo(
+          eventGroupsService.getEventGroup(
+            getEventGroupRequest {
+              this.externalDataProviderId = response.externalDataProviderId
+              externalEventGroupId = response.externalEventGroupId
+            }
+          )
+        )
+    }
+
+  @Test
   fun `createEventGroup returns existing EventGroup for same request ID`() = runBlocking {
     val measurementConsumer =
       population.createMeasurementConsumer(measurementConsumersService, accountsService)
@@ -358,6 +396,7 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
 
   @Test
   fun `updateEventGroup succeeds`(): Unit = runBlocking {
+    val now: Instant = testClock.instant()
     val externalMeasurementConsumerId =
       population
         .createMeasurementConsumer(measurementConsumersService, accountsService)
@@ -380,6 +419,10 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
       this.eventGroup =
         eventGroup.copy {
           details = eventGroupDetails { encryptedMetadata = ByteString.copyFromUtf8("metadata") }
+          dataAvailabilityInterval = interval {
+            startTime = now.minus(90L, ChronoUnit.DAYS).toProtoTime()
+            endTime = now.minus(3L, ChronoUnit.DAYS).toProtoTime()
+          }
           mediaTypes.clear()
           mediaTypes += MediaType.DISPLAY
           mediaTypes += MediaType.OTHER
