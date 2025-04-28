@@ -38,8 +38,9 @@ class RequisitionFetcherFunction : HttpFunction {
   override fun service(request: HttpRequest, response: HttpResponse) {
     for (dataProviderConfig in requisitionFetcherConfig.configsList) {
 
+      val fileSystemPath = System.getenv("REQUISITION_FILE_SYSTEM_PATH")
       val requisitionsStorageClient =
-        if (dataProviderConfig.hasFileSystemStorageDetails()) {
+        if (!fileSystemPath.isNullOrEmpty()) {
           FileSystemStorageClient(File(checkIsPath("REQUISITION_FILE_SYSTEM_PATH")))
         } else {
           val requisitionsGcsBucket = dataProviderConfig.gcsStorageDetails.bucketName
