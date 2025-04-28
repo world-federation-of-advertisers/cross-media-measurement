@@ -45,7 +45,7 @@ module "edp_aggregator" {
   queue_worker_configs                      = local.queue_worker_configs
   artifacts_registry_repo_name              = "secure-computation-tee-app"
   pubsub_iam_service_account_member         = module.secure_computation.secure_computation_internal_iam_service_account_member
-  edp_aggregator_bucket_name                = "secure-computation-storage"
+  edp_aggregator_bucket_name                = var.secure_computation_storage_bucket_name
   edp_aggregator_bucket_location            = local.storage_bucket_location
   data_watcher_service_account_name         = "data-watcher"
   data_watcher_trigger_service_account_name = "data-watcher-trigger"
