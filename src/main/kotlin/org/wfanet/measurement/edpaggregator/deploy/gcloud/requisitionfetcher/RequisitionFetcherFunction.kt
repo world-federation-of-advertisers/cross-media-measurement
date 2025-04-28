@@ -99,9 +99,9 @@ class RequisitionFetcherFunction : HttpFunction {
     private val kingdomCertHost = checkNotEmpty("KINGDOM_CERT_HOST")
 
     val pageSize = run {
-      val value = System.getenv("PAGE_SIZE")
-      if (value.isNotEmpty()) {
-        value.toInt()
+      val envPageSize = System.getenv("PAGE_SIZE")
+      if (!envPageSize.isNullOrEmpty()) {
+        envPageSize.toInt()
       } else {
         null
       }
