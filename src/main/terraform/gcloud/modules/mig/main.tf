@@ -83,7 +83,7 @@ EOT
   }
 }
 
-resource "google_compute_region_instance_group_manager" "mig" {
+resource "google_compute_instance_group_manager" "mig" {
   name               = var.managed_instance_group_name
   base_instance_name = var.base_instance_name
   version {
@@ -91,9 +91,9 @@ resource "google_compute_region_instance_group_manager" "mig" {
   }
 }
 
-resource "google_compute_region_autoscaler" "mig_autoscaler" {
-  name   = "autoscaler-for-${google_compute_region_instance_group_manager.mig.name}"
-  target = google_compute_region_instance_group_manager.mig.id
+resource "google_compute_autoscaler" "mig_autoscaler" {
+  name   = "autoscaler-for-${google_compute_instance_group_manager.mig.name}"
+  target = google_compute_instance_group_manager.mig.id
 
   autoscaling_policy {
     max_replicas = var.max_replicas
