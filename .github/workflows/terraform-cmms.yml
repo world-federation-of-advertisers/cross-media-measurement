@@ -100,7 +100,7 @@ jobs:
     - name: terraform apply - gcloud
       if: ${{ inputs.apply }}
       working-directory: ${{ env.GCLOUD_MODULE_PATH }}
-      run: terraform apply -input=false -auto-approve tfplan
+      run: terraform apply -input=false tfplan
 
     # Authenticate to AWS Cloud. This will export some environment
     - name: Configure AWS Credentials
