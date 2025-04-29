@@ -357,8 +357,10 @@ class ModelLinesService(
         if (request.timeInterval.isFullyContainedWithin(modelLine)) {
           val dataAvailabilityIntervals: List<Interval>? =
             dataProvidersDataAvailabilityIntervalMap[internalModelLine.externalModelLineId]
-          if (dataAvailabilityIntervals != null
-            && dataAvailabilityIntervals.size == dataProvidersSet.size) {
+          if (
+            dataAvailabilityIntervals != null &&
+              dataAvailabilityIntervals.size == dataProvidersSet.size
+          ) {
             if (request.timeInterval.isFullyContainedWithin(dataAvailabilityIntervals)) {
               val streamModelRolloutsResponse =
                 try {

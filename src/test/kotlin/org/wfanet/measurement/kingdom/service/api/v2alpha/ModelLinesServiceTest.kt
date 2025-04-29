@@ -1869,35 +1869,35 @@ class ModelLinesServiceTest {
   @Test
   fun `enumerateValidModelLines returns no lines if no interval for model line for every edp`():
     Unit = runBlocking {
-      val externalDataProviderId2 = EXTERNAL_DATA_PROVIDER_ID + 2
+    val externalDataProviderId2 = EXTERNAL_DATA_PROVIDER_ID + 2
 
-      whenever(
+    whenever(
         internalDataProvidersMock.getDataProvider(
           getDataProviderRequest { externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID }
         )
       )
-        .thenReturn(
-          dataProvider {
-            dataAvailabilityIntervals +=
-              DataProviderKt.dataAvailabilityMapEntry {
-                key = modelLineKey {
-                  externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
-                  externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
-                  externalModelLineId = EXTERNAL_MODEL_LINE_ID_2
-                }
-                value = interval {
-                  startTime = timestamp { seconds = 50 }
-                  endTime = timestamp { seconds = 100 }
-                }
+      .thenReturn(
+        dataProvider {
+          dataAvailabilityIntervals +=
+            DataProviderKt.dataAvailabilityMapEntry {
+              key = modelLineKey {
+                externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
+                externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
+                externalModelLineId = EXTERNAL_MODEL_LINE_ID_2
               }
-          }
-        )
+              value = interval {
+                startTime = timestamp { seconds = 50 }
+                endTime = timestamp { seconds = 100 }
+              }
+            }
+        }
+      )
 
     whenever(
-      internalDataProvidersMock.getDataProvider(
-        getDataProviderRequest { externalDataProviderId = externalDataProviderId2 }
+        internalDataProvidersMock.getDataProvider(
+          getDataProviderRequest { externalDataProviderId = externalDataProviderId2 }
+        )
       )
-    )
       .thenReturn(
         dataProvider {
           dataAvailabilityIntervals +=
@@ -1915,50 +1915,50 @@ class ModelLinesServiceTest {
         }
       )
 
-      whenever(internalModelLinesMock.streamModelLines(any()))
-        .thenReturn(
-          flowOf(
-            internalModelLine {
-              externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
-              externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
-              externalModelLineId = EXTERNAL_MODEL_LINE_ID
-              activeStartTime = timestamp { seconds = 25 }
-            }
-          )
+    whenever(internalModelLinesMock.streamModelLines(any()))
+      .thenReturn(
+        flowOf(
+          internalModelLine {
+            externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
+            externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
+            externalModelLineId = EXTERNAL_MODEL_LINE_ID
+            activeStartTime = timestamp { seconds = 25 }
+          }
         )
+      )
 
     whenever(internalModelRolloutsMock.streamModelRollouts(any()))
       .thenReturn(flowOf(modelRollout {}))
 
-      val enumerateValidModelLinesResponse =
-        withModelProviderPrincipal(MODEL_PROVIDER_NAME) {
-          service.enumerateValidModelLines(
-            enumerateValidModelLinesRequest {
-              parent = MODEL_SUITE_NAME
-              timeInterval = interval {
-                startTime = timestamp { seconds = 60 }
-                endTime = timestamp { seconds = 100 }
-              }
-              dataProviders += DATA_PROVIDER_NAME
-              dataProviders += DataProviderKey(externalIdToApiId(externalDataProviderId2)).toName()
+    val enumerateValidModelLinesResponse =
+      withModelProviderPrincipal(MODEL_PROVIDER_NAME) {
+        service.enumerateValidModelLines(
+          enumerateValidModelLinesRequest {
+            parent = MODEL_SUITE_NAME
+            timeInterval = interval {
+              startTime = timestamp { seconds = 60 }
+              endTime = timestamp { seconds = 100 }
             }
-          )
-        }
-
-      assertThat(enumerateValidModelLinesResponse).isEqualTo(enumerateValidModelLinesResponse {})
-
-      verifyProtoArgument(internalModelLinesMock, ModelLinesCoroutineImplBase::streamModelLines)
-        .isEqualTo(
-          streamModelLinesRequest {
-            filter =
-              StreamModelLinesRequestKt.filter {
-                externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
-                externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
-                type += InternalModelLine.Type.PROD
-              }
+            dataProviders += DATA_PROVIDER_NAME
+            dataProviders += DataProviderKey(externalIdToApiId(externalDataProviderId2)).toName()
           }
         )
-    }
+      }
+
+    assertThat(enumerateValidModelLinesResponse).isEqualTo(enumerateValidModelLinesResponse {})
+
+    verifyProtoArgument(internalModelLinesMock, ModelLinesCoroutineImplBase::streamModelLines)
+      .isEqualTo(
+        streamModelLinesRequest {
+          filter =
+            StreamModelLinesRequestKt.filter {
+              externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
+              externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
+              type += InternalModelLine.Type.PROD
+            }
+        }
+      )
+  }
 
   @Test
   fun `enumerateValidModelLines throws NOT_FOUND when data provider not found`(): Unit =
