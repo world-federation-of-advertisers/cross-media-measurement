@@ -424,13 +424,13 @@ abstract class InProcessLifeOfAReportIntegrationTest(
 
     val llv2EventGroups: List<EventGroup> =
       eventGroups.filter {
-        inProcessCmmsComponents.getDataProviderDisplayNameFromEventGroupName(it.name) in
+        inProcessCmmsComponents.getDataProviderDisplayNameFromEventGroupName(it.cmmsDataProvider) in
           ALL_EDP_WITHOUT_HMSS_CAPABILITIES_DISPLAY_NAMES
       }
 
     val hmssEventGroups: List<EventGroup> =
       eventGroups.filter {
-        inProcessCmmsComponents.getDataProviderDisplayNameFromEventGroupName(it.name) in
+        inProcessCmmsComponents.getDataProviderDisplayNameFromEventGroupName(it.cmmsDataProvider) in
           ALL_EDP_WITH_HMSS_CAPABILITIES_DISPLAY_NAMES
       }
 
@@ -539,11 +539,11 @@ abstract class InProcessLifeOfAReportIntegrationTest(
   @Test
   fun `report with HMSS union reach across 2 edps has the expected result`() = runBlocking {
     val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
-    val eventGroups = listEventGroups().sortedBy { it.eventGroupReferenceId }
+    val eventGroups: List<EventGroup> = listEventGroups()
 
     val hmssEventGroups: List<EventGroup> =
       eventGroups.filter {
-        inProcessCmmsComponents.getDataProviderDisplayNameFromEventGroupName(it.name) in
+        inProcessCmmsComponents.getDataProviderDisplayNameFromEventGroupName(it.cmmsDataProvider) in
           ALL_EDP_WITH_HMSS_CAPABILITIES_DISPLAY_NAMES
       }
 

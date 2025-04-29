@@ -277,10 +277,22 @@ class InProcessCmmsComponents(
     )
   }
 
-  fun getDataProviderDisplayNameFromEventGroupName(eventGroupName: String): String {
+  /**
+   * Retrieves the data provider display name associated with a given cmms data provider name.
+   *
+   * This function searches the `edpDisplayNameToResourceMap` for an entry where the `name`
+   * property of the entry's value exactly matches the provided [cmmsDataProviderName].
+   * If such an entry is found, its key (which represents the data provider display name)
+   * is returned. If no match is found, an empty string is returned.
+   *
+   * @param cmmsDataProviderName The exact name of the cmms data provider name to search for.
+   * @return The corresponding data provider display name if an exact match for the
+   * [cmmsDataProviderName] is found in the map's values; otherwise, an empty string.
+   */
+  fun getDataProviderDisplayNameFromEventGroupName(cmmsDataProviderName: String): String {
     return edpDisplayNameToResourceMap.entries
-      .find { entry -> eventGroupName.contains(entry.value.name) }!!
-      .key
+      .find { entry -> cmmsDataProviderName.equals(entry.value.name) }
+      ?.key ?: ""
   }
 
   fun getDataProviderResourceNames(): List<String> {
