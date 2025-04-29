@@ -283,7 +283,8 @@ class ModelLinesService(
     }
 
     val dataProvidersSet = mutableSetOf<String>()
-    // Map of external ModelLine IDs to data availability intervals.
+    // Map of external ModelLine IDs to data availability intervals. Populated by retrieving the
+    // data availability intervals from every data provider specified in the request.
     val dataProvidersDataAvailabilityIntervalMap: Map<Long, MutableList<Interval>> = buildMap {
       for (dataProviderName in request.dataProvidersList) {
         if (!dataProvidersSet.contains(dataProviderName)) {
@@ -318,6 +319,7 @@ class ModelLinesService(
 
     val modelSuiteKey = ModelSuiteKey.fromName(request.parent)
 
+    // Retrieve all model lines that will be checked.
     val internalModelLines: List<InternalModelLine> =
       try {
         internalClient
@@ -344,13 +346,19 @@ class ModelLinesService(
         }.asRuntimeException()
       }
 
+    // Checks the following items for every model line. It will move on to the next model line if
+    // any check fails. All checks need to pass for the model line to be in the final response:
+    // 1. time interval in request
+    // 2. data availability intervals from every data provider in request
+    // 3. model rollouts
     val validModelLines: List<ModelLine> = buildList {
       for (internalModelLine in internalModelLines) {
         val modelLine = internalModelLine.toModelLine()
         if (request.timeInterval.isFullyContainedWithin(modelLine)) {
           val dataAvailabilityIntervals: List<Interval>? =
             dataProvidersDataAvailabilityIntervalMap[internalModelLine.externalModelLineId]
-          if (dataAvailabilityIntervals != null) {
+          if (dataAvailabilityIntervals != null
+            && dataAvailabilityIntervals.size == dataProvidersSet.size) {
             if (request.timeInterval.isFullyContainedWithin(dataAvailabilityIntervals)) {
               val streamModelRolloutsResponse =
                 try {
