@@ -25,6 +25,7 @@ module "data_watcher_function_service_accounts" {
   cloud_function_service_account_name       = var.data_watcher_service_account_name
   cloud_function_trigger_service_account_name    = var.data_watcher_trigger_service_account_name
   trigger_bucket_name                       = module.edp_aggregator_bucket.storage_bucket.name
+  terraform_service_account                 = var.terraform_service_account
 }
 
 module "edp_aggregator_queues" {
@@ -45,11 +46,12 @@ resource "google_pubsub_topic_iam_member" "publisher" {
 }
 
 resource "google_kms_key_ring" "edp_aggregator_key_ring" {
+
   name     = var.key_ring_name
   location = var.key_ring_location
 
   lifecycle {
-    prevent_destroy = true
+    prevent_destroy = false
   }
 }
 
@@ -76,12 +78,13 @@ module "tee_apps" {
   machine_type                  = each.value.worker.machine_type
   kms_key_id                    = google_kms_crypto_key.edp_aggregator_kek.id
   docker_image                  = each.value.worker.docker_image
+  terraform_service_account     = var.terraform_service_account
 }
 
 resource "google_storage_bucket_iam_member" "mig_storage_viewer" {
   for_each = module.tee_apps
 
-  bucket = module.secure_computation_bucket.storage_bucket.name
+  bucket = module.edp_aggregator_bucket.storage_bucket.name
   role   = "roles/storage.objectViewer"
   member = "serviceAccount:${each.value.mig_service_account.email}"
 }
@@ -89,7 +92,7 @@ resource "google_storage_bucket_iam_member" "mig_storage_viewer" {
 resource "google_storage_bucket_iam_member" "mig_storage_creator" {
   for_each = module.tee_apps
 
-  bucket = module.secure_computation_bucket.storage_bucket.name
+  bucket = module.edp_aggregator_bucket.storage_bucket.name
   role   = "roles/storage.objectCreator"
   member = "serviceAccount:${each.value.mig_service_account.email}"
 }
