@@ -88,9 +88,6 @@ class InProcessKingdom(
 
   private val internalApiChannel by lazy { internalDataServer.channel }
   private val internalApiKeysClient by lazy { InternalApiKeysCoroutineStub(internalApiChannel) }
-  private val internalMeasurementsClient by lazy {
-    InternalMeasurementsCoroutineStub(internalApiChannel)
-  }
   private val internalPublicKeysClient by lazy {
     InternalPublicKeysCoroutineStub(internalApiChannel)
   }
@@ -235,6 +232,9 @@ class InProcessKingdom(
       internalApiChannel
     )
   }
+
+  /** Provides access to Measurement creation. */
+  val internalMeasurementsClient by lazy { InternalMeasurementsCoroutineStub(internalApiChannel) }
 
   /** Provides access to ModelRollout creation. */
   private val internalModelRolloutsClient by lazy {

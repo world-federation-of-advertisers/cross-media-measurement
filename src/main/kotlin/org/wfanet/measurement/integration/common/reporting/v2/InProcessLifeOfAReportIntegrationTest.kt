@@ -90,6 +90,7 @@ import org.wfanet.measurement.integration.common.InProcessCmmsComponents
 import org.wfanet.measurement.integration.common.InProcessDuchy
 import org.wfanet.measurement.integration.common.PERMISSIONS_CONFIG
 import org.wfanet.measurement.integration.common.SyntheticGenerationSpecs
+import org.wfanet.measurement.internal.kingdom.Measurement as InternalMeasurement
 import org.wfanet.measurement.internal.reporting.v2.EventTemplateFieldKt as InternalEventTemplateFieldKt
 import org.wfanet.measurement.internal.reporting.v2.ImpressionQualificationFilterSpec as InternalImpressionQualificationFilterSpec
 import org.wfanet.measurement.internal.reporting.v2.ListImpressionQualificationFiltersPageTokenKt
@@ -534,6 +535,11 @@ abstract class InProcessLifeOfAReportIntegrationTest(
     val tolerance = computeErrorMargin(reachResult.univariateStatistics.standardDeviation)
 
     assertThat(actualResult).reachValue().isWithin(tolerance).of(expectedResult.reach.value)
+
+    val measurements: List<InternalMeasurement> =
+      inProcessCmmsComponents.getSuccessfulMeasurements()
+    assertThat(measurements).hasSize(1)
+    assertThat(measurements[0].details.protocolConfig.hasReachOnlyLiquidLegionsV2()).isTrue()
   }
 
   @Test
@@ -647,6 +653,11 @@ abstract class InProcessLifeOfAReportIntegrationTest(
     val tolerance = computeErrorMargin(reachResult.univariateStatistics.standardDeviation)
 
     assertThat(actualResult).reachValue().isWithin(tolerance).of(expectedResult.reach.value)
+
+    val measurements: List<InternalMeasurement> =
+      inProcessCmmsComponents.getSuccessfulMeasurements()
+    assertThat(measurements).hasSize(1)
+    assertThat(measurements[0].details.protocolConfig.hasHonestMajorityShareShuffle()).isTrue()
   }
 
   @Test

@@ -20,6 +20,7 @@ import com.google.protobuf.ByteString
 import com.google.protobuf.TypeRegistry
 import java.security.cert.X509Certificate
 import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.junit.rules.TestRule
 import org.junit.runner.Description
@@ -45,6 +46,9 @@ import org.wfanet.measurement.common.testing.ProviderRule
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.config.DuchyCertConfig
 import org.wfanet.measurement.dataprovider.DataProviderData
+import org.wfanet.measurement.internal.kingdom.Measurement
+import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequestKt
+import org.wfanet.measurement.internal.kingdom.streamMeasurementsRequest
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 import org.wfanet.measurement.kingdom.deploy.common.HmssProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfig
@@ -297,6 +301,16 @@ class InProcessCmmsComponents(
 
   fun getDataProviderResourceNames(): List<String> {
     return edpDisplayNameToResourceMap.values.map { it.name }
+  }
+
+  suspend fun getSuccessfulMeasurements(): List<Measurement> {
+    return kingdom.internalMeasurementsClient
+      .streamMeasurements(
+        streamMeasurementsRequest {
+          filter = StreamMeasurementsRequestKt.filter { states += Measurement.State.SUCCEEDED }
+        }
+      )
+      .toList()
   }
 
   fun startDaemons() = runBlocking {
