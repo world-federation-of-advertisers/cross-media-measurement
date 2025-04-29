@@ -18,10 +18,13 @@ import com.google.cloud.spanner.Key
 import com.google.cloud.spanner.KeySet
 import com.google.cloud.spanner.Mutation
 import com.google.cloud.spanner.Value
+import com.google.type.endTimeOrNull
+import com.google.type.startTimeOrNull
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.toSet
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
+import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
 import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
@@ -75,6 +78,10 @@ class UpdateEventGroup(private val eventGroup: EventGroup) :
       set("EventGroupId" to internalEventGroupResult.internalEventGroupId.value)
       set("ProvidedEventGroupId" to providedEventGroupId)
       set("UpdateTime" to Value.COMMIT_TIMESTAMP)
+      set("DataAvailabilityStartTime")
+        .to(eventGroup.dataAvailabilityInterval.startTimeOrNull?.toGcloudTimestamp())
+      set("DataAvailabilityEndTime")
+        .to(eventGroup.dataAvailabilityInterval.endTimeOrNull?.toGcloudTimestamp())
       set("EventGroupDetails").to(eventGroup.details)
     }
 
