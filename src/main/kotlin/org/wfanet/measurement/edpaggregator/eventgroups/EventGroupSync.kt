@@ -38,6 +38,7 @@ import org.wfanet.measurement.common.api.grpc.flattenConcat
 import org.wfanet.measurement.common.api.grpc.listResources
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup
+import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup.MediaType
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.MappedEventGroup
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.mappedEventGroup
 
@@ -111,7 +112,7 @@ class EventGroupSync(
                 }
             }
         }
-        mediaTypes += eventGroup.mediaTypesList.map { CmmsMediaType.valueOf(it) }
+        mediaTypes += eventGroup.mediaTypesList.map { it.toCmmsMediaType() }
         dataAvailabilityInterval = eventGroup.dataAvailabilityInterval
       }
     }
@@ -119,7 +120,7 @@ class EventGroupSync(
   }
 
   /*
-   * Updates an existing [CmmsEventGroup] with information from an [EventGroup].
+   * Returns a copy of a [CmmsEventGroup] with information from an [EventGroup].
    * Used to determine if a CmmsEventGroup needs updating.
    */
   private fun updateEventGroup(
@@ -140,7 +141,7 @@ class EventGroupSync(
           }
       }
       mediaTypes.clear()
-      mediaTypes += eventGroup.mediaTypesList.map { CmmsMediaType.valueOf(it) }
+      mediaTypes += eventGroup.mediaTypesList.map { it.toCmmsMediaType() }
       dataAvailabilityInterval = eventGroup.dataAvailabilityInterval
     }
   }
@@ -165,5 +166,15 @@ class EventGroupSync(
         ResourceList(response.eventGroupsList, response.nextPageToken)
       }
       .flattenConcat()
+  }
+
+  private fun MediaType.toCmmsMediaType(): CmmsMediaType {
+    return when (this) {
+      MediaType.MEDIA_TYPE_UNSPECIFIED -> CmmsMediaType.MEDIA_TYPE_UNSPECIFIED
+      MediaType.VIDEO -> CmmsMediaType.VIDEO
+      MediaType.DISPLAY -> CmmsMediaType.DISPLAY
+      MediaType.OTHER -> CmmsMediaType.OTHER
+      MediaType.UNRECOGNIZED -> error("Not a real media type")
+    }
   }
 }

@@ -87,5 +87,5 @@ message EventGroup {
   ];
 
   // The MediaTypes of the events entailed by this `EventGroup`
-  repeated string media_types = 5 [(google.api.field_behavior) = REQUIRED];
+  repeated MediaType media_types = 5 [(google.api.field_behavior) = REQUIRED];
 }

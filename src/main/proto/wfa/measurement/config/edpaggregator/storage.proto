@@ -18,18 +18,7 @@ package wfa.measurement.config.edpaggregator;
 
 option java_package = "org.wfanet.measurement.config.edpaggregator";
 option java_multiple_files = true;
-option java_outer_classname = "ConfigProto";
-
-// The details to connect via an MTLS Channel from an EDP Aggregator Cloud
-// Function
-message Connection {
-  // The path in the jar to the cert
-  string cert_jar_resource_path = 1;
-  // The path in the jar to the private key
-  string private_key_jar_resource_path = 2;
-  // The path in the jar to the cert collection
-  string cert_collection_jar_resource_path = 3;
-}
+option java_outer_classname = "StorageProto";
 
 // Details for data written by an EDP Aggregator Cloud Function
 message Storage {
