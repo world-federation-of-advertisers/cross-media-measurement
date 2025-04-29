@@ -28,7 +28,7 @@ import java.util.logging.Logger
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
-import org.wfanet.measurement.common.EnvVars.checkNotNullOrEmpty
+import org.wfanet.measurement.common.EnvVars
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.getJarResourceFile
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
@@ -125,8 +125,8 @@ class EventGroupSyncFunction() : HttpFunction {
     private const val THROTTLER_DURATION_MILLIS = 1000L
     private val CLASS_LOADER: ClassLoader = Thread.currentThread().contextClassLoader
 
-    private val kingdomTarget = checkNotNullOrEmpty("KINGDOM_TARGET")
-    private val kingdomCertHost = checkNotNullOrEmpty("KINGDOM_CERT_HOST")
+    private val kingdomTarget = EnvVars.checkNotNullOrEmpty("KINGDOM_TARGET")
+    private val kingdomCertHost = EnvVars.checkNotNullOrEmpty("KINGDOM_CERT_HOST")
     private val throttlerDuration =
       Duration.ofMillis(System.getenv("THROTTLER_MILLIS")?.toLong() ?: THROTTLER_DURATION_MILLIS)
     private val channelShutdownDuration =

@@ -35,7 +35,7 @@ object EnvVars {
     try {
       Paths.get(value)
     } catch (e: InvalidPathException) {
-      throw IllegalStateException("InvalidPathException: Path $value is not a valid path")
+      throw IllegalStateException("Path $value is not a valid path", e)
     }
     return value
   }

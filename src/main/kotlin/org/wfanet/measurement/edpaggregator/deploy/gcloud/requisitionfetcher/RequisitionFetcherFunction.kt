@@ -41,7 +41,7 @@ class RequisitionFetcherFunction : HttpFunction {
 
       val requisitionsStorageClient =
         if (dataProviderConfig.requisitionStorage.hasFileSystem()) {
-          FileSystemStorageClient(File(checkIsPath("REQUISITION_FILE_SYSTEM_PATH")))
+          FileSystemStorageClient(File(EnvVars.checkIsPath("REQUISITION_FILE_SYSTEM_PATH")))
         } else {
           val requisitionsGcsBucket = dataProviderConfig.requisitionStorage.gcs.bucketName
           GcsStorageClient(
@@ -94,8 +94,8 @@ class RequisitionFetcherFunction : HttpFunction {
   }
 
   companion object {
-    private val kingdomTarget = checkNotNullOrEmpty("KINGDOM_TARGET")
-    private val kingdomCertHost = checkNotNullOrEmpty("KINGDOM_CERT_HOST")
+    private val kingdomTarget = EnvVars.checkNotNullOrEmpty("KINGDOM_TARGET")
+    private val kingdomCertHost = EnvVars.checkNotNullOrEmpty("KINGDOM_CERT_HOST")
 
     val pageSize = run {
       val value = System.getenv("PAGE_SIZE")
@@ -107,7 +107,7 @@ class RequisitionFetcherFunction : HttpFunction {
     }
     private val CLASS_LOADER: ClassLoader = Thread.currentThread().contextClassLoader
     private val requisitionFetcherConfigResourcePath =
-      checkIsPath("REQUISITION_FETCHER_CONFIG_RESOURCE_PATH")
+      EnvVars.checkIsPath("REQUISITION_FETCHER_CONFIG_RESOURCE_PATH")
     private val config by lazy {
       checkNotNull(CLASS_LOADER.getJarResourceFile(requisitionFetcherConfigResourcePath))
     }

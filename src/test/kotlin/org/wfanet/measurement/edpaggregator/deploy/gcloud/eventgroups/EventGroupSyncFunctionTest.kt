@@ -97,7 +97,7 @@ class EventGroupSyncFunctionTest() {
                 name = "dataProviders/data-provider-1/eventGroups/reference-id-1"
                 measurementConsumer = "measurementConsumers/measurement-consumer-1"
                 eventGroupReferenceId = "reference-id-1"
-                mediaTypes += listOf("VIDEO", "DISPLAY").map { CmmsMediaType.valueOf(it) }
+                mediaTypes += listOf(CmmsMediaType.VIDEO, CmmsMediaType.DISPLAY)
                 eventGroupMetadata = cmmsEventGroupMetadata {
                   this.adMetadata = cmmsAdMetadata {
                     this.campaignMetadata = cmmsCampaignMetadata {
@@ -115,7 +115,7 @@ class EventGroupSyncFunctionTest() {
                 name = "dataProviders/data-provider-2/eventGroups/reference-id-2"
                 measurementConsumer = "measurementConsumers/measurement-consumer-2"
                 eventGroupReferenceId = "reference-id-2"
-                mediaTypes += listOf("OTHER").map { CmmsMediaType.valueOf(it) }
+                mediaTypes += listOf(CmmsMediaType.OTHER)
                 eventGroupMetadata = cmmsEventGroupMetadata {
                   this.adMetadata = cmmsAdMetadata {
                     this.campaignMetadata = cmmsCampaignMetadata {
@@ -133,7 +133,7 @@ class EventGroupSyncFunctionTest() {
                 name = "dataProviders/data-provider-3/eventGroups/reference-id-3"
                 measurementConsumer = "measurementConsumers/measurement-consumer-2"
                 eventGroupReferenceId = "reference-id-3"
-                mediaTypes += listOf("OTHER").map { CmmsMediaType.valueOf(it) }
+                mediaTypes += listOf(CmmsMediaType.OTHER)
                 eventGroupMetadata = cmmsEventGroupMetadata {
                   this.adMetadata = cmmsAdMetadata {
                     this.campaignMetadata = cmmsCampaignMetadata {
@@ -198,7 +198,7 @@ class EventGroupSyncFunctionTest() {
         startTime = timestamp { seconds = 200 }
         endTime = timestamp { seconds = 300 }
       }
-      mediaTypes += listOf("OTHER").map { MediaType.valueOf(it) }
+      mediaTypes += listOf(MediaType.OTHER)
     }
     val testCampaigns = CAMPAIGNS + newCampaign
     val config = eventGroupSyncConfig {
@@ -317,7 +317,7 @@ class EventGroupSyncFunctionTest() {
             startTime = timestamp { seconds = 200 }
             endTime = timestamp { seconds = 300 }
           }
-          mediaTypes += listOf("VIDEO", "DISPLAY").map { MediaType.valueOf(it) }
+          mediaTypes += listOf(CmmsMediaType.VIDEO, CmmsMediaType.DISPLAY)
         },
         eventGroup {
           eventGroupReferenceId = "reference-id-2"
@@ -334,7 +334,7 @@ class EventGroupSyncFunctionTest() {
             startTime = timestamp { seconds = 200 }
             endTime = timestamp { seconds = 300 }
           }
-          mediaTypes += listOf("OTHER").map { MediaType.valueOf(it) }
+          mediaTypes += listOf(CmmsMediaType.OTHER)
         },
         eventGroup {
           eventGroupReferenceId = "reference-id-3"
@@ -351,7 +351,7 @@ class EventGroupSyncFunctionTest() {
             startTime = timestamp { seconds = 200 }
             endTime = timestamp { seconds = 300 }
           }
-          mediaTypes += listOf("OTHER").map { MediaType.valueOf(it) }
+          mediaTypes += listOf(CmmsMediaType.OTHER)
         },
       )
   }
