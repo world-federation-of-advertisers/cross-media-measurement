@@ -317,7 +317,7 @@ class EventGroupSyncFunctionTest() {
             startTime = timestamp { seconds = 200 }
             endTime = timestamp { seconds = 300 }
           }
-          mediaTypes += listOf(CmmsMediaType.VIDEO, CmmsMediaType.DISPLAY)
+          mediaTypes += listOf(MediaType.VIDEO, MediaType.DISPLAY)
         },
         eventGroup {
           eventGroupReferenceId = "reference-id-2"
@@ -334,7 +334,7 @@ class EventGroupSyncFunctionTest() {
             startTime = timestamp { seconds = 200 }
             endTime = timestamp { seconds = 300 }
           }
-          mediaTypes += listOf(CmmsMediaType.OTHER)
+          mediaTypes += listOf(MediaType.OTHER)
         },
         eventGroup {
           eventGroupReferenceId = "reference-id-3"
@@ -351,7 +351,7 @@ class EventGroupSyncFunctionTest() {
             startTime = timestamp { seconds = 200 }
             endTime = timestamp { seconds = 300 }
           }
-          mediaTypes += listOf(CmmsMediaType.OTHER)
+          mediaTypes += listOf(MediaType.OTHER)
         },
       )
   }
