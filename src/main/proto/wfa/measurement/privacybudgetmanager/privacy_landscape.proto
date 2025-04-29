@@ -20,42 +20,39 @@ option java_package = "org.wfanet.measurement.privacybudgetmanager";
 option java_multiple_files = true;
 option java_outer_classname = "PrivacyLandScapeProto";
 
-
 message PrivacyLandscape {
-  
   // Name of this PrivacyLandscape
-  string name  =  1;
+  string name = 1;
 
   // Qualifying name of the top level message e.g. UKEventTemplate.TestEvent
   string event_template_name = 2;
 
-  // Representing all possible values for each of the Dimensions 
+  // Representing all possible values for each of the Dimensions
   repeated Dimension dimensions = 3;
 
   message Dimension {
-     
-     // Although repeated fields are sorted, order of the dimensions
-     // are really important since they define the bucket index, 
-     // hence we include an order field.
-     int32 order = 1; 
-     
-     // Qualifying name that will be used in the proto reflection 
-     // on the event template. e.g. person.age or person.geo
-     string name = 2; 
-     
-     // All possible values that this dimension can take for PBM. 
-     // will be used in the proto reflection to filter buckets.
-     repeated Value values = 3;
+    // Although repeated fields are sorted, order of the dimensions
+    // are really important since they define the bucket index,
+    // hence we include an order field.
+    int32 order = 1;
 
-     message Value {
-       oneof option {
-         // E.g 18_24 for Age
-         string enumValue = 1;
-         // E.g 23 for Geo Code
-         int32 intValue = 2;
-          // E.g 0.1 some watch time?
-         float floatValue = 3;
-       }
-     }
+    // Qualifying name that will be used in the proto reflection
+    // on the event template. e.g. person.age or person.geo
+    string name = 2;
+
+    // All possible values that this dimension can take for PBM.
+    // will be used in the proto reflection to filter buckets.
+    repeated Value values = 3;
+
+    message Value {
+      oneof option {
+        // E.g 18_24 for Age
+        string enumValue = 1;
+        // E.g 23 for Geo Code
+        int32 intValue = 2;
+        // E.g 0.1 some watch time?
+        float floatValue = 3;
+      }
+    }
   }
 }

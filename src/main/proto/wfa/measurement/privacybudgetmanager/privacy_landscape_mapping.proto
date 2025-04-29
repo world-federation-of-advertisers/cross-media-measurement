@@ -20,44 +20,41 @@ option java_package = "org.wfanet.measurement.privacybudgetmanager";
 option java_multiple_files = true;
 option java_outer_classname = "PrivacyLandscapeMappingProto";
 
-
 message PrivacyLandscapeMapping {
-   
-   string from_landscape = 1;
-   string to_landscape = 2;
+  string from_landscape = 1;
+  string to_landscape = 2;
 
-   repeated DimensionMapping mappings = 3;
-   repeated DimensionAddition addition = 4; 
- 
-   // Represents that every row represented [fromLandscape] should be fanned out 
-   // to this new dimension represented by all the newDimensionValues
-   message DimensionAddition {
-     repeated DimensionValue new_dimension_values = 1;
-   }
+  repeated DimensionMapping mappings = 3;
+  repeated DimensionAddition addition = 4;
 
-   // Tells the code that all dimvaluesFrom should be carried to dimvaluesTo
-   message DimensionMapping {
-     repeated DimensionValue from_dimension_values = 1;
-     repeated DimensionValue to_dimension_values = 2;
-   }
-   
-   message DimensionValue {
-     
-     // Qualifying name that will be used in the proto reflection 
-     // on the event template. e.g. person.age or person.geo
-     string name = 1; 
-     
-     Value value = 2;
+  // Represents that every row represented [fromLandscape] should be fanned out
+  // to this new dimension represented by all the newDimensionValues
+  message DimensionAddition {
+    repeated DimensionValue new_dimension_values = 1;
+  }
 
-     message Value {
-       oneof option {
-         // E.g 18_24 for Age
-         string enum_value = 1;
-         // E.g 23 for Geo Code
-         int32 int_value = 2;
-          // E.g 0.1 some watch time?
-         float float_value = 3;
-       }
-     }
+  // Tells the code that all dimvaluesFrom should be carried to dimvaluesTo
+  message DimensionMapping {
+    repeated DimensionValue from_dimension_values = 1;
+    repeated DimensionValue to_dimension_values = 2;
+  }
+
+  message DimensionValue {
+    // Qualifying name that will be used in the proto reflection
+    // on the event template. e.g. person.age or person.geo
+    string name = 1;
+
+    Value value = 2;
+
+    message Value {
+      oneof option {
+        // E.g 18_24 for Age
+        string enum_value = 1;
+        // E.g 23 for Geo Code
+        int32 int_value = 2;
+        // E.g 0.1 some watch time?
+        float float_value = 3;
+      }
+    }
   }
 }

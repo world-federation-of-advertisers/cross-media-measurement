@@ -40,7 +40,7 @@ message DateRange {
 message EventGroupLandscapeMask {
   // The event group the charges belong to.
   string event_group_id = 1;
-  // CEL event filter used to determine the filter the population 
+  // CEL event filter used to determine the filter the population
   // fields to get the targetted buckets.
   string event_filter = 2;
   // Date range filter used to get the targetted buckets.
