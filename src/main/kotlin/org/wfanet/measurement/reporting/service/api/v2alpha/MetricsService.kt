@@ -34,7 +34,6 @@ import java.security.cert.CertPathValidatorException
 import java.security.cert.X509Certificate
 import java.time.Duration
 import java.util.concurrent.TimeUnit
-import java.util.logging.Level
 import java.util.logging.Logger
 import kotlin.coroutines.ContinuationInterceptor
 import kotlin.coroutines.CoroutineContext
@@ -1852,9 +1851,7 @@ class MetricsService(
               }
 
               else -> {
-                failure = failure {
-                  reason = Metric.Failure.Reason.MEASUREMENT_RESULT_INVALID
-                }
+                failure = failure { reason = Metric.Failure.Reason.MEASUREMENT_RESULT_INVALID }
               }
             }
           }
@@ -1867,9 +1864,7 @@ class MetricsService(
                   .toName()
               }
           }
-          failure = failure {
-            reason = Metric.Failure.Reason.MEASUREMENT_FAILED
-          }
+          failure = failure { reason = Metric.Failure.Reason.MEASUREMENT_FAILED }
         }
         Metric.State.INVALID -> {
           result = metricResult {
