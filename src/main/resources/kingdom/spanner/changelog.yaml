@@ -84,3 +84,6 @@ databaseChangeLog:
 - include:
     file: create-data-provider-availability.sql
     relativeToChangeLogFile: true
+- include:
+    file: add-event-group-data-availability.sql
+    relativeToChangeLogFile: true
