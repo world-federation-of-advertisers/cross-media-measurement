@@ -19,6 +19,7 @@ package org.wfanet.measurement.edpaggregator.resultsfulfiller
 import com.google.common.hash.HashFunction
 import com.google.common.hash.Hashing
 import com.google.crypto.tink.KmsClient
+import com.google.protobuf.ByteString
 import com.google.protobuf.Descriptors.Descriptor
 import com.google.protobuf.DynamicMessage
 import com.google.protobuf.TypeRegistry
@@ -481,7 +482,8 @@ class ResultsFulfiller(
     val requisitionsStorageClient = createStorageClient(storageClientUri, requisitionsStorageConfig)
 
     // TODO(@jojijac0b): Refactor once grouped requisitions are supported
-    val requisition = Requisition.parseFrom(requisitionsStorageClient.getBlob(storageClientUri.key)!!.read().flatten())
+    val requisitionBytes: ByteString = requisitionsStorageClient.getBlob(storageClientUri.key)!!.read().flatten()
+    val requisition = Requisition.parseFrom(requisitionBytes)
 
     return listOf(requisition).asFlow()
   }

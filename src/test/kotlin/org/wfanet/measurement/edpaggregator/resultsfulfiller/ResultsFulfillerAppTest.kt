@@ -1,7 +1,5 @@
 package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
-import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt
-import org.wfanet.measurement.api.v2alpha.fulfillDirectRequisitionResponse
 import com.google.common.truth.Truth.assertThat
 import com.google.crypto.tink.Aead
 import com.google.crypto.tink.KeyTemplates
@@ -11,16 +9,13 @@ import com.google.crypto.tink.aead.AeadConfig
 import com.google.crypto.tink.streamingaead.StreamingAeadConfig
 import com.google.protobuf.Any
 import com.google.protobuf.ByteString
-import com.google.protobuf.Parser
 import com.google.protobuf.Timestamp
-import com.google.protobuf.kotlin.toByteStringUtf8
 import com.google.type.interval
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
 import java.time.LocalDate
 import kotlin.random.Random
-import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.launch
@@ -44,10 +39,12 @@ import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventFilter
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventGroupEntry
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.events
+import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.person
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.testEvent
+import org.wfanet.measurement.api.v2alpha.fulfillDirectRequisitionResponse
 import org.wfanet.measurement.api.v2alpha.measurementSpec
 import org.wfanet.measurement.api.v2alpha.protocolConfig
 import org.wfanet.measurement.api.v2alpha.requisition
@@ -70,11 +67,11 @@ import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
 import org.wfanet.measurement.consent.client.measurementconsumer.encryptRequisitionSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.signMeasurementSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.signRequisitionSpec
-import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
-import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParamsKt
+import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParamsKt.storage
+import org.wfanet.measurement.edpaggregator.v1alpha.blobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.copy
 import org.wfanet.measurement.edpaggregator.v1alpha.resultsFulfillerParams
 import org.wfanet.measurement.gcloud.pubsub.Publisher
@@ -82,7 +79,6 @@ import org.wfanet.measurement.gcloud.pubsub.Subscriber
 import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorClient
 import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorProvider
 import org.wfanet.measurement.integration.common.loadEncryptionPrivateKey
-import org.wfanet.measurement.queue.QueueSubscriber
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem.WorkItemParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineImplBase
@@ -95,8 +91,6 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItemAttempt
 import org.wfanet.measurement.storage.MesosRecordIoStorageClient
 import org.wfanet.measurement.storage.SelectedStorageClient
-import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParamsKt.storage
-import kotlinx.coroutines.withTimeout
 
 class ResultsFulfillerAppTest {
   private lateinit var emulatorClient: GooglePubSubEmulatorClient
@@ -131,12 +125,12 @@ class ResultsFulfillerAppTest {
     }
   }
 
-  private val requisitionsServiceMock: RequisitionsGrpcKt.RequisitionsCoroutineImplBase = mockService {
-    onBlocking { fulfillDirectRequisition(any()) }.thenReturn(fulfillDirectRequisitionResponse {})
-  }
+  private val requisitionsServiceMock: RequisitionsGrpcKt.RequisitionsCoroutineImplBase =
+    mockService {
+      onBlocking { fulfillDirectRequisition(any()) }.thenReturn(fulfillDirectRequisitionResponse {})
+    }
 
-  @get:Rule
-  val grpcTestServerRule = GrpcTestServerRule { addService(requisitionsServiceMock) }
+  @get:Rule val grpcTestServerRule = GrpcTestServerRule { addService(requisitionsServiceMock) }
 
   @Test
   fun `runWork processes requisition successfully`() = runBlocking {
@@ -168,10 +162,7 @@ class ResultsFulfillerAppTest {
     val requisitionsStorageClient = SelectedStorageClient(REQUISITIONS_FILE_URI, tmpPath)
 
     // Add requisitions to storage
-    requisitionsStorageClient.writeBlob(
-      REQUISITIONS_BLOB_KEY,
-      REQUISITION.toString().toByteStringUtf8()
-    )
+    requisitionsStorageClient.writeBlob(REQUISITIONS_BLOB_KEY, REQUISITION.toByteString())
 
     // Create impressions storage client
     Files.createDirectories(tmpPath.resolve(IMPRESSIONS_BUCKET).toPath())
@@ -223,34 +214,32 @@ class ResultsFulfillerAppTest {
 
     val encryptedDek =
       EncryptedDek.newBuilder().setKekUri(kekUri).setEncryptedDek(serializedEncryptionKey).build()
-    val blobDetails =
-      BlobDetails.newBuilder()
-        .setBlobUri(IMPRESSIONS_FILE_URI)
-        .setEncryptedDek(encryptedDek)
-        .build()
+    val blobDetails = blobDetails {
+      this.blobUri = IMPRESSIONS_FILE_URI
+      this.encryptedDek = encryptedDek
+    }
 
     impressionsMetadataStorageClient.writeBlob(
       IMPRESSION_METADATA_BLOB_KEY,
-      blobDetails.toString().toByteStringUtf8()
+      blobDetails.toByteString(),
     )
 
-    val app = ResultsFulfillerTestApp(
-      subscriptionId = SUBSCRIPTION_ID,
-      queueSubscriber = pubSubClient,
-      parser = WorkItem.parser(),
-      workItemsStub,
-      workItemAttemptsStub,
-      grpcTestServerRule.channel,
-      tmpPath,
-      kmsClient
-    )
+    val app =
+      ResultsFulfillerTestApp(
+        subscriptionId = SUBSCRIPTION_ID,
+        queueSubscriber = pubSubClient,
+        parser = WorkItem.parser(),
+        workItemsStub,
+        workItemAttemptsStub,
+        grpcTestServerRule.channel,
+        tmpPath,
+        kmsClient,
+      )
     val job = launch { app.run() }
 
     publisher.publishMessage(TOPIC_ID, workItem)
 
-    val processedMessage = withTimeout(10000) {
-      app.messageProcessed.await()
-    }
+    val processedMessage = app.messageProcessed.await()
 
     assertThat(processedMessage).isEqualTo(workItemParams)
 
@@ -259,15 +248,32 @@ class ResultsFulfillerAppTest {
 
   private fun createWorkItemParams(): WorkItemParams {
     return workItemParams {
-      appParams = resultsFulfillerParams {
-        this.storage = ResultsFulfillerParamsKt.storage {
-          labeledImpressionsBlobUriPrefix = IMPRESSIONS_METADATA_FILE_URI_PREFIX
-        }
-      }.pack()
+      appParams =
+        resultsFulfillerParams {
+            this.storage =
+              ResultsFulfillerParamsKt.storage {
+                labeledImpressionsBlobUriPrefix = IMPRESSIONS_METADATA_FILE_URI_PREFIX
+              }
+            this.cmmsConnection =
+              ResultsFulfillerParamsKt.connection {
+                clientCertResourcePath = SECRET_FILES_PATH.resolve("edp1_tls.pem").toString()
+                clientPrivateKeyResourcePath = SECRET_FILES_PATH.resolve("edp1_tls.key").toString()
+              }
+            this.consent =
+              ResultsFulfillerParamsKt.consent {
+                resultCsCertDerResourcePath =
+                  SECRET_FILES_PATH.resolve("edp1_result_cs_cert.der").toString()
+                resultCsPrivateKeyDerResourcePath =
+                  SECRET_FILES_PATH.resolve("edp1_result_cs_private.der").toString()
+                privateEncryptionKeyResourcePath =
+                  SECRET_FILES_PATH.resolve("edp1_enc_private.tink").toString()
+                edpCertificateName = DATA_PROVIDER_CERTIFICATE_KEY.toName()
+              }
+          }
+          .pack()
 
-      dataPathParams = WorkItemKt.WorkItemParamsKt.dataPathParams {
-        dataPath = REQUISITIONS_FILE_URI
-      }
+      dataPathParams =
+        WorkItemKt.WorkItemParamsKt.dataPathParams { dataPath = REQUISITIONS_FILE_URI }
     }
   }
 
@@ -290,8 +296,7 @@ class ResultsFulfillerAppTest {
     private const val SUBSCRIPTION_ID = "test-subscription"
     private const val TOPIC_ID = "test-topic"
 
-    @get:ClassRule
-    @JvmStatic val pubSubEmulatorProvider = GooglePubSubEmulatorProvider()
+    @get:ClassRule @JvmStatic val pubSubEmulatorProvider = GooglePubSubEmulatorProvider()
 
     private val LAST_EVENT_DATE = LocalDate.now()
     private val FIRST_EVENT_DATE = LAST_EVENT_DATE.minusDays(1)
@@ -311,9 +316,7 @@ class ResultsFulfillerAppTest {
       LabeledImpression.newBuilder()
         .setEventTime(Timestamp.getDefaultInstance())
         .setVid(10L)
-        .setEvent(
-          TEST_EVENT.pack()
-        )
+        .setEvent(TEST_EVENT.pack())
         .build()
 
     private const val EDP_ID = "someDataProvider"
@@ -332,7 +335,11 @@ class ResultsFulfillerAppTest {
     private const val MEASUREMENT_CONSUMER_NAME = "measurementConsumers/AAAAAAAAAHs"
     private const val DATA_PROVIDER_NAME = "dataProviders/AAAAAAAAAHs"
     private const val REQUISITION_NAME = "$DATA_PROVIDER_NAME/requisitions/foo"
-    private val MC_SIGNING_KEY = loadSigningKey("${MEASUREMENT_CONSUMER_ID}_cs_cert.der", "${MEASUREMENT_CONSUMER_ID}_cs_private.der")
+    private val MC_SIGNING_KEY =
+      loadSigningKey(
+        "${MEASUREMENT_CONSUMER_ID}_cs_cert.der",
+        "${MEASUREMENT_CONSUMER_ID}_cs_private.der",
+      )
     private val DATA_PROVIDER_PUBLIC_KEY: EncryptionPublicKey =
       loadPublicKey(SECRET_FILES_PATH.resolve("${EDP_DISPLAY_NAME}_enc_public.tink").toFile())
         .toEncryptionPublicKey()
@@ -388,7 +395,7 @@ class ResultsFulfillerAppTest {
       measurement = "$MEASUREMENT_CONSUMER_NAME/measurements/BBBBBBBBBHs"
       state = Requisition.State.UNFULFILLED
       measurementConsumerCertificate = "$MEASUREMENT_CONSUMER_NAME/certificates/AAAAAAAAAcg"
-      measurementSpec = signMeasurementSpec(MEASUREMENT_SPEC, MC_SIGNING_KEY)
+      this.measurementSpec = signMeasurementSpec(MEASUREMENT_SPEC, MC_SIGNING_KEY)
       encryptedRequisitionSpec = ENCRYPTED_REQUISITION_SPEC
       protocolConfig = protocolConfig {
         protocols +=

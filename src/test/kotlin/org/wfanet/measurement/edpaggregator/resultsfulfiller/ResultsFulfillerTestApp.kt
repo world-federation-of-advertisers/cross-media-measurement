@@ -5,11 +5,7 @@ import com.google.protobuf.Parser
 import com.google.protobuf.TypeRegistry
 import io.grpc.Channel
 import java.io.File
-import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
-import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
-import org.wfanet.measurement.common.crypto.SigningKeyHandle
-import org.wfanet.measurement.common.crypto.tink.TinkPrivateKeyHandle
 import org.wfanet.measurement.common.crypto.tink.testing.FakeKmsClient
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
 import org.wfanet.measurement.queue.QueueSubscriber
@@ -25,17 +21,18 @@ class ResultsFulfillerTestApp(
   parser: Parser<WorkItem>,
   workItemsClient: WorkItemsGrpcKt.WorkItemsCoroutineStub,
   workItemAttemptsClient: WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineStub,
-  private val cmmsChannel: Channel,
+  cmmsChannel: Channel,
   private val fileSystemRootDirectory: File,
   private val kmsClient: FakeKmsClient,
-): ResultsFulfillerApp(
-  subscriptionId,
-  queueSubscriber,
-  parser,
-  workItemsClient,
-  workItemAttemptsClient,
-  cmmsChannel = cmmsChannel,
-) {
+) :
+  ResultsFulfillerApp(
+    subscriptionId,
+    queueSubscriber,
+    parser,
+    workItemsClient,
+    workItemAttemptsClient,
+    cmmsChannel = cmmsChannel,
+  ) {
   override fun createStorageClient(
     blobUri: String,
     rootDirectory: File?,
@@ -49,15 +46,14 @@ class ResultsFulfillerTestApp(
   }
 
   override fun getTypeRegistry(): TypeRegistry {
-    val typeRegistry = TypeRegistry.newBuilder()
-      .add(TestEvent.getDescriptor())
-      .build()
+    val typeRegistry = TypeRegistry.newBuilder().add(TestEvent.getDescriptor()).build()
     return typeRegistry
   }
 
-  override fun getStorageConfig(configType: StorageConfigType, storageDetails: ResultsFulfillerParams.Storage): StorageConfig {
-    return StorageConfig(
-      rootDirectory = fileSystemRootDirectory
-    )
+  override fun getStorageConfig(
+    configType: StorageConfigType,
+    storageDetails: ResultsFulfillerParams.Storage,
+  ): StorageConfig {
+    return StorageConfig(rootDirectory = fileSystemRootDirectory)
   }
 }

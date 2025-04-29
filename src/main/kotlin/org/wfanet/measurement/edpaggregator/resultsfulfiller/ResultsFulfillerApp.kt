@@ -103,7 +103,7 @@ abstract class ResultsFulfillerApp(
         }
         RequisitionsCoroutineStub(publicChannel)
       }
-    val dataProviderCertificateKey = checkNotNull(DataProviderCertificateKey.fromName(fulfillerParams.consent.resultCsCertDerResourcePath))
+    val dataProviderCertificateKey = checkNotNull(DataProviderCertificateKey.fromName(fulfillerParams.consent.edpCertificateName))
     val consentCertificateFile = checkNotNull(getRuntimePath(Paths.get(fulfillerParams.consent.resultCsCertDerResourcePath))).toFile()
     val consentPrivateKeyFile = checkNotNull(getRuntimePath(Paths.get(fulfillerParams.consent.resultCsPrivateKeyDerResourcePath))).toFile()
     val encryptionPrivateKeyFile = checkNotNull(getRuntimePath(Paths.get(fulfillerParams.consent.privateEncryptionKeyResourcePath))).toFile()
