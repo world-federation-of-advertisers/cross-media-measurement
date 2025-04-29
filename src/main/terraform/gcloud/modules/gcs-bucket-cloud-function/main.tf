@@ -19,6 +19,12 @@ resource "google_service_account" "cloud_function_service_account" {
   display_name = "Service account for Cloud Function"
 }
 
+resource "google_service_account_iam_member" "allow_github_actions_to_use_cloud_function_service_account" {
+  service_account_id = google_service_account.cloud_function_service_account.name
+  role               = "roles/iam.serviceAccountUser"
+  member             = "serviceAccount:${var.terraform_service_account}"
+}
+
 resource "google_storage_bucket_iam_member" "cloud_function_object_viewer" {
   bucket = var.trigger_bucket_name
   role   = "roles/storage.objectViewer"

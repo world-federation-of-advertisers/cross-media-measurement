@@ -25,6 +25,7 @@ module "data_watcher_function_service_accounts" {
   cloud_function_service_account_name       = var.data_watcher_service_account_name
   cloud_function_trigger_service_account_name    = var.data_watcher_trigger_service_account_name
   trigger_bucket_name                       = module.edp_aggregator_bucket.storage_bucket.name
+  terraform_service_account                 = var.terraform_service_account
 }
 
 module "edp_aggregator_queues" {
