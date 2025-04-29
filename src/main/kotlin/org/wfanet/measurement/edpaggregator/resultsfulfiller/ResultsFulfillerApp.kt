@@ -22,6 +22,15 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAtt
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt
 import org.wfanet.measurement.securecomputation.teesdk.BaseTeeApplication
 import org.wfanet.measurement.storage.StorageClient
+import org.wfanet.measurement.common.crypto.SigningCerts
+import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
+import java.security.cert.X509Certificate
+import org.wfanet.measurement.common.crypto.readCertificate
+import org.wfanet.measurement.common.crypto.readPrivateKey
+import org.wfanet.measurement.common.readByteString
+import org.wfanet.measurement.common.grpc.withShutdownTimeout
+import java.time.Duration
+import org.wfanet.measurement.common.crypto.tink.loadPrivateKey
 
 enum class StorageConfigType {
   REQUISITION,
@@ -35,7 +44,11 @@ abstract class ResultsFulfillerApp(
   parser: Parser<WorkItem>,
   workItemsClient: WorkItemsGrpcKt.WorkItemsCoroutineStub,
   workItemAttemptsClient: WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineStub,
-  private val cmmsChannel: Channel?,
+  private val trustedCertCollection: File? = null,
+  private val cmmsTarget: String? = null,
+  private val cmmsCertHost: String? = null,
+  private val cmmsChannel: Channel? = null,
+  private val channelShutdownTimeout: Duration = Duration.ofSeconds(3),
 ) :
   BaseTeeApplication(
     subscriptionId = subscriptionId,
@@ -76,23 +89,36 @@ abstract class ResultsFulfillerApp(
       getStorageConfig(StorageConfigType.IMPRESSION_METADATA, storageDetails)
     val impressionsStorageConfig = getStorageConfig(StorageConfigType.IMPRESSION, storageDetails)
     val requisitionsStub =
-      if (cmmsChannel) {
+      if (cmmsChannel != null) {
         RequisitionsCoroutineStub(cmmsChannel)
       } else {
         val publicChannel by lazy {
-          buildMutualTlsChannel(cmmsTarget, getClientCerts(), cmmsCertHost)
+          val signingCerts = SigningCerts.fromPemFiles(
+            certificateFile = checkNotNull(getRuntimePath(Paths.get(fulfillerParams.cmmsConnection.clientCertResourcePath))).toFile(),
+            privateKeyFile = checkNotNull(getRuntimePath(Paths.get(fulfillerParams.cmmsConnection.clientPrivateKeyResourcePath))).toFile(),
+            trustedCertCollectionFile = checkNotNull(trustedCertCollection),
+          )
+          buildMutualTlsChannel(checkNotNull(cmmsTarget), signingCerts, cmmsCertHost)
             .withShutdownTimeout(channelShutdownTimeout)
         }
-        val requisitionsStub = RequisitionsCoroutineStub(channel)
+        RequisitionsCoroutineStub(publicChannel)
       }
-    val dataProviderCertificateKey: DataProviderCertificateKey = TODO()
-    val dataProviderSigningKeyHandle: SigningKeyHandle = TODO()
-    val dataProviderPrivateEncryptionKey: TinkPrivateKeyHandle = TODO()
+    val dataProviderCertificateKey = checkNotNull(DataProviderCertificateKey.fromName(fulfillerParams.consent.resultCsCertDerResourcePath))
+    val consentCertificateFile = checkNotNull(getRuntimePath(Paths.get(fulfillerParams.consent.resultCsCertDerResourcePath))).toFile()
+    val consentPrivateKeyFile = checkNotNull(getRuntimePath(Paths.get(fulfillerParams.consent.resultCsPrivateKeyDerResourcePath))).toFile()
+    val encryptionPrivateKeyFile = checkNotNull(getRuntimePath(Paths.get(fulfillerParams.consent.privateEncryptionKeyResourcePath))).toFile()
+    val consentCertificate: X509Certificate =
+      consentCertificateFile.inputStream().use { input -> readCertificate(input) }
+    val consentPrivateEncryptionKey = readPrivateKey(consentPrivateKeyFile.readByteString(), consentCertificate.publicKey.algorithm)
+    val dataProviderSigningKeyHandle = SigningKeyHandle(
+      consentCertificate,
+      consentPrivateEncryptionKey
+    )
 
     val kmsClient = getKmsClient()
 
     ResultsFulfiller(
-        dataProviderPrivateEncryptionKey,
+        loadPrivateKey(encryptionPrivateKeyFile),
         requisitionsStub,
         dataProviderCertificateKey,
         dataProviderSigningKeyHandle,
@@ -109,16 +135,5 @@ abstract class ResultsFulfillerApp(
     messageProcessed.complete(workItemParams)
   }
 
-  private fun getClientCerts(
-    certResourcePath: String,
-    privateKeyResourcePath: String,
-    certCollectionResourcePath: String,
-  ): SigningCerts {
-    return SigningCerts.fromPemFiles(
-      certificateFile = checkNotNull(getRuntimePath(Paths.get(certResourcePath))).toFile(),
-      privateKeyFile = checkNotNull(getRuntimePath(Paths.get(privateKeyResourcePath))).toFile(),
-      trustedCertCollectionFile =
-      checkNotNull(getRuntimePath(Paths.get(certCollectionResourcePath))).toFile(),
-    )
-  }
+
 }

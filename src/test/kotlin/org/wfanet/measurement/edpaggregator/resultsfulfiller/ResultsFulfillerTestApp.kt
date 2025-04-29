@@ -3,6 +3,7 @@ package org.wfanet.measurement.edpaggregator.resultsfulfiller
 import com.google.crypto.tink.KmsClient
 import com.google.protobuf.Parser
 import com.google.protobuf.TypeRegistry
+import io.grpc.Channel
 import java.io.File
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt
@@ -24,16 +25,16 @@ class ResultsFulfillerTestApp(
   parser: Parser<WorkItem>,
   workItemsClient: WorkItemsGrpcKt.WorkItemsCoroutineStub,
   workItemAttemptsClient: WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineStub,
-  requisitionsStub: RequisitionsGrpcKt.RequisitionsCoroutineStub,
+  private val cmmsChannel: Channel,
   private val fileSystemRootDirectory: File,
-  private val kmsClient: FakeKmsClient
+  private val kmsClient: FakeKmsClient,
 ): ResultsFulfillerApp(
   subscriptionId,
   queueSubscriber,
   parser,
   workItemsClient,
   workItemAttemptsClient,
-  requisitionsStub,
+  cmmsChannel = cmmsChannel,
 ) {
   override fun createStorageClient(
     blobUri: String,

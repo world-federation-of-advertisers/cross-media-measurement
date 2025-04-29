@@ -65,14 +65,12 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
   private val secureComputationDatabaseAdmin: SpannerDatabaseAdmin,
 ) {
 
-  val inProcessCmmsComponents = run {
-    logger.info("77777777777777777777777777777777777777777777777777777777")
+  private val inProcessCmmsComponents =
     InProcessCmmsComponents(kingdomDataServicesRule, duchyDependenciesRule)
-  }
 
   @JvmField val tempDirectory = TemporaryFolder()
 
-  val inProcessEdpAggregatorComponents: InProcessEdpAggregatorComponents = run {
+  private val inProcessEdpAggregatorComponents: InProcessEdpAggregatorComponents = run {
     tempDirectory.create()
     val storageClient = FileSystemStorageClient(tempDirectory.root)
     val pubSubClient =
@@ -80,8 +78,6 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
         host = pubSubEmulatorProvider.host,
         port = pubSubEmulatorProvider.port,
       )
-    logger.info("888888888888888888888888888888888888888888888888888888888")
-    logger.info(QUEUES_CONFIG.toString())
     InProcessEdpAggregatorComponents(
       internalServicesRule =
         SecureComputationServicesProviderRule(
@@ -90,7 +86,7 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
           emulatorDatabaseAdmin = secureComputationDatabaseAdmin,
         ),
       storageClient = storageClient,
-      storagePrefix = tempDirectory.root.toPath().toString(),
+      storagePath = tempDirectory.root.toPath(),
       pubSubClient = pubSubClient,
     )
   }
@@ -101,18 +97,6 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
       .around(pubSubEmulatorProvider)
       .around(tempDirectory)
       .around(inProcessEdpAggregatorComponents)
-
-  /*@get:Rule
-  val ruleChain: RuleChain = RuleChain
-    .outerRule(inProcessEdpAggregatorComponents)
-    .around(tempDirectory)
-    .around(pubSubEmulatorProvider)
-    .around(inProcessCmmsComponents)*/
-
-  /*@Before
-  fun setupRules() {
-    ruleChain.apply(this, Description.EMPTY)
-  }*/
 
   @Before
   fun setup() {

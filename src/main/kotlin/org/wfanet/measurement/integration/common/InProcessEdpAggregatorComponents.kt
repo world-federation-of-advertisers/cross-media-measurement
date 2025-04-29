@@ -16,6 +16,7 @@
 
 package org.wfanet.measurement.integration.common
 
+import java.io.File
 import com.google.protobuf.Any
 import com.google.protobuf.Int32Value
 import com.google.protobuf.timestamp
@@ -61,12 +62,17 @@ import org.wfanet.measurement.securecomputation.datawatcher.testing.DataWatcherS
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.InternalApiServices
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.ResultsFulfillerTestApp
+import org.wfanet.measurement.common.crypto.tink.testing.FakeKmsClient
+import com.google.crypto.tink.Aead
+import com.google.crypto.tink.KeyTemplates
+import com.google.crypto.tink.KeysetHandle
+import java.nio.file.Path
 
 class InProcessEdpAggregatorComponents(
   private val internalServicesRule: ProviderRule<InternalApiServices>,
   private val pubSubClient: GooglePubSubEmulatorClient,
   private val storageClient: StorageClient,
-  private val storagePrefix: String,
+  private val storagePath: Path,
 ) : TestRule {
 
   private val internalServices: InternalApiServices
@@ -99,6 +105,15 @@ class InProcessEdpAggregatorComponents(
 
   private lateinit var eventGroupSync: EventGroupSync
 
+  private val kekUri = FakeKmsClient.KEY_URI_PREFIX + "key1"
+
+  private val kmsClient by lazy {
+    val kmsKeyHandle = KeysetHandle.generateNew(KeyTemplates.get("AES128_GCM"))
+    val kmsClient = FakeKmsClient()
+    kmsClient.setAead(kekUri, kmsKeyHandle.getPrimitive(Aead::class.java))
+    kmsClient
+  }
+
   private val resultFulfillerApp by lazy {
     val subscriber = Subscriber(PROJECT_ID, pubSubClient)
     ResultsFulfillerTestApp(
@@ -108,8 +123,8 @@ class InProcessEdpAggregatorComponents(
       workItemAttemptsClient =
         WorkItemAttemptsCoroutineStub(secureComputationPublicApi.publicApiChannel),
       queueSubscriber = subscriber,
-      publicApi = publicApiChannel,
-      fileSystemRootDirectory = File(),
+      cmmsChannel = publicApiChannel,
+      fileSystemRootDirectory = storagePath.toFile(),
         kmsClient = kmsClient,
     )
   }
@@ -173,7 +188,7 @@ class InProcessEdpAggregatorComponents(
       )
     dataWatcher = DataWatcher(workItemsClient, watchedPaths)
 
-    val subscribingStorageClient = DataWatcherSubscribingStorageClient(storageClient, storagePrefix)
+    val subscribingStorageClient = DataWatcherSubscribingStorageClient(storageClient, storagePath.toString())
     subscribingStorageClient.subscribe(dataWatcher)
 
     requisitionFetcher =
