@@ -281,13 +281,9 @@ class InProcessCmmsComponents(
   }
 
   fun getDataProviderDisplayNameFromEventGroupName(eventGroupName: String): String {
-    println("getDataProviderDisplayNameFromEventGroupName************")
-    println(edpDisplayNameToResourceMap)
-    println("EventGroupName*********************************")
-    println(eventGroupName)
     return edpDisplayNameToResourceMap.entries
-      .find { entry -> eventGroupName.contains(entry.value.name) }
-      ?.key ?: "EmptyEDP"
+      .find { entry -> eventGroupName.equals(entry.value.name) }
+      ?.key ?: ""
   }
 
   fun getDataProviderResourceNames(): List<String> {

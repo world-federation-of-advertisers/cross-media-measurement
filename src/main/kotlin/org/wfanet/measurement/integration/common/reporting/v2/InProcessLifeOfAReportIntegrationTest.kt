@@ -426,7 +426,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
 
     val llv2EventGroups: List<EventGroup> =
       eventGroups.filter {
-        inProcessCmmsComponents.getDataProviderDisplayNameFromEventGroupName(it.name) in
+        inProcessCmmsComponents.getDataProviderDisplayNameFromEventGroupName(it.cmmsDataProvider) in
           ALL_EDP_WITHOUT_HMSS_CAPABILITIES_DISPLAY_NAMES
       }
 
@@ -551,7 +551,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
 
     val hmssEventGroups: List<EventGroup> =
       eventGroups.filter {
-        inProcessCmmsComponents.getDataProviderDisplayNameFromEventGroupName(it.name) in
+        inProcessCmmsComponents.getDataProviderDisplayNameFromEventGroupName(it.cmmsDataProvider) in
           ALL_EDP_WITH_HMSS_CAPABILITIES_DISPLAY_NAMES
       }
 
