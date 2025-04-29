@@ -77,6 +77,7 @@ module "tee_apps" {
   machine_type                  = each.value.worker.machine_type
   kms_key_id                    = google_kms_crypto_key.edp_aggregator_kek.id
   docker_image                  = each.value.worker.docker_image
+  terraform_service_account     = var.terraform_service_account
 }
 
 resource "google_storage_bucket_iam_member" "mig_storage_viewer" {

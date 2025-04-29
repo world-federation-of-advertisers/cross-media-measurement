@@ -49,5 +49,6 @@ module "edp_aggregator" {
   edp_aggregator_bucket_location            = local.storage_bucket_location
   data_watcher_service_account_name         = "data-watcher"
   data_watcher_trigger_service_account_name = "data-watcher-trigger"
+  terraform_service_account                 = var.terraform_service_account
 }
 

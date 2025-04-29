@@ -20,6 +20,12 @@ resource "google_service_account" "mig_service_account" {
   display_name = "MIG Service Account"
 }
 
+resource "google_service_account_iam_member" "allow_terraform_to_use_mig_sa" {
+  service_account_id = google_service_account.mig_service_account.email
+  role               = "roles/iam.serviceAccountUser"
+  member             = "serviceAccount:${var.terraform_service_account}"
+}
+
 resource "google_pubsub_subscription_iam_member" "mig_subscriber" {
   subscription  = var.subscription_id
   role          = "roles/pubsub.subscriber"
@@ -83,7 +89,7 @@ EOT
   }
 }
 
-resource "google_compute_instance_group_manager" "mig" {
+resource "google_compute_region_instance_group_manager" "mig" {
   name               = var.managed_instance_group_name
   base_instance_name = var.base_instance_name
   version {
@@ -91,7 +97,7 @@ resource "google_compute_instance_group_manager" "mig" {
   }
 }
 
-resource "google_compute_autoscaler" "mig_autoscaler" {
+resource "google_compute_region_autoscaler" "mig_autoscaler" {
   name   = "autoscaler-for-${google_compute_instance_group_manager.mig.name}"
   target = google_compute_instance_group_manager.mig.id
 
