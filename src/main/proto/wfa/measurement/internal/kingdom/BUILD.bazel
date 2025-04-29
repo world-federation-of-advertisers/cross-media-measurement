@@ -309,7 +309,6 @@ proto_library(
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
         ":event_template_proto",
-        "@com_google_googleapis//google/type:interval_proto",
     ],
 )
 
@@ -320,6 +319,7 @@ proto_library(
     deps = [
         ":event_group_details_proto",
         ":media_type_proto",
+        "@com_google_googleapis//google/type:interval_proto",
         "@com_google_protobuf//:timestamp_proto",
     ],
 )

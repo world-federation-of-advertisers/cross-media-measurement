@@ -62,7 +62,8 @@ class DataWatcherFunction : CloudEventsFunction {
     private val certJarResourcePath = checkIsPath("CERT_JAR_RESOURCE_PATH")
     private val privateKeyJarResourcePath = checkIsPath("PRIVATE_KEY_JAR_RESOURCE_PATH")
     private val certCollectionJarResourcePath = checkIsPath("CERT_COLLECTION_JAR_RESOURCE_PATH")
-    private val dataWatcherConfigResourcePath = checkIsPath("DATA_WATCHER_CONFIG_RESOURCE_PATH")
+    private const val dataWatcherConfigResourcePath =
+      "securecomputation/datawatcher/data_watcher_config.textproto"
     private val controlPlaneTarget = checkNotEmpty("CONTROL_PLANE_TARGET")
     private val controlPlaneCertHost = checkNotEmpty("CONTROL_PLANE_CERT_HOST")
     private val channelShutdownTimeout =
