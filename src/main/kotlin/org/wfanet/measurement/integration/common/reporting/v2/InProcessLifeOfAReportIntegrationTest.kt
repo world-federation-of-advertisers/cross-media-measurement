@@ -423,7 +423,6 @@ abstract class InProcessLifeOfAReportIntegrationTest(
     val eventGroups = listEventGroups()
     println("*****************************EVENTGROUPS**************************")
     println(eventGroups)
-    val eventGroups: List<EventGroup> = listEventGroups()
 
     val llv2EventGroups: List<EventGroup> =
       eventGroups.filter {
