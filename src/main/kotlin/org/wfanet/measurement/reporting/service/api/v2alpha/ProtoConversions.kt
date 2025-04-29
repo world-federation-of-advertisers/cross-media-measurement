@@ -38,6 +38,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec.VidSamplingInterval
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
+import org.wfanet.measurement.api.v2alpha.ProtocolConfig.HonestMajorityShareShuffle
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.eventdataprovider.noiser.DpParams as NoiserDpParams
@@ -702,7 +703,7 @@ private fun Measurement.Result.Frequency.toInternal(
       noiseMechanism = cmmsProtocol.noiseMechanism.toInternal()
       liquidLegionsV2 = cmmsProtocol.toInternal()
     } else if (protocolConfig.protocolsList.any { it.hasHonestMajorityShareShuffle() }) {
-      val cmmsProtocol =
+      val cmmsProtocol: HonestMajorityShareShuffle =
         protocolConfig.protocolsList
           .first { it.hasHonestMajorityShareShuffle() }
           .honestMajorityShareShuffle
@@ -754,7 +755,7 @@ private fun Measurement.Result.Reach.toInternal(
       noiseMechanism = cmmsProtocol.noiseMechanism.toInternal()
       reachOnlyLiquidLegionsV2 = cmmsProtocol.toInternal()
     } else if (protocolConfig.protocolsList.any { it.hasHonestMajorityShareShuffle() }) {
-      val cmmsProtocol =
+      val cmmsProtocol: HonestMajorityShareShuffle =
         protocolConfig.protocolsList
           .first { it.hasHonestMajorityShareShuffle() }
           .honestMajorityShareShuffle
