@@ -96,6 +96,7 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItemAtt
 import org.wfanet.measurement.storage.MesosRecordIoStorageClient
 import org.wfanet.measurement.storage.SelectedStorageClient
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParamsKt.storage
+import kotlinx.coroutines.withTimeout
 
 class ResultsFulfillerAppTest {
   private lateinit var emulatorClient: GooglePubSubEmulatorClient
@@ -136,9 +137,6 @@ class ResultsFulfillerAppTest {
 
   @get:Rule
   val grpcTestServerRule = GrpcTestServerRule { addService(requisitionsServiceMock) }
-  private val requisitionsStub: RequisitionsGrpcKt.RequisitionsCoroutineStub by lazy {
-    RequisitionsGrpcKt.RequisitionsCoroutineStub(grpcTestServerRule.channel)
-  }
 
   @Test
   fun `runWork processes requisition successfully`() = runBlocking {
@@ -163,10 +161,11 @@ class ResultsFulfillerAppTest {
     }
     workItemsServiceMock.stub { onBlocking { failWorkItem(any()) } doReturn workItem }
 
+    val tmpPath = Files.createTempDirectory(null).toFile()
+
     // Create requisitions storage client
-    val requisitionsTmpPath = Files.createTempDirectory(null).toFile()
-    Files.createDirectories(requisitionsTmpPath.resolve(REQUISITIONS_BUCKET).toPath())
-    val requisitionsStorageClient = SelectedStorageClient(REQUISITIONS_FILE_URI, requisitionsTmpPath)
+    Files.createDirectories(tmpPath.resolve(REQUISITIONS_BUCKET).toPath())
+    val requisitionsStorageClient = SelectedStorageClient(REQUISITIONS_FILE_URI, tmpPath)
 
     // Add requisitions to storage
     requisitionsStorageClient.writeBlob(
@@ -175,9 +174,8 @@ class ResultsFulfillerAppTest {
     )
 
     // Create impressions storage client
-    val impressionsTmpPath = Files.createTempDirectory(null).toFile()
-    Files.createDirectories(impressionsTmpPath.resolve(IMPRESSIONS_BUCKET).toPath())
-    val impressionsStorageClient = SelectedStorageClient(IMPRESSIONS_FILE_URI, impressionsTmpPath)
+    Files.createDirectories(tmpPath.resolve(IMPRESSIONS_BUCKET).toPath())
+    val impressionsStorageClient = SelectedStorageClient(IMPRESSIONS_FILE_URI, tmpPath)
 
     // Set up KMS
     val kmsClient = FakeKmsClient()
@@ -219,10 +217,9 @@ class ResultsFulfillerAppTest {
     mesosRecordIoStorageClient.writeBlob(IMPRESSIONS_BLOB_KEY, impressionsFlow)
 
     // Create the impressions metadata store
-    val metadataTmpPath = Files.createTempDirectory(null).toFile()
-    Files.createDirectories(metadataTmpPath.resolve(IMPRESSIONS_METADATA_BUCKET).toPath())
+    Files.createDirectories(tmpPath.resolve(IMPRESSIONS_METADATA_BUCKET).toPath())
     val impressionsMetadataStorageClient =
-      SelectedStorageClient(IMPRESSIONS_METADATA_FILE_URI, metadataTmpPath)
+      SelectedStorageClient(IMPRESSIONS_METADATA_FILE_URI, tmpPath)
 
     val encryptedDek =
       EncryptedDek.newBuilder().setKekUri(kekUri).setEncryptedDek(serializedEncryptionKey).build()
@@ -243,20 +240,17 @@ class ResultsFulfillerAppTest {
       parser = WorkItem.parser(),
       workItemsStub,
       workItemAttemptsStub,
-      requisitionsStub,
-      DATA_PROVIDER_CERTIFICATE_KEY,
-      EDP_RESULT_SIGNING_KEY,
-      PRIVATE_ENCRYPTION_KEY,
-      requisitionsTmpPath,
-      impressionsTmpPath,
-      metadataTmpPath,
+      grpcTestServerRule.channel,
+      tmpPath,
       kmsClient
     )
     val job = launch { app.run() }
 
     publisher.publishMessage(TOPIC_ID, workItem)
 
-    val processedMessage = app.messageProcessed.await()
+    val processedMessage = withTimeout(10000) {
+      app.messageProcessed.await()
+    }
 
     assertThat(processedMessage).isEqualTo(workItemParams)
 
