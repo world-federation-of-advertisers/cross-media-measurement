@@ -180,7 +180,7 @@ class MeasurementSystemProberTest {
         privateKeyDerFile,
         MEASUREMENT_LOOKBACK_DURATION,
         DURATION_BETWEEN_MEASUREMENT,
-        RECENT_UPDATED_MEASUREMENT_WINDOW,
+        MEASUREMENT_UPDATE_LOOKBACK_DURATION,
         measurementConsumersClient,
         measurementsClient,
         dataProvidersClient,
@@ -535,7 +535,7 @@ class MeasurementSystemProberTest {
 
     private val DURATION_BETWEEN_MEASUREMENT = Duration.ofDays(1)
     private val MEASUREMENT_LOOKBACK_DURATION = Duration.ofDays(1)
-    private val RECENT_UPDATED_MEASUREMENT_WINDOW = Duration.ofHours(2)
+    private val MEASUREMENT_UPDATE_LOOKBACK_DURATION = Duration.ofHours(2)
     private const val NONCE = -3060866405677570814L // Hex: D5859E38A0A96502
     private val fixedRandom =
       object : SecureRandom() {

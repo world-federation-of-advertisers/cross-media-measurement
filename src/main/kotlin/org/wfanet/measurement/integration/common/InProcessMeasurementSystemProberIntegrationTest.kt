@@ -103,7 +103,7 @@ abstract class InProcessMeasurementSystemProberIntegrationTest(
     val privateKeyDerFile = secretsDir.resolve("${MC_DISPLAY_NAME}_cs_private.der")
     val durationBetweenMeasurement: Duration = Duration.ofSeconds(5)
     val measurementLookBackDuration = Duration.ofDays(1)
-    val recentUpdatedMeasurementWindow = Duration.ofHours(2)
+    val measurementUpdateLookBackDuration = Duration.ofHours(2)
     clock = TestClockWithNamedInstants(Instant.now())
     prober =
       MeasurementSystemProber(
@@ -113,7 +113,7 @@ abstract class InProcessMeasurementSystemProberIntegrationTest(
         privateKeyDerFile,
         measurementLookBackDuration,
         durationBetweenMeasurement,
-        recentUpdatedMeasurementWindow,
+        measurementUpdateLookBackDuration,
         publicMeasurementConsumersClient,
         publicMeasurementsClient,
         publicDataProvidersClient,
