@@ -198,6 +198,7 @@ import org.wfanet.measurement.reporting.v2alpha.ListMetricsPageTokenKt.previousP
 import org.wfanet.measurement.reporting.v2alpha.ListMetricsRequest
 import org.wfanet.measurement.reporting.v2alpha.ListMetricsResponse
 import org.wfanet.measurement.reporting.v2alpha.Metric
+import org.wfanet.measurement.reporting.v2alpha.MetricKt.failure
 import org.wfanet.measurement.reporting.v2alpha.MetricResult
 import org.wfanet.measurement.reporting.v2alpha.MetricResultKt.HistogramResultKt.bin
 import org.wfanet.measurement.reporting.v2alpha.MetricResultKt.HistogramResultKt.binResult
@@ -1815,15 +1816,21 @@ class MetricsService(
           try {
             result = buildMetricResult(source, variances)
           } catch (e: Exception) {
+            state = Metric.State.FAILED
             when (e) {
-              is MeasurementVarianceNotComputableException,
+              is MeasurementVarianceNotComputableException -> {
+                result = buildMetricResult(source)
+                failure = failure {
+                  reason = Metric.Failure.Reason.MEASUREMENT_RESULT_INVALID
+                  message = "Problem with variance calculation"
+                }
+              }
               is NoiseMechanismUnrecognizedException -> {
                 result = buildMetricResult(source)
-                logger.log(
-                  Level.WARNING,
-                  "Failed to calculate metric variance for metric with ID ${source.externalMetricId}",
-                  e,
-                )
+                failure = failure {
+                  reason = Metric.Failure.Reason.MEASUREMENT_RESULT_INVALID
+                  message = "Problem with noise mechanism"
+                }
               }
 
               is MetricResultNotComputableException -> {
@@ -1838,18 +1845,32 @@ class MetricsService(
                         .toName()
                     }
                 }
-                logger.log(
-                  Level.WARNING,
-                  "Failed to calculate metric result for metric with ID ${source.externalMetricId}",
-                  e,
-                )
+                failure = failure {
+                  reason = Metric.Failure.Reason.MEASUREMENT_RESULT_INVALID
+                  message = "Problem with result"
+                }
               }
 
-              else -> throw e
+              else -> {
+                failure = failure {
+                  reason = Metric.Failure.Reason.MEASUREMENT_RESULT_INVALID
+                }
+              }
             }
           }
         }
-        Metric.State.FAILED,
+        Metric.State.FAILED -> {
+          result = metricResult {
+            cmmsMeasurements +=
+              source.weightedMeasurementsList.map {
+                MeasurementKey(source.cmmsMeasurementConsumerId, it.measurement.cmmsMeasurementId)
+                  .toName()
+              }
+          }
+          failure = failure {
+            reason = Metric.Failure.Reason.MEASUREMENT_FAILED
+          }
+        }
         Metric.State.INVALID -> {
           result = metricResult {
             cmmsMeasurements +=

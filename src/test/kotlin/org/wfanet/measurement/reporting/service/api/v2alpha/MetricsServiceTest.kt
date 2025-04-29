@@ -230,6 +230,7 @@ import org.wfanet.measurement.reporting.service.internal.MetricNotFoundException
 import org.wfanet.measurement.reporting.v2alpha.ListMetricsPageTokenKt.previousPageEnd
 import org.wfanet.measurement.reporting.v2alpha.ListMetricsRequest
 import org.wfanet.measurement.reporting.v2alpha.Metric
+import org.wfanet.measurement.reporting.v2alpha.MetricKt
 import org.wfanet.measurement.reporting.v2alpha.MetricResultKt
 import org.wfanet.measurement.reporting.v2alpha.MetricSpec
 import org.wfanet.measurement.reporting.v2alpha.MetricSpecKt
@@ -6179,6 +6180,9 @@ class MetricsServiceTest {
                 )
                 .toName()
           }
+          failure = MetricKt.failure {
+            reason = Metric.Failure.Reason.MEASUREMENT_FAILED
+          }
         }
     }
 
@@ -7524,6 +7528,10 @@ class MetricsServiceTest {
         withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.getMetric(request) } }
 
       assertThat(response.state).isEqualTo(Metric.State.FAILED)
+      assertThat(response.failure).isEqualTo(MetricKt.failure {
+        reason = Metric.Failure.Reason.MEASUREMENT_RESULT_INVALID
+        message = "Problem with result"
+      })
       assertThat(response.result)
         .isEqualTo(metricResult { cmmsMeasurements += SUCCEEDED_UNION_ALL_REACH_MEASUREMENT.name })
     }
@@ -7558,12 +7566,16 @@ class MetricsServiceTest {
         withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.getMetric(request) } }
 
       assertThat(response.state).isEqualTo(Metric.State.FAILED)
+      assertThat(response.failure).isEqualTo(MetricKt.failure {
+        reason = Metric.Failure.Reason.MEASUREMENT_RESULT_INVALID
+        message = "Problem with result"
+      })
       assertThat(response.result)
         .isEqualTo(metricResult { cmmsMeasurements += SUCCEEDED_UNION_ALL_REACH_MEASUREMENT.name })
     }
 
   @Test
-  fun `getMetric returns succeeded metric for reach metric when custom direct methodology has freq`():
+  fun `getMetric returns failed metric for reach metric when custom direct methodology has freq`():
     Unit = runBlocking {
     wheneverBlocking {
       permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
@@ -7611,6 +7623,11 @@ class MetricsServiceTest {
     assertThat(response)
       .isEqualTo(
         SUCCEEDED_INCREMENTAL_REACH_METRIC.copy {
+          state = Metric.State.FAILED
+          failure = MetricKt.failure {
+            reason = Metric.Failure.Reason.MEASUREMENT_RESULT_INVALID
+            message = "Problem with variance calculation"
+          }
           result =
             result.copy {
               cmmsMeasurements += SUCCEEDED_UNION_ALL_REACH_MEASUREMENT.name
@@ -7836,6 +7853,9 @@ class MetricsServiceTest {
     assertThat(result)
       .isEqualTo(
         FAILED_SINGLE_PUBLISHER_IMPRESSION_METRIC.copy {
+          failure = MetricKt.failure {
+            reason = Metric.Failure.Reason.MEASUREMENT_FAILED
+          }
           this.result = metricResult {
             cmmsMeasurements +=
               MeasurementKey(
@@ -8628,6 +8648,10 @@ class MetricsServiceTest {
     val response =
       withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.getMetric(request) } }
     assertThat(response.state).isEqualTo(Metric.State.FAILED)
+    assertThat(response.failure).isEqualTo(MetricKt.failure {
+      reason = Metric.Failure.Reason.MEASUREMENT_RESULT_INVALID
+      message = "Problem with result"
+    })
     assertThat(response.result)
       .isEqualTo(
         metricResult {
@@ -8637,7 +8661,7 @@ class MetricsServiceTest {
   }
 
   @Test
-  fun `getMetric returns succeeded metric for rf when custom direct methodology has scalar`():
+  fun `getMetric returns failed metric for rf when custom direct methodology has scalar`():
     Unit = runBlocking {
     wheneverBlocking {
       permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
@@ -8689,6 +8713,11 @@ class MetricsServiceTest {
     assertThat(response)
       .isEqualTo(
         SUCCEEDED_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC.copy {
+          state = Metric.State.FAILED
+          failure = MetricKt.failure {
+            reason = Metric.Failure.Reason.MEASUREMENT_RESULT_INVALID
+            message = "Problem with variance calculation"
+          }
           result =
             result.copy {
               reachAndFrequency =
@@ -9166,6 +9195,9 @@ class MetricsServiceTest {
       assertThat(result)
         .isEqualTo(
           FAILED_SINGLE_PUBLISHER_IMPRESSION_METRIC.copy {
+            failure = MetricKt.failure {
+              reason = Metric.Failure.Reason.MEASUREMENT_FAILED
+            }
             this.result = metricResult {
               cmmsMeasurements +=
                 MeasurementKey(
@@ -9485,7 +9517,7 @@ class MetricsServiceTest {
     }
 
   @Test
-  fun `getMetric returns succeeded metric for impression when custom direct methodology has freq`():
+  fun `getMetric returns failed metric for impression when custom direct methodology has freq`():
     Unit = runBlocking {
     wheneverBlocking {
       permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
@@ -9533,6 +9565,11 @@ class MetricsServiceTest {
     assertThat(response)
       .isEqualTo(
         SUCCEEDED_SINGLE_PUBLISHER_IMPRESSION_METRIC.copy {
+          state = Metric.State.FAILED
+          failure = MetricKt.failure {
+            reason = Metric.Failure.Reason.MEASUREMENT_RESULT_INVALID
+            message = "Problem with variance calculation"
+          }
           result =
             result.copy { impressionCount = impressionCount.copy { clearUnivariateStatistics() } }
         }
@@ -9813,7 +9850,7 @@ class MetricsServiceTest {
     }
 
   @Test
-  fun `getMetric return succeeded metric for dur metric when custom direct methodology has freq`():
+  fun `getMetric return failed metric for dur metric when custom direct methodology has freq`():
     Unit = runBlocking {
     wheneverBlocking {
       permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
@@ -9863,6 +9900,11 @@ class MetricsServiceTest {
     assertThat(response)
       .isEqualTo(
         SUCCEEDED_CROSS_PUBLISHER_WATCH_DURATION_METRIC.copy {
+          state = Metric.State.FAILED
+          failure = MetricKt.failure {
+            reason = Metric.Failure.Reason.MEASUREMENT_RESULT_INVALID
+            message = "Problem with variance calculation"
+          }
           result =
             result.copy { watchDuration = watchDuration.copy { clearUnivariateStatistics() } }
         }
@@ -10138,7 +10180,7 @@ class MetricsServiceTest {
   }
 
   @Test
-  fun `batchGetMetrics returns metrics with SUCCEEDED when variance calculation fails`() =
+  fun `batchGetMetrics returns failed metrics when variance calculation fails`() =
     runBlocking {
       wheneverBlocking {
         permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
@@ -10204,6 +10246,11 @@ class MetricsServiceTest {
           batchGetMetricsResponse {
             metrics +=
               SUCCEEDED_INCREMENTAL_REACH_METRIC.copy {
+                state = Metric.State.FAILED
+                failure = MetricKt.failure {
+                  reason = Metric.Failure.Reason.MEASUREMENT_RESULT_INVALID
+                  message = "Problem with variance calculation"
+                }
                 result = result.copy { reach = reach.copy { clearUnivariateStatistics() } }
               }
             metrics += PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC

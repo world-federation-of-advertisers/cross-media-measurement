@@ -442,4 +442,26 @@ message Metric {
 
   // The result of calculating the metric.
   MetricResult result = 8 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Information about a failure.
+  message Failure {
+    // Reason for a `Failure`.
+    enum Reason {
+      // Default value used if the reason is omitted.
+      REASON_UNSPECIFIED = 0;
+      // An associated `Measurement` has `state` `FAILED`.
+      MEASUREMENT_FAILED = 1;
+      // An associated `Measurement` has invalid `results`.
+      MEASUREMENT_RESULT_INVALID = 2;
+    }
+    // Reason for this `Failure`.
+    Reason reason = 1 [(google.api.field_behavior) = REQUIRED];
+
+    // Human-readable message. This should not contain any sensitive
+    // information.
+    string message = 2 [(google.api.field_behavior) = OPTIONAL];
+  }
+  // Information about the failure of this `Metric`. Set when the `state`
+  // is set to `FAILED`.
+  Failure failure = 10 [(google.api.field_behavior) = OUTPUT_ONLY];
 }
