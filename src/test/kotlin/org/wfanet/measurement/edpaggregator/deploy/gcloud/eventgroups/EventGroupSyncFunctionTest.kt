@@ -154,7 +154,7 @@ class EventGroupSyncFunctionTest() {
 
   @get:Rule val grpcTestServerRule = GrpcTestServerRule { addService(eventGroupsServiceMock) }
 
-  @Rule @JvmField val tempFolder = TemporaryFolder()
+  @get:Rule val tempFolder = TemporaryFolder()
 
   @Before
   fun startInfra() {
