@@ -19,8 +19,19 @@ resource "google_service_account" "cloud_function_service_account" {
   display_name = "Service account for Cloud Function"
 }
 
-resource "google_service_account_iam_member" "allow_github_actions_to_use_cloud_function_service_account" {
+resource "google_service_account" "cloud_function_trigger_service_account" {
+  account_id   = var.cloud_function_trigger_service_account_name
+  display_name = "Trigger Service Account for Cloud Function"
+}
+
+resource "google_service_account_iam_member" "allow_terraform_to_use_cloud_function_service_account" {
   service_account_id = google_service_account.cloud_function_service_account.name
+  role               = "roles/iam.serviceAccountUser"
+  member             = "serviceAccount:${var.terraform_service_account}"
+}
+
+resource "google_service_account_iam_member" "allow_terraform_to_use_data_watcher_trigger_service_account" {
+  service_account_id = google_service_account.cloud_function_trigger_service_account.name
   role               = "roles/iam.serviceAccountUser"
   member             = "serviceAccount:${var.terraform_service_account}"
 }
@@ -35,11 +46,6 @@ resource "google_storage_bucket_iam_member" "cloud_function_object_creator" {
   bucket = var.trigger_bucket_name
   role   = "roles/storage.objectCreator"
   member = "serviceAccount:${google_service_account.cloud_function_service_account.email}"
-}
-
-resource "google_service_account" "cloud_function_trigger_service_account" {
-  account_id   = var.cloud_function_trigger_service_account_name
-  display_name = "Trigger Service Account for Cloud Function"
 }
 
 resource "google_project_iam_member" "trigger_event_receiver" {
