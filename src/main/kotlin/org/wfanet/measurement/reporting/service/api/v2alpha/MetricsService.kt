@@ -2867,7 +2867,6 @@ private fun buildWeightedReachMeasurementVarianceParams(
       throw MetricResultNotComputableException("Reach measurement should've had reach results.")
     }
 
-
   println("reach result: $reachResult")
 
   val statsNoiseMechanism: StatsNoiseMechanism =
