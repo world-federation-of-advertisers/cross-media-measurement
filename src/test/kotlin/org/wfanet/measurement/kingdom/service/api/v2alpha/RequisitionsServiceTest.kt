@@ -298,6 +298,67 @@ class RequisitionsServiceTest {
   }
 
   @Test
+  fun `listRequisitions requests internal Requisitions whose duchy protocol is not set`() {
+    val internalRequisition =
+      INTERNAL_REQUISITION.copy {
+        parentMeasurement =
+          parentMeasurement.copy {
+            protocolConfig = internalProtocolConfig {
+              externalProtocolConfigId = "direct"
+              direct = INTERNAL_DIRECT_RF_PROTOCOL_CONFIG
+            }
+          }
+        duchies[DUCHY_ID] = InternalRequisitionKt.duchyValue { externalDuchyCertificateId = 6L }
+      }
+
+    val requisition =
+      REQUISITION.copy {
+        protocolConfig =
+          protocolConfig.copy {
+            protocols.clear()
+            protocols += ProtocolConfigKt.protocol { direct = DIRECT_RF_PROTOCOL_CONFIG }
+          }
+
+        duchies.clear()
+      }
+
+    whenever(internalRequisitionMock.streamRequisitions(any()))
+      .thenReturn(flowOf(internalRequisition, internalRequisition))
+
+    val request = listRequisitionsRequest { parent = MEASUREMENT_NAME }
+
+    val result =
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+        runBlocking { service.listRequisitions(request) }
+      }
+
+    val expected = listRequisitionsResponse {
+      requisitions += requisition
+      requisitions += requisition
+    }
+
+    val streamRequisitionRequest: StreamRequisitionsRequest = captureFirst {
+      verify(internalRequisitionMock).streamRequisitions(capture())
+    }
+
+    assertThat(streamRequisitionRequest)
+      .ignoringRepeatedFieldOrder()
+      .isEqualTo(
+        streamRequisitionsRequest {
+          limit = DEFAULT_LIMIT + 1
+          filter =
+            StreamRequisitionsRequestKt.filter {
+              externalMeasurementConsumerId = EXTERNAL_MEASUREMENT_CONSUMER_ID
+              externalMeasurementId = EXTERNAL_MEASUREMENT_ID
+              states += VISIBLE_REQUISITION_STATES
+            }
+        }
+      )
+
+    assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
+  }
+
+  @Test
   fun `listRequisitions with page token returns next page`() {
     whenever(internalRequisitionMock.streamRequisitions(any())).thenAnswer {
       val request: StreamRequisitionsRequest = it.getArgument(0)

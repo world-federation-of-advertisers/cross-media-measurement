@@ -16,13 +16,14 @@ syntax = "proto3";
 
 package wfa.measurement.internal.kingdom;
 
-import "google/type/interval.proto";
 import "wfa/measurement/internal/kingdom/event_template.proto";
 
 option java_package = "org.wfanet.measurement.internal.kingdom";
 option java_multiple_files = true;
 
 message EventGroupDetails {
+  reserved 8;
+
   // Version of the public API for serialized message definitions.
   string api_version = 1;
 
@@ -63,6 +64,4 @@ message EventGroupDetails {
   // Data Provider-specific encrypted Event Group metadata. This will eventually
   // be deprecated in favor of [metadata][].
   bytes encrypted_metadata = 6;
-
-  google.type.Interval data_availability_interval = 8;
 }
