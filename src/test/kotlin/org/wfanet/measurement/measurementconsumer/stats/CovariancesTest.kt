@@ -630,7 +630,7 @@ class CovariancesTest {
   }
 
   @Test
-  fun `computeUnionSamplingWidth is correct with no overlap`() {
+  fun `computeUnionSamplingWidth is correct when intervals have no overlap`() {
     val interval1 = VidSamplingInterval(0.1, 0.2) // [0.1, 0.3]
     val interval2 = VidSamplingInterval(0.3, 0.4) // [0.3, 0.7]
     val expectedWidth = 0.6
