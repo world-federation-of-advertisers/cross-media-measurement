@@ -29,9 +29,7 @@ import org.wfanet.measurement.api.v2alpha.ApiKeysGrpcKt
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.EventGroup
-import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt
-import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ModelProviderKey
 import org.wfanet.measurement.api.v2alpha.PopulationKey
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
@@ -39,8 +37,6 @@ import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.Synthetic
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.Dummy
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
-import org.wfanet.measurement.api.v2alpha.listMeasurementsRequest
-import org.wfanet.measurement.api.withAuthenticationKey
 import org.wfanet.measurement.common.crypto.subjectKeyIdentifier
 import org.wfanet.measurement.common.crypto.tink.TinkPrivateKeyHandle
 import org.wfanet.measurement.common.identity.DuchyInfo
@@ -78,10 +74,6 @@ class InProcessCmmsComponents(
 ) : TestRule {
   private val kingdomDataServices: DataServices
     get() = kingdomDataServicesRule.value
-
-  private val publicMeasurementsClient by lazy {
-    MeasurementsCoroutineStub(kingdom.publicApiChannel)
-  }
 
   val kingdom: InProcessKingdom =
     InProcessKingdom(
@@ -305,19 +297,6 @@ class InProcessCmmsComponents(
 
   fun getDataProviderResourceNames(): List<String> {
     return edpDisplayNameToResourceMap.values.map { it.name }
-  }
-
-  suspend fun listMeasurements(): List<Measurement> {
-    val measurementConsumerData = getMeasurementConsumerData()
-
-    val measurements: List<Measurement> = runBlocking {
-      publicMeasurementsClient
-        .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
-        .listMeasurements(listMeasurementsRequest { parent = measurementConsumerData.name })
-        .measurementsList
-    }
-
-    return measurements
   }
 
   fun startDaemons() = runBlocking {
