@@ -16,7 +16,8 @@ name: Terraform CMMS
 
 on:
   push:
-    branches: [ marcopremier/add_artifact_registry_terraform ]
+    branches:
+      - marcopremier/add_artifact_registry_terraform
   workflow_call:
     inputs:
       environment:
