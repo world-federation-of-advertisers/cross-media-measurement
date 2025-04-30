@@ -90,10 +90,6 @@ jobs:
       working-directory: ${{ env.GCLOUD_MODULE_PATH }}
       continue-on-error: true
       run: |
-#        set -o errexit    # fail fast
-#        set -o pipefail   # catch pipeline errors
-
-        exit_code=0
         terraform plan \
           -input=false \
           -detailed-exitcode \
@@ -106,15 +102,6 @@ jobs:
           -var="terraform_service_account=$TERRAFORM_SERVICE_ACCOUNT" \
           -var="postgres_instance_name=$POSTGRES_INSTANCE" \
           -var="postgres_password=$POSTGRES_PASSWORD"
-#  || exit_code=$?
-#        if [ "$exit_code" -eq 0 ]; then
-#          echo "No changes."
-#        elif [ "$exit_code" -eq 2 ]; then
-#          echo "ℹ Changes detected."
-#        else
-#          echo "Terraform plan failed."
-#          exit $exit_code
-#        fi
 
     - name: terraform apply -auto-approve - gcloud
       if: ${{ inputs.apply }}
