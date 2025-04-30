@@ -93,6 +93,12 @@ module "tee_apps" {
   kms_key_id                    = google_kms_crypto_key.edp_aggregator_kek.id
   docker_image                  = each.value.worker.docker_image
   terraform_service_account     = var.terraform_service_account
+
+  depends_on = [
+    google_artifact_registry_repository.secure_computation_tee_app,
+    google_artifact_registry_repository_iam_member.allow_terraform_to_use_artifact_registry
+  ]
+
 }
 
 resource "google_storage_bucket_iam_member" "mig_storage_viewer" {
