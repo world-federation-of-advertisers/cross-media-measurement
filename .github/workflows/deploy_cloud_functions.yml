@@ -34,7 +34,8 @@ jobs:
       environment:                "dev"
       function_name:              data-watcher
       entry_point:                org.wfanet.measurement.securecomputation.deploy.gcloud.datawatcher.DataWatcherFunction
-      source_path:                src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/datawatcher:DataWatcherFunction_deploy.jar
+      source_path:                //src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/datawatcher:DataWatcherFunction_deploy.jar
+      uber_jar_path:              bazel-bin/src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/datawatcher/DataWatcherFunction_deploy.jar
       trigger_type:               storage
       trigger_bucket:             ${{ vars.DATA_WATCHER_TRIGGER_BUCKET }}
       run_service_account:        ${{ vars.DATA_WATCHER_SERVICE_ACCOUNT }}
@@ -52,7 +53,8 @@ jobs:
       environment:                "dev"
       function_name:              requisition-fetcher
       entry_point:                org.wfanet.measurement.edpaggregator.deploy.gcloud.requisitionfetcher.RequisitionFetcherFunction
-      source_path:                src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/requisitionfetcher:RequisitionFetcherFunction_deploy.jar
+      source_path:                //src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/requisitionfetcher:RequisitionFetcherFunction_deploy.jar
+      uber_jar_path:              bazel-bin/src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/requisitionfetcher/RequisitionFetcherFunction_deploy.jar
       trigger_type:               http
       run_service_account:        ${{ vars.REQUISITION_FETCHER_SERVICE_ACCOUNT }}
       public_api_target:          ${{ vars.KINGDOM_PUBLIC_API_TARGET }}

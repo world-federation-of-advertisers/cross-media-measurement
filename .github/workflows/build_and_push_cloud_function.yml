@@ -33,7 +33,12 @@ on:
         required: true
 
       source_path:
-        description: "Bazel target path to the _deploy.jar"
+        description: "Bazel target path to the function"
+        type: string
+        required: true
+
+      uber_jar_path:
+        description: "Bazel uber jar path "
         type: string
         required: true
 
@@ -94,12 +99,12 @@ jobs:
 
       - name: Build uber-jar
         run: |
-          bazel build //${{ inputs.source_path }}
+          bazel build ${{ inputs.source_path }}
 
       - name: Copy to temp
         run: |
           mkdir -p "$RUNNER_TEMP/source"
-          cp bazel-bin/${{ inputs.source_path }} "$RUNNER_TEMP/source/"
+          cp ${{ inputs.uber_jar_path }} "$RUNNER_TEMP/source/"
 
       - name: Deploy
         run: |
