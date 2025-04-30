@@ -110,4 +110,4 @@ jobs:
           --allow-unauthenticated
           --source="$RUNNER_TEMP/requisition_fetcher_source"
           --run-service-account=$REQUISITION_FETCHER_SERVICE_ACCOUNT
-          --set-env-vars="KINGDOM_TARGET=$KINGDOM_PUBLIC_API_TARGET,KINGDOM_CERT_HOST=requisition-fetcher.kingdom.dev.halo-cmm.org"
+          --set-env-vars="KINGDOM_TARGET=$KINGDOM_PUBLIC_API_TARGET"

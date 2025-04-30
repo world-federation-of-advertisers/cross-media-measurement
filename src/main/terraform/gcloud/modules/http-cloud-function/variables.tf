@@ -23,3 +23,9 @@ variable "bucket_name" {
   type        = string
   nullable    = false
 }
+
+variable "terraform_service_account" {
+  description = "Service account used by terraform that needs to attach the MIG service account to the VM."
+  type        = string
+  nullable    = false
+}

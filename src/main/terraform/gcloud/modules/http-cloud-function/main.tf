@@ -18,3 +18,9 @@ resource "google_service_account" "http_cloud_function_service_account" {
   account_id   = var.http_cloud_function_service_account_name
   display_name = "Service account for Cloud Function"
 }
+
+resource "google_service_account_iam_member" "allow_terraform_to_use_cloud_function_service_account" {
+  service_account_id = google_service_account.http_cloud_function_service_account.name
+  role               = "roles/iam.serviceAccountUser"
+  member             = "serviceAccount:${var.terraform_service_account}"
+}

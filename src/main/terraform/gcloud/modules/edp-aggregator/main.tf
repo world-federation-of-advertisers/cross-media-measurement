@@ -33,6 +33,7 @@ module "requisition_fetcher_function_service_account" {
 
   http_cloud_function_service_account_name  = var.requisition_fetcher_service_account_name
   bucket_name                               = module.edp_aggregator_bucket.storage_bucket.name
+  terraform_service_account                 = var.terraform_service_account
 }
 
 module "edp_aggregator_queues" {
