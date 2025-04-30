@@ -60,7 +60,8 @@ jobs:
   deploy-requisition-fetcher:
     uses: ./.github/workflows/build_and_push_cloud_function.yml
     with:
-      environment: ${{ inputs.environment }}
+#      environment: ${{ inputs.environment }}
+      environment: "dev"
       function_name: requisition-fetcher
       entry_point: org.wfanet.measurement.edpaggregator.deploy.gcloud.requisitionfetcher.RequisitionFetcherFunction
       jar_target: //src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/requisitionfetcher:RequisitionFetcherFunction_deploy.jar
