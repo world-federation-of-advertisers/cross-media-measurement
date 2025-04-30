@@ -20,7 +20,6 @@ import com.google.protobuf.ByteString
 import com.google.protobuf.TypeRegistry
 import java.security.cert.X509Certificate
 import java.util.concurrent.TimeUnit
-import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.junit.rules.TestRule
 import org.junit.runner.Description
@@ -30,7 +29,9 @@ import org.wfanet.measurement.api.v2alpha.ApiKeysGrpcKt
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.EventGroup
+import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt
+import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ModelProviderKey
 import org.wfanet.measurement.api.v2alpha.PopulationKey
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
@@ -38,6 +39,8 @@ import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.Synthetic
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.Dummy
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
+import org.wfanet.measurement.api.v2alpha.listMeasurementsRequest
+import org.wfanet.measurement.api.withAuthenticationKey
 import org.wfanet.measurement.common.crypto.subjectKeyIdentifier
 import org.wfanet.measurement.common.crypto.tink.TinkPrivateKeyHandle
 import org.wfanet.measurement.common.identity.DuchyInfo
@@ -46,10 +49,6 @@ import org.wfanet.measurement.common.testing.ProviderRule
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.config.DuchyCertConfig
 import org.wfanet.measurement.dataprovider.DataProviderData
-import org.wfanet.measurement.internal.kingdom.Measurement
-import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCoroutineStub
-import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequestKt
-import org.wfanet.measurement.internal.kingdom.streamMeasurementsRequest
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 import org.wfanet.measurement.kingdom.deploy.common.HmssProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfig
@@ -80,7 +79,9 @@ class InProcessCmmsComponents(
   private val kingdomDataServices: DataServices
     get() = kingdomDataServicesRule.value
 
-  private val measurementsClient by lazy { MeasurementsCoroutineStub(kingdom.publicApiChannel) }
+  private val publicMeasurementsClient by lazy {
+    MeasurementsCoroutineStub(kingdom.publicApiChannel)
+  }
 
   val kingdom: InProcessKingdom =
     InProcessKingdom(
@@ -306,14 +307,17 @@ class InProcessCmmsComponents(
     return edpDisplayNameToResourceMap.values.map { it.name }
   }
 
-  suspend fun getSuccessfulMeasurements(): List<Measurement> {
-    return measurementsClient
-      .streamMeasurements(
-        streamMeasurementsRequest {
-          filter = StreamMeasurementsRequestKt.filter { states += Measurement.State.SUCCEEDED }
-        }
-      )
-      .toList()
+  suspend fun listMeasurements(): List<Measurement> {
+    val measurementConsumerData = getMeasurementConsumerData()
+
+    val measurements: List<Measurement> = runBlocking {
+      publicMeasurementsClient
+        .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
+        .listMeasurements(listMeasurementsRequest { parent = measurementConsumerData.name })
+        .measurementsList
+    }
+
+    return measurements
   }
 
   fun startDaemons() = runBlocking {

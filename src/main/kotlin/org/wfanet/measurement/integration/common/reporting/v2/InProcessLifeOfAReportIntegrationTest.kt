@@ -90,7 +90,6 @@ import org.wfanet.measurement.integration.common.InProcessCmmsComponents
 import org.wfanet.measurement.integration.common.InProcessDuchy
 import org.wfanet.measurement.integration.common.PERMISSIONS_CONFIG
 import org.wfanet.measurement.integration.common.SyntheticGenerationSpecs
-import org.wfanet.measurement.internal.kingdom.Measurement as InternalMeasurement
 import org.wfanet.measurement.internal.reporting.v2.EventTemplateFieldKt as InternalEventTemplateFieldKt
 import org.wfanet.measurement.internal.reporting.v2.ImpressionQualificationFilterSpec as InternalImpressionQualificationFilterSpec
 import org.wfanet.measurement.internal.reporting.v2.ListImpressionQualificationFiltersPageTokenKt
@@ -538,10 +537,11 @@ abstract class InProcessLifeOfAReportIntegrationTest(
 
     assertThat(actualResult).reachValue().isWithin(tolerance).of(expectedResult.reach.value)
 
-    val measurements: List<InternalMeasurement> =
-      inProcessCmmsComponents.getSuccessfulMeasurements()
+    val measurements: List<Measurement> =
+      inProcessCmmsComponents.listMeasurements()
     assertThat(measurements).hasSize(1)
-    assertThat(measurements[0].details.protocolConfig.hasReachOnlyLiquidLegionsV2()).isTrue()
+    assertThat(measurements[0].protocolConfig.protocolsList).hasSize(1)
+    assertThat(measurements[0].protocolConfig.protocolsList[0].hasReachOnlyLiquidLegionsV2()).isTrue()
   }
 
   @Test
@@ -657,10 +657,11 @@ abstract class InProcessLifeOfAReportIntegrationTest(
 
     assertThat(actualResult).reachValue().isWithin(tolerance).of(expectedResult.reach.value)
 
-    val measurements: List<InternalMeasurement> =
-      inProcessCmmsComponents.getSuccessfulMeasurements()
+    val measurements: List<Measurement> =
+      inProcessCmmsComponents.listMeasurements()
     assertThat(measurements).hasSize(1)
-    assertThat(measurements[0].details.protocolConfig.hasHonestMajorityShareShuffle()).isTrue()
+    assertThat(measurements[0].protocolConfig.protocolsList).hasSize(1)
+    assertThat(measurements[0].protocolConfig.protocolsList[0].hasHonestMajorityShareShuffle()).isTrue()
   }
 
   @Test
