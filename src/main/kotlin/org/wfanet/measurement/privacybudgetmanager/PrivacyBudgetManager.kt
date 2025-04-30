@@ -18,11 +18,6 @@ import org.wfanet.measurement.privacybudgetmanager.PrivacyLandscape
 import org.wfanet.measurement.privacybudgetmanager.PrivacyLandscapeMapping
 import org.wfanet.measurement.privacybudgetmanager.Query
 
-/**
- * This is the default value for the total amount that can be charged to a single privacy bucket.
- */
-private const val MAXIMUM_PRIVACY_USAGE_PER_BUCKET = 1.0f
-private const val MAXIMUM_DELTA_PER_BUCKET = 1.0e-9f
 
 /**
  * Instantiates a privacy budget manager.
@@ -45,15 +40,15 @@ class PrivacyBudgetManager(
   val inactivePrivacyLandscapes: List<PrivacyLandscape>,
   val privacyLandscapeMappings: List<PrivacyLandscapeMapping>,
   private val ledger: Ledger,
-  private val maximumPrivacyBudget: Float = MAXIMUM_PRIVACY_USAGE_PER_BUCKET,
-  private val maximumTotalDelta: Float = MAXIMUM_DELTA_PER_BUCKET,
+  private val maximumPrivacyBudget: Float,
+  private val maximumTotalDelta: Float,
 ) {
   init {
-    val activeLandScapeName = activePrivacyLandscape.name
+    val activeLandScapeName = activePrivacyLandscape.landscapeName
     for (inactivePrivacyLandscape in inactivePrivacyLandscapes) {
       val mapping =
         privacyLandscapeMappings
-          .filter { it.fromLandscape == inactivePrivacyLandscape.name }
+          .filter { it.fromLandscape == inactivePrivacyLandscape.landscapeName }
           .filter { it.toLandscape == activeLandScapeName }
       require(mapping.size == 1) {
         "There must be exactly 1 mapping from each inactive landscape to the active landscape."
@@ -78,18 +73,18 @@ class PrivacyBudgetManager(
     ledger.startTransaction().use { context: TransactionContext ->
 
       val alreadyCommitedQueries: List<Query> = context.readQueries(queries)
-      val alreadyCommittedReferenceIds = alreadyCommitedQueries.map { it.reference.id }
+      val alreadyCommittedReferenceIds = alreadyCommitedQueries.map { it.reference.externalReferenceId }
       // Filter out the queries that were already committed before.
       val queriesToCommit =
         queries.filter { query ->
-          !alreadyCommittedReferenceIds.contains(query.reference.id)
+          !alreadyCommittedReferenceIds.contains(query.reference.externalReferenceId)
         }
 
       // Get slice intended to be committed to the PBM, defined by queriesToCommit.
       val delta: Slice = getDelta(queriesToCommit)
 
       // Read the backing store for the rows that slice targets.
-      val targettedSlice = context.readChargeRows(delta.getRowKeys())
+      val targettedSlice = context.readChargeRows(delta.getLedgerRowKeys())
 
       // Check if any of the updated buckets exceed the budget and aggregate to find the slice
       // to commit.
@@ -141,14 +136,14 @@ class PrivacyBudgetManager(
     val delta = Slice()
 
     for (query in queries) {
-      if (query.privacyLandscapeName == activePrivacyLandscape.name) {
+      if (query.privacyLandscapeName == activePrivacyLandscape.landscapeName) {
         delta.add(
-          Filter.getBuckets(query.eventGroupLandscapeMasksList, activePrivacyLandscape),
+          LandscapeUtils.getBuckets(query.eventGroupLandscapeMasksList, activePrivacyLandscape),
           query.acdpCharge,
         )
       } else {
         val inactivePrivacyLandscape =
-          inactivePrivacyLandscapes.find { it.name == query.privacyLandscapeName }
+          inactivePrivacyLandscapes.find { it.landscapeName == query.privacyLandscapeName }
             ?: throw IllegalStateException(
               "Privacy landscape with name '${query.privacyLandscapeName}' not found.",
             )
@@ -156,15 +151,15 @@ class PrivacyBudgetManager(
         val privacyLandscapeMapping =
           privacyLandscapeMappings.find {
             it.fromLandscape == query.privacyLandscapeName &&
-              it.toLandscape == activePrivacyLandscape.name
+              it.toLandscape == activePrivacyLandscape.landscapeName
           }
             ?: throw IllegalStateException(
               "Privacy landscape mapping not found for fromLandscape" +
-                "'${query.privacyLandscapeName}' and toLandscape '${activePrivacyLandscape.name}'.",
+                "'${query.privacyLandscapeName}' and toLandscape '${activePrivacyLandscape.landscapeName}'.",
             )
 
         val mappedBuckets =
-          Filter.getBuckets(
+        LandscapeUtils.getBuckets(
             query.eventGroupLandscapeMasksList,
             privacyLandscapeMapping,
             inactivePrivacyLandscape,

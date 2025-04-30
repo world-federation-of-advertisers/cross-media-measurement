@@ -16,7 +16,7 @@ package org.wfanet.measurement.privacybudgetmanager
 import java.time.LocalDate
 
 /** Key for a row of the Ledger. PBM is opinionated about this structure.*/
-data class RowKey(
+data class LedgerRowKey(
   val measurementConsumerId: String,
   val eventGroupId: String,
   val date: LocalDate,
@@ -24,7 +24,7 @@ data class RowKey(
 
 /** Represents a PrivacyBucket. [populationIndex]s are created by adhering to a [PrivacyLandscape]. */
 data class PrivacyBucket(
-  val rowKey: RowKey,
+  val rowKey: LedgerRowKey,
   val populationIndex: Int,
   val vidIntervalIndex: Int,
 )
@@ -36,7 +36,7 @@ data class PrivacyBucket(
  * */
 class Slice {
   /** Returns the row keys for this slice. */
-  fun getRowKeys(): List<RowKey> = TODO("uakyol: implement this")
+  fun getLedgerRowKeys(): List<LedgerRowKey> = TODO("uakyol: implement this")
 
   /** Adds the given Privacy Buckets to this Slice */
   fun add(

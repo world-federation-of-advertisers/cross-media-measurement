@@ -16,6 +16,7 @@ package org.wfanet.measurement.privacybudgetmanager
 
 import org.wfanet.measurement.privacybudgetmanager.Query
 
+/** Manages interaction with the persistance layer that stores [PrivacyBucket]s, [Charge]s and [Query]s  */
 interface Ledger {
   /**
    * Informs the backing store that the processing of new requisitions has commenced. All
@@ -44,7 +45,10 @@ interface TransactionContext : AutoCloseable {
   /**
    * Reads the [BackingStore] and returns the Queries that are already present with their
    * CreateTime read from the DB.
-   *
+   * 
+   * @param list of queries to find in the ledger.
+   * @returns list of [Query] that existed in the ledger. These have createTime field populated.
+   * 
    * @throws PrivacyBudgetManager exception if the read operation was unsuccessful.
    */
   suspend fun readQueries(queries: List<Query>): List<Query>
@@ -54,11 +58,13 @@ interface TransactionContext : AutoCloseable {
    *
    * @throws PrivacyBudgetManager exception if the read operation was unsuccessful.
    */
-  suspend fun readChargeRows(rowKeys: List<RowKey>): Slice
+  suspend fun readChargeRows(rowKeys: List<LedgerRowKey>): Slice
 
   /**
    * Writes a [Slice] to the backing store together with the [queries] responsible for its
-   * creation. Returns the Queries that are written with their CreateTime read from the DB.
+   * creation. 
+   * 
+   * @returns the Queries that are written with their createTime read from the DB.
    *
    * @throws PrivacyBudgetManager exception if the write operation was unsuccessful.
    */

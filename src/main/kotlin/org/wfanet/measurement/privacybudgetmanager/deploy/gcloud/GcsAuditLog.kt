@@ -12,9 +12,9 @@
  * the License.
  */
 
-package org.wfanet.measurement.privacybudgetmanager.deploy.gcp
+package org.wfanet.measurement.privacybudgetmanager.deploy.gcloud
 
-class GcpAuditLog : AuditLog {
+class GcsAuditLog : AuditLog {
   override fun write(
     queries: List<Query>,
     groupId: String,

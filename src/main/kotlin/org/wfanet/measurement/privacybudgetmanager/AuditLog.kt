@@ -16,10 +16,14 @@ package org.wfanet.measurement.privacybudgetmanager
 
 import org.wfanet.measurement.privacybudgetmanager.Query
 
+  /** Manages interaction with EDP owned persistent audit layer that captures charged Pbm [Query]s. */
 interface AuditLog {
   /**
    * Writes the list of Queries and the groupId to the audit log .
-   *
+   * 
+   * @param queries: List of [Query] that is charged to the PBM to be logged.
+   * @param groupId: Identifier used to id this list of [Query]s.
+   * 
    * @throws PrivacyBudgetManager exception if the write operation was unsuccessful.
    */
   fun write(

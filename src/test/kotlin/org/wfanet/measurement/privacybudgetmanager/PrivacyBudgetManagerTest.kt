@@ -40,6 +40,13 @@ class PrivacyBudgetManagerTest {
         emptyList<PrivacyLandscape>(),
         emptyList<PrivacyLandscapeMapping>(),
         ledger,
+        MAXIMUM_PRIVACY_USAGE_PER_BUCKET,
+        MAXIMUM_DELTA_PER_BUCKET
       )
+  }
+
+  companion object{
+    private const val MAXIMUM_PRIVACY_USAGE_PER_BUCKET = 1.0f
+    private const val MAXIMUM_DELTA_PER_BUCKET = 1.0e-9f
   }
 }

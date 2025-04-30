@@ -23,6 +23,7 @@ proto_library(
     srcs = ["query.proto"],
     deps = [
         "charges_proto",
+        "@com_google_protobuf//:timestamp_proto",
         "@com_google_googleapis//google/type:date_proto",
     ],
     strip_import_prefix = IMPORT_PREFIX,
@@ -47,6 +48,7 @@ kt_jvm_proto_library(
 proto_library(
     name = "privacy_landscape_mapping_proto",
     srcs = ["privacy_landscape_mapping.proto"],
+    deps = ["privacy_landscape_proto"],
     strip_import_prefix = IMPORT_PREFIX,
 )
 

@@ -16,6 +16,7 @@ syntax = "proto3";
 
 package wfa.measurement.privacybudgetmanager;
 
+import "google/protobuf/timestamp.proto";
 import "google/type/date.proto";
 import "wfa/measurement/privacybudgetmanager/charges.proto";
 
@@ -23,20 +24,28 @@ option java_package = "org.wfanet.measurement.privacybudgetmanager";
 option java_multiple_files = true;
 option java_outer_classname = "QueryProto";
 
+// Captures the top level identifiers for a Query so that it can 
+// be referenced at the audit log and in the PBM ledger. In practice
+// this maps to a single requisition.
 message Reference {
   // The external system reference id. This is likely the requisition id.
-  string id = 1;
+  string external_reference_id = 1;
   // The id of the measurement consumre this charge belongs to.
   string measurement_consumer_id = 2;
   // Specifies if the charge is a refund or not.
   bool is_refund = 3;
 }
 
+// The list of dates this query targets in the privacy landscape
 message DateRange {
+  // Start date t
   google.type.Date start = 1;
+  // End date this query targets 
   google.type.Date end_exclusive = 2;
 }
 
+// Captures all the information that is needed to filter a Privacy Landscape.
+// This is used to get the PrivacyBuckets to charge.
 message EventGroupLandscapeMask {
   // The event group the charges belong to.
   string event_group_id = 1;
@@ -50,6 +59,9 @@ message EventGroupLandscapeMask {
   float vid_sample_width = 5;
 }
 
+// Represents a Query to the PBM. This structure fans out to 
+// a list of privacy charges. In practice a Query is derived from
+// a single requisition.
 message Query {
   // Represents the external system reference for the query.
   Reference reference = 1;
@@ -59,4 +71,6 @@ message Query {
   AcdpCharge acdp_charge = 3;
   // Which privacy landscape the targetted buckets belong to.
   string privacy_landscape_name = 4;
+  // Timestamp that this query was committed to the ledger. Can be empty
+  google.protobuf.Timestamp create_time = 5;
 }

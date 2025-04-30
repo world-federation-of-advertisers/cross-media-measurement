@@ -15,10 +15,14 @@
 package org.wfanet.measurement.privacybudgetmanager
 
 /** Wraps utilities to filter [PrivacyLandscapes] based on [EventGroupLandscapeMask]s. */
-object Filter {
+object LandscapeUtils {
   /**
    * Filters a list of [PrivacyBucket]s given a [privacyLandscape] and a [eventGroupLandscapeMask]
    * mask to filter it.
+   * 
+   * @param eventGroupLandscapeMasks: Specifies the filters for each event group.
+   * @param privacyLandscape: The landscape to be filtered.
+   * @returns filtered [PrivacyBucket]s.
    */
   fun getBuckets(
     eventGroupLandscapeMasks: List<EventGroupLandscapeMask>,
@@ -29,6 +33,12 @@ object Filter {
    * Filters a list of [PrivacyBucket]s given a [inactiveprivacyLandscape] with a
    * [eventGroupLandscapeMask]. Then converts these to new buckets that adheres to
    * [ActivePrivacyLandsapce] by using [privacyLandscapeMapping].
+   * 
+   * @param eventGroupLandscapeMasks: Specifies the filter for each event group.
+   * @param privacyLandscapeMapping: Mapping from the [inactiveprivacyLandscape] to [activeprivacyLandscape].
+   * @param inactiveprivacyLandscape: The landscape to be filtered.
+   * @param activeprivacyLandscape: The landscape filtered [PrivacyBucket]s are mapped to.
+   * @returns filtered [PrivacyBucket]s.
    */
   fun getBuckets(
     eventGroupLandscapeMasks: List<EventGroupLandscapeMask>,

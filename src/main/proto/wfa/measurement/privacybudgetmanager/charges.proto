@@ -20,6 +20,8 @@ option java_package = "org.wfanet.measurement.privacybudgetmanager";
 option java_multiple_files = true;
 option java_outer_classname = "ChargesProto";
 
+// Represents an Almost Concentrated Differential Privacy(ACDP) charge in 
+// rho and theta that will committed made to a privacy budget.
 message AcdpCharge {
   float rho = 1;
   float theta = 2;
@@ -34,6 +36,7 @@ message Charges {
   message IntervalCharges {
     // Maximum 300 charges each corresponding to a vid interval charge.
     // Key is the ids from 0 to 299 representing the vid interval.
+    // 300 is built into the system and it is not configurable.
     map<int32, AcdpCharge> vid_interval_index_to_charges = 5;
   }
 }
