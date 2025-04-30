@@ -98,7 +98,13 @@ jobs:
           -detailed-exitcode \
           -out=tfplan \
           -var="key_ring_name=$KEY_RING" \
-          … || exit_code=$?
+          -var="spanner_instance_name=$SPANNER_INSTANCE" \
+          -var="spanner_processing_units=$SPANNER_PROCESSING_UNITS" \
+          -var="storage_bucket_name=$STORAGE_BUCKET" \
+          -var="secure_computation_storage_bucket_name=$SECURE_COMPUTATION_BUCKET" \
+          -var="terraform_service_account=$TERRAFORM_SERVICE_ACCOUNT" \
+          -var="postgres_instance_name=$POSTGRES_INSTANCE" \
+          -var="postgres_password=$POSTGRES_PASSWORD" || exit_code=$?
 
         if [ "$exit_code" -eq 0 ]; then
           echo "No changes."
