@@ -26,7 +26,7 @@ option java_outer_classname = "ResultsFulfillerParamsProto";
 // Message representing the params used for the results fulfiller tee app
 message ResultsFulfillerParams {
   // Message representing the storage details used by the results fulfiller app
-  message Storage {
+  message StorageParams {
     // The blob uri prefix for the labeled impressions `BlobDetails` that is
     // stored in GCS for a given EDP
     // See reference:
@@ -40,10 +40,10 @@ message ResultsFulfillerParams {
   }
 
   // The storage used by the tee app
-  Storage storage = 1 [(google.api.field_behavior) = REQUIRED];
+  StorageParams storage_params = 1 [(google.api.field_behavior) = REQUIRED];
 
   // Message representing the details needed to generate certificates
-  message Consent {
+  message ConsentParams {
     // The resource key of the DER-encoded certificate file used for result
     // signing
     string result_cs_cert_der_resource_path = 1
@@ -65,8 +65,8 @@ message ResultsFulfillerParams {
     ];
   }
 
-  // Information necessary for EDP Consent signalingq
-  Consent consent = 2 [(google.api.field_behavior) = REQUIRED];
+  // Information necessary for EDP Consent signaling
+  ConsentParams consent_params = 2 [(google.api.field_behavior) = REQUIRED];
 
   // Message representing the details needed to connect to the kingdom
   message Connection {
