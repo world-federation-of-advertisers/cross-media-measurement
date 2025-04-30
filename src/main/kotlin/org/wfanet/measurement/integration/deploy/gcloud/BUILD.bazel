@@ -6,6 +6,18 @@ package(
 )
 
 kt_jvm_library(
+    name = "secure_computation_services_provider_rule",
+    srcs = ["SecureComputationServicesProviderRule.kt"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common/service:data_services",
+        "//src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/spanner:services",
+        "//src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/spanner/testing:schemata",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/testing",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner/testing",
+    ],
+)
+
+kt_jvm_library(
     name = "kingdom_data_services_provider_rule",
     srcs = ["KingdomDataServicesProviderRule.kt"],
     deps = [
