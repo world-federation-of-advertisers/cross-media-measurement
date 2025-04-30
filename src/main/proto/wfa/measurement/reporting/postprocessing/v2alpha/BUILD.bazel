@@ -24,8 +24,8 @@ proto_library(
     srcs = ["report_post_processor_log.proto"],
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
-      ":report_post_processor_result_proto",
-      "@com_google_protobuf//:timestamp_proto",
+        ":report_post_processor_result_proto",
+        "@com_google_protobuf//:timestamp_proto",
     ],
 )
 
