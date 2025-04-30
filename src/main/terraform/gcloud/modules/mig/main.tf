@@ -20,6 +20,12 @@ resource "google_service_account" "mig_service_account" {
   display_name = "MIG Service Account"
 }
 
+resource "google_service_account_iam_member" "allow_terraform_to_use_mig_sa" {
+  service_account_id = google_service_account.mig_service_account.name
+  role               = "roles/iam.serviceAccountUser"
+  member             = "serviceAccount:${var.terraform_service_account}"
+}
+
 resource "google_pubsub_subscription_iam_member" "mig_subscriber" {
   subscription  = var.subscription_id
   role          = "roles/pubsub.subscriber"
