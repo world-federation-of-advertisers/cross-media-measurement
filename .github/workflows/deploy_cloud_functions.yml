@@ -28,7 +28,7 @@ on:
 
 jobs:
   deploy-data-watcher:
-    uses: ./.github/workflows/deploy-function.yml
+    uses: ./.github/workflows/build_and_push_cloud_function.yml
     with:
       environment:                ${{ inputs.environment }}
       function_name:              data-watcher
@@ -45,7 +45,7 @@ jobs:
         CONTROL_PLANE_CERT_HOST=data-watcher.secure-computation.${{ inputs.environment }}.halo-cmm.org
 
   deploy-event-group-sync:
-    uses: ./.github/workflows/deploy-function.yml
+    uses: ./.github/workflows/build_and_push_cloud_function.yml
     with:
       environment:                ${{ inputs.environment }}
       function_name:              event-group-sync
