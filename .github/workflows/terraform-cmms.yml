@@ -85,17 +85,41 @@ jobs:
         POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
       working-directory: ${{ env.GCLOUD_MODULE_PATH }}
       run: >
-        terraform plan -detailed-exitcode
-        -input=false
-        -var="key_ring_name=$KEY_RING"
-        -var="spanner_instance_name=$SPANNER_INSTANCE"
-        -var="spanner_processing_units=$SPANNER_PROCESSING_UNITS"
-        -var="storage_bucket_name=$STORAGE_BUCKET"
-        -var="secure_computation_storage_bucket_name=$SECURE_COMPUTATION_BUCKET"
-        -var="terraform_service_account=$TERRAFORM_SERVICE_ACCOUNT"
-        -var="postgres_instance_name=$POSTGRES_INSTANCE"
-        -var="postgres_password=$POSTGRES_PASSWORD"
-        -out=tfplan
+#        terraform plan -detailed-exitcode
+#        -input=false
+#        -var="key_ring_name=$KEY_RING"
+#        -var="spanner_instance_name=$SPANNER_INSTANCE"
+#        -var="spanner_processing_units=$SPANNER_PROCESSING_UNITS"
+#        -var="storage_bucket_name=$STORAGE_BUCKET"
+#        -var="secure_computation_storage_bucket_name=$SECURE_COMPUTATION_BUCKET"
+#        -var="terraform_service_account=$TERRAFORM_SERVICE_ACCOUNT"
+#        -var="postgres_instance_name=$POSTGRES_INSTANCE"
+#        -var="postgres_password=$POSTGRES_PASSWORD"
+#        -out=tfplan
+
+        set -e
+        
+        terraform plan 
+        -input=false 
+        -detailed-exitcode 
+        -out=tfplan 
+        -var="key_ring_name=$KEY_RING" 
+        -var="spanner_instance_name=$SPANNER_INSTANCE" 
+        -var="spanner_processing_units=$SPANNER_PROCESSING_UNITS" 
+        -var="storage_bucket_name=$STORAGE_BUCKET" 
+        -var="secure_computation_storage_bucket_name=$SECURE_COMPUTATION_BUCKET" 
+        -var="terraform_service_account=$TERRAFORM_SERVICE_ACCOUNT" 
+        -var="postgres_instance_name=$POSTGRES_INSTANCE" 
+        -var="postgres_password=$POSTGRES_PASSWORD" || exit_code=$?
+        
+        if [ "${exit_code:-0}" -eq 0 ]; then
+          echo "No changes."
+        elif [ "${exit_code:-0}" -eq 2 ]; then
+          echo "ℹChanges detected."
+        else
+          echo "Terraform plan failed."
+          exit $exit_code
+        fi
 
     - name: terraform apply -auto-approve - gcloud
       if: ${{ inputs.apply }}
