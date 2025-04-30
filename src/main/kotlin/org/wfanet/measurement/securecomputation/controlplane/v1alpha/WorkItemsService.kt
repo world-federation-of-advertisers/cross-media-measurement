@@ -65,7 +65,7 @@ class WorkItemsService(private val internalWorkItemsStub: InternalWorkItemsCorou
       try {
         internalWorkItemsStub.createWorkItem(
           internalCreateWorkItemRequest {
-            internalWorkItem {
+            this.workItem = internalWorkItem {
               queueResourceId = request.workItem.queue
               workItemResourceId = request.workItemId
               workItemParams = request.workItem.workItemParams
