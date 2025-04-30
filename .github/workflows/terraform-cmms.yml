@@ -101,9 +101,9 @@ jobs:
         -var="terraform_service_account=$TERRAFORM_SERVICE_ACCOUNT" 
         -var="postgres_instance_name=$POSTGRES_INSTANCE" 
         -var="postgres_password=$POSTGRES_PASSWORD" || exit_code=$?
-        if [ "${exit_code:-0}" -eq 0 ]; then
+        if [ "${exit_code:-0}" -eq 0 ]; 
           echo "No changes."
-        elif [ "${exit_code:-0}" -eq 2 ]; then
+        elif [ "${exit_code:-0}" -eq 2 ]; 
           echo "ℹChanges detected."
         else
           echo "Terraform plan failed."
