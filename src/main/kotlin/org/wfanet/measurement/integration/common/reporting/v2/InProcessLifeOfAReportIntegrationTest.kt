@@ -537,11 +537,11 @@ abstract class InProcessLifeOfAReportIntegrationTest(
 
     assertThat(actualResult).reachValue().isWithin(tolerance).of(expectedResult.reach.value)
 
-    val measurements: List<Measurement> =
-      inProcessCmmsComponents.listMeasurements()
+    val measurements: List<Measurement> = inProcessCmmsComponents.listMeasurements()
     assertThat(measurements).hasSize(1)
     assertThat(measurements[0].protocolConfig.protocolsList).hasSize(1)
-    assertThat(measurements[0].protocolConfig.protocolsList[0].hasReachOnlyLiquidLegionsV2()).isTrue()
+    assertThat(measurements[0].protocolConfig.protocolsList[0].hasReachOnlyLiquidLegionsV2())
+      .isTrue()
   }
 
   @Test
@@ -657,11 +657,11 @@ abstract class InProcessLifeOfAReportIntegrationTest(
 
     assertThat(actualResult).reachValue().isWithin(tolerance).of(expectedResult.reach.value)
 
-    val measurements: List<Measurement> =
-      inProcessCmmsComponents.listMeasurements()
+    val measurements: List<Measurement> = inProcessCmmsComponents.listMeasurements()
     assertThat(measurements).hasSize(1)
     assertThat(measurements[0].protocolConfig.protocolsList).hasSize(1)
-    assertThat(measurements[0].protocolConfig.protocolsList[0].hasHonestMajorityShareShuffle()).isTrue()
+    assertThat(measurements[0].protocolConfig.protocolsList[0].hasHonestMajorityShareShuffle())
+      .isTrue()
   }
 
   @Test
