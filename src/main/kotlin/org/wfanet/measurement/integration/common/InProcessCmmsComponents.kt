@@ -47,6 +47,7 @@ import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.config.DuchyCertConfig
 import org.wfanet.measurement.dataprovider.DataProviderData
 import org.wfanet.measurement.internal.kingdom.Measurement
+import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequestKt
 import org.wfanet.measurement.internal.kingdom.streamMeasurementsRequest
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
@@ -78,6 +79,8 @@ class InProcessCmmsComponents(
 ) : TestRule {
   private val kingdomDataServices: DataServices
     get() = kingdomDataServicesRule.value
+
+  private val measurementsClient by lazy { MeasurementsCoroutineStub(kingdom.publicApiChannel) }
 
   val kingdom: InProcessKingdom =
     InProcessKingdom(
@@ -282,21 +285,21 @@ class InProcessCmmsComponents(
   }
 
   /**
-   * Retrieves the data provider display name associated with a given cmms data provider name.
+   * Retrieves the data provider display name associated with a given data provider name.
    *
    * This function searches the `edpDisplayNameToResourceMap` for an entry where the `name` property
-   * of the entry's value exactly matches the provided [cmmsDataProviderName]. If such an entry is
+   * of the entry's value exactly matches the provided [dataProviderName]. If such an entry is
    * found, its key (which represents the data provider display name) is returned. If no match is
-   * found, an empty string is returned.
+   * found, null is returned.
    *
-   * @param cmmsDataProviderName The exact name of the cmms data provider name to search for.
+   * @param dataProviderName The exact name of the data provider name to search for.
    * @return The corresponding data provider display name if an exact match for the
-   *   [cmmsDataProviderName] is found in the map's values; otherwise, an empty string.
+   *   [dataProviderName] is found in the map's values; otherwise, null.
    */
-  fun getDataProviderDisplayNameFromEventGroupName(cmmsDataProviderName: String): String {
+  fun getDataProviderDisplayNameFromDataProviderName(dataProviderName: String): String? {
     return edpDisplayNameToResourceMap.entries
-      .find { entry -> cmmsDataProviderName.equals(entry.value.name) }
-      ?.key ?: ""
+      .find { entry -> dataProviderName.equals(entry.value.name) }
+      ?.key ?: null
   }
 
   fun getDataProviderResourceNames(): List<String> {
@@ -304,7 +307,7 @@ class InProcessCmmsComponents(
   }
 
   suspend fun getSuccessfulMeasurements(): List<Measurement> {
-    return kingdom.internalMeasurementsClient
+    return measurementsClient
       .streamMeasurements(
         streamMeasurementsRequest {
           filter = StreamMeasurementsRequestKt.filter { states += Measurement.State.SUCCEEDED }
