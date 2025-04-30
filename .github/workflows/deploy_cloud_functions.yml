@@ -15,6 +15,9 @@
 name: "Build and Deploy cloud functions"
 
 on:
+  push:
+    branches:
+      - marcopremier/add_requisition_fetcher_deployment2
   workflow_dispatch:
     inputs:
       environment:
@@ -34,7 +37,8 @@ jobs:
   deploy-data-watcher:
     uses: ./.github/workflows/deploy-cloud-function.yml
     with:
-      environment: ${{ inputs.environment }}
+#      environment: ${{ inputs.environment }}
+      environment: "dev"
       function_name: data-watcher
       entry_point: org.wfanet.measurement.securecomputation.deploy.gcloud.datawatcher.DataWatcherFunction
       jar_target: //src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/datawatcher:DataWatcherFunction_deploy.jar
