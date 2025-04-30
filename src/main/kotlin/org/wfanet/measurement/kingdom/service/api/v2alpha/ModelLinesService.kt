@@ -33,6 +33,7 @@ import org.wfanet.measurement.api.v2alpha.ListModelLinesPageToken
 import org.wfanet.measurement.api.v2alpha.ListModelLinesPageTokenKt.previousPageEnd
 import org.wfanet.measurement.api.v2alpha.ListModelLinesRequest
 import org.wfanet.measurement.api.v2alpha.ListModelLinesResponse
+import org.wfanet.measurement.api.v2alpha.MeasurementConsumerPrincipal
 import org.wfanet.measurement.api.v2alpha.MeasurementPrincipal
 import org.wfanet.measurement.api.v2alpha.ModelLine
 import org.wfanet.measurement.api.v2alpha.ModelLineKey
@@ -62,7 +63,6 @@ import org.wfanet.measurement.internal.kingdom.StreamModelLinesRequestKt.filter
 import org.wfanet.measurement.internal.kingdom.StreamModelRolloutsRequestKt
 import org.wfanet.measurement.internal.kingdom.getDataProviderRequest
 import org.wfanet.measurement.internal.kingdom.setActiveEndTimeRequest as internalSetActiveEndTimeRequest
-import org.wfanet.measurement.api.v2alpha.MeasurementConsumerPrincipal
 import org.wfanet.measurement.internal.kingdom.setModelLineHoldbackModelLineRequest
 import org.wfanet.measurement.internal.kingdom.streamModelLinesRequest
 import org.wfanet.measurement.internal.kingdom.streamModelRolloutsRequest
@@ -281,8 +281,12 @@ class ModelLinesService(
 
     val dataProvidersKeySet = buildSet {
       for (dataProviderName in request.dataProvidersList) {
-        add(DataProviderKey.fromName(dataProviderName)
-          ?: failGrpc(Status.INVALID_ARGUMENT) { "$dataProviderName in data_providers is invalid" })
+        add(
+          DataProviderKey.fromName(dataProviderName)
+            ?: failGrpc(Status.INVALID_ARGUMENT) {
+              "$dataProviderName in data_providers is invalid"
+            }
+        )
       }
     }
 
@@ -300,7 +304,9 @@ class ModelLinesService(
           } catch (e: StatusException) {
             throw when (e.status.code) {
               Status.Code.NOT_FOUND ->
-                failGrpc(Status.NOT_FOUND) { "${dataProviderKey.toName()} in data_providers not found" }
+                failGrpc(Status.NOT_FOUND) {
+                  "${dataProviderKey.toName()} in data_providers not found"
+                }
 
               Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED.asRuntimeException()
               else -> Status.UNKNOWN.asRuntimeException()
@@ -310,8 +316,10 @@ class ModelLinesService(
         for (dataAvailabilityInterval in dataProvider.dataAvailabilityIntervalsList) {
           val intervalList =
             getOrDefault(dataAvailabilityInterval.key.externalModelLineId, listOf())
-          put(dataAvailabilityInterval.key.externalModelLineId,
-              intervalList + dataAvailabilityInterval.value)
+          put(
+            dataAvailabilityInterval.key.externalModelLineId,
+            intervalList + dataAvailabilityInterval.value,
+          )
         }
       }
     }

@@ -1583,10 +1583,10 @@ class ModelLinesServiceTest {
   @Test
   fun `enumerateValidModelLines is successful with mc principal`(): Unit = runBlocking {
     whenever(
-      internalDataProvidersMock.getDataProvider(
-        getDataProviderRequest { externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID }
+        internalDataProvidersMock.getDataProvider(
+          getDataProviderRequest { externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID }
+        )
       )
-    )
       .thenReturn(
         dataProvider {
           dataAvailabilityIntervals +=
@@ -1647,9 +1647,9 @@ class ModelLinesServiceTest {
       )
 
     verifyProtoArgument(
-      internalModelRolloutsMock,
-      ModelRolloutsCoroutineImplBase::streamModelRollouts,
-    )
+        internalModelRolloutsMock,
+        ModelRolloutsCoroutineImplBase::streamModelRollouts,
+      )
       .isEqualTo(
         streamModelRolloutsRequest {
           filter =

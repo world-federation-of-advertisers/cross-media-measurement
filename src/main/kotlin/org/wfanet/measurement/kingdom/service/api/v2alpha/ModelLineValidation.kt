@@ -23,8 +23,8 @@ import com.google.type.interval
 import org.wfanet.measurement.api.v2alpha.ModelLine
 
 /**
- * Returns true if the interval formed by the active timestamps of the [ModelLine] contains
- * the [Interval] interval, and returns false otherwise.
+ * Returns true if the interval formed by the active timestamps of the [ModelLine] contains the
+ * [Interval] interval, and returns false otherwise.
  */
 operator fun ModelLine.contains(interval: Interval): Boolean {
   val source = this
@@ -43,9 +43,7 @@ operator fun ModelLine.contains(interval: Interval): Boolean {
   return modelLineActiveInterval.contains(interval)
 }
 
-/**
- * Returns true if the [Interval] contains the [Interval] interval, and returns false otherwise.
- */
+/** Returns true if the [Interval] contains the [Interval] interval, and returns false otherwise. */
 fun Interval.contains(interval: Interval): Boolean {
   return (Timestamps.compare(interval.startTime, this.startTime) >= 0 &&
     Timestamps.compare(interval.endTime, this.endTime) <= 0)
