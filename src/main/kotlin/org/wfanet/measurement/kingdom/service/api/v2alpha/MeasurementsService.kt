@@ -75,6 +75,7 @@ import org.wfanet.measurement.internal.kingdom.Measurement.View as InternalMeasu
 import org.wfanet.measurement.internal.kingdom.MeasurementKt.dataProviderValue
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCoroutineStub as InternalMeasurementsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.ProtocolConfig as InternalProtocolConfig
+import org.wfanet.measurement.internal.kingdom.ProtocolConfig
 import org.wfanet.measurement.internal.kingdom.ProtocolConfigKt
 import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequest
 import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequestKt
@@ -630,11 +631,15 @@ class MeasurementsService(
       "nonce_hash list size is not equal to the data_providers list size."
     }
 
+    val internalProtocolConfig =
+      buildInternalProtocolConfig(measurementSpec, dataProviderCapabilities, parentKey.toName())
+    validateSamplingInterval(measurementSpec, internalProtocolConfig)
+
     val internalMeasurement =
       measurement.toInternal(
         measurementConsumerCertificateKey,
         dataProviderValues,
-        buildInternalProtocolConfig(measurementSpec, dataProviderCapabilities, parentKey.toName()),
+        internalProtocolConfig,
       )
 
     val requestId = this.requestId
@@ -672,7 +677,13 @@ private fun MeasurementSpec.validate() {
         "Reach privacy params are invalid"
       }
 
-      grpcRequire(vidSamplingInterval.width > 0) { "Vid sampling interval is unspecified" }
+      grpcRequire(vidSamplingInterval.width > 0 && vidSamplingInterval.width <= 1.0) {
+        "Vid sampling interval is invalid"
+      }
+
+      require(vidSamplingInterval.start in 0.0..1.0) {
+        "Vid sampling interval start must be >= 0 and <= 1"
+      }
     }
     MeasurementSpec.MeasurementTypeCase.REACH_AND_FREQUENCY -> {
       grpcRequire(reachAndFrequency.reachPrivacyParams.hasValidEpsilonAndDelta()) {
@@ -686,7 +697,13 @@ private fun MeasurementSpec.validate() {
         "maximum_frequency must be greater than 1"
       }
 
-      grpcRequire(vidSamplingInterval.width > 0) { "Vid sampling interval is unspecified" }
+      grpcRequire(vidSamplingInterval.width > 0 && vidSamplingInterval.width <= 1.0) {
+        "Vid sampling interval is invalid"
+      }
+
+      grpcRequire(vidSamplingInterval.start in 0.0..1.0) {
+        "Vid sampling interval start should be within [0, 1]"
+      }
     }
     MeasurementSpec.MeasurementTypeCase.IMPRESSION -> {
       grpcRequire(impression.privacyParams.hasValidEpsilonAndDelta()) {
@@ -871,4 +888,29 @@ private fun getAuthenticatedMeasurementConsumerKey(): MeasurementConsumerKey {
   }
 
   return principal.resourceKey
+}
+
+/**
+ * Check whether the VidSamplingInterval have valid value.
+ *
+ * For HMSS protocol, it is allowed to wrap the interval around 1.
+ */
+private fun validateSamplingInterval(
+  measurementSpec: MeasurementSpec,
+  internalProtocolConfig: InternalProtocolConfig,
+) {
+  val interval = measurementSpec.vidSamplingInterval
+  when (internalProtocolConfig.protocolCase) {
+    ProtocolConfig.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE -> {
+      grpcRequire(interval.start in 0.0..1.0) {
+        "VidSamplingInterval start should be within [0, 1]"
+      }
+      grpcRequire(interval.width <= 1.0) { "VidSamplingInterval width cannot be larger than 1.0" }
+    }
+    else -> {
+      grpcRequire(interval.start + interval.width <= 1.0) {
+        "VidSamplingInterval end cannot be larger than 1.0"
+      }
+    }
+  }
 }
