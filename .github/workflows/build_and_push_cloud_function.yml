@@ -12,41 +12,63 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-name: "Build and Deploy a Google Cloud Function"
+name: "Build & Deploy Cloud Function"
 
 on:
   workflow_call:
     inputs:
-      function_name:
-        required: true
-        type: string
-      entry_point:
-        required: true
-        type: string
-      jar_target:
-        required: true
-        type: string
-      jar_output_path:
-        required: true
-        type: string
       environment:
+        description: "GitHub environment (dev/stage/prod)"
+        type: string
         required: true
-        type: string
-      region:
-        required: true
-        type: string
-      trigger:
-        required: true
-        type: string
-      source_subdir:
-        required: true
-        type: string
-      env_vars:
-        required: false
-        type: string
 
-permissions:
-  id-token: write
+      function_name:
+        description: "gcloud functions name"
+        type: string
+        required: true
+
+      entry_point:
+        description: "Java FQN entry point"
+        type: string
+        required: true
+
+      source_path:
+        description: "Bazel target path to the _deploy.jar"
+        type: string
+        required: true
+
+      trigger_type:
+        description: "'storage' or 'http'"
+        type: string
+        required: true
+
+      # only for storage triggers
+      trigger_bucket:
+        description: "GCS bucket name"
+        type: string
+        required: false
+
+      # everything below is per-function, so we make them inputs
+      run_service_account:
+        description: "Service account to run the function"
+        type: string
+        required: true
+
+      trigger_service_account:
+        description: "Service account to receive the trigger (storage-only)"
+        type: string
+        required: false
+
+      public_api_target:
+        description: "Control-plane API hostname/URL"
+        type: string
+        required: false
+
+      # if you have arbitrary extra env-vars you want to set
+      extra_env_vars:
+        description: "Any additional --set-env-vars (comma-sep)"
+        type: string
+        required: false
 
 jobs:
   build-and-deploy:
@@ -56,36 +78,61 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Authenticate to Google Cloud
+      - name: Authenticate to GCP
         uses: google-github-actions/auth@v2
         with:
           workload_identity_provider: ${{ vars.WORKLOAD_IDENTITY_PROVIDER }}
-          service_account: ${{ vars.TF_SERVICE_ACCOUNT }}
+          service_account:        ${{ vars.TF_SERVICE_ACCOUNT }}
 
-      - name: Setup gcloud CLI
+      - name: Setup gcloud
         uses: google-github-actions/setup-gcloud@v1
         with:
           project_id: ${{ vars.GCLOUD_PROJECT }}
 
-      - name: Build Bazel jar for ${{ inputs.function_name }}
+      - name: Build uber-jar
         run: |
-          bazel build ${{ inputs.jar_target }}
+          bazel build //${{ inputs.source_path }}
 
-      - name: Copy JAR to temp dir
+      - name: Copy to temp
         run: |
-          mkdir -p "$RUNNER_TEMP/${{ inputs.source_subdir }}"
-          cp ${{ inputs.jar_output_path }} "$RUNNER_TEMP/${{ inputs.source_subdir }}"
+          mkdir -p "$RUNNER_TEMP/source"
+          cp bazel-bin/${{ inputs.source_path }} "$RUNNER_TEMP/source/"
 
-      - name: Deploy ${{ inputs.function_name }}
-        env:
-          SET_ENV_VARS: ${{ inputs.env_vars }}
+      - name: Deploy
         run: |
-          gcloud functions deploy ${{ inputs.function_name }} \
-            --gen2 \
-            --runtime=java17 \
-            --entry-point=${{ inputs.entry_point }} \
-            --memory=512MB \
-            --region=${{ inputs.region }} \
-            --source="$RUNNER_TEMP/${{ inputs.source_subdir }}" \
-            ${{ inputs.trigger }} \
-            ${SET_ENV_VARS:+--set-env-vars="$SET_ENV_VARS"}
+          set -euo pipefail
+
+          ARGS=(
+            functions deploy "${{ inputs.function_name }}"
+            --gen2
+            --runtime=java17
+            --entry-point="${{ inputs.entry_point }}"
+            --memory=512MB
+            --region="${{ vars.GCLOUD_REGION }}"
+            --run-service-account="${{ inputs.run_service_account }}"
+          )
+
+          if [[ "${{ inputs.trigger_type }}" == "storage" ]]; then
+            ARGS+=(  
+              --trigger-event-filters="type=google.cloud.storage.object.v1.finalized"
+              --trigger-event-filters="bucket=${{ inputs.trigger_bucket }}"
+              --trigger-service-account="${{ inputs.trigger_service_account }}"
+            )
+          else
+            ARGS+=(
+              --trigger-http
+              --allow-unauthenticated
+            )
+          fi
+
+          # add CONTROL_PLANE_TARGET if set
+          if [[ -n "${{ inputs.public_api_target }}" ]]; then
+            ARGS+=( --set-env-vars="CONTROL_PLANE_TARGET=${{ inputs.public_api_target }}" )
+          fi
+
+          # add any extra ones
+          if [[ -n "${{ inputs.extra_env_vars }}" ]]; then
+            ARGS+=( --set-env-vars="${{ inputs.extra_env_vars }}" )
+          fi
+
+          gcloud "${ARGS[@]}"
