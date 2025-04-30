@@ -1,0 +1,71 @@
+# Copyright 2025 The Cross-Media Measurement Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: "Build and Deploy cloud functions"
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "GitHub-managed environment"
+        type: string
+        required: true
+        default: dev
+  workflow_call:
+    inputs:
+      environment:
+        description: "GitHub-managed environment"
+        type: string
+        required: true
+        default: dev
+
+jobs:
+  deploy-data-watcher:
+    uses: ./.github/workflows/deploy-cloud-function.yml
+    with:
+      environment: ${{ inputs.environment }}
+      function_name: data-watcher
+      entry_point: org.wfanet.measurement.securecomputation.deploy.gcloud.datawatcher.DataWatcherFunction
+      jar_target: //src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/datawatcher:DataWatcherFunction_deploy.jar
+      jar_output_path: bazel-bin/src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/datawatcher/DataWatcherFunction_deploy.jar
+      source_subdir: data_watcher_source
+      region: ${{ vars.GCLOUD_REGION }}
+      trigger: |
+        --trigger-event-filters='type=google.cloud.storage.object.v1.finalized' \
+        --trigger-event-filters="bucket=${{ vars.DATA_WATCHER_TRIGGER_BUCKET }}" \
+        --run-service-account=${{ vars.DATA_WATCHER_SERVICE_ACCOUNT }} \
+        --trigger-service-account=${{ vars.DATA_WATCHER_TRIGGER_SERVICE_ACCOUNT }}
+      env_vars: |
+        CERT_JAR_RESOURCE_PATH=src/main/k8s/testing/secretfiles/data_watcher_tls.pem,
+        PRIVATE_KEY_JAR_RESOURCE_PATH=src/main/k8s/testing/secretfiles/data_watcher_tls.key,
+        CERT_COLLECTION_JAR_RESOURCE_PATH=src/main/k8s/testing/secretfiles/secure_computation_root.pem,
+        CONTROL_PLANE_TARGET=${{ vars.SECURE_COMPUTATION_PUBLIC_API_TARGET }},
+        CONTROL_PLANE_CERT_HOST=data-watcher.secure-computation.dev.halo-cmm.org
+
+  deploy-requisition-fetcher:
+    uses: ./.github/workflows/deploy-cloud-function.yml
+    with:
+      environment: ${{ inputs.environment }}
+      function_name: requisition-fetcher
+      entry_point: org.wfanet.measurement.edpaggregator.deploy.gcloud.requisitionfetcher.RequisitionFetcherFunction
+      jar_target: //src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/requisitionfetcher:RequisitionFetcherFunction_deploy.jar
+      jar_output_path: bazel-bin/src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/requisitionfetcher/RequisitionFetcherFunction_deploy.jar
+      source_subdir: requisition_fetcher_source
+      region: ${{ vars.GCLOUD_REGION }}
+      trigger: |
+        --trigger-http \
+        --allow-unauthenticated \
+        --run-service-account=${{ vars.REQUISITION_FETCHER_SERVICE_ACCOUNT }}
+      env_vars: |
+        KINGDOM_TARGET=${{ vars.KINGDOM_PUBLIC_API_TARGET }}

@@ -76,7 +76,7 @@ jobs:
   deploy-cloud-functions:
     if: ${{ inputs.apply }}
     needs: terraform
-    uses: ./.github/workflows/build_and_deploy_cloud_functions.yml
+    uses: ./.github/workflows/deploy_cloud_functions.yml
     with:
       environment: ${{ inputs.environment }}
 
