@@ -100,8 +100,6 @@ jobs:
 #        -var="postgres_instance_name=$POSTGRES_INSTANCE"
 #        -var="postgres_password=$POSTGRES_PASSWORD"
 #        -out=tfplan
-
-
         terraform plan 
         -input=false 
         -detailed-exitcode 
