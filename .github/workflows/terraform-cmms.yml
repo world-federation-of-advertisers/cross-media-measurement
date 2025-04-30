@@ -128,7 +128,7 @@ jobs:
         ENVIRONMENT: ${{ inputs.environment }}
       working-directory: ${{ env.AWS_MODULE_PATH }}
       run: >
-        terraform plan
+        terraform plan -detailed-exitcode || [ $? -eq 2 ]
         -input=false
         -var="aws_region=$AWS_REGION"
         -var="postgres_instance_name=$POSTGRES_INSTANCE"
