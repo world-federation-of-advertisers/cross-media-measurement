@@ -30,12 +30,6 @@ resource "google_service_account_iam_member" "allow_terraform_to_use_cloud_funct
   member             = "serviceAccount:${var.terraform_service_account}"
 }
 
-resource "google_service_account_iam_member" "allow_terraform_to_use_data_watcher_trigger_service_account" {
-  service_account_id = google_service_account.cloud_function_trigger_service_account.name
-  role               = "roles/iam.serviceAccountUser"
-  member             = "serviceAccount:${var.terraform_service_account}"
-}
-
 resource "google_storage_bucket_iam_member" "cloud_function_object_viewer" {
   bucket = var.trigger_bucket_name
   role   = "roles/storage.objectViewer"
