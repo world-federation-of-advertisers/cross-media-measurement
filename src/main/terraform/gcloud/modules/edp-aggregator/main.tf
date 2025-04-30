@@ -65,7 +65,7 @@ module "tee_apps" {
   for_each = var.queue_worker_configs
   source   = "../mig"
 
-  artifacts_registry_repo_name  = var.artifacts_registry_repo_name
+
   instance_template_name        = each.value.worker.instance_template_name
   base_instance_name            = each.value.worker.base_instance_name
   managed_instance_group_name   = each.value.worker.managed_instance_group_name
