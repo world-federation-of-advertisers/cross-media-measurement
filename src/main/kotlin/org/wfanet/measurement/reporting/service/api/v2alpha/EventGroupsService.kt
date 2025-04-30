@@ -35,9 +35,11 @@ import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.EventGroup as CmmsEventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupKey as CmmsEventGroupKey
+import org.wfanet.measurement.api.v2alpha.EventGroupMetadata
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt
 import org.wfanet.measurement.api.v2alpha.ListEventGroupsResponse as CmmsListEventGroupsResponse
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
+import org.wfanet.measurement.api.v2alpha.MediaType as CmmsMediaType
 import org.wfanet.measurement.api.v2alpha.listEventGroupsRequest
 import org.wfanet.measurement.api.withAuthenticationKey
 import org.wfanet.measurement.common.api.grpc.ResourceList
@@ -54,6 +56,7 @@ import org.wfanet.measurement.reporting.v2alpha.EventGroupKt
 import org.wfanet.measurement.reporting.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineImplBase
 import org.wfanet.measurement.reporting.v2alpha.ListEventGroupsRequest
 import org.wfanet.measurement.reporting.v2alpha.ListEventGroupsResponse
+import org.wfanet.measurement.reporting.v2alpha.MediaType
 import org.wfanet.measurement.reporting.v2alpha.eventGroup
 import org.wfanet.measurement.reporting.v2alpha.listEventGroupsResponse
 
@@ -267,6 +270,32 @@ class EventGroupsService(
       eventGroupReferenceId = source.eventGroupReferenceId
       eventTemplates +=
         source.eventTemplatesList.map { EventGroupKt.eventTemplate { type = it.type } }
+      mediaTypes += source.mediaTypesList.map { it.toMediaType() }
+      if (source.hasDataAvailabilityInterval()) {
+        dataAvailabilityInterval = source.dataAvailabilityInterval
+      }
+      if (source.hasEventGroupMetadata()) {
+        eventGroupMetadata =
+          EventGroupKt.eventGroupMetadata {
+            @Suppress(
+              "WHEN_ENUM_CAN_BE_NULL_IN_JAVA"
+            ) // Protobuf enum accessors cannot return null.
+            when (source.eventGroupMetadata.selectorCase) {
+              EventGroupMetadata.SelectorCase.AD_METADATA -> {
+                adMetadata =
+                  EventGroupKt.EventGroupMetadataKt.adMetadata {
+                    campaignMetadata =
+                      EventGroupKt.EventGroupMetadataKt.AdMetadataKt.campaignMetadata {
+                        brandName = source.eventGroupMetadata.adMetadata.campaignMetadata.brandName
+                        campaignName =
+                          source.eventGroupMetadata.adMetadata.campaignMetadata.campaignName
+                      }
+                  }
+              }
+              EventGroupMetadata.SelectorCase.SELECTOR_NOT_SET -> error("metadata not set")
+            }
+          }
+      }
       if (cmmsMetadata != null) {
         metadata =
           EventGroupKt.metadata {
@@ -290,5 +319,15 @@ class EventGroupsService(
     private const val RPC_DEFAULT_DEADLINE_MILLIS = 30_000L
 
     val LIST_EVENT_GROUPS_PERMISSIONS = setOf("reporting.eventGroups.list")
+  }
+}
+
+private fun CmmsMediaType.toMediaType(): MediaType {
+  return when (this) {
+    CmmsMediaType.VIDEO -> MediaType.VIDEO
+    CmmsMediaType.DISPLAY -> MediaType.DISPLAY
+    CmmsMediaType.OTHER -> MediaType.OTHER
+    CmmsMediaType.MEDIA_TYPE_UNSPECIFIED -> MediaType.MEDIA_TYPE_UNSPECIFIED
+    CmmsMediaType.UNRECOGNIZED -> error("MediaType unrecognized")
   }
 }
