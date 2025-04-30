@@ -35,7 +35,7 @@ on:
 
 jobs:
   deploy-data-watcher:
-    uses: ./.github/workflows/deploy-cloud-function.yml
+    uses: ./.github/workflows/build_and_push_cloud_function.yml
     with:
 #      environment: ${{ inputs.environment }}
       environment: "dev"
@@ -58,7 +58,7 @@ jobs:
         CONTROL_PLANE_CERT_HOST=data-watcher.secure-computation.dev.halo-cmm.org
 
   deploy-requisition-fetcher:
-    uses: ./.github/workflows/deploy-cloud-function.yml
+    uses: ./.github/workflows/build_and_push_cloud_function.yml
     with:
       environment: ${{ inputs.environment }}
       function_name: requisition-fetcher
