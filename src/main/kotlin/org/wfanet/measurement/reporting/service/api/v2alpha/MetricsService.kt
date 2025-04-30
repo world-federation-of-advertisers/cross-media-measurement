@@ -2281,7 +2281,9 @@ fun buildStatsMethodology(
       DeterministicMethodology
     }
     InternalMeasurement.Result.WatchDuration.MethodologyCase.METHODOLOGY_NOT_SET -> {
-      return null
+      throw MeasurementVarianceNotComputableException(
+        "Methodology not set."
+      )
     }
   }
 }
@@ -2439,7 +2441,9 @@ fun buildStatsMethodology(impressionResult: InternalMeasurement.Result.Impressio
       DeterministicMethodology
     }
     InternalMeasurement.Result.Impression.MethodologyCase.METHODOLOGY_NOT_SET -> {
-      return null
+      throw MeasurementVarianceNotComputableException(
+        "Methodology not set."
+      )
     }
   }
 }
@@ -2716,7 +2720,9 @@ fun buildStatsMethodology(frequencyResult: InternalMeasurement.Result.Frequency)
       )
     }
     InternalMeasurement.Result.Frequency.MethodologyCase.METHODOLOGY_NOT_SET -> {
-      return null
+      throw MeasurementVarianceNotComputableException(
+        "Methodology not set."
+      )
     }
   }
 }
@@ -2969,7 +2975,9 @@ fun buildStatsMethodology(reachResult: InternalMeasurement.Result.Reach): Method
       )
     }
     InternalMeasurement.Result.Reach.MethodologyCase.METHODOLOGY_NOT_SET -> {
-      return null
+      throw MeasurementVarianceNotComputableException(
+        "Methodology not set."
+      )
     }
   }
 }

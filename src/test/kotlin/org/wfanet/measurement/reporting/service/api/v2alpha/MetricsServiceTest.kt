@@ -7132,7 +7132,7 @@ class MetricsServiceTest {
     }
 
   @Test
-  fun `getMetric returns reach metric without statistics when reach methodology is unspecified`() =
+  fun `getMetric returns failed reach metric when reach methodology is unspecified`() =
     runBlocking {
       wheneverBlocking {
         permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
@@ -7209,6 +7209,12 @@ class MetricsServiceTest {
       assertThat(result)
         .isEqualTo(
           SUCCEEDED_INCREMENTAL_REACH_METRIC.copy {
+            state = Metric.State.FAILED
+            failure =
+              MetricKt.failure {
+                reason = Metric.Failure.Reason.MEASUREMENT_RESULT_INVALID
+                message = "Problem with variance calculation"
+              }
             this.result = metricResult {
               reach = MetricResultKt.reachResult { value = INCREMENTAL_REACH_VALUE }
               cmmsMeasurements += PENDING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT.name
@@ -8410,7 +8416,7 @@ class MetricsServiceTest {
     }
 
   @Test
-  fun `getMetric returns reach frequency metric without statistics when frequency methodology is unspecified`() =
+  fun `getMetric returns failed rf metric when frequency methodology is unspecified`() =
     runBlocking {
       wheneverBlocking {
         permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
@@ -8462,6 +8468,12 @@ class MetricsServiceTest {
       assertThat(result)
         .isEqualTo(
           SUCCEEDED_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC.copy {
+            state = Metric.State.FAILED
+            failure =
+              MetricKt.failure {
+                reason = Metric.Failure.Reason.MEASUREMENT_RESULT_INVALID
+                message = "Problem with variance calculation"
+              }
             this.result =
               this.result.copy {
                 reachAndFrequency =
@@ -8469,9 +8481,6 @@ class MetricsServiceTest {
                     reach =
                       MetricResultKt.reachResult {
                         value = REACH_FREQUENCY_REACH_VALUE
-                        univariateStatistics = univariateStatistics {
-                          standardDeviation = sqrt(VARIANCE_VALUE)
-                        }
                       }
                     frequencyHistogram =
                       MetricResultKt.histogramResult {
@@ -9416,7 +9425,7 @@ class MetricsServiceTest {
     }
 
   @Test
-  fun `getMetric returns impression metric without statistics when methodology is not set`() =
+  fun `getMetric returns failed impression metric when methodology is not set`() =
     runBlocking {
       wheneverBlocking {
         permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
@@ -9457,6 +9466,12 @@ class MetricsServiceTest {
       assertThat(result)
         .isEqualTo(
           SUCCEEDED_SINGLE_PUBLISHER_IMPRESSION_METRIC.copy {
+            state = Metric.State.FAILED
+            failure =
+              MetricKt.failure {
+                reason = Metric.Failure.Reason.MEASUREMENT_RESULT_INVALID
+                message = "Problem with variance calculation"
+              }
             this.result =
               this.result.copy {
                 impressionCount = impressionCount.copy { clearUnivariateStatistics() }
@@ -9744,7 +9759,7 @@ class MetricsServiceTest {
     }
 
   @Test
-  fun `getMetric returns duration metric without statistics when methodology is not set`() =
+  fun `getMetric returns failed duration metric when methodology is not set`() =
     runBlocking {
       wheneverBlocking {
         permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
@@ -9787,6 +9802,12 @@ class MetricsServiceTest {
       assertThat(result)
         .isEqualTo(
           SUCCEEDED_CROSS_PUBLISHER_WATCH_DURATION_METRIC.copy {
+            state = Metric.State.FAILED
+            failure =
+              MetricKt.failure {
+                reason = Metric.Failure.Reason.MEASUREMENT_RESULT_INVALID
+                message = "Problem with variance calculation"
+              }
             this.result =
               this.result.copy {
                 watchDuration = watchDuration.copy { clearUnivariateStatistics() }
