@@ -93,9 +93,11 @@ class DataWatcher(
           this.dataPathParams = dataPathParams { this.dataPath = path }
         }
         .pack()
+    val workItemName = generateRandomName()
     val request = createWorkItemRequest {
       this.workItemId = workItemId
       this.workItem = workItem {
+        //name = "workItems/$workItemName"
         queue = queueConfig.queue
         this.workItemParams = workItemParams
       }

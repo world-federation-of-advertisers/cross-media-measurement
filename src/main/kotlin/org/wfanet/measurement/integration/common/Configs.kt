@@ -14,19 +14,21 @@
 
 package org.wfanet.measurement.integration.common
 
-import com.google.protobuf.Any
-import com.google.protobuf.Value
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import com.google.protobuf.ByteString
 import com.google.protobuf.Message
-import com.google.protobuf.Struct
+import com.google.protobuf.Timestamp
+import org.wfanet.measurement.common.toProtoTime
 import io.grpc.serviceconfig.ServiceConfig
 import java.nio.file.Path
 import java.nio.file.Paths
 import java.security.cert.X509Certificate
 import java.time.Instant
+import java.time.LocalDate
 import org.jetbrains.annotations.Blocking
+import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.readCertificateCollection
 import org.wfanet.measurement.common.crypto.testing.loadSigningKey
@@ -35,30 +37,39 @@ import org.wfanet.measurement.common.crypto.tink.TinkPublicKeyHandle
 import org.wfanet.measurement.common.crypto.tink.loadPrivateKey
 import org.wfanet.measurement.common.crypto.tink.loadPublicKey
 import org.wfanet.measurement.common.getRuntimePath
+import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.readByteString
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.common.toJson
 import org.wfanet.measurement.config.access.PermissionsConfig
+import org.wfanet.measurement.config.edpaggregator.EventGroupSyncConfig
+import org.wfanet.measurement.config.edpaggregator.eventGroupSyncConfig
 import org.wfanet.measurement.config.reporting.ImpressionQualificationFilterConfig
+import org.wfanet.measurement.config.securecomputation.QueuesConfig
+import org.wfanet.measurement.config.securecomputation.WatchedPath
+import org.wfanet.measurement.config.securecomputation.WatchedPathKt
+import org.wfanet.measurement.config.securecomputation.watchedPath
 import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
+import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
+import org.wfanet.measurement.edpaggregator.v1alpha.labeledImpression
+import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
+import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParamsKt
+import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParamsKt.storage
+import org.wfanet.measurement.edpaggregator.v1alpha.resultsFulfillerParams
 import org.wfanet.measurement.internal.duchy.config.ProtocolsSetupConfig
 import org.wfanet.measurement.internal.kingdom.DuchyIdConfig
 import org.wfanet.measurement.internal.kingdom.HmssProtocolConfigConfig
 import org.wfanet.measurement.internal.kingdom.Llv2ProtocolConfigConfig
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 import org.wfanet.measurement.loadtest.resourcesetup.EntityContent
-import org.wfanet.measurement.gcloud.testing.CloudFunctionProcessDetails
-import org.wfanet.measurement.config.securecomputation.WatchedPath
-import org.wfanet.measurement.config.securecomputation.watchedPath
-import org.wfanet.measurement.config.securecomputation.DataWatcherConfig
-import org.wfanet.measurement.config.securecomputation.WatchedPathKt
-import org.wfanet.measurement.config.securecomputation.dataWatcherConfig
-import org.wfanet.measurement.config.edpaggregator.eventGroupSyncConfig
-import org.wfanet.measurement.config.edpaggregator.EventGroupSyncConfig
-import org.wfanet.measurement.config.securecomputation.QueuesConfig
-import org.wfanet.measurement.common.toJson
 import org.wfanet.measurement.reporting.service.internal.ImpressionQualificationFilterMapping
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.person
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.testEvent
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.asFlow
+import org.wfanet.measurement.common.OpenEndTimeRange
+import org.wfanet.measurement.edpaggregator.v1alpha.copy
 
 private const val REPO_NAME = "wfa_measurement_system"
 
@@ -222,64 +233,109 @@ val DEFAULT_SERVICE_CONFIG_MAP: Map<String, *>?
     return Gson().fromJson(serviceConfigJson, mapType)
   }
 
-/** Used to configure DataWatcher **/
+/** Used to configure DataWatcher * */
 val DATA_WATCHER_CONFIG: List<WatchedPath>
   get() {
-    val configPath = Paths.get("wfa_measurement_system", "src", "main", "k8s", "testing", "secretfiles")
-    val configFile =
-      getRuntimePath(configPath.resolve("data_watcher_config.textproto"))!!.toFile()
+    val configPath =
+      Paths.get("wfa_measurement_system", "src", "main", "k8s", "testing", "secretfiles")
+    val configFile = getRuntimePath(configPath.resolve("data_watcher_config.textproto"))!!.toFile()
     return listOf(parseTextProto(configFile, WatchedPath.getDefaultInstance()))
   }
 
-// TODO: Replace Any with RequisitionFulfillerConfig
 fun getDataWatcherConfig(
   blobPrefix: String,
-  eventGroupCloudFunctionHost: String,
-  edpConfigs: Map<String, Pair<EventGroupSyncConfig, Any>>,
+  edpResultFulfillerConfigs: Map<String, ResultsFulfillerParams>,
 ): List<WatchedPath> {
-  return edpConfigs.map {(edpName, configs) ->
-    listOf(
-      watchedPath {
-        sourcePathRegex = "$blobPrefix/$edpName/requisitions(.*)"
-        this.controlPlaneQueueSink = WatchedPathKt.controlPlaneQueueSink {
-          queue = TOPIC_ID
-          appParams = configs.second
+  return edpResultFulfillerConfigs
+    .map { (edpName, params) ->
+      listOf(
+        watchedPath {
+          sourcePathRegex = "$blobPrefix/$edpName/requisitions(.*)"
+          this.controlPlaneQueueSink =
+            WatchedPathKt.controlPlaneQueueSink {
+              queue = FULFILLER_TOPIC_ID
+              appParams = params.pack()
+            }
         }
-      },
-      watchedPath {
-        sourcePathRegex = "$blobPrefix/$edpName/event-groups"
-        val appParams = Struct.newBuilder()
-          .putFields("data_provider", Value.newBuilder().setStringValue(configs.first.dataProvider)
-          .build()).build()
-        this.httpEndpointSink = WatchedPathKt.httpEndpointSink {
-          endpointUri = eventGroupCloudFunctionHost
-          this.appParams = appParams
-        }
-      }
-    )
-  }.flatten()
+      )
+    }
+    .flatten()
 }
 
 /** Used to configure Secure Computation Control Plane */
 const val PROJECT_ID = "some-project-id"
 const val SUBSCRIPTION_ID = "some-subscription-id"
-const val TOPIC_ID = "some-topic-id"
+const val FULFILLER_TOPIC_ID = "requisition-fulfiller-queue"
 val QUEUES_CONFIG: QueuesConfig
   get() {
-    val configPath = Paths.get("wfa_measurement_system", "src", "main", "k8s", "testing", "secretfiles")
-    val configFile =
-      getRuntimePath(configPath.resolve("queues_config.textproto"))!!.toFile()
+    val configPath =
+      Paths.get("wfa_measurement_system", "src", "main", "k8s", "testing", "secretfiles")
+    val configFile = getRuntimePath(configPath.resolve("queues_config.textproto"))!!.toFile()
     return parseTextProto(configFile, QueuesConfig.getDefaultInstance())
   }
 
 fun getEventGroupConfig(
   blobPrefix: String,
-  edpConfigs: Map<String, String>): List<EventGroupSyncConfig> {
-    return edpConfigs.map { (edpName, edpResourceName) ->
-      eventGroupSyncConfig {
-        dataProvider = edpResourceName
-        eventGroupsBlobUri = "$blobPrefix/$edpName/event-groups"
-        eventGroupMapBlobUri = "$blobPrefix/$edpName/event-group-map"
-      }
-}
+  edpConfigs: Map<String, String>,
+): List<EventGroupSyncConfig> {
+  return edpConfigs.map { (edpName, edpResourceName) ->
+    eventGroupSyncConfig {
+      dataProvider = edpResourceName
+      eventGroupsBlobUri = "$blobPrefix/$edpName/event-groups"
+      eventGroupMapBlobUri = "$blobPrefix/$edpName/event-group-map"
+    }
   }
+}
+
+fun getResultsFulfillerParams(
+  edpDisplayName: String,
+  edpCertificateKey: DataProviderCertificateKey,
+  labeledImpressionBlobUriPrefix: String,
+): ResultsFulfillerParams {
+  return resultsFulfillerParams {
+    this.storage =
+      ResultsFulfillerParamsKt.storage {
+        this.labeledImpressionsBlobUriPrefix = labeledImpressionBlobUriPrefix
+      }
+    this.cmmsConnection =
+      ResultsFulfillerParamsKt.connection {
+        clientCertResourcePath = SECRET_FILES_PATH.resolve("${edpDisplayName}_tls.pem").toString()
+        clientPrivateKeyResourcePath =
+          SECRET_FILES_PATH.resolve("${edpDisplayName}_tls.key").toString()
+      }
+    this.consent =
+      ResultsFulfillerParamsKt.consent {
+        resultCsCertDerResourcePath =
+          SECRET_FILES_PATH.resolve("${edpDisplayName}_result_cs_cert.der").toString()
+        resultCsPrivateKeyDerResourcePath =
+          SECRET_FILES_PATH.resolve("${edpDisplayName}_result_cs_private.der").toString()
+        privateEncryptionKeyResourcePath =
+          SECRET_FILES_PATH.resolve("${edpDisplayName}_enc_private.tink").toString()
+        edpCertificateName = edpCertificateKey.toName()
+      }
+  }
+}
+
+fun getLabeledImpressions(): Flow<LabeledImpression> {
+  val LAST_EVENT_DATE = LocalDate.now()
+  val FIRST_EVENT_DATE = LAST_EVENT_DATE.minusDays(1)
+  val TIME_RANGE = OpenEndTimeRange.fromClosedDateRange(FIRST_EVENT_DATE..LAST_EVENT_DATE)
+  val testEvent = testEvent {
+    person = person {
+      ageGroup = Person.AgeGroup.YEARS_18_TO_34
+      gender = Person.Gender.MALE
+      socialGradeGroup = Person.SocialGradeGroup.A_B_C1
+    }
+  }
+  val impression = labeledImpression {
+    eventTime = Timestamp.getDefaultInstance()
+    vid = 10L
+    event = testEvent.pack()
+  }
+  return List(130) {
+    impression.copy {
+      vid = it.toLong()
+      eventTime = TIME_RANGE.start.toProtoTime()
+    }
+  }.asFlow()
+}
