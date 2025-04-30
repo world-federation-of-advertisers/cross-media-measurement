@@ -44,6 +44,7 @@ module "edp_aggregator" {
   kms_key_name                              = "secure-computation-kek"
   queue_worker_configs                      = local.queue_worker_configs
   artifacts_registry_repo_name              = "secure-computation-tee-app"
+  artifacts_registry_repo_location          = "us-central1"
   pubsub_iam_service_account_member         = module.secure_computation.secure_computation_internal_iam_service_account_member
   edp_aggregator_bucket_name                = var.secure_computation_storage_bucket_name
   edp_aggregator_bucket_location            = local.storage_bucket_location

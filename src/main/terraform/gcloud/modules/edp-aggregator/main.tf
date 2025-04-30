@@ -61,11 +61,25 @@ resource "google_kms_crypto_key" "edp_aggregator_kek" {
   purpose  = "ENCRYPT_DECRYPT"
 }
 
+resource "google_artifact_registry_repository" "secure_computation_tee_app" {
+  location      = var.artifacts_registry_repo_location
+  repository_id = var.artifacts_registry_repo_name
+  description   = "Secure Computation artifacts"
+  format        = "DOCKER"
+}
+
+resource "google_artifact_registry_repository_iam_member" "allow_terraform_to_use_artifact_registry" {
+  location   = google_artifact_registry_repository.secure_computation_tee_app.location
+  repository = google_artifact_registry_repository.secure_computation_tee_app.name
+  role       = "roles/artifactregistry.admin"
+  member     = "serviceAccount:${var.terraform_service_account}"
+}
+
 module "tee_apps" {
   for_each = var.queue_worker_configs
   source   = "../mig"
 
-  artifacts_registry_repo_name  = var.artifacts_registry_repo_name
+  artifacts_registry_repo_name  = google_artifact_registry_repository.secure_computation_tee_app.repository_id
   instance_template_name        = each.value.worker.instance_template_name
   base_instance_name            = each.value.worker.base_instance_name
   managed_instance_group_name   = each.value.worker.managed_instance_group_name

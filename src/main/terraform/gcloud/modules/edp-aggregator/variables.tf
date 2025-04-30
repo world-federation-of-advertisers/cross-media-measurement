@@ -54,7 +54,13 @@ variable "queue_worker_configs" {
 }
 
 variable "artifacts_registry_repo_name" {
-  description = "The name of Artifact Registry where approved TEE app are stored."
+  description = "The name of Artifact Registry for Secure Computation."
+  type        = string
+  nullable    = false
+}
+
+variable "artifacts_registry_repo_location" {
+  description = "The location of Artifact Registry for Secure Computation."
   type        = string
   nullable    = false
 }
