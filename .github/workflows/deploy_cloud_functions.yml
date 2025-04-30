@@ -67,7 +67,7 @@ jobs:
       jar_target: //src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/requisitionfetcher:RequisitionFetcherFunction_deploy.jar
       jar_output_path: bazel-bin/src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/requisitionfetcher/RequisitionFetcherFunction_deploy.jar
       source_subdir: requisition_fetcher_source
-      region: ${{ vars.GCLOUD_REGION }}
+      region: "${{ vars.GCLOUD_REGION }}"
       trigger: |
         --trigger-http \
         --allow-unauthenticated \
