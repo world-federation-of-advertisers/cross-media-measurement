@@ -8478,10 +8478,7 @@ class MetricsServiceTest {
               this.result.copy {
                 reachAndFrequency =
                   MetricResultKt.reachAndFrequencyResult {
-                    reach =
-                      MetricResultKt.reachResult {
-                        value = REACH_FREQUENCY_REACH_VALUE
-                      }
+                    reach = MetricResultKt.reachResult { value = REACH_FREQUENCY_REACH_VALUE }
                     frequencyHistogram =
                       MetricResultKt.histogramResult {
                         bins +=
@@ -9425,60 +9422,59 @@ class MetricsServiceTest {
     }
 
   @Test
-  fun `getMetric returns failed impression metric when methodology is not set`() =
-    runBlocking {
-      wheneverBlocking {
-        permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
-      } doReturn checkPermissionsResponse { permissions += PermissionName.GET }
-      whenever(internalMetricsMock.batchGetMetrics(any()))
-        .thenReturn(
-          internalBatchGetMetricsResponse {
-            metrics +=
-              INTERNAL_SUCCEEDED_SINGLE_PUBLISHER_IMPRESSION_METRIC.copy {
-                weightedMeasurements.clear()
-                weightedMeasurements += weightedMeasurement {
-                  weight = 1
-                  binaryRepresentation = 1
-                  measurement =
-                    INTERNAL_SUCCEEDED_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.copy {
-                      details =
-                        InternalMeasurementKt.details {
-                          results +=
-                            InternalMeasurementKt.result {
-                              impression =
-                                InternalMeasurementKt.ResultKt.impression {
-                                  value = IMPRESSION_VALUE
-                                  noiseMechanism = NoiseMechanism.CONTINUOUS_LAPLACE
-                                }
-                            }
-                        }
-                    }
-                }
+  fun `getMetric returns failed impression metric when methodology is not set`() = runBlocking {
+    wheneverBlocking {
+      permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+    } doReturn checkPermissionsResponse { permissions += PermissionName.GET }
+    whenever(internalMetricsMock.batchGetMetrics(any()))
+      .thenReturn(
+        internalBatchGetMetricsResponse {
+          metrics +=
+            INTERNAL_SUCCEEDED_SINGLE_PUBLISHER_IMPRESSION_METRIC.copy {
+              weightedMeasurements.clear()
+              weightedMeasurements += weightedMeasurement {
+                weight = 1
+                binaryRepresentation = 1
+                measurement =
+                  INTERNAL_SUCCEEDED_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.copy {
+                    details =
+                      InternalMeasurementKt.details {
+                        results +=
+                          InternalMeasurementKt.result {
+                            impression =
+                              InternalMeasurementKt.ResultKt.impression {
+                                value = IMPRESSION_VALUE
+                                noiseMechanism = NoiseMechanism.CONTINUOUS_LAPLACE
+                              }
+                          }
+                      }
+                  }
               }
-          }
-        )
+            }
+        }
+      )
 
-      val request = getMetricRequest { name = SUCCEEDED_SINGLE_PUBLISHER_IMPRESSION_METRIC.name }
+    val request = getMetricRequest { name = SUCCEEDED_SINGLE_PUBLISHER_IMPRESSION_METRIC.name }
 
-      val result =
-        withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.getMetric(request) } }
+    val result =
+      withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.getMetric(request) } }
 
-      assertThat(result)
-        .isEqualTo(
-          SUCCEEDED_SINGLE_PUBLISHER_IMPRESSION_METRIC.copy {
-            state = Metric.State.FAILED
-            failure =
-              MetricKt.failure {
-                reason = Metric.Failure.Reason.MEASUREMENT_RESULT_INVALID
-                message = "Problem with variance calculation"
-              }
-            this.result =
-              this.result.copy {
-                impressionCount = impressionCount.copy { clearUnivariateStatistics() }
-              }
-          }
-        )
-    }
+    assertThat(result)
+      .isEqualTo(
+        SUCCEEDED_SINGLE_PUBLISHER_IMPRESSION_METRIC.copy {
+          state = Metric.State.FAILED
+          failure =
+            MetricKt.failure {
+              reason = Metric.Failure.Reason.MEASUREMENT_RESULT_INVALID
+              message = "Problem with variance calculation"
+            }
+          this.result =
+            this.result.copy {
+              impressionCount = impressionCount.copy { clearUnivariateStatistics() }
+            }
+        }
+      )
+  }
 
   @Test
   fun `getMetric returns impression metric without statistics when variance in custom methodology is unavailable`() =
@@ -9759,62 +9755,59 @@ class MetricsServiceTest {
     }
 
   @Test
-  fun `getMetric returns failed duration metric when methodology is not set`() =
-    runBlocking {
-      wheneverBlocking {
-        permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
-      } doReturn checkPermissionsResponse { permissions += PermissionName.GET }
-      whenever(internalMetricsMock.batchGetMetrics(any()))
-        .thenReturn(
-          internalBatchGetMetricsResponse {
-            metrics +=
-              INTERNAL_SUCCEEDED_CROSS_PUBLISHER_WATCH_DURATION_METRIC.copy {
-                weightedMeasurements.clear()
-                weightedMeasurements += weightedMeasurement {
-                  weight = 1
-                  binaryRepresentation = 1
-                  measurement =
-                    INTERNAL_SUCCEEDED_UNION_ALL_WATCH_DURATION_MEASUREMENT.copy {
-                      details =
-                        InternalMeasurementKt.details {
-                          results +=
-                            WATCH_DURATION_LIST.map { duration ->
-                              InternalMeasurementKt.result {
-                                watchDuration =
-                                  InternalMeasurementKt.ResultKt.watchDuration {
-                                    value = duration
-                                    noiseMechanism = NoiseMechanism.CONTINUOUS_LAPLACE
-                                  }
-                              }
+  fun `getMetric returns failed duration metric when methodology is not set`() = runBlocking {
+    wheneverBlocking {
+      permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+    } doReturn checkPermissionsResponse { permissions += PermissionName.GET }
+    whenever(internalMetricsMock.batchGetMetrics(any()))
+      .thenReturn(
+        internalBatchGetMetricsResponse {
+          metrics +=
+            INTERNAL_SUCCEEDED_CROSS_PUBLISHER_WATCH_DURATION_METRIC.copy {
+              weightedMeasurements.clear()
+              weightedMeasurements += weightedMeasurement {
+                weight = 1
+                binaryRepresentation = 1
+                measurement =
+                  INTERNAL_SUCCEEDED_UNION_ALL_WATCH_DURATION_MEASUREMENT.copy {
+                    details =
+                      InternalMeasurementKt.details {
+                        results +=
+                          WATCH_DURATION_LIST.map { duration ->
+                            InternalMeasurementKt.result {
+                              watchDuration =
+                                InternalMeasurementKt.ResultKt.watchDuration {
+                                  value = duration
+                                  noiseMechanism = NoiseMechanism.CONTINUOUS_LAPLACE
+                                }
                             }
-                        }
-                    }
-                }
+                          }
+                      }
+                  }
               }
-          }
-        )
+            }
+        }
+      )
 
-      val request = getMetricRequest { name = PENDING_CROSS_PUBLISHER_WATCH_DURATION_METRIC.name }
+    val request = getMetricRequest { name = PENDING_CROSS_PUBLISHER_WATCH_DURATION_METRIC.name }
 
-      val result =
-        withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.getMetric(request) } }
+    val result =
+      withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.getMetric(request) } }
 
-      assertThat(result)
-        .isEqualTo(
-          SUCCEEDED_CROSS_PUBLISHER_WATCH_DURATION_METRIC.copy {
-            state = Metric.State.FAILED
-            failure =
-              MetricKt.failure {
-                reason = Metric.Failure.Reason.MEASUREMENT_RESULT_INVALID
-                message = "Problem with variance calculation"
-              }
-            this.result =
-              this.result.copy {
-                watchDuration = watchDuration.copy { clearUnivariateStatistics() }
-              }
-          }
-        )
-    }
+    assertThat(result)
+      .isEqualTo(
+        SUCCEEDED_CROSS_PUBLISHER_WATCH_DURATION_METRIC.copy {
+          state = Metric.State.FAILED
+          failure =
+            MetricKt.failure {
+              reason = Metric.Failure.Reason.MEASUREMENT_RESULT_INVALID
+              message = "Problem with variance calculation"
+            }
+          this.result =
+            this.result.copy { watchDuration = watchDuration.copy { clearUnivariateStatistics() } }
+        }
+      )
+  }
 
   @Test
   fun `getMetric returns duration metric without statistics when variance in custom methodology is unavailable`() =
