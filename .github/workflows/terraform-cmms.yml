@@ -85,7 +85,7 @@ jobs:
         POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
       working-directory: ${{ env.GCLOUD_MODULE_PATH }}
       run: >
-        terraform plan
+        terraform plan -detailed-exitcode || [ $? -eq 2 ]
         -input=false
         -var="key_ring_name=$KEY_RING"
         -var="spanner_instance_name=$SPANNER_INSTANCE"
@@ -100,7 +100,7 @@ jobs:
     - name: terraform apply - gcloud
       if: ${{ inputs.apply }}
       working-directory: ${{ env.GCLOUD_MODULE_PATH }}
-      run: terraform apply -input=false tfplan
+      run: terraform apply -auto-approve -input=false tfplan
 
     # Authenticate to AWS Cloud. This will export some environment
     - name: Configure AWS Credentials
@@ -128,7 +128,7 @@ jobs:
         ENVIRONMENT: ${{ inputs.environment }}
       working-directory: ${{ env.AWS_MODULE_PATH }}
       run: >
-        terraform plan -detailed-exitcode || [ $? -eq 2 ]
+        terraform plan
         -input=false
         -var="aws_region=$AWS_REGION"
         -var="postgres_instance_name=$POSTGRES_INSTANCE"
