@@ -18,11 +18,17 @@ import com.google.common.truth.Truth.assertThat
 import java.nio.file.Path
 import java.nio.file.Paths
 import kotlin.math.abs
+import kotlinx.coroutines.runBlocking
+import org.junit.After
+import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.reporting.v2alpha.Report
+import org.wfanet.measurement.storage.StorageClient
+import org.wfanet.measurement.storage.testing.InMemoryStorageClient
 
 data class MetricReport(
   val cumulativeMeasurements: Map<Set<String>, List<Long>>,
@@ -31,10 +37,117 @@ data class MetricReport(
   val impression: Map<Set<String>, Long>,
 )
 
+class TestStorageFactory(private val inMemoryStorageClient: InMemoryStorageClient) :
+  ReportProcessor.StorageFactory {
+  override fun createStorageClient(projectId: String, bucketName: String): StorageClient {
+    return inMemoryStorageClient
+  }
+}
+
 @RunWith(JUnit4::class)
 class ReportProcessorTest {
+  private lateinit var inMemoryStorageClient: InMemoryStorageClient
+  private lateinit var testFactory: TestStorageFactory
+
+  @Before
+  fun setUp() {
+    inMemoryStorageClient = InMemoryStorageClient()
+    testFactory = TestStorageFactory(inMemoryStorageClient)
+
+    // Swap the factory in ReportProcessor.
+    ReportProcessor.setTestStorageFactory(testFactory)
+  }
+
+  @After
+  fun tearDown() {
+    ReportProcessor.resetToGcsStorageFactory()
+  }
+
   @Test
-  fun `run correct report with custom policy successfully`() {
+  fun `run correct report with logging with custom policy_successfully`() = runBlocking {
+    val reportFile = TEST_DATA_RUNTIME_DIR.resolve("sample_report_with_custom_policy.json").toFile()
+    val reportAsJson = reportFile.readText()
+
+    val report = ReportConversion.getReportFromJsonString(reportAsJson)
+    assertThat(report.hasConsistentMeasurements()).isFalse()
+
+    val (updatedReportAsJson, reportPostProcessorLog) =
+      ReportProcessor.processReportJsonAndLogResult(reportAsJson, "projectId", "bucketName")
+    val updatedReport = ReportConversion.getReportFromJsonString(updatedReportAsJson)
+    assertThat(updatedReport.hasConsistentMeasurements()).isTrue()
+
+    val expectedBlobKey =
+      "bucketName/" + report.name.substringAfterLast('/') + "-" + report.createTime.seconds + ".txt"
+    assertThat(inMemoryStorageClient.contents).containsKey(expectedBlobKey)
+
+    assertThat(
+        ReportPostProcessorLog.parseFrom(
+          inMemoryStorageClient.getBlob(expectedBlobKey)!!.read().flatten()
+        )
+      )
+      .isEqualTo(reportPostProcessorLog)
+  }
+
+  @Test
+  fun `run correct report with logging with demographic slicing successfully`() = runBlocking {
+    val reportFile =
+      TEST_DATA_RUNTIME_DIR.resolve("sample_report_with_demographic_slicing.json").toFile()
+    val reportAsJson = reportFile.readText()
+
+    val report = ReportConversion.getReportFromJsonString(reportAsJson)
+    assertThat(report.hasConsistentMeasurements()).isFalse()
+
+    val (updatedReportAsJson, reportPostProcessorLog) =
+      ReportProcessor.processReportJsonAndLogResult(reportAsJson, "projectId", "bucketName")
+    val updatedReport = ReportConversion.getReportFromJsonString(updatedReportAsJson)
+    assertThat(updatedReport.hasConsistentMeasurements()).isTrue()
+
+    val expectedBlobKey =
+      "bucketName/" + report.name.substringAfterLast('/') + "-" + report.createTime.seconds + ".txt"
+    assertThat(inMemoryStorageClient.contents).containsKey(expectedBlobKey)
+
+    assertThat(
+        ReportPostProcessorLog.parseFrom(
+          inMemoryStorageClient.getBlob(expectedBlobKey)!!.read().flatten()
+        )
+      )
+      .isEqualTo(reportPostProcessorLog)
+  }
+
+  @Test
+  fun `run correct report with logging with unique reach and incremental reach successfully`() =
+    runBlocking {
+      val reportFile =
+        TEST_DATA_RUNTIME_DIR.resolve("sample_report_unique_reach_incremental_reach_small.json")
+          .toFile()
+      val reportAsJson = reportFile.readText()
+
+      val report = ReportConversion.getReportFromJsonString(reportAsJson)
+      assertThat(report.hasConsistentMeasurements()).isFalse()
+
+      val (updatedReportAsJson, reportPostProcessorLog) =
+        ReportProcessor.processReportJsonAndLogResult(reportAsJson, "projectId", "bucketName")
+      val updatedReport = ReportConversion.getReportFromJsonString(updatedReportAsJson)
+      assertThat(updatedReport.hasConsistentMeasurements()).isTrue()
+
+      val expectedBlobKey =
+        "bucketName/" +
+          report.name.substringAfterLast('/') +
+          "-" +
+          report.createTime.seconds +
+          ".txt"
+      assertThat(inMemoryStorageClient.contents).containsKey(expectedBlobKey)
+
+      assertThat(
+          ReportPostProcessorLog.parseFrom(
+            inMemoryStorageClient.getBlob(expectedBlobKey)!!.read().flatten()
+          )
+        )
+        .isEqualTo(reportPostProcessorLog)
+    }
+
+  @Test
+  fun `run correct report without logging with custom policy successfully`() {
     val reportFile = TEST_DATA_RUNTIME_DIR.resolve("sample_report_with_custom_policy.json").toFile()
     val reportAsJson = reportFile.readText()
 
@@ -47,7 +160,7 @@ class ReportProcessorTest {
   }
 
   @Test
-  fun `run correct report with unique reach and incremental reach successfully`() {
+  fun `run correct report without logging with unique reach and incremental reach successfully`() {
     val reportFile =
       TEST_DATA_RUNTIME_DIR.resolve("sample_report_unique_reach_incremental_reach_small.json")
         .toFile()
@@ -62,7 +175,7 @@ class ReportProcessorTest {
   }
 
   @Test
-  fun `run correct report successfully`() {
+  fun `run correct report without logging successfully`() {
     val reportFile = TEST_DATA_RUNTIME_DIR.resolve("sample_report_large.json").toFile()
     val reportAsJson = reportFile.readText()
 
@@ -75,7 +188,7 @@ class ReportProcessorTest {
   }
 
   @Test
-  fun `run correct report with demographic slicing successfully`() {
+  fun `run correct report without logging with demographic slicing successfully`() {
     val reportFile =
       TEST_DATA_RUNTIME_DIR.resolve("sample_report_with_demographic_slicing.json").toFile()
     val reportAsJson = reportFile.readText()

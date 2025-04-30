@@ -16,6 +16,7 @@ package org.wfanet.measurement.reporting.postprocessing.v2alpha
 
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
+import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
@@ -26,6 +27,16 @@ class NoOpReportProcessorTest {
   fun `The default report processor successfully processes a report`() {
     val reportProcessor = NoOpReportProcessor()
     val processedReport = reportProcessor.processReportJson(SAMPLE_REPORT)
+    assertThat(processedReport).isEqualTo(SAMPLE_REPORT)
+  }
+
+  @Test
+  fun `The default report processor successfully processes a report and log result`() {
+    val reportProcessor = NoOpReportProcessor()
+    val (processedReport, reportPostProcessorLog) = runBlocking {
+      reportProcessor.processReportJsonAndLogResult(SAMPLE_REPORT, "projectId", "bucketName")
+    }
+
     assertThat(processedReport).isEqualTo(SAMPLE_REPORT)
   }
 

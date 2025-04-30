@@ -23,4 +23,17 @@ class NoOpReportProcessor : ReportProcessor {
   override fun processReportJson(report: String, verbose: Boolean): String {
     return report
   }
+
+  /**
+   * Returns the input [report] without any modifications, together with an empty report post
+   * processor log.
+   */
+  override suspend fun processReportJsonAndLogResult(
+    report: String,
+    projectId: String,
+    bucketName: String,
+    verbose: Boolean,
+  ): Pair<String, ReportPostProcessorLog> {
+    return Pair(report, reportPostProcessorLog {})
+  }
 }
