@@ -68,13 +68,6 @@ resource "google_artifact_registry_repository" "secure_computation_tee_app" {
   format        = "DOCKER"
 }
 
-resource "google_artifact_registry_repository_iam_member" "allow_terraform_to_use_artifact_registry" {
-  location   = google_artifact_registry_repository.secure_computation_tee_app.location
-  repository = google_artifact_registry_repository.secure_computation_tee_app.name
-  role       = "roles/artifactregistry.admin"
-  member     = "serviceAccount:${var.terraform_service_account}"
-}
-
 module "tee_apps" {
   for_each = var.queue_worker_configs
   source   = "../mig"
