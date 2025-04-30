@@ -62,6 +62,7 @@ import org.wfanet.measurement.internal.kingdom.StreamModelLinesRequestKt.filter
 import org.wfanet.measurement.internal.kingdom.StreamModelRolloutsRequestKt
 import org.wfanet.measurement.internal.kingdom.getDataProviderRequest
 import org.wfanet.measurement.internal.kingdom.setActiveEndTimeRequest as internalSetActiveEndTimeRequest
+import org.wfanet.measurement.api.v2alpha.MeasurementConsumerPrincipal
 import org.wfanet.measurement.internal.kingdom.setModelLineHoldbackModelLineRequest
 import org.wfanet.measurement.internal.kingdom.streamModelLinesRequest
 import org.wfanet.measurement.internal.kingdom.streamModelRolloutsRequest
@@ -249,7 +250,8 @@ class ModelLinesService(
           failGrpc(Status.PERMISSION_DENIED) { "Cannot list ModelLines for another ModelProvider" }
         }
       }
-      is DataProviderPrincipal -> {}
+      is DataProviderPrincipal,
+      is MeasurementConsumerPrincipal -> {}
       else -> {
         failGrpc(Status.PERMISSION_DENIED) { "Caller does not have permission to list ModelLines" }
       }
@@ -260,11 +262,11 @@ class ModelLinesService(
     }
 
     if (!Timestamps.isValid(request.timeInterval.startTime)) {
-      failGrpc(Status.INVALID_ARGUMENT) { "Missing time_interval.start_time" }
+      failGrpc(Status.INVALID_ARGUMENT) { "time_interval.start_time is invalid" }
     }
 
     if (!Timestamps.isValid(request.timeInterval.endTime)) {
-      failGrpc(Status.INVALID_ARGUMENT) { "Missing time_interval.end_time" }
+      failGrpc(Status.INVALID_ARGUMENT) { "time_interval.end_time is invalid" }
     }
 
     if (Timestamps.compare(request.timeInterval.startTime, request.timeInterval.endTime) >= 0) {
@@ -277,42 +279,39 @@ class ModelLinesService(
       failGrpc(Status.INVALID_ARGUMENT) { "Missing data_providers" }
     }
 
-    for (dataProviderName in request.dataProvidersList) {
-      DataProviderKey.fromName(dataProviderName)
-        ?: failGrpc(Status.INVALID_ARGUMENT) { "$dataProviderName in data_providers is invalid" }
+    val dataProvidersKeySet = buildSet {
+      for (dataProviderName in request.dataProvidersList) {
+        add(DataProviderKey.fromName(dataProviderName)
+          ?: failGrpc(Status.INVALID_ARGUMENT) { "$dataProviderName in data_providers is invalid" })
+      }
     }
 
-    val dataProvidersSet = mutableSetOf<String>()
     // Map of external ModelLine IDs to data availability intervals. Populated by retrieving the
     // data availability intervals from every data provider specified in the request.
-    val dataProvidersDataAvailabilityIntervalMap: Map<Long, MutableList<Interval>> = buildMap {
-      for (dataProviderName in request.dataProvidersList) {
-        if (!dataProvidersSet.contains(dataProviderName)) {
-          dataProvidersSet.add(dataProviderName)
-          val dataProviderKey = DataProviderKey.fromName(dataProviderName)
-          val dataProvider =
-            try {
-              internalDataProvidersClient.getDataProvider(
-                getDataProviderRequest {
-                  externalDataProviderId = apiIdToExternalId(dataProviderKey!!.dataProviderId)
-                }
-              )
-            } catch (e: StatusException) {
-              throw when (e.status.code) {
-                Status.Code.NOT_FOUND ->
-                  failGrpc(Status.NOT_FOUND) { "$dataProviderName in data_providers not found" }
-
-                Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED.asRuntimeException()
-                else -> Status.UNKNOWN.asRuntimeException()
+    val dataProvidersDataAvailabilityIntervalMap: Map<Long, List<Interval>> = buildMap {
+      for (dataProviderKey in dataProvidersKeySet) {
+        val dataProvider =
+          try {
+            internalDataProvidersClient.getDataProvider(
+              getDataProviderRequest {
+                externalDataProviderId = apiIdToExternalId(dataProviderKey.dataProviderId)
               }
-            }
+            )
+          } catch (e: StatusException) {
+            throw when (e.status.code) {
+              Status.Code.NOT_FOUND ->
+                failGrpc(Status.NOT_FOUND) { "${dataProviderKey.toName()} in data_providers not found" }
 
-          for (dataAvailabilityInterval in dataProvider.dataAvailabilityIntervalsList) {
-            val intervalList =
-              getOrDefault(dataAvailabilityInterval.key.externalModelLineId, mutableListOf())
-            intervalList.add(dataAvailabilityInterval.value)
-            put(dataAvailabilityInterval.key.externalModelLineId, intervalList)
+              Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED.asRuntimeException()
+              else -> Status.UNKNOWN.asRuntimeException()
+            }
           }
+
+        for (dataAvailabilityInterval in dataProvider.dataAvailabilityIntervalsList) {
+          val intervalList =
+            getOrDefault(dataAvailabilityInterval.key.externalModelLineId, listOf())
+          put(dataAvailabilityInterval.key.externalModelLineId,
+              intervalList + dataAvailabilityInterval.value)
         }
       }
     }
@@ -354,14 +353,14 @@ class ModelLinesService(
     val validModelLines: List<ModelLine> = buildList {
       for (internalModelLine in internalModelLines) {
         val modelLine = internalModelLine.toModelLine()
-        if (request.timeInterval.isFullyContainedWithin(modelLine)) {
+        if (request.timeInterval in modelLine) {
           val dataAvailabilityIntervals: List<Interval>? =
             dataProvidersDataAvailabilityIntervalMap[internalModelLine.externalModelLineId]
           if (
             dataAvailabilityIntervals != null &&
-              dataAvailabilityIntervals.size == dataProvidersSet.size
+              dataAvailabilityIntervals.size == dataProvidersKeySet.size
           ) {
-            if (request.timeInterval.isFullyContainedWithin(dataAvailabilityIntervals)) {
+            if (dataAvailabilityIntervals.containsInterval(request.timeInterval)) {
               val streamModelRolloutsResponse =
                 try {
                   internalModelRolloutsClient

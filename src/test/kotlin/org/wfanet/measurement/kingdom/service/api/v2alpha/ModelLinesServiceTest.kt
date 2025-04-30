@@ -1581,6 +1581,88 @@ class ModelLinesServiceTest {
   }
 
   @Test
+  fun `enumerateValidModelLines is successful with mc principal`(): Unit = runBlocking {
+    whenever(
+      internalDataProvidersMock.getDataProvider(
+        getDataProviderRequest { externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID }
+      )
+    )
+      .thenReturn(
+        dataProvider {
+          dataAvailabilityIntervals +=
+            DataProviderKt.dataAvailabilityMapEntry {
+              key = modelLineKey {
+                externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
+                externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
+                externalModelLineId = EXTERNAL_MODEL_LINE_ID
+              }
+              value = interval {
+                startTime = timestamp { seconds = 50 }
+                endTime = timestamp { seconds = 100 }
+              }
+            }
+        }
+      )
+
+    whenever(internalModelRolloutsMock.streamModelRollouts(any())).thenReturn(flowOf())
+
+    whenever(internalModelLinesMock.streamModelLines(any()))
+      .thenReturn(
+        flowOf(
+          internalModelLine {
+            externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
+            externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
+            externalModelLineId = EXTERNAL_MODEL_LINE_ID
+            activeStartTime = timestamp { seconds = 25 }
+          }
+        )
+      )
+
+    val enumerateValidModelLinesResponse =
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+        service.enumerateValidModelLines(
+          enumerateValidModelLinesRequest {
+            parent = MODEL_SUITE_NAME
+            timeInterval = interval {
+              startTime = timestamp { seconds = 50 }
+              endTime = timestamp { seconds = 100 }
+            }
+            dataProviders += DATA_PROVIDER_NAME
+          }
+        )
+      }
+
+    assertThat(enumerateValidModelLinesResponse).isEqualTo(enumerateValidModelLinesResponse {})
+
+    verifyProtoArgument(internalModelLinesMock, ModelLinesCoroutineImplBase::streamModelLines)
+      .isEqualTo(
+        streamModelLinesRequest {
+          filter =
+            StreamModelLinesRequestKt.filter {
+              externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
+              externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
+              type += InternalModelLine.Type.PROD
+            }
+        }
+      )
+
+    verifyProtoArgument(
+      internalModelRolloutsMock,
+      ModelRolloutsCoroutineImplBase::streamModelRollouts,
+    )
+      .isEqualTo(
+        streamModelRolloutsRequest {
+          filter =
+            StreamModelRolloutsRequestKt.filter {
+              externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
+              externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
+              externalModelLineId = EXTERNAL_MODEL_LINE_ID
+            }
+        }
+      )
+  }
+
+  @Test
   fun `enumerateValidModelLines does not return model line if 0 rollouts`(): Unit = runBlocking {
     whenever(
         internalDataProvidersMock.getDataProvider(
@@ -2013,7 +2095,7 @@ class ModelLinesServiceTest {
   fun `enumerateValidModelLines throws PERMISSION_DENIED when wrong principal`() {
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+        withDuchyPrincipal(DUCHY_NAME) {
           runBlocking {
             service.enumerateValidModelLines(
               enumerateValidModelLinesRequest {

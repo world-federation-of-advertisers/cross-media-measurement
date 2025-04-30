@@ -23,14 +23,15 @@ import com.google.type.interval
 import org.wfanet.measurement.api.v2alpha.ModelLine
 
 /**
- * Returns true if the interval formed by the active timestamps of the [ModelLine] completely covers
- * the [Interval] to check against, and returns false otherwise.
+ * Returns true if the interval formed by the active timestamps of the [ModelLine] contains
+ * the [Interval] interval, and returns false otherwise.
  */
-fun Interval.isFullyContainedWithin(modelLine: ModelLine): Boolean {
+operator fun ModelLine.contains(interval: Interval): Boolean {
+  val source = this
   val modelLineActiveInterval = interval {
-    startTime = modelLine.activeStartTime
-    if (modelLine.hasActiveEndTime()) {
-      endTime = modelLine.activeEndTime
+    startTime = source.activeStartTime
+    if (source.hasActiveEndTime()) {
+      endTime = source.activeEndTime
     } else {
       endTime = timestamp {
         // Max seconds
@@ -39,25 +40,24 @@ fun Interval.isFullyContainedWithin(modelLine: ModelLine): Boolean {
     }
   }
 
-  return this.isFullyContainedWithin(modelLineActiveInterval)
+  return modelLineActiveInterval.contains(interval)
 }
 
 /**
- * Returns true if the [Interval] is completely covered by the [Interval] parameter, and returns
- * false otherwise.
+ * Returns true if the [Interval] contains the [Interval] interval, and returns false otherwise.
  */
-fun Interval.isFullyContainedWithin(interval: Interval): Boolean {
-  return (Timestamps.compare(this.startTime, interval.startTime) >= 0 &&
-    Timestamps.compare(this.endTime, interval.endTime) <= 0)
+fun Interval.contains(interval: Interval): Boolean {
+  return (Timestamps.compare(interval.startTime, this.startTime) >= 0 &&
+    Timestamps.compare(interval.endTime, this.endTime) <= 0)
 }
 
 /**
- * Returns true if the [Interval] is completely covered by the list of [Interval]s parameter, and
- * returns false otherwise.
+ * Returns true if every [Interval] in the list contains the [Interval] interval, and returns false
+ * otherwise.
  */
-fun Interval.isFullyContainedWithin(intervals: List<Interval>): Boolean {
-  for (interval in intervals) {
-    if (this.isFullyContainedWithin(interval)) {
+fun List<Interval>.containsInterval(interval: Interval): Boolean {
+  for (i in this) {
+    if (i.contains(interval)) {
       continue
     } else return false
   }
