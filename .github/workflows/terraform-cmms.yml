@@ -84,7 +84,6 @@ jobs:
           POSTGRES_INSTANCE: ${{ vars.POSTGRES_INSTANCE }}
           POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
         working-directory: ${{ env.GCLOUD_MODULE_PATH }}
-        continue-on-error: true
         run: >
           terraform plan
           -input=false
