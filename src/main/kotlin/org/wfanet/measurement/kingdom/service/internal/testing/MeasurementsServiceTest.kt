@@ -57,6 +57,7 @@ import org.wfanet.measurement.internal.kingdom.MeasurementLogEntryError
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ProtocolConfig
 import org.wfanet.measurement.internal.kingdom.Requisition
+import org.wfanet.measurement.internal.kingdom.Requisition.DuchyValue
 import org.wfanet.measurement.internal.kingdom.RequisitionKt.parentMeasurement
 import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequestKt
@@ -1228,6 +1229,14 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
         requisition { state = Requisition.State.WITHDRAWN },
         requisition { state = Requisition.State.WITHDRAWN },
       )
+
+    for (requisition in requisitions) {
+      for (duchyValue in requisition.duchiesMap.values) {
+        assertThat(duchyValue)
+          .comparingExpectedFieldsOnly()
+          .isEqualTo(DuchyValue.getDefaultInstance())
+      }
+    }
   }
 
   @Test
