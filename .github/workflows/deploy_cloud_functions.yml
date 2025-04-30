@@ -30,7 +30,8 @@ jobs:
   deploy-data-watcher:
     uses: ./.github/workflows/build_and_push_cloud_function.yml
     with:
-      environment:                ${{ inputs.environment }}
+#      environment:                ${{ inputs.environment }}
+      environment:                "dev"
       function_name:              data-watcher
       entry_point:                org.wfanet.measurement.securecomputation.deploy.gcloud.datawatcher.DataWatcherFunction
       source_path:                src/main/kotlin/.../DataWatcherFunction_deploy.jar
@@ -47,7 +48,8 @@ jobs:
   deploy-event-group-sync:
     uses: ./.github/workflows/build_and_push_cloud_function.yml
     with:
-      environment:                ${{ inputs.environment }}
+#      environment:                ${{ inputs.environment }}
+      environment:                "dev"
       function_name:              event-group-sync
       entry_point:                org.wfanet.measurement.edpaggregator.deploy.gcloud.eventgroups.EventGroupSyncFunction
       source_path:                src/main/kotlin/.../EventGroupSyncFunction_deploy.jar
