@@ -1,8 +1,7 @@
 load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
 
 package(
-    default_testonly = True,
-    default_visibility = ["//visibility:public"],
+    default_visibility = ["//src/test/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:__subpackages__"],
 )
 
 kt_jvm_library(
