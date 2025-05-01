@@ -146,18 +146,18 @@ class PrivacyBudgetManager(
    * and then iteratively maps those buckets to the PrivacyLandscape at the tail
    * of the linked list.
    *
-   * @param targetLandscapeName The name of the PrivacyLandscape to find initially.
+   * @param inactiveLandscapeName The name of the PrivacyLandscape to find initially.
    * @param mappingNodes The linked list of MappingNode.
    * @return The list of PrivacyBuckets mapped to the tail PrivacyLandscape.
    */
   fun processBucketsForLandscape(
-    targetLandscapeName: String,
+    inactiveLandscapeName: String,
     eventGroupLandscapeMasks: List<EventGroupLandscapeMask>,
   ): List<PrivacyBucket> {
     val initialNode =
-      landscapeMappingChain.find { it.fromLandscape.landscapeName == targetLandscapeName }
+      landscapeMappingChain.find { it.fromLandscape.landscapeName == inactiveLandscapeName }
         ?: throw IllegalStateException(
-          "Privacy landscape with name '$targetLandscapeName' not found.",
+          "Inactive Privacy landscape with name '$inactiveLandscapeName' not found.",
         )
 
     val initialLandscape = initialNode.fromLandscape

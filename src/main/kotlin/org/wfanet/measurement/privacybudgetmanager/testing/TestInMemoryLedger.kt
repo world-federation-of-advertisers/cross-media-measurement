@@ -15,8 +15,8 @@
 package org.wfanet.measurement.privacybudgetmanager.testing
 
 import org.wfanet.measurement.privacybudgetmanager.Ledger
-import org.wfanet.measurement.privacybudgetmanager.Query
 import org.wfanet.measurement.privacybudgetmanager.LedgerRowKey
+import org.wfanet.measurement.privacybudgetmanager.Query
 import org.wfanet.measurement.privacybudgetmanager.Slice
 import org.wfanet.measurement.privacybudgetmanager.TransactionContext
 
@@ -28,7 +28,8 @@ class TestInMemoryLedgerTransactionContext : TransactionContext {
   override suspend fun readQueries(queries: List<Query>): List<Query> =
     TODO("uakyol: implement this")
 
-  override suspend fun readChargeRows(rowKeys: List<LedgerRowKey>): Slice = TODO("uakyol: implement this")
+  override suspend fun readChargeRows(rowKeys: List<LedgerRowKey>): Slice =
+    TODO("uakyol: implement this")
 
   override suspend fun write(
     delta: Slice,
