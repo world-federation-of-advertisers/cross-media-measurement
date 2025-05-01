@@ -73,13 +73,6 @@ jobs:
       environment: ${{ inputs.environment }}
       apply: ${{ inputs.apply }}
 
-  deploy-cloud-function:
-    if: ${{ inputs.apply }}
-    needs: terraform
-    uses: ./.github/workflows/build_and_deploy_cloud_functions.yml
-    with:
-      environment: ${{ inputs.environment }}
-
   update-kingdom:
     uses: ./.github/workflows/configure-kingdom.yml
     needs: [publish-images, terraform]
