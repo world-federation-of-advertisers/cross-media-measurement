@@ -18,19 +18,14 @@ import org.wfanet.measurement.privacybudgetmanager.LandscapeUtils.MappingNode
 import org.wfanet.measurement.privacybudgetmanager.PrivacyLandscape
 import org.wfanet.measurement.privacybudgetmanager.PrivacyLandscapeMapping
 import org.wfanet.measurement.privacybudgetmanager.Query
-import java.util.LinkedList
 
 /**
  * Instantiates a privacy budget manager.
  *
  * @param auditLog: An object that transactionally logs the charged [Query]s to an EDP owned log.
- * @param landscapeMappingChain: A linked list of [MappingNode] that is used to map older landscapes
- *  to the acitve landscape. The tail of this linked list has to be the active landscape currently
+ * @param landscapeMappingChain: A list of [MappingNode] that is used to map older landscapes
+ *  to the acitve landscape. The tail of this list has to be the active landscape currently
  *  in use by the ledger.
- * @param inactivePrivacyLandscapes: A list of [PrivacyLandscape] objects specifiying older landscapes
- *  used by the [ledger]
- * @param privacyLandscapeMappings: A list of [PrivacyLandscapeMapping] specifiying how to convert
- *  [PrivacyBucket]s from an inactivePrivacyLandscape to [activePrivacyLandscape]
  * @param ledger: A [Ledger] object where the [PrivacyCharge]s and [Query]s are stored
  * @param maximumPrivacyBudget: The maximum privacy budget that can be used in any privacy bucket.
  * @param maximumTotalDelta: Maximum total value of the delta parameter that can be used in any
@@ -38,7 +33,7 @@ import java.util.LinkedList
  */
 class PrivacyBudgetManager(
   private val auditLog: AuditLog,
-  private val landscapeMappingChain: LinkedList<MappingNode>,
+  private val landscapeMappingChain: List<MappingNode>,
   private val ledger: Ledger,
   private val maximumPrivacyBudget: Float,
   private val maximumTotalDelta: Float,

@@ -25,7 +25,6 @@ import org.wfanet.measurement.privacybudgetmanager.PrivacyLandscapeMapping
 import org.wfanet.measurement.privacybudgetmanager.privacyLandscape
 import org.wfanet.measurement.privacybudgetmanager.testing.TestInMemoryAuditLog
 import org.wfanet.measurement.privacybudgetmanager.testing.TestInMemoryLedger
-import java.util.LinkedList
 
 @RunWith(JUnit4::class)
 class PrivacyBudgetManagerTest {
@@ -38,7 +37,7 @@ class PrivacyBudgetManagerTest {
     val pbm =
       PrivacyBudgetManager(
         auditLog,
-        LinkedList(listOf(MappingNode(activeLandscape, null))),
+        listOf(MappingNode(activeLandscape, null)),
         ledger,
         MAXIMUM_PRIVACY_USAGE_PER_BUCKET,
         MAXIMUM_DELTA_PER_BUCKET,

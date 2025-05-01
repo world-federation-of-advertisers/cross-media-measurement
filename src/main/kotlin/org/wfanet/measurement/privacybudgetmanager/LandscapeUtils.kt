@@ -19,7 +19,6 @@ import org.wfanet.measurement.privacybudgetmanager.PrivacyLandscapeMapping
 
 /** Wraps utilities to filter and map [PrivacyLandscapes]. */
 object LandscapeUtils {
-
   /** Wraps a landscape to be mapped from and its mapping to another landscape. */
   data class MappingNode(
     val fromLandscape: PrivacyLandscape,
