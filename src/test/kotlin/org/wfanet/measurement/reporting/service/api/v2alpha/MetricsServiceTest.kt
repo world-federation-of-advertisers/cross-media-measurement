@@ -9235,17 +9235,17 @@ class MetricsServiceTest {
         permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
       } doReturn checkPermissionsResponse { permissions += PermissionName.GET }
       whenever(
-        internalMetricsMock.batchGetMetrics(
-          eq(
-            internalBatchGetMetricsRequest {
-              cmmsMeasurementConsumerId =
-                INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.cmmsMeasurementConsumerId
-              externalMetricIds +=
-                INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.externalMetricId
-            }
+          internalMetricsMock.batchGetMetrics(
+            eq(
+              internalBatchGetMetricsRequest {
+                cmmsMeasurementConsumerId =
+                  INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.cmmsMeasurementConsumerId
+                externalMetricIds +=
+                  INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.externalMetricId
+              }
+            )
           )
         )
-      )
         .thenReturn(
           internalBatchGetMetricsResponse {
             metrics += INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC
@@ -9256,9 +9256,7 @@ class MetricsServiceTest {
         )
 
       val cancelledSinglePublisherImpressionMeasurement =
-        PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.copy {
-          state = Measurement.State.CANCELLED
-        }
+        PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.copy { state = Measurement.State.CANCELLED }
 
       whenever(measurementsMock.batchGetMeasurements(any())).thenAnswer {
         val batchGetMeasurementsRequest = it.arguments[0] as BatchGetMeasurementsRequest
@@ -9314,10 +9312,10 @@ class MetricsServiceTest {
             this.result = metricResult {
               cmmsMeasurements +=
                 MeasurementKey(
-                  INTERNAL_FAILED_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT
-                    .cmmsMeasurementConsumerId,
-                  INTERNAL_FAILED_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.cmmsMeasurementId,
-                )
+                    INTERNAL_FAILED_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT
+                      .cmmsMeasurementConsumerId,
+                    INTERNAL_FAILED_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.cmmsMeasurementId,
+                  )
                   .toName()
             }
           }
