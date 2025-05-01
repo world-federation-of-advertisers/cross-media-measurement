@@ -893,7 +893,9 @@ class MetricsService(
           failedMeasurementsList.map { measurement ->
             measurementFailure {
               cmmsMeasurementId = MeasurementKey.fromName(measurement.name)!!.measurementId
-              failure = measurement.failure.toInternal()
+              if (measurement.hasFailure()) {
+                failure = measurement.failure.toInternal()
+              }
             }
           }
       }
@@ -1864,7 +1866,7 @@ class MetricsService(
                   .toName()
               }
           }
-          failure = failure { reason = Metric.Failure.Reason.MEASUREMENT_FAILED }
+          failure = failure { reason = Metric.Failure.Reason.MEASUREMENT_STATE_INVALID }
         }
         Metric.State.INVALID -> {
           result = metricResult {

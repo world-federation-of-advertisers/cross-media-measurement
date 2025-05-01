@@ -455,8 +455,8 @@ message Metric {
     enum Reason {
       // Default value used if the reason is omitted.
       REASON_UNSPECIFIED = 0;
-      // An associated `Measurement` has `state` `FAILED`.
-      MEASUREMENT_FAILED = 1;
+      // An associated `Measurement` has `state` `FAILED` or `CANCELLED`.
+      MEASUREMENT_STATE_INVALID = 1;
       // An associated `Measurement` has invalid `results`.
       MEASUREMENT_RESULT_INVALID = 2;
     }

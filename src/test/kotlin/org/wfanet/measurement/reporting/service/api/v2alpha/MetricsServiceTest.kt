@@ -6180,7 +6180,7 @@ class MetricsServiceTest {
                 )
                 .toName()
           }
-          failure = MetricKt.failure { reason = Metric.Failure.Reason.MEASUREMENT_FAILED }
+          failure = MetricKt.failure { reason = Metric.Failure.Reason.MEASUREMENT_STATE_INVALID }
         }
     }
 
@@ -7864,7 +7864,7 @@ class MetricsServiceTest {
     assertThat(result)
       .isEqualTo(
         FAILED_SINGLE_PUBLISHER_IMPRESSION_METRIC.copy {
-          failure = MetricKt.failure { reason = Metric.Failure.Reason.MEASUREMENT_FAILED }
+          failure = MetricKt.failure { reason = Metric.Failure.Reason.MEASUREMENT_STATE_INVALID }
           this.result = metricResult {
             cmmsMeasurements +=
               MeasurementKey(
@@ -9214,7 +9214,7 @@ class MetricsServiceTest {
       assertThat(result)
         .isEqualTo(
           FAILED_SINGLE_PUBLISHER_IMPRESSION_METRIC.copy {
-            failure = MetricKt.failure { reason = Metric.Failure.Reason.MEASUREMENT_FAILED }
+            failure = MetricKt.failure { reason = Metric.Failure.Reason.MEASUREMENT_STATE_INVALID }
             this.result = metricResult {
               cmmsMeasurements +=
                 MeasurementKey(
@@ -9222,6 +9222,102 @@ class MetricsServiceTest {
                       .cmmsMeasurementConsumerId,
                     INTERNAL_FAILED_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.cmmsMeasurementId,
                   )
+                  .toName()
+            }
+          }
+        )
+    }
+
+  @Test
+  fun `getMetric returns the metric with FAILED when measurements are updated to CANCELLED`() =
+    runBlocking {
+      wheneverBlocking {
+        permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+      } doReturn checkPermissionsResponse { permissions += PermissionName.GET }
+      whenever(
+        internalMetricsMock.batchGetMetrics(
+          eq(
+            internalBatchGetMetricsRequest {
+              cmmsMeasurementConsumerId =
+                INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.cmmsMeasurementConsumerId
+              externalMetricIds +=
+                INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.externalMetricId
+            }
+          )
+        )
+      )
+        .thenReturn(
+          internalBatchGetMetricsResponse {
+            metrics += INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC
+          },
+          internalBatchGetMetricsResponse {
+            metrics += INTERNAL_FAILED_SINGLE_PUBLISHER_IMPRESSION_METRIC
+          },
+        )
+
+      val cancelledSinglePublisherImpressionMeasurement =
+        PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.copy {
+          state = Measurement.State.CANCELLED
+        }
+
+      whenever(measurementsMock.batchGetMeasurements(any())).thenAnswer {
+        val batchGetMeasurementsRequest = it.arguments[0] as BatchGetMeasurementsRequest
+        val measurementsMap =
+          mapOf(
+            PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.name to
+              cancelledSinglePublisherImpressionMeasurement
+          )
+        batchGetMeasurementsResponse {
+          measurements +=
+            batchGetMeasurementsRequest.namesList.map { name -> measurementsMap.getValue(name) }
+        }
+      }
+
+      whenever(internalMeasurementsMock.batchSetMeasurementFailures(any()))
+        .thenReturn(Empty.getDefaultInstance())
+
+      val request = getMetricRequest { name = PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.name }
+
+      val result =
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.getMetric(request) } }
+
+      // Verify proto argument of internal MeasurementsCoroutineImplBase::batchSetMeasurementResults
+      val batchSetMeasurementResultsCaptor: KArgumentCaptor<BatchSetMeasurementResultsRequest> =
+        argumentCaptor()
+      verifyBlocking(internalMeasurementsMock, never()) {
+        batchSetMeasurementResults(batchSetMeasurementResultsCaptor.capture())
+      }
+
+      // Verify proto argument of internal
+      // MeasurementsCoroutineImplBase::batchSetMeasurementFailures
+      val batchSetMeasurementFailuresCaptor: KArgumentCaptor<BatchSetMeasurementFailuresRequest> =
+        argumentCaptor()
+      verifyBlocking(internalMeasurementsMock, times(1)) {
+        batchSetMeasurementFailures(batchSetMeasurementFailuresCaptor.capture())
+      }
+      assertThat(batchSetMeasurementFailuresCaptor.allValues)
+        .containsExactly(
+          batchSetMeasurementFailuresRequest {
+            cmmsMeasurementConsumerId =
+              INTERNAL_FAILED_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.cmmsMeasurementConsumerId
+            measurementFailures += measurementFailure {
+              cmmsMeasurementId =
+                INTERNAL_FAILED_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.cmmsMeasurementId
+            }
+          }
+        )
+
+      assertThat(result)
+        .isEqualTo(
+          FAILED_SINGLE_PUBLISHER_IMPRESSION_METRIC.copy {
+            failure = MetricKt.failure { reason = Metric.Failure.Reason.MEASUREMENT_STATE_INVALID }
+            this.result = metricResult {
+              cmmsMeasurements +=
+                MeasurementKey(
+                  INTERNAL_FAILED_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT
+                    .cmmsMeasurementConsumerId,
+                  INTERNAL_FAILED_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.cmmsMeasurementId,
+                )
                   .toName()
             }
           }
