@@ -14,12 +14,20 @@
 
 package org.wfanet.measurement.privacybudgetmanager
 
-/** Wraps utilities to filter [PrivacyLandscapes] based on [EventGroupLandscapeMask]s. */
+import org.wfanet.measurement.privacybudgetmanager.PrivacyLandscape
+import org.wfanet.measurement.privacybudgetmanager.PrivacyLandscapeMapping
+
+/** Wraps utilities to filter and map [PrivacyLandscapes]. */
 object LandscapeUtils {
+  data class MappingNode(
+    val fromLandscape: PrivacyLandscape,
+    val mapping: PrivacyLandscapeMapping?,
+  )
+
   /**
    * Filters a list of [PrivacyBucket]s given a [privacyLandscape] and a [eventGroupLandscapeMask]
    * mask to filter it.
-   * 
+   *
    * @param eventGroupLandscapeMasks: Specifies the filters for each event group.
    * @param privacyLandscape: The landscape to be filtered.
    * @returns filtered [PrivacyBucket]s.
@@ -30,20 +38,19 @@ object LandscapeUtils {
   ): List<PrivacyBucket> = TODO("uakyol: implement this")
 
   /**
-   * Filters a list of [PrivacyBucket]s given a [inactiveprivacyLandscape] with a
-   * [eventGroupLandscapeMask]. Then converts these to new buckets that adheres to
-   * [ActivePrivacyLandsapce] by using [privacyLandscapeMapping].
-   * 
-   * @param eventGroupLandscapeMasks: Specifies the filter for each event group.
-   * @param privacyLandscapeMapping: Mapping from the [inactiveprivacyLandscape] to [activeprivacyLandscape].
-   * @param inactiveprivacyLandscape: The landscape to be filtered.
-   * @param activeprivacyLandscape: The landscape filtered [PrivacyBucket]s are mapped to.
-   * @returns filtered [PrivacyBucket]s.
+   * Maps a list of [PrivacyBucket]s from an [fromPrivacyLandscape] to an
+   * [toPrivacyLandscape]
+   *
+   * @param privacyBuckets: [PrivacyBucket] list to be mapped.
+   * @param privacyLandscapeMapping: Mapping from the [fromPrivacyLandscape] to [toPrivacyLandscape].
+   * @param fromPrivacyLandscape: The landscape to be mapped from.
+   * @param toPrivacyLandscape: The landscape to be mapped to.
+   * @returns mapped [PrivacyBucket]s.
    */
-  fun getBuckets(
-    eventGroupLandscapeMasks: List<EventGroupLandscapeMask>,
+  fun mapBuckets(
+    privacyBuckets: List<PrivacyBucket>,
     privacyLandscapeMapping: PrivacyLandscapeMapping,
-    inactiveprivacyLandscape: PrivacyLandscape,
-    activeprivacyLandscape: PrivacyLandscape,
+    fromPrivacyLandscape: PrivacyLandscape,
+    toPrivacyLandscape: PrivacyLandscape,
   ): List<PrivacyBucket> = TODO("uakyol: implement this")
 }

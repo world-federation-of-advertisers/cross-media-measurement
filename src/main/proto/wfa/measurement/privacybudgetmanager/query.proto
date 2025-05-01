@@ -27,7 +27,7 @@ option java_outer_classname = "QueryProto";
 // Captures the top level identifiers for a Query so that it can 
 // be referenced at the audit log and in the PBM ledger. In practice
 // this maps to a single requisition.
-message Reference {
+message QueryIdentifiers {
   // The external system reference id. This is likely the requisition id.
   string external_reference_id = 1;
   // The id of the measurement consumre this charge belongs to.
@@ -38,9 +38,9 @@ message Reference {
 
 // The list of dates this query targets in the privacy landscape
 message DateRange {
-  // Start date t
+  // Start date of the date range this query targets.
   google.type.Date start = 1;
-  // End date this query targets 
+  // End date of the date range this query targets. 
   google.type.Date end_exclusive = 2;
 }
 
@@ -63,8 +63,8 @@ message EventGroupLandscapeMask {
 // a list of privacy charges. In practice a Query is derived from
 // a single requisition.
 message Query {
-  // Represents the external system reference for the query.
-  Reference reference = 1;
+  // Represents the external system identifiers for the query.
+  QueryIdentifiers query_identifiers = 1;
   // Contains all the information to find the buckets to charge.
   repeated EventGroupLandscapeMask event_group_landscape_masks = 2;
   // The charge itself.

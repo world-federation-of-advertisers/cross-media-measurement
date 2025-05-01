@@ -45,10 +45,10 @@ interface TransactionContext : AutoCloseable {
   /**
    * Reads the [BackingStore] and returns the Queries that are already present with their
    * CreateTime read from the DB.
-   * 
+   *
    * @param list of queries to find in the ledger.
    * @returns list of [Query] that existed in the ledger. These have createTime field populated.
-   * 
+   *
    * @throws PrivacyBudgetManager exception if the read operation was unsuccessful.
    */
   suspend fun readQueries(queries: List<Query>): List<Query>
@@ -62,8 +62,8 @@ interface TransactionContext : AutoCloseable {
 
   /**
    * Writes a [Slice] to the backing store together with the [queries] responsible for its
-   * creation. 
-   * 
+   * creation.
+   *
    * @returns the Queries that are written with their createTime read from the DB.
    *
    * @throws PrivacyBudgetManager exception if the write operation was unsuccessful.

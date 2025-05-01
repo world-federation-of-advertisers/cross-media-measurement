@@ -19,11 +19,13 @@ package org.wfanet.measurement.privacybudgetmanager
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.measurement.privacybudgetmanager.LandscapeUtils.MappingNode
 import org.wfanet.measurement.privacybudgetmanager.PrivacyLandscape
 import org.wfanet.measurement.privacybudgetmanager.PrivacyLandscapeMapping
 import org.wfanet.measurement.privacybudgetmanager.privacyLandscape
 import org.wfanet.measurement.privacybudgetmanager.testing.TestInMemoryAuditLog
 import org.wfanet.measurement.privacybudgetmanager.testing.TestInMemoryLedger
+import java.util.LinkedList
 
 @RunWith(JUnit4::class)
 class PrivacyBudgetManagerTest {
@@ -36,16 +38,14 @@ class PrivacyBudgetManagerTest {
     val pbm =
       PrivacyBudgetManager(
         auditLog,
-        activeLandscape,
-        emptyList<PrivacyLandscape>(),
-        emptyList<PrivacyLandscapeMapping>(),
+        LinkedList(listOf(MappingNode(activeLandscape, null))),
         ledger,
         MAXIMUM_PRIVACY_USAGE_PER_BUCKET,
-        MAXIMUM_DELTA_PER_BUCKET
+        MAXIMUM_DELTA_PER_BUCKET,
       )
   }
 
-  companion object{
+  companion object {
     private const val MAXIMUM_PRIVACY_USAGE_PER_BUCKET = 1.0f
     private const val MAXIMUM_DELTA_PER_BUCKET = 1.0e-9f
   }

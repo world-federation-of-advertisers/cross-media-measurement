@@ -14,17 +14,19 @@
 
 package org.wfanet.measurement.privacybudgetmanager
 
+import org.wfanet.measurement.privacybudgetmanager.LandscapeUtils.MappingNode
 import org.wfanet.measurement.privacybudgetmanager.PrivacyLandscape
 import org.wfanet.measurement.privacybudgetmanager.PrivacyLandscapeMapping
 import org.wfanet.measurement.privacybudgetmanager.Query
-
+import java.util.LinkedList
 
 /**
  * Instantiates a privacy budget manager.
  *
  * @param auditLog: An object that transactionally logs the charged [Query]s to an EDP owned log.
- * @param activePrivacyLandscape: A [PrivacyLandscape] object specifiying the current landscape
- *  in use by the [ledger]
+ * @param landscapeMappingChain: A linked list of [MappingNode] that is used to map older landscapes
+ *  to the acitve landscape. The tail of this linked list has to be the active landscape currently
+ *  in use by the ledger.
  * @param inactivePrivacyLandscapes: A list of [PrivacyLandscape] objects specifiying older landscapes
  *  used by the [ledger]
  * @param privacyLandscapeMappings: A list of [PrivacyLandscapeMapping] specifiying how to convert
@@ -35,25 +37,17 @@ import org.wfanet.measurement.privacybudgetmanager.Query
  *   privacy bucket.
  */
 class PrivacyBudgetManager(
-  val auditLog: AuditLog,
-  val activePrivacyLandscape: PrivacyLandscape,
-  val inactivePrivacyLandscapes: List<PrivacyLandscape>,
-  val privacyLandscapeMappings: List<PrivacyLandscapeMapping>,
+  private val auditLog: AuditLog,
+  private val landscapeMappingChain: LinkedList<MappingNode>,
   private val ledger: Ledger,
   private val maximumPrivacyBudget: Float,
   private val maximumTotalDelta: Float,
 ) {
   init {
-    val activeLandScapeName = activePrivacyLandscape.landscapeName
-    for (inactivePrivacyLandscape in inactivePrivacyLandscapes) {
-      val mapping =
-        privacyLandscapeMappings
-          .filter { it.fromLandscape == inactivePrivacyLandscape.landscapeName }
-          .filter { it.toLandscape == activeLandScapeName }
-      require(mapping.size == 1) {
-        "There must be exactly 1 mapping from each inactive landscape to the active landscape."
+    val activePrivacyLandscape =
+      requireNotNull(landscapeMappingChain.lastOrNull()?.fromLandscape) {
+        "Active privacy landscape cannot be null."
       }
-    }
   }
 
   /**
@@ -73,11 +67,14 @@ class PrivacyBudgetManager(
     ledger.startTransaction().use { context: TransactionContext ->
 
       val alreadyCommitedQueries: List<Query> = context.readQueries(queries)
-      val alreadyCommittedReferenceIds = alreadyCommitedQueries.map { it.reference.externalReferenceId }
+      val alreadyCommittedReferenceIds =
+        alreadyCommitedQueries.map {
+          it.queryIdentifiers.externalReferenceId
+        }
       // Filter out the queries that were already committed before.
       val queriesToCommit =
         queries.filter { query ->
-          !alreadyCommittedReferenceIds.contains(query.reference.externalReferenceId)
+          !alreadyCommittedReferenceIds.contains(query.queryIdentifiers.externalReferenceId)
         }
 
       // Get slice intended to be committed to the PBM, defined by queriesToCommit.
@@ -134,42 +131,69 @@ class PrivacyBudgetManager(
    */
   private suspend fun getDelta(queries: List<Query>): Slice {
     val delta = Slice()
-
     for (query in queries) {
-      if (query.privacyLandscapeName == activePrivacyLandscape.landscapeName) {
-        delta.add(
-          LandscapeUtils.getBuckets(query.eventGroupLandscapeMasksList, activePrivacyLandscape),
-          query.acdpCharge,
-        )
-      } else {
-        val inactivePrivacyLandscape =
-          inactivePrivacyLandscapes.find { it.landscapeName == query.privacyLandscapeName }
-            ?: throw IllegalStateException(
-              "Privacy landscape with name '${query.privacyLandscapeName}' not found.",
-            )
-
-        val privacyLandscapeMapping =
-          privacyLandscapeMappings.find {
-            it.fromLandscape == query.privacyLandscapeName &&
-              it.toLandscape == activePrivacyLandscape.landscapeName
-          }
-            ?: throw IllegalStateException(
-              "Privacy landscape mapping not found for fromLandscape" +
-                "'${query.privacyLandscapeName}' and toLandscape '${activePrivacyLandscape.landscapeName}'.",
-            )
-
-        val mappedBuckets =
-        LandscapeUtils.getBuckets(
-            query.eventGroupLandscapeMasksList,
-            privacyLandscapeMapping,
-            inactivePrivacyLandscape,
-            activePrivacyLandscape,
-          )
-
-        delta.add(mappedBuckets, query.acdpCharge)
-      }
+      delta.add(
+        processBucketsForLandscape(query.privacyLandscapeName, query.eventGroupLandscapeMasksList),
+        query.acdpCharge,
+      )
     }
+
     return delta
+  }
+
+  /**
+   * Finds a PrivacyLandscape by name in the linked list, gets its buckets,
+   * and then iteratively maps those buckets to the PrivacyLandscape at the tail
+   * of the linked list.
+   *
+   * @param targetLandscapeName The name of the PrivacyLandscape to find initially.
+   * @param mappingNodes The linked list of MappingNode.
+   * @return The list of PrivacyBuckets mapped to the tail PrivacyLandscape.
+   */
+  fun processBucketsForLandscape(
+    targetLandscapeName: String,
+    eventGroupLandscapeMasks: List<EventGroupLandscapeMask>,
+  ): List<PrivacyBucket> {
+    val initialNode =
+      landscapeMappingChain.find { it.fromLandscape.landscapeName == targetLandscapeName }
+        ?: throw IllegalStateException(
+          "Privacy landscape with name '$targetLandscapeName' not found.",
+        )
+
+    val initialLandscape = initialNode.fromLandscape
+    val initialBuckets = LandscapeUtils.getBuckets(eventGroupLandscapeMasks, initialLandscape)
+
+    var currentBuckets = initialBuckets
+    var currentLandscape = initialLandscape
+
+    val iterator = landscapeMappingChain.iterator()
+    var currentNode = initialNode
+    while (iterator.hasNext()) {
+      val nextNode = iterator.next()
+
+      if (currentNode.mapping == null ||
+        (nextNode.fromLandscape.landscapeName != currentNode.mapping.toLandscape)
+      ) {
+        throw IllegalStateException(
+          "Privacy landscape mapping is illegal",
+        )
+      }
+      val toLandscape = nextNode.fromLandscape
+      currentBuckets =
+        LandscapeUtils.mapBuckets(
+          currentBuckets,
+          currentNode.mapping,
+          currentLandscape,
+          toLandscape,
+        )
+      currentLandscape = toLandscape
+      currentNode = nextNode
+    }
+
+    // After iterating through the relevant mappings, currentBuckets will hold the
+    // buckets mapped to the tail of the linked list (the last toPrivacyLandscape
+    // encountered in the chain).
+    return currentBuckets
   }
 
   /**

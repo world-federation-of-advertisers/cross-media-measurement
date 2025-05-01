@@ -52,10 +52,6 @@ message PrivacyLandscape {
         // associated with the enum value, not a stringification of its integer
         // value. For example, for Age.35_44 we expect "35_44" not "2"
         string enum_value = 1;
-        // The field value as an int
-        int32 int_value = 2;
-        // The field value as a string
-        float string_value = 3;
       }
     }
   }
