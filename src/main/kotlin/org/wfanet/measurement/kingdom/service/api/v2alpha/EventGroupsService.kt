@@ -464,22 +464,28 @@ class EventGroupsService(private val internalEventGroupsStub: InternalEventGroup
 
 /** Converts an internal [InternalEventGroup] to a public [EventGroup]. */
 private fun InternalEventGroup.toEventGroup(): EventGroup {
+  val eventGroupKey =
+    EventGroupKey(
+      externalIdToApiId(externalDataProviderId),
+      externalIdToApiId(externalEventGroupId),
+    )
+  val measurementConsumerKey =
+    MeasurementConsumerKey(externalIdToApiId(externalMeasurementConsumerId))
+  val source = this
+
   return eventGroup {
-    name =
-      EventGroupKey(
-          externalIdToApiId(externalDataProviderId),
-          externalIdToApiId(externalEventGroupId),
-        )
-        .toName()
-    measurementConsumer =
-      MeasurementConsumerKey(externalIdToApiId(externalMeasurementConsumerId)).toName()
-    eventGroupReferenceId = providedEventGroupId
-    this.mediaTypes += mediaTypesList.map { it.toMediaType() }
-    if (hasDetails()) {
-      val apiVersion = Version.fromString(details.apiVersion)
-      if (!details.measurementConsumerPublicKey.isEmpty) {
+    name = eventGroupKey.toName()
+    measurementConsumer = measurementConsumerKey.toName()
+    eventGroupReferenceId = source.providedEventGroupId
+    this.mediaTypes += source.mediaTypesList.map { it.toMediaType() }
+    if (source.hasDataAvailabilityInterval()) {
+      dataAvailabilityInterval = source.dataAvailabilityInterval
+    }
+    if (source.hasDetails()) {
+      val apiVersion = Version.fromString(source.details.apiVersion)
+      if (!source.details.measurementConsumerPublicKey.isEmpty) {
         measurementConsumerPublicKey = any {
-          value = details.measurementConsumerPublicKey
+          value = source.details.measurementConsumerPublicKey
           typeUrl =
             when (apiVersion) {
               Version.V2_ALPHA -> ProtoReflection.getTypeUrl(EncryptionPublicKey.getDescriptor())
@@ -490,22 +496,22 @@ private fun InternalEventGroup.toEventGroup(): EventGroup {
         signedMeasurementConsumerPublicKey = signedMessage {
           message = this@eventGroup.measurementConsumerPublicKey
           data = message.value
-          signature = details.measurementConsumerPublicKeySignature
-          signatureAlgorithmOid = details.measurementConsumerPublicKeySignatureAlgorithmOid
+          signature = source.details.measurementConsumerPublicKeySignature
+          signatureAlgorithmOid = source.details.measurementConsumerPublicKeySignatureAlgorithmOid
         }
       }
-      vidModelLines += details.vidModelLinesList
+      vidModelLines += source.details.vidModelLinesList
       eventTemplates.addAll(
-        details.eventTemplatesList.map { event ->
+        source.details.eventTemplatesList.map { event ->
           eventTemplate { type = event.fullyQualifiedType }
         }
       )
-      if (details.hasMetadata()) {
-        eventGroupMetadata = details.metadata.toEventGroupMetadata()
+      if (source.details.hasMetadata()) {
+        eventGroupMetadata = source.details.metadata.toEventGroupMetadata()
       }
-      if (!details.encryptedMetadata.isEmpty) {
+      if (!source.details.encryptedMetadata.isEmpty) {
         encryptedMetadata = encryptedMessage {
-          ciphertext = details.encryptedMetadata
+          ciphertext = source.details.encryptedMetadata
           typeUrl =
             when (apiVersion) {
               Version.V2_ALPHA -> ProtoReflection.getTypeUrl(EventGroup.Metadata.getDescriptor())
@@ -513,13 +519,10 @@ private fun InternalEventGroup.toEventGroup(): EventGroup {
         }
         // TODO(world-federation-of-advertisers/cross-media-measurement#1301): Stop setting this
         // field.
-        serializedEncryptedMetadata = details.encryptedMetadata
-      }
-      if (details.hasDataAvailabilityInterval()) {
-        dataAvailabilityInterval = details.dataAvailabilityInterval
+        serializedEncryptedMetadata = source.details.encryptedMetadata
       }
     }
-    state = this@toEventGroup.state.toV2Alpha()
+    state = source.state.toV2Alpha()
   }
 }
 
@@ -574,6 +577,9 @@ private fun EventGroup.toInternal(
 
     providedEventGroupId = source.eventGroupReferenceId
     mediaTypes += source.mediaTypesList.map { it.toInternal() }
+    if (source.hasDataAvailabilityInterval()) {
+      dataAvailabilityInterval = source.dataAvailabilityInterval
+    }
     details = eventGroupDetails {
       apiVersion = Version.V2_ALPHA.string
       // TODO(world-federation-of-advertisers/cross-media-measurement#1301): Stop reading this
@@ -604,9 +610,6 @@ private fun EventGroup.toInternal(
         // TODO(world-federation-of-advertisers/cross-media-measurement#1301): Stop reading this
         // field.
         encryptedMetadata = source.serializedEncryptedMetadata
-      }
-      if (source.hasDataAvailabilityInterval()) {
-        dataAvailabilityInterval = source.dataAvailabilityInterval
       }
     }
   }

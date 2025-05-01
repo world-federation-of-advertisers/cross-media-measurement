@@ -12,14 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-variable "cloud_function_service_account_email" {
-  description = "Email of an existing service account to use."
+variable "cloud_function_service_account_name" {
+  description = "The name of the service account assigned to the Cloud Function (`google_service_account.name`)."
   type        = string
   nullable    = false
 }
 
-variable "cloud_function_name" {
-  description = "The cloud function name."
+variable "cloud_function_trigger_service_account_name" {
+  description = "The name of the service account used to trigger the Cloud Function (`google_service_account.name`)."
   type        = string
   nullable    = false
 }
@@ -30,20 +30,8 @@ variable "trigger_bucket_name" {
   nullable    = false
 }
 
-variable "docker_registry" {
-  description = "Docker Registry to use."
-  type        = string
-  nullable    = false
-  default     = "ARTIFACT_REGISTRY"
-
-  validation {
-    condition     = contains(["ARTIFACT_REGISTRY", "CONTAINER_REGISTRY"], var.docker_registry)
-    error_message = "The docker_registry must be either 'ARTIFACT_REGISTRY' or 'CONTAINER_REGISTRY'."
-  }
-}
-
-variable "docker_repository" {
-  description = "The full image path."
+variable "terraform_service_account" {
+  description = "Service account used by terraform that needs to attach the MIG service account to the VM."
   type        = string
   nullable    = false
 }
