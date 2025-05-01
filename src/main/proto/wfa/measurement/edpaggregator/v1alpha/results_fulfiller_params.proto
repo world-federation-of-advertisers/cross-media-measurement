@@ -25,6 +25,8 @@ option java_outer_classname = "ResultsFulfillerParamsProto";
 
 // Message representing the params used for the results fulfiller tee app
 message ResultsFulfillerParams {
+  // The EDP for whom results will be fulfilled
+  string data_provider = 1;
   // Message representing the storage details used by the results fulfiller app
   message Storage {
     // The blob uri prefix for the labeled impressions `BlobDetails` that is
@@ -36,11 +38,11 @@ message ResultsFulfillerParams {
 
     // The Project ID for the requisitions GCS instance that can be
     // used with a blob URI to retrieve the data. Optional.
-    string gcs_project_id = 4;
+    string gcs_project_id = 2;
   }
 
   // The storage used by the tee app
-  Storage storage = 1 [(google.api.field_behavior) = REQUIRED];
+  Storage storage = 2 [(google.api.field_behavior) = REQUIRED];
 
   // Message representing the details needed to generate certificates
   message Consent {
@@ -65,8 +67,8 @@ message ResultsFulfillerParams {
     ];
   }
 
-  // Information necessary for EDP Consent signalingq
-  Consent consent = 2 [(google.api.field_behavior) = REQUIRED];
+  // Information necessary for EDP Consent signaling
+  Consent consent = 3 [(google.api.field_behavior) = REQUIRED];
 
   // Message representing the details needed to connect to the kingdom
   message Connection {
@@ -80,5 +82,5 @@ message ResultsFulfillerParams {
   }
 
   // The connection to the Cmms API
-  Connection cmms_connection = 3 [(google.api.field_behavior) = REQUIRED];
+  Connection cmms_connection = 4 [(google.api.field_behavior) = REQUIRED];
 }

@@ -23,7 +23,7 @@ import org.wfanet.measurement.securecomputation.datawatcher.DataWatcher
 import java.util.logging.Logger
 
 /**
- * Used for in process tests to emulate google pub sub storage notifications.
+ * Used for in process tests to emulate google pub sub storage notifications to a [DataWatcher].
  */
 class DataWatcherSubscribingStorageClient(
   private val storageClient: StorageClient,
@@ -37,7 +37,7 @@ class DataWatcherSubscribingStorageClient(
     for (dataWatcher in subscribingWatchers) {
       logger.info("^^^^^^^^^^^^^^^^^^^^^^^^^^")
       logger.info("Receiving path $blobKey")
-      dataWatcher.receivePath(blobKey)
+      dataWatcher.receivePath("$storagePrefix$blobKey")
     }
 
     return blob
@@ -53,6 +53,5 @@ class DataWatcherSubscribingStorageClient(
 
   companion object {
     internal val logger = Logger.getLogger(this::class.java.name)
-    const val FAKE_BUCKET = "fake-bucket"
   }
 }

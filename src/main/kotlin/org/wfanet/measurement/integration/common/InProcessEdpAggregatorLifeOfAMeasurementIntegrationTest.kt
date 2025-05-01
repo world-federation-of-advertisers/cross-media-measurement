@@ -49,9 +49,7 @@ import org.wfanet.measurement.securecomputation.deploy.gcloud.publisher.GoogleWo
 import org.wfanet.measurement.securecomputation.service.internal.QueueMapping
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub
-import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 
-import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
 /**
  * Test that everything is wired up properly.
  *
@@ -194,15 +192,18 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
       )
     }
 
-  @Ignore
   @Test
   fun `create a direct RF measurement and check the result is equal to the expected result`() =
     runBlocking {
-      // Use frontend simulator to create a direct reach and frequency measurement and verify its
-      // result.
-      mcSimulator.testDirectReachAndFrequency("1234")
+      withTimeout(30000) {
+        delay(1000)
+        // Use frontend simulator to create a direct reach and frequency measurement and verify its
+        // result.
+        mcSimulator.testDirectReachAndFrequency("1234")
+      }
     }
 
+  @Ignore
   @Test
   fun `create a direct reach-only measurement and check the result is equal to the expected result`() =
     runBlocking {

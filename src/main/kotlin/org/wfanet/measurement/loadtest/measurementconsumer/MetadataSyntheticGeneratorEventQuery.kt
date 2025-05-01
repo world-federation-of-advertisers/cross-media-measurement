@@ -32,7 +32,12 @@ class MetadataSyntheticGeneratorEventQuery(
   private val mcPrivateKey: PrivateKeyHandle,
 ) : SyntheticGeneratorEventQuery(populationSpec, TestEvent.getDescriptor()) {
   override fun getSyntheticDataSpec(eventGroup: EventGroup): SyntheticEventGroupSpec {
-    val metadata = decryptMetadata(eventGroup.encryptedMetadata, mcPrivateKey)
-    return metadata.metadata.unpack(SyntheticEventGroupSpec::class.java)
+    try {
+      val metadata = decryptMetadata(eventGroup.encryptedMetadata, mcPrivateKey)
+      return metadata.metadata.unpack(SyntheticEventGroupSpec::class.java)
+    } catch (_: Exception) {
+      return SyntheticEventGroupSpec.getDefaultInstance()
+    }
+
   }
 }

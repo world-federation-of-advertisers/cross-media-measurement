@@ -31,6 +31,7 @@ import org.wfanet.measurement.common.readByteString
 import org.wfanet.measurement.common.grpc.withShutdownTimeout
 import java.time.Duration
 import org.wfanet.measurement.common.crypto.tink.loadPrivateKey
+import org.wfanet.measurement.common.identity.withPrincipalName
 
 enum class StorageConfigType {
   REQUISITION,
@@ -88,9 +89,12 @@ abstract class ResultsFulfillerApp(
     val impressionsMetadataStorageConfig =
       getStorageConfig(StorageConfigType.IMPRESSION_METADATA, storageDetails)
     val impressionsStorageConfig = getStorageConfig(StorageConfigType.IMPRESSION, storageDetails)
+    val principalName = fulfillerParams.dataProvider
     val requisitionsStub =
       if (cmmsChannel != null) {
         RequisitionsCoroutineStub(cmmsChannel)
+          .withPrincipalName(principalName)
+
       } else {
         val publicChannel by lazy {
           val signingCerts = SigningCerts.fromPemFiles(
@@ -102,6 +106,8 @@ abstract class ResultsFulfillerApp(
             .withShutdownTimeout(channelShutdownTimeout)
         }
         RequisitionsCoroutineStub(publicChannel)
+          .withPrincipalName(principalName)
+
       }
     val dataProviderCertificateKey = checkNotNull(DataProviderCertificateKey.fromName(fulfillerParams.consent.edpCertificateName))
     val consentCertificateFile = checkNotNull(getRuntimePath(Paths.get(fulfillerParams.consent.resultCsCertDerResourcePath))).toFile()
@@ -110,7 +116,7 @@ abstract class ResultsFulfillerApp(
     val consentCertificate: X509Certificate =
       consentCertificateFile.inputStream().use { input -> readCertificate(input) }
     val consentPrivateEncryptionKey = readPrivateKey(consentPrivateKeyFile.readByteString(), consentCertificate.publicKey.algorithm)
-    val dataProviderSigningKeyHandle = SigningKeyHandle(
+    val dataProviderResultSigningKeyHandle = SigningKeyHandle(
       consentCertificate,
       consentPrivateEncryptionKey
     )
@@ -121,7 +127,7 @@ abstract class ResultsFulfillerApp(
         loadPrivateKey(encryptionPrivateKeyFile),
         requisitionsStub,
         dataProviderCertificateKey,
-        dataProviderSigningKeyHandle,
+        dataProviderResultSigningKeyHandle,
         typeRegistry,
         requisitionsBlobUri,
         fulfillerParams.storage.labeledImpressionsBlobUriPrefix,

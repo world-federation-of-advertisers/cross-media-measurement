@@ -20,6 +20,8 @@ import com.google.crypto.tink.Aead
 import com.google.crypto.tink.KeyTemplates
 import com.google.crypto.tink.KeysetHandle
 import com.google.crypto.tink.TinkProtoKeysetFormat
+import com.google.crypto.tink.aead.AeadConfig
+import com.google.crypto.tink.streamingaead.StreamingAeadConfig
 import com.google.protobuf.ByteString
 import com.google.protobuf.timestamp
 import com.google.type.interval
@@ -40,15 +42,15 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import org.junit.rules.TestRule
 import org.junit.runner.Description
 import org.junit.runners.model.Statement
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
-import org.wfanet.measurement.api.v2alpha.EventGroup as ExternalEventGroup
-import com.google.crypto.tink.aead.AeadConfig
-import com.google.crypto.tink.streamingaead.StreamingAeadConfig
+import org.wfanet.measurement.api.v2alpha.EventGroup as CmmsEventGroup
+import org.wfanet.measurement.api.v2alpha.EventGroupKey as CmmsEventGroupKey
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.common.OpenEndTimeRange
@@ -58,6 +60,7 @@ import org.wfanet.measurement.common.identity.withPrincipalName
 import org.wfanet.measurement.common.testing.ProviderRule
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
+import org.wfanet.measurement.config.securecomputation.WatchedPath
 import org.wfanet.measurement.edpaggregator.eventgroups.EventGroupSync
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.eventGroup
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionFetcher
@@ -78,6 +81,7 @@ import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.InternalAp
 import org.wfanet.measurement.storage.MesosRecordIoStorageClient
 import org.wfanet.measurement.storage.SelectedStorageClient
 import org.wfanet.measurement.storage.StorageClient
+import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.MappedEventGroup
 
 class InProcessEdpAggregatorComponents(
   private val internalServicesRule: ProviderRule<InternalApiServices>,
@@ -145,7 +149,7 @@ class InProcessEdpAggregatorComponents(
   }
 
   private lateinit var edpDisplayNameToResourceMap: Map<String, Resources.Resource>
-  lateinit var externalEventGroups: List<ExternalEventGroup>
+  lateinit var externalEventGroups: List<CmmsEventGroup>
 
   private suspend fun createAllResources() {}
 
@@ -172,32 +176,33 @@ class InProcessEdpAggregatorComponents(
   ) = runBlocking {
     // Create all resources
     createAllResources()
+    val edpShortName = "edp1"
     pubSubClient.createTopic(PROJECT_ID, FULFILLER_TOPIC_ID)
     pubSubClient.createSubscription(PROJECT_ID, SUBSCRIPTION_ID, FULFILLER_TOPIC_ID)
-    edpResourceName = edpDisplayNameToResourceMap["edp1"]!!.name
+    edpResourceName = edpDisplayNameToResourceMap.getValue(edpShortName).name
     print(edpResourceName)
     publicApiChannel = kingdomChannel
-    val labeledImpressionBlobUriPrefix = writeImpressionData()
-    val resultsFulfillerParams = getResultsFulfillerParams(
-      edpResourceName,
-      DataProviderCertificateKey.fromName(
-        edpDisplayNameToResourceMap["edp1"]!!.dataProvider.certificate
-      )!!,
-    labeledImpressionBlobUriPrefix,
-    )
+    val resultsFulfillerParams =
+      getResultsFulfillerParams(
+        edpShortName,
+        edpResourceName,
+        DataProviderCertificateKey.fromName(
+          edpDisplayNameToResourceMap.getValue(edpShortName).dataProvider.certificate
+        )!!,
+        "file:///$IMPRESSIONS_METADATA_BUCKET",
+      )
     val watchedPaths =
       getDataWatcherConfig(
-        blobPrefix = "some-storage-prefix",
-        edpResultFulfillerConfigs =
-          mapOf(
-            edpResourceName to
-              resultsFulfillerParams
-          ),
+        blobPrefix = "file:///$REQUISITION_STORAGE_PREFIX/",
+        edpResultFulfillerConfigs = mapOf(edpResourceName to resultsFulfillerParams),
       )
+    for (path in watchedPaths) {
+      WatchedPath.parseFrom(path.toByteString())
+    }
     dataWatcher = DataWatcher(workItemsClient, watchedPaths)
 
     val subscribingStorageClient =
-      DataWatcherSubscribingStorageClient(storageClient, storagePath.toString())
+      DataWatcherSubscribingStorageClient(storageClient, "file:///")
     subscribingStorageClient.subscribe(dataWatcher)
 
     requisitionFetcher =
@@ -205,7 +210,7 @@ class InProcessEdpAggregatorComponents(
         requisitionsClient,
         subscribingStorageClient,
         edpResourceName,
-        "some-storage-prefix",
+        REQUISITION_STORAGE_PREFIX,
         10,
       )
     backgroundScope.launch {
@@ -234,11 +239,21 @@ class InProcessEdpAggregatorComponents(
         eventGroups.asFlow(),
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000L)),
       )
-    runBlocking { eventGroupSync.sync().collect {} }
+    val mappedEventGroups: List<MappedEventGroup> = runBlocking { eventGroupSync.sync().toList() }
+    val cmmsEventGroup = mappedEventGroups.filter {
+      it.eventGroupReferenceId == "sim-eg-reference-id-1"
+    }.single()
+
+    writeImpressionData(
+      cmmsEventGroup = checkNotNull(CmmsEventGroupKey.fromName(cmmsEventGroup.eventGroupResource))
+    )
     backgroundScope.launch { resultFulfillerApp.run() }
   }
 
-  fun writeImpressionData(): String {
+  private fun writeImpressionData(
+    ds: String = "2021-03-15T00:00:00Z",
+    cmmsEventGroup: CmmsEventGroupKey,
+  ) {
     // Create impressions storage client
     Files.createDirectories(storagePath.resolve(IMPRESSIONS_BUCKET))
     val impressionsStorageClient = SelectedStorageClient(IMPRESSIONS_FILE_URI, storagePath.toFile())
@@ -266,13 +281,14 @@ class InProcessEdpAggregatorComponents(
       // Write impressions to storage
       mesosRecordIoStorageClient.writeBlob(IMPRESSIONS_BLOB_KEY, impressions)
     }
-    // TODO: Use registered event group id
-    val eventGroupName = "${edpResourceName}/eventGroups/name"
+
     val impressionsMetaDataBlobKey =
-      "ds/${TIME_RANGE.start}/event-group-id/${eventGroupName}/metadata"
+      "ds/$ds/event-group-id/${cmmsEventGroup.toName()}/metadata"
 
     val impressionsMetadataFileUri =
       "file:///$IMPRESSIONS_METADATA_BUCKET/$impressionsMetaDataBlobKey"
+    logger.info("IMPRESSIONS IMPRESSIONS")
+    logger.info("Writing impressions to $impressionsMetadataFileUri")
 
     // Create the impressions metadata store
     Files.createDirectories(storagePath.resolve(IMPRESSIONS_METADATA_BUCKET))
@@ -291,7 +307,6 @@ class InProcessEdpAggregatorComponents(
         blobDetails.toByteString(),
       )
     }
-    return "file:///${IMPRESSIONS_METADATA_BUCKET}"
   }
 
   fun stopDaemons() {
@@ -314,11 +329,11 @@ class InProcessEdpAggregatorComponents(
     private val logger: Logger = Logger.getLogger(this::class.java.name)
     private val LAST_EVENT_DATE = LocalDate.now()
     private val FIRST_EVENT_DATE = LAST_EVENT_DATE.minusDays(1)
-    private val TIME_RANGE = OpenEndTimeRange.fromClosedDateRange(FIRST_EVENT_DATE..LAST_EVENT_DATE)
     private const val IMPRESSIONS_BUCKET = "impression-bucket"
     private const val IMPRESSIONS_BLOB_KEY = "impressions"
     private const val IMPRESSIONS_FILE_URI = "file:///$IMPRESSIONS_BUCKET/$IMPRESSIONS_BLOB_KEY"
     private const val IMPRESSIONS_METADATA_BUCKET = "impression-metadata-bucket"
+    private const val REQUISITION_STORAGE_PREFIX = "requisition-storage-prefix"
 
     private const val IMPRESSIONS_METADATA_FILE_URI_PREFIX = "file:///$IMPRESSIONS_METADATA_BUCKET"
   }

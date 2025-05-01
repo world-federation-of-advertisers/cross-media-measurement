@@ -42,6 +42,7 @@ class DataWatcher(
   private val dataWatcherConfigs: List<WatchedPath>,
 ) {
   suspend fun receivePath(path: String) {
+    logger.info("Received Path: $path")
     for (config in dataWatcherConfigs) {
       try {
         val regex = config.sourcePathRegex.toRegex()
@@ -57,6 +58,8 @@ class DataWatcher(
             WatchedPath.SinkConfigCase.SINKCONFIG_NOT_SET ->
               error("${config.identifier}: Invalid sink config: ${config.sinkConfigCase}")
           }
+        } else {
+          logger.info("$path does not match ${config.sourcePathRegex}")
         }
       } catch (e: Exception) {
         logger.severe("${config.identifier}: Unable to process $path for $config: ${e.message}")
@@ -97,7 +100,7 @@ class DataWatcher(
     val request = createWorkItemRequest {
       this.workItemId = workItemId
       this.workItem = workItem {
-        //name = "workItems/$workItemName"
+        name = "workItems/$workItemName"
         queue = queueConfig.queue
         this.workItemParams = workItemParams
       }

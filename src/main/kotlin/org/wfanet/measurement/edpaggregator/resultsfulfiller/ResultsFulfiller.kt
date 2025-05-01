@@ -24,6 +24,7 @@ import com.google.protobuf.Descriptors.Descriptor
 import com.google.protobuf.DynamicMessage
 import com.google.protobuf.TypeRegistry
 import com.google.protobuf.kotlin.unpack
+import com.google.protobuf.Any
 import com.google.type.Interval
 import io.grpc.StatusException
 import java.io.File
@@ -473,7 +474,6 @@ class ResultsFulfiller(
    * 3. Reads and concatenates all data from the blob
    * 4. Parses the UTF-8 encoded string data into a Requisition object using TextFormat
    *
-   * @return A Flow containing the single requisition retrieved from blob storage
    * @throws NullPointerException If the requisition blob cannot be found at the specified URI
    */
   private suspend fun getRequisitions(): Flow<Requisition> {
@@ -482,8 +482,9 @@ class ResultsFulfiller(
     val requisitionsStorageClient = createStorageClient(storageClientUri, requisitionsStorageConfig)
 
     // TODO(@jojijac0b): Refactor once grouped requisitions are supported
+    logger.info("Reading requisition ${storageClientUri.key} from $requisitionsBlobUri")
     val requisitionBytes: ByteString = requisitionsStorageClient.getBlob(storageClientUri.key)!!.read().flatten()
-    val requisition = Requisition.parseFrom(requisitionBytes)
+    val requisition = Any.parseFrom(requisitionBytes).unpack(Requisition::class.java)
 
     return listOf(requisition).asFlow()
   }
@@ -626,6 +627,7 @@ class ResultsFulfiller(
     val metadataBlobUri = "$labeledImpressionMetadataPrefix/$metadataBlobKey"
     val metadataStorageClientUri = SelectedStorageClient.parseBlobUri(metadataBlobUri)
     val impressionsMetadataStorageClient = createStorageClient(metadataStorageClientUri, impressionMetadataStorageConfig)
+    logger.info("Reading impressions ${metadataStorageClientUri} from $metadataBlobUri")
     // Get EncryptedDek message from storage using the blobKey made up of the ds and eventGroupId
     return BlobDetails.parseFrom(impressionsMetadataStorageClient.getBlob(metadataBlobKey)!!.read().flatten())
   }

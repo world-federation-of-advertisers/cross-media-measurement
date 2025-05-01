@@ -70,6 +70,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.asFlow
 import org.wfanet.measurement.common.OpenEndTimeRange
 import org.wfanet.measurement.edpaggregator.v1alpha.copy
+import com.google.protobuf.Int32Value
 
 private const val REPO_NAME = "wfa_measurement_system"
 
@@ -250,11 +251,12 @@ fun getDataWatcherConfig(
     .map { (edpName, params) ->
       listOf(
         watchedPath {
-          sourcePathRegex = "$blobPrefix/$edpName/requisitions(.*)"
+          sourcePathRegex = "$blobPrefix$edpName/(.*)"
           this.controlPlaneQueueSink =
             WatchedPathKt.controlPlaneQueueSink {
               queue = FULFILLER_TOPIC_ID
-              appParams = params.pack()
+            //appParams = Int32Value.newBuilder().setValue(5).build().pack()
+            appParams = params.pack()
             }
         }
       )
@@ -289,10 +291,12 @@ fun getEventGroupConfig(
 
 fun getResultsFulfillerParams(
   edpDisplayName: String,
+  edpResourceName: String,
   edpCertificateKey: DataProviderCertificateKey,
   labeledImpressionBlobUriPrefix: String,
 ): ResultsFulfillerParams {
   return resultsFulfillerParams {
+    this.dataProvider = edpResourceName
     this.storage =
       ResultsFulfillerParamsKt.storage {
         this.labeledImpressionsBlobUriPrefix = labeledImpressionBlobUriPrefix
@@ -306,9 +310,9 @@ fun getResultsFulfillerParams(
     this.consent =
       ResultsFulfillerParamsKt.consent {
         resultCsCertDerResourcePath =
-          SECRET_FILES_PATH.resolve("${edpDisplayName}_result_cs_cert.der").toString()
+          SECRET_FILES_PATH.resolve("${edpDisplayName}_cs_cert.der").toString()
         resultCsPrivateKeyDerResourcePath =
-          SECRET_FILES_PATH.resolve("${edpDisplayName}_result_cs_private.der").toString()
+          SECRET_FILES_PATH.resolve("${edpDisplayName}_cs_private.der").toString()
         privateEncryptionKeyResourcePath =
           SECRET_FILES_PATH.resolve("${edpDisplayName}_enc_private.tink").toString()
         edpCertificateName = edpCertificateKey.toName()
@@ -332,7 +336,7 @@ fun getLabeledImpressions(): Flow<LabeledImpression> {
     vid = 10L
     event = testEvent.pack()
   }
-  return List(130) {
+  return List(13000) {
     impression.copy {
       vid = it.toLong()
       eventTime = TIME_RANGE.start.toProtoTime()
