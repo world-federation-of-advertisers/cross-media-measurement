@@ -33,7 +33,7 @@ class NoOpReportProcessor : ReportProcessor {
     projectId: String,
     bucketName: String,
     verbose: Boolean,
-  ): Pair<String, ReportPostProcessorLog> {
-    return Pair(report, reportPostProcessorLog {})
+  ): ReportProcessingOutput {
+    return ReportProcessingOutput(report, reportPostProcessorLog {})
   }
 }

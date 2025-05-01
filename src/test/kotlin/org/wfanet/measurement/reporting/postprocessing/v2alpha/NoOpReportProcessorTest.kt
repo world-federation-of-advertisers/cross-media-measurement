@@ -33,12 +33,12 @@ class NoOpReportProcessorTest {
   @Test
   fun `The default report processor successfully processes a report and log result`() {
     val reportProcessor = NoOpReportProcessor()
-    val (processedReport, reportPostProcessorLog) =
+    val reportProcessingOutput: ReportProcessingOutput =
       runBlocking {
         reportProcessor.processReportJsonAndLogResult(SAMPLE_REPORT, "projectId", "bucketName")
       }
 
-    assertThat(processedReport).isEqualTo(SAMPLE_REPORT)
+    assertThat(reportProcessingOutput.updatedReportJson).isEqualTo(SAMPLE_REPORT)
   }
 
   companion object {

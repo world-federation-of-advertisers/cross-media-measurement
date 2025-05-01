@@ -71,13 +71,14 @@ class ReportProcessorTest {
     val report = ReportConversion.getReportFromJsonString(reportAsJson)
     assertThat(report.hasConsistentMeasurements()).isFalse()
 
-    val (updatedReportAsJson, reportPostProcessorLog) =
+    val reportProcessingOutput: ReportProcessingOutput =
       ReportProcessor.processReportJsonAndLogResult(reportAsJson, "projectId", "bucketName")
-    val updatedReport = ReportConversion.getReportFromJsonString(updatedReportAsJson)
+    val updatedReport =
+      ReportConversion.getReportFromJsonString(reportProcessingOutput.updatedReportJson)
     assertThat(updatedReport.hasConsistentMeasurements()).isTrue()
 
     val expectedBlobKey =
-      "bucketName/" + report.name.substringAfterLast('/') + "-" + report.createTime.seconds + ".txt"
+      "bucketName/20241213/20241213102410_c8f5ab1b95b44c0691f44111700054c3.textproto"
     assertThat(inMemoryStorageClient.contents).containsKey(expectedBlobKey)
 
     assertThat(
@@ -85,7 +86,7 @@ class ReportProcessorTest {
           inMemoryStorageClient.getBlob(expectedBlobKey)!!.read().flatten()
         )
       )
-      .isEqualTo(reportPostProcessorLog)
+      .isEqualTo(reportProcessingOutput.reportPostProcessorLog)
   }
 
   @Test
@@ -97,13 +98,15 @@ class ReportProcessorTest {
     val report = ReportConversion.getReportFromJsonString(reportAsJson)
     assertThat(report.hasConsistentMeasurements()).isFalse()
 
-    val (updatedReportAsJson, reportPostProcessorLog) =
+    val reportProcessingOutput: ReportProcessingOutput =
       ReportProcessor.processReportJsonAndLogResult(reportAsJson, "projectId", "bucketName")
-    val updatedReport = ReportConversion.getReportFromJsonString(updatedReportAsJson)
+    val updatedReport =
+      ReportConversion.getReportFromJsonString(reportProcessingOutput.updatedReportJson)
     assertThat(updatedReport.hasConsistentMeasurements()).isTrue()
 
     val expectedBlobKey =
-      "bucketName/" + report.name.substringAfterLast('/') + "-" + report.createTime.seconds + ".txt"
+      "bucketName/20250206/20250206144635_bd39d48654554a83ba9c8534a5bb7502.textproto"
+
     assertThat(inMemoryStorageClient.contents).containsKey(expectedBlobKey)
 
     assertThat(
@@ -111,7 +114,7 @@ class ReportProcessorTest {
           inMemoryStorageClient.getBlob(expectedBlobKey)!!.read().flatten()
         )
       )
-      .isEqualTo(reportPostProcessorLog)
+      .isEqualTo(reportProcessingOutput.reportPostProcessorLog)
   }
 
   @Test
@@ -125,17 +128,15 @@ class ReportProcessorTest {
       val report = ReportConversion.getReportFromJsonString(reportAsJson)
       assertThat(report.hasConsistentMeasurements()).isFalse()
 
-      val (updatedReportAsJson, reportPostProcessorLog) =
+      val reportProcessingOutput: ReportProcessingOutput =
         ReportProcessor.processReportJsonAndLogResult(reportAsJson, "projectId", "bucketName")
-      val updatedReport = ReportConversion.getReportFromJsonString(updatedReportAsJson)
+      val updatedReport =
+        ReportConversion.getReportFromJsonString(reportProcessingOutput.updatedReportJson)
       assertThat(updatedReport.hasConsistentMeasurements()).isTrue()
 
       val expectedBlobKey =
-        "bucketName/" +
-          report.name.substringAfterLast('/') +
-          "-" +
-          report.createTime.seconds +
-          ".txt"
+        "bucketName/20240913/20240913151951_a9c1a2b3fc74ebf8c5ab81d7763aa70.textproto"
+
       assertThat(inMemoryStorageClient.contents).containsKey(expectedBlobKey)
 
       assertThat(
@@ -143,7 +144,7 @@ class ReportProcessorTest {
             inMemoryStorageClient.getBlob(expectedBlobKey)!!.read().flatten()
           )
         )
-        .isEqualTo(reportPostProcessorLog)
+        .isEqualTo(reportProcessingOutput.reportPostProcessorLog)
     }
 
   @Test
