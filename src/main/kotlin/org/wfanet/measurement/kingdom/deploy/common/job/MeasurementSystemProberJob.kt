@@ -123,6 +123,18 @@ private class MeasurementSystemProberFlags {
   )
   lateinit var durationBetweenMeasurement: Duration
     private set
+
+  @Option(
+    names = ["--measurement-update-lookback-duration"],
+    description =
+      [
+        "Subtracted from the current time to get the window for checking recent updated measurements"
+      ],
+    required = false,
+    defaultValue = "2h",
+  )
+  lateinit var measurementUpdateLookbackDuration: Duration
+    private set
 }
 
 @Command(
@@ -158,6 +170,7 @@ private fun run(@Mixin flags: MeasurementSystemProberFlags) {
       flags.privateKeyDerFile,
       flags.measurementLookbackDuration,
       flags.durationBetweenMeasurement,
+      flags.measurementUpdateLookbackDuration,
       measurementConsumersService,
       measurementsService,
       dataProvidersService,
