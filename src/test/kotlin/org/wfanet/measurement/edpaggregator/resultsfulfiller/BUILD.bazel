@@ -1,0 +1,32 @@
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_test")
+
+package(
+    default_testonly = True,
+)
+
+kt_jvm_test(
+    name = "VidUtilsTest",
+    srcs = ["VidUtilsTest.kt"],
+    test_class = "org.wfanet.measurement.edpaggregator.resultsfulfiller.VidUtilsTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:measurement_spec_kt_jvm_proto",
+        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:requisition_spec_kt_jvm_proto",
+        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha/event_templates/testing:test_event_kt_jvm_proto",
+        "//src/main/kotlin/org/wfanet/measurement/common",
+        "//src/main/kotlin/org/wfanet/measurement/common/crypto/tink/testing",
+        "//src/main/kotlin/org/wfanet/measurement/common/crypto/tink",
+        "//src/main/kotlin/org/wfanet/measurement/common/testing",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:vid_utils",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/v1alpha:blob_details_kt_jvm_proto",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/v1alpha:labeled_impression_kt_jvm_proto",
+        "//src/main/kotlin/org/wfanet/measurement/storage:client",
+        "@maven//:com_google_crypto_tink_tink",
+        "@maven//:com_google_protobuf_protobuf_java",
+        "@maven//:com_google_protobuf_protobuf_kotlin",
+        "@maven//:com_google_truth_truth",
+        "@maven//:org_jetbrains_kotlinx_kotlinx_coroutines_core_jvm",
+        "@maven//:org_mockito_kotlin_mockito_kotlin",
+        "@maven//:org_projectnessie_cel_cel_core",
+        "@wfa_common_jvm//imports/java/org/junit",
+    ],
+)

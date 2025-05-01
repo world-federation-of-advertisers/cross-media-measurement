@@ -1,0 +1,28 @@
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
+
+package(default_visibility = [
+    "//src/main/kotlin/org/wfanet/measurement/edpaggregator:__subpackages__",
+    "//src/test/kotlin/org/wfanet/measurement/edpaggregator:__subpackages__",
+])
+
+kt_jvm_library(
+    name = "vid_utils",
+    srcs = ["VidUtils.kt"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:measurement_spec_kt_jvm_proto",
+        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:requisition_spec_kt_jvm_proto",
+        "//src/main/kotlin/org/wfanet/measurement/common:flatten",
+        "//src/main/kotlin/org/wfanet/measurement/common/crypto/tink",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/v1alpha:blob_details_kt_jvm_proto",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/v1alpha:labeled_impression_kt_jvm_proto",
+        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/eventfiltration",
+        "//src/main/kotlin/org/wfanet/measurement/storage:client",
+        "@any_sketch_java//src/main/java/org/wfanet/sampling:vid_sampler",
+        "@maven//:com_google_crypto_tink_tink",
+        "@maven//:com_google_guava_guava",
+        "@maven//:com_google_protobuf_protobuf_java",
+        "@maven//:com_google_protobuf_protobuf_kotlin",
+        "@maven//:org_jetbrains_kotlinx_kotlinx_coroutines_core_jvm",
+        "@maven//:org_projectnessie_cel_cel_core",
+    ],
+)
