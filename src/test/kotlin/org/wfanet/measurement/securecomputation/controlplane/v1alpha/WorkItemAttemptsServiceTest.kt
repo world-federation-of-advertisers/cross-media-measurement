@@ -98,8 +98,8 @@ class WorkItemAttemptsServiceTest {
       )
       .isEqualTo(
         internalCreateWorkItemAttemptRequest {
-          internalWorkItemAttempt {
-            workItemResourceId = request.parent
+          this.workItemAttempt = internalWorkItemAttempt {
+            workItemResourceId = internalWorkItemAttempt.workItemResourceId
             workItemAttemptResourceId = request.workItemAttemptId
           }
         }
