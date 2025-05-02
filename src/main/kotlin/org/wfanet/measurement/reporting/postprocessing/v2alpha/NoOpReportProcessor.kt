@@ -23,4 +23,25 @@ class NoOpReportProcessor : ReportProcessor {
   override fun processReportJson(report: String, verbose: Boolean): String {
     return report
   }
+
+  /**
+   * Returns the input [report] without any modifications, together with an empty report post
+   * processor log.
+   *
+   * @param report The JSON [String] containing the report data to be processed.
+   * @param projectId The GCS Project ID.
+   * @param bucketName The GCS bucket name.
+   * @param verbose If true, enables verbose logging from the underlying report processor library.
+   *   Default value is false.
+   * @return A [ReportProcessingOutput] that contains the corrected serialized [Report] in JSON
+   *   format that is identical to the input [report] and a default [ReportPostProcessorLog] object.
+   */
+  override suspend fun processReportJsonAndLogResult(
+    report: String,
+    projectId: String,
+    bucketName: String,
+    verbose: Boolean,
+  ): ReportProcessingOutput {
+    return ReportProcessingOutput(report, reportPostProcessorLog {})
+  }
 }
