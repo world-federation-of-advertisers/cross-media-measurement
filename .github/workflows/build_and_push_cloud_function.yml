@@ -64,11 +64,6 @@ on:
         type: string
         required: false
 
-      public_api_target:
-        description: "Control-plane API hostname/URL"
-        type: string
-        required: false
-
       # if you have arbitrary extra env-vars you want to set
       extra_env_vars:
         description: "Any additional --set-env-vars (comma-sep)"
@@ -133,12 +128,6 @@ jobs:
             )
           fi
 
-          # add CONTROL_PLANE_TARGET if set
-          if [[ -n "${{ inputs.public_api_target }}" ]]; then
-            ARGS+=( --set-env-vars="CONTROL_PLANE_TARGET=${{ inputs.public_api_target }}" )
-          fi
-
-          # add any extra ones
           if [[ -n "${{ inputs.extra_env_vars }}" ]]; then
             ARGS+=( --set-env-vars="${{ inputs.extra_env_vars }}" )
           fi
