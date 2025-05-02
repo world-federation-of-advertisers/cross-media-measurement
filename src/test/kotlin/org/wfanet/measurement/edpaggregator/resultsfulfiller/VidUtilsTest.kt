@@ -103,7 +103,7 @@ class VidUtilsTest {
     val result = VidUtils.isValidImpression(
       labeledImpression = labeledImpression,
       collectionInterval = collectionInterval,
-      eventGroup = eventGroup,
+      filter = eventGroup.value.filter,
       vidSamplingIntervalStart = 0.0f,
       vidSamplingIntervalWidth = 1.0f,
       typeRegistry = typeRegistry
@@ -148,7 +148,7 @@ class VidUtilsTest {
     val result = VidUtils.isValidImpression(
       labeledImpression = labeledImpression,
       collectionInterval = collectionInterval,
-      eventGroup = eventGroup,
+      filter = eventGroup.value.filter,
       vidSamplingIntervalStart = 0.0f,
       vidSamplingIntervalWidth = 1.0f,
       typeRegistry = typeRegistry
@@ -192,7 +192,7 @@ class VidUtilsTest {
     val result = VidUtils.isValidImpression(
       labeledImpression = labeledImpression,
       collectionInterval = collectionInterval,
-      eventGroup = eventGroup,
+      filter = eventGroup.value.filter,
       vidSamplingIntervalStart = 0.0f,
       vidSamplingIntervalWidth = 1.0f,
       typeRegistry = typeRegistry
@@ -236,7 +236,7 @@ class VidUtilsTest {
     val result = VidUtils.isValidImpression(
       labeledImpression = labeledImpression,
       collectionInterval = collectionInterval,
-      eventGroup = eventGroup,
+      filter = eventGroup.value.filter,
       vidSamplingIntervalStart = 0.9f,  // Very high start
       vidSamplingIntervalWidth = 0.1f,  // Very narrow width
       typeRegistry = typeRegistry

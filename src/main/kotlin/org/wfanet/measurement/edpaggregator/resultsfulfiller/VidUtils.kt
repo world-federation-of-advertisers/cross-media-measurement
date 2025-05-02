@@ -171,7 +171,7 @@ object VidUtils {
             isValidImpression(
               labeledImpression,
               collectionInterval,
-              eventGroup,
+              eventGroup.value.filter,
               vidSamplingIntervalStart,
               vidSamplingIntervalWidth,
               typeRegistry
@@ -205,7 +205,7 @@ object VidUtils {
    *
    * @param labeledImpression The impression to validate
    * @param collectionInterval The time interval for collection
-   * @param eventGroup The event group entry containing filter information
+   * @param filter The filter information used to validate the impression
    * @param vidSamplingIntervalStart The start of the VID sampling interval
    * @param vidSamplingIntervalWidth The width of the VID sampling interval
    * @param typeRegistry The registry for looking up protobuf descriptors
@@ -214,7 +214,7 @@ object VidUtils {
   fun isValidImpression(
     labeledImpression: LabeledImpression,
     collectionInterval: Interval,
-    eventGroup: RequisitionSpec.EventGroupEntry,
+    filter: RequisitionSpec.EventFilter,
     vidSamplingIntervalStart: Float,
     vidSamplingIntervalWidth: Float,
     typeRegistry: TypeRegistry
@@ -235,7 +235,7 @@ object VidUtils {
     val eventMessageData = labeledImpression.event!!
     val eventTemplateDescriptor = getDescriptorForTypeUrl(eventMessageData.typeUrl, typeRegistry)
     val eventMessage = DynamicMessage.parseFrom(eventTemplateDescriptor, eventMessageData.value)
-    val program = compileProgram(eventGroup.value.filter, eventTemplateDescriptor)
+    val program = compileProgram(filter, eventTemplateDescriptor)
 
     // Pass event message through program
     val passesFilter = EventFilters.matches(eventMessage, program)
