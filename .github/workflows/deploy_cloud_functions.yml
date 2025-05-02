@@ -30,7 +30,7 @@ jobs:
 
   export-vars:
     runs-on: ubuntu-latest
-    environment: dev
+    environment: "dev"
     outputs:
       data_watcher_trigger_bucket: ${{ steps.load.outputs.data_watcher_trigger_bucket }}
       data_watcher_service_account: ${{ steps.load.outputs.data_watcher_service_account }}
