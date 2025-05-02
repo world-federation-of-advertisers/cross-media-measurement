@@ -53,12 +53,6 @@ variable "queue_worker_configs" {
   }))
 }
 
-variable "artifacts_registry_repo_name" {
-  description = "The name of Artifact Registry where approved TEE app are stored."
-  type        = string
-  nullable    = false
-}
-
 variable "pubsub_iam_service_account_member" {
   description = "IAM `google_service_account` for public api to access pubsub."
   type        = string
@@ -86,6 +80,12 @@ variable "data_watcher_service_account_name" {
 
 variable "data_watcher_trigger_service_account_name" {
   description = "The name of the service account used to trigger the Cloud Function."
+  type        = string
+  nullable    = false
+}
+
+variable "terraform_service_account" {
+  description = "Service account used by terraform that needs to attach the MIG service account to the VM."
   type        = string
   nullable    = false
 }

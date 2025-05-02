@@ -78,16 +78,15 @@ variable "kms_key_id" {
   nullable    = false
 }
 
-variable "artifacts_registry_repo_name" {
-  description = "The name of Artifact Registry where approved TEE app are stored."
-  type        = string
-  nullable    = false
-}
-
 variable "docker_image" {
   description = "The docker image to be deployed."
   type        = string
   nullable    = false
 }
 
+variable "terraform_service_account" {
+  description = "Service account used by terraform that needs to attach the MIG service account to the VM."
+  type        = string
+  nullable    = false
+}
 

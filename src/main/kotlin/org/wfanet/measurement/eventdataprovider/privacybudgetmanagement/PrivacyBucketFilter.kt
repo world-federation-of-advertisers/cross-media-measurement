@@ -58,9 +58,17 @@ class PrivacyBucketFilter(
   ): Sequence<PrivacyBucketGroup> {
     val program = privacyBucketMapper.toPrivacyFilterProgram(eventSpec.eventFilter)
 
+    // TODO(@renjiez): Handle the case that intervals are too small to get any charge.
+    // See https://github.com/world-federation-of-advertisers/cross-media-measurement/issues/2209
     val vidsIntervalStartPoints =
       PrivacyLandscape.vidsIntervalStartPoints.filter {
-        it in vidSamplingIntervalStart..vidSamplingIntervalEnd
+        if (vidSamplingIntervalEnd > vidSamplingIntervalStart) {
+          it in vidSamplingIntervalStart..vidSamplingIntervalEnd
+        } else {
+          // When interval is wrapping around 1.0, the VID range is [0, vidSamplingIntervalStart] +
+          // [vidSamplingIntervalEnd, 1.0]
+          it <= vidSamplingIntervalStart || it >= vidSamplingIntervalEnd
+        }
       }
     val today = clock.instant().atZone(ZoneOffset.UTC).toLocalDate()
     val dates =
