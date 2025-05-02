@@ -84,6 +84,7 @@ jobs:
         CONTROL_PLANE_CERT_HOST=data-watcher.secure-computation.${{ inputs.environment }}.halo-cmm.org
 
   deploy-requisition-fetcher:
+    needs: export-vars
     uses: ./.github/workflows/build_and_push_cloud_function.yml
     with:
       #      environment: ${{ inputs.environment }}
