@@ -20,7 +20,6 @@ import com.google.cloud.spanner.ErrorCode
 import com.google.cloud.spanner.Options
 import com.google.cloud.spanner.SpannerException
 import io.grpc.Status
-import java.util.logging.Logger
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collectIndexed
 import kotlinx.coroutines.flow.map
@@ -63,8 +62,6 @@ class SpannerWorkItemsService(
 ) : WorkItemsCoroutineImplBase() {
 
   override suspend fun createWorkItem(request: CreateWorkItemRequest): WorkItem {
-    logger.info("12345678--------------------------------------------------------------------")
-    logger.info(request.toString())
     if (request.workItem.queueResourceId.isEmpty()) {
       throw RequiredFieldNotSetException("queue_resource_id")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
@@ -125,7 +122,6 @@ class SpannerWorkItemsService(
       workItemPublisher.publishMessage(
         request.workItem.queueResourceId,
         request.workItem
-        //request.workItem.workItemParams,
       )
     } catch (e: Exception) {
       throw Status.INTERNAL.withCause(e).asRuntimeException()
@@ -232,7 +228,6 @@ class SpannerWorkItemsService(
   }
 
   companion object {
-    private val logger: Logger = Logger.getLogger(this::class.java.name)
     private const val MAX_PAGE_SIZE = 100
     private const val DEFAULT_PAGE_SIZE = 50
   }
