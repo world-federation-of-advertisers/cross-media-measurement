@@ -69,7 +69,7 @@ message ResultsFulfillerParams {
   ConsentParams consent_params = 2 [(google.api.field_behavior) = REQUIRED];
 
   // Message representing the details needed to connect to the kingdom
-  message Connection {
+  message TransportLayerSecurityParams {
     // The resource key of the client certificate
     string client_cert_resource_path = 1
         [(google.api.field_behavior) = REQUIRED];
@@ -80,5 +80,6 @@ message ResultsFulfillerParams {
   }
 
   // The connection to the Cmms API
-  Connection cmms_connection = 3 [(google.api.field_behavior) = REQUIRED];
+  TransportLayerSecurityParams cmms_connection = 3
+      [(google.api.field_behavior) = REQUIRED];
 }
