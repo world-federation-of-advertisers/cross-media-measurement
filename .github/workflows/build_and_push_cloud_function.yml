@@ -113,6 +113,7 @@ jobs:
             --memory=512MB
             --region="${{ vars.GCLOUD_REGION }}"
             --run-service-account="${{ inputs.run_service_account }}"
+            --source="$RUNNER_TEMP/source"
           )
 
           if [[ "${{ inputs.trigger_type }}" == "storage" ]]; then

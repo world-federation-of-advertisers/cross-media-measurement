@@ -40,11 +40,11 @@ jobs:
       KINGDOM_PUBLIC_API_TARGET:            ${{ vars.KINGDOM_PUBLIC_API_TARGET }}
     outputs:
       data_watcher_trigger_bucket:      ${{ steps.load.outputs.data_watcher_trigger_bucket }}
-      data_watcher_sa:                  ${{ steps.load.outputs.data_watcher_service_account }}
+      data_watcher_sa:                  ${{ steps.load.outputs.data_watcher_sa }}
       data_watcher_trigger_sa:          ${{ steps.load.outputs.data_watcher_trigger_sa }}
-      control_plane_public_api_target:  ${{ steps.load.outputs.public_api_target }}
-      requisition_fetcher_sa:           ${{ steps.load.outputs.public_api_target }}
-      kingdom_public_api_target:        ${{ steps.load.outputs.public_api_target }}
+      control_plane_public_api_target:  ${{ steps.load.outputs.control_plane_public_api_target }}
+      requisition_fetcher_sa:           ${{ steps.load.outputs.requisition_fetcher_sa }}
+      kingdom_public_api_target:        ${{ steps.load.outputs.kingdom_public_api_target }}
     steps:
       - id: load
         run: |
