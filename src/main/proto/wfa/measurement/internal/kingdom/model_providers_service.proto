@@ -31,7 +31,8 @@ service ModelProviders {
   rpc GetModelProvider(GetModelProviderRequest) returns (ModelProvider);
 
   // Streams `ModelProvider`s.
-  rpc StreamModelProviders(StreamModelProvidersRequest) returns (stream ModelProvider);
+  rpc StreamModelProviders(StreamModelProvidersRequest)
+      returns (stream ModelProvider);
 }
 
 message GetModelProviderRequest {
