@@ -21,6 +21,7 @@ import com.google.protobuf.timestamp
 import com.google.type.interval
 import java.time.Clock
 import java.time.Duration
+import kotlin.test.assertFailsWith
 import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.toList
@@ -105,7 +106,7 @@ class EventGroupSyncTest {
                 name = "dataProviders/data-provider-3/eventGroups/reference-id-3"
                 measurementConsumer = "measurementConsumers/measurement-consumer-2"
                 eventGroupReferenceId = "reference-id-3"
-                mediaTypes += listOf("OTHER").map { CmmsMediaType.valueOf(it) }
+                mediaTypes += listOf(CmmsMediaType.valueOf("OTHER"))
                 eventGroupMetadata = cmmsEventGroupMetadata {
                   this.adMetadata = cmmsAdMetadata {
                     this.campaignMetadata = cmmsCampaignMetadata {
@@ -147,7 +148,8 @@ class EventGroupSyncTest {
         startTime = timestamp { seconds = 200 }
         endTime = timestamp { seconds = 300 }
       }
-      mediaTypes += listOf("OTHER").map { MediaType.valueOf(it) }
+      mediaTypes +=
+        listOf(MediaType.valueOf("OTHER"), MediaType.valueOf("VIDEO"), MediaType.valueOf("DISPLAY"))
     }
     val testCampaigns = CAMPAIGNS + newCampaign
     val eventGroupSync =
@@ -196,6 +198,103 @@ class EventGroupSyncTest {
     }
   }
 
+  @Test
+  fun `throws exception if no media types`() {
+    val eventGroup = eventGroup {
+      eventGroupReferenceId = "reference-id-4"
+      this.eventGroupMetadata = eventGroupMetadata {
+        this.adMetadata = adMetadata {
+          this.campaignMetadata = campaignMetadata {
+            brand = "brand-2"
+            campaign = "campaign-2"
+          }
+        }
+      }
+      measurementConsumer = "measurement-consumer-2"
+      dataAvailabilityInterval = interval {
+        startTime = timestamp { seconds = 200 }
+        endTime = timestamp { seconds = 300 }
+      }
+      mediaTypes += emptyList<MediaType>()
+    }
+    assertFailsWith<IllegalStateException> { EventGroupSync.validateEventGroup(eventGroup) }
+  }
+
+  @Test
+  fun `throws exception if no event group reference id`() {
+    val eventGroup = eventGroup {
+      eventGroupReferenceId = ""
+      this.eventGroupMetadata = eventGroupMetadata {
+        this.adMetadata = adMetadata {
+          this.campaignMetadata = campaignMetadata {
+            brand = "brand-2"
+            campaign = "campaign-2"
+          }
+        }
+      }
+      measurementConsumer = "measurement-consumer-2"
+      dataAvailabilityInterval = interval {
+        startTime = timestamp { seconds = 200 }
+        endTime = timestamp { seconds = 300 }
+      }
+      mediaTypes += listOf(MediaType.valueOf("OTHER"))
+    }
+    assertFailsWith<IllegalStateException> { EventGroupSync.validateEventGroup(eventGroup) }
+  }
+
+  @Test
+  fun `throw exceptions if do data availability`() {
+    val eventGroup = eventGroup {
+      eventGroupReferenceId = "some-event-group-reference-id"
+      this.eventGroupMetadata = eventGroupMetadata {
+        this.adMetadata = adMetadata {
+          this.campaignMetadata = campaignMetadata {
+            brand = "brand-2"
+            campaign = "campaign-2"
+          }
+        }
+      }
+      measurementConsumer = "measurement-consumer-2"
+      mediaTypes += listOf(MediaType.valueOf("OTHER"))
+    }
+    assertFailsWith<IllegalStateException> { EventGroupSync.validateEventGroup(eventGroup) }
+  }
+
+  @Test
+  fun `throws exception if no event group metadata`() {
+    val eventGroup = eventGroup {
+      eventGroupReferenceId = "event-group-reference-id"
+      measurementConsumer = "measurement-consumer-2"
+      dataAvailabilityInterval = interval {
+        startTime = timestamp { seconds = 200 }
+        endTime = timestamp { seconds = 300 }
+      }
+      mediaTypes += listOf(MediaType.valueOf("OTHER"))
+    }
+    assertFailsWith<IllegalStateException> { EventGroupSync.validateEventGroup(eventGroup) }
+  }
+
+  @Test
+  fun `throws exception if empty measurement consumer`() {
+    val eventGroup = eventGroup {
+      eventGroupReferenceId = "some-reference-id"
+      this.eventGroupMetadata = eventGroupMetadata {
+        this.adMetadata = adMetadata {
+          this.campaignMetadata = campaignMetadata {
+            brand = "brand-2"
+            campaign = "campaign-2"
+          }
+        }
+      }
+      dataAvailabilityInterval = interval {
+        startTime = timestamp { seconds = 200 }
+        endTime = timestamp { seconds = 300 }
+      }
+      mediaTypes += listOf(MediaType.valueOf("OTHER"))
+    }
+    assertFailsWith<IllegalStateException> { EventGroupSync.validateEventGroup(eventGroup) }
+  }
+
   companion object {
     private val CAMPAIGNS =
       listOf(
@@ -214,7 +313,7 @@ class EventGroupSyncTest {
             startTime = timestamp { seconds = 200 }
             endTime = timestamp { seconds = 300 }
           }
-          mediaTypes += listOf("VIDEO", "DISPLAY").map { MediaType.valueOf(it) }
+          mediaTypes += listOf(MediaType.valueOf("VIDEO"), MediaType.valueOf("DISPLAY"))
         },
         eventGroup {
           eventGroupReferenceId = "reference-id-2"
@@ -231,7 +330,7 @@ class EventGroupSyncTest {
             startTime = timestamp { seconds = 200 }
             endTime = timestamp { seconds = 300 }
           }
-          mediaTypes += listOf("OTHER").map { MediaType.valueOf(it) }
+          mediaTypes += listOf(MediaType.valueOf("OTHER"))
         },
         eventGroup {
           eventGroupReferenceId = "reference-id-3"
@@ -248,7 +347,7 @@ class EventGroupSyncTest {
             startTime = timestamp { seconds = 200 }
             endTime = timestamp { seconds = 300 }
           }
-          mediaTypes += listOf("OTHER").map { MediaType.valueOf(it) }
+          mediaTypes += listOf(MediaType.valueOf("OTHER"))
         },
       )
   }

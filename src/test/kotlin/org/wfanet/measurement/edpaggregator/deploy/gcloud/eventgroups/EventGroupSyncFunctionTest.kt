@@ -61,10 +61,10 @@ import org.wfanet.measurement.common.grpc.CommonServer
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.toJson
-import org.wfanet.measurement.config.edpaggregator.StorageKt.fileSystemStorage
+import org.wfanet.measurement.config.edpaggregator.StorageParamsKt.fileSystemStorage
 import org.wfanet.measurement.config.edpaggregator.eventGroupSyncConfig
-import org.wfanet.measurement.config.edpaggregator.storage
-import org.wfanet.measurement.config.edpaggregator.transportLayerSecurity
+import org.wfanet.measurement.config.edpaggregator.storageParams
+import org.wfanet.measurement.config.edpaggregator.transportLayerSecurityParams
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup.MediaType
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.MetadataKt.AdMetadataKt.campaignMetadata
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.MetadataKt.adMetadata
@@ -205,13 +205,13 @@ class EventGroupSyncFunctionTest() {
       dataProvider = "some-data-provider"
       eventGroupsBlobUri = "file:///some/path/campaigns-blob-uri"
       eventGroupMapBlobUri = "file:///some/other/path/event-groups-map-uri"
-      this.cmmsConnection = transportLayerSecurity {
+      this.cmmsConnection = transportLayerSecurityParams {
         certJarResourcePath = "main/k8s/testing/secretfiles/edp1_tls.pem"
         privateKeyJarResourcePath = "main/k8s/testing/secretfiles/edp1_tls.key"
         certCollectionJarResourcePath = "main/k8s/testing/secretfiles/kingdom_root.pem"
       }
-      eventGroupStorage = storage { fileSystem = fileSystemStorage {} }
-      eventGroupMapStorage = storage { fileSystem = fileSystemStorage {} }
+      eventGroupStorage = storageParams { fileSystem = fileSystemStorage {} }
+      eventGroupMapStorage = storageParams { fileSystem = fileSystemStorage {} }
     }
     File("${tempFolder.root}/some/path").mkdirs()
     File("${tempFolder.root}/some/other/path").mkdirs()

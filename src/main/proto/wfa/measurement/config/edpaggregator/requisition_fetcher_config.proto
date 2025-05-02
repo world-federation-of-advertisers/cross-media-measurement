@@ -20,8 +20,8 @@ import "google/protobuf/any.proto";
 import "google/api/field_behavior.proto";
 import "google/api/resource.proto";
 import "google/protobuf/struct.proto";
-import "wfa/measurement/config/edpaggregator/storage.proto";
-import "wfa/measurement/config/edpaggregator/transport_layer_security.proto";
+import "wfa/measurement/config/edpaggregator/storage_params.proto";
+import "wfa/measurement/config/edpaggregator/transport_layer_security_params.proto";
 
 option java_package = "org.wfanet.measurement.config.edpaggregator";
 option java_multiple_files = true;
@@ -33,11 +33,11 @@ message DataProviderRequisitionConfig {
   string data_provider = 1
       [(google.api.resource_reference).type = "halo.wfanet.org/DataProvider"];
   // Requisition storage
-  Storage requisition_storage = 2;
+  StorageParams requisition_storage = 2;
   // Storage path prefix
   string storage_path_prefix = 3;
   // How the EDP connects to the CMMS Public API
-  TransportLayerSecurity cmms_connection = 4;
+  TransportLayerSecurityParams cmms_connection = 4;
 }
 
 // The Requisition Fetcher configuration

@@ -17,6 +17,7 @@
 package org.wfanet.measurement.edpaggregator.eventgroups
 
 import io.grpc.StatusException
+import java.util.logging.Logger
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
@@ -59,25 +60,33 @@ class EventGroupSync(
     val syncedEventGroups: Map<String, CmmsEventGroup> =
       fetchEventGroups().toList().associateBy { it.eventGroupReferenceId }
     eventGroups.collect { eventGroup: EventGroup ->
-      val syncedEventGroup: CmmsEventGroup =
-        if (eventGroup.eventGroupReferenceId in syncedEventGroups) {
-          val existingEventGroup: CmmsEventGroup =
-            syncedEventGroups.getValue(eventGroup.eventGroupReferenceId)
-          val updatedEventGroup: CmmsEventGroup = updateEventGroup(existingEventGroup, eventGroup)
-          if (updatedEventGroup != existingEventGroup) {
-            updateCmmsEventGroup(updatedEventGroup)
+      try {
+        validateEventGroup(eventGroup)
+        val syncedEventGroup: CmmsEventGroup =
+          if (eventGroup.eventGroupReferenceId in syncedEventGroups) {
+            val existingEventGroup: CmmsEventGroup =
+              syncedEventGroups.getValue(eventGroup.eventGroupReferenceId)
+            val updatedEventGroup: CmmsEventGroup = updateEventGroup(existingEventGroup, eventGroup)
+            if (updatedEventGroup != existingEventGroup) {
+              updateCmmsEventGroup(updatedEventGroup)
+            } else {
+              existingEventGroup
+            }
           } else {
-            existingEventGroup
+            createCmmsEventGroup(edpName, eventGroup)
           }
-        } else {
-          createCmmsEventGroup(edpName, eventGroup)
-        }
-      emit(
-        mappedEventGroup {
-          eventGroupReferenceId = syncedEventGroup.eventGroupReferenceId
-          eventGroupResource = syncedEventGroup.name
-        }
-      )
+        emit(
+          mappedEventGroup {
+            eventGroupReferenceId = syncedEventGroup.eventGroupReferenceId
+            eventGroupResource = syncedEventGroup.name
+          }
+        )
+      } catch (e: Exception) {
+        logger.severe(
+          "Unable to process Event Group ${eventGroup.eventGroupReferenceId}: ${e.message}"
+        )
+      }
+      eventGroup.eventGroupReferenceId
     }
   }
 
@@ -170,11 +179,28 @@ class EventGroupSync(
 
   private fun MediaType.toCmmsMediaType(): CmmsMediaType {
     return when (this) {
-      MediaType.MEDIA_TYPE_UNSPECIFIED -> CmmsMediaType.MEDIA_TYPE_UNSPECIFIED
+      MediaType.MEDIA_TYPE_UNSPECIFIED -> error("Media type must be set")
       MediaType.VIDEO -> CmmsMediaType.VIDEO
       MediaType.DISPLAY -> CmmsMediaType.DISPLAY
       MediaType.OTHER -> CmmsMediaType.OTHER
       MediaType.UNRECOGNIZED -> error("Not a real media type")
+    }
+  }
+
+  companion object {
+    private val logger: Logger = Logger.getLogger(this::class.java.name)
+    /*
+     * Validates that event groups fields are populated
+     * Throws exceptions for any invalid fields.
+     */
+    fun validateEventGroup(eventGroup: EventGroup) {
+      check(eventGroup.mediaTypesList.size > 0) { "At least one media type must be set" }
+      check(eventGroup.hasDataAvailabilityInterval()) { "Data availability must be set" }
+      check(eventGroup.hasEventGroupMetadata()) { "Event Group Metadata must be set" }
+      check(eventGroup.eventGroupReferenceId.isNotBlank()) {
+        "Event Group Reference Id must be set"
+      }
+      check(eventGroup.measurementConsumer.isNotBlank()) { "Measurement Consumer must be set" }
     }
   }
 }
