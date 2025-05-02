@@ -50,7 +50,7 @@ jobs:
           echo "public_api_target=$SECURE_COMPUTATION_PUBLIC_API_TARGET"
 
   deploy-data-watcher:
-    needs: extract-vars
+    needs: export-vars
     uses: ./.github/workflows/build_and_push_cloud_function.yml
     with:
 #      environment:                ${{ inputs.environment }}
