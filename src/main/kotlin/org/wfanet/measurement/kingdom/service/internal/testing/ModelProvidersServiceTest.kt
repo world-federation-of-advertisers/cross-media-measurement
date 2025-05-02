@@ -19,6 +19,7 @@ import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import kotlin.test.assertFailsWith
+import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.Test
@@ -31,7 +32,10 @@ import org.wfanet.measurement.common.identity.testing.FixedIdGenerator
 import org.wfanet.measurement.internal.kingdom.GetModelProviderRequest
 import org.wfanet.measurement.internal.kingdom.ModelProvider
 import org.wfanet.measurement.internal.kingdom.ModelProvidersGrpcKt.ModelProvidersCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.StreamModelProvidersRequest
+import org.wfanet.measurement.internal.kingdom.StreamModelProvidersRequestKt
 import org.wfanet.measurement.internal.kingdom.getModelProviderRequest
+import org.wfanet.measurement.internal.kingdom.streamModelProvidersRequest
 
 private const val EXTERNAL_MODEL_PROVIDER_ID = 123L
 private const val FIXED_GENERATED_INTERNAL_ID = 2345L
@@ -96,5 +100,87 @@ abstract class ModelProvidersServiceTest {
       )
 
     assertThat(modelProviderRead).isEqualTo(createdModelProvider)
+  }
+
+  @Test
+  fun `streamModelProviders returns all model providers`(): Unit = runBlocking {
+    val modelProvider1 = ModelProvider.getDefaultInstance()
+    val createdModelProvider1 = modelProvidersService.createModelProvider(modelProvider1)
+
+    idGenerator.internalId = InternalId(FIXED_GENERATED_INTERNAL_ID + 1L)
+    idGenerator.externalId = ExternalId(FIXED_GENERATED_EXTERNAL_ID + 1L)
+    val modelProvider2 = ModelProvider.getDefaultInstance()
+    val createdModelProvider2 = modelProvidersService.createModelProvider(modelProvider2)
+
+    val modelProviders: List<ModelProvider> =
+      modelProvidersService
+        .streamModelProviders(StreamModelProvidersRequest.getDefaultInstance())
+        .toList()
+
+    assertThat(modelProviders)
+      .containsExactly(createdModelProvider1, createdModelProvider2)
+      .inOrder()
+  }
+
+  @Test
+  fun `streamModelProviders returns filtered model providers`(): Unit = runBlocking {
+    val modelProvider1 = ModelProvider.getDefaultInstance()
+    val createdModelProvider1 = modelProvidersService.createModelProvider(modelProvider1)
+
+    idGenerator.internalId = InternalId(FIXED_GENERATED_INTERNAL_ID + 1L)
+    idGenerator.externalId = ExternalId(FIXED_GENERATED_EXTERNAL_ID + 1L)
+    val modelProvider2 = ModelProvider.getDefaultInstance()
+    val createdModelProvider2 = modelProvidersService.createModelProvider(modelProvider2)
+
+    idGenerator.internalId = InternalId(FIXED_GENERATED_INTERNAL_ID + 2L)
+    idGenerator.externalId = ExternalId(FIXED_GENERATED_EXTERNAL_ID + 2L)
+    val modelProvider3 = ModelProvider.getDefaultInstance()
+    modelProvidersService.createModelProvider(modelProvider3)
+
+    val modelProviders: List<ModelProvider> =
+      modelProvidersService
+        .streamModelProviders(
+          streamModelProvidersRequest {
+            limit = 1
+            filter =
+              StreamModelProvidersRequestKt.filter {
+                after =
+                  StreamModelProvidersRequestKt.afterFilter {
+                    externalModelProviderId = createdModelProvider1.externalModelProviderId
+                  }
+              }
+          }
+        )
+        .toList()
+
+    assertThat(modelProviders).containsExactly(createdModelProvider2)
+  }
+
+  @Test
+  fun `streamModelProviders fails when limit is less than 0`(): Unit = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        modelProvidersService.streamModelProviders(streamModelProvidersRequest { limit = -1 })
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception).hasMessageThat().contains("Limit")
+  }
+
+  @Test
+  fun `streamModelProviders fails for missing after filter fields`(): Unit = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        modelProvidersService.streamModelProviders(
+          streamModelProvidersRequest {
+            filter =
+              StreamModelProvidersRequestKt.filter {
+                after = StreamModelProvidersRequest.AfterFilter.getDefaultInstance()
+              }
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
   }
 }
