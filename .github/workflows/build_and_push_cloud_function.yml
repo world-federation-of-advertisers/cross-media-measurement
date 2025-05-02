@@ -47,13 +47,11 @@ on:
         type: string
         required: true
 
-      # only for storage triggers
       trigger_bucket:
         description: "GCS bucket name"
         type: string
         required: false
 
-      # everything below is per-function, so we make them inputs
       run_service_account:
         description: "Service account to run the function"
         type: string
@@ -64,7 +62,6 @@ on:
         type: string
         required: false
 
-      # if you have arbitrary extra env-vars you want to set
       extra_env_vars:
         description: "Any additional --set-env-vars (comma-sep)"
         type: string
