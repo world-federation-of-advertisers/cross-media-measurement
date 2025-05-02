@@ -101,8 +101,17 @@ message ReportingSet {
 
     // Left-hand side operand of the operation.
     Operand lhs = 3 [(google.api.field_behavior) = REQUIRED];
-    // Right-hand side operand of the operation. If not specified, implies the
-    // empty set.
+
+    // Right-hand side operand of the operation.
+    //
+    // If not specified, implies the empty set (`∅`). Note that while this field
+    // is optional, the number of [ReportingSet][]s can be reduced by treating
+    // it as required and applying the properties of an empty set, i.e. that for
+    // any set `A`:
+    //
+    // * The union of `A` and the empty set is `A`.
+    // * The set difference of `A` and the empty set is `A`.
+    // * The intersection of `A` and the empty set is the empty set.
     Operand rhs = 4 [(google.api.field_behavior) = OPTIONAL];
   }
 
