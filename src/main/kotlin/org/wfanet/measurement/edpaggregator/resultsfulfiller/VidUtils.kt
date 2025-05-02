@@ -19,12 +19,11 @@ package org.wfanet.measurement.edpaggregator.resultsfulfiller
 import com.google.common.hash.HashFunction
 import com.google.common.hash.Hashing
 import com.google.crypto.tink.KmsClient
-import com.google.protobuf.Any
 import com.google.protobuf.Descriptors.Descriptor
 import com.google.protobuf.DynamicMessage
 import com.google.protobuf.TypeRegistry
 import com.google.type.Interval
-import java.util.logging.Logger
+import java.io.File
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.filter
@@ -32,7 +31,7 @@ import kotlinx.coroutines.flow.flatMapConcat
 import kotlinx.coroutines.flow.map
 import org.projectnessie.cel.Program
 import org.projectnessie.cel.common.types.BoolT
-import org.wfanet.estimation.VidSampler
+import org.wfanet.sampling.VidSampler
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec
 import org.wfanet.measurement.common.flatten
@@ -40,7 +39,6 @@ import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
 import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters
-import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters.matches
 import org.wfanet.measurement.storage.BlobUri
 import org.wfanet.measurement.storage.MesosRecordIoStorageClient
 import org.wfanet.measurement.storage.SelectedStorageClient
@@ -51,15 +49,14 @@ import org.wfanet.measurement.common.crypto.tink.withEnvelopeEncryption
  * Configuration for storage clients.
  */
 data class StorageConfig(
-  val bucketName: String,
-  val projectId: String
+  val rootDirectory: File? = null,
+  val projectId: String? = null,
 )
 
 /**
  * Utility functions for working with VIDs (Virtual IDs) in the EDP Aggregator.
  */
 object VidUtils {
-  private val logger: Logger = Logger.getLogger(this::class.java.name)
   private val VID_SAMPLER_HASH_FUNCTION: HashFunction = Hashing.farmHashFingerprint64()
   private val TRUE_EVAL_RESULT = Program.newEvalResult(BoolT.True, null)
   private val sampler = VidSampler(VID_SAMPLER_HASH_FUNCTION)
@@ -67,17 +64,15 @@ object VidUtils {
   /**
    * Creates a storage client based on the provided URI and configuration.
    */
-  private fun createStorageClient(uri: BlobUri, config: StorageConfig): StorageClient {
-    // This is a simplified implementation
-    // In a real implementation, this would create a storage client based on the URI and configuration
-    throw NotImplementedError("createStorageClient needs to be implemented")
+  private fun createStorageClient(blobUri: BlobUri, storageConfig: StorageConfig): StorageClient {
+    return SelectedStorageClient(blobUri, storageConfig.rootDirectory, storageConfig.projectId)
   }
 
   /**
    * Retrieves blob details for a given collection interval and event group ID.
    */
   private suspend fun getBlobDetails(
-    collectionInterval: Interval, 
+    collectionInterval: Interval,
     eventGroupId: String,
     labeledImpressionMetadataPrefix: String,
     impressionMetadataStorageConfig: StorageConfig
@@ -165,19 +160,19 @@ object VidUtils {
       .flatMapConcat { eventGroup ->
         val collectionInterval = eventGroup.value.collectionInterval
         val blobDetails = getBlobDetails(
-          collectionInterval, 
-          eventGroup.key, 
-          labeledImpressionMetadataPrefix, 
+          collectionInterval,
+          eventGroup.key,
+          labeledImpressionMetadataPrefix,
           impressionMetadataStorageConfig
         )
 
         getLabeledImpressions(blobDetails, kmsClient, impressionsStorageConfig)
           .filter { labeledImpression ->
             isValidImpression(
-              labeledImpression, 
-              collectionInterval, 
-              eventGroup, 
-              vidSamplingIntervalStart, 
+              labeledImpression,
+              collectionInterval,
+              eventGroup,
+              vidSamplingIntervalStart,
               vidSamplingIntervalWidth,
               typeRegistry
             )
@@ -256,7 +251,7 @@ object VidUtils {
   private fun getDescriptorForTypeUrl(typeUrl: String, typeRegistry: TypeRegistry): Descriptor {
     // Extract the message name from the type URL
     val messageName = typeUrl.substringAfter("type.googleapis.com/")
-    
+
     // Find the descriptor in the registry
     // Note: This is a simplified implementation and may need to be adjusted
     // based on how the TypeRegistry is actually used in the project
