@@ -54,7 +54,7 @@ jobs:
 
   deploy-data-watcher:
     needs: export-vars
-    uses: ./.github/workflows/build_and_push_cloud_function.yml
+    uses: ./.github/workflows/build_and_deploy_cloud_function.yml
     with:
       environment:                ${{ inputs.environment }}
       function_name:              data-watcher
@@ -73,7 +73,7 @@ jobs:
 
   deploy-requisition-fetcher:
     needs: export-vars
-    uses: ./.github/workflows/build_and_push_cloud_function.yml
+    uses: ./.github/workflows/build_and_deploy_cloud_function.yml
     with:
       environment: ${{ inputs.environment }}
       function_name:              requisition-fetcher

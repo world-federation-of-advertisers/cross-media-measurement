@@ -18,7 +18,7 @@ on:
   workflow_call:
     inputs:
       environment:
-        description: "GitHub environment (dev/stage/prod)"
+        description: "GitHub environment"
         type: string
         required: true
 
@@ -28,7 +28,7 @@ on:
         required: true
 
       entry_point:
-        description: "Java FQN entry point"
+        description: "Java entry point"
         type: string
         required: true
 
@@ -63,7 +63,7 @@ on:
         required: false
 
       extra_env_vars:
-        description: "Any additional --set-env-vars (comma-sep)"
+        description: "Any additional --set-env-vars"
         type: string
         required: false
 
@@ -122,6 +122,7 @@ jobs:
           else
             ARGS+=(
               --trigger-http
+              # TODO(@MarcoPremier) remove this and assign proper SA once requisition fetcher is automatically called (CloudScheduler)
               --allow-unauthenticated
             )
           fi
