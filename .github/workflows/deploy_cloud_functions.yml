@@ -49,7 +49,7 @@ jobs:
       - id: load
         run: |
           echo "data_watcher_trigger_bucket=$DATA_WATCHER_TRIGGER_BUCKET"               >> $GITHUB_OUTPUT
-          echo "data_watcher_service_account=$DATA_WATCHER_SERVICE_ACCOUNT"             >> $GITHUB_OUTPUT
+          echo "data_watcher_sa=$DATA_WATCHER_SERVICE_ACCOUNT"                          >> $GITHUB_OUTPUT
           echo "data_watcher_trigger_sa=$DATA_WATCHER_TRIGGER_SERVICE_ACCOUNT"          >> $GITHUB_OUTPUT
           echo "control_plane_public_api_target=$SECURE_COMPUTATION_PUBLIC_API_TARGET"  >> $GITHUB_OUTPUT
           echo "requisition_fetcher_sa=$REQUISITION_FETCHER_SERVICE_ACCOUNT"            >> $GITHUB_OUTPUT
