@@ -119,10 +119,7 @@ class SpannerWorkItemsService(
       }
 
     try {
-      workItemPublisher.publishMessage(
-        request.workItem.queueResourceId,
-        request.workItem
-      )
+      workItemPublisher.publishMessage(request.workItem.queueResourceId, request.workItem)
     } catch (e: Exception) {
       throw Status.INTERNAL.withCause(e).asRuntimeException()
     }
