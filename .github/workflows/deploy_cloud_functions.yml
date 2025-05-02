@@ -30,6 +30,7 @@ jobs:
 
   export-vars:
     runs-on: ubuntu-latest
+    environment: dev
     outputs:
       data_watcher_trigger_bucket: ${{ steps.load.outputs.data_watcher_trigger_bucket }}
       data_watcher_service_account: ${{ steps.load.outputs.data_watcher_service_account }}
@@ -37,17 +38,25 @@ jobs:
       public_api_target: ${{ steps.load.outputs.public_api_target }}
     steps:
       - id: load
-        env:
-          # pull from repo-level vars or environment inputs
-          DATA_WATCHER_TRIGGER_BUCKET: ${{ vars.DATA_WATCHER_TRIGGER_BUCKET }}
-          DATA_WATCHER_SERVICE_ACCOUNT: ${{ vars.DATA_WATCHER_SERVICE_ACCOUNT }}
-          DATA_WATCHER_TRIGGER_SERVICE_ACCOUNT: ${{ vars.DATA_WATCHER_TRIGGER_SERVICE_ACCOUNT }}
-          SECURE_COMPUTATION_PUBLIC_API_TARGET: ${{ vars.SECURE_COMPUTATION_PUBLIC_API_TARGET }}
+        # NO step-level env: here, so the runner’s DATA_WATCHER_* vars come through
         run: |
-          echo "data_watcher_trigger_bucket=$DATA_WATCHER_TRIGGER_BUCKET"           >> $GITHUB_OUTPUT
-          echo "data_watcher_service_account=$DATA_WATCHER_SERVICE_ACCOUNT"         >> $GITHUB_OUTPUT
-          echo "data_watcher_trigger_sa=$DATA_WATCHER_TRIGGER_SERVICE_ACCOUNT"      >> $GITHUB_OUTPUT
-          echo "public_api_target=$SECURE_COMPUTATION_PUBLIC_API_TARGET"
+          echo "data_watcher_trigger_bucket=$DATA_WATCHER_TRIGGER_BUCKET"   >> $GITHUB_OUTPUT
+          echo "data_watcher_service_account=$DATA_WATCHER_SERVICE_ACCOUNT" >> $GITHUB_OUTPUT
+          echo "data_watcher_trigger_sa=$DATA_WATCHER_TRIGGER_SERVICE_ACCOUNT" >> $GITHUB_OUTPUT
+          echo "public_api_target=$SECURE_COMPUTATION_PUBLIC_API_TARGET"     >> $GITHUB_OUTPUT
+#    steps:
+#      - id: load
+#        env:
+#          # pull from repo-level vars or environment inputs
+#          DATA_WATCHER_TRIGGER_BUCKET: ${{ vars.DATA_WATCHER_TRIGGER_BUCKET }}
+#          DATA_WATCHER_SERVICE_ACCOUNT: ${{ vars.DATA_WATCHER_SERVICE_ACCOUNT }}
+#          DATA_WATCHER_TRIGGER_SERVICE_ACCOUNT: ${{ vars.DATA_WATCHER_TRIGGER_SERVICE_ACCOUNT }}
+#          SECURE_COMPUTATION_PUBLIC_API_TARGET: ${{ vars.SECURE_COMPUTATION_PUBLIC_API_TARGET }}
+#        run: |
+#          echo "data_watcher_trigger_bucket=$DATA_WATCHER_TRIGGER_BUCKET"           >> $GITHUB_OUTPUT
+#          echo "data_watcher_service_account=$DATA_WATCHER_SERVICE_ACCOUNT"         >> $GITHUB_OUTPUT
+#          echo "data_watcher_trigger_sa=$DATA_WATCHER_TRIGGER_SERVICE_ACCOUNT"      >> $GITHUB_OUTPUT
+#          echo "public_api_target=$SECURE_COMPUTATION_PUBLIC_API_TARGET"
 
   deploy-data-watcher:
     needs: export-vars
