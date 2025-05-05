@@ -78,12 +78,6 @@ variable "kms_key_id" {
   nullable    = false
 }
 
-variable "artifacts_registry_repo_name" {
-  description = "The name of Artifact Registry where approved TEE app are stored."
-  type        = string
-  nullable    = false
-}
-
 variable "docker_image" {
   description = "The docker image to be deployed."
   type        = string
