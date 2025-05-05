@@ -35,7 +35,6 @@ service ModelLines {
   // Sets the active_end_time for a `ModelLine`.
   rpc SetActiveEndTime(SetActiveEndTimeRequest) returns (ModelLine);
 
-
   // Lists `ModelLine`s that are valid given an `Interval` representing the time
   // range and a set of `ExternalDataProviderId`s. Ordered by `type` from `PROD`
   // to `HOLDBACK` to `DEV`, `active_start_time` descending.

@@ -55,8 +55,8 @@ import org.wfanet.measurement.internal.kingdom.ModelLinesGrpcKt.ModelLinesCorout
 import org.wfanet.measurement.internal.kingdom.StreamModelLinesRequest
 import org.wfanet.measurement.internal.kingdom.StreamModelLinesRequestKt.afterFilter
 import org.wfanet.measurement.internal.kingdom.StreamModelLinesRequestKt.filter
-import org.wfanet.measurement.internal.kingdom.setActiveEndTimeRequest as internalSetActiveEndTimeRequest
 import org.wfanet.measurement.internal.kingdom.enumerateValidModelLinesRequest
+import org.wfanet.measurement.internal.kingdom.setActiveEndTimeRequest as internalSetActiveEndTimeRequest
 import org.wfanet.measurement.internal.kingdom.setModelLineHoldbackModelLineRequest
 import org.wfanet.measurement.internal.kingdom.streamModelLinesRequest
 
@@ -301,7 +301,8 @@ class ModelLinesService(private val internalClient: ModelLinesCoroutineStub) :
                 }
               }
             }
-          ).modelLinesList
+          )
+          .modelLinesList
       } catch (e: StatusException) {
         throw when (e.status.code) {
           Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED

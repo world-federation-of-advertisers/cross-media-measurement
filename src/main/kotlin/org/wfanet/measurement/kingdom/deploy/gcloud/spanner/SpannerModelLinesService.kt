@@ -140,19 +140,25 @@ class SpannerModelLinesService(
     }
   }
 
-  override suspend fun enumerateValidModelLines(request: EnumerateValidModelLinesRequest): EnumerateValidModelLinesResponse {
+  override suspend fun enumerateValidModelLines(
+    request: EnumerateValidModelLinesRequest
+  ): EnumerateValidModelLinesResponse {
     val types: List<ModelLine.Type> =
       if (request.typesList.isEmpty()) {
         listOf(ModelLine.Type.PROD)
       } else {
         request.typesList
       }
-    val modelLineResults = ModelLineReader().readValidModelLines(client.singleUseReadOnlyTransaction(),
-                                                           externalModelProviderId = ExternalId(request.externalModelProviderId),
-                                                           externalModelSuiteId = ExternalId(request.externalModelSuiteId),
-                                                           request.timeInterval,
-                                                           types,
-                                                           request.externalDataProviderIdsList.map { ExternalId(it) },)
+    val modelLineResults =
+      ModelLineReader()
+        .readValidModelLines(
+          client.singleUseReadOnlyTransaction(),
+          externalModelProviderId = ExternalId(request.externalModelProviderId),
+          externalModelSuiteId = ExternalId(request.externalModelSuiteId),
+          request.timeInterval,
+          types,
+          request.externalDataProviderIdsList.map { ExternalId(it) },
+        )
 
     return enumerateValidModelLinesResponse {
       modelLines += modelLineResults.map { it.modelLine }.toList().sortedWith(modelLineComparator())

@@ -139,9 +139,10 @@ class ModelLineReader : SpannerReader<ModelLineReader.Result>() {
     types: List<ModelLine.Type>,
     externalDataProviderIds: List<ExternalId>,
   ): Flow<Result> {
-    val validModelLinesStatement = Statement.newBuilder("")
-      .append(
-        """
+    val validModelLinesStatement =
+      Statement.newBuilder("")
+        .append(
+          """
               SELECT DISTINCT
                 ModelLines.ModelProviderId,
                 ModelLines.ModelSuiteId,
@@ -212,16 +213,23 @@ class ModelLineReader : SpannerReader<ModelLineReader.Result>() {
               HAVING COUNT(DISTINCT ModelRolloutId) = 1
                 AND COUNT(DISTINCT DataProviderId) = @numDataProviders
               """
-          .trimIndent()
-      )
-      .bind("externalModelProviderId").to(externalModelProviderId.value)
-      .bind("externalModelSuiteId").to(externalModelSuiteId.value)
-      .bind("numDataProviders").to(externalDataProviderIds.size.toLong())
-      .bind("externalDataProviderIds").toInt64Array(externalDataProviderIds.map { it.value })
-      .bind("types").toInt64Array(types.map { it.number.toLong() })
-      .bind("intervalStartTime").to(timeInterval.startTime.toGcloudTimestamp())
-      .bind("intervalEndTime").to(timeInterval.endTime.toGcloudTimestamp())
-      .build()
+            .trimIndent()
+        )
+        .bind("externalModelProviderId")
+        .to(externalModelProviderId.value)
+        .bind("externalModelSuiteId")
+        .to(externalModelSuiteId.value)
+        .bind("numDataProviders")
+        .to(externalDataProviderIds.size.toLong())
+        .bind("externalDataProviderIds")
+        .toInt64Array(externalDataProviderIds.map { it.value })
+        .bind("types")
+        .toInt64Array(types.map { it.number.toLong() })
+        .bind("intervalStartTime")
+        .to(timeInterval.startTime.toGcloudTimestamp())
+        .bind("intervalEndTime")
+        .to(timeInterval.endTime.toGcloudTimestamp())
+        .build()
 
     val className: String = this::class.simpleName ?: "Anonymous"
 
