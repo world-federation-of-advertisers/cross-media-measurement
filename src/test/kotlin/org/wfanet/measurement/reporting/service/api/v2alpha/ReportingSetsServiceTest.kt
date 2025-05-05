@@ -327,6 +327,54 @@ class ReportingSetsServiceTest {
     }
 
   @Test
+  fun `createReportingSet returns ReportingSet when rhs operand is not set`() {
+    permissionsServiceMock.stub {
+      onBlocking { checkPermissions(hasPrincipal(PRINCIPAL.name)) } doReturn
+        checkPermissionsResponse { permissions += PermissionName.CREATE_COMPOSITE }
+    }
+    val reportingSetId = "reporting-set-id"
+    val internalReportingSet =
+      INTERNAL_ROOT_COMPOSITE_REPORTING_SET.copy {
+        externalReportingSetId = reportingSetId
+        composite = composite.copy { clearRhs() }
+
+        val weightedSubsetUnions = weightedSubsetUnions
+        this.weightedSubsetUnions.clear()
+        this.weightedSubsetUnions += weightedSubsetUnions.first()
+      }
+    wheneverBlocking { internalReportingSetsMock.createReportingSet(any()) } doReturn
+      internalReportingSet
+    val request = createReportingSetRequest {
+      parent = MEASUREMENT_CONSUMER_KEYS.first().toName()
+      reportingSet =
+        ROOT_COMPOSITE_REPORTING_SET.copy {
+          clearName()
+          composite = composite.copy { expression = expression.copy { clearRhs() } }
+        }
+      this.reportingSetId = reportingSetId
+    }
+
+    val response: ReportingSet = runBlocking {
+      withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createReportingSet(request) }
+    }
+
+    verifyProtoArgument(
+        internalReportingSetsMock,
+        ReportingSetsCoroutineImplBase::createReportingSet,
+      )
+      .ignoringRepeatedFieldOrder()
+      .isEqualTo(
+        internalCreateReportingSetRequest {
+          reportingSet = internalReportingSet.copy { clearExternalReportingSetId() }
+          externalReportingSetId = request.reportingSetId
+        }
+      )
+    assertThat(response)
+      .ignoringFields(ReportingSet.NAME_FIELD_NUMBER)
+      .isEqualTo(request.reportingSet)
+  }
+
+  @Test
   fun `createReportingSet returns ReportingSet when it is a Campaign Group`() = runBlocking {
     permissionsServiceMock.stub {
       onBlocking { checkPermissions(hasPrincipal(PRINCIPAL.name)) } doReturn
