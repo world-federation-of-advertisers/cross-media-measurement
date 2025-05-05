@@ -87,7 +87,6 @@ jobs:
           --entry-point=org.wfanet.measurement.securecomputation.deploy.gcloud.datawatcher.DataWatcherFunction
           --memory=512MB
           --region=$GCLOUD_REGION
-          --allow-unauthenticated
           --trigger-event-filters='type=google.cloud.storage.object.v1.finalized'
           --trigger-event-filters="bucket=$DATA_WATCHER_TRIGGER_BUCKET"
           --source="$RUNNER_TEMP/data_watcher_source"
