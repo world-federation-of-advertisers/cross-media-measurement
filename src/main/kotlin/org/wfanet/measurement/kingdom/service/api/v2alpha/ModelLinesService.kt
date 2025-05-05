@@ -17,11 +17,8 @@
 package org.wfanet.measurement.kingdom.service.api.v2alpha
 
 import com.google.protobuf.util.Timestamps
-import com.google.type.Interval
 import io.grpc.Status
 import io.grpc.StatusException
-import java.util.logging.Level
-import java.util.logging.Logger
 import kotlin.math.min
 import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.v2alpha.CreateModelLineRequest
@@ -53,28 +50,21 @@ import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.apiIdToExternalId
-import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.internal.kingdom.ModelLine as InternalModelLine
 import org.wfanet.measurement.internal.kingdom.ModelLinesGrpcKt.ModelLinesCoroutineStub
-import org.wfanet.measurement.internal.kingdom.ModelRolloutsGrpcKt.ModelRolloutsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.StreamModelLinesRequest
 import org.wfanet.measurement.internal.kingdom.StreamModelLinesRequestKt.afterFilter
 import org.wfanet.measurement.internal.kingdom.StreamModelLinesRequestKt.filter
-import org.wfanet.measurement.internal.kingdom.StreamModelRolloutsRequestKt
-import org.wfanet.measurement.internal.kingdom.getDataProviderRequest
 import org.wfanet.measurement.internal.kingdom.setActiveEndTimeRequest as internalSetActiveEndTimeRequest
+import org.wfanet.measurement.internal.kingdom.enumerateValidModelLinesRequest
 import org.wfanet.measurement.internal.kingdom.setModelLineHoldbackModelLineRequest
 import org.wfanet.measurement.internal.kingdom.streamModelLinesRequest
-import org.wfanet.measurement.internal.kingdom.streamModelRolloutsRequest
 
 private const val DEFAULT_PAGE_SIZE = 50
 private const val MAX_PAGE_SIZE = 1000
 
-class ModelLinesService(
-  private val internalClient: ModelLinesCoroutineStub,
-  private val internalDataProvidersClient: DataProvidersCoroutineStub,
-  private val internalModelRolloutsClient: ModelRolloutsCoroutineStub,
-) : ModelLinesCoroutineService() {
+class ModelLinesService(private val internalClient: ModelLinesCoroutineStub) :
+  ModelLinesCoroutineService() {
 
   override suspend fun createModelLine(request: CreateModelLineRequest): ModelLine {
     val parentKey =
@@ -290,62 +280,28 @@ class ModelLinesService(
       }
     }
 
-    // Map of external ModelLine IDs to data availability intervals. Populated by retrieving the
-    // data availability intervals from every data provider specified in the request.
-    val dataProvidersDataAvailabilityIntervalMap: Map<Long, List<Interval>> = buildMap {
-      for (dataProviderKey in dataProvidersKeySet) {
-        val dataProvider =
-          try {
-            internalDataProvidersClient.getDataProvider(
-              getDataProviderRequest {
-                externalDataProviderId = apiIdToExternalId(dataProviderKey.dataProviderId)
-              }
-            )
-          } catch (e: StatusException) {
-            throw when (e.status.code) {
-              Status.Code.NOT_FOUND ->
-                failGrpc(Status.NOT_FOUND) {
-                  "${dataProviderKey.toName()} in data_providers not found"
-                }
-
-              Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED.asRuntimeException()
-              else -> Status.UNKNOWN.asRuntimeException()
-            }
-          }
-
-        for (dataAvailabilityInterval in dataProvider.dataAvailabilityIntervalsList) {
-          val intervalList =
-            getOrDefault(dataAvailabilityInterval.key.externalModelLineId, listOf())
-          put(
-            dataAvailabilityInterval.key.externalModelLineId,
-            intervalList + dataAvailabilityInterval.value,
-          )
-        }
-      }
-    }
-
     val modelSuiteKey = ModelSuiteKey.fromName(request.parent)
 
-    // Retrieve all model lines that will be checked.
     val internalModelLines: List<InternalModelLine> =
       try {
         internalClient
-          .streamModelLines(
-            streamModelLinesRequest {
-              filter = filter {
-                externalModelProviderId = apiIdToExternalId(modelSuiteKey!!.modelProviderId)
-                externalModelSuiteId = apiIdToExternalId(modelSuiteKey.modelSuiteId)
-                if (request.typesList.isEmpty()) {
-                  this.type += InternalModelLine.Type.PROD
-                } else {
-                  for (type in request.typesList) {
-                    this.type += type.toInternalType()
-                  }
+          .enumerateValidModelLines(
+            enumerateValidModelLinesRequest {
+              externalModelProviderId = apiIdToExternalId(modelSuiteKey!!.modelProviderId)
+              externalModelSuiteId = apiIdToExternalId(modelSuiteKey.modelSuiteId)
+              timeInterval = request.timeInterval
+              for (dataProviderKey in dataProvidersKeySet) {
+                externalDataProviderIds += apiIdToExternalId(dataProviderKey.dataProviderId)
+              }
+              if (request.typesList.isEmpty()) {
+                types += InternalModelLine.Type.PROD
+              } else {
+                for (type in request.typesList) {
+                  types += type.toInternalType()
                 }
               }
             }
-          )
-          .toList()
+          ).modelLinesList
       } catch (e: StatusException) {
         throw when (e.status.code) {
           Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
@@ -353,60 +309,10 @@ class ModelLinesService(
         }.asRuntimeException()
       }
 
-    // Checks the following items for every model line. It will move on to the next model line if
-    // any check fails. All checks need to pass for the model line to be in the final response:
-    // 1. time interval in request
-    // 2. data availability intervals from every data provider in request
-    // 3. model rollouts
-    val validModelLines: List<ModelLine> = buildList {
-      for (internalModelLine in internalModelLines) {
-        val modelLine = internalModelLine.toModelLine()
-        if (request.timeInterval in modelLine) {
-          val dataAvailabilityIntervals: List<Interval>? =
-            dataProvidersDataAvailabilityIntervalMap[internalModelLine.externalModelLineId]
-          if (
-            dataAvailabilityIntervals != null &&
-              dataAvailabilityIntervals.size == dataProvidersKeySet.size
-          ) {
-            if (dataAvailabilityIntervals.containsInterval(request.timeInterval)) {
-              val streamModelRolloutsResponse =
-                try {
-                  internalModelRolloutsClient
-                    .streamModelRollouts(
-                      streamModelRolloutsRequest {
-                        filter =
-                          StreamModelRolloutsRequestKt.filter {
-                            externalModelProviderId = internalModelLine.externalModelProviderId
-                            externalModelSuiteId = internalModelLine.externalModelSuiteId
-                            externalModelLineId = internalModelLine.externalModelLineId
-                          }
-                      }
-                    )
-                    .toList()
-                } catch (e: StatusException) {
-                  throw when (e.status.code) {
-                    Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
-                    else -> Status.UNKNOWN
-                  }.asRuntimeException()
-                }
-
-              // Currently, there is only 1 `ModelRollout` per `ModelLine`
-              if (streamModelRolloutsResponse.size == 1) {
-                add(modelLine)
-              } else {
-                logger.log(
-                  Level.WARNING,
-                  "Must have 1 model rollout per model line to have a valid model line.",
-                )
-              }
-            }
-          }
-        }
-      }
-    }
-
     return enumerateValidModelLinesResponse {
-      this.modelLines += validModelLines.sortedWith(modelLineComparator())
+      for (internalModelLine in internalModelLines) {
+        modelLines += internalModelLine.toModelLine()
+      }
     }
   }
 
@@ -471,31 +377,5 @@ class ModelLinesService(
         }
       }
     }
-  }
-
-  /**
-   * [ModelLine.Type.PROD] appears first before [ModelLine.Type.HOLDBACK] and
-   * [ModelLine.Type.HOLDBACK] appears first before [ModelLine.Type.DEV]. If the types are the same,
-   * then the more recent `activeStartTime` appears first.
-   */
-  private fun modelLineComparator() =
-    Comparator<ModelLine> { a, b ->
-      when {
-        a.type == b.type -> {
-          Timestamps.compare(a.activeStartTime, b.activeStartTime) * -1
-        }
-        a.type == ModelLine.Type.PROD -> -1
-        a.type == ModelLine.Type.HOLDBACK -> {
-          if (b.type == ModelLine.Type.PROD) {
-            1
-          } else -1
-        }
-        a.type == ModelLine.Type.DEV -> 1
-        else -> -1
-      }
-    }
-
-  companion object {
-    private val logger: Logger = Logger.getLogger(this::class.java.name)
   }
 }

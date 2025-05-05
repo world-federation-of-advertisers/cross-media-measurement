@@ -16,24 +16,31 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 
+import com.google.protobuf.util.Timestamps
 import io.grpc.Status
 import java.time.Clock
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
+import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
+import org.wfanet.measurement.internal.kingdom.EnumerateValidModelLinesRequest
+import org.wfanet.measurement.internal.kingdom.EnumerateValidModelLinesResponse
 import org.wfanet.measurement.internal.kingdom.ModelLine
 import org.wfanet.measurement.internal.kingdom.ModelLinesGrpcKt.ModelLinesCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.SetActiveEndTimeRequest
 import org.wfanet.measurement.internal.kingdom.SetModelLineHoldbackModelLineRequest
 import org.wfanet.measurement.internal.kingdom.StreamModelLinesRequest
+import org.wfanet.measurement.internal.kingdom.enumerateValidModelLinesResponse
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelLineInvalidArgsException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelLineNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelLineTypeIllegalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelSuiteNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamModelLines
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ModelLineReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateModelLine
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.SetActiveEndTime
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.SetModelLineHoldbackModelLine
@@ -132,4 +139,45 @@ class SpannerModelLinesService(
       )
     }
   }
+
+  override suspend fun enumerateValidModelLines(request: EnumerateValidModelLinesRequest): EnumerateValidModelLinesResponse {
+    val types: List<ModelLine.Type> =
+      if (request.typesList.isEmpty()) {
+        listOf(ModelLine.Type.PROD)
+      } else {
+        request.typesList
+      }
+    val modelLineResults = ModelLineReader().readValidModelLines(client.singleUseReadOnlyTransaction(),
+                                                           externalModelProviderId = ExternalId(request.externalModelProviderId),
+                                                           externalModelSuiteId = ExternalId(request.externalModelSuiteId),
+                                                           request.timeInterval,
+                                                           types,
+                                                           request.externalDataProviderIdsList.map { ExternalId(it) },)
+
+    return enumerateValidModelLinesResponse {
+      modelLines += modelLineResults.map { it.modelLine }.toList().sortedWith(modelLineComparator())
+    }
+  }
+
+  /**
+   * [ModelLine.Type.PROD] appears first before [ModelLine.Type.HOLDBACK] and
+   * [ModelLine.Type.HOLDBACK] appears first before [ModelLine.Type.DEV]. If the types are the same,
+   * then the more recent `activeStartTime` appears first.
+   */
+  private fun modelLineComparator() =
+    Comparator<ModelLine> { a, b ->
+      when {
+        a.type == b.type -> {
+          Timestamps.compare(a.activeStartTime, b.activeStartTime) * -1
+        }
+        a.type == ModelLine.Type.PROD -> -1
+        a.type == ModelLine.Type.HOLDBACK -> {
+          if (b.type == ModelLine.Type.PROD) {
+            1
+          } else -1
+        }
+        a.type == ModelLine.Type.DEV -> 1
+        else -> -1
+      }
+    }
 }
