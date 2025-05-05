@@ -19,6 +19,12 @@ module "edp_aggregator_bucket" {
   location = var.edp_aggregator_bucket_location
 }
 
+module "data_watcher_private_key" {
+  source    = "../secret"
+  secret_id = var.data_watcher_private_key_id
+  secret_path = var.data_watcher_private_key_path
+}
+
 module "data_watcher_function_service_accounts" {
   source    = "../gcs-bucket-cloud-function"
 

@@ -49,5 +49,8 @@ module "edp_aggregator" {
   data_watcher_service_account_name         = "data-watcher"
   data_watcher_trigger_service_account_name = "data-watcher-trigger"
   terraform_service_account                 = var.terraform_service_account
+
+  data_watcher_private_key_id               = "edpa_datawatcher_tls_key"
+  data_watcher_private_key_path             = "../../../main/k8s/testing/secretfiles/data_watcher_tls.key"
 }
 

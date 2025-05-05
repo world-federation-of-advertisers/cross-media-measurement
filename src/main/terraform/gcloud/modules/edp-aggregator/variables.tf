@@ -89,3 +89,13 @@ variable "terraform_service_account" {
   type        = string
   nullable    = false
 }
+
+variable "data_watcher_private_key_id" {
+  type        = string
+  description = "The ID of data watcher private key"
+}
+
+variable "data_watcher_private_key_path" {
+  type        = string
+  description = "The path of the data watcher private key"
+}
