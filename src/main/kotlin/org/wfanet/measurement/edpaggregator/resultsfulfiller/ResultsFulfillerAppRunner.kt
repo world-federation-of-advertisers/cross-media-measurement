@@ -2,11 +2,8 @@ package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
 import kotlinx.coroutines.runBlocking
 import com.google.protobuf.Parser
-import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
-import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.SigningCerts
-import org.wfanet.measurement.common.crypto.tink.loadPrivateKey
 import org.wfanet.measurement.common.grpc.TlsFlags
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import picocli.CommandLine
