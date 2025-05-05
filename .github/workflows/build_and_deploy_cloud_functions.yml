@@ -80,7 +80,7 @@ jobs:
           DATA_WATCHER_TLS_PEM_SECRET: ${{ vars.DATA_WATCHER_TLS_PEM_SECRET }}
           DATA_WATCHER_TLS_KEY_SECRET: ${{ vars.DATA_WATCHER_TLS_KEY_SECRET }}
           SECURE_COMPUTATION_ROOT_SECRET: ${{ vars.SECURE_COMPUTATION_ROOT_SECRET }}
-        run: |
+        run: >
           gcloud functions deploy data-watcher
           --gen2
           --runtime=java17
