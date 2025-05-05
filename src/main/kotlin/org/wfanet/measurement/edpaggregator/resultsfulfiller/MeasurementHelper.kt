@@ -6,8 +6,6 @@ import java.util.logging.Level
 import java.util.logging.Logger
 import kotlin.math.max
 import kotlin.math.roundToInt
-import kotlin.random.Random
-import kotlin.random.asJavaRandom
 import kotlinx.coroutines.flow.Flow
 import org.apache.commons.math3.distribution.ConstantRealDistribution
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
@@ -33,32 +31,18 @@ import org.wfanet.measurement.eventdataprovider.noiser.DirectNoiseMechanism
 import org.wfanet.measurement.eventdataprovider.noiser.DpParams
 import org.wfanet.measurement.eventdataprovider.noiser.GaussianNoiser
 import org.wfanet.measurement.eventdataprovider.noiser.LaplaceNoiser
+import java.security.SecureRandom
 
 /**
  * Helper functions for measurement operations.
  */
 open class MeasurementHelper(
-  private val requisitionsStub: RequisitionsCoroutineStub,
-  private val dataProviderSigningKeyHandle: SigningKeyHandle,
-  private val random: Random = Random,
-  private val dataProviderCertificateKey: DataProviderCertificateKey
+        private val requisitionsStub: RequisitionsCoroutineStub,
+        private val dataProviderSigningKeyHandle: SigningKeyHandle,
+        private val random: SecureRandom = SecureRandom(),
+        private val dataProviderCertificateKey: DataProviderCertificateKey
 ) {
   private val logger: Logger = Logger.getLogger(this::class.java.name)
-
-  /**
-   * Selects the most preferred [DirectNoiseMechanism] for reach and frequency measurements from the
-   * overlap of a list of preferred [DirectNoiseMechanism] and a set of [DirectNoiseMechanism]
-   * [options].
-   */
-  private fun selectReachAndFrequencyNoiseMechanism(
-    options: Set<DirectNoiseMechanism>
-  ): DirectNoiseMechanism {
-    val preferences = listOf(DirectNoiseMechanism.CONTINUOUS_GAUSSIAN)
-    return preferences.firstOrNull { preference -> options.contains(preference) }
-      ?: throw Exception(
-        "No valid noise mechanism option for reach or frequency measurements.",
-      )
-  }
 
   suspend fun fulfillDirectReachAndFrequencyMeasurement(
     requisition: Requisition,
@@ -79,7 +63,7 @@ open class MeasurementHelper(
     fulfillDirectMeasurement(requisition, measurementSpec, nonce, measurementResult)
   }
 
-  protected suspend fun fulfillDirectMeasurement(
+  suspend fun fulfillDirectMeasurement(
     requisition: Requisition,
     measurementSpec: MeasurementSpec,
     nonce: Long,
@@ -230,7 +214,7 @@ open class MeasurementHelper(
   private fun getPublisherNoiser(
     privacyParams: DifferentialPrivacyParams,
     directNoiseMechanism: DirectNoiseMechanism,
-    random: Random,
+    random: SecureRandom,
   ): AbstractNoiser =
     when (directNoiseMechanism) {
       DirectNoiseMechanism.NONE ->
@@ -241,10 +225,10 @@ open class MeasurementHelper(
         }
 
       DirectNoiseMechanism.CONTINUOUS_LAPLACE ->
-        LaplaceNoiser(DpParams(privacyParams.epsilon, privacyParams.delta), random.asJavaRandom())
+        LaplaceNoiser(DpParams(privacyParams.epsilon, privacyParams.delta), random)
 
       DirectNoiseMechanism.CONTINUOUS_GAUSSIAN ->
-        GaussianNoiser(DpParams(privacyParams.epsilon, privacyParams.delta), random.asJavaRandom())
+        GaussianNoiser(DpParams(privacyParams.epsilon, privacyParams.delta), random)
     }
 
   /**

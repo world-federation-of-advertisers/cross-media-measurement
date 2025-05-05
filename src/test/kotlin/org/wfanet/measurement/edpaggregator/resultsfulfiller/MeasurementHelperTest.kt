@@ -32,7 +32,6 @@ import org.wfanet.measurement.api.v2alpha.fulfillDirectRequisitionResponse
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
-import org.wfanet.measurement.api.v2alpha.DeterministicCountDistinct
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.MeasurementKt
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
@@ -48,6 +47,7 @@ import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.mockito.kotlin.any
+import org.wfanet.measurement.api.v2alpha.MeasurementKt.result
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reachAndFrequency
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.vidSamplingInterval
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt.direct
@@ -61,12 +61,10 @@ import org.wfanet.measurement.consent.client.measurementconsumer.encryptRequisit
 import org.wfanet.measurement.consent.client.measurementconsumer.signMeasurementSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.signRequisitionSpec
 import org.wfanet.measurement.eventdataprovider.noiser.DirectNoiseMechanism
-import org.wfanet.measurement.integration.common.loadEncryptionPrivateKey
-
+import java.security.SecureRandom
 
 @RunWith(JUnit4::class)
 class MeasurementHelperTest {
-
   private val requisitionsServiceMock: RequisitionsCoroutineImplBase = mockService {
     onBlocking { fulfillDirectRequisition(any()) }.thenReturn(fulfillDirectRequisitionResponse {})
   }
@@ -78,7 +76,7 @@ class MeasurementHelperTest {
     RequisitionsCoroutineStub(grpcTestServerRule.channel)
   }
 
-  private val random = Random
+  private val random = SecureRandom()
 
   private lateinit var measurementHelper: MeasurementHelper
 
@@ -93,20 +91,7 @@ class MeasurementHelperTest {
   }
 
   @Test
-  fun `fulfillDirectMeasurement succeeds`() = runBlocking {
-    // Use the requisition from the companion object
-    val requisition = REQUISITION
-
-    val measurementSpec = MEASUREMENT_SPEC
-
-    val measurementResult = MeasurementKt.result {
-      reach = MeasurementKt.ResultKt.reach {
-        value = 100L
-        noiseMechanism = NoiseMechanism.CONTINUOUS_GAUSSIAN
-        deterministicCountDistinct = DeterministicCountDistinct.getDefaultInstance()
-      }
-    }
-
+  fun `fulfillDirectReachAndFrequencyMeasurement creates correct proto`() = runBlocking {
     val nonce = Random.Default.nextLong()
 
     val vids = flow {
@@ -117,8 +102,8 @@ class MeasurementHelperTest {
 
     // Call the method under test
     measurementHelper.fulfillDirectReachAndFrequencyMeasurement(
-      requisition,
-      measurementSpec,
+      REQUISITION,
+      MEASUREMENT_SPEC,
       vids,
       DIRECT_PROTOCOL,
       DirectNoiseMechanism.CONTINUOUS_GAUSSIAN,
@@ -137,13 +122,38 @@ class MeasurementHelperTest {
       )
   }
 
+  @Test
+  fun `fulfillDirectMeasurement creates correct proto`() = runBlocking {
+    val nonce = Random.Default.nextLong()
+
+    val result = result {
+      MeasurementKt.ResultKt.reach { value = 100L }
+    }
+
+    // Call the method under test
+    measurementHelper.fulfillDirectMeasurement(
+      REQUISITION,
+      MEASUREMENT_SPEC,
+      nonce,
+      result
+    )
+
+    // Verify the stub was called with the correct parameters
+    verifyProtoArgument(requisitionsServiceMock,RequisitionsCoroutineImplBase::fulfillDirectRequisition)
+            .comparingExpectedFieldsOnly()
+            .isEqualTo(
+                    fulfillDirectRequisitionRequest {
+                      name = REQUISITION_NAME
+                      this.nonce = nonce
+                      certificate = "$EDP_NAME/certificates/AAAAAAAAAAg"
+                    }
+            )
+  }
 
   companion object {
     private const val EDP_ID = "someDataProvider"
     private const val EDP_NAME = "dataProviders/$EDP_ID"
     private const val EDP_DISPLAY_NAME = "edp1"
-    private val PRIVATE_ENCRYPTION_KEY =
-      loadEncryptionPrivateKey("${EDP_DISPLAY_NAME}_enc_private.tink")
     private val SECRET_FILES_PATH: Path =
       checkNotNull(
         getRuntimePath(
