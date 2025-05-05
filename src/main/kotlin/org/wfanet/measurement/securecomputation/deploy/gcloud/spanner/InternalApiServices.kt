@@ -22,13 +22,13 @@ import org.wfanet.measurement.securecomputation.service.internal.QueueMapping
 import org.wfanet.measurement.securecomputation.service.internal.Services
 import org.wfanet.measurement.securecomputation.service.internal.WorkItemPublisher
 
-object InternalApiServices {
-  fun build(
-    workItemPublisher: WorkItemPublisher,
-    databaseClient: AsyncDatabaseClient,
-    queueMapping: QueueMapping,
-    idGenerator: IdGenerator = IdGenerator.Default,
-  ): Services {
+class InternalApiServices(
+  private val workItemPublisher: WorkItemPublisher,
+  private val databaseClient: AsyncDatabaseClient,
+  private val queueMapping: QueueMapping,
+  private val idGenerator: IdGenerator = IdGenerator.Default,
+) {
+  fun build(): Services {
     return Services(
       SpannerWorkItemsService(databaseClient, queueMapping, idGenerator, workItemPublisher),
       SpannerWorkItemAttemptsService(databaseClient, queueMapping, idGenerator),

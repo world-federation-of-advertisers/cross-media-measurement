@@ -15,6 +15,7 @@
 variable "instance_template_name" {
   description = "The name of the instance template."
   type        = string
+  default     = null
 }
 
 variable "base_instance_name" {
@@ -42,8 +43,8 @@ variable "app_args" {
 }
 
 variable "subscription_id" {
-  description = "The subscription used to determine the amount of undelivered messages."
-  type        = number
+  description = "The ID of the Pub/Sub subscription to which the service account will be granted access."
+  type        = string
   nullable    = false
 }
 
@@ -71,20 +72,21 @@ variable "machine_type" {
   nullable    = false
 }
 
-variable "topic_id" {
-  description = "The pubsub topic id to grant access to."
-  type        = string
-  nullable    = false
-}
-
-variable "storage_bucket_name" {
-  description = "The bucket to grant access to."
-  type        = string
-  nullable    = false
-}
-
 variable "kms_key_id" {
-  description = "The kms key id to grant access to."
+  description = "The kms key id of the key encryption key to grant access to."
   type        = string
   nullable    = false
 }
+
+variable "docker_image" {
+  description = "The docker image to be deployed."
+  type        = string
+  nullable    = false
+}
+
+variable "terraform_service_account" {
+  description = "Service account used by terraform that needs to attach the MIG service account to the VM."
+  type        = string
+  nullable    = false
+}
+
