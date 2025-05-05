@@ -30,8 +30,8 @@ import com.google.type.interval
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
+import java.security.SecureRandom
 import java.time.LocalDate
-import kotlin.random.Random
 import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.runBlocking
@@ -187,6 +187,9 @@ class ResultsFulfillerTest {
 
     val typeRegistry = TypeRegistry.newBuilder().add(TestEvent.getDescriptor()).build()
 
+    // Setting RANDOM to always return 1 to cancel out noise and properly test with a consistent result value
+    RANDOM.setSeed(byteArrayOf(1, 1, 1, 1, 1, 1, 1, 1))
+
     val resultsFulfiller = ResultsFulfiller(
       PRIVATE_ENCRYPTION_KEY,
       requisitionsStub,
@@ -198,7 +201,8 @@ class ResultsFulfillerTest {
       kmsClient,
       StorageConfig(rootDirectory = impressionsTmpPath),
       StorageConfig(rootDirectory = metadataTmpPath),
-      StorageConfig(rootDirectory = requisitionsTmpPath)
+      StorageConfig(rootDirectory = requisitionsTmpPath),
+      RANDOM
     )
 
     resultsFulfiller.fulfillRequisitions()
@@ -291,10 +295,11 @@ class ResultsFulfillerTest {
   }
 
   companion object {
+    private val RANDOM = SecureRandom.getInstance("SHA1PRNG")
     private val LAST_EVENT_DATE = LocalDate.now()
     private val FIRST_EVENT_DATE = LAST_EVENT_DATE.minusDays(1)
     private val TIME_RANGE = OpenEndTimeRange.fromClosedDateRange(FIRST_EVENT_DATE..LAST_EVENT_DATE)
-    private const val REACH_TOLERANCE = 6.0
+    private const val REACH_TOLERANCE = 1.0
     private const val FREQUENCY_DISTRIBUTION_TOLERANCE = 1.0
 
     private val PERSON = person {
@@ -354,7 +359,7 @@ class ResultsFulfillerTest {
         }
       }
       measurementPublicKey = MC_PUBLIC_KEY.pack()
-      nonce = Random.Default.nextLong()
+      nonce = SecureRandom.getInstance("SHA1PRNG").nextLong()
     }
     private val ENCRYPTED_REQUISITION_SPEC =
       encryptRequisitionSpec(
