@@ -15,9 +15,6 @@
 name: "Build and Deploy cloud functions"
 
 on:
-  push:
-    branches:
-      - marcopremier/mount_datawatcher_certs_as_secrets
   workflow_dispatch:
     inputs:
       environment:
@@ -39,8 +36,7 @@ permissions:
 jobs:
   build-and-deploy-cloud-functions:
     runs-on: ubuntu-22.04
-#    environment: ${{ inputs.environment }}
-    environment: "dev"
+    environment: ${{ inputs.environment }}
     steps:
       - uses: actions/checkout@v4
 
@@ -96,4 +92,3 @@ jobs:
           --set-secrets=/secrets/certs/data_watcher_tls.pem=$DATA_WATCHER_TLS_PEM_SECRET:latest,\
           /secrets/certs/data_watcher_tls.key=$DATA_WATCHER_TLS_KEY_SECRET:latest,\
           /secrets/certs/secure_computation_root.pem=$SECURE_COMPUTATION_ROOT_SECRET:latest
-          
