@@ -39,7 +39,8 @@ permissions:
 jobs:
   build-and-deploy-cloud-functions:
     runs-on: ubuntu-22.04
-    environment: ${{ inputs.environment }}
+#    environment: ${{ inputs.environment }}
+    environment: "dev"
     steps:
       - uses: actions/checkout@v4
 
