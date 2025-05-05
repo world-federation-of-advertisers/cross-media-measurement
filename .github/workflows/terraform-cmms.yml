@@ -48,7 +48,8 @@ permissions:
 jobs:
   terraform:
     runs-on: ubuntu-22.04
-    environment: ${{ inputs.environment }}
+#    environment: ${{ inputs.environment }}
+    environment: "dev"
     env:
       GCLOUD_MODULE_PATH: src/main/terraform/gcloud/cmms
       GCLOUD_REGION: ${{ vars.GCLOUD_REGION }}
@@ -128,7 +129,8 @@ jobs:
       env:
         POSTGRES_INSTANCE: ${{ vars.POSTGRES_INSTANCE }}
         AWS_S3_BUCKET: ${{ vars.AWS_S3_BUCKET }}
-        ENVIRONMENT: ${{ inputs.environment }}
+#        ENVIRONMENT: ${{ inputs.environment }}
+        ENVIRONMENT: "dev"
       working-directory: ${{ env.AWS_MODULE_PATH }}
       run: >
         terraform plan
