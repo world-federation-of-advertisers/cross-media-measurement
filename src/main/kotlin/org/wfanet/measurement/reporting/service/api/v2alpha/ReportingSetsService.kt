@@ -183,7 +183,9 @@ class ReportingSetsService(
     }
 
     validateOperand(parentKey, setExpression.lhs)
-    validateOperand(parentKey, setExpression.rhs)
+    if (setExpression.hasRhs()) {
+      validateOperand(parentKey, setExpression.rhs)
+    }
   }
 
   /**
@@ -616,7 +618,9 @@ private fun ReportingSet.SetExpression.toInternal(): InternalReportingSet.SetExp
     operation = source.operation.toInternal()
 
     lhs = source.lhs.toInternal()
-    rhs = source.rhs.toInternal()
+    if (source.hasRhs()) {
+      rhs = source.rhs.toInternal()
+    }
   }
 }
 
