@@ -92,7 +92,7 @@ jobs:
           --source="$RUNNER_TEMP/data_watcher_source"
           --run-service-account=$DATA_WATCHER_SERVICE_ACCOUNT
           --trigger-service-account=$DATA_WATCHER_TRIGGER_SERVICE_ACCOUNT
-          --set-env-vars="CERT_JAR_FILE_NAME=data_watcher_tls.pem,PRIVATE_KEY_FILE_NAME=data_watcher_tls.key,CERT_COLLECTION_FILE_NAME=secure_computation_root.pem,CONTROL_PLANE_TARGET=$SECURE_COMPUTATION_PUBLIC_API_TARGET,CONTROL_PLANE_CERT_HOST=data-watcher.secure-computation.dev.halo-cmm.org"
+          --set-env-vars="CERT_FILE_PATH=/secrets/certs/data_watcher_tls.pem,PRIVATE_KEY_FILE_PATH=/secrets/certs/data_watcher_tls.key,CERT_COLLECTION_FILE_PATH=/secrets/certs/secure_computation_root.pem,CONTROL_PLANE_TARGET=$SECURE_COMPUTATION_PUBLIC_API_TARGET,CONTROL_PLANE_CERT_HOST=data-watcher.secure-computation.dev.halo-cmm.org"
           --set-secrets=\
           "/secrets/certs/data_watcher_tls.pem=$DATA_WATCHER_TLS_PEM_SECRET:latest",\
           "/secrets/certs/data_watcher_tls.key=$DATA_WATCHER_TLS_KEY_SECRET:latest",\
