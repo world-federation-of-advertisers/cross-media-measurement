@@ -36,6 +36,7 @@ import org.mockito.kotlin.any
 import org.mockito.kotlin.stub
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
+import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.ListModelLinesPageTokenKt.previousPageEnd
 import org.wfanet.measurement.api.v2alpha.ListModelLinesRequest
 import org.wfanet.measurement.api.v2alpha.ListModelLinesRequestKt.filter
@@ -83,7 +84,6 @@ import org.wfanet.measurement.internal.kingdom.modelLine as internalModelLine
 import org.wfanet.measurement.internal.kingdom.setActiveEndTimeRequest as internalsetActiveEndTimeRequest
 import org.wfanet.measurement.internal.kingdom.setModelLineHoldbackModelLineRequest as internalSetModelLineHoldbackModelLineRequest
 import org.wfanet.measurement.internal.kingdom.streamModelLinesRequest as internalStreamModelLinesRequest
-import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelLineInvalidArgsException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelLineNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelLineTypeIllegalException
@@ -1230,39 +1230,39 @@ class ModelLinesServiceTest {
     assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
   }
 
-  @Test fun `enumerateValidModelLines returns model lines`() = runBlocking {
+  @Test
+  fun `enumerateValidModelLines returns model lines`() = runBlocking {
     whenever(internalModelLinesMock.enumerateValidModelLines(any()))
-      .thenReturn(internalEnumerateValidModelLinesResponse {
-        modelLines += INTERNAL_MODEL_LINE
-      })
+      .thenReturn(internalEnumerateValidModelLinesResponse { modelLines += INTERNAL_MODEL_LINE })
 
-    val response = withModelProviderPrincipal(MODEL_PROVIDER_NAME) {
-      runBlocking {
-        service.enumerateValidModelLines(
-          enumerateValidModelLinesRequest {
-            parent = MODEL_SUITE_NAME
-            timeInterval = interval {
-              startTime = timestamp { seconds = 100 }
-              endTime = timestamp { seconds = 200 }
+    val response =
+      withModelProviderPrincipal(MODEL_PROVIDER_NAME) {
+        runBlocking {
+          service.enumerateValidModelLines(
+            enumerateValidModelLinesRequest {
+              parent = MODEL_SUITE_NAME
+              timeInterval = interval {
+                startTime = timestamp { seconds = 100 }
+                endTime = timestamp { seconds = 200 }
+              }
+              dataProviders += DATA_PROVIDER_NAME
             }
-            dataProviders += DATA_PROVIDER_NAME
-          }
-        )
+          )
+        }
       }
-    }
 
-    assertThat(response).isEqualTo(
-      enumerateValidModelLinesResponse {
-        modelLines += MODEL_LINE
-      }
-    )
+    assertThat(response).isEqualTo(enumerateValidModelLinesResponse { modelLines += MODEL_LINE })
 
-    verifyProtoArgument(internalModelLinesMock, ModelLinesCoroutineImplBase::enumerateValidModelLines)
+    verifyProtoArgument(
+        internalModelLinesMock,
+        ModelLinesCoroutineImplBase::enumerateValidModelLines,
+      )
       .isEqualTo(
         internalEnumerateValidModelLinesRequest {
           externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
           externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
-          externalDataProviderIds += apiIdToExternalId(DataProviderKey.fromName(DATA_PROVIDER_NAME)!!.dataProviderId)
+          externalDataProviderIds +=
+            apiIdToExternalId(DataProviderKey.fromName(DATA_PROVIDER_NAME)!!.dataProviderId)
           timeInterval = interval {
             startTime = timestamp { seconds = 100 }
             endTime = timestamp { seconds = 200 }
@@ -1275,37 +1275,36 @@ class ModelLinesServiceTest {
   @Test
   fun `enumerateValidModelLines is successful with mc principal`(): Unit = runBlocking {
     whenever(internalModelLinesMock.enumerateValidModelLines(any()))
-      .thenReturn(internalEnumerateValidModelLinesResponse {
-        modelLines += INTERNAL_MODEL_LINE
-      })
+      .thenReturn(internalEnumerateValidModelLinesResponse { modelLines += INTERNAL_MODEL_LINE })
 
-    val response = withModelProviderPrincipal(MODEL_PROVIDER_NAME) {
-      runBlocking {
-        service.enumerateValidModelLines(
-          enumerateValidModelLinesRequest {
-            parent = MODEL_SUITE_NAME
-            timeInterval = interval {
-              startTime = timestamp { seconds = 100 }
-              endTime = timestamp { seconds = 200 }
+    val response =
+      withModelProviderPrincipal(MODEL_PROVIDER_NAME) {
+        runBlocking {
+          service.enumerateValidModelLines(
+            enumerateValidModelLinesRequest {
+              parent = MODEL_SUITE_NAME
+              timeInterval = interval {
+                startTime = timestamp { seconds = 100 }
+                endTime = timestamp { seconds = 200 }
+              }
+              dataProviders += DATA_PROVIDER_NAME
             }
-            dataProviders += DATA_PROVIDER_NAME
-          }
-        )
+          )
+        }
       }
-    }
 
-    assertThat(response).isEqualTo(
-      enumerateValidModelLinesResponse {
-        modelLines += MODEL_LINE
-      }
-    )
+    assertThat(response).isEqualTo(enumerateValidModelLinesResponse { modelLines += MODEL_LINE })
 
-    verifyProtoArgument(internalModelLinesMock, ModelLinesCoroutineImplBase::enumerateValidModelLines)
+    verifyProtoArgument(
+        internalModelLinesMock,
+        ModelLinesCoroutineImplBase::enumerateValidModelLines,
+      )
       .isEqualTo(
         internalEnumerateValidModelLinesRequest {
           externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
           externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
-          externalDataProviderIds += apiIdToExternalId(DataProviderKey.fromName(DATA_PROVIDER_NAME)!!.dataProviderId)
+          externalDataProviderIds +=
+            apiIdToExternalId(DataProviderKey.fromName(DATA_PROVIDER_NAME)!!.dataProviderId)
           timeInterval = interval {
             startTime = timestamp { seconds = 100 }
             endTime = timestamp { seconds = 200 }

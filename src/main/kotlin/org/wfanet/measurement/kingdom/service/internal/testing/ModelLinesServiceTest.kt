@@ -904,201 +904,207 @@ abstract class ModelLinesServiceTest<T : ModelLinesCoroutineImplBase> {
     val dataProvider2 = population.createDataProvider(dataProvidersService)
     val createdPopulation = population.createPopulation(dataProvider, populationsService)
     val modelRelease =
-      population.createModelRelease(
-        modelSuite,
-        createdPopulation,
-        modelReleasesService,
+      population.createModelRelease(modelSuite, createdPopulation, modelReleasesService)
+
+    val oldProdModelLine =
+      modelLinesService.createModelLine(
+        modelLine {
+          externalModelSuiteId = modelSuite.externalModelSuiteId
+          externalModelProviderId = modelSuite.externalModelProviderId
+          activeStartTime = futureTime
+          type = ModelLine.Type.PROD
+          displayName = "display name"
+          description = "description"
+        }
       )
 
-    val oldProdModelLine = modelLinesService.createModelLine(modelLine {
-      externalModelSuiteId = modelSuite.externalModelSuiteId
-      externalModelProviderId = modelSuite.externalModelProviderId
-      activeStartTime = futureTime
-      type = ModelLine.Type.PROD
-      displayName = "display name"
-      description = "description"
-    })
-
-    modelRolloutsService.createModelRollout( modelRollout {
-      externalModelProviderId = oldProdModelLine.externalModelProviderId
-      externalModelSuiteId = oldProdModelLine.externalModelSuiteId
-      externalModelLineId = oldProdModelLine.externalModelLineId
-      rolloutPeriodStartTime = futureTime
-      rolloutPeriodEndTime = futureTime
-      externalModelReleaseId = modelRelease.externalModelReleaseId
-    })
-
-    val newProdModelLine = modelLinesService.createModelLine(modelLine {
-      externalModelSuiteId = modelSuite.externalModelSuiteId
-      externalModelProviderId = modelSuite.externalModelProviderId
-      activeStartTime = futureTime.copy {
-        seconds += 5
+    modelRolloutsService.createModelRollout(
+      modelRollout {
+        externalModelProviderId = oldProdModelLine.externalModelProviderId
+        externalModelSuiteId = oldProdModelLine.externalModelSuiteId
+        externalModelLineId = oldProdModelLine.externalModelLineId
+        rolloutPeriodStartTime = futureTime
+        rolloutPeriodEndTime = futureTime
+        externalModelReleaseId = modelRelease.externalModelReleaseId
       }
-      type = ModelLine.Type.PROD
-      displayName = "display name"
-      description = "description"
-    })
+    )
 
-    modelRolloutsService.createModelRollout( modelRollout {
-      externalModelProviderId = newProdModelLine.externalModelProviderId
-      externalModelSuiteId = newProdModelLine.externalModelSuiteId
-      externalModelLineId = newProdModelLine.externalModelLineId
-      rolloutPeriodStartTime = futureTime.copy {
-        seconds += 5
-      }
-      rolloutPeriodEndTime = futureTime.copy {
-        seconds += 5
-      }
-      externalModelReleaseId = modelRelease.externalModelReleaseId
-    })
-
-    val holdBackModelLine = modelLinesService.createModelLine(modelLine {
-      externalModelSuiteId = modelSuite.externalModelSuiteId
-      externalModelProviderId = modelSuite.externalModelProviderId
-      activeStartTime = futureTime
-      type = ModelLine.Type.HOLDBACK
-      displayName = "display name"
-      description = "description"
-    })
-
-    modelRolloutsService.createModelRollout( modelRollout {
-      externalModelProviderId = holdBackModelLine.externalModelProviderId
-      externalModelSuiteId = holdBackModelLine.externalModelSuiteId
-      externalModelLineId = holdBackModelLine.externalModelLineId
-      rolloutPeriodStartTime = futureTime
-      rolloutPeriodEndTime = futureTime
-      externalModelReleaseId = modelRelease.externalModelReleaseId
-    })
-
-    val devModelLine = modelLinesService.createModelLine(modelLine {
-      externalModelSuiteId = modelSuite.externalModelSuiteId
-      externalModelProviderId = modelSuite.externalModelProviderId
-      activeStartTime = futureTime
-      type = ModelLine.Type.DEV
-      displayName = "display name"
-      description = "description"
-    })
-
-    modelRolloutsService.createModelRollout( modelRollout {
-      externalModelProviderId = devModelLine.externalModelProviderId
-      externalModelSuiteId = devModelLine.externalModelSuiteId
-      externalModelLineId = devModelLine.externalModelLineId
-      rolloutPeriodStartTime = futureTime
-      rolloutPeriodEndTime = futureTime
-      externalModelReleaseId = modelRelease.externalModelReleaseId
-    })
-
-    dataProvidersService.replaceDataAvailabilityIntervals(replaceDataAvailabilityIntervalsRequest {
-      externalDataProviderId = dataProvider.externalDataProviderId
-      dataAvailabilityIntervals += DataProviderKt.dataAvailabilityMapEntry {
-        key = modelLineKey {
-          externalModelProviderId = oldProdModelLine.externalModelProviderId
-          externalModelSuiteId = oldProdModelLine.externalModelSuiteId
-          externalModelLineId = oldProdModelLine.externalModelLineId
+    val newProdModelLine =
+      modelLinesService.createModelLine(
+        modelLine {
+          externalModelSuiteId = modelSuite.externalModelSuiteId
+          externalModelProviderId = modelSuite.externalModelProviderId
+          activeStartTime = futureTime.copy { seconds += 5 }
+          type = ModelLine.Type.PROD
+          displayName = "display name"
+          description = "description"
         }
-        value = interval {
-          startTime = futureTime
-          endTime = futureTime.copy {
-            seconds += 20
+      )
+
+    modelRolloutsService.createModelRollout(
+      modelRollout {
+        externalModelProviderId = newProdModelLine.externalModelProviderId
+        externalModelSuiteId = newProdModelLine.externalModelSuiteId
+        externalModelLineId = newProdModelLine.externalModelLineId
+        rolloutPeriodStartTime = futureTime.copy { seconds += 5 }
+        rolloutPeriodEndTime = futureTime.copy { seconds += 5 }
+        externalModelReleaseId = modelRelease.externalModelReleaseId
+      }
+    )
+
+    val holdBackModelLine =
+      modelLinesService.createModelLine(
+        modelLine {
+          externalModelSuiteId = modelSuite.externalModelSuiteId
+          externalModelProviderId = modelSuite.externalModelProviderId
+          activeStartTime = futureTime
+          type = ModelLine.Type.HOLDBACK
+          displayName = "display name"
+          description = "description"
+        }
+      )
+
+    modelRolloutsService.createModelRollout(
+      modelRollout {
+        externalModelProviderId = holdBackModelLine.externalModelProviderId
+        externalModelSuiteId = holdBackModelLine.externalModelSuiteId
+        externalModelLineId = holdBackModelLine.externalModelLineId
+        rolloutPeriodStartTime = futureTime
+        rolloutPeriodEndTime = futureTime
+        externalModelReleaseId = modelRelease.externalModelReleaseId
+      }
+    )
+
+    val devModelLine =
+      modelLinesService.createModelLine(
+        modelLine {
+          externalModelSuiteId = modelSuite.externalModelSuiteId
+          externalModelProviderId = modelSuite.externalModelProviderId
+          activeStartTime = futureTime
+          type = ModelLine.Type.DEV
+          displayName = "display name"
+          description = "description"
+        }
+      )
+
+    modelRolloutsService.createModelRollout(
+      modelRollout {
+        externalModelProviderId = devModelLine.externalModelProviderId
+        externalModelSuiteId = devModelLine.externalModelSuiteId
+        externalModelLineId = devModelLine.externalModelLineId
+        rolloutPeriodStartTime = futureTime
+        rolloutPeriodEndTime = futureTime
+        externalModelReleaseId = modelRelease.externalModelReleaseId
+      }
+    )
+
+    dataProvidersService.replaceDataAvailabilityIntervals(
+      replaceDataAvailabilityIntervalsRequest {
+        externalDataProviderId = dataProvider.externalDataProviderId
+        dataAvailabilityIntervals +=
+          DataProviderKt.dataAvailabilityMapEntry {
+            key = modelLineKey {
+              externalModelProviderId = oldProdModelLine.externalModelProviderId
+              externalModelSuiteId = oldProdModelLine.externalModelSuiteId
+              externalModelLineId = oldProdModelLine.externalModelLineId
+            }
+            value = interval {
+              startTime = futureTime
+              endTime = futureTime.copy { seconds += 20 }
+            }
           }
-        }
-      }
-      dataAvailabilityIntervals += DataProviderKt.dataAvailabilityMapEntry {
-        key = modelLineKey {
-          externalModelProviderId = newProdModelLine.externalModelProviderId
-          externalModelSuiteId = newProdModelLine.externalModelSuiteId
-          externalModelLineId = newProdModelLine.externalModelLineId
-        }
-        value = interval {
-          startTime = futureTime
-          endTime = futureTime.copy {
-            seconds += 20
+        dataAvailabilityIntervals +=
+          DataProviderKt.dataAvailabilityMapEntry {
+            key = modelLineKey {
+              externalModelProviderId = newProdModelLine.externalModelProviderId
+              externalModelSuiteId = newProdModelLine.externalModelSuiteId
+              externalModelLineId = newProdModelLine.externalModelLineId
+            }
+            value = interval {
+              startTime = futureTime
+              endTime = futureTime.copy { seconds += 20 }
+            }
           }
-        }
-      }
-      dataAvailabilityIntervals += DataProviderKt.dataAvailabilityMapEntry {
-        key = modelLineKey {
-          externalModelProviderId = holdBackModelLine.externalModelProviderId
-          externalModelSuiteId = holdBackModelLine.externalModelSuiteId
-          externalModelLineId = holdBackModelLine.externalModelLineId
-        }
-        value = interval {
-          startTime = futureTime
-          endTime = futureTime.copy {
-            seconds += 20
+        dataAvailabilityIntervals +=
+          DataProviderKt.dataAvailabilityMapEntry {
+            key = modelLineKey {
+              externalModelProviderId = holdBackModelLine.externalModelProviderId
+              externalModelSuiteId = holdBackModelLine.externalModelSuiteId
+              externalModelLineId = holdBackModelLine.externalModelLineId
+            }
+            value = interval {
+              startTime = futureTime
+              endTime = futureTime.copy { seconds += 20 }
+            }
           }
-        }
-      }
-      dataAvailabilityIntervals += DataProviderKt.dataAvailabilityMapEntry {
-        key = modelLineKey {
-          externalModelProviderId = devModelLine.externalModelProviderId
-          externalModelSuiteId = devModelLine.externalModelSuiteId
-          externalModelLineId = devModelLine.externalModelLineId
-        }
-        value = interval {
-          startTime = futureTime
-          endTime = futureTime.copy {
-            seconds += 20
+        dataAvailabilityIntervals +=
+          DataProviderKt.dataAvailabilityMapEntry {
+            key = modelLineKey {
+              externalModelProviderId = devModelLine.externalModelProviderId
+              externalModelSuiteId = devModelLine.externalModelSuiteId
+              externalModelLineId = devModelLine.externalModelLineId
+            }
+            value = interval {
+              startTime = futureTime
+              endTime = futureTime.copy { seconds += 20 }
+            }
           }
-        }
       }
-    })
+    )
 
-    dataProvidersService.replaceDataAvailabilityIntervals(replaceDataAvailabilityIntervalsRequest {
-      externalDataProviderId = dataProvider2.externalDataProviderId
-      dataAvailabilityIntervals += DataProviderKt.dataAvailabilityMapEntry {
-        key = modelLineKey {
-          externalModelProviderId = oldProdModelLine.externalModelProviderId
-          externalModelSuiteId = oldProdModelLine.externalModelSuiteId
-          externalModelLineId = oldProdModelLine.externalModelLineId
-        }
-        value = interval {
-          startTime = futureTime
-          endTime = futureTime.copy {
-            seconds += 20
+    dataProvidersService.replaceDataAvailabilityIntervals(
+      replaceDataAvailabilityIntervalsRequest {
+        externalDataProviderId = dataProvider2.externalDataProviderId
+        dataAvailabilityIntervals +=
+          DataProviderKt.dataAvailabilityMapEntry {
+            key = modelLineKey {
+              externalModelProviderId = oldProdModelLine.externalModelProviderId
+              externalModelSuiteId = oldProdModelLine.externalModelSuiteId
+              externalModelLineId = oldProdModelLine.externalModelLineId
+            }
+            value = interval {
+              startTime = futureTime
+              endTime = futureTime.copy { seconds += 20 }
+            }
           }
-        }
-      }
-      dataAvailabilityIntervals += DataProviderKt.dataAvailabilityMapEntry {
-        key = modelLineKey {
-          externalModelProviderId = newProdModelLine.externalModelProviderId
-          externalModelSuiteId = newProdModelLine.externalModelSuiteId
-          externalModelLineId = newProdModelLine.externalModelLineId
-        }
-        value = interval {
-          startTime = futureTime
-          endTime = futureTime.copy {
-            seconds += 20
+        dataAvailabilityIntervals +=
+          DataProviderKt.dataAvailabilityMapEntry {
+            key = modelLineKey {
+              externalModelProviderId = newProdModelLine.externalModelProviderId
+              externalModelSuiteId = newProdModelLine.externalModelSuiteId
+              externalModelLineId = newProdModelLine.externalModelLineId
+            }
+            value = interval {
+              startTime = futureTime
+              endTime = futureTime.copy { seconds += 20 }
+            }
           }
-        }
-      }
-      dataAvailabilityIntervals += DataProviderKt.dataAvailabilityMapEntry {
-        key = modelLineKey {
-          externalModelProviderId = holdBackModelLine.externalModelProviderId
-          externalModelSuiteId = holdBackModelLine.externalModelSuiteId
-          externalModelLineId = holdBackModelLine.externalModelLineId
-        }
-        value = interval {
-          startTime = futureTime
-          endTime = futureTime.copy {
-            seconds += 20
+        dataAvailabilityIntervals +=
+          DataProviderKt.dataAvailabilityMapEntry {
+            key = modelLineKey {
+              externalModelProviderId = holdBackModelLine.externalModelProviderId
+              externalModelSuiteId = holdBackModelLine.externalModelSuiteId
+              externalModelLineId = holdBackModelLine.externalModelLineId
+            }
+            value = interval {
+              startTime = futureTime
+              endTime = futureTime.copy { seconds += 20 }
+            }
           }
-        }
-      }
-      dataAvailabilityIntervals += DataProviderKt.dataAvailabilityMapEntry {
-        key = modelLineKey {
-          externalModelProviderId = devModelLine.externalModelProviderId
-          externalModelSuiteId = devModelLine.externalModelSuiteId
-          externalModelLineId = devModelLine.externalModelLineId
-        }
-        value = interval {
-          startTime = futureTime
-          endTime = futureTime.copy {
-            seconds += 20
+        dataAvailabilityIntervals +=
+          DataProviderKt.dataAvailabilityMapEntry {
+            key = modelLineKey {
+              externalModelProviderId = devModelLine.externalModelProviderId
+              externalModelSuiteId = devModelLine.externalModelSuiteId
+              externalModelLineId = devModelLine.externalModelLineId
+            }
+            value = interval {
+              startTime = futureTime
+              endTime = futureTime.copy { seconds += 20 }
+            }
           }
-        }
       }
-    })
+    )
 
     val enumerateValidModelLinesResponse =
       modelLinesService.enumerateValidModelLines(
@@ -1106,12 +1112,8 @@ abstract class ModelLinesServiceTest<T : ModelLinesCoroutineImplBase> {
           externalModelProviderId = modelSuite.externalModelProviderId
           externalModelSuiteId = modelSuite.externalModelSuiteId
           timeInterval = interval {
-            startTime = futureTime.copy {
-              seconds += 10
-            }
-            endTime = futureTime.copy {
-              seconds += 15
-            }
+            startTime = futureTime.copy { seconds += 10 }
+            endTime = futureTime.copy { seconds += 15 }
           }
           externalDataProviderIds += dataProvider.externalDataProviderId
           externalDataProviderIds += dataProvider2.externalDataProviderId
@@ -1121,12 +1123,15 @@ abstract class ModelLinesServiceTest<T : ModelLinesCoroutineImplBase> {
         }
       )
 
-    assertThat(enumerateValidModelLinesResponse).isEqualTo(enumerateValidModelLinesResponse {
-      modelLines += newProdModelLine
-      modelLines += oldProdModelLine
-      modelLines += holdBackModelLine
-      modelLines += devModelLine
-    })
+    assertThat(enumerateValidModelLinesResponse)
+      .isEqualTo(
+        enumerateValidModelLinesResponse {
+          modelLines += newProdModelLine
+          modelLines += oldProdModelLine
+          modelLines += holdBackModelLine
+          modelLines += devModelLine
+        }
+      )
   }
 
   @Test
@@ -1137,49 +1142,49 @@ abstract class ModelLinesServiceTest<T : ModelLinesCoroutineImplBase> {
       val dataProvider = population.createDataProvider(dataProvidersService)
       val createdPopulation = population.createPopulation(dataProvider, populationsService)
       val modelRelease =
-        population.createModelRelease(
-          modelSuite,
-          createdPopulation,
-          modelReleasesService,
+        population.createModelRelease(modelSuite, createdPopulation, modelReleasesService)
+
+      val modelLine =
+        modelLinesService.createModelLine(
+          modelLine {
+            externalModelSuiteId = modelSuite.externalModelSuiteId
+            externalModelProviderId = modelSuite.externalModelProviderId
+            activeStartTime = futureTime
+            activeEndTime = futureTime.copy { seconds += 50 }
+            type = ModelLine.Type.PROD
+            displayName = "display name"
+            description = "description"
+          }
         )
 
-      val modelLine = modelLinesService.createModelLine(modelLine {
-        externalModelSuiteId = modelSuite.externalModelSuiteId
-        externalModelProviderId = modelSuite.externalModelProviderId
-        activeStartTime = futureTime
-        activeEndTime = futureTime.copy {
-          seconds += 50
+      modelRolloutsService.createModelRollout(
+        modelRollout {
+          externalModelProviderId = modelLine.externalModelProviderId
+          externalModelSuiteId = modelLine.externalModelSuiteId
+          externalModelLineId = modelLine.externalModelLineId
+          rolloutPeriodStartTime = futureTime
+          rolloutPeriodEndTime = futureTime
+          externalModelReleaseId = modelRelease.externalModelReleaseId
         }
-        type = ModelLine.Type.PROD
-        displayName = "display name"
-        description = "description"
-      })
+      )
 
-      modelRolloutsService.createModelRollout( modelRollout {
-        externalModelProviderId = modelLine.externalModelProviderId
-        externalModelSuiteId = modelLine.externalModelSuiteId
-        externalModelLineId = modelLine.externalModelLineId
-        rolloutPeriodStartTime = futureTime
-        rolloutPeriodEndTime = futureTime
-        externalModelReleaseId = modelRelease.externalModelReleaseId
-      })
-
-      dataProvidersService.replaceDataAvailabilityIntervals(replaceDataAvailabilityIntervalsRequest {
-        externalDataProviderId = dataProvider.externalDataProviderId
-        dataAvailabilityIntervals += DataProviderKt.dataAvailabilityMapEntry {
-          key = modelLineKey {
-            externalModelProviderId = modelLine.externalModelProviderId
-            externalModelSuiteId = modelLine.externalModelSuiteId
-            externalModelLineId = modelLine.externalModelLineId
-          }
-          value = interval {
-            startTime = futureTime
-            endTime = futureTime.copy {
-              seconds += 20
+      dataProvidersService.replaceDataAvailabilityIntervals(
+        replaceDataAvailabilityIntervalsRequest {
+          externalDataProviderId = dataProvider.externalDataProviderId
+          dataAvailabilityIntervals +=
+            DataProviderKt.dataAvailabilityMapEntry {
+              key = modelLineKey {
+                externalModelProviderId = modelLine.externalModelProviderId
+                externalModelSuiteId = modelLine.externalModelSuiteId
+                externalModelLineId = modelLine.externalModelLineId
+              }
+              value = interval {
+                startTime = futureTime
+                endTime = futureTime.copy { seconds += 20 }
+              }
             }
-          }
         }
-      })
+      )
 
       val enumerateValidModelLinesResponse =
         modelLinesService.enumerateValidModelLines(
@@ -1187,20 +1192,15 @@ abstract class ModelLinesServiceTest<T : ModelLinesCoroutineImplBase> {
             externalModelProviderId = modelSuite.externalModelProviderId
             externalModelSuiteId = modelSuite.externalModelSuiteId
             timeInterval = interval {
-              startTime = futureTime.copy {
-                seconds += 10
-              }
-              endTime = futureTime.copy {
-                seconds += 15
-              }
+              startTime = futureTime.copy { seconds += 10 }
+              endTime = futureTime.copy { seconds += 15 }
             }
             externalDataProviderIds += dataProvider.externalDataProviderId
           }
         )
 
-      assertThat(enumerateValidModelLinesResponse).isEqualTo(enumerateValidModelLinesResponse {
-        modelLines += modelLine
-      })
+      assertThat(enumerateValidModelLinesResponse)
+        .isEqualTo(enumerateValidModelLinesResponse { modelLines += modelLine })
     }
 
   @Test
@@ -1211,11 +1211,7 @@ abstract class ModelLinesServiceTest<T : ModelLinesCoroutineImplBase> {
       val dataProvider = population.createDataProvider(dataProvidersService)
       val createdPopulation = population.createPopulation(dataProvider, populationsService)
       val modelRelease =
-        population.createModelRelease(
-          modelSuite,
-          createdPopulation,
-          modelReleasesService,
-        )
+        population.createModelRelease(modelSuite, createdPopulation, modelReleasesService)
 
       val modelLine = modelLine {
         externalModelSuiteId = modelSuite.externalModelSuiteId
@@ -1238,23 +1234,23 @@ abstract class ModelLinesServiceTest<T : ModelLinesCoroutineImplBase> {
       }
       modelRolloutsService.createModelRollout(modelRollout)
 
-      dataProvidersService.replaceDataAvailabilityIntervals(replaceDataAvailabilityIntervalsRequest {
-        externalDataProviderId = dataProvider.externalDataProviderId
-        dataAvailabilityIntervals += DataProviderKt.dataAvailabilityMapEntry {
-          key = modelLineKey {
-            externalModelProviderId = createdModelLine.externalModelProviderId
-            externalModelSuiteId = createdModelLine.externalModelSuiteId
-            externalModelLineId = createdModelLine.externalModelLineId
-          }
-          value = interval {
-            startTime = futureTime
-            endTime = futureTime.copy {
-              seconds += 20
+      dataProvidersService.replaceDataAvailabilityIntervals(
+        replaceDataAvailabilityIntervalsRequest {
+          externalDataProviderId = dataProvider.externalDataProviderId
+          dataAvailabilityIntervals +=
+            DataProviderKt.dataAvailabilityMapEntry {
+              key = modelLineKey {
+                externalModelProviderId = createdModelLine.externalModelProviderId
+                externalModelSuiteId = createdModelLine.externalModelSuiteId
+                externalModelLineId = createdModelLine.externalModelLineId
+              }
+              value = interval {
+                startTime = futureTime
+                endTime = futureTime.copy { seconds += 20 }
+              }
             }
-          }
         }
-      })
-
+      )
 
       val enumerateValidModelLinesResponse =
         modelLinesService.enumerateValidModelLines(
@@ -1262,12 +1258,8 @@ abstract class ModelLinesServiceTest<T : ModelLinesCoroutineImplBase> {
             externalModelProviderId = modelSuite.externalModelProviderId
             externalModelSuiteId = modelSuite.externalModelSuiteId
             timeInterval = interval {
-              startTime = futureTime.copy {
-                seconds += 10
-              }
-              endTime = futureTime.copy {
-                seconds += 15
-              }
+              startTime = futureTime.copy { seconds += 10 }
+              endTime = futureTime.copy { seconds += 15 }
             }
             externalDataProviderIds += dataProvider.externalDataProviderId
           }
@@ -1283,11 +1275,7 @@ abstract class ModelLinesServiceTest<T : ModelLinesCoroutineImplBase> {
     val dataProvider = population.createDataProvider(dataProvidersService)
     val createdPopulation = population.createPopulation(dataProvider, populationsService)
     val modelRelease =
-      population.createModelRelease(
-        modelSuite,
-        createdPopulation,
-        modelReleasesService,
-      )
+      population.createModelRelease(modelSuite, createdPopulation, modelReleasesService)
 
     val modelLine = modelLine {
       externalModelSuiteId = modelSuite.externalModelSuiteId
@@ -1311,23 +1299,23 @@ abstract class ModelLinesServiceTest<T : ModelLinesCoroutineImplBase> {
     modelRolloutsService.createModelRollout(modelRollout)
     modelRolloutsService.createModelRollout(modelRollout)
 
-    dataProvidersService.replaceDataAvailabilityIntervals(replaceDataAvailabilityIntervalsRequest {
-      externalDataProviderId = dataProvider.externalDataProviderId
-      dataAvailabilityIntervals += DataProviderKt.dataAvailabilityMapEntry {
-        key = modelLineKey {
-          externalModelProviderId = createdModelLine.externalModelProviderId
-          externalModelSuiteId = createdModelLine.externalModelSuiteId
-          externalModelLineId = createdModelLine.externalModelLineId
-        }
-        value = interval {
-          startTime = futureTime
-          endTime = futureTime.copy {
-            seconds += 20
+    dataProvidersService.replaceDataAvailabilityIntervals(
+      replaceDataAvailabilityIntervalsRequest {
+        externalDataProviderId = dataProvider.externalDataProviderId
+        dataAvailabilityIntervals +=
+          DataProviderKt.dataAvailabilityMapEntry {
+            key = modelLineKey {
+              externalModelProviderId = createdModelLine.externalModelProviderId
+              externalModelSuiteId = createdModelLine.externalModelSuiteId
+              externalModelLineId = createdModelLine.externalModelLineId
+            }
+            value = interval {
+              startTime = futureTime
+              endTime = futureTime.copy { seconds += 20 }
+            }
           }
-        }
       }
-    })
-
+    )
 
     val enumerateValidModelLinesResponse =
       modelLinesService.enumerateValidModelLines(
@@ -1335,12 +1323,8 @@ abstract class ModelLinesServiceTest<T : ModelLinesCoroutineImplBase> {
           externalModelProviderId = modelSuite.externalModelProviderId
           externalModelSuiteId = modelSuite.externalModelSuiteId
           timeInterval = interval {
-            startTime = futureTime.copy {
-              seconds += 10
-            }
-            endTime = futureTime.copy {
-              seconds += 15
-            }
+            startTime = futureTime.copy { seconds += 10 }
+            endTime = futureTime.copy { seconds += 15 }
           }
           externalDataProviderIds += dataProvider.externalDataProviderId
         }
@@ -1366,23 +1350,23 @@ abstract class ModelLinesServiceTest<T : ModelLinesCoroutineImplBase> {
 
     val createdModelLine = modelLinesService.createModelLine(modelLine)
 
-    dataProvidersService.replaceDataAvailabilityIntervals(replaceDataAvailabilityIntervalsRequest {
-      externalDataProviderId = dataProvider.externalDataProviderId
-      dataAvailabilityIntervals += DataProviderKt.dataAvailabilityMapEntry {
-        key = modelLineKey {
-          externalModelProviderId = createdModelLine.externalModelProviderId
-          externalModelSuiteId = createdModelLine.externalModelSuiteId
-          externalModelLineId = createdModelLine.externalModelLineId
-        }
-        value = interval {
-          startTime = futureTime
-          endTime = futureTime.copy {
-            seconds += 20
+    dataProvidersService.replaceDataAvailabilityIntervals(
+      replaceDataAvailabilityIntervalsRequest {
+        externalDataProviderId = dataProvider.externalDataProviderId
+        dataAvailabilityIntervals +=
+          DataProviderKt.dataAvailabilityMapEntry {
+            key = modelLineKey {
+              externalModelProviderId = createdModelLine.externalModelProviderId
+              externalModelSuiteId = createdModelLine.externalModelSuiteId
+              externalModelLineId = createdModelLine.externalModelLineId
+            }
+            value = interval {
+              startTime = futureTime
+              endTime = futureTime.copy { seconds += 20 }
+            }
           }
-        }
       }
-    })
-
+    )
 
     val enumerateValidModelLinesResponse =
       modelLinesService.enumerateValidModelLines(
@@ -1390,12 +1374,8 @@ abstract class ModelLinesServiceTest<T : ModelLinesCoroutineImplBase> {
           externalModelProviderId = modelSuite.externalModelProviderId
           externalModelSuiteId = modelSuite.externalModelSuiteId
           timeInterval = interval {
-            startTime = futureTime.copy {
-              seconds += 10
-            }
-            endTime = futureTime.copy {
-              seconds += 15
-            }
+            startTime = futureTime.copy { seconds += 10 }
+            endTime = futureTime.copy { seconds += 15 }
           }
           externalDataProviderIds += dataProvider.externalDataProviderId
         }
@@ -1412,11 +1392,7 @@ abstract class ModelLinesServiceTest<T : ModelLinesCoroutineImplBase> {
     val dataProvider = population.createDataProvider(dataProvidersService)
     val createdPopulation = population.createPopulation(dataProvider, populationsService)
     val modelRelease =
-      population.createModelRelease(
-        modelSuite,
-        createdPopulation,
-        modelReleasesService,
-      )
+      population.createModelRelease(modelSuite, createdPopulation, modelReleasesService)
 
     val modelLine = modelLine {
       externalModelSuiteId = modelSuite.externalModelSuiteId
@@ -1439,23 +1415,23 @@ abstract class ModelLinesServiceTest<T : ModelLinesCoroutineImplBase> {
     }
     modelRolloutsService.createModelRollout(modelRollout)
 
-    dataProvidersService.replaceDataAvailabilityIntervals(replaceDataAvailabilityIntervalsRequest {
-      externalDataProviderId = dataProvider.externalDataProviderId
-      dataAvailabilityIntervals += DataProviderKt.dataAvailabilityMapEntry {
-        key = modelLineKey {
-          externalModelProviderId = createdModelLine.externalModelProviderId
-          externalModelSuiteId = createdModelLine.externalModelSuiteId
-          externalModelLineId = createdModelLine.externalModelLineId
-        }
-        value = interval {
-          startTime = futureTime
-          endTime = futureTime.copy {
-            seconds += 20
+    dataProvidersService.replaceDataAvailabilityIntervals(
+      replaceDataAvailabilityIntervalsRequest {
+        externalDataProviderId = dataProvider.externalDataProviderId
+        dataAvailabilityIntervals +=
+          DataProviderKt.dataAvailabilityMapEntry {
+            key = modelLineKey {
+              externalModelProviderId = createdModelLine.externalModelProviderId
+              externalModelSuiteId = createdModelLine.externalModelSuiteId
+              externalModelLineId = createdModelLine.externalModelLineId
+            }
+            value = interval {
+              startTime = futureTime
+              endTime = futureTime.copy { seconds += 20 }
+            }
           }
-        }
       }
-    })
-
+    )
 
     val enumerateValidModelLinesResponse =
       modelLinesService.enumerateValidModelLines(
@@ -1463,12 +1439,8 @@ abstract class ModelLinesServiceTest<T : ModelLinesCoroutineImplBase> {
           externalModelProviderId = modelSuite.externalModelProviderId
           externalModelSuiteId = modelSuite.externalModelSuiteId
           timeInterval = interval {
-            startTime = futureTime.copy {
-              seconds -= 10
-            }
-            endTime = futureTime.copy {
-              seconds += 15
-            }
+            startTime = futureTime.copy { seconds -= 10 }
+            endTime = futureTime.copy { seconds += 15 }
           }
           externalDataProviderIds += dataProvider.externalDataProviderId
         }
@@ -1485,11 +1457,7 @@ abstract class ModelLinesServiceTest<T : ModelLinesCoroutineImplBase> {
     val dataProvider = population.createDataProvider(dataProvidersService)
     val createdPopulation = population.createPopulation(dataProvider, populationsService)
     val modelRelease =
-      population.createModelRelease(
-        modelSuite,
-        createdPopulation,
-        modelReleasesService,
-      )
+      population.createModelRelease(modelSuite, createdPopulation, modelReleasesService)
 
     val modelLine = modelLine {
       externalModelSuiteId = modelSuite.externalModelSuiteId
@@ -1512,23 +1480,23 @@ abstract class ModelLinesServiceTest<T : ModelLinesCoroutineImplBase> {
     }
     modelRolloutsService.createModelRollout(modelRollout)
 
-    dataProvidersService.replaceDataAvailabilityIntervals(replaceDataAvailabilityIntervalsRequest {
-      externalDataProviderId = dataProvider.externalDataProviderId
-      dataAvailabilityIntervals += DataProviderKt.dataAvailabilityMapEntry {
-        key = modelLineKey {
-          externalModelProviderId = createdModelLine.externalModelProviderId
-          externalModelSuiteId = createdModelLine.externalModelSuiteId
-          externalModelLineId = createdModelLine.externalModelLineId
-        }
-        value = interval {
-          startTime = futureTime
-          endTime = futureTime.copy {
-            seconds += 20
+    dataProvidersService.replaceDataAvailabilityIntervals(
+      replaceDataAvailabilityIntervalsRequest {
+        externalDataProviderId = dataProvider.externalDataProviderId
+        dataAvailabilityIntervals +=
+          DataProviderKt.dataAvailabilityMapEntry {
+            key = modelLineKey {
+              externalModelProviderId = createdModelLine.externalModelProviderId
+              externalModelSuiteId = createdModelLine.externalModelSuiteId
+              externalModelLineId = createdModelLine.externalModelLineId
+            }
+            value = interval {
+              startTime = futureTime
+              endTime = futureTime.copy { seconds += 20 }
+            }
           }
-        }
       }
-    })
-
+    )
 
     val enumerateValidModelLinesResponse =
       modelLinesService.enumerateValidModelLines(
@@ -1536,12 +1504,8 @@ abstract class ModelLinesServiceTest<T : ModelLinesCoroutineImplBase> {
           externalModelProviderId = modelSuite.externalModelProviderId
           externalModelSuiteId = modelSuite.externalModelSuiteId
           timeInterval = interval {
-            startTime = futureTime.copy {
-              seconds += 10
-            }
-            endTime = futureTime.copy {
-              seconds += 30
-            }
+            startTime = futureTime.copy { seconds += 10 }
+            endTime = futureTime.copy { seconds += 30 }
           }
           externalDataProviderIds += dataProvider.externalDataProviderId
         }
@@ -1558,11 +1522,7 @@ abstract class ModelLinesServiceTest<T : ModelLinesCoroutineImplBase> {
       val dataProvider = population.createDataProvider(dataProvidersService)
       val createdPopulation = population.createPopulation(dataProvider, populationsService)
       val modelRelease =
-        population.createModelRelease(
-          modelSuite,
-          createdPopulation,
-          modelReleasesService,
-        )
+        population.createModelRelease(modelSuite, createdPopulation, modelReleasesService)
 
       val modelLine = modelLine {
         externalModelSuiteId = modelSuite.externalModelSuiteId
@@ -1591,12 +1551,8 @@ abstract class ModelLinesServiceTest<T : ModelLinesCoroutineImplBase> {
             externalModelProviderId = modelSuite.externalModelProviderId
             externalModelSuiteId = modelSuite.externalModelSuiteId
             timeInterval = interval {
-              startTime = futureTime.copy {
-                seconds += 10
-              }
-              endTime = futureTime.copy {
-                seconds += 15
-              }
+              startTime = futureTime.copy { seconds += 10 }
+              endTime = futureTime.copy { seconds += 15 }
             }
             externalDataProviderIds += dataProvider.externalDataProviderId
           }
@@ -1614,11 +1570,7 @@ abstract class ModelLinesServiceTest<T : ModelLinesCoroutineImplBase> {
     val dataProvider2 = population.createDataProvider(dataProvidersService)
     val createdPopulation = population.createPopulation(dataProvider, populationsService)
     val modelRelease =
-      population.createModelRelease(
-        modelSuite,
-        createdPopulation,
-        modelReleasesService,
-      )
+      population.createModelRelease(modelSuite, createdPopulation, modelReleasesService)
 
     val modelLine = modelLine {
       externalModelSuiteId = modelSuite.externalModelSuiteId
@@ -1641,23 +1593,23 @@ abstract class ModelLinesServiceTest<T : ModelLinesCoroutineImplBase> {
     }
     modelRolloutsService.createModelRollout(modelRollout)
 
-    dataProvidersService.replaceDataAvailabilityIntervals(replaceDataAvailabilityIntervalsRequest {
-      externalDataProviderId = dataProvider.externalDataProviderId
-      dataAvailabilityIntervals += DataProviderKt.dataAvailabilityMapEntry {
-        key = modelLineKey {
-          externalModelProviderId = createdModelLine.externalModelProviderId
-          externalModelSuiteId = createdModelLine.externalModelSuiteId
-          externalModelLineId = createdModelLine.externalModelLineId
-        }
-        value = interval {
-          startTime = futureTime
-          endTime = futureTime.copy {
-            seconds += 20
+    dataProvidersService.replaceDataAvailabilityIntervals(
+      replaceDataAvailabilityIntervalsRequest {
+        externalDataProviderId = dataProvider.externalDataProviderId
+        dataAvailabilityIntervals +=
+          DataProviderKt.dataAvailabilityMapEntry {
+            key = modelLineKey {
+              externalModelProviderId = createdModelLine.externalModelProviderId
+              externalModelSuiteId = createdModelLine.externalModelSuiteId
+              externalModelLineId = createdModelLine.externalModelLineId
+            }
+            value = interval {
+              startTime = futureTime
+              endTime = futureTime.copy { seconds += 20 }
+            }
           }
-        }
       }
-    })
-
+    )
 
     val enumerateValidModelLinesResponse =
       modelLinesService.enumerateValidModelLines(
@@ -1665,12 +1617,8 @@ abstract class ModelLinesServiceTest<T : ModelLinesCoroutineImplBase> {
           externalModelProviderId = modelSuite.externalModelProviderId
           externalModelSuiteId = modelSuite.externalModelSuiteId
           timeInterval = interval {
-            startTime = futureTime.copy {
-              seconds += 10
-            }
-            endTime = futureTime.copy {
-              seconds += 15
-            }
+            startTime = futureTime.copy { seconds += 10 }
+            endTime = futureTime.copy { seconds += 15 }
           }
           externalDataProviderIds += dataProvider.externalDataProviderId
           externalDataProviderIds += dataProvider2.externalDataProviderId
@@ -1681,96 +1629,89 @@ abstract class ModelLinesServiceTest<T : ModelLinesCoroutineImplBase> {
   }
 
   @Test
-  fun `enumerateValidModelLines returns no lines if interval not in every edp interval`():
-    Unit = runBlocking {
-    val futureTime = Instant.now().plusSeconds(50L).toProtoTime()
-    val modelSuite = population.createModelSuite(modelProvidersService, modelSuitesService)
-    val dataProvider = population.createDataProvider(dataProvidersService)
-    val dataProvider2 = population.createDataProvider(dataProvidersService)
-    val createdPopulation = population.createPopulation(dataProvider, populationsService)
-    val modelRelease =
-      population.createModelRelease(
-        modelSuite,
-        createdPopulation,
-        modelReleasesService,
-      )
+  fun `enumerateValidModelLines returns no lines if interval not in every edp interval`(): Unit =
+    runBlocking {
+      val futureTime = Instant.now().plusSeconds(50L).toProtoTime()
+      val modelSuite = population.createModelSuite(modelProvidersService, modelSuitesService)
+      val dataProvider = population.createDataProvider(dataProvidersService)
+      val dataProvider2 = population.createDataProvider(dataProvidersService)
+      val createdPopulation = population.createPopulation(dataProvider, populationsService)
+      val modelRelease =
+        population.createModelRelease(modelSuite, createdPopulation, modelReleasesService)
 
-    val modelLine = modelLine {
-      externalModelSuiteId = modelSuite.externalModelSuiteId
-      externalModelProviderId = modelSuite.externalModelProviderId
-      activeStartTime = futureTime
-      type = ModelLine.Type.PROD
-      displayName = "display name"
-      description = "description"
-    }
-
-    val createdModelLine = modelLinesService.createModelLine(modelLine)
-
-    val modelRollout = modelRollout {
-      externalModelProviderId = createdModelLine.externalModelProviderId
-      externalModelSuiteId = createdModelLine.externalModelSuiteId
-      externalModelLineId = createdModelLine.externalModelLineId
-      rolloutPeriodStartTime = futureTime
-      rolloutPeriodEndTime = futureTime
-      externalModelReleaseId = modelRelease.externalModelReleaseId
-    }
-    modelRolloutsService.createModelRollout(modelRollout)
-
-    dataProvidersService.replaceDataAvailabilityIntervals(replaceDataAvailabilityIntervalsRequest {
-      externalDataProviderId = dataProvider.externalDataProviderId
-      dataAvailabilityIntervals += DataProviderKt.dataAvailabilityMapEntry {
-        key = modelLineKey {
-          externalModelProviderId = createdModelLine.externalModelProviderId
-          externalModelSuiteId = createdModelLine.externalModelSuiteId
-          externalModelLineId = createdModelLine.externalModelLineId
-        }
-        value = interval {
-          startTime = futureTime
-          endTime = futureTime.copy {
-            seconds += 20
-          }
-        }
+      val modelLine = modelLine {
+        externalModelSuiteId = modelSuite.externalModelSuiteId
+        externalModelProviderId = modelSuite.externalModelProviderId
+        activeStartTime = futureTime
+        type = ModelLine.Type.PROD
+        displayName = "display name"
+        description = "description"
       }
-    })
 
-    dataProvidersService.replaceDataAvailabilityIntervals(replaceDataAvailabilityIntervalsRequest {
-      externalDataProviderId = dataProvider2.externalDataProviderId
-      dataAvailabilityIntervals += DataProviderKt.dataAvailabilityMapEntry {
-        key = modelLineKey {
-          externalModelProviderId = createdModelLine.externalModelProviderId
-          externalModelSuiteId = createdModelLine.externalModelSuiteId
-          externalModelLineId = createdModelLine.externalModelLineId
-        }
-        value = interval {
-          startTime = futureTime
-          endTime = futureTime.copy {
-            seconds += 5
-          }
-        }
+      val createdModelLine = modelLinesService.createModelLine(modelLine)
+
+      val modelRollout = modelRollout {
+        externalModelProviderId = createdModelLine.externalModelProviderId
+        externalModelSuiteId = createdModelLine.externalModelSuiteId
+        externalModelLineId = createdModelLine.externalModelLineId
+        rolloutPeriodStartTime = futureTime
+        rolloutPeriodEndTime = futureTime
+        externalModelReleaseId = modelRelease.externalModelReleaseId
       }
-    })
+      modelRolloutsService.createModelRollout(modelRollout)
 
-
-    val enumerateValidModelLinesResponse =
-      modelLinesService.enumerateValidModelLines(
-        enumerateValidModelLinesRequest {
-          externalModelProviderId = modelSuite.externalModelProviderId
-          externalModelSuiteId = modelSuite.externalModelSuiteId
-          timeInterval = interval {
-            startTime = futureTime.copy {
-              seconds += 10
+      dataProvidersService.replaceDataAvailabilityIntervals(
+        replaceDataAvailabilityIntervalsRequest {
+          externalDataProviderId = dataProvider.externalDataProviderId
+          dataAvailabilityIntervals +=
+            DataProviderKt.dataAvailabilityMapEntry {
+              key = modelLineKey {
+                externalModelProviderId = createdModelLine.externalModelProviderId
+                externalModelSuiteId = createdModelLine.externalModelSuiteId
+                externalModelLineId = createdModelLine.externalModelLineId
+              }
+              value = interval {
+                startTime = futureTime
+                endTime = futureTime.copy { seconds += 20 }
+              }
             }
-            endTime = futureTime.copy {
-              seconds += 15
-            }
-          }
-          externalDataProviderIds += dataProvider.externalDataProviderId
-          externalDataProviderIds += dataProvider2.externalDataProviderId
         }
       )
 
-    assertThat(enumerateValidModelLinesResponse).isEqualTo(enumerateValidModelLinesResponse {})
-  }
+      dataProvidersService.replaceDataAvailabilityIntervals(
+        replaceDataAvailabilityIntervalsRequest {
+          externalDataProviderId = dataProvider2.externalDataProviderId
+          dataAvailabilityIntervals +=
+            DataProviderKt.dataAvailabilityMapEntry {
+              key = modelLineKey {
+                externalModelProviderId = createdModelLine.externalModelProviderId
+                externalModelSuiteId = createdModelLine.externalModelSuiteId
+                externalModelLineId = createdModelLine.externalModelLineId
+              }
+              value = interval {
+                startTime = futureTime
+                endTime = futureTime.copy { seconds += 5 }
+              }
+            }
+        }
+      )
+
+      val enumerateValidModelLinesResponse =
+        modelLinesService.enumerateValidModelLines(
+          enumerateValidModelLinesRequest {
+            externalModelProviderId = modelSuite.externalModelProviderId
+            externalModelSuiteId = modelSuite.externalModelSuiteId
+            timeInterval = interval {
+              startTime = futureTime.copy { seconds += 10 }
+              endTime = futureTime.copy { seconds += 15 }
+            }
+            externalDataProviderIds += dataProvider.externalDataProviderId
+            externalDataProviderIds += dataProvider2.externalDataProviderId
+          }
+        )
+
+      assertThat(enumerateValidModelLinesResponse).isEqualTo(enumerateValidModelLinesResponse {})
+    }
 
   @Test
   fun `enumerateValidModelLines returns no model lines when data provider not found`(): Unit =
@@ -1780,11 +1721,7 @@ abstract class ModelLinesServiceTest<T : ModelLinesCoroutineImplBase> {
       val dataProvider = population.createDataProvider(dataProvidersService)
       val createdPopulation = population.createPopulation(dataProvider, populationsService)
       val modelRelease =
-        population.createModelRelease(
-          modelSuite,
-          createdPopulation,
-          modelReleasesService,
-        )
+        population.createModelRelease(modelSuite, createdPopulation, modelReleasesService)
 
       val modelLine = modelLine {
         externalModelSuiteId = modelSuite.externalModelSuiteId
@@ -1813,12 +1750,8 @@ abstract class ModelLinesServiceTest<T : ModelLinesCoroutineImplBase> {
             externalModelProviderId = modelSuite.externalModelProviderId
             externalModelSuiteId = modelSuite.externalModelSuiteId
             timeInterval = interval {
-              startTime = futureTime.copy {
-                seconds += 10
-              }
-              endTime = futureTime.copy {
-                seconds += 15
-              }
+              startTime = futureTime.copy { seconds += 10 }
+              endTime = futureTime.copy { seconds += 15 }
             }
             externalDataProviderIds += dataProvider.externalDataProviderId + 5L
           }
