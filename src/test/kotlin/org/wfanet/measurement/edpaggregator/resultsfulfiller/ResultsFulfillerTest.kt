@@ -119,7 +119,7 @@ class ResultsFulfillerTest {
     // Add requisitions to storage
     requisitionsStorageClient.writeBlob(
       REQUISITIONS_BLOB_KEY,
-      REQUISITION.toByteString()
+      REQUISITION.pack().toByteString()
     )
 
     // Create impressions storage client
