@@ -135,11 +135,12 @@ class ResultsFulfiller(
   private fun selectReachAndFrequencyNoiseMechanism(
     options: Set<DirectNoiseMechanism>
   ): DirectNoiseMechanism {
-    val preferences = listOf(DirectNoiseMechanism.CONTINUOUS_GAUSSIAN)
-    return preferences.firstOrNull { preference -> options.contains(preference) }
-      ?: throw Exception(
-        "No valid noise mechanism option for reach or frequency measurements.",
-      )
+    val preference = DirectNoiseMechanism.CONTINUOUS_GAUSSIAN
+    return if (options.contains(preference)) {
+      preference
+    } else {
+      throw Exception("No valid noise mechanism option for reach or frequency measurements.")
+    }
   }
 
   /**
