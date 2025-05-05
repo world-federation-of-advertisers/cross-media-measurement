@@ -88,6 +88,23 @@ class DataWatcherFunction : CloudEventsFunction {
     }
 
     private fun getClientCerts(): SigningCerts {
+      fun logFileStatus(label: String, path: String) {
+        val file = File(path)
+        logger.info("$label - Path: $path")
+        println("$label - Path: $path")
+        if (file.exists()) {
+          logger.info("$label exists. Size: ${file.length()} bytes")
+          println("$label exists. Size: ${file.length()} bytes")
+        } else {
+          logger.severe("$label NOT FOUND at path: $path")
+          println("$label NOT FOUND at path: $path")
+        }
+      }
+
+      logFileStatus("CERT_FILE", certFilePath)
+      logFileStatus("PRIVATE_KEY_FILE", privateKeyFilePath)
+      logFileStatus("CERT_COLLECTION_FILE", certCollectionFilePath)
+
       return SigningCerts.fromPemFiles(
         certificateFile             = File(certFilePath).also { require(it.exists()) { "Cert not found: $certFilePath" } },
         privateKeyFile              = File(privateKeyFilePath).also { require(it.exists()) { "Key not found: $privateKeyFilePath" } },
