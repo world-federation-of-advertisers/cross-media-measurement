@@ -16,7 +16,9 @@
 
 package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
+import com.google.protobuf.Any
 import com.google.crypto.tink.KmsClient
+import com.google.protobuf.ByteString
 import com.google.protobuf.TypeRegistry
 import com.google.protobuf.kotlin.unpack
 import java.security.GeneralSecurityException
@@ -180,8 +182,8 @@ class ResultsFulfiller(
     val requisitionsStorageClient = VidUtils.createStorageClient(storageClientUri, requisitionsStorageConfig)
 
     // TODO(@jojijac0b): Refactor once grouped requisitions are supported
-    val requisition = Requisition.parseFrom(requisitionsStorageClient.getBlob(storageClientUri.key)!!.read().flatten())
-
+    val requisitionBytes: ByteString = requisitionsStorageClient.getBlob(storageClientUri.key)!!.read().flatten()
+    val requisition = Any.parseFrom(requisitionBytes).unpack(Requisition::class.java)
     return listOf(requisition).asFlow()
   }
 }
