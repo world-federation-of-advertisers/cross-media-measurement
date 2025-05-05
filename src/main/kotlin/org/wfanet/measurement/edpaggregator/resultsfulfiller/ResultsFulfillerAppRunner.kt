@@ -97,9 +97,9 @@ class ResultsFulfillerAppRunner : Runnable {
       parser = parser,
       workItemsClient = workItemsClient,
       workItemAttemptsClient = workItemAttemptsClient,
-      kingdomPublicApiTarget = kingdomPublicApiTarget,
-      kingdomPublicApiCertHost = kingdomPublicApiCertHost!!,
-      trustedCertCollectionFile = kingdomCertCollectionFile
+      cmmsTarget = kingdomPublicApiTarget,
+      cmmsCertHost = kingdomPublicApiCertHost!!,
+      trustedCertCollection = kingdomCertCollectionFile
     )
 
     runBlocking {
