@@ -328,7 +328,11 @@ SECURE_COMPUTATION_GKE_IMAGES = [
 ]
 
 SECURE_COMPUTATION_TEE_APP_IMAGES = [
-    #TODO(@marcopremier) add images here when PR is ready
+    struct(
+        name = "gcloud_results_fulfiller_app",
+        image = "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:results_fulfiller_app_runner",
+        repository = _PREFIX + "/edp-aggregator/results_fulfiller",
+    ),
 ]
 
 ALL_SECURE_COMPUTATION_GKE_IMAGES = SECURE_COMPUTATION_COMMON_IMAGES + SECURE_COMPUTATION_GKE_IMAGES
