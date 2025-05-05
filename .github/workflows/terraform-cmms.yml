@@ -102,7 +102,7 @@ jobs:
         -out=tfplan
 
     - name: terraform apply - gcloud
-      if: ${{ inputs.apply }}
+#      if: ${{ inputs.apply }}
       working-directory: ${{ env.GCLOUD_MODULE_PATH }}
       run: terraform apply -input=false tfplan
 
