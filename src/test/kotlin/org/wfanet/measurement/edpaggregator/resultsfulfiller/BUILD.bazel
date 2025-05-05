@@ -59,3 +59,13 @@ kt_jvm_test(
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/testing",
     ],
 )
+
+kt_jvm_test(
+    name = "MeasurementHelperTest",
+    srcs = ["MeasurementHelperTest.kt"],
+    test_class = "org.wfanet.measurement.edpaggregator.resultsfulfiller.MeasurementHelperTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:measurement_helper",
+        "//src/main/kotlin/org/wfanet/measurement/integration/common:configs",
+    ],
+)
