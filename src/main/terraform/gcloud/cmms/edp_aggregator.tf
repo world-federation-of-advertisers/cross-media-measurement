@@ -46,8 +46,8 @@ module "edp_aggregator" {
   pubsub_iam_service_account_member         = module.secure_computation.secure_computation_internal_iam_service_account_member
   edp_aggregator_bucket_name                = var.secure_computation_storage_bucket_name
   edp_aggregator_bucket_location            = local.storage_bucket_location
-  data_watcher_service_account_name         = "data-watcher"
-  data_watcher_trigger_service_account_name = "data-watcher-trigger"
+  data_watcher_service_account_name         = "edpa-data-watcher"
+  data_watcher_trigger_service_account_name = "edpa-data-watcher-trigger"
   terraform_service_account                 = var.terraform_service_account
 
   data_watcher_private_key_id               = "edpa-datawatcher-tls-key"

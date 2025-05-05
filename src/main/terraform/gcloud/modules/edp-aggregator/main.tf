@@ -46,6 +46,24 @@ module "data_watcher_function_service_accounts" {
   terraform_service_account                 = var.terraform_service_account
 }
 
+resource "google_secret_manager_secret_iam_member" "data_watcher_tls_key_accessor" {
+  secret_id = module.data_watcher_private_key.secret_id
+  role      = "roles/secretmanager.secretAccessor"
+  member    = "serviceAccount:${module.data_watcher_function_service_accounts.cloud_function_service_account_email}"
+}
+
+resource "google_secret_manager_secret_iam_member" "data_watcher_tls_pem_accessor" {
+  secret_id = module.data_watcher_cert.secret_id
+  role      = "roles/secretmanager.secretAccessor"
+  member    = "serviceAccount:${module.data_watcher_function_service_accounts.cloud_function_service_account_email}"
+}
+
+resource "google_secret_manager_secret_iam_member" "secure_computation_root_ca_accessor" {
+  secret_id = module.secure_computation_root_ca.secret_id
+  role      = "roles/secretmanager.secretAccessor"
+  member    = "serviceAccount:${module.data_watcher_function_service_accounts.cloud_function_service_account_email}"
+}
+
 module "edp_aggregator_queues" {
   for_each = var.queue_worker_configs
   source   = "../pubsub"
