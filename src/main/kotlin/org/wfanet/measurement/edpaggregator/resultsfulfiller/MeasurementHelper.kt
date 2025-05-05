@@ -39,6 +39,7 @@ import org.wfanet.measurement.api.v2alpha.ProtocolConfig.NoiseMechanism
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt
+import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.SignedMessage
 import org.wfanet.measurement.api.v2alpha.fulfillDirectRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.unpack
@@ -65,14 +66,15 @@ import org.wfanet.sampling.VidSampler
 import org.wfanet.measurement.storage.BlobUri
 
 /**
- * Utility functions for EDP Aggregator.
+ * Helper functions for measurement operations.
  */
-class EdpAggregatorUtils {
+class MeasurementHelper(
+  private val requisitionsStub: RequisitionsCoroutineStub,
+  private val dataProviderSigningKeyHandle: SigningKeyHandle,
+  private val random: Random = Random,
+  private val dataProviderCertificateKey: DataProviderCertificateKey
+) {
   private val logger: Logger = Logger.getLogger(this::class.java.name)
-  private lateinit var dataProviderSigningKeyHandle: Any
-  private lateinit var dataProviderCertificateKey: DataProviderCertificateKey
-  private lateinit var requisitionsStub: Any
-  private val random = Random()
 
   /**
    * Selects the most preferred [DirectNoiseMechanism] for reach and frequency measurements from the
@@ -348,4 +350,4 @@ class EdpAggregatorUtils {
       }
     }
   }
-}
+} 
