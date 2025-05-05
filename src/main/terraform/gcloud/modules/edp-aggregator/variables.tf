@@ -99,3 +99,23 @@ variable "data_watcher_private_key_path" {
   type        = string
   description = "The path of the data watcher private key"
 }
+
+variable "data_watcher_cert_id" {
+  type        = string
+  description = "The ID of data watcher cert"
+}
+
+variable "data_watcher_cert_path" {
+  type        = string
+  description = "The path of the data watcher cert"
+}
+
+variable "secure_computation_root_ca_id" {
+  type        = string
+  description = "The ID of secure computation CA root"
+}
+
+variable "secure_computation_root_ca_path" {
+  type        = string
+  description = "The path of the secure computation CA root"
+}

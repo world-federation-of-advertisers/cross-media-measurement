@@ -25,6 +25,18 @@ module "data_watcher_private_key" {
   secret_path = var.data_watcher_private_key_path
 }
 
+module "data_watcher_cert" {
+  source    = "../secret"
+  secret_id = var.data_watcher_cert_id
+  secret_path = var.data_watcher_cert_path
+}
+
+module "secure_computation_root_ca" {
+  source    = "../secret"
+  secret_id = var.secure_computation_root_ca_id
+  secret_path = var.secure_computation_root_ca_path
+}
+
 module "data_watcher_function_service_accounts" {
   source    = "../gcs-bucket-cloud-function"
 
