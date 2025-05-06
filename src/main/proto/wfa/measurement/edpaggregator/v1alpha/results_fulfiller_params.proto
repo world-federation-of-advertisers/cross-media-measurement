@@ -25,6 +25,8 @@ option java_outer_classname = "ResultsFulfillerParamsProto";
 
 // Message representing the params used for the results fulfiller tee app
 message ResultsFulfillerParams {
+  // The Cmms Resource name for the EDP
+  string data_provider = 1;
   // Message representing the storage details used by the results fulfiller app
   message StorageParams {
     // The blob uri prefix for the labeled impressions `BlobDetails` that is
@@ -40,7 +42,7 @@ message ResultsFulfillerParams {
   }
 
   // The storage used by the tee app
-  StorageParams storage_params = 1 [(google.api.field_behavior) = REQUIRED];
+  StorageParams storage_params = 2 [(google.api.field_behavior) = REQUIRED];
 
   // Message representing the details needed to generate certificates
   message ConsentParams {
@@ -66,7 +68,7 @@ message ResultsFulfillerParams {
   }
 
   // Information necessary for EDP Consent signaling
-  ConsentParams consent_params = 2 [(google.api.field_behavior) = REQUIRED];
+  ConsentParams consent_params = 3 [(google.api.field_behavior) = REQUIRED];
 
   // Message representing the details needed to connect to the kingdom
   message TransportLayerSecurityParams {
@@ -80,6 +82,6 @@ message ResultsFulfillerParams {
   }
 
   // The connection to the Cmms API
-  TransportLayerSecurityParams cmms_connection = 3
+  TransportLayerSecurityParams cmms_connection = 4
       [(google.api.field_behavior) = REQUIRED];
 }
