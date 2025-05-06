@@ -277,6 +277,24 @@ class InProcessCmmsComponents(
     )
   }
 
+  /**
+   * Retrieves the data provider display name associated with a given data provider name.
+   *
+   * This function searches the `edpDisplayNameToResourceMap` for an entry where the `name` property
+   * of the entry's value exactly matches the provided [dataProviderName]. If such an entry is
+   * found, its key (which represents the data provider display name) is returned. If no match is
+   * found, null is returned.
+   *
+   * @param dataProviderName The exact name of the data provider name to search for.
+   * @return The corresponding data provider display name if an exact match for the
+   *   [dataProviderName] is found in the map's values; otherwise, null.
+   */
+  fun getDataProviderDisplayNameFromDataProviderName(dataProviderName: String): String? {
+    return edpDisplayNameToResourceMap.entries
+      .find { entry -> dataProviderName.equals(entry.value.name) }
+      ?.key ?: null
+  }
+
   fun getDataProviderResourceNames(): List<String> {
     return edpDisplayNameToResourceMap.values.map { it.name }
   }
