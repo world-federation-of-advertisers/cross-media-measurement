@@ -1,14 +1,26 @@
 # proto-file: wfa/measurement/config/securecomputation/data_watcher_config.proto
 # proto-message: wfa.measurement.config.securecomputation.DataWatcherConfig
 watched_paths {
-  source_path_regex: "gs://secure-computation-storage-dev-bucket/control-plane-sink-path-to-watch/(.*)"
-  control_plane_queue_sink {
-    queue: "some-topic-idjs"
+  identifier: "event-groups"
+  source_path_regex: "gs://secure-computation-storage-dev-bucket/edp7/event-groups/(.*)"
+  http_endpoint_sink {
+    endpoint_uri: "TO_BE_DEFINED_ONCE_DEPLOYED"
     app_params {
-      type_url: "type.googleapis.com/google.protobuf.Int32Value"
-      value: "\b\005"
+      fields {
+        key: "some-key"
+        value {
+          string_value: "some-value"
+        }
+      }
     }
   }
+#  control_plane_queue_sink {
+#    queue: "some-topic-idjs"
+#    app_params {
+#      type_url: "type.googleapis.com/google.protobuf.Int32Value"
+#      value: "\b\005"
+#    }
+#  }
 }
 watched_paths {
   source_path_regex: "gs://test-bucket/webhook-sink-path-to-watch/(.*)"
