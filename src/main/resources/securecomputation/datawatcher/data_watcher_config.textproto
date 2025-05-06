@@ -185,7 +185,7 @@ watched_paths {
           result_cs_cert_der_resource_path: "main/k8s/testing/secretfiles/edp7_cs_cert.der"
           result_cs_private_key_der_resource_path: "main/k8s/testing/secretfiles/edp7_cs_private.der"
           private_encryption_key_resource_path: "main/k8s/testing/secretfiles/edp7_enc_private.tink"
-          edp_certificate_name: "certificates/12345"
+          edp_certificate_name: "certificates/12345" #TODO(Marco): Fix this
         }
         cmms_connection {
           client_cert_resource_path: "main/k8s/testing/secretfiles/edp7_tls.pem"
