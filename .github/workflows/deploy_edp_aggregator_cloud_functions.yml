@@ -29,7 +29,8 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-22.04
-    environment: ${{ github.event.inputs.environment }}
+#    environment: ${{ github.event.inputs.environment }}
+    environment: "dev"
     env:
       WIP: ${{ vars.WORKLOAD_IDENTITY_PROVIDER }}
       GCLOUD_PROJECT:                       ${{ vars.GCLOUD_PROJECT }}
