@@ -39,9 +39,6 @@ inputs:
   bazel_target_label:
     description: "Bazel target label"
     required: true
-  trigger_type:
-    description: "'storage' or 'http'"
-    required: true
   trigger_bucket:
     description: "GCS bucket name"
     required: false
@@ -78,7 +75,6 @@ runs:
     - name: Locate and copy uber-jar
       shell: bash
       run: |
-        # ask Bazel where the target wrote its outputs:
         JAR=$(bazel cquery "${{ inputs.bazel_target_label }}" --output=files \
             | grep -E '_deploy\.jar$' \
             | head -n1)
