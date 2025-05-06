@@ -31,6 +31,10 @@ jobs:
     runs-on: ubuntu-22.04
     environment: ${{ github.event.inputs.environment }}
     env:
+      WORKLOAD_IDENTITY_PROVIDER:           ${{ vars.WORKLOAD_IDENTITY_PROVIDER }}
+      TF_SERVICE_ACCOUNT:                   ${{ vars.TF_SERVICE_ACCOUNT }}
+      GCLOUD_PROJECT:                       ${{ vars.GCLOUD_PROJECT }}
+      GCLOUD_REGION:                        ${{ vars.GCLOUD_REGION }}
       DATA_WATCHER_TRIGGER_BUCKET:          ${{ vars.DATA_WATCHER_TRIGGER_BUCKET }}
       DATA_WATCHER_SERVICE_ACCOUNT:         ${{ vars.DATA_WATCHER_SERVICE_ACCOUNT }}
       DATA_WATCHER_TRIGGER_SERVICE_ACCOUNT: ${{ vars.DATA_WATCHER_TRIGGER_SERVICE_ACCOUNT }}
