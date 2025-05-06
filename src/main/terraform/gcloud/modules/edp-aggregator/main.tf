@@ -105,13 +105,13 @@ resource "google_storage_bucket_iam_member" "mig_storage_creator" {
 }
 
 resource "google_storage_bucket_iam_member" "requisition_fetcher_storage_viewer" {
-  bucket = module.secure_computation_bucket.storage_bucket.name
+  bucket = module.edp_aggregator_bucket.storage_bucket.name
   role   = "roles/storage.objectViewer"
   member = "serviceAccount:${module.requisition_fetcher_function_service_account.cloud_function_service_account.email}"
 }
 
 resource "google_storage_bucket_iam_member" "requisition_fetcher_storage_creator" {
-  bucket = module.secure_computation_bucket.storage_bucket.name
+  bucket = module.edp_aggregator_bucket.storage_bucket.name
   role   = "roles/storage.objectCreator"
   member = "serviceAccount:${module.requisition_fetcher_function_service_account.cloud_function_service_account.email}"
 }
