@@ -26,6 +26,9 @@ on:
         required: true
         default: dev
 
+permissions:
+  id-token: write
+  
 jobs:
   deploy:
     runs-on: ubuntu-22.04
