@@ -166,22 +166,29 @@ class SpannerModelLinesService(
        * [ModelLine.Type.HOLDBACK] appears before [ModelLine.Type.DEV]. If the types are the same,
        * then the more recent `activeStartTime` appears first.
        */
-      modelLines += modelLineResults.map { it.modelLine }.toList().sortedWith(
-        compareBy<ModelLine, ModelLine.Type?>({ a, b ->
-                    when {
-                      a == b -> 0
-                      a == ModelLine.Type.PROD -> -1
-                      a == ModelLine.Type.HOLDBACK -> {
-                        if (b == ModelLine.Type.PROD) {
-                          1
-                        } else -1
-                      }
+      modelLines +=
+        modelLineResults
+          .map { it.modelLine }
+          .toList()
+          .sortedWith(
+            compareBy<ModelLine, ModelLine.Type?>({ a, b ->
+                when {
+                  a == b -> 0
+                  a == ModelLine.Type.PROD -> -1
+                  a == ModelLine.Type.HOLDBACK -> {
+                    if (b == ModelLine.Type.PROD) {
+                      1
+                    } else -1
+                  }
 
-                      a == ModelLine.Type.DEV -> 1
-                      else -> -1
-                    }
-                  }) { it.type }.thenByDescending(Timestamps::compare) { it.activeStartTime }
-      )
+                  a == ModelLine.Type.DEV -> 1
+                  else -> -1
+                }
+              }) {
+                it.type
+              }
+              .thenByDescending(Timestamps::compare) { it.activeStartTime }
+          )
     }
   }
 }

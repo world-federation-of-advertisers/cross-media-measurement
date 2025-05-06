@@ -17,7 +17,6 @@
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers
 
 import com.google.cloud.spanner.Options
-import com.google.cloud.spanner.Statement
 import com.google.cloud.spanner.Struct
 import com.google.cloud.spanner.Type
 import com.google.type.Interval
@@ -157,7 +156,6 @@ class ModelLineReader : SpannerReader<ModelLineReader.Result>() {
             ModelLines.UpdateTime,
             ModelSuites.ExternalModelSuiteId,
             ModelProviders.ExternalModelProviderId,
-            HoldbackModelLine.ExternalModelLineId as ExternalHoldbackModelLineId
           FROM
             ModelProviders
             JOIN ModelSuites USING (ModelProviderId)
@@ -177,13 +175,8 @@ class ModelLineReader : SpannerReader<ModelLineReader.Result>() {
                   JOIN DataProviderAvailabilityIntervals USING (DataProviderId)
                 WHERE
                   ExternalDataProviderId IN UNNEST(@externalDataProviderIds)
-              ) AS DataProviderDataAvailabilityIntervals
+              ) AS DataProviderAvailabilityIntervals
               USING (ModelProviderId, ModelSuiteId, ModelLineId)
-            LEFT JOIN ModelLines AS HoldbackModelLine ON (
-              ModelLines.ModelProviderId = HoldbackModelLine.ModelProviderId
-              AND ModelLines.ModelSuiteId = HoldbackModelLine.ModelSuiteId
-              AND ModelLines.HoldbackModelLineId = HoldbackModelLine.ModelLineId
-            )
           WHERE
             ExternalModelProviderId = @externalModelProviderId
             AND ExternalModelSuiteId = @externalModelSuiteId
@@ -194,8 +187,8 @@ class ModelLineReader : SpannerReader<ModelLineReader.Result>() {
                 WHEN ModelLines.ActiveEndTime IS NULL THEN TRUE
                 ELSE TIMESTAMP_DIFF(@intervalEndTime, ModelLines.ActiveEndTime, NANOSECOND) <= 0
                 END
-            AND TIMESTAMP_DIFF(@intervalStartTime,StartTime, NANOSECOND) >= 0
-            AND TIMESTAMP_DIFF(@intervalEndTime, EndTime, NANOSECOND) <= 0
+            AND TIMESTAMP_DIFF(@intervalStartTime, DataProviderAvailabilityIntervals.StartTime, NANOSECOND) >= 0
+            AND TIMESTAMP_DIFF(@intervalEndTime, DataProviderAvailabilityIntervals.EndTime, NANOSECOND) <= 0
           GROUP BY
             ModelLines.ModelProviderId,
             ModelLines.ModelSuiteId,
@@ -209,10 +202,11 @@ class ModelLineReader : SpannerReader<ModelLineReader.Result>() {
             ModelLines.CreateTime,
             ModelLines.UpdateTime,
             ModelSuites.ExternalModelSuiteId,
-            ModelProviders.ExternalModelProviderId,
-            HoldbackModelLine.ExternalModelLineId
+            ModelProviders.ExternalModelProviderId
           HAVING
+            -- ModelLine must have exactly 1 ModelRollout
             COUNT(DISTINCT ModelRolloutId) = 1
+            -- DataProviderAvailabilityIntervals row must exist for every specified DataProvider
             AND COUNT(DISTINCT DataProviderId) = @numDataProviders
           """
             .trimIndent()
