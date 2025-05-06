@@ -15,9 +15,6 @@
 name: "Configure Kingdom"
 
 on:
-  push:
-    branches:
-      - marcopremier/add_certs_for_edp7
   workflow_call:
     inputs:
       environment:
@@ -59,8 +56,7 @@ env:
 jobs:
   update-kingdom:
     runs-on: ubuntu-22.04
-#    environment: ${{ inputs.environment }}
-    environment: "dev"
+    environment: ${{ inputs.environment }}
     steps:
       - uses: actions/checkout@v4
 
