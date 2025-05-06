@@ -189,6 +189,7 @@ class EventGroupSync(
 
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
+
     /*
      * Validates that event groups fields are populated
      * Throws exceptions for any invalid fields.

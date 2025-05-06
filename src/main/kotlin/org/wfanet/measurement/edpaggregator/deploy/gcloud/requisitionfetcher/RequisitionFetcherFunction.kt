@@ -23,8 +23,7 @@ import com.google.cloud.storage.StorageOptions
 import java.io.File
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
-import org.wfanet.measurement.common.EnvVars.checkIsPath
-import org.wfanet.measurement.common.EnvVars.checkNotNullOrEmpty
+import org.wfanet.measurement.common.EnvVars
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.getJarResourceFile
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
