@@ -13,8 +13,8 @@ package(default_visibility = [
 IMPORT_PREFIX = "/src/main/proto"
 
 proto_library(
-    name = "config_proto",
-    srcs = ["config.proto"],
+    name = "transport_layer_security_params_proto",
+    srcs = ["transport_layer_security_params.proto"],
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
         "@com_google_googleapis//google/api:resource_proto",
@@ -23,8 +23,23 @@ proto_library(
 )
 
 kt_jvm_proto_library(
-    name = "config_kt_jvm_proto",
-    deps = [":config_proto"],
+    name = "transport_layer_security_params_kt_jvm_proto",
+    deps = [":transport_layer_security_params_proto"],
+)
+
+proto_library(
+    name = "storage_params_proto",
+    srcs = ["storage_params.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        "@com_google_googleapis//google/api:resource_proto",
+        "@com_google_protobuf//:timestamp_proto",
+    ],
+)
+
+kt_jvm_proto_library(
+    name = "storage_params_kt_jvm_proto",
+    deps = [":storage_params_proto"],
 )
 
 proto_library(
@@ -32,7 +47,8 @@ proto_library(
     srcs = ["event_group_sync_config.proto"],
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
-        ":config_proto",
+        ":storage_params_proto",
+        ":transport_layer_security_params_proto",
         "@com_google_googleapis//google/api:resource_proto",
         "@com_google_protobuf//:timestamp_proto",
     ],
@@ -48,7 +64,8 @@ proto_library(
     srcs = ["requisition_fetcher_config.proto"],
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
-        ":config_proto",
+        ":storage_params_proto",
+        ":transport_layer_security_params_proto",
         "@com_google_googleapis//google/api:field_behavior_proto",
         "@com_google_googleapis//google/api:resource_proto",
         "@com_google_protobuf//:any_proto",

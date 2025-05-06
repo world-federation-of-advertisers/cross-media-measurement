@@ -21,6 +21,7 @@ import com.google.protobuf.timestamp
 import com.google.type.interval
 import java.time.Clock
 import java.time.Duration
+import kotlin.test.assertFailsWith
 import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.toList
@@ -33,22 +34,20 @@ import org.mockito.kotlin.any
 import org.mockito.kotlin.times
 import org.mockito.kotlin.verifyBlocking
 import org.wfanet.measurement.api.v2alpha.CreateEventGroupRequest
-import org.wfanet.measurement.api.v2alpha.EventGroup as ExternalEventGroup
-import org.wfanet.measurement.api.v2alpha.EventGroupMetadataKt.AdMetadataKt.campaignMetadata as externalCampaignMetadata
-import org.wfanet.measurement.api.v2alpha.EventGroupMetadataKt.adMetadata as externalAdMetadata
+import org.wfanet.measurement.api.v2alpha.EventGroupMetadataKt.AdMetadataKt.campaignMetadata as cmmsCampaignMetadata
+import org.wfanet.measurement.api.v2alpha.EventGroupMetadataKt.adMetadata as cmmsAdMetadata
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ListEventGroupsRequest
-import org.wfanet.measurement.api.v2alpha.MediaType as ExternalMediaType
+import org.wfanet.measurement.api.v2alpha.MediaType as CmmsMediaType
 import org.wfanet.measurement.api.v2alpha.UpdateEventGroupRequest
-import org.wfanet.measurement.api.v2alpha.copy
-import org.wfanet.measurement.api.v2alpha.eventGroup as externalEventGroup
-import org.wfanet.measurement.api.v2alpha.eventGroupMetadata as externalEventGroupMetadata
+import org.wfanet.measurement.api.v2alpha.eventGroup as cmmsEventGroup
+import org.wfanet.measurement.api.v2alpha.eventGroupMetadata as cmmsEventGroupMetadata
 import org.wfanet.measurement.api.v2alpha.listEventGroupsResponse
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
-import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup
+import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup.MediaType
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.MetadataKt.AdMetadataKt.campaignMetadata
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.MetadataKt.adMetadata
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.metadata as eventGroupMetadata
@@ -56,61 +55,6 @@ import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.eventGroup
 
 @RunWith(JUnit4::class)
 class EventGroupSyncTest {
-
-  private val campaigns =
-    listOf(
-      eventGroup {
-        eventGroupReferenceId = "reference-id-1"
-        measurementConsumer = "measurement-consumer-1"
-        this.eventGroupMetadata = eventGroupMetadata {
-          this.adMetadata = adMetadata {
-            this.campaignMetadata = campaignMetadata {
-              brand = "brand-1"
-              campaign = "campaign-1"
-            }
-          }
-        }
-        dataAvailabilityInterval = interval {
-          startTime = timestamp { seconds = 200 }
-          endTime = timestamp { seconds = 300 }
-        }
-        mediaTypes += listOf("VIDEO", "DISPLAY")
-      },
-      eventGroup {
-        eventGroupReferenceId = "reference-id-2"
-        this.eventGroupMetadata = eventGroupMetadata {
-          this.adMetadata = adMetadata {
-            this.campaignMetadata = campaignMetadata {
-              brand = "brand-2"
-              campaign = "campaign-2"
-            }
-          }
-        }
-        measurementConsumer = "measurement-consumer-2"
-        dataAvailabilityInterval = interval {
-          startTime = timestamp { seconds = 200 }
-          endTime = timestamp { seconds = 300 }
-        }
-        mediaTypes += listOf("OTHER")
-      },
-      eventGroup {
-        eventGroupReferenceId = "reference-id-3"
-        this.eventGroupMetadata = eventGroupMetadata {
-          this.adMetadata = adMetadata {
-            this.campaignMetadata = campaignMetadata {
-              brand = "brand-2"
-              campaign = "campaign-3"
-            }
-          }
-        }
-        measurementConsumer = "measurement-consumer-2"
-        dataAvailabilityInterval = interval {
-          startTime = timestamp { seconds = 200 }
-          endTime = timestamp { seconds = 300 }
-        }
-        mediaTypes += listOf("OTHER")
-      },
-    )
 
   private val eventGroupsServiceMock: EventGroupsCoroutineImplBase = mockService {
     onBlocking { updateEventGroup(any<UpdateEventGroupRequest>()) }
@@ -120,16 +64,63 @@ class EventGroupSyncTest {
     onBlocking { listEventGroups(any<ListEventGroupsRequest>()) }
       .thenAnswer {
         listEventGroupsResponse {
-          eventGroups += campaigns[0].toEventGroup()
-          eventGroups += campaigns[1].toEventGroup()
           eventGroups +=
-            campaigns[2].toEventGroup().copy {
-              this.eventGroupMetadata = externalEventGroupMetadata {
-                this.adMetadata = externalAdMetadata {
-                  this.campaignMetadata = externalCampaignMetadata { brandName = "new-brand-name" }
+            listOf(
+              cmmsEventGroup {
+                name = "dataProviders/data-provider-1/eventGroups/reference-id-1"
+                measurementConsumer = "measurementConsumers/measurement-consumer-1"
+                eventGroupReferenceId = "reference-id-1"
+                mediaTypes += listOf("VIDEO", "DISPLAY").map { CmmsMediaType.valueOf(it) }
+                eventGroupMetadata = cmmsEventGroupMetadata {
+                  this.adMetadata = cmmsAdMetadata {
+                    this.campaignMetadata = cmmsCampaignMetadata {
+                      brandName = "brand-1"
+                      campaignName = "campaign-1"
+                    }
+                  }
                 }
-              }
-            }
+                dataAvailabilityInterval = interval {
+                  startTime = timestamp { seconds = 200 }
+                  endTime = timestamp { seconds = 300 }
+                }
+              },
+              cmmsEventGroup {
+                name = "dataProviders/data-provider-2/eventGroups/reference-id-2"
+                measurementConsumer = "measurementConsumers/measurement-consumer-2"
+                eventGroupReferenceId = "reference-id-2"
+                mediaTypes += listOf("OTHER").map { CmmsMediaType.valueOf(it) }
+                eventGroupMetadata = cmmsEventGroupMetadata {
+                  this.adMetadata = cmmsAdMetadata {
+                    this.campaignMetadata = cmmsCampaignMetadata {
+                      brandName = "brand-2"
+                      campaignName = "campaign-2"
+                    }
+                  }
+                }
+                dataAvailabilityInterval = interval {
+                  startTime = timestamp { seconds = 200 }
+                  endTime = timestamp { seconds = 300 }
+                }
+              },
+              cmmsEventGroup {
+                name = "dataProviders/data-provider-3/eventGroups/reference-id-3"
+                measurementConsumer = "measurementConsumers/measurement-consumer-2"
+                eventGroupReferenceId = "reference-id-3"
+                mediaTypes += listOf(CmmsMediaType.valueOf("OTHER"))
+                eventGroupMetadata = cmmsEventGroupMetadata {
+                  this.adMetadata = cmmsAdMetadata {
+                    this.campaignMetadata = cmmsCampaignMetadata {
+                      brandName = "new-brand-name"
+                      campaignName = "campaign-3"
+                    }
+                  }
+                }
+                dataAvailabilityInterval = interval {
+                  startTime = timestamp { seconds = 200 }
+                  endTime = timestamp { seconds = 300 }
+                }
+              },
+            )
         }
       }
   }
@@ -157,9 +148,10 @@ class EventGroupSyncTest {
         startTime = timestamp { seconds = 200 }
         endTime = timestamp { seconds = 300 }
       }
-      mediaTypes += listOf("OTHER")
+      mediaTypes +=
+        listOf(MediaType.valueOf("OTHER"), MediaType.valueOf("VIDEO"), MediaType.valueOf("DISPLAY"))
     }
-    val testCampaigns = campaigns + newCampaign
+    val testCampaigns = CAMPAIGNS + newCampaign
     val eventGroupSync =
       EventGroupSync(
         "edp-name",
@@ -177,7 +169,7 @@ class EventGroupSyncTest {
       EventGroupSync(
         "edp-name",
         eventGroupsStub,
-        campaigns.asFlow(),
+        CAMPAIGNS.asFlow(),
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
       )
     runBlocking { eventGroupSync.sync().collect() }
@@ -185,43 +177,178 @@ class EventGroupSyncTest {
   }
 
   @Test
-  fun sync_returnsMapOfEventGroupReferenceIdsToEventGroups() {
+  fun `sync returns Map Of Event Group Reference Ids To Event Groups`() {
     runBlocking {
       val eventGroupSync =
         EventGroupSync(
           "edp-name",
           eventGroupsStub,
-          campaigns.asFlow(),
+          CAMPAIGNS.asFlow(),
           MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         )
       val result = runBlocking { eventGroupSync.sync() }
       assertThat(result.toList().map { it.eventGroupReferenceId to it.eventGroupResource })
         .isEqualTo(
           listOf(
-            "reference-id-1" to "resource-name-for-reference-id-1",
-            "reference-id-2" to "resource-name-for-reference-id-2",
-            "reference-id-3" to "resource-name-for-reference-id-3",
+            "reference-id-1" to "dataProviders/data-provider-1/eventGroups/reference-id-1",
+            "reference-id-2" to "dataProviders/data-provider-2/eventGroups/reference-id-2",
+            "reference-id-3" to "dataProviders/data-provider-3/eventGroups/reference-id-3",
           )
         )
     }
   }
-}
 
-private fun EventGroup.toEventGroup(): ExternalEventGroup {
-  val campaign = this
-  return externalEventGroup {
-    name = "resource-name-for-${campaign.eventGroupReferenceId}"
-    measurementConsumer = campaign.measurementConsumer
-    eventGroupReferenceId = campaign.eventGroupReferenceId
-    this.eventGroupMetadata = externalEventGroupMetadata {
-      this.adMetadata = externalAdMetadata {
-        this.campaignMetadata = externalCampaignMetadata {
-          brandName = campaign.eventGroupMetadata.adMetadata.campaignMetadata.brand
-          campaignName = campaign.eventGroupMetadata.adMetadata.campaignMetadata.campaign
+  @Test
+  fun `throws exception if no media types`() {
+    val eventGroup = eventGroup {
+      eventGroupReferenceId = "reference-id-4"
+      this.eventGroupMetadata = eventGroupMetadata {
+        this.adMetadata = adMetadata {
+          this.campaignMetadata = campaignMetadata {
+            brand = "brand-2"
+            campaign = "campaign-2"
+          }
         }
       }
+      measurementConsumer = "measurement-consumer-2"
+      dataAvailabilityInterval = interval {
+        startTime = timestamp { seconds = 200 }
+        endTime = timestamp { seconds = 300 }
+      }
+      mediaTypes += emptyList<MediaType>()
     }
-    mediaTypes += campaign.mediaTypesList.map { ExternalMediaType.valueOf(it) }
-    dataAvailabilityInterval = campaign.dataAvailabilityInterval
+    assertFailsWith<IllegalStateException> { EventGroupSync.validateEventGroup(eventGroup) }
+  }
+
+  @Test
+  fun `throws exception if no event group reference id`() {
+    val eventGroup = eventGroup {
+      eventGroupReferenceId = ""
+      this.eventGroupMetadata = eventGroupMetadata {
+        this.adMetadata = adMetadata {
+          this.campaignMetadata = campaignMetadata {
+            brand = "brand-2"
+            campaign = "campaign-2"
+          }
+        }
+      }
+      measurementConsumer = "measurement-consumer-2"
+      dataAvailabilityInterval = interval {
+        startTime = timestamp { seconds = 200 }
+        endTime = timestamp { seconds = 300 }
+      }
+      mediaTypes += listOf(MediaType.valueOf("OTHER"))
+    }
+    assertFailsWith<IllegalStateException> { EventGroupSync.validateEventGroup(eventGroup) }
+  }
+
+  @Test
+  fun `throw exceptions if do data availability`() {
+    val eventGroup = eventGroup {
+      eventGroupReferenceId = "some-event-group-reference-id"
+      this.eventGroupMetadata = eventGroupMetadata {
+        this.adMetadata = adMetadata {
+          this.campaignMetadata = campaignMetadata {
+            brand = "brand-2"
+            campaign = "campaign-2"
+          }
+        }
+      }
+      measurementConsumer = "measurement-consumer-2"
+      mediaTypes += listOf(MediaType.valueOf("OTHER"))
+    }
+    assertFailsWith<IllegalStateException> { EventGroupSync.validateEventGroup(eventGroup) }
+  }
+
+  @Test
+  fun `throws exception if no event group metadata`() {
+    val eventGroup = eventGroup {
+      eventGroupReferenceId = "event-group-reference-id"
+      measurementConsumer = "measurement-consumer-2"
+      dataAvailabilityInterval = interval {
+        startTime = timestamp { seconds = 200 }
+        endTime = timestamp { seconds = 300 }
+      }
+      mediaTypes += listOf(MediaType.valueOf("OTHER"))
+    }
+    assertFailsWith<IllegalStateException> { EventGroupSync.validateEventGroup(eventGroup) }
+  }
+
+  @Test
+  fun `throws exception if empty measurement consumer`() {
+    val eventGroup = eventGroup {
+      eventGroupReferenceId = "some-reference-id"
+      this.eventGroupMetadata = eventGroupMetadata {
+        this.adMetadata = adMetadata {
+          this.campaignMetadata = campaignMetadata {
+            brand = "brand-2"
+            campaign = "campaign-2"
+          }
+        }
+      }
+      dataAvailabilityInterval = interval {
+        startTime = timestamp { seconds = 200 }
+        endTime = timestamp { seconds = 300 }
+      }
+      mediaTypes += listOf(MediaType.valueOf("OTHER"))
+    }
+    assertFailsWith<IllegalStateException> { EventGroupSync.validateEventGroup(eventGroup) }
+  }
+
+  companion object {
+    private val CAMPAIGNS =
+      listOf(
+        eventGroup {
+          eventGroupReferenceId = "reference-id-1"
+          measurementConsumer = "measurementConsumers/measurement-consumer-1"
+          this.eventGroupMetadata = eventGroupMetadata {
+            this.adMetadata = adMetadata {
+              this.campaignMetadata = campaignMetadata {
+                brand = "brand-1"
+                campaign = "campaign-1"
+              }
+            }
+          }
+          dataAvailabilityInterval = interval {
+            startTime = timestamp { seconds = 200 }
+            endTime = timestamp { seconds = 300 }
+          }
+          mediaTypes += listOf(MediaType.valueOf("VIDEO"), MediaType.valueOf("DISPLAY"))
+        },
+        eventGroup {
+          eventGroupReferenceId = "reference-id-2"
+          this.eventGroupMetadata = eventGroupMetadata {
+            this.adMetadata = adMetadata {
+              this.campaignMetadata = campaignMetadata {
+                brand = "brand-2"
+                campaign = "campaign-2"
+              }
+            }
+          }
+          measurementConsumer = "measurementConsumers/measurement-consumer-2"
+          dataAvailabilityInterval = interval {
+            startTime = timestamp { seconds = 200 }
+            endTime = timestamp { seconds = 300 }
+          }
+          mediaTypes += listOf(MediaType.valueOf("OTHER"))
+        },
+        eventGroup {
+          eventGroupReferenceId = "reference-id-3"
+          this.eventGroupMetadata = eventGroupMetadata {
+            this.adMetadata = adMetadata {
+              this.campaignMetadata = campaignMetadata {
+                brand = "brand-2"
+                campaign = "campaign-3"
+              }
+            }
+          }
+          measurementConsumer = "measurementConsumers/measurement-consumer-2"
+          dataAvailabilityInterval = interval {
+            startTime = timestamp { seconds = 200 }
+            endTime = timestamp { seconds = 300 }
+          }
+          mediaTypes += listOf(MediaType.valueOf("OTHER"))
+        },
+      )
   }
 }

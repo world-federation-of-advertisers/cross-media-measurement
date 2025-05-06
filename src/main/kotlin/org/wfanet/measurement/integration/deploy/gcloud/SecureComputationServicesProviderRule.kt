@@ -22,7 +22,6 @@ import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.InternalApiServices
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.testing.Schemata
 import org.wfanet.measurement.securecomputation.service.internal.QueueMapping
-import org.wfanet.measurement.securecomputation.service.internal.Services
 import org.wfanet.measurement.securecomputation.service.internal.WorkItemPublisher
 
 class SecureComputationServicesProviderRule(
@@ -43,11 +42,7 @@ class SecureComputationServicesProviderRule(
       object : Statement() {
         override fun evaluate() {
           internalServices =
-            InternalApiServices(
-              workItemPublisher,
-              spannerDatabase.databaseClient,
-              queueMapping,
-            )
+            InternalApiServices(workItemPublisher, spannerDatabase.databaseClient, queueMapping)
           base.evaluate()
         }
       }

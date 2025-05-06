@@ -47,13 +47,12 @@ class ResultsFulfillerTestApp(
   }
 
   override fun getTypeRegistry(): TypeRegistry {
-    val typeRegistry = TypeRegistry.newBuilder().add(TestEvent.getDescriptor()).build()
-    return typeRegistry
+    return TypeRegistry.newBuilder().add(TestEvent.getDescriptor()).build()
   }
 
   override fun getStorageConfig(
     configType: StorageConfigType,
-    storageDetails: ResultsFulfillerParams.Storage,
+    storageParams: ResultsFulfillerParams.StorageParams,
   ): StorageConfig {
     return StorageConfig(rootDirectory = fileSystemRootDirectory)
   }

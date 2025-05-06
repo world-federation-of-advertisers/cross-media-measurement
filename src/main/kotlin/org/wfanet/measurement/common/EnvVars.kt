@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package org.wfanet.measurement.edpaggregator.deploy.gcloud
+package org.wfanet.measurement.common
 
 import java.nio.file.InvalidPathException
 import java.nio.file.Paths
@@ -22,8 +22,8 @@ import java.nio.file.Paths
 /*
  * Util functions for EDP Aggregator Cloud Functions
  */
-object Utils {
-  fun checkEnvNotNullOrEmpty(envVar: String): String {
+object EnvVars {
+  fun checkNotNullOrEmpty(envVar: String): String {
     val value = System.getenv(envVar)
     checkNotNull(value) { "Missing env var: $envVar" }
     check(value.isNotBlank())
@@ -35,7 +35,7 @@ object Utils {
     try {
       Paths.get(value)
     } catch (e: InvalidPathException) {
-      throw IllegalStateException("Path $value is not a valid path")
+      throw IllegalStateException("Path $value is not a valid path", e)
     }
     return value
   }

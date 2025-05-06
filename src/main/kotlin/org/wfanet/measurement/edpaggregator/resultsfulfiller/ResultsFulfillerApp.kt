@@ -14,7 +14,7 @@ import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.tink.TinkPrivateKeyHandle
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
-import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams.Storage
+import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams.StorageParams
 import org.wfanet.measurement.queue.QueueSubscriber
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem.WorkItemParams
@@ -73,7 +73,7 @@ abstract class ResultsFulfillerApp(
 
   abstract fun getStorageConfig(
     configType: StorageConfigType,
-    storageDetails: Storage,
+    storageParams: StorageParams,
   ): StorageConfig
 
   override suspend fun runWork(message: Any) {
@@ -83,12 +83,12 @@ abstract class ResultsFulfillerApp(
     val typeRegistry = getTypeRegistry()
     val requisitionsBlobUri = workItemParams.dataPathParams.dataPath
 
-    val storageDetails = fulfillerParams.storage
+    val storageParams = fulfillerParams.storageParams
 
-    val requisitionsStorageConfig = getStorageConfig(StorageConfigType.REQUISITION, storageDetails)
+    val requisitionsStorageConfig = getStorageConfig(StorageConfigType.REQUISITION, storageParams)
     val impressionsMetadataStorageConfig =
-      getStorageConfig(StorageConfigType.IMPRESSION_METADATA, storageDetails)
-    val impressionsStorageConfig = getStorageConfig(StorageConfigType.IMPRESSION, storageDetails)
+      getStorageConfig(StorageConfigType.IMPRESSION_METADATA, storageParams)
+    val impressionsStorageConfig = getStorageConfig(StorageConfigType.IMPRESSION, storageParams)
     val principalName = fulfillerParams.dataProvider
     val requisitionsStub =
       if (cmmsChannel != null) {
@@ -109,10 +109,10 @@ abstract class ResultsFulfillerApp(
           .withPrincipalName(principalName)
 
       }
-    val dataProviderCertificateKey = checkNotNull(DataProviderCertificateKey.fromName(fulfillerParams.consent.edpCertificateName))
-    val consentCertificateFile = checkNotNull(getRuntimePath(Paths.get(fulfillerParams.consent.resultCsCertDerResourcePath))).toFile()
-    val consentPrivateKeyFile = checkNotNull(getRuntimePath(Paths.get(fulfillerParams.consent.resultCsPrivateKeyDerResourcePath))).toFile()
-    val encryptionPrivateKeyFile = checkNotNull(getRuntimePath(Paths.get(fulfillerParams.consent.privateEncryptionKeyResourcePath))).toFile()
+    val dataProviderCertificateKey = checkNotNull(DataProviderCertificateKey.fromName(fulfillerParams.consentParams.edpCertificateName))
+    val consentCertificateFile = checkNotNull(getRuntimePath(Paths.get(fulfillerParams.consentParams.resultCsCertDerResourcePath))).toFile()
+    val consentPrivateKeyFile = checkNotNull(getRuntimePath(Paths.get(fulfillerParams.consentParams.resultCsPrivateKeyDerResourcePath))).toFile()
+    val encryptionPrivateKeyFile = checkNotNull(getRuntimePath(Paths.get(fulfillerParams.consentParams.privateEncryptionKeyResourcePath))).toFile()
     val consentCertificate: X509Certificate =
       consentCertificateFile.inputStream().use { input -> readCertificate(input) }
     val consentPrivateEncryptionKey = readPrivateKey(consentPrivateKeyFile.readByteString(), consentCertificate.publicKey.algorithm)
@@ -130,7 +130,7 @@ abstract class ResultsFulfillerApp(
         dataProviderResultSigningKeyHandle,
         typeRegistry,
         requisitionsBlobUri,
-        fulfillerParams.storage.labeledImpressionsBlobUriPrefix,
+        fulfillerParams.storageParams.labeledImpressionsBlobDetailsUriPrefix,
         kmsClient,
         impressionsStorageConfig,
         impressionsMetadataStorageConfig,

@@ -55,7 +55,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
 import org.wfanet.measurement.edpaggregator.v1alpha.labeledImpression
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParamsKt
-import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParamsKt.storage
+import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParamsKt.storageParams
 import org.wfanet.measurement.edpaggregator.v1alpha.resultsFulfillerParams
 import org.wfanet.measurement.internal.duchy.config.ProtocolsSetupConfig
 import org.wfanet.measurement.internal.kingdom.DuchyIdConfig
@@ -298,18 +298,18 @@ fun getResultsFulfillerParams(
 ): ResultsFulfillerParams {
   return resultsFulfillerParams {
     this.dataProvider = edpResourceName
-    this.storage =
-      ResultsFulfillerParamsKt.storage {
-        this.labeledImpressionsBlobUriPrefix = labeledImpressionBlobUriPrefix
+    this.storageParams =
+      ResultsFulfillerParamsKt.storageParams {
+        this.labeledImpressionsBlobDetailsUriPrefix = labeledImpressionBlobUriPrefix
       }
     this.cmmsConnection =
-      ResultsFulfillerParamsKt.connection {
+      ResultsFulfillerParamsKt.transportLayerSecurityParams {
         clientCertResourcePath = SECRET_FILES_PATH.resolve("${edpDisplayName}_tls.pem").toString()
         clientPrivateKeyResourcePath =
           SECRET_FILES_PATH.resolve("${edpDisplayName}_tls.key").toString()
       }
-    this.consent =
-      ResultsFulfillerParamsKt.consent {
+    this.consentParams =
+      ResultsFulfillerParamsKt.consentParams {
         resultCsCertDerResourcePath =
           SECRET_FILES_PATH.resolve("${edpDisplayName}_cs_cert.der").toString()
         resultCsPrivateKeyDerResourcePath =
@@ -319,31 +319,6 @@ fun getResultsFulfillerParams(
         edpCertificateName = edpCertificateKey.toName()
       }
   }
-}
-
-// TODO: Delete
-fun getLabeledImpressions(): Flow<LabeledImpression> {
-  val LAST_EVENT_DATE = LocalDate.now()
-  val FIRST_EVENT_DATE = LAST_EVENT_DATE.minusDays(1)
-  val TIME_RANGE = OpenEndTimeRange.fromClosedDateRange(FIRST_EVENT_DATE..LAST_EVENT_DATE)
-  val testEvent = testEvent {
-    person = person {
-      ageGroup = Person.AgeGroup.YEARS_18_TO_34
-      gender = Person.Gender.MALE
-      socialGradeGroup = Person.SocialGradeGroup.A_B_C1
-    }
-  }
-  val impression = labeledImpression {
-    eventTime = Timestamp.getDefaultInstance()
-    vid = 10L
-    event = testEvent.pack()
-  }
-  return List(13000) {
-    impression.copy {
-      vid = it.toLong()
-      eventTime = TIME_RANGE.start.toProtoTime()
-    }
-  }.asFlow()
 }
 
 fun getPrivateKey(edpShortName: String): PrivateKeyHandle {

@@ -81,6 +81,7 @@ import org.wfanet.measurement.consent.client.dataprovider.decryptRequisitionSpec
 import org.wfanet.measurement.edpaggregator.eventgroups.EventGroupSync
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.MappedEventGroup
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.eventGroup
+import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup.MediaType
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionFetcher
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.ResultsFulfillerTestApp
 import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
@@ -109,6 +110,9 @@ import org.wfanet.measurement.api.v2alpha.EncryptedMessage
 import org.wfanet.measurement.consent.client.dataprovider.encryptMetadata
 import org.wfanet.measurement.api.v2alpha.EventGroupKt as CmmsEventGroupKt
 import org.wfanet.measurement.common.pack
+import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.MetadataKt.AdMetadataKt.campaignMetadata
+import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.MetadataKt.adMetadata
+import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.metadata as eventGroupMetadata
 
 class InProcessEdpAggregatorComponents(
   private val internalServicesRule: ProviderRule<InternalApiServices>,
@@ -262,6 +266,15 @@ class InProcessEdpAggregatorComponents(
             startTime = timestamp { seconds = 200 }
             endTime = timestamp { seconds = 300 }
           }
+          this.eventGroupMetadata = eventGroupMetadata {
+            this.adMetadata = adMetadata {
+              this.campaignMetadata = campaignMetadata {
+                brand = "brand-2"
+                campaign = "campaign-2"
+              }
+            }
+          }
+          mediaTypes += MediaType.valueOf("VIDEO")
         }
       )
     eventGroupSync =
@@ -272,6 +285,7 @@ class InProcessEdpAggregatorComponents(
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000L)),
       )
     val mappedEventGroups: List<MappedEventGroup> = runBlocking { eventGroupSync.sync().toList() }
+    logger.info("Received mappedEventGroups: $mappedEventGroups")
     val cmmsEventGroup =
       mappedEventGroups.filter { it.eventGroupReferenceId == "sim-eg-reference-id-1-edp-0" }.single()
     // Wait for requisitions to be created

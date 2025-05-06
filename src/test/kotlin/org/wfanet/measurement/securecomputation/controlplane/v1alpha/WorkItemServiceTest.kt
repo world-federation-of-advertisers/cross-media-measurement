@@ -18,6 +18,7 @@ package org.wfanet.measurement.securecomputation.controlplane.v1alpha
 
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
+import com.google.protobuf.Any
 import com.google.rpc.errorInfo
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
@@ -90,9 +91,10 @@ class WorkItemServiceTest {
       )
       .isEqualTo(
         internalCreateWorkItemRequest {
-          internalWorkItem {
+          this.workItem = internalWorkItem {
             queueResourceId = "queueId"
             workItemResourceId = request.workItemId
+            workItemParams = Any.getDefaultInstance()
           }
         }
       )

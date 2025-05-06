@@ -241,7 +241,9 @@ class MeasurementConsumerSimulator(
   /** A sequence of operations done in the simulator involving a reach and frequency measurement. */
   suspend fun testReachAndFrequency(
     runId: String,
-    requiredCapabilities: DataProvider.Capabilities = DataProvider.Capabilities.getDefaultInstance(),
+    requiredCapabilities: DataProvider.Capabilities =
+      DataProvider.Capabilities.getDefaultInstance(),
+    vidSamplingInterval: VidSamplingInterval = DEFAULT_VID_SAMPLING_INTERVAL,
   ) {
     logger.info { "Creating reach and frequency Measurement..." }
     // Create a new measurement on behalf of the measurement consumer.
@@ -252,6 +254,7 @@ class MeasurementConsumerSimulator(
         runId,
         ::newReachAndFrequencyMeasurementSpec,
         requiredCapabilities,
+        vidSamplingInterval = vidSamplingInterval,
       )
     val measurementName = measurementInfo.measurement.name
     logger.info { "Created reach and frequency Measurement $measurementName" }
@@ -308,7 +311,9 @@ class MeasurementConsumerSimulator(
    */
   suspend fun testInvalidReachAndFrequency(
     runId: String,
-    requiredCapabilities: DataProvider.Capabilities = DataProvider.Capabilities.getDefaultInstance(),
+    requiredCapabilities: DataProvider.Capabilities =
+      DataProvider.Capabilities.getDefaultInstance(),
+    vidSamplingInterval: VidSamplingInterval = DEFAULT_VID_SAMPLING_INTERVAL,
   ) {
     // Create a new measurement on behalf of the measurement consumer.
     val measurementConsumer = getMeasurementConsumer(measurementConsumerData.name)
@@ -319,6 +324,7 @@ class MeasurementConsumerSimulator(
           runId,
           ::newInvalidReachAndFrequencyMeasurementSpec,
           requiredCapabilities,
+          vidSamplingInterval,
         )
         .measurement
     logger.info(
@@ -351,6 +357,7 @@ class MeasurementConsumerSimulator(
         runId,
         ::newReachAndFrequencyMeasurementSpec,
         DataProviderKt.capabilities { honestMajorityShareShuffleSupported = false },
+        DEFAULT_VID_SAMPLING_INTERVAL,
         1,
       )
     val measurementName = measurementInfo.measurement.name
@@ -410,6 +417,7 @@ class MeasurementConsumerSimulator(
         runId,
         ::newReachMeasurementSpec,
         DataProviderKt.capabilities { honestMajorityShareShuffleSupported = false },
+        DEFAULT_VID_SAMPLING_INTERVAL,
         1,
       )
     val measurementName = measurementInfo.measurement.name
@@ -444,7 +452,9 @@ class MeasurementConsumerSimulator(
 
   suspend fun executeReachOnly(
     runId: String,
-    requiredCapabilities: DataProvider.Capabilities = DataProvider.Capabilities.getDefaultInstance(),
+    requiredCapabilities: DataProvider.Capabilities =
+      DataProvider.Capabilities.getDefaultInstance(),
+    vidSamplingInterval: VidSamplingInterval = DEFAULT_VID_SAMPLING_INTERVAL,
   ): ExecutionResult {
     // Create a new measurement on behalf of the measurement consumer.
     val measurementConsumer = getMeasurementConsumer(measurementConsumerData.name)
@@ -454,6 +464,7 @@ class MeasurementConsumerSimulator(
         runId,
         ::newReachOnlyMeasurementSpec,
         requiredCapabilities,
+        DEFAULT_VID_SAMPLING_INTERVAL,
       )
     val measurementName = measurementInfo.measurement.name
     logger.info("Created reach-only measurement $measurementName.")
@@ -475,7 +486,9 @@ class MeasurementConsumerSimulator(
 
   suspend fun executeReachAndFrequency(
     runId: String,
-    requiredCapabilities: DataProvider.Capabilities = DataProvider.Capabilities.getDefaultInstance(),
+    requiredCapabilities: DataProvider.Capabilities =
+      DataProvider.Capabilities.getDefaultInstance(),
+    vidSamplingInterval: VidSamplingInterval = DEFAULT_VID_SAMPLING_INTERVAL,
   ): ExecutionResult {
     // Create a new measurement on behalf of the measurement consumer.
     val measurementConsumer = getMeasurementConsumer(measurementConsumerData.name)
@@ -485,6 +498,7 @@ class MeasurementConsumerSimulator(
         runId,
         ::newReachAndFrequencyMeasurementSpec,
         requiredCapabilities,
+        vidSamplingInterval = vidSamplingInterval,
       )
     val measurementName = measurementInfo.measurement.name
     logger.info("Created reach-and-frequency measurement $measurementName.")
@@ -509,9 +523,11 @@ class MeasurementConsumerSimulator(
   /** A sequence of operations done in the simulator involving a reach-only measurement. */
   suspend fun testReachOnly(
     runId: String,
-    requiredCapabilities: DataProvider.Capabilities = DataProvider.Capabilities.getDefaultInstance(),
+    requiredCapabilities: DataProvider.Capabilities =
+      DataProvider.Capabilities.getDefaultInstance(),
+    vidSamplingInterval: VidSamplingInterval = DEFAULT_VID_SAMPLING_INTERVAL,
   ) {
-    val result = executeReachOnly(runId, requiredCapabilities)
+    val result = executeReachOnly(runId, requiredCapabilities, vidSamplingInterval)
 
     val protocol = result.measurementInfo.measurement.protocolConfig.protocolsList.first()
 
@@ -557,6 +573,7 @@ class MeasurementConsumerSimulator(
         runId,
         ::newImpressionMeasurementSpec,
         DataProviderKt.capabilities { honestMajorityShareShuffleSupported = false },
+        DEFAULT_VID_SAMPLING_INTERVAL,
       )
     val measurementName = measurementInfo.measurement.name
     logger.info("Created impression Measurement $measurementName.")
@@ -595,6 +612,7 @@ class MeasurementConsumerSimulator(
         runId,
         ::newDurationMeasurementSpec,
         DataProviderKt.capabilities { honestMajorityShareShuffleSupported = false },
+        DEFAULT_VID_SAMPLING_INTERVAL,
       )
     val measurementName = measurementInfo.measurement.name
     logger.info("Created duration Measurement $measurementName.")
@@ -800,9 +818,14 @@ class MeasurementConsumerSimulator(
     measurementConsumer: MeasurementConsumer,
     runId: String,
     newMeasurementSpec:
-      (packedMeasurementPublicKey: ProtoAny, nonceHashes: List<ByteString>) -> MeasurementSpec,
+      (
+        packedMeasurementPublicKey: ProtoAny,
+        nonceHashes: List<ByteString>,
+        vidSamplingInterval: VidSamplingInterval,
+      ) -> MeasurementSpec,
     requiredCapabilities: DataProvider.Capabilities =
       DataProvider.Capabilities.getDefaultInstance(),
+    vidSamplingInterval: VidSamplingInterval,
     maxDataProviders: Int = 20,
   ): MeasurementInfo {
     val eventGroups: List<EventGroup> =
@@ -841,7 +864,8 @@ class MeasurementConsumerSimulator(
           buildRequisitionInfo(dataProvider, eventGroups, measurementConsumer, nonce)
         }
 
-    val measurementSpec = newMeasurementSpec(measurementConsumer.publicKey.message, nonceHashes)
+    val measurementSpec =
+      newMeasurementSpec(measurementConsumer.publicKey.message, nonceHashes, vidSamplingInterval)
 
     return createMeasurementInfo(measurementConsumer, measurementSpec, requisitions, runId)
   }
@@ -1145,14 +1169,12 @@ class MeasurementConsumerSimulator(
   private fun newReachMeasurementSpec(
     packedMeasurementPublicKey: ProtoAny,
     nonceHashes: List<ByteString>,
+    vidSamplingInterval: VidSamplingInterval,
   ): MeasurementSpec {
     return measurementSpec {
       measurementPublicKey = packedMeasurementPublicKey
       reach = MeasurementSpecKt.reach { privacyParams = outputDpParams }
-      vidSamplingInterval = vidSamplingInterval {
-        start = 0.0f
-        width = 0.27f
-      }
+      this.vidSamplingInterval = vidSamplingInterval
       this.nonceHashes += nonceHashes
     }
   }
@@ -1160,6 +1182,7 @@ class MeasurementConsumerSimulator(
   private fun newReachAndFrequencyMeasurementSpec(
     packedMeasurementPublicKey: ProtoAny,
     nonceHashes: List<ByteString>,
+    vidSamplingInterval: VidSamplingInterval,
   ): MeasurementSpec {
     return measurementSpec {
       measurementPublicKey = packedMeasurementPublicKey
@@ -1168,10 +1191,7 @@ class MeasurementConsumerSimulator(
         frequencyPrivacyParams = outputDpParams
         maximumFrequency = 10
       }
-      vidSamplingInterval = vidSamplingInterval {
-        start = 0.0f
-        width = 0.27f
-      }
+      this.vidSamplingInterval = vidSamplingInterval
       this.nonceHashes += nonceHashes
     }
   }
@@ -1179,14 +1199,12 @@ class MeasurementConsumerSimulator(
   private fun newReachOnlyMeasurementSpec(
     packedMeasurementPublicKey: ProtoAny,
     nonceHashes: List<ByteString>,
+    vidSamplingInterval: VidSamplingInterval,
   ): MeasurementSpec {
     return measurementSpec {
       measurementPublicKey = packedMeasurementPublicKey
       reach = MeasurementSpecKt.reach { privacyParams = outputDpParams }
-      vidSamplingInterval = vidSamplingInterval {
-        start = 0.0f
-        width = 0.27f
-      }
+      this.vidSamplingInterval = vidSamplingInterval
       this.nonceHashes += nonceHashes
     }
   }
@@ -1194,23 +1212,30 @@ class MeasurementConsumerSimulator(
   private fun newInvalidReachAndFrequencyMeasurementSpec(
     packedMeasurementPublicKey: ProtoAny,
     nonceHashes: List<ByteString>,
+    vidSamplingInterval: VidSamplingInterval,
   ): MeasurementSpec {
     val invalidPrivacyParams = differentialPrivacyParams {
       epsilon = 1.0
       delta = 0.0
     }
-    return newReachAndFrequencyMeasurementSpec(packedMeasurementPublicKey, nonceHashes).copy {
-      reachAndFrequency = reachAndFrequency {
-        reachPrivacyParams = invalidPrivacyParams
-        frequencyPrivacyParams = invalidPrivacyParams
-        maximumFrequency = 10
+    return newReachAndFrequencyMeasurementSpec(
+        packedMeasurementPublicKey,
+        nonceHashes,
+        vidSamplingInterval,
+      )
+      .copy {
+        reachAndFrequency = reachAndFrequency {
+          reachPrivacyParams = invalidPrivacyParams
+          frequencyPrivacyParams = invalidPrivacyParams
+          maximumFrequency = 10
+        }
       }
-    }
   }
 
   private fun newImpressionMeasurementSpec(
     packedMeasurementPublicKey: ProtoAny,
     nonceHashes: List<ByteString>,
+    vidSamplingInterval: VidSamplingInterval,
   ): MeasurementSpec {
     return measurementSpec {
       measurementPublicKey = packedMeasurementPublicKey
@@ -1218,10 +1243,7 @@ class MeasurementConsumerSimulator(
         privacyParams = outputDpParams
         maximumFrequencyPerUser = 10
       }
-      vidSamplingInterval = vidSamplingInterval {
-        start = 0.0f
-        width = 0.27f
-      }
+      this.vidSamplingInterval = vidSamplingInterval
       this.nonceHashes += nonceHashes
     }
   }
@@ -1229,6 +1251,7 @@ class MeasurementConsumerSimulator(
   private fun newDurationMeasurementSpec(
     packedMeasurementPublicKey: ProtoAny,
     nonceHashes: List<ByteString>,
+    vidSamplingInterval: VidSamplingInterval,
   ): MeasurementSpec {
     return measurementSpec {
       measurementPublicKey = packedMeasurementPublicKey
@@ -1394,6 +1417,10 @@ class MeasurementConsumerSimulator(
 
     // For a 99.9999% Confidence Interval.
     private const val CONFIDENCE_INTERVAL_MULTIPLIER = 5.0
+    private val DEFAULT_VID_SAMPLING_INTERVAL = vidSamplingInterval {
+      start = 0.2f
+      width = 0.5f
+    }
     private val logger: Logger = Logger.getLogger(this::class.java.name)
   }
 }

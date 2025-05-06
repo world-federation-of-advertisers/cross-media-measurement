@@ -45,7 +45,6 @@ import org.mockito.kotlin.any
 import org.mockito.kotlin.times
 import org.mockito.kotlin.verifyBlocking
 import org.wfanet.measurement.api.v2alpha.CreateEventGroupRequest
-import org.wfanet.measurement.api.v2alpha.EventGroup as CmmsEventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataKt.AdMetadataKt.campaignMetadata as cmmsCampaignMetadata
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataKt.adMetadata as cmmsAdMetadata
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineImplBase
@@ -62,11 +61,11 @@ import org.wfanet.measurement.common.grpc.CommonServer
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.toJson
-import org.wfanet.measurement.config.edpaggregator.StorageKt.fileSystemStorage
-import org.wfanet.measurement.config.edpaggregator.connection
+import org.wfanet.measurement.config.edpaggregator.StorageParamsKt.fileSystemStorage
 import org.wfanet.measurement.config.edpaggregator.eventGroupSyncConfig
-import org.wfanet.measurement.config.edpaggregator.storage
-import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup
+import org.wfanet.measurement.config.edpaggregator.storageParams
+import org.wfanet.measurement.config.edpaggregator.transportLayerSecurityParams
+import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup.MediaType
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.MetadataKt.AdMetadataKt.campaignMetadata
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.MetadataKt.adMetadata
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.metadata as eventGroupMetadata
@@ -80,79 +79,6 @@ import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 class EventGroupSyncFunctionTest() {
   private lateinit var grpcServer: CommonServer
   private lateinit var functionProcess: FunctionsFrameworkInvokerProcess
-  private val functionBinaryPath =
-    Paths.get(
-      "wfa_measurement_system",
-      "src",
-      "main",
-      "kotlin",
-      "org",
-      "wfanet",
-      "measurement",
-      "edpaggregator",
-      "deploy",
-      "gcloud",
-      "eventgroups",
-      "testing",
-      "InvokeEventGroupSyncFunction",
-    )
-  private val gcfTarget =
-    "org.wfanet.measurement.edpaggregator.deploy.gcloud.eventgroups.EventGroupSyncFunction"
-
-  private val campaigns =
-    listOf(
-      eventGroup {
-        eventGroupReferenceId = "reference-id-1"
-        measurementConsumer = "measurement-consumer-1"
-        this.eventGroupMetadata = eventGroupMetadata {
-          this.adMetadata = adMetadata {
-            this.campaignMetadata = campaignMetadata {
-              brand = "brand-1"
-              campaign = "campaign-1"
-            }
-          }
-        }
-        dataAvailabilityInterval = interval {
-          startTime = timestamp { seconds = 200 }
-          endTime = timestamp { seconds = 300 }
-        }
-        mediaTypes += listOf("VIDEO", "DISPLAY")
-      },
-      eventGroup {
-        eventGroupReferenceId = "reference-id-2"
-        this.eventGroupMetadata = eventGroupMetadata {
-          this.adMetadata = adMetadata {
-            this.campaignMetadata = campaignMetadata {
-              brand = "brand-2"
-              campaign = "campaign-2"
-            }
-          }
-        }
-        measurementConsumer = "measurement-consumer-2"
-        dataAvailabilityInterval = interval {
-          startTime = timestamp { seconds = 200 }
-          endTime = timestamp { seconds = 300 }
-        }
-        mediaTypes += listOf("OTHER")
-      },
-      eventGroup {
-        eventGroupReferenceId = "reference-id-3"
-        this.eventGroupMetadata = eventGroupMetadata {
-          this.adMetadata = adMetadata {
-            this.campaignMetadata = campaignMetadata {
-              brand = "brand-2"
-              campaign = "campaign-3"
-            }
-          }
-        }
-        measurementConsumer = "measurement-consumer-2"
-        dataAvailabilityInterval = interval {
-          startTime = timestamp { seconds = 200 }
-          endTime = timestamp { seconds = 300 }
-        }
-        mediaTypes += listOf("OTHER")
-      },
-    )
 
   private val eventGroupsServiceMock: EventGroupsCoroutineImplBase = mockService {
     onBlocking { updateEventGroup(any<UpdateEventGroupRequest>()) }
@@ -165,23 +91,70 @@ class EventGroupSyncFunctionTest() {
     onBlocking { listEventGroups(any<ListEventGroupsRequest>()) }
       .thenAnswer {
         listEventGroupsResponse {
-          eventGroups += campaigns[0].toEventGroup()
-          eventGroups += campaigns[1].toEventGroup()
           eventGroups +=
-            campaigns[2].toEventGroup().copy {
-              this.eventGroupMetadata = cmmsEventGroupMetadata {
-                this.adMetadata = cmmsAdMetadata {
-                  this.campaignMetadata = cmmsCampaignMetadata { brandName = "new-brand-name" }
+            listOf(
+              cmmsEventGroup {
+                name = "dataProviders/data-provider-1/eventGroups/reference-id-1"
+                measurementConsumer = "measurementConsumers/measurement-consumer-1"
+                eventGroupReferenceId = "reference-id-1"
+                mediaTypes += listOf(CmmsMediaType.VIDEO, CmmsMediaType.DISPLAY)
+                eventGroupMetadata = cmmsEventGroupMetadata {
+                  this.adMetadata = cmmsAdMetadata {
+                    this.campaignMetadata = cmmsCampaignMetadata {
+                      brandName = "brand-1"
+                      campaignName = "campaign-1"
+                    }
+                  }
                 }
-              }
-            }
+                dataAvailabilityInterval = interval {
+                  startTime = timestamp { seconds = 200 }
+                  endTime = timestamp { seconds = 300 }
+                }
+              },
+              cmmsEventGroup {
+                name = "dataProviders/data-provider-2/eventGroups/reference-id-2"
+                measurementConsumer = "measurementConsumers/measurement-consumer-2"
+                eventGroupReferenceId = "reference-id-2"
+                mediaTypes += listOf(CmmsMediaType.OTHER)
+                eventGroupMetadata = cmmsEventGroupMetadata {
+                  this.adMetadata = cmmsAdMetadata {
+                    this.campaignMetadata = cmmsCampaignMetadata {
+                      brandName = "brand-2"
+                      campaignName = "campaign-2"
+                    }
+                  }
+                }
+                dataAvailabilityInterval = interval {
+                  startTime = timestamp { seconds = 200 }
+                  endTime = timestamp { seconds = 300 }
+                }
+              },
+              cmmsEventGroup {
+                name = "dataProviders/data-provider-3/eventGroups/reference-id-3"
+                measurementConsumer = "measurementConsumers/measurement-consumer-2"
+                eventGroupReferenceId = "reference-id-3"
+                mediaTypes += listOf(CmmsMediaType.OTHER)
+                eventGroupMetadata = cmmsEventGroupMetadata {
+                  this.adMetadata = cmmsAdMetadata {
+                    this.campaignMetadata = cmmsCampaignMetadata {
+                      brandName = "new-brand-name"
+                      campaignName = "campaign-3"
+                    }
+                  }
+                }
+                dataAvailabilityInterval = interval {
+                  startTime = timestamp { seconds = 200 }
+                  endTime = timestamp { seconds = 300 }
+                }
+              },
+            )
         }
       }
   }
 
   @get:Rule val grpcTestServerRule = GrpcTestServerRule { addService(eventGroupsServiceMock) }
 
-  @Rule @JvmField val tempFolder = TemporaryFolder()
+  @get:Rule val tempFolder = TemporaryFolder()
 
   @Before
   fun startInfra() {
@@ -196,7 +169,10 @@ class EventGroupSyncFunctionTest() {
         )
         .start()
     functionProcess =
-      FunctionsFrameworkInvokerProcess(javaBinaryPath = functionBinaryPath, classTarget = gcfTarget)
+      FunctionsFrameworkInvokerProcess(
+        javaBinaryPath = FUNCTION_BINARY_PATH,
+        classTarget = GCG_TARGET,
+      )
     logger.info("Started gRPC server on port ${grpcServer.port}")
   }
 
@@ -222,20 +198,20 @@ class EventGroupSyncFunctionTest() {
         startTime = timestamp { seconds = 200 }
         endTime = timestamp { seconds = 300 }
       }
-      mediaTypes += listOf("OTHER")
+      mediaTypes += listOf(MediaType.OTHER)
     }
-    val testCampaigns = campaigns + newCampaign
+    val testCampaigns = CAMPAIGNS + newCampaign
     val config = eventGroupSyncConfig {
       dataProvider = "some-data-provider"
       eventGroupsBlobUri = "file:///some/path/campaigns-blob-uri"
       eventGroupMapBlobUri = "file:///some/other/path/event-groups-map-uri"
-      this.cmmsConnection = connection {
+      this.cmmsConnection = transportLayerSecurityParams {
         certJarResourcePath = "main/k8s/testing/secretfiles/edp1_tls.pem"
         privateKeyJarResourcePath = "main/k8s/testing/secretfiles/edp1_tls.key"
         certCollectionJarResourcePath = "main/k8s/testing/secretfiles/kingdom_root.pem"
       }
-      eventGroupStorage = storage { fileSystem = fileSystemStorage {} }
-      eventGroupMapStorage = storage { fileSystem = fileSystemStorage {} }
+      eventGroupStorage = storageParams { fileSystem = fileSystemStorage {} }
+      eventGroupMapStorage = storageParams { fileSystem = fileSystemStorage {} }
     }
     File("${tempFolder.root}/some/path").mkdirs()
     File("${tempFolder.root}/some/other/path").mkdirs()
@@ -284,16 +260,15 @@ class EventGroupSyncFunctionTest() {
     assertThat(mappedData)
       .isEqualTo(
         listOf(
-          "reference-id-1" to "resource-name-for-reference-id-1",
-          "reference-id-2" to "resource-name-for-reference-id-2",
-          "reference-id-3" to "resource-name-for-reference-id-3",
+          "reference-id-1" to "dataProviders/data-provider-1/eventGroups/reference-id-1",
+          "reference-id-2" to "dataProviders/data-provider-2/eventGroups/reference-id-2",
+          "reference-id-3" to "dataProviders/data-provider-3/eventGroups/reference-id-3",
           "reference-id-4" to "resource-name-for-reference-id-4",
         )
       )
   }
 
   companion object {
-    private const val BUCKET = "test-bucket"
     private val SECRETS_DIR: Path =
       getRuntimePath(
         Paths.get("wfa_measurement_system", "src", "main", "k8s", "testing", "secretfiles")
@@ -305,24 +280,79 @@ class EventGroupSyncFunctionTest() {
         trustedCertCollectionFile = SECRETS_DIR.resolve("edp1_root.pem").toFile(),
       )
     private val logger: Logger = Logger.getLogger(this::class.java.name)
-  }
-}
 
-private fun EventGroup.toEventGroup(): CmmsEventGroup {
-  val campaign = this
-  return cmmsEventGroup {
-    name = "resource-name-for-${campaign.eventGroupReferenceId}"
-    measurementConsumer = campaign.measurementConsumer
-    eventGroupReferenceId = campaign.eventGroupReferenceId
-    this.eventGroupMetadata = cmmsEventGroupMetadata {
-      this.adMetadata = cmmsAdMetadata {
-        this.campaignMetadata = cmmsCampaignMetadata {
-          brandName = campaign.eventGroupMetadata.adMetadata.campaignMetadata.brand
-          campaignName = campaign.eventGroupMetadata.adMetadata.campaignMetadata.campaign
-        }
-      }
-    }
-    mediaTypes += campaign.mediaTypesList.map { CmmsMediaType.valueOf(it) }
-    dataAvailabilityInterval = campaign.dataAvailabilityInterval
+    private val FUNCTION_BINARY_PATH =
+      Paths.get(
+        "wfa_measurement_system",
+        "src",
+        "main",
+        "kotlin",
+        "org",
+        "wfanet",
+        "measurement",
+        "edpaggregator",
+        "deploy",
+        "gcloud",
+        "eventgroups",
+        "testing",
+        "InvokeEventGroupSyncFunction",
+      )
+    private const val GCG_TARGET =
+      "org.wfanet.measurement.edpaggregator.deploy.gcloud.eventgroups.EventGroupSyncFunction"
+
+    private val CAMPAIGNS =
+      listOf(
+        eventGroup {
+          eventGroupReferenceId = "reference-id-1"
+          measurementConsumer = "measurementConsumers/measurement-consumer-1"
+          this.eventGroupMetadata = eventGroupMetadata {
+            this.adMetadata = adMetadata {
+              this.campaignMetadata = campaignMetadata {
+                brand = "brand-1"
+                campaign = "campaign-1"
+              }
+            }
+          }
+          dataAvailabilityInterval = interval {
+            startTime = timestamp { seconds = 200 }
+            endTime = timestamp { seconds = 300 }
+          }
+          mediaTypes += listOf(MediaType.VIDEO, MediaType.DISPLAY)
+        },
+        eventGroup {
+          eventGroupReferenceId = "reference-id-2"
+          this.eventGroupMetadata = eventGroupMetadata {
+            this.adMetadata = adMetadata {
+              this.campaignMetadata = campaignMetadata {
+                brand = "brand-2"
+                campaign = "campaign-2"
+              }
+            }
+          }
+          measurementConsumer = "measurementConsumers/measurement-consumer-2"
+          dataAvailabilityInterval = interval {
+            startTime = timestamp { seconds = 200 }
+            endTime = timestamp { seconds = 300 }
+          }
+          mediaTypes += listOf(MediaType.OTHER)
+        },
+        eventGroup {
+          eventGroupReferenceId = "reference-id-3"
+          this.eventGroupMetadata = eventGroupMetadata {
+            this.adMetadata = adMetadata {
+              this.campaignMetadata = campaignMetadata {
+                brand = "brand-2"
+                campaign = "campaign-3"
+              }
+            }
+          }
+          measurementConsumer = "measurementConsumers/measurement-consumer-2"
+          dataAvailabilityInterval = interval {
+            startTime = timestamp { seconds = 200 }
+            endTime = timestamp { seconds = 300 }
+          }
+          mediaTypes += listOf(MediaType.OTHER)
+        },
+      )
   }
 }

@@ -426,12 +426,7 @@ class EventGroupsServiceTest {
     runBlocking {
       whenever(internalEventGroupsMock.createEventGroup(any()))
         .thenReturn(
-          INTERNAL_EVENT_GROUP.copy {
-            details =
-              INTERNAL_EVENT_GROUP.details.copy {
-                this.dataAvailabilityInterval = dataAvailabilityInterval
-              }
-          }
+          INTERNAL_EVENT_GROUP.copy { this.dataAvailabilityInterval = dataAvailabilityInterval }
         )
     }
 
@@ -453,10 +448,7 @@ class EventGroupsServiceTest {
               clearCreateTime()
               clearExternalEventGroupId()
               clearState()
-              details =
-                INTERNAL_EVENT_GROUP.details.copy {
-                  this.dataAvailabilityInterval = dataAvailabilityInterval
-                }
+              this.dataAvailabilityInterval = dataAvailabilityInterval
             }
         }
       )
@@ -474,12 +466,7 @@ class EventGroupsServiceTest {
     runBlocking {
       whenever(internalEventGroupsMock.createEventGroup(any()))
         .thenReturn(
-          INTERNAL_EVENT_GROUP.copy {
-            details =
-              INTERNAL_EVENT_GROUP.details.copy {
-                this.dataAvailabilityInterval = dataAvailabilityInterval
-              }
-          }
+          INTERNAL_EVENT_GROUP.copy { this.dataAvailabilityInterval = dataAvailabilityInterval }
         )
     }
 
@@ -501,10 +488,7 @@ class EventGroupsServiceTest {
               clearCreateTime()
               clearExternalEventGroupId()
               clearState()
-              details =
-                INTERNAL_EVENT_GROUP.details.copy {
-                  this.dataAvailabilityInterval = dataAvailabilityInterval
-                }
+              this.dataAvailabilityInterval = dataAvailabilityInterval
             }
         }
       )
@@ -686,12 +670,7 @@ class EventGroupsServiceTest {
     runBlocking {
       whenever(internalEventGroupsMock.updateEventGroup(any()))
         .thenReturn(
-          INTERNAL_EVENT_GROUP.copy {
-            details =
-              INTERNAL_EVENT_GROUP.details.copy {
-                this.dataAvailabilityInterval = dataAvailabilityInterval
-              }
-          }
+          INTERNAL_EVENT_GROUP.copy { this.dataAvailabilityInterval = dataAvailabilityInterval }
         )
     }
 
@@ -711,10 +690,7 @@ class EventGroupsServiceTest {
             INTERNAL_EVENT_GROUP.copy {
               clearCreateTime()
               clearState()
-              details =
-                INTERNAL_EVENT_GROUP.details.copy {
-                  this.dataAvailabilityInterval = dataAvailabilityInterval
-                }
+              this.dataAvailabilityInterval = dataAvailabilityInterval
             }
         }
       )
@@ -732,12 +708,7 @@ class EventGroupsServiceTest {
     runBlocking {
       whenever(internalEventGroupsMock.updateEventGroup(any()))
         .thenReturn(
-          INTERNAL_EVENT_GROUP.copy {
-            details =
-              INTERNAL_EVENT_GROUP.details.copy {
-                this.dataAvailabilityInterval = dataAvailabilityInterval
-              }
-          }
+          INTERNAL_EVENT_GROUP.copy { this.dataAvailabilityInterval = dataAvailabilityInterval }
         )
     }
 
@@ -757,10 +728,7 @@ class EventGroupsServiceTest {
             INTERNAL_EVENT_GROUP.copy {
               clearCreateTime()
               clearState()
-              details =
-                INTERNAL_EVENT_GROUP.details.copy {
-                  this.dataAvailabilityInterval = dataAvailabilityInterval
-                }
+              this.dataAvailabilityInterval = dataAvailabilityInterval
             }
         }
       )

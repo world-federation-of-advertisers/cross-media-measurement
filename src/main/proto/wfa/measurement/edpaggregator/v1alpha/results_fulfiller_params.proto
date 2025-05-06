@@ -25,27 +25,27 @@ option java_outer_classname = "ResultsFulfillerParamsProto";
 
 // Message representing the params used for the results fulfiller tee app
 message ResultsFulfillerParams {
-  // The EDP for whom results will be fulfilled
+  // The Cmms Resource name for the EDP
   string data_provider = 1;
   // Message representing the storage details used by the results fulfiller app
-  message Storage {
+  message StorageParams {
     // The blob uri prefix for the labeled impressions `BlobDetails` that is
     // stored in GCS for a given EDP
     // See reference:
     // https://github.com/world-federation-of-advertisers/common-jvm/blob/main/src/main/kotlin/org/wfanet/measurement/storage/SelectedStorageClient.kt
-    string labeled_impressions_blob_uri_prefix = 1
+    string labeled_impressions_blob_details_uri_prefix = 1
         [(google.api.field_behavior) = REQUIRED];
 
     // The Project ID for the requisitions GCS instance that can be
     // used with a blob URI to retrieve the data. Optional.
-    string gcs_project_id = 2;
+    string gcs_project_id = 4;
   }
 
   // The storage used by the tee app
-  Storage storage = 2 [(google.api.field_behavior) = REQUIRED];
+  StorageParams storage_params = 2 [(google.api.field_behavior) = REQUIRED];
 
   // Message representing the details needed to generate certificates
-  message Consent {
+  message ConsentParams {
     // The resource key of the DER-encoded certificate file used for result
     // signing
     string result_cs_cert_der_resource_path = 1
@@ -68,10 +68,10 @@ message ResultsFulfillerParams {
   }
 
   // Information necessary for EDP Consent signaling
-  Consent consent = 3 [(google.api.field_behavior) = REQUIRED];
+  ConsentParams consent_params = 3 [(google.api.field_behavior) = REQUIRED];
 
   // Message representing the details needed to connect to the kingdom
-  message Connection {
+  message TransportLayerSecurityParams {
     // The resource key of the client certificate
     string client_cert_resource_path = 1
         [(google.api.field_behavior) = REQUIRED];
@@ -82,5 +82,6 @@ message ResultsFulfillerParams {
   }
 
   // The connection to the Cmms API
-  Connection cmms_connection = 4 [(google.api.field_behavior) = REQUIRED];
+  TransportLayerSecurityParams cmms_connection = 4
+      [(google.api.field_behavior) = REQUIRED];
 }
