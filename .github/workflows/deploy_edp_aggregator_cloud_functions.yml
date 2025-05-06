@@ -31,6 +31,7 @@ jobs:
     runs-on: ubuntu-22.04
     environment: ${{ github.event.inputs.environment }}
     env:
+      WIP: ${{ vars.WORKLOAD_IDENTITY_PROVIDER }}
       GCLOUD_PROJECT:                       ${{ vars.GCLOUD_PROJECT }}
       GCLOUD_REGION:                        ${{ vars.GCLOUD_REGION }}
       DATA_WATCHER_TRIGGER_BUCKET:          ${{ vars.DATA_WATCHER_TRIGGER_BUCKET }}
@@ -44,12 +45,18 @@ jobs:
 
       - uses: actions/checkout@v4
 
+      - name: Dump inputs
+        run: |
+          echo "provider1 = ${{ env.WORKLOAD_IDENTITY_PROVIDER }}"
+          echo "service1  = ${{ vars.TF_SERVICE_ACCOUNT }}"
+        shell: bash
+
       - name: Deploy Data Watcher
         uses: ./.github/actions/build-and-deploy-cloud-function
         with:
 #          environment:   ${{ inputs.environment }}
           environment: "dev"
-          workload_identity_provider: ${{ vars.WORKLOAD_IDENTITY_PROVIDER }}
+          workload_identity_provider: ${{ env.WORKLOAD_IDENTITY_PROVIDER }}
           service_account: ${{ vars.TF_SERVICE_ACCOUNT }}
           function_name: data-watcher
           entry_point:   org.wfanet.measurement.securecomputation.deploy.gcloud.datawatcher.DataWatcherFunction
