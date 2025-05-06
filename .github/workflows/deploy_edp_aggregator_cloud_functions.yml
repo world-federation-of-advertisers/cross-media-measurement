@@ -12,9 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-name: "Build and Deploy cloud functions"
+name: "Deploy Cloud Functions"
 
 on:
+  push:
+    branches:
+      - marcopremier/add_requisition_fetcher_deployment2
   workflow_dispatch:
     inputs:
       environment:
@@ -24,10 +27,9 @@ on:
         default: dev
 
 jobs:
-
-  export-vars:
-    runs-on:      ubuntu-latest
-    environment:  ${{ inputs.environment }}
+  deploy:
+    runs-on: ubuntu-22.04
+    environment: ${{ github.event.inputs.environment }}
     env:
       DATA_WATCHER_TRIGGER_BUCKET:          ${{ vars.DATA_WATCHER_TRIGGER_BUCKET }}
       DATA_WATCHER_SERVICE_ACCOUNT:         ${{ vars.DATA_WATCHER_SERVICE_ACCOUNT }}
@@ -35,53 +37,35 @@ jobs:
       SECURE_COMPUTATION_PUBLIC_API_TARGET: ${{ vars.SECURE_COMPUTATION_PUBLIC_API_TARGET }}
       REQUISITION_FETCHER_SERVICE_ACCOUNT:  ${{ vars.REQUISITION_FETCHER_SERVICE_ACCOUNT }}
       KINGDOM_PUBLIC_API_TARGET:            ${{ vars.KINGDOM_PUBLIC_API_TARGET }}
-    outputs:
-      data_watcher_trigger_bucket:      ${{ steps.load.outputs.data_watcher_trigger_bucket }}
-      data_watcher_sa:                  ${{ steps.load.outputs.data_watcher_sa }}
-      data_watcher_trigger_sa:          ${{ steps.load.outputs.data_watcher_trigger_sa }}
-      control_plane_public_api_target:  ${{ steps.load.outputs.control_plane_public_api_target }}
-      requisition_fetcher_sa:           ${{ steps.load.outputs.requisition_fetcher_sa }}
-      kingdom_public_api_target:        ${{ steps.load.outputs.kingdom_public_api_target }}
+
     steps:
-      - id: load
-        run: |
-          echo "data_watcher_trigger_bucket=$DATA_WATCHER_TRIGGER_BUCKET"               >> $GITHUB_OUTPUT
-          echo "data_watcher_sa=$DATA_WATCHER_SERVICE_ACCOUNT"                          >> $GITHUB_OUTPUT
-          echo "data_watcher_trigger_sa=$DATA_WATCHER_TRIGGER_SERVICE_ACCOUNT"          >> $GITHUB_OUTPUT
-          echo "control_plane_public_api_target=$SECURE_COMPUTATION_PUBLIC_API_TARGET"  >> $GITHUB_OUTPUT
-          echo "requisition_fetcher_sa=$REQUISITION_FETCHER_SERVICE_ACCOUNT"            >> $GITHUB_OUTPUT
-          echo "kingdom_public_api_target=$KINGDOM_PUBLIC_API_TARGET"                   >> $GITHUB_OUTPUT
+      - name: Deploy Data Watcher
+        uses: ./.github/actions/build-and-deploy-cloud-function
+        with:
+          environment:   ${{ github.event.inputs.environment }}
+          function_name: data-watcher
+          entry_point:   org.wfanet.measurement.securecomputation.deploy.gcloud.datawatcher.DataWatcherFunction
+          source_path:   //src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/datawatcher:DataWatcherFunction_deploy.jar
+          uber_jar_path: bazel-bin/src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/datawatcher/DataWatcherFunction_deploy.jar
+          trigger_type:  storage
+          trigger_bucket: ${{ env.DATA_WATCHER_TRIGGER_BUCKET }}
+          run_service_account: ${{ env.DATA_WATCHER_SERVICE_ACCOUNT }}
+          trigger_service_account: ${{ env.DATA_WATCHER_TRIGGER_SERVICE_ACCOUNT }}
+          extra_env_vars: |
+            CERT_JAR_RESOURCE_PATH=src/main/k8s/testing/secretfiles/data_watcher_tls.pem,
+            PRIVATE_KEY_JAR_RESOURCE_PATH=src/main/k8s/testing/secretfiles/data_watcher_tls.key,
+            CONTROL_PLANE_TARGET=${{ env.SECURE_COMPUTATION_PUBLIC_API_TARGET }},
+            CONTROL_PLANE_CERT_HOST=data-watcher.secure-computation.${{ github.event.inputs.environment }}.halo-cmm.org
 
-  deploy-data-watcher:
-    needs: export-vars
-    uses: ./.github/workflows/build_and_deploy_cloud_function.yml
-    with:
-      environment:                ${{ inputs.environment }}
-      function_name:              data-watcher
-      entry_point:                org.wfanet.measurement.securecomputation.deploy.gcloud.datawatcher.DataWatcherFunction
-      source_path:                //src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/datawatcher:DataWatcherFunction_deploy.jar
-      uber_jar_path:              bazel-bin/src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/datawatcher/DataWatcherFunction_deploy.jar
-      trigger_type:               storage
-      trigger_bucket:             ${{ needs.export-vars.outputs.data_watcher_trigger_bucket }}
-      run_service_account:        ${{ needs.export-vars.outputs.data_watcher_sa }}
-      trigger_service_account:    ${{ needs.export-vars.outputs.data_watcher_trigger_sa }}
-      extra_env_vars: |
-        CERT_JAR_RESOURCE_PATH=src/main/k8s/testing/secretfiles/data_watcher_tls.pem,
-        PRIVATE_KEY_JAR_RESOURCE_PATH=src/main/k8s/testing/secretfiles/data_watcher_tls.key,
-        CONTROL_PLANE_TARGET=${{ needs.export-vars.outputs.control_plane_public_api_target }},
-        CONTROL_PLANE_CERT_HOST=data-watcher.secure-computation.${{ inputs.environment }}.halo-cmm.org
-
-  deploy-requisition-fetcher:
-    needs: export-vars
-    uses: ./.github/workflows/build_and_deploy_cloud_function.yml
-    with:
-      environment: ${{ inputs.environment }}
-      function_name:              requisition-fetcher
-      entry_point:                org.wfanet.measurement.edpaggregator.deploy.gcloud.requisitionfetcher.RequisitionFetcherFunction
-      source_path:                //src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/requisitionfetcher:RequisitionFetcherFunction_deploy.jar
-      uber_jar_path:              bazel-bin/src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/requisitionfetcher/RequisitionFetcherFunction_deploy.jar
-      trigger_type:               http
-      run_service_account:        ${{ needs.export-vars.outputs.requisition_fetcher_sa }}
-      extra_env_vars: |
-        KINGDOM_TARGET=${{ needs.export-vars.outputs.kingdom_public_api_target }}
-
+      - name: Deploy Requisition Fetcher
+        uses: ./.github/actions/build-and-deploy-cloud-function
+        with:
+          environment:             ${{ github.event.inputs.environment }}
+          function_name:           requisition-fetcher
+          entry_point:             org.wfanet.measurement.edpaggregator.deploy.gcloud.requisitionfetcher.RequisitionFetcherFunction
+          source_path:             //src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/requisitionfetcher:RequisitionFetcherFunction_deploy.jar
+          uber_jar_path:           bazel-bin/src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/requisitionfetcher/RequisitionFetcherFunction_deploy.jar
+          trigger_type:            http
+          run_service_account:     ${{ env.REQUISITION_FETCHER_SERVICE_ACCOUNT }}
+          extra_env_vars: |
+            KINGDOM_TARGET=${{ env.KINGDOM_PUBLIC_API_TARGET }}

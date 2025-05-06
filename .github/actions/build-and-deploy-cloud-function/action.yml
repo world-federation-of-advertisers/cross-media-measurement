@@ -1,0 +1,110 @@
+# Copyright 2025 The Cross-Media Measurement Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: "Build and Deploy Cloud Function"
+description: "Build Bazel uber-jar and deploy to Google Cloud Functions"
+inputs:
+  environment:
+    description: "GitHub environment"
+    required: true
+  function_name:
+    description: "GCF function name"
+    required: true
+  entry_point:
+    description: "Java entry point"
+    required: true
+  source_path:
+    description: "Bazel target path"
+    required: true
+  uber_jar_path:
+    description: "Bazel uber-jar path"
+    required: true
+  trigger_type:
+    description: "'storage' or 'http'"
+    required: true
+  trigger_bucket:
+    description: "GCS bucket name"
+    required: false
+  run_service_account:
+    description: "Service account to run the function"
+    required: true
+  trigger_service_account:
+    description: "Service account to receive the trigger (storage-only)"
+    required: false
+  extra_env_vars:
+    description: "Additional --set-env-vars"
+    required: false
+
+runs:
+  using: "composite"
+  steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Authenticate to GCP
+      uses: google-github-actions/auth@v2
+      with:
+        workload_identity_provider: ${{ vars.WORKLOAD_IDENTITY_PROVIDER }}
+        service_account:        ${{ vars.TF_SERVICE_ACCOUNT }}
+
+    - name: Setup gcloud
+      uses: google-github-actions/setup-gcloud@v1
+      with:
+        project_id: ${{ vars.GCLOUD_PROJECT }}
+
+    - name: Build uber-jar
+      shell: bash
+      run: |
+          bazel build ${{ inputs.source_path }}
+
+    - name: Copy to temp
+      shell: bash
+      run: |
+        mkdir -p "$RUNNER_TEMP/source"
+        cp ${{ inputs.uber_jar_path }} "$RUNNER_TEMP/source/"
+
+    - name: Deploy function
+      shell: bash
+      run: |
+        set -euo pipefail
+        
+        ARGS=(
+          functions deploy "${{ inputs.function_name }}"
+          --gen2
+          --runtime=java17
+          --entry-point="${{ inputs.entry_point }}"
+          --memory=512MB
+          --region="${{ vars.GCLOUD_REGION }}"
+          --run-service-account="${{ inputs.run_service_account }}"
+          --source="$RUNNER_TEMP/source"
+        )
+
+        if [[ "${{ inputs.trigger_type }}" == "storage" ]]; then
+          ARGS+=(
+            --trigger-event-filters="type=google.cloud.storage.object.v1.finalized"
+            --trigger-event-filters="bucket=${{ inputs.trigger_bucket }}"
+            --trigger-service-account="${{ inputs.trigger_service_account }}"
+          )
+        else
+          ARGS+=(
+            --trigger-http
+            --allow-unauthenticated
+          )
+        fi
+
+        if [[ -n "${{ inputs.extra_env_vars }}" ]]; then
+          ARGS+=(--set-env-vars="${{ inputs.extra_env_vars }}")
+        fi
+
+        gcloud "${ARGS[@]}"
