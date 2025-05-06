@@ -171,22 +171,16 @@ class SpannerModelLinesService(
           .map { it.modelLine }
           .toList()
           .sortedWith(
-            compareBy<ModelLine, ModelLine.Type?>({ a, b ->
-                when {
-                  a == b -> 0
-                  a == ModelLine.Type.PROD -> -1
-                  a == ModelLine.Type.HOLDBACK -> {
-                    if (b == ModelLine.Type.PROD) {
-                      1
-                    } else -1
-                  }
-
-                  a == ModelLine.Type.DEV -> 1
-                  else -> -1
-                }
-              }) {
-                it.type
+            compareBy<ModelLine, Int>({ a, b -> a.compareTo(b) }) {
+              @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
+              when (it.type) {
+                ModelLine.Type.PROD -> 1
+                ModelLine.Type.HOLDBACK -> 2
+                ModelLine.Type.DEV -> 3
+                ModelLine.Type.TYPE_UNSPECIFIED,
+                ModelLine.Type.UNRECOGNIZED -> error("Unknown ModelLine type")
               }
+            }
               .thenByDescending(Timestamps::compare) { it.activeStartTime }
           )
     }
