@@ -28,7 +28,7 @@ on:
 
 permissions:
   id-token: write
-  
+
 jobs:
   deploy:
     runs-on: ubuntu-22.04
@@ -45,12 +45,6 @@ jobs:
     steps:
 
       - uses: actions/checkout@v4
-
-      - name: Dump inputs
-        run: |
-          echo "provider1 = ${{ env.WORKLOAD_IDENTITY_PROVIDER }}"
-          echo "service1  = ${{ vars.TF_SERVICE_ACCOUNT }}"
-        shell: bash
 
       - name: Deploy Data Watcher
         uses: ./.github/actions/build-and-deploy-cloud-function

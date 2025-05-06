@@ -62,12 +62,6 @@ runs:
   using: "composite"
   steps:
 
-    - name: Dump inputs
-      run: |
-        echo "provider = ${{ inputs.workload_identity_provider }}"
-        echo "service  = ${{ inputs.service_account }}"
-      shell: bash
-
     - name: Authenticate to GCP
       uses: google-github-actions/auth@v2
       with:
@@ -77,7 +71,7 @@ runs:
     - name: Setup gcloud
       uses: google-github-actions/setup-gcloud@v1
       with:
-        project_id: ${{ env.GCLOUD_PROJECT }}
+        project_id: ${{ inputs.google_project }}
 
     - name: Build uber-jar
       shell: bash
@@ -101,7 +95,7 @@ runs:
           --runtime=java17
           --entry-point="${{ inputs.entry_point }}"
           --memory=512MB
-          --region="${{ env.GCLOUD_REGION }}"
+          --region="${{ inputs.cloud_region }}"
           --run-service-account="${{ inputs.run_service_account }}"
           --source="$RUNNER_TEMP/source"
         )
