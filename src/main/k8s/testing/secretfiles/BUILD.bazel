@@ -7,6 +7,7 @@ package(
     default_testonly = True,
     default_visibility = [
         "//src/main/k8s:__subpackages__",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/eventgroups/testing:__subpackages__",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/requisitionfetcher/testing:__subpackages__",
         "//src/main/kotlin/org/wfanet/measurement/integration:__subpackages__",
         "//src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/datawatcher/testing:__subpackages__",
@@ -230,6 +231,7 @@ SECRET_FILES = [
     "pdp1_cs_private.der",
     "pdp1_enc_private.tink",
     "pdp1_enc_public.tink",
+    "queues_config.textproto",
     "secure_computation_root.pem",
     "secure_computation_tls.key",
     "secure_computation_tls.pem",
