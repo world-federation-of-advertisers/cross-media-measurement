@@ -36,11 +36,8 @@ inputs:
   entry_point:
     description: "Java entry point"
     required: true
-  source_path:
-    description: "Bazel target path"
-    required: true
-  uber_jar_path:
-    description: "Bazel uber-jar path"
+  bazel_target_label:
+    description: "Bazel target label"
     required: true
   trigger_type:
     description: "'storage' or 'http'"
@@ -76,13 +73,18 @@ runs:
     - name: Build uber-jar
       shell: bash
       run: |
-        bazel build ${{ inputs.source_path }}
+        bazel build ${{ inputs.bazel_target_label }}
 
-    - name: Copy to temp
+    - name: Locate and copy uber-jar
       shell: bash
       run: |
+        # ask Bazel where the target wrote its outputs:
+        JAR=$(bazel cquery "${{ inputs.bazel_target_label }}" --output=files \
+            | grep -E '_deploy\.jar$' \
+            | head -n1)
+
         mkdir -p "$RUNNER_TEMP/source"
-        cp ${{ inputs.uber_jar_path }} "$RUNNER_TEMP/source/"
+        cp "$JAR" "$RUNNER_TEMP/source/"
 
     - name: Deploy function
       shell: bash
@@ -100,7 +102,7 @@ runs:
           --source="$RUNNER_TEMP/source"
         )
         
-        if [[ "${{ inputs.trigger_type }}" == "storage" ]]; then
+        if [[ -n "${{ inputs.trigger_bucket }}" ]]; then
           ARGS+=(
             --trigger-event-filters="type=google.cloud.storage.object.v1.finalized"
             --trigger-event-filters="bucket=${{ inputs.trigger_bucket }}"
