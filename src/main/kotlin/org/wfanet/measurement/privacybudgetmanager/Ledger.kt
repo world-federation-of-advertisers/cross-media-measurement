@@ -39,7 +39,9 @@ interface Ledger {
  * possible that several requisitions may be in process simultaneously by different threads. Also,
  * if the privacy budget manager is replicated across nodes, it is conceivable that different nodes
  * could be processing privacy budget management operations simultaneously. Implementors of the
- * BackingStore should take this into account.
+ * BackingStore should take this into account. Since this interface is AutoCloseable, when the context 
+ * is closed without explicitly calling commit(), the expected behavior of the implementation is to
+ * rollback the transaction.
  */
 interface TransactionContext : AutoCloseable {
   /**
