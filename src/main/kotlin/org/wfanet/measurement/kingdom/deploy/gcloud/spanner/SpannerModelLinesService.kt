@@ -161,29 +161,27 @@ class SpannerModelLinesService(
         )
 
     return enumerateValidModelLinesResponse {
-      modelLines += modelLineResults.map { it.modelLine }.toList().sortedWith(modelLineComparator())
+      /**
+       * [ModelLine.Type.PROD] appears before [ModelLine.Type.HOLDBACK] and
+       * [ModelLine.Type.HOLDBACK] appears before [ModelLine.Type.DEV]. If the types are the same,
+       * then the more recent `activeStartTime` appears first.
+       */
+      modelLines += modelLineResults.map { it.modelLine }.toList().sortedWith(
+        compareBy<ModelLine, ModelLine.Type?>({ a, b ->
+                    when {
+                      a == b -> 0
+                      a == ModelLine.Type.PROD -> -1
+                      a == ModelLine.Type.HOLDBACK -> {
+                        if (b == ModelLine.Type.PROD) {
+                          1
+                        } else -1
+                      }
+
+                      a == ModelLine.Type.DEV -> 1
+                      else -> -1
+                    }
+                  }) { it.type }.thenByDescending(Timestamps::compare) { it.activeStartTime }
+      )
     }
   }
-
-  /**
-   * [ModelLine.Type.PROD] appears first before [ModelLine.Type.HOLDBACK] and
-   * [ModelLine.Type.HOLDBACK] appears first before [ModelLine.Type.DEV]. If the types are the same,
-   * then the more recent `activeStartTime` appears first.
-   */
-  private fun modelLineComparator() =
-    Comparator<ModelLine> { a, b ->
-      when {
-        a.type == b.type -> {
-          Timestamps.compare(a.activeStartTime, b.activeStartTime) * -1
-        }
-        a.type == ModelLine.Type.PROD -> -1
-        a.type == ModelLine.Type.HOLDBACK -> {
-          if (b.type == ModelLine.Type.PROD) {
-            1
-          } else -1
-        }
-        a.type == ModelLine.Type.DEV -> 1
-        else -> -1
-      }
-    }
 }

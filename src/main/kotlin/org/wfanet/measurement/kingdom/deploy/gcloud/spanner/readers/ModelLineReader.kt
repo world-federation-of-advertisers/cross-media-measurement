@@ -140,96 +140,91 @@ class ModelLineReader : SpannerReader<ModelLineReader.Result>() {
     externalDataProviderIds: List<ExternalId>,
   ): Flow<Result> {
     val validModelLinesStatement =
-      Statement.newBuilder("")
-        .append(
+      statement("") {
+        append(
           """
-              SELECT DISTINCT
-                ModelLines.ModelProviderId,
-                ModelLines.ModelSuiteId,
-                ModelLines.ModelLineId,
-                ModelLines.ExternalModelLineId,
-                ModelLines.DisplayName,
-                ModelLines.Description,
-                ModelLines.ActiveStartTime,
-                ModelLines.ActiveEndTime,
-                ModelLines.Type,
-                ModelLines.CreateTime,
-                ModelLines.UpdateTime,
-                ModelSuites.ExternalModelSuiteId,
-                ModelProviders.ExternalModelProviderId,
-                HoldbackModelLine.ExternalModelLineId as ExternalHoldbackModelLineId
-              FROM
-                ModelProviders
-                JOIN ModelSuites USING (ModelProviderId)
-                JOIN ModelLines USING (ModelProviderId, ModelSuiteId)
-                JOIN ModelRollouts USING (ModelProviderId, ModelSuiteId, ModelLineId)
-                JOIN
-                  (
-                    SELECT
-                      ModelProviderId,
-                      ModelSuiteId,
-                      ModelLineId,
-                      DataProviderId,
-                      StartTime,
-                      EndTime
-                    FROM
-                      DataProviders
-                      JOIN DataProviderAvailabilityIntervals USING (DataProviderId)
-                    WHERE
-                      ExternalDataProviderId IN UNNEST(@externalDataProviderIds)
-                  ) AS DataProviderDataAvailabilityIntervals
-                  USING (ModelProviderId, ModelSuiteId, ModelLineId)
-                LEFT JOIN ModelLines AS HoldbackModelLine ON (
-                  ModelLines.ModelProviderId = HoldbackModelLine.ModelProviderId
-                  AND ModelLines.ModelSuiteId = HoldbackModelLine.ModelSuiteId
-                  AND ModelLines.HoldbackModelLineId = HoldbackModelLine.ModelLineId
-                )
-              WHERE ExternalModelProviderId = @externalModelProviderId
-                AND ExternalModelSuiteId = @externalModelSuiteId
-                AND ModelLines.Type IN UNNEST(@types)
-                AND TIMESTAMP_DIFF(@intervalStartTime, ModelLines.ActiveStartTime, NANOSECOND) >= 0
-                AND
-                  CASE
-                    WHEN ModelLines.ActiveEndTime IS NULL THEN TRUE
-                    ELSE TIMESTAMP_DIFF(@intervalEndTime, ModelLines.ActiveEndTime, NANOSECOND) <= 0
-                    END
-                AND TIMESTAMP_DIFF(@intervalStartTime,StartTime, NANOSECOND) >= 0
-                AND TIMESTAMP_DIFF(@intervalEndTime, EndTime, NANOSECOND) <= 0
-              GROUP BY
-                ModelLines.ModelProviderId,
-                ModelLines.ModelSuiteId,
-                ModelLines.ModelLineId,
-                ModelLines.ExternalModelLineId,
-                ModelLines.DisplayName,
-                ModelLines.Description,
-                ModelLines.ActiveStartTime,
-                ModelLines.ActiveEndTime,
-                ModelLines.Type,
-                ModelLines.CreateTime,
-                ModelLines.UpdateTime,
-                ModelSuites.ExternalModelSuiteId,
-                ModelProviders.ExternalModelProviderId,
-                HoldbackModelLine.ExternalModelLineId
-              HAVING COUNT(DISTINCT ModelRolloutId) = 1
-                AND COUNT(DISTINCT DataProviderId) = @numDataProviders
-              """
+          SELECT DISTINCT
+            ModelLines.ModelProviderId,
+            ModelLines.ModelSuiteId,
+            ModelLines.ModelLineId,
+            ModelLines.ExternalModelLineId,
+            ModelLines.DisplayName,
+            ModelLines.Description,
+            ModelLines.ActiveStartTime,
+            ModelLines.ActiveEndTime,
+            ModelLines.Type,
+            ModelLines.CreateTime,
+            ModelLines.UpdateTime,
+            ModelSuites.ExternalModelSuiteId,
+            ModelProviders.ExternalModelProviderId,
+            HoldbackModelLine.ExternalModelLineId as ExternalHoldbackModelLineId
+          FROM
+            ModelProviders
+            JOIN ModelSuites USING (ModelProviderId)
+            JOIN ModelLines USING (ModelProviderId, ModelSuiteId)
+            JOIN ModelRollouts USING (ModelProviderId, ModelSuiteId, ModelLineId)
+            JOIN
+              (
+                SELECT
+                  ModelProviderId,
+                  ModelSuiteId,
+                  ModelLineId,
+                  DataProviderId,
+                  StartTime,
+                  EndTime
+                FROM
+                  DataProviders
+                  JOIN DataProviderAvailabilityIntervals USING (DataProviderId)
+                WHERE
+                  ExternalDataProviderId IN UNNEST(@externalDataProviderIds)
+              ) AS DataProviderDataAvailabilityIntervals
+              USING (ModelProviderId, ModelSuiteId, ModelLineId)
+            LEFT JOIN ModelLines AS HoldbackModelLine ON (
+              ModelLines.ModelProviderId = HoldbackModelLine.ModelProviderId
+              AND ModelLines.ModelSuiteId = HoldbackModelLine.ModelSuiteId
+              AND ModelLines.HoldbackModelLineId = HoldbackModelLine.ModelLineId
+            )
+          WHERE
+            ExternalModelProviderId = @externalModelProviderId
+            AND ExternalModelSuiteId = @externalModelSuiteId
+            AND ModelLines.Type IN UNNEST(@types)
+            AND TIMESTAMP_DIFF(@intervalStartTime, ModelLines.ActiveStartTime, NANOSECOND) >= 0
+            AND
+              CASE
+                WHEN ModelLines.ActiveEndTime IS NULL THEN TRUE
+                ELSE TIMESTAMP_DIFF(@intervalEndTime, ModelLines.ActiveEndTime, NANOSECOND) <= 0
+                END
+            AND TIMESTAMP_DIFF(@intervalStartTime,StartTime, NANOSECOND) >= 0
+            AND TIMESTAMP_DIFF(@intervalEndTime, EndTime, NANOSECOND) <= 0
+          GROUP BY
+            ModelLines.ModelProviderId,
+            ModelLines.ModelSuiteId,
+            ModelLines.ModelLineId,
+            ModelLines.ExternalModelLineId,
+            ModelLines.DisplayName,
+            ModelLines.Description,
+            ModelLines.ActiveStartTime,
+            ModelLines.ActiveEndTime,
+            ModelLines.Type,
+            ModelLines.CreateTime,
+            ModelLines.UpdateTime,
+            ModelSuites.ExternalModelSuiteId,
+            ModelProviders.ExternalModelProviderId,
+            HoldbackModelLine.ExternalModelLineId
+          HAVING
+            COUNT(DISTINCT ModelRolloutId) = 1
+            AND COUNT(DISTINCT DataProviderId) = @numDataProviders
+          """
             .trimIndent()
         )
-        .bind("externalModelProviderId")
-        .to(externalModelProviderId.value)
-        .bind("externalModelSuiteId")
-        .to(externalModelSuiteId.value)
-        .bind("numDataProviders")
-        .to(externalDataProviderIds.size.toLong())
-        .bind("externalDataProviderIds")
-        .toInt64Array(externalDataProviderIds.map { it.value })
-        .bind("types")
-        .toInt64Array(types.map { it.number.toLong() })
-        .bind("intervalStartTime")
-        .to(timeInterval.startTime.toGcloudTimestamp())
-        .bind("intervalEndTime")
-        .to(timeInterval.endTime.toGcloudTimestamp())
-        .build()
+        bind("externalModelProviderId").to(externalModelProviderId.value)
+        bind("externalModelSuiteId").to(externalModelSuiteId.value)
+        bind("numDataProviders").to(externalDataProviderIds.size.toLong())
+        bind("externalDataProviderIds").toInt64Array(externalDataProviderIds.map { it.value })
+        bind("types").toInt64Array(types.map { it.number.toLong() })
+        bind("intervalStartTime").to(timeInterval.startTime.toGcloudTimestamp())
+        bind("intervalEndTime").to(timeInterval.endTime.toGcloudTimestamp())
+      }
 
     val className: String = this::class.simpleName ?: "Anonymous"
 
