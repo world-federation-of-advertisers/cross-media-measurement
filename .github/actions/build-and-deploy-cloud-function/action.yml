@@ -18,6 +18,12 @@ inputs:
   environment:
     description: "GitHub environment"
     required: true
+  workload_identity_provider:
+    description: "Full WIF provider identifier"
+    required: true
+  service_account:
+    description: "Service account email to impersonate"
+    required: true
   function_name:
     description: "GCF function name"
     required: true
@@ -53,8 +59,8 @@ runs:
     - name: Authenticate to GCP
       uses: google-github-actions/auth@v2
       with:
-          workload_identity_provider: ${{ env.WORKLOAD_IDENTITY_PROVIDER }}
-          service_account: ${{ env.TF_SERVICE_ACCOUNT }}
+        workload_identity_provider: ${{ inputs.workload_identity_provider }}
+        service_account:             ${{ inputs.service_account }}
 
     - name: Setup gcloud
       uses: google-github-actions/setup-gcloud@v1
