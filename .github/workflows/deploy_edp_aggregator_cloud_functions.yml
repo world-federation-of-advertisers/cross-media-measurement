@@ -32,9 +32,6 @@ jobs:
 #    environment: ${{ github.event.inputs.environment }}
     environment: "dev"
     env:
-      WIP: ${{ vars.WORKLOAD_IDENTITY_PROVIDER }}
-      GCLOUD_PROJECT:                       ${{ vars.GCLOUD_PROJECT }}
-      GCLOUD_REGION:                        ${{ vars.GCLOUD_REGION }}
       DATA_WATCHER_TRIGGER_BUCKET:          ${{ vars.DATA_WATCHER_TRIGGER_BUCKET }}
       DATA_WATCHER_SERVICE_ACCOUNT:         ${{ vars.DATA_WATCHER_SERVICE_ACCOUNT }}
       DATA_WATCHER_TRIGGER_SERVICE_ACCOUNT: ${{ vars.DATA_WATCHER_TRIGGER_SERVICE_ACCOUNT }}
@@ -57,8 +54,10 @@ jobs:
         with:
 #          environment:   ${{ inputs.environment }}
           environment: "dev"
-          workload_identity_provider: ${{ env.WORKLOAD_IDENTITY_PROVIDER }}
+          workload_identity_provider: ${{ vars.WORKLOAD_IDENTITY_PROVIDER }}
           service_account: ${{ vars.TF_SERVICE_ACCOUNT }}
+          google_project: ${{ vars.GCLOUD_PROJECT }}
+          cloud_region: ${{ vars.GCLOUD_REGION }}
           function_name: data-watcher
           entry_point:   org.wfanet.measurement.securecomputation.deploy.gcloud.datawatcher.DataWatcherFunction
           source_path:   //src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/datawatcher:DataWatcherFunction_deploy.jar
@@ -79,7 +78,9 @@ jobs:
 #          environment:             ${{ inputs.environment }}
           environment: "dev"
           workload_identity_provider: ${{ vars.WORKLOAD_IDENTITY_PROVIDER }}
-          service_account:            ${{ vars.TF_SERVICE_ACCOUNT }}
+          service_account: ${{ vars.TF_SERVICE_ACCOUNT }}
+          google_project: ${{ vars.GCLOUD_PROJECT }}
+          cloud_region: ${{ vars.GCLOUD_REGION }}
           function_name:           requisition-fetcher
           entry_point:             org.wfanet.measurement.edpaggregator.deploy.gcloud.requisitionfetcher.RequisitionFetcherFunction
           source_path:             //src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/requisitionfetcher:RequisitionFetcherFunction_deploy.jar

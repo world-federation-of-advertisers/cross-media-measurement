@@ -21,6 +21,12 @@ inputs:
   workload_identity_provider:
     description: "Full WIF provider identifier"
     required: true
+  google_project:
+    description: "Google project ID"
+    required: true
+  cloud_region:
+    description: "Cloud region"
+    required: true
   service_account:
     description: "Service account email to impersonate"
     required: true
