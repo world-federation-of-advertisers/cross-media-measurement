@@ -50,65 +50,59 @@ runs:
   using: "composite"
   steps:
 
-#    - name: Checkout repository
-#      uses: actions/checkout@v4
-#
-#    - name: Checkout code
-#      uses: actions/checkout@v4
-
     - name: Authenticate to GCP
       uses: google-github-actions/auth@v2
       with:
-        workload_identity_provider: ${{ vars.WORKLOAD_IDENTITY_PROVIDER }}
-        service_account:        ${{ vars.TF_SERVICE_ACCOUNT }}
+          workload_identity_provider: ${{ env.WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ env.TF_SERVICE_ACCOUNT }}
 
     - name: Setup gcloud
       uses: google-github-actions/setup-gcloud@v1
       with:
-        project_id: ${{ vars.GCLOUD_PROJECT }}
+        project_id: ${{ env.GCLOUD_PROJECT }}
 
     - name: Build uber-jar
       shell: bash
       run: |
-          bazel build ${{ inputs.source_path }}
+        bazel build ${{ inputs.source_path }}
 
-    - name: Copy to temp
-      shell: bash
-      run: |
-        mkdir -p "$RUNNER_TEMP/source"
-        cp ${{ inputs.uber_jar_path }} "$RUNNER_TEMP/source/"
+        - name: Copy to temp
+          shell: bash
+          run: |
+            mkdir -p "$RUNNER_TEMP/source"
+            cp ${{ inputs.uber_jar_path }} "$RUNNER_TEMP/source/"
 
-    - name: Deploy function
-      shell: bash
-      run: |
-        set -euo pipefail
-        
-        ARGS=(
-          functions deploy "${{ inputs.function_name }}"
-          --gen2
-          --runtime=java17
-          --entry-point="${{ inputs.entry_point }}"
-          --memory=512MB
-          --region="${{ vars.GCLOUD_REGION }}"
-          --run-service-account="${{ inputs.run_service_account }}"
-          --source="$RUNNER_TEMP/source"
-        )
-
-        if [[ "${{ inputs.trigger_type }}" == "storage" ]]; then
-          ARGS+=(
-            --trigger-event-filters="type=google.cloud.storage.object.v1.finalized"
-            --trigger-event-filters="bucket=${{ inputs.trigger_bucket }}"
-            --trigger-service-account="${{ inputs.trigger_service_account }}"
-          )
-        else
-          ARGS+=(
-            --trigger-http
-            --allow-unauthenticated
-          )
-        fi
-
-        if [[ -n "${{ inputs.extra_env_vars }}" ]]; then
-          ARGS+=(--set-env-vars="${{ inputs.extra_env_vars }}")
-        fi
-
-        gcloud "${ARGS[@]}"
+        - name: Deploy function
+          shell: bash
+          run: |
+            set -euo pipefail
+            
+            ARGS=(
+              functions deploy "${{ inputs.function_name }}"
+              --gen2
+              --runtime=java17
+              --entry-point="${{ inputs.entry_point }}"
+              --memory=512MB
+              --region="${{ env.GCLOUD_REGION }}"
+              --run-service-account="${{ inputs.run_service_account }}"
+              --source="$RUNNER_TEMP/source"
+            )
+            
+            if [[ "${{ inputs.trigger_type }}" == "storage" ]]; then
+              ARGS+=(
+                --trigger-event-filters="type=google.cloud.storage.object.v1.finalized"
+                --trigger-event-filters="bucket=${{ inputs.trigger_bucket }}"
+                --trigger-service-account="${{ inputs.trigger_service_account }}"
+              )
+            else
+              ARGS+=(
+                --trigger-http
+                --allow-unauthenticated
+              )
+            fi
+            
+            if [[ -n "${{ inputs.extra_env_vars }}" ]]; then
+              ARGS+=(--set-env-vars="${{ inputs.extra_env_vars }}")
+            fi
+            
+            gcloud "${ARGS[@]}"
