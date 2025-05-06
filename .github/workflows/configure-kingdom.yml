@@ -15,6 +15,9 @@
 name: "Configure Kingdom"
 
 on:
+  push:
+    branches:
+      - marcopremier/add_certs_for_edp7
   workflow_call:
     inputs:
       environment:
