@@ -30,22 +30,19 @@ open class InMemoryEventQuery(
 ) : EventQuery<TestEvent> {
   override fun getLabeledEvents(
     eventGroupSpec: EventQuery.EventGroupSpec,
-    filterEvents: Boolean = false,
+    filterEvents: Boolean,
   ): Sequence<LabeledTestEvent> {
     val timeRange: OpenEndTimeRange = eventGroupSpec.spec.collectionInterval.toRange()
     val program: Program =
       EventQuery.compileProgram(eventGroupSpec.spec.filter, TestEvent.getDescriptor())
 
     val events = labeledEvents.asSequence()
-    return if (filterEvents)  {
-      events.filter {
-        it.timestamp in timeRange && EventFilters.matches(it.message, program)
-      }
+    return if (filterEvents) {
+      events.filter { it.timestamp in timeRange && EventFilters.matches(it.message, program) }
     } else {
       events
     }
   }
-
 
   override fun getUserVirtualIdUniverse(): Sequence<Long> {
     return (1L..maxVidValue).asSequence()
