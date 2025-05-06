@@ -201,7 +201,7 @@ SECRET_FILES = [
     "edp6_enc_public.tink",
     "edp6_tls.key",
     "edp6_tls.pem",
-    "edp6_cs_cert.der",
+    "edp7_cs_cert.der",
     "edp7_cs_private.der",
     "edp7_enc_private.tink",
     "edp7_enc_public.tink",
