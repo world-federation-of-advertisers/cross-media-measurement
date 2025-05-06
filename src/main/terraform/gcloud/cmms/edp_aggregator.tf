@@ -50,9 +50,9 @@ module "edp_aggregator" {
   data_watcher_trigger_service_account_name = "edpa-data-watcher-trigger"
   terraform_service_account                 = var.terraform_service_account
 
-  data_watcher_private_key_id               = "datawatcher-tls-key"
+  data_watcher_private_key_id               = "edpa-datawatcher-tls-key"
   data_watcher_private_key_path             = "${path.root}/../../../k8s/testing/secretfiles/data_watcher_tls.key"
-  data_watcher_cert_id                      = "datawatcher-tls-pem"
+  data_watcher_cert_id                      = "edpa-datawatcher-tls-pem"
   data_watcher_cert_path                    = "${path.root}/../../../k8s/testing/secretfiles/data_watcher_tls.pem"
   secure_computation_root_ca_id             = "secure-computation-root-ca"
   secure_computation_root_ca_path           = "${path.root}/../../../k8s/testing/secretfiles/secure_computation_root.pem"
