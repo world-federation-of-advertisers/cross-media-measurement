@@ -39,7 +39,6 @@ class MetadataSyntheticGeneratorEventQuery(
     } catch (_: Exception) {
       return syntheticEventGroupSpecs[parseEdpNumber(eventGroup.eventGroupReferenceId)]
     }
-
   }
 
   companion object {
