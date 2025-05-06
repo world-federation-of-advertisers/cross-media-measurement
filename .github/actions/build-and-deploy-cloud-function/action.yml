@@ -50,11 +50,11 @@ runs:
   using: "composite"
   steps:
 
-    - name: Checkout repository
-      uses: actions/checkout@v4
-
-    - name: Checkout code
-      uses: actions/checkout@v4
+#    - name: Checkout repository
+#      uses: actions/checkout@v4
+#
+#    - name: Checkout code
+#      uses: actions/checkout@v4
 
     - name: Authenticate to GCP
       uses: google-github-actions/auth@v2

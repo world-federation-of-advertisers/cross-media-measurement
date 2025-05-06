@@ -39,6 +39,9 @@ jobs:
       KINGDOM_PUBLIC_API_TARGET:            ${{ vars.KINGDOM_PUBLIC_API_TARGET }}
 
     steps:
+
+      - uses: actions/checkout@v4
+
       - name: Deploy Data Watcher
         uses: ./.github/actions/build-and-deploy-cloud-function
         with:
