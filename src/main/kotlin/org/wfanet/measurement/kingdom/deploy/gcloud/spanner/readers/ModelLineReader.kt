@@ -156,6 +156,8 @@ class ModelLineReader : SpannerReader<ModelLineReader.Result>() {
             ModelLines.UpdateTime,
             ModelSuites.ExternalModelSuiteId,
             ModelProviders.ExternalModelProviderId,
+            -- Prevents buildModelLine function from throwing error
+            NULL AS ExternalHoldbackModelLineId
           FROM
             ModelProviders
             JOIN ModelSuites USING (ModelProviderId)
