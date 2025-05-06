@@ -47,7 +47,6 @@ bazel_dep(
 )
 bazel_dep(
     name = "cross-media-measurement-api",
-    version = "0.74.1",
     repo_name = "wfa_measurement_proto",
 )
 bazel_dep(
@@ -86,7 +85,7 @@ bazel_dep(
 )
 bazel_dep(
     name = "cloud-spanner-emulator-bin",
-    version = "1.5.23",
+    version = "1.5.32",
     repo_name = "cloud_spanner_emulator",
 )
 bazel_dep(
@@ -99,7 +98,7 @@ bazel_dep(
 
 bazel_dep(
     name = "platforms",
-    version = "0.0.10",
+    version = "0.0.11",
 )
 bazel_dep(
     name = "bazel_skylib",
@@ -365,4 +364,14 @@ http_archive(
 single_version_override(
     module_name = "boringssl",
     version = BORINGSSL_VERSION,
+)
+
+# DO_NOT_SUBMIT(world-federation-of-advertisers/cross-media-measurement-api#233): Use version.
+archive_override(
+    module_name = "cross-media-measurement-api",
+    integrity = "sha256-+8aF53C9AITTi2nKBV7C0QIJVMROzJ0lKjnbGC10jbI=",
+    strip_prefix = "cross-media-measurement-api-faaf7da1a96f6de1ff954067e708fee107c1b332",
+    urls = [
+        "https://github.com/world-federation-of-advertisers/cross-media-measurement-api/archive/faaf7da1a96f6de1ff954067e708fee107c1b332.tar.gz",
+    ],
 )

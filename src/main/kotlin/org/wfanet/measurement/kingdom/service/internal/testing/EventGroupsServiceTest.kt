@@ -17,6 +17,7 @@ package org.wfanet.measurement.kingdom.service.internal.testing
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
+import com.google.type.copy
 import com.google.type.interval
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
@@ -36,6 +37,7 @@ import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.RandomIdGenerator
+import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt.AccountsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.DataProvider
@@ -49,7 +51,10 @@ import org.wfanet.measurement.internal.kingdom.GetEventGroupRequest
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumer
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.MediaType
+import org.wfanet.measurement.internal.kingdom.StreamEventGroupsRequest
+import org.wfanet.measurement.internal.kingdom.StreamEventGroupsRequestKt
 import org.wfanet.measurement.internal.kingdom.StreamEventGroupsRequestKt.filter
+import org.wfanet.measurement.internal.kingdom.StreamEventGroupsRequestKt.orderBy
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.createEventGroupRequest
 import org.wfanet.measurement.internal.kingdom.deleteEventGroupRequest
@@ -516,7 +521,6 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
   fun `streamEventGroups returns all eventGroups in order`(): Unit = runBlocking {
     val externalDataProviderId =
       population.createDataProvider(dataProvidersService).externalDataProviderId
-
     val eventGroup1 =
       eventGroupsService.createEventGroup(
         createEventGroupRequest {
@@ -530,7 +534,6 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
           }
         }
       )
-
     val eventGroup2 =
       eventGroupsService.createEventGroup(
         createEventGroupRequest {
@@ -544,27 +547,22 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
           }
         }
       )
+    val eventGroups =
+      listOf(eventGroup1, eventGroup2)
+        .sortedWith(
+          compareBy<EventGroup> { it.externalDataProviderId }.thenBy { it.externalEventGroupId }
+        )
 
-    val eventGroups: List<EventGroup> =
+    val response: List<EventGroup> =
       eventGroupsService
         .streamEventGroups(
           streamEventGroupsRequest {
-            filter = filter { externalDataProviderIds += externalDataProviderId }
+            filter = filter { externalDataProviderIdIn += externalDataProviderId }
           }
         )
         .toList()
 
-    if (eventGroup1.externalEventGroupId < eventGroup2.externalEventGroupId) {
-      assertThat(eventGroups)
-        .comparingExpectedFieldsOnly()
-        .containsExactly(eventGroup1, eventGroup2)
-        .inOrder()
-    } else {
-      assertThat(eventGroups)
-        .comparingExpectedFieldsOnly()
-        .containsExactly(eventGroup2, eventGroup1)
-        .inOrder()
-    }
+    assertThat(response).containsExactlyElementsIn(eventGroups).inOrder()
   }
 
   @Test
@@ -604,7 +602,7 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
       eventGroupsService
         .streamEventGroups(
           streamEventGroupsRequest {
-            filter = filter { externalDataProviderIds += externalDataProviderId }
+            filter = filter { externalDataProviderIdIn += externalDataProviderId }
             limit = 1
           }
         )
@@ -619,10 +617,13 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
           streamEventGroupsRequest {
             filter = filter {
               this.externalDataProviderId = externalDataProviderId
-              after = eventGroupKey {
-                this.externalDataProviderId = eventGroups[0].externalDataProviderId
-                externalEventGroupId = eventGroups[0].externalEventGroupId
-              }
+              after =
+                StreamEventGroupsRequestKt.FilterKt.after {
+                  eventGroupKey = eventGroupKey {
+                    this.externalDataProviderId = eventGroups[0].externalDataProviderId
+                    externalEventGroupId = eventGroups[0].externalEventGroupId
+                  }
+                }
             }
             limit = 1
           }
@@ -680,7 +681,7 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
   }
 
   @Test
-  fun `streamEventGroups respects externalMeasurementConsumerIds`(): Unit = runBlocking {
+  fun `streamEventGroups respects externalMeasurementConsumerIdIn`(): Unit = runBlocking {
     val externalDataProviderId =
       population.createDataProvider(dataProvidersService).externalDataProviderId
 
@@ -717,13 +718,277 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
           streamEventGroupsRequest {
             filter = filter {
               this.externalDataProviderId = externalDataProviderId
-              this.externalMeasurementConsumerIds += eventGroup2.externalMeasurementConsumerId
+              this.externalMeasurementConsumerIdIn += eventGroup2.externalMeasurementConsumerId
             }
           }
         )
         .toList()
 
     assertThat(eventGroups).comparingExpectedFieldsOnly().containsExactly(eventGroup2)
+  }
+
+  @Test
+  fun `streamEventGroups respects metadata search query on campaign name`(): Unit = runBlocking {
+    val now: Instant = testClock.instant()
+    val measurementConsumer: MeasurementConsumer =
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
+    val dataProvider1: DataProvider = population.createDataProvider(dataProvidersService)
+    val dataProvider2: DataProvider = population.createDataProvider(dataProvidersService)
+    val eventGroups: List<EventGroup> =
+      populateTestEventGroups(now, measurementConsumer, dataProvider1, dataProvider2)
+
+    val response =
+      eventGroupsService
+        .streamEventGroups(
+          streamEventGroupsRequest {
+            filter = filter {
+              externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+              metadataSearchQuery = "better"
+            }
+          }
+        )
+        .toList()
+
+    assertThat(response)
+      .ignoringRepeatedFieldOrderOfFields(EventGroup.MEDIA_TYPES_FIELD_NUMBER)
+      .containsExactlyElementsIn(
+        eventGroups.filter {
+          it.details.metadata.adMetadata.campaignMetadata.campaignName.contains("better", true)
+        }
+      )
+  }
+
+  @Test
+  fun `streamEventGroups respects metadata search query on brand name`(): Unit = runBlocking {
+    val now: Instant = testClock.instant()
+    val measurementConsumer: MeasurementConsumer =
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
+    val dataProvider1: DataProvider = population.createDataProvider(dataProvidersService)
+    val dataProvider2: DataProvider = population.createDataProvider(dataProvidersService)
+    val eventGroups: List<EventGroup> =
+      populateTestEventGroups(now, measurementConsumer, dataProvider1, dataProvider2)
+
+    val response =
+      eventGroupsService
+        .streamEventGroups(
+          streamEventGroupsRequest {
+            filter = filter {
+              externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+              metadataSearchQuery = "log"
+            }
+          }
+        )
+        .toList()
+
+    assertThat(response)
+      .ignoringRepeatedFieldOrderOfFields(EventGroup.MEDIA_TYPES_FIELD_NUMBER)
+      .containsExactlyElementsIn(
+        eventGroups.filter {
+          it.details.metadata.adMetadata.campaignMetadata.brandName.contains("log", true)
+        }
+      )
+  }
+
+  @Test
+  fun `streamEventGroups respects media types filter`(): Unit = runBlocking {
+    val now: Instant = testClock.instant()
+    val measurementConsumer: MeasurementConsumer =
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
+    val dataProvider1: DataProvider = population.createDataProvider(dataProvidersService)
+    val dataProvider2: DataProvider = population.createDataProvider(dataProvidersService)
+    val eventGroups: List<EventGroup> =
+      populateTestEventGroups(now, measurementConsumer, dataProvider1, dataProvider2)
+
+    val response =
+      eventGroupsService
+        .streamEventGroups(
+          streamEventGroupsRequest {
+            filter = filter {
+              externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+              mediaTypesIntersect += MediaType.VIDEO
+              mediaTypesIntersect += MediaType.DISPLAY
+            }
+          }
+        )
+        .toList()
+
+    assertThat(response)
+      .ignoringRepeatedFieldOrderOfFields(EventGroup.MEDIA_TYPES_FIELD_NUMBER)
+      .containsExactlyElementsIn(
+        eventGroups.filter {
+          it.mediaTypesList.contains(MediaType.VIDEO) ||
+            it.mediaTypesList.contains(MediaType.DISPLAY)
+        }
+      )
+  }
+
+  @Test
+  fun `streamEventGroups respects data availability interval filter`(): Unit = runBlocking {
+    val now: Instant = testClock.instant()
+    val measurementConsumer: MeasurementConsumer =
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
+    val dataProvider1: DataProvider = population.createDataProvider(dataProvidersService)
+    val dataProvider2: DataProvider = population.createDataProvider(dataProvidersService)
+    val eventGroups: List<EventGroup> =
+      populateTestEventGroups(now, measurementConsumer, dataProvider1, dataProvider2)
+    val filterRange: ClosedRange<Instant> =
+      now.minus(92L, ChronoUnit.DAYS)..now.minus(59L, ChronoUnit.DAYS)
+
+    val response =
+      eventGroupsService
+        .streamEventGroups(
+          streamEventGroupsRequest {
+            filter = filter {
+              externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+              dataAvailabilityStartTimeOnOrAfter = filterRange.start.toProtoTime()
+              dataAvailabilityEndTimeOnOrBefore = filterRange.endInclusive.toProtoTime()
+            }
+          }
+        )
+        .toList()
+
+    assertThat(response)
+      .ignoringRepeatedFieldOrderOfFields(EventGroup.MEDIA_TYPES_FIELD_NUMBER)
+      .containsExactlyElementsIn(
+        eventGroups.filter {
+          it.dataAvailabilityInterval.startTime.toInstant() in filterRange &&
+            (it.dataAvailabilityInterval.hasEndTime() &&
+              it.dataAvailabilityInterval.endTime.toInstant() in filterRange)
+        }
+      )
+  }
+
+  @Test
+  fun `streamEventGroups respects orderBy`(): Unit = runBlocking {
+    val now: Instant = testClock.instant()
+    val measurementConsumer: MeasurementConsumer =
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
+    val dataProvider1: DataProvider = population.createDataProvider(dataProvidersService)
+    val dataProvider2: DataProvider = population.createDataProvider(dataProvidersService)
+    val eventGroups: List<EventGroup> =
+      populateTestEventGroups(now, measurementConsumer, dataProvider1, dataProvider2)
+
+    val response =
+      eventGroupsService
+        .streamEventGroups(
+          streamEventGroupsRequest {
+            filter = filter {
+              externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+            }
+            orderBy = orderBy {
+              field = StreamEventGroupsRequest.OrderBy.Field.DATA_AVAILABILITY_START_TIME
+              descending = true
+            }
+          }
+        )
+        .toList()
+
+    assertThat(response)
+      .ignoringRepeatedFieldOrderOfFields(EventGroup.MEDIA_TYPES_FIELD_NUMBER)
+      .containsExactlyElementsIn(
+        eventGroups.sortedWith(
+          compareByDescending<EventGroup> { it.dataAvailabilityInterval.startTime.toInstant() }
+            .thenBy { it.externalDataProviderId }
+            .thenBy { it.externalEventGroupId }
+        )
+      )
+      .inOrder()
+  }
+
+  /** Populates a set of test [EventGroup]s for the same [measurementConsumer]. */
+  private suspend fun populateTestEventGroups(
+    now: Instant,
+    measurementConsumer: MeasurementConsumer,
+    dataProvider1: DataProvider,
+    dataProvider2: DataProvider,
+  ): List<EventGroup> {
+    val eventGroup1 =
+      eventGroupsService.createEventGroup(
+        createEventGroupRequest {
+          eventGroup = eventGroup {
+            externalDataProviderId = dataProvider1.externalDataProviderId
+            externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+            dataAvailabilityInterval = interval {
+              startTime = now.minus(90L, ChronoUnit.DAYS).toProtoTime()
+              endTime = now.minus(60L, ChronoUnit.DAYS).toProtoTime()
+            }
+            mediaTypes += MediaType.VIDEO
+            details = eventGroupDetails {
+              metadata = eventGroupMetadata {
+                adMetadata = adMetadata {
+                  campaignMetadata = campaignMetadata {
+                    brandName = "Log, from Blammo!"
+                    campaignName = "Better Than Bad"
+                  }
+                }
+              }
+            }
+          }
+        }
+      )
+    val eventGroup2 =
+      eventGroupsService.createEventGroup(
+        createEventGroupRequest {
+          eventGroup =
+            eventGroup1.copy {
+              externalDataProviderId = dataProvider2.externalDataProviderId
+              dataAvailabilityInterval =
+                dataAvailabilityInterval.copy {
+                  startTime = now.minus(91L, ChronoUnit.DAYS).toProtoTime()
+                  clearEndTime()
+                }
+              mediaTypes.clear()
+              mediaTypes += MediaType.OTHER
+            }
+        }
+      )
+    val eventGroup3 =
+      eventGroupsService.createEventGroup(
+        createEventGroupRequest {
+          eventGroup =
+            eventGroup1.copy {
+              mediaTypes += MediaType.DISPLAY
+              details =
+                details.copy {
+                  metadata =
+                    metadata.copy {
+                      adMetadata =
+                        adMetadata.copy {
+                          campaignMetadata = campaignMetadata.copy { campaignName = "It's Good" }
+                        }
+                    }
+                }
+            }
+        }
+      )
+    val eventGroup4 =
+      eventGroupsService.createEventGroup(
+        createEventGroupRequest {
+          eventGroup =
+            eventGroup1.copy {
+              dataAvailabilityInterval =
+                dataAvailabilityInterval.copy {
+                  startTime = now.minus(93L, ChronoUnit.DAYS).toProtoTime()
+                }
+              details =
+                details.copy {
+                  metadata =
+                    metadata.copy {
+                      adMetadata =
+                        adMetadata.copy {
+                          campaignMetadata =
+                            campaignMetadata.copy {
+                              brandName = "Flod"
+                              campaignName = "The most perfect cube of fat"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+      )
+
+    return listOf(eventGroup1, eventGroup2, eventGroup3, eventGroup4)
   }
 
   @Test
