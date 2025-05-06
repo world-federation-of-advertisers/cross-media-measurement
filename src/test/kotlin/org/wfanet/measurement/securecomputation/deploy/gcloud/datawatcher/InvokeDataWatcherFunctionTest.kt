@@ -157,7 +157,6 @@ class InvokeDataWatcherFunctionTest() {
       }
     """
         .trimIndent()
-
     val getRequest =
       HttpRequest.newBuilder()
         .uri(URI.create(url))

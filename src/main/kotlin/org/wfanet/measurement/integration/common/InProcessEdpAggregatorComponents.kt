@@ -229,7 +229,7 @@ class InProcessEdpAggregatorComponents(
         "file:///$IMPRESSIONS_METADATA_BUCKET",
       )
     val watchedPaths =
-      getDataWatcherConfig(
+      getDataWatcherResultFulfillerParamsConfig(
         blobPrefix = "file:///$REQUISITION_STORAGE_PREFIX/",
         edpResultFulfillerConfigs = mapOf(edpResourceName to resultsFulfillerParams),
       )
@@ -295,7 +295,7 @@ class InProcessEdpAggregatorComponents(
           writeImpressionData(
             cmmsEventGroup =
               checkNotNull(CmmsEventGroupKey.fromName(cmmsEventGroup.eventGroupResource)),
-            privateEncryptionKey = getPrivateKey(edpShortName),
+            privateEncryptionKey = getDataProviderPrivateEncryptionKey(edpShortName),
             syntheticDataSpec = syntheticEventGroupSpecs[0],
           )
         }

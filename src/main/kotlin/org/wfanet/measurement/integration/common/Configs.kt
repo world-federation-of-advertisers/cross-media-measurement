@@ -18,17 +18,14 @@ import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import com.google.protobuf.ByteString
 import com.google.protobuf.Message
-import com.google.protobuf.Timestamp
-import org.wfanet.measurement.common.toProtoTime
 import io.grpc.serviceconfig.ServiceConfig
 import java.nio.file.Path
 import java.nio.file.Paths
 import java.security.cert.X509Certificate
 import java.time.Instant
-import java.time.LocalDate
 import org.jetbrains.annotations.Blocking
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
+import org.wfanet.measurement.common.crypto.PrivateKeyHandle
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.readCertificateCollection
 import org.wfanet.measurement.common.crypto.testing.loadSigningKey
@@ -43,16 +40,12 @@ import org.wfanet.measurement.common.readByteString
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.common.toJson
 import org.wfanet.measurement.config.access.PermissionsConfig
-import org.wfanet.measurement.config.edpaggregator.EventGroupSyncConfig
-import org.wfanet.measurement.config.edpaggregator.eventGroupSyncConfig
 import org.wfanet.measurement.config.reporting.ImpressionQualificationFilterConfig
 import org.wfanet.measurement.config.securecomputation.QueuesConfig
 import org.wfanet.measurement.config.securecomputation.WatchedPath
 import org.wfanet.measurement.config.securecomputation.WatchedPathKt
 import org.wfanet.measurement.config.securecomputation.watchedPath
 import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
-import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
-import org.wfanet.measurement.edpaggregator.v1alpha.labeledImpression
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParamsKt
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParamsKt.storageParams
@@ -64,14 +57,6 @@ import org.wfanet.measurement.internal.kingdom.Llv2ProtocolConfigConfig
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 import org.wfanet.measurement.loadtest.resourcesetup.EntityContent
 import org.wfanet.measurement.reporting.service.internal.ImpressionQualificationFilterMapping
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.person
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.testEvent
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.asFlow
-import org.wfanet.measurement.common.OpenEndTimeRange
-import org.wfanet.measurement.edpaggregator.v1alpha.copy
-import com.google.protobuf.Int32Value
-import org.wfanet.measurement.common.crypto.PrivateKeyHandle
 
 private const val REPO_NAME = "wfa_measurement_system"
 
@@ -235,27 +220,6 @@ val DEFAULT_SERVICE_CONFIG_MAP: Map<String, *>?
     return Gson().fromJson(serviceConfigJson, mapType)
   }
 
-fun getDataWatcherConfig(
-  blobPrefix: String,
-  edpResultFulfillerConfigs: Map<String, ResultsFulfillerParams>,
-): List<WatchedPath> {
-  return edpResultFulfillerConfigs
-    .map { (edpName, params) ->
-      listOf(
-        watchedPath {
-          sourcePathRegex = "$blobPrefix$edpName/(.*)"
-          this.controlPlaneQueueSink =
-            WatchedPathKt.controlPlaneQueueSink {
-              queue = FULFILLER_TOPIC_ID
-            //appParams = Int32Value.newBuilder().setValue(5).build().pack()
-            appParams = params.pack()
-            }
-        }
-      )
-    }
-    .flatten()
-}
-
 /** Used to configure Secure Computation Control Plane */
 const val PROJECT_ID = "some-project-id"
 const val SUBSCRIPTION_ID = "some-subscription-id"
@@ -268,6 +232,7 @@ val QUEUES_CONFIG: QueuesConfig
     return parseTextProto(configFile, QueuesConfig.getDefaultInstance())
   }
 
+/* Returns [ResultFulfillerParams] for a given test EDP. */
 fun getResultsFulfillerParams(
   edpDisplayName: String,
   edpResourceName: String,
@@ -299,7 +264,35 @@ fun getResultsFulfillerParams(
   }
 }
 
-fun getPrivateKey(edpShortName: String): PrivateKeyHandle {
-  val privateKeyHandleFile = checkNotNull(getRuntimePath(Paths.get(SECRET_FILES_PATH.resolve("${edpShortName}_enc_private.tink").toString()))).toFile()
+/* Used to construct the Watched Path to initiate Result Fulfiller Work to the Control Plane. */
+fun getDataWatcherResultFulfillerParamsConfig(
+  blobPrefix: String,
+  edpResultFulfillerConfigs: Map<String, ResultsFulfillerParams>,
+): List<WatchedPath> {
+  return edpResultFulfillerConfigs
+    .map { (edpName, params) ->
+      listOf(
+        watchedPath {
+          sourcePathRegex = "$blobPrefix$edpName/(.*)"
+          this.controlPlaneQueueSink =
+            WatchedPathKt.controlPlaneQueueSink {
+              queue = FULFILLER_TOPIC_ID
+              appParams = params.pack()
+            }
+        }
+      )
+    }
+    .flatten()
+}
+
+/* Returns the [PrivateKeyHandle] for a test EDP. */
+fun getDataProviderPrivateEncryptionKey(edpShortName: String): PrivateKeyHandle {
+  val privateKeyHandleFile =
+    checkNotNull(
+        getRuntimePath(
+          Paths.get(SECRET_FILES_PATH.resolve("${edpShortName}_enc_private.tink").toString())
+        )
+      )
+      .toFile()
   return loadPrivateKey(privateKeyHandleFile)
 }
