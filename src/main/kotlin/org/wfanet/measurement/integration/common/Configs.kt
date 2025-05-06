@@ -71,6 +71,7 @@ import kotlinx.coroutines.flow.asFlow
 import org.wfanet.measurement.common.OpenEndTimeRange
 import org.wfanet.measurement.edpaggregator.v1alpha.copy
 import com.google.protobuf.Int32Value
+import org.wfanet.measurement.common.crypto.PrivateKeyHandle
 
 private const val REPO_NAME = "wfa_measurement_system"
 
@@ -320,6 +321,7 @@ fun getResultsFulfillerParams(
   }
 }
 
+// TODO: Delete
 fun getLabeledImpressions(): Flow<LabeledImpression> {
   val LAST_EVENT_DATE = LocalDate.now()
   val FIRST_EVENT_DATE = LAST_EVENT_DATE.minusDays(1)
@@ -342,4 +344,9 @@ fun getLabeledImpressions(): Flow<LabeledImpression> {
       eventTime = TIME_RANGE.start.toProtoTime()
     }
   }.asFlow()
+}
+
+fun getPrivateKey(edpShortName: String): PrivateKeyHandle {
+  val privateKeyHandleFile = checkNotNull(getRuntimePath(Paths.get(SECRET_FILES_PATH.resolve("${edpShortName}_enc_private.tink").toString()))).toFile()
+  return loadPrivateKey(privateKeyHandleFile)
 }

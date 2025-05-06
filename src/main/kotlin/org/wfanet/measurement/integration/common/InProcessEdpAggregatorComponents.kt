@@ -22,15 +22,19 @@ import com.google.crypto.tink.KeysetHandle
 import com.google.crypto.tink.TinkProtoKeysetFormat
 import com.google.crypto.tink.aead.AeadConfig
 import com.google.crypto.tink.streamingaead.StreamingAeadConfig
+import com.google.protobuf.Any
 import com.google.protobuf.ByteString
+import com.google.protobuf.kotlin.unpack
 import com.google.protobuf.timestamp
 import com.google.type.interval
 import io.grpc.Channel
 import java.nio.file.Files
+import java.nio.file.NoSuchFileException
 import java.nio.file.Path
 import java.time.Clock
 import java.time.Duration
 import java.time.LocalDate
+import java.time.ZoneId
 import java.util.Timer
 import java.util.logging.Level
 import java.util.logging.Logger
@@ -41,6 +45,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.asFlow
+import kotlinx.coroutines.flow.flatMap
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.launch
@@ -52,23 +57,41 @@ import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.EventGroup as CmmsEventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupKey as CmmsEventGroupKey
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.Requisition
+import org.wfanet.measurement.api.v2alpha.RequisitionSpec
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
-import org.wfanet.measurement.common.OpenEndTimeRange
+import org.wfanet.measurement.api.v2alpha.SignedMessage
+import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
+import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticPopulationSpec
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
+import org.wfanet.measurement.api.v2alpha.getEventGroupRequest
+import org.wfanet.measurement.api.v2alpha.unpack
+import org.wfanet.measurement.common.crypto.PrivateKeyHandle
 import org.wfanet.measurement.common.crypto.tink.testing.FakeKmsClient
 import org.wfanet.measurement.common.crypto.tink.withEnvelopeEncryption
+import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.identity.withPrincipalName
 import org.wfanet.measurement.common.testing.ProviderRule
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
+import org.wfanet.measurement.common.toInstant
+import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.config.securecomputation.WatchedPath
+import org.wfanet.measurement.consent.client.dataprovider.decryptRequisitionSpec
 import org.wfanet.measurement.edpaggregator.eventgroups.EventGroupSync
+import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.MappedEventGroup
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.eventGroup
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionFetcher
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.ResultsFulfillerTestApp
 import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
+import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
 import org.wfanet.measurement.edpaggregator.v1alpha.blobDetails
+import org.wfanet.measurement.edpaggregator.v1alpha.labeledImpression
 import org.wfanet.measurement.gcloud.pubsub.Subscriber
 import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorClient
+import org.wfanet.measurement.loadtest.config.TestIdentifiers.SIMULATOR_EVENT_GROUP_REFERENCE_ID_PREFIX
+import org.wfanet.measurement.loadtest.dataprovider.EventQuery
+import org.wfanet.measurement.loadtest.dataprovider.SyntheticGeneratorEventQuery
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
 import org.wfanet.measurement.loadtest.resourcesetup.Resources
 import org.wfanet.measurement.loadtest.resourcesetup.Resources.Resource
@@ -81,17 +104,26 @@ import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.InternalAp
 import org.wfanet.measurement.storage.MesosRecordIoStorageClient
 import org.wfanet.measurement.storage.SelectedStorageClient
 import org.wfanet.measurement.storage.StorageClient
-import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.MappedEventGroup
+import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
+import org.wfanet.measurement.api.v2alpha.EncryptedMessage
+import org.wfanet.measurement.consent.client.dataprovider.encryptMetadata
+import org.wfanet.measurement.api.v2alpha.EventGroupKt as CmmsEventGroupKt
+import org.wfanet.measurement.common.pack
 
 class InProcessEdpAggregatorComponents(
   private val internalServicesRule: ProviderRule<InternalApiServices>,
   private val pubSubClient: GooglePubSubEmulatorClient,
-  private val storageClient: StorageClient,
   private val storagePath: Path,
+  private val syntheticPopulationSpec: SyntheticPopulationSpec =
+    SyntheticGenerationSpecs.SYNTHETIC_POPULATION_SPEC_SMALL,
+  private val syntheticEventGroupSpecs: List<SyntheticEventGroupSpec> =
+    SyntheticGenerationSpecs.SYNTHETIC_DATA_SPECS_SMALL,
 ) : TestRule {
 
   private val internalServices: InternalApiServices
     get() = internalServicesRule.value
+
+  private val storageClient: StorageClient = FileSystemStorageClient(storagePath.toFile())
 
   private lateinit var edpResourceName: String
 
@@ -168,6 +200,7 @@ class InProcessEdpAggregatorComponents(
           logger.log(Level.SEVERE, e) { "Error in $loggingName" }
         }
     )
+  private var readyToFulfillRequisitions: Boolean = false
 
   fun startDaemons(
     kingdomChannel: Channel,
@@ -201,8 +234,7 @@ class InProcessEdpAggregatorComponents(
     }
     dataWatcher = DataWatcher(workItemsClient, watchedPaths)
 
-    val subscribingStorageClient =
-      DataWatcherSubscribingStorageClient(storageClient, "file:///")
+    val subscribingStorageClient = DataWatcherSubscribingStorageClient(storageClient, "file:///")
     subscribingStorageClient.subscribe(dataWatcher)
 
     requisitionFetcher =
@@ -224,7 +256,7 @@ class InProcessEdpAggregatorComponents(
     val eventGroups =
       listOf(
         eventGroup {
-          eventGroupReferenceId = "sim-eg-reference-id-1"
+          eventGroupReferenceId = "sim-eg-reference-id-1-edp-0"
           measurementConsumer = measurementConsumerData.name
           dataAvailabilityInterval = interval {
             startTime = timestamp { seconds = 200 }
@@ -240,73 +272,148 @@ class InProcessEdpAggregatorComponents(
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000L)),
       )
     val mappedEventGroups: List<MappedEventGroup> = runBlocking { eventGroupSync.sync().toList() }
-    val cmmsEventGroup = mappedEventGroups.filter {
-      it.eventGroupReferenceId == "sim-eg-reference-id-1"
-    }.single()
-
-    writeImpressionData(
-      cmmsEventGroup = checkNotNull(CmmsEventGroupKey.fromName(cmmsEventGroup.eventGroupResource))
-    )
-    backgroundScope.launch { resultFulfillerApp.run() }
+    val cmmsEventGroup =
+      mappedEventGroups.filter { it.eventGroupReferenceId == "sim-eg-reference-id-1-edp-0" }.single()
+    // Wait for requisitions to be created
+    backgroundScope.launch {
+      while (!readyToFulfillRequisitions) {
+        readyToFulfillRequisitions = runBlocking {
+          writeImpressionData(
+            cmmsEventGroup =
+              checkNotNull(CmmsEventGroupKey.fromName(cmmsEventGroup.eventGroupResource)),
+            privateEncryptionKey = getPrivateKey(edpShortName),
+            syntheticDataSpec = syntheticEventGroupSpecs[0],
+          )
+        }
+        delay(1000)
+      }
+      resultFulfillerApp.run()
+    }
   }
 
-  private fun writeImpressionData(
-    ds: String = "2021-03-15T00:00:00Z",
+  private suspend fun buildEventGroupSpecs(
+    requisitionSpec: RequisitionSpec
+  ): List<EventQuery.EventGroupSpec> {
+    // TODO(@SanjayVas): Cache EventGroups.
+    return requisitionSpec.events.eventGroupsList.map {
+      val eventGroup = eventGroupsClient.getEventGroup(getEventGroupRequest { name = it.key })
+
+      if (!eventGroup.eventGroupReferenceId.startsWith(SIMULATOR_EVENT_GROUP_REFERENCE_ID_PREFIX)) {
+        throw Exception("EventGroup ${it.key} not supported by this simulator")
+      }
+
+      EventQuery.EventGroupSpec(eventGroup, it.value)
+    }
+  }
+
+  private suspend fun writeImpressionData(
     cmmsEventGroup: CmmsEventGroupKey,
-  ) {
+    privateEncryptionKey: PrivateKeyHandle,
+    syntheticDataSpec: SyntheticEventGroupSpec,
+  ): Boolean {
     // Create impressions storage client
     Files.createDirectories(storagePath.resolve(IMPRESSIONS_BUCKET))
-    val impressionsStorageClient = SelectedStorageClient(IMPRESSIONS_FILE_URI, storagePath.toFile())
-    // Set up streaming encryption
-    val tinkKeyTemplateType = "AES128_GCM_HKDF_1MB"
-    val aeadKeyTemplate = KeyTemplates.get(tinkKeyTemplateType)
-    val keyEncryptionHandle = KeysetHandle.generateNew(aeadKeyTemplate)
-    val serializedEncryptionKey =
-      ByteString.copyFrom(
-        TinkProtoKeysetFormat.serializeEncryptedKeyset(
-          keyEncryptionHandle,
-          kmsClient.getAead(kekUri),
-          byteArrayOf(),
+    val files =
+      try {
+        Files.walk(storagePath.resolve(REQUISITION_STORAGE_PREFIX))
+      } catch (e: NoSuchFileException) {
+        return false
+      }
+    val requisitionSpecs: Flow<RequisitionSpec> =
+      files
+        .filter { Files.isRegularFile(it) }
+        .map { it.toString() }
+        .iterator()
+        .asFlow()
+        .map { fileName: String ->
+          val requisitionBytes: ByteString = storageClient.getBlob(fileName)!!.read().flatten()
+
+          val requisition = Any.parseFrom(requisitionBytes).unpack(Requisition::class.java)
+          val signedRequisitionSpec: SignedMessage =
+            decryptRequisitionSpec(requisition.encryptedRequisitionSpec, privateEncryptionKey)
+          signedRequisitionSpec.unpack()
+        }
+
+    val eventGroupSpecs: List<EventQuery.EventGroupSpec> =
+      requisitionSpecs.toList().flatMap { it: RequisitionSpec -> buildEventGroupSpecs(it) }
+    val eventQuery =
+      object : SyntheticGeneratorEventQuery(syntheticPopulationSpec, TestEvent.getDescriptor()) {
+        override fun getSyntheticDataSpec(eventGroup: CmmsEventGroup) = syntheticDataSpec
+      }
+    val unfilteredEvents: List<LabeledImpression> =
+      eventGroupSpecs
+        .flatMap { eventQuery.getLabeledEvents(it, false).toList() }
+        .map { event ->
+          labeledImpression {
+            eventTime = event.timestamp.toProtoTime()
+            vid = event.vid
+            this.event = Any.pack(event.message)
+          }
+        }
+    val estZoneId = ZoneId.of("UTC")
+    val groupedImpressions: Map<LocalDate, List<LabeledImpression>> =
+      unfilteredEvents.groupBy { LocalDate.ofInstant(it.eventTime.toInstant(), estZoneId) }
+
+    groupedImpressions.forEach { (date, impressions) ->
+      val ds = date.toString()
+      println("Date: $ds")
+      println("Impressions: ${impressions.size}")
+
+      val impressionsBlobKey = "ds/$ds/event-group-id/${cmmsEventGroup.toName()}/impressions"
+      val impressionsFileUri = "file:///$IMPRESSIONS_BUCKET/$impressionsBlobKey"
+      val impressionsStorageClient = SelectedStorageClient(impressionsFileUri, storagePath.toFile())
+
+      // Set up streaming encryption
+      val tinkKeyTemplateType = "AES128_GCM_HKDF_1MB"
+      val aeadKeyTemplate = KeyTemplates.get(tinkKeyTemplateType)
+      val keyEncryptionHandle = KeysetHandle.generateNew(aeadKeyTemplate)
+      val serializedEncryptionKey =
+        ByteString.copyFrom(
+          TinkProtoKeysetFormat.serializeEncryptedKeyset(
+            keyEncryptionHandle,
+            kmsClient.getAead(kekUri),
+            byteArrayOf(),
+          )
         )
-      )
-    val aeadStorageClient =
-      impressionsStorageClient.withEnvelopeEncryption(kmsClient, kekUri, serializedEncryptionKey)
+      val aeadStorageClient =
+        impressionsStorageClient.withEnvelopeEncryption(kmsClient, kekUri, serializedEncryptionKey)
 
-    // Wrap aead client in mesos client
-    val mesosRecordIoStorageClient = MesosRecordIoStorageClient(aeadStorageClient)
+      // Wrap aead client in mesos client
+      val mesosRecordIoStorageClient = MesosRecordIoStorageClient(aeadStorageClient)
 
-    val impressions: Flow<ByteString> = getLabeledImpressions().map { it.toByteString() }
-
-    runBlocking {
       // Write impressions to storage
-      mesosRecordIoStorageClient.writeBlob(IMPRESSIONS_BLOB_KEY, impressions)
-    }
-
-    val impressionsMetaDataBlobKey =
-      "ds/$ds/event-group-id/${cmmsEventGroup.toName()}/metadata"
-
-    val impressionsMetadataFileUri =
-      "file:///$IMPRESSIONS_METADATA_BUCKET/$impressionsMetaDataBlobKey"
-    logger.info("IMPRESSIONS IMPRESSIONS")
-    logger.info("Writing impressions to $impressionsMetadataFileUri")
-
-    // Create the impressions metadata store
-    Files.createDirectories(storagePath.resolve(IMPRESSIONS_METADATA_BUCKET))
-    val impressionsMetadataStorageClient =
-      SelectedStorageClient(impressionsMetadataFileUri, storagePath.toFile())
-
-    val encryptedDek =
-      EncryptedDek.newBuilder().setKekUri(kekUri).setEncryptedDek(serializedEncryptionKey).build()
-    val blobDetails = blobDetails {
-      this.blobUri = IMPRESSIONS_FILE_URI
-      this.encryptedDek = encryptedDek
-    }
-    runBlocking {
-      impressionsMetadataStorageClient.writeBlob(
-        impressionsMetaDataBlobKey,
-        blobDetails.toByteString(),
+      mesosRecordIoStorageClient.writeBlob(
+        impressionsBlobKey,
+        impressions.asFlow().map { it.toByteString() },
       )
+      val impressionsMetaDataBlobKey = "ds/$ds/event-group-id/${cmmsEventGroup.toName()}/metadata"
+
+      val impressionsMetadataFileUri =
+        "file:///$IMPRESSIONS_METADATA_BUCKET/$impressionsMetaDataBlobKey"
+
+      logger.info("IMPRESSIONS IMPRESSIONS")
+      logger.info("Writing impressions to $impressionsMetadataFileUri")
+
+      // Create the impressions metadata store
+      Files.createDirectories(storagePath.resolve(IMPRESSIONS_METADATA_BUCKET))
+      val impressionsMetadataStorageClient =
+        SelectedStorageClient(impressionsMetadataFileUri, storagePath.toFile())
+
+      val encryptedDek =
+        EncryptedDek.newBuilder().setKekUri(kekUri).setEncryptedDek(serializedEncryptionKey).build()
+      val blobDetails = blobDetails {
+        this.blobUri = impressionsFileUri
+        this.encryptedDek = encryptedDek
+      }
+      runBlocking {
+        impressionsMetadataStorageClient.writeBlob(
+          impressionsMetaDataBlobKey,
+          blobDetails.toByteString(),
+        )
+      }
     }
+
+    return true
   }
 
   fun stopDaemons() {
@@ -330,8 +437,6 @@ class InProcessEdpAggregatorComponents(
     private val LAST_EVENT_DATE = LocalDate.now()
     private val FIRST_EVENT_DATE = LAST_EVENT_DATE.minusDays(1)
     private const val IMPRESSIONS_BUCKET = "impression-bucket"
-    private const val IMPRESSIONS_BLOB_KEY = "impressions"
-    private const val IMPRESSIONS_FILE_URI = "file:///$IMPRESSIONS_BUCKET/$IMPRESSIONS_BLOB_KEY"
     private const val IMPRESSIONS_METADATA_BUCKET = "impression-metadata-bucket"
     private const val REQUISITION_STORAGE_PREFIX = "requisition-storage-prefix"
 

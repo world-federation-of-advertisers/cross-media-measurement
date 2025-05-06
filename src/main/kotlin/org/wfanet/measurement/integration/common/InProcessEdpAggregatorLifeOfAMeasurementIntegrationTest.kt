@@ -47,7 +47,6 @@ import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerSi
 import org.wfanet.measurement.loadtest.measurementconsumer.MetadataSyntheticGeneratorEventQuery
 import org.wfanet.measurement.securecomputation.deploy.gcloud.publisher.GoogleWorkItemPublisher
 import org.wfanet.measurement.securecomputation.service.internal.QueueMapping
-import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub
 
 /**
@@ -70,7 +69,6 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
 
   private val inProcessEdpAggregatorComponents: InProcessEdpAggregatorComponents = run {
     tempDirectory.create()
-    val storageClient = FileSystemStorageClient(tempDirectory.root)
     val pubSubClient =
       GooglePubSubEmulatorClient(
         host = pubSubEmulatorProvider.host,
@@ -83,7 +81,6 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
           queueMapping = QueueMapping(QUEUES_CONFIG),
           emulatorDatabaseAdmin = secureComputationDatabaseAdmin,
         ),
-      storageClient = storageClient,
       storagePath = tempDirectory.root.toPath(),
       pubSubClient = pubSubClient,
     )
@@ -138,8 +135,10 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
       MetadataSyntheticGeneratorEventQuery(
         SyntheticGenerationSpecs.SYNTHETIC_POPULATION_SPEC_SMALL,
         InProcessCmmsComponents.MC_ENCRYPTION_PRIVATE_KEY,
+        SyntheticGenerationSpecs.SYNTHETIC_DATA_SPECS_SMALL
       )
     mcSimulator =
+
       MeasurementConsumerSimulator(
         MeasurementConsumerData(
           measurementConsumerData.name,

@@ -29,6 +29,8 @@ import com.google.type.Interval
 import io.grpc.StatusException
 import java.io.File
 import java.security.GeneralSecurityException
+import java.time.LocalDate
+import java.time.ZoneId
 import java.util.logging.Level
 import java.util.logging.Logger
 import kotlin.math.max
@@ -622,14 +624,17 @@ class ResultsFulfiller(
     return isInCollectionInterval && passesFilter && isInSamplingInterval
   }
   private suspend fun getBlobDetails(collectionInterval: Interval, eventGroupId: String): BlobDetails {
-    val ds = collectionInterval.startTime.toInstant().toString()
+    val ds = LocalDate.ofInstant(collectionInterval.startTime.toInstant(), ZONE_ID)
     val metadataBlobKey = "ds/$ds/event-group-id/$eventGroupId/metadata"
     val metadataBlobUri = "$labeledImpressionMetadataPrefix/$metadataBlobKey"
     val metadataStorageClientUri = SelectedStorageClient.parseBlobUri(metadataBlobUri)
     val impressionsMetadataStorageClient = createStorageClient(metadataStorageClientUri, impressionMetadataStorageConfig)
     logger.info("Reading impressions ${metadataStorageClientUri} from $metadataBlobUri")
     // Get EncryptedDek message from storage using the blobKey made up of the ds and eventGroupId
-    return BlobDetails.parseFrom(impressionsMetadataStorageClient.getBlob(metadataBlobKey)!!.read().flatten())
+    val metadataBlob = checkNotNull(impressionsMetadataStorageClient.getBlob(metadataBlobKey)) {
+      "$metadataBlobKey blob cannot be null"
+    }
+    return BlobDetails.parseFrom(metadataBlob.read().flatten())
   }
   /**
    * Creates a storage client for accessing blob data.
@@ -651,6 +656,7 @@ class ResultsFulfiller(
     private val VID_SAMPLER_HASH_FUNCTION: HashFunction = Hashing.farmHashFingerprint64()
     private val TRUE_EVAL_RESULT = Program.newEvalResult(BoolT.True, null)
     val sampler = VidSampler(VID_SAMPLER_HASH_FUNCTION)
+    private val ZONE_ID = ZoneId.of("UTC")
 
     /** [RequisitionRefusalException] for EventGroups. */
     protected open class RequisitionRefusalException(
