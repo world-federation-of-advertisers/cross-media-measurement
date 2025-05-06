@@ -45,7 +45,8 @@ jobs:
       - name: Deploy Data Watcher
         uses: ./.github/actions/build-and-deploy-cloud-function
         with:
-          environment:   ${{ github.event.inputs.environment }}
+#          environment:   ${{ inputs.environment }}
+          environment: "dev"
           function_name: data-watcher
           entry_point:   org.wfanet.measurement.securecomputation.deploy.gcloud.datawatcher.DataWatcherFunction
           source_path:   //src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/datawatcher:DataWatcherFunction_deploy.jar
@@ -63,7 +64,8 @@ jobs:
       - name: Deploy Requisition Fetcher
         uses: ./.github/actions/build-and-deploy-cloud-function
         with:
-          environment:             ${{ github.event.inputs.environment }}
+#          environment:             ${{ inputs.environment }}
+          environment: "dev"
           function_name:           requisition-fetcher
           entry_point:             org.wfanet.measurement.edpaggregator.deploy.gcloud.requisitionfetcher.RequisitionFetcherFunction
           source_path:             //src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/requisitionfetcher:RequisitionFetcherFunction_deploy.jar
