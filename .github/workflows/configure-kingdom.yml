@@ -59,7 +59,8 @@ env:
 jobs:
   update-kingdom:
     runs-on: ubuntu-22.04
-    environment: ${{ inputs.environment }}
+#    environment: ${{ inputs.environment }}
+    environment: "dev"
     steps:
       - uses: actions/checkout@v4
 
@@ -106,7 +107,7 @@ jobs:
 
       - name: Configure metrics
         uses: ./.github/actions/configure-metrics
-        if: ${{ inputs.apply }}
+#        if: ${{ inputs.apply }}
 
       - name: Generate archives
         run: >
@@ -143,11 +144,11 @@ jobs:
         run: kubectl diff -k "$KUSTOMIZATION_PATH/src/main/k8s/dev/kingdom" || (( $? == 1 ))
 
       - name: kubectl apply
-        if: ${{ inputs.apply }}
+#        if: ${{ inputs.apply }}
         run: kubectl apply -k "$KUSTOMIZATION_PATH/src/main/k8s/dev/kingdom"
 
       - name: Wait for rollout
-        if: ${{ inputs.apply }}
+#        if: ${{ inputs.apply }}
         run: |
           for deployment in $(kubectl get deployments -o name); do
             kubectl rollout status "$deployment" --timeout=5m
