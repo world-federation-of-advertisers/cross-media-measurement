@@ -60,4 +60,3 @@ message DataWatcherConfig {
   // All the configs that the DataWatcher will match
   repeated WatchedPath watched_paths = 1;
 }
-
