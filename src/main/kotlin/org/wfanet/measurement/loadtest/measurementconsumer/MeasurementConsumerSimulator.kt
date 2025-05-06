@@ -915,7 +915,6 @@ class MeasurementConsumerSimulator(
         this.measurementReferenceId = runId
       }
     }
-    println(request)
     val measurement: Measurement =
       try {
         measurementsClient

@@ -37,12 +37,6 @@ import kotlinx.coroutines.yield
 import org.jetbrains.annotations.BlockingExecutor
 import org.wfanet.measurement.common.getRuntimePath
 
-data class CloudFunctionProcessDetails(
-  val functionBinaryPath: Path,
-  val classTarget: String,
-  val envVars: Map<String, String>,
-)
-
 /**
  * Wrapper for a Cloud Function binary process. Exposes a port where the process can receive data.
  * This class is used for starting a process that invokes Google Cloud Functions for tests.

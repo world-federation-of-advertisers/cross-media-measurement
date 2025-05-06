@@ -325,7 +325,6 @@ class InProcessEdpAggregatorComponents(
     privateEncryptionKey: PrivateKeyHandle,
     syntheticDataSpec: SyntheticEventGroupSpec,
   ): Boolean {
-    // Create impressions storage client
     Files.createDirectories(storagePath.resolve(IMPRESSIONS_BUCKET))
     val files =
       try {

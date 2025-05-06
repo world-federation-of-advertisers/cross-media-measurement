@@ -67,40 +67,22 @@ class DataWatcher(
     }
   }
 
-  private fun generateRandomName(): String {
-    val firstChar = ('a'..'z').random() // random lowercase letter
-    val middlePartLength = 61 // fixed length for middle part
-    val middlePart = List(middlePartLength) { // fixed length middle part
-      when ((0..2).random()) {
-        0 -> ('a'..'z').random() // random lowercase letter
-        1 -> ('A'..'Z').random() // random uppercase letter
-        2 -> ('0'..'9').random() // random digit
-        else -> '-' // hyphen (shouldn't happen, but just in case)
-      }
-    }.joinToString("")
-    val lastChar = if (middlePart.last() == '-') { // ensure last char is not a hyphen
-      ('a'..'z').random()
-    } else {
-      middlePart.last()
-    }
-    return "$firstChar$middlePart$lastChar"
-  }
-
   private suspend fun sendToControlPlane(config: WatchedPath, path: String) {
 
     val queueConfig = config.controlPlaneQueueSink
-    val workItemId = generateRandomName()
+    val workItemId =
+      UUID.randomUUID().toString().replace("/", "-").replace("_", "-").takeLast(63).trim {
+        !it.isLetter()
+      }
     val workItemParams =
       workItemParams {
           appParams = queueConfig.appParams
           this.dataPathParams = dataPathParams { this.dataPath = path }
         }
         .pack()
-    val workItemName = generateRandomName()
     val request = createWorkItemRequest {
       this.workItemId = workItemId
       this.workItem = workItem {
-        name = "workItems/$workItemName"
         queue = queueConfig.queue
         this.workItemParams = workItemParams
       }

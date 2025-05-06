@@ -235,15 +235,6 @@ val DEFAULT_SERVICE_CONFIG_MAP: Map<String, *>?
     return Gson().fromJson(serviceConfigJson, mapType)
   }
 
-/** Used to configure DataWatcher * */
-val DATA_WATCHER_CONFIG: List<WatchedPath>
-  get() {
-    val configPath =
-      Paths.get("wfa_measurement_system", "src", "main", "k8s", "testing", "secretfiles")
-    val configFile = getRuntimePath(configPath.resolve("data_watcher_config.textproto"))!!.toFile()
-    return listOf(parseTextProto(configFile, WatchedPath.getDefaultInstance()))
-  }
-
 fun getDataWatcherConfig(
   blobPrefix: String,
   edpResultFulfillerConfigs: Map<String, ResultsFulfillerParams>,
@@ -276,19 +267,6 @@ val QUEUES_CONFIG: QueuesConfig
     val configFile = getRuntimePath(configPath.resolve("queues_config.textproto"))!!.toFile()
     return parseTextProto(configFile, QueuesConfig.getDefaultInstance())
   }
-
-fun getEventGroupConfig(
-  blobPrefix: String,
-  edpConfigs: Map<String, String>,
-): List<EventGroupSyncConfig> {
-  return edpConfigs.map { (edpName, edpResourceName) ->
-    eventGroupSyncConfig {
-      dataProvider = edpResourceName
-      eventGroupsBlobUri = "$blobPrefix/$edpName/event-groups"
-      eventGroupMapBlobUri = "$blobPrefix/$edpName/event-group-map"
-    }
-  }
-}
 
 fun getResultsFulfillerParams(
   edpDisplayName: String,
