@@ -7,20 +7,153 @@ watched_paths {
     endpoint_uri: "TO_BE_DEFINED_ONCE_DEPLOYED"
     app_params {
       fields {
-        key: "some-key"
+        key: "dataProvider"
+        value { string_value: "dataProviders/DRoeq5_-yYI" }
+      }
+      fields {
+        key: "eventGroupsBlobUri"
+        value { string_value: "gs://secure-computation-storage-dev-bucket/edp7/event-groups" }
+      }
+      fields {
+        key: "eventGroupMapBlobUri"
+        value { string_value: "gs://secure-computation-storage-dev-bucket/edp7/event-groups-map" }
+      }
+      # TODO(@Marco): To update when certs are mounted as Google Secrets
+      fields {
+        key: "cmmsConnection"
         value {
-          string_value: "some-value"
+          struct_value {
+            fields {
+              key: "certJarResourcePath"
+              value { string_value: "main/k8s/testing/secretfiles/edp7_tls.pem" }
+            }
+            fields {
+              key: "privateKeyJarResourcePath"
+              value { string_value: "main/k8s/testing/secretfiles/edp7_tls.key" }
+            }
+            fields {
+              key: "certCollectionJarResourcePath"
+              value { string_value: "main/k8s/testing/secretfiles/kingdom_root.pem" }
+            }
+          }
+        }
+      }
+      fields {
+        key: "eventGroupStorage"
+        value {
+          struct_value {
+            fields {
+              key: "gcs"
+              value {
+                struct_value {
+                  fields {
+                    key: "projectId"
+                    value { string_value: "halo-cmm-dev" }
+                  }
+                  fields {
+                    key: "bucketName"
+                    value { string_value: "secure-computation-storage" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+      fields {
+        key: "eventGroupMapStorage"
+        value {
+          struct_value {
+            fields {
+              key: "gcs"
+              value {
+                struct_value {
+                  fields {
+                    key: "projectId"
+                    value { string_value: "halo-cmm-dev" }
+                  }
+                  fields {
+                    key: "bucketName"
+                    value { string_value: "secure-computation-storage" }
+                  }
+                }
+              }
+            }
+          }
         }
       }
     }
   }
-#  control_plane_queue_sink {
-#    queue: "some-topic-idjs"
-#    app_params {
-#      type_url: "type.googleapis.com/google.protobuf.Int32Value"
-#      value: "\b\005"
-#    }
-#  }
+}
+watched_paths {
+  identifier: "requisition-fetcher"
+  source_path_regex: "gs://secure-computation-storage-dev-bucket/edp7/requisitions/(.*)"
+  http_endpoint_sink {
+    endpoint_uri: "https://us-central1-halo-cmm-dev.cloudfunctions.net/requisition-fetcher"
+    app_params {
+      fields {
+        key: "configs"
+        value {
+          list_value {
+            values {
+              struct_value {
+                fields {
+                  key: "dataProvider"
+                  value { string_value: "dataProviders/DRoeq5_-yYI" }
+                }
+                fields {
+                  key: "storagePathPrefix"
+                  value { string_value: "gs://secure-computation-storage-dev-bucket/edp7/requisitions" }
+                }
+                fields {
+                  key: "requisitionStorage"
+                  value {
+                    struct_value {
+                      fields {
+                        key: "gcs"
+                        value {
+                          struct_value {
+                            fields {
+                              key: "projectId"
+                              value { string_value: "halo-cmm-dev" }
+                            }
+                            fields {
+                              key: "bucketName"
+                              value { string_value: "secure-computation-storage-dev-bucket" }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+                fields {
+                  # TODO(@Marco): To update when certs are mounted as Google Secrets
+                  key: "cmmsConnection"
+                  value {
+                    struct_value {
+                      fields {
+                        key: "certJarResourcePath"
+                        value { string_value: "main/k8s/testing/secretfiles/edp7_tls.pem" }
+                      }
+                      fields {
+                        key: "privateKeyJarResourcePath"
+                        value { string_value: "main/k8s/testing/secretfiles/edp7_tls.key" }
+                      }
+                      fields {
+                        key: "certCollectionJarResourcePath"
+                        value { string_value: "main/k8s/testing/secretfiles/kingdom_root.pem" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
 }
 watched_paths {
   source_path_regex: "gs://test-bucket/webhook-sink-path-to-watch/(.*)"
@@ -31,6 +164,32 @@ watched_paths {
         key: "some-key"
         value {
           string_value: "some-value"
+        }
+      }
+    }
+  }
+}
+watched_paths {
+  identifier: "results-fulfiller"
+  source_path_regex: "gs://test-bucket/webhook-sink-path-to-watch/(.*)"
+  control_plane_queue_sink {
+    queue: "requisition-fulfiller-queue"
+    app_params {
+      [type.googleapis.com/org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams] {
+        data_provider: "dataProviders/DRoeq5_-yYI"
+        storage {
+          labeled_impressions_blob_uri_prefix: "gs://secure-computation-storage-dev-bucket/edp7/labeled-impressions"
+          gcs_project_id: "halo-cmm-dev"
+        }
+        consent {
+          result_cs_cert_der_resource_path: "main/k8s/testing/secretfiles/edp7_cs_cert.der"
+          result_cs_private_key_der_resource_path: "main/k8s/testing/secretfiles/edp7_cs_private.der"
+          private_encryption_key_resource_path: "main/k8s/testing/secretfiles/edp7_enc_private.tink"
+          edp_certificate_name: "certificates/12345"
+        }
+        cmms_connection {
+          client_cert_resource_path: "main/k8s/testing/secretfiles/edp7_tls.pem"
+          client_private_key_resource_path: "main/k8s/testing/secretfiles/edp7_tls.key"
         }
       }
     }
