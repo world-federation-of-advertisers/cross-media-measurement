@@ -82,7 +82,8 @@ jobs:
 
       - name: Write ~/.bazelrc
         env:
-          IMAGE_TAG: ${{ inputs.image-tag }}
+#          IMAGE_TAG: ${{ inputs.image-tag }}
+          IMAGE_TAG: "nightly-20250506.1"
           SPANNER_INSTANCE: ${{ vars.SPANNER_INSTANCE }}
         run: |
           cat << EOF > ~/.bazelrc
