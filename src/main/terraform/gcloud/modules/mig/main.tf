@@ -105,7 +105,10 @@ resource "google_compute_instance_template" "confidential_vm_template" {
         args: ${jsonencode(
           concat(
             var.app_args,
-            [for s in var.secrets_to_mount : "--${s.flag_name}=${s.mount_path}"]
+            [ for s in var.secrets_to_mount :
+              "${s.flag_name}=${s.mount_path}"
+              if can(s.flag_name)
+            ]
           )
         )}
     restartPolicy: Always
