@@ -27,8 +27,8 @@ module "kingdom_default_node_pool" {
   name            = "default"
   cluster         = module.kingdom_cluster.cluster
   service_account = module.common.cluster_service_account
-  machine_type    = "e2-custom-2-4096"
-  max_node_count  = 4
+  machine_type    = "e2-custom-2-6144"
+  max_node_count  = 3
 }
 
 module "kingdom" {
