@@ -211,7 +211,7 @@ class ModelLineReader : SpannerReader<ModelLineReader.Result>() {
           -- DataProviderAvailabilityIntervals row must exist for every specified DataProvider
           AND COUNT(DISTINCT DataProviderId) = @numDataProviders
         """
-        .trimIndent()
+          .trimIndent()
       ) {
         bind("externalModelProviderId").to(externalModelProviderId.value)
         bind("externalModelSuiteId").to(externalModelSuiteId.value)
