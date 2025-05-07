@@ -19,6 +19,48 @@ module "edp_aggregator_bucket" {
   location = var.edp_aggregator_bucket_location
 }
 
+module "edpa_tee_app_private_key" {
+  source    = "../secret"
+  secret_id = var.edpa_tee_app_private_key_id
+  secret_path = var.edpa_tee_app_private_key_path
+}
+
+module "edpa_tee_app_cert" {
+  source    = "../secret"
+  secret_id = var.edpa_tee_app_cert_id
+  secret_path = var.edpa_tee_app_cert_path
+}
+
+module "secure_computation_root_ca" {
+  source    = "../secret"
+  secret_id = var.secure_computation_root_ca_id
+  secret_path = var.secure_computation_root_ca_path
+}
+
+module "kingdom_root_ca" {
+  source    = "../secret"
+  secret_id = var.kingdom_root_ca_id
+  secret_path = var.kingdom_root_ca_path
+}
+
+module "edp7_result_cs_cert_der" {
+  source    = "../secret"
+  secret_id = var.edp7_result_cert_id
+  secret_path = var.edp7_result_cert_path
+}
+
+module "edp7_result_cs_private" {
+  source    = "../secret"
+  secret_id = var.edp7_result_private_key_id
+  secret_path = var.edp7_result_private_key_path
+}
+
+module "edp7_enc_private" {
+  source    = "../secret"
+  secret_id = var.data_watcher_private_key_id
+  secret_path = var.data_watcher_private_key_path
+}
+
 module "data_watcher_function_service_accounts" {
   source    = "../gcs-bucket-cloud-function"
 

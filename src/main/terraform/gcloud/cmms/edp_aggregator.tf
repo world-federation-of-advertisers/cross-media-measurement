@@ -49,5 +49,21 @@ module "edp_aggregator" {
   data_watcher_service_account_name         = "data-watcher"
   data_watcher_trigger_service_account_name = "data-watcher-trigger"
   terraform_service_account                 = var.terraform_service_account
+
+  edpa_tee_app_private_key_id               = "edpa-tee-app-tls-key"
+  edpa_tee_app_private_key_path             = "${path.root}/../../../k8s/testing/secretfiles/edpa_tee_app_tls.key"
+  edpa_tee_app_cert_id                      = "edpa-tee-app-tls-pem"
+  edpa_tee_app_cert_path                    = "${path.root}/../../../k8s/testing/secretfiles/edpa_tee_app_tls.pem"
+  secure_computation_root_ca_id             = "secure-computation-root-ca"
+  secure_computation_root_ca_path           = "${path.root}/../../../k8s/testing/secretfiles/secure_computation_root.pem"
+  kingdom_root_ca_id                        = "kingdom-root-ca"
+  kingdom_root_ca_path                      = "${path.root}/../../../k8s/testing/secretfiles/kingdom_root.pem"
+  edp7_result_cert_id                       = "edp7-result-cert-der"
+  edp7_result_cert_path                     = "${path.root}/../../../k8s/testing/secretfiles/edp7_result_cs_cert.der"
+  edp7_result_private_key_id                = "edp7-result-private-der"
+  edp7_result_private_key_path              = "${path.root}/../../../k8s/testing/secretfiles/edp7_result_cs_private.der"
+  edp7_enc_private_id                       = "edp7-enc-private"
+  edp7_enc_private_path                     = "${path.root}/../../../k8s/testing/secretfiles/edp7_enc_private.tink"
+
 }
 
