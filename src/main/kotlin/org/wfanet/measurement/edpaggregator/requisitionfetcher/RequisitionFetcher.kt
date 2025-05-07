@@ -83,10 +83,6 @@ class RequisitionFetcher(
         }
         .flattenConcat()
 
-    logger.fine {
-      "$requisitionsCount unfulfilled requisitions have been retrieved for $dataProviderName"
-    }
-
     val storedRequisitions: Int = storeRequisitions(requisitions)
 
     logger.fine {

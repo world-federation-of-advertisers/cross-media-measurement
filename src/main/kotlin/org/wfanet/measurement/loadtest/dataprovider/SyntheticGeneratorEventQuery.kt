@@ -49,19 +49,25 @@ abstract class SyntheticGeneratorEventQuery(
   abstract fun getSyntheticDataSpec(eventGroup: EventGroup): SyntheticEventGroupSpec
 
   override fun getLabeledEvents(
-    eventGroupSpec: EventQuery.EventGroupSpec
+    eventGroupSpec: EventQuery.EventGroupSpec,
+    filterEvents: Boolean,
   ): Sequence<LabeledEvent<DynamicMessage>> {
     val timeRange = eventGroupSpec.spec.collectionInterval.toRange()
     val syntheticDataSpec: SyntheticEventGroupSpec = getSyntheticDataSpec(eventGroupSpec.eventGroup)
-    val program: Program =
-      EventQuery.compileProgram(eventGroupSpec.spec.filter, eventMessageDescriptor)
-    return SyntheticDataGeneration.generateEvents(
+    val events =
+      SyntheticDataGeneration.generateEvents(
         DynamicMessage.getDefaultInstance(eventMessageDescriptor),
         populationSpec,
         syntheticDataSpec,
         timeRange,
       )
-      .filter { EventFilters.matches(it.message, program) }
+    return if (filterEvents) {
+      val program: Program =
+        EventQuery.compileProgram(eventGroupSpec.spec.filter, eventMessageDescriptor)
+      events.filter { EventFilters.matches(it.message, program) }
+    } else {
+      events
+    }
   }
 
   override fun getUserVirtualIdUniverse(): Sequence<Long> {
