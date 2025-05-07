@@ -16,15 +16,13 @@
 
 package org.wfanet.measurement.securecomputation.datawatcher.testing
 
-import org.wfanet.measurement.storage.StorageClient
 import com.google.protobuf.ByteString
+import java.util.logging.Logger
 import kotlinx.coroutines.flow.Flow
 import org.wfanet.measurement.securecomputation.datawatcher.DataWatcher
-import java.util.logging.Logger
+import org.wfanet.measurement.storage.StorageClient
 
-/**
- * Used for in process tests to emulate google pub sub storage notifications to a [DataWatcher].
- */
+/** Used for in process tests to emulate google pub sub storage notifications to a [DataWatcher]. */
 class DataWatcherSubscribingStorageClient(
   private val storageClient: StorageClient,
   private val storagePrefix: String,
@@ -35,7 +33,6 @@ class DataWatcherSubscribingStorageClient(
     val blob = storageClient.writeBlob(blobKey, content)
 
     for (dataWatcher in subscribingWatchers) {
-      logger.info("^^^^^^^^^^^^^^^^^^^^^^^^^^")
       logger.info("Receiving path $blobKey")
       dataWatcher.receivePath("$storagePrefix$blobKey")
     }
