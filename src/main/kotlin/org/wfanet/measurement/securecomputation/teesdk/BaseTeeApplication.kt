@@ -90,10 +90,7 @@ abstract class BaseTeeApplication(
     val workItemName = WorkItemKey(body.name).toName()
     val workItemAttempt: WorkItemAttempt =
       try {
-        val workItemAttemptId =
-          UUID.randomUUID().toString().replace("/", "-").replace("_", "-").takeLast(63).trim {
-            !it.isLetter()
-          }
+        val workItemAttemptId = "work-item-attempt-" + UUID.randomUUID().toString()
         createWorkItemAttempt(parent = workItemName, workItemAttemptId = workItemAttemptId)
       } catch (e: ControlPlaneApiException) {
         logger.log(Level.WARNING, e) { "Error creating a WorkItemAttempt" }
