@@ -18,17 +18,11 @@ inputs:
   environment:
     description: "GitHub environment"
     required: true
-  workload_identity_provider:
-    description: "Full WIF provider identifier"
-    required: true
   google_project:
     description: "Google project ID"
     required: true
   cloud_region:
     description: "Cloud region"
-    required: true
-  service_account:
-    description: "Service account email to impersonate"
     required: true
   function_name:
     description: "GCF function name"
@@ -37,7 +31,7 @@ inputs:
     description: "Java entry point"
     required: true
   bazel_target_label:
-    description: "Bazel target label"
+    description: "Bazel target label that must output an uber JAR"
     required: true
   trigger_bucket:
     description: "GCS bucket name"
@@ -51,16 +45,13 @@ inputs:
   extra_env_vars:
     description: "Additional --set-env-vars"
     required: false
+  uber_jar_temp_dir:
+    description: "Temp directory to store the uber JAR"
+    required: true
 
 runs:
   using: "composite"
   steps:
-
-    - name: Authenticate to GCP
-      uses: google-github-actions/auth@v2
-      with:
-        workload_identity_provider: ${{ inputs.workload_identity_provider }}
-        service_account:             ${{ inputs.service_account }}
 
     - name: Setup gcloud
       uses: google-github-actions/setup-gcloud@v1
@@ -75,12 +66,10 @@ runs:
     - name: Locate and copy uber-jar
       shell: bash
       run: |
-        JAR=$(bazel cquery "${{ inputs.bazel_target_label }}" --output=files \
-            | grep -E '_deploy\.jar$' \
-            | head -n1)
+        JAR=$(bazel cquery "${{ inputs.bazel_target_label }}" --output=files)
 
-        mkdir -p "$RUNNER_TEMP/source"
-        cp "$JAR" "$RUNNER_TEMP/source/"
+        mkdir -p "${{ inputs.uber_jar_temp_dir }}"
+        cp "$JAR" "${{ inputs.uber_jar_temp_dir }}/"
 
     - name: Deploy function
       shell: bash
@@ -95,7 +84,7 @@ runs:
           --memory=512MB
           --region="${{ inputs.cloud_region }}"
           --run-service-account="${{ inputs.run_service_account }}"
-          --source="$RUNNER_TEMP/source"
+          --source="${{ inputs.uber_jar_temp_dir }}"
         )
         
         if [[ -n "${{ inputs.trigger_bucket }}" ]]; then

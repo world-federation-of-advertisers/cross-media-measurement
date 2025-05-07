@@ -15,6 +15,9 @@
 name: "Deploy Cloud Functions"
 
 on:
+  push:
+    branches:
+      - marcopremier/add_requisition_fetcher_deployment2
   workflow_dispatch:
     inputs:
       environment:
@@ -36,7 +39,8 @@ permissions:
 jobs:
   deploy:
     runs-on: ubuntu-22.04
-    environment: ${{ github.event.inputs.environment }}
+#    environment: ${{ github.event.inputs.environment }}
+    environment: "dev"
     env:
       SECURE_COMPUTATION_BUCKET:            ${{ vars.SECURE_COMPUTATION_BUCKET }}
       DATA_WATCHER_SERVICE_ACCOUNT:         ${{ vars.DATA_WATCHER_SERVICE_ACCOUNT }}
@@ -49,12 +53,16 @@ jobs:
 
       - uses: actions/checkout@v4
 
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.TF_SERVICE_ACCOUNT }}
+
       - name: Deploy Data Watcher
         uses: ./.github/actions/build-and-deploy-cloud-function
         with:
-          environment:   ${{ inputs.environment }}
-          workload_identity_provider:   ${{ vars.WORKLOAD_IDENTITY_PROVIDER }}
-          service_account:              ${{ vars.TF_SERVICE_ACCOUNT }}
+          environment:                  ${{ inputs.environment }}
           google_project:               ${{ vars.GCLOUD_PROJECT }}
           cloud_region:                 ${{ vars.GCLOUD_REGION }}
           function_name:                data-watcher
@@ -64,14 +72,12 @@ jobs:
           run_service_account:          ${{ env.DATA_WATCHER_SERVICE_ACCOUNT }}
           trigger_service_account:      ${{ env.DATA_WATCHER_TRIGGER_SERVICE_ACCOUNT }}
           extra_env_vars:               "CERT_JAR_RESOURCE_PATH=src/main/k8s/testing/secretfiles/data_watcher_tls.pem,PRIVATE_KEY_JAR_RESOURCE_PATH=src/main/k8s/testing/secretfiles/data_watcher_tls.key,CERT_COLLECTION_JAR_RESOURCE_PATH=src/main/k8s/testing/secretfiles/secure_computation_root.pem,CONTROL_PLANE_TARGET=${{ env.SECURE_COMPUTATION_PUBLIC_API_TARGET }},CONTROL_PLANE_CERT_HOST=data-watcher.secure-computation.${{ inputs.environment }}.halo-cmm.org"
-
+          uber_jar_temp_dir:            ${{ runner.temp }}/datawatcher/source
 
       - name: Deploy Requisition Fetcher
         uses: ./.github/actions/build-and-deploy-cloud-function
         with:
           environment:                  ${{ inputs.environment }}
-          workload_identity_provider:   ${{ vars.WORKLOAD_IDENTITY_PROVIDER }}
-          service_account:              ${{ vars.TF_SERVICE_ACCOUNT }}
           google_project:               ${{ vars.GCLOUD_PROJECT }}
           cloud_region:                 ${{ vars.GCLOUD_REGION }}
           function_name:                requisition-fetcher
@@ -79,3 +85,4 @@ jobs:
           bazel_target_label:           //src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/requisitionfetcher:RequisitionFetcherFunction_deploy.jar
           run_service_account:          ${{ env.REQUISITION_FETCHER_SERVICE_ACCOUNT }}
           extra_env_vars:               "KINGDOM_TARGET=${{ env.KINGDOM_PUBLIC_API_TARGET }}"
+          uber_jar_temp_dir:            ${{ runner.temp }}/requisitionfetcher/source
