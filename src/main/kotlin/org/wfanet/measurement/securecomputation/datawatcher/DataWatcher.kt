@@ -70,10 +70,7 @@ class DataWatcher(
   private suspend fun sendToControlPlane(config: WatchedPath, path: String) {
 
     val queueConfig = config.controlPlaneQueueSink
-    val workItemId =
-      UUID.randomUUID().toString().replace("/", "-").replace("_", "-").takeLast(63).trim {
-        !it.isLetter()
-      }
+    val workItemId = "work-item-" + UUID.randomUUID().toString()
     val workItemParams =
       workItemParams {
           appParams = queueConfig.appParams
