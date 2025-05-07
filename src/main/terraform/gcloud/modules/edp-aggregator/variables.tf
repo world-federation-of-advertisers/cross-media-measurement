@@ -89,3 +89,74 @@ variable "terraform_service_account" {
   type        = string
   nullable    = false
 }
+
+variable "edpa_tee_app_private_key_id" {
+  type        = string
+  description = "The ID of the private key used by the TEE application"
+}
+
+variable "edpa_tee_app_private_key_path" {
+  type        = string
+  description = "The path of the private key used by the TEE application"
+}
+
+
+variable "edpa_tee_app_cert_id" {
+  type        = string
+  description = "The ID of the cert used by the TEE application"
+}
+
+variable "edpa_tee_app_cert_path" {
+  type        = string
+  description = "The path of the cert used by the TEE application"
+}
+
+variable "secure_computation_root_ca_id" {
+  type        = string
+  description = "The ID of secure computation CA root"
+}
+
+variable "secure_computation_root_ca_path" {
+  type        = string
+  description = "The path of the secure computation CA root"
+}
+
+variable "kingdom_root_ca_id" {
+  type        = string
+  description = "The ID of the kingdom CA root"
+}
+
+variable "kingdom_root_ca_path" {
+  type        = string
+  description = "The path of the kingdom CA root"
+}
+
+variable "edp7_result_cert_id" {
+  type        = string
+  description = "The ID of the cert of edp7 results"
+}
+
+variable "edp7_result_cert_path" {
+  type        = string
+  description = "The path of the cert of edp7 results"
+}
+
+variable "edp7_result_private_key_id" {
+  type        = string
+  description = "The ID of the private key of edp7 results"
+}
+
+variable "edp7_result_private_key_path" {
+  type        = string
+  description = "The path of the private key of edp7 results"
+}
+
+variable "edp7_enc_private_id" {
+  type        = string
+  description = "The ID of the edpy tink key"
+}
+
+variable "edp7_enc_private_path" {
+  type        = string
+  description = "The path of the edp7 tink key"
+}
