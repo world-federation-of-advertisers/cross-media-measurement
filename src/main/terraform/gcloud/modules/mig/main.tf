@@ -38,6 +38,14 @@ resource "google_kms_crypto_key_iam_member" "mig_kms_user" {
   member        = "serviceAccount:${google_service_account.mig_service_account.email}"
 }
 
+resource "google_secret_manager_secret_iam_member" "mig_sa_secret_accessor" {
+  for_each = { for s in var.secrets_to_mount : s.secret_id => s }
+
+  secret_id = each.key
+  role      = "roles/secretmanager.secretAccessor"
+  member    = "serviceAccount:${google_service_account.mig_service_account.email}"
+}
+
 resource "google_compute_instance_template" "confidential_vm_template" {
   machine_type = var.machine_type
 
@@ -60,21 +68,50 @@ resource "google_compute_instance_template" "confidential_vm_template" {
     network = "default"
   }
 
-  metadata = {
-    "google-logging-enabled"    = "true"
-    "google-monitoring-enabled" = "true"
-    "gce-container-declaration" =
-<<EOT
-spec:
-  containers:
-    - name: subscriber
-      image: ${var.docker_image}
-      stdin: false
-      tty: false
-      args: ${jsonencode(var.app_args)}
-  restartPolicy: Always
-EOT
-  }
+  metadata = merge(
+      {
+        "google-logging-enabled"    = "true"
+        "google-monitoring-enabled" = "true"
+      },
+      {
+        # 1) at boot, loop over each secret and write it out:
+        "startup-script" = <<-EOT
+          #!/bin/bash
+          set -euo pipefail
+          %{ for s in var.secrets_to_mount }
+          echo "Fetching secret ${s.secret_id}/${s.version} → ${s.mount_path}"
+          # get an access token from the metadata server
+          TOKEN=$(curl -s -H "Metadata-Flavor: Google" \
+            http://metadata/computeMetadata/v1/instance/service-accounts/default/token \
+            | jq -r .access_token)
+
+          curl -s -H "Authorization: Bearer $TOKEN" \
+            "https://secretmanager.googleapis.com/v1/projects/${var.project}/secrets/${s.secret_id}/versions/${s.version}:access" \
+            | jq -r .payload.data \
+            | base64 --decode > ${s.mount_path}
+          chmod 600 ${s.mount_path}
+          %{ endfor }
+        EOT
+      },
+      {
+        # 2) append a --<flag>=<path> for each mount into the container args
+        "gce-container-declaration" = <<-EOT
+  spec:
+    containers:
+      - name: subscriber
+        image: ${var.docker_image}
+        stdin: false
+        tty: false
+        args: ${jsonencode(
+          concat(
+            var.app_args,
+            [for s in var.secrets_to_mount : "--${s.flag_name}=${s.mount_path}"]
+          )
+        )}
+    restartPolicy: Always
+  EOT
+      }
+    )
 
   service_account {
     email = google_service_account.mig_service_account.email

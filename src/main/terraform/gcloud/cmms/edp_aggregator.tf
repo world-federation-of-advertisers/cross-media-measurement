@@ -31,6 +31,15 @@ locals {
         app_args                    = []
         machine_type                = "n2d-standard-2"
         docker_image                = "" # @TODO(MarcoPremier): set this value once TEE APP is merged
+        secrets_to_mount            = [
+          {
+            secret_id               = "edpa-tee-app-tls-key"
+            version                 = "latest"
+            mount_path              = "/etc/ssl/edpa_tee_app_tls.key"
+            secret_local_path       = "${path.root}/../../../k8s/testing/secretfiles/edpa_tee_app_tls.key"
+            flag_name               = "kingdom-cert-collection-file"
+          },
+        ]
       }
     }
   }

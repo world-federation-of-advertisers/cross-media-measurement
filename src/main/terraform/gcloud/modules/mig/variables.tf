@@ -42,6 +42,23 @@ variable "app_args" {
   default     = []
 }
 
+variable "secrets_to_mount" {
+  description = <<-EOF
+    A list of Google secrets to fetch at boot and write to disk.
+    Each object needs:
+      • secret_id  = the Secret Manager secret name
+      • version    = a version label (e.g. "latest")
+      • mount_path = file path inside the VM where the secret should land
+  EOF
+  type = list(object({
+    secret_id  = string
+    version    = optional(string, "latest")
+    mount_path = string
+    flag_name  = string
+  }))
+  default = []
+}
+
 variable "subscription_id" {
   description = "The ID of the Pub/Sub subscription to which the service account will be granted access."
   type        = string

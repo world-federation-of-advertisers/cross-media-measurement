@@ -49,6 +49,16 @@ variable "queue_worker_configs" {
       app_args                    = list(string)
       machine_type                = string
       docker_image                = string
+      secrets_to_mount = optional(
+      list(object({
+        secret_id           = string
+        version             = string
+        mount_path          = string
+        secret_local_path   = string
+        flag_name           = string
+      })),
+      []
+    )
     })
   }))
 }

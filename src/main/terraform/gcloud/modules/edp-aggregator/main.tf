@@ -12,6 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+locals {
+  all_secrets = {
+    for queue_key, cfg in var.queue_worker_configs :
+    for secret in cfg.worker.secrets_to_mount :
+    "${queue_key}-${secret.secret_id}" => {
+      secret_id          = secret.secret_id
+      secret_local_path  = secret.secret_local_path
+    }
+  }
+}
+
 module "edp_aggregator_bucket" {
   source   = "../storage-bucket"
 
@@ -19,46 +30,11 @@ module "edp_aggregator_bucket" {
   location = var.edp_aggregator_bucket_location
 }
 
-module "edpa_tee_app_private_key" {
-  source    = "../secret"
-  secret_id = var.edpa_tee_app_private_key_id
-  secret_path = var.edpa_tee_app_private_key_path
-}
-
-module "edpa_tee_app_cert" {
-  source    = "../secret"
-  secret_id = var.edpa_tee_app_cert_id
-  secret_path = var.edpa_tee_app_cert_path
-}
-
-module "secure_computation_root_ca" {
-  source    = "../secret"
-  secret_id = var.secure_computation_root_ca_id
-  secret_path = var.secure_computation_root_ca_path
-}
-
-module "kingdom_root_ca" {
-  source    = "../secret"
-  secret_id = var.kingdom_root_ca_id
-  secret_path = var.kingdom_root_ca_path
-}
-
-module "edp7_result_cs_cert_der" {
-  source    = "../secret"
-  secret_id = var.edp7_result_cert_id
-  secret_path = var.edp7_result_cert_path
-}
-
-module "edp7_result_cs_private" {
-  source    = "../secret"
-  secret_id = var.edp7_result_private_key_id
-  secret_path = var.edp7_result_private_key_path
-}
-
-module "edp7_enc_private" {
-  source    = "../secret"
-  secret_id = var.data_watcher_private_key_id
-  secret_path = var.data_watcher_private_key_path
+module "secrets" {
+  source = "../secret"
+  for_each = local.all_secrets
+  secret_id = each.value.secret_id
+  secret_path = each.value.secret_local_path
 }
 
 module "data_watcher_function_service_accounts" {
@@ -121,6 +97,7 @@ module "tee_apps" {
   kms_key_id                    = google_kms_crypto_key.edp_aggregator_kek.id
   docker_image                  = each.value.worker.docker_image
   terraform_service_account     = var.terraform_service_account
+  secrets_to_mount              = each.value.worker.secrets_to_mount
 }
 
 resource "google_storage_bucket_iam_member" "mig_storage_viewer" {
