@@ -59,11 +59,15 @@ jobs:
           workload_identity_provider: ${{ vars.WORKLOAD_IDENTITY_PROVIDER }}
           service_account: ${{ vars.TF_SERVICE_ACCOUNT }}
 
+      - name: Setup gcloud
+        uses: google-github-actions/setup-gcloud@v1
+        with:
+          project_id: ${{ vars.GCLOUD_PROJECT }}
+
       - name: Deploy Data Watcher
         uses: ./.github/actions/build-and-deploy-cloud-function
         with:
           environment:                  ${{ inputs.environment }}
-          google_project:               ${{ vars.GCLOUD_PROJECT }}
           cloud_region:                 ${{ vars.GCLOUD_REGION }}
           function_name:                data-watcher
           entry_point:                  org.wfanet.measurement.securecomputation.deploy.gcloud.datawatcher.DataWatcherFunction
@@ -78,7 +82,6 @@ jobs:
         uses: ./.github/actions/build-and-deploy-cloud-function
         with:
           environment:                  ${{ inputs.environment }}
-          google_project:               ${{ vars.GCLOUD_PROJECT }}
           cloud_region:                 ${{ vars.GCLOUD_REGION }}
           function_name:                requisition-fetcher
           entry_point:                  org.wfanet.measurement.edpaggregator.deploy.gcloud.requisitionfetcher.RequisitionFetcherFunction
