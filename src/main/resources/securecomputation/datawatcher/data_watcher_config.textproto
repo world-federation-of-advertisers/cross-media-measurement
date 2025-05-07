@@ -4,7 +4,7 @@ watched_paths {
   identifier: "event-groups"
   source_path_regex: "gs://secure-computation-storage-dev-bucket/edp7/event-groups/(.*)"
   http_endpoint_sink {
-    endpoint_uri: "TO_BE_DEFINED_ONCE_DEPLOYED"
+    endpoint_uri: "TO_BE_DEFINED_ONCE_DEPLOYED" #TODO(@Marco): set this once available
     app_params {
       fields {
         key: "dataProvider"
@@ -185,7 +185,7 @@ watched_paths {
           result_cs_cert_der_resource_path: "main/k8s/testing/secretfiles/edp7_cs_cert.der"
           result_cs_private_key_der_resource_path: "main/k8s/testing/secretfiles/edp7_cs_private.der"
           private_encryption_key_resource_path: "main/k8s/testing/secretfiles/edp7_enc_private.tink"
-          edp_certificate_name: "certificates/12345" #TODO(Marco): Fix this
+          edp_certificate_name: "dataProviders/DRoeq5_-yYI/certificates/Elub4J_-ybw"
         }
         cmms_connection {
           client_cert_resource_path: "main/k8s/testing/secretfiles/edp7_tls.pem"
