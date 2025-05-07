@@ -4,15 +4,9 @@ import kotlinx.coroutines.runBlocking
 import com.google.protobuf.Parser
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.SigningCerts
-import org.wfanet.measurement.common.grpc.TlsFlags
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import picocli.CommandLine
 import java.io.File
-import java.security.cert.X509Certificate
-import org.wfanet.measurement.common.crypto.SigningKeyHandle
-import org.wfanet.measurement.common.crypto.readCertificate
-import org.wfanet.measurement.common.crypto.readPrivateKey
-import org.wfanet.measurement.common.readByteString
 import org.wfanet.measurement.gcloud.pubsub.DefaultGooglePubSubClient
 import org.wfanet.measurement.gcloud.pubsub.Subscriber
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
@@ -22,8 +16,28 @@ import org.wfanet.measurement.queue.QueueSubscriber
 
 @CommandLine.Command(name = "results_fulfiller_app_runner")
 class ResultsFulfillerAppRunner : Runnable {
-  @CommandLine.Mixin
-  lateinit var secureComputationTlsFlags: TlsFlags
+  @CommandLine.Option(
+    names = ["--edpa-tls-cert-file-path"],
+    description = ["User's own TLS cert file path."],
+    defaultValue = "",
+  )
+  lateinit var edpaCertFilePath: String
+    private set
+
+  @CommandLine.Option(
+    names = ["--edpa-tls-key-file-path"],
+    description = ["User's own TLS private key file path."],
+    defaultValue = "",
+  )
+  lateinit var edpaPrivateKeyFilePath: String
+    private set
+
+  @CommandLine.Option(
+    names = ["--secure-computation-cert-collection-file-path"],
+    description = ["Trusted root Cert collection file path."],
+    required = false,
+  )
+  var secureComputationCertCollectionFilePath: String? = null
     private set
 
   @CommandLine.Option(
@@ -54,11 +68,11 @@ class ResultsFulfillerAppRunner : Runnable {
   private var secureComputationPublicApiCertHost: String? = null
 
   @CommandLine.Option(
-    names = ["--kingdom-cert-collection-file"],
-    description = ["Kingdom root collections file"],
+    names = ["--kingdom-cert-collection-file-path"],
+    description = ["Kingdom root collections file path"],
     required = true
   )
-  private lateinit var kingdomCertCollectionFile: File
+  private lateinit var kingdomCertCollectionFilePath: String
 
 
   @CommandLine.Option(
@@ -83,7 +97,14 @@ class ResultsFulfillerAppRunner : Runnable {
 
 
     // Get client certificates from server flags
-    val secureComputationClientCerts = secureComputationTlsFlags.signingCerts
+    val edpaCertFile = File(edpaCertFilePath)
+    val edpaPrivateKeyFile = File(edpaPrivateKeyFilePath)
+    val secureComputationCertCollectionFile = File(secureComputationCertCollectionFilePath)
+    val secureComputationClientCerts = SigningCerts.fromPemFiles(
+      certificateFile = edpaCertFile,
+      privateKeyFile = edpaPrivateKeyFile,
+      trustedCertCollectionFile = secureComputationCertCollectionFile
+    )
 
     // Build the mutual TLS channel for secure computation API
     val publicChannel = buildMutualTlsChannel(
@@ -96,6 +117,7 @@ class ResultsFulfillerAppRunner : Runnable {
     val workItemAttemptsClient = WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineStub(publicChannel)
 
     // Create and run the ResultsFulfillerApp
+   val kingdomCertCollectionFile = File(kingdomCertCollectionFilePath)
     val resultsFulfillerApp = ResultsFulfillerAppImpl(
       subscriptionId = subscriptionId,
       queueSubscriber = queueSubscriber,
