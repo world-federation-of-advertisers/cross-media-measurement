@@ -4,16 +4,69 @@ load(
     "kt_jvm_proto_library",
 )
 
-package(default_visibility = ["//visibility:public"])
+package(default_visibility = [
+    "//src/main/kotlin/org/wfanet/measurement/edpaggregator:__subpackages__",
+    "//src/test/kotlin/org/wfanet/measurement/edpaggregator:__subpackages__",
+])
 
 IMPORT_PREFIX = "/src/main/proto"
+
+proto_library(
+    name = "transport_layer_security_params_proto",
+    srcs = ["transport_layer_security_params.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        "@com_google_googleapis//google/api:resource_proto",
+        "@com_google_protobuf//:timestamp_proto",
+    ],
+)
+
+kt_jvm_proto_library(
+    name = "transport_layer_security_params_kt_jvm_proto",
+    deps = [":transport_layer_security_params_proto"],
+)
+
+proto_library(
+    name = "storage_params_proto",
+    srcs = ["storage_params.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        "@com_google_googleapis//google/api:resource_proto",
+        "@com_google_protobuf//:timestamp_proto",
+    ],
+)
+
+kt_jvm_proto_library(
+    name = "storage_params_kt_jvm_proto",
+    deps = [":storage_params_proto"],
+)
+
+proto_library(
+    name = "event_group_sync_config_proto",
+    srcs = ["event_group_sync_config.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        ":storage_params_proto",
+        ":transport_layer_security_params_proto",
+        "@com_google_googleapis//google/api:resource_proto",
+        "@com_google_protobuf//:timestamp_proto",
+    ],
+)
+
+kt_jvm_proto_library(
+    name = "event_group_sync_config_kt_jvm_proto",
+    deps = [":event_group_sync_config_proto"],
+)
 
 proto_library(
     name = "requisition_fetcher_config_proto",
     srcs = ["requisition_fetcher_config.proto"],
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
+        ":storage_params_proto",
+        ":transport_layer_security_params_proto",
         "@com_google_googleapis//google/api:field_behavior_proto",
+        "@com_google_googleapis//google/api:resource_proto",
         "@com_google_protobuf//:any_proto",
         "@com_google_protobuf//:struct_proto",
     ],

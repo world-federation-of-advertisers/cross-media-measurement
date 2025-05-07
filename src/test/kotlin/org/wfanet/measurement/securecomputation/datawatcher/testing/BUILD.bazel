@@ -1,0 +1,14 @@
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_test")
+
+kt_jvm_test(
+    name = "DataWatcherSubscribingStorageClientTest",
+    srcs = ["DataWatcherSubscribingStorageClientTest.kt"],
+    test_class = "org.wfanet.measurement.securecomputation.datawatcher.testing.DataWatcherSubscribingStorageClientTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/securecomputation/datawatcher:data_watcher",
+        "//src/main/kotlin/org/wfanet/measurement/securecomputation/datawatcher/testing",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/org/mockito/kotlin",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage/filesystem:client",
+    ],
+)
