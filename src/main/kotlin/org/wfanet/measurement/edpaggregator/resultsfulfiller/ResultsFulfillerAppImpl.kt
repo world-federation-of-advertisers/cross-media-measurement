@@ -5,7 +5,7 @@ import com.google.crypto.tink.integration.gcpkms.GcpKmsClient
 import com.google.protobuf.Parser
 import com.google.protobuf.TypeRegistry
 import java.io.File
-import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
+import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams.StorageParams
 import org.wfanet.measurement.queue.QueueSubscriber
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAttemptsGrpcKt
@@ -20,7 +20,7 @@ class ResultsFulfillerAppImpl(
   workItemsClient: WorkItemsGrpcKt.WorkItemsCoroutineStub,
   workItemAttemptsClient: WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineStub,
   cmmsTarget: String,
-  cmmsCertHost: String,
+  cmmsCertHost: String?,
   trustedCertCollection: File,
 ): ResultsFulfillerApp(
     subscriptionId,
@@ -53,13 +53,13 @@ class ResultsFulfillerAppImpl(
     return typeRegistry
   }
 
-  override fun getStorageConfig(configType: StorageConfigType, storageDetails: ResultsFulfillerParams.Storage): StorageConfig {
+  override fun getStorageConfig(configType: StorageConfigType, storageParams: StorageParams): StorageConfig {
     return StorageConfig(
       projectId = when (configType) {
-        StorageConfigType.REQUISITION -> storageDetails.gcsProjectId
-        StorageConfigType.IMPRESSION -> storageDetails.gcsProjectId
+        StorageConfigType.REQUISITION -> storageParams.gcsProjectId
+        StorageConfigType.IMPRESSION -> storageParams.gcsProjectId
         StorageConfigType.IMPRESSION_METADATA ->
-          storageDetails.gcsProjectId
+          storageParams.gcsProjectId
       }
     )
   }

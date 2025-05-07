@@ -23,7 +23,7 @@ import org.wfanet.measurement.queue.QueueSubscriber
 @CommandLine.Command(name = "results_fulfiller_app_runner")
 class ResultsFulfillerAppRunner : Runnable {
   @CommandLine.Mixin
-  lateinit var workItemTlsFlags: TlsFlags
+  lateinit var secureComputationTlsFlags: TlsFlags
     private set
 
   @CommandLine.Option(
@@ -42,6 +42,16 @@ class ResultsFulfillerAppRunner : Runnable {
     required = false
   )
   private var kingdomPublicApiCertHost: String? = null
+
+  @CommandLine.Option(
+    names = ["--secure-computation-public-api-cert-host"],
+    description = [
+      "Expected hostname (DNS-ID) in the SecureComputation public API server's TLS certificate.",
+      "This overrides derivation of the TLS DNS-ID from --kingdom-public-api-target."
+    ],
+    required = false
+  )
+  private var secureComputationPublicApiCertHost: String? = null
 
   @CommandLine.Option(
     names = ["--kingdom-cert-collection-file"],
@@ -73,20 +83,15 @@ class ResultsFulfillerAppRunner : Runnable {
 
 
     // Get client certificates from server flags
-    val workItemClientCerts = SigningCerts.fromPemFiles(
-      certificateFile = workItemTlsFlags.certFile,
-      privateKeyFile = workItemTlsFlags.privateKeyFile,
-      trustedCertCollectionFile = workItemTlsFlags.certCollectionFile
-    )
+    val secureComputationClientCerts = secureComputationTlsFlags.signingCerts
 
-    // Build the mutual TLS channel for kingdom public API
+    // Build the mutual TLS channel for secure computation API
     val publicChannel = buildMutualTlsChannel(
       kingdomPublicApiTarget,
-      workItemClientCerts,
-      kingdomPublicApiCertHost
+      secureComputationClientCerts,
+      secureComputationPublicApiCertHost
     )
 
-    // TODO: may need to change if work items client and work item attempts clients use different certs and targets
     val workItemsClient = WorkItemsGrpcKt.WorkItemsCoroutineStub(publicChannel)
     val workItemAttemptsClient = WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineStub(publicChannel)
 
@@ -98,7 +103,7 @@ class ResultsFulfillerAppRunner : Runnable {
       workItemsClient = workItemsClient,
       workItemAttemptsClient = workItemAttemptsClient,
       cmmsTarget = kingdomPublicApiTarget,
-      cmmsCertHost = kingdomPublicApiCertHost!!,
+      cmmsCertHost = kingdomPublicApiCertHost,
       trustedCertCollection = kingdomCertCollectionFile
     )
 
@@ -114,16 +119,6 @@ class ResultsFulfillerAppRunner : Runnable {
 
   private fun createWorkItemParser(): Parser<WorkItem> {
     return WorkItem.parser()
-  }
-
-  /** Loads a signing private key from DER files. */
-  fun loadSigningKey(certificateDer: File, privateKeyDer: File): SigningKeyHandle {
-    val certificate: X509Certificate =
-      certificateDer.inputStream().use { input -> readCertificate(input) }
-    return SigningKeyHandle(
-      certificate,
-      readPrivateKey(privateKeyDer.readByteString(), certificate.publicKey.algorithm),
-    )
   }
 
   companion object {

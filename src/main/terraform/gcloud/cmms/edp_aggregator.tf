@@ -28,7 +28,13 @@ locals {
         single_instance_assignment  = 1
         min_replicas                = 1
         max_replicas                = 10
-        app_args                    = []
+        app_args = [
+          "--kingdom-public-api-target=v2alpha.kingdom.dev.halo-cmm.org:8443",
+          "--kingdom-public-api-cert-host=results-fulfiller.kingdom.dev.halo-cmm.org",
+          "--secure-computation-public-api-cert-host=results-fulfiller.secure-computation.dev.halo-cmm.org",
+          "--subscription-id=requisition-fulfiller-subscription",
+          "--google-pub-sub-project-id=halo-cmm-dev"
+        ]
         machine_type                = "n2d-standard-2"
         docker_image                = "" # @TODO(MarcoPremier): set this value once TEE APP is merged
         secrets_to_mount            = [
