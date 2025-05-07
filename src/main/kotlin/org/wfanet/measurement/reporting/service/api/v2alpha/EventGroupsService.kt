@@ -89,6 +89,12 @@ class EventGroupsService(
 
     grpcRequire(request.pageSize >= 0) { "page_size cannot be negative" }
 
+    // TODO(world-federation-of-advertisers/cross-media-measurement#2124): Remove once implemented.
+    if (request.hasOrderBy() || request.hasStructuredFilter()) {
+      throw Status.UNIMPLEMENTED.withDescription("Improved EventGroup search not yet implemented")
+        .asRuntimeException()
+    }
+
     val limit =
       if (request.pageSize > 0) request.pageSize.coerceAtMost(MAX_PAGE_SIZE) else DEFAULT_PAGE_SIZE
     val parent = parentKey.toName()
