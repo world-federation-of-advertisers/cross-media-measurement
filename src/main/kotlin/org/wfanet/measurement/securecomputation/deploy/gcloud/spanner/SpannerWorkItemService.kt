@@ -62,7 +62,6 @@ class SpannerWorkItemsService(
 ) : WorkItemsCoroutineImplBase() {
 
   override suspend fun createWorkItem(request: CreateWorkItemRequest): WorkItem {
-
     if (request.workItem.queueResourceId.isEmpty()) {
       throw RequiredFieldNotSetException("queue_resource_id")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
@@ -120,10 +119,7 @@ class SpannerWorkItemsService(
       }
 
     try {
-      workItemPublisher.publishMessage(
-        request.workItem.queueResourceId,
-        request.workItem.workItemParams,
-      )
+      workItemPublisher.publishMessage(request.workItem.queueResourceId, request.workItem)
     } catch (e: Exception) {
       throw Status.INTERNAL.withCause(e).asRuntimeException()
     }

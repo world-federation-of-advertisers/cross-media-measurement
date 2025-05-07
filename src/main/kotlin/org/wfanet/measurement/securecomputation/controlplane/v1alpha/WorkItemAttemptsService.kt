@@ -72,7 +72,7 @@ class WorkItemAttemptsService(
       try {
         internalWorkItemAttemptsStub.createWorkItemAttempt(
           internalCreateWorkItemAttemptRequest {
-            internalWorkItemAttempt {
+            this.workItemAttempt = internalWorkItemAttempt {
               workItemResourceId = parentKey.workItemId
               workItemAttemptResourceId = request.workItemAttemptId
             }
