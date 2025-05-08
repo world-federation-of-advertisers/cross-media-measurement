@@ -68,10 +68,7 @@ interface TransactionContext : AutoCloseable {
    * @returns the Queries that are written with their createTime read from the DB.
    * @throws PrivacyBudgetManager exception if the write operation was unsuccessful.
    */
-  suspend fun write(
-      delta: Slice,
-      queries: List<Query>,
-  ): List<Query>
+  suspend fun write(delta: Slice, queries: List<Query>): List<Query>
 
   /**
    * Commits the current transaction.

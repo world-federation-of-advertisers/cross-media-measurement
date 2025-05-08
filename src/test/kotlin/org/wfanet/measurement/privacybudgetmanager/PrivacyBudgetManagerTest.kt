@@ -32,13 +32,13 @@ class PrivacyBudgetManagerTest {
     val ledger = TestInMemoryLedger()
 
     val pbm =
-        PrivacyBudgetManager(
-            auditLog,
-            listOf(MappingNode(activeLandscape, null)),
-            ledger,
-            MAXIMUM_PRIVACY_USAGE_PER_BUCKET,
-            MAXIMUM_DELTA_PER_BUCKET,
-        )
+      PrivacyBudgetManager(
+        auditLog,
+        listOf(MappingNode(activeLandscape, null)),
+        ledger,
+        MAXIMUM_PRIVACY_USAGE_PER_BUCKET,
+        MAXIMUM_DELTA_PER_BUCKET,
+      )
   }
 
   companion object {

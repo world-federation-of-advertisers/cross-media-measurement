@@ -29,17 +29,17 @@ import org.wfanet.measurement.privacybudgetmanager.LandscapeUtils.MappingNode
  *   privacy bucket.
  */
 class PrivacyBudgetManager(
-    private val auditLog: AuditLog,
-    private val landscapeMappingChain: List<MappingNode>,
-    private val ledger: Ledger,
-    private val maximumPrivacyBudget: Float,
-    private val maximumTotalDelta: Float,
+  private val auditLog: AuditLog,
+  private val landscapeMappingChain: List<MappingNode>,
+  private val ledger: Ledger,
+  private val maximumPrivacyBudget: Float,
+  private val maximumTotalDelta: Float,
 ) {
   init {
     val activePrivacyLandscape =
-        requireNotNull(landscapeMappingChain.lastOrNull()?.fromLandscape) {
-          "Active privacy landscape cannot be null."
-        }
+      requireNotNull(landscapeMappingChain.lastOrNull()?.fromLandscape) {
+        "Active privacy landscape cannot be null."
+      }
   }
 
   /**
@@ -49,22 +49,19 @@ class PrivacyBudgetManager(
    * @throws PrivacyBudgetManager exception if either the charging or audit log write operations are
    *   unsuccessful.
    */
-  suspend fun charge(
-      queries: List<Query>,
-      groupId: String,
-  ): String {
+  suspend fun charge(queries: List<Query>, groupId: String): String {
     // Holds the quries written to the ledger with their commit times read from the ledger.
     val queriesWithCommitTime: List<Query>
 
     ledger.startTransaction().use { context: TransactionContext ->
       val alreadyCommitedQueries: List<Query> = context.readQueries(queries)
       val alreadyCommittedReferenceIds =
-          alreadyCommitedQueries.map { it.queryIdentifiers.externalReferenceId }
+        alreadyCommitedQueries.map { it.queryIdentifiers.externalReferenceId }
       // Filter out the queries that were already committed before.
       val queriesToCommit =
-          queries.filter { query ->
-            !alreadyCommittedReferenceIds.contains(query.queryIdentifiers.externalReferenceId)
-          }
+        queries.filter { query ->
+          !alreadyCommittedReferenceIds.contains(query.queryIdentifiers.externalReferenceId)
+        }
 
       // Get slice intended to be committed to the PBM, defined by queriesToCommit.
       val delta: Slice = getDelta(queriesToCommit)
@@ -121,9 +118,8 @@ class PrivacyBudgetManager(
     val delta = Slice()
     for (query in queries) {
       delta.add(
-          processBucketsForLandscape(
-              query.privacyLandscapeName, query.eventGroupLandscapeMasksList),
-          query.acdpCharge,
+        processBucketsForLandscape(query.privacyLandscapeName, query.eventGroupLandscapeMasksList),
+        query.acdpCharge,
       )
     }
 
@@ -139,14 +135,14 @@ class PrivacyBudgetManager(
    * @return The list of PrivacyBuckets mapped to the tail PrivacyLandscape.
    */
   fun processBucketsForLandscape(
-      inactiveLandscapeName: String,
-      eventGroupLandscapeMasks: List<EventGroupLandscapeMask>,
+    inactiveLandscapeName: String,
+    eventGroupLandscapeMasks: List<EventGroupLandscapeMask>,
   ): List<PrivacyBucket> {
     val initialNode =
-        landscapeMappingChain.find { it.fromLandscape.landscapeName == inactiveLandscapeName }
-            ?: throw IllegalStateException(
-                "Inactive Privacy landscape with name '$inactiveLandscapeName' not found.",
-            )
+      landscapeMappingChain.find { it.fromLandscape.landscapeName == inactiveLandscapeName }
+        ?: throw IllegalStateException(
+          "Inactive Privacy landscape with name '$inactiveLandscapeName' not found."
+        )
 
     val initialLandscape = initialNode.fromLandscape
     val initialBuckets = LandscapeUtils.getBuckets(eventGroupLandscapeMasks, initialLandscape)
@@ -159,20 +155,20 @@ class PrivacyBudgetManager(
     while (iterator.hasNext()) {
       val nextNode = iterator.next()
 
-      if (currentNode.mapping == null ||
-          (nextNode.fromLandscape.landscapeName != currentNode.mapping.toLandscape)) {
-        throw IllegalStateException(
-            "Privacy landscape mapping is illegal",
-        )
+      if (
+        currentNode.mapping == null ||
+          (nextNode.fromLandscape.landscapeName != currentNode.mapping.toLandscape)
+      ) {
+        throw IllegalStateException("Privacy landscape mapping is illegal")
       }
       val toLandscape = nextNode.fromLandscape
       currentBuckets =
-          LandscapeUtils.mapBuckets(
-              currentBuckets,
-              currentNode.mapping,
-              currentLandscape,
-              toLandscape,
-          )
+        LandscapeUtils.mapBuckets(
+          currentBuckets,
+          currentNode.mapping,
+          currentLandscape,
+          toLandscape,
+        )
       currentLandscape = toLandscape
       currentNode = nextNode
     }
@@ -190,8 +186,6 @@ class PrivacyBudgetManager(
    *
    * @throws PrivacyBudgetManagerException if any of the buckets in the slice exceed the budget
    */
-  private suspend fun checkAndAggregate(
-      delta: Slice,
-      targettedSlice: Slice,
-  ): Slice = TODO("uakyol: implement this")
+  private suspend fun checkAndAggregate(delta: Slice, targettedSlice: Slice): Slice =
+    TODO("uakyol: implement this")
 }

@@ -18,8 +18,8 @@ package org.wfanet.measurement.privacybudgetmanager
 object LandscapeUtils {
   /** Wraps a landscape to be mapped from and its mapping to another landscape. */
   data class MappingNode(
-      val fromLandscape: PrivacyLandscape,
-      val mapping: PrivacyLandscapeMapping?,
+    val fromLandscape: PrivacyLandscape,
+    val mapping: PrivacyLandscapeMapping?,
   )
 
   /**
@@ -31,8 +31,8 @@ object LandscapeUtils {
    * @returns filtered [PrivacyBucket]s.
    */
   fun getBuckets(
-      eventGroupLandscapeMasks: List<EventGroupLandscapeMask>,
-      privacyLandscape: PrivacyLandscape,
+    eventGroupLandscapeMasks: List<EventGroupLandscapeMask>,
+    privacyLandscape: PrivacyLandscape,
   ): List<PrivacyBucket> = TODO("uakyol: implement this")
 
   /**
@@ -46,9 +46,9 @@ object LandscapeUtils {
    * @returns mapped [PrivacyBucket]s.
    */
   fun mapBuckets(
-      privacyBuckets: List<PrivacyBucket>,
-      privacyLandscapeMapping: PrivacyLandscapeMapping,
-      fromPrivacyLandscape: PrivacyLandscape,
-      toPrivacyLandscape: PrivacyLandscape,
+    privacyBuckets: List<PrivacyBucket>,
+    privacyLandscapeMapping: PrivacyLandscapeMapping,
+    fromPrivacyLandscape: PrivacyLandscape,
+    toPrivacyLandscape: PrivacyLandscape,
   ): List<PrivacyBucket> = TODO("uakyol: implement this")
 }

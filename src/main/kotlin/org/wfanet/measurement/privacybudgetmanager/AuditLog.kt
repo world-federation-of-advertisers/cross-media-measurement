@@ -25,8 +25,5 @@ interface AuditLog {
    *   of the written file for a blob storage based audit log.
    * @throws PrivacyBudgetManager exception if the write operation was unsuccessful.
    */
-  fun write(
-      queries: List<Query>,
-      groupId: String,
-  ): String
+  fun write(queries: List<Query>, groupId: String): String
 }

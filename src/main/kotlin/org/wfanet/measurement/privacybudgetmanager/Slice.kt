@@ -17,9 +17,9 @@ import java.time.LocalDate
 
 /** Key for a row of the Ledger. PBM is opinionated about this structure. */
 data class LedgerRowKey(
-    val measurementConsumerId: String,
-    val eventGroupId: String,
-    val date: LocalDate,
+  val measurementConsumerId: String,
+  val eventGroupId: String,
+  val date: LocalDate,
 )
 
 /**
@@ -31,9 +31,9 @@ data class LedgerRowKey(
  * above array so for 18_24_M, population index is 0, 25+_M, population index is 1 and so on
  */
 data class PrivacyBucket(
-    val rowKey: LedgerRowKey,
-    val populationIndex: Int,
-    val vidIntervalIndex: Int,
+  val rowKey: LedgerRowKey,
+  val populationIndex: Int,
+  val vidIntervalIndex: Int,
 )
 
 /**
@@ -45,8 +45,6 @@ class Slice {
   fun getLedgerRowKeys(): List<LedgerRowKey> = TODO("uakyol: implement this")
 
   /** Adds the given Privacy Buckets to this Slice */
-  fun add(
-      privacyBuckets: List<PrivacyBucket>,
-      charge: AcdpCharge,
-  ): Unit = TODO("uakyol: implement this")
+  fun add(privacyBuckets: List<PrivacyBucket>, charge: AcdpCharge): Unit =
+    TODO("uakyol: implement this")
 }
