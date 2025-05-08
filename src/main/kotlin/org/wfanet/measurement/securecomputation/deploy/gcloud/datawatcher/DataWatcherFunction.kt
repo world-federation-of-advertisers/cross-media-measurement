@@ -81,8 +81,7 @@ class DataWatcherFunction : CloudEventsFunction {
     }
 
     private fun checkIsPath(envVar: String): String {
-      val value = System.getenv(envVar)
-        ?: throw IllegalStateException("Missing env var: $envVar")
+      val value = System.getenv(envVar) ?: throw IllegalStateException("Missing env var: $envVar")
       Paths.get(value)
       return value
     }
@@ -103,9 +102,16 @@ class DataWatcherFunction : CloudEventsFunction {
       logFileStatus("CERT_COLLECTION_FILE", certCollectionFilePath)
 
       return SigningCerts.fromPemFiles(
-        certificateFile             = File(certFilePath).also { require(it.exists()) { "Cert not found: $certFilePath" } },
-        privateKeyFile              = File(privateKeyFilePath).also { require(it.exists()) { "Key not found: $privateKeyFilePath" } },
-        trustedCertCollectionFile   = File(certCollectionFilePath).also { require(it.exists()) { "CA not found: $certCollectionFilePath" } }
+        certificateFile =
+          File(certFilePath).also { require(it.exists()) { "Cert not found: $certFilePath" } },
+        privateKeyFile =
+          File(privateKeyFilePath).also {
+            require(it.exists()) { "Key not found: $privateKeyFilePath" }
+          },
+        trustedCertCollectionFile =
+          File(certCollectionFilePath).also {
+            require(it.exists()) { "CA not found: $certCollectionFilePath" }
+          },
       )
     }
 
