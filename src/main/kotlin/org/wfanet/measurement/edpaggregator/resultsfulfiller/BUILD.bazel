@@ -9,6 +9,7 @@ kt_jvm_library(
     name = "vid_utils",
     srcs = ["VidUtils.kt"],
     deps = [
+        ":storage_config",
         "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/eventfiltration:event_filters",
         "//src/main/proto/wfa/measurement/api/v2alpha:measurement_spec_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:requisition_spec_kt_jvm_proto",
@@ -20,4 +21,9 @@ kt_jvm_library(
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:mesos_recordio_storage_client",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:selected_storage_client",
     ],
+)
+
+kt_jvm_library(
+    name = "storage_config",
+    srcs = ["StorageConfig.kt"],
 )

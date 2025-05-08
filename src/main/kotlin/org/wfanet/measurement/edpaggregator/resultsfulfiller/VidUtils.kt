@@ -1,5 +1,5 @@
 /*
- * Copyright 2023 The Cross-Media Measurement Authors
+ * Copyright 2025 The Cross-Media Measurement Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,7 +23,6 @@ import com.google.protobuf.Descriptors.Descriptor
 import com.google.protobuf.DynamicMessage
 import com.google.protobuf.TypeRegistry
 import com.google.type.Interval
-import java.io.File
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.filter
@@ -44,14 +43,6 @@ import org.wfanet.measurement.storage.MesosRecordIoStorageClient
 import org.wfanet.measurement.storage.SelectedStorageClient
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.common.crypto.tink.withEnvelopeEncryption
-
-/**
- * Configuration for storage clients.
- */
-data class StorageConfig(
-  val rootDirectory: File? = null,
-  val projectId: String? = null,
-)
 
 /**
  * Utility functions for working with VIDs (Virtual IDs) in the EDP Aggregator.
@@ -233,7 +224,7 @@ object VidUtils {
 
     // Create filter program
     val eventMessageData = labeledImpression.event!!
-    val eventTemplateDescriptor = getDescriptorForTypeUrl(eventMessageData.typeUrl, typeRegistry)
+    val eventTemplateDescriptor = typeRegistry.getDescriptorForTypeUrl(eventMessageData.typeUrl)
     val eventMessage = DynamicMessage.parseFrom(eventTemplateDescriptor, eventMessageData.value)
     val program = compileProgram(filter, eventTemplateDescriptor)
 
@@ -242,20 +233,5 @@ object VidUtils {
 
     // Return true only if all conditions are met
     return isInCollectionInterval && passesFilter && isInSamplingInterval
-  }
-
-  /**
-   * Gets a descriptor for a given type URL.
-   * This is a helper method to extract the descriptor from the TypeRegistry.
-   */
-  private fun getDescriptorForTypeUrl(typeUrl: String, typeRegistry: TypeRegistry): Descriptor {
-    // Extract the message name from the type URL
-    val messageName = typeUrl.substringAfter("type.googleapis.com/")
-
-    // Find the descriptor in the registry
-    // Note: This is a simplified implementation and may need to be adjusted
-    // based on how the TypeRegistry is actually used in the project
-    return typeRegistry.find(messageName)
-      ?: throw IllegalArgumentException("Unknown type URL: $typeUrl")
   }
 }

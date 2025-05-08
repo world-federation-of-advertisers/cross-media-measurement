@@ -142,10 +142,7 @@ import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.api.v2al
 import org.wfanet.measurement.eventdataprovider.shareshuffle.v2alpha.FrequencyVectorBuilder
 import org.wfanet.measurement.eventdataprovider.shareshuffle.v2alpha.FulfillRequisitionRequestBuilder
 import org.wfanet.measurement.eventdataprovider.shareshuffle.v2alpha.VidIndexMap
-import org.wfanet.measurement.edpaggregator.resultsfulfiller.VidUtils
-import org.wfanet.measurement.edpaggregator.resultsfulfiller.toAnySketchElGamalPublicKey
-import org.wfanet.measurement.edpaggregator.resultsfulfiller.toDirectNoiseMechanism
-import org.wfanet.measurement.edpaggregator.resultsfulfiller.toProtocolConfigNoiseMechanism
+import org.wfanet.measurement.loadtest.common.sampleVids
 import org.wfanet.measurement.loadtest.config.TestIdentifiers.SIMULATOR_EVENT_GROUP_REFERENCE_ID_PREFIX
 import org.wfanet.measurement.loadtest.dataprovider.MeasurementResults.computeImpression
 
@@ -667,14 +664,7 @@ class EdpSimulator(
             val directProtocol =
               DirectProtocol(
                 directProtocolConfig,
-                try {
-                  VidUtils.selectReachAndFrequencyNoiseMechanism(directNoiseMechanismOptions)
-                } catch (e: IllegalArgumentException) {
-                  throw RequisitionRefusalException(
-                    Requisition.Refusal.Justification.SPEC_INVALID,
-                    "No valid noise mechanism option for reach or frequency measurements.",
-                  )
-                },
+                selectReachAndFrequencyNoiseMechanism(directNoiseMechanismOptions),
               )
             fulfillDirectReachAndFrequencyMeasurement(
               requisition,
@@ -687,14 +677,7 @@ class EdpSimulator(
             val directProtocol =
               DirectProtocol(
                 directProtocolConfig,
-                try {
-                  VidUtils.selectImpressionNoiseMechanism(directNoiseMechanismOptions)
-                } catch (e: IllegalArgumentException) {
-                  throw RequisitionRefusalException(
-                    Requisition.Refusal.Justification.SPEC_INVALID,
-                    "No valid noise mechanism option for impression measurements.",
-                  )
-                },
+                selectImpressionNoiseMechanism(directNoiseMechanismOptions),
               )
             fulfillDurationMeasurement(
               requisition,
@@ -707,14 +690,7 @@ class EdpSimulator(
             val directProtocol =
               DirectProtocol(
                 directProtocolConfig,
-                try {
-                  VidUtils.selectWatchDurationNoiseMechanism(directNoiseMechanismOptions)
-                } catch (e: IllegalArgumentException) {
-                  throw RequisitionRefusalException(
-                    Requisition.Refusal.Justification.SPEC_INVALID,
-                    "No valid noise mechanism option for watch duration measurements.",
-                  )
-                },
+                selectWatchDurationNoiseMechanism(directNoiseMechanismOptions),
               )
             fulfillImpressionMeasurement(
               requisition,
@@ -1267,24 +1243,106 @@ class EdpSimulator(
       buildDirectMeasurementResult(
         directProtocol,
         measurementSpec,
-        try {
-          VidUtils.sampleVids(eventQuery, eventGroupSpecs, measurementSpec.vidSamplingInterval.start, measurementSpec.vidSamplingInterval.width)
-        } catch (e: EventFilterValidationException) {
-          logger.log(
-            Level.WARNING,
-            "RequisitionFulfillmentWorkflow failed due to invalid event filter",
-            e,
-          )
-          throw RequisitionRefusalException(
-            Requisition.Refusal.Justification.SPEC_INVALID,
-            "Invalid event filter (${e.code}): ${e.code.description}",
-          )
-        }
+        sampleVids(eventGroupSpecs, measurementSpec.vidSamplingInterval),
       )
 
     fulfillDirectMeasurement(requisition, measurementSpec, nonce, measurementResult)
   }
 
+  /**
+   * Samples VIDs from multiple [EventQuery.EventGroupSpec]s with a
+   * [MeasurementSpec.VidSamplingInterval].
+   */
+  private fun sampleVids(
+    eventGroupSpecs: Iterable<EventQuery.EventGroupSpec>,
+    vidSamplingInterval: MeasurementSpec.VidSamplingInterval,
+  ): Iterable<Long> {
+    return try {
+      sampleVids(eventQuery, eventGroupSpecs, vidSamplingInterval.start, vidSamplingInterval.width)
+    } catch (e: EventFilterValidationException) {
+      logger.log(
+        Level.WARNING,
+        "RequisitionFulfillmentWorkflow failed due to invalid event filter",
+        e,
+      )
+      throw RequisitionRefusalException(
+        Requisition.Refusal.Justification.SPEC_INVALID,
+        "Invalid event filter (${e.code}): ${e.code.description}",
+      )
+    }
+  }
+
+  private fun getPublisherNoiser(
+    privacyParams: DifferentialPrivacyParams,
+    directNoiseMechanism: DirectNoiseMechanism,
+    random: Random,
+  ): AbstractNoiser =
+    when (directNoiseMechanism) {
+      DirectNoiseMechanism.NONE ->
+        object : AbstractNoiser() {
+          override val distribution = ConstantRealDistribution(0.0)
+          override val variance: Double
+            get() = distribution.numericalVariance
+        }
+      DirectNoiseMechanism.CONTINUOUS_LAPLACE ->
+        LaplaceNoiser(DpParams(privacyParams.epsilon, privacyParams.delta), random.asJavaRandom())
+      DirectNoiseMechanism.CONTINUOUS_GAUSSIAN ->
+        GaussianNoiser(DpParams(privacyParams.epsilon, privacyParams.delta), random.asJavaRandom())
+    }
+
+  /**
+   * Add publisher noise to calculated direct reach.
+   *
+   * @param reachValue Direct reach value.
+   * @param privacyParams Differential privacy params for reach.
+   * @param directNoiseMechanism Selected noise mechanism for direct reach.
+   * @return Noised non-negative reach value.
+   */
+  private fun addReachPublisherNoise(
+    reachValue: Int,
+    privacyParams: DifferentialPrivacyParams,
+    directNoiseMechanism: DirectNoiseMechanism,
+  ): Int {
+    val reachNoiser: AbstractNoiser =
+      getPublisherNoiser(privacyParams, directNoiseMechanism, random)
+
+    return max(0, reachValue + reachNoiser.sample().toInt())
+  }
+
+  /**
+   * Add publisher noise to calculated direct frequency.
+   *
+   * @param reachValue Direct reach value.
+   * @param frequencyMap Direct frequency.
+   * @param privacyParams Differential privacy params for frequency map.
+   * @param directNoiseMechanism Selected noise mechanism for direct frequency.
+   * @return Noised non-negative frequency map.
+   */
+  private fun addFrequencyPublisherNoise(
+    reachValue: Int,
+    frequencyMap: Map<Int, Double>,
+    privacyParams: DifferentialPrivacyParams,
+    directNoiseMechanism: DirectNoiseMechanism,
+  ): Map<Int, Double> {
+    val frequencyNoiser: AbstractNoiser =
+      getPublisherNoiser(privacyParams, directNoiseMechanism, random)
+
+    // Add noise to the histogram and cap negative values to zeros.
+    val frequencyHistogram: Map<Int, Int> =
+      frequencyMap.mapValues { (_, percentage) ->
+        // Round the noise for privacy.
+        val noisedCount: Int =
+          (percentage * reachValue).roundToInt() + (frequencyNoiser.sample()).roundToInt()
+        max(0, noisedCount)
+      }
+    val normalizationTerm: Double = frequencyHistogram.values.sum().toDouble()
+    // Normalize to get the distribution
+    return if (normalizationTerm != 0.0) {
+      frequencyHistogram.mapValues { (_, count) -> count / normalizationTerm }
+    } else {
+      frequencyHistogram.mapValues { 0.0 }
+    }
+  }
 
   /**
    * Add publisher noise to calculated impression.
@@ -1300,7 +1358,7 @@ class EdpSimulator(
     directNoiseMechanism: DirectNoiseMechanism,
   ): Long {
     val noiser: AbstractNoiser =
-      VidUtils.getPublisherNoiser(impressionMeasurementSpec.privacyParams, directNoiseMechanism, random)
+      getPublisherNoiser(impressionMeasurementSpec.privacyParams, directNoiseMechanism, random)
     // Noise needs to be scaled by maximumFrequencyPerUser.
     val noise = noiser.sample() * impressionMeasurementSpec.maximumFrequencyPerUser
     return max(0L, impressionValue + noise.roundToInt())
@@ -1346,19 +1404,17 @@ class EdpSimulator(
 
         logger.info("Adding $directNoiseMechanism publisher noise to direct reach and frequency...")
         val sampledNoisedReachValue =
-          VidUtils.addReachPublisherNoise(
+          addReachPublisherNoise(
             sampledReachValue,
             measurementSpec.reachAndFrequency.reachPrivacyParams,
             directNoiseMechanism,
-            random,
           )
         val noisedFrequencyMap =
-          VidUtils.addFrequencyPublisherNoise(
+          addFrequencyPublisherNoise(
             sampledReachValue,
             frequencyMap,
             measurementSpec.reachAndFrequency.frequencyPrivacyParams,
             directNoiseMechanism,
-            random,
           )
 
         val scaledNoisedReachValue =
@@ -1438,11 +1494,10 @@ class EdpSimulator(
 
         logger.info("Adding $directNoiseMechanism publisher noise to direct reach for reach-only")
         val sampledNoisedReachValue =
-          VidUtils.addReachPublisherNoise(
+          addReachPublisherNoise(
             sampledReachValue,
             measurementSpec.reach.privacyParams,
             directNoiseMechanism,
-            random,
           )
         val scaledNoisedReachValue =
           (sampledNoisedReachValue / measurementSpec.vidSamplingInterval.width).toLong()
@@ -1461,8 +1516,82 @@ class EdpSimulator(
     }
   }
 
+  /**
+   * Selects the most preferred [DirectNoiseMechanism] for reach and frequency measurements from the
+   * overlap of a list of preferred [DirectNoiseMechanism] and a set of [DirectNoiseMechanism]
+   * [options].
+   */
+  private fun selectReachAndFrequencyNoiseMechanism(
+    options: Set<DirectNoiseMechanism>
+  ): DirectNoiseMechanism {
+    val preferences = DIRECT_MEASUREMENT_ACDP_NOISE_MECHANISM_PREFERENCES
 
-  private fun fulfillDurationMeasurement(
+    return preferences.firstOrNull { preference -> options.contains(preference) }
+      ?: throw RequisitionRefusalException(
+        Requisition.Refusal.Justification.SPEC_INVALID,
+        "No valid noise mechanism option for reach or frequency measurements.",
+      )
+  }
+
+  /**
+   * Selects the most preferred [DirectNoiseMechanism] for impression measurements from the overlap
+   * of a list of preferred [DirectNoiseMechanism] and a set of [DirectNoiseMechanism] [options].
+   */
+  private fun selectImpressionNoiseMechanism(
+    options: Set<DirectNoiseMechanism>
+  ): DirectNoiseMechanism {
+    val preferences = DIRECT_MEASUREMENT_ACDP_NOISE_MECHANISM_PREFERENCES
+
+    return preferences.firstOrNull { preference -> options.contains(preference) }
+      ?: throw RequisitionRefusalException(
+        Requisition.Refusal.Justification.SPEC_INVALID,
+        "No valid noise mechanism option for impression measurements.",
+      )
+  }
+
+  /**
+   * Selects the most preferred [DirectNoiseMechanism] for watch duration measurements from the
+   * overlap of a list of preferred [DirectNoiseMechanism] and a set of [DirectNoiseMechanism]
+   * [options].
+   */
+  private fun selectWatchDurationNoiseMechanism(
+    options: Set<DirectNoiseMechanism>
+  ): DirectNoiseMechanism {
+    val preferences = DIRECT_MEASUREMENT_ACDP_NOISE_MECHANISM_PREFERENCES
+
+    return preferences.firstOrNull { preference -> options.contains(preference) }
+      ?: throw RequisitionRefusalException(
+        Requisition.Refusal.Justification.SPEC_INVALID,
+        "No valid noise mechanism option for watch duration measurements.",
+      )
+  }
+
+  private suspend fun fulfillImpressionMeasurement(
+    requisition: Requisition,
+    requisitionSpec: RequisitionSpec,
+    measurementSpec: MeasurementSpec,
+    eventGroupSpecs: Iterable<EventQuery.EventGroupSpec>,
+    directProtocol: DirectProtocol,
+  ) {
+    chargeDirectPrivacyBudget(
+      requisition.name,
+      measurementSpec,
+      eventGroupSpecs.map { it.spec },
+      directProtocol.selectedDirectNoiseMechanism,
+    )
+
+    logger.info("Calculating impression...")
+    val measurementResult =
+      buildDirectMeasurementResult(
+        directProtocol,
+        measurementSpec,
+        sampleVids(eventGroupSpecs, measurementSpec.vidSamplingInterval),
+      )
+
+    fulfillDirectMeasurement(requisition, measurementSpec, requisitionSpec.nonce, measurementResult)
+  }
+
+  private suspend fun fulfillDurationMeasurement(
     requisition: Requisition,
     requisitionSpec: RequisitionSpec,
     measurementSpec: MeasurementSpec,
@@ -1491,6 +1620,11 @@ class EdpSimulator(
 
     private val logger: Logger = Logger.getLogger(this::class.java.name)
 
+    // The direct noise mechanisms for ACDP composition in PBM for direct measurements in order
+    // of preference. Currently, ACDP composition only supports CONTINUOUS_GAUSSIAN noise for direct
+    // measurements.
+    private val DIRECT_MEASUREMENT_ACDP_NOISE_MECHANISM_PREFERENCES =
+      listOf(DirectNoiseMechanism.CONTINUOUS_GAUSSIAN)
 
     // Resource ID for EventGroup that fails Requisitions with CONSENT_SIGNAL_INVALID if used.
     private const val CONSENT_SIGNAL_INVALID_EVENT_GROUP_ID = "consent-signal-invalid"
@@ -1522,5 +1656,40 @@ class EdpSimulator(
           .filter { it.options.hasExtension(EventAnnotationsProto.eventTemplate) }
       return eventTemplateTypes.map { EventGroupKt.eventTemplate { type = it.fullName } }
     }
+  }
+}
+
+private fun DirectNoiseMechanism.toProtocolConfigNoiseMechanism(): NoiseMechanism {
+  return when (this) {
+    DirectNoiseMechanism.NONE -> NoiseMechanism.NONE
+    DirectNoiseMechanism.CONTINUOUS_LAPLACE -> NoiseMechanism.CONTINUOUS_LAPLACE
+    DirectNoiseMechanism.CONTINUOUS_GAUSSIAN -> NoiseMechanism.CONTINUOUS_GAUSSIAN
+  }
+}
+
+/**
+ * Converts a [NoiseMechanism] to a nullable [DirectNoiseMechanism].
+ *
+ * @return [DirectNoiseMechanism] when there is a matched, otherwise null.
+ */
+private fun NoiseMechanism.toDirectNoiseMechanism(): DirectNoiseMechanism? {
+  return when (this) {
+    NoiseMechanism.NONE -> DirectNoiseMechanism.NONE
+    NoiseMechanism.CONTINUOUS_LAPLACE -> DirectNoiseMechanism.CONTINUOUS_LAPLACE
+    NoiseMechanism.CONTINUOUS_GAUSSIAN -> DirectNoiseMechanism.CONTINUOUS_GAUSSIAN
+    NoiseMechanism.NOISE_MECHANISM_UNSPECIFIED,
+    NoiseMechanism.GEOMETRIC,
+    NoiseMechanism.DISCRETE_GAUSSIAN,
+    NoiseMechanism.UNRECOGNIZED -> {
+      null
+    }
+  }
+}
+
+private fun ElGamalPublicKey.toAnySketchElGamalPublicKey(): AnySketchElGamalPublicKey {
+  val source = this
+  return anySketchElGamalPublicKey {
+    generator = source.generator
+    element = source.element
   }
 }
