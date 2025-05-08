@@ -20,16 +20,16 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.privacybudgetmanager.LandscapeUtils.MappingNode
-import org.wfanet.measurement.privacybudgetmanager.testing.TestInMemoryAuditLog
-import org.wfanet.measurement.privacybudgetmanager.testing.TestInMemoryLedger
+import org.wfanet.measurement.privacybudgetmanager.testing.InMemoryAuditLog
+import org.wfanet.measurement.privacybudgetmanager.testing.InMemoryLedger
 
 @RunWith(JUnit4::class)
 class PrivacyBudgetManagerTest {
   @Test
   fun `Privacy Budget Manager initializes successfully for no inactive landscapes`() {
-    val auditLog = TestInMemoryAuditLog()
+    val auditLog = InMemoryAuditLog()
     val activeLandscape = privacyLandscape {}
-    val ledger = TestInMemoryLedger()
+    val ledger = InMemoryLedger()
 
     val pbm =
       PrivacyBudgetManager(

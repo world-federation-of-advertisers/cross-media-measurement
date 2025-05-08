@@ -37,6 +37,6 @@ message Charges {
     // Maximum 300 charges each corresponding to a vid interval charge.
     // Key is the ids from 0 to 299 representing the vid interval.
     // 300 is built into the system and it is not configurable.
-    map<int32, AcdpCharge> vid_interval_index_to_charges = 5;
+    map<int32, AcdpCharge> vid_interval_index_to_charges = 1;
   }
 }

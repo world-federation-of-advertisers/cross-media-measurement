@@ -17,6 +17,6 @@ package org.wfanet.measurement.privacybudgetmanager.testing
 import org.wfanet.measurement.privacybudgetmanager.AuditLog
 import org.wfanet.measurement.privacybudgetmanager.Query
 
-class TestInMemoryAuditLog : AuditLog {
+class InMemoryAuditLog : AuditLog {
   override fun write(queries: List<Query>, groupId: String): String = TODO("uakyol: implement this")
 }

@@ -20,7 +20,7 @@ import org.wfanet.measurement.privacybudgetmanager.Query
 import org.wfanet.measurement.privacybudgetmanager.Slice
 import org.wfanet.measurement.privacybudgetmanager.TransactionContext
 
-class TestInMemoryLedger : Ledger {
+class InMemoryLedger : Ledger {
   override fun startTransaction(): TransactionContext = TODO("uakyol: implement this")
 }
 

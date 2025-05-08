@@ -118,7 +118,10 @@ class PrivacyBudgetManager(
     val delta = Slice()
     for (query in queries) {
       delta.add(
-        processBucketsForLandscape(query.privacyLandscapeName, query.eventGroupLandscapeMasksList),
+        processBucketsForLandscape(
+          query.privacyLandscapeIdentifier,
+          query.eventGroupLandscapeMasksList,
+        ),
         query.acdpCharge,
       )
     }
@@ -130,18 +133,20 @@ class PrivacyBudgetManager(
    * Finds a PrivacyLandscape by name in the linked list, gets its buckets, and then iteratively
    * maps those buckets to the PrivacyLandscape at the tail of the linked list.
    *
-   * @param inactiveLandscapeName The name of the PrivacyLandscape to find initially.
+   * @param inactivelandscapeIdentifier The name of the PrivacyLandscape to find initially.
    * @param mappingNodes The linked list of MappingNode.
    * @return The list of PrivacyBuckets mapped to the tail PrivacyLandscape.
    */
   fun processBucketsForLandscape(
-    inactiveLandscapeName: String,
+    inactivelandscapeIdentifier: String,
     eventGroupLandscapeMasks: List<EventGroupLandscapeMask>,
   ): List<PrivacyBucket> {
     val initialNode =
-      landscapeMappingChain.find { it.fromLandscape.landscapeName == inactiveLandscapeName }
+      landscapeMappingChain.find {
+        it.fromLandscape.landscapeIdentifier == inactivelandscapeIdentifier
+      }
         ?: throw IllegalStateException(
-          "Inactive Privacy landscape with name '$inactiveLandscapeName' not found."
+          "Inactive Privacy landscape with name '$inactivelandscapeIdentifier' not found."
         )
 
     val initialLandscape = initialNode.fromLandscape
@@ -157,7 +162,7 @@ class PrivacyBudgetManager(
 
       if (
         currentNode.mapping == null ||
-          (nextNode.fromLandscape.landscapeName != currentNode.mapping.toLandscape)
+          (nextNode.fromLandscape.landscapeIdentifier != currentNode.mapping.toLandscape)
       ) {
         throw IllegalStateException("Privacy landscape mapping is illegal")
       }
