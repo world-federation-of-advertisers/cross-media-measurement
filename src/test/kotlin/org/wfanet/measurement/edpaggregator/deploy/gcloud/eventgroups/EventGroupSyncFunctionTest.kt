@@ -29,7 +29,6 @@ import java.net.http.HttpResponse
 import java.nio.file.Path
 import java.nio.file.Paths
 import java.util.logging.Logger
-import kotlin.io.path.Path
 import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.toList
@@ -206,9 +205,9 @@ class EventGroupSyncFunctionTest() {
       eventGroupsBlobUri = "file:///some/path/campaigns-blob-uri"
       eventGroupMapBlobUri = "file:///some/other/path/event-groups-map-uri"
       this.cmmsConnection = transportLayerSecurityParams {
-        certJarResourcePath = "main/k8s/testing/secretfiles/edp1_tls.pem"
-        privateKeyJarResourcePath = "main/k8s/testing/secretfiles/edp1_tls.key"
-        certCollectionJarResourcePath = "main/k8s/testing/secretfiles/kingdom_root.pem"
+        certFilePath = SECRETS_DIR.resolve("edp7_tls.pem").toString()
+        privateKeyFilePath = SECRETS_DIR.resolve("edp7_tls.key").toString()
+        certCollectionFilePath = SECRETS_DIR.resolve("kingdom_root.pem").toString()
       }
       eventGroupStorage = storageParams { fileSystem = fileSystemStorage {} }
       eventGroupMapStorage = storageParams { fileSystem = fileSystemStorage {} }
@@ -277,7 +276,7 @@ class EventGroupSyncFunctionTest() {
       SigningCerts.fromPemFiles(
         certificateFile = SECRETS_DIR.resolve("kingdom_tls.pem").toFile(),
         privateKeyFile = SECRETS_DIR.resolve("kingdom_tls.key").toFile(),
-        trustedCertCollectionFile = SECRETS_DIR.resolve("edp1_root.pem").toFile(),
+        trustedCertCollectionFile = SECRETS_DIR.resolve("edp7_root.pem").toFile(),
       )
     private val logger: Logger = Logger.getLogger(this::class.java.name)
 
@@ -354,5 +353,6 @@ class EventGroupSyncFunctionTest() {
           mediaTypes += listOf(MediaType.OTHER)
         },
       )
+
   }
 }
