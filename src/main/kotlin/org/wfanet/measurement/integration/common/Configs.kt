@@ -228,12 +228,13 @@ val QUEUES_CONFIG: QueuesConfig
   get() {
     val configPath =
       Paths.get(
-        "wfa_measurement_system",
+        REPO_NAME,
         "src",
         "main",
         "proto",
         "wfa",
         "measurement",
+        "securecomputation",
         "controlplane",
         "v1alpha",
       )
