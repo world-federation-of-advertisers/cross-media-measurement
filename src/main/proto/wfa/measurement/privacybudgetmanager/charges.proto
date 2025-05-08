@@ -20,7 +20,7 @@ option java_package = "org.wfanet.measurement.privacybudgetmanager";
 option java_multiple_files = true;
 option java_outer_classname = "ChargesProto";
 
-// Represents an Almost Concentrated Differential Privacy(ACDP) charge in 
+// Represents an Almost Concentrated Differential Privacy(ACDP) charge in
 // rho and theta that will committed made to a privacy budget.
 message AcdpCharge {
   float rho = 1;

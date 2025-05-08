@@ -24,7 +24,7 @@ option java_package = "org.wfanet.measurement.privacybudgetmanager";
 option java_multiple_files = true;
 option java_outer_classname = "QueryProto";
 
-// Captures the top level identifiers for a Query so that it can 
+// Captures the top level identifiers for a Query so that it can
 // be referenced at the audit log and in the PBM ledger. In practice
 // this maps to a single requisition.
 message QueryIdentifiers {
@@ -40,7 +40,7 @@ message QueryIdentifiers {
 message DateRange {
   // Start date of the date range this query targets.
   google.type.Date start = 1;
-  // End date of the date range this query targets. 
+  // End date of the date range this query targets.
   google.type.Date end_exclusive = 2;
 }
 
@@ -59,7 +59,7 @@ message EventGroupLandscapeMask {
   float vid_sample_width = 5;
 }
 
-// Represents a Query to the PBM. This structure fans out to 
+// Represents a Query to the PBM. This structure fans out to
 // a list of privacy charges. In practice a Query is derived from
 // a single requisition.
 message Query {

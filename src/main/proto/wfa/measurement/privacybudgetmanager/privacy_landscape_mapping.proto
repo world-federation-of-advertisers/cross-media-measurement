@@ -22,9 +22,8 @@ option java_package = "org.wfanet.measurement.privacybudgetmanager";
 option java_multiple_files = true;
 option java_outer_classname = "PrivacyLandscapeMappingProto";
 
-
-// Represents a mapping from one PrivacyLandscape to another. 
-// Using this proto PBM maps all the PrivacyBuckets that was defined in a 
+// Represents a mapping from one PrivacyLandscape to another.
+// Using this proto PBM maps all the PrivacyBuckets that was defined in a
 // given from_landscape to a given to_landscape.
 message PrivacyLandscapeMapping {
   string from_landscape = 1;
@@ -39,7 +38,7 @@ message PrivacyLandscapeMapping {
     PrivacyLandscape.Dimension new_dimension = 1;
   }
 
-  // Represents that all from_dimension charges should be copied to 
+  // Represents that all from_dimension charges should be copied to
   // field values specified by to_dimension
   message DimensionMapping {
     PrivacyLandscape.Dimension from_dimension = 1;
