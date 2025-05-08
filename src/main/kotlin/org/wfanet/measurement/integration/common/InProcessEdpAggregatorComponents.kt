@@ -113,6 +113,7 @@ import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.MetadataKt.AdMetadataKt.campaignMetadata
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.MetadataKt.adMetadata
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.metadata as eventGroupMetadata
+import org.wfanet.measurement.loadtest.dataprovider.SyntheticDataGeneration
 
 class InProcessEdpAggregatorComponents(
   private val internalServicesRule: ProviderRule<InternalApiServices>,
@@ -355,7 +356,12 @@ class InProcessEdpAggregatorComponents(
       }
     val unfilteredEvents: List<LabeledImpression> =
       eventGroupSpecs
-        .flatMap { eventQuery.getLabeledEvents(it, false).toList() }
+        .flatMap { SyntheticDataGeneration.generateEvents(
+          TestEvent.getDefaultInstance(),
+          syntheticPopulationSpec,
+          syntheticDataSpec,
+          cmmsEventGroup.collectionInterval.toRange(),
+        ) }
         .map { event ->
           labeledImpression {
             eventTime = event.timestamp.toProtoTime()
