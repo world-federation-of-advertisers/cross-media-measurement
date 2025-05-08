@@ -54,6 +54,7 @@ jobs:
           //src/main/kotlin/org/wfanet/measurement/api/v2alpha/tools:EventTemplateValidator_deploy.jar
           //src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha/tools:Reporting_deploy.jar
           //src/main/kotlin/org/wfanet/measurement/access/deploy/tools:Access_deploy.jar
+        //src/main/kotlin/org/wfanet/measurement/common/api/tools:IntegerIds_deploy.jar
 
       - name: Attach CLI uber jars to release
         env:
@@ -65,4 +66,5 @@ jobs:
           ./bazel-bin/src/main/kotlin/org/wfanet/measurement/api/v2alpha/tools/EventTemplateValidator_deploy.jar
           ./bazel-bin/src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha/tools/Reporting_deploy.jar
           ./bazel-bin/src/main/kotlin/org/wfanet/measurement/access/deploy/tools/Access_deploy.jar
+          ./bazel-bin/src/main/kotlin/org/wfanet/measurement/common/api/tools/IntegerIds_deploy.jar
           --clobber
