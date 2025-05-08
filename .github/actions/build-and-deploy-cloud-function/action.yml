@@ -73,15 +73,15 @@ runs:
     - name: Deploy function
       shell: bash
       env:
-        FUNCTION_NAME:            ${{ inputs.function_name }}
-        ENTRY_POINT:              ${{ inputs.entry_point }}
-        CLOUD_REGION:             ${{ inputs.cloud_region }}
-        RUN_SERVICE_ACCOUNT:      ${{ inputs.run_service_account }}
-        TRIGGER_BUCKET:           ${{ inputs.trigger_bucket }}
-        TRIGGER_SERVICE_ACCOUNT:  ${{ inputs.trigger_service_account }}
-        EXTRA_ENV_VARS:           ${{ inputs.extra_env_vars }}
-        SECRET_MAPPINGS:          ${{ inputs.secret_mappings }}
-        UBER_JAR_TEMP_DIR:        ${{ steps.locate-and-copy-uber-jar.outputs.uber_jar_temp_dir }}
+        FUNCTION_NAME: ${{ inputs.function_name }}
+        ENTRY_POINT: ${{ inputs.entry_point }}
+        CLOUD_REGION: ${{ inputs.cloud_region }}
+        RUN_SERVICE_ACCOUNT: ${{ inputs.run_service_account }}
+        TRIGGER_BUCKET: ${{ inputs.trigger_bucket }}
+        TRIGGER_SERVICE_ACCOUNT: ${{ inputs.trigger_service_account }}
+        EXTRA_ENV_VARS: ${{ inputs.extra_env_vars }}
+        SECRET_MAPPINGS: ${{ inputs.secret_mappings }}
+        UBER_JAR_TEMP_DIR: ${{ steps.locate-and-copy-uber-jar.outputs.uber_jar_temp_dir }}
       run: |
         set -euo pipefail
         

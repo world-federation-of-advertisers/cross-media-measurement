@@ -39,7 +39,8 @@ class RequisitionFetcherFunction : HttpFunction {
     for (dataProviderConfig in requisitionFetcherConfig.configsList) {
 
       val fileSystemPath = System.getenv("REQUISITION_FILE_SYSTEM_PATH")
-      // 'FileSystemStorageClient' is used for testing purposes only and used by [RequisitionFetcherFunctionTest]
+      // 'FileSystemStorageClient' is used for testing purposes only and used by
+      // [RequisitionFetcherFunctionTest]
       // in order to pull requisitions from local storage.
       val requisitionsStorageClient =
         if (!fileSystemPath.isNullOrEmpty()) {
