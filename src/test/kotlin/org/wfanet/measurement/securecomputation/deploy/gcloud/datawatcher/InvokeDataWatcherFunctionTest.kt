@@ -19,11 +19,11 @@ package org.wfanet.measurement.securecomputation.deploy.gcloud.datawatcher
 import com.google.cloud.storage.contrib.nio.testing.LocalStorageHelper
 import com.google.common.truth.Truth.assertThat
 import io.netty.handler.ssl.ClientAuth
+import java.io.File
 import java.net.URI
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse.BodyHandlers
-import java.nio.file.Path
 import java.nio.file.Paths
 import java.util.logging.Logger
 import kotlinx.coroutines.runBlocking
@@ -38,7 +38,7 @@ import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.times
 import org.mockito.kotlin.verifyBlocking
 import org.wfanet.measurement.common.crypto.SigningCerts
-import org.wfanet.measurement.common.getJarResourceFile
+import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.grpc.CommonServer
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
@@ -117,10 +117,9 @@ class InvokeDataWatcherFunctionTest() {
             "CONTROL_PLANE_TARGET" to "localhost:${grpcServer.port}",
             "CONTROL_PLANE_CERT_HOST" to "localhost",
             "CONTROL_PLANE_CHANNEL_SHUTDOWN_DURATION_SECONDS" to "3",
-            "CERT_JAR_RESOURCE_PATH" to JAR_SECRETS_DIR.resolve("edp1_tls.pem").toString(),
-            "PRIVATE_KEY_JAR_RESOURCE_PATH" to JAR_SECRETS_DIR.resolve("edp1_tls.key").toString(),
-            "CERT_COLLECTION_JAR_RESOURCE_PATH" to
-              JAR_SECRETS_DIR.resolve("kingdom_root.pem").toString(),
+            "CERT_FILE_PATH" to SECRETS_DIR.resolve("edp1_tls.pem").toString(),
+            "PRIVATE_KEY_FILE_PATH" to SECRETS_DIR.resolve("edp1_tls.key").toString(),
+            "CERT_COLLECTION_FILE_PATH" to SECRETS_DIR.resolve("kingdom_root.pem").toString(),
           ) + additionalFlags
         )
       logger.info("Started DataWatcher process on port $port")
@@ -186,18 +185,17 @@ class InvokeDataWatcherFunctionTest() {
   }
 
   companion object {
+    private val SECRETS_DIR: File =
+      getRuntimePath(
+          Paths.get("wfa_measurement_system", "src", "main", "k8s", "testing", "secretfiles")
+        )!!
+        .toFile()
     private const val BUCKET = "test-bucket"
-    private val CLASS_LOADER: ClassLoader = Thread.currentThread().contextClassLoader
-    private val SECRETS_DIR: Path = Paths.get("src", "main", "k8s", "testing", "secretfiles")
-    private val JAR_SECRETS_DIR: Path = Paths.get("main", "k8s", "testing", "secretfiles")
     private val serverCerts =
       SigningCerts.fromPemFiles(
-        certificateFile =
-          CLASS_LOADER.getJarResourceFile(SECRETS_DIR.resolve("kingdom_tls.pem").toString())!!,
-        privateKeyFile =
-          CLASS_LOADER.getJarResourceFile(SECRETS_DIR.resolve("kingdom_tls.key").toString())!!,
-        trustedCertCollectionFile =
-          CLASS_LOADER.getJarResourceFile(SECRETS_DIR.resolve("edp1_root.pem").toString())!!,
+        certificateFile = SECRETS_DIR.resolve("kingdom_tls.pem"),
+        privateKeyFile = SECRETS_DIR.resolve("kingdom_tls.key"),
+        trustedCertCollectionFile = SECRETS_DIR.resolve("edp1_root.pem"),
       )
     private val logger: Logger = Logger.getLogger(this::class.java.name)
   }
