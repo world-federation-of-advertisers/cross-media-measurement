@@ -110,9 +110,6 @@ class InvokeDataWatcherFunctionTest() {
       val port =
         functionProcess.start(
           mapOf(
-            "DATA_WATCHER_CONFIG_JAR_RESOURCE_PATH" to
-              Paths.get("securecomputation", "datawatcher", "data_watcher_config.textproto")
-                .toString(),
             "CONTROL_PLANE_PROJECT_ID" to projectId,
             "CONTROL_PLANE_TARGET" to "localhost:${grpcServer.port}",
             "CONTROL_PLANE_CERT_HOST" to "localhost",

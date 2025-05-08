@@ -1,0 +1,12 @@
+package(
+    default_testonly = True,
+    default_visibility = [
+        "//src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/requisitionfetcher:__subpackages__",
+        "//src/test/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/requisitionfetcher:__subpackages__",
+    ],
+)
+
+filegroup(
+    name = "config",
+    srcs = ["requisition_fetcher_config.textproto"],
+)

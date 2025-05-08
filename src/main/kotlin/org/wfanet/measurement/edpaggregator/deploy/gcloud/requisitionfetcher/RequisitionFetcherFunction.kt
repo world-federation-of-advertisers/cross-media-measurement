@@ -104,7 +104,7 @@ class RequisitionFetcherFunction : HttpFunction {
     }
     private val CLASS_LOADER: ClassLoader = Thread.currentThread().contextClassLoader
     private val requisitionFetcherConfigResourcePath =
-      EnvVars.checkIsPath("REQUISITION_FETCHER_CONFIG_RESOURCE_PATH")
+      "securecomputation/datawatcher/data_watcher_config.textproto"
     private val config by lazy {
       checkNotNull(CLASS_LOADER.getJarResourceFile(requisitionFetcherConfigResourcePath))
     }
