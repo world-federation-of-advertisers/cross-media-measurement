@@ -119,8 +119,7 @@ class InvokeDataWatcherFunctionTest() {
             "CONTROL_PLANE_CHANNEL_SHUTDOWN_DURATION_SECONDS" to "3",
             "CERT_FILE_PATH" to SECRETS_DIR.resolve("edp1_tls.pem").toString(),
             "PRIVATE_KEY_FILE_PATH" to SECRETS_DIR.resolve("edp1_tls.key").toString(),
-            "CERT_COLLECTION_FILE_PATH" to
-              SECRETS_DIR.resolve("kingdom_root.pem").toString(),
+            "CERT_COLLECTION_FILE_PATH" to SECRETS_DIR.resolve("kingdom_root.pem").toString(),
           ) + additionalFlags
         )
       logger.info("Started DataWatcher process on port $port")
@@ -188,8 +187,8 @@ class InvokeDataWatcherFunctionTest() {
   companion object {
     private val SECRETS_DIR: File =
       getRuntimePath(
-        Paths.get("wfa_measurement_system", "src", "main", "k8s", "testing", "secretfiles")
-      )!!
+          Paths.get("wfa_measurement_system", "src", "main", "k8s", "testing", "secretfiles")
+        )!!
         .toFile()
     private const val BUCKET = "test-bucket"
     private val serverCerts =
