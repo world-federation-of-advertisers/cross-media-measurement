@@ -50,6 +50,7 @@ module "edp_aggregator" {
   data_watcher_trigger_service_account_name = "edpa-data-watcher-trigger"
   terraform_service_account                 = var.terraform_service_account
   requisition_fetcher_service_account_name  = "edpa-requisition-fetcher"
+  event_group_sync_service_account_name     = "edpa-event-group-sync"
 
   data_watcher_private_key_id               = "edpa-datawatcher-tls-key"
   data_watcher_private_key_path             = "${path.root}/../../../k8s/testing/secretfiles/data_watcher_tls.key"

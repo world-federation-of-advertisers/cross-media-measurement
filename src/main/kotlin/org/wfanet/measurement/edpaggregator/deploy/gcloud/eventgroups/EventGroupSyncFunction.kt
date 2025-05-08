@@ -121,7 +121,7 @@ class EventGroupSyncFunction() : HttpFunction {
     private const val THROTTLER_DURATION_MILLIS = 1000L
 
     private val kingdomTarget = EnvVars.checkNotNullOrEmpty("KINGDOM_TARGET")
-    private val kingdomCertHost = EnvVars.checkNotNullOrEmpty("KINGDOM_CERT_HOST")
+    private val kingdomCertHost: String? = System.getenv("KINGDOM_CERT_HOST")
     private val throttlerDuration =
       Duration.ofMillis(System.getenv("THROTTLER_MILLIS")?.toLong() ?: THROTTLER_DURATION_MILLIS)
     private val channelShutdownDuration =
