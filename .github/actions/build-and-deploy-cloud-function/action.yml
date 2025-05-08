@@ -1,0 +1,120 @@
+# Copyright 2025 The Cross-Media Measurement Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: "Build and Deploy Cloud Run function"
+description: "Build Bazel uber-jar and deploy it as a function in Google Cloud Run"
+inputs:
+  cloud_region:
+    description: "Cloud region"
+    required: true
+  function_name:
+    description: "Cloud Run function name"
+    required: true
+  entry_point:
+    description: "Java entry point"
+    required: true
+  bazel_target_label:
+    description: "Bazel target label that must output an uber JAR"
+    required: true
+  trigger_bucket:
+    description: "GCS bucket name"
+    required: false
+  run_service_account:
+    description: "Service account to run the function"
+    required: true
+  trigger_service_account:
+    description: "Service account to receive the trigger. Required if trigger_bucket is specified."
+    required: false
+  extra_env_vars:
+    description: "Comma-separated list of environment variables in the format KEY=VALUE. These will be passed to the function using --set-env-vars."
+    required: false
+  secret_mappings:
+    description: "Comma-separated list of secret mounts in the format /path/in/container=SECRET_NAME:SECRET_VERSION."
+    required: false
+
+runs:
+  using: "composite"
+  steps:
+
+    - name: Build uber-jar
+      shell: bash
+      env:
+        BAZEL_TARGET_LABEL: ${{ inputs.bazel_target_label }}
+      run: |
+        bazel build "$BAZEL_TARGET_LABEL"
+
+    - name: Locate and copy uber-jar
+      id: locate-and-copy-uber-jar
+      shell: bash
+      env:
+        BAZEL_TARGET_LABEL: ${{ inputs.bazel_target_label }}
+      run: |
+        set -euo pipefail
+
+        TEMP_DIR="$RUNNER_TEMP/$GITHUB_ACTION/source"
+        mkdir -p "$TEMP_DIR"
+        
+        JAR=$(bazel cquery "$BAZEL_TARGET_LABEL" --output=files)
+        cp "$JAR" "$TEMP_DIR/"
+        
+        echo "uber_jar_temp_dir=$TEMP_DIR" >> "$GITHUB_OUTPUT"
+
+    - name: Deploy function
+      shell: bash
+      env:
+        FUNCTION_NAME: ${{ inputs.function_name }}
+        ENTRY_POINT: ${{ inputs.entry_point }}
+        CLOUD_REGION: ${{ inputs.cloud_region }}
+        RUN_SERVICE_ACCOUNT: ${{ inputs.run_service_account }}
+        TRIGGER_BUCKET: ${{ inputs.trigger_bucket }}
+        TRIGGER_SERVICE_ACCOUNT: ${{ inputs.trigger_service_account }}
+        EXTRA_ENV_VARS: ${{ inputs.extra_env_vars }}
+        SECRET_MAPPINGS: ${{ inputs.secret_mappings }}
+        UBER_JAR_TEMP_DIR: ${{ steps.locate-and-copy-uber-jar.outputs.uber_jar_temp_dir }}
+      run: |
+        set -euo pipefail
+        
+        ARGS=(
+          functions deploy "$FUNCTION_NAME"
+          --gen2
+          --runtime=java17
+          --entry-point="$ENTRY_POINT"
+          --memory=512MB
+          --region="$CLOUD_REGION"
+          --run-service-account="$RUN_SERVICE_ACCOUNT"
+          --source="$UBER_JAR_TEMP_DIR"
+        )
+        
+        if [[ -n "$TRIGGER_BUCKET" ]]; then
+          ARGS+=(
+            --trigger-event-filters="type=google.cloud.storage.object.v1.finalized"
+            --trigger-event-filters="bucket=$TRIGGER_BUCKET"
+            --trigger-service-account="$TRIGGER_SERVICE_ACCOUNT"
+          )
+        else
+          ARGS+=(
+            --trigger-http
+            --allow-unauthenticated
+          )
+        fi
+        
+        if [[ -n "$EXTRA_ENV_VARS" ]]; then
+          ARGS+=(--set-env-vars="$EXTRA_ENV_VARS")
+        fi
+        
+        if [[ -n "$SECRET_MAPPINGS" ]]; then
+          ARGS+=(--set-secrets="$SECRET_MAPPINGS")
+        fi
+        
+        gcloud "${ARGS[@]}"
