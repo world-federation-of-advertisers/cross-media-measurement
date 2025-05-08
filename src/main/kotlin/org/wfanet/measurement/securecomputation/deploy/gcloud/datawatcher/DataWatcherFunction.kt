@@ -20,6 +20,7 @@ import com.google.cloud.functions.CloudEventsFunction
 import com.google.events.cloud.storage.v1.StorageObjectData
 import com.google.protobuf.util.JsonFormat
 import io.cloudevents.CloudEvent
+import java.io.File
 import java.nio.file.Paths
 import java.time.Duration
 import java.util.logging.Logger
@@ -59,9 +60,9 @@ class DataWatcherFunction : CloudEventsFunction {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
     private const val DEFAULT_CHANNEL_SHUTDOWN_DURATION_SECONDS: Long = 3L
     private val CLASS_LOADER: ClassLoader = Thread.currentThread().contextClassLoader
-    private val certJarResourcePath = checkIsPath("CERT_JAR_RESOURCE_PATH")
-    private val privateKeyJarResourcePath = checkIsPath("PRIVATE_KEY_JAR_RESOURCE_PATH")
-    private val certCollectionJarResourcePath = checkIsPath("CERT_COLLECTION_JAR_RESOURCE_PATH")
+    private val certFilePath = checkIsPath("CERT_FILE_PATH")
+    private val privateKeyFilePath = checkIsPath("PRIVATE_KEY_FILE_PATH")
+    private val certCollectionFilePath = checkIsPath("CERT_COLLECTION_FILE_PATH")
     private const val dataWatcherConfigResourcePath =
       "securecomputation/datawatcher/data_watcher_config.textproto"
     private val controlPlaneTarget = checkNotEmpty("CONTROL_PLANE_TARGET")
@@ -80,17 +81,37 @@ class DataWatcherFunction : CloudEventsFunction {
     }
 
     private fun checkIsPath(envVar: String): String {
-      val value = System.getenv(envVar)
+      val value = System.getenv(envVar) ?: throw IllegalStateException("Missing env var: $envVar")
       Paths.get(value)
       return value
     }
 
     private fun getClientCerts(): SigningCerts {
+      fun logFileStatus(label: String, path: String) {
+        val file = File(path)
+        logger.info("$label - Path: $path")
+        if (file.exists()) {
+          logger.info("$label exists. Size: ${file.length()} bytes")
+        } else {
+          logger.severe("$label NOT FOUND at path: $path")
+        }
+      }
+
+      logFileStatus("CERT_FILE", certFilePath)
+      logFileStatus("PRIVATE_KEY_FILE", privateKeyFilePath)
+      logFileStatus("CERT_COLLECTION_FILE", certCollectionFilePath)
+
       return SigningCerts.fromPemFiles(
-        certificateFile = checkNotNull(CLASS_LOADER.getJarResourceFile(certJarResourcePath)),
-        privateKeyFile = checkNotNull(CLASS_LOADER.getJarResourceFile(privateKeyJarResourcePath)),
+        certificateFile =
+          File(certFilePath).also { require(it.exists()) { "Cert not found: $certFilePath" } },
+        privateKeyFile =
+          File(privateKeyFilePath).also {
+            require(it.exists()) { "Key not found: $privateKeyFilePath" }
+          },
         trustedCertCollectionFile =
-          checkNotNull(CLASS_LOADER.getJarResourceFile(certCollectionJarResourcePath)),
+          File(certCollectionFilePath).also {
+            require(it.exists()) { "CA not found: $certCollectionFilePath" }
+          },
       )
     }
 

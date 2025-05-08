@@ -39,6 +39,9 @@ inputs:
   extra_env_vars:
     description: "Comma-separated list of environment variables in the format KEY=VALUE. These will be passed to the function using --set-env-vars."
     required: false
+  secret_mappings:
+    description: "Comma-separated list of secret mounts in the format /path/in/container=SECRET_NAME:SECRET_VERSION."
+    required: false
 
 runs:
   using: "composite"
@@ -77,6 +80,7 @@ runs:
         TRIGGER_BUCKET:           ${{ inputs.trigger_bucket }}
         TRIGGER_SERVICE_ACCOUNT:  ${{ inputs.trigger_service_account }}
         EXTRA_ENV_VARS:           ${{ inputs.extra_env_vars }}
+        SECRET_MAPPINGS:          ${{ inputs.secret_mappings }}
         UBER_JAR_TEMP_DIR:        ${{ steps.locate-and-copy-uber-jar.outputs.uber_jar_temp_dir }}
       run: |
         set -euo pipefail
@@ -107,6 +111,10 @@ runs:
         
         if [[ -n "$EXTRA_ENV_VARS" ]]; then
           ARGS+=(--set-env-vars="$EXTRA_ENV_VARS")
+        fi
+        
+        if [[ -n "$SECRET_MAPPINGS" ]]; then
+          ARGS+=(--set-secrets="$SECRET_MAPPINGS")
         fi
         
         gcloud "${ARGS[@]}"
