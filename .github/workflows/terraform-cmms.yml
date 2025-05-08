@@ -15,9 +15,6 @@
 name: Terraform CMMS
 
 on:
-  push:
-    branches:
-      - marcopremier/mount_datawatcher_certs_as_secrets
   workflow_call:
     inputs:
       environment:
@@ -48,8 +45,7 @@ permissions:
 jobs:
   terraform:
     runs-on: ubuntu-22.04
-#    environment: ${{ inputs.environment }}
-    environment: "dev"
+    environment: ${{ inputs.environment }}
     env:
       GCLOUD_MODULE_PATH: src/main/terraform/gcloud/cmms
       GCLOUD_REGION: ${{ vars.GCLOUD_REGION }}
@@ -102,7 +98,7 @@ jobs:
         -out=tfplan
 
     - name: terraform apply - gcloud
-#      if: ${{ inputs.apply }}
+      if: ${{ inputs.apply }}
       working-directory: ${{ env.GCLOUD_MODULE_PATH }}
       run: terraform apply -input=false tfplan
 
