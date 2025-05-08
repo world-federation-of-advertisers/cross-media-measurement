@@ -52,33 +52,32 @@ runs:
         bazel build "$BAZEL_TARGET_LABEL"
 
     - name: Locate and copy uber-jar
+      id: locate-and-copy-uber-jar
       shell: bash
       env:
         BAZEL_TARGET_LABEL: ${{ inputs.bazel_target_label }}
-        GITHUB_ACTION: ${{ github.action }}
-        RUNNER_TEMP: ${{ runner.temp }}
       run: |
         set -euo pipefail
 
-        TEMP_DIR="${RUNNER_TEMP}/${GITHUB_ACTION}/source"
+        TEMP_DIR="$RUNNER_TEMP/$GITHUB_ACTION/source"
         mkdir -p "$TEMP_DIR"
         
         JAR=$(bazel cquery "$BAZEL_TARGET_LABEL" --output=files)
         cp "$JAR" "$TEMP_DIR/"
         
-        echo "UBER_JAR_TEMP_DIR=$TEMP_DIR" >> "$GITHUB_ENV"
+        echo "uber_jar_temp_dir=$TEMP_DIR" >> "$GITHUB_OUTPUT"
 
     - name: Deploy function
       shell: bash
       env:
-        FUNCTION_NAME: ${{ inputs.function_name }}
-        ENTRY_POINT: ${{ inputs.entry_point }}
-        CLOUD_REGION: ${{ inputs.cloud_region }}
-        RUN_SERVICE_ACCOUNT: ${{ inputs.run_service_account }}
-        TRIGGER_BUCKET: ${{ inputs.trigger_bucket }}
-        TRIGGER_SERVICE_ACCOUNT: ${{ inputs.trigger_service_account }}
-        EXTRA_ENV_VARS: ${{ inputs.extra_env_vars }}
-        UBER_JAR_TEMP_DIR: ${{ inputs.uber_jar_temp_dir }}
+        FUNCTION_NAME:            ${{ inputs.function_name }}
+        ENTRY_POINT:              ${{ inputs.entry_point }}
+        CLOUD_REGION:             ${{ inputs.cloud_region }}
+        RUN_SERVICE_ACCOUNT:      ${{ inputs.run_service_account }}
+        TRIGGER_BUCKET:           ${{ inputs.trigger_bucket }}
+        TRIGGER_SERVICE_ACCOUNT:  ${{ inputs.trigger_service_account }}
+        EXTRA_ENV_VARS:           ${{ inputs.extra_env_vars }}
+        UBER_JAR_TEMP_DIR:        ${{ steps.locate-and-copy-uber-jar.outputs.uber_jar_temp_dir }}
       run: |
         set -euo pipefail
         
