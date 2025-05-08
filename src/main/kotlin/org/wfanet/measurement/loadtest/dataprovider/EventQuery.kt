@@ -36,7 +36,7 @@ interface EventQuery<out T : Message> {
   )
 
   /** Returns a [Sequence] of [LabeledEvent]. */
-  fun getLabeledEvents(eventGroupSpec: EventGroupSpec, filterEvents: Boolean): Sequence<LabeledEvent<out T>>
+  fun getLabeledEvents(eventGroupSpec: EventGroupSpec): Sequence<LabeledEvent<out T>>
 
   /**
    * Returns a [Sequence] of virtual person IDs for matching events.
@@ -44,8 +44,8 @@ interface EventQuery<out T : Message> {
    * Each element in the returned value represents a single event. As a result, the same VID may be
    * returned multiple times.
    */
-  fun getUserVirtualIds(eventGroupSpec: EventGroupSpec, filterEvents: Boolean = true): Sequence<Long> {
-    return getLabeledEvents(eventGroupSpec, filterEvents).map { it.vid }
+  fun getUserVirtualIds(eventGroupSpec: EventGroupSpec): Sequence<Long> {
+    return getLabeledEvents(eventGroupSpec).map { it.vid }
   }
 
   /** Returns the virtual person ID universe represented by the [Sequence]. */

@@ -92,7 +92,6 @@ import org.wfanet.measurement.gcloud.pubsub.Subscriber
 import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorClient
 import org.wfanet.measurement.loadtest.config.TestIdentifiers.SIMULATOR_EVENT_GROUP_REFERENCE_ID_PREFIX
 import org.wfanet.measurement.loadtest.dataprovider.EventQuery
-import org.wfanet.measurement.loadtest.dataprovider.SyntheticGeneratorEventQuery
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
 import org.wfanet.measurement.loadtest.resourcesetup.Resources
 import org.wfanet.measurement.loadtest.resourcesetup.Resources.Resource
@@ -106,14 +105,11 @@ import org.wfanet.measurement.storage.MesosRecordIoStorageClient
 import org.wfanet.measurement.storage.SelectedStorageClient
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
-import org.wfanet.measurement.api.v2alpha.EncryptedMessage
-import org.wfanet.measurement.consent.client.dataprovider.encryptMetadata
-import org.wfanet.measurement.api.v2alpha.EventGroupKt as CmmsEventGroupKt
-import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.MetadataKt.AdMetadataKt.campaignMetadata
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.MetadataKt.adMetadata
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.metadata as eventGroupMetadata
 import org.wfanet.measurement.loadtest.dataprovider.SyntheticDataGeneration
+import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup
 
 class InProcessEdpAggregatorComponents(
   private val internalServicesRule: ProviderRule<InternalApiServices>,
@@ -261,7 +257,7 @@ class InProcessEdpAggregatorComponents(
     val eventGroups =
       listOf(
         eventGroup {
-          eventGroupReferenceId = "sim-eg-reference-id-1-edp-0"
+          eventGroupReferenceId = "sim-eg-reference-id-1-eg-0"
           measurementConsumer = measurementConsumerData.name
           dataAvailabilityInterval = interval {
             startTime = timestamp { seconds = 200 }
@@ -287,15 +283,14 @@ class InProcessEdpAggregatorComponents(
       )
     val mappedEventGroups: List<MappedEventGroup> = runBlocking { eventGroupSync.sync().toList() }
     logger.info("Received mappedEventGroups: $mappedEventGroups")
-    val cmmsEventGroup =
-      mappedEventGroups.filter { it.eventGroupReferenceId == "sim-eg-reference-id-1-edp-0" }.single()
+    val eventGroupResource =
+      mappedEventGroups.filter { it.eventGroupReferenceId == "sim-eg-reference-id-1-eg-0" }.single().eventGroupResource
     // Wait for requisitions to be created
     backgroundScope.launch {
       while (!readyToFulfillRequisitions) {
         readyToFulfillRequisitions = runBlocking {
           writeImpressionData(
-            cmmsEventGroup =
-              checkNotNull(CmmsEventGroupKey.fromName(cmmsEventGroup.eventGroupResource)),
+            eventGroupResource = eventGroupResource,
             privateEncryptionKey = getDataProviderPrivateEncryptionKey(edpShortName),
             syntheticDataSpec = syntheticEventGroupSpecs[0],
           )
@@ -322,7 +317,7 @@ class InProcessEdpAggregatorComponents(
   }
 
   private suspend fun writeImpressionData(
-    cmmsEventGroup: CmmsEventGroupKey,
+    eventGroupResource: String,
     privateEncryptionKey: PrivateKeyHandle,
     syntheticDataSpec: SyntheticEventGroupSpec,
   ): Boolean {
@@ -350,17 +345,13 @@ class InProcessEdpAggregatorComponents(
 
     val eventGroupSpecs: List<EventQuery.EventGroupSpec> =
       requisitionSpecs.toList().flatMap { it: RequisitionSpec -> buildEventGroupSpecs(it) }
-    val eventQuery =
-      object : SyntheticGeneratorEventQuery(syntheticPopulationSpec, TestEvent.getDescriptor()) {
-        override fun getSyntheticDataSpec(eventGroup: CmmsEventGroup) = syntheticDataSpec
-      }
     val unfilteredEvents: List<LabeledImpression> =
       eventGroupSpecs
         .flatMap { SyntheticDataGeneration.generateEvents(
           TestEvent.getDefaultInstance(),
           syntheticPopulationSpec,
           syntheticDataSpec,
-          cmmsEventGroup.collectionInterval.toRange(),
+          //eventGroup.dataAvailabilityInterval.toRange(),
         ) }
         .map { event ->
           labeledImpression {
@@ -378,7 +369,7 @@ class InProcessEdpAggregatorComponents(
       println("Date: $ds")
       println("Impressions: ${impressions.size}")
 
-      val impressionsBlobKey = "ds/$ds/event-group-id/${cmmsEventGroup.toName()}/impressions"
+      val impressionsBlobKey = "ds/$ds/event-group-id/$eventGroupResource/impressions"
       val impressionsFileUri = "file:///$IMPRESSIONS_BUCKET/$impressionsBlobKey"
       val impressionsStorageClient = SelectedStorageClient(impressionsFileUri, storagePath.toFile())
 
@@ -405,7 +396,7 @@ class InProcessEdpAggregatorComponents(
         impressionsBlobKey,
         impressions.asFlow().map { it.toByteString() },
       )
-      val impressionsMetaDataBlobKey = "ds/$ds/event-group-id/${cmmsEventGroup.toName()}/metadata"
+      val impressionsMetaDataBlobKey = "ds/$ds/event-group-id/$eventGroupResource/metadata"
 
       val impressionsMetadataFileUri =
         "file:///$IMPRESSIONS_METADATA_BUCKET/$impressionsMetaDataBlobKey"
