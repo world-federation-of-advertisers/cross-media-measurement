@@ -122,7 +122,7 @@ class DataWatcherFunction : CloudEventsFunction {
 
     private val workItemsStub by lazy { WorkItemsCoroutineStub(publicChannel) }
     private val config by lazy {
-      checkNotNull(CLASS_LOADER.getJarResourceFile(dataWatcherConfigJarResourcePath))
+      checkNotNull(CLASS_LOADER.getJarResourceFile(dataWatcherConfigResourcePath))
     }
     private val dataWatcherConfig by lazy {
       runBlocking { parseTextProto(config, DataWatcherConfig.getDefaultInstance()) }
