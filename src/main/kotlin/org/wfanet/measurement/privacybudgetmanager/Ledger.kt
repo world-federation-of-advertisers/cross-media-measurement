@@ -14,17 +14,18 @@
 
 package org.wfanet.measurement.privacybudgetmanager
 
-import org.wfanet.measurement.privacybudgetmanager.Query
-
-/** Manages interaction with the persistance layer that stores [PrivacyBucket]s, [Charge]s and [Query]s  */
+/**
+ * Manages interaction with the persistance layer that stores [PrivacyBucket]s, [Charge]s and
+ * [Query]s
+ */
 interface Ledger {
   /**
-   * Informs the backing store that the processing of new requisitions has commenced. All
-   * accesses to the backing store between the call to startTransaction() and the final call to
-   * commit() will appear as an atomic update to the database.
+   * Informs the backing store that the processing of new requisitions has commenced. All accesses
+   * to the backing store between the call to startTransaction() and the final call to commit() will
+   * appear as an atomic update to the database.
    *
    * @return A transaction context that can be used for subsequent interaction with the privacy
-   * budget backing store.
+   *   budget backing store.
    */
   fun startTransaction(): TransactionContext
 }
@@ -39,18 +40,17 @@ interface Ledger {
  * possible that several requisitions may be in process simultaneously by different threads. Also,
  * if the privacy budget manager is replicated across nodes, it is conceivable that different nodes
  * could be processing privacy budget management operations simultaneously. Implementors of the
- * BackingStore should take this into account. Since this interface is AutoCloseable, when the context 
- * is closed without explicitly calling commit(), the expected behavior of the implementation is to
- * rollback the transaction.
+ * BackingStore should take this into account. Since this interface is AutoCloseable, when the
+ * context is closed without explicitly calling commit(), the expected behavior of the
+ * implementation is to rollback the transaction.
  */
 interface TransactionContext : AutoCloseable {
   /**
-   * Reads the [BackingStore] and returns the Queries that are already present with their
-   * CreateTime read from the DB.
+   * Reads the [BackingStore] and returns the Queries that are already present with their CreateTime
+   * read from the DB.
    *
    * @param list of queries to find in the ledger.
    * @returns list of [Query] that existed in the ledger. These have createTime field populated.
-   *
    * @throws PrivacyBudgetManager exception if the read operation was unsuccessful.
    */
   suspend fun readQueries(queries: List<Query>): List<Query>
@@ -63,16 +63,14 @@ interface TransactionContext : AutoCloseable {
   suspend fun readChargeRows(rowKeys: List<LedgerRowKey>): Slice
 
   /**
-   * Writes a [Slice] to the backing store together with the [queries] responsible for its
-   * creation.
+   * Writes a [Slice] to the backing store together with the [queries] responsible for its creation.
    *
    * @returns the Queries that are written with their createTime read from the DB.
-   *
    * @throws PrivacyBudgetManager exception if the write operation was unsuccessful.
    */
   suspend fun write(
-    delta: Slice,
-    queries: List<Query>,
+      delta: Slice,
+      queries: List<Query>,
   ): List<Query>
 
   /**

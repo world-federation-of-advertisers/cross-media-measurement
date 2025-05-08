@@ -16,7 +16,7 @@ package org.wfanet.measurement.privacybudgetmanager.deploy.gcloud
 
 class GcsAuditLog : AuditLog {
   override fun write(
-    queries: List<Query>,
-    groupId: String,
+      queries: List<Query>,
+      groupId: String,
   ): String = TODO("uakyol: implement this")
 }
