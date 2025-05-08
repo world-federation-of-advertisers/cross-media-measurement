@@ -4,8 +4,6 @@ package(
     default_testonly = True,
     default_visibility = [
         "//src/main/kotlin/org/wfanet/measurement/privacybudgetmanager:__subpackages__",
-        "//src/main/kotlin/org/wfanet/measurement/privacybudgetmanager:__subpackages__",
-        "//src/test/kotlin/org/wfanet/measurement/privacybudgetmanager:__subpackages__",
         "//src/test/kotlin/org/wfanet/measurement/privacybudgetmanager:__subpackages__",
     ],
 )
@@ -17,6 +15,6 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/privacybudgetmanager:privacy_budget_manager",
         "//src/main/proto/wfa/measurement/privacybudgetmanager:privacy_landscape_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/privacybudgetmanager:privacy_landscape_mapping_kt_jvm_proto",
-        "//src/main/proto/wfa/measurement/privacybudgetmanager:query_kt_jvm_proto"
+        "//src/main/proto/wfa/measurement/privacybudgetmanager:query_kt_jvm_proto",
     ],
 )
