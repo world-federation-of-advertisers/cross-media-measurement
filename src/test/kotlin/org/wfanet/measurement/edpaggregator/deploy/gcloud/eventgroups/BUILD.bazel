@@ -1,0 +1,37 @@
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_test")
+
+kt_jvm_test(
+    name = "EventGroupSyncFunctionTest",
+    srcs = ["EventGroupSyncFunctionTest.kt"],
+    data = [
+        "//src/main/k8s/testing/secretfiles:root_certs",
+        "//src/main/k8s/testing/secretfiles:secret_files",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/eventgroups/testing:InvokeEventGroupSyncFunction",
+    ],
+    test_class = "org.wfanet.measurement.edpaggregator.deploy.gcloud.eventgroups.EventGroupSyncFunctionTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/common/api/grpc:list_resources",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/eventgroups:event_group_sync_function",
+        "//src/main/kotlin/org/wfanet/measurement/gcloud/testing",
+        "//src/main/proto/wfa/measurement/api/v2alpha:event_group_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:event_group_metadata_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:event_groups_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:media_type_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/config/edpaggregator:event_group_sync_config_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/eventgroups/v1alpha:event_group_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/eventgroups/v1alpha:event_group_map_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/cloud/storage/contrib/nio",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/com/google/events",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//imports/kotlin/org/mockito/kotlin",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc/testing",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/gcs/testing",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:mesos_recordio_storage_client",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage/filesystem:client",
+    ],
+)
