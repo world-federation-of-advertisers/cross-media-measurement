@@ -97,7 +97,7 @@ class RequisitionFetcherFunction : HttpFunction {
   }
 
   companion object {
-    private val kingdomTarget = checkNotEmpty("KINGDOM_TARGET")
+    private val kingdomTarget = EnvVars.checkNotNullOrEmpty("KINGDOM_TARGET")
     private val kingdomCertHost: String? = System.getenv("KINGDOM_CERT_HOST")
 
     val pageSize = run {
