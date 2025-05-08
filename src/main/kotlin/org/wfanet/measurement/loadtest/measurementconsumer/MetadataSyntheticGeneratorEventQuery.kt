@@ -43,7 +43,7 @@ class MetadataSyntheticGeneratorEventQuery(
 
   companion object {
     private fun parseEdpNumber(input: String): Int {
-      val regex = Regex("edp-(\\d+)$")
+      val regex = Regex("-eg-(\\d+)$")
       return checkNotNull(regex.find(input)?.groupValues?.get(1)?.toInt())
     }
   }
