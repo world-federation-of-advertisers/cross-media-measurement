@@ -126,6 +126,7 @@ kt_jvm_library(
         "//src/main/k8s/testing/secretfiles:all_root_certs.pem",
         "//src/main/k8s/testing/secretfiles:all_tink_keysets",
         "//src/main/proto/wfa/measurement/reporting/v2alpha:permissions_config.textproto",
+        "//src/main/proto/wfa/measurement/securecomputation/controlplane/v1alpha:queues_config.textproto",
     ],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
