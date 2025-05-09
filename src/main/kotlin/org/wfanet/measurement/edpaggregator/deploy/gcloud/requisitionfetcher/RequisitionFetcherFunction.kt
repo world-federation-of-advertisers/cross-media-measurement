@@ -126,7 +126,7 @@ class RequisitionFetcherFunction : HttpFunction {
     }
     private val CLASS_LOADER: ClassLoader = RequisitionFetcherFunction::class.java.classLoader
     private val requisitionFetcherConfigResourcePath =
-      "edpaggregator/requisitionfetcher/requisition_fetcher_config.textproto"
+      "edpaggregator/requisitionfetcher/requisition_fetcher_config_cloud_test.textproto"
     private val config by lazy {
       checkNotNull(CLASS_LOADER.getJarResourceFile(requisitionFetcherConfigResourcePath))
     }
