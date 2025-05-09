@@ -16,17 +16,22 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers
 
+import com.google.cloud.spanner.Options
 import com.google.cloud.spanner.Struct
 import com.google.cloud.spanner.Type
+import com.google.type.Interval
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.singleOrNull
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
+import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.appendClause
 import org.wfanet.measurement.gcloud.spanner.getInternalId
 import org.wfanet.measurement.gcloud.spanner.statement
 import org.wfanet.measurement.gcloud.spanner.struct
+import org.wfanet.measurement.gcloud.spanner.toInt64Array
 import org.wfanet.measurement.internal.kingdom.ModelLine
 import org.wfanet.measurement.internal.kingdom.ModelLineKey
 import org.wfanet.measurement.internal.kingdom.modelLine
@@ -124,6 +129,104 @@ class ModelLineReader : SpannerReader<ModelLineReader.Result>() {
       }
       .execute(readContext)
       .singleOrNull()
+  }
+
+  fun readValidModelLines(
+    readContext: AsyncDatabaseClient.ReadContext,
+    externalModelProviderId: ExternalId,
+    externalModelSuiteId: ExternalId,
+    timeInterval: Interval,
+    types: List<ModelLine.Type>,
+    externalDataProviderIds: List<ExternalId>,
+  ): Flow<Result> {
+    val validModelLinesStatement =
+      statement(
+        """
+        SELECT DISTINCT
+          ModelLines.ModelProviderId,
+          ModelLines.ModelSuiteId,
+          ModelLines.ModelLineId,
+          ModelLines.ExternalModelLineId,
+          ModelLines.DisplayName,
+          ModelLines.Description,
+          ModelLines.ActiveStartTime,
+          ModelLines.ActiveEndTime,
+          ModelLines.Type,
+          ModelLines.CreateTime,
+          ModelLines.UpdateTime,
+          ModelSuites.ExternalModelSuiteId,
+          ModelProviders.ExternalModelProviderId,
+          -- Prevents buildModelLine function from throwing error
+          NULL AS ExternalHoldbackModelLineId
+        FROM
+          ModelProviders
+          JOIN ModelSuites USING (ModelProviderId)
+          JOIN ModelLines USING (ModelProviderId, ModelSuiteId)
+          JOIN ModelRollouts USING (ModelProviderId, ModelSuiteId, ModelLineId)
+          JOIN
+            (
+              SELECT
+                ModelProviderId,
+                ModelSuiteId,
+                ModelLineId,
+                DataProviderId,
+                StartTime,
+                EndTime
+              FROM
+                DataProviders
+                JOIN DataProviderAvailabilityIntervals USING (DataProviderId)
+              WHERE
+                ExternalDataProviderId IN UNNEST(@externalDataProviderIds)
+            ) AS DataProviderAvailabilityIntervals
+            USING (ModelProviderId, ModelSuiteId, ModelLineId)
+        WHERE
+          ExternalModelProviderId = @externalModelProviderId
+          AND ExternalModelSuiteId = @externalModelSuiteId
+          AND ModelLines.Type IN UNNEST(@types)
+          AND TIMESTAMP_DIFF(@intervalStartTime, ModelLines.ActiveStartTime, NANOSECOND) >= 0
+          AND
+            CASE
+              WHEN ModelLines.ActiveEndTime IS NULL THEN TRUE
+              ELSE TIMESTAMP_DIFF(@intervalEndTime, ModelLines.ActiveEndTime, NANOSECOND) <= 0
+              END
+          AND TIMESTAMP_DIFF(@intervalStartTime, DataProviderAvailabilityIntervals.StartTime, NANOSECOND) >= 0
+          AND TIMESTAMP_DIFF(@intervalEndTime, DataProviderAvailabilityIntervals.EndTime, NANOSECOND) <= 0
+        GROUP BY
+          ModelLines.ModelProviderId,
+          ModelLines.ModelSuiteId,
+          ModelLines.ModelLineId,
+          ModelLines.ExternalModelLineId,
+          ModelLines.DisplayName,
+          ModelLines.Description,
+          ModelLines.ActiveStartTime,
+          ModelLines.ActiveEndTime,
+          ModelLines.Type,
+          ModelLines.CreateTime,
+          ModelLines.UpdateTime,
+          ModelSuites.ExternalModelSuiteId,
+          ModelProviders.ExternalModelProviderId
+        HAVING
+          -- ModelLine must have exactly 1 ModelRollout
+          COUNT(DISTINCT ModelRolloutId) = 1
+          -- DataProviderAvailabilityIntervals row must exist for every specified DataProvider
+          AND COUNT(DISTINCT DataProviderId) = @numDataProviders
+        """
+          .trimIndent()
+      ) {
+        bind("externalModelProviderId").to(externalModelProviderId.value)
+        bind("externalModelSuiteId").to(externalModelSuiteId.value)
+        bind("numDataProviders").to(externalDataProviderIds.size.toLong())
+        bind("externalDataProviderIds").toInt64Array(externalDataProviderIds.map { it.value })
+        bind("types").toInt64Array(types)
+        bind("intervalStartTime").to(timeInterval.startTime.toGcloudTimestamp())
+        bind("intervalEndTime").to(timeInterval.endTime.toGcloudTimestamp())
+      }
+
+    val className: String = this::class.simpleName ?: "Anonymous"
+
+    return readContext
+      .executeQuery(validModelLinesStatement, Options.tag("reader=$className"))
+      .map(::translate)
   }
 
   companion object {
