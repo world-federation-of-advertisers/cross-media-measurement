@@ -96,6 +96,12 @@ variable "requisition_fetcher_service_account_name" {
   nullable    = false
 }
 
+variable "event_group_sync_service_account_name" {
+  description = "Name of the EventGroupSync service account."
+  type        = string
+  nullable    = false
+}
+
 variable "data_watcher_private_key_id" {
   type        = string
   description = "The ID of data watcher private key"

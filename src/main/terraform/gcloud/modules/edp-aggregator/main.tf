@@ -68,7 +68,13 @@ module "requisition_fetcher_function_service_account" {
   source    = "../http-cloud-function"
 
   http_cloud_function_service_account_name  = var.requisition_fetcher_service_account_name
-  bucket_name                               = module.edp_aggregator_bucket.storage_bucket.name
+  terraform_service_account                 = var.terraform_service_account
+}
+
+module "event_group_sync_function_service_account" {
+  source    = "../http-cloud-function"
+
+  http_cloud_function_service_account_name  = var.event_group_sync_service_account_name
   terraform_service_account                 = var.terraform_service_account
 }
 
@@ -168,4 +174,16 @@ resource "google_storage_bucket_iam_member" "requisition_fetcher_storage_creator
   bucket = module.edp_aggregator_bucket.storage_bucket.name
   role   = "roles/storage.objectCreator"
   member = "serviceAccount:${module.requisition_fetcher_function_service_account.cloud_function_service_account.email}"
+}
+
+resource "google_storage_bucket_iam_member" "event_group_sync_storage_viewer" {
+  bucket = module.edp_aggregator_bucket.storage_bucket.name
+  role   = "roles/storage.objectViewer"
+  member = "serviceAccount:${module.event_group_sync_function_service_account.cloud_function_service_account.email}"
+}
+
+resource "google_storage_bucket_iam_member" "event_group_sync_storage_creator" {
+  bucket = module.edp_aggregator_bucket.storage_bucket.name
+  role   = "roles/storage.objectCreator"
+  member = "serviceAccount:${module.event_group_sync_function_service_account.cloud_function_service_account.email}"
 }
