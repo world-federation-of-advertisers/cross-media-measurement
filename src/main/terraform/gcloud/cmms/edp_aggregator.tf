@@ -57,5 +57,10 @@ module "edp_aggregator" {
   data_watcher_cert_path                    = "${path.root}/../../../k8s/testing/secretfiles/data_watcher_tls.pem"
   secure_computation_root_ca_id             = "secure-computation-root-ca"
   secure_computation_root_ca_path           = "${path.root}/../../../k8s/testing/secretfiles/secure_computation_root.pem"
-
+  edp7_private_key_id                       = "edp7-tls-key"
+  edp7_private_key_path                     = "${path.root}/../../../k8s/testing/secretfiles/edp7_tls.key"
+  edp7_cert_id                              = "edp7-tls-pem"
+  edp7_cert_path                            = "${path.root}/../../../k8s/testing/secretfiles/edp7_tls.pem"
+  kingdom_root_ca_id                        = "kingdom`-root-ca"
+  kingdom_root_ca_path                      = "${path.root}/../../../k8s/testing/secretfiles/kingdom_root.pem"
 }
