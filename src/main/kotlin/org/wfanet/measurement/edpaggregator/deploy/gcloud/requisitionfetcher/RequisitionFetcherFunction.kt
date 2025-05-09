@@ -21,6 +21,7 @@ import com.google.cloud.functions.HttpRequest
 import com.google.cloud.functions.HttpResponse
 import com.google.cloud.storage.StorageOptions
 import java.io.File
+import java.util.logging.Logger
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.common.EnvVars
@@ -36,6 +37,8 @@ import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 class RequisitionFetcherFunction : HttpFunction {
 
   override fun service(request: HttpRequest, response: HttpResponse) {
+    println("~~~~~~~~~~ REQUISITION FETCHER CONFIG")
+    println("~~~~~~~~~~ REQUISITION FETCHER CONFIG2: ${requisitionFetcherConfig}")
     for (dataProviderConfig in requisitionFetcherConfig.configsList) {
 
       val fileSystemPath = System.getenv("REQUISITION_FILE_SYSTEM_PATH")
@@ -59,6 +62,11 @@ class RequisitionFetcherFunction : HttpFunction {
             requisitionsGcsBucket,
           )
         }
+
+      logFileStatus("CERT_FILE", dataProviderConfig.cmmsConnection.certFilePath)
+      logFileStatus("PRIVATE_KEY_FILE", dataProviderConfig.cmmsConnection.privateKeyFilePath)
+      logFileStatus("CERT_COLLECTION_FILE", dataProviderConfig.cmmsConnection.certCollectionFilePath)
+
       val signingCerts =
         SigningCerts.fromPemFiles(
           certificateFile =
@@ -91,6 +99,20 @@ class RequisitionFetcherFunction : HttpFunction {
   }
 
   companion object {
+    private val logger: Logger = Logger.getLogger(this::class.java.name)
+    fun logFileStatus(label: String, path: String) {
+      val file = File(path)
+      logger.info("$label - Path: $path")
+      println("~~~~~~~~~~~~ $label - Path: $path")
+      if (file.exists()) {
+        logger.info("~~~~~~~~~~ $label exists. Size: ${file.length()} bytes")
+        println("~~~~~~~~~~ $label exists. Size: ${file.length()} bytes")
+      } else {
+        logger.info("~~~~~~~~~~ $label NOT FOUND at path: $path")
+        println("~~~~~~~~~~ $label NOT FOUND at path: $path")
+      }
+    }
+
     private val kingdomTarget = EnvVars.checkNotNullOrEmpty("KINGDOM_TARGET")
     private val kingdomCertHost: String? = System.getenv("KINGDOM_CERT_HOST")
 
@@ -104,7 +126,7 @@ class RequisitionFetcherFunction : HttpFunction {
     }
     private val CLASS_LOADER: ClassLoader = Thread.currentThread().contextClassLoader
     private val requisitionFetcherConfigResourcePath =
-      "securecomputation/datawatcher/data_watcher_config.textproto"
+      "edpaggregator/requisitionfetcher/requisition_fetcher_config.textproto"
     private val config by lazy {
       checkNotNull(CLASS_LOADER.getJarResourceFile(requisitionFetcherConfigResourcePath))
     }

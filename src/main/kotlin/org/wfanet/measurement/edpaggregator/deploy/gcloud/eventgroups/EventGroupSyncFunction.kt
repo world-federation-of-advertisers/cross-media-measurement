@@ -53,6 +53,19 @@ class EventGroupSyncFunction() : HttpFunction {
         .apply { JsonFormat.parser().merge(requestBody, this) }
         .build()
 
+    logFileStatus(
+      "CERT_FILE",
+      eventGroupSyncConfig.cmmsConnection.certFilePath
+    )
+    logFileStatus(
+      "PRIVATE_KEY_FILE",
+      eventGroupSyncConfig.cmmsConnection.privateKeyFilePath
+    )
+    logFileStatus(
+      "CERT_COLLECTION_FILE",
+      eventGroupSyncConfig.cmmsConnection.certCollectionFilePath
+    )
+
     val signingCerts =
       SigningCerts.fromPemFiles(
         certificateFile =
@@ -116,6 +129,18 @@ class EventGroupSyncFunction() : HttpFunction {
   }
 
   companion object {
+    fun logFileStatus(label: String, path: String) {
+      val file = File(path)
+      logger.info("$label - Path: $path")
+      println("~~~~~~~~~~~~ $label - Path: $path")
+      if (file.exists()) {
+        logger.info("~~~~~~~~~~ $label exists. Size: ${file.length()} bytes")
+        println("~~~~~~~~~~ $label exists. Size: ${file.length()} bytes")
+      } else {
+        logger.info("~~~~~~~~~~ $label NOT FOUND at path: $path")
+        println("~~~~~~~~~~ $label NOT FOUND at path: $path")
+      }
+    }
     private val logger: Logger = Logger.getLogger(this::class.java.name)
     private const val KINGDOM_SHUTDOWN_DURATION_SECONDS: Long = 3L
     private const val THROTTLER_DURATION_MILLIS = 1000L
