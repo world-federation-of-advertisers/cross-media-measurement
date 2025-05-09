@@ -1,7 +1,7 @@
 # proto-file: wfa/measurement/config/edpaggregator/requisition_fetcher_config.proto
 # proto-message: wfa.measurement.config.edpaggregator.RequisitionFetcherConfig
 configs {
-  data_provider: "dataProviders/edp7"
+  data_provider: "dataProviders/DRoeq5_-yYI"
   requisition_storage {
     file_system {
     }
