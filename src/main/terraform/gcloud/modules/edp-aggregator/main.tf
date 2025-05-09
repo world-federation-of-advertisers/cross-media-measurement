@@ -96,6 +96,33 @@ resource "google_secret_manager_secret_iam_member" "secure_computation_root_ca_a
   member    = "serviceAccount:${module.data_watcher_function_service_accounts.cloud_function_service_account_email}"
 }
 
+resource "google_secret_manager_secret_iam_binding" "edp7_tls_key_accessor" {
+  secret_id = module.edp7_private_key.secret_id
+  role      = "roles/secretmanager.secretAccessor"
+  members = [
+    "serviceAccount:${module.requisition_fetcher_function_service_account.cloud_function_service_account_email}",
+    "serviceAccount:${module.event_group_sync_function_service_account.cloud_function_service_account_email}"
+  ]
+}
+
+resource "google_secret_manager_secret_iam_binding" "edp7_tls_pem_accessor" {
+  secret_id = module.edp7_cert.secret_id
+  role      = "roles/secretmanager.secretAccessor"
+  members = [
+    "serviceAccount:${module.requisition_fetcher_function_service_account.cloud_function_service_account_email}",
+    "serviceAccount:${module.event_group_sync_function_service_account.cloud_function_service_account_email}"
+  ]
+}
+
+resource "google_secret_manager_secret_iam_binding" "kingdom_root_ca_accessor" {
+  secret_id = module.kingdom_root_ca.secret_id
+  role      = "roles/secretmanager.secretAccessor"
+  members = [
+    "serviceAccount:${module.requisition_fetcher_function_service_account.cloud_function_service_account_email}",
+    "serviceAccount:${module.event_group_sync_function_service_account.cloud_function_service_account_email}"
+  ]
+}
+
 module "edp_aggregator_queues" {
   for_each = var.queue_worker_configs
   source   = "../pubsub"
@@ -164,26 +191,20 @@ resource "google_storage_bucket_iam_member" "mig_storage_creator" {
   member = "serviceAccount:${each.value.mig_service_account.email}"
 }
 
-resource "google_storage_bucket_iam_member" "requisition_fetcher_storage_viewer" {
+resource "google_storage_bucket_iam_binding" "aggregator_storage_viewers" {
   bucket = module.edp_aggregator_bucket.storage_bucket.name
   role   = "roles/storage.objectViewer"
-  member = "serviceAccount:${module.requisition_fetcher_function_service_account.cloud_function_service_account.email}"
+  members = [
+    "serviceAccount:${module.requisition_fetcher_function_service_account.cloud_function_service_account.email}",
+    "serviceAccount:${module.event_group_sync_function_service_account.cloud_function_service_account.email}",
+  ]
 }
 
-resource "google_storage_bucket_iam_member" "requisition_fetcher_storage_creator" {
+resource "google_storage_bucket_iam_binding" "aggregator_storage_creators" {
   bucket = module.edp_aggregator_bucket.storage_bucket.name
   role   = "roles/storage.objectCreator"
-  member = "serviceAccount:${module.requisition_fetcher_function_service_account.cloud_function_service_account.email}"
-}
-
-resource "google_storage_bucket_iam_member" "event_group_sync_storage_viewer" {
-  bucket = module.edp_aggregator_bucket.storage_bucket.name
-  role   = "roles/storage.objectViewer"
-  member = "serviceAccount:${module.event_group_sync_function_service_account.cloud_function_service_account.email}"
-}
-
-resource "google_storage_bucket_iam_member" "event_group_sync_storage_creator" {
-  bucket = module.edp_aggregator_bucket.storage_bucket.name
-  role   = "roles/storage.objectCreator"
-  member = "serviceAccount:${module.event_group_sync_function_service_account.cloud_function_service_account.email}"
+  members = [
+    "serviceAccount:${module.requisition_fetcher_function_service_account.cloud_function_service_account.email}",
+    "serviceAccount:${module.event_group_sync_function_service_account.cloud_function_service_account.email}",
+  ]
 }
