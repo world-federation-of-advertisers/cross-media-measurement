@@ -126,7 +126,7 @@ class RequisitionFetcherFunction : HttpFunction {
     }
     private val CLASS_LOADER: ClassLoader = Thread.currentThread().contextClassLoader
     private val requisitionFetcherConfigResourcePath =
-      "edpaggregator/requisitionfetcher/requisition_fetcher_config.textproto"
+      "/edpaggregator/requisitionfetcher/requisition_fetcher_config.textproto"
     private val config by lazy {
       checkNotNull(CLASS_LOADER.getJarResourceFile(requisitionFetcherConfigResourcePath))
     }

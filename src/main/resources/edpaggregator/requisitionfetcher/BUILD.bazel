@@ -1,5 +1,4 @@
 package(
-    default_testonly = True,
     default_visibility = [
         "//src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/requisitionfetcher:__subpackages__",
         "//src/test/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/requisitionfetcher:__subpackages__",
