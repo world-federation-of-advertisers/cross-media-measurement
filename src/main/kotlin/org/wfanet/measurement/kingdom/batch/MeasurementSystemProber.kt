@@ -219,7 +219,7 @@ class MeasurementSystemProber(
           .listResources(1) { pageToken: String, remaining ->
             val request = listEventGroupsRequest {
               parent = measurementConsumerName
-              filter = ListEventGroupsRequestKt.filter { dataProviders += dataProviderName }
+              filter = ListEventGroupsRequestKt.filter { dataProviderIn += dataProviderName }
               this.pageToken = pageToken
               pageSize = remaining
             }

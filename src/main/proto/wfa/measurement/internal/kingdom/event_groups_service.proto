@@ -16,7 +16,9 @@ syntax = "proto3";
 
 package wfa.measurement.internal.kingdom;
 
+import "google/protobuf/timestamp.proto";
 import "wfa/measurement/internal/kingdom/event_group.proto";
+import "wfa/measurement/internal/kingdom/media_type.proto";
 
 option java_package = "org.wfanet.measurement.internal.kingdom";
 option java_multiple_files = true;
@@ -31,7 +33,6 @@ service EventGroups {
 
   rpc DeleteEventGroup(DeleteEventGroupRequest) returns (EventGroup);
 
-  // Streams EventGroups ordered by create time, ascending.
   rpc StreamEventGroups(StreamEventGroupsRequest) returns (stream EventGroup);
 }
 
@@ -62,25 +63,58 @@ message DeleteEventGroupRequest {
 }
 
 message StreamEventGroupsRequest {
-  // Filter criteria as a conjunction of specified fields. Repeated fields are
-  // disjunctions of their items.
   message Filter {
     reserved 3, 4;
 
-    fixed64 external_data_provider_id = 1;
-    fixed64 external_measurement_consumer_id = 6;
-
-    repeated fixed64 external_data_provider_ids = 7;
-    repeated fixed64 external_measurement_consumer_ids = 2;
+    oneof external_parent_id {
+      fixed64 external_data_provider_id = 1;
+      fixed64 external_measurement_consumer_id = 6;
+    }
+    repeated fixed64 external_data_provider_id_in = 7;
+    repeated fixed64 external_measurement_consumer_id_in = 2;
     bool show_deleted = 5;
+    repeated MediaType media_types_intersect = 9;
+    google.protobuf.Timestamp data_availability_start_time_on_or_after = 10;
+    google.protobuf.Timestamp data_availability_end_time_on_or_before = 11;
+    string metadata_search_query = 12;
 
-    EventGroupKey after = 8;
+    // Specification of where the results should start within the ordering.
+    //
+    // How this is interpreted depends on the value of
+    // [StreamEventGroupsRequest.order_by][].
+    message After {
+      EventGroupKey event_group_key = 1;
+      google.protobuf.Timestamp data_availability_start_time = 2;
+    }
+    After after = 13;
+
+    // Where results should start. Deprecated in favor of [after][].
+    //
+    // TODO(@SanjayVas): Delete this field once the replacement has been
+    // available for at least one release.
+    EventGroupKey event_group_key_after = 8 [deprecated = true];
   }
   Filter filter = 1;
 
   // The maximum number of results to return. If not specified or 0, it implies
   // unlimited.
   int32 limit = 2;
+
+  // Structure for ordering results.
+  message OrderBy {
+    // Orderable field.
+    enum Field {
+      FIELD_NOT_SPECIFIED = 0;
+      DATA_AVAILABILITY_START_TIME = 1;
+    }
+    // Field to order by.
+    Field field = 1;
+
+    // Whether the sort order is descending.
+    bool descending = 2;
+  }
+  // How results should be ordered.
+  OrderBy order_by = 3;
 }
 
 message EventGroupKey {

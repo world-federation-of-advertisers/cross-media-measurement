@@ -15,6 +15,7 @@
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
 import com.google.cloud.spanner.Value
+import com.google.protobuf.Timestamp
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
@@ -108,6 +109,8 @@ class CreateEventGroup(private val request: CreateEventGroupRequest) :
     return request.eventGroup.copy {
       this.externalEventGroupId = externalEventGroupId.value
       this.state = EventGroup.State.ACTIVE
+      clearCreateTime()
+      clearUpdateTime()
     }
   }
 
@@ -120,13 +123,16 @@ class CreateEventGroup(private val request: CreateEventGroupRequest) :
   }
 
   override fun ResultScope<EventGroup>.buildResult(): EventGroup {
-    val eventGroup = checkNotNull(transactionResult)
+    val eventGroup: EventGroup = checkNotNull(transactionResult)
     return if (eventGroup.hasCreateTime() && eventGroup.hasUpdateTime()) {
+      // Existing EventGroup.
       eventGroup
     } else {
+      // New EventGroup.
+      val commitTime: Timestamp = commitTimestamp.toProto()
       eventGroup.copy {
-        createTime = commitTimestamp.toProto()
-        updateTime = commitTimestamp.toProto()
+        createTime = commitTime
+        updateTime = commitTime
       }
     }
   }

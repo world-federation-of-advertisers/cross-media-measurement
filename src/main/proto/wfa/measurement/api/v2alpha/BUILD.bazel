@@ -94,8 +94,10 @@ proto_library(
     name = "page_token_proto",
     srcs = ["page_token.proto"],
     deps = [
+        ":event_groups_service_proto",
         ":exchange_step_proto",
         ":measurement_proto",
+        ":media_type_proto",
         ":model_line_proto",
         ":requisition_proto",
         "@com_google_googleapis//google/type:date_proto",
