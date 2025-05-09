@@ -19,7 +19,6 @@ package org.wfanet.measurement.edpaggregator.deploy.gcloud.requisitionfetcher
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.Any
 import io.netty.handler.ssl.ClientAuth
-import java.io.File
 import java.net.URI
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
