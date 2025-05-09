@@ -39,7 +39,7 @@ locals {
 module "edp_aggregator" {
   source = "../modules/edp-aggregator"
 
-  key_ring_name                             = "edpa-secure-computation-cloud-test-key-ring"
+  key_ring_name                             = "edpa-secure-computation-cloud-test-key-ring-2"
   key_ring_location                         = local.key_ring_location
   kms_key_name                              = "edpa-secure-computation-kek"
   queue_worker_configs                      = local.queue_worker_configs
@@ -62,6 +62,6 @@ module "edp_aggregator" {
   edp7_private_key_path                     = "${path.root}/../../../k8s/testing/secretfiles/edp7_tls.key"
   edp7_cert_id                              = "edp7-tls-pem"
   edp7_cert_path                            = "${path.root}/../../../k8s/testing/secretfiles/edp7_tls.pem"
-  kingdom_root_ca_id                        = "kingdom`-root-ca"
+  kingdom_root_ca_id                        = "kingdom-root-ca"
   kingdom_root_ca_path                      = "${path.root}/../../../k8s/testing/secretfiles/kingdom_root.pem"
 }
