@@ -59,7 +59,6 @@ class DataWatcherFunction : CloudEventsFunction {
     private const val scheme = "gs"
     private val logger: Logger = Logger.getLogger(this::class.java.name)
     private const val DEFAULT_CHANNEL_SHUTDOWN_DURATION_SECONDS: Long = 3L
-//    private val CLASS_LOADER: ClassLoader = Thread.currentThread().contextClassLoader
     private val CLASS_LOADER: ClassLoader = DataWatcherFunction::class.java.classLoader
     private val certFilePath = checkIsPath("CERT_FILE_PATH")
     private val privateKeyFilePath = checkIsPath("PRIVATE_KEY_FILE_PATH")
