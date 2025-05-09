@@ -9,3 +9,8 @@ filegroup(
     name = "config",
     srcs = ["requisition_fetcher_config.textproto"],
 )
+
+filegroup(
+    name = "cloud_test_config",
+    srcs = ["requisition_fetcher_config_cloud_test.textproto"],
+)
