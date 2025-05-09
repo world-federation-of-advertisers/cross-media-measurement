@@ -21,7 +21,6 @@ import com.google.cloud.functions.HttpRequest
 import com.google.cloud.functions.HttpResponse
 import com.google.cloud.storage.StorageOptions
 import java.io.File
-import java.util.logging.Logger
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.common.EnvVars
@@ -60,7 +59,6 @@ class RequisitionFetcherFunction : HttpFunction {
             requisitionsGcsBucket,
           )
         }
-
       val signingCerts =
         SigningCerts.fromPemFiles(
           certificateFile =
@@ -93,8 +91,6 @@ class RequisitionFetcherFunction : HttpFunction {
   }
 
   companion object {
-    private val logger: Logger = Logger.getLogger(this::class.java.name)
-
     private val kingdomTarget = EnvVars.checkNotNullOrEmpty("KINGDOM_TARGET")
     private val kingdomCertHost: String? = System.getenv("KINGDOM_CERT_HOST")
 
