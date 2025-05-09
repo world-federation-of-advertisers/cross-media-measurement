@@ -195,8 +195,8 @@ resource "google_storage_bucket_iam_binding" "aggregator_storage_viewers" {
   bucket = module.edp_aggregator_bucket.storage_bucket.name
   role   = "roles/storage.objectViewer"
   members = [
-    "serviceAccount:${module.requisition_fetcher_function_service_account.cloud_function_service_account.email}",
-    "serviceAccount:${module.event_group_sync_function_service_account.cloud_function_service_account.email}",
+    "serviceAccount:${module.requisition_fetcher_function_service_account.cloud_function_service_account_email}",
+    "serviceAccount:${module.event_group_sync_function_service_account.cloud_function_service_account_email}",
   ]
 }
 
@@ -204,7 +204,7 @@ resource "google_storage_bucket_iam_binding" "aggregator_storage_creators" {
   bucket = module.edp_aggregator_bucket.storage_bucket.name
   role   = "roles/storage.objectCreator"
   members = [
-    "serviceAccount:${module.requisition_fetcher_function_service_account.cloud_function_service_account.email}",
-    "serviceAccount:${module.event_group_sync_function_service_account.cloud_function_service_account.email}",
+    "serviceAccount:${module.requisition_fetcher_function_service_account.cloud_function_service_account_email}",
+    "serviceAccount:${module.event_group_sync_function_service_account.cloud_function_service_account_email}",
   ]
 }
