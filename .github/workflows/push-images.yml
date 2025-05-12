@@ -15,9 +15,6 @@
 name: Build and push container images
 
 on:
-  push:
-    branches:
-      - marcopremier/set_args_for_results_fulfiller
   workflow_call:
     inputs:
       image-tag:
