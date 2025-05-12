@@ -58,7 +58,10 @@ resource "google_compute_instance_template" "confidential_vm_template" {
     on_host_maintenance = "TERMINATE"
   }
 
-  name = var.instance_template_name
+  name_prefix = "${var.instance_template_name}-"
+  lifecycle {
+    create_before_destroy = true
+  }
 
   disk {
     source_image = "projects/cos-cloud/global/images/family/cos-stable"
