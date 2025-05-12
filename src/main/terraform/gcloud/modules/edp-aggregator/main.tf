@@ -37,10 +37,11 @@ module "edp_aggregator_bucket" {
 }
 
 module "secrets" {
-  source = "../secret"
-  for_each = var.secrets
-  secret_id = each.value.secret_id
-  secret_path = each.value.secret_local_path
+  source            = "../secret"
+  for_each          = var.secrets
+  secret_id         = each.value.secret_id
+  secret_path       = each.value.secret_local_path
+  is_binary_format  = each.value.is_binary_format
 }
 
 module "data_watcher_function_service_accounts" {

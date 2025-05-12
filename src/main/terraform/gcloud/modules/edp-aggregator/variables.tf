@@ -79,6 +79,7 @@ variable "secrets" {
   type = map(object({
     secret_id         = string
     secret_local_path = string
+    is_binary_format  = bool
   }))
 }
 

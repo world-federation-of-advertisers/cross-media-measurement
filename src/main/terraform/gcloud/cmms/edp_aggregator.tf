@@ -17,38 +17,47 @@ locals {
     edpa_tee_app_tls_key = {
       secret_id         = "edpa-tee-app-tls-key"
       secret_local_path = "${path.root}/../../../k8s/testing/secretfiles/edpa_tee_app_tls.key"
+      is_binary_format  = false
     }
     edpa_tee_app_tls_pem = {
       secret_id         = "edpa-tee-app-tls-pem"
       secret_local_path = "${path.root}/../../../k8s/testing/secretfiles/edpa_tee_app_tls.pem"
+      is_binary_format  = false
     }
     data_watcher_tls_key = {
       secret_id         = "edpa-datawatcher-tls-key"
       secret_local_path = "${path.root}/../../../k8s/testing/secretfiles/data_watcher_tls.key"
+      is_binary_format  = false
     }
     data_watcher_tls_pem = {
       secret_id         = "edpa-datawatcher-tls-pem"
       secret_local_path = "${path.root}/../../../k8s/testing/secretfiles/data_watcher_tls.pem"
+      is_binary_format  = false
     }
     secure_computation_root_ca = {
       secret_id         = "secure-computation-root-ca"
       secret_local_path = "${path.root}/../../../k8s/testing/secretfiles/secure_computation_root.pem"
+      is_binary_format  = false
     }
     kingdom_root_ca = {
       secret_id         = "kingdom-root-ca"
       secret_local_path = "${path.root}/../../../k8s/testing/secretfiles/kingdom_root.pem"
+      is_binary_format  = false
     }
     edp7_result_cert_der = {
       secret_id         = "edp7-result-cert-der"
       secret_local_path = "${path.root}/../../../k8s/testing/secretfiles/edp7_result_cs_cert.der"
+      is_binary_format  = false
     }
     edp7_result_private_der = {
       secret_id         = "edp7-result-private-der"
       secret_local_path = "${path.root}/../../../k8s/testing/secretfiles/edp7_result_cs_private.der"
+      is_binary_format  = false
     }
     edp7_enc_private = {
       secret_id         = "edp7-enc-private"
       secret_local_path = "${path.root}/../../../k8s/testing/secretfiles/edp7_enc_private.tink"
+      is_binary_format  = true
     }
   }
   secret_accessor_configs = {
