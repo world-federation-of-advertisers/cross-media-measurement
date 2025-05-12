@@ -52,15 +52,13 @@ class SpannerModelProvidersService(
     request: ListModelProvidersRequest
   ): ListModelProvidersResponse {
     grpcRequire(request.pageSize >= 0) { "Page size cannot be less than 0" }
-
-    println("debug pageSize: ${request.pageSize} ")
     val pageSize =
       if (request.pageSize == 0) {
         DEFAULT_PAGE_SIZE
       } else {
         request.pageSize.coerceAtMost(MAX_PAGE_SIZE)
       }
-    println("new pageSize: $pageSize")
+
     val after = if (request.hasPageToken()) request.pageToken.after else null
 
     val modelProviderList =
@@ -73,9 +71,6 @@ class SpannerModelProvidersService(
     }
 
     return listModelProvidersResponse {
-      println(
-        "debug modelProviderList size vs request size: ${modelProviderList.size} and ${request.pageSize}"
-      )
       if (modelProviderList.size > pageSize) {
         modelProviders += modelProviderList.subList(0, modelProviderList.lastIndex)
         nextPageToken = listModelProvidersPageToken {
