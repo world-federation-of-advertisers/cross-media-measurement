@@ -155,5 +155,6 @@ module "edp_aggregator" {
   terraform_service_account                 = var.terraform_service_account
   requisition_fetcher_service_account_name  = "edpa-requisition-fetcher"
   event_group_sync_service_account_name     = "edpa-event-group-sync"
+  event_group_sync_function_name            = "event-group-sync"
 
 }

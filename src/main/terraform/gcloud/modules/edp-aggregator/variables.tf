@@ -131,3 +131,9 @@ variable "event_group_sync_service_account_name" {
   type        = string
   nullable    = false
 }
+
+variable "event_group_sync_function_name" {
+  description = "Name of the EventGroupSync cloud function."
+  type        = string
+  nullable    = false
+}
