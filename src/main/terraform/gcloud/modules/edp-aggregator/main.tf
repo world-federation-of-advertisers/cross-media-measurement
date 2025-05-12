@@ -13,14 +13,15 @@
 # limitations under the License.
 
 locals {
-  secret_access_map = {
-    for function_name, config in var.secret_accessor_configs :
-    for secret in try(config.secrets_to_access, []) :
-    "${function_name}:${secret.secret_key}" => {
-      function_name = function_name
-      secret_key    = secret.secret_key
+  secret_access_map = merge([
+    for fn, cfg in var.secret_accessor_configs : {
+      for secret in cfg.secrets_to_access :
+      "${fn}:${secret.secret_key}" => {
+        function_name = fn
+        secret_key    = secret.secret_key
+      }
     }
-  }
+  ]...)
 }
 
 locals {
