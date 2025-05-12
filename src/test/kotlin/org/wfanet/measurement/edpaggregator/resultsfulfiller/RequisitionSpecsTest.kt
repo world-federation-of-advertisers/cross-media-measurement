@@ -60,190 +60,13 @@ import org.wfanet.measurement.storage.MesosRecordIoStorageClient
 import org.wfanet.measurement.storage.SelectedStorageClient
 
 @RunWith(JUnit4::class)
-class VidUtilsTest {
+class RequisitionSpecsTest {
 
   @get:Rule val tempFolder = TemporaryFolder()
 
   init {
     AeadConfig.register()
     StreamingAeadConfig.register()
-  }
-
-  @Test
-  fun `isValidImpression returns true when all conditions are met`() {
-    // Set up test environment
-    val testEventDescriptor = TestEvent.getDescriptor()
-
-    // Create TypeRegistry with the test event descriptor
-    val typeRegistry = TypeRegistry.newBuilder()
-      .add(testEventDescriptor)
-      .build()
-
-    // Create collection interval
-    val collectionInterval = interval {
-      startTime = TIME_RANGE.start.toProtoTime()
-      endTime = TIME_RANGE.endExclusive.toProtoTime()
-    }
-
-    // Create event group entry with filter
-    val eventGroup = eventGroupEntry {
-      key = EVENT_GROUP_NAME
-      value = RequisitionSpecKt.EventGroupEntryKt.value {
-        this.collectionInterval = collectionInterval
-        filter = eventFilter { expression = "person.gender == 1" } // MALE is 1
-      }
-    }
-
-    // Create labeled impression with event time within collection interval
-    val labeledImpression = LABELED_IMPRESSION_1.copy {
-      eventTime = TIME_RANGE.start.toProtoTime()
-    }
-
-    // Call the method under test
-    val result = VidUtils.isValidImpression(
-      labeledImpression = labeledImpression,
-      collectionInterval = collectionInterval,
-      filter = eventGroup.value.filter,
-      vidSamplingIntervalStart = 0.0f,
-      vidSamplingIntervalWidth = 1.0f,
-      typeRegistry = typeRegistry
-    )
-
-    // Verify the result
-    assertThat(result).isTrue()
-  }
-
-  @Test
-  fun `isValidImpression returns false when event time is outside collection interval`() {
-    // Set up test environment
-    val testEventDescriptor = TestEvent.getDescriptor()
-
-    // Create TypeRegistry with the test event descriptor
-    val typeRegistry = TypeRegistry.newBuilder()
-      .add(testEventDescriptor)
-      .build()
-
-    // Create collection interval
-    val collectionInterval = interval {
-      startTime = TIME_RANGE.start.toProtoTime()
-      endTime = TIME_RANGE.endExclusive.toProtoTime()
-    }
-
-    // Create event group entry with filter
-    val eventGroup = eventGroupEntry {
-      key = EVENT_GROUP_NAME
-      value = RequisitionSpecKt.EventGroupEntryKt.value {
-        this.collectionInterval = collectionInterval
-        filter = eventFilter { expression = "person.gender == 1" } // MALE is 1
-      }
-    }
-
-    // Create labeled impression with event time BEFORE collection interval
-    val beforeIntervalTime = TIME_RANGE.start.minusSeconds(86400).toProtoTime() // 1 day prior
-    val labeledImpression = LABELED_IMPRESSION_1.copy {
-      eventTime = beforeIntervalTime
-    }
-
-    // Call the method under test
-    val result = VidUtils.isValidImpression(
-      labeledImpression = labeledImpression,
-      collectionInterval = collectionInterval,
-      filter = eventGroup.value.filter,
-      vidSamplingIntervalStart = 0.0f,
-      vidSamplingIntervalWidth = 1.0f,
-      typeRegistry = typeRegistry
-    )
-
-    // Verify the result
-    assertThat(result).isFalse()
-  }
-
-  @Test
-  fun `isValidImpression returns false when event does not match filter`() {
-    // Set up test environment
-    val testEventDescriptor = TestEvent.getDescriptor()
-
-    // Create TypeRegistry with the test event descriptor
-    val typeRegistry = TypeRegistry.newBuilder()
-      .add(testEventDescriptor)
-      .build()
-
-    // Create collection interval
-    val collectionInterval = interval {
-      startTime = TIME_RANGE.start.toProtoTime()
-      endTime = TIME_RANGE.endExclusive.toProtoTime()
-    }
-
-    // Create event group entry with filter that requires FEMALE (gender == 2)
-    val eventGroup = eventGroupEntry {
-      key = EVENT_GROUP_NAME
-      value = RequisitionSpecKt.EventGroupEntryKt.value {
-        this.collectionInterval = collectionInterval
-        filter = eventFilter { expression = "person.gender == 2" } // FEMALE is 2
-      }
-    }
-
-    // Create labeled impression with MALE gender (1)
-    val labeledImpression = LABELED_IMPRESSION_1.copy {
-      eventTime = TIME_RANGE.start.toProtoTime()
-    }
-
-    // Call the method under test
-    val result = VidUtils.isValidImpression(
-      labeledImpression = labeledImpression,
-      collectionInterval = collectionInterval,
-      filter = eventGroup.value.filter,
-      vidSamplingIntervalStart = 0.0f,
-      vidSamplingIntervalWidth = 1.0f,
-      typeRegistry = typeRegistry
-    )
-
-    // Verify the result
-    assertThat(result).isFalse()
-  }
-
-  @Test
-  fun `isValidImpression returns false when VID is outside sampling interval`() {
-    // Set up test environment
-    val testEventDescriptor = TestEvent.getDescriptor()
-
-    // Create TypeRegistry with the test event descriptor
-    val typeRegistry = TypeRegistry.newBuilder()
-      .add(testEventDescriptor)
-      .build()
-
-    // Create collection interval
-    val collectionInterval = interval {
-      startTime = TIME_RANGE.start.toProtoTime()
-      endTime = TIME_RANGE.endExclusive.toProtoTime()
-    }
-
-    // Create event group entry with filter
-    val eventGroup = eventGroupEntry {
-      key = EVENT_GROUP_NAME
-      value = RequisitionSpecKt.EventGroupEntryKt.value {
-        this.collectionInterval = collectionInterval
-        filter = eventFilter { expression = "person.gender == 1" } // MALE is 1
-      }
-    }
-
-    // Create labeled impression
-    val labeledImpression = LABELED_IMPRESSION_1.copy {
-      eventTime = TIME_RANGE.start.toProtoTime()
-    }
-
-    // Call the method under test with a very narrow sampling interval that should exclude the VID
-    val result = VidUtils.isValidImpression(
-      labeledImpression = labeledImpression,
-      collectionInterval = collectionInterval,
-      filter = eventGroup.value.filter,
-      vidSamplingIntervalStart = 0.9f,  // Very high start
-      vidSamplingIntervalWidth = 0.1f,  // Very narrow width
-      typeRegistry = typeRegistry
-    )
-
-    // Verify the result
-    assertThat(result).isFalse()
   }
 
   @Test
@@ -360,7 +183,7 @@ class VidUtilsTest {
       blobDetails.toByteString()
     )
 
-    val result = VidUtils.getSampledVids(
+    val result = RequisitionSpecs.getSampledVids(
       requisitionSpec,
       vidSamplingInterval,
       typeRegistry,
