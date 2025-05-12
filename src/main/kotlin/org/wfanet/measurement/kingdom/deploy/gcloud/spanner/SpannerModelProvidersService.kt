@@ -15,18 +15,19 @@
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 
 import io.grpc.Status
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.internal.kingdom.GetModelProviderRequest
+import org.wfanet.measurement.internal.kingdom.ListModelProvidersPageTokenKt
+import org.wfanet.measurement.internal.kingdom.ListModelProvidersRequest
+import org.wfanet.measurement.internal.kingdom.ListModelProvidersResponse
 import org.wfanet.measurement.internal.kingdom.ModelProvider
 import org.wfanet.measurement.internal.kingdom.ModelProvidersGrpcKt.ModelProvidersCoroutineImplBase
-import org.wfanet.measurement.internal.kingdom.StreamModelProvidersRequest
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamModelProviders
+import org.wfanet.measurement.internal.kingdom.listModelProvidersPageToken
+import org.wfanet.measurement.internal.kingdom.listModelProvidersResponse
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ModelProviderReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateModelProvider
 
@@ -47,13 +48,50 @@ class SpannerModelProvidersService(
       ?.modelProvider ?: failGrpc(Status.NOT_FOUND) { "ModelProvider not found" }
   }
 
-  override fun streamModelProviders(request: StreamModelProvidersRequest): Flow<ModelProvider> {
-    grpcRequire(request.limit >= 0) { "Limit cannot be less than 0" }
-    if (request.filter.hasAfter() && request.filter.after.externalModelProviderId == 0L) {
-      failGrpc(Status.INVALID_ARGUMENT) { "Missing After filter fields" }
+  override suspend fun listModelProviders(
+    request: ListModelProvidersRequest
+  ): ListModelProvidersResponse {
+    grpcRequire(request.pageSize >= 0) { "Page size cannot be less than 0" }
+
+    println("debug pageSize: ${request.pageSize} ")
+    val pageSize =
+      if (request.pageSize == 0) {
+        DEFAULT_PAGE_SIZE
+      } else {
+        request.pageSize.coerceAtMost(MAX_PAGE_SIZE)
+      }
+    println("new pageSize: $pageSize")
+    val after = if (request.hasPageToken()) request.pageToken.after else null
+
+    val modelProviderList =
+      ModelProviderReader().readModelProviders(client.singleUse(), pageSize + 1, after).map {
+        it.modelProvider
+      }
+
+    if (modelProviderList.isEmpty()) {
+      return ListModelProvidersResponse.getDefaultInstance()
     }
-    return StreamModelProviders(request.filter, request.limit).execute(client.singleUse()).map {
-      it.modelProvider
+
+    return listModelProvidersResponse {
+      println(
+        "debug modelProviderList size vs request size: ${modelProviderList.size} and ${request.pageSize}"
+      )
+      if (modelProviderList.size > pageSize) {
+        modelProviders += modelProviderList.subList(0, modelProviderList.lastIndex)
+        nextPageToken = listModelProvidersPageToken {
+          this.after =
+            ListModelProvidersPageTokenKt.after {
+              externalModelProviderId = modelProviderList.last().externalModelProviderId
+            }
+        }
+      } else {
+        modelProviders += modelProviderList.subList(0, modelProviderList.size)
+      }
     }
+  }
+
+  companion object {
+    private const val MAX_PAGE_SIZE = 100
+    private const val DEFAULT_PAGE_SIZE = 50
   }
 }
