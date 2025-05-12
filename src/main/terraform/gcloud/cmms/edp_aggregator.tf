@@ -59,6 +59,16 @@ locals {
       secret_local_path = "${path.root}/../../../k8s/testing/secretfiles/edp7_enc_private.tink"
       is_binary_format  = true
     }
+    edp7_tls_key = {
+      secret_id         = "edp7-tls-key"
+      secret_local_path = "${path.root}/../../../k8s/testing/secretfiles/edp7_tls.key"
+      is_binary_format  = false
+    }
+    edp7_tls_pem = {
+      secret_id         = "edp7-tls-pem"
+      secret_local_path = "${path.root}/../../../k8s/testing/secretfiles/edp7_tls.pem"
+      is_binary_format  = false
+    }
   }
   secret_accessor_configs = {
     data_watcher = {
@@ -71,15 +81,15 @@ locals {
     requisition_fetcher = {
       secrets_to_access = [
         { secret_key = "kingdom_root_ca" },
-        { secret_key = "edpa_tee_app_tls_key" },
-        { secret_key = "edpa_tee_app_tls_pem" }
+        { secret_key = "edp7_tls_key" },
+        { secret_key = "edp7_tls_pem" }
       ]
     },
     event_group_sync = {
       secrets_to_access = [
         { secret_key = "kingdom_root_ca" },
-        { secret_key = "edpa_tee_app_tls_key" },
-        { secret_key = "edpa_tee_app_tls_pem" }
+        { secret_key = "edp7_tls_key" },
+        { secret_key = "edp7_tls_pem" }
       ]
     }
   }
