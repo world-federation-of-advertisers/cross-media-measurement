@@ -145,6 +145,7 @@ module "tee_apps" {
   docker_image                  = each.value.worker.docker_image
   terraform_service_account     = var.terraform_service_account
   secrets_to_mount              = each.value.worker.secrets_to_mount
+  secrets                       = var.secrets
 }
 
 resource "google_storage_bucket_iam_member" "mig_storage_viewer" {
