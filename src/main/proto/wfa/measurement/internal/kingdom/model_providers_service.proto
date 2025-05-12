@@ -16,7 +16,6 @@ syntax = "proto3";
 
 package wfa.measurement.internal.kingdom;
 
-import "google/protobuf/timestamp.proto";
 import "wfa/measurement/internal/kingdom/model_provider.proto";
 
 option java_package = "org.wfanet.measurement.internal.kingdom";
