@@ -31,7 +31,8 @@ service ModelProviders {
   rpc GetModelProvider(GetModelProviderRequest) returns (ModelProvider);
 
   // Lists `ModelProvider`s.
-  rpc ListModelProviders(ListModelProvidersRequest) returns (ListModelProvidersResponse);
+  rpc ListModelProviders(ListModelProvidersRequest)
+      returns (ListModelProvidersResponse);
 }
 
 message GetModelProviderRequest {
