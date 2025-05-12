@@ -152,6 +152,20 @@ class EventGroupReader : BaseSpannerReader<EventGroupReader.Result>() {
   companion object {
     private val BASE_SQL =
       """
+      WITH EventGroups AS (
+        SELECT
+          *,
+          Metadata_Tokens,
+          ARRAY(
+            SELECT MediaType
+            FROM EventGroupMediaTypes
+            WHERE
+              EventGroupMediaTypes.DataProviderId = EventGroups.DataProviderId
+              AND EventGroupMediaTypes.EventGroupId = EventGroups.EventGroupId
+          ) AS MediaTypes,
+        FROM
+          EventGroups
+      )
       SELECT
         EventGroups.EventGroupId,
         EventGroups.ExternalEventGroupId,
@@ -166,13 +180,7 @@ class EventGroupReader : BaseSpannerReader<EventGroupReader.Result>() {
         MeasurementConsumers.ExternalMeasurementConsumerId,
         DataProviders.ExternalDataProviderId,
         EventGroups.State,
-        ARRAY(
-          SELECT MediaType
-          FROM EventGroupMediaTypes
-          WHERE
-            EventGroupMediaTypes.DataProviderId = EventGroups.DataProviderId
-            AND EventGroupMediaTypes.EventGroupId = EventGroups.EventGroupId
-        ) AS MediaTypes,
+        EventGroups.MediaTypes,
       FROM
         EventGroups
         JOIN DataProviders USING (DataProviderId)
