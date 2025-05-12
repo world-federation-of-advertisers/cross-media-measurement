@@ -79,11 +79,7 @@ class GenerateSyntheticData : Runnable {
   lateinit var eventGroupReferenceId: String
     private set
 
-  @set:Option(
-    names = ["--kek-uri"],
-    description = ["The KMS kek uri."],
-    required = true,
-  )
+  @set:Option(names = ["--kek-uri"], description = ["The KMS kek uri."], required = true)
   var kekUri: String = DEFAULT_KEK_URI
     private set
 
@@ -127,7 +123,7 @@ class GenerateSyntheticData : Runnable {
       )
     val kmsClient: KmsClient = run {
       when (kmsType) {
-        KmsType.FAKE ->  {
+        KmsType.FAKE -> {
           val client = FakeKmsClient()
           val kmsKeyHandle = KeysetHandle.generateNew(KeyTemplates.get("AES128_GCM"))
           client.setAead(kekUri, kmsKeyHandle.getPrimitive(Aead::class.java))
