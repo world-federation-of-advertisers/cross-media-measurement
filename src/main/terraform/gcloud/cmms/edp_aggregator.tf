@@ -47,12 +47,12 @@ locals {
     edp7_result_cert_der = {
       secret_id         = "edp7-result-cert-der"
       secret_local_path = "${path.root}/../../../k8s/testing/secretfiles/edp7_result_cs_cert.der"
-      is_binary_format  = false
+      is_binary_format  = true
     }
     edp7_result_private_der = {
       secret_id         = "edp7-result-private-der"
       secret_local_path = "${path.root}/../../../k8s/testing/secretfiles/edp7_result_cs_private.der"
-      is_binary_format  = false
+      is_binary_format  = true
     }
     edp7_enc_private = {
       secret_id         = "edp7-enc-private"
