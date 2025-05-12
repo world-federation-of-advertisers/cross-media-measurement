@@ -9,11 +9,11 @@ kt_jvm_test(
     name = "InvokeDataWatcherFunctionTest",
     srcs = ["InvokeDataWatcherFunctionTest.kt"],
     data = [
+        "//src/main/k8s/testing/secretfiles:root_certs",
+        "//src/main/k8s/testing/secretfiles:secret_files",
         "//src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/datawatcher/testing:InvokeDataWatcherFunction",
     ],
     resources = [
-        "//src/main/k8s/testing/secretfiles:root_certs",
-        "//src/main/k8s/testing/secretfiles:secret_files",
         "//src/main/resources/securecomputation/datawatcher:config",
     ],
     test_class = "org.wfanet.measurement.securecomputation.deploy.gcloud.datawatcher.InvokeDataWatcherFunctionTest",

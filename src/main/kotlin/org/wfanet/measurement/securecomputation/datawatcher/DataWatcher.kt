@@ -40,6 +40,7 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
 class DataWatcher(
   private val workItemsStub: WorkItemsCoroutineStub,
   private val dataWatcherConfigs: List<WatchedPath>,
+  private val workItemIdGenerator: () -> String = { "work-item-" + UUID.randomUUID().toString() },
 ) {
   suspend fun receivePath(path: String) {
     logger.info("Received Path: $path")

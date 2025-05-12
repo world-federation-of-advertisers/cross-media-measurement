@@ -50,16 +50,23 @@ variable "queue_worker_configs" {
       machine_type                = string
       docker_image                = string
       secrets_to_mount = optional(
-      list(object({
-        secret_id           = string
-        version             = string
-        mount_path          = string
-        secret_local_path   = string
-        optional(flag_name) = string
-      })),
-      []
-    )
+        list(object({
+          secret_key = string
+          version    = string
+          mount_path = string
+          flag_name  = string
+        })),
+        []
+      )
     })
+  }))
+}
+
+variable "secrets" {
+  description = "All secrets to upload"
+  type = map(object({
+    secret_id         = string
+    secret_local_path = string
   }))
 }
 
@@ -96,6 +103,18 @@ variable "data_watcher_trigger_service_account_name" {
 
 variable "terraform_service_account" {
   description = "Service account used by terraform that needs to attach the MIG service account to the VM."
+  type        = string
+  nullable    = false
+}
+
+variable "requisition_fetcher_service_account_name" {
+  description = "Name of the RequisitionFetcher service account."
+  type        = string
+  nullable    = false
+}
+
+variable "event_group_sync_service_account_name" {
+  description = "Name of the EventGroupSync service account."
   type        = string
   nullable    = false
 }

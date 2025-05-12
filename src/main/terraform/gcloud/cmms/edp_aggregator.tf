@@ -13,6 +13,36 @@
 # limitations under the License.
 
 locals {
+  secrets = {
+    edpa_tee_app_tls_key = {
+      secret_id         = "edpa-tee-app-tls-key"
+      secret_local_path = "${path.root}/../../../k8s/testing/secretfiles/edpa_tee_app_tls.key"
+    }
+    edpa_tee_app_tls_pem = {
+      secret_id         = "edpa-tee-app-tls-pem"
+      secret_local_path = "${path.root}/../../../k8s/testing/secretfiles/edpa_tee_app_tls.pem"
+    }
+    secure_computation_root_ca = {
+      secret_id         = "secure-computation-root-ca"
+      secret_local_path = "${path.root}/../../../k8s/testing/secretfiles/secure_computation_root.pem"
+    }
+    kingdom_root_ca = {
+      secret_id         = "kingdom-root-ca"
+      secret_local_path = "${path.root}/../../../k8s/testing/secretfiles/kingdom_root.pem"
+    }
+    edp7_result_cert_der = {
+      secret_id         = "edp7-result-cert-der"
+      secret_local_path = "${path.root}/../../../k8s/testing/secretfiles/edp7_result_cs_cert.der"
+    }
+    edp7_result_private_der = {
+      secret_id         = "edp7-result-private-der"
+      secret_local_path = "${path.root}/../../../k8s/testing/secretfiles/edp7_result_cs_private.der"
+    }
+    edp7_enc_private = {
+      secret_id         = "edp7-enc-private"
+      secret_local_path = "${path.root}/../../../k8s/testing/secretfiles/edp7_enc_private.tink"
+    }
+  }
   queue_worker_configs = {
     requisition_fulfiller = {
       queue = {
@@ -39,51 +69,29 @@ locals {
         docker_image                = "" # @TODO(MarcoPremier): set this value once TEE APP is merged
         secrets_to_mount            = [
           {
-            secret_id               = "edpa-tee-app-tls-key"
+            secret_key              = "edpa_tee_app_tls_key"
             version                 = "latest"
             mount_path              = "/etc/ssl/edpa_tee_app_tls.key"
-            secret_local_path       = "${path.root}/../../../k8s/testing/secretfiles/edpa_tee_app_tls.key"
             flag_name               = "--edpa-tls-key-file-path"
           },
           {
-            secret_id               = "edpa-tee-app-tls-pem"
+            secret_key              = "edpa_tee_app_tls_pem"
             version                 = "latest"
             mount_path              = "/etc/ssl/edpa_tee_app_tls.pem"
-            secret_local_path       = "${path.root}/../../../k8s/testing/secretfiles/edpa_tee_app_tls.pem"
             flag_name               = "--edpa-tls-cert-file-path"
           },
           {
-            secret_id               = "secure-computation-root-ca"
+            secret_key              = "secure_computation_root_ca"
             version                 = "latest"
             mount_path              = "/etc/ssl/secure_computation_root.pem"
-            secret_local_path       = "${path.root}/../../../k8s/testing/secretfiles/secure_computation_root.pem"
             flag_name               = "--secure-computation-cert-collection-file-path"
           },
           {
-            secret_id               = "kingdom-root-ca"
+            secret_key              = "kingdom_root_ca"
             version                 = "latest"
             mount_path              = "/etc/ssl/kingdom_root.pem"
-            secret_local_path       = "${path.root}/../../../k8s/testing/secretfiles/kingdom_root.pem"
             flag_name               = "--kingdom-cert-collection-file-path"
-          },
-          {
-            secret_id               = "edp7-result-cert-der"
-            version                 = "latest"
-            mount_path              = "/etc/ssl/edp7_result_cs_cert.der"
-            secret_local_path       = "${path.root}/../../../k8s/testing/secretfiles/edp7_result_cs_cert.der"
-          },
-          {
-            secret_id               = "edp7-result-private-der"
-            version                 = "latest"
-            mount_path              = "/etc/ssl/edp7_result_cs_private.der"
-            secret_local_path       = "${path.root}/../../../k8s/testing/secretfiles/edp7_result_cs_private.der"
-          },
-          {
-            secret_id               = "edp7-enc-private"
-            version                 = "latest"
-            mount_path              = "/etc/ssl/edp7_enc_private.tink"
-            secret_local_path       = "${path.root}/../../../k8s/testing/secretfiles/edp7_enc_private.tink"
-          },
+          }
         ]
       }
     }
@@ -93,15 +101,29 @@ locals {
 module "edp_aggregator" {
   source = "../modules/edp-aggregator"
 
-  key_ring_name                             = "secure-computation-cloud-test-key-ring-3"
+  key_ring_name                             = "edpa-secure-computation-cloud-test-key-ring-2"
   key_ring_location                         = local.key_ring_location
-  kms_key_name                              = "secure-computation-kek"
+  kms_key_name                              = "edpa-secure-computation-kek"
   queue_worker_configs                      = local.queue_worker_configs
   pubsub_iam_service_account_member         = module.secure_computation.secure_computation_internal_iam_service_account_member
   edp_aggregator_bucket_name                = var.secure_computation_storage_bucket_name
   edp_aggregator_bucket_location            = local.storage_bucket_location
-  data_watcher_service_account_name         = "data-watcher"
-  data_watcher_trigger_service_account_name = "data-watcher-trigger"
+  data_watcher_service_account_name         = "edpa-data-watcher"
+  data_watcher_trigger_service_account_name = "edpa-data-watcher-trigger"
   terraform_service_account                 = var.terraform_service_account
-}
+  requisition_fetcher_service_account_name  = "edpa-requisition-fetcher"
+  event_group_sync_service_account_name     = "edpa-event-group-sync"
 
+  data_watcher_private_key_id               = "edpa-datawatcher-tls-key"
+  data_watcher_private_key_path             = "${path.root}/../../../k8s/testing/secretfiles/data_watcher_tls.key"
+  data_watcher_cert_id                      = "edpa-datawatcher-tls-pem"
+  data_watcher_cert_path                    = "${path.root}/../../../k8s/testing/secretfiles/data_watcher_tls.pem"
+  secure_computation_root_ca_id             = "secure-computation-root-ca"
+  secure_computation_root_ca_path           = "${path.root}/../../../k8s/testing/secretfiles/secure_computation_root.pem"
+  edp7_private_key_id                       = "edp7-tls-key"
+  edp7_private_key_path                     = "${path.root}/../../../k8s/testing/secretfiles/edp7_tls.key"
+  edp7_cert_id                              = "edp7-tls-pem"
+  edp7_cert_path                            = "${path.root}/../../../k8s/testing/secretfiles/edp7_tls.pem"
+  kingdom_root_ca_id                        = "kingdom-root-ca"
+  kingdom_root_ca_path                      = "${path.root}/../../../k8s/testing/secretfiles/kingdom_root.pem"
+}

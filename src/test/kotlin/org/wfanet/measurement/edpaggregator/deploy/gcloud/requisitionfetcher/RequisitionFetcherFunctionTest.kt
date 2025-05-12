@@ -63,6 +63,7 @@ class RequisitionFetcherFunctionTest {
   /** Sets up the infrastructure before each test. */
   @Before
   fun startInfra() {
+
     /** Start gRPC server with mock Requisitions service */
     grpcServer =
       CommonServer.fromParameters(
@@ -85,21 +86,6 @@ class RequisitionFetcherFunctionTest {
       val port =
         functionProcess.start(
           mapOf(
-            "REQUISITION_FETCHER_CONFIG_RESOURCE_PATH" to
-              Paths.get(
-                  "main",
-                  "kotlin",
-                  "org",
-                  "wfanet",
-                  "measurement",
-                  "edpaggregator",
-                  "deploy",
-                  "gcloud",
-                  "requisitionfetcher",
-                  "testing",
-                  "requisition_fetcher_config.textproto",
-                )
-                .toString(),
             "REQUISITION_FILE_SYSTEM_PATH" to tempFolder.root.path,
             "KINGDOM_TARGET" to "localhost:${grpcServer.port}",
             "KINGDOM_CERT_HOST" to "localhost",
@@ -166,11 +152,15 @@ class RequisitionFetcherFunctionTest {
       getRuntimePath(
         Paths.get("wfa_measurement_system", "src", "main", "k8s", "testing", "secretfiles")
       )!!
+    private val CONFIG_DIR: Path =
+      getRuntimePath(
+        Paths.get("wfa_measurement_system", "src", "main", "kotlin", "org", "wfanet", "measurement", "edpaggregator", "deploy", "gcloud", "requisitionfetcher")
+      )!!
     private val serverCerts =
       SigningCerts.fromPemFiles(
         certificateFile = SECRETS_DIR.resolve("kingdom_tls.pem").toFile(),
         privateKeyFile = SECRETS_DIR.resolve("kingdom_tls.key").toFile(),
-        trustedCertCollectionFile = SECRETS_DIR.resolve("edp1_root.pem").toFile(),
+        trustedCertCollectionFile = SECRETS_DIR.resolve("edp7_root.pem").toFile(),
       )
     private val logger: Logger = Logger.getLogger(this::class.java.name)
   }

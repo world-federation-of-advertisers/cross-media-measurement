@@ -38,8 +38,12 @@ class RequisitionFetcherFunction : HttpFunction {
   override fun service(request: HttpRequest, response: HttpResponse) {
     for (dataProviderConfig in requisitionFetcherConfig.configsList) {
 
+      val fileSystemPath = System.getenv("REQUISITION_FILE_SYSTEM_PATH")
+      // 'FileSystemStorageClient' is used for testing purposes only and used by
+      // [RequisitionFetcherFunctionTest]
+      // in order to pull requisitions from local storage.
       val requisitionsStorageClient =
-        if (dataProviderConfig.requisitionStorage.hasFileSystem()) {
+        if (!fileSystemPath.isNullOrEmpty()) {
           FileSystemStorageClient(File(EnvVars.checkIsPath("REQUISITION_FILE_SYSTEM_PATH")))
         } else {
           val requisitionsGcsBucket = dataProviderConfig.requisitionStorage.gcs.bucketName
@@ -59,25 +63,20 @@ class RequisitionFetcherFunction : HttpFunction {
         SigningCerts.fromPemFiles(
           certificateFile =
             checkNotNull(
-              CLASS_LOADER.getJarResourceFile(dataProviderConfig.cmmsConnection.certJarResourcePath)
+              File(dataProviderConfig.cmmsConnection.certFilePath)
             ),
           privateKeyFile =
             checkNotNull(
-              CLASS_LOADER.getJarResourceFile(
-                dataProviderConfig.cmmsConnection.privateKeyJarResourcePath
-              )
+              File(dataProviderConfig.cmmsConnection.privateKeyFilePath)
             ),
           trustedCertCollectionFile =
             checkNotNull(
-              CLASS_LOADER.getJarResourceFile(
-                dataProviderConfig.cmmsConnection.certCollectionJarResourcePath
-              )
+              File(dataProviderConfig.cmmsConnection.certCollectionFilePath)
             ),
         )
       val publicChannel by lazy {
         buildMutualTlsChannel(kingdomTarget, signingCerts, kingdomCertHost)
       }
-
       val requisitionsStub = RequisitionsCoroutineStub(publicChannel)
       val requisitionFetcher =
         RequisitionFetcher(
@@ -87,26 +86,25 @@ class RequisitionFetcherFunction : HttpFunction {
           dataProviderConfig.storagePathPrefix,
           pageSize,
         )
-
       runBlocking { requisitionFetcher.fetchAndStoreRequisitions() }
     }
   }
 
   companion object {
     private val kingdomTarget = EnvVars.checkNotNullOrEmpty("KINGDOM_TARGET")
-    private val kingdomCertHost = EnvVars.checkNotNullOrEmpty("KINGDOM_CERT_HOST")
+    private val kingdomCertHost: String? = System.getenv("KINGDOM_CERT_HOST")
 
     val pageSize = run {
-      val value = System.getenv("PAGE_SIZE")
-      if (value.isNotEmpty()) {
-        value.toInt()
+      val envPageSize = System.getenv("PAGE_SIZE")
+      if (!envPageSize.isNullOrEmpty()) {
+        envPageSize.toInt()
       } else {
         null
       }
     }
-    private val CLASS_LOADER: ClassLoader = Thread.currentThread().contextClassLoader
+    private val CLASS_LOADER: ClassLoader = RequisitionFetcherFunction::class.java.classLoader
     private val requisitionFetcherConfigResourcePath =
-      EnvVars.checkIsPath("REQUISITION_FETCHER_CONFIG_RESOURCE_PATH")
+      "edpaggregator/requisitionfetcher/requisition_fetcher_config_cloud_test.textproto"
     private val config by lazy {
       checkNotNull(CLASS_LOADER.getJarResourceFile(requisitionFetcherConfigResourcePath))
     }

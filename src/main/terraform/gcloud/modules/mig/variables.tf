@@ -42,21 +42,24 @@ variable "app_args" {
   default     = []
 }
 
-variable "secrets_to_mount" {
-  description = <<-EOF
-    A list of Google secrets to fetch at boot and write to disk.
-    Each object needs:
-      • secret_id  = the Secret Manager secret name
-      • version    = a version label (e.g. "latest")
-      • mount_path = file path inside the VM where the secret should land
-  EOF
-  type = list(object({
-    secret_id  = string
-    version    = optional(string, "latest")
-    mount_path = string
-    flag_name  = string
+variable "secrets" {
+  description = "Map of all secrets (uploaded separately), keyed for mounting"
+  type = map(object({
+    secret_id         = string
+    secret_local_path = string
   }))
-  default = []
+}
+
+variable "secrets_to_mount" {
+  description = "Subset of var.secrets to actually mount into this MIG"
+  type = list(object({
+      secret_key = string
+      version    = string
+      mount_path = string
+      flag_name  = string
+    }))
+    default = []
+  }
 }
 
 variable "subscription_id" {

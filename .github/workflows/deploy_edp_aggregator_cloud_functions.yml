@@ -1,0 +1,103 @@
+# Copyright 2025 The Cross-Media Measurement Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: "Deploy Cloud Functions"
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "GitHub environment"
+        type: string
+        required: true
+        default: dev
+  workflow_call:
+    inputs:
+      environment:
+        description: "GitHub environment"
+        type: string
+        required: true
+        default: dev
+
+permissions:
+  id-token: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-22.04
+    environment: ${{ github.event.inputs.environment }}
+    env:
+      SECURE_COMPUTATION_BUCKET: ${{ vars.SECURE_COMPUTATION_BUCKET }}
+      DATA_WATCHER_SERVICE_ACCOUNT: ${{ vars.DATA_WATCHER_SERVICE_ACCOUNT }}
+      DATA_WATCHER_TRIGGER_SERVICE_ACCOUNT: ${{ vars.DATA_WATCHER_TRIGGER_SERVICE_ACCOUNT }}
+      SECURE_COMPUTATION_PUBLIC_API_TARGET: ${{ vars.SECURE_COMPUTATION_PUBLIC_API_TARGET }}
+      REQUISITION_FETCHER_SERVICE_ACCOUNT: ${{ vars.REQUISITION_FETCHER_SERVICE_ACCOUNT }}
+      KINGDOM_PUBLIC_API_TARGET: ${{ vars.KINGDOM_PUBLIC_API_TARGET }}
+      DATA_WATCHER_TLS_PEM_SECRET: ${{ vars.DATA_WATCHER_TLS_PEM_SECRET }}
+      DATA_WATCHER_TLS_KEY_SECRET: ${{ vars.DATA_WATCHER_TLS_KEY_SECRET }}
+      SECURE_COMPUTATION_ROOT_SECRET: ${{ vars.SECURE_COMPUTATION_ROOT_SECRET }}
+      EVENT_GROUP_SYNC_SERVICE_ACCOUNT: ${{ vars.EVENT_GROUP_SYNC_SERVICE_ACCOUNT }}
+      EDP7_TLS_KEY_SECRET: ${{ vars.EDP7_TLS_KEY_SECRET }}
+      EDP7_TLS_PEM_SECRET: ${{ vars.EDP7_TLS_PEM_SECRET }}
+      KINGOM_ROOT_SECRET: ${{ vars.KINGOM_ROOT_SECRET }}
+
+    steps:
+
+      - uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.TF_SERVICE_ACCOUNT }}
+
+      - name: Setup gcloud
+        uses: google-github-actions/setup-gcloud@v1
+        with:
+          project_id: ${{ vars.GCLOUD_PROJECT }}
+
+      - name: Deploy Data Watcher
+        uses: ./.github/actions/build-and-deploy-cloud-function
+        with:
+          cloud_region: ${{ vars.GCLOUD_REGION }}
+          function_name: data-watcher
+          entry_point: org.wfanet.measurement.securecomputation.deploy.gcloud.datawatcher.DataWatcherFunction
+          bazel_target_label: //src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/datawatcher:DataWatcherFunction_deploy.jar
+          trigger_bucket: ${{ env.SECURE_COMPUTATION_BUCKET }}
+          run_service_account: ${{ env.DATA_WATCHER_SERVICE_ACCOUNT }}
+          trigger_service_account: ${{ env.DATA_WATCHER_TRIGGER_SERVICE_ACCOUNT }}
+          extra_env_vars: "CERT_FILE_PATH=/secrets/cert/data_watcher_tls.pem,PRIVATE_KEY_FILE_PATH=/secrets/key/data_watcher_tls.key,CERT_COLLECTION_FILE_PATH=/secrets/ca/secure_computation_root.pem,CONTROL_PLANE_TARGET=${{ env.SECURE_COMPUTATION_PUBLIC_API_TARGET }},CONTROL_PLANE_CERT_HOST=data-watcher.secure-computation.${{ inputs.environment }}.halo-cmm.org"
+          secret_mappings: "/secrets/key/data_watcher_tls.key=${{ env.DATA_WATCHER_TLS_KEY_SECRET }}:latest,/secrets/cert/data_watcher_tls.pem=${{ env.DATA_WATCHER_TLS_PEM_SECRET }}:latest,/secrets/ca/secure_computation_root.pem=${{ env.SECURE_COMPUTATION_ROOT_SECRET }}:latest"
+
+      - name: Deploy Requisition Fetcher
+        uses: ./.github/actions/build-and-deploy-cloud-function
+        with:
+          cloud_region: ${{ vars.GCLOUD_REGION }}
+          function_name: requisition-fetcher
+          entry_point: org.wfanet.measurement.edpaggregator.deploy.gcloud.requisitionfetcher.RequisitionFetcherFunction
+          bazel_target_label: //src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/requisitionfetcher:RequisitionFetcherFunction_deploy.jar
+          run_service_account: ${{ env.REQUISITION_FETCHER_SERVICE_ACCOUNT }}
+          extra_env_vars: "KINGDOM_TARGET=${{ env.KINGDOM_PUBLIC_API_TARGET }}"
+          secret_mappings: "/secrets/key/edp7_tls.key=${{ env.EDP7_TLS_KEY_SECRET }}:latest,/secrets/cert/edp7_tls.pem=${{ env.EDP7_TLS_PEM_SECRET }}:latest,/secrets/ca/kingdom_root.pem=${{ env.KINGOM_ROOT_SECRET }}:latest"
+
+      - name: Deploy Event Group Sync
+        uses: ./.github/actions/build-and-deploy-cloud-function
+        with:
+          cloud_region: ${{ vars.GCLOUD_REGION }}
+          function_name: event-group-sync
+          entry_point: org.wfanet.measurement.edpaggregator.deploy.gcloud.eventgroups.EventGroupSyncFunction
+          bazel_target_label: //src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/eventgroups:EventGroupSyncFunction_deploy.jar
+          run_service_account: ${{ env.EVENT_GROUP_SYNC_SERVICE_ACCOUNT }}
+          extra_env_vars: "KINGDOM_TARGET=${{ env.KINGDOM_PUBLIC_API_TARGET }}"
+          secret_mappings: "/secrets/key/edp7_tls.key=${{ env.EDP7_TLS_KEY_SECRET }}:latest,/secrets/cert/edp7_tls.pem=${{ env.EDP7_TLS_PEM_SECRET }}:latest,/secrets/ca/kingdom_root.pem=${{ env.KINGOM_ROOT_SECRET }}:latest"
