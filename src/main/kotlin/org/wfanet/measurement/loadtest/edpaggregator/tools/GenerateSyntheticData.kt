@@ -20,6 +20,7 @@ import com.google.crypto.tink.KeysetHandle
 import com.google.crypto.tink.KmsClient
 import com.google.crypto.tink.TinkProtoKeysetFormat
 import com.google.crypto.tink.aead.AeadConfig
+import com.google.crypto.tink.integration.gcpkms.GcpKmsClient
 import com.google.crypto.tink.streamingaead.StreamingAeadConfig
 import com.google.protobuf.ByteString
 import com.google.protobuf.kotlin.toByteString
@@ -27,12 +28,8 @@ import java.io.File
 import java.time.LocalDate
 import java.time.ZoneId
 import java.util.logging.Logger
-import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.channels.SendChannel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.asFlow
-import kotlinx.coroutines.flow.consumeAsFlow
-import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
@@ -43,6 +40,7 @@ import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.tink.testing.FakeKmsClient
 import org.wfanet.measurement.common.crypto.tink.withEnvelopeEncryption
 import org.wfanet.measurement.common.toInstant
+import org.wfanet.measurement.edpaggregator.KmsType
 import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
 import org.wfanet.measurement.edpaggregator.v1alpha.blobDetails
@@ -58,14 +56,14 @@ import picocli.CommandLine.Option
   description = ["Generates synthetic data for Panel Match."],
 )
 class GenerateSyntheticData : Runnable {
-  /*@set:Option(
-      names = ["--number_of_events"],
-      description = ["Number of UnprocessedEvent protos to generate."],
-      required = true,
-    )
-    var numberOfEvents by Delegates.notNull<Int>()
-      private set
-  */
+  @Option(
+    names = ["--kms-type"],
+    description = ["Type of kms: \${COMPLETION-CANDIDATES}"],
+    required = true,
+  )
+  lateinit var kmsType: KmsType
+    private set
+
   @Option(
     names = ["--local-storage-path"],
     description = ["Optional path to local storage."],
@@ -83,7 +81,7 @@ class GenerateSyntheticData : Runnable {
 
   @set:Option(
     names = ["--kek-uri"],
-    description = ["Number of UnprocessedEvent protos to generate."],
+    description = ["The KMS kek uri."],
     required = true,
   )
   var kekUri: String = DEFAULT_KEK_URI
@@ -127,11 +125,16 @@ class GenerateSyntheticData : Runnable {
         populationSpec = syntheticPopulationSpec,
         syntheticEventGroupSpec = syntheticEventGroupSpecs[0],
       )
-    val kmsClient = run {
-      val kmsKeyHandle = KeysetHandle.generateNew(KeyTemplates.get("AES128_GCM"))
-      val kmsClient = FakeKmsClient()
-      kmsClient.setAead(kekUri, kmsKeyHandle.getPrimitive(Aead::class.java))
-      kmsClient
+    val kmsClient: KmsClient = run {
+      when (kmsType) {
+        KmsType.FAKE ->  {
+          val client = FakeKmsClient()
+          val kmsKeyHandle = KeysetHandle.generateNew(KeyTemplates.get("AES128_GCM"))
+          client.setAead(kekUri, kmsKeyHandle.getPrimitive(Aead::class.java))
+          client
+        }
+        KmsType.GCP -> GcpKmsClient()
+      }
     }
     runBlocking {
       writeImpressionData(
@@ -233,7 +236,6 @@ class GenerateSyntheticData : Runnable {
         }
       }
     }
-
   }
 
   init {
