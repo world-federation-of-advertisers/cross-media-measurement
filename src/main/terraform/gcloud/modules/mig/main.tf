@@ -63,7 +63,8 @@ resource "google_compute_instance_template" "confidential_vm_template" {
   metadata = {
     "google-logging-enabled"    = "true"
     "google-monitoring-enabled" = "true"
-    "gce-container-declaration" = <<EOT
+    "gce-container-declaration" =
+<<EOT
 spec:
   containers:
     - name: subscriber
