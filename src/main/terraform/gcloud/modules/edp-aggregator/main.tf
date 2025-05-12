@@ -22,9 +22,6 @@ locals {
       }
     }
   ]...)
-}
-
-locals {
   service_accounts = {
     "data_watcher"        = module.data_watcher_function_service_accounts.cloud_function_service_account_email
     "requisition_fetcher" = module.requisition_fetcher_function_service_account.cloud_function_service_account_email
