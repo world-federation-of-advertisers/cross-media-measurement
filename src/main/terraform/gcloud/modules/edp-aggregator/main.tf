@@ -69,7 +69,7 @@ module "event_group_sync_function_service_account" {
 resource "google_secret_manager_secret_iam_member" "secret_accessor" {
   for_each = local.secret_access_map
 
-  secret_id = local.secrets[each.value.secret_key].secret_id
+  secret_id = var.secrets[each.value.secret_key].secret_id
   role      = "roles/secretmanager.secretAccessor"
   member    = "serviceAccount:${local.service_accounts[each.value.function_name]}"
 }
