@@ -15,7 +15,7 @@
 locals {
   secret_access_map = {
     for function_name, config in var.secret_accessor_configs :
-    for secret in config.secrets_to_access :
+    for secret in try(config.secrets_to_access, []) :
     "${function_name}:${secret.secret_key}" => {
       function_name = function_name
       secret_key    = secret.secret_key
