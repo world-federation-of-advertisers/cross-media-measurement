@@ -121,8 +121,8 @@ abstract class ModelProvidersServiceTest {
       assertThat(response)
         .isEqualTo(
           listModelProvidersResponse {
-            modelProviders += createdModelProvider2
             modelProviders += createdModelProvider1
+            modelProviders += createdModelProvider2
           }
         )
     }
