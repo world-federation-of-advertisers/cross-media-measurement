@@ -18,7 +18,6 @@ watched_paths {
         key: "eventGroupMapBlobUri"
         value { string_value: "gs://secure-computation-storage-dev-bucket/edp7/event-groups-map" }
       }
-      # TODO(@Marco): To update when certs are mounted as Google Secrets
       fields {
         key: "cmmsConnection"
         value {
