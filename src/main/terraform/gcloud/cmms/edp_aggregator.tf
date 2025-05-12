@@ -22,6 +22,14 @@ locals {
       secret_id         = "edpa-tee-app-tls-pem"
       secret_local_path = "${path.root}/../../../k8s/testing/secretfiles/edpa_tee_app_tls.pem"
     }
+    data_watcher_tls_key = {
+      secret_id         = "edpa-datawatcher-tls-key"
+      secret_local_path = "${path.root}/../../../k8s/testing/secretfiles/data_watcher_tls.key"
+    }
+    data_watcher_tls_pem = {
+      secret_id         = "edpa-datawatcher-tls-pem"
+      secret_local_path = "${path.root}/../../../k8s/testing/secretfiles/data_watcher_tls.pem"
+    }
     secure_computation_root_ca = {
       secret_id         = "secure-computation-root-ca"
       secret_local_path = "${path.root}/../../../k8s/testing/secretfiles/secure_computation_root.pem"
@@ -41,6 +49,29 @@ locals {
     edp7_enc_private = {
       secret_id         = "edp7-enc-private"
       secret_local_path = "${path.root}/../../../k8s/testing/secretfiles/edp7_enc_private.tink"
+    }
+  }
+  secret_accessor_configs = {
+    data_watcher = {
+      secrets_to_access = [
+        { secret_key = "secure_computation_root_ca" },
+        { secret_key = "data_watcher_tls_key" },
+        { secret_key = "data_watcher_tls_pem" }
+      ]
+    },
+    requisition_fetcher = {
+      secrets_to_access = [
+        { secret_key = "kingdom_root_ca" },
+        { secret_key = "edpa_tee_app_tls_key" },
+        { secret_key = "edpa_tee_app_tls_pem" }
+      ]
+    },
+    event_group_sync = {
+      secrets_to_access = [
+        { secret_key = "kingdom_root_ca" },
+        { secret_key = "edpa_tee_app_tls_key" },
+        { secret_key = "edpa_tee_app_tls_pem" }
+      ]
     }
   }
   queue_worker_configs = {
@@ -106,6 +137,7 @@ module "edp_aggregator" {
   kms_key_name                              = "edpa-secure-computation-kek"
   queue_worker_configs                      = local.queue_worker_configs
   secrets                                   = local.secrets
+  secret_accessor_configs                   = locals.secret_accessor_configs
   pubsub_iam_service_account_member         = module.secure_computation.secure_computation_internal_iam_service_account_member
   edp_aggregator_bucket_name                = var.secure_computation_storage_bucket_name
   edp_aggregator_bucket_location            = local.storage_bucket_location

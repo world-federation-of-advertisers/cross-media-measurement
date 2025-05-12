@@ -62,6 +62,18 @@ variable "queue_worker_configs" {
   }))
 }
 
+variable "secret_accessor_configs" {
+  description = "Secrets for which the Cloud Functions service account requires access"
+  type = map(object({
+    secrets_to_access = optional(
+      list(object({
+        secret_key = string
+      })),
+      []
+    )
+  }))
+}
+
 variable "secrets" {
   description = "All secrets to upload"
   type = map(object({

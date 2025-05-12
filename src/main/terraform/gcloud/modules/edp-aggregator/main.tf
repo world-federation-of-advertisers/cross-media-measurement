@@ -12,6 +12,25 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+locals {
+  secret_access_map = {
+    for function_name, config in var.secret_accessor_configs :
+    for secret in config.secrets_to_access :
+    "${function_name}:${secret.secret_key}" => {
+      function_name = function_name
+      secret_key    = secret.secret_key
+    }
+  }
+}
+
+locals {
+  service_accounts = {
+    "data_watcher"        = module.data_watcher_function_service_accounts.cloud_function_service_account_email
+    "requisition_fetcher" = module.requisition_fetcher_function_service_account.cloud_function_service_account_email
+    "event_group_sync"    = module.event_group_sync_function_service_account.cloud_function_service_account_email
+  }
+}
+
 module "edp_aggregator_bucket" {
   source   = "../storage-bucket"
 
@@ -21,7 +40,7 @@ module "edp_aggregator_bucket" {
 
 module "secrets" {
   source = "../secret"
-  for_each = local.secrets
+  for_each = var.secrets
   secret_id = each.value.secret_id
   secret_path = each.value.secret_local_path
 }
@@ -49,49 +68,12 @@ module "event_group_sync_function_service_account" {
   terraform_service_account                 = var.terraform_service_account
 }
 
-resource "google_secret_manager_secret_iam_member" "data_watcher_tls_key_accessor" {
-  secret_id = module.data_watcher_private_key.secret_id
-  role      = "roles/secretmanager.secretAccessor"
-  member    = "serviceAccount:${module.data_watcher_function_service_accounts.cloud_function_service_account_email}"
-}
+resource "google_secret_manager_secret_iam_member" "secret_accessor" {
+  for_each = local.secret_access_map
 
-resource "google_secret_manager_secret_iam_member" "data_watcher_tls_pem_accessor" {
-  secret_id = module.data_watcher_cert.secret_id
+  secret_id = local.secrets[each.value.secret_key].secret_id
   role      = "roles/secretmanager.secretAccessor"
-  member    = "serviceAccount:${module.data_watcher_function_service_accounts.cloud_function_service_account_email}"
-}
-
-resource "google_secret_manager_secret_iam_member" "secure_computation_root_ca_accessor" {
-  secret_id = module.secure_computation_root_ca.secret_id
-  role      = "roles/secretmanager.secretAccessor"
-  member    = "serviceAccount:${module.data_watcher_function_service_accounts.cloud_function_service_account_email}"
-}
-
-resource "google_secret_manager_secret_iam_binding" "edp7_tls_key_accessor" {
-  secret_id = module.edp7_private_key.secret_id
-  role      = "roles/secretmanager.secretAccessor"
-  members = [
-    "serviceAccount:${module.requisition_fetcher_function_service_account.cloud_function_service_account_email}",
-    "serviceAccount:${module.event_group_sync_function_service_account.cloud_function_service_account_email}"
-  ]
-}
-
-resource "google_secret_manager_secret_iam_binding" "edp7_tls_pem_accessor" {
-  secret_id = module.edp7_cert.secret_id
-  role      = "roles/secretmanager.secretAccessor"
-  members = [
-    "serviceAccount:${module.requisition_fetcher_function_service_account.cloud_function_service_account_email}",
-    "serviceAccount:${module.event_group_sync_function_service_account.cloud_function_service_account_email}"
-  ]
-}
-
-resource "google_secret_manager_secret_iam_binding" "kingdom_root_ca_accessor" {
-  secret_id = module.kingdom_root_ca.secret_id
-  role      = "roles/secretmanager.secretAccessor"
-  members = [
-    "serviceAccount:${module.requisition_fetcher_function_service_account.cloud_function_service_account_email}",
-    "serviceAccount:${module.event_group_sync_function_service_account.cloud_function_service_account_email}"
-  ]
+  member    = "serviceAccount:${local.service_accounts[each.value.function_name]}"
 }
 
 module "edp_aggregator_queues" {
