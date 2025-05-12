@@ -15,6 +15,10 @@
 name: "Deploy Cloud Functions"
 
 on:
+  push:
+    branches:
+      - marcopremier/set_args_for_results_fulfiller
+    
   workflow_dispatch:
     inputs:
       environment:
@@ -36,7 +40,8 @@ permissions:
 jobs:
   deploy:
     runs-on: ubuntu-22.04
-    environment: ${{ github.event.inputs.environment }}
+#    environment: ${{ github.event.inputs.environment }}
+    environment: "dev"
     env:
       SECURE_COMPUTATION_BUCKET: ${{ vars.SECURE_COMPUTATION_BUCKET }}
       DATA_WATCHER_SERVICE_ACCOUNT: ${{ vars.DATA_WATCHER_SERVICE_ACCOUNT }}
