@@ -53,13 +53,12 @@ variable "secrets" {
 variable "secrets_to_mount" {
   description = "Subset of var.secrets to actually mount into this MIG"
   type = list(object({
-      secret_key = string
-      version    = string
-      mount_path = string
-      flag_name  = string
-    }))
-    default = []
-  }
+    secret_key = string
+    version    = string
+    mount_path = string
+    flag_name  = string
+  }))
+  default = []
 }
 
 variable "subscription_id" {
