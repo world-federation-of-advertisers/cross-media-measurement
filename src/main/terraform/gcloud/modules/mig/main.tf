@@ -85,7 +85,7 @@ resource "google_compute_instance_template" "confidential_vm_template" {
             | jq -r .access_token)
 
           curl -s -H "Authorization: Bearer $TOKEN" \
-            "https://secretmanager.googleapis.com/v1/projects/${var.project}/secrets/${var.secrets[s.secret_key].secret_id}/versions/${s.version}:access" \
+            "https://secretmanager.googleapis.com/v1/projects/${data.google_project.project.name}/secrets/${var.secrets[s.secret_key].secret_id}/versions/${s.version}:access" \
             | jq -r .payload.data \
             | base64 --decode > ${s.mount_path}
           chmod 600 ${s.mount_path}
