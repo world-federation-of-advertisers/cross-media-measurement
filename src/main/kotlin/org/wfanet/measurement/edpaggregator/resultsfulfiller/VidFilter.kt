@@ -18,6 +18,7 @@ package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
 import com.google.common.hash.HashFunction
 import com.google.common.hash.Hashing
+import com.google.protobuf.Descriptors
 import com.google.protobuf.DynamicMessage
 import com.google.protobuf.TypeRegistry
 import com.google.type.Interval
@@ -25,6 +26,8 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.map
 import org.projectnessie.cel.Program
+import org.projectnessie.cel.common.types.BoolT
+import org.wfanet.measurement.api.v2alpha.RequisitionSpec
 import org.wfanet.sampling.VidSampler
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
@@ -40,25 +43,13 @@ import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters
  * @param typeRegistry The registry for looking up protobuf descriptors
  */
 class VidFilter(
-  private val program: Program,
+  private val eventFilter: RequisitionSpec.EventFilter,
   private val collectionInterval: Interval,
   private val vidSamplingIntervalStart: Float,
   private val vidSamplingIntervalWidth: Float,
   private val typeRegistry: TypeRegistry
 ) {
   private val sampler = VidSampler(VID_SAMPLER_HASH_FUNCTION)
-
-  /**
-   * Filters a flow of labeled impressions based on the filter criteria.
-   *
-   * @param labeledImpressions The flow of labeled impressions to filter
-   * @return A flow of filtered labeled impressions
-   */
-  fun filter(labeledImpressions: Flow<LabeledImpression>): Flow<LabeledImpression> {
-    return labeledImpressions.filter { labeledImpression ->
-      isValidImpression(labeledImpression)
-    }
-  }
 
   /**
    * Filters a flow of labeled impressions and extracts their VIDs.
@@ -94,6 +85,7 @@ class VidFilter(
     // Create filter program
     val eventMessageData = labeledImpression.event!!
     val eventTemplateDescriptor = typeRegistry.getDescriptorForTypeUrl(eventMessageData.typeUrl)
+    val program = compileProgram(eventTemplateDescriptor)
     val eventMessage = DynamicMessage.parseFrom(eventTemplateDescriptor, eventMessageData.value)
 
     // Pass event message through program
@@ -103,7 +95,27 @@ class VidFilter(
     return isInCollectionInterval && passesFilter && isInSamplingInterval
   }
 
+
+  /**
+   * Compiles a CEL program from an event filter and event message descriptor.
+   *
+   * @param eventFilter The event filter containing a CEL expression
+   * @param eventMessageDescriptor The descriptor for the event message type
+   * @return A compiled Program that can be used to filter events
+   */
+  fun compileProgram(
+    eventMessageDescriptor: Descriptors.Descriptor,
+  ): Program {
+    // EventFilters should take care of this, but checking here is an optimization that can skip
+    // creation of a CEL Env.
+    if (eventFilter.expression.isEmpty()) {
+      return Program { TRUE_EVAL_RESULT }
+    }
+    return EventFilters.compileProgram(eventMessageDescriptor, eventFilter.expression)
+  }
+
   companion object {
     private val VID_SAMPLER_HASH_FUNCTION: HashFunction = Hashing.farmHashFingerprint64()
+    private val TRUE_EVAL_RESULT = Program.newEvalResult(BoolT.True, null)
   }
-} 
+}

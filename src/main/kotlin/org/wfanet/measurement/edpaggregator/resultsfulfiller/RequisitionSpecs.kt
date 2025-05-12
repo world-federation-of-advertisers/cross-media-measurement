@@ -19,6 +19,7 @@ package org.wfanet.measurement.edpaggregator.resultsfulfiller
 import com.google.crypto.tink.KmsClient
 import com.google.protobuf.Descriptors.Descriptor
 import com.google.protobuf.TypeRegistry
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.flatMapConcat
@@ -32,7 +33,6 @@ import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters
  * Utility functions for working with VIDs (Virtual IDs) in the EDP Aggregator.
  */
 object RequisitionSpecs {
-  private val TRUE_EVAL_RESULT = Program.newEvalResult(BoolT.True, null)
 
   /**
    * Retrieves sampled VIDs from a requisition specification based on a sampling interval.
@@ -46,6 +46,7 @@ object RequisitionSpecs {
    * @param labeledImpressionMetadataPrefix Prefix for labeled impression metadata
    * @return A Flow of sampled VIDs (Long values)
    */
+  @OptIn(ExperimentalCoroutinesApi::class) // For flatMapConcat
   suspend fun getSampledVids(
     requisitionSpec: RequisitionSpec,
     vidSamplingInterval: MeasurementSpec.VidSamplingInterval,
@@ -83,45 +84,23 @@ object RequisitionSpecs {
       .asFlow()
       .flatMapConcat { eventGroup ->
         val collectionInterval = eventGroup.value.collectionInterval
-        
+
         // Create a VidFilter to filter labeled impressions
         val vidFilter = VidFilter(
-          compileProgram(eventGroup.value.filter, typeRegistry),
+          eventGroup.value.filter,
           collectionInterval,
           vidSamplingIntervalStart,
           vidSamplingIntervalWidth,
           typeRegistry
         )
-        
+
         // Get labeled impressions and filter them
         val labeledImpressions = eventReader.getLabeledImpressionsFlow(
           collectionInterval,
           eventGroup.key
         )
-        
+
         vidFilter.filterAndExtractVids(labeledImpressions)
       }
-  }
-
-  /**
-   * Compiles a CEL program from an event filter and event message descriptor.
-   *
-   * @param eventFilter The event filter containing a CEL expression
-   * @param typeRegistry The registry for looking up protobuf descriptors
-   * @return A compiled Program that can be used to filter events
-   */
-  private fun compileProgram(
-    eventFilter: RequisitionSpec.EventFilter,
-    typeRegistry: TypeRegistry
-  ): Program {
-    // EventFilters should take care of this, but checking here is an optimization that can skip
-    // creation of a CEL Env.
-    if (eventFilter.expression.isEmpty()) {
-      return Program { TRUE_EVAL_RESULT }
-    }
-    
-    // We don't have the descriptor yet, so we'll let the VidFilter handle it
-    // This is a placeholder program that will be replaced in the VidFilter
-    return Program { TRUE_EVAL_RESULT }
   }
 }

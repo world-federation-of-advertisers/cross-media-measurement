@@ -44,180 +44,6 @@ import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters
 class VidFilterTest {
 
   @Test
-  fun `filter returns impressions when all conditions are met`() = runBlocking {
-    // Set up test environment
-    val testEventDescriptor = TestEvent.getDescriptor()
-
-    // Create TypeRegistry with the test event descriptor
-    val typeRegistry = TypeRegistry.newBuilder()
-      .add(testEventDescriptor)
-      .build()
-
-    // Create collection interval
-    val collectionInterval = interval {
-      startTime = TIME_RANGE.start.toProtoTime()
-      endTime = TIME_RANGE.endExclusive.toProtoTime()
-    }
-
-    // Create event filter
-    val filter = eventFilter { expression = "person.gender == 1" } // MALE is 1
-
-    // Create a program for the filter
-    val program = EventFilters.compileProgram(testEventDescriptor, filter.expression)
-
-    // Create VidFilter
-    val vidFilter = VidFilter(
-      program,
-      collectionInterval,
-      0.0f,
-      1.0f,
-      typeRegistry
-    )
-
-    // Create labeled impression with event time within collection interval
-    val labeledImpression = LABELED_IMPRESSION_1.copy {
-      eventTime = TIME_RANGE.start.toProtoTime()
-    }
-
-    // Call the filter method
-    val result = vidFilter.filter(listOf(labeledImpression).asFlow()).toList()
-
-    // Verify the result
-    assertThat(result).hasSize(1)
-    assertThat(result[0]).isEqualTo(labeledImpression)
-  }
-
-  @Test
-  fun `filter excludes impressions when event time is outside collection interval`() = runBlocking {
-    // Set up test environment
-    val testEventDescriptor = TestEvent.getDescriptor()
-
-    // Create TypeRegistry with the test event descriptor
-    val typeRegistry = TypeRegistry.newBuilder()
-      .add(testEventDescriptor)
-      .build()
-
-    // Create collection interval
-    val collectionInterval = interval {
-      startTime = TIME_RANGE.start.toProtoTime()
-      endTime = TIME_RANGE.endExclusive.toProtoTime()
-    }
-
-    // Create event filter
-    val filter = eventFilter { expression = "person.gender == 1" } // MALE is 1
-
-    // Create a program for the filter
-    val program = EventFilters.compileProgram(testEventDescriptor, filter.expression)
-
-    // Create VidFilter
-    val vidFilter = VidFilter(
-      program,
-      collectionInterval,
-      0.0f,
-      1.0f,
-      typeRegistry
-    )
-
-    // Create labeled impression with event time BEFORE collection interval
-    val beforeIntervalTime = TIME_RANGE.start.minusSeconds(86400).toProtoTime() // 1 day prior
-    val labeledImpression = LABELED_IMPRESSION_1.copy {
-      eventTime = beforeIntervalTime
-    }
-
-    // Call the filter method
-    val result = vidFilter.filter(listOf(labeledImpression).asFlow()).toList()
-
-    // Verify the result
-    assertThat(result).isEmpty()
-  }
-
-  @Test
-  fun `filter excludes impressions when event does not match filter`() = runBlocking {
-    // Set up test environment
-    val testEventDescriptor = TestEvent.getDescriptor()
-
-    // Create TypeRegistry with the test event descriptor
-    val typeRegistry = TypeRegistry.newBuilder()
-      .add(testEventDescriptor)
-      .build()
-
-    // Create collection interval
-    val collectionInterval = interval {
-      startTime = TIME_RANGE.start.toProtoTime()
-      endTime = TIME_RANGE.endExclusive.toProtoTime()
-    }
-
-    // Create event filter that requires FEMALE (gender == 2)
-    val filter = eventFilter { expression = "person.gender == 2" } // FEMALE is 2
-
-    // Create a program for the filter
-    val program = EventFilters.compileProgram(testEventDescriptor, filter.expression)
-
-    // Create VidFilter
-    val vidFilter = VidFilter(
-      program,
-      collectionInterval,
-      0.0f,
-      1.0f,
-      typeRegistry
-    )
-
-    // Create labeled impression with MALE gender (1)
-    val labeledImpression = LABELED_IMPRESSION_1.copy {
-      eventTime = TIME_RANGE.start.toProtoTime()
-    }
-
-    // Call the filter method
-    val result = vidFilter.filter(listOf(labeledImpression).asFlow()).toList()
-
-    // Verify the result
-    assertThat(result).isEmpty()
-  }
-
-  @Test
-  fun `filter excludes impressions when VID is outside sampling interval`() = runBlocking {
-    // Set up test environment
-    val testEventDescriptor = TestEvent.getDescriptor()
-
-    // Create TypeRegistry with the test event descriptor
-    val typeRegistry = TypeRegistry.newBuilder()
-      .add(testEventDescriptor)
-      .build()
-
-    // Create collection interval
-    val collectionInterval = interval {
-      startTime = TIME_RANGE.start.toProtoTime()
-      endTime = TIME_RANGE.endExclusive.toProtoTime()
-    }
-
-    // Create event filter
-    val filter = eventFilter { expression = "person.gender == 1" } // MALE is 1
-
-    // Create a program for the filter
-    val program = EventFilters.compileProgram(testEventDescriptor, filter.expression)
-
-    // Create VidFilter with a very narrow sampling interval that should exclude the VID
-    val vidFilter = VidFilter(
-      program,
-      collectionInterval,
-      0.9f,  // Very high start
-      0.1f,  // Very narrow width
-      typeRegistry
-    )
-
-    // Create labeled impression
-    val labeledImpression = LABELED_IMPRESSION_1.copy {
-      eventTime = TIME_RANGE.start.toProtoTime()
-    }
-
-    // Call the filter method
-    val result = vidFilter.filter(listOf(labeledImpression).asFlow()).toList()
-
-    // Verify the result
-    assertThat(result).isEmpty()
-  }
-
-  @Test
   fun `filterAndExtractVids returns VIDs when all conditions are met`() = runBlocking {
     // Set up test environment
     val testEventDescriptor = TestEvent.getDescriptor()
@@ -236,12 +62,9 @@ class VidFilterTest {
     // Create event filter
     val filter = eventFilter { expression = "person.gender == 1" } // MALE is 1
 
-    // Create a program for the filter
-    val program = EventFilters.compileProgram(testEventDescriptor, filter.expression)
-
     // Create VidFilter
     val vidFilter = VidFilter(
-      program,
+      filter,
       collectionInterval,
       0.0f,
       1.0f,
@@ -281,12 +104,9 @@ class VidFilterTest {
     // Create event filter that requires FEMALE (gender == 2)
     val filter = eventFilter { expression = "person.gender == 2" } // FEMALE is 2
 
-    // Create a program for the filter
-    val program = EventFilters.compileProgram(testEventDescriptor, filter.expression)
-
     // Create VidFilter
     val vidFilter = VidFilter(
-      program,
+      filter,
       collectionInterval,
       0.0f,
       1.0f,
@@ -345,4 +165,4 @@ class VidFilterTest {
         )
         .build()
   }
-} 
+}

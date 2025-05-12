@@ -19,6 +19,7 @@ package org.wfanet.measurement.edpaggregator.resultsfulfiller
 import com.google.crypto.tink.KmsClient
 import com.google.type.Interval
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
@@ -115,4 +116,4 @@ class EventReader(
   private fun createStorageClient(blobUri: BlobUri, storageConfig: StorageConfig): StorageClient {
     return SelectedStorageClient(blobUri, storageConfig.rootDirectory, storageConfig.projectId)
   }
-} 
+}

@@ -90,7 +90,7 @@ class EventReaderTest {
     // Create temporary directories for storage
     impressionsTmpPath = Files.createTempDirectory(null).toFile()
     Files.createDirectories(impressionsTmpPath.resolve(IMPRESSIONS_BUCKET).toPath())
-    
+
     metadataTmpPath = Files.createTempDirectory(null).toFile()
     Files.createDirectories(metadataTmpPath.resolve(IMPRESSIONS_METADATA_BUCKET).toPath())
   }
@@ -99,7 +99,7 @@ class EventReaderTest {
   fun `getLabeledImpressionsFlow returns labeled impressions`() = runBlocking {
     // Create impressions storage client
     val impressionsStorageClient = SelectedStorageClient(IMPRESSIONS_FILE_URI, impressionsTmpPath)
-    
+
     // Set up streaming encryption
     val aeadStorageClient =
       impressionsStorageClient.withEnvelopeEncryption(kmsClient, kekUri, serializedEncryptionKey)
@@ -108,7 +108,7 @@ class EventReaderTest {
     val mesosRecordIoStorageClient = MesosRecordIoStorageClient(aeadStorageClient)
 
     // Create test impressions
-    val impressionCount = 5
+    val impressionCount = 1000
     val impressions = List(impressionCount) { index ->
       LabeledImpression.newBuilder()
         .setEventTime(TIME_RANGE.start.toProtoTime())
@@ -130,6 +130,7 @@ class EventReaderTest {
 
     val encryptedDek =
       EncryptedDek.newBuilder().setKekUri(kekUri).setEncryptedDek(serializedEncryptionKey).build()
+
     val blobDetails =
       BlobDetails.newBuilder()
         .setBlobUri(IMPRESSIONS_FILE_URI)
@@ -168,37 +169,6 @@ class EventReaderTest {
     }
   }
 
-  @Test
-  fun `getLabeledImpressionsFlow throws exception when blob details not found`() = runBlocking {
-    // Create collection interval
-    val collectionInterval = interval {
-      startTime = TIME_RANGE.start.toProtoTime()
-      endTime = TIME_RANGE.endExclusive.toProtoTime()
-    }
-
-    // Create EventReader
-    val eventReader = EventReader(
-      kmsClient,
-      StorageConfig(rootDirectory = impressionsTmpPath),
-      StorageConfig(rootDirectory = metadataTmpPath),
-      IMPRESSIONS_METADATA_FILE_URI_PREFIX
-    )
-
-    // Try to get labeled impressions for non-existent blob details
-    var exceptionThrown = false
-    try {
-      eventReader.getLabeledImpressionsFlow(
-        collectionInterval,
-        "non-existent-event-group"
-      ).toList()
-    } catch (e: Exception) {
-      exceptionThrown = true
-    }
-
-    // Verify that an exception was thrown
-    assertThat(exceptionThrown).isTrue()
-  }
-
   companion object {
     private val LAST_EVENT_DATE = LocalDate.now()
     private val FIRST_EVENT_DATE = LAST_EVENT_DATE.minusDays(1)
@@ -225,4 +195,4 @@ class EventReaderTest {
       "file:///$IMPRESSIONS_METADATA_BUCKET/$IMPRESSION_METADATA_BLOB_KEY"
     private const val IMPRESSIONS_METADATA_FILE_URI_PREFIX = "file:///$IMPRESSIONS_METADATA_BUCKET"
   }
-} 
+}

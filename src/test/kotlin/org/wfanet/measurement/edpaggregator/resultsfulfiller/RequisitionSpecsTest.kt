@@ -29,6 +29,7 @@ import com.google.protobuf.TypeRegistry
 import com.google.type.interval
 import java.nio.file.Files
 import java.time.LocalDate
+import kotlinx.coroutines.flow.count
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.fold
 import kotlinx.coroutines.runBlocking
@@ -142,7 +143,7 @@ class RequisitionSpecsTest {
     val impressions =
       MutableList(validImpressionCount) {
         LABELED_IMPRESSION_1.copy {
-          vid = it.toLong()
+          vid = (it + 1).toLong()
           eventTime = TIME_RANGE.start.toProtoTime()
         }
       }
@@ -150,7 +151,7 @@ class RequisitionSpecsTest {
     val invalidImpressions =
       List(invalidImpressionCount) {
         LABELED_IMPRESSION_2.copy {
-          vid = it.toLong()
+          vid = (it + validImpressionCount + 1).toLong()
           eventTime = TIME_RANGE.start.toProtoTime()
         }
       }
@@ -193,15 +194,7 @@ class RequisitionSpecsTest {
       IMPRESSIONS_METADATA_FILE_URI_PREFIX,
     )
 
-    // Count occurrences of each VID using fold operation on the flow
-    val eventsPerVid = result.fold(mutableMapOf<Long, Int>()) { acc, vid ->
-      acc[vid] = acc.getOrDefault(vid, 0) + 1
-      acc
-    }
-
-    val validVids: Int = eventsPerVid.keys.size
-
-    assertThat(validVids).isEqualTo(validImpressionCount)
+    assertThat(result.count()).isEqualTo(validImpressionCount)
   }
 
   companion object {
