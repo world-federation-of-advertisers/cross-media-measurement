@@ -4,7 +4,7 @@ watched_paths {
   identifier: "event-groups"
   source_path_regex: "gs://secure-computation-storage-dev-bucket/edp7/event-groups/(.*)"
   http_endpoint_sink {
-    endpoint_uri: "TO_BE_DEFINED_ONCE_DEPLOYED" #TODO(@Marco): set this once available
+    endpoint_uri: "https://us-central1-halo-cmm-dev.cloudfunctions.net/event_group_sync"
     app_params {
       fields {
         key: "dataProvider"
@@ -24,16 +24,16 @@ watched_paths {
         value {
           struct_value {
             fields {
-              key: "certJarResourcePath"
-              value { string_value: "main/k8s/testing/secretfiles/edp7_tls.pem" }
+              key: "certFilePath"
+              value { string_value: "/secrets/cert/edp7_tls.pem" }
             }
             fields {
-              key: "privateKeyJarResourcePath"
-              value { string_value: "main/k8s/testing/secretfiles/edp7_tls.key" }
+              key: "privateKeyFilePath"
+              value { string_value: "/secrets/key/edp7_tls.key" }
             }
             fields {
-              key: "certCollectionJarResourcePath"
-              value { string_value: "main/k8s/testing/secretfiles/kingdom_root.pem" }
+              key: "certCollectionFilePath"
+              value { string_value: "/secrets/ca/kingdom_root.pem" }
             }
           }
         }
@@ -80,90 +80,6 @@ watched_paths {
               }
             }
           }
-        }
-      }
-    }
-  }
-}
-watched_paths {
-  identifier: "requisition-fetcher"
-  source_path_regex: "gs://secure-computation-storage-dev-bucket/edp7/requisitions/(.*)"
-  http_endpoint_sink {
-    endpoint_uri: "https://us-central1-halo-cmm-dev.cloudfunctions.net/requisition-fetcher"
-    app_params {
-      fields {
-        key: "configs"
-        value {
-          list_value {
-            values {
-              struct_value {
-                fields {
-                  key: "dataProvider"
-                  value { string_value: "dataProviders/DRoeq5_-yYI" }
-                }
-                fields {
-                  key: "storagePathPrefix"
-                  value { string_value: "gs://secure-computation-storage-dev-bucket/edp7/requisitions" }
-                }
-                fields {
-                  key: "requisitionStorage"
-                  value {
-                    struct_value {
-                      fields {
-                        key: "gcs"
-                        value {
-                          struct_value {
-                            fields {
-                              key: "projectId"
-                              value { string_value: "halo-cmm-dev" }
-                            }
-                            fields {
-                              key: "bucketName"
-                              value { string_value: "secure-computation-storage-dev-bucket" }
-                            }
-                          }
-                        }
-                      }
-                    }
-                  }
-                }
-                fields {
-                  # TODO(@Marco): To update when certs are mounted as Google Secrets
-                  key: "cmmsConnection"
-                  value {
-                    struct_value {
-                      fields {
-                        key: "certJarResourcePath"
-                        value { string_value: "main/k8s/testing/secretfiles/edp7_tls.pem" }
-                      }
-                      fields {
-                        key: "privateKeyJarResourcePath"
-                        value { string_value: "main/k8s/testing/secretfiles/edp7_tls.key" }
-                      }
-                      fields {
-                        key: "certCollectionJarResourcePath"
-                        value { string_value: "main/k8s/testing/secretfiles/kingdom_root.pem" }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    }
-  }
-}
-watched_paths {
-  source_path_regex: "gs://test-bucket/webhook-sink-path-to-watch/(.*)"
-  http_endpoint_sink {
-    endpoint_uri: "http://localhost:999911"
-    app_params {
-      fields {
-        key: "some-key"
-        value {
-          string_value: "some-value"
         }
       }
     }
