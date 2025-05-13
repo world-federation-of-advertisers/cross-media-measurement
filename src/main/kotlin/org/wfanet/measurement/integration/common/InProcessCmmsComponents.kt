@@ -167,9 +167,9 @@ class InProcessCmmsComponents(
   val typeRegistry: TypeRegistry
     get() = _typeRegistry
 
-  private lateinit var mcResourceName: String
+  lateinit var mcResourceName: String
   private lateinit var apiAuthenticationKey: String
-  private lateinit var edpDisplayNameToResourceMap: Map<String, Resources.Resource>
+  lateinit var edpDisplayNameToResourceMap: Map<String, Resources.Resource>
   private lateinit var duchyCertMap: Map<String, String>
   private lateinit var eventGroups: List<EventGroup>
   private lateinit var populationDataProviderResource: Resources.Resource
@@ -299,20 +299,21 @@ class InProcessCmmsComponents(
     return edpDisplayNameToResourceMap.values.map { it.name }
   }
 
-  fun startDaemons() = runBlocking {
+  fun startDaemons(useEdpSimulators: Boolean = true) = runBlocking {
     // Create all resources
     createAllResources()
-    eventGroups = edpSimulators.map { it.ensureEventGroup() }
-
     // Start daemons. Mills and EDP simulators can only be started after resources have been
     // created.
+    if (useEdpSimulators) {
+      eventGroups = edpSimulators.map { it.ensureEventGroup() }
+      edpSimulators.forEach { it.start() }
+      edpSimulators.forEach { it.waitUntilHealthy() }
+    }
+
     duchies.forEach {
       it.startHerald()
       it.startMill(duchyCertMap)
     }
-    edpSimulators.forEach { it.start() }
-    edpSimulators.forEach { it.waitUntilHealthy() }
-
     populationRequisitionFulfiller.start()
   }
 
@@ -329,8 +330,10 @@ class InProcessCmmsComponents(
     populationRequisitionFulfiller.stop()
   }
 
-  fun stopDaemons() {
-    stopEdpSimulators()
+  fun stopDaemons(useEdpSimulators: Boolean = true) {
+    if (useEdpSimulators) {
+      stopEdpSimulators()
+    }
     stopDuchyDaemons()
     stopPopulationRequisitionFulfillerDaemon()
   }
