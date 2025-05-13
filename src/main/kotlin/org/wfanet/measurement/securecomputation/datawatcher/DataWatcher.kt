@@ -100,8 +100,15 @@ class DataWatcher(
         .POST(HttpRequest.BodyPublishers.ofString(httpEndpointConfig.appParams.toJson()))
         .build()
     val response = client.send(request, BodyHandlers.ofString())
-    logger.fine("${config.identifier}: Response status: ${response.statusCode()}")
-    logger.fine("${config.identifier}: Response body: ${response.body()}")
+
+    try {
+      logger.info("Endpoint: ${httpEndpointConfig.endpointUri}")
+      logger.info("PARAMS: ${httpEndpointConfig.appParams.toJson()}")
+    }catch (e: Exception){
+      logger.severe(e.message)
+    }
+    logger.info("${config.identifier}: Response status: ${response.statusCode()}")
+    logger.info("${config.identifier}: Response body: ${response.body()}")
     check(response.statusCode() == 200)
   }
 
