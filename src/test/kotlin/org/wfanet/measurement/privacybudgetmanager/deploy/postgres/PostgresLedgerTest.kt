@@ -184,6 +184,7 @@ class PostgresLedgerTest {
     val exception = assertFailsWith<LedgerException> { tx.write(Slice(), listOf(query)) }
     assertThat(exception.errorType).isEqualTo(LedgerExceptionType.TABLE_NOT_READY)
     tx.commit()
+    
   }
 
   companion object {
