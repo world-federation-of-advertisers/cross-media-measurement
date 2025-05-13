@@ -46,7 +46,7 @@ interface Ledger {
  */
 interface TransactionContext : AutoCloseable {
   /**
-   * Reads the [BackingStore] and returns the Queries that are already present with their CreateTime
+   * Reads and returns the Queries that are already present with their CreateTime
    * read from the DB.
    *
    * @param list of queries to find in the ledger.

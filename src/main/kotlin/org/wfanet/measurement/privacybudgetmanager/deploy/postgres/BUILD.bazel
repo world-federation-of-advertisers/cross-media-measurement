@@ -14,6 +14,13 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/privacybudgetmanager:privacy_landscape_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/privacybudgetmanager:privacy_landscape_mapping_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/privacybudgetmanager:query_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/io/r2dbc",
+        "@wfa_common_jvm//imports/java/org/postgresql:r2dbc",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/db/r2dbc",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/db/r2dbc/postgres",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/identity",
     ],
 )
 

@@ -14,18 +14,25 @@
 package org.wfanet.measurement.privacybudgetmanager.deploy.postgres
 
 import java.sql.Connection
+import java.sql.PreparedStatement
 import java.sql.Statement
+import java.sql.Timestamp
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetManagerException
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetManagerExceptionType
 import org.wfanet.measurement.privacybudgetmanager.Ledger
+import org.wfanet.measurement.privacybudgetmanager.LedgerException
+import org.wfanet.measurement.privacybudgetmanager.LedgerExceptionType
 import org.wfanet.measurement.privacybudgetmanager.LedgerRowKey
 import org.wfanet.measurement.privacybudgetmanager.Query
 import org.wfanet.measurement.privacybudgetmanager.Slice
 import org.wfanet.measurement.privacybudgetmanager.TransactionContext
-import org.wfanet.measurement.privacybudgetmanager.LedgerException
-import org.wfanet.measurement.privacybudgetmanager.LedgerExceptionType
+import org.wfanet.measurement.privacybudgetmanager.copy
 
 private const val MAX_BATCH_INSERT = 1000
+private const val MAX_BATCH_READ = 1000
 private const val CHARGES_TABLE_READY_STATE: String = "READY"
 
 /**
@@ -65,6 +72,15 @@ class PostgresTransactionContext(
   private val connection: Connection,
   private val activeLandscapeId: String,
 ) : TransactionContext {
+
+  private data class LedgerEntry(
+    val edpId: String,
+    val measurementConsumerId: String,
+    val externalReferenceId: String,
+    val isRefund: Boolean,
+    val createTime: Timestamp,
+  )
+
   private var transactionHasEnded = false
 
   val isClosed: Boolean
@@ -83,7 +99,7 @@ class PostgresTransactionContext(
         throw LedgerException(LedgerExceptionType.TABLE_METADATA_DOESNT_EXIST)
       }
     } catch (e: Exception) {
-        throw e 
+      throw e
     }
   }
 
@@ -95,22 +111,93 @@ class PostgresTransactionContext(
 
   private suspend fun checkTableState() {
     val chargesTableState = getChargesTableState()
-    println("chargesTableStatechargesTableStatechargesTableState $chargesTableState")
-    if(chargesTableState != CHARGES_TABLE_READY_STATE) {
+    if (chargesTableState != CHARGES_TABLE_READY_STATE) {
       throw LedgerException(LedgerExceptionType.TABLE_NOT_READY)
     }
   }
 
   private suspend fun areValid(queries: List<Query>) {
-    if(!queries.all { it.privacyLandscapeIdentifier == activeLandscapeId }) {
+    if (!queries.all { it.privacyLandscapeIdentifier == activeLandscapeId }) {
       throw LedgerException(LedgerExceptionType.INVALID_PRIVACY_LANDSCAPE_IDS)
     }
   }
 
+  /**
+   * Reads queries from the database in batches and returns the matching ones with their create
+   * times.
+   *
+   * @param queries The list of queries to find in the ledger.
+   * @return The list of queries that existed in the ledger, with createTime populated.
+   */
   override suspend fun readQueries(queries: List<Query>): List<Query> {
     areValid(queries)
     checkTableState()
-    return emptyList<Query>()
+    return withContext(Dispatchers.IO) {
+      val foundQueries = mutableListOf<Query>()
+      if (queries.isEmpty()) {
+        return@withContext emptyList()
+      }
+
+      try {
+        queries.chunked(MAX_BATCH_READ).forEach { queryBatch ->
+          val batchSize = queryBatch.size
+
+          val selectStatement =
+            """
+            SELECT EdpId, MeasurementConsumerId, ExternalReferenceId, IsRefund, CreateTime
+            FROM LedgerEntries
+            WHERE (EdpId, MeasurementConsumerId, ExternalReferenceId, IsRefund) IN 
+            (VALUES ${generateInClausePlaceholders(batchSize)})
+        """
+
+          connection.prepareStatement(selectStatement).use { preparedStatement ->
+            setBatchParameters(preparedStatement, queryBatch)
+            preparedStatement.executeQuery().use { resultSet ->
+
+              // TODO(uakyol) : optimize this by using a hashmap with keys as query identifiers
+              val ledgerEntries = mutableListOf<LedgerEntry>()
+              while (resultSet.next()) {
+                ledgerEntries.add(
+                  LedgerEntry(
+                    edpId = resultSet.getString("EdpId"),
+                    measurementConsumerId = resultSet.getString("MeasurementConsumerId"),
+                    externalReferenceId = resultSet.getString("ExternalReferenceId"),
+                    isRefund = resultSet.getBoolean("IsRefund"),
+                    createTime = resultSet.getTimestamp("CreateTime"),
+                  )
+                )
+              }
+
+              // After getting all LedgerEntries for the batch, match them with the original queries
+              ledgerEntries.forEach { ledgerEntry ->
+                val matchingQuery =
+                  queryBatch.find { query ->
+                    query.queryIdentifiers.eventDataProviderId == ledgerEntry.edpId &&
+                      query.queryIdentifiers.measurementConsumerId ==
+                        ledgerEntry.measurementConsumerId &&
+                      query.queryIdentifiers.externalReferenceId ==
+                        ledgerEntry.externalReferenceId &&
+                      query.queryIdentifiers.isRefund == ledgerEntry.isRefund
+                  }
+                if (matchingQuery != null) {
+                  val updatedQuery =
+                    matchingQuery.copy {
+                      queryIdentifiers =
+                        queryIdentifiers.copy {
+                          createTime = ledgerEntry.createTime.toInstant().toProtoTime()
+                        }
+                    }
+                  foundQueries.add(updatedQuery)
+                }
+              }
+            }
+          }
+        }
+      } catch (e: Exception) {
+        throw e
+      }
+      return@withContext foundQueries
+    }
   }
 
   override suspend fun readChargeRows(rowKeys: List<LedgerRowKey>): Slice {
@@ -132,5 +219,30 @@ class PostgresTransactionContext(
   override fun close() {
     connection.rollback()
     transactionHasEnded = true
+  }
+
+  private companion object {
+    /**
+     * Generates the placeholders for the IN clause based on the batch size.
+     *
+     * For example, for a batch size of 3, it generates "(?, ?, ?, ?), (?, ?, ?, ?), (?, ?, ?, ?)"
+     */
+    fun generateInClausePlaceholders(batchSize: Int): String {
+      val tuplePlaceholder =
+        "(?, ?, ?, ?)" // 4 parameters: EdpId, MeasurementConsumerId, ExternalReferenceId, IsRefund
+      return (1..batchSize).joinToString(separator = ", ") { tuplePlaceholder }
+    }
+
+    /** Sets the parameters for the prepared statement for a batch of queries. */
+    fun setBatchParameters(preparedStatement: PreparedStatement, queryBatch: List<Query>) {
+      var parameterIndex = 1
+      for (query in queryBatch) {
+        val identifiers = query.queryIdentifiers
+        preparedStatement.setString(parameterIndex++, identifiers.eventDataProviderId)
+        preparedStatement.setString(parameterIndex++, identifiers.measurementConsumerId)
+        preparedStatement.setString(parameterIndex++, identifiers.externalReferenceId)
+        preparedStatement.setBoolean(parameterIndex++, identifiers.isRefund)
+      }
+    }
   }
 }
