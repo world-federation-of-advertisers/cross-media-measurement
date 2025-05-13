@@ -1,0 +1,24 @@
+package(
+    default_testonly = True,
+    default_visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "synthetic_population_spec_360m",
+    srcs = ["synthetic_population_spec_360m.textproto"],
+)
+
+filegroup(
+    name = "synthetic_event_group_spec_90day_1billion",
+    srcs = ["synthetic_event_group_spec_90day_1billion.textproto"],
+)
+
+filegroup(
+    name = "small_data_spec",
+    srcs = ["small_data_spec.textproto"],
+)
+
+filegroup(
+    name = "small_population_spec",
+    srcs = ["small_population_spec.textproto"],
+)
