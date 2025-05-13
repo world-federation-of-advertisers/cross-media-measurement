@@ -1206,11 +1206,11 @@ class Report:
 
     return True
 
-  def _get_linear_tv_edp(self) -> Optional[str]:
-    """Get the Linear TV EDP.
+  def _get_linear_tv_edps(self) -> list[str]:
+    """Get the Linear TV EDPs.
 
     Returns:
-       The Linear TV EDP or None if not found.
+       A list of Linear TV EDPs.
     """
     tv_edp_combinations: list[str] = []
     if self._metric_reports.keys() is None:
@@ -1223,16 +1223,7 @@ class Report:
       if self._is_linear_tv(edp_combination):
         tv_edp_combinations.append(edp_combination)
 
-    if len(tv_edp_combinations) > 1:
-      raise ValueError(
-          f"Expected at most one Linear TV EDP combination, but found "
-          f"{len(tv_edp_combinations)}: {tv_edp_combinations}"
-      )
-
-    if tv_edp_combinations:
-      return tv_edp_combinations[0]
-    else:
-      return None
+    return tv_edp_combinations
 
   def get_report_quality(self) -> ReportQuality:
     """Calculates and returns the overall data quality status for the report.
@@ -1242,14 +1233,16 @@ class Report:
         outcomes (`tv_status`, `union_status`) from the performed checks.
     """
     # Gets the tv quality status.
-    tv_edp_combination = self._get_linear_tv_edp()
-    tv_quality_status = \
-      ReportQuality.LinearTvStatus.LINEAR_TV_STATUS_UNSPECIFIED
-    if tv_edp_combination:
-      if self._are_edp_measurements_consistent(tv_edp_combination):
-        tv_quality_status = ReportQuality.LinearTvStatus.CONSISTENT
-      else:
-        tv_quality_status = ReportQuality.LinearTvStatus.INCONSISTENT
+    tv_edp_combinations = self._get_linear_tv_edps()
+    if not tv_edp_combinations:
+      tv_quality_status = \
+        ReportQuality.LinearTvStatus.LINEAR_TV_STATUS_UNSPECIFIED
+    else:
+      tv_quality_status = ReportQuality.LinearTvStatus.CONSISTENT
+      for tv_edp_combination in tv_edp_combinations:
+        if not self._are_edp_measurements_consistent(tv_edp_combination):
+          tv_quality_status = ReportQuality.LinearTvStatus.INCONSISTENT
+          break
 
     # Gets the union check status.
     independence_check_status = \

@@ -1912,7 +1912,7 @@ class TestReport(unittest.TestCase):
         NOISE_CORRECTION_TOLERANCE)
     self._assertReportsAlmostEqual(expected, corrected, corrected.to_array())
 
-  def test_correct_report_with_consistent_linear_tv_return_consistent_status(
+  def test_correct_report_with_one_consistent_linear_tv_return_consistent_status(
       self):
     report = Report(
         metric_reports={
@@ -1987,6 +1987,86 @@ class TestReport(unittest.TestCase):
         ReportQuality.IndependenceCheckStatus.INDEPENDENCE_CHECK_STATUS_UNSPECIFIED
     )
     self._assertReportsAlmostEqual(report, corrected, corrected.to_array())
+
+  def test_correct_report_with_many_consistent_linear_tv_edps_return_consistent_status(
+      self):
+    # There are two unnoised edps with consistent measurements.
+    # The union differences are around 47000, and fall outside the confidence
+    # interval [-7sigma, 7sigma] where sigma = sqrt(1300^2 + 1300^2) = 1838.
+    report = Report(
+        metric_reports={
+            "ami": MetricReport(
+                reach_time_series={
+                    frozenset({EDP_ONE}): [
+                        Measurement(10000000, 0, "measurement_02")
+                    ],
+                    frozenset({EDP_TWO}): [
+                        Measurement(3000000, 0, "measurement_03")],
+                    frozenset({EDP_ONE, EDP_TWO}): [
+                        Measurement(12502000, 1300, "measurement_01")
+                    ],
+                },
+                reach_whole_campaign={
+                    frozenset({EDP_ONE}): Measurement(10000000, 0,
+                                                      "measurement_04"),
+                    frozenset({EDP_TWO}): Measurement(3000000, 0,
+                                                      "measurement_05"),
+                    frozenset({EDP_ONE, EDP_TWO}):
+                      Measurement(12500500, 1300, "measurement_06"),
+                },
+                k_reach={
+                    frozenset({EDP_ONE}): {
+                        1: Measurement(3000000, 0, "measurement_07"),
+                        2: Measurement(7000000, 0, "measurement_08"),
+                    },
+                    frozenset({EDP_TWO}): {
+                        1: Measurement(1000000, 0, "measurement_09"),
+                        2: Measurement(2000000, 0, "measurement_10"),
+                    },
+                    frozenset({EDP_ONE, EDP_TWO}): {
+                        1: Measurement(4002000, 300, "measurement_11"),
+                        2: Measurement(8498500, 300, "measurement_12"),
+                    },
+                },
+                impression={
+                    frozenset({EDP_ONE}): Measurement(20000000, 0,
+                                                      "measurement_13"),
+                    frozenset({EDP_TWO}): Measurement(6000000, 0,
+                                                      "measurement_14"),
+                    frozenset({EDP_ONE, EDP_TWO}):
+                      Measurement(26002000, 2800, "measurement_15"),
+                },
+            )
+        },
+        metric_subsets_by_parent={},
+        cumulative_inconsistency_allowed_edp_combinations={},
+        population_size=55000000,
+    )
+
+    corrected, report_post_processor_result = report.get_corrected_report()
+
+    self.assertEqual(report_post_processor_result.status.status_code,
+                     StatusCode.SOLUTION_FOUND_WITH_HIGHS)
+    self.assertLess(
+        report_post_processor_result.status.primal_equality_residual,
+        NOISE_CORRECTION_TOLERANCE)
+    self.assertLess(
+        report_post_processor_result.status.primal_inequality_residual,
+        NOISE_CORRECTION_TOLERANCE)
+    self.assertEqual(
+        report_post_processor_result.pre_correction_quality.tv_status,
+        ReportQuality.LinearTvStatus.CONSISTENT)
+    self.assertEqual(
+        report_post_processor_result.post_correction_quality.tv_status,
+        ReportQuality.LinearTvStatus.CONSISTENT)
+    self.assertEqual(
+        report_post_processor_result.pre_correction_quality.union_status,
+        ReportQuality.IndependenceCheckStatus.OUTSIDE_CONFIDENCE_RANGE
+    )
+    self.assertEqual(
+        report_post_processor_result.post_correction_quality.union_status,
+        ReportQuality.IndependenceCheckStatus.OUTSIDE_CONFIDENCE_RANGE
+    )
 
   def test_correct_report_with_not_consistent_linear_tv_return_not_consistent_status(
       self):
