@@ -46,6 +46,9 @@ import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup.Media
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.MetadataKt.AdMetadataKt.campaignMetadata
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.MetadataKt.adMetadata
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.metadata as eventGroupMetadata
+import kotlinx.coroutines.flow.asFlow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.runBlocking
 import org.junit.ClassRule
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.storage.MesosRecordIoStorageClient
@@ -58,7 +61,9 @@ class EdpAggregatorCorrectnessTest: AbstractEdpAggregatorCorrectnessTest(measure
       return object : Statement() {
         override fun evaluate() {
           try {
-            uploadEventGroups(createEventGroups())
+            runBlocking {
+              uploadEventGroups(createEventGroups())
+            }
             base.evaluate()
           } finally {
             println("REMOVE")
@@ -67,7 +72,7 @@ class EdpAggregatorCorrectnessTest: AbstractEdpAggregatorCorrectnessTest(measure
       }
     }
 
-    private fun uploadEventGroups(eventGroup: List<EventGroup>) {
+    private suspend fun uploadEventGroups(eventGroup: List<EventGroup>) {
       val eventGroupsBlobUri =
         SelectedStorageClient.parseBlobUri("gs://secure-computation-storage-dev-bucket/edp7/event-groups")
       MesosRecordIoStorageClient(
@@ -76,7 +81,7 @@ class EdpAggregatorCorrectnessTest: AbstractEdpAggregatorCorrectnessTest(measure
           rootDirectory = null,
           projectId = "halo-cmm-dev",
         )
-      ).writeBlob("edp7-event-group", eventGroup.map { it.toByteString() })
+      ).writeBlob("edp7-event-group", eventGroup.asFlow().map { it.toByteString() })
 
     }
 
