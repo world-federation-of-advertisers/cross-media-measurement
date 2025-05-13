@@ -15,9 +15,9 @@
 name: "Deploy Cloud Functions"
 
 on:
-#  push:
-#    branches:
-#      - marcopremier/edp_aggregtor_cloud_test
+  push:
+    branches:
+      - marcopremier/edp_aggregtor_cloud_test
   workflow_dispatch:
     inputs:
       environment:
