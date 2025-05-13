@@ -16,6 +16,8 @@
 
 package org.wfanet.measurement.integration.k8s
 
+import com.google.protobuf.timestamp
+import com.google.type.interval
 import io.grpc.ManagedChannel
 import java.nio.file.Paths
 import java.time.Duration
@@ -26,9 +28,10 @@ import org.junit.runners.model.Statement
 import org.measurement.integration.k8s.testing.CorrectnessTestConfig
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt
-import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt
+import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt
+import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withDefaultDeadline
@@ -38,9 +41,68 @@ import org.wfanet.measurement.loadtest.dataprovider.SyntheticGeneratorEventQuery
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerSimulator
 import org.wfanet.measurement.loadtest.measurementconsumer.MetadataSyntheticGeneratorEventQuery
+import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.eventGroup
+import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup.MediaType
+import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.MetadataKt.AdMetadataKt.campaignMetadata
+import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.MetadataKt.adMetadata
+import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.metadata as eventGroupMetadata
+import org.junit.ClassRule
+import org.wfanet.measurement.common.testing.chainRulesSequentially
+import org.wfanet.measurement.storage.MesosRecordIoStorageClient
+import org.wfanet.measurement.storage.SelectedStorageClient
 
 class EdpAggregatorCorrectnessTest: AbstractEdpAggregatorCorrectnessTest(measurementSystem) {
 
+  private class UploadEventGroup : TestRule {
+    override fun apply(base: Statement, description: Description): Statement {
+      return object : Statement() {
+        override fun evaluate() {
+          try {
+            uploadEventGroups(createEventGroups())
+            base.evaluate()
+          } finally {
+            println("REMOVE")
+          }
+        }
+      }
+    }
+
+    private fun uploadEventGroups(eventGroup: List<EventGroup>) {
+      val eventGroupsBlobUri =
+        SelectedStorageClient.parseBlobUri("gs://secure-computation-storage-dev-bucket/edp7/event-groups")
+      MesosRecordIoStorageClient(
+        SelectedStorageClient(
+          blobUri = eventGroupsBlobUri,
+          rootDirectory = null,
+          projectId = "halo-cmm-dev",
+        )
+      ).writeBlob("edp7-event-group", eventGroup.map { it.toByteString() })
+
+    }
+
+    private fun createEventGroups(): List<EventGroup> {
+      return listOf(
+        eventGroup {
+          eventGroupReferenceId = "sim-eg-reference-id-1-edp-0"
+          measurementConsumer = "measurementConsumers/VCTqwV_vFXw"
+          dataAvailabilityInterval = interval {
+            startTime = timestamp { seconds = 200 }
+            endTime = timestamp { seconds = 300 }
+          }
+          this.eventGroupMetadata = eventGroupMetadata {
+            this.adMetadata = adMetadata {
+              this.campaignMetadata = campaignMetadata {
+                brand = "brand-2"
+                campaign = "campaign-2"
+              }
+            }
+          }
+          mediaTypes += MediaType.valueOf("VIDEO")
+        }
+      )
+    }
+
+  }
   private class RunningMeasurementSystem : MeasurementSystem, TestRule {
     override val runId: String by lazy { UUID.randomUUID().toString() }
 
@@ -123,7 +185,11 @@ class EdpAggregatorCorrectnessTest: AbstractEdpAggregatorCorrectnessTest(measure
       parseTextProto(configFile, CorrectnessTestConfig.getDefaultInstance())
     }
 
+    private val uploadEventGroup = UploadEventGroup()
     private val measurementSystem = RunningMeasurementSystem()
+
+    @ClassRule
+    @JvmField val chainedRule = chainRulesSequentially(uploadEventGroup)
   }
 
 }
