@@ -4,7 +4,7 @@ watched_paths {
   identifier: "event-groups"
   source_path_regex: "gs://secure-computation-storage-dev-bucket/edp7/event-groups/(.*)"
   http_endpoint_sink {
-    endpoint_uri: "https://us-central1-halo-cmm-dev.cloudfunctions.net/event_group_sync"
+    endpoint_uri: "https://us-central1-halo-cmm-dev.cloudfunctions.net/event-group-sync"
     app_params {
       fields {
         key: "dataProvider"
