@@ -21,9 +21,9 @@ import com.google.cloud.functions.HttpRequest
 import com.google.cloud.functions.HttpResponse
 import com.google.cloud.storage.StorageOptions
 import java.io.File
-import java.nio.file.Paths
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
+import org.wfanet.measurement.common.EnvVars
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.getJarResourceFile
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
@@ -38,16 +38,20 @@ class RequisitionFetcherFunction : HttpFunction {
   override fun service(request: HttpRequest, response: HttpResponse) {
     for (dataProviderConfig in requisitionFetcherConfig.configsList) {
 
+      val fileSystemPath = System.getenv("REQUISITION_FILE_SYSTEM_PATH")
+      // 'FileSystemStorageClient' is used for testing purposes only and used by
+      // [RequisitionFetcherFunctionTest]
+      // in order to pull requisitions from local storage.
       val requisitionsStorageClient =
-        if (dataProviderConfig.hasFileSystemStorageDetails()) {
-          FileSystemStorageClient(File(checkIsPath("REQUISITION_FILE_SYSTEM_PATH")))
+        if (!fileSystemPath.isNullOrEmpty()) {
+          FileSystemStorageClient(File(EnvVars.checkIsPath("REQUISITION_FILE_SYSTEM_PATH")))
         } else {
-          val requisitionsGcsBucket = dataProviderConfig.gcsStorageDetails.bucketName
+          val requisitionsGcsBucket = dataProviderConfig.requisitionStorage.gcs.bucketName
           GcsStorageClient(
             StorageOptions.newBuilder()
               .also {
-                if (dataProviderConfig.gcsStorageDetails.projectId.isNotEmpty()) {
-                  it.setProjectId(dataProviderConfig.gcsStorageDetails.projectId)
+                if (dataProviderConfig.requisitionStorage.gcs.projectId.isNotEmpty()) {
+                  it.setProjectId(dataProviderConfig.requisitionStorage.gcs.projectId)
                 }
               }
               .build()
@@ -59,20 +63,18 @@ class RequisitionFetcherFunction : HttpFunction {
         SigningCerts.fromPemFiles(
           certificateFile =
             checkNotNull(
-              CLASS_LOADER.getJarResourceFile(
-                dataProviderConfig.connectionDetails.certJarResourcePath
-              )
+              CLASS_LOADER.getJarResourceFile(dataProviderConfig.cmmsConnection.certJarResourcePath)
             ),
           privateKeyFile =
             checkNotNull(
               CLASS_LOADER.getJarResourceFile(
-                dataProviderConfig.connectionDetails.privateKeyJarResourcePath
+                dataProviderConfig.cmmsConnection.privateKeyJarResourcePath
               )
             ),
           trustedCertCollectionFile =
             checkNotNull(
               CLASS_LOADER.getJarResourceFile(
-                dataProviderConfig.connectionDetails.certCollectionJarResourcePath
+                dataProviderConfig.cmmsConnection.certCollectionJarResourcePath
               )
             ),
         )
@@ -95,38 +97,25 @@ class RequisitionFetcherFunction : HttpFunction {
   }
 
   companion object {
-    private val kingdomTarget = checkNotEmpty("KINGDOM_TARGET")
-    private val kingdomCertHost = checkNotEmpty("KINGDOM_CERT_HOST")
+    private val kingdomTarget = EnvVars.checkNotNullOrEmpty("KINGDOM_TARGET")
+    private val kingdomCertHost: String? = System.getenv("KINGDOM_CERT_HOST")
 
     val pageSize = run {
-      val value = System.getenv("PAGE_SIZE")
-      if (value.isNotEmpty()) {
-        value.toInt()
+      val envPageSize = System.getenv("PAGE_SIZE")
+      if (!envPageSize.isNullOrEmpty()) {
+        envPageSize.toInt()
       } else {
         null
       }
     }
     private val CLASS_LOADER: ClassLoader = Thread.currentThread().contextClassLoader
     private val requisitionFetcherConfigResourcePath =
-      checkIsPath("REQUISITION_FETCHER_CONFIG_RESOURCE_PATH")
+      EnvVars.checkIsPath("REQUISITION_FETCHER_CONFIG_RESOURCE_PATH")
     private val config by lazy {
       checkNotNull(CLASS_LOADER.getJarResourceFile(requisitionFetcherConfigResourcePath))
     }
     private val requisitionFetcherConfig: RequisitionFetcherConfig by lazy {
       runBlocking { parseTextProto(config, RequisitionFetcherConfig.getDefaultInstance()) }
-    }
-
-    private fun checkNotEmpty(envVar: String): String {
-      val value = System.getenv(envVar)
-      checkNotNull(value) { "Missing env var: $envVar" }
-      check(value.isNotBlank())
-      return value
-    }
-
-    private fun checkIsPath(envVar: String): String {
-      val value = System.getenv(envVar)
-      Paths.get(value)
-      return value
     }
   }
 }
