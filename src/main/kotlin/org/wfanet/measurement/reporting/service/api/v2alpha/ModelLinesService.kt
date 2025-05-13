@@ -35,8 +35,10 @@ class ModelLinesService(
   private val kingdomModelLinesStub: ModelLinesCoroutineStub,
   private val authorization: Authorization,
   private val apiAuthenticationKey: String,
-  ) : ModelLinesGrpcKt.ModelLinesCoroutineImplBase() {
-  override suspend fun enumerateValidModelLines(request: EnumerateValidModelLinesRequest): EnumerateValidModelLinesResponse {
+) : ModelLinesGrpcKt.ModelLinesCoroutineImplBase() {
+  override suspend fun enumerateValidModelLines(
+    request: EnumerateValidModelLinesRequest
+  ): EnumerateValidModelLinesResponse {
     authorization.check(Authorization.ROOT_RESOURCE_NAME, LIST_MODEL_LINES_PERMISSIONS)
 
     if (!request.hasTimeInterval()) {
@@ -77,11 +79,13 @@ class ModelLinesService(
     return try {
       kingdomModelLinesStub
         .withAuthenticationKey(apiAuthenticationKey)
-        .enumerateValidModelLines(enumerateValidModelLinesRequest {
-          parent = request.parent
-          timeInterval = request.timeInterval
-          dataProviders += request.dataProvidersList
-        })
+        .enumerateValidModelLines(
+          enumerateValidModelLinesRequest {
+            parent = request.parent
+            timeInterval = request.timeInterval
+            dataProviders += request.dataProvidersList
+          }
+        )
     } catch (e: StatusException) {
       throw when (e.status.code) {
         Status.Code.INVALID_ARGUMENT -> Status.INVALID_ARGUMENT

@@ -327,10 +327,10 @@ private object V2AlphaPublicApiServer {
         BasicReportsService(InternalBasicReportsCoroutineStub(channel), authorization)
           .withInterceptor(principalAuthInterceptor),
         ModelLinesService(
-          KingdomModelLinesCoroutineStub(kingdomChannel),
-          authorization,
-          systemMeasurementConsumerConfig.apiKey,
-        )
+            KingdomModelLinesCoroutineStub(kingdomChannel),
+            authorization,
+            systemMeasurementConsumerConfig.apiKey,
+          )
           .withInterceptor(principalAuthInterceptor),
       )
 
