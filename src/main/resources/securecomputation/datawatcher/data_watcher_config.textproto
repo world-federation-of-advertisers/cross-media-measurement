@@ -16,7 +16,7 @@ watched_paths {
       }
       fields {
         key: "eventGroupMapBlobUri"
-        value { string_value: "gs://secure-computation-storage-dev-bucket/edp7/event-groups-map" }
+        value { string_value: "gs://secure-computation-storage-dev-bucket/edp7/event-groups-map/edp7-event-group.pb" }
       }
       fields {
         key: "cmmsConnection"
