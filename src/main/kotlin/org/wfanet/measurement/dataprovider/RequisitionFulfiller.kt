@@ -214,7 +214,7 @@ abstract class RequisitionFulfiller(
     logger.log(Level.INFO, "Direct MeasurementResult:\n$measurementResult")
 
     DataProviderCertificateKey.fromName(requisition.dataProviderCertificate)
-      ?: throw RequisitionRefusalException(
+      ?: throw RequisitionRefusalException.Default(
         Requisition.Refusal.Justification.UNFULFILLABLE,
         "Invalid data provider certificate",
       )

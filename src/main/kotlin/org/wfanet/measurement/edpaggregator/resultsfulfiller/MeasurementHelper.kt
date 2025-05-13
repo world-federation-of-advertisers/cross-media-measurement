@@ -1,16 +1,8 @@
 package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
-import com.google.common.hash.HashFunction
-import com.google.common.hash.Hashing
-import com.google.crypto.tink.KmsClient
-import com.google.protobuf.Descriptors.Descriptor
-import com.google.protobuf.DynamicMessage
-import com.google.protobuf.TypeRegistry
 import com.google.protobuf.kotlin.unpack
-import com.google.type.Interval
 import io.grpc.StatusException
-import java.io.File
-import java.security.GeneralSecurityException
+import java.security.SecureRandom
 import java.util.logging.Level
 import java.util.logging.Logger
 import kotlin.math.max
@@ -18,13 +10,7 @@ import kotlin.math.roundToInt
 import kotlin.random.Random
 import kotlin.random.asJavaRandom
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.asFlow
-import kotlinx.coroutines.flow.filter
-import kotlinx.coroutines.flow.flatMapConcat
-import kotlinx.coroutines.flow.map
 import org.apache.commons.math3.distribution.ConstantRealDistribution
-import org.projectnessie.cel.Program
-import org.projectnessie.cel.common.types.BoolT
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DeterministicCountDistinct
 import org.wfanet.measurement.api.v2alpha.DeterministicDistribution
@@ -37,35 +23,19 @@ import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig.NoiseMechanism
 import org.wfanet.measurement.api.v2alpha.Requisition
-import org.wfanet.measurement.api.v2alpha.RequisitionSpec
 import org.wfanet.measurement.dataprovider.RequisitionRefusalException
-import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.SignedMessage
 import org.wfanet.measurement.api.v2alpha.fulfillDirectRequisitionRequest
-import org.wfanet.measurement.api.v2alpha.unpack
-import org.wfanet.measurement.common.crypto.PrivateKeyHandle
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
-import org.wfanet.measurement.common.crypto.tink.withEnvelopeEncryption
-import org.wfanet.measurement.common.flatten
-import org.wfanet.measurement.common.toInstant
-import org.wfanet.measurement.consent.client.dataprovider.decryptRequisitionSpec
 import org.wfanet.measurement.consent.client.dataprovider.encryptResult
 import org.wfanet.measurement.consent.client.dataprovider.signResult
 import org.wfanet.measurement.dataprovider.MeasurementResults
-import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
-import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
-import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters
-import org.wfanet.measurement.eventdataprovider.eventfiltration.validation.EventFilterValidationException
 import org.wfanet.measurement.eventdataprovider.noiser.AbstractNoiser
 import org.wfanet.measurement.eventdataprovider.noiser.DirectNoiseMechanism
 import org.wfanet.measurement.eventdataprovider.noiser.DpParams
 import org.wfanet.measurement.eventdataprovider.noiser.GaussianNoiser
 import org.wfanet.measurement.eventdataprovider.noiser.LaplaceNoiser
-import org.wfanet.measurement.storage.MesosRecordIoStorageClient
-import org.wfanet.measurement.storage.SelectedStorageClient
-import org.wfanet.sampling.VidSampler
-import org.wfanet.measurement.storage.BlobUri
 
 /**
  * Helper functions for measurement operations.
@@ -73,7 +43,7 @@ import org.wfanet.measurement.storage.BlobUri
 class MeasurementHelper(
   private val requisitionsStub: RequisitionsCoroutineStub,
   private val dataProviderSigningKeyHandle: SigningKeyHandle,
-  private val random: Random = Random,
+  private val random: SecureRandom = SecureRandom(),
   private val dataProviderCertificateKey: DataProviderCertificateKey
 ) {
   private val logger: Logger = Logger.getLogger(this::class.java.name)
@@ -93,7 +63,7 @@ class MeasurementHelper(
       )
   }
 
-  private suspend fun fulfillDirectReachAndFrequencyMeasurement(
+  suspend fun fulfillDirectReachAndFrequencyMeasurement(
     requisition: Requisition,
     measurementSpec: MeasurementSpec,
     sampledVids: Flow<Long>,
@@ -112,7 +82,7 @@ class MeasurementHelper(
     fulfillDirectMeasurement(requisition, measurementSpec, nonce, measurementResult)
   }
 
-  protected suspend fun fulfillDirectMeasurement(
+  suspend fun fulfillDirectMeasurement(
     requisition: Requisition,
     measurementSpec: MeasurementSpec,
     nonce: Long,
@@ -180,13 +150,13 @@ class MeasurementHelper(
     return when (measurementSpec.measurementTypeCase) {
       MeasurementSpec.MeasurementTypeCase.REACH_AND_FREQUENCY -> {
         if (!directProtocolConfig.hasDeterministicCountDistinct()) {
-          throw RequisitionRefusalException(
+          throw RequisitionRefusalException.Default(
             Requisition.Refusal.Justification.DECLINED,
             "No valid methodologies for direct reach computation.",
           )
         }
         if (!directProtocolConfig.hasDeterministicDistribution()) {
-          throw RequisitionRefusalException(
+          throw RequisitionRefusalException.Default(
             Requisition.Refusal.Justification.DECLINED,
             "No valid methodologies for direct frequency distribution computation.",
           )
@@ -263,7 +233,7 @@ class MeasurementHelper(
   private fun getPublisherNoiser(
     privacyParams: DifferentialPrivacyParams,
     directNoiseMechanism: DirectNoiseMechanism,
-    random: Random,
+    random: SecureRandom,
   ): AbstractNoiser =
     when (directNoiseMechanism) {
       DirectNoiseMechanism.NONE ->
@@ -274,10 +244,10 @@ class MeasurementHelper(
         }
 
       DirectNoiseMechanism.CONTINUOUS_LAPLACE ->
-        LaplaceNoiser(DpParams(privacyParams.epsilon, privacyParams.delta), random.asJavaRandom())
+        LaplaceNoiser(DpParams(privacyParams.epsilon, privacyParams.delta), random)
 
       DirectNoiseMechanism.CONTINUOUS_GAUSSIAN ->
-        GaussianNoiser(DpParams(privacyParams.epsilon, privacyParams.delta), random.asJavaRandom())
+        GaussianNoiser(DpParams(privacyParams.epsilon, privacyParams.delta), random)
     }
 
   /**
@@ -298,7 +268,7 @@ class MeasurementHelper(
 
     return max(0, reachValue + reachNoiser.sample().toInt())
   }
-  
+
   /**
    * Add publisher noise to calculated direct frequency.
    *
@@ -352,4 +322,4 @@ class MeasurementHelper(
       }
     }
   }
-} 
+}

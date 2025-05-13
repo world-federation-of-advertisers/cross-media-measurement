@@ -18,7 +18,6 @@ package org.wfanet.measurement.dataprovider
 
 import com.google.protobuf.TypeRegistry
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.fold
 import org.projectnessie.cel.Program
 import org.wfanet.measurement.populationdataprovider.PopulationInfo
@@ -107,7 +106,7 @@ object MeasurementResults {
       acc[vid] = acc.getOrDefault(vid, 0) + 1
       acc
     }
-    
+
     // Cap each count at `maxFrequency`.
     return eventsPerVid.values.sumOf { count -> count.coerceAtMost(maxFrequency).toLong() }
   }
@@ -127,4 +126,4 @@ object MeasurementResults {
   ): Long {
     return PopulationRequisitionFulfiller.computePopulation(populationInfo, program, typeRegistry)
   }
-} 
+}

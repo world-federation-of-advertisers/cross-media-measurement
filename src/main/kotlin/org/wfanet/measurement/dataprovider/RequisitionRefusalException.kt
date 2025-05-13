@@ -21,9 +21,6 @@ import org.wfanet.measurement.api.v2alpha.Requisition
 /**
  * Exception thrown when a requisition is refused.
  *
- * This is implemented as a sealed class hierarchy since all subclasses should be known.
- * This is not a library for general usage, but rather specifically for the EDPA.
- *
  * @param justification The justification for refusing the requisition
  * @param message A message explaining the reason for refusal
  * @param cause The cause of the refusal, if any
@@ -33,7 +30,7 @@ sealed class RequisitionRefusalException(
   message: String,
   cause: Throwable? = null
 ) : Exception(message, cause) {
-  
+
   /**
    * Base implementation of [RequisitionRefusalException].
    */
@@ -42,7 +39,7 @@ sealed class RequisitionRefusalException(
     message: String,
     cause: Throwable? = null
   ) : RequisitionRefusalException(justification, message, cause)
-  
+
   /**
    * [RequisitionRefusalException] for test EventGroups.
    */
