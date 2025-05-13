@@ -1021,10 +1021,10 @@ class Report:
         impression=solution_impression,
     )
 
-  def _is_linear_tv(self, edp_combination: FrozenSet[str]) -> bool:
-    """Checks if a given EDP combination represents Linear TV EDP.
+  def _is_zero_variance_edp(self, edp_combination: FrozenSet[str]) -> bool:
+    """Checks if a given EDP combination represents a zero variance EDP.
 
-    An EDP is Linear TV EDP if the standard deviation is zero for all
+    An EDP is a zero variance EDP if the standard deviation is zero for all
     measurements.
 
     Args:
@@ -1206,13 +1206,13 @@ class Report:
 
     return True
 
-  def _get_linear_tv_edps(self) -> list[str]:
-    """Get the Linear TV EDPs.
+  def _get_zero_variace_edps(self) -> list[str]:
+    """Get the zero variance EDPs.
 
     Returns:
-       A list of Linear TV EDPs.
+       A list of zero variance EDPs.
     """
-    tv_edp_combinations: list[str] = []
+    zero_variance_edp_combinations: list[str] = []
     if self._metric_reports.keys() is None:
       raise ValueError("The report does not contain any measurements.")
 
@@ -1220,33 +1220,42 @@ class Report:
       next(iter(self._metric_reports.keys()))].get_cumulative_edp_combinations()
 
     for edp_combination in edp_combinations:
-      if self._is_linear_tv(edp_combination):
-        tv_edp_combinations.append(edp_combination)
+      if self._is_zero_variance_edp(edp_combination):
+        zero_variance_edp_combinations.append(edp_combination)
 
-    return tv_edp_combinations
+    return zero_variance_edp_combinations
 
   def get_report_quality(self) -> ReportQuality:
     """Calculates and returns the overall data quality status for the report.
 
     Returns:
         A ReportQuality protobuf message instance populated with the status
-        outcomes (`tv_status`, `union_status`) from the performed checks.
+        outcomes (`zero_variance_measurements_status`, `union_status`) from the performed checks.
     """
-    # Gets the tv quality status.
-    tv_edp_combinations = self._get_linear_tv_edps()
-    if not tv_edp_combinations:
-      tv_quality_status = \
-        ReportQuality.LinearTvStatus.LINEAR_TV_STATUS_UNSPECIFIED
+    # Gets the zero variance measurement quality status.
+    zero_variance_edp_combinations = self._get_zero_variace_edps()
+    if not zero_variance_edp_combinations:
+      zero_variance_measurements_status = \
+        ReportQuality \
+          .ZeroVarianceMeasurementsStatus \
+          .ZERO_VARIANCE_MEASUREMENTS_STATUS_UNSPECIFIED
     else:
-      tv_quality_status = ReportQuality.LinearTvStatus.CONSISTENT
-      for tv_edp_combination in tv_edp_combinations:
-        if not self._are_edp_measurements_consistent(tv_edp_combination):
-          tv_quality_status = ReportQuality.LinearTvStatus.INCONSISTENT
+      zero_variance_measurements_status = \
+        ReportQuality \
+          .ZeroVarianceMeasurementsStatus \
+          .CONSISTENT
+      for zero_variance_edp_combination in zero_variance_edp_combinations:
+        if not self._are_edp_measurements_consistent(
+            zero_variance_edp_combination):
+          zero_variance_measurements_status = \
+            ReportQuality.ZeroVarianceMeasurementsStatus.INCONSISTENT
           break
 
     # Gets the union check status.
     independence_check_status = \
-      ReportQuality.IndependenceCheckStatus.INDEPENDENCE_CHECK_STATUS_UNSPECIFIED
+      ReportQuality \
+        .IndependenceCheckStatus \
+        .INDEPENDENCE_CHECK_STATUS_UNSPECIFIED
     if self._population_size > 0:
       independence_check_status = \
         ReportQuality.IndependenceCheckStatus.WITHIN_CONFIDENCE_RANGE
@@ -1261,6 +1270,6 @@ class Report:
             break
 
     return ReportQuality(
-        tv_status=tv_quality_status,
+        zero_variance_measurements_status=zero_variance_measurements_status,
         union_status=independence_check_status,
     )

@@ -1039,7 +1039,8 @@ class TestReport(unittest.TestCase):
       self.assertCountEqual(spec._weighted_sum_upperbound_sets[key],
                             expected_weighted_sum_upperbound_sets[key])
 
-  def test_linear_tv_with_invalid_cumulative_reach_is_not_consistent(self):
+  def test_zero_variance_edp_with_invalid_cumulative_reach_is_not_consistent(
+      self):
     # The cumulative reaches are decreasing.
     report = Report(
         metric_reports={
@@ -1072,7 +1073,7 @@ class TestReport(unittest.TestCase):
         report._are_edp_measurements_consistent(frozenset({EDP_ONE}))
     )
 
-  def test_linear_tv_with_mismatch_cumulative_and_total_reach_is_not_consistent(
+  def test_zero_variance_edp_with_mismatch_cumulative_and_total_reach_is_not_consistent(
       self):
     # The total reach is not equal to the last cumulative reach.
     report = Report(
@@ -1106,7 +1107,7 @@ class TestReport(unittest.TestCase):
         report._are_edp_measurements_consistent(frozenset({EDP_ONE}))
     )
 
-  def test_linear_tv_with_mismatch_total_reach_and_k_reach_is_not_consistent(
+  def test_zero_variance_edp_with_mismatch_total_reach_and_k_reach_is_not_consistent(
       self):
     # The total reach is not equal to the sum of k reaches.
     report = Report(
@@ -1140,7 +1141,7 @@ class TestReport(unittest.TestCase):
         report._are_edp_measurements_consistent(frozenset({EDP_ONE}))
     )
 
-  def test_linear_tv_with_impression_count_less_than_weighted_sum_of_k_reaches_is_not_consistent(
+  def test_zero_variance_edp_with_impression_count_less_than_weighted_sum_of_k_reaches_is_not_consistent(
       self):
     # The impression count is much less than the weighted sum of k reaches.
     report = Report(
@@ -1174,7 +1175,8 @@ class TestReport(unittest.TestCase):
         report._are_edp_measurements_consistent(frozenset({EDP_ONE}))
     )
 
-  def test_linear_tv_with_inconsistent_metric_relation_is_not_consistent(self):
+  def test_zero_variance_edp_with_inconsistent_metric_relation_is_not_consistent(
+      self):
     # The first mrc cumulative week has higher reach than that of ami.
     report = Report(
         metric_reports={
@@ -1912,7 +1914,7 @@ class TestReport(unittest.TestCase):
         NOISE_CORRECTION_TOLERANCE)
     self._assertReportsAlmostEqual(expected, corrected, corrected.to_array())
 
-  def test_correct_report_with_one_consistent_linear_tv_return_consistent_status(
+  def test_correct_report_with_one_consistent_zero_variance_edp_return_consistent_status(
       self):
     report = Report(
         metric_reports={
@@ -1972,23 +1974,31 @@ class TestReport(unittest.TestCase):
         report_post_processor_result.status.primal_inequality_residual,
         NOISE_CORRECTION_TOLERANCE)
     self.assertEqual(
-        report_post_processor_result.pre_correction_quality.tv_status,
-        ReportQuality.LinearTvStatus.CONSISTENT)
+        report_post_processor_result
+        .pre_correction_quality
+        .zero_variance_measurements_status,
+        ReportQuality.ZeroVarianceMeasurementsStatus.CONSISTENT)
     self.assertEqual(
-        report_post_processor_result.post_correction_quality.tv_status,
-        ReportQuality.LinearTvStatus.CONSISTENT)
+        report_post_processor_result
+        .post_correction_quality
+        .zero_variance_measurements_status,
+        ReportQuality.ZeroVarianceMeasurementsStatus.CONSISTENT)
     # No union check status as population size is not specified.
     self.assertEqual(
         report_post_processor_result.pre_correction_quality.union_status,
-        ReportQuality.IndependenceCheckStatus.INDEPENDENCE_CHECK_STATUS_UNSPECIFIED
+        ReportQuality
+        .IndependenceCheckStatus
+        .INDEPENDENCE_CHECK_STATUS_UNSPECIFIED
     )
     self.assertEqual(
         report_post_processor_result.post_correction_quality.union_status,
-        ReportQuality.IndependenceCheckStatus.INDEPENDENCE_CHECK_STATUS_UNSPECIFIED
+        ReportQuality
+        .IndependenceCheckStatus
+        .INDEPENDENCE_CHECK_STATUS_UNSPECIFIED
     )
     self._assertReportsAlmostEqual(report, corrected, corrected.to_array())
 
-  def test_correct_report_with_many_consistent_linear_tv_edps_return_consistent_status(
+  def test_correct_report_with_many_consistent_zero_variance_edp_edps_return_consistent_status(
       self):
     # There are two unnoised edps with consistent measurements.
     # The union differences are around 47000, and fall outside the confidence
@@ -2054,11 +2064,15 @@ class TestReport(unittest.TestCase):
         report_post_processor_result.status.primal_inequality_residual,
         NOISE_CORRECTION_TOLERANCE)
     self.assertEqual(
-        report_post_processor_result.pre_correction_quality.tv_status,
-        ReportQuality.LinearTvStatus.CONSISTENT)
+        report_post_processor_result
+        .pre_correction_quality
+        .zero_variance_measurements_status,
+        ReportQuality.ZeroVarianceMeasurementsStatus.CONSISTENT)
     self.assertEqual(
-        report_post_processor_result.post_correction_quality.tv_status,
-        ReportQuality.LinearTvStatus.CONSISTENT)
+        report_post_processor_result
+        .post_correction_quality
+        .zero_variance_measurements_status,
+        ReportQuality.ZeroVarianceMeasurementsStatus.CONSISTENT)
     self.assertEqual(
         report_post_processor_result.pre_correction_quality.union_status,
         ReportQuality.IndependenceCheckStatus.OUTSIDE_CONFIDENCE_RANGE
@@ -2068,7 +2082,7 @@ class TestReport(unittest.TestCase):
         ReportQuality.IndependenceCheckStatus.OUTSIDE_CONFIDENCE_RANGE
     )
 
-  def test_correct_report_with_not_consistent_linear_tv_return_not_consistent_status(
+  def test_correct_report_with_not_consistent_zero_variance_edp_return_not_consistent_status(
       self):
     # Report has inconsistent unnoised data.
     # measurement 7 should be less than measurement 1.
@@ -2132,18 +2146,28 @@ class TestReport(unittest.TestCase):
         float('inf')
     )
     self.assertEqual(
-        report_post_processor_result.pre_correction_quality.tv_status,
-        ReportQuality.LinearTvStatus.INCONSISTENT)
+        report_post_processor_result
+        .pre_correction_quality
+        .zero_variance_measurements_status,
+        ReportQuality.ZeroVarianceMeasurementsStatus.INCONSISTENT)
     self.assertEqual(
-        report_post_processor_result.post_correction_quality.tv_status,
-        ReportQuality.LinearTvStatus.LINEAR_TV_STATUS_UNSPECIFIED)
+        report_post_processor_result
+        .post_correction_quality
+        .zero_variance_measurements_status,
+        ReportQuality
+        .ZeroVarianceMeasurementsStatus
+        .ZERO_VARIANCE_MEASUREMENTS_STATUS_UNSPECIFIED)
     self.assertEqual(
         report_post_processor_result.pre_correction_quality.union_status,
-        ReportQuality.IndependenceCheckStatus.INDEPENDENCE_CHECK_STATUS_UNSPECIFIED
+        ReportQuality
+        .IndependenceCheckStatus
+        .INDEPENDENCE_CHECK_STATUS_UNSPECIFIED
     )
     self.assertEqual(
         report_post_processor_result.post_correction_quality.union_status,
-        ReportQuality.IndependenceCheckStatus.INDEPENDENCE_CHECK_STATUS_UNSPECIFIED
+        ReportQuality
+        .IndependenceCheckStatus
+        .INDEPENDENCE_CHECK_STATUS_UNSPECIFIED
     )
     self.assertIsNone(corrected,
                       "Corrected report is None as QP solver fails.")
@@ -2212,11 +2236,15 @@ class TestReport(unittest.TestCase):
         report_post_processor_result.status.primal_inequality_residual,
         NOISE_CORRECTION_TOLERANCE)
     self.assertEqual(
-        report_post_processor_result.pre_correction_quality.tv_status,
-        ReportQuality.LinearTvStatus.CONSISTENT)
+        report_post_processor_result
+        .pre_correction_quality
+        .zero_variance_measurements_status,
+        ReportQuality.ZeroVarianceMeasurementsStatus.CONSISTENT)
     self.assertEqual(
-        report_post_processor_result.post_correction_quality.tv_status,
-        ReportQuality.LinearTvStatus.CONSISTENT)
+        report_post_processor_result
+        .post_correction_quality
+        .zero_variance_measurements_status,
+        ReportQuality.ZeroVarianceMeasurementsStatus.CONSISTENT)
     self.assertEqual(
         report_post_processor_result.pre_correction_quality.union_status,
         ReportQuality.IndependenceCheckStatus.WITHIN_CONFIDENCE_RANGE
@@ -2290,11 +2318,15 @@ class TestReport(unittest.TestCase):
         report_post_processor_result.status.primal_inequality_residual,
         NOISE_CORRECTION_TOLERANCE)
     self.assertEqual(
-        report_post_processor_result.pre_correction_quality.tv_status,
-        ReportQuality.LinearTvStatus.CONSISTENT)
+        report_post_processor_result
+        .pre_correction_quality
+        .zero_variance_measurements_status,
+        ReportQuality.ZeroVarianceMeasurementsStatus.CONSISTENT)
     self.assertEqual(
-        report_post_processor_result.post_correction_quality.tv_status,
-        ReportQuality.LinearTvStatus.CONSISTENT)
+        report_post_processor_result
+        .post_correction_quality
+        .zero_variance_measurements_status,
+        ReportQuality.ZeroVarianceMeasurementsStatus.CONSISTENT)
     self.assertEqual(
         report_post_processor_result.pre_correction_quality.union_status,
         ReportQuality.IndependenceCheckStatus.OUTSIDE_CONFIDENCE_RANGE
