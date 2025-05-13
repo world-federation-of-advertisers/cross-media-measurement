@@ -235,6 +235,7 @@ maven.install(
         "com.google.apis:google-api-services-storage:v1-rev20240706-2.0.0",
         "com.google.cloud.functions.invoker:java-function-invoker:1.4.0",
         "com.google.auth:google-auth-library-oauth2-http:1.35.0",
+        "com.google.auth:google-auth-library-credentials:1.35.0",
 
         # AWS
         "software.amazon.awssdk:acmpca",

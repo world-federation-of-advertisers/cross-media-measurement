@@ -4,3 +4,8 @@ alias(
     name = "google_auth",
     actual = "@maven//:com_google_auth_google_auth_library_oauth2_http",
 )
+
+alias(
+    name = "google_credentials",
+    actual = "@maven//:com_google_auth_google_auth_library_credentials",
+)
