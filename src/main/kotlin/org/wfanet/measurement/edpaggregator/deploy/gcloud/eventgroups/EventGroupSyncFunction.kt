@@ -74,8 +74,10 @@ class EventGroupSyncFunction() : HttpFunction {
 
     val eventGroupsClient = EventGroupsCoroutineStub(publicChannel)
     val eventGroups = runBlocking {
+      logger.info("eventGroupsBlobUri: ${eventGroupSyncConfig.eventGroupsBlobUri}")
       val eventGroupsBlobUri =
         SelectedStorageClient.parseBlobUri(eventGroupSyncConfig.eventGroupsBlobUri)
+      logger.info("eventGroupsBlobUri2: ${eventGroupsBlobUri}")
       MesosRecordIoStorageClient(
           SelectedStorageClient(
             blobUri = eventGroupsBlobUri,
