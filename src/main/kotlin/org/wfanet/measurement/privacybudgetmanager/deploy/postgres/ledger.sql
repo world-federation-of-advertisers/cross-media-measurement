@@ -13,8 +13,7 @@
 -- limitations under the License.
 
 
-CREATE TYPE ChargesTableState
-AS ENUM('NOT_READY', 'BACKFILLING', 'READY');
+CREATE TYPE ChargesTableState AS ENUM('BACKFILLING', 'READY');
 
 
 -- Holds the state and privacyLandscapeName for all the previous (deleted) and current PrivacyCharges tables.
@@ -39,14 +38,14 @@ CREATE TABLE PrivacyCharges(
  EdpId text NOT NULl,
  -- The Measurement Consumer these charges belong to.
  MeasurementConsumerId text NOT NULL,
- -- The Event Group these charges belong to.
- EventGroupId text NOT NULL,
+ -- The Event Group Reference assigned by the EDP that these charges belong to.
+ EventGroupReferenceId text NOT NULL,
  -- Day for this PrivacyBucket. DD-MM-YYYY.
  Date Date NOT NULL,
  -- A wfa.measurement.privacybudgetmanager.Charges proto capturing charges for each bucket.
  Charges BYTEA,
- -- There can be only one entry per MeasurementConsumerId, EventGroupId, Date triplet.
- PRIMARY KEY (EdpId, MeasurementConsumerId, EventGroupId, Date));
+ -- There can be only one entry per MeasurementConsumerId, EventGroupReferenceId, Date triplet.
+ PRIMARY KEY (EdpId, MeasurementConsumerId, EventGroupReferenceId, Date));
 
 
 -- Holds all the ledger Entries.
@@ -57,7 +56,7 @@ CREATE TABLE LedgerEntries(
  MeasurementConsumerId text NOT NULL,
  -- ID from an external system that uniquely identifies the source all charges in a transaction
  -- for a given MeasurementConsumer. Likely the requisition id.
- ReferenceId text NOT NULL,
+ ExternalReferenceId text NOT NULL,
  -- Whether or not the charge is a refund.
  IsRefund Boolean NOT NULL,
  -- Time when the row was inserted.
@@ -67,4 +66,4 @@ CREATE TABLE LedgerEntries(
 -- Used to query references quickly
 CREATE
  INDEX LedgerEntriesByReferenceId
-ON LedgerEntries(EdpId, MeasurementConsumerId, ReferenceId);
+ON LedgerEntries(EdpId, MeasurementConsumerId, ExternalReferenceId);

@@ -18,7 +18,7 @@ import java.time.LocalDate
 /** Key for a row of the Ledger. PBM is opinionated about this structure. */
 data class LedgerRowKey(
   val measurementConsumerId: String,
-  val eventGroupId: String,
+  val eventGroupReferenceId: String,
   val date: LocalDate,
 )
 
