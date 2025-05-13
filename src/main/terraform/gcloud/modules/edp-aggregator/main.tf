@@ -169,11 +169,11 @@ resource "google_storage_bucket_iam_binding" "aggregator_storage_creators" {
 #   member            = "serviceAccount:${module.data_watcher_function_service_accounts.cloud_function_service_account_email}"
 # }
 
-resource "google_cloudfunctions2_function_iam_member" "event_group_sync_invoker" {
-  cloud_function = var.event_group_sync_function_name
-  role           = "roles/run.invoker"
-  member         = "serviceAccount:${module.data_watcher_function_service_accounts.cloud_function_service_account_email}"
-}
+# resource "google_cloudfunctions2_function_iam_member" "event_group_sync_invoker" {
+#   cloud_function = var.event_group_sync_function_name
+#   role           = "roles/run.invoker"
+#   member         = "serviceAccount:${module.data_watcher_function_service_accounts.cloud_function_service_account_email}"
+# }
 
 resource "google_cloud_run_service_iam_member" "event_group_sync_invoker" {
   service  = var.event_group_sync_function_name
