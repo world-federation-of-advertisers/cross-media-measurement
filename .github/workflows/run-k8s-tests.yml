@@ -15,9 +15,9 @@
 name: Run Kubernetes tests
 
 on:
-  push:
-    branches:
-      - marcopremier/edp_aggregtor_cloud_test
+#  push:
+#    branches:
+#      - marcopremier/edp_aggregtor_cloud_test
   workflow_call:
     inputs:
       environment:
