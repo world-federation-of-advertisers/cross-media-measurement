@@ -42,6 +42,8 @@ jobs:
     runs-on: ubuntu-22.04
 #    environment: ${{ inputs.environment }}
     environment: "dev"
+    env:
+      GOOGLE_CLOUD_PROJECT: ${{ vars.GCLOUD_PROJECT }}
     steps:
     - uses: actions/checkout@v4
 
@@ -87,6 +89,8 @@ jobs:
       id: run-tests
       run: >
         bazelisk test
+        --test_env=GOOGLE_APPLICATION_CREDENTIALS \
+        --test_env=GOOGLE_CLOUD_PROJECT \
         //src/test/kotlin/org/wfanet/measurement/integration/k8s:EdpAggregatorCorrectnessTest
 #        //src/test/kotlin/org/wfanet/measurement/integration/k8s:SyntheticGeneratorCorrectnessTest
         
