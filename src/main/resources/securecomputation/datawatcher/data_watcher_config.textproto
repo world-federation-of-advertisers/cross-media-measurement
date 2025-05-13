@@ -12,7 +12,7 @@ watched_paths {
       }
       fields {
         key: "eventGroupsBlobUri"
-        value { string_value: "gs://secure-computation-storage-dev-bucket/edp7/event-groups" }
+        value { string_value: "gs://secure-computation-storage-dev-bucket/edp7/event-groups/edp7-event-group.pb" }
       }
       fields {
         key: "eventGroupMapBlobUri"

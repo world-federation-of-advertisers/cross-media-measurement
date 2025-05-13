@@ -78,6 +78,7 @@ class EventGroupSyncFunction() : HttpFunction {
       val eventGroupsBlobUri =
         SelectedStorageClient.parseBlobUri(eventGroupSyncConfig.eventGroupsBlobUri)
       logger.info("eventGroupsBlobUri2: ${eventGroupsBlobUri}")
+      logger.info("eventGroupsBlobUri3: ${eventGroupsBlobUri.key}")
       MesosRecordIoStorageClient(
           SelectedStorageClient(
             blobUri = eventGroupsBlobUri,
