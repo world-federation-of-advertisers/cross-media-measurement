@@ -83,7 +83,7 @@ class VidFilter(
     )
 
     // Create filter program
-    val eventMessageData = labeledImpression.event!!
+    val eventMessageData = labeledImpression.event
     val eventTemplateDescriptor = typeRegistry.getDescriptorForTypeUrl(eventMessageData.typeUrl)
     val program = compileProgram(eventTemplateDescriptor)
     val eventMessage = DynamicMessage.parseFrom(eventTemplateDescriptor, eventMessageData.value)
