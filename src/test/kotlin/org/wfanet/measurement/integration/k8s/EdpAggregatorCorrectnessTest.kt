@@ -74,14 +74,14 @@ class EdpAggregatorCorrectnessTest: AbstractEdpAggregatorCorrectnessTest(measure
 
     private suspend fun uploadEventGroups(eventGroup: List<EventGroup>) {
       val eventGroupsBlobUri =
-        SelectedStorageClient.parseBlobUri("gs://secure-computation-storage-dev-bucket/edp7/event-groups")
+        SelectedStorageClient.parseBlobUri("gs://secure-computation-storage-dev-bucket/edp7/event-groups/edp7-event-group.pb")
       MesosRecordIoStorageClient(
         SelectedStorageClient(
           blobUri = eventGroupsBlobUri,
           rootDirectory = null,
           projectId = "halo-cmm-dev",
         )
-      ).writeBlob("edp7-event-group", eventGroup.asFlow().map { it.toByteString() })
+      ).writeBlob("edp7/event-groups/edp7-event-group.pb", eventGroup.asFlow().map { it.toByteString() })
 
     }
 

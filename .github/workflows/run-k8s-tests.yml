@@ -36,7 +36,7 @@ on:
 
 permissions:
   id-token: write
-  
+
 jobs:
   run-tests:
     runs-on: ubuntu-22.04
