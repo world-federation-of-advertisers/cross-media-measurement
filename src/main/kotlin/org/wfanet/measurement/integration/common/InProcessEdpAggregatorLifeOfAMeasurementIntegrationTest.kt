@@ -127,8 +127,6 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
     DataProvidersCoroutineStub(inProcessCmmsComponents.kingdom.publicApiChannel)
   }
 
-  private val eventGroups: List<EventGroup> = emptyList()
-
   private fun initMcSimulator() {
     val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
     val eventQuery =
