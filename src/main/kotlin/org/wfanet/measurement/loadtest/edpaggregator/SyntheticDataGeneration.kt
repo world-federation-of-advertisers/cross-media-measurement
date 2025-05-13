@@ -17,9 +17,9 @@
 package org.wfanet.measurement.loadtest.edpaggregator
 
 import com.google.common.hash.Hashing
+import com.google.protobuf.Any as ProtoAny
 import com.google.protobuf.Descriptors.FieldDescriptor
 import com.google.protobuf.Message
-import com.google.protobuf.Any as ProtoAny
 import com.google.protobuf.kotlin.toByteStringUtf8
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
@@ -27,6 +27,8 @@ import java.time.Instant
 import java.time.ZoneOffset
 import kotlin.math.max
 import kotlin.math.min
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.CartesianSyntheticEventGroupSpecRecipe
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.FieldValue
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SimulatorSyntheticDataSpec
@@ -41,11 +43,9 @@ import org.wfanet.measurement.common.LocalDateProgression
 import org.wfanet.measurement.common.OpenEndTimeRange
 import org.wfanet.measurement.common.rangeTo
 import org.wfanet.measurement.common.toLocalDate
+import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
 import org.wfanet.measurement.edpaggregator.v1alpha.labeledImpression
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.flow
-import org.wfanet.measurement.common.toProtoTime
 
 object SyntheticDataGeneration {
   private val VID_SAMPLING_FINGERPRINT_FUNCTION = Hashing.farmHashFingerprint64()
@@ -130,11 +130,13 @@ object SyntheticDataGeneration {
               }
               for (i in 1..frequencySpec.frequency) {
                 for (vid in vidRangeSpec.sampledVids(syntheticEventGroupSpec.samplingNonce)) {
-                  emit(labeledImpression {
-                    eventTime = timestamp.toProtoTime()
-                    this.vid = vid
-                    event = ProtoAny.pack(message)
-                  })
+                  emit(
+                    labeledImpression {
+                      eventTime = timestamp.toProtoTime()
+                      this.vid = vid
+                      event = ProtoAny.pack(message)
+                    }
+                  )
                 }
               }
             }

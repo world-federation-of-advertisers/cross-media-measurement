@@ -12,13 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.loadtest.measurementconsumer
+package org.wfanet.measurement.loadtest.edpaggregator
 
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.Any as ProtoAny
 import com.google.protobuf.ByteString
 import com.google.protobuf.Message
-import com.google.protobuf.TypeRegistry
 import com.google.protobuf.util.Durations
 import io.grpc.StatusException
 import java.security.SignatureException
@@ -33,10 +32,14 @@ import kotlin.math.sqrt
 import kotlin.random.Random
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.emitAll
+import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
+import kotlinx.coroutines.flow.flatMapConcat
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.time.delay
-import org.projectnessie.cel.Program
 import org.wfanet.measurement.api.v2alpha.Certificate
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.CustomDirectMethodologyKt
@@ -46,7 +49,6 @@ import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.DataProviderKt
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.DifferentialPrivacyParams
-import org.wfanet.measurement.api.v2alpha.EventAnnotationsProto
 import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupKey
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
@@ -81,6 +83,8 @@ import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.createMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.customDirectMethodology
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
+import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
+import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticPopulationSpec
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
 import org.wfanet.measurement.api.v2alpha.getCertificateRequest
 import org.wfanet.measurement.api.v2alpha.getMeasurementConsumerRequest
@@ -97,7 +101,6 @@ import org.wfanet.measurement.common.OpenEndTimeRange
 import org.wfanet.measurement.common.api.grpc.ResourceList
 import org.wfanet.measurement.common.api.grpc.flattenConcat
 import org.wfanet.measurement.common.api.grpc.listResources
-import org.wfanet.measurement.common.coerceAtMost
 import org.wfanet.measurement.common.crypto.Hashing
 import org.wfanet.measurement.common.crypto.PrivateKeyHandle
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
@@ -112,9 +115,8 @@ import org.wfanet.measurement.consent.client.measurementconsumer.signRequisition
 import org.wfanet.measurement.consent.client.measurementconsumer.verifyResult
 import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters
 import org.wfanet.measurement.eventdataprovider.noiser.DpParams as NoiserDpParams
+import org.wfanet.measurement.integration.common.SyntheticGenerationSpecs
 import org.wfanet.measurement.loadtest.config.TestIdentifiers
-import org.wfanet.measurement.loadtest.dataprovider.EventQuery
-import org.wfanet.measurement.loadtest.dataprovider.MeasurementResults
 import org.wfanet.measurement.measurementconsumer.stats.DeterministicMethodology
 import org.wfanet.measurement.measurementconsumer.stats.FrequencyMeasurementParams
 import org.wfanet.measurement.measurementconsumer.stats.FrequencyMeasurementVarianceParams
@@ -128,6 +130,9 @@ import org.wfanet.measurement.measurementconsumer.stats.ReachMeasurementParams
 import org.wfanet.measurement.measurementconsumer.stats.ReachMeasurementVarianceParams
 import org.wfanet.measurement.measurementconsumer.stats.VariancesImpl
 import org.wfanet.measurement.measurementconsumer.stats.VidSamplingInterval as StatsVidSamplingInterval
+import org.projectnessie.cel.Program
+import kotlinx.coroutines.runBlocking
+import com.google.protobuf.kotlin.unpack
 
 data class MeasurementConsumerData(
   // The MC's public API resource name
@@ -150,8 +155,12 @@ class MeasurementConsumerSimulator(
   private val measurementConsumersClient: MeasurementConsumersCoroutineStub,
   private val certificatesClient: CertificatesCoroutineStub,
   private val trustedCertificates: Map<ByteString, X509Certificate>,
-  private val eventQuery: EventQuery<Message>,
+  private val messageInstance: Message,
   private val expectedDirectNoiseMechanism: NoiseMechanism,
+  private val syntheticPopulationSpec: SyntheticPopulationSpec =
+    SyntheticGenerationSpecs.SYNTHETIC_POPULATION_SPEC_SMALL,
+  private val syntheticEventGroupMap: Map<String, SyntheticEventGroupSpec> =
+    mapOf("edpa-eg-reference-id-1" to SyntheticGenerationSpecs.SYNTHETIC_DATA_SPECS_SMALL[0]),
   private val filterExpression: String = DEFAULT_FILTER_EXPRESSION,
   private val eventRange: OpenEndTimeRange = DEFAULT_EVENT_RANGE,
   private val initialResultPollingDelay: Duration = Duration.ofSeconds(1),
@@ -177,41 +186,75 @@ class MeasurementConsumerSimulator(
     val noiseMechanism: NoiseMechanism,
   )
 
-  private val MeasurementInfo.filteredVids: Sequence<Long>
+  private val MeasurementInfo.filteredVids: List<Long>
     get() {
-      val eventGroupSpecs =
+      val eventGroupSpecs: List<Pair<SyntheticEventGroupSpec, String>> =
         requisitions
-          .flatMap {
-            val eventGroupsMap: Map<String, RequisitionSpec.EventGroupEntry.Value> =
-              it.requisitionSpec.eventGroupsMap
-            it.eventGroups.map { eventGroup ->
-              EventQuery.EventGroupSpec(eventGroup, eventGroupsMap.getValue(eventGroup.name))
-            }
+          .flatMap { requisitionInfo ->
+            requisitionInfo.eventGroups
+              .zip(requisitionInfo.requisitionSpec.events.eventGroupsList)
+              .map { (eventGroup, eventGroupEntry) ->
+                Pair(syntheticEventGroupMap.getValue(eventGroup.eventGroupReferenceId), eventGroupEntry.value.filter.expression)
+              }
           }
-          .asSequence()
 
-      return eventGroupSpecs.flatMap { eventQuery.getUserVirtualIds(it) }
+      return eventGroupSpecs
+        .flatMap { (syntheticEventGroupSpec, expression) ->
+          runBlocking {
+            val program: Program =
+              EventFilters.compileProgram(messageInstance.descriptorForType, expression)
+            SyntheticDataGeneration.generateEvents(
+              messageInstance,
+              syntheticPopulationSpec,
+              syntheticEventGroupSpec,
+            ).toList().filter { EventFilters.matches(it.event.unpack(messageInstance::class.java), program) }
+          }
+        }
+        .map { it.vid }
+
+      /*return eventGroupSpecs
+        .flatMap { (syntheticEventGroupSpec, expression) ->
+          {
+
+            val events: List<LabeledImpression> = SyntheticDataGeneration.generateEvents(
+                messageInstance,
+                syntheticPopulationSpec,
+                syntheticEventGroupSpec,
+              ).toList()
+              //.filter { EventFilters.matches(it.message, program) }
+            events
+          }
+        }
+        .map { it.vid }*/
     }
 
-  private fun MeasurementInfo.filterVidsByDataProvider(
-    targetDataProviderId: String
-  ): Sequence<Long> {
-    val eventGroupSpecs =
+  private fun MeasurementInfo.filterVidsByDataProvider(targetDataProviderId: String): List<Long> {
+    val eventGroupSpecs: List<Pair<SyntheticEventGroupSpec, String>> =
       requisitions
         .flatMap { requisitionInfo ->
-          val eventGroupsMap: Map<String, RequisitionSpec.EventGroupEntry.Value> =
-            requisitionInfo.requisitionSpec.eventGroupsMap
           requisitionInfo.eventGroups
-            .filter { eventGroup ->
+            .zip(requisitionInfo.requisitionSpec.events.eventGroupsList)
+            .filter { (eventGroup, eventGroupEntry) ->
               targetDataProviderId ==
                 requireNotNull(EventGroupKey.fromName(eventGroup.name)).dataProviderId
             }
-            .map { eventGroup ->
-              EventQuery.EventGroupSpec(eventGroup, eventGroupsMap.getValue(eventGroup.name))
+            .map { (eventGroup, eventGroupEntry) ->
+              Pair(syntheticEventGroupMap.getValue(eventGroup.eventGroupReferenceId), eventGroupEntry.value.filter.expression)
             }
         }
-        .asSequence()
-    return eventGroupSpecs.flatMap { eventQuery.getUserVirtualIds(it) }
+    return eventGroupSpecs
+      .flatMap { (syntheticEventGroupSpec, expression) ->
+        runBlocking {
+          val program: Program =
+            EventFilters.compileProgram(messageInstance.descriptorForType, expression)
+          SyntheticDataGeneration.generateEvents(
+            messageInstance,
+            syntheticPopulationSpec,
+            syntheticEventGroupSpec,
+          ).toList().filter { EventFilters.matches(it.event.unpack(messageInstance::class.java), program) }
+        }
+      }
+      .map { it.vid }
   }
 
   data class ExecutionResult(
@@ -302,12 +345,12 @@ class MeasurementConsumerSimulator(
 
     val invalidMeasurement =
       createMeasurement(
-        measurementConsumer,
-        runId,
-        ::newInvalidReachAndFrequencyMeasurementSpec,
-        requiredCapabilities,
-        vidSamplingInterval,
-      )
+          measurementConsumer,
+          runId,
+          ::newInvalidReachAndFrequencyMeasurementSpec,
+          requiredCapabilities,
+          vidSamplingInterval,
+        )
         .measurement
     logger.info(
       "Created invalid reach and frequency measurement ${invalidMeasurement.name}, state=${invalidMeasurement.state.name}"
@@ -641,12 +684,12 @@ class MeasurementConsumerSimulator(
       ImpressionMeasurementVarianceParams(
         impression = max(0L, result.impression.value),
         measurementParams =
-        ImpressionMeasurementParams(
-          vidSamplingInterval = measurementSpec.vidSamplingInterval.toStatsVidSamplingInterval(),
-          dpParams = measurementSpec.impression.privacyParams.toNoiserDpParams(),
-          maximumFrequencyPerUser = maxFrequencyPerUser,
-          noiseMechanism = measurementComputationInfo.noiseMechanism.toStatsNoiseMechanism(),
-        ),
+          ImpressionMeasurementParams(
+            vidSamplingInterval = measurementSpec.vidSamplingInterval.toStatsVidSamplingInterval(),
+            dpParams = measurementSpec.impression.privacyParams.toNoiserDpParams(),
+            maximumFrequencyPerUser = maxFrequencyPerUser,
+            noiseMechanism = measurementComputationInfo.noiseMechanism.toStatsNoiseMechanism(),
+          ),
       ),
     )
   }
@@ -662,23 +705,23 @@ class MeasurementConsumerSimulator(
       buildMeasurementComputationInfo(result, protocol, result.frequency.noiseMechanism)
 
     return VariancesImpl.computeMeasurementVariance(
-      measurementComputationInfo.methodology,
-      FrequencyMeasurementVarianceParams(
-        totalReach = max(0L, result.reach.value),
-        reachMeasurementVariance = reachVariance,
-        relativeFrequencyDistribution =
-        result.frequency.relativeFrequencyDistributionMap.mapKeys { it.key.toInt() },
-        measurementParams =
-        FrequencyMeasurementParams(
-          vidSamplingInterval =
-          measurementSpec.vidSamplingInterval.toStatsVidSamplingInterval(),
-          dpParams =
-          measurementSpec.reachAndFrequency.frequencyPrivacyParams.toNoiserDpParams(),
-          noiseMechanism = measurementComputationInfo.noiseMechanism.toStatsNoiseMechanism(),
-          maximumFrequency = measurementSpec.reachAndFrequency.maximumFrequency,
+        measurementComputationInfo.methodology,
+        FrequencyMeasurementVarianceParams(
+          totalReach = max(0L, result.reach.value),
+          reachMeasurementVariance = reachVariance,
+          relativeFrequencyDistribution =
+            result.frequency.relativeFrequencyDistributionMap.mapKeys { it.key.toInt() },
+          measurementParams =
+            FrequencyMeasurementParams(
+              vidSamplingInterval =
+                measurementSpec.vidSamplingInterval.toStatsVidSamplingInterval(),
+              dpParams =
+                measurementSpec.reachAndFrequency.frequencyPrivacyParams.toNoiserDpParams(),
+              noiseMechanism = measurementComputationInfo.noiseMechanism.toStatsNoiseMechanism(),
+              maximumFrequency = measurementSpec.reachAndFrequency.maximumFrequency,
+            ),
         ),
-      ),
-    )
+      )
       .relativeVariances
       .mapKeys { it.key.toLong() }
       .mapValues { computeErrorMargin(it.value) }
@@ -699,11 +742,11 @@ class MeasurementConsumerSimulator(
       ReachMeasurementVarianceParams(
         reach = max(0L, result.reach.value),
         measurementParams =
-        ReachMeasurementParams(
-          vidSamplingInterval = vidSamplingInterval.toStatsVidSamplingInterval(),
-          dpParams = privacyParams.toNoiserDpParams(),
-          noiseMechanism = measurementComputationInfo.noiseMechanism.toStatsNoiseMechanism(),
-        ),
+          ReachMeasurementParams(
+            vidSamplingInterval = vidSamplingInterval.toStatsVidSamplingInterval(),
+            dpParams = privacyParams.toNoiserDpParams(),
+            noiseMechanism = measurementComputationInfo.noiseMechanism.toStatsNoiseMechanism(),
+          ),
       ),
     )
   }
@@ -764,10 +807,10 @@ class MeasurementConsumerSimulator(
     runId: String,
     newMeasurementSpec:
       (
-      packedMeasurementPublicKey: ProtoAny,
-      nonceHashes: List<ByteString>,
-      vidSamplingInterval: VidSamplingInterval,
-    ) -> MeasurementSpec,
+        packedMeasurementPublicKey: ProtoAny,
+        nonceHashes: List<ByteString>,
+        vidSamplingInterval: VidSamplingInterval,
+      ) -> MeasurementSpec,
     requiredCapabilities: DataProvider.Capabilities =
       DataProvider.Capabilities.getDefaultInstance(),
     vidSamplingInterval: VidSamplingInterval,
@@ -777,7 +820,7 @@ class MeasurementConsumerSimulator(
       listEventGroups(measurementConsumer.name)
         .filter {
           it.eventGroupReferenceId.startsWith(
-            TestIdentifiers.SIMULATOR_EVENT_GROUP_REFERENCE_ID_PREFIX
+            TestIdentifiers.EDP_AGGREGATOR_EVENT_GROUP_REFERENCE_ID_PREFIX
           )
         }
         .toList()
@@ -957,7 +1000,7 @@ class MeasurementConsumerSimulator(
   }
 
   /** Gets the expected result of a [Measurement] using raw sketches. */
-  private fun getExpectedResult(measurementInfo: MeasurementInfo): Result {
+  private suspend fun getExpectedResult(measurementInfo: MeasurementInfo): Result {
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf enum fields cannot be null.
     return when (measurementInfo.measurementSpec.measurementTypeCase) {
       MeasurementSpec.MeasurementTypeCase.REACH -> getExpectedReachResult(measurementInfo)
@@ -976,7 +1019,7 @@ class MeasurementConsumerSimulator(
   }
 
   /** Gets the expected result of impression from a specific data provider. */
-  private fun getExpectedImpressionResultByDataProvider(
+  private suspend fun getExpectedImpressionResultByDataProvider(
     measurementInfo: MeasurementInfo,
     targetDataProviderId: String,
   ): Result {
@@ -985,22 +1028,22 @@ class MeasurementConsumerSimulator(
         MeasurementKt.ResultKt.impression {
           value =
             MeasurementResults.computeImpression(
-              measurementInfo.filterVidsByDataProvider(targetDataProviderId).asIterable(),
+              measurementInfo.filterVidsByDataProvider(targetDataProviderId).toList(),
               measurementInfo.measurementSpec.impression.maximumFrequencyPerUser,
             )
         }
     }
   }
 
-  private fun getExpectedReachResult(measurementInfo: MeasurementInfo): Result {
-    val reach = MeasurementResults.computeReach(measurementInfo.filteredVids.asIterable())
+  private suspend fun getExpectedReachResult(measurementInfo: MeasurementInfo): Result {
+    val reach = MeasurementResults.computeReach(measurementInfo.filteredVids.toList())
     return result { this.reach = reach { value = reach.toLong() } }
   }
 
-  private fun getExpectedReachAndFrequencyResult(measurementInfo: MeasurementInfo): Result {
+  private suspend fun getExpectedReachAndFrequencyResult(measurementInfo: MeasurementInfo): Result {
     val (reach, relativeFrequencyDistribution) =
       MeasurementResults.computeReachAndFrequency(
-        measurementInfo.filteredVids.asIterable(),
+        measurementInfo.filteredVids.toList(),
         measurementInfo.measurementSpec.reachAndFrequency.maximumFrequency,
       )
     return result {
@@ -1077,10 +1120,10 @@ class MeasurementConsumerSimulator(
       delta = 0.0
     }
     return newReachAndFrequencyMeasurementSpec(
-      packedMeasurementPublicKey,
-      nonceHashes,
-      vidSamplingInterval,
-    )
+        packedMeasurementPublicKey,
+        nonceHashes,
+        vidSamplingInterval,
+      )
       .copy {
         reachAndFrequency = reachAndFrequency {
           reachPrivacyParams = invalidPrivacyParams

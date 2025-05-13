@@ -16,6 +16,7 @@
 
 package org.wfanet.measurement.integration.common
 
+// import org.wfanet.measurement.loadtest.dataprovider.EventQuery
 import com.google.crypto.tink.Aead
 import com.google.crypto.tink.KeyTemplates
 import com.google.crypto.tink.KeysetHandle
@@ -35,7 +36,6 @@ import java.time.Clock
 import java.time.Duration
 import java.time.LocalDate
 import java.time.ZoneId
-import java.util.Timer
 import java.util.logging.Level
 import java.util.logging.Logger
 import kotlinx.coroutines.CoroutineExceptionHandler
@@ -54,8 +54,6 @@ import org.junit.rules.TestRule
 import org.junit.runner.Description
 import org.junit.runners.model.Statement
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
-import org.wfanet.measurement.api.v2alpha.EventGroup as CmmsEventGroup
-import org.wfanet.measurement.api.v2alpha.EventGroupKey as CmmsEventGroupKey
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec
@@ -64,7 +62,6 @@ import org.wfanet.measurement.api.v2alpha.SignedMessage
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticPopulationSpec
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
-import org.wfanet.measurement.api.v2alpha.getEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.unpack
 import org.wfanet.measurement.common.crypto.PrivateKeyHandle
 import org.wfanet.measurement.common.crypto.tink.testing.FakeKmsClient
@@ -79,9 +76,12 @@ import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.config.securecomputation.WatchedPath
 import org.wfanet.measurement.consent.client.dataprovider.decryptRequisitionSpec
 import org.wfanet.measurement.edpaggregator.eventgroups.EventGroupSync
+import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup.MediaType
+import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.MetadataKt.AdMetadataKt.campaignMetadata
+import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.MetadataKt.adMetadata
+import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.metadata as eventGroupMetadata
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.MappedEventGroup
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.eventGroup
-import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup.MediaType
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionFetcher
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.ResultsFulfillerTestApp
 import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
@@ -90,8 +90,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.blobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.labeledImpression
 import org.wfanet.measurement.gcloud.pubsub.Subscriber
 import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorClient
-import org.wfanet.measurement.loadtest.config.TestIdentifiers.SIMULATOR_EVENT_GROUP_REFERENCE_ID_PREFIX
-import org.wfanet.measurement.loadtest.dataprovider.EventQuery
+import org.wfanet.measurement.loadtest.edpaggregator.SyntheticDataGeneration
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
 import org.wfanet.measurement.loadtest.resourcesetup.Resources
 import org.wfanet.measurement.loadtest.resourcesetup.Resources.Resource
@@ -105,11 +104,6 @@ import org.wfanet.measurement.storage.MesosRecordIoStorageClient
 import org.wfanet.measurement.storage.SelectedStorageClient
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
-import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.MetadataKt.AdMetadataKt.campaignMetadata
-import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.MetadataKt.adMetadata
-import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.metadata as eventGroupMetadata
-import org.wfanet.measurement.loadtest.dataprovider.SyntheticDataGeneration
-import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup
 
 class InProcessEdpAggregatorComponents(
   private val internalServicesRule: ProviderRule<InternalApiServices>,
@@ -117,8 +111,8 @@ class InProcessEdpAggregatorComponents(
   private val storagePath: Path,
   private val syntheticPopulationSpec: SyntheticPopulationSpec =
     SyntheticGenerationSpecs.SYNTHETIC_POPULATION_SPEC_SMALL,
-  private val syntheticEventGroupSpecs: List<SyntheticEventGroupSpec> =
-    SyntheticGenerationSpecs.SYNTHETIC_DATA_SPECS_SMALL,
+  private val syntheticEventGroupMap: Map<String, SyntheticEventGroupSpec> =
+    mapOf("edpa-eg-reference-id-1" to SyntheticGenerationSpecs.SYNTHETIC_DATA_SPECS_SMALL[0]),
 ) : TestRule {
 
   private val internalServices: InternalApiServices
@@ -182,16 +176,11 @@ class InProcessEdpAggregatorComponents(
   }
 
   private lateinit var edpDisplayNameToResourceMap: Map<String, Resources.Resource>
-  lateinit var externalEventGroups: List<CmmsEventGroup>
-
-  private suspend fun createAllResources() {}
 
   fun getDataProviderResourceNames(): List<String> {
     return edpDisplayNameToResourceMap.values.map { it.name }
   }
 
-  lateinit var requisitionFetcherTimer: Timer
-  lateinit var eventGroupSyncTimer: Timer
   private val loggingName = javaClass.simpleName
   private val backgroundScope =
     CoroutineScope(
@@ -208,8 +197,6 @@ class InProcessEdpAggregatorComponents(
     measurementConsumerData: MeasurementConsumerData,
     edpDisplayNameToResourceMap: Map<String, Resource>,
   ) = runBlocking {
-    // Create all resources
-    createAllResources()
     val edpShortName = "edp1"
     pubSubClient.createTopic(PROJECT_ID, FULFILLER_TOPIC_ID)
     pubSubClient.createSubscription(PROJECT_ID, SUBSCRIPTION_ID, FULFILLER_TOPIC_ID)
@@ -257,7 +244,7 @@ class InProcessEdpAggregatorComponents(
     val eventGroups =
       listOf(
         eventGroup {
-          eventGroupReferenceId = "sim-eg-reference-id-1-eg-0"
+          eventGroupReferenceId = "edpa-eg-reference-id-1"
           measurementConsumer = measurementConsumerData.name
           dataAvailabilityInterval = interval {
             startTime = timestamp { seconds = 200 }
@@ -284,7 +271,10 @@ class InProcessEdpAggregatorComponents(
     val mappedEventGroups: List<MappedEventGroup> = runBlocking { eventGroupSync.sync().toList() }
     logger.info("Received mappedEventGroups: $mappedEventGroups")
     val eventGroupResource =
-      mappedEventGroups.filter { it.eventGroupReferenceId == "sim-eg-reference-id-1-eg-0" }.single().eventGroupResource
+      mappedEventGroups
+        .filter { it.eventGroupReferenceId == "edpa-eg-reference-id-1" }
+        .single()
+        .eventGroupResource
     // Wait for requisitions to be created
     backgroundScope.launch {
       while (!readyToFulfillRequisitions) {
@@ -292,7 +282,6 @@ class InProcessEdpAggregatorComponents(
           writeImpressionData(
             eventGroupResource = eventGroupResource,
             privateEncryptionKey = getDataProviderPrivateEncryptionKey(edpShortName),
-            syntheticDataSpec = syntheticEventGroupSpecs[0],
           )
         }
         delay(1000)
@@ -301,25 +290,9 @@ class InProcessEdpAggregatorComponents(
     }
   }
 
-  private suspend fun buildEventGroupSpecs(
-    requisitionSpec: RequisitionSpec
-  ): List<EventQuery.EventGroupSpec> {
-    // TODO(@SanjayVas): Cache EventGroups.
-    return requisitionSpec.events.eventGroupsList.map {
-      val eventGroup = eventGroupsClient.getEventGroup(getEventGroupRequest { name = it.key })
-
-      if (!eventGroup.eventGroupReferenceId.startsWith(SIMULATOR_EVENT_GROUP_REFERENCE_ID_PREFIX)) {
-        throw Exception("EventGroup ${it.key} not supported by this simulator")
-      }
-
-      EventQuery.EventGroupSpec(eventGroup, it.value)
-    }
-  }
-
   private suspend fun writeImpressionData(
     eventGroupResource: String,
     privateEncryptionKey: PrivateKeyHandle,
-    syntheticDataSpec: SyntheticEventGroupSpec,
   ): Boolean {
     Files.createDirectories(storagePath.resolve(IMPRESSIONS_BUCKET))
     val files =
@@ -343,22 +316,20 @@ class InProcessEdpAggregatorComponents(
           signedRequisitionSpec.unpack()
         }
 
-    val eventGroupSpecs: List<EventQuery.EventGroupSpec> =
-      requisitionSpecs.toList().flatMap { it: RequisitionSpec -> buildEventGroupSpecs(it) }
+    // TODO: Map over entry group entry to event-group-reference-id
+    val eventGroupSpecs: List<String> =
+      requisitionSpecs.toList().flatMap { it: RequisitionSpec ->
+        it.events.eventGroupsList.map { "edpa-eg-reference-id-1" }
+      }
     val unfilteredEvents: List<LabeledImpression> =
       eventGroupSpecs
-        .flatMap { SyntheticDataGeneration.generateEvents(
-          TestEvent.getDefaultInstance(),
-          syntheticPopulationSpec,
-          syntheticDataSpec,
-          //eventGroup.dataAvailabilityInterval.toRange(),
-        ) }
-        .map { event ->
-          labeledImpression {
-            eventTime = event.timestamp.toProtoTime()
-            vid = event.vid
-            this.event = Any.pack(event.message)
-          }
+        .flatMap { eventGroupReferenceId ->
+          SyntheticDataGeneration.generateEvents(
+            TestEvent.getDefaultInstance(),
+            syntheticPopulationSpec,
+            syntheticEventGroupMap.getValue(eventGroupReferenceId),
+            // eventGroup.dataAvailabilityInterval.toRange(),
+          ).toList()
         }
     val estZoneId = ZoneId.of("UTC")
     val groupedImpressions: Map<LocalDate, List<LabeledImpression>> =

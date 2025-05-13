@@ -14,6 +14,7 @@
 
 package org.wfanet.measurement.integration.common
 
+// import org.wfanet.measurement.loadtest.measurementconsumer.MetadataSyntheticGeneratorEventQuery
 import java.util.logging.Logger
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
@@ -30,21 +31,20 @@ import org.junit.rules.TemporaryFolder
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.DataProviderKt
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
-import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig.NoiseMechanism
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.common.testing.ProviderRule
 import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorClient
 import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorProvider
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerDatabaseAdmin
 import org.wfanet.measurement.integration.deploy.gcloud.SecureComputationServicesProviderRule
 import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
-import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
-import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerSimulator
-import org.wfanet.measurement.loadtest.measurementconsumer.MetadataSyntheticGeneratorEventQuery
+import org.wfanet.measurement.loadtest.edpaggregator.MeasurementConsumerData
+import org.wfanet.measurement.loadtest.edpaggregator.MeasurementConsumerSimulator
 import org.wfanet.measurement.securecomputation.deploy.gcloud.publisher.GoogleWorkItemPublisher
 import org.wfanet.measurement.securecomputation.service.internal.QueueMapping
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub
@@ -129,14 +129,7 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
 
   private fun initMcSimulator() {
     val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
-    val eventQuery =
-      MetadataSyntheticGeneratorEventQuery(
-        SyntheticGenerationSpecs.SYNTHETIC_POPULATION_SPEC_SMALL,
-        InProcessCmmsComponents.MC_ENCRYPTION_PRIVATE_KEY,
-        SyntheticGenerationSpecs.SYNTHETIC_DATA_SPECS_SMALL
-      )
     mcSimulator =
-
       MeasurementConsumerSimulator(
         MeasurementConsumerData(
           measurementConsumerData.name,
@@ -151,7 +144,7 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
         publicMeasurementConsumersClient,
         publicCertificatesClient,
         InProcessCmmsComponents.TRUSTED_CERTIFICATES,
-        eventQuery,
+        TestEvent.getDefaultInstance(),
         NoiseMechanism.CONTINUOUS_GAUSSIAN,
       )
   }
