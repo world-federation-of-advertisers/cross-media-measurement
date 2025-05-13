@@ -16,16 +16,21 @@
 
 package org.wfanet.measurement.kingdom.service.api.v2alpha
 
+import com.google.protobuf.util.Timestamps
 import io.grpc.Status
 import io.grpc.StatusException
 import kotlin.math.min
 import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.v2alpha.CreateModelLineRequest
+import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.DataProviderPrincipal
+import org.wfanet.measurement.api.v2alpha.EnumerateValidModelLinesRequest
+import org.wfanet.measurement.api.v2alpha.EnumerateValidModelLinesResponse
 import org.wfanet.measurement.api.v2alpha.ListModelLinesPageToken
 import org.wfanet.measurement.api.v2alpha.ListModelLinesPageTokenKt.previousPageEnd
 import org.wfanet.measurement.api.v2alpha.ListModelLinesRequest
 import org.wfanet.measurement.api.v2alpha.ListModelLinesResponse
+import org.wfanet.measurement.api.v2alpha.MeasurementConsumerPrincipal
 import org.wfanet.measurement.api.v2alpha.MeasurementPrincipal
 import org.wfanet.measurement.api.v2alpha.ModelLine
 import org.wfanet.measurement.api.v2alpha.ModelLineKey
@@ -35,6 +40,7 @@ import org.wfanet.measurement.api.v2alpha.ModelSuiteKey
 import org.wfanet.measurement.api.v2alpha.SetModelLineActiveEndTimeRequest
 import org.wfanet.measurement.api.v2alpha.SetModelLineHoldbackModelLineRequest
 import org.wfanet.measurement.api.v2alpha.copy
+import org.wfanet.measurement.api.v2alpha.enumerateValidModelLinesResponse
 import org.wfanet.measurement.api.v2alpha.listModelLinesPageToken
 import org.wfanet.measurement.api.v2alpha.listModelLinesResponse
 import org.wfanet.measurement.api.v2alpha.principalFromCurrentContext
@@ -49,6 +55,7 @@ import org.wfanet.measurement.internal.kingdom.ModelLinesGrpcKt.ModelLinesCorout
 import org.wfanet.measurement.internal.kingdom.StreamModelLinesRequest
 import org.wfanet.measurement.internal.kingdom.StreamModelLinesRequestKt.afterFilter
 import org.wfanet.measurement.internal.kingdom.StreamModelLinesRequestKt.filter
+import org.wfanet.measurement.internal.kingdom.enumerateValidModelLinesRequest
 import org.wfanet.measurement.internal.kingdom.setActiveEndTimeRequest as internalSetActiveEndTimeRequest
 import org.wfanet.measurement.internal.kingdom.setModelLineHoldbackModelLineRequest
 import org.wfanet.measurement.internal.kingdom.streamModelLinesRequest
@@ -215,6 +222,97 @@ class ModelLinesService(private val internalClient: ModelLinesCoroutineStub) :
             }
           }
         nextPageToken = pageToken.toByteArray().base64UrlEncode()
+      }
+    }
+  }
+
+  override suspend fun enumerateValidModelLines(
+    request: EnumerateValidModelLinesRequest
+  ): EnumerateValidModelLinesResponse {
+    val parent =
+      grpcRequireNotNull(ModelSuiteKey.fromName(request.parent)) {
+        "parent is either unspecified or invalid"
+      }
+
+    when (val principal: MeasurementPrincipal = principalFromCurrentContext) {
+      is ModelProviderPrincipal -> {
+        if (principal.resourceKey.modelProviderId != parent.modelProviderId) {
+          failGrpc(Status.PERMISSION_DENIED) { "Cannot list ModelLines for another ModelProvider" }
+        }
+      }
+      is DataProviderPrincipal,
+      is MeasurementConsumerPrincipal -> {}
+      else -> {
+        failGrpc(Status.PERMISSION_DENIED) { "Caller does not have permission to list ModelLines" }
+      }
+    }
+
+    if (!request.hasTimeInterval()) {
+      failGrpc(Status.INVALID_ARGUMENT) { "Missing time_interval" }
+    }
+
+    if (!Timestamps.isValid(request.timeInterval.startTime)) {
+      failGrpc(Status.INVALID_ARGUMENT) { "time_interval.start_time is invalid" }
+    }
+
+    if (!Timestamps.isValid(request.timeInterval.endTime)) {
+      failGrpc(Status.INVALID_ARGUMENT) { "time_interval.end_time is invalid" }
+    }
+
+    if (Timestamps.compare(request.timeInterval.startTime, request.timeInterval.endTime) >= 0) {
+      failGrpc(Status.INVALID_ARGUMENT) {
+        "time_interval.start_time must be before time_interval.end_time"
+      }
+    }
+
+    if (request.dataProvidersList.size == 0) {
+      failGrpc(Status.INVALID_ARGUMENT) { "Missing data_providers" }
+    }
+
+    val dataProvidersKeySet = buildSet {
+      for (dataProviderName in request.dataProvidersList) {
+        add(
+          DataProviderKey.fromName(dataProviderName)
+            ?: failGrpc(Status.INVALID_ARGUMENT) {
+              "$dataProviderName in data_providers is invalid"
+            }
+        )
+      }
+    }
+
+    val modelSuiteKey = ModelSuiteKey.fromName(request.parent)
+
+    val internalModelLines: List<InternalModelLine> =
+      try {
+        internalClient
+          .enumerateValidModelLines(
+            enumerateValidModelLinesRequest {
+              externalModelProviderId = apiIdToExternalId(modelSuiteKey!!.modelProviderId)
+              externalModelSuiteId = apiIdToExternalId(modelSuiteKey.modelSuiteId)
+              timeInterval = request.timeInterval
+              for (dataProviderKey in dataProvidersKeySet) {
+                externalDataProviderIds += apiIdToExternalId(dataProviderKey.dataProviderId)
+              }
+              if (request.typesList.isEmpty()) {
+                types += InternalModelLine.Type.PROD
+              } else {
+                for (type in request.typesList) {
+                  types += type.toInternalType()
+                }
+              }
+            }
+          )
+          .modelLinesList
+      } catch (e: StatusException) {
+        throw when (e.status.code) {
+          Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
+          else -> Status.UNKNOWN
+        }.asRuntimeException()
+      }
+
+    return enumerateValidModelLinesResponse {
+      for (internalModelLine in internalModelLines) {
+        modelLines += internalModelLine.toModelLine()
       }
     }
   }

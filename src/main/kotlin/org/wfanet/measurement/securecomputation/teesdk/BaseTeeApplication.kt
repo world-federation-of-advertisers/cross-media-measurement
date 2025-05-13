@@ -36,6 +36,7 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.createWorkI
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.failWorkItemAttemptRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.failWorkItemRequest
 import org.wfanet.measurement.securecomputation.service.Errors
+import org.wfanet.measurement.securecomputation.service.WorkItemKey
 
 /**
  * BaseTeeApplication is an abstract base class for TEE applications that automatically subscribes
@@ -86,11 +87,11 @@ abstract class BaseTeeApplication(
       queueMessage.nack()
       return
     }
-    val workItemName = body.name
+    val workItemName = WorkItemKey(body.name).toName()
     val workItemAttempt: WorkItemAttempt =
       try {
-        val workItemAttemptId = UUID.randomUUID().toString()
-        createWorkItemAttempt(workItemName, workItemAttemptId)
+        val workItemAttemptId = "work-item-attempt-" + UUID.randomUUID().toString()
+        createWorkItemAttempt(parent = workItemName, workItemAttemptId = workItemAttemptId)
       } catch (e: ControlPlaneApiException) {
         logger.log(Level.WARNING, e) { "Error creating a WorkItemAttempt" }
         return
