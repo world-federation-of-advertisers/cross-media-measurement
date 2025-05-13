@@ -80,22 +80,6 @@ abstract class RequisitionFulfiller(
     val requisitionSpec: RequisitionSpec,
   )
 
-  protected open class RequisitionRefusalException(
-    val justification: Requisition.Refusal.Justification,
-    message: String,
-    cause: Throwable? = null,
-  ) : Exception(message, cause) {
-    override val message: String
-      get() = super.message!!
-  }
-
-  /** [RequisitionRefusalException] for test EventGroups. */
-  protected class TestRequisitionRefusalException(
-    justification: Requisition.Refusal.Justification,
-    message: String,
-    cause: Throwable? = null,
-  ) : RequisitionRefusalException(justification, message, cause)
-
   protected class InvalidConsentSignalException(message: String? = null, cause: Throwable? = null) :
     GeneralSecurityException(message, cause)
 

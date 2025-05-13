@@ -136,15 +136,15 @@ import org.wfanet.measurement.eventdataprovider.noiser.LaplaceNoiser
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetManager
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetManagerException
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetManagerExceptionType
+import org.wfanet.measurement.dataprovider.RequisitionRefusalException
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.Reference
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.api.v2alpha.PrivacyQueryMapper.getDirectAcdpQuery
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.api.v2alpha.PrivacyQueryMapper.getMpcAcdpQuery
-import org.wfanet.measurement.eventdataprovider.shareshuffle.v2alpha.FrequencyVectorBuilder
-import org.wfanet.measurement.eventdataprovider.shareshuffle.v2alpha.FulfillRequisitionRequestBuilder
-import org.wfanet.measurement.eventdataprovider.shareshuffle.v2alpha.VidIndexMap
 import org.wfanet.measurement.loadtest.common.sampleVids
 import org.wfanet.measurement.loadtest.config.TestIdentifiers.SIMULATOR_EVENT_GROUP_REFERENCE_ID_PREFIX
-import org.wfanet.measurement.loadtest.dataprovider.MeasurementResults.computeImpression
+import org.wfanet.measurement.dataprovider.MeasurementResults.computeImpression
+import org.wfanet.measurement.eventdataprovider.shareshuffle.v2alpha.FulfillRequisitionRequestBuilder
+import org.wfanet.measurement.eventdataprovider.shareshuffle.v2alpha.VidIndexMap
 
 /** A simulator handling EDP businesses. */
 class EdpSimulator(
@@ -414,9 +414,9 @@ class EdpSimulator(
   ) {
     if (protocol !in supportedProtocols) {
       logger.log(Level.WARNING, "Skipping $requsitionName: Protocol not supported.")
-      throw RequisitionRefusalException(
+      throw RequisitionRefusalException.Default(
         Requisition.Refusal.Justification.SPEC_INVALID,
-        "Protocol not supported.",
+        "Protocol not set or not supported.",
       )
     }
   }
@@ -491,7 +491,7 @@ class EdpSimulator(
       logger.log(Level.WARNING, e) {
         "Consent signaling verification failed for ${requisition.name}"
       }
-      throw RequisitionRefusalException(
+      throw RequisitionRefusalException.Default(
         Requisition.Refusal.Justification.CONSENT_SIGNAL_INVALID,
         e.message.orEmpty(),
       )
@@ -503,7 +503,7 @@ class EdpSimulator(
           Level.WARNING,
           "Two duchy entries are expected, but there are ${requisition.duchiesList.size}.",
         )
-        throw RequisitionRefusalException(
+        throw RequisitionRefusalException.Default(
           Requisition.Refusal.Justification.SPEC_INVALID,
           "Two duchy entries are expected, but there are ${requisition.duchiesList.size}.",
         )
@@ -519,8 +519,10 @@ class EdpSimulator(
           Level.WARNING,
           "Exactly one duchy entry is expected to have the encryption public key, but ${publicKeyList.size} duchy entries do.",
         )
-        throw RequisitionRefusalException(
+        throw RequisitionRefusalException.Default(
           Requisition.Refusal.Justification.SPEC_INVALID,
+          "Protocol not set or not supported.",
+        )
           "Exactly one duchy entry is expected to have the encryption public key, but ${publicKeyList.size} duchy entries do.",
         )
       }
@@ -582,7 +584,7 @@ class EdpSimulator(
           try {
             verifySpecifications(requisition, measurementConsumerCertificate)
           } catch (e: InvalidConsentSignalException) {
-            throw RequisitionRefusalException(
+            throw RequisitionRefusalException.Default(
               Requisition.Refusal.Justification.CONSENT_SIGNAL_INVALID,
               e.message.orEmpty(),
               e,
@@ -595,41 +597,41 @@ class EdpSimulator(
         for (eventGroupEntry in requisitionSpec.events.eventGroupsList) {
           val eventGroupKey =
             EventGroupKey.fromName(eventGroupEntry.key)
-              ?: throw TestRequisitionRefusalException(
+              throw RequisitionRefusalException.Test(
                 Requisition.Refusal.Justification.SPEC_INVALID,
                 "Invalid EventGroup resource name ${eventGroupEntry.key}",
               )
           val eventGroupId = eventGroupKey.eventGroupId
           if (eventGroupId == CONSENT_SIGNAL_INVALID_EVENT_GROUP_ID) {
-            throw TestRequisitionRefusalException(
+            throw RequisitionRefusalException.Test(
               Requisition.Refusal.Justification.CONSENT_SIGNAL_INVALID,
               "consent signal invalid",
             )
           }
 
           if (eventGroupId == SPEC_INVALID_EVENT_GROUP_ID) {
-            throw TestRequisitionRefusalException(
+            throw RequisitionRefusalException.Test(
               Requisition.Refusal.Justification.SPEC_INVALID,
               "spec invalid",
             )
           }
 
           if (eventGroupId == INSUFFICIENT_PRIVACY_BUDGET_EVENT_GROUP_ID) {
-            throw TestRequisitionRefusalException(
+            throw RequisitionRefusalException.Test(
               Requisition.Refusal.Justification.INSUFFICIENT_PRIVACY_BUDGET,
               "insufficient privacy budget",
             )
           }
 
           if (eventGroupId == UNFULFILLABLE_EVENT_GROUP_ID) {
-            throw TestRequisitionRefusalException(
+            throw RequisitionRefusalException.Test(
               Requisition.Refusal.Justification.UNFULFILLABLE,
               "unfulfillable",
             )
           }
 
           if (eventGroupId == DECLINED_EVENT_GROUP_ID) {
-            throw TestRequisitionRefusalException(
+            throw RequisitionRefusalException.Test(
               Requisition.Refusal.Justification.DECLINED,
               "declined",
             )
@@ -700,14 +702,14 @@ class EdpSimulator(
               directProtocol,
             )
           } else {
-            throw RequisitionRefusalException(
+            throw RequisitionRefusalException.Default(
               Requisition.Refusal.Justification.SPEC_INVALID,
               "Measurement type not supported for direct fulfillment.",
             )
           }
         } else if (protocols.any { it.hasLiquidLegionsV2() }) {
           if (!measurementSpec.hasReach() && !measurementSpec.hasReachAndFrequency()) {
-            throw RequisitionRefusalException(
+            throw RequisitionRefusalException.Default(
               Requisition.Refusal.Justification.SPEC_INVALID,
               "Measurement type not supported for protocol llv2.",
             )
@@ -726,7 +728,7 @@ class EdpSimulator(
           )
         } else if (protocols.any { it.hasReachOnlyLiquidLegionsV2() }) {
           if (!measurementSpec.hasReach()) {
-            throw RequisitionRefusalException(
+            throw RequisitionRefusalException.Default(
               Requisition.Refusal.Justification.SPEC_INVALID,
               "Measurement type not supported for protocol rollv2.",
             )
@@ -762,13 +764,13 @@ class EdpSimulator(
             eventGroupSpecs,
           )
         } else {
-          throw RequisitionRefusalException(
+          throw RequisitionRefusalException.Default(
             Requisition.Refusal.Justification.SPEC_INVALID,
             "Protocol not set or not supported.",
           )
         }
       } catch (e: RequisitionRefusalException) {
-        if (e !is TestRequisitionRefusalException) {
+        if (e !is RequisitionRefusalException.Test) {
           logger.log(Level.WARNING, e) { "Refusing Requisition ${requisition.name}" }
         }
 
@@ -838,19 +840,19 @@ class EdpSimulator(
       logger.log(Level.WARNING, "chargeMpcPrivacyBudget failed due to ${e.errorType}", e)
       when (e.errorType) {
         PrivacyBudgetManagerExceptionType.PRIVACY_BUDGET_EXCEEDED -> {
-          throw RequisitionRefusalException(
+          throw RequisitionRefusalException.Default(
             Requisition.Refusal.Justification.INSUFFICIENT_PRIVACY_BUDGET,
             "Privacy budget exceeded",
           )
         }
         PrivacyBudgetManagerExceptionType.INVALID_PRIVACY_BUCKET_FILTER -> {
-          throw RequisitionRefusalException(
+          throw RequisitionRefusalException.Default(
             Requisition.Refusal.Justification.SPEC_INVALID,
             "Invalid event filter",
           )
         }
         PrivacyBudgetManagerExceptionType.INCORRECT_NOISE_MECHANISM -> {
-          throw RequisitionRefusalException(
+          throw RequisitionRefusalException.Default(
             Requisition.Refusal.Justification.SPEC_INVALID,
             "Incorrect noise mechanism. Should be DISCRETE_GAUSSIAN for ACDP composition but is $noiseMechanism",
           )
@@ -897,11 +899,10 @@ class EdpSimulator(
           )
         }
         PrivacyBudgetManagerExceptionType.INVALID_PRIVACY_BUCKET_FILTER -> {
-          throw RequisitionRefusalException(
+          throw RequisitionRefusalException.Default(
             Requisition.Refusal.Justification.SPEC_INVALID,
-            "Invalid event filter",
+            "Exactly one duchy entry is expected to have the encryption public key, but ${publicKeyList.size} duchy entries do.",
           )
-        }
         PrivacyBudgetManagerExceptionType.INCORRECT_NOISE_MECHANISM -> {
           throw RequisitionRefusalException(
             Requisition.Refusal.Justification.SPEC_INVALID,
@@ -1011,7 +1012,7 @@ class EdpSimulator(
           "RequisitionFulfillmentWorkflow failed due to invalid event filter",
           e,
         )
-        throw RequisitionRefusalException(
+        throw RequisitionRefusalException.Default(
           Requisition.Refusal.Justification.SPEC_INVALID,
           "Invalid event filter (${e.code}): ${e.code.description}",
         )
@@ -1265,7 +1266,7 @@ class EdpSimulator(
         "RequisitionFulfillmentWorkflow failed due to invalid event filter",
         e,
       )
-      throw RequisitionRefusalException(
+      throw RequisitionRefusalException.Default(
         Requisition.Refusal.Justification.SPEC_INVALID,
         "Invalid event filter (${e.code}): ${e.code.description}",
       )

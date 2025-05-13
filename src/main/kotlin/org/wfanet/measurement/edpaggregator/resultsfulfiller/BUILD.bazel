@@ -8,7 +8,7 @@ kt_jvm_library(
     name = "results_fulfiller",
     srcs = ["ResultsFulfiller.kt"],
     deps = [
-        ":measurement_results",
+        "//src/main/kotlin/org/wfanet/measurement/dataprovider:measurement_results",
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:packed_messages",
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
         "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/eventfiltration:event_filters",
@@ -25,22 +25,12 @@ kt_jvm_library(
     ],
 )
 
-kt_jvm_library(
-    name = "measurement_results",
-    srcs = ["MeasurementResults.kt"],
-    deps = [
-        "//imports/java/org/projectnessie/cel",
-        "@wfa_common_jvm//imports/java/com/google/protobuf",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
-    ],
-)
 
 kt_jvm_library(
     name = "measurement_helper",
     srcs = ["MeasurementHelper.kt"],
     deps = [
-        ":measurement_results",
+        "//src/main/kotlin/org/wfanet/measurement/dataprovider:measurement_results",
         "//imports/java/org/projectnessie/cel",
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
         "//src/main/kotlin/org/wfanet/measurement/common",
