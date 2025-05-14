@@ -56,7 +56,7 @@ variable "secrets_to_mount" {
     secret_key = string
     version    = string
     mount_path = string
-    flag_name  = string
+    flag_name  = optional(string)
   }))
   default = []
 }

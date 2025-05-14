@@ -44,14 +44,14 @@ locals {
       secret_local_path = "${path.root}/../../../k8s/testing/secretfiles/kingdom_root.pem"
       is_binary_format  = false
     }
-    edp7_result_cert_der = {
-      secret_id         = "edp7-result-cert-der"
-      secret_local_path = "${path.root}/../../../k8s/testing/secretfiles/edp7_result_cs_cert.der"
+    edp7_cert_der = {
+      secret_id         = "edp7-cert-der"
+      secret_local_path = "${path.root}/../../../k8s/testing/secretfiles/edp7_cs_cert.der"
       is_binary_format  = true
     }
-    edp7_result_private_der = {
-      secret_id         = "edp7-result-private-der"
-      secret_local_path = "${path.root}/../../../k8s/testing/secretfiles/edp7_result_cs_private.der"
+    edp7_private_der = {
+      secret_id         = "edp7-private-der"
+      secret_local_path = "${path.root}/../../../k8s/testing/secretfiles/edp7_cs_private.der"
       is_binary_format  = true
     }
     edp7_enc_private = {
@@ -141,7 +141,32 @@ locals {
             version                 = "latest"
             mount_path              = "/etc/ssl/kingdom_root.pem"
             flag_name               = "--kingdom-cert-collection-file-path"
-          }
+          },
+          {
+            secret_key              = "edp7_cert_der"
+            version                 = "latest"
+            mount_path              = "/etc/ssl/edp7_cs_cert.der"
+          },
+          {
+            secret_key              = "edp7_private_der"
+            version                 = "latest"
+            mount_path              = "/etc/ssl/edp7_cs_private.der"
+          },
+          {
+            secret_key              = "edp7_enc_private"
+            version                 = "latest"
+            mount_path              = "/etc/ssl/edp7_enc_private.tink"
+          },
+          {
+            secret_key              = "edp7_tls_key"
+            version                 = "latest"
+            mount_path              = "/etc/ssl/edp7_tls.key"
+          },
+          {
+            secret_key              = "edp7_tls_pem"
+            version                 = "latest"
+            mount_path              = "/etc/ssl/edp7_tls.pem"
+          },
         ]
       }
     }

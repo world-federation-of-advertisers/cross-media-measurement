@@ -109,7 +109,7 @@ resource "google_compute_instance_template" "confidential_vm_template" {
             var.app_args,
             [ for s in var.secrets_to_mount :
               "${s.flag_name}=${s.mount_path}"
-              if can(s.flag_name)
+              if s.flag_name != null
             ]
           )
         )}

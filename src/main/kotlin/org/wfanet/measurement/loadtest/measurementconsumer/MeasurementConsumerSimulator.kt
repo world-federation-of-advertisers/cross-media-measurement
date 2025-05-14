@@ -138,6 +138,9 @@ import java.net.http.HttpResponse
 import kotlin.math.log
 import org.wfanet.measurement.common.toJson
 import org.wfanet.measurement.populationdataprovider.PopulationInfo
+import com.google.auth.oauth2.GoogleCredentials
+import com.google.auth.oauth2.IdTokenProvider
+import com.google.auth.oauth2.IdToken
 
 data class MeasurementConsumerData(
   // The MC's public API resource name
@@ -352,18 +355,18 @@ class MeasurementConsumerSimulator(
 
   private suspend fun triggerRequisitionFetcher() {
 
-//    val credentials = GoogleCredentials.getApplicationDefault() as IdTokenProvider
-//
-//    val idToken: IdToken =
-//      credentials.idTokenWithAudience("https://us-central1-halo-cmm-dev.cloudfunctions.net/requisition-fetcher", listOf())
-//    val jwt = idToken.tokenValue
+    val credentials = GoogleCredentials.getApplicationDefault() as IdTokenProvider
+
+    val idToken: IdToken =
+      credentials.idTokenWithAudience("https://us-central1-halo-cmm-dev.cloudfunctions.net/requisition-fetcher", listOf())
+    val jwt = idToken.tokenValue
 
     val client = HttpClient.newHttpClient()
     val request =
       HttpRequest.newBuilder()
         .uri(URI.create("https://us-central1-halo-cmm-dev.cloudfunctions.net/requisition-fetcher"))
-//        .header("Authorization", "Bearer $jwt")
-        .POST(HttpRequest.BodyPublishers.ofString(httpEndpointConfig.appParams.toJson()))
+        .header("Authorization", "Bearer $jwt")
+        .GET()
         .build()
     val response = client.send(request, HttpResponse.BodyHandlers.ofString())
 

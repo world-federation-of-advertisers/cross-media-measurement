@@ -54,7 +54,7 @@ variable "queue_worker_configs" {
           secret_key = string
           version    = string
           mount_path = string
-          flag_name  = string
+          flag_name  = optional(string)
         })),
         []
       )
