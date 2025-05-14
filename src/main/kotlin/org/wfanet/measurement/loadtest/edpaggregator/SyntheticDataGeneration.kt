@@ -65,7 +65,6 @@ object SyntheticDataGeneration {
    * @param messageInstance an instance of the event message type [T]
    * @param populationSpec specification of the synthetic population
    * @param syntheticEventGroupSpec specification of the synthetic event group
-   * @param timeRange range in which to generate events
    */
   fun <T : Message> generateEvents(
     messageInstance: T,
@@ -79,7 +78,7 @@ object SyntheticDataGeneration {
         val numDays = dateProgression.start.until(dateProgression.endInclusive).days
         for (date in dateProgression) {
           val innerFlow = flow {
-            logger.info(date.toString())
+            logger.info("Generating data for date: ${date.toString()}")
 
             for (frequencySpec: SyntheticEventGroupSpec.FrequencySpec in
               dateSpec.frequencySpecsList) {
