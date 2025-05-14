@@ -18,7 +18,6 @@ package org.wfanet.measurement.securecomputation.deploy.gcloud.datawatcher
 
 import com.google.cloud.functions.CloudEventsFunction
 import com.google.events.cloud.storage.v1.StorageObjectData
-import com.google.protobuf.TextFormat
 import com.google.protobuf.TypeRegistry
 import com.google.protobuf.util.JsonFormat
 import io.cloudevents.CloudEvent
@@ -132,6 +131,11 @@ class DataWatcherFunction : CloudEventsFunction {
         .add(ResultsFulfillerParams.getDescriptor())
         .build()
 
+      println("ResultsFulfillerParams descriptor.fullName = " +
+        ResultsFulfillerParams.getDescriptor().fullName)
+      println("Registry contains types: " +
+        registry.listAllTypes().map { it.fullName })
+      
       runBlocking {
         parseTextProto(
           textProto = config,
