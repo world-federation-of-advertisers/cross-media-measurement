@@ -23,10 +23,13 @@ import com.google.protobuf.Message
 import com.google.protobuf.kotlin.toByteStringUtf8
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
-import java.time.Instant
+import java.time.LocalDate
 import java.time.ZoneOffset
+import java.time.temporal.ChronoUnit
+import java.util.logging.Logger
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.random.Random
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.CartesianSyntheticEventGroupSpecRecipe
@@ -40,7 +43,6 @@ import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.Synthetic
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.VidRange
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.syntheticEventGroupSpec
 import org.wfanet.measurement.common.LocalDateProgression
-import org.wfanet.measurement.common.OpenEndTimeRange
 import org.wfanet.measurement.common.rangeTo
 import org.wfanet.measurement.common.toLocalDate
 import org.wfanet.measurement.common.toProtoTime
@@ -61,86 +63,85 @@ object SyntheticDataGeneration {
    * @param messageInstance an instance of the event message type [T]
    * @param populationSpec specification of the synthetic population
    * @param syntheticEventGroupSpec specification of the synthetic event group
-   * @param timeRange range in which to generate events
    */
   fun <T : Message> generateEvents(
     messageInstance: T,
     populationSpec: SyntheticPopulationSpec,
     syntheticEventGroupSpec: SyntheticEventGroupSpec,
-    timeRange: OpenEndTimeRange = OpenEndTimeRange(Instant.MIN, Instant.MAX),
-  ): Flow<LabeledImpression> {
+  ): Flow<Pair<LocalDate, Flow<LabeledImpression>>> {
     val subPopulations = populationSpec.subPopulationsList
-
     return flow {
       for (dateSpec: SyntheticEventGroupSpec.DateSpec in syntheticEventGroupSpec.dateSpecsList) {
         val dateProgression: LocalDateProgression = dateSpec.dateRange.toProgression()
+        val numDays = ChronoUnit.DAYS.between(dateProgression.start, dateProgression.endInclusive)
+        logger.info("Writing $numDays of data")
+        for (date in dateProgression) {
+          logger.info(
+            "Generating data for date: $date"
+          )
+          val innerFlow: Flow<LabeledImpression> = flow {
 
-        // Optimization: Skip the entire DateSpec if it does not overlap the specified time range.
-        val dateSpecTimeRange = OpenEndTimeRange.fromClosedDateRange(dateProgression)
-        if (!dateSpecTimeRange.overlaps(timeRange)) {
-          continue
-        }
+            for (frequencySpec: SyntheticEventGroupSpec.FrequencySpec in
+              dateSpec.frequencySpecsList) {
+              val chanceRange = frequencySpec.frequency / numDays.toDouble()
 
-        for (frequencySpec: SyntheticEventGroupSpec.FrequencySpec in dateSpec.frequencySpecsList) {
+              check(!frequencySpec.hasOverlaps()) { "The VID ranges should be non-overlapping." }
 
-          check(!frequencySpec.hasOverlaps()) { "The VID ranges should be non-overlapping." }
+              for (vidRangeSpec: VidRangeSpec in frequencySpec.vidRangeSpecsList) {
+                val subPopulation: SubPopulation =
+                  vidRangeSpec.vidRange.findSubPopulation(subPopulations)
+                    ?: error("Sub-population not found")
+                check(vidRangeSpec.samplingRate in 0.0..1.0) { "Invalid sampling_rate" }
+                if (vidRangeSpec.sampled) {
+                  check(syntheticEventGroupSpec.samplingNonce != 0L) {
+                    "sampling_nonce is required for VID sampling"
+                  }
+                }
 
-          for (vidRangeSpec: VidRangeSpec in frequencySpec.vidRangeSpecsList) {
-            val subPopulation: SubPopulation =
-              vidRangeSpec.vidRange.findSubPopulation(subPopulations)
-                ?: error("Sub-population not found")
-            check(vidRangeSpec.samplingRate in 0.0..1.0) { "Invalid sampling_rate" }
-            if (vidRangeSpec.sampled) {
-              check(syntheticEventGroupSpec.samplingNonce != 0L) {
-                "sampling_nonce is required for VID sampling"
-              }
-            }
+                val builder: Message.Builder = messageInstance.newBuilderForType()
 
-            val builder: Message.Builder = messageInstance.newBuilderForType()
+                populationSpec.populationFieldsList.forEach {
+                  val subPopulationFieldValue: FieldValue =
+                    subPopulation.populationFieldsValuesMap.getValue(it)
+                  val fieldPath = it.split('.')
+                  try {
+                    builder.setField(fieldPath, subPopulationFieldValue)
+                  } catch (e: IllegalArgumentException) {
+                    throw IllegalStateException(e)
+                  }
+                }
 
-            populationSpec.populationFieldsList.forEach {
-              val subPopulationFieldValue: FieldValue =
-                subPopulation.populationFieldsValuesMap.getValue(it)
-              val fieldPath = it.split('.')
-              try {
-                builder.setField(fieldPath, subPopulationFieldValue)
-              } catch (e: IllegalArgumentException) {
-                throw IllegalStateException(e)
-              }
-            }
+                populationSpec.nonPopulationFieldsList.forEach {
+                  val nonPopulationFieldValue: FieldValue =
+                    vidRangeSpec.nonPopulationFieldValuesMap.getValue(it)
+                  val fieldPath = it.split('.')
+                  try {
+                    builder.setField(fieldPath, nonPopulationFieldValue)
+                  } catch (e: IllegalArgumentException) {
+                    throw IllegalStateException(e)
+                  }
+                }
 
-            populationSpec.nonPopulationFieldsList.forEach {
-              val nonPopulationFieldValue: FieldValue =
-                vidRangeSpec.nonPopulationFieldValuesMap.getValue(it)
-              val fieldPath = it.split('.')
-              try {
-                builder.setField(fieldPath, nonPopulationFieldValue)
-              } catch (e: IllegalArgumentException) {
-                throw IllegalStateException(e)
-              }
-            }
+                @Suppress("UNCHECKED_CAST") // Safe per protobuf API.
+                val message = builder.build() as T
 
-            @Suppress("UNCHECKED_CAST") // Safe per protobuf API.
-            val message = builder.build() as T
-
-            for (date in dateProgression) {
-              val timestamp = date.atStartOfDay().toInstant(ZoneOffset.UTC)
-              if (timestamp !in timeRange) {
-                continue
-              }
-              for (i in 1..frequencySpec.frequency) {
+                val timestamp = date.atStartOfDay().toInstant(ZoneOffset.UTC)
                 for (vid in vidRangeSpec.sampledVids(syntheticEventGroupSpec.samplingNonce)) {
-                  emit(
-                    labeledImpression {
-                      eventTime = timestamp.toProtoTime()
-                      this.vid = vid
-                      event = ProtoAny.pack(message)
-                    }
-                  )
+                  val randomDouble = Random.nextDouble(0.0, 1.1)
+                  if (randomDouble < chanceRange) {
+                    emit(
+                      labeledImpression {
+                        eventTime = timestamp.toProtoTime()
+                        this.vid = vid
+                        event = ProtoAny.pack(message)
+                      }
+                    )
+                  }
                 }
               }
             }
           }
+          emit(Pair(date, innerFlow))
         }
       }
     }
@@ -234,6 +235,8 @@ object SyntheticDataGeneration {
     val traversedFieldPath = fieldPath.drop(1)
     nestedBuilder.setField(traversedFieldPath, fieldValue)
   }
+
+  private val logger: Logger = Logger.getLogger(this::class.java.name)
 }
 
 private fun SyntheticEventGroupSpec.DateSpec.DateRange.toProgression(): LocalDateProgression {
