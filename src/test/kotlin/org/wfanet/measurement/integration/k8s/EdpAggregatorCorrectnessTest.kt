@@ -219,7 +219,7 @@ class EdpAggregatorCorrectnessTest: AbstractEdpAggregatorCorrectnessTest(measure
     private val measurementSystem = RunningMeasurementSystem()
 
     @ClassRule
-    @JvmField val chainedRule = chainRulesSequentially(uploadEventGroup)
+    @JvmField val chainedRule = chainRulesSequentially(uploadEventGroup, measurementSystem)
   }
 
 }
