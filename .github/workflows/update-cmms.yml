@@ -74,8 +74,9 @@ jobs:
     uses: ./.github/workflows/terraform-cmms.yml
     secrets: inherit
     with:
-      environment: ${{ inputs.environment }}
+#      environment: ${{ inputs.environment }}
 #      apply: ${{ inputs.apply }}
+      environment: "dev"
       apply: false
 
   update-kingdom:
@@ -84,8 +85,9 @@ jobs:
     secrets: inherit
     with:
       image-tag: ${{ needs.publish-images.outputs.image-tag }}
-      environment: ${{ inputs.environment }}
+#      environment: ${{ inputs.environment }}
 #      apply: ${{ inputs.apply }}
+      environment: "dev"
       apply: true
 
   update-secure-computation:
@@ -94,8 +96,9 @@ jobs:
     secrets: inherit
     with:
       image-tag: ${{ needs.publish-images.outputs.image-tag }}
-      environment: ${{ inputs.environment }}
+#      environment: ${{ inputs.environment }}
 #      apply: ${{ inputs.apply }}
+      environment: "dev"
       apply: false
 
   update-aggregator-duchy:
@@ -105,8 +108,9 @@ jobs:
     with:
       duchy-name: aggregator
       image-tag: ${{ needs.publish-images.outputs.image-tag }}
-      environment: ${{ inputs.environment }}
+#      environment: ${{ inputs.environment }}
 #      apply: ${{ inputs.apply }}
+      environment: "dev"
       apply: false
 
   update-worker1-duchy:
@@ -116,8 +120,9 @@ jobs:
     with:
       duchy-name: worker1
       image-tag: ${{ needs.publish-images.outputs.image-tag }}
-      environment: ${{ inputs.environment }}
+#      environment: ${{ inputs.environment }}
 #      apply: ${{ inputs.apply }}
+      environment: "dev"
       apply: false
 
   update-worker2-duchy:
@@ -127,8 +132,9 @@ jobs:
     with:
       duchy-name: worker2
       image-tag: ${{ needs.publish-images.outputs.image-tag }}
-      environment: ${{ inputs.environment }}
+#      environment: ${{ inputs.environment }}
 #      apply: ${{ inputs.apply }}
+      environment: "dev"
       apply: false
 
   update-simulators:
@@ -137,7 +143,8 @@ jobs:
     secrets: inherit
     with:
       image-tag: ${{ needs.publish-images.outputs.image-tag }}
-      environment: ${{ inputs.environment }}
+#      environment: ${{ inputs.environment }}
+      environment: "dev"
 #      apply: ${{ inputs.apply }}
       apply: false
 
@@ -150,10 +157,11 @@ jobs:
     needs: [ publish-images, terraform ]
     with:
       image-tag: ${{ needs.publish-images.outputs.image-tag }}
-      environment: ${{ inputs.environment }}
+#      environment: ${{ inputs.environment }}
+      environment: "dev"
 #      apply: ${{ inputs.apply }}
       apply: false
-      
+
   run-tests:
     if: inputs.run-tests
     needs: [
@@ -167,4 +175,5 @@ jobs:
     uses: ./.github/workflows/run-k8s-tests.yml
     secrets: inherit
     with:
-      environment: ${{ inputs.environment }}
+#      environment: ${{ inputs.environment }}
+      environment: "dev"
