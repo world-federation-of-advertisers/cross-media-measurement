@@ -131,6 +131,7 @@ import org.wfanet.measurement.measurementconsumer.stats.ReachMeasurementParams
 import org.wfanet.measurement.measurementconsumer.stats.ReachMeasurementVarianceParams
 import org.wfanet.measurement.measurementconsumer.stats.VariancesImpl
 import org.wfanet.measurement.measurementconsumer.stats.VidSamplingInterval as StatsVidSamplingInterval
+import kotlin.math.log
 import org.wfanet.measurement.populationdataprovider.PopulationInfo
 
 data class MeasurementConsumerData(
@@ -856,6 +857,7 @@ class MeasurementConsumerSimulator(
         .entries
         .filter {
           val dataProvider = keyToDataProviderMap.getValue(it.key)
+          logger.info("~~~~~~~~~~~~~~~ DATA PROVIDER: ${dataProvider}")
           if (requiredCapabilities.honestMajorityShareShuffleSupported) {
             dataProvider.capabilities.honestMajorityShareShuffleSupported
           } else {
@@ -864,9 +866,11 @@ class MeasurementConsumerSimulator(
         }
         .take(maxDataProviders)
         .map { (dataProviderKey, eventGroups) ->
+          logger.info("~~~~~~~~~~~ dataproviderkey: ${dataProviderKey}")
           val nonce = Random.Default.nextLong()
           nonceHashes.add(Hashing.hashSha256(nonce))
           val dataProvider = keyToDataProviderMap.getValue(dataProviderKey)
+          logger.info("~~~~~~~~~~~ dataproviderkey2: ${dataProvider}")
           buildRequisitionInfo(dataProvider, eventGroups, measurementConsumer, nonce)
         }
 
