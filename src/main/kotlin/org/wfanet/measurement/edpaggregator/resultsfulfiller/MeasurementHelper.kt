@@ -303,23 +303,4 @@ class MeasurementHelper(
       frequencyHistogram.mapValues { 0.0 }
     }
   }
-
-  /**
-   * Converts a [NoiseMechanism] to a nullable [DirectNoiseMechanism].
-   *
-   * @return [DirectNoiseMechanism] when there is a matched, otherwise null.
-   */
-  private fun NoiseMechanism.toDirectNoiseMechanism(): DirectNoiseMechanism? {
-    return when (this) {
-      NoiseMechanism.NONE -> DirectNoiseMechanism.NONE
-      NoiseMechanism.CONTINUOUS_LAPLACE -> DirectNoiseMechanism.CONTINUOUS_LAPLACE
-      NoiseMechanism.CONTINUOUS_GAUSSIAN -> DirectNoiseMechanism.CONTINUOUS_GAUSSIAN
-      NoiseMechanism.NOISE_MECHANISM_UNSPECIFIED,
-      NoiseMechanism.GEOMETRIC,
-      NoiseMechanism.DISCRETE_GAUSSIAN,
-      NoiseMechanism.UNRECOGNIZED -> {
-        null
-      }
-    }
-  }
 }
