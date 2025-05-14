@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package org.wfanet.measurement.edpaggregator.resultsfulfiller.compute
+package org.wfanet.measurement.edpaggregator.resultsfulfiller.compute.protocols.direct
 
 import kotlinx.coroutines.flow.Flow
 import org.wfanet.measurement.api.v2alpha.Measurement
@@ -24,12 +24,11 @@ import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.eventdataprovider.noiser.DirectNoiseMechanism
 import java.security.SecureRandom
 import java.util.logging.Logger
-import org.wfanet.measurement.edpaggregator.resultsfulfiller.compute.protocols.direct.DirectReachAndFrequencyResultBuilder
 
 /**
- * Factory for creating measurement results.
+ * Factory for creating direct measurement results.
  */
-object MeasurementResultFactory {
+object DirectMeasurementResultFactory {
   private val logger: Logger = Logger.getLogger(this::class.java.name)
 
   /**
@@ -52,7 +51,7 @@ object MeasurementResultFactory {
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf enum fields cannot be null.
     return when (measurementSpec.measurementTypeCase) {
       MeasurementSpec.MeasurementTypeCase.REACH_AND_FREQUENCY -> {
-        val reachAndFrequencyResultBuilder =  DirectReachAndFrequencyResultBuilder(
+        val reachAndFrequencyResultBuilder = DirectReachAndFrequencyResultBuilder(
             directProtocolConfig,
             sampledVids,
             measurementSpec.reachAndFrequency.maximumFrequency,
@@ -94,4 +93,4 @@ object MeasurementResultFactory {
       }
     }
   }
-}
+} 
