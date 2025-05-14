@@ -1,4 +1,4 @@
-// Copyright 2022 The Cross-Media Measurement Authors
+// Copyright 2025 The Cross-Media Measurement Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -25,13 +25,13 @@ import com.google.crypto.tink.streamingaead.StreamingAeadConfig
 import com.google.protobuf.ByteString
 import com.google.protobuf.kotlin.toByteString
 import java.io.File
+import java.nio.file.Paths
 import java.time.LocalDate
 import java.time.ZoneId
 import java.util.logging.Logger
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticPopulationSpec
@@ -39,17 +39,19 @@ import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.tink.testing.FakeKmsClient
 import org.wfanet.measurement.common.crypto.tink.withEnvelopeEncryption
+import org.wfanet.measurement.common.getRuntimePath
+import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.edpaggregator.KmsType
 import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
 import org.wfanet.measurement.edpaggregator.v1alpha.blobDetails
-import org.wfanet.measurement.integration.common.SyntheticGenerationSpecs
 import org.wfanet.measurement.loadtest.edpaggregator.SyntheticDataGeneration
 import org.wfanet.measurement.storage.MesosRecordIoStorageClient
 import org.wfanet.measurement.storage.SelectedStorageClient
 import picocli.CommandLine.Command
 import picocli.CommandLine.Option
+import org.wfanet.measurement.loadtest.edpaggregator.ImpressionsWriter
 
 @Command(
   name = "generate-synthetic-data",
@@ -109,17 +111,39 @@ class GenerateSyntheticData : Runnable {
   lateinit var zoneId: String
     private set
 
+  @Option(
+    names = ["--population-spec"],
+    description = ["The resource of the population-spec."],
+    required = true,
+  )
+  lateinit var populationSpecResourceName: String
+    private set
+
+  @Option(
+    names = ["--data-spec"],
+    description = ["The resource of the data-spec."],
+    required = true,
+  )
+  lateinit var dataSpecResourceName: String
+    private set
+
   @kotlin.io.path.ExperimentalPathApi
   override fun run() {
     val syntheticPopulationSpec: SyntheticPopulationSpec =
-      SyntheticGenerationSpecs.SYNTHETIC_POPULATION_SPEC_SMALL
-    val syntheticEventGroupSpecs: List<SyntheticEventGroupSpec> =
-      SyntheticGenerationSpecs.SYNTHETIC_DATA_SPECS_SMALL
+      parseTextProto(
+        TEST_DATA_RUNTIME_PATH.resolve(populationSpecResourceName).toFile(),
+        SyntheticPopulationSpec.getDefaultInstance(),
+      )
+    val syntheticEventGroupSpec: SyntheticEventGroupSpec =
+      parseTextProto(
+        TEST_DATA_RUNTIME_PATH.resolve(dataSpecResourceName).toFile(),
+        SyntheticEventGroupSpec.getDefaultInstance(),
+      )
     val events =
       SyntheticDataGeneration.generateEvents(
         messageInstance = TestEvent.getDefaultInstance(),
         populationSpec = syntheticPopulationSpec,
-        syntheticEventGroupSpec = syntheticEventGroupSpecs[0],
+        syntheticEventGroupSpec = syntheticEventGroupSpec,
       )
     val kmsClient: KmsClient = run {
       when (kmsType) {
@@ -133,15 +157,16 @@ class GenerateSyntheticData : Runnable {
       }
     }
     runBlocking {
-      writeImpressionData(
-        events,
+      val impressionWriter = ImpressionsWriter(
         eventGroupReferenceId,
         kekUri,
         kmsClient,
-        storagePath,
         bucket,
+        storagePath,
         schema,
-        ZoneId.of(zoneId),
+      )
+      impressionWriter.writeLabeledImpressionData(
+        events
       )
     }
   }
@@ -150,88 +175,19 @@ class GenerateSyntheticData : Runnable {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
     private const val DEFAULT_KEK_URI = FakeKmsClient.KEY_URI_PREFIX + "key1"
 
-    suspend fun writeImpressionData(
-      events: Flow<LabeledImpression>,
-      eventGroupReferenceId: String,
-      kekUri: String,
-      kmsClient: KmsClient,
-      storagePath: File?,
-      bucket: String,
-      schema: String = "file:///",
-      zoneId: ZoneId = ZoneId.of("UTC"),
-    ) {
-      val groupedImpressions: Map<LocalDate, List<LabeledImpression>> =
-        events.toList().groupBy<LabeledImpression, LocalDate> {
-          LocalDate.ofInstant(it.eventTime.toInstant(), zoneId)
-        }
+    private val TEST_DATA_PATH =
+      Paths.get(
+        "wfa_measurement_system",
+        "src",
+        "main",
+        "proto",
+        "wfa",
+        "measurement",
+        "loadtest",
+        "edpaggregator",
+      )
+    private val TEST_DATA_RUNTIME_PATH = getRuntimePath(TEST_DATA_PATH)!!
 
-      groupedImpressions.forEach { (date: LocalDate, impressions: List<LabeledImpression>) ->
-        val ds = date.toString()
-        logger.info("Date: $ds")
-
-        val impressionsBlobKey =
-          "ds/$ds/event-group-reference-id/$eventGroupReferenceId/impressions"
-        val impressionsFileUri = "$schema$bucket/$impressionsBlobKey"
-        val impressionsStorageClient = SelectedStorageClient(impressionsFileUri, storagePath)
-
-        // Set up streaming encryption
-        val tinkKeyTemplateType = "AES128_GCM_HKDF_1MB"
-        val aeadKeyTemplate = KeyTemplates.get(tinkKeyTemplateType)
-        val keyEncryptionHandle = KeysetHandle.generateNew(aeadKeyTemplate)
-        val serializedEncryptionKey =
-          ByteString.copyFrom(
-            TinkProtoKeysetFormat.serializeEncryptedKeyset(
-              keyEncryptionHandle,
-              kmsClient.getAead(kekUri),
-              byteArrayOf(),
-            )
-          )
-        val aeadStorageClient =
-          impressionsStorageClient.withEnvelopeEncryption(
-            kmsClient,
-            kekUri,
-            serializedEncryptionKey,
-          )
-
-        // Wrap aead client in mesos client
-        val mesosRecordIoStorageClient = MesosRecordIoStorageClient(aeadStorageClient)
-
-        logger.info("Writing impressions to $impressionsBlobKey")
-        // Write impressions to storage
-        runBlocking {
-          mesosRecordIoStorageClient.writeBlob(
-            impressionsBlobKey,
-            impressions.asFlow().map { it.toByteString() },
-          )
-        }
-        val impressionsMetaDataBlobKey =
-          "ds/$ds/event-group-reference-id/$eventGroupReferenceId/metadata"
-
-        val impressionsMetadataFileUri = "$schema$bucket/$impressionsMetaDataBlobKey"
-
-        logger.info("Writing impressions to $impressionsMetadataFileUri")
-
-        // Create the impressions metadata store
-        val impressionsMetadataStorageClient =
-          SelectedStorageClient(impressionsMetadataFileUri, storagePath)
-
-        val encryptedDek =
-          EncryptedDek.newBuilder()
-            .setKekUri(kekUri)
-            .setEncryptedDek(serializedEncryptionKey)
-            .build()
-        val blobDetails = blobDetails {
-          this.blobUri = impressionsFileUri
-          this.encryptedDek = encryptedDek
-        }
-        runBlocking {
-          impressionsMetadataStorageClient.writeBlob(
-            impressionsMetaDataBlobKey,
-            blobDetails.toByteString(),
-          )
-        }
-      }
-    }
   }
 
   init {
