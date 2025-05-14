@@ -46,6 +46,7 @@ resource "google_spanner_instance" "spanner_instance" {
   config           = var.spanner_instance_config
   display_name     = "Halo CMMS"
   processing_units = var.spanner_processing_units
+  edition          = "ENTERPRISE"
 }
 
 resource "google_sql_database_instance" "postgres" {
