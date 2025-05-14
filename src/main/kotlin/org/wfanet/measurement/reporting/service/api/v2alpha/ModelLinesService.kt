@@ -26,7 +26,6 @@ import org.wfanet.measurement.api.v2alpha.EnumerateValidModelLinesRequest
 import org.wfanet.measurement.api.v2alpha.EnumerateValidModelLinesResponse
 import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt
 import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt.ModelLinesCoroutineStub
-import org.wfanet.measurement.api.v2alpha.enumerateValidModelLinesRequest
 import org.wfanet.measurement.api.withAuthenticationKey
 import org.wfanet.measurement.reporting.service.api.InvalidFieldValueException
 import org.wfanet.measurement.reporting.service.api.RequiredFieldNotSetException
@@ -79,18 +78,12 @@ class ModelLinesService(
     return try {
       kingdomModelLinesStub
         .withAuthenticationKey(apiAuthenticationKey)
-        .enumerateValidModelLines(
-          enumerateValidModelLinesRequest {
-            parent = request.parent
-            timeInterval = request.timeInterval
-            dataProviders += request.dataProvidersList
-          }
-        )
+        .enumerateValidModelLines(request)
     } catch (e: StatusException) {
       throw when (e.status.code) {
         Status.Code.INVALID_ARGUMENT -> Status.INVALID_ARGUMENT
         Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
-        else -> Status.UNKNOWN
+        else -> Status.INTERNAL
       }.asRuntimeException()
     }
   }
