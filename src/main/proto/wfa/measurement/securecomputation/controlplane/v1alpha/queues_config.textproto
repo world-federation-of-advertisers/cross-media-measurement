@@ -3,4 +3,5 @@
 
 queueInfos {
   queue_resource_id: "requisition-fulfiller-queue"
+  app_params_type_url: "type.googleapis.com/wfa.measurement.securecomputation.controlplane.v1alpha.WorkItem.WorkItemParams"
 }
