@@ -53,35 +53,59 @@ import org.junit.ClassRule
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.storage.MesosRecordIoStorageClient
 import org.wfanet.measurement.storage.SelectedStorageClient
+import com.google.cloud.storage.StorageOptions
+import java.util.logging.Logger
+import kotlinx.coroutines.delay
 
 class EdpAggregatorCorrectnessTest: AbstractEdpAggregatorCorrectnessTest(measurementSystem) {
 
   private class UploadEventGroup : TestRule {
+
+    private val bucket = "secure-computation-storage-dev-bucket"
+    private val eventGroupObjectMapKey = "edp7/event-groups-map/edp7-event-group.pb"
+    private val eventGroupObjectKey = "edp7/event-groups/edp7-event-group.pb"
+    private val eventGroupBlobUri = "gs://$bucket/$eventGroupObjectKey"
+    private val googleProjectId = "halo-cmm-dev"
+    private val storageClient = StorageOptions.getDefaultInstance().service
+
     override fun apply(base: Statement, description: Description): Statement {
       return object : Statement() {
         override fun evaluate() {
-          try {
-            runBlocking {
-              uploadEventGroups(createEventGroups())
-            }
-            base.evaluate()
-          } finally {
-            println("REMOVE")
+          runBlocking {
+            deleteExistingEventGroupsMap()
+            uploadEventGroups(createEventGroups())
+            waitForEventGroupSyncToComplete()
+            logger.info("Event Group Sync completed.")
           }
+          base.evaluate()
         }
       }
     }
 
+    private suspend fun waitForEventGroupSyncToComplete() {
+      while (!isEventGroupSyncDone()) {
+        logger.info("Waiting on Event Group Sync to complete...")
+        delay(30000)
+      }
+    }
+
+    private fun isEventGroupSyncDone(): Boolean {
+      return storageClient.get(bucket, eventGroupObjectMapKey) != null
+    }
+
+    private fun deleteExistingEventGroupsMap() {
+      storageClient.delete(bucket, eventGroupObjectMapKey)
+    }
     private suspend fun uploadEventGroups(eventGroup: List<EventGroup>) {
       val eventGroupsBlobUri =
-        SelectedStorageClient.parseBlobUri("gs://secure-computation-storage-dev-bucket/edp7/event-groups/edp7-event-group.pb")
+        SelectedStorageClient.parseBlobUri(eventGroupBlobUri)
       MesosRecordIoStorageClient(
         SelectedStorageClient(
           blobUri = eventGroupsBlobUri,
           rootDirectory = null,
-          projectId = "halo-cmm-dev",
+          projectId = googleProjectId,
         )
-      ).writeBlob("edp7/event-groups/edp7-event-group.pb", eventGroup.asFlow().map { it.toByteString() })
+      ).writeBlob(eventGroupObjectKey, eventGroup.asFlow().map { it.toByteString() })
 
     }
 
@@ -177,6 +201,7 @@ class EdpAggregatorCorrectnessTest: AbstractEdpAggregatorCorrectnessTest(measure
   }
 
   companion object {
+    private val logger: Logger = Logger.getLogger(this::class.java.name)
     private val RPC_DEADLINE_DURATION = Duration.ofSeconds(30)
     private val CONFIG_PATH =
       Paths.get("src", "test", "kotlin", "org", "wfanet", "measurement", "integration", "k8s")

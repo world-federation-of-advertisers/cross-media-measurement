@@ -102,16 +102,6 @@ class DataWatcher(
       credentials.idTokenWithAudience(config.httpEndpointSink.endpointUri, listOf())
     val jwt = idToken.tokenValue
 
-//    val targetAudience = config.httpEndpointSink
-//
-//    val credentials = GoogleCredentials.getApplicationDefault()
-//
-//    val idTokenCredentials = if (credentials is IdTokenProvider) {
-//      credentials.idTokenWithAudience(targetAudience, null)
-//    } else {
-//      throw IllegalStateException("Credentials do not support ID tokens")
-//    }
-
     val httpEndpointConfig = config.httpEndpointSink
     val client = HttpClient.newHttpClient()
     val request =
@@ -122,12 +112,6 @@ class DataWatcher(
         .build()
     val response = client.send(request, BodyHandlers.ofString())
 
-    try {
-      logger.info("Endpoint: ${httpEndpointConfig.endpointUri}")
-      logger.info("PARAMS: ${httpEndpointConfig.appParams.toJson()}")
-    }catch (e: Exception){
-      logger.severe(e.message)
-    }
     logger.info("${config.identifier}: Response status: ${response.statusCode()}")
     logger.info("${config.identifier}: Response body: ${response.body()}")
     check(response.statusCode() == 200)
