@@ -848,10 +848,11 @@ class MeasurementConsumerSimulator(
         .entries
         .associate { it.key to getDataProvider(it.key.toName()) }
 
-    val requiredEventGroupReferenceId = "sim-eg-reference-id-1-edp-0"
+    val requiredEventGroupReferenceId = "sim-eg-reference-id-1-edp-7"
 
     val requisitions: List<RequisitionInfo> =
       eventGroups
+        .onEach { logger.info("EventGroupReferenceId: ${it.eventGroupReferenceId}") }
         .filter { it.eventGroupReferenceId == requiredEventGroupReferenceId }
         .groupBy { extractDataProviderKey(it.name) }
         .entries

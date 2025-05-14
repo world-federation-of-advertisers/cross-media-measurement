@@ -112,7 +112,7 @@ class EdpAggregatorCorrectnessTest: AbstractEdpAggregatorCorrectnessTest(measure
     private fun createEventGroups(): List<EventGroup> {
       return listOf(
         eventGroup {
-          eventGroupReferenceId = "sim-eg-reference-id-1-edp-0"
+          eventGroupReferenceId = "sim-eg-reference-id-1-edp-7"
           measurementConsumer = "measurementConsumers/VCTqwV_vFXw"
           dataAvailabilityInterval = interval {
             startTime = timestamp { seconds = 200 }
