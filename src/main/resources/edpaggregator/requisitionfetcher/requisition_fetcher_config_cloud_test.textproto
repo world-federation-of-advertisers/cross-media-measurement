@@ -3,10 +3,12 @@
 configs {
   data_provider: "dataProviders/e5eSGjFbjbQ"
   requisition_storage {
-    file_system {
+    gcs {
+      project_id: "halo-cmm-dev"
+      bucket_name: "secure-computation-storage-dev-bucket"
     }
   }
-  storage_path_prefix: "edp7"
+  storage_path_prefix: "edp7/requisitions"
   cmms_connection {
     cert_file_path: "/secrets/cert/edp7_tls.pem"
     private_key_file_path: "/secrets/key/edp7_tls.key"
