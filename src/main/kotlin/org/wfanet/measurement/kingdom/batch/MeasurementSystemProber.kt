@@ -234,11 +234,16 @@ class MeasurementSystemProber(
                   e,
                 )
               }
+            println("debug list event groups res: " + response)
             ResourceList(response.eventGroupsList, response.nextPageToken)
           }
-          .map { it.single() }
+          .map {
+            println("debug list event groups map it: " + it)
+            it.single()
+          }
           .single()
 
+      println("debug list event group final single: " + eventGroup)
       dataProviderNameToEventGroup[dataProviderName] = eventGroup
     }
     return dataProviderNameToEventGroup
@@ -317,6 +322,7 @@ class MeasurementSystemProber(
     measurementConsumerSigningKey: SigningKeyHandle,
     packedMeasurementEncryptionPublicKey: Any,
   ): Measurement.DataProviderEntry {
+    println("debug eventgroup: " + eventGroup)
     return dataProviderEntry {
       val requisitionSpec = requisitionSpec {
         events =
