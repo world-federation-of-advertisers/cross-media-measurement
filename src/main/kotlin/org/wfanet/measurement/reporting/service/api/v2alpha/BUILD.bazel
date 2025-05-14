@@ -439,3 +439,16 @@ kt_jvm_library(
         "@wfa_common_jvm//imports/java/io/grpc:api",
     ],
 )
+
+kt_jvm_library(
+    name = "model_lines_service",
+    srcs = ["ModelLinesService.kt"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/access/client/v1alpha:authorization",
+        "//src/main/kotlin/org/wfanet/measurement/api:api_key_constants",
+        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/service/api:errors",
+        "//src/main/proto/wfa/measurement/api/v2alpha:model_lines_service_kt_jvm_grpc_proto",
+        "@wfa_common_jvm//imports/java/io/grpc:api",
+    ],
+)
