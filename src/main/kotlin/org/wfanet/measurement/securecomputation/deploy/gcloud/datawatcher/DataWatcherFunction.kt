@@ -18,6 +18,8 @@ package org.wfanet.measurement.securecomputation.deploy.gcloud.datawatcher
 
 import com.google.cloud.functions.CloudEventsFunction
 import com.google.events.cloud.storage.v1.StorageObjectData
+import com.google.protobuf.TextFormat
+import com.google.protobuf.TypeRegistry
 import com.google.protobuf.util.JsonFormat
 import io.cloudevents.CloudEvent
 import java.io.File
@@ -33,6 +35,7 @@ import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.config.securecomputation.DataWatcherConfig
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
 import org.wfanet.measurement.securecomputation.datawatcher.DataWatcher
+import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
 
 /*
  * Cloud Function receives a CloudEvent. If the cloud event path matches config, it calls the
@@ -125,6 +128,19 @@ class DataWatcherFunction : CloudEventsFunction {
       checkNotNull(CLASS_LOADER.getJarResourceFile(dataWatcherConfigResourcePath))
     }
     private val dataWatcherConfig by lazy {
+      val textProto = config.readText(Charsets.UTF_8)
+      val registry = TypeRegistry.newBuilder()
+        .add(ResultsFulfillerParams.getDescriptor())
+        .build()
+
+      val parser = TextFormat.Parser.newBuilder()
+        .setTypeRegistry(registry)
+        .build()
+
+      val builder = DataWatcherConfig.newBuilder()
+      parser.merge(textProto, builder)
+
+      builder.build()
       runBlocking { parseTextProto(config, DataWatcherConfig.getDefaultInstance()) }
     }
     private val dataWatcher by lazy {
