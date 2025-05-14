@@ -26,6 +26,7 @@ import java.io.File
 import java.security.SecureRandom
 import java.time.Clock
 import java.time.Duration
+import java.util.logging.Level
 import java.util.logging.Logger
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -130,9 +131,9 @@ class MeasurementSystemProber(
         )
       }
     }
-    print("prober run lastUpdatedMeasurement: $lastUpdatedMeasurement")
+    println("prober run lastUpdatedMeasurement: $lastUpdatedMeasurement")
     if (shouldCreateNewMeasurement(lastUpdatedMeasurement)) {
-      print("should create another one")
+      println("should create another one")
       createMeasurement()
     }
   }
@@ -234,16 +235,16 @@ class MeasurementSystemProber(
                   e,
                 )
               }
-            println("debug list event groups res: " + response)
+            logger.log(Level.INFO, "debug list event groups res:\n $response \n")
             ResourceList(response.eventGroupsList, response.nextPageToken)
           }
           .map {
-            println("debug list event groups map it: " + it)
+            logger.log(Level.INFO, "debug list event groups map it:\n $it \n")
             it.single()
           }
           .single()
 
-      println("debug list event group final single: " + eventGroup)
+      logger.log(Level.INFO, "debug list event group final single: \n $eventGroup \n")
       dataProviderNameToEventGroup[dataProviderName] = eventGroup
     }
     return dataProviderNameToEventGroup
@@ -255,7 +256,7 @@ class MeasurementSystemProber(
     }
 
     if (lastUpdatedMeasurement.state !in COMPLETED_MEASUREMENT_STATES) {
-      print(lastUpdatedMeasurement.state)
+      println(lastUpdatedMeasurement.state)
       return false
     }
 
@@ -322,7 +323,7 @@ class MeasurementSystemProber(
     measurementConsumerSigningKey: SigningKeyHandle,
     packedMeasurementEncryptionPublicKey: Any,
   ): Measurement.DataProviderEntry {
-    println("debug eventgroup: " + eventGroup)
+    logger.log(Level.INFO, "event group:\n $eventGroup \n")
     return dataProviderEntry {
       val requisitionSpec = requisitionSpec {
         events =
