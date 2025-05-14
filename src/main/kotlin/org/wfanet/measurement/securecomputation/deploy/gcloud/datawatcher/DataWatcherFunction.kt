@@ -133,9 +133,7 @@ class DataWatcherFunction : CloudEventsFunction {
 
       println("ResultsFulfillerParams descriptor.fullName = " +
         ResultsFulfillerParams.getDescriptor().fullName)
-      println("Registry contains types: " +
-        registry.listAllTypes().map { it.fullName })
-      
+
       runBlocking {
         parseTextProto(
           textProto = config,
