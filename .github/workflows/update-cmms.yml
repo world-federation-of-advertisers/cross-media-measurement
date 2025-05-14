@@ -75,7 +75,8 @@ jobs:
     secrets: inherit
     with:
       environment: ${{ inputs.environment }}
-      apply: ${{ inputs.apply }}
+#      apply: ${{ inputs.apply }}
+      apply: false
 
   update-kingdom:
     uses: ./.github/workflows/configure-kingdom.yml
@@ -84,7 +85,8 @@ jobs:
     with:
       image-tag: ${{ needs.publish-images.outputs.image-tag }}
       environment: ${{ inputs.environment }}
-      apply: ${{ inputs.apply }}
+#      apply: ${{ inputs.apply }}
+      apply: true
 
   update-secure-computation:
     uses: ./.github/workflows/configure-secure-computation-control-plane.yml
@@ -93,7 +95,8 @@ jobs:
     with:
       image-tag: ${{ needs.publish-images.outputs.image-tag }}
       environment: ${{ inputs.environment }}
-      apply: ${{ inputs.apply }}
+#      apply: ${{ inputs.apply }}
+      apply: false
 
   update-aggregator-duchy:
     uses: ./.github/workflows/configure-duchy.yml
@@ -103,7 +106,8 @@ jobs:
       duchy-name: aggregator
       image-tag: ${{ needs.publish-images.outputs.image-tag }}
       environment: ${{ inputs.environment }}
-      apply: ${{ inputs.apply }}
+#      apply: ${{ inputs.apply }}
+      apply: false
 
   update-worker1-duchy:
     uses: ./.github/workflows/configure-duchy.yml
@@ -113,7 +117,8 @@ jobs:
       duchy-name: worker1
       image-tag: ${{ needs.publish-images.outputs.image-tag }}
       environment: ${{ inputs.environment }}
-      apply: ${{ inputs.apply }}
+#      apply: ${{ inputs.apply }}
+      apply: false
 
   update-worker2-duchy:
     uses: ./.github/workflows/configure-duchy.yml
@@ -123,7 +128,8 @@ jobs:
       duchy-name: worker2
       image-tag: ${{ needs.publish-images.outputs.image-tag }}
       environment: ${{ inputs.environment }}
-      apply: ${{ inputs.apply }}
+#      apply: ${{ inputs.apply }}
+      apply: false
 
   update-simulators:
     uses: ./.github/workflows/configure-simulators.yml
@@ -132,7 +138,8 @@ jobs:
     with:
       image-tag: ${{ needs.publish-images.outputs.image-tag }}
       environment: ${{ inputs.environment }}
-      apply: ${{ inputs.apply }}
+#      apply: ${{ inputs.apply }}
+      apply: false
 
   # Update the Reporting system.
   #
@@ -144,8 +151,9 @@ jobs:
     with:
       image-tag: ${{ needs.publish-images.outputs.image-tag }}
       environment: ${{ inputs.environment }}
-      apply: ${{ inputs.apply }}
-
+#      apply: ${{ inputs.apply }}
+      apply: false
+      
   run-tests:
     if: inputs.run-tests
     needs: [
