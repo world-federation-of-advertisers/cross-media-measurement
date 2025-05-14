@@ -17,7 +17,7 @@ name: Terraform CMMS
 on:
 #  push:
 #    branches:
-#      - marcopremier/edp_aggregtor_cloud_test
+#      - marcopremier/edp_aggregtor_cloud_test_event_group_sync
   workflow_call:
     inputs:
       environment:
