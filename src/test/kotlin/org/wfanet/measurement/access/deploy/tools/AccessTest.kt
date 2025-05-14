@@ -198,6 +198,7 @@ class AccessTest {
     }
 
     assertThat(request).isEqualTo(getPrincipalRequest { name = OWNER_PRINCIPAL_NAME })
+    println(output)
     assertThat(parseTextProto(output.reader(), Principal.getDefaultInstance()))
       .isEqualTo(USER_PRINCIPAL)
   }
