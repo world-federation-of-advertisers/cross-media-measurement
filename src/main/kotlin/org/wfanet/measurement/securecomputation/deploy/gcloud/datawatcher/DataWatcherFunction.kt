@@ -128,20 +128,17 @@ class DataWatcherFunction : CloudEventsFunction {
       checkNotNull(CLASS_LOADER.getJarResourceFile(dataWatcherConfigResourcePath))
     }
     private val dataWatcherConfig by lazy {
-      val textProto = config.readText(Charsets.UTF_8)
       val registry = TypeRegistry.newBuilder()
         .add(ResultsFulfillerParams.getDescriptor())
         .build()
 
-      val parser = TextFormat.Parser.newBuilder()
-        .setTypeRegistry(registry)
-        .build()
-
-      val builder = DataWatcherConfig.newBuilder()
-      parser.merge(textProto, builder)
-
-      builder.build()
-      runBlocking { parseTextProto(config, DataWatcherConfig.getDefaultInstance()) }
+      runBlocking {
+        parseTextProto(
+          textProto = config,
+          messageInstance = DataWatcherConfig.getDefaultInstance(),
+          typeRegistry = registry
+        )
+      }
     }
     private val dataWatcher by lazy {
       DataWatcher(
