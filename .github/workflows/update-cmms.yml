@@ -58,23 +58,24 @@ jobs:
     uses: ./.github/workflows/maybe-push-images.yml
     secrets: inherit
     with:
-      existing-image-tag: ${{ inputs.existing-image-tag }}
+#      existing-image-tag: ${{ inputs.existing-image-tag }}
+      existing-image-tag: "nightly/20250513.1"
 
-  scan-images:
-    uses: ./.github/workflows/scan-images.yml
-    needs: [publish-images]
-    if: inputs.existing-image-tag == ''
-    with:
-      container-registry: ghcr.io
-      image-repo-prefix: ${{ github.repository_owner }}
-      image-tag: ${{ needs.publish-images.outputs.image-tag }}
+#  scan-images:
+#    uses: ./.github/workflows/scan-images.yml
+#    needs: [publish-images]
+#    if: inputs.existing-image-tag == ''
+#    with:
+#      container-registry: ghcr.io
+#      image-repo-prefix: ${{ github.repository_owner }}
+#      image-tag: ${{ needs.publish-images.outputs.image-tag }}
 
-  terraform:
-    uses: ./.github/workflows/terraform-cmms.yml
-    secrets: inherit
-    with:
-      environment: ${{ inputs.environment }}
-      apply: ${{ inputs.apply }}
+#  terraform:
+#    uses: ./.github/workflows/terraform-cmms.yml
+#    secrets: inherit
+#    with:
+#      environment: ${{ inputs.environment }}
+#      apply: ${{ inputs.apply }}
 
   update-kingdom:
     uses: ./.github/workflows/configure-kingdom.yml
@@ -85,77 +86,77 @@ jobs:
       environment: ${{ inputs.environment }}
       apply: ${{ inputs.apply }}
 
-  update-secure-computation:
-    uses: ./.github/workflows/configure-secure-computation-control-plane.yml
-    needs: [ publish-images, terraform ]
-    secrets: inherit
-    with:
-      image-tag: ${{ needs.publish-images.outputs.image-tag }}
-      environment: ${{ inputs.environment }}
-      apply: ${{ inputs.apply }}
-
-  update-aggregator-duchy:
-    uses: ./.github/workflows/configure-duchy.yml
-    needs: [publish-images, terraform]
-    secrets: inherit
-    with:
-      duchy-name: aggregator
-      image-tag: ${{ needs.publish-images.outputs.image-tag }}
-      environment: ${{ inputs.environment }}
-      apply: ${{ inputs.apply }}
-
-  update-worker1-duchy:
-    uses: ./.github/workflows/configure-duchy.yml
-    needs: [publish-images, terraform]
-    secrets: inherit
-    with:
-      duchy-name: worker1
-      image-tag: ${{ needs.publish-images.outputs.image-tag }}
-      environment: ${{ inputs.environment }}
-      apply: ${{ inputs.apply }}
-
-  update-worker2-duchy:
-    uses: ./.github/workflows/configure-duchy.yml
-    needs: [publish-images, terraform]
-    secrets: inherit
-    with:
-      duchy-name: worker2
-      image-tag: ${{ needs.publish-images.outputs.image-tag }}
-      environment: ${{ inputs.environment }}
-      apply: ${{ inputs.apply }}
-
-  update-simulators:
-    uses: ./.github/workflows/configure-simulators.yml
-    needs: [publish-images, terraform]
-    secrets: inherit
-    with:
-      image-tag: ${{ needs.publish-images.outputs.image-tag }}
-      environment: ${{ inputs.environment }}
-      apply: ${{ inputs.apply }}
-
-  # Update the Reporting system.
-  #
-  # This isn't technically part of the CMMS, but we do it here for simplicity.
-  update-reporting-v2:
-    uses: ./.github/workflows/configure-reporting-v2.yml
-    secrets: inherit
-    needs: [ publish-images, terraform ]
-    with:
-      image-tag: ${{ needs.publish-images.outputs.image-tag }}
-      environment: ${{ inputs.environment }}
-      apply: ${{ inputs.apply }}
-
-  run-tests:
-    if: inputs.run-tests
-    needs: [
-      update-kingdom,
-      update-aggregator-duchy,
-      update-worker1-duchy,
-      update-worker2-duchy,
-      update-simulators,
-      update-reporting-v2,
-    ]
-    uses: ./.github/workflows/run-k8s-tests.yml
-    secrets: inherit
-    with:
-      environment: ${{ inputs.environment }}
+#  update-secure-computation:
+#    uses: ./.github/workflows/configure-secure-computation-control-plane.yml
+#    needs: [ publish-images, terraform ]
+#    secrets: inherit
+#    with:
+#      image-tag: ${{ needs.publish-images.outputs.image-tag }}
+#      environment: ${{ inputs.environment }}
+#      apply: ${{ inputs.apply }}
+#
+#  update-aggregator-duchy:
+#    uses: ./.github/workflows/configure-duchy.yml
+#    needs: [publish-images, terraform]
+#    secrets: inherit
+#    with:
+#      duchy-name: aggregator
+#      image-tag: ${{ needs.publish-images.outputs.image-tag }}
+#      environment: ${{ inputs.environment }}
+#      apply: ${{ inputs.apply }}
+#
+#  update-worker1-duchy:
+#    uses: ./.github/workflows/configure-duchy.yml
+#    needs: [publish-images, terraform]
+#    secrets: inherit
+#    with:
+#      duchy-name: worker1
+#      image-tag: ${{ needs.publish-images.outputs.image-tag }}
+#      environment: ${{ inputs.environment }}
+#      apply: ${{ inputs.apply }}
+#
+#  update-worker2-duchy:
+#    uses: ./.github/workflows/configure-duchy.yml
+#    needs: [publish-images, terraform]
+#    secrets: inherit
+#    with:
+#      duchy-name: worker2
+#      image-tag: ${{ needs.publish-images.outputs.image-tag }}
+#      environment: ${{ inputs.environment }}
+#      apply: ${{ inputs.apply }}
+#
+#  update-simulators:
+#    uses: ./.github/workflows/configure-simulators.yml
+#    needs: [publish-images, terraform]
+#    secrets: inherit
+#    with:
+#      image-tag: ${{ needs.publish-images.outputs.image-tag }}
+#      environment: ${{ inputs.environment }}
+#      apply: ${{ inputs.apply }}
+#
+#  # Update the Reporting system.
+#  #
+#  # This isn't technically part of the CMMS, but we do it here for simplicity.
+#  update-reporting-v2:
+#    uses: ./.github/workflows/configure-reporting-v2.yml
+#    secrets: inherit
+#    needs: [ publish-images, terraform ]
+#    with:
+#      image-tag: ${{ needs.publish-images.outputs.image-tag }}
+#      environment: ${{ inputs.environment }}
+#      apply: ${{ inputs.apply }}
+#
+#  run-tests:
+#    if: inputs.run-tests
+#    needs: [
+#      update-kingdom,
+#      update-aggregator-duchy,
+#      update-worker1-duchy,
+#      update-worker2-duchy,
+#      update-simulators,
+#      update-reporting-v2,
+#    ]
+#    uses: ./.github/workflows/run-k8s-tests.yml
+#    secrets: inherit
+#    with:
+#      environment: ${{ inputs.environment }}
