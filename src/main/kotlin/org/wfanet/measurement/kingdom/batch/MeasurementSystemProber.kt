@@ -131,7 +131,7 @@ class MeasurementSystemProber(
         )
       }
     }
-    println("prober run lastUpdatedMeasurement: $lastUpdatedMeasurement")
+    logger.info("prober run() lastUpdatedMeasurement: \n $lastUpdatedMeasurement \n")
     if (shouldCreateNewMeasurement(lastUpdatedMeasurement)) {
       println("should create another one")
       createMeasurement()
@@ -256,7 +256,6 @@ class MeasurementSystemProber(
     }
 
     if (lastUpdatedMeasurement.state !in COMPLETED_MEASUREMENT_STATES) {
-      println(lastUpdatedMeasurement.state)
       return false
     }
 
