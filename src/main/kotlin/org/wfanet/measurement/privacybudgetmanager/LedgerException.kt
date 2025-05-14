@@ -15,12 +15,14 @@ package org.wfanet.measurement.privacybudgetmanager
 
 enum class LedgerExceptionType(val errorMessage: String) {
   INVALID_PRIVACY_LANDSCAPE_IDS("Some queries are not targetting the active landscape"),
-  TABLE_NOT_READY("Database is not ready to receive queries for Given privacy landscape identifier."),
-  TABLE_METADATA_DOESNT_EXIST("Given privacy landscape identifier not found in PrivacyChargesMetadata table.")
+  TABLE_NOT_READY(
+    "Database is not ready to receive queries for Given privacy landscape identifier."
+  ),
+  TABLE_METADATA_DOESNT_EXIST(
+    "Given privacy landscape identifier not found in PrivacyChargesMetadata table."
+  ),
 }
 
 /** An exception thrown by the privacy budget manager ledger. */
-class LedgerException(
-  val errorType: LedgerExceptionType,
-  cause: Throwable? = null,
-) : Exception(errorType.errorMessage, cause)
+class LedgerException(val errorType: LedgerExceptionType, cause: Throwable? = null) :
+  Exception(errorType.errorMessage, cause)

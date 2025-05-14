@@ -46,8 +46,7 @@ interface Ledger {
  */
 interface TransactionContext : AutoCloseable {
   /**
-   * Reads and returns the Queries that are already present with their CreateTime
-   * read from the DB.
+   * Reads and returns the Queries that are already present with their CreateTime read from the DB.
    *
    * @param list of queries to find in the ledger.
    * @returns list of [Query] that existed in the ledger. These have createTime field populated.
