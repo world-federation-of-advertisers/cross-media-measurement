@@ -79,7 +79,8 @@ jobs:
 
   update-kingdom:
     uses: ./.github/workflows/configure-kingdom.yml
-    needs: [publish-images, terraform]
+#    needs: [publish-images, terraform]
+    needs: [publish-images]
     secrets: inherit
     with:
       image-tag: ${{ needs.publish-images.outputs.image-tag }}
