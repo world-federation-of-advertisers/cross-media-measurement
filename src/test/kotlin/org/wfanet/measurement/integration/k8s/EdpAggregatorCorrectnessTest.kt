@@ -85,7 +85,7 @@ class EdpAggregatorCorrectnessTest: AbstractEdpAggregatorCorrectnessTest(measure
     private suspend fun waitForEventGroupSyncToComplete() {
       while (!isEventGroupSyncDone()) {
         logger.info("Waiting on Event Group Sync to complete...")
-        delay(30000)
+        delay(3000)
       }
     }
 
