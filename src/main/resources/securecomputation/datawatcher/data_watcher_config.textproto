@@ -8,7 +8,7 @@ watched_paths {
     app_params {
       fields {
         key: "dataProvider"
-        value { string_value: "dataProviders/DRoeq5_-yYI" }
+        value { string_value: "dataProviders/e5eSGjFbjbQ" }
       }
       fields {
         key: "eventGroupsBlobUri"
@@ -91,7 +91,7 @@ watched_paths {
 #    queue: "requisition-fulfiller-queue"
 #    app_params {
 #      [type.googleapis.com/org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams] {
-#        data_provider: "dataProviders/DRoeq5_-yYI"
+#        data_provider: "dataProviders/e5eSGjFbjbQ"
 #        storage {
 #          labeled_impressions_blob_uri_prefix: "gs://secure-computation-storage-dev-bucket/edp7/labeled-impressions"
 #          gcs_project_id: "halo-cmm-dev"
@@ -100,7 +100,7 @@ watched_paths {
 #          result_cs_cert_der_resource_path: "main/k8s/testing/secretfiles/edp7_cs_cert.der"
 #          result_cs_private_key_der_resource_path: "main/k8s/testing/secretfiles/edp7_cs_private.der"
 #          private_encryption_key_resource_path: "main/k8s/testing/secretfiles/edp7_enc_private.tink"
-#          edp_certificate_name: "dataProviders/DRoeq5_-yYI/certificates/Elub4J_-ybw"
+#          edp_certificate_name: "dataProviders/DRoeq5_-yYI/certificates/Elub4J_-ybw" sTODO THIS CHANGED
 #        }
 #        cmms_connection {
 #          client_cert_resource_path: "main/k8s/testing/secretfiles/edp7_tls.pem"

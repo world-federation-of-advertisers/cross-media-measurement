@@ -1376,6 +1376,7 @@ class MeasurementConsumerSimulator(
     nonceHash: ByteString,
   ): DataProviderEntry {
     val source = this
+    logger.info("~~~~~~~~~~~~~~~~~~~~~~ source public key: ${source.publicKey}")
     return dataProviderEntry {
       key = source.name
       this.value =
