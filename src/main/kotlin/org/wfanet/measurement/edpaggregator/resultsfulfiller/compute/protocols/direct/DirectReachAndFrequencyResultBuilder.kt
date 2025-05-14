@@ -16,10 +16,7 @@
 
 package org.wfanet.measurement.edpaggregator.resultsfulfiller.compute.protocols.direct
 
-import kotlin.math.max
-import kotlin.math.roundToInt
 import kotlinx.coroutines.flow.Flow
-import org.apache.commons.math3.distribution.ConstantRealDistribution
 import org.wfanet.measurement.api.v2alpha.DeterministicCountDistinct
 import org.wfanet.measurement.api.v2alpha.DeterministicDistribution
 import org.wfanet.measurement.api.v2alpha.DifferentialPrivacyParams
@@ -33,13 +30,10 @@ import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.dataprovider.MeasurementResults
 import org.wfanet.measurement.dataprovider.RequisitionRefusalException
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.compute.MeasurementResultBuilder
-import org.wfanet.measurement.eventdataprovider.noiser.AbstractNoiser
 import org.wfanet.measurement.eventdataprovider.noiser.DirectNoiseMechanism
-import org.wfanet.measurement.eventdataprovider.noiser.DpParams
-import org.wfanet.measurement.eventdataprovider.noiser.GaussianNoiser
-import org.wfanet.measurement.eventdataprovider.noiser.LaplaceNoiser
 import java.security.SecureRandom
 import java.util.logging.Logger
+import org.wfanet.measurement.edpaggregator.resultsfulfiller.noise.ReachAndFrequencyNoiseBuilder
 
 /**
  * Builder for direct reach and frequency measurement results.
@@ -70,7 +64,7 @@ class DirectReachAndFrequencyResultBuilder(
    *
    * @return The non-noisy reach and frequency measurement result.
    */
-  override fun buildMeasurementResult(): Measurement.Result {
+  override suspend fun buildMeasurementResult(): Measurement.Result {
     if (!directProtocolConfig.hasDeterministicCountDistinct()) {
       throw RequisitionRefusalException.Default(
         Requisition.Refusal.Justification.DECLINED,
@@ -111,7 +105,7 @@ class DirectReachAndFrequencyResultBuilder(
    *
    * @return The noisy reach and frequency measurement result.
    */
-  override fun buildNoisyMeasurementResult(): Measurement.Result {
+  override suspend fun buildNoisyMeasurementResult(): Measurement.Result {
     if (!directProtocolConfig.hasDeterministicCountDistinct()) {
       throw RequisitionRefusalException.Default(
         Requisition.Refusal.Justification.DECLINED,
@@ -164,82 +158,4 @@ class DirectReachAndFrequencyResultBuilder(
       }
     }
   }
-
-  private fun getPublisherNoiser(
-    privacyParams: DifferentialPrivacyParams,
-    directNoiseMechanism: DirectNoiseMechanism,
-    random: SecureRandom,
-  ): AbstractNoiser =
-    when (directNoiseMechanism) {
-      DirectNoiseMechanism.NONE ->
-        object : AbstractNoiser() {
-          override val distribution = ConstantRealDistribution(0.0)
-          override val variance: Double
-            get() = distribution.numericalVariance
-        }
-
-      DirectNoiseMechanism.CONTINUOUS_LAPLACE ->
-        LaplaceNoiser(DpParams(privacyParams.epsilon, privacyParams.delta), random)
-
-      DirectNoiseMechanism.CONTINUOUS_GAUSSIAN ->
-        GaussianNoiser(DpParams(privacyParams.epsilon, privacyParams.delta), random)
-    }
-
-  /**
-   * Add publisher noise to calculated direct reach.
-   *
-   * @param reachValue Direct reach value.
-   * @param privacyParams Differential privacy params for reach.
-   * @param directNoiseMechanism Selected noise mechanism for direct reach.
-   * @param random The random number generator to use.
-   * @return Noised non-negative reach value.
-   */
-  private fun addReachPublisherNoise(
-    reachValue: Int,
-    privacyParams: DifferentialPrivacyParams,
-    directNoiseMechanism: DirectNoiseMechanism,
-    random: SecureRandom,
-  ): Int {
-    val reachNoiser: AbstractNoiser =
-      getPublisherNoiser(privacyParams, directNoiseMechanism, random)
-
-    return max(0, reachValue + reachNoiser.sample().toInt())
-  }
-
-  /**
-   * Add publisher noise to calculated direct frequency.
-   *
-   * @param reachValue Direct reach value.
-   * @param frequencyMap Direct frequency.
-   * @param privacyParams Differential privacy params for frequency map.
-   * @param directNoiseMechanism Selected noise mechanism for direct frequency.
-   * @param random The random number generator to use.
-   * @return Noised non-negative frequency map.
-   */
-  private fun addFrequencyPublisherNoise(
-    reachValue: Int,
-    frequencyMap: Map<Int, Double>,
-    privacyParams: DifferentialPrivacyParams,
-    directNoiseMechanism: DirectNoiseMechanism,
-    random: SecureRandom,
-  ): Map<Int, Double> {
-    val frequencyNoiser: AbstractNoiser =
-      getPublisherNoiser(privacyParams, directNoiseMechanism, random)
-
-    // Add noise to the histogram and cap negative values to zeros.
-    val frequencyHistogram: Map<Int, Int> =
-      frequencyMap.mapValues { (_, percentage) ->
-        // Round the noise for privacy.
-        val noisedCount: Int =
-          (percentage * reachValue).roundToInt() + (frequencyNoiser.sample()).roundToInt()
-        max(0, noisedCount)
-      }
-    val normalizationTerm: Double = frequencyHistogram.values.sum().toDouble()
-    // Normalize to get the distribution
-    return if (normalizationTerm != 0.0) {
-      frequencyHistogram.mapValues { (_, count) -> count / normalizationTerm }
-    } else {
-      frequencyHistogram.mapValues { 0.0 }
-    }
-  }
-} 
+}

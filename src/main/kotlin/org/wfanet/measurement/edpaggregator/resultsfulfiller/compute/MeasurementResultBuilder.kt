@@ -27,12 +27,12 @@ interface MeasurementResultBuilder {
    *
    * @return The non-noisy measurement result.
    */
-  fun buildMeasurementResult(): Measurement.Result
+  suspend fun buildMeasurementResult(): Measurement.Result
 
   /**
    * Builds a noisy measurement result.
    *
    * @return The noisy measurement result.
    */
-  fun buildNoisyMeasurementResult(): Measurement.Result
-} 
+  suspend fun buildNoisyMeasurementResult(): Measurement.Result
+}

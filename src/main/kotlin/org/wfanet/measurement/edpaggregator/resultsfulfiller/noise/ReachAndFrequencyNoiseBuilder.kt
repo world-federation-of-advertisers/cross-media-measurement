@@ -31,8 +31,8 @@ import org.wfanet.measurement.eventdataprovider.noiser.DirectNoiseMechanism
  * @param random The random number generator to use.
  */
 class ReachAndFrequencyNoiseBuilder(
-    reachValue: Int,
-    directNoiseMechanism: DirectNoiseMechanism,
+    private val reachValue: Int,
+    private val directNoiseMechanism: DirectNoiseMechanism,
     private val random: SecureRandom = SecureRandom()) : NoiseBuilder() {
   /**
    * Selects the most preferred [DirectNoiseMechanism] for reach and frequency measurements from the
@@ -77,10 +77,8 @@ class ReachAndFrequencyNoiseBuilder(
    * @return Noised non-negative frequency map.
    */
   fun addFrequencyPublisherNoise(
-    reachValue: Int,
     frequencyMap: Map<Int, Double>,
     privacyParams: DifferentialPrivacyParams,
-    directNoiseMechanism: DirectNoiseMechanism,
   ): Map<Int, Double> {
     val frequencyNoiser: AbstractNoiser =
       getPublisherNoiser(privacyParams, directNoiseMechanism, random)
@@ -109,4 +107,4 @@ class ReachAndFrequencyNoiseBuilder(
     private val DIRECT_MEASUREMENT_ACDP_NOISE_MECHANISM_PREFERENCES =
       listOf(DirectNoiseMechanism.CONTINUOUS_GAUSSIAN)
   }
-} 
+}

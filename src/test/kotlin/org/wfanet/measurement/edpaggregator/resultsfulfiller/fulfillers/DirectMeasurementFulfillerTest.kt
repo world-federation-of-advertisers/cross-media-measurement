@@ -18,11 +18,9 @@ package org.wfanet.measurement.edpaggregator.resultsfulfiller.fulfillers
 
 import java.nio.file.Path
 import java.nio.file.Paths
-import java.security.SecureRandom
 import kotlin.random.Random
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.runBlocking
-import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -32,36 +30,21 @@ import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCorouti
 import org.wfanet.measurement.api.v2alpha.fulfillDirectRequisitionResponse
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
-import org.wfanet.measurement.common.crypto.Hashing
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
-import org.wfanet.measurement.api.v2alpha.DeterministicCountDistinct
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.MeasurementKt
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.result
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig.NoiseMechanism
-import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
-import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.fulfillDirectRequisitionRequest
-import org.wfanet.measurement.api.v2alpha.measurementSpec
-import org.wfanet.measurement.api.v2alpha.protocolConfig
-import org.wfanet.measurement.api.v2alpha.requisition
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.testing.verifyProtoArgument
-import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reachAndFrequency
-import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.vidSamplingInterval
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt.direct
-import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt.protocol
-import org.wfanet.measurement.api.v2alpha.requisitionSpec
 import org.wfanet.measurement.common.crypto.tink.loadPublicKey
 import org.wfanet.measurement.common.getRuntimePath
-import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
-import org.wfanet.measurement.consent.client.measurementconsumer.encryptRequisitionSpec
-import org.wfanet.measurement.consent.client.measurementconsumer.signMeasurementSpec
-import org.wfanet.measurement.consent.client.measurementconsumer.signRequisitionSpec
 import org.wfanet.measurement.eventdataprovider.noiser.DirectNoiseMechanism
 
 @RunWith(JUnit4::class)
@@ -79,16 +62,15 @@ class DirectMeasurementFulfillerTest {
   }
 
   @Test
-  fun `fulfillRequisition creates correct proto`() = runBlocking {
+  fun `fulfillRequisition creates correct proto for direct reach requisition fulfillment`() = runBlocking {
     val result = result {
       MeasurementKt.ResultKt.reach { value = 100L }
     }
-
     val directMeasurementFulfiller = DirectMeasurementFulfiller(
       requisitionName = REQUISITION_NAME,
-      dataProviderCertificateName = DATA_PROVIDER_CERTIFICATE_NAME,
+      requisitionDataProviderCertificateName = DATA_PROVIDER_CERTIFICATE_NAME,
       measurementResult = result,
-      nonce = Random.Default.nextLong(),
+      requisitionNonce = NONCE,
       measurementEncryptionPublicKey = MC_PUBLIC_KEY,
       sampledVids = flow {
         for (i in 1..100) {
@@ -110,7 +92,7 @@ class DirectMeasurementFulfillerTest {
       .isEqualTo(
         fulfillDirectRequisitionRequest {
           name = REQUISITION_NAME
-          nonce = directMeasurementFulfiller.nonce
+          nonce = NONCE
           certificate = DATA_PROVIDER_CERTIFICATE_NAME
         }
       )
@@ -128,42 +110,12 @@ class DirectMeasurementFulfillerTest {
       )
     private val EDP_SIGNING_KEY =
       loadSigningKey("${EDP_DISPLAY_NAME}_cs_cert.der", "${EDP_DISPLAY_NAME}_cs_private.der")
-    private const val MEASUREMENT_CONSUMER_ID = "mc"
-    private const val MEASUREMENT_CONSUMER_NAME = "measurementConsumers/AAAAAAAAAHs"
     private const val REQUISITION_NAME = "$EDP_NAME/requisitions/foo"
-    private val MC_SIGNING_KEY = loadSigningKey("${MEASUREMENT_CONSUMER_ID}_cs_cert.der", "${MEASUREMENT_CONSUMER_ID}_cs_private.der")
-    private val DATA_PROVIDER_PUBLIC_KEY: EncryptionPublicKey =
-      loadPublicKey(SECRET_FILES_PATH.resolve("${EDP_DISPLAY_NAME}_enc_public.tink").toFile())
-        .toEncryptionPublicKey()
+
     private val MC_PUBLIC_KEY: EncryptionPublicKey =
       loadPublicKey(SECRET_FILES_PATH.resolve("mc_enc_public.tink").toFile())
         .toEncryptionPublicKey()
-    private val REQUISITION_SPEC = requisitionSpec { }
-    private val ENCRYPTED_REQUISITION_SPEC =
-      encryptRequisitionSpec(
-        signRequisitionSpec(REQUISITION_SPEC, MC_SIGNING_KEY),
-        DATA_PROVIDER_PUBLIC_KEY,
-      )
-    private val OUTPUT_DP_PARAMS = differentialPrivacyParams {
-      epsilon = 1.0
-      delta = 1E-12
-    }
-    private val MEASUREMENT_SPEC = measurementSpec {
-      measurementPublicKey = MC_PUBLIC_KEY.pack()
-      reachAndFrequency = reachAndFrequency {
-        reachPrivacyParams = OUTPUT_DP_PARAMS
-        frequencyPrivacyParams = OUTPUT_DP_PARAMS
-        maximumFrequency = 10
-      }
-      vidSamplingInterval = vidSamplingInterval {
-        start = 0.0f
-        width = 1.0f
-      }
-      nonceHashes += Hashing.hashSha256(REQUISITION_SPEC.nonce)
-    }
-
     private val NOISE_MECHANISM = NoiseMechanism.CONTINUOUS_GAUSSIAN
-
     private val DIRECT_PROTOCOL = direct {
       noiseMechanisms += NOISE_MECHANISM
       deterministicCountDistinct =
@@ -171,11 +123,10 @@ class DirectMeasurementFulfillerTest {
       deterministicDistribution =
         ProtocolConfig.Direct.DeterministicDistribution.getDefaultInstance()
     }
-
     private val DATA_PROVIDER_CERTIFICATE_NAME = "$EDP_NAME/certificates/AAAAAAAAAAg"
-
     private val DATA_PROVIDER_CERTIFICATE_KEY =
       DataProviderCertificateKey(EDP_ID, externalIdToApiId(8L))
+    private val NONCE = Random.Default.nextLong()
 
     private fun loadSigningKey(
       certDerFileName: String,
@@ -187,4 +138,4 @@ class DirectMeasurementFulfillerTest {
       )
     }
   }
-} 
+}

@@ -21,6 +21,7 @@ kt_jvm_library(
     deps = [
         ":measurement_fulfiller",
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
+        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/noiser",
         "//src/main/proto/wfa/measurement/api/v2alpha:crypto_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:measurement_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:protocol_config_kt_jvm_proto",
@@ -28,7 +29,7 @@ kt_jvm_library(
         "@wfa_common_jvm//imports/java/com/google/protobuf",
         "@wfa_common_jvm//imports/java/io/grpc:api",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/tink",
         "@wfa_consent_signaling_client//src/main/kotlin/org/wfanet/measurement/consent/client/dataprovider",
     ],
 )

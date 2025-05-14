@@ -16,7 +16,6 @@
 
 package org.wfanet.measurement.edpaggregator.resultsfulfiller.fulfillers
 
-import com.google.protobuf.kotlin.unpack
 import io.grpc.StatusException
 import java.util.logging.Level
 import java.util.logging.Logger
@@ -53,7 +52,7 @@ class DirectMeasurementFulfiller(
   private val requisitionName: String,
   private val requisitionDataProviderCertificateName: String,
   private val measurementResult: Measurement.Result,
-  private val nonce: Long,
+  private val requisitionNonce: Long,
   private val measurementEncryptionPublicKey: EncryptionPublicKey,
   private val sampledVids: Flow<Long>,
   private val directProtocolConfig: ProtocolConfig.Direct,
@@ -77,20 +76,20 @@ class DirectMeasurementFulfiller(
 
     val signedResult: SignedMessage =
       signResult(measurementResult, dataProviderSigningKeyHandle)
-    val encryptedResult: EncryptedMessage =
+    val signedEncryptedResult: EncryptedMessage =
       encryptResult(signedResult, measurementEncryptionPublicKey)
 
     try {
       requisitionsStub.fulfillDirectRequisition(
         fulfillDirectRequisitionRequest {
           name = requisitionName
-          this.encryptedResult = encryptedResult
-          this.nonce = nonce
-          this.certificate = dataProviderCertificateKey.toName()
+          encryptedResult = signedEncryptedResult
+          nonce = requisitionNonce
+          certificate = dataProviderCertificateKey.toName()
         }
       )
     } catch (e: StatusException) {
       throw Exception("Error fulfilling direct requisition $requisitionName", e)
     }
   }
-} 
+}
