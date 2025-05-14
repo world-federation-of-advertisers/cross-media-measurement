@@ -16,26 +16,12 @@
 
 package org.wfanet.measurement.edpaggregator.resultsfulfiller.compute
 
-import kotlin.math.max
-import kotlin.math.roundToInt
 import kotlinx.coroutines.flow.Flow
-import org.apache.commons.math3.distribution.ConstantRealDistribution
-import org.wfanet.measurement.api.v2alpha.DeterministicCountDistinct
-import org.wfanet.measurement.api.v2alpha.DeterministicDistribution
-import org.wfanet.measurement.api.v2alpha.DifferentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementKt
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
-import org.wfanet.measurement.api.v2alpha.ProtocolConfig.NoiseMechanism
-import org.wfanet.measurement.api.v2alpha.Requisition
-import org.wfanet.measurement.dataprovider.MeasurementResults
-import org.wfanet.measurement.dataprovider.RequisitionRefusalException
-import org.wfanet.measurement.eventdataprovider.noiser.AbstractNoiser
 import org.wfanet.measurement.eventdataprovider.noiser.DirectNoiseMechanism
-import org.wfanet.measurement.eventdataprovider.noiser.DpParams
-import org.wfanet.measurement.eventdataprovider.noiser.GaussianNoiser
-import org.wfanet.measurement.eventdataprovider.noiser.LaplaceNoiser
 import java.security.SecureRandom
 import java.util.logging.Logger
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.compute.protocols.direct.DirectReachAndFrequencyResultBuilder
