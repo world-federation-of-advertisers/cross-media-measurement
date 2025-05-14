@@ -574,6 +574,7 @@ cue_dump(
     },
     tags = ["manual"],
     deps = [
+        ":base_gke",
         ":config_gke",
         ":measurement_system_prober_cue",
         "//src/main/k8s:measurement_system_prober",
