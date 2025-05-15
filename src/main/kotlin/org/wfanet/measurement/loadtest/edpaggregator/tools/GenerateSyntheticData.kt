@@ -66,8 +66,12 @@ class GenerateSyntheticData : Runnable {
   lateinit var eventGroupReferenceId: String
     private set
 
-  @set:Option(names = ["--kek-uri"], description = ["The KMS kek uri."], required = true)
-  var kekUri: String = DEFAULT_KEK_URI
+  @Option(
+    names = ["--kek-uri"],
+    description = ["The KMS kek uri."],
+    required = true
+  )
+  lateinit var kekUri: String
     private set
 
   @Option(
@@ -129,7 +133,9 @@ class GenerateSyntheticData : Runnable {
           client.setAead(kekUri, kmsKeyHandle.getPrimitive(Aead::class.java))
           client
         }
-        KmsType.GCP -> GcpKmsClient()
+        KmsType.GCP -> {
+          GcpKmsClient().withDefaultCredentials()
+        }
       }
     }
     runBlocking {
