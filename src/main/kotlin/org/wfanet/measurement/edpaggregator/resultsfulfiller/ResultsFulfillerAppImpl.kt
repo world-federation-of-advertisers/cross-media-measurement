@@ -6,6 +6,7 @@ import com.google.protobuf.Parser
 import com.google.protobuf.TypeRegistry
 import java.io.File
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams.StorageParams
+import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
 import org.wfanet.measurement.queue.QueueSubscriber
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAttemptsGrpcKt
@@ -48,7 +49,7 @@ class ResultsFulfillerAppImpl(
   override fun getTypeRegistry(): TypeRegistry {
     // TODO: add event production event templates
     val typeRegistry = TypeRegistry.newBuilder()
-//      .add()
+      .add(ResultsFulfillerParams.getDescriptor())
       .build()
     return typeRegistry
   }

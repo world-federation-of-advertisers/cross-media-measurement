@@ -395,7 +395,7 @@ class MeasurementConsumerSimulator(
     logger.info("~~~~~~~~~~ testDirectReachAndFrequency 3")
     val measurementName = measurementInfo.measurement.name
     logger.info("Created direct reach and frequency measurement $measurementName.")
-
+    triggerRequisitionFetcher()
     // run requisition fetcher
 
 

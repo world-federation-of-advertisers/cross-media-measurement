@@ -18,14 +18,21 @@ package org.wfanet.measurement.securecomputation.deploy.gcloud.datawatcher
 
 import com.google.cloud.functions.CloudEventsFunction
 import com.google.events.cloud.storage.v1.StorageObjectData
+import com.google.protobuf.DescriptorProtos
+import com.google.protobuf.Descriptors
+import com.google.protobuf.DynamicMessage
+import com.google.protobuf.TextFormat
 import com.google.protobuf.TypeRegistry
 import com.google.protobuf.util.JsonFormat
+import com.google.protobuf.Any
 import io.cloudevents.CloudEvent
 import java.io.File
+import java.io.FileReader
 import java.nio.file.Paths
 import java.time.Duration
 import java.util.logging.Logger
 import kotlinx.coroutines.runBlocking
+import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.getJarResourceFile
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
@@ -126,13 +133,12 @@ class DataWatcherFunction : CloudEventsFunction {
     private val config by lazy {
       checkNotNull(CLASS_LOADER.getJarResourceFile(dataWatcherConfigResourcePath))
     }
+
     private val dataWatcherConfig by lazy {
+
       val registry = TypeRegistry.newBuilder()
         .add(ResultsFulfillerParams.getDescriptor())
         .build()
-
-      println("ResultsFulfillerParams descriptor.fullName = " +
-        ResultsFulfillerParams.getDescriptor().fullName)
 
       runBlocking {
         parseTextProto(
@@ -141,7 +147,9 @@ class DataWatcherFunction : CloudEventsFunction {
           typeRegistry = registry
         )
       }
+
     }
+
     private val dataWatcher by lazy {
       DataWatcher(
         workItemsStub = workItemsStub,
