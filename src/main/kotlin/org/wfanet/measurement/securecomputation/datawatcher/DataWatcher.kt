@@ -102,8 +102,6 @@ class DataWatcher(
       credentials.idTokenWithAudience(config.httpEndpointSink.endpointUri, listOf())
     val jwt = idToken.tokenValue
 
-    logger.info("~~~~~~~~~~~~~~~~~JWT: $jwt")
-
     val httpEndpointConfig = config.httpEndpointSink
     val client = HttpClient.newHttpClient()
     val request =
