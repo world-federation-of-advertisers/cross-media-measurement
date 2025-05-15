@@ -14,6 +14,7 @@
 package org.wfanet.measurement.privacybudgetmanager.deploy.postgres
 
 import java.sql.Connection
+import java.sql.Date
 import java.sql.PreparedStatement
 import java.sql.Statement
 import java.sql.Timestamp
@@ -91,7 +92,6 @@ class PostgresTransactionContext(
   private suspend fun getChargesTableState(): String {
     try {
       val query = "SELECT State FROM PrivacyChargesMetadata WHERE PrivacyLandscapeName = ?"
-      // val preparedStatement = connection.prepareStatement(query)
       connection.prepareStatement(query).use { preparedStatement ->
         preparedStatement.setString(1, activeLandscapeId)
         preparedStatement.executeQuery().use { resultSet ->
@@ -133,7 +133,7 @@ class PostgresTransactionContext(
    * @param queries The list of queries to find in the ledger.
    * @return The list of queries that existed in the ledger, with createTime populated.
    */
-  override suspend fun readQueries(queries: List<Query>): List<Query> {
+  override suspend fun readQueries(queries: List<Query>, maxBatchSize: Int): List<Query> {
     areValid(queries)
     checkTableState()
     return withContext(Dispatchers.IO) {
@@ -204,49 +204,107 @@ class PostgresTransactionContext(
     }
   }
 
-  override suspend fun readChargeRows(rowKeys: List<LedgerRowKey>): Slice {
-    checkTableState()
-    val slice = Slice()
-    try {
-      val selectStatement =
-        """
-          SELECT EdpId, MeasurementConsumerId, EventGroupReferenceId, Date, Charges
-          FROM PrivacyCharges
-          WHERE (EdpId, MeasurementConsumerId, EventGroupReferenceId, Date) IN 
-          (${generateInClausePlaceholders(rowKeys.size, 4)})
-      """
-      connection.prepareStatement(selectStatement).use { preparedStatement ->
-        setBatchChargeReadParameters(preparedStatement, rowKeys)
-        preparedStatement.executeQuery().use { resultSet ->
-          while (resultSet.next()) {
-            val edpId = resultSet.getString("EdpId")
-            val measurementConsumerId = resultSet.getString("MeasurementConsumerId")
-            val eventGroupReferenceId = resultSet.getString("EventGroupReferenceId")
-            val date = resultSet.getDate("Date").toLocalDate()
-            val chargesBytes = resultSet.getBytes("Charges")
+  override suspend fun readChargeRows(rowKeys: List<LedgerRowKey>, maxBatchSize: Int): Slice =
+    withContext(Dispatchers.IO) {
+      checkTableState()
+      val slice = Slice()
+      if (rowKeys.isEmpty()) {
+        return@withContext slice
+      }
 
-            val charges: Charges =
-              if (chargesBytes != null && chargesBytes.isNotEmpty()) {
-                Charges.parseFrom(chargesBytes)
-              } else {
-                charges {}
+      try {
+        rowKeys.chunked(maxBatchSize).forEach { rowKeyBatch ->
+          val batchSize = rowKeyBatch.size
+
+          val selectStatement =
+            """
+            SELECT EdpId, MeasurementConsumerId, EventGroupReferenceId, Date, Charges
+            FROM PrivacyCharges
+            WHERE (EdpId, MeasurementConsumerId, EventGroupReferenceId, Date) IN
+            (${generateInClausePlaceholders(batchSize, 4)})
+          """
+          connection.prepareStatement(selectStatement).use { preparedStatement ->
+            setBatchChargeReadParameters(preparedStatement, rowKeyBatch)
+            preparedStatement.executeQuery().use { resultSet ->
+              while (resultSet.next()) {
+                val edpId = resultSet.getString("EdpId")
+                val measurementConsumerId = resultSet.getString("MeasurementConsumerId")
+                val eventGroupReferenceId = resultSet.getString("EventGroupReferenceId")
+                val date = resultSet.getDate("Date").toLocalDate()
+                val chargesBytes = resultSet.getBytes("Charges")
+
+                val charges: Charges =
+                  if (chargesBytes != null && chargesBytes.isNotEmpty()) {
+                    Charges.parseFrom(chargesBytes)
+                  } else {
+                    charges {}
+                  }
+
+                val rowKey = LedgerRowKey(edpId, measurementConsumerId, eventGroupReferenceId, date)
+                slice.merge(rowKey, charges)
               }
-
-            val rowKey = LedgerRowKey(edpId, measurementConsumerId, eventGroupReferenceId, date)
-            slice.merge(rowKey, charges)
+            }
           }
         }
+      } catch (e: Exception) {
+        throw Exception("Error reading charge rows: ${e.message}", e)
       }
-    } catch (e: Exception) {
-      throw Exception("Error reading charge rows: ${e.message}", e)
+      return@withContext slice
     }
-    return slice
-  }
 
-  override suspend fun write(delta: Slice, queries: List<Query>): List<Query> {
+  override suspend fun write(delta: Slice, queries: List<Query>, maxBatchSize: Int): List<Query> {
     areValid(queries)
     checkTableState()
-    return emptyList<Query>()
+
+    val insertChargesStatement =
+      """
+      INSERT INTO PrivacyCharges (EdpId, MeasurementConsumerId, EventGroupReferenceId, Date, Charges)
+      VALUES (?, ?, ?, ?, ?)
+    """
+    val keys = delta.getLedgerRowKeys()
+    connection.prepareStatement(insertChargesStatement).use { preparedStatement ->
+      keys.chunked(maxBatchSize).forEach { batchKeys ->
+        batchKeys.forEach { key ->
+          val charges = delta.get(key)!!
+
+          preparedStatement.setString(1, key.edpId)
+          preparedStatement.setString(2, key.measurementConsumerId)
+          preparedStatement.setString(3, key.eventGroupReferenceId)
+          preparedStatement.setDate(4, Date.valueOf(key.date))
+          preparedStatement.setBytes(5, charges.toByteString().toByteArray())
+          preparedStatement.addBatch()
+        }
+      }
+
+      preparedStatement.executeBatch()
+      preparedStatement.clearBatch()
+    }
+
+    // Unfortunately, RETURNING createTime is not supported, hence we re read the
+    // queries with their create times after insert.
+    // This approach has a much better perfromance since its 2 calls to the db rather
+    // than making ~700 calls (queries per report)
+    val insertLedgerEntriesStatement =
+      """
+            INSERT INTO LedgerEntries (EdpId, MeasurementConsumerId, ExternalReferenceId, IsRefund, CreateTime)
+            VALUES (?, ?, ?, ?, NOW())
+        """
+    connection.prepareStatement(insertLedgerEntriesStatement).use { preparedStatement ->
+      queries.chunked(maxBatchSize).forEach { batchQueries ->
+        batchQueries.forEach { query ->
+          val identifiers = query.queryIdentifiers
+          preparedStatement.setString(1, identifiers.eventDataProviderId)
+          preparedStatement.setString(2, identifiers.measurementConsumerId)
+          preparedStatement.setString(3, identifiers.externalReferenceId)
+          preparedStatement.setBoolean(4, identifiers.isRefund)
+          preparedStatement.addBatch()
+        }
+      }
+      preparedStatement.executeBatch()
+      preparedStatement.clearBatch()
+    }
+
+    return readQueries(queries)
   }
 
   override suspend fun commit() {
@@ -301,7 +359,7 @@ class PostgresTransactionContext(
         preparedStatement.setString(parameterIndex++, key.edpId)
         preparedStatement.setString(parameterIndex++, key.measurementConsumerId)
         preparedStatement.setString(parameterIndex++, key.eventGroupReferenceId)
-        preparedStatement.setDate(parameterIndex++, java.sql.Date.valueOf(key.date))
+        preparedStatement.setDate(parameterIndex++, Date.valueOf(key.date))
       }
     }
   }
