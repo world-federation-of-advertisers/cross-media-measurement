@@ -73,6 +73,10 @@ resource "google_secret_manager_secret_iam_member" "secret_accessor" {
   secret_id = var.secrets[each.value.secret_key].secret_id
   role      = "roles/secretmanager.secretAccessor"
   member    = "serviceAccount:${local.service_accounts[each.value.function_name]}"
+
+  depends_on = [
+    module.secrets[each.value.secret_key]
+  ]
 }
 
 module "edp_aggregator_queues" {
