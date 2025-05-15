@@ -132,6 +132,12 @@ resource "google_compute_region_instance_group_manager" "mig" {
   version {
     instance_template = google_compute_instance_template.confidential_vm_template.id
   }
+  distribution_policy_zones = [
+    "us-central1-a",
+    "us-central1-b",
+    "us-central1-c",
+    "us-central1-f",
+  ]
 }
 
 resource "google_compute_region_autoscaler" "mig_autoscaler" {
