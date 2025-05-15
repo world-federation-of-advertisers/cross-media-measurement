@@ -91,6 +91,7 @@ class RequisitionReader(primaryTable: PrimaryTable) : SpannerReader<RequisitionR
   override val baseSql: String =
     """
     @{spanner_emulator.disable_query_null_filtered_index_check=TRUE}
+    WITH MeasurementConsumers AS
     SELECT
       MeasurementConsumerId,
       MeasurementId,

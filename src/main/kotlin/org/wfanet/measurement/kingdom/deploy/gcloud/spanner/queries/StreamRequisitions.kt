@@ -15,14 +15,32 @@
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries
 
 import com.google.cloud.spanner.Statement
+import kotlinx.coroutines.flow.Flow
 import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
+import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.appendClause
 import org.wfanet.measurement.gcloud.spanner.bind
 import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequest
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.RequisitionReader
 
 class StreamRequisitions(requestFilter: StreamRequisitionsRequest.Filter, limit: Int = 0) :
-  SimpleSpannerQuery<RequisitionReader.Result>() {
+  SpannerQuery<RequisitionReader.Result> {
+
+  private val requisitionsSql =
+    """
+      SELECT
+        Requisitions.*,
+        ExternalMeasurementConsumerId,
+        MeasurementConsumerId,
+      FROM
+      """
+      .trimIndent()
+
+  override fun execute(
+    readContext: AsyncDatabaseClient.ReadContext
+  ): Flow<RequisitionReader.Result> {
+    TODO("Not yet implemented")
+  }
 
   private val primaryTable =
     if (requestFilter.externalMeasurementConsumerId != 0L) {
