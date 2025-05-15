@@ -70,6 +70,7 @@ resource "google_compute_instance_template" "confidential_vm_template" {
   network_interface {
     network = "default"
   }
+  access_config { }
 
   metadata = merge(
       {
