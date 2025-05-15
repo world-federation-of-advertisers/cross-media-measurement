@@ -36,10 +36,15 @@ import org.junit.runners.JUnit4
 import org.junit.runners.MethodSorters
 import org.testcontainers.containers.PostgreSQLContainer
 import org.wfanet.measurement.common.toProtoTime
+import org.wfanet.measurement.privacybudgetmanager.Charges
+import org.wfanet.measurement.privacybudgetmanager.ChargesKt
 import org.wfanet.measurement.privacybudgetmanager.LedgerException
 import org.wfanet.measurement.privacybudgetmanager.LedgerExceptionType
 import org.wfanet.measurement.privacybudgetmanager.LedgerRowKey
 import org.wfanet.measurement.privacybudgetmanager.Query
+import org.wfanet.measurement.privacybudgetmanager.Slice
+import org.wfanet.measurement.privacybudgetmanager.acdpCharge
+import org.wfanet.measurement.privacybudgetmanager.charges
 import org.wfanet.measurement.privacybudgetmanager.copy
 import org.wfanet.measurement.privacybudgetmanager.deploy.postgres.testing.POSTGRES_LEDGER_SCHEMA_FILE
 import org.wfanet.measurement.privacybudgetmanager.query
@@ -98,6 +103,23 @@ class PostgresLedgerTest {
         preparedStatement.setString(4, state)
         preparedStatement.executeUpdate()
       }
+  }
+
+  private fun insertPrivacyCharges(ledgerRowKey: LedgerRowKey, charges: Charges) {
+    val sql =
+      """
+        INSERT INTO PrivacyCharges (EdpId, MeasurementConsumerId, EventGroupReferenceId, Date, Charges)
+        VALUES (?, ?, ?, ?, ?)
+    """
+
+    dbConnection.prepareStatement(sql).use { preparedStatement ->
+      preparedStatement.setString(1, ledgerRowKey.edpId)
+      preparedStatement.setString(2, ledgerRowKey.measurementConsumerId)
+      preparedStatement.setString(3, ledgerRowKey.eventGroupReferenceId)
+      preparedStatement.setDate(4, java.sql.Date.valueOf(ledgerRowKey.date))
+      preparedStatement.setBytes(5, charges.toByteString().toByteArray())
+      preparedStatement.executeUpdate()
+    }
   }
 
   @Test(timeout = 1500)
@@ -213,46 +235,70 @@ class PostgresLedgerTest {
   fun `readChargeRows succeeds in reading correct rows and returns correct slice`() = runBlocking {
     markLandscapeState(ACTIVE_LANDSCAPE_ID, READY_STATE)
     val ledger = PostgresLedger(::createConnection, ACTIVE_LANDSCAPE_ID)
-    val ledgerRowKey = LedgerRowKey("edpid", "mcid", "egid", LocalDate.parse("2025-07-01"))
+    val charges1 = charges {
+      populationIndexToCharges[456] =
+        ChargesKt.intervalCharges {
+          vidIntervalIndexToCharges[5] = acdpCharge {
+            rho = 12.13f
+            theta = 14.15f
+          }
+        }
+    }
+    val charges2 = charges {
+      populationIndexToCharges[32] =
+        ChargesKt.intervalCharges {
+          vidIntervalIndexToCharges[1] = acdpCharge {
+            rho = 12.13f
+            theta = 14.15f
+          }
+        }
+    }
+    val ledgerRowKey1 = LedgerRowKey("edpid", "mcid", "egid", LocalDate.parse("2025-07-01"))
+    val ledgerRowKey2 =
+      LedgerRowKey("edpid", "othermcid", "otheregid", LocalDate.parse("2025-07-01"))
+
+    insertPrivacyCharges(ledgerRowKey1, charges1)
+    insertPrivacyCharges(ledgerRowKey2, charges2)
+
     ledger.startTransaction().use { tx: PostgresTransactionContext ->
-      val exception = assertFailsWith<LedgerException> { tx.readChargeRows(listOf(ledgerRowKey)) }
-      assertThat(exception.errorType).isEqualTo(LedgerExceptionType.TABLE_NOT_READY)
+      val slice = tx.readChargeRows(listOf(ledgerRowKey1, ledgerRowKey2))
+      println(slice)
+      assertThat(slice.getLedgerRowKeys().toSet()).isEqualTo(setOf(ledgerRowKey1, ledgerRowKey2))
+      assertThat(slice.get(ledgerRowKey1)).isEqualTo(charges1)
+      assertThat(slice.get(ledgerRowKey2)).isEqualTo(charges2)
     }
   }
 
-  // @Test(timeout = 1500)
-  // fun `write fails for queries that target different landscape`() = runBlocking {
-  //   val ledger = PostgresLedger(::createConnection, ACTIVE_LANDSCAPE_ID)
-  //   val tx: PostgresTransactionContext = ledger.startTransaction()
-  //   val query: Query = query { privacyLandscapeIdentifier = "inactive-privacy-landscape" }
-  //   val exception = assertFailsWith<LedgerException> { tx.write(Slice(), listOf(query)) }
+  @Test(timeout = 1500)
+  fun `write fails for queries that target different landscape`() = runBlocking {
+    val ledger = PostgresLedger(::createConnection, ACTIVE_LANDSCAPE_ID)
+    val query: Query = query { privacyLandscapeIdentifier = "inactive-privacy-landscape" }
+    ledger.startTransaction().use { tx: PostgresTransactionContext ->
+      val exception = assertFailsWith<LedgerException> { tx.write(Slice(), listOf(query)) }
+      assertThat(exception.errorType).isEqualTo(LedgerExceptionType.INVALID_PRIVACY_LANDSCAPE_IDS)
+    }
+  }
 
-  //   assertThat(exception.errorType).isEqualTo(LedgerExceptionType.INVALID_PRIVACY_LANDSCAPE_IDS)
-  //   tx.commit()
-  // }
+  @Test(timeout = 1500)
+  fun `write fails when active landscape is not in metadata table`() = runBlocking {
+    val ledger = PostgresLedger(::createConnection, ACTIVE_LANDSCAPE_ID)
+    val query: Query = query { privacyLandscapeIdentifier = ACTIVE_LANDSCAPE_ID }
+    ledger.startTransaction().use { tx: PostgresTransactionContext ->
+      val exception = assertFailsWith<LedgerException> { tx.write(Slice(), listOf(query)) }
+      assertThat(exception.errorType).isEqualTo(LedgerExceptionType.TABLE_METADATA_DOESNT_EXIST)
+    }
+  }
 
-  // @Test(timeout = 1500)
-  // fun `write fails when active landscape is not in metadata table`() = runBlocking {
-  //   val ledger = PostgresLedger(::createConnection, ACTIVE_LANDSCAPE_ID)
-  //   val tx: PostgresTransactionContext = ledger.startTransaction()
-  //   val query: Query = query { privacyLandscapeIdentifier = ACTIVE_LANDSCAPE_ID }
-  //   val exception = assertFailsWith<LedgerException> { tx.write(Slice(), listOf(query)) }
-
-  //   assertThat(exception.errorType).isEqualTo(LedgerExceptionType.TABLE_METADATA_DOESNT_EXIST)
-  //   tx.commit()
-
-  // }
-
-  // @Test(timeout = 1500)
-  // fun `write fails when active landscape is backfilling`() = runBlocking {
-  //   markLandscapeState(ACTIVE_LANDSCAPE_ID, "BACKFILLING")
-  //   val ledger = PostgresLedger(::createConnection, ACTIVE_LANDSCAPE_ID)
-  //   val tx: PostgresTransactionContext = ledger.startTransaction()
-  //   val query: Query = query { privacyLandscapeIdentifier = ACTIVE_LANDSCAPE_ID }
-  //   val exception = assertFailsWith<LedgerException> { tx.write(Slice(), listOf(query)) }
-  //   assertThat(exception.errorType).isEqualTo(LedgerExceptionType.TABLE_NOT_READY)
-  //   tx.commit()
-  // }
+  @Test(timeout = 1500)
+  fun `write fails when active landscape is backfilling`() = runBlocking {
+    markLandscapeState(ACTIVE_LANDSCAPE_ID, "BACKFILLING")
+    val ledger = PostgresLedger(::createConnection, ACTIVE_LANDSCAPE_ID)
+    val query: Query = query { privacyLandscapeIdentifier = ACTIVE_LANDSCAPE_ID }
+    ledger.startTransaction().use { tx: PostgresTransactionContext ->
+      val exception = assertFailsWith<LedgerException> { tx.write(Slice(), listOf(query)) }
+      assertThat(exception.errorType).isEqualTo(LedgerExceptionType.TABLE_NOT_READY)
+    }
+  }
 
   private companion object {
     const val POSTGRES_IMAGE_NAME = "postgres:15"
@@ -279,9 +325,9 @@ class PostgresLedgerTest {
           preparedStatement.setString(3, identifiers.externalReferenceId)
           preparedStatement.setBoolean(4, identifiers.isRefund)
           preparedStatement.setTimestamp(5, CREATE_TIME)
-          preparedStatement.addBatch() // Add the query to the batch
+          preparedStatement.addBatch()
         }
-        preparedStatement.executeBatch() // Execute the batch of inserts
+        preparedStatement.executeBatch()
       }
     }
 

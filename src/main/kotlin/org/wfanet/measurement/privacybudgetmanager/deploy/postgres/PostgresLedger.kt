@@ -151,12 +151,11 @@ class PostgresTransactionContext(
             SELECT EdpId, MeasurementConsumerId, ExternalReferenceId, IsRefund, CreateTime
             FROM LedgerEntries
             WHERE (EdpId, MeasurementConsumerId, ExternalReferenceId, IsRefund) IN 
-            (VALUES ${generateInClausePlaceholders(batchSize, 4)})
+            (${generateInClausePlaceholders(batchSize, 4)})
             """
 
           connection.prepareStatement(selectStatement).use { preparedStatement ->
             setBatchQueryReadParameters(preparedStatement, queryBatch)
-            print("OTHERpreparedStatement $preparedStatement")
             preparedStatement.executeQuery().use { resultSet ->
 
               // TODO(uakyol) : optimize this by using a hashmap with keys as query identifiers
@@ -213,17 +212,13 @@ class PostgresTransactionContext(
         """
           SELECT EdpId, MeasurementConsumerId, EventGroupReferenceId, Date, Charges
           FROM PrivacyCharges
-          WHERE (EdpId, MeasurementConsumerId, EventGroupReferenceId) IN 
-          (VALUES ${generateInClausePlaceholders(rowKeys.size, 3)})
+          WHERE (EdpId, MeasurementConsumerId, EventGroupReferenceId, Date) IN 
+          (${generateInClausePlaceholders(rowKeys.size, 4)})
       """
-      println("selectStatement $selectStatement")
       connection.prepareStatement(selectStatement).use { preparedStatement ->
         setBatchChargeReadParameters(preparedStatement, rowKeys)
-        println("preparedStatement $preparedStatement")
         preparedStatement.executeQuery().use { resultSet ->
-          print("EXECUTING!!!")
           while (resultSet.next()) {
-            print("EXECUTING!!!111")
             val edpId = resultSet.getString("EdpId")
             val measurementConsumerId = resultSet.getString("MeasurementConsumerId")
             val eventGroupReferenceId = resultSet.getString("EventGroupReferenceId")
@@ -266,10 +261,18 @@ class PostgresTransactionContext(
 
   private companion object {
     /**
-     * Generates the placeholders for the IN clause based on the batch size.
+     * Generates the placeholders for an IN clause to be used in a database query, based on the
+     * specified batch size and the number of parameters per element in the IN clause.
      *
-     * For example, for a batch size of 3, it generates "(?, ?, ?, ?), (?, ?, ?, ?), (?, ?, ?, ?)" 4
-     * parameters: EdpId, MeasurementConsumerId, ExternalReferenceId, IsRefund
+     * For example, if `batchSize` is 3 and `clauseSize` is 4, the generated string will be "(?, ?,
+     * ?, ?), (?, ?, ?, ?), (?, ?, ?, ?)". This is suitable for an IN clause where each element
+     * consists of 4 parameters (e.g., EdpId, MeasurementConsumerId, ExternalReferenceId, IsRefund).
+     *
+     * @param batchSize The number of sets of placeholders to generate (the number of elements in
+     *   the IN clause).
+     * @param clauseSize The number of question mark placeholders within each set (the number of
+     *   parameters for each element in the IN clause).
+     * @return A string containing the generated IN clause placeholders.
      */
     fun generateInClausePlaceholders(batchSize: Int, clauseSize: Int): String {
       val questionMarks = "(?" + ", ?".repeat(clauseSize - 1) + ")"
@@ -288,7 +291,7 @@ class PostgresTransactionContext(
       }
     }
 
-    /**  */
+    /** Sets the parameters for the prepared statement for a batch of ledger row keys. */
     fun setBatchChargeReadParameters(
       preparedStatement: PreparedStatement,
       rowKeys: List<LedgerRowKey>,
@@ -298,7 +301,7 @@ class PostgresTransactionContext(
         preparedStatement.setString(parameterIndex++, key.edpId)
         preparedStatement.setString(parameterIndex++, key.measurementConsumerId)
         preparedStatement.setString(parameterIndex++, key.eventGroupReferenceId)
-        // preparedStatement.setDate(parameterIndex++, java.sql.Date.valueOf(key.date))
+        preparedStatement.setDate(parameterIndex++, java.sql.Date.valueOf(key.date))
       }
     }
   }
