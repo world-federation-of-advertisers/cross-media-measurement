@@ -193,3 +193,19 @@ java_test(
     test_class = "org.wfanet.measurement.integration.deploy.gcloud.GCloudInProcessAccessCliIntegrationTest",
     runtime_deps = [":gcloud_in_process_access_cli_integration_test"],
 )
+
+kt_jvm_library(
+    name = "gcloud_in_process_model_repository_cli_integration_test",
+    srcs = ["GCloudInProcessModelRepositoryCliIntegrationTest.kt"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/integration/common:in_process_model_repository_cli_integration_test",
+    ],
+)
+
+# TODO(bazelbuild/rules_kotlin#1088): Use kt_jvm_test when fixed.
+java_test(
+    name = "GCloudInProcessModelRepositoryCliIntegrationTest",
+    size = "large",
+    test_class = "org.wfanet.measurement.integration.deploy.gcloud.GCloudInProcessModelRepositoryCliIntegrationTest",
+    runtime_deps = [":gcloud_in_process_model_repository_cli_integration_test"],
+)
