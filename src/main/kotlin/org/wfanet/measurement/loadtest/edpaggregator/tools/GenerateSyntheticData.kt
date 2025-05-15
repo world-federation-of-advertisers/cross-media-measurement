@@ -18,40 +18,25 @@ import com.google.crypto.tink.Aead
 import com.google.crypto.tink.KeyTemplates
 import com.google.crypto.tink.KeysetHandle
 import com.google.crypto.tink.KmsClient
-import com.google.crypto.tink.TinkProtoKeysetFormat
 import com.google.crypto.tink.aead.AeadConfig
 import com.google.crypto.tink.integration.gcpkms.GcpKmsClient
 import com.google.crypto.tink.streamingaead.StreamingAeadConfig
-import com.google.protobuf.ByteString
-import com.google.protobuf.kotlin.toByteString
 import java.io.File
 import java.nio.file.Paths
-import java.time.LocalDate
-import java.time.ZoneId
 import java.util.logging.Logger
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.asFlow
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticPopulationSpec
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.tink.testing.FakeKmsClient
-import org.wfanet.measurement.common.crypto.tink.withEnvelopeEncryption
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.parseTextProto
-import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.edpaggregator.KmsType
-import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
-import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
-import org.wfanet.measurement.edpaggregator.v1alpha.blobDetails
+import org.wfanet.measurement.loadtest.edpaggregator.ImpressionsWriter
 import org.wfanet.measurement.loadtest.edpaggregator.SyntheticDataGeneration
-import org.wfanet.measurement.storage.MesosRecordIoStorageClient
-import org.wfanet.measurement.storage.SelectedStorageClient
 import picocli.CommandLine.Command
 import picocli.CommandLine.Option
-import org.wfanet.measurement.loadtest.edpaggregator.ImpressionsWriter
 
 @Command(
   name = "generate-synthetic-data",
@@ -103,15 +88,6 @@ class GenerateSyntheticData : Runnable {
     private set
 
   @Option(
-    names = ["--zone-id"],
-    description = ["The time zone by which to shard the data."],
-    required = true,
-    defaultValue = "UTC",
-  )
-  lateinit var zoneId: String
-    private set
-
-  @Option(
     names = ["--population-spec"],
     description = ["The resource of the population-spec."],
     required = true,
@@ -157,17 +133,9 @@ class GenerateSyntheticData : Runnable {
       }
     }
     runBlocking {
-      val impressionWriter = ImpressionsWriter(
-        eventGroupReferenceId,
-        kekUri,
-        kmsClient,
-        bucket,
-        storagePath,
-        schema,
-      )
-      impressionWriter.writeLabeledImpressionData(
-        events
-      )
+      val impressionWriter =
+        ImpressionsWriter(eventGroupReferenceId, kekUri, kmsClient, bucket, storagePath, schema)
+      impressionWriter.writeLabeledImpressionData(events)
     }
   }
 
@@ -187,7 +155,6 @@ class GenerateSyntheticData : Runnable {
         "edpaggregator",
       )
     private val TEST_DATA_RUNTIME_PATH = getRuntimePath(TEST_DATA_PATH)!!
-
   }
 
   init {

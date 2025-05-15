@@ -73,17 +73,15 @@ object SyntheticDataGeneration {
     return flow {
       for (dateSpec: SyntheticEventGroupSpec.DateSpec in syntheticEventGroupSpec.dateSpecsList) {
         val dateProgression: LocalDateProgression = dateSpec.dateRange.toProgression()
-        val numDays = ChronoUnit.DAYS.between(dateProgression.start, dateProgression.endInclusive)
+        val numDays =
+          ChronoUnit.DAYS.between(dateProgression.start, dateProgression.endInclusive) + 1
         logger.info("Writing $numDays of data")
         for (date in dateProgression) {
-          logger.info(
-            "Generating data for date: $date"
-          )
+          logger.info("Generating data for date: $date")
           val innerFlow: Flow<LabeledImpression> = flow {
-
             for (frequencySpec: SyntheticEventGroupSpec.FrequencySpec in
               dateSpec.frequencySpecsList) {
-              val chanceRange = frequencySpec.frequency / numDays.toDouble()
+              val chanceRange = 1 / numDays.toDouble()
 
               check(!frequencySpec.hasOverlaps()) { "The VID ranges should be non-overlapping." }
 
@@ -127,15 +125,17 @@ object SyntheticDataGeneration {
 
                 val timestamp = date.atStartOfDay().toInstant(ZoneOffset.UTC)
                 for (vid in vidRangeSpec.sampledVids(syntheticEventGroupSpec.samplingNonce)) {
-                  val randomDouble = Random.nextDouble(0.0, 1.1)
-                  if (randomDouble < chanceRange) {
-                    emit(
-                      labeledImpression {
-                        eventTime = timestamp.toProtoTime()
-                        this.vid = vid
-                        event = ProtoAny.pack(message)
-                      }
-                    )
+                  for (i in 0 until frequencySpec.frequency) {
+                    val randomDouble = Random.nextDouble(0.0, 1.0)
+                    if (randomDouble < chanceRange) {
+                      emit(
+                        labeledImpression {
+                          eventTime = timestamp.toProtoTime()
+                          this.vid = vid
+                          event = ProtoAny.pack(message)
+                        }
+                      )
+                    }
                   }
                 }
               }
