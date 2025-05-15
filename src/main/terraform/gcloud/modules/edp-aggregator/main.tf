@@ -67,12 +67,6 @@ module "event_group_sync_function_service_account" {
   terraform_service_account                 = var.terraform_service_account
 }
 
-locals {
-  secret_resources = {
-    for key, mod in module.secrets : key => mod.secret_resource
-  }
-}
-
 resource "google_secret_manager_secret_iam_member" "secret_accessor" {
   for_each = local.secret_access_map
 
@@ -80,7 +74,6 @@ resource "google_secret_manager_secret_iam_member" "secret_accessor" {
   role      = "roles/secretmanager.secretAccessor"
   member    = "serviceAccount:${local.service_accounts[each.value.function_name]}"
 
-  depends_on = [local.secret_resources[each.value.secret_key]]
 }
 
 module "edp_aggregator_queues" {
