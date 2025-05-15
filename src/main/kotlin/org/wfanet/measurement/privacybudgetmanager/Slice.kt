@@ -19,6 +19,7 @@ import org.wfanet.measurement.privacybudgetmanager.ChargesKt.intervalCharges
 
 /** Key for a row of the Ledger. PBM is opinionated about this structure. */
 data class LedgerRowKey(
+  val edpId: String,
   val measurementConsumerId: String,
   val eventGroupReferenceId: String,
   val date: LocalDate,
@@ -104,8 +105,8 @@ class Slice {
   }
 
   /**
-   * Adds [ledgerRowKey] as a key if it doesn't exist, if it does, it merges [charges] with its
-   * value.
+   * Adds [ledgerRowKey] as a key if it doesn't exist and [charges] as its value, if the key exists,
+   * merges [charges] with that key's value.
    */
   fun merge(ledgerRowKey: LedgerRowKey, charges: Charges): Unit {
     val existingCharges = ledgerRowKeyToCharges[ledgerRowKey]

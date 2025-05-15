@@ -22,6 +22,7 @@ import kotlinx.coroutines.withContext
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetManagerException
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetManagerExceptionType
+import org.wfanet.measurement.privacybudgetmanager.Charges
 import org.wfanet.measurement.privacybudgetmanager.Ledger
 import org.wfanet.measurement.privacybudgetmanager.LedgerException
 import org.wfanet.measurement.privacybudgetmanager.LedgerExceptionType
@@ -29,6 +30,7 @@ import org.wfanet.measurement.privacybudgetmanager.LedgerRowKey
 import org.wfanet.measurement.privacybudgetmanager.Query
 import org.wfanet.measurement.privacybudgetmanager.Slice
 import org.wfanet.measurement.privacybudgetmanager.TransactionContext
+import org.wfanet.measurement.privacybudgetmanager.charges
 import org.wfanet.measurement.privacybudgetmanager.copy
 
 private const val MAX_BATCH_INSERT = 1000
@@ -89,14 +91,16 @@ class PostgresTransactionContext(
   private suspend fun getChargesTableState(): String {
     try {
       val query = "SELECT State FROM PrivacyChargesMetadata WHERE PrivacyLandscapeName = ?"
-      val preparedStatement = connection.prepareStatement(query)
-      preparedStatement.setString(1, activeLandscapeId)
-      val resultSet = preparedStatement.executeQuery()
-
-      if (resultSet.next()) {
-        return resultSet.getString("State")
-      } else {
-        throw LedgerException(LedgerExceptionType.TABLE_METADATA_DOESNT_EXIST)
+      // val preparedStatement = connection.prepareStatement(query)
+      connection.prepareStatement(query).use { preparedStatement ->
+        preparedStatement.setString(1, activeLandscapeId)
+        preparedStatement.executeQuery().use { resultSet ->
+          if (resultSet.next()) {
+            return resultSet.getString("State")
+          } else {
+            throw LedgerException(LedgerExceptionType.TABLE_METADATA_DOESNT_EXIST)
+          }
+        }
       }
     } catch (e: Exception) {
       throw e
@@ -147,11 +151,12 @@ class PostgresTransactionContext(
             SELECT EdpId, MeasurementConsumerId, ExternalReferenceId, IsRefund, CreateTime
             FROM LedgerEntries
             WHERE (EdpId, MeasurementConsumerId, ExternalReferenceId, IsRefund) IN 
-            (VALUES ${generateInClausePlaceholders(batchSize)})
-        """
+            (VALUES ${generateInClausePlaceholders(batchSize, 4)})
+            """
 
           connection.prepareStatement(selectStatement).use { preparedStatement ->
-            setBatchParameters(preparedStatement, queryBatch)
+            setBatchQueryReadParameters(preparedStatement, queryBatch)
+            print("OTHERpreparedStatement $preparedStatement")
             preparedStatement.executeQuery().use { resultSet ->
 
               // TODO(uakyol) : optimize this by using a hashmap with keys as query identifiers
@@ -202,7 +207,45 @@ class PostgresTransactionContext(
 
   override suspend fun readChargeRows(rowKeys: List<LedgerRowKey>): Slice {
     checkTableState()
-    return Slice()
+    val slice = Slice()
+    try {
+      val selectStatement =
+        """
+          SELECT EdpId, MeasurementConsumerId, EventGroupReferenceId, Date, Charges
+          FROM PrivacyCharges
+          WHERE (EdpId, MeasurementConsumerId, EventGroupReferenceId) IN 
+          (VALUES ${generateInClausePlaceholders(rowKeys.size, 3)})
+      """
+      println("selectStatement $selectStatement")
+      connection.prepareStatement(selectStatement).use { preparedStatement ->
+        setBatchChargeReadParameters(preparedStatement, rowKeys)
+        println("preparedStatement $preparedStatement")
+        preparedStatement.executeQuery().use { resultSet ->
+          print("EXECUTING!!!")
+          while (resultSet.next()) {
+            print("EXECUTING!!!111")
+            val edpId = resultSet.getString("EdpId")
+            val measurementConsumerId = resultSet.getString("MeasurementConsumerId")
+            val eventGroupReferenceId = resultSet.getString("EventGroupReferenceId")
+            val date = resultSet.getDate("Date").toLocalDate()
+            val chargesBytes = resultSet.getBytes("Charges")
+
+            val charges: Charges =
+              if (chargesBytes != null && chargesBytes.isNotEmpty()) {
+                Charges.parseFrom(chargesBytes)
+              } else {
+                charges {}
+              }
+
+            val rowKey = LedgerRowKey(edpId, measurementConsumerId, eventGroupReferenceId, date)
+            slice.merge(rowKey, charges)
+          }
+        }
+      }
+    } catch (e: Exception) {
+      throw Exception("Error reading charge rows: ${e.message}", e)
+    }
+    return slice
   }
 
   override suspend fun write(delta: Slice, queries: List<Query>): List<Query> {
@@ -225,16 +268,16 @@ class PostgresTransactionContext(
     /**
      * Generates the placeholders for the IN clause based on the batch size.
      *
-     * For example, for a batch size of 3, it generates "(?, ?, ?, ?), (?, ?, ?, ?), (?, ?, ?, ?)"
+     * For example, for a batch size of 3, it generates "(?, ?, ?, ?), (?, ?, ?, ?), (?, ?, ?, ?)" 4
+     * parameters: EdpId, MeasurementConsumerId, ExternalReferenceId, IsRefund
      */
-    fun generateInClausePlaceholders(batchSize: Int): String {
-      val tuplePlaceholder =
-        "(?, ?, ?, ?)" // 4 parameters: EdpId, MeasurementConsumerId, ExternalReferenceId, IsRefund
-      return (1..batchSize).joinToString(separator = ", ") { tuplePlaceholder }
+    fun generateInClausePlaceholders(batchSize: Int, clauseSize: Int): String {
+      val questionMarks = "(?" + ", ?".repeat(clauseSize - 1) + ")"
+      return (1..batchSize).joinToString(separator = ", ") { questionMarks }
     }
 
     /** Sets the parameters for the prepared statement for a batch of queries. */
-    fun setBatchParameters(preparedStatement: PreparedStatement, queryBatch: List<Query>) {
+    fun setBatchQueryReadParameters(preparedStatement: PreparedStatement, queryBatch: List<Query>) {
       var parameterIndex = 1
       for (query in queryBatch) {
         val identifiers = query.queryIdentifiers
@@ -242,6 +285,20 @@ class PostgresTransactionContext(
         preparedStatement.setString(parameterIndex++, identifiers.measurementConsumerId)
         preparedStatement.setString(parameterIndex++, identifiers.externalReferenceId)
         preparedStatement.setBoolean(parameterIndex++, identifiers.isRefund)
+      }
+    }
+
+    /**  */
+    fun setBatchChargeReadParameters(
+      preparedStatement: PreparedStatement,
+      rowKeys: List<LedgerRowKey>,
+    ) {
+      var parameterIndex = 1
+      for (key in rowKeys) {
+        preparedStatement.setString(parameterIndex++, key.edpId)
+        preparedStatement.setString(parameterIndex++, key.measurementConsumerId)
+        preparedStatement.setString(parameterIndex++, key.eventGroupReferenceId)
+        // preparedStatement.setDate(parameterIndex++, java.sql.Date.valueOf(key.date))
       }
     }
   }
