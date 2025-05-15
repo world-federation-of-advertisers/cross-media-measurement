@@ -35,6 +35,7 @@ import org.wfanet.measurement.api.v2alpha.ListRequisitionsPageToken
 import org.wfanet.measurement.api.v2alpha.ListRequisitionsPageTokenKt.previousPageEnd
 import org.wfanet.measurement.api.v2alpha.ListRequisitionsRequest
 import org.wfanet.measurement.api.v2alpha.ListRequisitionsResponse
+import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerCertificateKey
 import org.wfanet.measurement.api.v2alpha.MeasurementKey
 import org.wfanet.measurement.api.v2alpha.MeasurementPrincipal
@@ -107,10 +108,27 @@ class RequisitionsService(private val internalRequisitionStub: RequisitionsCorou
   ): ListRequisitionsResponse {
     fun permissionDeniedStatus() = Permission.LIST.deniedStatus("${request.parent}/requisitions")
 
+    if (request.parent.isEmpty()) {
+      throw Status.INVALID_ARGUMENT.withDescription("parent not set").asRuntimeException()
+    }
     val parentKey: RequisitionParentKey =
       DataProviderKey.fromName(request.parent)
         ?: MeasurementKey.fromName(request.parent)
-        ?: throw Status.INVALID_ARGUMENT.withDescription("parent is invalid").asRuntimeException()
+        ?: throw Status.INVALID_ARGUMENT.withDescription("parent invalid").asRuntimeException()
+
+    if (request.filter.measurementStatesList.isNotEmpty()) {
+      if (
+        // Avoid breaking known existing callers where the measurement state filter is redundant.
+        !(request.filter.statesList == listOf(State.UNFULFILLED) &&
+          request.filter.measurementStatesList ==
+            listOf(Measurement.State.AWAITING_REQUISITION_FULFILLMENT))
+      ) {
+        throw Status.INVALID_ARGUMENT.withDescription(
+            "filter.measurement_states is no longer supported"
+          )
+          .asRuntimeException()
+      }
+    }
 
     val principal: MeasurementPrincipal = principalFromCurrentContext
     when (parentKey) {
@@ -549,15 +567,12 @@ private fun buildInternalStreamRequisitionsRequest(
           states += requestStates.map { it.toInternal() }
         }
 
-        measurementStates += filter.measurementStatesList.flatMap { it.toInternalState() }
-
         if (pageToken != null) {
           if (
             pageToken.externalDataProviderId != externalDataProviderId ||
               pageToken.externalMeasurementConsumerId != externalMeasurementConsumerId ||
               pageToken.externalMeasurementId != externalMeasurementId ||
-              pageToken.statesList != filter.statesList ||
-              pageToken.measurementStatesList != filter.measurementStatesList
+              pageToken.statesList != filter.statesList
           ) {
             throw Status.INVALID_ARGUMENT.withDescription(
                 "Arguments other than page_size must remain the same for subsequent page requests"
