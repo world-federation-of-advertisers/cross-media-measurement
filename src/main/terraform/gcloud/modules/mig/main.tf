@@ -123,8 +123,8 @@ resource "google_compute_instance_template" "confidential_vm_template" {
     volumes:
       - name: ssl-secrets
         hostPath:
-        path: /etc/ssl
-        type: DirectoryOrCreate
+          path: /etc/ssl
+          type: DirectoryOrCreate
   EOT
       }
     )
