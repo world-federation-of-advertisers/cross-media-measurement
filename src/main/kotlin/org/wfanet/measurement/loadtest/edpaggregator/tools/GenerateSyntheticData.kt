@@ -69,7 +69,8 @@ class GenerateSyntheticData : Runnable {
   @Option(
     names = ["--kek-uri"],
     description = ["The KMS kek uri."],
-    required = true
+    required = true,
+    defaultValue = DEFAULT_KEK_URI,
   )
   lateinit var kekUri: String
     private set

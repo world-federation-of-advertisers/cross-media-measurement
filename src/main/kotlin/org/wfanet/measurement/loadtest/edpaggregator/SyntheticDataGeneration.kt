@@ -54,15 +54,17 @@ object SyntheticDataGeneration {
   private const val FINGERPRINT_BUFFER_SIZE_BYTES = 512
 
   /**
-   * Generates a sequence of [LabeledImpression].
+   * Generates events non-probablistically. Given a total frequency across a date period, it will
+   * generate events based on the probability that a user would have had an impression that day.
+   * For example, for a user with frequency of 5, over a 10 day period, there is a 50% chance they
+   * have an impression each day.
    *
-   * Consumption of [Sequence] throws
-   * * [IllegalStateException] when [SimulatorSyntheticDataSpec] is invalid, or incompatible
-   * * with [T].
+   * Generates a flow of [LabeledImpression].
    *
    * @param messageInstance an instance of the event message type [T]
    * @param populationSpec specification of the synthetic population
    * @param syntheticEventGroupSpec specification of the synthetic event group
+   *
    */
   fun <T : Message> generateEvents(
     messageInstance: T,
