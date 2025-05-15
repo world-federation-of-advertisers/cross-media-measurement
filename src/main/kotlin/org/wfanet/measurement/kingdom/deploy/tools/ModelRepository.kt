@@ -1,0 +1,193 @@
+/*
+ * Copyright 2025 The Cross-Media Measurement Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.wfanet.measurement.kingdom.deploy.tools
+
+import io.grpc.ManagedChannel
+import java.time.Duration
+import kotlin.properties.Delegates
+import kotlinx.coroutines.runBlocking
+import org.wfanet.measurement.api.v2alpha.ListModelSuitesResponse
+import org.wfanet.measurement.api.v2alpha.ModelSuitesGrpcKt.ModelSuitesCoroutineStub
+import org.wfanet.measurement.api.v2alpha.createModelSuiteRequest
+import org.wfanet.measurement.api.v2alpha.getModelSuiteRequest
+import org.wfanet.measurement.api.v2alpha.listModelSuitesRequest
+import org.wfanet.measurement.api.v2alpha.modelSuite
+import org.wfanet.measurement.common.commandLineMain
+import org.wfanet.measurement.common.grpc.TlsFlags
+import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
+import org.wfanet.measurement.common.grpc.withShutdownTimeout
+import picocli.CommandLine
+import picocli.CommandLine.Command
+import picocli.CommandLine.Mixin
+import picocli.CommandLine.Option
+import picocli.CommandLine.Parameters
+import picocli.CommandLine.ParentCommand
+
+private val CHANNEL_SHUTDOWN_TIMEOUT = Duration.ofSeconds(30)
+
+@Command(
+  name = "model-repository",
+  description = ["Manages all Model Repository artifacts"],
+  subcommands = [CommandLine.HelpCommand::class, ModelSuites::class],
+)
+class ModelRepository private constructor() : Runnable {
+  @Mixin private lateinit var tlsFlags: TlsFlags
+
+  @Option(
+    names = ["--kingdom-public-api-target"],
+    description = ["gRPC target (authority) of the Kingdom public API server"],
+    required = true,
+  )
+  private lateinit var target: String
+    private set
+
+  @Option(
+    names = ["--kingdom-public-api-cert-host"],
+    description =
+      [
+        "Expected hostname (DNS-ID) in the Kingdom public API server's TLS certificate.",
+        "This overrides derivation of the TLS DNS-ID from --kingdom-public-api-target.",
+      ],
+    required = false,
+  )
+  private var certHost: String? = null
+
+  val channel: ManagedChannel by lazy {
+    buildMutualTlsChannel(target, tlsFlags.signingCerts, certHost)
+      .withShutdownTimeout(CHANNEL_SHUTDOWN_TIMEOUT)
+  }
+
+  override fun run() {
+    // No-op. See subcommands.
+  }
+
+  companion object {
+    @JvmStatic fun main(args: Array<String>) = commandLineMain(ModelRepository(), args)
+  }
+}
+
+@Command(
+  name = "model-suites",
+  subcommands =
+    [
+      CommandLine.HelpCommand::class,
+      GetModelSuite::class,
+      CreateModelSuite::class,
+      ListModelSuites::class,
+    ],
+)
+private class ModelSuites {
+  @ParentCommand private lateinit var parentCommand: ModelRepository
+
+  val modelSuitesClient: ModelSuitesCoroutineStub by lazy {
+    ModelSuitesCoroutineStub(parentCommand.channel)
+  }
+}
+
+@Command(name = "get", description = ["Get a ModelSuite"])
+class GetModelSuite : Runnable {
+  @ParentCommand private lateinit var parentCommand: ModelSuites
+
+  @Parameters(index = "0", description = ["API resource name of the ModelSuite"], arity = "1")
+  private lateinit var modelSuiteName: String
+
+  override fun run() {
+    val modelSuite = runBlocking {
+      parentCommand.modelSuitesClient.getModelSuite(getModelSuiteRequest { name = modelSuiteName })
+    }
+    println(modelSuite)
+  }
+}
+
+@Command(name = "create", description = ["Create a ModelSuite"])
+class CreateModelSuite : Runnable {
+  @ParentCommand private lateinit var parentCommand: ModelSuites
+
+  @Option(
+    names = ["--parent"],
+    description = ["Resource name of the parent ModelProvider"],
+    required = true,
+  )
+  private lateinit var parentModelProvider: String
+
+  @Option(
+    names = ["--display-name"],
+    description = ["Human-readable nickname for the ModelSuite"],
+    required = true,
+  )
+  private lateinit var modelSuiteDisplayName: String
+
+  @Option(
+    names = ["--description"],
+    description = ["Human-readable description of usage of the ModelSuite"],
+    required = false,
+  )
+  private lateinit var modelSuiteDescription: String
+
+  override fun run() {
+    val modelSuite = runBlocking {
+      parentCommand.modelSuitesClient.createModelSuite(
+        createModelSuiteRequest {
+          parent = parentModelProvider
+          modelSuite = modelSuite {
+            displayName = modelSuiteDisplayName
+            description = modelSuiteDescription
+          }
+        }
+      )
+    }
+
+    println(modelSuite)
+  }
+}
+
+@Command(name = "list", description = ["List ModelSuites"])
+class ListModelSuites : Runnable {
+  @ParentCommand private lateinit var parentCommand: ModelSuites
+
+  @set:Option(
+    names = ["--page-size"],
+    description = ["The maximum number of Roles to return"],
+    defaultValue = "1000",
+    required = false,
+  )
+  private var listPageSize: Int by Delegates.notNull()
+
+  @Option(
+    names = ["--page-token"],
+    description =
+      [
+        "A page token, received from a previous `ListModelSuites` call. Provide this to retrieve the subsequent page."
+      ],
+    defaultValue = "",
+    required = false,
+  )
+  private lateinit var listPageToken: String
+
+  override fun run() {
+    val response: ListModelSuitesResponse = runBlocking {
+      parentCommand.modelSuitesClient.listModelSuites(
+        listModelSuitesRequest {
+          pageSize = listPageSize
+          pageToken = listPageToken
+        }
+      )
+    }
+
+    println(response)
+  }
+}
