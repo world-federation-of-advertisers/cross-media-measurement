@@ -93,7 +93,7 @@ resource "google_compute_instance_template" "confidential_vm_template" {
             "https://secretmanager.googleapis.com/v1/projects/${data.google_project.project.name}/secrets/${var.secrets[s.secret_key].secret_id}/versions/${s.version}:access" \
             | jq -r .payload.data \
             | base64 --decode > ${s.mount_path}
-          chmod 600 ${s.mount_path}
+          chmod 644 ${s.mount_path}
           %{ endfor }
         EOT
       },
