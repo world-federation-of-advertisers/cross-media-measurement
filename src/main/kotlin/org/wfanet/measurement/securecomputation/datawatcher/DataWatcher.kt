@@ -66,24 +66,26 @@ class DataWatcher(
           logger.info("$path does not match ${config.sourcePathRegex}")
         }
       } catch (e: Exception) {
-        logger.severe("${config.identifier}: Unable to process $path for $config: ${e.message}")
+        logger.severe("${config.identifier}: Unable to process $path for $config: ${e.message}, ${e}")
       }
     }
   }
 
   private suspend fun sendToControlPlane(config: WatchedPath, path: String) {
-
+    logger.info("~~~~~~~~~~~~~ sendToControlPlane")
     val queueConfig = config.controlPlaneQueueSink
     val workItemId =
       UUID.randomUUID().toString().replace("/", "-").replace("_", "-").takeLast(63).trim {
         !it.isLetter()
       }
+    logger.info("~~~~~~~~~~~~~ sendToControlPlane1")
     val workItemParams =
       workItemParams {
           appParams = queueConfig.appParams
           this.dataPathParams = dataPathParams { this.dataPath = path }
         }
         .pack()
+    logger.info("~~~~~~~~~~~~~ sendToControlPlane2")
     val request = createWorkItemRequest {
       this.workItemId = workItemId
       this.workItem = workItem {
@@ -91,6 +93,7 @@ class DataWatcher(
         this.workItemParams = workItemParams
       }
     }
+    logger.info("~~~~~~~~~~~~~ sendToControlPlane3")
     workItemsStub.createWorkItem(request)
   }
 
