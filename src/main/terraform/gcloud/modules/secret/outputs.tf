@@ -16,3 +16,7 @@ output "secret_id" {
   description = "The resource name of the Secret Manager secret"
   value       = google_secret_manager_secret.secret.id
 }
+
+output "secret_resource" {
+  value = google_secret_manager_secret.secret
+}
