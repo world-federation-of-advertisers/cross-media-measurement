@@ -138,9 +138,9 @@ resource "google_compute_region_instance_group_manager" "mig" {
     "us-central1-c",
     "us-central1-f",
   ]
-  depends_on = [
-    google_compute_region_autoscaler.mig_autoscaler
-  ]
+  lifecycle {
+    create_before_destroy = true
+  }
 }
 
 resource "google_compute_region_autoscaler" "mig_autoscaler" {
