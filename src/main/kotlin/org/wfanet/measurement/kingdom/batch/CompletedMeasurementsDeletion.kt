@@ -16,20 +16,23 @@
 
 package org.wfanet.measurement.kingdom.batch
 
+import com.google.protobuf.Timestamp
 import io.opentelemetry.api.metrics.LongCounter
 import java.time.Clock
 import java.time.Duration
 import java.util.logging.Logger
 import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.toProtoTime
-import org.wfanet.measurement.internal.kingdom.DeleteMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCoroutineStub
+import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequest
 import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequestKt
 import org.wfanet.measurement.internal.kingdom.batchDeleteMeasurementsRequest
 import org.wfanet.measurement.internal.kingdom.deleteMeasurementRequest
+import org.wfanet.measurement.internal.kingdom.measurementKey
 import org.wfanet.measurement.internal.kingdom.streamMeasurementsRequest
 
 private val COMPLETED_MEASUREMENT_STATES =
@@ -53,54 +56,73 @@ class CompletedMeasurementsDeletion(
     if (timeToLive.toMillis() == 0L) {
       logger.warning("Time to live cannot be 0. TTL=$timeToLive")
     }
-    val currentTime = clock.instant()
-    runBlocking {
-      var measurementsToDelete: List<Measurement> =
-        measurementsService
-          .streamMeasurements(
-            streamMeasurementsRequest {
-              filter =
-                StreamMeasurementsRequestKt.filter {
-                  states += COMPLETED_MEASUREMENT_STATES
-                  updatedBefore = currentTime.minus(timeToLive).toProtoTime()
-                }
-            }
-          )
-          .toList()
+    val updatedBefore: Timestamp = clock.instant().minus(timeToLive).toProtoTime()
 
-      if (dryRun) {
-        logger.info { "Measurements that would have been deleted: $measurementsToDelete" }
-      } else {
-        while (measurementsToDelete.isNotEmpty()) {
-          val batchMeasurementsToDelete = measurementsToDelete.take(maxToDeletePerRpc)
-          val deleteRequests: List<DeleteMeasurementRequest> =
-            batchMeasurementsToDelete.map {
-              deleteMeasurementRequest {
-                externalMeasurementId = it.externalMeasurementId
-                externalMeasurementConsumerId = it.externalMeasurementConsumerId
-                etag = it.etag
+    var previousPageEnd: StreamMeasurementsRequest.Filter.After? = null
+    runBlocking {
+      while (isActive) {
+        val completedMeasurements: List<Measurement> =
+          getCompletedMeasurements(updatedBefore, previousPageEnd)
+        if (completedMeasurements.isEmpty()) {
+          break
+        }
+
+        val lastMeasurement: Measurement = completedMeasurements.last()
+        previousPageEnd =
+          StreamMeasurementsRequestKt.FilterKt.after {
+            measurement = measurementKey {
+              externalMeasurementConsumerId = lastMeasurement.externalMeasurementId
+              externalMeasurementId = lastMeasurement.externalMeasurementId
+            }
+            updateTime = lastMeasurement.updateTime
+          }
+
+        if (dryRun) {
+          logger.info { "Measurements that would have been deleted:" }
+          for (measurement in completedMeasurements) {
+            logger.info { measurement.toString() }
+          }
+          continue
+        }
+
+        deleteMeasurements(completedMeasurements)
+      }
+    }
+  }
+
+  private suspend fun getCompletedMeasurements(
+    updatedBefore: Timestamp,
+    previousPageEnd: StreamMeasurementsRequest.Filter.After?,
+  ): List<Measurement> {
+    return measurementsService
+      .streamMeasurements(
+        streamMeasurementsRequest {
+          filter =
+            StreamMeasurementsRequestKt.filter {
+              states += COMPLETED_MEASUREMENT_STATES
+              this.updatedBefore = updatedBefore
+              if (previousPageEnd != null) {
+                after = previousPageEnd
               }
             }
-          measurementsService.batchDeleteMeasurements(
-            batchDeleteMeasurementsRequest { requests += deleteRequests }
-          )
-          completedMeasurementDeletionCounter.add(deleteRequests.size.toLong())
+          limit = maxToDeletePerRpc
+        }
+      )
+      .toList()
+  }
 
-          measurementsToDelete =
-            measurementsService
-              .streamMeasurements(
-                streamMeasurementsRequest {
-                  filter =
-                    StreamMeasurementsRequestKt.filter {
-                      states += COMPLETED_MEASUREMENT_STATES
-                      updatedBefore = currentTime.minus(timeToLive).toProtoTime()
-                    }
-                }
-              )
-              .toList()
+  private suspend fun deleteMeasurements(measurements: Collection<Measurement>) {
+    val request = batchDeleteMeasurementsRequest {
+      for (measurement in measurements) {
+        requests += deleteMeasurementRequest {
+          externalMeasurementId = measurement.externalMeasurementId
+          externalMeasurementConsumerId = measurement.externalMeasurementConsumerId
+          etag = measurement.etag
         }
       }
     }
+    measurementsService.batchDeleteMeasurements(request)
+    completedMeasurementDeletionCounter.add(measurements.size.toLong())
   }
 
   companion object {
