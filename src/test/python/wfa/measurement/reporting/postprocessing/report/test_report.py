@@ -804,6 +804,41 @@ class TestReport(unittest.TestCase):
       self.assertEqual(sorted(expected_subsets_by_set[key]),
                        sorted(spec._subsets_by_set[key]))
 
+  def test_add_whole_campaign_impression_relationships(self):
+    report = SAMPLE_REPORT
+    name_to_index = report._measurement_name_to_index
+
+    expected_subsets_by_set = {
+        # AMI constraints.
+        name_to_index["measurement_22"]: [name_to_index["measurement_09"]],
+        name_to_index["measurement_23"]: [name_to_index["measurement_10"]],
+        name_to_index["measurement_24"]: [name_to_index["measurement_11"]],
+        name_to_index["measurement_25"]: [name_to_index["measurement_12"]],
+        name_to_index["measurement_26"]: [name_to_index["measurement_13"]],
+        # MRC constraints.
+        name_to_index["measurement_47"]: [name_to_index["measurement_35"]],
+        name_to_index["measurement_48"]: [name_to_index["measurement_36"]],
+        name_to_index["measurement_49"]: [name_to_index["measurement_37"]],
+        name_to_index["measurement_50"]: [name_to_index["measurement_38"]],
+        # CUSTOM constraints.
+        name_to_index["measurement_71"]: [name_to_index["measurement_59"]],
+        name_to_index["measurement_72"]: [name_to_index["measurement_60"]],
+        name_to_index["measurement_73"]: [name_to_index["measurement_61"]],
+        name_to_index["measurement_74"]: [name_to_index["measurement_62"]],
+    }
+
+    spec = SetMeasurementsSpec()
+    report._add_whole_campaign_reach_impression_relations_to_spec(spec)
+
+    self.assertEqual(len(spec._covers_by_set), 0)
+    self.assertEqual(len(spec._equal_sets), 0)
+    self.assertEqual(len(spec._weighted_sum_upperbound_sets), 0)
+    self.assertEqual(expected_subsets_by_set.keys(),
+                     spec._subsets_by_set.keys())
+    for key in spec._subsets_by_set.keys():
+      self.assertEqual(sorted(expected_subsets_by_set[key]),
+                       sorted(spec._subsets_by_set[key]))
+
   def test_add_cumulative_subset_relationships(self):
     report = SAMPLE_REPORT
     name_to_index = report._measurement_name_to_index
@@ -2602,6 +2637,95 @@ class TestReport(unittest.TestCase):
                       Measurement(0.7142, 1, "measurement_14"),
                     frozenset({EDP_ONE, EDP_TWO}):
                       Measurement(48.7184, 1, "measurement_15"),
+                },
+            )
+        },
+        metric_subsets_by_parent={},
+        cumulative_inconsistency_allowed_edp_combinations={},
+    )
+
+    self.assertEqual(report_post_processor_result.status.status_code,
+                     StatusCode.SOLUTION_FOUND_WITH_HIGHS)
+    self.assertLess(
+        report_post_processor_result.status.primal_equality_residual,
+        NOISE_CORRECTION_TOLERANCE)
+    self.assertLess(
+        report_post_processor_result.status.primal_inequality_residual,
+        NOISE_CORRECTION_TOLERANCE)
+    self._assertReportsAlmostEqual(expected, corrected, corrected.to_array())
+
+  def test_get_corrected_reach_only_report_single_metric_multiple_edps(self):
+    report = Report(
+        metric_reports={
+            "ami": MetricReport(
+                reach_time_series={
+                    frozenset({EDP_ONE, EDP_TWO}): [
+                        Measurement(50, 1, "measurement_01")
+                    ],
+                    frozenset({EDP_ONE}): [
+                        Measurement(48, 0, "measurement_02")
+                    ],
+                    frozenset({EDP_TWO}): [Measurement(1, 1, "measurement_03")],
+                },
+                reach_whole_campaign={
+                    frozenset({EDP_ONE}): Measurement(1, 1, "measurement_04"),
+                    frozenset({EDP_TWO}): Measurement(1, 1, "measurement_05"),
+                    frozenset({EDP_ONE, EDP_TWO}):
+                      Measurement(1, 1, "measurement_06"),
+                },
+                k_reach={},
+                impression={
+                    frozenset({EDP_ONE}): Measurement(1, 1, "measurement_13"),
+                    frozenset({EDP_TWO}): Measurement(1, 1, "measurement_14"),
+                    frozenset({EDP_ONE, EDP_TWO}):
+                      Measurement(1, 1, "measurement_15"),
+                },
+            )
+        },
+        metric_subsets_by_parent={},
+        cumulative_inconsistency_allowed_edp_combinations={},
+    )
+
+    corrected, report_post_processor_result = report.get_corrected_report()
+
+    # The corrected report should be consistent:
+    # a) Time series measurements form a non-decreasing sequences.
+    # b) The last time series reach is equal to the whole campaign reach.
+    # c) The whole campaign reach is equal to the sum of the k reaches.
+    # d) The impression is greater than or equal to the whole campaign reach.
+    # e) The impression of the union set is equal to the sum of the impression
+    # of the individual sets (e.g. impression(edp1 U edp2) = impression(edp1) +
+    # impression(edp2)).
+    # f) The reach of the union set is less than or equal to the sum of the
+    # reach of the subsets it covers (e.g. r(edp1 U edp2) <= r(edp1) + r(edp2)).
+    expected = Report(
+        metric_reports={
+            "ami": MetricReport(
+                reach_time_series={
+                    frozenset({EDP_ONE}): [
+                        Measurement(48.0, 1, "measurement_02")
+                    ],
+                    frozenset({EDP_TWO}): [
+                        Measurement(0.0, 1, "measurement_03")
+                    ],
+                    frozenset({EDP_ONE, EDP_TWO}): [
+                        Measurement(48.0, 1, "measurement_01")
+                    ],
+                },
+                reach_whole_campaign={
+                    frozenset({EDP_TWO}):
+                      Measurement(0.0, 1, "measurement_05"),
+                    frozenset({EDP_ONE}): Measurement(48, 1, "measurement_04"),
+                    frozenset({EDP_ONE, EDP_TWO}):
+                      Measurement(48.0, 1, "measurement_06"),
+                },
+                k_reach={},
+                impression={
+                    frozenset({EDP_ONE}): Measurement(48, 1, "measurement_13"),
+                    frozenset({EDP_TWO}):
+                      Measurement(0.0, 1, "measurement_14"),
+                    frozenset({EDP_ONE, EDP_TWO}):
+                      Measurement(48.0, 1, "measurement_15"),
                 },
             )
         },
