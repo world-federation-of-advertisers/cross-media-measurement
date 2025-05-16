@@ -162,7 +162,6 @@ resource "google_compute_region_autoscaler" "mig_autoscaler" {
 
     metric {
       name                       = "pubsub.googleapis.com/subscription/num_undelivered_messages"
-#       filter                     = "resource.type = pubsub_subscription AND resource.labels.subscription_id = \"requisition-fulfiller-subscription\""
       filter                     = "resource.type = pubsub_subscription AND resource.labels.subscription_id = \"${var.subscription_id}\""
       single_instance_assignment = var.single_instance_assignment
     }
