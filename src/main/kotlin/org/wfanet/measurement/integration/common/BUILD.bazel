@@ -313,6 +313,7 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/requisitionfetcher:requisition_fetcher",
         "//src/main/kotlin/org/wfanet/measurement/gcloud/testing",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:synthetic_generator_event_query",
+        "//src/main/kotlin/org/wfanet/measurement/loadtest/edpaggregator:impression_writer",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/edpaggregator:synthetic_data_generation",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/measurementconsumer:simulator",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/resourcesetup:resource_setup",

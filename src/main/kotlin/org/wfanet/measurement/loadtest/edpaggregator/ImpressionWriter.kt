@@ -34,17 +34,18 @@ import org.wfanet.measurement.storage.MesosRecordIoStorageClient
 import org.wfanet.measurement.storage.SelectedStorageClient
 
 class ImpressionsWriter(
-  private val eventGroupReferenceId: String,
+  private val eventGroupPath: String,
   private val kekUri: String,
   private val kmsClient: KmsClient,
-  private val bucket: String,
+  private val impressionsBucket: String,
+  private val impressionsMetadataBucket: String,
   private val storagePath: File? = null,
   private val schema: String = "file:///",
 ) {
 
   /*
    * Takes a Flow<Pair<LocalDate, Flow<LabeledImpression>>>, encrypts that data with a KMS,
-   * and outputs the data to storage along with the necessary metadata for a the ResultsFulfiller
+   * and outputs the data to storage along with the necessary metadata for the ResultsFulfiller
    * to be able to find and read the contents.
    */
   suspend fun writeLabeledImpressionData(events: Flow<Pair<LocalDate, Flow<LabeledImpression>>>) {
@@ -69,8 +70,8 @@ class ImpressionsWriter(
       val ds = localDate.toString()
       logger.info("Writing Date: $ds")
 
-      val impressionsBlobKey = "ds/$ds/event-group-reference-id/$eventGroupReferenceId/impressions"
-      val impressionsFileUri = "$schema$bucket/$impressionsBlobKey"
+      val impressionsBlobKey = "ds/$ds/$eventGroupPath/impressions"
+      val impressionsFileUri = "$schema$impressionsBucket/$impressionsBlobKey"
       val mesosRecordIoStorageClient = run {
         val impressionsStorageClient = SelectedStorageClient(impressionsFileUri, storagePath)
 
@@ -94,10 +95,10 @@ class ImpressionsWriter(
           labeledImpressions.map { it.toByteString() },
         )
       }
-      val impressionsMetaDataBlobKey =
-        "ds/$ds/event-group-reference-id/$eventGroupReferenceId/metadata"
+      val impressionsMetaDataBlobKey = "ds/$ds/$eventGroupPath/metadata"
 
-      val impressionsMetadataFileUri = "$schema$bucket/$impressionsMetaDataBlobKey"
+      val impressionsMetadataFileUri =
+        "$schema$impressionsMetadataBucket/$impressionsMetaDataBlobKey"
 
       logger.info("Writing metadata to $impressionsMetadataFileUri")
 

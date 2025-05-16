@@ -18,6 +18,7 @@ import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.Any as ProtoAny
 import com.google.protobuf.ByteString
 import com.google.protobuf.Message
+import com.google.protobuf.kotlin.unpack
 import com.google.protobuf.util.Durations
 import io.grpc.StatusException
 import java.security.SignatureException
@@ -32,14 +33,12 @@ import kotlin.math.sqrt
 import kotlin.random.Random
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.filter
-import kotlinx.coroutines.flow.emitAll
-import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
-import kotlinx.coroutines.flow.flatMapConcat
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.time.delay
+import org.projectnessie.cel.Program
 import org.wfanet.measurement.api.v2alpha.Certificate
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.CustomDirectMethodologyKt
@@ -113,6 +112,7 @@ import org.wfanet.measurement.consent.client.measurementconsumer.encryptRequisit
 import org.wfanet.measurement.consent.client.measurementconsumer.signMeasurementSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.signRequisitionSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.verifyResult
+import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
 import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters
 import org.wfanet.measurement.eventdataprovider.noiser.DpParams as NoiserDpParams
 import org.wfanet.measurement.integration.common.SyntheticGenerationSpecs
@@ -130,9 +130,6 @@ import org.wfanet.measurement.measurementconsumer.stats.ReachMeasurementParams
 import org.wfanet.measurement.measurementconsumer.stats.ReachMeasurementVarianceParams
 import org.wfanet.measurement.measurementconsumer.stats.VariancesImpl
 import org.wfanet.measurement.measurementconsumer.stats.VidSamplingInterval as StatsVidSamplingInterval
-import org.projectnessie.cel.Program
-import kotlinx.coroutines.runBlocking
-import com.google.protobuf.kotlin.unpack
 
 data class MeasurementConsumerData(
   // The MC's public API resource name
@@ -189,14 +186,16 @@ class MeasurementConsumerSimulator(
   private val MeasurementInfo.filteredVids: List<Long>
     get() {
       val eventGroupSpecs: List<Pair<SyntheticEventGroupSpec, String>> =
-        requisitions
-          .flatMap { requisitionInfo ->
-            requisitionInfo.eventGroups
-              .zip(requisitionInfo.requisitionSpec.events.eventGroupsList)
-              .map { (eventGroup, eventGroupEntry) ->
-                Pair(syntheticEventGroupMap.getValue(eventGroup.eventGroupReferenceId), eventGroupEntry.value.filter.expression)
-              }
-          }
+        requisitions.flatMap { requisitionInfo ->
+          requisitionInfo.eventGroups
+            .zip(requisitionInfo.requisitionSpec.events.eventGroupsList)
+            .map { (eventGroup, eventGroupEntry) ->
+              Pair(
+                syntheticEventGroupMap.getValue(eventGroup.eventGroupReferenceId),
+                eventGroupEntry.value.filter.expression,
+              )
+            }
+        }
 
       return eventGroupSpecs
         .flatMap { (syntheticEventGroupSpec, expression) ->
@@ -204,54 +203,66 @@ class MeasurementConsumerSimulator(
             val program: Program =
               EventFilters.compileProgram(messageInstance.descriptorForType, expression)
             SyntheticDataGeneration.generateEvents(
-              messageInstance,
-              syntheticPopulationSpec,
-              syntheticEventGroupSpec,
-            ).toList().filter { EventFilters.matches(it.event.unpack(messageInstance::class.java), program) }
+                messageInstance,
+                syntheticPopulationSpec,
+                syntheticEventGroupSpec,
+              )
+              .toList()
+              .flatMap { it.second.toList() }
+              .filter { impression: LabeledImpression ->
+                EventFilters.matches(impression.event.unpack(messageInstance::class.java), program)
+              }
           }
         }
         .map { it.vid }
 
       /*return eventGroupSpecs
-        .flatMap { (syntheticEventGroupSpec, expression) ->
-          {
+      .flatMap { (syntheticEventGroupSpec, expression) ->
+        {
 
-            val events: List<LabeledImpression> = SyntheticDataGeneration.generateEvents(
-                messageInstance,
-                syntheticPopulationSpec,
-                syntheticEventGroupSpec,
-              ).toList()
-              //.filter { EventFilters.matches(it.message, program) }
-            events
-          }
+          val events: List<LabeledImpression> = SyntheticDataGeneration.generateEvents(
+              messageInstance,
+              syntheticPopulationSpec,
+              syntheticEventGroupSpec,
+            ).toList()
+            //.filter { EventFilters.matches(it.message, program) }
+          events
         }
-        .map { it.vid }*/
+      }
+      .map { it.vid }*/
     }
 
   private fun MeasurementInfo.filterVidsByDataProvider(targetDataProviderId: String): List<Long> {
     val eventGroupSpecs: List<Pair<SyntheticEventGroupSpec, String>> =
-      requisitions
-        .flatMap { requisitionInfo ->
-          requisitionInfo.eventGroups
-            .zip(requisitionInfo.requisitionSpec.events.eventGroupsList)
-            .filter { (eventGroup, eventGroupEntry) ->
-              targetDataProviderId ==
-                requireNotNull(EventGroupKey.fromName(eventGroup.name)).dataProviderId
-            }
-            .map { (eventGroup, eventGroupEntry) ->
-              Pair(syntheticEventGroupMap.getValue(eventGroup.eventGroupReferenceId), eventGroupEntry.value.filter.expression)
-            }
-        }
+      requisitions.flatMap { requisitionInfo ->
+        requisitionInfo.eventGroups
+          .zip(requisitionInfo.requisitionSpec.events.eventGroupsList)
+          .filter { (eventGroup, eventGroupEntry) ->
+            targetDataProviderId ==
+              requireNotNull(EventGroupKey.fromName(eventGroup.name)).dataProviderId
+          }
+          .map { (eventGroup, eventGroupEntry) ->
+            Pair(
+              syntheticEventGroupMap.getValue(eventGroup.eventGroupReferenceId),
+              eventGroupEntry.value.filter.expression,
+            )
+          }
+      }
     return eventGroupSpecs
       .flatMap { (syntheticEventGroupSpec, expression) ->
         runBlocking {
           val program: Program =
             EventFilters.compileProgram(messageInstance.descriptorForType, expression)
           SyntheticDataGeneration.generateEvents(
-            messageInstance,
-            syntheticPopulationSpec,
-            syntheticEventGroupSpec,
-          ).toList().filter { EventFilters.matches(it.event.unpack(messageInstance::class.java), program) }
+              messageInstance,
+              syntheticPopulationSpec,
+              syntheticEventGroupSpec,
+            )
+            .toList()
+            .flatMap { it.second.toList() }
+            .filter { impression: LabeledImpression ->
+              EventFilters.matches(impression.event.unpack(messageInstance::class.java), program)
+            }
         }
       }
       .map { it.vid }

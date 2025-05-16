@@ -80,6 +80,7 @@ import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup.Media
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.MetadataKt.AdMetadataKt.campaignMetadata
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.MetadataKt.adMetadata
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.metadata as eventGroupMetadata
+import kotlinx.coroutines.flow.flowOf
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.MappedEventGroup
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.eventGroup
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionFetcher
@@ -90,6 +91,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.blobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.labeledImpression
 import org.wfanet.measurement.gcloud.pubsub.Subscriber
 import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorClient
+import org.wfanet.measurement.loadtest.edpaggregator.ImpressionsWriter
 import org.wfanet.measurement.loadtest.edpaggregator.SyntheticDataGeneration
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
 import org.wfanet.measurement.loadtest.resourcesetup.Resources
@@ -104,6 +106,7 @@ import org.wfanet.measurement.storage.MesosRecordIoStorageClient
 import org.wfanet.measurement.storage.SelectedStorageClient
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
+import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.mappedEventGroup
 
 class InProcessEdpAggregatorComponents(
   private val internalServicesRule: ProviderRule<InternalApiServices>,
@@ -295,6 +298,7 @@ class InProcessEdpAggregatorComponents(
     privateEncryptionKey: PrivateKeyHandle,
   ): Boolean {
     Files.createDirectories(storagePath.resolve(IMPRESSIONS_BUCKET))
+    Files.createDirectories(storagePath.resolve(IMPRESSIONS_METADATA_BUCKET))
     val files =
       try {
         Files.walk(storagePath.resolve(REQUISITION_STORAGE_PREFIX))
@@ -316,19 +320,43 @@ class InProcessEdpAggregatorComponents(
           signedRequisitionSpec.unpack()
         }
 
-    // TODO: Map over entry group entry to event-group-reference-id
-    val eventGroupSpecs: List<String> =
+    // TODO: Look up event group reference id
+    val eventGroupSpecs: List<MappedEventGroup> =
       requisitionSpecs.toList().flatMap { it: RequisitionSpec ->
-        it.events.eventGroupsList.map { "edpa-eg-reference-id-1" }
+        it.events.eventGroupsList.map {
+          mappedEventGroup {
+            this.eventGroupReferenceId = "edpa-eg-reference-id-1"
+            this.eventGroupResource = it.key
+          }
+        }
       }
-    val unfilteredEvents: List<LabeledImpression> =
+    eventGroupSpecs
+      .forEach { mappedEventGroup ->
+        val events = SyntheticDataGeneration.generateEvents(
+          TestEvent.getDefaultInstance(),
+          syntheticPopulationSpec,
+          syntheticEventGroupMap.getValue(mappedEventGroup.eventGroupReferenceId),
+        )
+        val impressionWriter =
+          ImpressionsWriter(
+            "event-group-id/${mappedEventGroup.eventGroupResource}",
+            kekUri,
+            kmsClient,
+            IMPRESSIONS_BUCKET,
+            IMPRESSIONS_METADATA_BUCKET,
+            storagePath.toFile(),
+            "file:///",
+          )
+        runBlocking { impressionWriter.writeLabeledImpressionData(events) }
+      }
+
+    /*val unfilteredEvents: List<LabeledImpression> =
       eventGroupSpecs
         .flatMap { eventGroupReferenceId ->
           SyntheticDataGeneration.generateEvents(
             TestEvent.getDefaultInstance(),
             syntheticPopulationSpec,
             syntheticEventGroupMap.getValue(eventGroupReferenceId),
-            // eventGroup.dataAvailabilityInterval.toRange(),
           ).toList()
         }
     val estZoneId = ZoneId.of("UTC")
@@ -392,7 +420,7 @@ class InProcessEdpAggregatorComponents(
           blobDetails.toByteString(),
         )
       }
-    }
+    }*/
 
     return true
   }
