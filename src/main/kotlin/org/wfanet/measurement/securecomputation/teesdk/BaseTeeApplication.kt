@@ -25,6 +25,7 @@ import java.util.UUID
 import java.util.logging.Level
 import java.util.logging.Logger
 import kotlinx.coroutines.channels.ReceiveChannel
+import kotlinx.coroutines.delay
 import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.queue.QueueSubscriber
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
@@ -68,6 +69,7 @@ abstract class BaseTeeApplication(
     logger.info("~~~~~~~~~~~~~~~ SUBSCRIBING TO: ${subscriptionId} - ${parser}")
     val messageChannel: ReceiveChannel<QueueSubscriber.QueueMessage<WorkItem>> =
       queueSubscriber.subscribe(subscriptionId, parser)
+
     for (message: QueueSubscriber.QueueMessage<WorkItem> in messageChannel) {
       logger.info("~~~~~~~~~~~~~~~ RECEIVED MESSAGE IN CHANNEL")
       processMessage(message)
