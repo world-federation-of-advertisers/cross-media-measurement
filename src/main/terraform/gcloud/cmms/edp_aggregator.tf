@@ -147,4 +147,5 @@ module "edp_aggregator" {
   secure_computation_root_ca                = local.secure_computation_root_ca
   kingdom_root_ca                           = local.kingdom_root_ca
   edps_certs                                = local.edps_certs
+  private_network_location                  = data.google_client_config.default.region
 }

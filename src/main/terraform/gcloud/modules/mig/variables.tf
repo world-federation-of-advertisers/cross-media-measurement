@@ -106,3 +106,14 @@ variable "terraform_service_account" {
   nullable    = false
 }
 
+variable "network_name" {
+  description = "The name of the VPC network for the MIG instances."
+  type        = string
+  nullable    = false
+}
+
+variable "subnetwork_name" {
+  description = "The name of the subnetwork for the MIG instances."
+  type        = string
+  nullable    = false
+}
