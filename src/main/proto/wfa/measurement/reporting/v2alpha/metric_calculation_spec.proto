@@ -48,7 +48,7 @@ message MetricCalculationSpec {
   ];
 
   string model_line = 10 [
-    (google.api.resource_reference).type = "halo.wfanet.org/ModelLine"
+    (google.api.resource_reference).type = "halo.wfanet.org/ModelLine",
   ];
 
   // A collection of metrics.

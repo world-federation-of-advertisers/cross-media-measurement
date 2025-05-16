@@ -84,6 +84,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementKt.dataProviderEntry
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reportingMetadata
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.ModelLineKey
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec.EventGroupEntry
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt
 import org.wfanet.measurement.api.v2alpha.SignedMessage
@@ -185,7 +186,6 @@ import org.wfanet.measurement.reporting.service.api.MetricNotFoundException
 import org.wfanet.measurement.reporting.service.api.RequiredFieldNotSetException
 import org.wfanet.measurement.reporting.service.api.submitBatchRequests
 import org.wfanet.measurement.reporting.service.internal.Errors as InternalErrors
-import org.wfanet.measurement.api.v2alpha.ModelLineKey
 import org.wfanet.measurement.reporting.v2alpha.BatchCreateMetricsRequest
 import org.wfanet.measurement.reporting.v2alpha.BatchCreateMetricsResponse
 import org.wfanet.measurement.reporting.v2alpha.BatchGetMetricsRequest
@@ -587,9 +587,17 @@ class MetricsService(
             }
         }
         modelLine =
-          if (metric.cmmsModelProviderId.isNotEmpty() && metric.cmmsModelSuiteId.isNotEmpty() &&
-            metric.cmmsModelLineId.isNotEmpty()) {
-            ModelLineKey(metric.cmmsModelProviderId, metric.cmmsModelSuiteId, metric.cmmsModelLineId).toName()
+          if (
+            metric.cmmsModelProviderId.isNotEmpty() &&
+              metric.cmmsModelSuiteId.isNotEmpty() &&
+              metric.cmmsModelLineId.isNotEmpty()
+          ) {
+            ModelLineKey(
+                metric.cmmsModelProviderId,
+                metric.cmmsModelSuiteId,
+                metric.cmmsModelLineId,
+              )
+              .toName()
           } else {
             measurementConsumerModelLines.getOrDefault(measurementConsumerName, defaultModelLine)
           }
@@ -1604,7 +1612,9 @@ class MetricsService(
 
     val modelLineKey: ModelLineKey? =
       if (request.metric.modelLine.isNotEmpty()) {
-        grpcRequireNotNull(ModelLineKey.fromName(request.metric.modelLine)) { "model_line is invalid" }
+        grpcRequireNotNull(ModelLineKey.fromName(request.metric.modelLine)) {
+          "model_line is invalid"
+        }
       } else null
 
     return internalCreateMetricRequest {
@@ -1822,8 +1832,14 @@ class MetricsService(
         ReportingSetKey(source.cmmsMeasurementConsumerId, source.externalReportingSetId).toName()
       timeInterval = source.timeInterval
       metricSpec = source.metricSpec.toMetricSpec()
-      if (source.cmmsModelProviderId.isNotEmpty() && source.cmmsModelSuiteId.isNotEmpty() && source.cmmsModelLineId.isNotEmpty()) {
-        modelLine = ModelLineKey(source.cmmsModelProviderId, source.cmmsModelSuiteId, source.cmmsModelLineId).toName()
+      if (
+        source.cmmsModelProviderId.isNotEmpty() &&
+          source.cmmsModelSuiteId.isNotEmpty() &&
+          source.cmmsModelLineId.isNotEmpty()
+      ) {
+        modelLine =
+          ModelLineKey(source.cmmsModelProviderId, source.cmmsModelSuiteId, source.cmmsModelLineId)
+            .toName()
       }
       filters += source.details.filtersList
       state = source.state.toPublic()

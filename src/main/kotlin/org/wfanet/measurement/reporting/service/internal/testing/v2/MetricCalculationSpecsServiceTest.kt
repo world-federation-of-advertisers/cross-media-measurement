@@ -91,11 +91,12 @@ abstract class MetricCalculationSpecsServiceTest<T : MetricCalculationSpecsCorou
   @Test
   fun `createMetricCalculationSpec with model line returns successfully`() = runBlocking {
     createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
-    val metricCalculationSpec = createMetricCalculationSpecForRequest().copy {
-      cmmsModelProviderId = "123"
-      cmmsModelSuiteId = "123"
-      cmmsModelLineId = "123"
-    }
+    val metricCalculationSpec =
+      createMetricCalculationSpecForRequest().copy {
+        cmmsModelProviderId = "123"
+        cmmsModelSuiteId = "123"
+        cmmsModelLineId = "123"
+      }
 
     val request = createMetricCalculationSpecRequest {
       this.metricCalculationSpec = metricCalculationSpec
@@ -223,11 +224,12 @@ abstract class MetricCalculationSpecsServiceTest<T : MetricCalculationSpecsCorou
   @Test
   fun `getMetricCalculationSpec with model line returns successfully`() = runBlocking {
     createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
-    val metricCalculationSpec = createMetricCalculationSpecForRequest().copy {
-      cmmsModelProviderId = "123"
-      cmmsModelSuiteId = "123"
-      cmmsModelLineId = "123"
-    }
+    val metricCalculationSpec =
+      createMetricCalculationSpecForRequest().copy {
+        cmmsModelProviderId = "123"
+        cmmsModelSuiteId = "123"
+        cmmsModelLineId = "123"
+      }
 
     val createRequest = createMetricCalculationSpecRequest {
       this.metricCalculationSpec = metricCalculationSpec

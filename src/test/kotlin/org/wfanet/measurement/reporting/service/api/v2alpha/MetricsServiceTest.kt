@@ -97,6 +97,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reportingMetadata
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineImplBase
+import org.wfanet.measurement.api.v2alpha.ModelLineKey
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec
@@ -211,7 +212,6 @@ import org.wfanet.measurement.internal.reporting.v2.metricSpec as internalMetric
 import org.wfanet.measurement.internal.reporting.v2.reachOnlyLiquidLegionsSketchParams as internalReachOnlyLiquidLegionsSketchParams
 import org.wfanet.measurement.internal.reporting.v2.reachOnlyLiquidLegionsV2
 import org.wfanet.measurement.internal.reporting.v2.reportingSet as internalReportingSet
-import org.wfanet.measurement.api.v2alpha.ModelLineKey
 import org.wfanet.measurement.internal.reporting.v2.streamMetricsRequest
 import org.wfanet.measurement.measurementconsumer.stats.FrequencyMeasurementVarianceParams
 import org.wfanet.measurement.measurementconsumer.stats.FrequencyMetricVarianceParams
@@ -5406,21 +5406,22 @@ class MetricsServiceTest {
       permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
     } doReturn checkPermissionsResponse { permissions += PermissionName.CREATE }
 
-    wheneverBlocking {
-      internalMetricsMock.batchCreateMetrics(any())
-    } doReturn internalBatchCreateMetricsResponse { metrics += INTERNAL_PENDING_INITIAL_SINGLE_PUBLISHER_IMPRESSION_METRIC.copy {
-      cmmsModelProviderId = modelLineKey.modelProviderId
-      cmmsModelSuiteId = modelLineKey.modelSuiteId
-      cmmsModelLineId = modelLineKey.modelLineId
-    }}
+    wheneverBlocking { internalMetricsMock.batchCreateMetrics(any()) } doReturn
+      internalBatchCreateMetricsResponse {
+        metrics +=
+          INTERNAL_PENDING_INITIAL_SINGLE_PUBLISHER_IMPRESSION_METRIC.copy {
+            cmmsModelProviderId = modelLineKey.modelProviderId
+            cmmsModelSuiteId = modelLineKey.modelSuiteId
+            cmmsModelLineId = modelLineKey.modelLineId
+          }
+      }
 
     val request = batchCreateMetricsRequest {
       parent = MEASUREMENT_CONSUMERS.values.first().name
       requests += createMetricRequest {
         parent = MEASUREMENT_CONSUMERS.values.first().name
-        metric = REQUESTING_SINGLE_PUBLISHER_IMPRESSION_METRIC.copy {
-          modelLine = modelLineKey.toName()
-        }
+        metric =
+          REQUESTING_SINGLE_PUBLISHER_IMPRESSION_METRIC.copy { modelLine = modelLineKey.toName() }
         metricId = "metric-id2"
       }
     }
@@ -5431,13 +5432,11 @@ class MetricsServiceTest {
       }
 
     val expected = batchCreateMetricsResponse {
-      metrics += PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.copy {
-        modelLine = modelLineKey.toName()
-      }
+      metrics +=
+        PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.copy { modelLine = modelLineKey.toName() }
     }
 
     assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
-
 
     // Verify proto argument of the internal MetricsCoroutineImplBase::batchCreateMetrics
     verifyProtoArgument(internalMetricsMock, MetricsCoroutineImplBase::batchCreateMetrics)
@@ -5446,11 +5445,12 @@ class MetricsServiceTest {
         internalBatchCreateMetricsRequest {
           cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
           requests += internalCreateMetricRequest {
-            metric = INTERNAL_REQUESTING_SINGLE_PUBLISHER_IMPRESSION_METRIC.copy {
-              cmmsModelProviderId = modelLineKey.modelProviderId
-              cmmsModelSuiteId = modelLineKey.modelSuiteId
-              cmmsModelLineId = modelLineKey.modelLineId
-            }
+            metric =
+              INTERNAL_REQUESTING_SINGLE_PUBLISHER_IMPRESSION_METRIC.copy {
+                cmmsModelProviderId = modelLineKey.modelProviderId
+                cmmsModelSuiteId = modelLineKey.modelSuiteId
+                cmmsModelLineId = modelLineKey.modelLineId
+              }
             externalMetricId = "metric-id2"
           }
         }
@@ -5499,9 +5499,9 @@ class MetricsServiceTest {
               report = CONTAINING_REPORT
               metric =
                 MetricKey(
-                  INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.cmmsMeasurementConsumerId,
-                  INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.externalMetricId,
-                )
+                    INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.cmmsMeasurementConsumerId,
+                    INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.externalMetricId,
+                  )
                   .toName()
             }
           }
@@ -5526,9 +5526,9 @@ class MetricsServiceTest {
 
     // Verify proto argument of internal MeasurementsCoroutineImplBase::batchSetCmmsMeasurementId
     verifyProtoArgument(
-      internalMeasurementsMock,
-      InternalMeasurementsGrpcKt.MeasurementsCoroutineImplBase::batchSetCmmsMeasurementIds,
-    )
+        internalMeasurementsMock,
+        InternalMeasurementsGrpcKt.MeasurementsCoroutineImplBase::batchSetCmmsMeasurementIds,
+      )
       .ignoringRepeatedFieldOrder()
       .isEqualTo(
         batchSetCmmsMeasurementIdsRequest {
@@ -5633,14 +5633,11 @@ class MetricsServiceTest {
     val request = batchCreateMetricsRequest {
       parent = MEASUREMENT_CONSUMERS.values.first().name
 
-      requests +=
-        createMetricRequest {
-          parent = MEASUREMENT_CONSUMERS.values.first().name
-          metric = REQUESTING_INCREMENTAL_REACH_METRIC.copy {
-            modelLine = "invalid"
-          }
-          metricId = "metric-id"
-        }
+      requests += createMetricRequest {
+        parent = MEASUREMENT_CONSUMERS.values.first().name
+        metric = REQUESTING_INCREMENTAL_REACH_METRIC.copy { modelLine = "invalid" }
+        metricId = "metric-id"
+      }
     }
 
     val exception =

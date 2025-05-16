@@ -24,6 +24,7 @@ import org.projectnessie.cel.Env
 import org.wfanet.measurement.access.client.v1alpha.Authorization
 import org.wfanet.measurement.access.client.v1alpha.check
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
+import org.wfanet.measurement.api.v2alpha.ModelLineKey
 import org.wfanet.measurement.common.api.ResourceIds
 import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
@@ -41,7 +42,6 @@ import org.wfanet.measurement.internal.reporting.v2.createMetricCalculationSpecR
 import org.wfanet.measurement.internal.reporting.v2.getMetricCalculationSpecRequest
 import org.wfanet.measurement.internal.reporting.v2.listMetricCalculationSpecsRequest
 import org.wfanet.measurement.internal.reporting.v2.metricCalculationSpec as internalMetricCalculationSpec
-import org.wfanet.measurement.api.v2alpha.ModelLineKey
 import org.wfanet.measurement.reporting.v2alpha.CreateMetricCalculationSpecRequest
 import org.wfanet.measurement.reporting.v2alpha.GetMetricCalculationSpecRequest
 import org.wfanet.measurement.reporting.v2alpha.ListMetricCalculationSpecsPageToken
@@ -244,8 +244,8 @@ class MetricCalculationSpecsService(
       if (source.modelLine.isEmpty()) {
         null
       } else {
-        ModelLineKey.fromName(source.modelLine) ?:
-        failGrpc(Status.INVALID_ARGUMENT) { "invalid model_line" }
+        ModelLineKey.fromName(source.modelLine)
+          ?: failGrpc(Status.INVALID_ARGUMENT) { "invalid model_line" }
       }
 
     return internalMetricCalculationSpec {
@@ -450,12 +450,18 @@ class MetricCalculationSpecsService(
           trailingWindow = source.details.trailingWindow.toPublic()
         }
         tags.putAll(source.details.tagsMap)
-        if (source.cmmsModelProviderId.isNotEmpty() && source.cmmsModelSuiteId.isNotEmpty() && source.cmmsModelLineId.isNotEmpty()) {
-          modelLine = ModelLineKey(
-            source.cmmsModelProviderId,
-            source.cmmsModelSuiteId,
-            source.cmmsModelLineId
-          ).toName()
+        if (
+          source.cmmsModelProviderId.isNotEmpty() &&
+            source.cmmsModelSuiteId.isNotEmpty() &&
+            source.cmmsModelLineId.isNotEmpty()
+        ) {
+          modelLine =
+            ModelLineKey(
+                source.cmmsModelProviderId,
+                source.cmmsModelSuiteId,
+                source.cmmsModelLineId,
+              )
+              .toName()
         }
       }
     }
