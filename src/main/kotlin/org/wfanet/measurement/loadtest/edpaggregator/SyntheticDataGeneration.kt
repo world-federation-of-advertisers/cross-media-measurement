@@ -34,7 +34,6 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.CartesianSyntheticEventGroupSpecRecipe
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.FieldValue
-import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SimulatorSyntheticDataSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec.FrequencySpec.VidRangeSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpecKt
@@ -55,16 +54,15 @@ object SyntheticDataGeneration {
 
   /**
    * Generates events non-probablistically. Given a total frequency across a date period, it will
-   * generate events based on the probability that a user would have had an impression that day.
-   * For example, for a user with frequency of 5, over a 10 day period, there is a 50% chance they
-   * have an impression each day.
+   * generate events based on the probability that a user would have had an impression that day. For
+   * example, for a user with frequency of 5, over a 10 day period, there is a 50% chance they have
+   * an impression each day.
    *
    * Generates a flow of [LabeledImpression].
    *
    * @param messageInstance an instance of the event message type [T]
    * @param populationSpec specification of the synthetic population
    * @param syntheticEventGroupSpec specification of the synthetic event group
-   *
    */
   fun <T : Message> generateEvents(
     messageInstance: T,
