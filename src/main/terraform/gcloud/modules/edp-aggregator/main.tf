@@ -116,7 +116,7 @@ module "tee_apps" {
   instance_template_name        = each.value.worker.instance_template_name
   base_instance_name            = each.value.worker.base_instance_name
   managed_instance_group_name   = each.value.worker.managed_instance_group_name
-  subscription_id               = module.edp_aggregator_queues[each.key].pubsub_subscription.id
+  subscription_id               = module.edp_aggregator_queues[each.key].pubsub_subscription.name
   mig_service_account_name      = each.value.worker.mig_service_account_name
   single_instance_assignment    = each.value.worker.single_instance_assignment
   min_replicas                  = each.value.worker.min_replicas
