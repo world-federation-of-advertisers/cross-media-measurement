@@ -89,6 +89,28 @@ abstract class MetricCalculationSpecsServiceTest<T : MetricCalculationSpecsCorou
   }
 
   @Test
+  fun `createMetricCalculationSpec with model line returns successfully`() = runBlocking {
+    createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
+    val metricCalculationSpec = createMetricCalculationSpecForRequest().copy {
+      cmmsModelProviderId = "123"
+      cmmsModelSuiteId = "123"
+      cmmsModelLineId = "123"
+    }
+
+    val request = createMetricCalculationSpecRequest {
+      this.metricCalculationSpec = metricCalculationSpec
+      externalMetricCalculationSpecId = "external-metric-calculation-spec-id"
+    }
+    val createdMetricCalculationSpec = service.createMetricCalculationSpec(request)
+
+    assertThat(metricCalculationSpec)
+      .ignoringFields(MetricCalculationSpec.EXTERNAL_METRIC_CALCULATION_SPEC_ID_FIELD_NUMBER)
+      .isEqualTo(createdMetricCalculationSpec)
+    assertThat(createdMetricCalculationSpec.externalMetricCalculationSpecId)
+      .isEqualTo(request.externalMetricCalculationSpecId)
+  }
+
+  @Test
   fun `createMetricCalculationSpec throws ALREADY_EXISTS when same external ID used 2x`() =
     runBlocking {
       createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
@@ -174,6 +196,38 @@ abstract class MetricCalculationSpecsServiceTest<T : MetricCalculationSpecsCorou
   fun `getMetricCalculationSpec returns metric calculation spec`() = runBlocking {
     createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
     val metricCalculationSpec = createMetricCalculationSpecForRequest()
+
+    val createRequest = createMetricCalculationSpecRequest {
+      this.metricCalculationSpec = metricCalculationSpec
+      externalMetricCalculationSpecId = "external-metric-calculation-spec-id"
+    }
+    val createdMetricCalculationSpec = service.createMetricCalculationSpec(createRequest)
+
+    val retrievedMetricCalculationSpec =
+      service.getMetricCalculationSpec(
+        getMetricCalculationSpecRequest {
+          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+          externalMetricCalculationSpecId =
+            createdMetricCalculationSpec.externalMetricCalculationSpecId
+        }
+      )
+
+    assertThat(retrievedMetricCalculationSpec.externalMetricCalculationSpecId)
+      .isEqualTo(createRequest.externalMetricCalculationSpecId)
+    assertThat(retrievedMetricCalculationSpec)
+      .ignoringFields(MetricCalculationSpec.EXTERNAL_METRIC_CALCULATION_SPEC_ID_FIELD_NUMBER)
+      .ignoringRepeatedFieldOrder()
+      .isEqualTo(metricCalculationSpec)
+  }
+
+  @Test
+  fun `getMetricCalculationSpec with model line returns successfully`() = runBlocking {
+    createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
+    val metricCalculationSpec = createMetricCalculationSpecForRequest().copy {
+      cmmsModelProviderId = "123"
+      cmmsModelSuiteId = "123"
+      cmmsModelLineId = "123"
+    }
 
     val createRequest = createMetricCalculationSpecRequest {
       this.metricCalculationSpec = metricCalculationSpec

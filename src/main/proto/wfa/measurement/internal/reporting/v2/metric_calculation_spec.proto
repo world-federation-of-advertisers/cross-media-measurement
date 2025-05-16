@@ -28,6 +28,13 @@ message MetricCalculationSpec {
   string cmms_measurement_consumer_id = 1;
   string external_metric_calculation_spec_id = 2;
 
+  // `ModelProvider` ID from the CMMS public API.
+  string cmms_model_provider_id = 4;
+  // `ModelSuite` ID from the CMMS public API.
+  string cmms_model_suite_id = 5;
+  // `ModelLine` ID from the CMMS public API.
+  string cmms_model_line_id = 6;
+
   message Grouping {
     repeated string predicates = 1;
   }

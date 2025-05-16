@@ -42,7 +42,10 @@ class MetricCalculationSpecReader(private val readContext: ReadContext) {
       MeasurementConsumerId,
       MetricCalculationSpecId,
       ExternalMetricCalculationSpecId,
-      MetricCalculationSpecDetails
+      MetricCalculationSpecDetails,
+      CmmsModelProviderId,
+      CmmsModelSuiteId,
+      CmmsModelLineId
     FROM MetricCalculationSpecs
       JOIN MeasurementConsumers USING(MeasurementConsumerId)
     """
@@ -141,9 +144,22 @@ class MetricCalculationSpecReader(private val readContext: ReadContext) {
   }
 
   private fun buildMetricCalculationSpec(row: ResultRow): MetricCalculationSpec {
+    val cmmsModelProviderId: String? = row["CmmsModelProviderId"]
+    val cmmsModelSuiteId: String? = row["CmmsModelSuiteId"]
+    val cmmsModelLineId: String? = row["CmmsModelLineId"]
+
     return metricCalculationSpec {
       cmmsMeasurementConsumerId = row["CmmsMeasurementConsumerId"]
       externalMetricCalculationSpecId = row["ExternalMetricCalculationSpecId"]
+      if (cmmsModelProviderId != null) {
+        this.cmmsModelProviderId = cmmsModelProviderId
+      }
+      if (cmmsModelSuiteId != null) {
+        this.cmmsModelSuiteId = cmmsModelSuiteId
+      }
+      if (cmmsModelLineId != null) {
+        this.cmmsModelLineId = cmmsModelLineId
+      }
       details =
         row.getProtoMessage("MetricCalculationSpecDetails", MetricCalculationSpec.Details.parser())
     }

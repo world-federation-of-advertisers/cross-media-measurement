@@ -196,7 +196,7 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
     val statement =
       valuesListBoundStatement(
         valuesStartIndex = 0,
-        paramCount = 27,
+        paramCount = 30,
         """
       INSERT INTO Metrics
         (
@@ -226,7 +226,10 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
           SingleDataProviderFrequencyDifferentialPrivacyEpsilon,
           SingleDataProviderFrequencyDifferentialPrivacyDelta,
           SingleDataProviderVidSamplingIntervalStart,
-          SingleDataProviderVidSamplingIntervalWidth
+          SingleDataProviderVidSamplingIntervalWidth,
+          CmmsModelProviderId,
+          CmmsModelSuiteId,
+          CmmsModelLineId
         )
         VALUES ${ValuesListBoundStatement.VALUES_LIST_PLACEHOLDER}
          """,
@@ -260,6 +263,15 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
                 it.metric.timeInterval.endTime.toInstant().atOffset(ZoneOffset.UTC),
               )
               bindValuesParam(7, it.metric.metricSpec.typeCase.number)
+              if (it.metric.cmmsModelProviderId.isNotEmpty()) {
+                bindValuesParam(27, it.metric.cmmsModelProviderId)
+                bindValuesParam(28, it.metric.cmmsModelSuiteId)
+                bindValuesParam(29, it.metric.cmmsModelLineId)
+              } else {
+                bindValuesParam<String>(27, null)
+                bindValuesParam<String>(28, null)
+                bindValuesParam<String>(29, null)
+              }
               @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
               when (it.metric.metricSpec.typeCase) {
                 MetricSpec.TypeCase.REACH_AND_FREQUENCY -> {

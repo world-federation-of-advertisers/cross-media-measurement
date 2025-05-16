@@ -72,6 +72,7 @@ import org.wfanet.measurement.internal.reporting.v2.ReportScheduleIterationsGrpc
 import org.wfanet.measurement.internal.reporting.v2.ReportSchedulesGrpcKt.ReportSchedulesCoroutineStub as InternalReportSchedulesCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt.ReportingSetsCoroutineStub as InternalReportingSetsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.ReportsGrpcKt.ReportsCoroutineStub as InternalReportsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.ModelLineKey
 import org.wfanet.measurement.internal.reporting.v2.measurementConsumer
 import org.wfanet.measurement.measurementconsumer.stats.VariancesImpl
 import org.wfanet.measurement.reporting.deploy.v2.common.EncryptionKeyPairMap
@@ -217,6 +218,16 @@ private object V2AlphaPublicApiServer {
         v2AlphaPublicServerFlags.knownEventGroupMetadataTypes,
         Dispatchers.Default,
       )
+
+    ModelLineKey.fromName(reportingApiServerFlags.defaultVidModelLine)
+      ?: throw IllegalArgumentException("--default-vid-model-line is invalid")
+
+    reportingApiServerFlags.measurementConsumerModelLines.entries.forEach {
+      MeasurementConsumerKey.fromName(it.key)
+        ?: throw IllegalArgumentException("--measurement-consumer-model-line is invalid")
+      ModelLineKey.fromName(it.value)
+        ?: throw IllegalArgumentException("--measurement-consumer-model-line is invalid")
+    }
 
     val metricsService =
       MetricsService(

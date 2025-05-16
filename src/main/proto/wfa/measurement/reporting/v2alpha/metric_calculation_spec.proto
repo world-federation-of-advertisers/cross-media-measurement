@@ -47,6 +47,10 @@ message MetricCalculationSpec {
     (google.api.field_behavior) = IMMUTABLE
   ];
 
+  string model_line = 10 [
+    (google.api.resource_reference).type = "halo.wfanet.org/ModelLine"
+  ];
+
   // A collection of metrics.
   repeated MetricSpec metric_specs = 3 [
     (google.api.field_behavior) = REQUIRED,

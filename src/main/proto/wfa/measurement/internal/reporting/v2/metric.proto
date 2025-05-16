@@ -96,6 +96,13 @@ message Metric {
 
   MetricSpec metric_spec = 6;
 
+  // `ModelProvider` ID from the CMMS public API.
+  string cmms_model_provider_id = 10;
+  // `ModelSuite` ID from the CMMS public API.
+  string cmms_model_suite_id = 11;
+  // `ModelLine` ID from the CMMS public API.
+  string cmms_model_line_id = 12;
+
   message WeightedMeasurement {
     int32 weight = 1;
     int32 binary_representation = 2;

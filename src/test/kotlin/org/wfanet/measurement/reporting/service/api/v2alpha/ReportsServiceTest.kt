@@ -100,6 +100,7 @@ import org.wfanet.measurement.internal.reporting.v2.metricSpec as internalMetric
 import org.wfanet.measurement.internal.reporting.v2.report as internalReport
 import org.wfanet.measurement.internal.reporting.v2.streamReportsRequest
 import org.wfanet.measurement.internal.reporting.v2.timeIntervals as internalTimeIntervals
+import org.wfanet.measurement.api.v2alpha.ModelLineKey
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportScheduleInfoServerInterceptor.Companion.withReportScheduleInfo
 import org.wfanet.measurement.reporting.v2alpha.BatchCreateMetricsRequest
 import org.wfanet.measurement.reporting.v2alpha.BatchGetMetricsRequest
@@ -306,6 +307,78 @@ class ReportsServiceTest {
         permissionsServiceMock,
         PermissionsGrpcKt.PermissionsCoroutineImplBase::checkPermissions,
       )
+      .isEqualTo(
+        checkPermissionsRequest {
+          principal = PRINCIPAL.name
+          protectedResource = request.parent
+          permissions += "permissions/${ReportsService.Permission.CREATE}"
+        }
+      )
+
+    assertThat(result).isEqualTo(PENDING_REACH_REPORT)
+  }
+
+  @Test
+  fun `createReport returns report when model line in metric calculation spec`() = runBlocking {
+    val modelLineKey = ModelLineKey("123", "124", "125")
+    whenever(internalMetricCalculationSpecsMock.batchGetMetricCalculationSpecs(any()))
+      .thenAnswer {
+        val request = it.arguments[0] as BatchGetMetricCalculationSpecsRequest
+        val metricCalculationSpecsMap =
+          mapOf(
+            INTERNAL_REACH_METRIC_CALCULATION_SPEC.externalMetricCalculationSpecId to
+              INTERNAL_REACH_METRIC_CALCULATION_SPEC.copy {
+                cmmsModelProviderId = modelLineKey.modelProviderId
+                cmmsModelSuiteId = modelLineKey.modelSuiteId
+                cmmsModelLineId = modelLineKey.modelLineId
+              } ,
+            INTERNAL_WATCH_DURATION_METRIC_CALCULATION_SPEC.externalMetricCalculationSpecId to
+              INTERNAL_WATCH_DURATION_METRIC_CALCULATION_SPEC.copy {
+                cmmsModelProviderId = modelLineKey.modelProviderId
+                cmmsModelSuiteId = modelLineKey.modelSuiteId
+                cmmsModelLineId = modelLineKey.modelLineId
+              },
+          )
+        batchGetMetricCalculationSpecsResponse {
+          metricCalculationSpecs +=
+            request.externalMetricCalculationSpecIdsList.map { id ->
+              metricCalculationSpecsMap.getValue(id)
+            }
+        }
+      }
+
+    val request = createReportRequest {
+      parent = MEASUREMENT_CONSUMER_KEYS.first().toName()
+      report =
+        PENDING_REACH_REPORT.copy {
+          clearName()
+          clearCreateTime()
+          clearState()
+        }
+      reportId = "report-id"
+    }
+    val result =
+      withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createReport(request) }
+
+    verifyProtoArgument(metricsMock, MetricsCoroutineImplBase::batchCreateMetrics)
+      .isEqualTo(
+        batchCreateMetricsRequest {
+          parent = MEASUREMENT_CONSUMER_KEYS.first().toName()
+          requests += createMetricRequest {
+            parent = MEASUREMENT_CONSUMER_KEYS.first().toName()
+            metric = REQUESTING_REACH_METRIC.copy {
+              modelLine = modelLineKey.toName()
+              containingReport = PENDING_REACH_REPORT.name
+            }
+            requestId = ExternalId(REACH_METRIC_ID_BASE_LONG).apiId.value
+            metricId = "$METRIC_ID_PREFIX$requestId"
+          }
+        }
+      )
+    verifyProtoArgument(
+      permissionsServiceMock,
+      PermissionsGrpcKt.PermissionsCoroutineImplBase::checkPermissions,
+    )
       .isEqualTo(
         checkPermissionsRequest {
           principal = PRINCIPAL.name
