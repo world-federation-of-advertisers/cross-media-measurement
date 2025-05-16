@@ -132,7 +132,8 @@ resource "google_compute_instance_template" "confidential_vm_template" {
   service_account {
     email = google_service_account.mig_service_account.email
     scopes = [
-        "https://www.googleapis.com/auth/cloud-platform"
+        "https://www.googleapis.com/auth/cloud-platform",
+        "https://www.googleapis.com/auth/pubsub"
     ]
   }
 }
