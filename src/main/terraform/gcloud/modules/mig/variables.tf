@@ -107,3 +107,15 @@ variable "config_storage_bucket" {
   description = "Configuration storage bucket."
   type        = string
 }
+
+variable "network_name" {
+  description = "The name of the VPC network for the MIG instances."
+  type        = string
+  nullable    = false
+}
+
+variable "subnetwork_name" {
+  description = "The name of the subnetwork for the MIG instances."
+  type        = string
+  nullable    = false
+}

@@ -237,3 +237,34 @@ variable "results_fulfiller_disk_image_family" {
   type        = string
   default     = "confidential-space"
 }
+
+variable "private_network_location" {
+  description = "The region used for the private network"
+  type        = string
+  nullable    = false
+}
+
+variable "private_network_name" {
+  description = "The name of the VPC network for the MIG instances."
+  type        = string
+  default     = "private-network"
+}
+
+variable "private_subnetwork_name" {
+  description = "The name of the subnetwork for the MIG instances."
+  type        = string
+  default     = "private-subnet"
+}
+
+variable "private_router_name" {
+  description = "The name for the Cloud Router for the private network."
+  type        = string
+  default     = "nat-router"
+}
+
+variable "nat_name" {
+  description = "The name for the Cloud NAT gateway."
+  type        = string
+  default     = "nat-gateway"
+}
+
