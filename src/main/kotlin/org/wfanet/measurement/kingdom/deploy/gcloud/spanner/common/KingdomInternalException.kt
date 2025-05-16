@@ -69,8 +69,10 @@ sealed class KingdomInternalException : Exception {
   }
 }
 
-class RequiredFieldNotSetException(val fieldName: String) :
-  KingdomInternalException(ErrorCode.REQUIRED_FIELD_NOT_SET, "Required field $fieldName not set") {
+class RequiredFieldNotSetException(
+  val fieldName: String,
+  provideDescription: (fieldName: String) -> String = { "Required field $fieldName not set" },
+) : KingdomInternalException(ErrorCode.REQUIRED_FIELD_NOT_SET, provideDescription(fieldName)) {
   override val context: Map<String, String>
     get() = mapOf("field_name" to fieldName)
 }

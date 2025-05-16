@@ -209,7 +209,6 @@ abstract class RequisitionFulfiller(
       parent = dataProviderData.name
       filter = filter {
         states += Requisition.State.UNFULFILLED
-        measurementStates += Measurement.State.AWAITING_REQUISITION_FULFILLMENT
       }
     }
 

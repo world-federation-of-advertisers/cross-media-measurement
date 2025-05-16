@@ -399,61 +399,6 @@ class RequisitionsServiceTest {
   }
 
   @Test
-  fun `listRequisitions requests internal Requisitions filtered by Measurement state`() =
-    runBlocking {
-      whenever(internalRequisitionMock.streamRequisitions(any()))
-        .thenReturn(flowOf(INTERNAL_REQUISITION, INTERNAL_REQUISITION, INTERNAL_REQUISITION))
-      val request = listRequisitionsRequest {
-        parent = DATA_PROVIDER_NAME
-        pageSize = 2
-        filter = filter { measurementStates += Measurement.State.FAILED }
-      }
-
-      val response =
-        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
-          runBlocking { service.listRequisitions(request) }
-        }
-
-      val streamRequisitionRequest: StreamRequisitionsRequest = captureFirst {
-        verify(internalRequisitionMock).streamRequisitions(capture())
-      }
-      assertThat(streamRequisitionRequest)
-        .ignoringRepeatedFieldOrder()
-        .isEqualTo(
-          streamRequisitionsRequest {
-            limit = 3
-            filter =
-              StreamRequisitionsRequestKt.filter {
-                states += VISIBLE_REQUISITION_STATES
-                externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
-                measurementStates += InternalMeasurement.State.FAILED
-              }
-          }
-        )
-      assertThat(response)
-        .ignoringFields(ListRequisitionsResponse.NEXT_PAGE_TOKEN_FIELD_NUMBER)
-        .ignoringRepeatedFieldOrder()
-        .isEqualTo(
-          listRequisitionsResponse {
-            requisitions += REQUISITION
-            requisitions += REQUISITION
-          }
-        )
-      assertThat(ListRequisitionsPageToken.parseFrom(response.nextPageToken.base64UrlDecode()))
-        .isEqualTo(
-          listRequisitionsPageToken {
-            externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
-            measurementStates += Measurement.State.FAILED
-            lastRequisition = previousPageEnd {
-              updateTime = INTERNAL_REQUISITION.updateTime
-              externalRequisitionId = EXTERNAL_REQUISITION_ID
-              externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
-            }
-          }
-        )
-    }
-
-  @Test
   fun `listRequisitions with more results remaining returns response with next page token`() {
     val laterUpdateTime = timestamp { seconds = INTERNAL_REQUISITION.updateTime.seconds + 100 }
     whenever(internalRequisitionMock.streamRequisitions(any()))
@@ -523,36 +468,6 @@ class RequisitionsServiceTest {
       initialRequest.copy {
         pageToken = initialResponse.nextPageToken
         filter = filter.copy { states.clear() }
-      }
-
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
-        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
-          runBlocking { service.listRequisitions(request) }
-        }
-      }
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception).hasMessageThat().contains("page")
-  }
-
-  @Test
-  fun `listRequisitions throws INVALID ARGUMENT when Measurement state filter mismatches on next page`() {
-    whenever(internalRequisitionMock.streamRequisitions(any()))
-      .thenReturn(flowOf(INTERNAL_REQUISITION, INTERNAL_REQUISITION, INTERNAL_REQUISITION))
-      .thenReturn(flowOf(INTERNAL_REQUISITION))
-    val initialRequest = listRequisitionsRequest {
-      parent = DATA_PROVIDER_NAME
-      pageSize = 2
-      filter = filter { measurementStates += Measurement.State.AWAITING_REQUISITION_FULFILLMENT }
-    }
-    val initialResponse =
-      withDataProviderPrincipal(DATA_PROVIDER_NAME) {
-        runBlocking { service.listRequisitions(initialRequest) }
-      }
-    val request =
-      initialRequest.copy {
-        pageToken = initialResponse.nextPageToken
-        filter = filter.copy { measurementStates += Measurement.State.FAILED }
       }
 
     val exception =

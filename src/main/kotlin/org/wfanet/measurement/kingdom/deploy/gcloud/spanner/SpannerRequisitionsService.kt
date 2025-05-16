@@ -32,6 +32,7 @@ import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequest
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DuchyNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementStateIllegalException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.RequiredFieldNotSetException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.RequisitionNotFoundByDataProviderException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.RequisitionNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.RequisitionStateIllegalException
@@ -65,9 +66,18 @@ class SpannerRequisitionsService(
   override fun streamRequisitions(request: StreamRequisitionsRequest): Flow<Requisition> {
     val requestFilter = request.filter
     if (requestFilter.externalMeasurementId != 0L) {
-      grpcRequire(requestFilter.externalMeasurementConsumerId != 0L) {
-        "external_measurement_consumer_id must be specified if external_measurement_id is specified"
+      if (requestFilter.externalMeasurementConsumerId == 0L) {
+        throw RequiredFieldNotSetException("filter.external_measurement_consumer_id") { fieldName ->
+            "$fieldName is required when filter.external_measurement_id is set"
+          }
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
       }
+    }
+    if (requestFilter.measurementStatesList.isNotEmpty()) {
+      throw Status.INVALID_ARGUMENT.withDescription(
+          "filter.measurement_states is no longer supported"
+        )
+        .asRuntimeException()
     }
 
     return StreamRequisitions(requestFilter, request.limit).execute(client.singleUse()).map {

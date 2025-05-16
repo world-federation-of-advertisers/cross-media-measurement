@@ -11,6 +11,7 @@ kt_jvm_library(
     srcs = glob(["*.kt"]),
     deps = KINGDOM_INTERNAL_PROTOS + [
         "//src/main/kotlin/org/wfanet/measurement/api:public_api_version",
+        "//src/main/kotlin/org/wfanet/measurement/common:fillable_template",
         "//src/main/kotlin/org/wfanet/measurement/common:flows",
         "//src/main/kotlin/org/wfanet/measurement/common/identity",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common:duchy_ids",
