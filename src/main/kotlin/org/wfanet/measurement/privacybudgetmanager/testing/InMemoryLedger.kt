@@ -25,13 +25,13 @@ class InMemoryLedger : Ledger {
 }
 
 class TestInMemoryLedgerTransactionContext : TransactionContext {
-  override suspend fun readQueries(queries: List<Query>): List<Query> =
+  override suspend fun readQueries(queries: List<Query>, maxBatchSize: Int): List<Query> =
     TODO("uakyol: implement this")
 
-  override suspend fun readChargeRows(rowKeys: List<LedgerRowKey>): Slice =
+  override suspend fun readChargeRows(rowKeys: List<LedgerRowKey>, maxBatchSize: Int): Slice =
     TODO("uakyol: implement this")
 
-  override suspend fun write(delta: Slice, queries: List<Query>): List<Query> =
+  override suspend fun write(delta: Slice, queries: List<Query>, maxBatchSize: Int): List<Query> =
     TODO("uakyol: implement this")
 
   override suspend fun commit() = TODO("uakyol: implement this")

@@ -28,12 +28,16 @@ option java_outer_classname = "QueryProto";
 // be referenced at the audit log and in the PBM ledger. In practice
 // this maps to a single requisition.
 message QueryIdentifiers {
+  // The id of the data provider this query belongs to.
+  string event_data_provider_id = 1;
   // The external system reference id. This is likely the requisition id.
-  string external_reference_id = 1;
+  string external_reference_id = 2;
   // The id of the measurement consumre this charge belongs to.
-  string measurement_consumer_id = 2;
+  string measurement_consumer_id = 3;
   // Specifies if the charge is a refund or not.
-  bool is_refund = 3;
+  bool is_refund = 4;
+  // Timestamp that this query was committed to the ledger. Can be empty
+  google.protobuf.Timestamp create_time = 5;
 }
 
 // The list of dates this query targets in the privacy landscape
@@ -71,6 +75,4 @@ message Query {
   AcdpCharge acdp_charge = 3;
   // Which privacy landscape the targetted buckets belong to.
   string privacy_landscape_identifier = 4;
-  // Timestamp that this query was committed to the ledger. Can be empty
-  google.protobuf.Timestamp create_time = 5;
 }
