@@ -52,6 +52,7 @@ import org.wfanet.measurement.access.v1alpha.PermissionsGrpcKt
 import org.wfanet.measurement.access.v1alpha.checkPermissionsResponse
 import org.wfanet.measurement.access.v1alpha.copy
 import org.wfanet.measurement.access.v1alpha.principal
+import org.wfanet.measurement.api.v2alpha.ModelLineKey
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
@@ -304,6 +305,52 @@ class MetricCalculationSpecsServiceTest {
         }
       )
   }
+
+  @Test
+  fun `createMetricCalculationSpec returns metric calculation spec when model_line set`() =
+    runBlocking {
+      val cmmsModelProviderId = "123"
+      val cmmsModelSuiteId = "123"
+      val cmmsModelLineId = "123"
+      val internalMetricCalculationSpec =
+        INTERNAL_METRIC_CALCULATION_SPEC.copy {
+          this.cmmsModelProviderId = cmmsModelProviderId
+          this.cmmsModelSuiteId = cmmsModelSuiteId
+          this.cmmsModelLineId = cmmsModelLineId
+        }
+
+      whenever(internalMetricCalculationSpecsMock.createMetricCalculationSpec(any()))
+        .thenReturn(internalMetricCalculationSpec)
+
+      val metricCalculationSpec =
+        METRIC_CALCULATION_SPEC.copy {
+          modelLine = ModelLineKey(cmmsModelProviderId, cmmsModelSuiteId, cmmsModelLineId).toName()
+        }
+      val request = createMetricCalculationSpecRequest {
+        parent = MEASUREMENT_CONSUMER_NAME
+        this.metricCalculationSpec = metricCalculationSpec
+        metricCalculationSpecId = METRIC_CALCULATION_SPEC_ID
+      }
+
+      val createdMetricCalculationSpec =
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) {
+          runBlocking { service.createMetricCalculationSpec(request) }
+        }
+
+      assertThat(createdMetricCalculationSpec).isEqualTo(metricCalculationSpec)
+
+      verifyProtoArgument(
+          internalMetricCalculationSpecsMock,
+          MetricCalculationSpecsCoroutineImplBase::createMetricCalculationSpec,
+        )
+        .isEqualTo(
+          internalCreateMetricCalculationSpecRequest {
+            this.metricCalculationSpec =
+              internalMetricCalculationSpec.copy { clearExternalMetricCalculationSpecId() }
+            externalMetricCalculationSpecId = METRIC_CALCULATION_SPEC_ID
+          }
+        )
+    }
 
   @Test
   fun `createMetricCalculationSpec returns metric calculation spec when both no freq and window`() =
@@ -602,6 +649,24 @@ class MetricCalculationSpecsServiceTest {
 
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     assertThat(exception.message).contains("display_name")
+  }
+
+  @Test
+  fun `createMetricCalculationSpec throws INVALID_ARGUMENT when model_line invalid`() {
+    val request = createMetricCalculationSpecRequest {
+      parent = MEASUREMENT_CONSUMER_NAME
+      metricCalculationSpec = METRIC_CALCULATION_SPEC.copy { modelLine = "invalid" }
+      metricCalculationSpecId = METRIC_CALCULATION_SPEC_ID
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) {
+          runBlocking { service.createMetricCalculationSpec(request) }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
   }
 
   @Test

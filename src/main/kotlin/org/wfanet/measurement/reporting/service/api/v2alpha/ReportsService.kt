@@ -48,6 +48,7 @@ import org.wfanet.measurement.access.client.v1alpha.Authorization
 import org.wfanet.measurement.access.client.v1alpha.check
 import org.wfanet.measurement.access.client.v1alpha.withForwardedTrustedCredentials
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
+import org.wfanet.measurement.api.v2alpha.ModelLineKey
 import org.wfanet.measurement.common.api.ResourceIds
 import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
@@ -409,15 +410,31 @@ class ReportsService(
         entry.value.metricCalculationSpecReportingMetricsList.asFlow().flatMapMerge {
           metricCalculationSpecReportingMetrics ->
           metricCalculationSpecReportingMetrics.reportingMetricsList.asFlow().map {
+            val metricCalculationSpec =
+              externalIdToMetricCalculationSpecMap.getValue(
+                metricCalculationSpecReportingMetrics.externalMetricCalculationSpecId
+              )
+            val modelLineName =
+              if (
+                metricCalculationSpec.cmmsModelProviderId.isNotEmpty() &&
+                  metricCalculationSpec.cmmsModelSuiteId.isNotEmpty() &&
+                  metricCalculationSpec.cmmsModelLineId.isNotEmpty()
+              ) {
+                ModelLineKey(
+                    metricCalculationSpec.cmmsModelProviderId,
+                    metricCalculationSpec.cmmsModelSuiteId,
+                    metricCalculationSpec.cmmsModelLineId,
+                  )
+                  .toName()
+              } else null
             it.toCreateMetricRequest(
               parentKey,
               entry.key,
-              externalIdToMetricCalculationSpecMap
-                .getValue(metricCalculationSpecReportingMetrics.externalMetricCalculationSpecId)
-                .details
-                .filter,
-              ReportKey(internalReport.cmmsMeasurementConsumerId, internalReport.externalReportId)
-                .toName(),
+              filter = metricCalculationSpec.details.filter,
+              modelLineName = modelLineName,
+              containingReportResourceName =
+                ReportKey(internalReport.cmmsMeasurementConsumerId, internalReport.externalReportId)
+                  .toName(),
             )
           }
         }

@@ -24,6 +24,7 @@ import org.projectnessie.cel.Env
 import org.wfanet.measurement.access.client.v1alpha.Authorization
 import org.wfanet.measurement.access.client.v1alpha.check
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
+import org.wfanet.measurement.api.v2alpha.ModelLineKey
 import org.wfanet.measurement.common.api.ResourceIds
 import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
@@ -239,8 +240,21 @@ class MetricCalculationSpecsService(
         }
       }
 
+    val modelLineKey: ModelLineKey? =
+      if (source.modelLine.isEmpty()) {
+        null
+      } else {
+        ModelLineKey.fromName(source.modelLine)
+          ?: failGrpc(Status.INVALID_ARGUMENT) { "invalid model_line" }
+      }
+
     return internalMetricCalculationSpec {
       this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
+      if (modelLineKey != null) {
+        cmmsModelProviderId = modelLineKey.modelProviderId
+        cmmsModelSuiteId = modelLineKey.modelSuiteId
+        cmmsModelLineId = modelLineKey.modelLineId
+      }
       details =
         InternalMetricCalculationSpecKt.details {
           displayName = source.displayName
@@ -436,6 +450,19 @@ class MetricCalculationSpecsService(
           trailingWindow = source.details.trailingWindow.toPublic()
         }
         tags.putAll(source.details.tagsMap)
+        if (
+          source.cmmsModelProviderId.isNotEmpty() &&
+            source.cmmsModelSuiteId.isNotEmpty() &&
+            source.cmmsModelLineId.isNotEmpty()
+        ) {
+          modelLine =
+            ModelLineKey(
+                source.cmmsModelProviderId,
+                source.cmmsModelSuiteId,
+                source.cmmsModelLineId,
+              )
+              .toName()
+        }
       }
     }
 
