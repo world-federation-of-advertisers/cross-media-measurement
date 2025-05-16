@@ -65,9 +65,11 @@ abstract class BaseTeeApplication(
    * If an error occurs during the message flow, it is logged and handling continues.
    */
   private suspend fun receiveAndProcessMessages() {
+    logger.info("~~~~~~~~~~~~~~~ SUBSCRIBING TO: ${subscriptionId} - ${parser}")
     val messageChannel: ReceiveChannel<QueueSubscriber.QueueMessage<WorkItem>> =
       queueSubscriber.subscribe(subscriptionId, parser)
     for (message: QueueSubscriber.QueueMessage<WorkItem> in messageChannel) {
+      logger.info("~~~~~~~~~~~~~~~ RECEIVED MESSAGE IN CHANNEL")
       processMessage(message)
     }
   }
