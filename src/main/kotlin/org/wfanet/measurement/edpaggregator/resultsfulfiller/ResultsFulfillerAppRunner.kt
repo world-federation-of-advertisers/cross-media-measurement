@@ -7,6 +7,7 @@ import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import picocli.CommandLine
 import java.io.File
+import java.util.logging.Logger
 import org.wfanet.measurement.gcloud.pubsub.DefaultGooglePubSubClient
 import org.wfanet.measurement.gcloud.pubsub.Subscriber
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
@@ -136,6 +137,7 @@ class ResultsFulfillerAppRunner : Runnable {
 
   private fun createQueueSubscriber(): QueueSubscriber {
     val pubSubClient = DefaultGooglePubSubClient()
+    logger.info("~~~~ creating pubSubclient: ${pubSubProjectId}, ${pubSubClient}")
     return Subscriber(projectId = pubSubProjectId, googlePubSubClient = pubSubClient)
   }
 
@@ -144,6 +146,7 @@ class ResultsFulfillerAppRunner : Runnable {
   }
 
   companion object {
+    private val logger = Logger.getLogger(this::class.java.name)
     @JvmStatic
     fun main(args: Array<String>) = commandLineMain(ResultsFulfillerAppRunner(), args)
   }
