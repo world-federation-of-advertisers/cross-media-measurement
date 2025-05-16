@@ -34,7 +34,6 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.CartesianSyntheticEventGroupSpecRecipe
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.FieldValue
-import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SimulatorSyntheticDataSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec.FrequencySpec.VidRangeSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpecKt
@@ -54,11 +53,12 @@ object SyntheticDataGeneration {
   private const val FINGERPRINT_BUFFER_SIZE_BYTES = 512
 
   /**
-   * Generates a sequence of [LabeledImpression].
+   * Generates events non-probablistically. Given a total frequency across a date period, it will
+   * generate events based on the probability that a user would have had an impression that day. For
+   * example, for a user with frequency of 5, over a 10 day period, there is a 50% chance they have
+   * an impression each day.
    *
-   * Consumption of [Sequence] throws
-   * * [IllegalStateException] when [SimulatorSyntheticDataSpec] is invalid, or incompatible
-   * * with [T].
+   * Generates a flow of [LabeledImpression].
    *
    * @param messageInstance an instance of the event message type [T]
    * @param populationSpec specification of the synthetic population
@@ -73,17 +73,15 @@ object SyntheticDataGeneration {
     return flow {
       for (dateSpec: SyntheticEventGroupSpec.DateSpec in syntheticEventGroupSpec.dateSpecsList) {
         val dateProgression: LocalDateProgression = dateSpec.dateRange.toProgression()
-        val numDays = ChronoUnit.DAYS.between(dateProgression.start, dateProgression.endInclusive)
+        val numDays =
+          ChronoUnit.DAYS.between(dateProgression.start, dateProgression.endInclusive) + 1
         logger.info("Writing $numDays of data")
         for (date in dateProgression) {
-          logger.info(
-            "Generating data for date: $date"
-          )
+          logger.info("Generating data for date: $date")
           val innerFlow: Flow<LabeledImpression> = flow {
-
             for (frequencySpec: SyntheticEventGroupSpec.FrequencySpec in
               dateSpec.frequencySpecsList) {
-              val chanceRange = frequencySpec.frequency / numDays.toDouble()
+              val chanceRange = 1 / numDays.toDouble()
 
               check(!frequencySpec.hasOverlaps()) { "The VID ranges should be non-overlapping." }
 
@@ -127,15 +125,17 @@ object SyntheticDataGeneration {
 
                 val timestamp = date.atStartOfDay().toInstant(ZoneOffset.UTC)
                 for (vid in vidRangeSpec.sampledVids(syntheticEventGroupSpec.samplingNonce)) {
-                  val randomDouble = Random.nextDouble(0.0, 1.1)
-                  if (randomDouble < chanceRange) {
-                    emit(
-                      labeledImpression {
-                        eventTime = timestamp.toProtoTime()
-                        this.vid = vid
-                        event = ProtoAny.pack(message)
-                      }
-                    )
+                  for (i in 0 until frequencySpec.frequency) {
+                    val randomDouble = Random.nextDouble(0.0, 1.0)
+                    if (randomDouble < chanceRange) {
+                      emit(
+                        labeledImpression {
+                          eventTime = timestamp.toProtoTime()
+                          this.vid = vid
+                          event = ProtoAny.pack(message)
+                        }
+                      )
+                    }
                   }
                 }
               }

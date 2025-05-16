@@ -43,13 +43,11 @@ class ImpressionsWriter(
 ) {
 
   /*
- * Takes a Flow<Pair<LocalDate, Flow<LabeledImpression>>>, encrypts that data with a KMS,
- * and outputs the data to storage along with the necessary metadata for a the ResultsFulfiller
- * to be able to find and read the contents.
- */
-  suspend fun writeLabeledImpressionData(
-    events: Flow<Pair<LocalDate, Flow<LabeledImpression>>>,
-  ) {
+   * Takes a Flow<Pair<LocalDate, Flow<LabeledImpression>>>, encrypts that data with a KMS,
+   * and outputs the data to storage along with the necessary metadata for a the ResultsFulfiller
+   * to be able to find and read the contents.
+   */
+  suspend fun writeLabeledImpressionData(events: Flow<Pair<LocalDate, Flow<LabeledImpression>>>) {
     // Set up streaming encryption
     val tinkKeyTemplateType = "AES128_GCM_HKDF_1MB"
     val aeadKeyTemplate = KeyTemplates.get(tinkKeyTemplateType)
@@ -67,14 +65,11 @@ class ImpressionsWriter(
 
     val storageMap: MutableMap<String, MesosRecordIoStorageClient> = mutableMapOf()
 
-    var currentDsEvents = mutableListOf<LabeledImpression>()
-    var currentDs: String? = null
     events.collect { (localDate: LocalDate, labeledImpressions: Flow<LabeledImpression>) ->
       val ds = localDate.toString()
       logger.info("Writing Date: $ds")
 
-      val impressionsBlobKey =
-        "ds/$currentDs/event-group-reference-id/$eventGroupReferenceId/impressions"
+      val impressionsBlobKey = "ds/$ds/event-group-reference-id/$eventGroupReferenceId/impressions"
       val impressionsFileUri = "$schema$bucket/$impressionsBlobKey"
       val mesosRecordIoStorageClient = run {
         val impressionsStorageClient = SelectedStorageClient(impressionsFileUri, storagePath)
@@ -91,7 +86,7 @@ class ImpressionsWriter(
         storageMap.set(impressionsBlobKey, mesosRecordIoStorageClient)
         mesosRecordIoStorageClient
       }
-      logger.info("Writing impressions to $impressionsBlobKey")
+      logger.info("Writing impressions to $impressionsFileUri")
       // Write impressions to storage
       runBlocking {
         mesosRecordIoStorageClient.writeBlob(
@@ -120,8 +115,6 @@ class ImpressionsWriter(
           blobDetails.toByteString(),
         )
       }
-      currentDs = ds
-      currentDsEvents.clear()
     }
   }
 
