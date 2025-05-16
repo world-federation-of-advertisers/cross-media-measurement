@@ -25,9 +25,9 @@ locals {
   reporting_v2_cluster_name = "reporting-v2"
   simulators_cluster_name   = "simulators"
 
-  cluster_location        = var.cluster_location == null ? data.google_client_config.default.zone : var.cluster_location
-  key_ring_location       = var.key_ring_location == null ? data.google_client_config.default.region : var.key_ring_location
-  storage_bucket_location = var.storage_bucket_location == null ? data.google_client_config.default.region : var.storage_bucket_location
+  cluster_location         = var.cluster_location == null ? data.google_client_config.default.zone : var.cluster_location
+  key_ring_location        = var.key_ring_location == null ? data.google_client_config.default.region : var.key_ring_location
+  storage_bucket_location  = var.storage_bucket_location == null ? data.google_client_config.default.region : var.storage_bucket_location
 }
 
 provider "google" {}
