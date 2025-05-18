@@ -23,11 +23,42 @@ option java_multiple_files = true;
 
 // Internal service for persistence of ModelProvider entities.
 service ModelProviders {
+  // Creates a new `ModelProvider`.
   rpc CreateModelProvider(ModelProvider) returns (ModelProvider);
 
+  // Gets a `ModelProvider`.
   rpc GetModelProvider(GetModelProviderRequest) returns (ModelProvider);
+
+  // Lists `ModelProvider`s.
+  rpc ListModelProviders(ListModelProvidersRequest)
+      returns (ListModelProvidersResponse);
 }
 
 message GetModelProviderRequest {
   fixed64 external_model_provider_id = 1;
+}
+
+message ListModelProvidersRequest {
+  // The maximum number of results to return.
+  //
+  // If unspecified, at most 50 results will be returned. The maximum value is
+  // 100; values above this will be coerced to the maximum value.
+  int32 page_size = 1;
+  ListModelProvidersPageToken page_token = 2;
+}
+
+message ListModelProvidersResponse {
+  repeated ModelProvider modelProviders = 1;
+
+  // Token for requesting subsequent pages.
+  //
+  // If not specified, there are no more results.
+  ListModelProvidersPageToken next_page_token = 2;
+}
+
+message ListModelProvidersPageToken {
+  message After {
+    fixed64 external_model_provider_id = 1;
+  }
+  After after = 1;
 }
