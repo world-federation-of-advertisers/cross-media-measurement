@@ -33,7 +33,9 @@ object LandscapeUtils {
   fun getBuckets(
     eventGroupLandscapeMasks: List<EventGroupLandscapeMask>,
     privacyLandscape: PrivacyLandscape,
-  ): List<PrivacyBucket> = TODO("uakyol: implement this")
+  ): List<PrivacyBucket> {
+    TODO("uakyol: implement this")
+  }
 
   /**
    * Maps a list of [PrivacyBucket]s from an [fromPrivacyLandscape] to an [toPrivacyLandscape]
