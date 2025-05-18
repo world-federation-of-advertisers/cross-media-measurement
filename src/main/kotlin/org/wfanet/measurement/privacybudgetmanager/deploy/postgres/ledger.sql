@@ -17,6 +17,18 @@ CREATE TYPE ChargesTableState AS ENUM('BACKFILLING', 'READY');
 
 
 -- Holds the state and privacyLandscapeName for all the previous (deleted) and current PrivacyCharges tables.
+-- At any point, there is only one PrivacyCharges table. This table holds charges that adhere to PrivacyLandscape
+-- defiened by the PrivacyLandscapeName column in PrivacyChargesMetadata.
+-- When a new landscape is added to the system, operator of the PBM runs an offline backfilling operation. 
+
+-- A straightforward way to run this operation is as folloiws: 
+-- PrivacyCharges table is renamed to PrivacyChargesOld table. A new PrivacyCharges table with the same 
+-- schema is created. 
+-- The state of the PrivacyCharges table is marked as BACKFILLING by inserting a new row for the new 
+-- landscape into PrivacyChargesMetadata table with the state BACKFILLING. 
+-- The offline job reads all the rows from PrivacyChargesOld and maps the Charges column using LandscapeUtils
+-- and inserts them into PrivacyCharges table. After all rows are inserted, PrivacyChargesMetadata state 
+-- is updated to be READY. Optionally PrivacyChargesOld table is dropped.
 CREATE TABLE PrivacyChargesMetadata (
    -- Name of the Privacy Landscape that is used to map the charges column of this table.
    -- There can be only one table hence, on entry in the metadata table per privacyLandscapeName.
@@ -32,7 +44,8 @@ CREATE TABLE PrivacyChargesMetadata (
 
 -- Holds all the charges. As the privacy landscapes are updated, old PrivacyCharges tables
 -- get deleted and migrated to the new PrivacyCharges table which holds in its Charges column, a proto
--- that adheres to the new Privacy Landscape
+-- that adheres to the new Privacy Landscape.
+-- TODO(uakyol) : Consider adding a JSON companion column  for Charges.
 CREATE TABLE PrivacyCharges(
  -- The EDP these charges belong to.
  EdpId text NOT NULl,

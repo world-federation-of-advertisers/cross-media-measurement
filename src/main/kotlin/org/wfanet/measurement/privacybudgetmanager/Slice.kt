@@ -70,8 +70,8 @@ class Slice {
         .distinct()
     return intervalCharges {
       intervalIndexes.forEach { intervalIndex ->
-        val firstCharge = first.vidIntervalIndexToChargesMap[intervalIndex]
-        val secondCharge = second.vidIntervalIndexToChargesMap[intervalIndex]
+        val firstCharge: AcdpChage? = first.vidIntervalIndexToChargesMap[intervalIndex]
+        val secondCharge: AcdpChage? = second.vidIntervalIndexToChargesMap[intervalIndex]
 
         if (firstCharge != null && secondCharge != null) {
           vidIntervalIndexToCharges[intervalIndex] = add(firstCharge, secondCharge)
@@ -79,6 +79,8 @@ class Slice {
           vidIntervalIndexToCharges[intervalIndex] = firstCharge
         } else if (secondCharge != null) {
           vidIntervalIndexToCharges[intervalIndex] = secondCharge
+        } else {
+          throw IllegalArgumentException("Both AcdpChages are null. This should never happen.")
         }
       }
     }
@@ -89,8 +91,10 @@ class Slice {
       (first.populationIndexToChargesMap.keys + second.populationIndexToChargesMap.keys).distinct()
     return charges {
       populationIndexes.forEach { populationIndex ->
-        val firstIntervalCharges = first.populationIndexToChargesMap[populationIndex]
-        val secondIntervalCharges = second.populationIndexToChargesMap[populationIndex]
+        val firstIntervalCharges: IntervalCharges? =
+          first.populationIndexToChargesMap[populationIndex]
+        val secondIntervalCharges: IntervalCharges? =
+          second.populationIndexToChargesMap[populationIndex]
 
         if (firstIntervalCharges != null && secondIntervalCharges != null) {
           populationIndexToCharges[populationIndex] =
@@ -99,6 +103,8 @@ class Slice {
           populationIndexToCharges[populationIndex] = firstIntervalCharges
         } else if (secondIntervalCharges != null) {
           populationIndexToCharges[populationIndex] = secondIntervalCharges
+        } else {
+          throw IllegalArgumentException("Both IntervalCharges are null. This should never happen.")
         }
       }
     }
