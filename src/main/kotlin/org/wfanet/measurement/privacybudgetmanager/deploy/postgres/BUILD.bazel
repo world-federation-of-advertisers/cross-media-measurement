@@ -7,7 +7,7 @@ package(default_visibility = [
 
 kt_jvm_library(
     name = "postgres_ledger",
-    srcs = glob(["PostgresLedger.kt"]),
+    srcs = ["PostgresLedger.kt"],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/privacybudgetmanagement:privacy_budget_manager",
         "//src/main/kotlin/org/wfanet/measurement/privacybudgetmanager:privacy_budget_manager",

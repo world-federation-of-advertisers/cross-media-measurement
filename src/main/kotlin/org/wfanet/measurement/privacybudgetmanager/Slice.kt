@@ -70,8 +70,8 @@ class Slice {
         .distinct()
     return intervalCharges {
       intervalIndexes.forEach { intervalIndex ->
-        val firstCharge: AcdpChage? = first.vidIntervalIndexToChargesMap[intervalIndex]
-        val secondCharge: AcdpChage? = second.vidIntervalIndexToChargesMap[intervalIndex]
+        val firstCharge: AcdpCharge? = first.vidIntervalIndexToChargesMap[intervalIndex]
+        val secondCharge: AcdpCharge? = second.vidIntervalIndexToChargesMap[intervalIndex]
 
         if (firstCharge != null && secondCharge != null) {
           vidIntervalIndexToCharges[intervalIndex] = add(firstCharge, secondCharge)
