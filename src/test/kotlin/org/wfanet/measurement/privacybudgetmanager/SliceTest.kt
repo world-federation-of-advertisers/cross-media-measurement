@@ -27,7 +27,7 @@ class SliceTest {
   @Test
   fun `Slice successfully merges same row keys`() {
     val slice = Slice()
-    val rowKey = LedgerRowKey("mc1", "eg1", LocalDate.of(2024, 1, 1))
+    val rowKey = LedgerRowKey("edp", "mc1", "eg1", LocalDate.of(2024, 1, 1))
 
     val charges1 = charges {
       populationIndexToCharges[123] =
