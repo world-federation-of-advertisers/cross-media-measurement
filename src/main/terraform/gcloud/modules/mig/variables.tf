@@ -107,13 +107,13 @@ variable "terraform_service_account" {
 }
 
 variable "network_name" {
-  description = "The name of the VPC network for the MIG instances."
+  description = "The name of the VPC network to deploy the instances in."
   type        = string
-  nullable    = false
+  default     = "default"
 }
 
 variable "subnetwork_name" {
-  description = "The name of the subnetwork for the MIG instances."
+  description = "The name of the subnetwork to deploy the instances in."
   type        = string
   nullable    = false
 }
