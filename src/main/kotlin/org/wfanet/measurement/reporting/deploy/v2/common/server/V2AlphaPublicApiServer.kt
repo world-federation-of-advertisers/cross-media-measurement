@@ -219,14 +219,18 @@ private object V2AlphaPublicApiServer {
         Dispatchers.Default,
       )
 
-    ModelLineKey.fromName(reportingApiServerFlags.defaultVidModelLine)
-      ?: throw IllegalArgumentException("--default-vid-model-line is invalid")
+    if (reportingApiServerFlags.defaultVidModelLine.isNotEmpty()) {
+      ModelLineKey.fromName(reportingApiServerFlags.defaultVidModelLine)
+        ?: throw IllegalArgumentException("--default-vid-model-line is invalid")
+    }
 
-    reportingApiServerFlags.measurementConsumerModelLines.entries.forEach {
-      MeasurementConsumerKey.fromName(it.key)
-        ?: throw IllegalArgumentException("--measurement-consumer-model-line is invalid")
-      ModelLineKey.fromName(it.value)
-        ?: throw IllegalArgumentException("--measurement-consumer-model-line is invalid")
+    if (reportingApiServerFlags.measurementConsumerModelLines.entries.isNotEmpty()) {
+      reportingApiServerFlags.measurementConsumerModelLines.entries.forEach {
+        MeasurementConsumerKey.fromName(it.key)
+          ?: throw IllegalArgumentException("--measurement-consumer-model-line is invalid")
+        ModelLineKey.fromName(it.value)
+          ?: throw IllegalArgumentException("--measurement-consumer-model-line is invalid")
+      }
     }
 
     val metricsService =
