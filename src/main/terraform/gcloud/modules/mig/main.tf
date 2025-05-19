@@ -46,22 +46,22 @@ resource "google_secret_manager_secret_iam_member" "mig_sa_secret_accessor" {
   member    = "serviceAccount:${google_service_account.mig_service_account.email}"
 }
 
-# resource "google_compute_firewall" "allow-egress-all" {
-#   name    = "allow-egress-all"
-#   network = "default"
-#
-#   direction = "EGRESS"
-#
-#   allow {
-#     protocol = "tcp"
-#     ports    = ["443", "80"]
-#   }
-#
-#   destination_ranges = ["0.0.0.0/0"]
-#   priority           = 1000
-#
-#   target_service_accounts = [google_service_account.mig_service_account.email]
-# }
+resource "google_compute_firewall" "allow-egress-all" {
+  name    = "allow-egress-all"
+  network = "default"
+
+  direction = "EGRESS"
+
+  allow {
+    protocol = "tcp"
+    ports    = ["443", "80"]
+  }
+
+  destination_ranges = ["0.0.0.0/0"]
+  priority           = 1000
+
+  target_service_accounts = [google_service_account.mig_service_account.email]
+}
 
 resource "google_compute_instance_template" "confidential_vm_template" {
   machine_type = var.machine_type
