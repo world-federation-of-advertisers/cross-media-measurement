@@ -115,6 +115,11 @@ resource "google_compute_instance_template" "confidential_vm_template" {
             ]
           )
         )}
+        env:
+          - name: GRPC_TRACE
+            value: "all"
+          - name: GRPC_VERBOSITY
+            value: "DEBUG"
         volumeMounts:
           - name: ssl-secrets
             mountPath: /etc/ssl
