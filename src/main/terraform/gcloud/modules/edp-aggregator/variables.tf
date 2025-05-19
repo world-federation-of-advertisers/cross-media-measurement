@@ -212,12 +212,6 @@ variable "subnet_cidr_range" {
   default     = "10.0.0.0/24"
 }
 
-variable "region" {
-  description = "The region where resources will be created."
-  type        = string
-  default     = "us-central1"
-}
-
 variable "router_name" {
   description = "The name for the Cloud Router for the private network."
   type        = string

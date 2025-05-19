@@ -265,7 +265,7 @@ resource "google_cloud_run_service_iam_member" "event_group_sync_invoker" {
 # Network configuration for private VPC with internet and Google API access
 resource "google_compute_network" "private_network" {
   name                    = var.network_name
-  auto_create_subnetworks = false
+  auto_create_subnetworks = falsegit config pull.rebase true 
 }
 
 resource "google_compute_subnetwork" "private_subnetwork" {
@@ -279,7 +279,7 @@ resource "google_compute_subnetwork" "private_subnetwork" {
 # Cloud Router for NAT gateway
 resource "google_compute_router" "router" {
   name    = var.router_name
-  region  = var.region
+  region  = data.google_client_config.default.region
   network = google_compute_network.private_network.id
 }
 
