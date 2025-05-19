@@ -89,7 +89,10 @@ class GenerateSyntheticData : Runnable {
 
   @Option(
     names = ["--schema"],
-    description = ["The schema to write to. Supported options are gs:// and file:///. Used by a SelectedStorageClient to build the proper storage client to write output to."],
+    description =
+      [
+        "The schema to write to. Supported options are gs:// and file:///. Used by a SelectedStorageClient to build the proper storage client to write output to."
+      ],
     required = true,
     defaultValue = "file:///",
   )
@@ -146,7 +149,15 @@ class GenerateSyntheticData : Runnable {
     }
     runBlocking {
       val impressionWriter =
-        ImpressionsWriter(eventGroupReferenceId, kekUri, kmsClient, outputBucket, outputBucket, storagePath, schema)
+        ImpressionsWriter(
+          eventGroupReferenceId,
+          kekUri,
+          kmsClient,
+          outputBucket,
+          outputBucket,
+          storagePath,
+          schema,
+        )
       impressionWriter.writeLabeledImpressionData(events)
     }
   }

@@ -23,7 +23,6 @@ import com.google.protobuf.Message
 import com.google.protobuf.kotlin.toByteStringUtf8
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
-import java.time.LocalDate
 import java.time.ZoneOffset
 import java.time.temporal.ChronoUnit
 import java.util.logging.Logger
@@ -80,7 +79,7 @@ object SyntheticDataGeneration {
           logger.info("Generating data for date: $date")
           val innerFlow: Flow<LabeledImpression> = flow {
             for (frequencySpec: SyntheticEventGroupSpec.FrequencySpec in
-            dateSpec.frequencySpecsList) {
+              dateSpec.frequencySpecsList) {
               val chanceRange = 1 / numDays.toDouble()
 
               check(!frequencySpec.hasOverlaps()) { "The VID ranges should be non-overlapping." }
