@@ -15,62 +15,62 @@
 locals {
   secrets = {
     edpa_tee_app_tls_key = {
-      secret_id         = "edpa-tee-app-tls-key-3"
+      secret_id         = "edpa-tee-app-tls-key-4"
       secret_local_path = "${path.root}/../../../k8s/testing/secretfiles/edpa_tee_app_tls.key"
       is_binary_format  = false
     }
     edpa_tee_app_tls_pem = {
-      secret_id         = "edpa-tee-app-tls-pem-3"
+      secret_id         = "edpa-tee-app-tls-pem-4"
       secret_local_path = "${path.root}/../../../k8s/testing/secretfiles/edpa_tee_app_tls.pem"
       is_binary_format  = false
     }
     data_watcher_tls_key = {
-      secret_id         = "edpa-datawatcher-tls-key-3"
+      secret_id         = "edpa-datawatcher-tls-key-4"
       secret_local_path = "${path.root}/../../../k8s/testing/secretfiles/data_watcher_tls.key"
       is_binary_format  = false
     }
     data_watcher_tls_pem = {
-      secret_id         = "edpa-datawatcher-tls-pem-3"
+      secret_id         = "edpa-datawatcher-tls-pem-4"
       secret_local_path = "${path.root}/../../../k8s/testing/secretfiles/data_watcher_tls.pem"
       is_binary_format  = false
     }
     secure_computation_root_ca = {
-      secret_id         = "secure-computation-root-ca-3"
+      secret_id         = "secure-computation-root-ca-4"
       secret_local_path = "${path.root}/../../../k8s/testing/secretfiles/secure_computation_root.pem"
       is_binary_format  = false
     }
     kingdom_root_ca = {
-      secret_id         = "kingdom-root-ca-3"
+      secret_id         = "kingdom-root-ca-4"
       secret_local_path = "${path.root}/../../../k8s/testing/secretfiles/kingdom_root.pem"
       is_binary_format  = false
     }
     edp7_cert_der = {
-      secret_id         = "edp7-cert-der-3"
+      secret_id         = "edp7-cert-der-4"
       secret_local_path = "${path.root}/../../../k8s/testing/secretfiles/edp7_cs_cert.der"
       is_binary_format  = true
     }
     edp7_private_der = {
-      secret_id         = "edp7-private-der-3"
+      secret_id         = "edp7-private-der-4"
       secret_local_path = "${path.root}/../../../k8s/testing/secretfiles/edp7_cs_private.der"
       is_binary_format  = true
     }
     edp7_enc_private = {
-      secret_id         = "edp7-enc-private-3"
+      secret_id         = "edp7-enc-private-4"
       secret_local_path = "${path.root}/../../../k8s/testing/secretfiles/edp7_enc_private.tink"
       is_binary_format  = true
     }
     edp7_tls_key = {
-      secret_id         = "edp7-tls-key-3"
+      secret_id         = "edp7-tls-key-4"
       secret_local_path = "${path.root}/../../../k8s/testing/secretfiles/edp7_tls.key"
       is_binary_format  = false
     }
     edp7_tls_pem = {
-      secret_id         = "edp7-tls-pem-3"
+      secret_id         = "edp7-tls-pem-4"
       secret_local_path = "${path.root}/../../../k8s/testing/secretfiles/edp7_tls.pem"
       is_binary_format  = false
     }
     edpa_tee_app_trusted_ca = {
-      secret_id         = "edpa-tee-app-trusted-ca-2"
+      secret_id         = "edpa-tee-app-trusted-ca-4"
       secret_local_path = "${path.root}/../../../k8s/testing/secretfiles/ca-certificates.crt"
       is_binary_format  = false
     }
@@ -186,7 +186,7 @@ locals {
 module "edp_aggregator" {
   source = "../modules/edp-aggregator"
 
-  key_ring_name                             = "edpa-secure-computation-cloud-test-key-ring-5"
+  key_ring_name                             = "edpa-secure-computation-cloud-test-key-ring-6"
   key_ring_location                         = local.key_ring_location
   kms_key_name                              = "edpa-secure-computation-kek"
   queue_worker_configs                      = local.queue_worker_configs
