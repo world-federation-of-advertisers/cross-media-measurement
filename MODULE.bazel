@@ -44,8 +44,8 @@ bazel_dep(
 # DO_NOT_SUBMIT (world-federation-of-advertisers/common-jvm#286)
 archive_override(
     module_name = "common-jvm",
-    strip_prefix = "common-jvm-5f4b0a53ddcc1404e236923520473cef5c2b732d",
-    urls = "https://github.com/world-federation-of-advertisers/common-jvm/archive/5f4b0a53ddcc1404e236923520473cef5c2b732d.tar.gz",
+    strip_prefix = "common-jvm-6b96ec7be4d8d960935f4319b68a1d7ad2340a61",
+    urls = "https://github.com/world-federation-of-advertisers/common-jvm/archive/6b96ec7be4d8d960935f4319b68a1d7ad2340a61.tar.gz",
 )
 
 bazel_dep(
@@ -211,6 +211,15 @@ bazel_dep(
     version = "2.2.1",
 )
 
+oci = use_extension("@rules_oci//oci:extensions.bzl", "oci")
+oci.pull(
+    name = "java_debug_root",
+    digest = "sha256:46b4e5494edffefed75f509f33a23a47344936a4c46ec850912ebae47163533c",
+    image = "docker.io/bellsoft/liberica-openjdk-debian:17",
+    platforms = ["linux/amd64"],
+)
+use_repo(oci, "java_debug_root")
+
 maven = use_extension("@rules_jvm_external//:extensions.bzl", "maven")
 maven.artifact(
     artifact = "beam-runners-google-cloud-dataflow-java",
@@ -341,7 +350,7 @@ pip.parse(
 )
 use_repo(pip, "pip")
 
-oci = use_extension("@rules_oci//oci:extensions.bzl", "oci")
+#oci = use_extension("@rules_oci//oci:extensions.bzl", "oci")
 oci.pull(
     name = "go_image_base",
     # Digest of `nonroot` tag.

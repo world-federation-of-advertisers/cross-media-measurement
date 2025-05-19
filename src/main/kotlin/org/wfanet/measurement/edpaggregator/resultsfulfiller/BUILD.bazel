@@ -1,7 +1,7 @@
 load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
 load("@rules_java//java:defs.bzl", "java_binary")
-load("//build/platforms:constraints.bzl", "DISTROLESS_JAVA")
 load("//src/main/docker:macros.bzl", "java_image")
+load("//src/main/docker:macros.bzl", "java_debug_image")
 
 package(
     default_testonly = True,
@@ -87,8 +87,8 @@ java_binary(
 
 java_image(
     name = "edp_results_fulfiller_image",
+    base = "@java_debug_root",
     binary = ":EdpResultsFulfiller",
     main_class = "org.wfanet.measurement.edpaggregator.resultsfulfiller.ResultsFulfillerAppRunner",
-    target_compatible_with = DISTROLESS_JAVA,
     visibility = ["//src:docker_image_deployment"],
 )
