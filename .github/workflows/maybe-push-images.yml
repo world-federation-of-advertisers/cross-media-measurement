@@ -15,9 +15,9 @@
 name: Conditionally build and push container images
 
 on:
-#  push:
-#    branches:
-#      - marcopremier/edp_aggregator_cloud_test_requisition_fetcher
+  push:
+    branches:
+      - marcopremier/edp_aggregator_cloud_test_requisition_fetcher
   workflow_dispatch:
   workflow_call:
     inputs:

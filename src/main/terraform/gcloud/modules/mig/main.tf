@@ -180,8 +180,6 @@ resource "google_compute_instance_template" "confidential_vm_template" {
             value: "all"
           - name: GRPC_VERBOSITY
             value: "DEBUG"
-          - name: GRPC_DEFAULT_SSL_ROOTS_FILE_PATH
-            value: "/etc/ssl/ca-certificates.crt"
         volumeMounts:
           - name: ssl-secrets
             mountPath: /etc/ssl
@@ -195,6 +193,8 @@ resource "google_compute_instance_template" "confidential_vm_template" {
   EOT
       }
     )
+#     - name: GRPC_DEFAULT_SSL_ROOTS_FILE_PATH
+#                 value: "/etc/ssl/ca-certificates.crt"
 #           - name: JAVA_TOOL_OPTIONS
 #             value: "-Djavax.net.ssl.trustStore=/etc/ssl/ca-certificates.crt \
 #                     -Djavax.net.ssl.trustStorePassword=changeit"
