@@ -28,7 +28,8 @@ resource "google_service_account_iam_member" "allow_terraform_to_use_mig_sa" {
 
 resource "google_pubsub_subscription_iam_member" "mig_subscriber" {
   subscription  = var.subscription_id
-  role          = "roles/pubsub.subscriber"
+#   role          = "roles/pubsub.subscriber"
+  role          = "roles/pubsub.admin"
   member        = "serviceAccount:${google_service_account.mig_service_account.email}"
 }
 
