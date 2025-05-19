@@ -16,6 +16,7 @@ syntax = "proto3";
 
 package wfa.measurement.internal.reporting.v2;
 
+import "google/api/resource.proto";
 import "google/protobuf/duration.proto";
 import "google/protobuf/timestamp.proto";
 import "google/type/interval.proto";
@@ -96,12 +97,8 @@ message Metric {
 
   MetricSpec metric_spec = 6;
 
-  // `ModelProvider` ID from the CMMS public API.
-  string cmms_model_provider_id = 10;
-  // `ModelSuite` ID from the CMMS public API.
-  string cmms_model_suite_id = 11;
-  // `ModelLine` ID from the CMMS public API.
-  string cmms_model_line_id = 12;
+  string cmms_model_line = 10
+      [(google.api.resource_reference).type = "halo.wfanet.org/ModelLine"];
 
   message WeightedMeasurement {
     int32 weight = 1;

@@ -414,24 +414,11 @@ class ReportsService(
               externalIdToMetricCalculationSpecMap.getValue(
                 metricCalculationSpecReportingMetrics.externalMetricCalculationSpecId
               )
-            val modelLineName =
-              if (
-                metricCalculationSpec.cmmsModelProviderId.isNotEmpty() &&
-                  metricCalculationSpec.cmmsModelSuiteId.isNotEmpty() &&
-                  metricCalculationSpec.cmmsModelLineId.isNotEmpty()
-              ) {
-                ModelLineKey(
-                    metricCalculationSpec.cmmsModelProviderId,
-                    metricCalculationSpec.cmmsModelSuiteId,
-                    metricCalculationSpec.cmmsModelLineId,
-                  )
-                  .toName()
-              } else null
             it.toCreateMetricRequest(
               parentKey,
               entry.key,
               filter = metricCalculationSpec.details.filter,
-              modelLineName = modelLineName,
+              modelLineName = metricCalculationSpec.cmmsModelLine,
               containingReportResourceName =
                 ReportKey(internalReport.cmmsMeasurementConsumerId, internalReport.externalReportId)
                   .toName(),

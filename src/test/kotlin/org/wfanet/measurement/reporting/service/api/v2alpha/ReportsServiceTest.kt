@@ -320,22 +320,18 @@ class ReportsServiceTest {
 
   @Test
   fun `createReport returns report when model line in metric calculation spec`() = runBlocking {
-    val modelLineKey = ModelLineKey("123", "124", "125")
+    val modelLineName = ModelLineKey("123", "124", "125").toName()
     whenever(internalMetricCalculationSpecsMock.batchGetMetricCalculationSpecs(any())).thenAnswer {
       val request = it.arguments[0] as BatchGetMetricCalculationSpecsRequest
       val metricCalculationSpecsMap =
         mapOf(
           INTERNAL_REACH_METRIC_CALCULATION_SPEC.externalMetricCalculationSpecId to
             INTERNAL_REACH_METRIC_CALCULATION_SPEC.copy {
-              cmmsModelProviderId = modelLineKey.modelProviderId
-              cmmsModelSuiteId = modelLineKey.modelSuiteId
-              cmmsModelLineId = modelLineKey.modelLineId
+              cmmsModelLine = modelLineName
             },
           INTERNAL_WATCH_DURATION_METRIC_CALCULATION_SPEC.externalMetricCalculationSpecId to
             INTERNAL_WATCH_DURATION_METRIC_CALCULATION_SPEC.copy {
-              cmmsModelProviderId = modelLineKey.modelProviderId
-              cmmsModelSuiteId = modelLineKey.modelSuiteId
-              cmmsModelLineId = modelLineKey.modelLineId
+              cmmsModelLine = modelLineName
             },
         )
       batchGetMetricCalculationSpecsResponse {
@@ -366,7 +362,7 @@ class ReportsServiceTest {
             parent = MEASUREMENT_CONSUMER_KEYS.first().toName()
             metric =
               REQUESTING_REACH_METRIC.copy {
-                modelLine = modelLineKey.toName()
+                modelLine = modelLineName
                 containingReport = PENDING_REACH_REPORT.name
               }
             requestId = ExternalId(REACH_METRIC_ID_BASE_LONG).apiId.value

@@ -309,14 +309,10 @@ class MetricCalculationSpecsServiceTest {
   @Test
   fun `createMetricCalculationSpec returns metric calculation spec when model_line set`() =
     runBlocking {
-      val cmmsModelProviderId = "123"
-      val cmmsModelSuiteId = "123"
-      val cmmsModelLineId = "123"
+      val modelLineName = ModelLineKey("123", "1234", "125").toName()
       val internalMetricCalculationSpec =
         INTERNAL_METRIC_CALCULATION_SPEC.copy {
-          this.cmmsModelProviderId = cmmsModelProviderId
-          this.cmmsModelSuiteId = cmmsModelSuiteId
-          this.cmmsModelLineId = cmmsModelLineId
+          cmmsModelLine = modelLineName
         }
 
       whenever(internalMetricCalculationSpecsMock.createMetricCalculationSpec(any()))
@@ -324,7 +320,7 @@ class MetricCalculationSpecsServiceTest {
 
       val metricCalculationSpec =
         METRIC_CALCULATION_SPEC.copy {
-          modelLine = ModelLineKey(cmmsModelProviderId, cmmsModelSuiteId, cmmsModelLineId).toName()
+          modelLine = modelLineName
         }
       val request = createMetricCalculationSpecRequest {
         parent = MEASUREMENT_CONSUMER_NAME

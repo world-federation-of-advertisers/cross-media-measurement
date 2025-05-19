@@ -74,11 +74,9 @@ class CreateMetricCalculationSpec(private val request: CreateMetricCalculationSp
           ExternalMetricCalculationSpecId,
           MetricCalculationSpecDetails,
           MetricCalculationSpecDetailsJson,
-          CmmsModelProviderId,
-          CmmsModelSuiteId,
-          CmmsModelLineId
+          CmmsModelLineName
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        VALUES ($1, $2, $3, $4, $5, $6)
       """
       ) {
         bind("$1", measurementConsumerId)
@@ -86,14 +84,10 @@ class CreateMetricCalculationSpec(private val request: CreateMetricCalculationSp
         bind("$3", externalMetricCalculationSpecId)
         bind("$4", metricCalculationSpec.details)
         bind("$5", metricCalculationSpec.details.toJson())
-        if (metricCalculationSpec.cmmsModelProviderId.isNotEmpty()) {
-          bind("$6", metricCalculationSpec.cmmsModelProviderId)
-          bind("$7", metricCalculationSpec.cmmsModelSuiteId)
-          bind("$8", metricCalculationSpec.cmmsModelLineId)
+        if (metricCalculationSpec.cmmsModelLine.isNotEmpty()) {
+          bind("$6", metricCalculationSpec.cmmsModelLine)
         } else {
           bind<String?>("$6", null)
-          bind<String?>("$7", null)
-          bind<String?>("$8", null)
         }
       }
 

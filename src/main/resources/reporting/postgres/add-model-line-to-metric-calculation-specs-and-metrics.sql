@@ -18,11 +18,7 @@
 -- comment: Add 3 columns for different components of the ModelLine name to the MetricCalculationSpecs table and the Metrics table.
 
 ALTER TABLE MetricCalculationSpecs
-  ADD COLUMN CmmsModelProviderId text,
-  ADD COLUMN CmmsModelSuiteId text,
-  ADD COLUMN CmmsModelLineId text;
+  ADD COLUMN CmmsModelLineName text;
 
 ALTER TABLE Metrics
-  ADD COLUMN CmmsModelProviderId text,
-  ADD COLUMN CmmsModelSuiteId text,
-  ADD COLUMN CmmsModelLineId text;
+  ADD COLUMN CmmsModelLineName text;

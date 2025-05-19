@@ -93,9 +93,7 @@ abstract class MetricCalculationSpecsServiceTest<T : MetricCalculationSpecsCorou
     createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
     val metricCalculationSpec =
       createMetricCalculationSpecForRequest().copy {
-        cmmsModelProviderId = "123"
-        cmmsModelSuiteId = "123"
-        cmmsModelLineId = "123"
+        cmmsModelLine = "modelProviders/123/modelSuites/123/modelLines/123"
       }
 
     val request = createMetricCalculationSpecRequest {
@@ -226,9 +224,7 @@ abstract class MetricCalculationSpecsServiceTest<T : MetricCalculationSpecsCorou
     createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
     val metricCalculationSpec =
       createMetricCalculationSpecForRequest().copy {
-        cmmsModelProviderId = "123"
-        cmmsModelSuiteId = "123"
-        cmmsModelLineId = "123"
+        cmmsModelLine = "modelProviders/123/modelSuites/123/modelLines/123"
       }
 
     val createRequest = createMetricCalculationSpecRequest {

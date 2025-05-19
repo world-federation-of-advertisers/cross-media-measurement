@@ -951,7 +951,7 @@ fun InternalReport.ReportingMetric.toCreateMetricRequest(
   measurementConsumerKey: MeasurementConsumerKey,
   externalReportingSetId: String,
   filter: String,
-  modelLineName: String?,
+  modelLineName: String,
   containingReportResourceName: String,
 ): CreateMetricRequest {
   val source = this
@@ -963,9 +963,7 @@ fun InternalReport.ReportingMetric.toCreateMetricRequest(
           .toName()
       timeInterval = source.details.timeInterval
       metricSpec = source.details.metricSpec.toMetricSpec()
-      if (modelLineName != null) {
-        modelLine = modelLineName
-      }
+      modelLine = modelLineName
       filters += (source.details.groupingPredicatesList + filter).filter { it.isNotBlank() }
       containingReport = containingReportResourceName
     }

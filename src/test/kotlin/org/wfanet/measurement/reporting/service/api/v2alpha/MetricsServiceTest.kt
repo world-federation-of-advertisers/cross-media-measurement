@@ -5410,9 +5410,7 @@ class MetricsServiceTest {
       internalBatchCreateMetricsResponse {
         metrics +=
           INTERNAL_PENDING_INITIAL_SINGLE_PUBLISHER_IMPRESSION_METRIC.copy {
-            cmmsModelProviderId = modelLineKey.modelProviderId
-            cmmsModelSuiteId = modelLineKey.modelSuiteId
-            cmmsModelLineId = modelLineKey.modelLineId
+            cmmsModelLine = modelLineKey.toName()
           }
       }
 
@@ -5447,9 +5445,7 @@ class MetricsServiceTest {
           requests += internalCreateMetricRequest {
             metric =
               INTERNAL_REQUESTING_SINGLE_PUBLISHER_IMPRESSION_METRIC.copy {
-                cmmsModelProviderId = modelLineKey.modelProviderId
-                cmmsModelSuiteId = modelLineKey.modelSuiteId
-                cmmsModelLineId = modelLineKey.modelLineId
+                cmmsModelLine = modelLineKey.toName()
               }
             externalMetricId = "metric-id2"
           }

@@ -87,9 +87,7 @@ class MetricReader(private val readContext: ReadContext) {
     val weightedMeasurementInfoMap: MutableMap<MetricMeasurementKey, WeightedMeasurementInfo>,
     val details: Metric.Details,
     val state: Metric.State,
-    val cmmsModelProviderId: String?,
-    val cmmsModelSuiteId: String?,
-    val cmmsModelLineId: String?,
+    val cmmsModelLineName: String?,
   )
 
   private data class MetricMeasurementKey(
@@ -161,9 +159,7 @@ class MetricReader(private val readContext: ReadContext) {
       PrimitiveReportingSetBases.PrimitiveReportingSetBasisId,
       PrimitiveReportingSets.ExternalReportingSetId AS PrimitiveExternalReportingSetId,
       PrimitiveReportingSetBasisFilters.Filter AS PrimitiveReportingSetBasisFilter,
-      CmmsModelProviderId,
-      CmmsModelSuiteId,
-      CmmsModelLineId
+      CmmsModelLineName
     """
       .trimIndent()
 
@@ -607,14 +603,8 @@ class MetricReader(private val readContext: ReadContext) {
       createTime = metricInfo.createTime
       timeInterval = metricInfo.timeInterval
       metricSpec = metricInfo.metricSpec
-      if (metricInfo.cmmsModelProviderId != null) {
-        cmmsModelProviderId = metricInfo.cmmsModelProviderId
-      }
-      if (metricInfo.cmmsModelSuiteId != null) {
-        cmmsModelSuiteId = metricInfo.cmmsModelSuiteId
-      }
-      if (metricInfo.cmmsModelLineId != null) {
-        cmmsModelLineId = metricInfo.cmmsModelLineId
+      if (metricInfo.cmmsModelLineName != null) {
+        cmmsModelLine = metricInfo.cmmsModelLineName
       }
       metricInfo.weightedMeasurementInfoMap.values.forEach {
         weightedMeasurements +=
@@ -703,9 +693,7 @@ class MetricReader(private val readContext: ReadContext) {
       val primitiveExternalReportingSetId: String = row["PrimitiveExternalReportingSetId"]
       val primitiveReportingSetBasisFilter: String? = row["PrimitiveReportingSetBasisFilter"]
       val metricState: Metric.State = row.getProtoEnum("MetricsState", Metric.State::forNumber)
-      val cmmsModelProviderId: String? = row["CmmsModelProviderId"]
-      val cmmsModelSuiteId: String? = row["CmmsModelSuiteId"]
-      val cmmsModelLineId: String? = row["CmmsModelLineId"]
+      val cmmsModelLineName: String? = row["CmmsModelLineName"]
 
       val metricInfo =
         metricInfoMap.computeIfAbsent(externalMetricId) {
@@ -751,9 +739,7 @@ class MetricReader(private val readContext: ReadContext) {
             details = metricDetails,
             weightedMeasurementInfoMap = mutableMapOf(),
             state = metricState,
-            cmmsModelProviderId = cmmsModelProviderId,
-            cmmsModelSuiteId = cmmsModelSuiteId,
-            cmmsModelLineId = cmmsModelLineId,
+            cmmsModelLineName = cmmsModelLineName,
           )
         }
 

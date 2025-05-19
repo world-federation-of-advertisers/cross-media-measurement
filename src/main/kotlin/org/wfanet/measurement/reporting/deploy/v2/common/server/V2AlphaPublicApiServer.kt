@@ -47,7 +47,6 @@ import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutine
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub as KingdomMeasurementConsumersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub as KingdomMeasurementsCoroutineStub
-import org.wfanet.measurement.api.v2alpha.ModelLineKey
 import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt.ModelLinesCoroutineStub as KingdomModelLinesCoroutineStub
 import org.wfanet.measurement.api.withAuthenticationKey
 import org.wfanet.measurement.common.ProtoReflection
@@ -218,20 +217,6 @@ private object V2AlphaPublicApiServer {
         v2AlphaPublicServerFlags.knownEventGroupMetadataTypes,
         Dispatchers.Default,
       )
-
-    if (reportingApiServerFlags.defaultVidModelLine.isNotEmpty()) {
-      ModelLineKey.fromName(reportingApiServerFlags.defaultVidModelLine)
-        ?: throw IllegalArgumentException("--default-vid-model-line is invalid")
-    }
-
-    if (reportingApiServerFlags.measurementConsumerModelLines.entries.isNotEmpty()) {
-      reportingApiServerFlags.measurementConsumerModelLines.entries.forEach {
-        MeasurementConsumerKey.fromName(it.key)
-          ?: throw IllegalArgumentException("--measurement-consumer-model-line is invalid")
-        ModelLineKey.fromName(it.value)
-          ?: throw IllegalArgumentException("--measurement-consumer-model-line is invalid")
-      }
-    }
 
     val metricsService =
       MetricsService(

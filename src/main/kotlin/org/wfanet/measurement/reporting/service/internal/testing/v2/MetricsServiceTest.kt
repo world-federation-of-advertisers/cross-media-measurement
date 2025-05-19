@@ -586,9 +586,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
         startTime = timestamp { seconds = 10 }
         endTime = timestamp { seconds = 100 }
       }
-      cmmsModelProviderId = "123"
-      cmmsModelSuiteId = "123"
-      cmmsModelLineId = "123"
+      cmmsModelLine = "modelProviders/123/modelSuites/123/modelLines/123"
       metricSpec = metricSpec {
         reach =
           MetricSpecKt.reachParams {
@@ -2395,9 +2393,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
       createCreateMetricRequest(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService).copy {
         metric =
           metric.copy {
-            cmmsModelProviderId = "123"
-            cmmsModelSuiteId = "123"
-            cmmsModelLineId = "123"
+            cmmsModelLine = "modelProviders/123/modelSuites/123/modelLines/123"
           }
       }
     val createdMetric = service.createMetric(createMetricRequest)

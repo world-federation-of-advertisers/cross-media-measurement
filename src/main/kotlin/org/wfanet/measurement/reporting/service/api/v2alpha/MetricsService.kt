@@ -587,17 +587,8 @@ class MetricsService(
             }
         }
         modelLine =
-          if (
-            metric.cmmsModelProviderId.isNotEmpty() &&
-              metric.cmmsModelSuiteId.isNotEmpty() &&
-              metric.cmmsModelLineId.isNotEmpty()
-          ) {
-            ModelLineKey(
-                metric.cmmsModelProviderId,
-                metric.cmmsModelSuiteId,
-                metric.cmmsModelLineId,
-              )
-              .toName()
+          if (metric.cmmsModelLine.isNotEmpty()) {
+            metric.cmmsModelLine
           } else {
             measurementConsumerModelLines.getOrDefault(measurementConsumerName, defaultModelLine)
           }
@@ -1624,11 +1615,7 @@ class MetricsService(
         this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
         externalReportingSetId = internalReportingSet.externalReportingSetId
         timeInterval = request.metric.timeInterval
-        if (modelLineKey != null) {
-          cmmsModelProviderId = modelLineKey.modelProviderId
-          cmmsModelSuiteId = modelLineKey.modelSuiteId
-          cmmsModelLineId = modelLineKey.modelLineId
-        }
+        cmmsModelLine = request.metric.modelLine
         metricSpec =
           try {
             request.metric.metricSpec.withDefaults(metricSpecConfig, secureRandom).toInternal()
@@ -1832,15 +1819,7 @@ class MetricsService(
         ReportingSetKey(source.cmmsMeasurementConsumerId, source.externalReportingSetId).toName()
       timeInterval = source.timeInterval
       metricSpec = source.metricSpec.toMetricSpec()
-      if (
-        source.cmmsModelProviderId.isNotEmpty() &&
-          source.cmmsModelSuiteId.isNotEmpty() &&
-          source.cmmsModelLineId.isNotEmpty()
-      ) {
-        modelLine =
-          ModelLineKey(source.cmmsModelProviderId, source.cmmsModelSuiteId, source.cmmsModelLineId)
-            .toName()
-      }
+      modelLine = source.cmmsModelLine
       filters += source.details.filtersList
       state = source.state.toPublic()
       createTime = source.createTime
