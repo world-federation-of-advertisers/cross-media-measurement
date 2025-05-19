@@ -67,7 +67,7 @@ resource "google_compute_instance_template" "confidential_vm_template" {
 #     source_image = "projects/cos-cloud/global/images/family/cos-stable"
 #   }
   disk {
-    source_image = "projects/click-to-deploy-images/global/images/family/ubuntu-2004-lts-docker"
+    source_image = "ubuntu-os-cloud/ubuntu-2004-lts"
   }
 
   network_interface {
