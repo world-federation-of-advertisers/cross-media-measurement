@@ -50,34 +50,30 @@ class ImpressionWriterTest {
       client.setAead(kekUri, kmsKeyHandle.getPrimitive(Aead::class.java))
       client
     }
-    tempFolder.root.resolve("some-bucket").mkdirs()
+    tempFolder.root.resolve("some-impression-bucket").mkdirs()
+    tempFolder.root.resolve("some-metadata-bucket").mkdirs()
     val impressionWriter =
       ImpressionsWriter(
-        "some-event-group-reference-id",
+        "some-event-group-path",
         kekUri,
         kmsClient,
-        "some-bucket",
+        "some-impression-bucket",
+        "some-metadata-bucket",
         tempFolder.root,
         "file:///",
       )
-    val events: Flow<Pair<LocalDate, Flow<LabeledImpression>>> =
+    val events: Flow<DateShardedLabeledImpression> =
       flowOf(
-        Pair(LocalDate.parse("2020-01-01"), flowOf(labeledImpression {})),
-        Pair(LocalDate.parse("2020-01-02"), flowOf(labeledImpression {})),
+        DateShardedLabeledImpression(LocalDate.parse("2020-01-01"), flowOf(labeledImpression {})),
+        DateShardedLabeledImpression(LocalDate.parse("2020-01-02"), flowOf(labeledImpression {})),
       )
     runBlocking { impressionWriter.writeLabeledImpressionData(events) }
     val client = FileSystemStorageClient(tempFolder.root)
     runBlocking {
       listOf("2020-01-01", "2020-01-02").forEach {
+        assertNotNull(client.getBlob("some-metadata-bucket/ds/$it/some-event-group-path/metadata"))
         assertNotNull(
-          client.getBlob(
-            "some-bucket/ds/$it/event-group-reference-id/some-event-group-reference-id/metadata"
-          )
-        )
-        assertNotNull(
-          client.getBlob(
-            "some-bucket/ds/$it/event-group-reference-id/some-event-group-reference-id/impressions"
-          )
+          client.getBlob("some-impression-bucket/ds/$it/some-event-group-path/impressions")
         )
       }
     }

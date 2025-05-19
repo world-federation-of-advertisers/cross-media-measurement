@@ -1,5 +1,5 @@
 /*
- * Copyright 2023 The Cross-Media Measurement Authors
+ * Copyright 2025 The Cross-Media Measurement Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -68,7 +68,7 @@ object SyntheticDataGeneration {
     messageInstance: T,
     populationSpec: SyntheticPopulationSpec,
     syntheticEventGroupSpec: SyntheticEventGroupSpec,
-  ): Flow<Pair<LocalDate, Flow<LabeledImpression>>> {
+  ): Flow<DateShardedLabeledImpression> {
     val subPopulations = populationSpec.subPopulationsList
     return flow {
       for (dateSpec: SyntheticEventGroupSpec.DateSpec in syntheticEventGroupSpec.dateSpecsList) {
@@ -141,7 +141,7 @@ object SyntheticDataGeneration {
               }
             }
           }
-          emit(Pair(date, innerFlow))
+          emit(DateShardedLabeledImpression(date, innerFlow))
         }
       }
     }

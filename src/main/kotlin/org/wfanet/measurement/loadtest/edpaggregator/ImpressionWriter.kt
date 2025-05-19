@@ -33,21 +33,41 @@ import org.wfanet.measurement.edpaggregator.v1alpha.blobDetails
 import org.wfanet.measurement.storage.MesosRecordIoStorageClient
 import org.wfanet.measurement.storage.SelectedStorageClient
 
+/**
+ * A class responsible for writing labeled impression data to storage with encryption.
+ *
+ * This class handles the encryption of impression data using a Key Management Service (KMS) and
+ * outputs the encrypted data to a specified storage location. It also generates and stores the
+ * necessary metadata for the ResultsFulfiller to locate and read the contents.
+ *
+ * Uses a SelectedStorageClient based on the schema (supports gs:// and file:///).
+ *
+ * Impressions are written using a Mesos Record IO format using streaming envelope encryption.
+ *
+ * @property eventGroupPath The path to the event group where impressions are stored.
+ * @property kekUri The URI of the Key Encryption Key (KEK) used for envelope encryption.
+ * @property kmsClient The KMS client used for encryption operations.
+ * @property impressionsBucket The storage bucket where encrypted impressions are stored.
+ * @property impressionsMetadataBucket The storage bucket where metadata for impressions is stored.
+ * @property storagePath An optional file path for local storage, defaulting to null.
+ * @property schema The URI schema for storage paths, defaulting to "file:///".
+ */
 class ImpressionsWriter(
-  private val eventGroupReferenceId: String,
+  private val eventGroupPath: String,
   private val kekUri: String,
   private val kmsClient: KmsClient,
-  private val bucket: String,
+  private val impressionsBucket: String,
+  private val impressionsMetadataBucket: String,
   private val storagePath: File? = null,
   private val schema: String = "file:///",
 ) {
 
   /*
    * Takes a Flow<Pair<LocalDate, Flow<LabeledImpression>>>, encrypts that data with a KMS,
-   * and outputs the data to storage along with the necessary metadata for a the ResultsFulfiller
+   * and outputs the data to storage along with the necessary metadata for the ResultsFulfiller
    * to be able to find and read the contents.
    */
-  suspend fun writeLabeledImpressionData(events: Flow<Pair<LocalDate, Flow<LabeledImpression>>>) {
+  suspend fun writeLabeledImpressionData(events: Flow<DateShardedLabeledImpression>) {
     // Set up streaming encryption
     val tinkKeyTemplateType = "AES128_GCM_HKDF_1MB"
     val aeadKeyTemplate = KeyTemplates.get(tinkKeyTemplateType)
@@ -63,14 +83,12 @@ class ImpressionsWriter(
     val encryptedDek =
       EncryptedDek.newBuilder().setKekUri(kekUri).setEncryptedDek(serializedEncryptionKey).build()
 
-    val storageMap: MutableMap<String, MesosRecordIoStorageClient> = mutableMapOf()
-
     events.collect { (localDate: LocalDate, labeledImpressions: Flow<LabeledImpression>) ->
       val ds = localDate.toString()
       logger.info("Writing Date: $ds")
 
-      val impressionsBlobKey = "ds/$ds/event-group-reference-id/$eventGroupReferenceId/impressions"
-      val impressionsFileUri = "$schema$bucket/$impressionsBlobKey"
+      val impressionsBlobKey = "ds/$ds/$eventGroupPath/impressions"
+      val impressionsFileUri = "$schema$impressionsBucket/$impressionsBlobKey"
       val mesosRecordIoStorageClient = run {
         val impressionsStorageClient = SelectedStorageClient(impressionsFileUri, storagePath)
 
@@ -83,7 +101,6 @@ class ImpressionsWriter(
 
         // Wrap aead client in mesos client
         val mesosRecordIoStorageClient = MesosRecordIoStorageClient(aeadStorageClient)
-        storageMap.set(impressionsBlobKey, mesosRecordIoStorageClient)
         mesosRecordIoStorageClient
       }
       logger.info("Writing impressions to $impressionsFileUri")
@@ -94,10 +111,10 @@ class ImpressionsWriter(
           labeledImpressions.map { it.toByteString() },
         )
       }
-      val impressionsMetaDataBlobKey =
-        "ds/$ds/event-group-reference-id/$eventGroupReferenceId/metadata"
+      val impressionsMetaDataBlobKey = "ds/$ds/$eventGroupPath/metadata"
 
-      val impressionsMetadataFileUri = "$schema$bucket/$impressionsMetaDataBlobKey"
+      val impressionsMetadataFileUri =
+        "$schema$impressionsMetadataBucket/$impressionsMetaDataBlobKey"
 
       logger.info("Writing metadata to $impressionsMetadataFileUri")
 
