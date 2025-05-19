@@ -175,7 +175,7 @@ locals {
           {
             secret_key              = "edpa_tee_app_trusted_ca"
             version                 = "latest"
-            mount_path              = "/etc/ssl/certs/ca-certificates.crt"
+            mount_path              = "/etc/ssl/ca-certificates.crt"
           },
         ]
       }
