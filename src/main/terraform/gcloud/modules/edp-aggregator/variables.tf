@@ -223,3 +223,9 @@ variable "nat_name" {
   type        = string
   default     = "nat-gateway"
 }
+
+variable "region" {
+  description = "The region where resources will be created."
+  type        = string
+  nullable    = false
+}

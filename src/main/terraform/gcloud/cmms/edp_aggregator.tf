@@ -140,4 +140,5 @@ module "edp_aggregator" {
   subnet_cidr_range                         = "10.0.0.0/24"
   router_name                               = "edp-aggregator-router"
   nat_name                                  = "edp-aggregator-nat"
+  region                                    = data.google_client_config.default.region
 }
