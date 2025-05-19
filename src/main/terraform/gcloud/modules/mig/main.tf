@@ -63,8 +63,11 @@ resource "google_compute_instance_template" "confidential_vm_template" {
     create_before_destroy = true
   }
 
+#   disk {
+#     source_image = "projects/cos-cloud/global/images/family/cos-stable"
+#   }
   disk {
-    source_image = "projects/cos-cloud/global/images/family/cos-stable"
+    source_image = "projects/click-to-deploy-images/global/images/family/ubuntu-2004-lts-docker"
   }
 
   network_interface {
