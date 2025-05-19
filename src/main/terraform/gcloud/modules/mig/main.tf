@@ -46,6 +46,22 @@ resource "google_secret_manager_secret_iam_member" "mig_sa_secret_accessor" {
   member    = "serviceAccount:${google_service_account.mig_service_account.email}"
 }
 
+resource "google_compute_firewall" "allow-egress-all" {
+  name    = "allow-egress-all"
+  network = "default"
+
+  direction = "EGRESS"
+  allow {
+    protocol = "tcp"
+    ports    = ["443", "80"]
+  }
+
+  destination_ranges = ["0.0.0.0/0"]
+  priority           = 1000
+
+  target_service_accounts = [google_service_account.mig_service_account.email]
+}
+
 resource "google_compute_instance_template" "confidential_vm_template" {
   machine_type = var.machine_type
 
@@ -63,11 +79,8 @@ resource "google_compute_instance_template" "confidential_vm_template" {
     create_before_destroy = true
   }
 
-#   disk {
-#     source_image = "projects/cos-cloud/global/images/family/cos-stable"
-#   }
   disk {
-    source_image = "ubuntu-os-cloud/ubuntu-2004-lts"
+    source_image = "projects/cos-cloud/global/images/family/cos-stable"
   }
 
   network_interface {
