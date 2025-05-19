@@ -311,17 +311,12 @@ class MetricCalculationSpecsServiceTest {
     runBlocking {
       val modelLineName = ModelLineKey("123", "1234", "125").toName()
       val internalMetricCalculationSpec =
-        INTERNAL_METRIC_CALCULATION_SPEC.copy {
-          cmmsModelLine = modelLineName
-        }
+        INTERNAL_METRIC_CALCULATION_SPEC.copy { cmmsModelLine = modelLineName }
 
       whenever(internalMetricCalculationSpecsMock.createMetricCalculationSpec(any()))
         .thenReturn(internalMetricCalculationSpec)
 
-      val metricCalculationSpec =
-        METRIC_CALCULATION_SPEC.copy {
-          modelLine = modelLineName
-        }
+      val metricCalculationSpec = METRIC_CALCULATION_SPEC.copy { modelLine = modelLineName }
       val request = createMetricCalculationSpecRequest {
         parent = MEASUREMENT_CONSUMER_NAME
         this.metricCalculationSpec = metricCalculationSpec

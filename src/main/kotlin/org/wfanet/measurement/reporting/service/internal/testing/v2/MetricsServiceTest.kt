@@ -2391,10 +2391,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
 
     val createMetricRequest =
       createCreateMetricRequest(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService).copy {
-        metric =
-          metric.copy {
-            cmmsModelLine = "modelProviders/123/modelSuites/123/modelLines/123"
-          }
+        metric = metric.copy { cmmsModelLine = "modelProviders/123/modelSuites/123/modelLines/123" }
       }
     val createdMetric = service.createMetric(createMetricRequest)
 

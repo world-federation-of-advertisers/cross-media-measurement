@@ -326,13 +326,9 @@ class ReportsServiceTest {
       val metricCalculationSpecsMap =
         mapOf(
           INTERNAL_REACH_METRIC_CALCULATION_SPEC.externalMetricCalculationSpecId to
-            INTERNAL_REACH_METRIC_CALCULATION_SPEC.copy {
-              cmmsModelLine = modelLineName
-            },
+            INTERNAL_REACH_METRIC_CALCULATION_SPEC.copy { cmmsModelLine = modelLineName },
           INTERNAL_WATCH_DURATION_METRIC_CALCULATION_SPEC.externalMetricCalculationSpecId to
-            INTERNAL_WATCH_DURATION_METRIC_CALCULATION_SPEC.copy {
-              cmmsModelLine = modelLineName
-            },
+            INTERNAL_WATCH_DURATION_METRIC_CALCULATION_SPEC.copy { cmmsModelLine = modelLineName },
         )
       batchGetMetricCalculationSpecsResponse {
         metricCalculationSpecs +=

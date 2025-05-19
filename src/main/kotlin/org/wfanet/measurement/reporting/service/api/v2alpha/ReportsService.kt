@@ -48,7 +48,6 @@ import org.wfanet.measurement.access.client.v1alpha.Authorization
 import org.wfanet.measurement.access.client.v1alpha.check
 import org.wfanet.measurement.access.client.v1alpha.withForwardedTrustedCredentials
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
-import org.wfanet.measurement.api.v2alpha.ModelLineKey
 import org.wfanet.measurement.common.api.ResourceIds
 import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode

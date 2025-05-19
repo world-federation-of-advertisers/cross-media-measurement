@@ -23,7 +23,7 @@ import org.wfanet.measurement.api.v2alpha.ModelLineKey
 import picocli.CommandLine
 
 class ReportingApiServerFlags {
-  @CommandLine.Spec lateinit var spec : CommandLine.Model.CommandSpec
+  @CommandLine.Spec lateinit var spec: CommandLine.Model.CommandSpec
 
   @CommandLine.Mixin
   lateinit var internalApiFlags: InternalApiFlags
@@ -83,11 +83,12 @@ class ReportingApiServerFlags {
       ModelLineKey.fromName(value)
         ?: throw CommandLine.ParameterException(
           spec.commandLine(),
-          "Invalid value for option `--default-vid-model-line`: not a valid model line name"
+          "Invalid value for option `--default-vid-model-line`: not a valid model line name",
         )
     }
     defaultVidModelLine = value
   }
+
   lateinit var defaultVidModelLine: String
     private set
 
@@ -107,17 +108,18 @@ class ReportingApiServerFlags {
         MeasurementConsumerKey.fromName(entry.key)
           ?: throw CommandLine.ParameterException(
             spec.commandLine(),
-            "Invalid value for option `--measurement-consumer-model-line`: not a valid measurement consumer name"
+            "Invalid value for option `--measurement-consumer-model-line`: not a valid measurement consumer name",
           )
         ModelLineKey.fromName(entry.value)
           ?: throw CommandLine.ParameterException(
             spec.commandLine(),
-            "Invalid value for option `--measurement-consumer-model-line`: not a valid model line name"
+            "Invalid value for option `--measurement-consumer-model-line`: not a valid model line name",
           )
       }
     }
     measurementConsumerModelLines = value
   }
+
   lateinit var measurementConsumerModelLines: Map<String, String>
     private set
 
