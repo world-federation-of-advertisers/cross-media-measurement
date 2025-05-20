@@ -134,7 +134,8 @@ object LandscapeUtils {
     privacyLandscape: PrivacyLandscape,
     eventTemplateDescriptors: Iterable<Descriptors.FileDescriptor>,
   ) : List<Int>{
-    generateEventTemplateProtosFromDescriptors(privacyLandscape, eventTemplateDescriptors)
+    val generatedProtos = generateEventTemplateProtosFromDescriptors(privacyLandscape, eventTemplateDescriptors)
+    println(generatedProtos)
     return listOf(1)
   }
 
