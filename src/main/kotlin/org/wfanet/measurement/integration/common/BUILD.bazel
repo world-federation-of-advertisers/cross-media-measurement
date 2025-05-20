@@ -289,6 +289,54 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
+    name = "in_process_edp_aggregator_components",
+    srcs = [
+        "InProcessEdpAggregatorComponents.kt",
+    ],
+    visibility = [
+        "//src/main/kotlin/org/wfanet/measurement/integration:__subpackages__",
+    ],
+    deps = [
+        ":configs",
+        ":in_process_kingdom",
+        ":in_process_secure_computation_public_api",
+        ":synthetic_generation_specs",
+        "//src/main/kotlin/org/wfanet/measurement/common/identity",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/eventgroups:event_group_sync",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/requisitionfetcher:requisition_fetcher",
+        "//src/main/kotlin/org/wfanet/measurement/gcloud/testing",
+        "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:synthetic_generator_event_query",
+        "//src/main/kotlin/org/wfanet/measurement/loadtest/edpaggregator:impression_writer",
+        "//src/main/kotlin/org/wfanet/measurement/loadtest/edpaggregator:synthetic_data_generation",
+        "//src/main/kotlin/org/wfanet/measurement/loadtest/measurementconsumer:simulator",
+        "//src/main/kotlin/org/wfanet/measurement/loadtest/resourcesetup:resource_setup",
+        "//src/main/kotlin/org/wfanet/measurement/securecomputation/controlplane/v1alpha:services",
+        "//src/main/kotlin/org/wfanet/measurement/securecomputation/controlplane/v1alpha:work_item_attempts_service",
+        "//src/main/kotlin/org/wfanet/measurement/securecomputation/controlplane/v1alpha:work_items_service",
+        "//src/main/kotlin/org/wfanet/measurement/securecomputation/datawatcher:data_watcher",
+        "//src/main/kotlin/org/wfanet/measurement/securecomputation/datawatcher/testing",
+        "//src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/publisher:google_work_item_publisher",
+        "//src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/spanner:services",
+        "//src/main/kotlin/org/wfanet/measurement/securecomputation/service/internal:queue_mapping",
+        "//src/main/kotlin/org/wfanet/measurement/securecomputation/service/internal:services",
+        "//src/main/kotlin/org/wfanet/measurement/securecomputation/service/internal:work_item_publisher",
+        "//src/main/proto/wfa/measurement/api/v2alpha:event_group_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_group_metadata/testing:simulator_synthetic_data_spec_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:test_event_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/config/securecomputation:queues_config_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/securecomputation/controlplane/v1alpha:work_item_kt_jvm_proto",
+        "//src/test/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:results_fulfiller_test_app",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/testing",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/pubsub:google_pub_sub_client",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/pubsub:subscriber",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/pubsub/testing:google_pub_sub_emulator_client",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/pubsub/testing:google_pub_sub_emulator_provider",
+    ],
+)
+
+kt_jvm_library(
     name = "access_services_factory",
     srcs = ["AccessServicesFactory.kt"],
     visibility = [
