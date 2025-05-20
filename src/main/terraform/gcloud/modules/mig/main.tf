@@ -33,10 +33,9 @@ resource "google_pubsub_subscription_iam_member" "mig_subscriber" {
   member        = "serviceAccount:${google_service_account.mig_service_account.email}"
 }
 
-# TODO(@marco): check if cryptoKeyDecrypter is enough
 resource "google_kms_crypto_key_iam_member" "mig_kms_user" {
   crypto_key_id = var.kms_key_id
-  role          = "roles/cloudkms.admin"
+  role          = "roles/cloudkms.cryptoKeyDecrypter"
   member        = "serviceAccount:${google_service_account.mig_service_account.email}"
 }
 
