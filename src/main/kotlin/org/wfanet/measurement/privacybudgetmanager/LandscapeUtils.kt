@@ -153,7 +153,7 @@ object LandscapeUtils {
     }
   }
 
-  private fun getPopulationIndicies(
+  private fun getPopulationIndices(
     eventFilter: String,
     privacyLandscape: PrivacyLandscape,
     eventTemplateDescriptor: Descriptors.Descriptor,
@@ -178,7 +178,7 @@ object LandscapeUtils {
       .toList()
   }
 
-  private fun getVidIntervalIndicies(vidSampleStart: Float, vidSampleWidth: Float): List<Int> {
+  private fun getVidIntervalIndices(vidSampleStart: Float, vidSampleWidth: Float): List<Int> {
     val vidSampleEnd = vidSampleStart + vidSampleWidth
 
     val startIndex = floor(vidSampleStart * NUM_VID_INTERVALS).toInt()
@@ -219,14 +219,14 @@ object LandscapeUtils {
     for (eventGroupLandscapeMask in eventGroupLandscapeMasks) {
 
       val populationIndicies =
-        getPopulationIndicies(
+        getPopulationIndices(
           eventGroupLandscapeMask.eventFilter,
           privacyLandscape,
           eventTemplateDescriptor,
         )
 
       val vidIntervalIndices =
-        getVidIntervalIndicies(
+        getVidIntervalIndices(
           eventGroupLandscapeMask.vidSampleStart,
           eventGroupLandscapeMask.vidSampleWidth,
         )
@@ -303,10 +303,10 @@ object LandscapeUtils {
     return fieldToIndexMap
   }
 
-  private fun getDimIndicies(
+  private fun getDimIndices(
     fromFieldValue: String,
     mapping: Map<String, List<String>>,
-    toLandsacapIndexMapping: Map<String, Set<Int>>,
+    toLandscapeIndexMapping: Map<String, Set<Int>>,
   ): List<Int> {
     val targetIndices = mutableListOf<Int>()
 
@@ -315,8 +315,8 @@ object LandscapeUtils {
 
     if (mappedToValues != null) {
       for (toValue in mappedToValues) {
-        // For each "to" field value, find the corresponding indices in toLandsacapIndexMapping
-        val indices = toLandsacapIndexMapping[toValue]
+        // For each "to" field value, find the corresponding indices in toLandscapeIndexMapping
+        val indices = toLandscapeIndexMapping[toValue]
         if (indices != null) {
           targetIndices.addAll(indices)
         }
@@ -358,8 +358,8 @@ object LandscapeUtils {
   ): Map<Int, Set<Int>> {
     val populationIndexMapping = mutableMapOf<Int, MutableSet<Int>>()
 
-    val fromLandsacapFieldMapping = getIndexToFieldMapping(from)
-    val toLandsacapIndexMapping = getFieldToIndexMapping(to)
+    val fromLandscapeFieldMapping = getIndexToFieldMapping(from)
+    val toLandscapeIndexMapping = getFieldToIndexMapping(to)
     val mapping = getMapping(privacyLandscapeMapping)
 
     // Algorithm:
@@ -376,10 +376,10 @@ object LandscapeUtils {
     //   Based on MALE maps to MALE and 18_34 maps to 18_24 25_34. So population index 0
     //    should be mapped to [0,1]
 
-    for ((index, fromFieldValues) in fromLandsacapFieldMapping.entries) {
+    for ((index, fromFieldValues) in fromLandscapeFieldMapping.entries) {
       val allToDimIndicies = mutableListOf<List<Int>>()
       for (fromFieldValue in fromFieldValues) {
-        allToDimIndicies += getDimIndicies(fromFieldValue, mapping, toLandsacapIndexMapping)
+        allToDimIndicies += getDimIndices(fromFieldValue, mapping, toLandscapeIndexMapping)
       }
 
       val intersection =
@@ -415,7 +415,12 @@ object LandscapeUtils {
     val populationIndexMapping = getPopulationIndexMapping(mapping, from, to)
 
     for (bucket in buckets) {
-      val mappedPopulationIndicies = populationIndexMapping.get(bucket.populationIndex)!!
+      val mappedPopulationIndicies =
+        populationIndexMapping.getOrElse(bucket.populationIndex) {
+          throw IllegalStateException(
+            "Population index '${bucket.populationIndex}' not found in mapping. This should never happen."
+          )
+        }
       for (mappedPopulationIndex in mappedPopulationIndicies) {
         mappedPrivacyBuckets.add(
           PrivacyBucket(bucket.rowKey, mappedPopulationIndex, bucket.vidIntervalIndex)
