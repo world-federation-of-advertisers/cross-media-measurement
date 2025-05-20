@@ -19,6 +19,4 @@ package org.wfanet.measurement.loadtest.config
 object TestIdentifiers {
   /** Resource ID prefix for test EventGroups created by EDP simulators. */
   const val SIMULATOR_EVENT_GROUP_REFERENCE_ID_PREFIX = "sim-eg"
-  /** Resource ID prefix for test EventGroups created by the EDP Aggregator. */
-  const val EDP_AGGREGATOR_EVENT_GROUP_REFERENCE_ID_PREFIX = "edpa-eg"
 }
