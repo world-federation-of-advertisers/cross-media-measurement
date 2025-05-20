@@ -29,7 +29,13 @@ const val NUM_VID_INTERVALS = 300
 /** Wraps utilities to filter and map [PrivacyLandscapes]. */
 object LandscapeUtils {
 
-  // private val cache = mutableMapOf<PrivacyLandscape, List<DynamicMessage>>()
+  private val landscapeCache = mutableMapOf<LandscapeNode, List<DynamicMessage>>()
+
+  /** Wraps the PrivacyLandscape along with the event template descriptor it references */
+  data class LandscapeNode(
+    val landscape: PrivacyLandscape,
+    val eventTemplateDescriptor: Descriptors.Descriptor,
+  )
 
   /** Wraps a landscape to be mapped from and its mapping to another landscape. */
   data class MappingNode(
@@ -87,57 +93,60 @@ object LandscapeUtils {
   }
 
   fun generateEventTemplateProtosFromDescriptors(
-    privacyLandscape: PrivacyLandscape,
-    fileDescriptor: Descriptors.FileDescriptor,
+    landscapNode: LandscapeNode
   ): List<DynamicMessage> {
-    val eventTemplateName = privacyLandscape.eventTemplateName
-    val dimensions = privacyLandscape.dimensionsList
+    return landscapeCache.getOrPut(landscapNode) {
+      val eventTemplateName = landscapNode.landscape.eventTemplateName
+      val dimensions = landscapNode.landscape.dimensionsList
 
-    val eventTemplateDescriptor: Descriptors.Descriptor? =
-      fileDescriptor.findMessageTypeByName(eventTemplateName.substringAfterLast('.'))
+      val eventTemplateDescriptor: Descriptors.Descriptor? =
+        landscapNode.eventTemplateDescriptor.file.findMessageTypeByName(
+          eventTemplateName.substringAfterLast('.')
+        )
 
-    if (eventTemplateDescriptor == null) {
-      throw IllegalArgumentException(
-        "Event template '${privacyLandscape.eventTemplateName}' not found in the fileDescriptor."
-      )
-    }
+      if (eventTemplateDescriptor == null) {
+        throw IllegalArgumentException(
+          "Event template '${landscapNode.landscape.eventTemplateName}' not found in the fileDescriptor."
+        )
+      }
 
-    val dimensionInfo =
-      dimensions
-        .map { dimension ->
-          val fieldPathParts = dimension.fieldPath.split('.')
-          val fieldValues = dimension.fieldValuesList.map { it.enumValue }
-          Triple(fieldPathParts, fieldValues, dimension.order)
+      val dimensionInfo =
+        dimensions
+          .map { dimension ->
+            val fieldPathParts = dimension.fieldPath.split('.')
+            val fieldValues = dimension.fieldValuesList.map { it.enumValue }
+            Triple(fieldPathParts, fieldValues, dimension.order)
+          }
+          .sortedBy { it.third }
+
+      val combinations = mutableListOf<List<String>>()
+      fun generateCombinationsRecursive(index: Int, currentCombination: List<String>) {
+        if (index == dimensionInfo.size) {
+          combinations.add(currentCombination.toList())
+          return
         }
-        .sortedBy { it.third }
 
-    val combinations = mutableListOf<List<String>>()
-    fun generateCombinationsRecursive(index: Int, currentCombination: List<String>) {
-      if (index == dimensionInfo.size) {
-        combinations.add(currentCombination.toList())
-        return
+        val (_, fieldValues, _) = dimensionInfo[index]
+        for (value in fieldValues) {
+          val newCombination = currentCombination + value
+          generateCombinationsRecursive(index + 1, newCombination)
+        }
+      }
+      generateCombinationsRecursive(0, emptyList())
+
+      val generatedProtos = mutableListOf<DynamicMessage>()
+      for (combination in combinations) {
+        val messageBuilder = DynamicMessage.newBuilder(eventTemplateDescriptor)
+        for (i in dimensionInfo.indices) {
+          val (fieldPathParts, _, _) = dimensionInfo[i]
+          val value = combination[i]
+          navigateAndSetEnumValue(messageBuilder, eventTemplateDescriptor, fieldPathParts, value)
+        }
+        generatedProtos.add(messageBuilder.build())
       }
 
-      val (_, fieldValues, _) = dimensionInfo[index]
-      for (value in fieldValues) {
-        val newCombination = currentCombination + value
-        generateCombinationsRecursive(index + 1, newCombination)
-      }
+      generatedProtos
     }
-    generateCombinationsRecursive(0, emptyList())
-
-    val generatedProtos = mutableListOf<DynamicMessage>()
-    for (combination in combinations) {
-      val messageBuilder = DynamicMessage.newBuilder(eventTemplateDescriptor)
-      for (i in dimensionInfo.indices) {
-        val (fieldPathParts, _, _) = dimensionInfo[i]
-        val value = combination[i]
-        navigateAndSetEnumValue(messageBuilder, eventTemplateDescriptor, fieldPathParts, value)
-      }
-      generatedProtos.add(messageBuilder.build())
-    }
-
-    return generatedProtos
   }
 
   private fun getPopulationIndicies(
@@ -146,7 +155,9 @@ object LandscapeUtils {
     eventTemplateDescriptor: Descriptors.Descriptor,
   ): List<Int> {
     val generatedProtos =
-      generateEventTemplateProtosFromDescriptors(privacyLandscape, eventTemplateDescriptor.file)
+      generateEventTemplateProtosFromDescriptors(
+        LandscapeNode(privacyLandscape, eventTemplateDescriptor)
+      )
     val operativeFields = privacyLandscape.dimensionsList.map { it.fieldPath }.toSet()
     val program = compileProgram(eventTemplateDescriptor, eventFilter, operativeFields)
 
@@ -247,9 +258,9 @@ object LandscapeUtils {
    * @returns mapped [PrivacyBucket]s.
    */
   fun mapBuckets(
-    privacyBuckets: List<PrivacyBucket>,
-    privacyLandscapeMapping: PrivacyLandscapeMapping,
-    fromPrivacyLandscape: PrivacyLandscape,
-    toPrivacyLandscape: PrivacyLandscape,
+    buckets: List<PrivacyBucket>,
+    mapping: PrivacyLandscapeMapping,
+    from: PrivacyLandscape,
+    to: PrivacyLandscape,
   ): List<PrivacyBucket> = TODO("uakyol: implement this")
 }
