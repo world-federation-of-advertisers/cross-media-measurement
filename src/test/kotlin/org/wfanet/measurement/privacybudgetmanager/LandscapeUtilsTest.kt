@@ -16,11 +16,10 @@
 
 package org.wfanet.measurement.privacybudgetmanager
 
+import com.google.type.date
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import com.google.type.date
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.privacybudgetmanager.PrivacyLandscapeKt.DimensionKt.fieldValue
 import org.wfanet.measurement.privacybudgetmanager.PrivacyLandscapeKt.dimension
@@ -30,7 +29,7 @@ class LandscapeUtilsTest {
   @Test
   fun `getBuckets works as expected`() {
 
-    val desctiptors = listOf(TestEvent.getDescriptor().file, Person.getDescriptor().file)
+    val desctiptor = TestEvent.getDescriptor()
     val landscape = privacyLandscape {
       landscapeIdentifier = "landsape1"
       eventTemplateName = "wfa.measurement.api.v2alpha.event_templates.testing.TestEvent"
@@ -51,7 +50,7 @@ class LandscapeUtilsTest {
 
     val landscapeMask = eventGroupLandscapeMask {
       eventGroupId = "eg1"
-      eventFilter = "person.age > 25 && video.length > 10"
+      eventFilter = "person.age_group == 1"
       dateRange = dateRange {
         start = date {
           year = 2025
@@ -70,6 +69,6 @@ class LandscapeUtilsTest {
 
     val landscapeMasks = listOf(landscapeMask)
 
-    LandscapeUtils.getBuckets("mcid", landscapeMasks, landscape, desctiptors)
+    LandscapeUtils.getBuckets("mcid", landscapeMasks, landscape, desctiptor)
   }
 }
