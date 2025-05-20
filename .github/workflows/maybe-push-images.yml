@@ -18,6 +18,7 @@ on:
   push:
     branches:
       - marcopremier/edp_aggregator_cloud_test_requisition_fetcher
+# com
   workflow_dispatch:
   workflow_call:
     inputs:
