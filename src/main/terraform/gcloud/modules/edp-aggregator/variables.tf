@@ -34,9 +34,9 @@ variable "queue_worker_configs" {
   description = "Combined config for each Pub/Sub queue and its corresponding MIG worker"
   type = map(object({
     queue = object({
-      subscription_name     = string
-      topic_name            = string
-      ack_deadline_seconds  = number
+      subscription_name    = string
+      topic_name           = string
+      ack_deadline_seconds = number
     })
     worker = object({
       instance_template_name      = string
@@ -93,6 +93,26 @@ variable "terraform_service_account" {
 variable "requisition_fetcher_service_account_name" {
   description = "Name of the RequisitionFetcher service account."
   type        = string
+  nullable    = false
+}
+
+variable "requisition_fetcher_scheduler_service_account_name" {
+  description = "Name of the RequisitionFetcher scheduler service account."
+  type        = string
+  nullable    = false
+}
+
+variable "requisition_fetcher_schedule" {
+  description = "Cron schedule for the RequisitionFetcher job."
+  type        = string
+  default     = "*/5 * * * *"
+  nullable    = false
+}
+
+variable "requisition_fetcher_schedule_timezone" {
+  description = "Timezone for the RequisitionFetcher cron schedule."
+  type        = string
+  default     = "UTC"
   nullable    = false
 }
 

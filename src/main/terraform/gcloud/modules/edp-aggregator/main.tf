@@ -12,46 +12,62 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+data "google_project" "project" {}
+
 module "edp_aggregator_bucket" {
-  source   = "../storage-bucket"
+  source = "../storage-bucket"
 
   name     = var.edp_aggregator_bucket_name
   location = var.edp_aggregator_bucket_location
 }
 
 module "data_watcher_private_key" {
-  source    = "../secret"
-  secret_id = var.data_watcher_private_key_id
+  source      = "../secret"
+  secret_id   = var.data_watcher_private_key_id
   secret_path = var.data_watcher_private_key_path
 }
 
 module "data_watcher_cert" {
-  source    = "../secret"
-  secret_id = var.data_watcher_cert_id
+  source      = "../secret"
+  secret_id   = var.data_watcher_cert_id
   secret_path = var.data_watcher_cert_path
 }
 
 module "secure_computation_root_ca" {
-  source    = "../secret"
-  secret_id = var.secure_computation_root_ca_id
+  source      = "../secret"
+  secret_id   = var.secure_computation_root_ca_id
   secret_path = var.secure_computation_root_ca_path
 }
 
 module "data_watcher_function_service_accounts" {
-  source    = "../gcs-bucket-cloud-function"
+  source = "../gcs-bucket-cloud-function"
 
-  cloud_function_service_account_name       = var.data_watcher_service_account_name
-  cloud_function_trigger_service_account_name    = var.data_watcher_trigger_service_account_name
-  trigger_bucket_name                       = module.edp_aggregator_bucket.storage_bucket.name
-  terraform_service_account                 = var.terraform_service_account
+  cloud_function_service_account_name         = var.data_watcher_service_account_name
+  cloud_function_trigger_service_account_name = var.data_watcher_trigger_service_account_name
+  trigger_bucket_name                         = module.edp_aggregator_bucket.storage_bucket.name
+  terraform_service_account                   = var.terraform_service_account
 }
 
 module "requisition_fetcher_function_service_account" {
-  source    = "../http-cloud-function"
+  source = "../http-cloud-function"
 
-  http_cloud_function_service_account_name  = var.requisition_fetcher_service_account_name
-  bucket_name                               = module.edp_aggregator_bucket.storage_bucket.name
-  terraform_service_account                 = var.terraform_service_account
+  http_cloud_function_service_account_name = var.requisition_fetcher_service_account_name
+  bucket_name                              = module.edp_aggregator_bucket.storage_bucket.name
+  terraform_service_account                = var.terraform_service_account
+}
+
+module "requisition_fetcher_scheduler" {
+  source = "../cloud-scheduler"
+
+  scheduler_service_account_name = var.requisition_fetcher_scheduler_service_account_name
+  job_name                       = "requisition-fetcher-scheduler"
+  job_description                = "Scheduler for the Requisition Fetcher cloud function"
+  schedule                       = var.requisition_fetcher_schedule
+  time_zone                      = var.requisition_fetcher_schedule_timezone
+  function_uri                   = "https://${data.google_project.project.region}-${data.google_project.project.project_id}.cloudfunctions.net/requisition-fetcher"
+  cloud_function_name            = "requisition-fetcher"
+  terraform_service_account      = var.terraform_service_account
+  region                         = data.google_project.project.region
 }
 
 resource "google_secret_manager_secret_iam_member" "data_watcher_tls_key_accessor" {
@@ -76,9 +92,9 @@ module "edp_aggregator_queues" {
   for_each = var.queue_worker_configs
   source   = "../pubsub"
 
-  topic_name              = each.value.queue.topic_name
-  subscription_name       = each.value.queue.subscription_name
-  ack_deadline_seconds    = each.value.queue.ack_deadline_seconds
+  topic_name           = each.value.queue.topic_name
+  subscription_name    = each.value.queue.subscription_name
+  ack_deadline_seconds = each.value.queue.ack_deadline_seconds
 }
 
 resource "google_pubsub_topic_iam_member" "publisher" {
@@ -109,19 +125,19 @@ module "tee_apps" {
   for_each = var.queue_worker_configs
   source   = "../mig"
 
-  instance_template_name        = each.value.worker.instance_template_name
-  base_instance_name            = each.value.worker.base_instance_name
-  managed_instance_group_name   = each.value.worker.managed_instance_group_name
-  subscription_id               = module.edp_aggregator_queues[each.key].pubsub_subscription.id
-  mig_service_account_name      = each.value.worker.mig_service_account_name
-  single_instance_assignment    = each.value.worker.single_instance_assignment
-  min_replicas                  = each.value.worker.min_replicas
-  max_replicas                  = each.value.worker.max_replicas
-  app_args                      = each.value.worker.app_args
-  machine_type                  = each.value.worker.machine_type
-  kms_key_id                    = google_kms_crypto_key.edp_aggregator_kek.id
-  docker_image                  = each.value.worker.docker_image
-  terraform_service_account     = var.terraform_service_account
+  instance_template_name      = each.value.worker.instance_template_name
+  base_instance_name          = each.value.worker.base_instance_name
+  managed_instance_group_name = each.value.worker.managed_instance_group_name
+  subscription_id             = module.edp_aggregator_queues[each.key].pubsub_subscription.id
+  mig_service_account_name    = each.value.worker.mig_service_account_name
+  single_instance_assignment  = each.value.worker.single_instance_assignment
+  min_replicas                = each.value.worker.min_replicas
+  max_replicas                = each.value.worker.max_replicas
+  app_args                    = each.value.worker.app_args
+  machine_type                = each.value.worker.machine_type
+  kms_key_id                  = google_kms_crypto_key.edp_aggregator_kek.id
+  docker_image                = each.value.worker.docker_image
+  terraform_service_account   = var.terraform_service_account
 }
 
 resource "google_storage_bucket_iam_member" "mig_storage_viewer" {
