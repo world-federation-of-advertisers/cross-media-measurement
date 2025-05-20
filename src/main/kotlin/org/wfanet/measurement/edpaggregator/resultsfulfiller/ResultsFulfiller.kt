@@ -19,6 +19,8 @@ package org.wfanet.measurement.edpaggregator.resultsfulfiller
 import com.google.common.hash.HashFunction
 import com.google.common.hash.Hashing
 import com.google.crypto.tink.KmsClient
+import com.google.crypto.tink.aead.AeadConfig
+import com.google.crypto.tink.streamingaead.StreamingAeadConfig
 import com.google.protobuf.ByteString
 import com.google.protobuf.Descriptors.Descriptor
 import com.google.protobuf.DynamicMessage
@@ -104,6 +106,12 @@ class ResultsFulfiller(
   private val requisitionsStorageConfig: StorageConfig,
   private val random: Random = Random,
 ) {
+
+  init {
+    AeadConfig.register()
+    StreamingAeadConfig.register()
+  }
+
   suspend fun fulfillRequisitions() {
     val requisitions = getRequisitions()
     requisitions.collect { requisition ->
