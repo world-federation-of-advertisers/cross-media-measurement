@@ -51,6 +51,7 @@ import org.wfanet.measurement.api.v2alpha.DeterministicDistribution
 import org.wfanet.measurement.api.v2alpha.DifferentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.EncryptedMessage
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
+import org.wfanet.measurement.api.v2alpha.EventGroupKey
 import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementKt
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
@@ -532,7 +533,9 @@ class ResultsFulfiller(
       .asFlow()
       .flatMapConcat { eventGroup ->
         val collectionInterval = eventGroup.value.collectionInterval
-        val blobDetails = getBlobDetails(collectionInterval, eventGroup.key)
+        val key = EventGroupKey.fromName(eventGroup.key)
+        val eventGroupId = key?.eventGroupId
+        val blobDetails = getBlobDetails(collectionInterval, eventGroupId!!)
 
         getLabeledImpressions(blobDetails)
           .filter { labeledImpression ->
@@ -625,11 +628,12 @@ class ResultsFulfiller(
   }
   private suspend fun getBlobDetails(collectionInterval: Interval, eventGroupId: String): BlobDetails {
     val ds = LocalDate.ofInstant(collectionInterval.startTime.toInstant(), ZONE_ID)
-    val metadataBlobKey = "ds/$ds/event-group-id/$eventGroupId/metadata"
+    val metadataBlobKey = "$ds/event-group-reference-id/$eventGroupId/metadata"
     val metadataBlobUri = "$labeledImpressionMetadataPrefix/$metadataBlobKey"
     val metadataStorageClientUri = SelectedStorageClient.parseBlobUri(metadataBlobUri)
     val impressionsMetadataStorageClient = createStorageClient(metadataStorageClientUri, impressionMetadataStorageConfig)
     logger.info("Reading impressions ${metadataStorageClientUri} from $metadataBlobUri")
+    logger.info("Metadata blob key: ${metadataBlobKey}")
     // Get EncryptedDek message from storage using the blobKey made up of the ds and eventGroupId
     val metadataBlob = checkNotNull(impressionsMetadataStorageClient.getBlob(metadataBlobKey)) {
       "$metadataBlobKey blob cannot be null"
