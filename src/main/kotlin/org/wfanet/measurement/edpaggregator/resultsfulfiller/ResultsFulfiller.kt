@@ -628,16 +628,17 @@ class ResultsFulfiller(
   }
   private suspend fun getBlobDetails(collectionInterval: Interval, eventGroupId: String): BlobDetails {
     val ds = LocalDate.ofInstant(collectionInterval.startTime.toInstant(), ZONE_ID)
-    // #TODO(@marcopremier): remove hardcoded edp7
+    // #TODO(@marcopremier): remove hardcoded edp7 and fix config textproto to remove edp7/ds/
     val metadataBlobKey = "edp7/ds/$ds/event-group-reference-id/$eventGroupId/metadata"
+    val metadataBlobKey_temp = "$ds/event-group-reference-id/$eventGroupId/metadata"
     val metadataBlobUri = "$labeledImpressionMetadataPrefix/$metadataBlobKey"
     val metadataStorageClientUri = SelectedStorageClient.parseBlobUri(metadataBlobUri)
     val impressionsMetadataStorageClient = createStorageClient(metadataStorageClientUri, impressionMetadataStorageConfig)
     logger.info("Reading impressions ${metadataStorageClientUri} from $metadataBlobUri")
-    logger.info("Metadata blob key: ${metadataBlobKey}")
+    logger.info("Metadata blob key: ${metadataBlobKey_temp}")
     // Get EncryptedDek message from storage using the blobKey made up of the ds and eventGroupId
-    val metadataBlob = checkNotNull(impressionsMetadataStorageClient.getBlob(metadataBlobKey)) {
-      "$metadataBlobKey blob cannot be null"
+    val metadataBlob = checkNotNull(impressionsMetadataStorageClient.getBlob(metadataBlobKey_temp)) {
+      "$metadataBlobKey_temp blob cannot be null"
     }
     return BlobDetails.parseFrom(metadataBlob.read().flatten())
   }
