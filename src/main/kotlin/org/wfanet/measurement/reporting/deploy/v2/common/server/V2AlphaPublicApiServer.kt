@@ -47,6 +47,7 @@ import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutine
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub as KingdomMeasurementConsumersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub as KingdomMeasurementsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt.ModelLinesCoroutineStub as KingdomModelLinesCoroutineStub
 import org.wfanet.measurement.api.withAuthenticationKey
 import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.commandLineMain
@@ -86,6 +87,7 @@ import org.wfanet.measurement.reporting.service.api.v2alpha.EventGroupMetadataDe
 import org.wfanet.measurement.reporting.service.api.v2alpha.EventGroupsService
 import org.wfanet.measurement.reporting.service.api.v2alpha.MetricCalculationSpecsService
 import org.wfanet.measurement.reporting.service.api.v2alpha.MetricsService
+import org.wfanet.measurement.reporting.service.api.v2alpha.ModelLinesService
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportScheduleIterationsService
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportSchedulesService
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportingSetsService
@@ -323,6 +325,12 @@ private object V2AlphaPublicApiServer {
           )
           .withInterceptor(principalAuthInterceptor),
         BasicReportsService(InternalBasicReportsCoroutineStub(channel), authorization)
+          .withInterceptor(principalAuthInterceptor),
+        ModelLinesService(
+            KingdomModelLinesCoroutineStub(kingdomChannel),
+            authorization,
+            systemMeasurementConsumerConfig.apiKey,
+          )
           .withInterceptor(principalAuthInterceptor),
       )
 

@@ -38,8 +38,12 @@ class RequisitionFetcherFunction : HttpFunction {
   override fun service(request: HttpRequest, response: HttpResponse) {
     for (dataProviderConfig in requisitionFetcherConfig.configsList) {
 
+      val fileSystemPath = System.getenv("REQUISITION_FILE_SYSTEM_PATH")
+      // 'FileSystemStorageClient' is used for testing purposes only and used by
+      // [RequisitionFetcherFunctionTest]
+      // in order to pull requisitions from local storage.
       val requisitionsStorageClient =
-        if (dataProviderConfig.requisitionStorage.hasFileSystem()) {
+        if (!fileSystemPath.isNullOrEmpty()) {
           FileSystemStorageClient(File(EnvVars.checkIsPath("REQUISITION_FILE_SYSTEM_PATH")))
         } else {
           val requisitionsGcsBucket = dataProviderConfig.requisitionStorage.gcs.bucketName
@@ -94,12 +98,12 @@ class RequisitionFetcherFunction : HttpFunction {
 
   companion object {
     private val kingdomTarget = EnvVars.checkNotNullOrEmpty("KINGDOM_TARGET")
-    private val kingdomCertHost = EnvVars.checkNotNullOrEmpty("KINGDOM_CERT_HOST")
+    private val kingdomCertHost: String? = System.getenv("KINGDOM_CERT_HOST")
 
     val pageSize = run {
-      val value = System.getenv("PAGE_SIZE")
-      if (value.isNotEmpty()) {
-        value.toInt()
+      val envPageSize = System.getenv("PAGE_SIZE")
+      if (!envPageSize.isNullOrEmpty()) {
+        envPageSize.toInt()
       } else {
         null
       }

@@ -45,6 +45,10 @@ class SpannerModelLinesServiceTest : ModelLinesServiceTest<SpannerModelLinesServ
       spannerServices.modelLinesService as SpannerModelLinesService,
       spannerServices.modelSuitesService,
       spannerServices.modelProvidersService,
+      spannerServices.dataProvidersService,
+      spannerServices.modelRolloutsService,
+      spannerServices.modelReleasesService,
+      spannerServices.populationsService,
     )
   }
 

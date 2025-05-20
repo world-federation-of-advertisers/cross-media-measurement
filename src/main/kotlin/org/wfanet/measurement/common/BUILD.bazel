@@ -44,3 +44,8 @@ kt_jvm_library(
     name = "env_vars",
     srcs = ["EnvVars.kt"],
 )
+
+kt_jvm_library(
+    name = "fillable_template",
+    srcs = ["FillableTemplate.kt"],
+)
