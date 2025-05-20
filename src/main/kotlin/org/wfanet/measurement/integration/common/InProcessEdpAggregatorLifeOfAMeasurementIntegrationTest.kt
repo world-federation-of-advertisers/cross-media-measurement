@@ -103,6 +103,7 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
       kingdomChannel,
       measurementConsumerData,
       edpDisplayNameToResourceMap,
+      "edp1",
     )
     initMcSimulator()
   }
