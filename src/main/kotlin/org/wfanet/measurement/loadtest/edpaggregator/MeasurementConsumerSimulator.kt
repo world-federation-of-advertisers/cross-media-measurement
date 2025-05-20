@@ -1,4 +1,4 @@
-// Copyright 2021 The Cross-Media Measurement Authors
+// Copyright 2025 The Cross-Media Measurement Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -208,28 +208,13 @@ class MeasurementConsumerSimulator(
                 syntheticEventGroupSpec,
               )
               .toList()
-              .flatMap { it.second.toList() }
+              .flatMap { it.impressions.toList() }
               .filter { impression: LabeledImpression ->
                 EventFilters.matches(impression.event.unpack(messageInstance::class.java), program)
               }
           }
         }
         .map { it.vid }
-
-      /*return eventGroupSpecs
-      .flatMap { (syntheticEventGroupSpec, expression) ->
-        {
-
-          val events: List<LabeledImpression> = SyntheticDataGeneration.generateEvents(
-              messageInstance,
-              syntheticPopulationSpec,
-              syntheticEventGroupSpec,
-            ).toList()
-            //.filter { EventFilters.matches(it.message, program) }
-          events
-        }
-      }
-      .map { it.vid }*/
     }
 
   private fun MeasurementInfo.filterVidsByDataProvider(targetDataProviderId: String): List<Long> {
@@ -259,7 +244,7 @@ class MeasurementConsumerSimulator(
               syntheticEventGroupSpec,
             )
             .toList()
-            .flatMap { it.second.toList() }
+            .flatMap { it.impressions.toList() }
             .filter { impression: LabeledImpression ->
               EventFilters.matches(impression.event.unpack(messageInstance::class.java), program)
             }
