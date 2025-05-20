@@ -28,7 +28,6 @@ import io.grpc.inprocess.InProcessChannelBuilder
 import java.io.File
 import java.security.SecureRandom
 import java.time.Duration
-import java.util.concurrent.ExecutorService
 import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.ThreadPoolExecutor
 import java.util.concurrent.TimeUnit
@@ -49,6 +48,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub as KingdomMeasurementsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt.ModelLinesCoroutineStub as KingdomModelLinesCoroutineStub
 import org.wfanet.measurement.api.withAuthenticationKey
+import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.SigningCerts
@@ -71,7 +71,6 @@ import org.wfanet.measurement.internal.reporting.v2.ReportScheduleIterationsGrpc
 import org.wfanet.measurement.internal.reporting.v2.ReportSchedulesGrpcKt.ReportSchedulesCoroutineStub as InternalReportSchedulesCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt.ReportingSetsCoroutineStub as InternalReportingSetsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.ReportsGrpcKt.ReportsCoroutineStub as InternalReportsCoroutineStub
-import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.internal.reporting.v2.measurementConsumer
 import org.wfanet.measurement.measurementconsumer.stats.VariancesImpl
 import org.wfanet.measurement.reporting.deploy.v2.common.EncryptionKeyPairMap
@@ -247,16 +246,15 @@ private object V2AlphaPublicApiServer {
 
     val inProcessExecutorService =
       ThreadPoolExecutor(
-          1,
-          commonServerFlags.threadPoolSize,
-          60L,
-          TimeUnit.SECONDS,
-          LinkedBlockingQueue(),
-        )
+        1,
+        commonServerFlags.threadPoolSize,
+        60L,
+        TimeUnit.SECONDS,
+        LinkedBlockingQueue(),
+      )
 
     val inProcessInstrumentationHandle: Instrumentation.Handle =
       Instrumentation.instrumentThreadPool(IN_PROCESS_SERVER_NAME, inProcessExecutorService)
-
 
     val inProcessServer: Server =
       startInProcessServerWithService(

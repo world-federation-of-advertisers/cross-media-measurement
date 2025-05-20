@@ -51,9 +51,7 @@ class SizeLimitedStorageClient(
   }
 
   override suspend fun listBlobs(prefix: String?): Flow<StorageClient.Blob> {
-    return delegate.listBlobs(prefix).map {
-      Blob(this, it)
-    }
+    return delegate.listBlobs(prefix).map { Blob(this, it) }
   }
 
   private class Blob(override val storageClient: StorageClient, delegate: StorageClient.Blob) :
