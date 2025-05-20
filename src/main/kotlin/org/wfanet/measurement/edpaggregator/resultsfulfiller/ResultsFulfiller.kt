@@ -545,6 +545,27 @@ class ResultsFulfiller(
       }
   }
 
+  fun testKmsKeyAccess(kmsClient: KmsClient, kekUri: String) {
+    try {
+      val kekAead = kmsClient.getAead(kekUri)
+
+      val plaintext = "test".toByteArray()
+      val aad = "aad".toByteArray()
+
+      val ciphertext = kekAead.encrypt(plaintext, aad)
+      val decrypted = kekAead.decrypt(ciphertext, aad)
+
+      check(plaintext.contentEquals(decrypted)) {
+        "Decrypted value does not match original"
+      }
+
+      logger.severe("Successfully accessed KMS key and performed dummy encryption/decryption")
+    } catch (e: Exception) {
+      logger.severe("❌ Failed to use KMS key at $kekUri: ${e.message}")
+      throw e
+    }
+  }
+
   /**
    * Retrieves a list of labeled impressions from the specified storage.
    *
@@ -564,7 +585,9 @@ class ResultsFulfiller(
 
     // Create and configure storage client with encryption
     val encryptedDek = blobDetails.encryptedDek
+    logger.info("~~~~~~~~~~~~~ encryptedDek.kekUri: ${encryptedDek.kekUri}")
     val encryptedImpressionsClient = createStorageClient(storageClientUri, impressionsStorageConfig)
+    testKmsKeyAccess(kmsClient, encryptedDek.kekUri)
     val impressionsAeadStorageClient = encryptedImpressionsClient.withEnvelopeEncryption(
       kmsClient,
       encryptedDek.kekUri,
