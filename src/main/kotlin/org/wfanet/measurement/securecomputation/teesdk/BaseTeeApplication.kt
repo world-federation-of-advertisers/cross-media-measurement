@@ -84,7 +84,9 @@ abstract class BaseTeeApplication(
    * @param queueMessage The raw message received from the queue of type [WorkItem].
    */
   private suspend fun processMessage(queueMessage: QueueSubscriber.QueueMessage<WorkItem>) {
+    println("~~~~~~~~~~~~~~ processMessage1")
     val body: WorkItem = queueMessage.body
+    println("~~~~~~~~~~~~~~ processMessage2: ${body}")
 
     if (body.name.isEmpty()) {
       logger.log(Level.SEVERE, "WorkItem name is empty. Cannot proceed.")
@@ -92,6 +94,8 @@ abstract class BaseTeeApplication(
       return
     }
     val workItemName = WorkItemKey(body.name).toName()
+    println("~~~~~~~~~~~~~~ processMessage3, name: ${workItemName}")
+
     val workItemAttempt: WorkItemAttempt =
       try {
         val workItemAttemptId = UUID.randomUUID().toString().replace("/", "-").replace("_", "-").takeLast(63).trim {!it.isLetter()}
@@ -104,7 +108,10 @@ abstract class BaseTeeApplication(
         return
       }
     try {
+      println("~~~~~~~~~~~~~~ processMessage4 start run work")
       runWork(queueMessage.body.workItemParams)
+      println("~~~~~~~~~~~~~~ processMessage5 end run work")
+
       runCatching { completeWorkItemAttempt(workItemAttempt) }
         .onFailure { error ->
           when (error) {
@@ -125,6 +132,8 @@ abstract class BaseTeeApplication(
             }
           }
         }
+      println("~~~~~~~~~~~~~~ processMessage6 ACKING MESSAGE")
+
       queueMessage.ack()
     } catch (e: InvalidProtocolBufferException) {
       logger.log(Level.SEVERE, e) { "Failed to parse protobuf message" }
@@ -149,6 +158,8 @@ abstract class BaseTeeApplication(
     workItemAttemptId: String,
   ): WorkItemAttempt {
     try {
+      println("~~~~~~~~~~~~~~ createWorkItemAttempt1")
+
       return workItemAttemptsStub.createWorkItemAttempt(
         createWorkItemAttemptRequest {
           this.parent = parent
