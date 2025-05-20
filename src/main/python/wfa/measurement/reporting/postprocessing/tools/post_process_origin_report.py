@@ -177,7 +177,7 @@ class ReportSummaryProcessor:
 
     # Update the report post processor result with the new measurements.
     report_post_processor_result.updated_measurements.update(
-      metric_name_to_value)
+        metric_name_to_value)
 
     return report_post_processor_result
 
@@ -228,11 +228,12 @@ class ReportSummaryProcessor:
           self._whole_campaign_measurements[entry.measurement_policy] = {}
           self._k_reach[entry.measurement_policy] = {}
           self._impression[entry.measurement_policy] = {}
-        if not all(result.HasField('reach_and_frequency') or result.HasField(
+        if not all(result.HasField('reach') or result.HasField(
+            'reach_and_frequency') or result.HasField(
             'impression_count') for result in entry.measurement_results):
           raise ValueError(
-              "Total campaign measurements must be either reach and frequency "
-              "or impression count."
+              "Total campaign measurements must be either reach, reach and "
+              "frequency, or impression count."
           )
         for measurement_result in entry.measurement_results:
           if measurement_result.HasField('reach_and_frequency'):
@@ -249,6 +250,12 @@ class ReportSummaryProcessor:
                   bin.value,
                   bin.standard_deviation,
                   measurement_result.metric + "-frequency-" + bin.label)
+          elif measurement_result.HasField('reach'):
+            self._whole_campaign_measurements[entry.measurement_policy][
+              frozenset(entry.data_providers)] = Measurement(
+                measurement_result.reach.value,
+                measurement_result.reach.standard_deviation,
+                measurement_result.metric)
           elif measurement_result.HasField('impression_count'):
             self._impression[entry.measurement_policy][
               frozenset(entry.data_providers)] = Measurement(
@@ -391,7 +398,7 @@ def main(argv):
   report_summary.ParseFromString(sys.stdin.buffer.read())
 
   report_post_processor_result = ReportSummaryProcessor(
-    report_summary).process()
+      report_summary).process()
 
   serialized_data = report_post_processor_result.SerializeToString()
 

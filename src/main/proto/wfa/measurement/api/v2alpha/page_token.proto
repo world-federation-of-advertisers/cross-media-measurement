@@ -99,7 +99,7 @@ message ListMeasurementsPageToken {
 }
 
 message ListRequisitionsPageToken {
-  reserved 1;
+  reserved 1, 7;
 
   fixed64 external_measurement_consumer_id = 2;
   fixed64 external_measurement_id = 3;
@@ -111,7 +111,6 @@ message ListRequisitionsPageToken {
     fixed64 external_requisition_id = 2;
   }
   PreviousPageEnd last_requisition = 6;
-  repeated Measurement.State measurement_states = 7;
 }
 
 message ListExchangeStepsPageToken {
