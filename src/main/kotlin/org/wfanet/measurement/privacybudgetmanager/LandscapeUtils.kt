@@ -245,7 +245,7 @@ object LandscapeUtils {
 
       // Create PrivacyBuckets by taking the Cartesian product
       for (ledgerRowKey in ledgerRowKeys) {
-        for (populationIndex in populationIndicies) {
+        for (populationIndex in populationIndices) {
           for (vidIntervalIndex in vidIntervalIndices) {
             privacyBuckets.add(PrivacyBucket(ledgerRowKey, populationIndex, vidIntervalIndex))
           }
