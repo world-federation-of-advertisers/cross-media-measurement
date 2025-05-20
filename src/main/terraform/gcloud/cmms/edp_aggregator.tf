@@ -110,6 +110,7 @@ locals {
         max_replicas                = 10
         app_args = [
           "--kingdom-public-api-target=v2alpha.kingdom.dev.halo-cmm.org:8443",
+          "--secure-computation-public-api-target=v1alpha.secure-computation.dev.halo-cmm.org:8443",
           "--kingdom-public-api-cert-host=results-fulfiller.kingdom.dev.halo-cmm.org",
           "--secure-computation-public-api-cert-host=results-fulfiller.secure-computation.dev.halo-cmm.org",
           "--subscription-id=requisition-fulfiller-subscription",
