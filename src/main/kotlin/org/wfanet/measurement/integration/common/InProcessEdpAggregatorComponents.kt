@@ -36,7 +36,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.asFlow
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
@@ -68,7 +67,6 @@ import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorClient
 import org.wfanet.measurement.loadtest.edpaggregator.ImpressionsWriter
 import org.wfanet.measurement.loadtest.edpaggregator.SyntheticDataGeneration
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
-import org.wfanet.measurement.loadtest.resourcesetup.Resources
 import org.wfanet.measurement.loadtest.resourcesetup.Resources.Resource
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
 import org.wfanet.measurement.securecomputation.datawatcher.DataWatcher
@@ -134,12 +132,6 @@ class InProcessEdpAggregatorComponents(
     chainRulesSequentially(internalServicesRule, secureComputationPublicApi)
   }
 
-  private lateinit var edpDisplayNameToResourceMap: Map<String, Resources.Resource>
-
-  fun getDataProviderResourceNames(): List<String> {
-    return edpDisplayNameToResourceMap.values.map { it.name }
-  }
-
   private val loggingName = javaClass.simpleName
   private val backgroundScope =
     CoroutineScope(
@@ -154,19 +146,18 @@ class InProcessEdpAggregatorComponents(
     kingdomChannel: Channel,
     measurementConsumerData: MeasurementConsumerData,
     edpDisplayNameToResourceMap: Map<String, Resource>,
+    edpAggregatorShortName: String,
   ) = runBlocking {
-    val edpShortName = "edp1"
     pubSubClient.createTopic(PROJECT_ID, FULFILLER_TOPIC_ID)
     pubSubClient.createSubscription(PROJECT_ID, SUBSCRIPTION_ID, FULFILLER_TOPIC_ID)
-    edpResourceName = edpDisplayNameToResourceMap.getValue(edpShortName).name
-    print(edpResourceName)
+    edpResourceName = edpDisplayNameToResourceMap.getValue(edpAggregatorShortName).name
     publicApiChannel = kingdomChannel
     val resultsFulfillerParams =
       getResultsFulfillerParams(
-        edpShortName,
+        edpAggregatorShortName,
         edpResourceName,
         DataProviderCertificateKey.fromName(
-          edpDisplayNameToResourceMap.getValue(edpShortName).dataProvider.certificate
+          edpDisplayNameToResourceMap.getValue(edpAggregatorShortName).dataProvider.certificate
         )!!,
         "file:///$IMPRESSIONS_METADATA_BUCKET",
       )
@@ -197,8 +188,6 @@ class InProcessEdpAggregatorComponents(
         delay(1000)
       }
     }
-    logger.info("$measurementConsumerData")
-    logger.info("$edpDisplayNameToResourceMap")
     val eventGroups =
       listOf(
         eventGroup {
