@@ -16,6 +16,7 @@ package org.wfanet.measurement.privacybudgetmanager
 
 import com.google.protobuf.Descriptors
 import com.google.protobuf.DynamicMessage
+import java.util.concurrent.ConcurrentHashMap
 import kotlin.math.ceil
 import kotlin.math.floor
 import org.wfanet.measurement.common.toLocalDate
@@ -30,10 +31,14 @@ const val NUM_VID_INTERVALS = 300
 object LandscapeUtils {
 
   // Cache the landscape based event message generation so its not recomputed for same inputs.
-  private val landscapeCache = mutableMapOf<LandscapeNode, List<DynamicMessage>>()
+  private val landscapeCache = ConcurrentHashMap<LandscapeNode, List<DynamicMessage>>()
 
   // Cache the Mapping action so that its not recomputed for same inputs.
-  private val mappingCache = mutableMapOf<LandscapeNode, List<DynamicMessage>>()
+  private val mappingCache =
+    ConcurrentHashMap<
+      Triple<PrivacyLandscapeMapping, PrivacyLandscape, PrivacyLandscape>,
+      Map<Int, Set<Int>>,
+    >()
 
   /** Wraps the PrivacyLandscape along with the event template descriptor it references */
   data class LandscapeNode(
@@ -356,43 +361,46 @@ object LandscapeUtils {
     from: PrivacyLandscape,
     to: PrivacyLandscape,
   ): Map<Int, Set<Int>> {
-    val populationIndexMapping = mutableMapOf<Int, MutableSet<Int>>()
+    val key = Triple(privacyLandscapeMapping, from, to)
+    return mappingCache.getOrPut(key) {
+      val populationIndexMapping = mutableMapOf<Int, MutableSet<Int>>()
 
-    val fromLandscapeFieldMapping = getIndexToFieldMapping(from)
-    val toLandscapeIndexMapping = getFieldToIndexMapping(to)
-    val mapping = getMapping(privacyLandscapeMapping)
+      val fromLandscapeFieldMapping = getIndexToFieldMapping(from)
+      val toLandscapeIndexMapping = getFieldToIndexMapping(to)
+      val mapping = getMapping(privacyLandscapeMapping)
 
-    // Algorithm:
-    //   For a given population index (e.g. 0), find all the field values that constructs it
-    //      e.g. MALE and 18_34
-    //   Then find what all these field values map to
-    //      e.g. MALE->MALE , 18_34->[18_24, 25_34]
-    //   Then find all the indexes these new field values are part of in the new landscape
-    //        e.g. MALE - [0,1,2,3]   18_24 - [0,5]   25_34 - [1,6]
-    //   Then for each dimension join the lists, so for gender [0,1,2,3] for age [0,5,1,6]
-    //   Then take the intersection of these lists [0,1,2,3] intersect [0,5,1,6] = [0,1]
-    //      why? Because index 0 in the new landscape has both  MALE and 18_24
-    //      and index 1 has both MALE and 25_34
-    //   Based on MALE maps to MALE and 18_34 maps to 18_24 25_34. So population index 0
-    //    should be mapped to [0,1]
+      // Algorithm:
+      //   For a given population index (e.g. 0), find all the field values that constructs it
+      //      e.g. MALE and 18_34
+      //   Then find what all these field values map to
+      //      e.g. MALE->MALE , 18_34->[18_24, 25_34]
+      //   Then find all the indexes these new field values are part of in the new landscape
+      //        e.g. MALE - [0,1,2,3]   18_24 - [0,5]   25_34 - [1,6]
+      //   Then for each dimension join the lists, so for gender [0,1,2,3] for age [0,5,1,6]
+      //   Then take the intersection of these lists [0,1,2,3] intersect [0,5,1,6] = [0,1]
+      //      why? Because index 0 in the new landscape has both  MALE and 18_24
+      //      and index 1 has both MALE and 25_34
+      //   Based on MALE maps to MALE and 18_34 maps to 18_24 25_34. So population index 0
+      //    should be mapped to [0,1]
 
-    for ((index, fromFieldValues) in fromLandscapeFieldMapping.entries) {
-      val allToDimIndicies = mutableListOf<List<Int>>()
-      for (fromFieldValue in fromFieldValues) {
-        allToDimIndicies += getDimIndices(fromFieldValue, mapping, toLandscapeIndexMapping)
-      }
-
-      val intersection =
-        if (allToDimIndicies.isNotEmpty()) {
-          allToDimIndicies.reduce { acc, list -> acc.intersect(list.toSet()).toList() }
-        } else {
-          emptyList()
+      for ((index, fromFieldValues) in fromLandscapeFieldMapping.entries) {
+        val allToDimIndicies = mutableListOf<List<Int>>()
+        for (fromFieldValue in fromFieldValues) {
+          allToDimIndicies += getDimIndices(fromFieldValue, mapping, toLandscapeIndexMapping)
         }
 
-      val valueSet: MutableSet<Int> = populationIndexMapping.getOrPut(index) { mutableSetOf() }
-      valueSet.addAll(intersection)
+        val intersection =
+          if (allToDimIndicies.isNotEmpty()) {
+            allToDimIndicies.reduce { acc, list -> acc.intersect(list.toSet()).toList() }
+          } else {
+            emptyList()
+          }
+
+        val valueSet: MutableSet<Int> = populationIndexMapping.getOrPut(index) { mutableSetOf() }
+        valueSet.addAll(intersection)
+      }
+      populationIndexMapping
     }
-    return populationIndexMapping
   }
 
   /**
