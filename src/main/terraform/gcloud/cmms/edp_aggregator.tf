@@ -69,11 +69,6 @@ locals {
       secret_local_path = "${path.root}/../../../k8s/testing/secretfiles/edp7_tls.pem"
       is_binary_format  = false
     }
-    edpa_tee_app_trusted_ca = {
-      secret_id         = "edpa-tee-app-trusted-ca-4"
-      secret_local_path = "${path.root}/../../../k8s/testing/secretfiles/ca-certificates.crt"
-      is_binary_format  = false
-    }
   }
   secret_accessor_configs = {
     data_watcher = {
@@ -171,11 +166,6 @@ locals {
             secret_key              = "edp7_tls_pem"
             version                 = "latest"
             mount_path              = "/etc/ssl/edp7_tls.pem"
-          },
-          {
-            secret_key              = "edpa_tee_app_trusted_ca"
-            version                 = "latest"
-            mount_path              = "/etc/ssl/ca-certificates.crt"
           },
         ]
       }
