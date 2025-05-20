@@ -30,6 +30,7 @@ import org.wfanet.measurement.privacybudgetmanager.PrivacyLandscapeMappingKt.dim
 
 @RunWith(JUnit4::class)
 class LandscapeUtilsTest {
+
   @Test
   fun `getBuckets works as expected`() {
 
@@ -146,8 +147,184 @@ class LandscapeUtilsTest {
     assertThat(result).isEqualTo(expectedResult)
   }
 
+  // @Test
+  // fun `mapBuckets works for multiple fanouts in a single dimension for mapping`() {
+
+  //   val fomLandscape = privacyLandscape {
+  //     landscapeIdentifier = "landsape1"
+  //     eventTemplateName = "wfa.measurement.api.v2alpha.event_templates.testing.TestEvent"
+  //     dimensions += dimension {
+  //       order = 1
+  //       fieldPath = "person.gender"
+  //       fieldValues += fieldValue { enumValue = "MALE" }
+  //       fieldValues += fieldValue { enumValue = "FEMALE" }
+  //     }
+  //     dimensions += dimension {
+  //       order = 2
+  //       fieldPath = "person.age_group"
+  //       fieldValues += fieldValue { enumValue = "YEARS_18_TO_34" }
+  //       fieldValues += fieldValue { enumValue = "YEARS_35_TO_54" }
+  //       fieldValues += fieldValue { enumValue = "YEARS_55_PLUS" }
+  //     }
+  //   }
+
+  //   val toLandscape = privacyLandscape {
+  //     landscapeIdentifier = "landsape1"
+  //     eventTemplateName = "wfa.measurement.api.v2alpha.event_templates.testing.TestEvent"
+  //     dimensions += dimension {
+  //       order = 1
+  //       fieldPath = "person.gender"
+  //       fieldValues += fieldValue { enumValue = "MALE" }
+  //       fieldValues += fieldValue { enumValue = "FEMALE" }
+  //     }
+  //     dimensions += dimension {
+  //       order = 2
+  //       fieldPath = "person.age_group"
+  //       fieldValues += fieldValue { enumValue = "YEARS_18_TO_34" }
+  //       fieldValues += fieldValue { enumValue = "YEARS_35_TO_44" }
+  //       fieldValues += fieldValue { enumValue = "YEARS_45_TO_54" }
+  //       fieldValues += fieldValue { enumValue = "YEARS_55_TO_64" }
+  //       fieldValues += fieldValue { enumValue = "YEARS_65_PLUS" }
+  //     }
+  //   }
+  //   val mapping = privacyLandscapeMapping {
+  //     mappings += dimensionMapping {
+  //       fromDimensionFieldPath = "person.gender"
+  //       toDimensionFieldPath = "person.gender"
+  //       fieldValueMappings += fieldValueMapping {
+  //         fromFieldValue = fieldValue { enumValue = "MALE" }
+  //         toFieldValues += fieldValue { enumValue = "MALE" }
+  //       }
+  //       fieldValueMappings += fieldValueMapping {
+  //         fromFieldValue = fieldValue { enumValue = "FEMALE" }
+  //         toFieldValues += fieldValue { enumValue = "FEMALE" }
+  //       }
+  //     }
+  //     mappings += dimensionMapping {
+  //       fromDimensionFieldPath = "person.age_group"
+  //       toDimensionFieldPath = "person.age_group"
+  //       fieldValueMappings += fieldValueMapping {
+  //         fromFieldValue = fieldValue { enumValue = "YEARS_18_TO_34" }
+  //         toFieldValues += fieldValue { enumValue = "YEARS_18_TO_34" }
+  //       }
+  //       fieldValueMappings += fieldValueMapping {
+  //         fromFieldValue = fieldValue { enumValue = "YEARS_35_TO_54" }
+  //         toFieldValues += fieldValue { enumValue = "YEARS_35_TO_44" }
+  //         toFieldValues += fieldValue { enumValue = "YEARS_45_TO_54" }
+  //       }
+  //       fieldValueMappings += fieldValueMapping {
+  //         fromFieldValue = fieldValue { enumValue = "YEARS_55_PLUS" }
+  //         toFieldValues += fieldValue { enumValue = "YEARS_55_TO_64" }
+  //         toFieldValues += fieldValue { enumValue = "YEARS_65_PLUS" }
+  //       }
+  //     }
+  //   }
+  //   val buckets =
+  //     listOf(
+  //       PrivacyBucket(
+  //         rowKey =
+  //           LedgerRowKey(
+  //             measurementConsumerId = "mcid",
+  //             eventGroupId = "eg1",
+  //             date = LocalDate.parse("2025-01-15"),
+  //           ),
+  //         populationIndex = 0,
+  //         vidIntervalIndex = 0,
+  //       ),
+  //       PrivacyBucket(
+  //         rowKey =
+  //           LedgerRowKey(
+  //             measurementConsumerId = "mcid",
+  //             eventGroupId = "eg1",
+  //             date = LocalDate.parse("2025-01-15"),
+  //           ),
+  //         populationIndex = 1,
+  //         vidIntervalIndex = 1,
+  //       ),
+  //       PrivacyBucket(
+  //         rowKey =
+  //           LedgerRowKey(
+  //             measurementConsumerId = "mcid",
+  //             eventGroupId = "eg1",
+  //             date = LocalDate.parse("2025-01-15"),
+  //           ),
+  //         populationIndex = 5,
+  //         vidIntervalIndex = 2,
+  //       ),
+  //     )
+
+  //   val result = LandscapeUtils.mapBuckets(buckets, mapping, fomLandscape, toLandscape)
+
+  //   // Population index 0 is mapped to 0 in the new landscape
+  //   //  This corresponds to (MALE, YEARS_18_TO_34) being mapped to  (MALE, YEARS_18_TO_34)
+  //   // Population index 1 is mapped to 1 and 2 in the new landscape
+  //   //  This corresponds to (MALE, 35_TO_54) being mapped to  (MALE, YEARS_35_TO_44) and (MALE,
+  //   // YEARS_45_TO_54)
+  //   // Population index 2 is mapped to 1 and 2 in the new landscape
+  //   //  This corresponds to (MALE, 35_TO_54) being mapped to  (MALE, YEARS_35_TO_44) and (MALE,
+  //   // YEARS_45_TO_54)
+  //   // Population index 5 is mapped to 8 and 9 in the new landscape
+  //   //  This corresponds to (FEMALE, YEARS_55_PLUS) being mapped to  (FEMALE, YEARS_55_TO_64) and
+  //   // (FEMALE, YEARS_65_PLUS)
+  //   val expectedBuckets =
+  //     listOf(
+  //       PrivacyBucket(
+  //         rowKey =
+  //           LedgerRowKey(
+  //             measurementConsumerId = "mcid",
+  //             eventGroupId = "eg1",
+  //             date = LocalDate.parse("2025-01-15"),
+  //           ),
+  //         populationIndex = 0,
+  //         vidIntervalIndex = 0,
+  //       ),
+  //       PrivacyBucket(
+  //         rowKey =
+  //           LedgerRowKey(
+  //             measurementConsumerId = "mcid",
+  //             eventGroupId = "eg1",
+  //             date = LocalDate.parse("2025-01-15"),
+  //           ),
+  //         populationIndex = 1,
+  //         vidIntervalIndex = 1,
+  //       ),
+  //       PrivacyBucket(
+  //         rowKey =
+  //           LedgerRowKey(
+  //             measurementConsumerId = "mcid",
+  //             eventGroupId = "eg1",
+  //             date = LocalDate.parse("2025-01-15"),
+  //           ),
+  //         populationIndex = 2,
+  //         vidIntervalIndex = 1,
+  //       ),
+  //       PrivacyBucket(
+  //         rowKey =
+  //           LedgerRowKey(
+  //             measurementConsumerId = "mcid",
+  //             eventGroupId = "eg1",
+  //             date = LocalDate.parse("2025-01-15"),
+  //           ),
+  //         populationIndex = 8,
+  //         vidIntervalIndex = 2,
+  //       ),
+  //       PrivacyBucket(
+  //         rowKey =
+  //           LedgerRowKey(
+  //             measurementConsumerId = "mcid",
+  //             eventGroupId = "eg1",
+  //             date = LocalDate.parse("2025-01-15"),
+  //           ),
+  //         populationIndex = 9,
+  //         vidIntervalIndex = 2,
+  //       ),
+  //     )
+
+  //   assertThat(result).isEqualTo(expectedBuckets)
+  // }
+
   @Test
-  fun `mapBuckets works for multiple fanouts in a single dimension`() {
+  fun `mapBuckets works for dimension addition fanout`() {
 
     val fomLandscape = privacyLandscape {
       landscapeIdentifier = "landsape1"
@@ -180,10 +357,14 @@ class LandscapeUtilsTest {
         order = 2
         fieldPath = "person.age_group"
         fieldValues += fieldValue { enumValue = "YEARS_18_TO_34" }
-        fieldValues += fieldValue { enumValue = "YEARS_35_TO_44" }
-        fieldValues += fieldValue { enumValue = "YEARS_45_TO_54" }
-        fieldValues += fieldValue { enumValue = "YEARS_55_TO_64" }
-        fieldValues += fieldValue { enumValue = "YEARS_65_PLUS" }
+        fieldValues += fieldValue { enumValue = "YEARS_35_TO_54" }
+        fieldValues += fieldValue { enumValue = "YEARS_55_PLUS" }
+      }
+      dimensions += dimension {
+        order = 3
+        fieldPath = "person.social_grade_group"
+        fieldValues += fieldValue { enumValue = "A_B_C1" }
+        fieldValues += fieldValue { enumValue = "C2_D_E" }
       }
     }
     val mapping = privacyLandscapeMapping {
@@ -208,13 +389,11 @@ class LandscapeUtilsTest {
         }
         fieldValueMappings += fieldValueMapping {
           fromFieldValue = fieldValue { enumValue = "YEARS_35_TO_54" }
-          toFieldValues += fieldValue { enumValue = "YEARS_35_TO_44" }
-          toFieldValues += fieldValue { enumValue = "YEARS_45_TO_54" }
+          toFieldValues += fieldValue { enumValue = "YEARS_35_TO_54" }
         }
         fieldValueMappings += fieldValueMapping {
           fromFieldValue = fieldValue { enumValue = "YEARS_55_PLUS" }
-          toFieldValues += fieldValue { enumValue = "YEARS_55_TO_64" }
-          toFieldValues += fieldValue { enumValue = "YEARS_65_PLUS" }
+          toFieldValues += fieldValue { enumValue = "YEARS_55_PLUS" }
         }
       }
     }
@@ -253,18 +432,50 @@ class LandscapeUtilsTest {
       )
 
     val result = LandscapeUtils.mapBuckets(buckets, mapping, fomLandscape, toLandscape)
+    for (res in result) {
+      println(res)
+    }
 
-    // Population index 0 is mapped to 0 in the new landscape
-    //  This corresponds to (MALE, YEARS_18_TO_34) being mapped to  (MALE, YEARS_18_TO_34)
-    // Population index 1 is mapped to 1 and 2 in the new landscape
-    //  This corresponds to (MALE, 35_TO_54) being mapped to  (MALE, YEARS_35_TO_44) and (MALE,
-    // YEARS_45_TO_54)
-    // Population index 2 is mapped to 1 and 2 in the new landscape
-    //  This corresponds to (MALE, 35_TO_54) being mapped to  (MALE, YEARS_35_TO_44) and (MALE,
-    // YEARS_45_TO_54)
-    // Population index 5 is mapped to 8 and 9 in the new landscape
-    //  This corresponds to (FEMALE, YEARS_55_PLUS) being mapped to  (FEMALE, YEARS_55_TO_64) and
-    // (FEMALE, YEARS_65_PLUS)
+    // Adding a new dimension with 2 values to the landscape fansout all other dimensions.
+    // While there are 3 input buckets, we receive 6 mapped buckets because of the new social grade
+    // dimension
+    // Population indexes for the From Landscape  :
+    // /populationIndex 0 ---- [person.gender.MALE, person.age_group.YEARS_18_TO_34]
+    // populationIndex 1 ---- [person.gender.MALE, person.age_group.YEARS_35_TO_54]
+    // populationIndex 2 ---- [person.gender.MALE, person.age_group.YEARS_55_PLUS]
+    // populationIndex 3 ---- [person.gender.FEMALE, person.age_group.YEARS_18_TO_34]
+    // populationIndex 4 ---- [person.gender.FEMALE, person.age_group.YEARS_35_TO_54]
+    // populationIndex 5 ---- [person.gender.FEMALE, person.age_group.YEARS_55_PLUS]
+    // Population indexes for the To Landscape  :
+    // populationIndex 0 ---- [person.gender.MALE, person.age_group.YEARS_18_TO_34,
+    // person.social_grade_group.A_B_C1]
+    // populationIndex 1 ---- [person.gender.MALE, person.age_group.YEARS_18_TO_34,
+    // person.social_grade_group.C2_D_E]
+    // populationIndex 2 ---- [person.gender.MALE, person.age_group.YEARS_35_TO_54,
+    // person.social_grade_group.A_B_C1]
+    // populationIndex 3 ---- [person.gender.MALE, person.age_group.YEARS_35_TO_54,
+    // person.social_grade_group.C2_D_E]
+    // populationIndex 4 ---- [person.gender.MALE, person.age_group.YEARS_55_PLUS,
+    // person.social_grade_group.A_B_C1]
+    // populationIndex 5 ---- [person.gender.MALE, person.age_group.YEARS_55_PLUS,
+    // person.social_grade_group.C2_D_E]
+    // populationIndex 6 ---- [person.gender.FEMALE, person.age_group.YEARS_18_TO_34,
+    // person.social_grade_group.A_B_C1]
+    // populationIndex 7 ---- [person.gender.FEMALE, person.age_group.YEARS_18_TO_34,
+    // person.social_grade_group.C2_D_E]
+    // populationIndex 8 ---- [person.gender.FEMALE, person.age_group.YEARS_35_TO_54,
+    // person.social_grade_group.A_B_C1]
+    // populationIndex 9 ---- [person.gender.FEMALE, person.age_group.YEARS_35_TO_54,
+    // person.social_grade_group.C2_D_E]
+    // populationIndex 10 ---- [person.gender.FEMALE, person.age_group.YEARS_55_PLUS,
+    // person.social_grade_group.A_B_C1]
+    // populationIndex 11 ---- [person.gender.FEMALE, person.age_group.YEARS_55_PLUS,
+    // person.social_grade_group.C2_D_E]
+
+    // Following this,
+    //  0 should map to 0 and 1
+    //  1 should map to 2 and 3
+    //  5 should map to 10 and 11
     val expectedBuckets =
       listOf(
         PrivacyBucket(
@@ -285,7 +496,7 @@ class LandscapeUtilsTest {
               date = LocalDate.parse("2025-01-15"),
             ),
           populationIndex = 1,
-          vidIntervalIndex = 1,
+          vidIntervalIndex = 0,
         ),
         PrivacyBucket(
           rowKey =
@@ -304,7 +515,17 @@ class LandscapeUtilsTest {
               eventGroupId = "eg1",
               date = LocalDate.parse("2025-01-15"),
             ),
-          populationIndex = 8,
+          populationIndex = 3,
+          vidIntervalIndex = 1,
+        ),
+        PrivacyBucket(
+          rowKey =
+            LedgerRowKey(
+              measurementConsumerId = "mcid",
+              eventGroupId = "eg1",
+              date = LocalDate.parse("2025-01-15"),
+            ),
+          populationIndex = 10,
           vidIntervalIndex = 2,
         ),
         PrivacyBucket(
@@ -314,7 +535,7 @@ class LandscapeUtilsTest {
               eventGroupId = "eg1",
               date = LocalDate.parse("2025-01-15"),
             ),
-          populationIndex = 9,
+          populationIndex = 11,
           vidIntervalIndex = 2,
         ),
       )
