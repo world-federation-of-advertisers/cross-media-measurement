@@ -32,11 +32,15 @@ import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.tink.testing.FakeKmsClient
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.parseTextProto
-import org.wfanet.measurement.edpaggregator.KmsType
 import org.wfanet.measurement.loadtest.edpaggregator.ImpressionsWriter
 import org.wfanet.measurement.loadtest.edpaggregator.SyntheticDataGeneration
 import picocli.CommandLine.Command
 import picocli.CommandLine.Option
+
+enum class KmsType {
+  FAKE,
+  GCP,
+}
 
 @Command(
   name = "generate-synthetic-data",
@@ -53,7 +57,7 @@ class GenerateSyntheticData : Runnable {
 
   @Option(
     names = ["--local-storage-path"],
-    description = ["Optional path to local storage."],
+    description = ["Optional. Path to local storage used when schema is file:///"],
     required = false,
   )
   private var storagePath: File? = null
@@ -76,16 +80,19 @@ class GenerateSyntheticData : Runnable {
     private set
 
   @Option(
-    names = ["--bucket"],
-    description = ["The bucket where to write the files."],
+    names = ["--output-bucket"],
+    description = ["The bucket where to write the metadata and impressions."],
     required = true,
   )
-  lateinit var bucket: String
+  lateinit var outputBucket: String
     private set
 
   @Option(
     names = ["--schema"],
-    description = ["The schema to write to. Supported options are gs:// and file:///"],
+    description =
+      [
+        "The schema to write to. Supported options are gs:// and file:///. Used by a SelectedStorageClient to build the proper storage client to write output to."
+      ],
     required = true,
     defaultValue = "file:///",
   )
@@ -93,33 +100,34 @@ class GenerateSyntheticData : Runnable {
     private set
 
   @Option(
-    names = ["--population-spec"],
-    description = ["The resource of the population-spec."],
+    names = ["--population-spec-resource-path"],
+    description = ["The path to the resource of the population-spec. Must be textproto format."],
     required = true,
   )
-  lateinit var populationSpecResourceName: String
+  lateinit var populationSpecResourcePath: String
     private set
 
   @Option(
-    names = ["--data-spec"],
-    description = ["The resource of the data-spec."],
+    names = ["--data-spec-resource-path"],
+    description = ["The path to the resource of the data-spec. Must be textproto format."],
     required = true,
   )
-  lateinit var dataSpecResourceName: String
+  lateinit var dataSpecResourcePath: String
     private set
 
   @kotlin.io.path.ExperimentalPathApi
   override fun run() {
     val syntheticPopulationSpec: SyntheticPopulationSpec =
       parseTextProto(
-        TEST_DATA_RUNTIME_PATH.resolve(populationSpecResourceName).toFile(),
+        TEST_DATA_RUNTIME_PATH.resolve(populationSpecResourcePath).toFile(),
         SyntheticPopulationSpec.getDefaultInstance(),
       )
     val syntheticEventGroupSpec: SyntheticEventGroupSpec =
       parseTextProto(
-        TEST_DATA_RUNTIME_PATH.resolve(dataSpecResourceName).toFile(),
+        TEST_DATA_RUNTIME_PATH.resolve(dataSpecResourcePath).toFile(),
         SyntheticEventGroupSpec.getDefaultInstance(),
       )
+    // TODO: Support other event types
     val events =
       SyntheticDataGeneration.generateEvents(
         messageInstance = TestEvent.getDefaultInstance(),
@@ -141,7 +149,15 @@ class GenerateSyntheticData : Runnable {
     }
     runBlocking {
       val impressionWriter =
-        ImpressionsWriter(eventGroupReferenceId, kekUri, kmsClient, bucket, storagePath, schema)
+        ImpressionsWriter(
+          eventGroupReferenceId,
+          kekUri,
+          kmsClient,
+          outputBucket,
+          outputBucket,
+          storagePath,
+          schema,
+        )
       impressionWriter.writeLabeledImpressionData(events)
     }
   }
@@ -150,6 +166,7 @@ class GenerateSyntheticData : Runnable {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
     private const val DEFAULT_KEK_URI = FakeKmsClient.KEY_URI_PREFIX + "key1"
 
+    // This is the relative location from which population and data spec textprotos are read.
     private val TEST_DATA_PATH =
       Paths.get(
         "wfa_measurement_system",

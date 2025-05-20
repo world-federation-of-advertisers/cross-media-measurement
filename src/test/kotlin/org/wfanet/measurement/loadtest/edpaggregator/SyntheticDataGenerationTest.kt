@@ -52,7 +52,7 @@ class SyntheticDataGenerationTest {
       )
     runBlocking {
       val eventsList = events.toList()
-      assertThat(eventsList.map { it.first.toString() })
+      assertThat(eventsList.map { it.localDate.toString() })
         .isEqualTo(
           listOf(
             "2021-03-15",
@@ -65,7 +65,7 @@ class SyntheticDataGenerationTest {
           )
         )
       // 8000 total reach / 7 days
-      eventsList.map { assertThat(it.second.toList().size).isWithin(100).of(8000 / 7) }
+      eventsList.map { assertThat(it.impressions.toList().size).isWithin(100).of(8000 / 7) }
     }
   }
 

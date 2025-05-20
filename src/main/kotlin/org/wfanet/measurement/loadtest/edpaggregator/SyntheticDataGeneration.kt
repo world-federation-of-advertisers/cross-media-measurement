@@ -1,5 +1,5 @@
 /*
- * Copyright 2023 The Cross-Media Measurement Authors
+ * Copyright 2025 The Cross-Media Measurement Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,7 +23,6 @@ import com.google.protobuf.Message
 import com.google.protobuf.kotlin.toByteStringUtf8
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
-import java.time.LocalDate
 import java.time.ZoneOffset
 import java.time.temporal.ChronoUnit
 import java.util.logging.Logger
@@ -53,7 +52,7 @@ object SyntheticDataGeneration {
   private const val FINGERPRINT_BUFFER_SIZE_BYTES = 512
 
   /**
-   * Generates events non-probablistically. Given a total frequency across a date period, it will
+   * Generates events probablistically. Given a total frequency across a date period, it will
    * generate events based on the probability that a user would have had an impression that day. For
    * example, for a user with frequency of 5, over a 10 day period, there is a 50% chance they have
    * an impression each day.
@@ -68,7 +67,7 @@ object SyntheticDataGeneration {
     messageInstance: T,
     populationSpec: SyntheticPopulationSpec,
     syntheticEventGroupSpec: SyntheticEventGroupSpec,
-  ): Flow<Pair<LocalDate, Flow<LabeledImpression>>> {
+  ): Flow<DateShardedLabeledImpression> {
     val subPopulations = populationSpec.subPopulationsList
     return flow {
       for (dateSpec: SyntheticEventGroupSpec.DateSpec in syntheticEventGroupSpec.dateSpecsList) {
@@ -141,7 +140,7 @@ object SyntheticDataGeneration {
               }
             }
           }
-          emit(Pair(date, innerFlow))
+          emit(DateShardedLabeledImpression(date, innerFlow))
         }
       }
     }

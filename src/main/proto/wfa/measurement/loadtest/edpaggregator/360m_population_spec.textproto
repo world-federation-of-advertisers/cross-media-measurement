@@ -1,9 +1,19 @@
 # proto-file: wfa/measurement/api/v2alpha/event_group_metadata/testing/simulator_synthetic_data_spec.proto
 # proto-message: SyntheticPopulationSpec
 
-# 2011 UK population by sex, age, and social grade.
-#
-# See https://www.ons.gov.uk/peoplepopulationandcommunity/birthsdeathsandmarriages/families/adhocs/005317ct05672011censussexbyagesyoabyapproximatedsocialgradenationaltocountry
+# A synthetic population used for performance testing.
+# 360 Million individuals evenly distributed across 3 age buckets, 2 genders, and 2 social grades.
+# Enum Values
+# Age:
+#  1: 18-34
+#  2: 35-54
+#  3: 55+
+# Gender:
+#  1: MALE
+#  2: FEMALE
+# Social Grade:
+#  1: A, B, C1
+#  2: C2, D, E
 
 vid_range {
   start: 1
