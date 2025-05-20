@@ -119,6 +119,7 @@ class PrivacyBudgetManager(
     for (query in queries) {
       delta.add(
         processBucketsForLandscape(
+          query.queryIdentifiers.measurementConsumerId,
           query.privacyLandscapeIdentifier,
           query.eventGroupLandscapeMasksList,
         ),
@@ -138,6 +139,7 @@ class PrivacyBudgetManager(
    * @return The list of PrivacyBuckets mapped to the tail PrivacyLandscape.
    */
   fun processBucketsForLandscape(
+    measurementConsumerId: String,
     inactivelandscapeIdentifier: String,
     eventGroupLandscapeMasks: List<EventGroupLandscapeMask>,
   ): List<PrivacyBucket> {
@@ -150,7 +152,8 @@ class PrivacyBudgetManager(
         )
 
     val initialLandscape = initialNode.fromLandscape
-    val initialBuckets = LandscapeUtils.getBuckets(eventGroupLandscapeMasks, initialLandscape)
+    val initialBuckets =
+      LandscapeUtils.getBuckets(measurementConsumerId, eventGroupLandscapeMasks, initialLandscape, emptyList())
 
     var currentBuckets = initialBuckets
     var currentLandscape = initialLandscape
