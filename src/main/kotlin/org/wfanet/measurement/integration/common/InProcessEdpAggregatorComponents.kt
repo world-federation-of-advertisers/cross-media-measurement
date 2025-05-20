@@ -28,6 +28,8 @@ import java.nio.file.Files
 import java.nio.file.Path
 import java.time.Clock
 import java.time.Duration
+import java.time.LocalDate
+import java.time.ZoneId
 import java.util.logging.Level
 import java.util.logging.Logger
 import kotlinx.coroutines.CoroutineExceptionHandler
@@ -55,6 +57,7 @@ import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.config.securecomputation.WatchedPath
 import org.wfanet.measurement.edpaggregator.eventgroups.EventGroupSync
+import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup.MediaType
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.MetadataKt.AdMetadataKt.campaignMetadata
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.MetadataKt.adMetadata
@@ -188,26 +191,7 @@ class InProcessEdpAggregatorComponents(
         delay(1000)
       }
     }
-    val eventGroups =
-      listOf(
-        eventGroup {
-          eventGroupReferenceId = "edpa-eg-reference-id-1"
-          measurementConsumer = measurementConsumerData.name
-          dataAvailabilityInterval = interval {
-            startTime = timestamp { seconds = 200 }
-            endTime = timestamp { seconds = 300 }
-          }
-          this.eventGroupMetadata = eventGroupMetadata {
-            this.adMetadata = adMetadata {
-              this.campaignMetadata = campaignMetadata {
-                brand = "brand-2"
-                campaign = "campaign-2"
-              }
-            }
-          }
-          mediaTypes += MediaType.valueOf("VIDEO")
-        }
-      )
+    val eventGroups = buildEventGroups(measurementConsumerData)
     eventGroupSync =
       EventGroupSync(
         edpResourceName,
@@ -221,6 +205,44 @@ class InProcessEdpAggregatorComponents(
       runBlocking { writeImpressionData(mappedEventGroups) }
 
       // TODO: Run Results Fulfiller App
+    }
+  }
+
+  private fun buildEventGroups(measurementConsumerData: MeasurementConsumerData): List<EventGroup> {
+    return syntheticEventGroupMap.flatMap { (eventGroupReferenceId, syntheticEventGroupSpec) ->
+      syntheticEventGroupSpec.dateSpecsList.map { dateSpec ->
+        val dateRange = dateSpec.dateRange
+        val startTime =
+          LocalDate.of(dateRange.start.year, dateRange.start.month, dateRange.start.day)
+            .atStartOfDay(ZONE_ID)
+            .toInstant()
+        val endTime =
+          LocalDate.of(
+              dateRange.endExclusive.year,
+              dateRange.endExclusive.month,
+              dateRange.endExclusive.day - 1,
+            )
+            .atTime(23, 59, 59)
+            .atZone(ZONE_ID)
+            .toInstant()
+        eventGroup {
+          this.eventGroupReferenceId = eventGroupReferenceId
+          measurementConsumer = measurementConsumerData.name
+          dataAvailabilityInterval = interval {
+            this.startTime = timestamp { seconds = startTime.epochSecond }
+            this.endTime = timestamp { seconds = endTime.epochSecond }
+          }
+          this.eventGroupMetadata = eventGroupMetadata {
+            this.adMetadata = adMetadata {
+              this.campaignMetadata = campaignMetadata {
+                brand = "some-brand"
+                campaign = "some-brand"
+              }
+            }
+          }
+          mediaTypes += MediaType.valueOf("VIDEO")
+        }
+      }
     }
   }
 
@@ -271,5 +293,6 @@ class InProcessEdpAggregatorComponents(
     private const val IMPRESSIONS_BUCKET = "impression-bucket"
     private const val IMPRESSIONS_METADATA_BUCKET = "impression-metadata-bucket"
     private const val REQUISITION_STORAGE_PREFIX = "requisition-storage-prefix"
+    private val ZONE_ID = ZoneId.of("UTC")
   }
 }
