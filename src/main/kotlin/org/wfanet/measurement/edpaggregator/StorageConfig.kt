@@ -1,4 +1,4 @@
-package org.wfanet.measurement.edpaggregator.resultsfulfiller
+package org.wfanet.measurement.edpaggregator
 
 import java.io.File
 

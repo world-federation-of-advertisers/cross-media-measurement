@@ -165,11 +165,11 @@ class RequisitionSpecsTest {
     // Write impressions to storage
     mesosRecordIoStorageClient.writeBlob(IMPRESSIONS_BLOB_KEY, impressionsFlow)
 
-    // Create the impressions metadata store
-    val metadataTmpPath = Files.createTempDirectory(null).toFile()
-    Files.createDirectories(metadataTmpPath.resolve(IMPRESSIONS_METADATA_BUCKET).toPath())
-    val impressionsMetadataStorageClient =
-      SelectedStorageClient(IMPRESSIONS_METADATA_FILE_URI, metadataTmpPath)
+    // Create the impressions DEK store
+    val dekTmpPath = Files.createTempDirectory(null).toFile()
+    Files.createDirectories(dekTmpPath.resolve(IMPRESSIONS_DEK_BUCKET).toPath())
+    val impressionsDekStorageClient =
+      SelectedStorageClient(IMPRESSIONS_DEK_FILE_URI, dekTmpPath)
 
     val encryptedDek =
       EncryptedDek.newBuilder().setKekUri(kekUri).setEncryptedDek(serializedEncryptionKey).build()
@@ -179,19 +179,24 @@ class RequisitionSpecsTest {
         .setEncryptedDek(encryptedDek)
         .build()
 
-    impressionsMetadataStorageClient.writeBlob(
-      IMPRESSION_METADATA_BLOB_KEY,
+    impressionsDekStorageClient.writeBlob(
+      IMPRESSION_DEK_BLOB_KEY,
       blobDetails.toByteString()
+    )
+    
+    // Create EventReader
+    val eventReader = EventReader(
+      kmsClient,
+      StorageConfig(rootDirectory = impressionsTmpPath),
+      StorageConfig(rootDirectory = dekTmpPath),
+      IMPRESSIONS_DEK_FILE_URI_PREFIX
     )
 
     val result = RequisitionSpecs.getSampledVids(
       requisitionSpec,
       vidSamplingInterval,
       typeRegistry,
-      kmsClient,
-      StorageConfig(rootDirectory = impressionsTmpPath),
-      StorageConfig(rootDirectory = metadataTmpPath),
-      IMPRESSIONS_METADATA_FILE_URI_PREFIX,
+      eventReader
     )
 
     assertThat(result.count()).isEqualTo(validImpressionCount)
@@ -243,11 +248,11 @@ class RequisitionSpecsTest {
     private const val IMPRESSIONS_BLOB_KEY = "impressions"
     private const val IMPRESSIONS_FILE_URI = "file:///$IMPRESSIONS_BUCKET/$IMPRESSIONS_BLOB_KEY"
 
-    private const val IMPRESSIONS_METADATA_BUCKET = "impression-metadata-bucket"
-    private val IMPRESSION_METADATA_BLOB_KEY =
+    private const val IMPRESSIONS_DEK_BUCKET = "impression-dek-bucket"
+    private val IMPRESSION_DEK_BLOB_KEY =
       "ds/${TIME_RANGE.start}/event-group-id/$EVENT_GROUP_NAME/metadata"
-    private val IMPRESSIONS_METADATA_FILE_URI =
-      "file:///$IMPRESSIONS_METADATA_BUCKET/$IMPRESSION_METADATA_BLOB_KEY"
-    private const val IMPRESSIONS_METADATA_FILE_URI_PREFIX = "file:///$IMPRESSIONS_METADATA_BUCKET"
+    private val IMPRESSIONS_DEK_FILE_URI =
+      "file:///$IMPRESSIONS_DEK_BUCKET/$IMPRESSION_DEK_BLOB_KEY"
+    private const val IMPRESSIONS_DEK_FILE_URI_PREFIX = "file:///$IMPRESSIONS_DEK_BUCKET"
   }
 }

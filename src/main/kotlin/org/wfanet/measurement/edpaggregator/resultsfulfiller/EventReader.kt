@@ -22,6 +22,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.toInstant
+import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
 import org.wfanet.measurement.storage.BlobUri
@@ -82,7 +83,7 @@ class EventReader(
   /**
    * Retrieves labeled impressions from blob details.
    *
-   * @param blobDetails The blob details
+   * @param blobDetails The blob details with the DEK
    * @return A flow of labeled impressions
    */
   private suspend fun getLabeledImpressions(blobDetails: BlobDetails): Flow<LabeledImpression> {

@@ -20,7 +20,7 @@ kt_jvm_library(
     name = "event_reader",
     srcs = ["EventReader.kt"],
     deps = [
-        ":storage_config",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator:storage_config",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:blob_details_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:labeled_impression_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/crypto/tink",
@@ -39,9 +39,4 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/eventfiltration:event_filters",
         "//src/main/proto/wfa/measurement/api/v2alpha:measurement_spec_kt_jvm_proto",
     ],
-)
-
-kt_jvm_library(
-    name = "storage_config",
-    srcs = ["StorageConfig.kt"],
 )

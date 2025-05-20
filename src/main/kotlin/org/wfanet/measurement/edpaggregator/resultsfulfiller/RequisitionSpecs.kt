@@ -40,10 +40,7 @@ object RequisitionSpecs {
    * @param requisitionSpec The requisition specification containing event groups
    * @param vidSamplingInterval The sampling interval to filter VIDs
    * @param typeRegistry The registry for looking up protobuf descriptors
-   * @param kmsClient The KMS client for encryption operations
-   * @param impressionsStorageConfig Configuration for impressions storage
-   * @param impressionMetadataStorageConfig Configuration for impression metadata storage
-   * @param labeledImpressionMetadataPrefix Prefix for labeled impression metadata
+   * @param eventReader The EventReader to read labeled impressions
    * @return A Flow of sampled VIDs (Long values)
    */
   @OptIn(ExperimentalCoroutinesApi::class) // For flatMapConcat
@@ -51,10 +48,7 @@ object RequisitionSpecs {
     requisitionSpec: RequisitionSpec,
     vidSamplingInterval: MeasurementSpec.VidSamplingInterval,
     typeRegistry: TypeRegistry,
-    kmsClient: KmsClient,
-    impressionsStorageConfig: StorageConfig,
-    impressionMetadataStorageConfig: StorageConfig,
-    labeledImpressionMetadataPrefix: String
+    eventReader: EventReader
   ): Flow<Long> {
     val vidSamplingIntervalStart = vidSamplingInterval.start
     val vidSamplingIntervalWidth = vidSamplingInterval.width
@@ -70,14 +64,6 @@ object RequisitionSpecs {
       "Invalid vidSamplingInterval: start = $vidSamplingIntervalStart, width = " +
         "$vidSamplingIntervalWidth"
     }
-
-    // Create an EventReader to read labeled impressions
-    val eventReader = EventReader(
-      kmsClient,
-      impressionsStorageConfig,
-      impressionMetadataStorageConfig,
-      labeledImpressionMetadataPrefix
-    )
 
     // Return a Flow that processes event groups and extracts valid VIDs
     return requisitionSpec.events.eventGroupsList
