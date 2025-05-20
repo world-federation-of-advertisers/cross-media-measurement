@@ -660,7 +660,7 @@ class ResultsFulfiller(
 
     val eventTemplateDescriptor = typeRegistry.getDescriptorForTypeUrl(eventMessageData.typeUrl)
     logger.info("~~~~~~~~~~~~~~~~~~ is valid impression 9: ${eventTemplateDescriptor}")
-    logger.info("~~~~~~~~~~~~~~~~~~ is valid impression 10: ${eventTemplateDescriptor.name}")
+//    logger.info("~~~~~~~~~~~~~~~~~~ is valid impression 10: ${eventTemplateDescriptor.name}")
     val eventMessage = DynamicMessage.parseFrom(eventTemplateDescriptor, eventMessageData.value)
     val program = compileProgram(eventGroup.value.filter, eventTemplateDescriptor)
 

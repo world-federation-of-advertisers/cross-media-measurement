@@ -5,6 +5,7 @@ import com.google.crypto.tink.integration.gcpkms.GcpKmsClient
 import com.google.protobuf.Parser
 import com.google.protobuf.TypeRegistry
 import java.io.File
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams.StorageParams
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
 import org.wfanet.measurement.queue.QueueSubscriber
@@ -49,7 +50,8 @@ class ResultsFulfillerAppImpl(
   override fun getTypeRegistry(): TypeRegistry {
     // TODO: add event production event templates
     val typeRegistry = TypeRegistry.newBuilder()
-      .add(ResultsFulfillerParams.getDescriptor())
+      .add(TestEvent.getDescriptor())
+//      .add(ResultsFulfillerParams.getDescriptor())
       .build()
     return typeRegistry
   }
