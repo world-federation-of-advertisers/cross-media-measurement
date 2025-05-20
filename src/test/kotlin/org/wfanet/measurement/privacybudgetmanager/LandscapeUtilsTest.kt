@@ -25,6 +25,8 @@ import org.junit.runners.JUnit4
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.privacybudgetmanager.PrivacyLandscapeKt.DimensionKt.fieldValue
 import org.wfanet.measurement.privacybudgetmanager.PrivacyLandscapeKt.dimension
+import org.wfanet.measurement.privacybudgetmanager.PrivacyLandscapeMappingKt.dimensionMapping
+import org.wfanet.measurement.privacybudgetmanager.PrivacyLandscapeMappingKt.DimensionMappingKt.fieldValueMapping
 
 @RunWith(JUnit4::class)
 class LandscapeUtilsTest {
@@ -142,5 +144,79 @@ class LandscapeUtilsTest {
       )
 
     assertThat(result).isEqualTo(expectedResult)
+  }
+
+  @Test fun `mapBuckets works for multiple fanouts in a single dimension`() {
+
+    val fomLandscape = privacyLandscape {
+      landscapeIdentifier = "landsape1"
+      eventTemplateName = "wfa.measurement.api.v2alpha.event_templates.testing.TestEvent"
+      dimensions += dimension {
+        order = 1
+        fieldPath = "person.gender"
+        fieldValues += fieldValue { enumValue = "MALE" }
+        fieldValues += fieldValue { enumValue = "FEMALE" }
+      }
+      dimensions += dimension {
+        order = 2
+        fieldPath = "person.age_group"
+        fieldValues += fieldValue { enumValue = "YEARS_18_TO_34" }
+        fieldValues += fieldValue { enumValue = "YEARS_35_TO_54" }
+        fieldValues += fieldValue { enumValue = "YEARS_55_PLUS" }
+      }
+    }
+
+    val toLandscape = privacyLandscape {
+      landscapeIdentifier = "landsape1"
+      eventTemplateName = "wfa.measurement.api.v2alpha.event_templates.testing.TestEvent"
+      dimensions += dimension {
+        order = 1
+        fieldPath = "person.gender"
+        fieldValues += fieldValue { enumValue = "MALE" }
+        fieldValues += fieldValue { enumValue = "FEMALE" }
+      }
+      dimensions += dimension {
+        order = 2
+        fieldPath = "person.age_group"
+        fieldValues += fieldValue { enumValue = "YEARS_18_TO_34" }
+        fieldValues += fieldValue { enumValue = "YEARS_35_TO_44" }
+        fieldValues += fieldValue { enumValue = "YEARS_45_TO_54" }
+        fieldValues += fieldValue { enumValue = "YEARS_55_TO_64" }
+        fieldValues += fieldValue { enumValue = "YEARS_65_PLUS" }
+      }
+    }
+    val mapping = privacyLandscapeMapping{
+      mappings += dimensionMapping{
+        fromDimensionFieldPath =  "person.gender"
+        toDimensionFieldPath =  "person.gender"
+        fieldValueMappings += fieldValueMapping{
+          fromFieldValue = fieldValue { enumValue = "MALE" }
+          toFieldValues += fieldValue { enumValue = "MALE" }
+        }
+        fieldValueMappings += fieldValueMapping{
+          fromFieldValue = fieldValue { enumValue = "FEMALE" }
+          toFieldValues += fieldValue { enumValue = "FEMALE" }
+        }
+      }
+      mappings += dimensionMapping{
+        fromDimensionFieldPath =  "person.age_group"
+        toDimensionFieldPath =  "person.age_group"
+        fieldValueMappings += fieldValueMapping{
+          fromFieldValue = fieldValue { enumValue = "YEARS_18_TO_34" }
+          toFieldValues += fieldValue { enumValue = "YEARS_18_TO_34" }
+        }
+        fieldValueMappings += fieldValueMapping{
+          fromFieldValue = fieldValue { enumValue = "YEARS_35_TO_54" }
+          toFieldValues += fieldValue { enumValue = "YEARS_35_TO_44" }
+          toFieldValues += fieldValue { enumValue = "YEARS_45_TO_54" }
+        }
+        fieldValueMappings += fieldValueMapping{
+          fromFieldValue = fieldValue { enumValue = "YEARS_55_PLUS" }
+          toFieldValues += fieldValue { enumValue = "YEARS_55_TO_64" }
+          toFieldValues += fieldValue { enumValue = "YEARS_65_PLUS" }
+        }
+      }
+    }
+    LandscapeUtils.mapBuckets(emptyList(), mapping, fomLandscape, toLandscape)
   }
 }

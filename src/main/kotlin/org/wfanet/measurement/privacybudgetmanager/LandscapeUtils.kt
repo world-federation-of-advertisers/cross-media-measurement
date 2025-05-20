@@ -29,7 +29,11 @@ const val NUM_VID_INTERVALS = 300
 /** Wraps utilities to filter and map [PrivacyLandscapes]. */
 object LandscapeUtils {
 
+  // Cache the landscape based event message generation so its not recomputed for same inputs.
   private val landscapeCache = mutableMapOf<LandscapeNode, List<DynamicMessage>>()
+
+  // Cache the Mapping action so that its not recomputed for same inputs.
+  private val mappingCache = mutableMapOf<LandscapeNode, List<DynamicMessage>>()
 
   /** Wraps the PrivacyLandscape along with the event template descriptor it references */
   data class LandscapeNode(
@@ -247,6 +251,90 @@ object LandscapeUtils {
     return privacyBuckets
   }
 
+  fun cartesianProduct(lists: List<List<String>>): List<List<String>> {
+    if (lists.isEmpty()) {
+      return listOf(emptyList())
+    }
+
+    val firstList = lists.first()
+    val remainingLists = lists.drop(1)
+
+    if (remainingLists.isEmpty()) {
+      return firstList.map { listOf(it) } // Simplify for single list case
+    }
+
+    val remainingProduct = cartesianProduct(remainingLists) // Recursive call
+    return firstList.flatMap { element ->
+      remainingProduct.map { combination -> listOf(element) + combination }
+    }
+  }
+
+  fun getFieldToIndexMapping(privacyLandscape: PrivacyLandscape): Map<String, MutableSet<Int>> {
+    val fieldToIndexMap = mutableMapOf<String, MutableSet<Int>>()
+    // 1. Extract the field values from the dimensions.
+    val allFieldValues: List<List<String>> =
+      privacyLandscape.dimensionsList
+        .sortedBy { it.order }
+        .map { dimension ->
+          dimension.fieldValuesList.map { fieldValue ->
+            "${dimension.fieldPath}.${fieldValue.enumValue}"
+          }
+        }
+
+    // 2. Calculate the Cartesian product of the field values.
+    val combinations: List<List<String>> = cartesianProduct(allFieldValues)
+
+    // 3. Print the index for each combination.
+    for ((index, combination) in combinations.withIndex()) {
+      for (fieldPath in combination) {
+        fieldToIndexMap.getOrPut(fieldPath) { mutableSetOf() }.add(index)
+      }
+    }
+    return fieldToIndexMap
+  }
+
+  fun populate(
+    populationIndexMapping: MutableMap<Int, MutableSet<Int>>,
+    keys: List<Int>,
+    values: List<Int>,
+  ) {
+    for (key in keys) {
+      val valueSet: MutableSet<Int> = populationIndexMapping.getOrPut(key) { mutableSetOf() }
+      valueSet.addAll(values)
+    }
+  }
+
+  fun getPopulationIndexMapping(
+    privacyLandscapeMapping: PrivacyLandscapeMapping,
+    from: PrivacyLandscape,
+    to: PrivacyLandscape,
+  ): Map<Int, Set<Int>> {
+    val populationIndexMapping = mutableMapOf<Int, MutableSet<Int>>()
+
+    val fromLandsacapIndexMapping = getFieldToIndexMapping(from)
+    val toLandsacapIndexMapping = getFieldToIndexMapping(to)
+
+    println("fromLandsacapIndexMapping $fromLandsacapIndexMapping")
+    println("toLandsacapIndexMapping $toLandsacapIndexMapping")
+
+    for (mapping in privacyLandscapeMapping.mappingsList) {
+      for (fieldValueMapping in mapping.fieldValueMappingsList) {
+        
+        val fromKey = "${mapping.fromDimensionFieldPath}.${fieldValueMapping.fromFieldValue.enumValue}"
+        println("fromKeyfromKeyfromKey $fromKey")
+        val fromIndicies = fromLandsacapIndexMapping.get(fromKey)!!.toList()
+
+        for (toFieldValue in fieldValueMapping.toFieldValuesList) {
+          val toKey = "${mapping.toDimensionFieldPath}.${toFieldValue.enumValue}"
+          val toIndicies = fromLandsacapIndexMapping.get(fromKey)!!.toList()
+          populate(populationIndexMapping, fromIndicies, toIndicies)
+        }
+      }
+    }
+    println("YOOOOOOOOO!!!!!!!")
+    return populationIndexMapping
+  }
+
   /**
    * Maps a list of [PrivacyBucket]s from an [fromPrivacyLandscape] to an [toPrivacyLandscape]
    *
@@ -262,5 +350,21 @@ object LandscapeUtils {
     mapping: PrivacyLandscapeMapping,
     from: PrivacyLandscape,
     to: PrivacyLandscape,
-  ): List<PrivacyBucket> = TODO("uakyol: implement this")
+  ): List<PrivacyBucket> {
+    val mappedPrivacyBuckets = mutableListOf<PrivacyBucket>()
+    val populationIndexMapping = getPopulationIndexMapping(mapping, from, to)
+    println("populationIndexMappingpopulationIndexMapping $populationIndexMapping")
+    println("HELLLLLLOOOOOOOO!!!!!!!!!!")
+    return emptyList()
+
+    // for (bucket in buckets) {
+    //   val mappedPopulationIndicies = populationIndexMapping.get(bucket.populationIndex)
+    //   for (mappedPopulationIndex in mappedPopulationIndicies) {
+    //     mappedPrivacyBuckets.add(
+    //       PrivacyBucket(bucket.rowKey, mappedPopulationIndex, bucket.vidIntervalIndex)
+    //     )
+    //   }
+    // }
+    // return mappedPrivacyBuckets
+  }
 }
