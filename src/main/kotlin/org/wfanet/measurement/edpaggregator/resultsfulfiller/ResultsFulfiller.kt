@@ -561,7 +561,7 @@ class ResultsFulfiller(
 
       logger.severe("Successfully accessed KMS key and performed dummy encryption/decryption")
     } catch (e: Exception) {
-      logger.severe("❌ Failed to use KMS key at $kekUri: ${e.message}")
+      logger.severe("❌ Failed to use KMS key at $kekUri: ${e.message}, ${e.stackTrace}")
     }
   }
 
@@ -585,6 +585,7 @@ class ResultsFulfiller(
     // Create and configure storage client with encryption
     val encryptedDek = blobDetails.encryptedDek
     logger.info("~~~~~~~~~~~~~ encryptedDek.kekUri: ${encryptedDek.kekUri}")
+    logger.info("~~~~~~~~~ Length: ${encryptedDek.encryptedDek.size()}")
     val encryptedImpressionsClient = createStorageClient(storageClientUri, impressionsStorageConfig)
     testKmsKeyAccess(kmsClient, encryptedDek.kekUri)
     logger.info("~~~~~ test completed")
