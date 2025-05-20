@@ -93,8 +93,11 @@ class ResultsFulfillerAppRunner : Runnable {
 
 
   override fun run() {
+    logger.info("~~~~~~~~~~~~ results fulfiller1")
     val queueSubscriber = createQueueSubscriber()
+    logger.info("~~~~~~~~~~~~ results fulfiller2")
     val parser = createWorkItemParser()
+    logger.info("~~~~~~~~~~~~ results fulfiller3")
 
 
     // Get client certificates from server flags
@@ -106,17 +109,25 @@ class ResultsFulfillerAppRunner : Runnable {
       privateKeyFile = edpaPrivateKeyFile,
       trustedCertCollectionFile = secureComputationCertCollectionFile
     )
+    logger.info("~~~~~~~~~~~~ results fulfiller4")
+    logger.info("~~~KINGDOM TARGET: ${kingdomPublicApiTarget}")
+    logger.info("~~~secureComputationPublicApiCertHost: ${secureComputationPublicApiCertHost}")
 
+    try {
+        logger.info(edpaCertFile.readText())
+    }catch (e: Exception){
+      e.printStackTrace()
+    }
     // Build the mutual TLS channel for secure computation API
     val publicChannel = buildMutualTlsChannel(
       kingdomPublicApiTarget,
       secureComputationClientCerts,
       secureComputationPublicApiCertHost
     )
-
+    logger.info("~~~~~~~~~~~~ results fulfiller5")
     val workItemsClient = WorkItemsGrpcKt.WorkItemsCoroutineStub(publicChannel)
     val workItemAttemptsClient = WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineStub(publicChannel)
-
+    logger.info("~~~~~~~~~~~~ results fulfiller6")
     // Create and run the ResultsFulfillerApp
    val kingdomCertCollectionFile = File(kingdomCertCollectionFilePath)
     val resultsFulfillerApp = ResultsFulfillerAppImpl(
@@ -130,6 +141,7 @@ class ResultsFulfillerAppRunner : Runnable {
       trustedCertCollection = kingdomCertCollectionFile
     )
 
+    logger.info("~~~~~~~~~~~~ results fulfiller7")
     runBlocking {
       resultsFulfillerApp.run()
     }
