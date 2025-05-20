@@ -740,6 +740,21 @@ class Report:
               ]
           )
 
+  def _add_whole_campaign_reach_impression_relations_to_spec(self,
+      spec: SetMeasurementsSpec):
+    for metric in self._metric_reports:
+      metric_report = self._metric_reports[metric]
+      common_edp_combinations = \
+        metric_report.get_whole_campaign_edp_combinations().intersection(
+            metric_report.get_impression_edp_combinations())
+      for edp_combination in common_edp_combinations:
+        spec.add_subset_relation(
+            child_set_id=self._get_measurement_index(
+              metric_report.get_whole_campaign_measurement(edp_combination)),
+            parent_set_id=self._get_measurement_index(
+              metric_report.get_impression_measurement(edp_combination)),
+        )
+
   def _add_k_reach_impression_relations_to_spec(self,
       spec: SetMeasurementsSpec):
     for metric in self._metric_reports:
@@ -863,6 +878,8 @@ class Report:
     self._add_k_reach_whole_campaign_relations_to_spec(spec)
 
     self._add_impression_relations_to_spec(spec)
+
+    self._add_whole_campaign_reach_impression_relations_to_spec(spec)
 
     self._add_k_reach_impression_relations_to_spec(spec)
 
