@@ -634,15 +634,15 @@ class ResultsFulfiller(
     vidSamplingIntervalStart: Float,
     vidSamplingIntervalWidth: Float,
   ): Boolean {
-    logger.info("~~~~~~~~~~~~~~~~~~ is valid impression 1")
-    logger.info("~~~~~~~~~~~~~~~~~~ is valid impression 2: ${labeledImpression.eventTime}")
+//    logger.info("~~~~~~~~~~~~~~~~~~ is valid impression 1")
+//    logger.info("~~~~~~~~~~~~~~~~~~ is valid impression 2: ${labeledImpression.eventTime}")
     // Check if impression is within collection time interval
     val isInCollectionInterval =
       labeledImpression.eventTime.toInstant() >= collectionInterval.startTime.toInstant() &&
         labeledImpression.eventTime.toInstant() < collectionInterval.endTime.toInstant()
-    logger.info("~~~~~~~~~~~~~~~~~~ is valid impression 3: ${labeledImpression.vid}")
-    logger.info("~~~~~~~~~~~~~~~~~~ is valid impression 4: ${vidSamplingIntervalStart}")
-    logger.info("~~~~~~~~~~~~~~~~~~ is valid impression 5: ${vidSamplingIntervalWidth}")
+//    logger.info("~~~~~~~~~~~~~~~~~~ is valid impression 3: ${labeledImpression.vid}")
+//    logger.info("~~~~~~~~~~~~~~~~~~ is valid impression 4: ${vidSamplingIntervalStart}")
+//    logger.info("~~~~~~~~~~~~~~~~~~ is valid impression 5: ${vidSamplingIntervalWidth}")
 
     // Check if VID is in sampling bucket
     val isInSamplingInterval = sampler.vidIsInSamplingBucket(
@@ -650,16 +650,16 @@ class ResultsFulfiller(
       vidSamplingIntervalStart,
       vidSamplingIntervalWidth
     )
-    logger.info("~~~~~~~~~~~~~~~~~~ is valid impression 6")
+//    logger.info("~~~~~~~~~~~~~~~~~~ is valid impression 6")
 
 
     // Create filter program
     val eventMessageData = labeledImpression.event!!
-    logger.info("~~~~~~~~~~~~~~~~~~ is valid impression 7: ${eventMessageData}")
-    logger.info("~~~~~~~~~~~~~~~~~~ is valid impression 8: ${eventMessageData.typeUrl}")
+//    logger.info("~~~~~~~~~~~~~~~~~~ is valid impression 7: ${eventMessageData}")
+//    logger.info("~~~~~~~~~~~~~~~~~~ is valid impression 8: ${eventMessageData.typeUrl}")
 
     val eventTemplateDescriptor = typeRegistry.getDescriptorForTypeUrl(eventMessageData.typeUrl)
-    logger.info("~~~~~~~~~~~~~~~~~~ is valid impression 9: ${eventTemplateDescriptor}")
+//    logger.info("~~~~~~~~~~~~~~~~~~ is valid impression 9: ${eventTemplateDescriptor}")
 //    logger.info("~~~~~~~~~~~~~~~~~~ is valid impression 10: ${eventTemplateDescriptor.name}")
     val eventMessage = DynamicMessage.parseFrom(eventTemplateDescriptor, eventMessageData.value)
     val program = compileProgram(eventGroup.value.filter, eventTemplateDescriptor)
