@@ -39,9 +39,9 @@ locals {
 module "edp_aggregator" {
   source = "../modules/edp-aggregator"
 
-  key_ring_name                             = "secure-computation-cloud-test-key-ring-5"
+  key_ring_name                             = "edpa-secure-computation-cloud-test-key-ring"
   key_ring_location                         = local.key_ring_location
-  kms_key_name                              = "secure-computation-kek"
+  kms_key_name                              = "edpa-secure-computation-kek"
   queue_worker_configs                      = local.queue_worker_configs
   pubsub_iam_service_account_member         = module.secure_computation.secure_computation_internal_iam_service_account_member
   edp_aggregator_bucket_name                = var.secure_computation_storage_bucket_name
@@ -49,6 +49,7 @@ module "edp_aggregator" {
   data_watcher_service_account_name         = "edpa-data-watcher"
   data_watcher_trigger_service_account_name = "edpa-data-watcher-trigger"
   terraform_service_account                 = var.terraform_service_account
+  requisition_fetcher_service_account_name  = "edpa-requisition-fetcher"
 
   data_watcher_private_key_id               = "edpa-datawatcher-tls-key"
   data_watcher_private_key_path             = "${path.root}/../../../k8s/testing/secretfiles/data_watcher_tls.key"
@@ -58,4 +59,3 @@ module "edp_aggregator" {
   secure_computation_root_ca_path           = "${path.root}/../../../k8s/testing/secretfiles/secure_computation_root.pem"
 
 }
-

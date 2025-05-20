@@ -207,10 +207,7 @@ abstract class RequisitionFulfiller(
   protected suspend fun getRequisitions(): List<Requisition> {
     val request = listRequisitionsRequest {
       parent = dataProviderData.name
-      filter = filter {
-        states += Requisition.State.UNFULFILLED
-        measurementStates += Measurement.State.AWAITING_REQUISITION_FULFILLMENT
-      }
+      filter = filter { states += Requisition.State.UNFULFILLED }
     }
 
     try {
