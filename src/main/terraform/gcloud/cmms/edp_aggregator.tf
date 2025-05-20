@@ -101,7 +101,7 @@ locals {
         ack_deadline_seconds  = 600
       }
       worker = {
-        instance_template_name      = "requisition-fulfiller-template"
+        instance_template_name      = "requisition-fulfiller-template"edp7_enc_private
         base_instance_name          = "secure-computation"
         managed_instance_group_name = "requisition-fulfiller-mig"
         mig_service_account_name    = "requisition-fulfiller-sa"
@@ -117,7 +117,7 @@ locals {
           "--google-pub-sub-project-id=halo-cmm-dev"
         ]
         machine_type                = "n2d-standard-2"
-        docker_image                = "ghcr.io/world-federation-of-advertisers/edp-aggregator/results_fulfiller:33215f27e70529934f7807b613c030df178fbff1"
+        docker_image                = "ghcr.io/world-federation-of-advertisers/edp-aggregator/results_fulfiller:178328b98720c5eaeb6b90e3a1a5da18142f1ef4"
         secrets_to_mount            = [
           {
             secret_key              = "edpa_tee_app_tls_key"
