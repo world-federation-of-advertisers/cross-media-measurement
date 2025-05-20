@@ -358,9 +358,6 @@ object LandscapeUtils {
       val populationIndexMapping = mutableMapOf<Int, MutableSet<Int>>()
 
       val fromLandscapeFieldMapping = getIndexToFieldMapping(from)
-      println()
-      println()
-      println()
       val toLandscapeIndexMapping = getFieldToIndexMapping(to)
       val mapping = getMapping(privacyLandscapeMapping)
 
