@@ -121,7 +121,7 @@ locals {
           "--google-pub-sub-project-id=halo-cmm-dev"
         ]
         machine_type                = "n2d-standard-2"
-        docker_image                = "ghcr.io/world-federation-of-advertisers/edp-aggregator/results_fulfiller:af4b296d8a82206e828dee28433ce75e7a955a5b"
+        docker_image                = "ghcr.io/world-federation-of-advertisers/edp-aggregator/results_fulfiller:5e0af7cf6825aae9b4c5f9e5aef41fde9ccd2e77"
         secrets_to_mount            = [
           {
             secret_key              = "edpa_tee_app_tls_key"
@@ -186,7 +186,7 @@ locals {
 module "edp_aggregator" {
   source = "../modules/edp-aggregator"
 
-  key_ring_name                             = "edpa-secure-computation-cloud-test-key-ring-7"
+  key_ring_name                             = "edpa-secure-computation-cloud-test-key-ring-8"
   key_ring_location                         = local.key_ring_location
   kms_key_name                              = "edpa-secure-computation-kek"
   queue_worker_configs                      = local.queue_worker_configs
