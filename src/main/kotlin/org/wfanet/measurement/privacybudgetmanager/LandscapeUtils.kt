@@ -16,9 +16,11 @@ package org.wfanet.measurement.privacybudgetmanager
 
 import com.google.protobuf.Descriptors
 import com.google.protobuf.DynamicMessage
-import kotlin.math.floor
 import kotlin.math.ceil
+import kotlin.math.floor
 import org.wfanet.measurement.common.toLocalDate
+import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters.compileProgram
+import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters.matches
 
 // We divide the [0,1) interval to 300 equal pieces and sample from that.
 // PBM is opinonated about this.
@@ -26,37 +28,78 @@ const val NUM_VID_INTERVALS = 300
 
 /** Wraps utilities to filter and map [PrivacyLandscapes]. */
 object LandscapeUtils {
+
+  // private val cache = mutableMapOf<PrivacyLandscape, List<DynamicMessage>>()
+
   /** Wraps a landscape to be mapped from and its mapping to another landscape. */
   data class MappingNode(
     val fromLandscape: PrivacyLandscape,
     val mapping: PrivacyLandscapeMapping?,
   )
 
+  private fun navigateAndSetEnumValue(
+    messageBuilder: DynamicMessage.Builder,
+    eventTemplateDescriptor: Descriptors.Descriptor,
+    fieldPathParts: List<String>,
+    enumValue: String,
+  ) {
+    var currentBuilder = messageBuilder
+    var currentDescriptor: Descriptors.Descriptor = eventTemplateDescriptor
+
+    // Navigate to the leaf on the field path
+    for (j in 0 until fieldPathParts.size - 1) {
+      val fieldName = fieldPathParts[j]
+
+      val fieldDescriptor =
+        currentDescriptor.findFieldByName(fieldName)
+          ?: throw IllegalArgumentException(
+            "Field '$fieldName' not found in message '${currentDescriptor.fullName}'."
+          )
+      val nestedDescriptor =
+        fieldDescriptor.messageType
+          ?: throw IllegalArgumentException("Field '$fieldName' is not a message.")
+
+      val nextBuilder = currentBuilder.getFieldBuilder(fieldDescriptor)
+      currentBuilder = nextBuilder as DynamicMessage.Builder
+      currentDescriptor = nestedDescriptor
+    }
+
+    val lastFieldName = fieldPathParts.last()
+    val lastFieldDescriptor =
+      currentDescriptor.findFieldByName(lastFieldName)
+        ?: throw IllegalArgumentException(
+          "Field '$lastFieldName' not found in message '${currentDescriptor.fullName}'."
+        )
+
+    // Set the leaf to the desired enum.
+    if (lastFieldDescriptor.type == Descriptors.FieldDescriptor.Type.ENUM) {
+      val enumValueDescriptor =
+        lastFieldDescriptor.enumType.findValueByName(enumValue)
+          ?: throw IllegalArgumentException(
+            "Enum value '$enumValue' not found in enum '${lastFieldDescriptor.enumType.fullName}'."
+          )
+      currentBuilder.setField(lastFieldDescriptor, enumValueDescriptor)
+    } else {
+      throw IllegalArgumentException(
+        "Field '$lastFieldName' is not an enum. Expected enum for dimension."
+      )
+    }
+  }
+
   fun generateEventTemplateProtosFromDescriptors(
     privacyLandscape: PrivacyLandscape,
-    fileDescriptors: Iterable<Descriptors.FileDescriptor>,
+    fileDescriptor: Descriptors.FileDescriptor,
   ): List<DynamicMessage> {
     val eventTemplateName = privacyLandscape.eventTemplateName
     val dimensions = privacyLandscape.dimensionsList
 
-    var eventTemplateDescriptor: Descriptors.Descriptor? = null
-    for (fileDescriptor in fileDescriptors) {
-      val foundDescriptor =
-        fileDescriptor.findMessageTypeByName(eventTemplateName.substringAfterLast('.'))
-      if (foundDescriptor != null) {
-        eventTemplateDescriptor = foundDescriptor
-        break
-      }
-    }
+    val eventTemplateDescriptor: Descriptors.Descriptor? =
+      fileDescriptor.findMessageTypeByName(eventTemplateName.substringAfterLast('.'))
 
     if (eventTemplateDescriptor == null) {
       throw IllegalArgumentException(
-        "Event template '${privacyLandscape.eventTemplateName}' not found in the provided FileDescriptors."
+        "Event template '${privacyLandscape.eventTemplateName}' not found in the fileDescriptor."
       )
-    }
-
-    if (dimensions.isEmpty()) {
-      return listOf(DynamicMessage.newBuilder(eventTemplateDescriptor).build())
     }
 
     val dimensionInfo =
@@ -89,39 +132,7 @@ object LandscapeUtils {
       for (i in dimensionInfo.indices) {
         val (fieldPathParts, _, _) = dimensionInfo[i]
         val value = combination[i]
-
-        var currentBuilder = messageBuilder
-        var currentDescriptor: Descriptors.Descriptor = eventTemplateDescriptor
-        for (j in 0 until fieldPathParts.size - 1) {
-          val fieldName = fieldPathParts[j]
-          val fieldDescriptor = currentDescriptor.findFieldByName(fieldName)
-              ?: throw IllegalArgumentException("Field '$fieldName' not found in message '${currentDescriptor.fullName}'.")
-          val nestedDescriptor = fieldDescriptor.messageType
-              ?: throw IllegalArgumentException("Field '$fieldName' is not a message.")
-          val nextBuilder = currentBuilder.getFieldBuilder(fieldDescriptor)
-          currentBuilder = nextBuilder as DynamicMessage.Builder
-          currentDescriptor = nestedDescriptor
-      }
-
-        val lastFieldName = fieldPathParts.last()
-        val lastFieldDescriptor =
-          currentDescriptor.findFieldByName(lastFieldName)
-            ?: throw IllegalArgumentException(
-              "Field '$lastFieldName' not found in message '${currentDescriptor.fullName}'."
-            )
-
-        if (lastFieldDescriptor.type == Descriptors.FieldDescriptor.Type.ENUM) {
-          val enumValueDescriptor =
-            lastFieldDescriptor.enumType.findValueByName(value)
-              ?: throw IllegalArgumentException(
-                "Enum value '$value' not found in enum '${lastFieldDescriptor.enumType.fullName}'."
-              )
-          currentBuilder.setField(lastFieldDescriptor, enumValueDescriptor)
-        } else {
-          throw IllegalArgumentException(
-            "Field '$lastFieldName' is not an enum. Expected enum for dimension."
-          )
-        }
+        navigateAndSetEnumValue(messageBuilder, eventTemplateDescriptor, fieldPathParts, value)
       }
       generatedProtos.add(messageBuilder.build())
     }
@@ -130,13 +141,27 @@ object LandscapeUtils {
   }
 
   private fun getPopulationIndicies(
-    eventFilter:String,
+    eventFilter: String,
     privacyLandscape: PrivacyLandscape,
-    eventTemplateDescriptors: Iterable<Descriptors.FileDescriptor>,
-  ) : List<Int>{
-    val generatedProtos = generateEventTemplateProtosFromDescriptors(privacyLandscape, eventTemplateDescriptors)
-    println(generatedProtos)
-    return listOf(1)
+    eventTemplateDescriptor: Descriptors.Descriptor,
+  ): List<Int> {
+    val generatedProtos =
+      generateEventTemplateProtosFromDescriptors(privacyLandscape, eventTemplateDescriptor.file)
+    val operativeFields = privacyLandscape.dimensionsList.map { it.fieldPath }.toSet()
+    val program = compileProgram(eventTemplateDescriptor, eventFilter, operativeFields)
+
+    return generatedProtos
+      .withIndex()
+      .filter { (index, generatedProto) ->
+        if (matches(generatedProto, program)) {
+          println(generatedProto)
+          true
+        } else {
+          false
+        }
+      }
+      .map { (index, _) -> index }
+      .toList()
   }
 
   private fun getVidIntervalIndicies(vidSampleStart: Float, vidSampleWidth: Float): List<Int> {
@@ -151,15 +176,15 @@ object LandscapeUtils {
     measurementConsumerId: String,
     eventGroupId: String,
     dateRange: DateRange,
-): List<LedgerRowKey> {
+  ): List<LedgerRowKey> {
     val startDate = dateRange.start.toLocalDate()
     val endDateExclusive = dateRange.endExclusive.toLocalDate()
 
     return generateSequence(startDate) { it.plusDays(1) }
-        .takeWhile { it < endDateExclusive }
-        .map { LedgerRowKey(measurementConsumerId, eventGroupId, it) }
-        .toList()
-}
+      .takeWhile { it < endDateExclusive }
+      .map { LedgerRowKey(measurementConsumerId, eventGroupId, it) }
+      .toList()
+  }
 
   /**
    * Filters a list of [PrivacyBucket]s given a [privacyLandscape] and a [eventGroupLandscapeMask]
@@ -174,7 +199,7 @@ object LandscapeUtils {
     measurementConsumerId: String,
     eventGroupLandscapeMasks: List<EventGroupLandscapeMask>,
     privacyLandscape: PrivacyLandscape,
-    eventTemplateDescriptors: Iterable<Descriptors.FileDescriptor>,
+    eventTemplateDescriptor: Descriptors.Descriptor,
   ): List<PrivacyBucket> {
     val privacyBuckets = mutableListOf<PrivacyBucket>()
     for (eventGroupLandscapeMask in eventGroupLandscapeMasks) {
@@ -183,7 +208,7 @@ object LandscapeUtils {
         getPopulationIndicies(
           eventGroupLandscapeMask.eventFilter,
           privacyLandscape,
-          eventTemplateDescriptors,
+          eventTemplateDescriptor,
         )
 
       val vidIntervalIndices =

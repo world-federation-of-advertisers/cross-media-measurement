@@ -9,6 +9,7 @@ kt_jvm_library(
     name = "privacy_budget_manager",
     srcs = glob(["*.kt"]),
     deps = [
+        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/eventfiltration:event_filters",
         "//src/main/proto/wfa/measurement/privacybudgetmanager:privacy_landscape_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/privacybudgetmanager:privacy_landscape_mapping_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/privacybudgetmanager:query_kt_jvm_proto",

@@ -14,6 +14,7 @@
 
 package org.wfanet.measurement.privacybudgetmanager
 
+import com.google.protobuf.Descriptors
 import org.wfanet.measurement.privacybudgetmanager.LandscapeUtils.MappingNode
 
 /**
@@ -34,6 +35,7 @@ class PrivacyBudgetManager(
   private val ledger: Ledger,
   private val maximumPrivacyBudget: Float,
   private val maximumTotalDelta: Float,
+  private val eventTemplateDescriptor: Descriptors.Descriptor,
 ) {
   init {
     val activePrivacyLandscape =
@@ -153,7 +155,12 @@ class PrivacyBudgetManager(
 
     val initialLandscape = initialNode.fromLandscape
     val initialBuckets =
-      LandscapeUtils.getBuckets(measurementConsumerId, eventGroupLandscapeMasks, initialLandscape, emptyList())
+      LandscapeUtils.getBuckets(
+        measurementConsumerId,
+        eventGroupLandscapeMasks,
+        initialLandscape,
+        eventTemplateDescriptor,
+      )
 
     var currentBuckets = initialBuckets
     var currentLandscape = initialLandscape
