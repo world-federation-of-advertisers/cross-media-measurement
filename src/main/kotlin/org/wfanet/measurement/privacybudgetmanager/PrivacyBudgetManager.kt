@@ -37,12 +37,6 @@ class PrivacyBudgetManager(
   private val maximumTotalDelta: Float,
   private val eventTemplateDescriptor: Descriptors.Descriptor,
 ) {
-  init {
-    val activePrivacyLandscape =
-      requireNotNull(landscapeMappingChain.lastOrNull()?.fromLandscape) {
-        "Active privacy landscape cannot be null."
-      }
-  }
 
   /**
    * Charges the PBM in batch with the charges resulting from the given queries and writes the

@@ -16,7 +16,9 @@
 
 package org.wfanet.measurement.privacybudgetmanager
 
+import com.google.common.truth.Truth.assertThat
 import com.google.type.date
+import java.time.LocalDate
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
@@ -59,16 +61,86 @@ class LandscapeUtilsTest {
         }
         endExclusive = date {
           year = 2025
-          month = 2
-          day = 28
+          month = 1
+          day = 16
         }
       }
-      vidSampleStart = 0.1f
-      vidSampleWidth = 0.8f
+      vidSampleStart = 0.0f
+      vidSampleWidth = 0.01f
     }
 
     val landscapeMasks = listOf(landscapeMask)
 
-    LandscapeUtils.getBuckets("mcid", landscapeMasks, landscape, desctiptor)
+    val result = LandscapeUtils.getBuckets("mcid", landscapeMasks, landscape, desctiptor)
+
+    // [18_34, MALE] has the population index of 0
+    // [18_34, FEMALE] has the population index of 3
+    // 0.0f - 0.01f covers the first 3 vid intervals.
+    // end date is exclusive
+    val expectedResult =
+      listOf(
+        PrivacyBucket(
+          rowKey =
+            LedgerRowKey(
+              measurementConsumerId = "mcid",
+              eventGroupId = "eg1",
+              date = LocalDate.parse("2025-01-15"),
+            ),
+          populationIndex = 0,
+          vidIntervalIndex = 0,
+        ),
+        PrivacyBucket(
+          rowKey =
+            LedgerRowKey(
+              measurementConsumerId = "mcid",
+              eventGroupId = "eg1",
+              date = LocalDate.parse("2025-01-15"),
+            ),
+          populationIndex = 0,
+          vidIntervalIndex = 1,
+        ),
+        PrivacyBucket(
+          rowKey =
+            LedgerRowKey(
+              measurementConsumerId = "mcid",
+              eventGroupId = "eg1",
+              date = LocalDate.parse("2025-01-15"),
+            ),
+          populationIndex = 0,
+          vidIntervalIndex = 2,
+        ),
+        PrivacyBucket(
+          rowKey =
+            LedgerRowKey(
+              measurementConsumerId = "mcid",
+              eventGroupId = "eg1",
+              date = LocalDate.parse("2025-01-15"),
+            ),
+          populationIndex = 3,
+          vidIntervalIndex = 0,
+        ),
+        PrivacyBucket(
+          rowKey =
+            LedgerRowKey(
+              measurementConsumerId = "mcid",
+              eventGroupId = "eg1",
+              date = LocalDate.parse("2025-01-15"),
+            ),
+          populationIndex = 3,
+          vidIntervalIndex = 1,
+        ),
+        PrivacyBucket(
+          rowKey =
+            LedgerRowKey(
+              measurementConsumerId = "mcid",
+              eventGroupId = "eg1",
+              date = LocalDate.parse("2025-01-15"),
+            ),
+          populationIndex = 3,
+          vidIntervalIndex = 2,
+        ),
+      )
+
+    assertThat(result).isEqualTo(expectedResult)
   }
 }
