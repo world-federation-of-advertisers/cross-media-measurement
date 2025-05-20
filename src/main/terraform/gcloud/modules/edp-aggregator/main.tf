@@ -13,6 +13,7 @@
 # limitations under the License.
 
 data "google_project" "project" {}
+data "google_client_config" "default" {}
 
 module "edp_aggregator_bucket" {
   source = "../storage-bucket"
@@ -64,10 +65,10 @@ module "requisition_fetcher_scheduler" {
   job_description                = "Scheduler for the Requisition Fetcher cloud function"
   schedule                       = var.requisition_fetcher_schedule
   time_zone                      = var.requisition_fetcher_schedule_timezone
-  function_uri                   = "https://${data.google_project.project.region}-${data.google_project.project.project_id}.cloudfunctions.net/requisition-fetcher"
+  function_uri                   = "https://${data.google_client_config.default.region}-${data.google_project.project.project_id}.cloudfunctions.net/requisition-fetcher"
   cloud_function_name            = "requisition-fetcher"
   terraform_service_account      = var.terraform_service_account
-  region                         = data.google_project.project.region
+  region                         = data.google_client_config.default.region
 }
 
 resource "google_secret_manager_secret_iam_member" "data_watcher_tls_key_accessor" {
