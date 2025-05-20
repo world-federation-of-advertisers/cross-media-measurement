@@ -628,8 +628,7 @@ class ResultsFulfiller(
   }
   private suspend fun getBlobDetails(collectionInterval: Interval, eventGroupId: String): BlobDetails {
     val ds = LocalDate.ofInstant(collectionInterval.startTime.toInstant(), ZONE_ID)
-    // #TODO(@marcopremier): remove hardcoded edp7
-    val metadataBlobKey = "edp7/ds/$ds/event-group-reference-id/$eventGroupId/metadata"
+    val metadataBlobKey = "ds/$ds/event-group-reference-id/$eventGroupId/metadata"
     val metadataBlobUri = "$labeledImpressionMetadataPrefix/$metadataBlobKey"
     val metadataStorageClientUri = SelectedStorageClient.parseBlobUri(metadataBlobUri)
     val impressionsMetadataStorageClient = createStorageClient(metadataStorageClientUri, impressionMetadataStorageConfig)
