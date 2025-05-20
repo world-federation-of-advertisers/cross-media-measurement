@@ -49,6 +49,21 @@ class VidFilter(
   private val vidSamplingIntervalWidth: Float,
   private val typeRegistry: TypeRegistry
 ) {
+  init {
+    // Validating VID sampling intervals are within [0, 1] and do not overlap
+    require(vidSamplingIntervalWidth > 0 && vidSamplingIntervalWidth <= 1.0) {
+      "Invalid vidSamplingIntervalWidth $vidSamplingIntervalWidth"
+    }
+    require(
+      vidSamplingIntervalStart < 1 &&
+        vidSamplingIntervalStart >= 0 &&
+        vidSamplingIntervalWidth > 0 &&
+        vidSamplingIntervalStart + vidSamplingIntervalWidth <= 1
+    ) {
+      "Invalid vidSamplingInterval: start = $vidSamplingIntervalStart, width = " +
+        "$vidSamplingIntervalWidth"
+    }
+  }
   private val sampler = VidSampler(VID_SAMPLER_HASH_FUNCTION)
 
   /**
@@ -117,7 +132,8 @@ class VidFilter(
     // creation of a CEL Env.
     if (eventFilter.expression.isEmpty()) {
       return Program { TRUE_EVAL_RESULT }
-    }
+    
+}
     return EventFilters.compileProgram(eventMessageDescriptor, eventFilter.expression)
   }
 
