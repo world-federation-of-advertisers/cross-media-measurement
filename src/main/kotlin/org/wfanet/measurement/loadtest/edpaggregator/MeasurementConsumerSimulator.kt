@@ -19,7 +19,6 @@ import com.google.protobuf.Any as ProtoAny
 import com.google.protobuf.ByteString
 import com.google.protobuf.Message
 import com.google.protobuf.kotlin.unpack
-import com.google.protobuf.util.Durations
 import io.grpc.StatusException
 import java.security.SignatureException
 import java.security.cert.CertPathValidatorException
@@ -27,7 +26,6 @@ import java.security.cert.X509Certificate
 import java.time.Duration
 import java.time.LocalDate
 import java.util.logging.Logger
-import kotlin.math.log2
 import kotlin.math.max
 import kotlin.math.sqrt
 import kotlin.random.Random
@@ -41,7 +39,6 @@ import kotlinx.coroutines.time.delay
 import org.projectnessie.cel.Program
 import org.wfanet.measurement.api.v2alpha.Certificate
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
-import org.wfanet.measurement.api.v2alpha.CustomDirectMethodologyKt
 import org.wfanet.measurement.api.v2alpha.DataProvider
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
@@ -66,7 +63,6 @@ import org.wfanet.measurement.api.v2alpha.MeasurementKt.result
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec.VidSamplingInterval
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt
-import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.duration
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.impression
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reachAndFrequency
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.vidSamplingInterval
@@ -78,10 +74,7 @@ import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventFilter
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventGroupEntry
 import org.wfanet.measurement.api.v2alpha.SignedMessage
-import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.createMeasurementRequest
-import org.wfanet.measurement.api.v2alpha.customDirectMethodology
-import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticPopulationSpec
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
@@ -105,7 +98,6 @@ import org.wfanet.measurement.common.crypto.PrivateKeyHandle
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.authorityKeyIdentifier
 import org.wfanet.measurement.common.crypto.readCertificate
-import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.toInterval
 import org.wfanet.measurement.consent.client.measurementconsumer.decryptResult
 import org.wfanet.measurement.consent.client.measurementconsumer.encryptRequisitionSpec
@@ -116,7 +108,6 @@ import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
 import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters
 import org.wfanet.measurement.eventdataprovider.noiser.DpParams as NoiserDpParams
 import org.wfanet.measurement.integration.common.SyntheticGenerationSpecs
-import org.wfanet.measurement.loadtest.config.TestIdentifiers
 import org.wfanet.measurement.measurementconsumer.stats.DeterministicMethodology
 import org.wfanet.measurement.measurementconsumer.stats.FrequencyMeasurementParams
 import org.wfanet.measurement.measurementconsumer.stats.FrequencyMeasurementVarianceParams
@@ -738,11 +729,7 @@ class MeasurementConsumerSimulator(
   ): MeasurementInfo {
     val eventGroups: List<EventGroup> =
       listEventGroups(measurementConsumer.name)
-        .filter {
-          it.eventGroupReferenceId.startsWith(
-            TestIdentifiers.EDP_AGGREGATOR_EVENT_GROUP_REFERENCE_ID_PREFIX
-          )
-        }
+        .filter { it.eventGroupReferenceId in syntheticEventGroupMap.keys }
         .toList()
     check(eventGroups.isNotEmpty()) { "No event groups found for ${measurementConsumer.name}" }
     val nonceHashes = mutableListOf<ByteString>()
