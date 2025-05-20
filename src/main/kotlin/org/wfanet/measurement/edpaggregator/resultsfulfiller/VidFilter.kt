@@ -74,6 +74,10 @@ class VidFilter(
     val isInCollectionInterval =
       labeledImpression.eventTime.toInstant() >= collectionInterval.startTime.toInstant() &&
         labeledImpression.eventTime.toInstant() < collectionInterval.endTime.toInstant()
+    
+    if (!isInCollectionInterval) {
+      return false
+    }
 
     // Check if VID is in sampling bucket
     val isInSamplingInterval = sampler.vidIsInSamplingBucket(
@@ -81,6 +85,10 @@ class VidFilter(
       vidSamplingIntervalStart,
       vidSamplingIntervalWidth
     )
+    
+    if (!isInSamplingInterval) {
+      return false
+    }
 
     // Create filter program
     val eventMessageData = labeledImpression.event
@@ -90,9 +98,8 @@ class VidFilter(
 
     // Pass event message through program
     val passesFilter = EventFilters.matches(eventMessage, program)
-
-    // Return true only if all conditions are met
-    return isInCollectionInterval && passesFilter && isInSamplingInterval
+    
+    return passesFilter
   }
 
 

@@ -35,13 +35,13 @@ import org.wfanet.measurement.common.crypto.tink.withEnvelopeEncryption
  *
  * @param kmsClient The KMS client for encryption operations
  * @param impressionsStorageConfig Configuration for impressions storage
- * @param impressionMetadataStorageConfig Configuration for impression metadata storage
+ * @param impressionDekStorageConfig Configuration for impression DEK storage
  * @param labeledImpressionMetadataPrefix Prefix for labeled impression metadata
  */
 class EventReader(
   private val kmsClient: KmsClient,
   private val impressionsStorageConfig: StorageConfig,
-  private val impressionMetadataStorageConfig: StorageConfig,
+  private val impressionDekStorageConfig: StorageConfig,
   private val labeledImpressionMetadataPrefix: String
 ) {
   /**
@@ -64,7 +64,7 @@ class EventReader(
    *
    * @param collectionInterval The time interval for collection
    * @param eventGroupId The ID of the event group
-   * @return The blob details
+   * @return The blob details with the DEK
    */
   private suspend fun getBlobDetails(
     collectionInterval: Interval,
@@ -74,7 +74,7 @@ class EventReader(
     val metadataBlobKey = "ds/$ds/event-group-id/$eventGroupId/metadata"
     val metadataBlobUri = "$labeledImpressionMetadataPrefix/$metadataBlobKey"
     val metadataStorageClientUri = SelectedStorageClient.parseBlobUri(metadataBlobUri)
-    val impressionsMetadataStorageClient = createStorageClient(metadataStorageClientUri, impressionMetadataStorageConfig)
+    val impressionsMetadataStorageClient = createStorageClient(metadataStorageClientUri, impressionDekStorageConfig)
     // Get EncryptedDek message from storage using the blobKey made up of the ds and eventGroupId
     return BlobDetails.parseFrom(impressionsMetadataStorageClient.getBlob(metadataBlobKey)!!.read().flatten())
   }
