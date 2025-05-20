@@ -327,45 +327,6 @@ class MeasurementConsumerSimulator(
   }
 
   /**
-   * A sequence of operations done in the simulator involving a reach and frequency measurement with
-   * invalid params.
-   */
-  suspend fun testInvalidReachAndFrequency(
-    runId: String,
-    requiredCapabilities: DataProvider.Capabilities =
-      DataProvider.Capabilities.getDefaultInstance(),
-    vidSamplingInterval: VidSamplingInterval = DEFAULT_VID_SAMPLING_INTERVAL,
-  ) {
-    // Create a new measurement on behalf of the measurement consumer.
-    val measurementConsumer = getMeasurementConsumer(measurementConsumerData.name)
-
-    val invalidMeasurement =
-      createMeasurement(
-          measurementConsumer,
-          runId,
-          ::newInvalidReachAndFrequencyMeasurementSpec,
-          requiredCapabilities,
-          vidSamplingInterval,
-        )
-        .measurement
-    logger.info(
-      "Created invalid reach and frequency measurement ${invalidMeasurement.name}, state=${invalidMeasurement.state.name}"
-    )
-
-    var failure = getFailure(invalidMeasurement.name)
-    var attempts = 0
-    while (failure == null) {
-      attempts += 1
-      assertThat(attempts).isLessThan(10)
-      logger.info("Computation not done yet, wait for another 5 seconds...")
-      delay(Duration.ofSeconds(5))
-      failure = getFailure(invalidMeasurement.name)
-    }
-    assertThat(failure.message).contains("delta")
-    logger.info("Receive failed Measurement from Kingdom: ${failure.message}. Test passes.")
-  }
-
-  /**
    * A sequence of operations done in the simulator involving a direct reach and frequency
    * measurement.
    */
@@ -622,43 +583,6 @@ class MeasurementConsumerSimulator(
     logger.info("Impression result is equal to the expected result")
   }
 
-  /** A sequence of operations done in the simulator involving a duration measurement. */
-  suspend fun testDuration(runId: String) {
-    logger.info { "Creating duration Measurement..." }
-    // Create a new measurement on behalf of the measurement consumer.
-    val measurementConsumer = getMeasurementConsumer(measurementConsumerData.name)
-    val measurementInfo =
-      createMeasurement(
-        measurementConsumer,
-        runId,
-        ::newDurationMeasurementSpec,
-        DataProviderKt.capabilities { honestMajorityShareShuffleSupported = false },
-        DEFAULT_VID_SAMPLING_INTERVAL,
-      )
-    val measurementName = measurementInfo.measurement.name
-    logger.info("Created duration Measurement $measurementName.")
-
-    val durationResults = pollForResults { getDurationResults(measurementName) }
-
-    durationResults.forEach {
-      val result = parseAndVerifyResult(it)
-      val externalDataProviderId =
-        apiIdToExternalId(DataProviderCertificateKey.fromName(it.certificate)!!.dataProviderId)
-      assertThat(result.watchDuration.value.seconds)
-        .isEqualTo(
-          // EdpSimulator sets it to this value.
-          log2(externalDataProviderId.toDouble()).toLong()
-        )
-      // EdpSimulator hasn't had an implementation for watch duration.
-      assertThat(result.watchDuration.customDirectMethodology)
-        .isEqualTo(
-          customDirectMethodology { variance = CustomDirectMethodologyKt.variance { scalar = 0.0 } }
-        )
-      assertThat(result.watchDuration.noiseMechanism).isEqualTo(expectedDirectNoiseMechanism)
-    }
-    logger.info("Duration result is equal to the expected result")
-  }
-
   /** Computes the tolerance values of an impression [Result] for testing. */
   private fun computeImpressionVariance(
     result: Result,
@@ -890,11 +814,6 @@ class MeasurementConsumerSimulator(
   }
 
   /** Gets the result of a [Measurement] if it is succeeded. */
-  private suspend fun getDurationResults(measurementName: String): List<Measurement.ResultOutput> {
-    return checkNotFailed(getMeasurement(measurementName)).resultsList.toList()
-  }
-
-  /** Gets the result of a [Measurement] if it is succeeded. */
   private suspend fun getReachAndFrequencyResult(measurementName: String): Result? {
     val measurement = checkNotFailed(getMeasurement(measurementName))
     if (measurement.state != Measurement.State.SUCCEEDED) {
@@ -955,15 +874,6 @@ class MeasurementConsumerSimulator(
       Measurement.State.STATE_UNSPECIFIED,
       Measurement.State.UNRECOGNIZED -> error("Unexpected Measurement state ${measurement.state}")
     }
-  }
-
-  /** Gets the failure of an invalid [Measurement] if it is failed */
-  private suspend fun getFailure(measurementName: String): Failure? {
-    val measurement = getMeasurement(measurementName)
-    if (measurement.state != Measurement.State.FAILED) {
-      return null
-    }
-    return measurement.failure
   }
 
   private suspend fun parseAndVerifyResult(resultOutput: Measurement.ResultOutput): Result {
@@ -1106,29 +1016,6 @@ class MeasurementConsumerSimulator(
     }
   }
 
-  private fun newInvalidReachAndFrequencyMeasurementSpec(
-    packedMeasurementPublicKey: ProtoAny,
-    nonceHashes: List<ByteString>,
-    vidSamplingInterval: VidSamplingInterval,
-  ): MeasurementSpec {
-    val invalidPrivacyParams = differentialPrivacyParams {
-      epsilon = 1.0
-      delta = 0.0
-    }
-    return newReachAndFrequencyMeasurementSpec(
-        packedMeasurementPublicKey,
-        nonceHashes,
-        vidSamplingInterval,
-      )
-      .copy {
-        reachAndFrequency = reachAndFrequency {
-          reachPrivacyParams = invalidPrivacyParams
-          frequencyPrivacyParams = invalidPrivacyParams
-          maximumFrequency = 10
-        }
-      }
-  }
-
   private fun newImpressionMeasurementSpec(
     packedMeasurementPublicKey: ProtoAny,
     nonceHashes: List<ByteString>,
@@ -1141,21 +1028,6 @@ class MeasurementConsumerSimulator(
         maximumFrequencyPerUser = 10
       }
       this.vidSamplingInterval = vidSamplingInterval
-      this.nonceHashes += nonceHashes
-    }
-  }
-
-  private fun newDurationMeasurementSpec(
-    packedMeasurementPublicKey: ProtoAny,
-    nonceHashes: List<ByteString>,
-    vidSamplingInterval: VidSamplingInterval,
-  ): MeasurementSpec {
-    return measurementSpec {
-      measurementPublicKey = packedMeasurementPublicKey
-      duration = duration {
-        privacyParams = outputDpParams
-        maximumWatchDurationPerUser = Durations.fromMinutes(1)
-      }
       this.nonceHashes += nonceHashes
     }
   }
@@ -1317,6 +1189,3 @@ fun DifferentialPrivacyParams.toNoiserDpParams(): NoiserDpParams {
   val source = this
   return NoiserDpParams(source.epsilon, source.delta)
 }
-
-private val RequisitionSpec.eventGroupsMap: Map<String, RequisitionSpec.EventGroupEntry.Value>
-  get() = events.eventGroupsList.associate { it.key to it.value }

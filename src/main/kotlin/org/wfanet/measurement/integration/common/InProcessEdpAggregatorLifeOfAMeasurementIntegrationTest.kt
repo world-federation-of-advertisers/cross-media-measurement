@@ -234,38 +234,6 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
       mcSimulator.testImpression("1234")
     }
 
-  @Ignore
-  @Test
-  fun `create a duration measurement and check the result is equal to the expected result`() =
-    runBlocking {
-      // Use frontend simulator to create a duration measurement and verify its result.
-      mcSimulator.testDuration("1234")
-    }
-
-  @Ignore
-  @Test
-  fun `create a Llv2 RF measurement of invalid params and check the result contains error info`() =
-    runBlocking {
-      // Use frontend simulator to create an invalid reach and frequency measurement and verify
-      // its error info.
-      mcSimulator.testInvalidReachAndFrequency(
-        "1234",
-        DataProviderKt.capabilities { honestMajorityShareShuffleSupported = false },
-      )
-    }
-
-  @Ignore
-  @Test
-  fun `create a Hmss RF measurement of invalid params and check the result contains error info`() =
-    runBlocking {
-      // Use frontend simulator to create an invalid reach and frequency measurement and verify
-      // its error info.
-      mcSimulator.testInvalidReachAndFrequency(
-        "1234",
-        DataProviderKt.capabilities { honestMajorityShareShuffleSupported = true },
-      )
-    }
-
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
     // Epsilon can vary from 0.0001 to 1.0, delta = 1e-15 is a realistic value.
