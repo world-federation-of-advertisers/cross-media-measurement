@@ -60,7 +60,7 @@ class EventReaderTest {
   private lateinit var kekUri: String
   private lateinit var serializedEncryptionKey: ByteString
   private lateinit var impressionsTmpPath: java.io.File
-  private lateinit var metadataTmpPath: java.io.File
+  private lateinit var dekTmpPath: java.io.File
 
   init {
     AeadConfig.register()
@@ -91,8 +91,8 @@ class EventReaderTest {
     impressionsTmpPath = Files.createTempDirectory(null).toFile()
     Files.createDirectories(impressionsTmpPath.resolve(IMPRESSIONS_BUCKET).toPath())
 
-    metadataTmpPath = Files.createTempDirectory(null).toFile()
-    Files.createDirectories(metadataTmpPath.resolve(IMPRESSIONS_METADATA_BUCKET).toPath())
+    dekTmpPath = Files.createTempDirectory(null).toFile()
+    Files.createDirectories(dekTmpPath.resolve(IMPRESSIONS_DEK_BUCKET).toPath())
   }
 
   @Test
@@ -124,9 +124,9 @@ class EventReaderTest {
     // Write impressions to storage
     mesosRecordIoStorageClient.writeBlob(IMPRESSIONS_BLOB_KEY, impressionsFlow)
 
-    // Create the impressions metadata store
-    val impressionsMetadataStorageClient =
-      SelectedStorageClient(IMPRESSIONS_METADATA_FILE_URI, metadataTmpPath)
+    // Create the impressions DEK store
+    val impressionsDekStorageClient =
+      SelectedStorageClient(IMPRESSIONS_DEK_FILE_URI, dekTmpPath)
 
     val encryptedDek =
       EncryptedDek.newBuilder().setKekUri(kekUri).setEncryptedDek(serializedEncryptionKey).build()
@@ -137,8 +137,8 @@ class EventReaderTest {
         .setEncryptedDek(encryptedDek)
         .build()
 
-    impressionsMetadataStorageClient.writeBlob(
-      IMPRESSION_METADATA_BLOB_KEY,
+    impressionsDekStorageClient.writeBlob(
+      IMPRESSION_DEK_BLOB_KEY,
       blobDetails.toByteString()
     )
 
@@ -152,8 +152,8 @@ class EventReaderTest {
     val eventReader = EventReader(
       kmsClient,
       StorageConfig(rootDirectory = impressionsTmpPath),
-      StorageConfig(rootDirectory = metadataTmpPath),
-      IMPRESSIONS_METADATA_FILE_URI_PREFIX
+      StorageConfig(rootDirectory = dekTmpPath),
+      IMPRESSIONS_DEK_FILE_URI_PREFIX
     )
 
     // Get labeled impressions
@@ -188,11 +188,11 @@ class EventReaderTest {
     private const val IMPRESSIONS_BLOB_KEY = "impressions"
     private const val IMPRESSIONS_FILE_URI = "file:///$IMPRESSIONS_BUCKET/$IMPRESSIONS_BLOB_KEY"
 
-    private const val IMPRESSIONS_METADATA_BUCKET = "impression-metadata-bucket"
-    private val IMPRESSION_METADATA_BLOB_KEY =
+    private const val IMPRESSIONS_DEK_BUCKET = "impression-dek-bucket"
+    private val IMPRESSION_DEK_BLOB_KEY =
       "ds/${TIME_RANGE.start}/event-group-id/$EVENT_GROUP_NAME/metadata"
-    private val IMPRESSIONS_METADATA_FILE_URI =
-      "file:///$IMPRESSIONS_METADATA_BUCKET/$IMPRESSION_METADATA_BLOB_KEY"
-    private const val IMPRESSIONS_METADATA_FILE_URI_PREFIX = "file:///$IMPRESSIONS_METADATA_BUCKET"
+    private val IMPRESSIONS_DEK_FILE_URI =
+      "file:///$IMPRESSIONS_DEK_BUCKET/$IMPRESSION_DEK_BLOB_KEY"
+    private const val IMPRESSIONS_DEK_FILE_URI_PREFIX = "file:///$IMPRESSIONS_DEK_BUCKET"
   }
 }
