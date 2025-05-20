@@ -33,7 +33,7 @@ class LandscapeUtilsTest {
   @Test
   fun `getBuckets works as expected`() {
 
-    val desctiptor = TestEvent.getDescriptor()
+    val descriptor = TestEvent.getDescriptor()
     val landscape = privacyLandscape {
       landscapeIdentifier = "landsape1"
       eventTemplateName = "wfa.measurement.api.v2alpha.event_templates.testing.TestEvent"
@@ -73,7 +73,7 @@ class LandscapeUtilsTest {
 
     val landscapeMasks = listOf(landscapeMask)
 
-    val result = LandscapeUtils.getBuckets("mcid", landscapeMasks, landscape, desctiptor)
+    val result = LandscapeUtils.getBuckets("mcid", landscapeMasks, landscape, descriptor)
 
     // [18_34, MALE] has the population index of 0
     // [18_34, FEMALE] has the population index of 3
