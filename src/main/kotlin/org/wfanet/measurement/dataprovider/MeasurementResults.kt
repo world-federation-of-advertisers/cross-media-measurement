@@ -62,24 +62,7 @@ object MeasurementResults {
    * "deterministic distribution" methodology.
    */
   fun computeReachAndFrequency(filteredVids: Iterable<Long>, maxFrequency: Int): ReachAndFrequency {
-    val eventsPerVid: Map<Long, Int> = filteredVids.groupingBy { it }.eachCount()
-    val reach: Int = eventsPerVid.keys.size
-
-    // If the filtered VIDs is empty, set the distribution with all 0s up to maxFrequency.
-    if (reach == 0) {
-      return ReachAndFrequency(reach, (1..maxFrequency).associateWith { 0.0 })
-    }
-
-    // Build frequency histogram as a 0-based array.
-    val frequencyArray = IntArray(maxFrequency)
-    for (count in eventsPerVid.values) {
-      val bucket = count.coerceAtMost(maxFrequency)
-      frequencyArray[bucket - 1]++
-    }
-
-    val frequencyDistribution: Map<Int, Double> =
-      frequencyArray.withIndex().associateBy({ it.index + 1 }, { it.value.toDouble() / reach })
-    return ReachAndFrequency(reach, frequencyDistribution)
+    return computeReachAndFrequency(filteredVids.asFlow(), maxFrequency)
   }
 
   /** Computes reach using the "deterministic count distinct" methodology. */

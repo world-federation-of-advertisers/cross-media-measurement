@@ -23,16 +23,9 @@ import org.wfanet.measurement.api.v2alpha.Measurement
  */
 interface MeasurementResultBuilder {
   /**
-   * Builds a non-noisy measurement result.
+   * Builds a measurement result.
    *
-   * @return The non-noisy measurement result.
+   * @return The measurement result.
    */
   suspend fun buildMeasurementResult(): Measurement.Result
-
-  /**
-   * Builds a noisy measurement result.
-   *
-   * @return The noisy measurement result.
-   */
-  suspend fun buildNoisyMeasurementResult(): Measurement.Result
 }

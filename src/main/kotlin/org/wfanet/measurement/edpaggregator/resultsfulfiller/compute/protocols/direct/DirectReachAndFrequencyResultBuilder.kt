@@ -33,7 +33,7 @@ import org.wfanet.measurement.edpaggregator.resultsfulfiller.compute.Measurement
 import org.wfanet.measurement.eventdataprovider.noiser.DirectNoiseMechanism
 import java.security.SecureRandom
 import java.util.logging.Logger
-import org.wfanet.measurement.edpaggregator.resultsfulfiller.noise.ReachAndFrequencyNoiseBuilder
+import org.wfanet.measurement.edpaggregator.resultsfulfiller.noise.Noiser
 
 /**
  * Builder for direct reach and frequency measurement results.
@@ -54,8 +54,8 @@ class DirectReachAndFrequencyResultBuilder(
   private val reachPrivacyParams: DifferentialPrivacyParams,
   private val frequencyPrivacyParams: DifferentialPrivacyParams,
   private val samplingRate: Float,
-  private val directNoiseMechanism: DirectNoiseMechanism = DirectNoiseMechanism.CONTINUOUS_GAUSSIAN,
-  private val random: SecureRandom = SecureRandom(),
+  private val directNoiseMechanism: DirectNoiseMechanism,
+  private val random: SecureRandom,
 ) : MeasurementResultBuilder {
   private val logger: Logger = Logger.getLogger(this::class.java.name)
 
@@ -78,81 +78,44 @@ class DirectReachAndFrequencyResultBuilder(
       )
     }
 
-    val (sampledReachValue, frequencyMap) =
+    var (sampledReachValue, frequencyMap) =
       MeasurementResults.computeReachAndFrequency(
         sampledVids,
         maxFrequency,
       )
+
+    if(directNoiseMechanism != DirectNoiseMechanism.NONE) {
+      logger.info("Adding $directNoiseMechanism publisher noise to direct reach and frequency...")
+      val noiser = Noiser(
+        directNoiseMechanism,
+        random
+      )
+
+      val sampledNoisedReachValue =
+        noiser.addNoise(sampledReachValue, reachPrivacyParams)
+      val noisedFrequencyMap =
+        noiser.addNoise(frequencyMap, frequencyPrivacyParams)
+
+      sampledReachValue = sampledNoisedReachValue
+      frequencyMap = noisedFrequencyMap
+    }
 
     val scaledReachValue = (sampledReachValue / samplingRate).toLong()
 
-    return MeasurementKt.result {
-      reach = reach {
-        value = scaledReachValue
-        this.noiseMechanism = NoiseMechanism.NONE
-        deterministicCountDistinct = DeterministicCountDistinct.getDefaultInstance()
-      }
-      frequency = frequency {
-        relativeFrequencyDistribution.putAll(frequencyMap.mapKeys { it.key.toLong() })
-        this.noiseMechanism = NoiseMechanism.NONE
-        deterministicDistribution = DeterministicDistribution.getDefaultInstance()
-      }
-    }
-  }
-
-  /**
-   * Builds a noisy reach and frequency measurement result.
-   *
-   * @return The noisy reach and frequency measurement result.
-   */
-  override suspend fun buildNoisyMeasurementResult(): Measurement.Result {
-    if (!directProtocolConfig.hasDeterministicCountDistinct()) {
-      throw RequisitionRefusalException.Default(
-        Requisition.Refusal.Justification.DECLINED,
-        "No valid methodologies for direct reach computation.",
-      )
-    }
-    if (!directProtocolConfig.hasDeterministicDistribution()) {
-      throw RequisitionRefusalException.Default(
-        Requisition.Refusal.Justification.DECLINED,
-        "No valid methodologies for direct frequency distribution computation.",
-      )
-    }
-
-    val (sampledReachValue, frequencyMap) =
-      MeasurementResults.computeReachAndFrequency(
-        sampledVids,
-        maxFrequency,
-      )
-
-    logger.info("Adding $directNoiseMechanism publisher noise to direct reach and frequency...")
-    val noiseBuilder = ReachAndFrequencyNoiseBuilder(
-      sampledReachValue,
-      directNoiseMechanism,
-      random
-    )
-    val sampledNoisedReachValue =
-      noiseBuilder.addReachPublisherNoise(reachPrivacyParams)
-    val noisedFrequencyMap =
-      noiseBuilder.addFrequencyPublisherNoise(frequencyMap, frequencyPrivacyParams)
-
-    val scaledNoisedReachValue =
-      (sampledNoisedReachValue / samplingRate).toLong()
-
     val protocolConfigNoiseMechanism = when (directNoiseMechanism) {
       DirectNoiseMechanism.NONE -> NoiseMechanism.NONE
-      DirectNoiseMechanism.CONTINUOUS_LAPLACE -> NoiseMechanism.CONTINUOUS_LAPLACE
+      DirectNoiseMechanism.CONTINUOUS_LAPLACE -> NoiseMechanism.CONTINUOUS_LAPLACE        
       DirectNoiseMechanism.CONTINUOUS_GAUSSIAN -> NoiseMechanism.CONTINUOUS_GAUSSIAN
     }
 
     return MeasurementKt.result {
       reach = reach {
-        value = scaledNoisedReachValue
+        value = scaledReachValue
         this.noiseMechanism = protocolConfigNoiseMechanism
         deterministicCountDistinct = DeterministicCountDistinct.getDefaultInstance()
       }
       frequency = frequency {
-        relativeFrequencyDistribution.putAll(noisedFrequencyMap.mapKeys { it.key.toLong() })
+        relativeFrequencyDistribution.putAll(frequencyMap.mapKeys { it.key.toLong() })
         this.noiseMechanism = protocolConfigNoiseMechanism
         deterministicDistribution = DeterministicDistribution.getDefaultInstance()
       }
