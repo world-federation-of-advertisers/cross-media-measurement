@@ -24,7 +24,7 @@ import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters.com
 import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters.matches
 
 // We divide the [0,1) interval to 300 equal pieces and sample from that.
-// PBM is opinonated about this.
+// PBM is opinionated about this.
 const val NUM_VID_INTERVALS = 300
 
 /** Wraps utilities to filter and map [PrivacyLandscapes]. */
@@ -102,20 +102,20 @@ object LandscapeUtils {
   }
 
   fun generateEventTemplateProtosFromDescriptors(
-    landscapNode: LandscapeNode
+    landscapeNode: LandscapeNode
   ): List<DynamicMessage> {
-    return landscapeCache.getOrPut(landscapNode) {
-      val eventTemplateName = landscapNode.landscape.eventTemplateName
-      val dimensions = landscapNode.landscape.dimensionsList
+    return landscapeCache.getOrPut(landscapeNode) {
+      val eventTemplateName = landscapeNode.landscape.eventTemplateName
+      val dimensions = landscapeNode.landscape.dimensionsList
 
       val eventTemplateDescriptor: Descriptors.Descriptor? =
-        landscapNode.eventTemplateDescriptor.file.findMessageTypeByName(
+        landscapeNode.eventTemplateDescriptor.file.findMessageTypeByName(
           eventTemplateName.substringAfterLast('.')
         )
 
       if (eventTemplateDescriptor == null) {
         throw IllegalArgumentException(
-          "Event template '${landscapNode.landscape.eventTemplateName}' not found in the fileDescriptor."
+          "Event template '${landscapeNode.landscape.eventTemplateName}' not found in the fileDescriptor."
         )
       }
 
@@ -223,7 +223,7 @@ object LandscapeUtils {
     val privacyBuckets = mutableListOf<PrivacyBucket>()
     for (eventGroupLandscapeMask in eventGroupLandscapeMasks) {
 
-      val populationIndicies =
+      val populationIndices =
         getPopulationIndices(
           eventGroupLandscapeMask.eventFilter,
           privacyLandscape,
