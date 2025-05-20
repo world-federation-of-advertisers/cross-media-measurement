@@ -30,22 +30,9 @@ import org.wfanet.measurement.loadtest.dataprovider.SyntheticGeneratorEventQuery
 class MetadataSyntheticGeneratorEventQuery(
   populationSpec: SyntheticPopulationSpec,
   private val mcPrivateKey: PrivateKeyHandle,
-  private val syntheticEventGroupSpecs: List<SyntheticEventGroupSpec> = emptyList(),
 ) : SyntheticGeneratorEventQuery(populationSpec, TestEvent.getDescriptor()) {
   override fun getSyntheticDataSpec(eventGroup: EventGroup): SyntheticEventGroupSpec {
-    try {
-      val metadata = decryptMetadata(eventGroup.encryptedMetadata, mcPrivateKey)
-      return metadata.metadata.unpack(SyntheticEventGroupSpec::class.java)
-    } catch (_: Exception) {
-      return syntheticEventGroupSpecs[parseEdpNumber(eventGroup.eventGroupReferenceId)]
-    }
-
-  }
-
-  companion object {
-    private fun parseEdpNumber(input: String): Int {
-      val regex = Regex("-eg-(\\d+)$")
-      return checkNotNull(regex.find(input)?.groupValues?.get(1)?.toInt())
-    }
+    val metadata = decryptMetadata(eventGroup.encryptedMetadata, mcPrivateKey)
+    return metadata.metadata.unpack(SyntheticEventGroupSpec::class.java)
   }
 }

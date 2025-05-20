@@ -224,7 +224,6 @@ val DEFAULT_SERVICE_CONFIG_MAP: Map<String, *>?
 const val PROJECT_ID = "some-project-id"
 const val SUBSCRIPTION_ID = "some-subscription-id"
 const val FULFILLER_TOPIC_ID = "requisition-fulfiller-queue"
-
 val QUEUES_CONFIG: QueuesConfig
   get() {
     val configPath =
