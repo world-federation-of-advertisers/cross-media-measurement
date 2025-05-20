@@ -25,8 +25,8 @@ import org.junit.runners.JUnit4
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.privacybudgetmanager.PrivacyLandscapeKt.DimensionKt.fieldValue
 import org.wfanet.measurement.privacybudgetmanager.PrivacyLandscapeKt.dimension
-import org.wfanet.measurement.privacybudgetmanager.PrivacyLandscapeMappingKt.dimensionMapping
 import org.wfanet.measurement.privacybudgetmanager.PrivacyLandscapeMappingKt.DimensionMappingKt.fieldValueMapping
+import org.wfanet.measurement.privacybudgetmanager.PrivacyLandscapeMappingKt.dimensionMapping
 
 @RunWith(JUnit4::class)
 class LandscapeUtilsTest {
@@ -146,7 +146,8 @@ class LandscapeUtilsTest {
     assertThat(result).isEqualTo(expectedResult)
   }
 
-  @Test fun `mapBuckets works for multiple fanouts in a single dimension`() {
+  @Test
+  fun `mapBuckets works for multiple fanouts in a single dimension`() {
 
     val fomLandscape = privacyLandscape {
       landscapeIdentifier = "landsape1"
@@ -185,38 +186,139 @@ class LandscapeUtilsTest {
         fieldValues += fieldValue { enumValue = "YEARS_65_PLUS" }
       }
     }
-    val mapping = privacyLandscapeMapping{
-      mappings += dimensionMapping{
-        fromDimensionFieldPath =  "person.gender"
-        toDimensionFieldPath =  "person.gender"
-        fieldValueMappings += fieldValueMapping{
+    val mapping = privacyLandscapeMapping {
+      mappings += dimensionMapping {
+        fromDimensionFieldPath = "person.gender"
+        toDimensionFieldPath = "person.gender"
+        fieldValueMappings += fieldValueMapping {
           fromFieldValue = fieldValue { enumValue = "MALE" }
           toFieldValues += fieldValue { enumValue = "MALE" }
         }
-        fieldValueMappings += fieldValueMapping{
+        fieldValueMappings += fieldValueMapping {
           fromFieldValue = fieldValue { enumValue = "FEMALE" }
           toFieldValues += fieldValue { enumValue = "FEMALE" }
         }
       }
-      mappings += dimensionMapping{
-        fromDimensionFieldPath =  "person.age_group"
-        toDimensionFieldPath =  "person.age_group"
-        fieldValueMappings += fieldValueMapping{
+      mappings += dimensionMapping {
+        fromDimensionFieldPath = "person.age_group"
+        toDimensionFieldPath = "person.age_group"
+        fieldValueMappings += fieldValueMapping {
           fromFieldValue = fieldValue { enumValue = "YEARS_18_TO_34" }
           toFieldValues += fieldValue { enumValue = "YEARS_18_TO_34" }
         }
-        fieldValueMappings += fieldValueMapping{
+        fieldValueMappings += fieldValueMapping {
           fromFieldValue = fieldValue { enumValue = "YEARS_35_TO_54" }
           toFieldValues += fieldValue { enumValue = "YEARS_35_TO_44" }
           toFieldValues += fieldValue { enumValue = "YEARS_45_TO_54" }
         }
-        fieldValueMappings += fieldValueMapping{
+        fieldValueMappings += fieldValueMapping {
           fromFieldValue = fieldValue { enumValue = "YEARS_55_PLUS" }
           toFieldValues += fieldValue { enumValue = "YEARS_55_TO_64" }
           toFieldValues += fieldValue { enumValue = "YEARS_65_PLUS" }
         }
       }
     }
-    LandscapeUtils.mapBuckets(emptyList(), mapping, fomLandscape, toLandscape)
+    val buckets =
+      listOf(
+        PrivacyBucket(
+          rowKey =
+            LedgerRowKey(
+              measurementConsumerId = "mcid",
+              eventGroupId = "eg1",
+              date = LocalDate.parse("2025-01-15"),
+            ),
+          populationIndex = 0,
+          vidIntervalIndex = 0,
+        ),
+        PrivacyBucket(
+          rowKey =
+            LedgerRowKey(
+              measurementConsumerId = "mcid",
+              eventGroupId = "eg1",
+              date = LocalDate.parse("2025-01-15"),
+            ),
+          populationIndex = 1,
+          vidIntervalIndex = 1,
+        ),
+        PrivacyBucket(
+          rowKey =
+            LedgerRowKey(
+              measurementConsumerId = "mcid",
+              eventGroupId = "eg1",
+              date = LocalDate.parse("2025-01-15"),
+            ),
+          populationIndex = 5,
+          vidIntervalIndex = 2,
+        ),
+      )
+
+    val result = LandscapeUtils.mapBuckets(buckets, mapping, fomLandscape, toLandscape)
+
+    // Population index 0 is mapped to 0 in the new landscape
+    //  This corresponds to (MALE, YEARS_18_TO_34) being mapped to  (MALE, YEARS_18_TO_34)
+    // Population index 1 is mapped to 1 and 2 in the new landscape
+    //  This corresponds to (MALE, 35_TO_54) being mapped to  (MALE, YEARS_35_TO_44) and (MALE,
+    // YEARS_45_TO_54)
+    // Population index 2 is mapped to 1 and 2 in the new landscape
+    //  This corresponds to (MALE, 35_TO_54) being mapped to  (MALE, YEARS_35_TO_44) and (MALE,
+    // YEARS_45_TO_54)
+    // Population index 5 is mapped to 8 and 9 in the new landscape
+    //  This corresponds to (FEMALE, YEARS_55_PLUS) being mapped to  (FEMALE, YEARS_55_TO_64) and
+    // (FEMALE, YEARS_65_PLUS)
+    val expectedBuckets =
+      listOf(
+        PrivacyBucket(
+          rowKey =
+            LedgerRowKey(
+              measurementConsumerId = "mcid",
+              eventGroupId = "eg1",
+              date = LocalDate.parse("2025-01-15"),
+            ),
+          populationIndex = 0,
+          vidIntervalIndex = 0,
+        ),
+        PrivacyBucket(
+          rowKey =
+            LedgerRowKey(
+              measurementConsumerId = "mcid",
+              eventGroupId = "eg1",
+              date = LocalDate.parse("2025-01-15"),
+            ),
+          populationIndex = 1,
+          vidIntervalIndex = 1,
+        ),
+        PrivacyBucket(
+          rowKey =
+            LedgerRowKey(
+              measurementConsumerId = "mcid",
+              eventGroupId = "eg1",
+              date = LocalDate.parse("2025-01-15"),
+            ),
+          populationIndex = 2,
+          vidIntervalIndex = 1,
+        ),
+        PrivacyBucket(
+          rowKey =
+            LedgerRowKey(
+              measurementConsumerId = "mcid",
+              eventGroupId = "eg1",
+              date = LocalDate.parse("2025-01-15"),
+            ),
+          populationIndex = 8,
+          vidIntervalIndex = 2,
+        ),
+        PrivacyBucket(
+          rowKey =
+            LedgerRowKey(
+              measurementConsumerId = "mcid",
+              eventGroupId = "eg1",
+              date = LocalDate.parse("2025-01-15"),
+            ),
+          populationIndex = 9,
+          vidIntervalIndex = 2,
+        ),
+      )
+
+    assertThat(result).isEqualTo(expectedBuckets)
   }
 }

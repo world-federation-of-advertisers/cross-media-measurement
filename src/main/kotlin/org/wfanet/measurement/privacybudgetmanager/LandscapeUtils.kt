@@ -169,7 +169,6 @@ object LandscapeUtils {
       .withIndex()
       .filter { (index, generatedProto) ->
         if (matches(generatedProto, program)) {
-          println(generatedProto)
           true
         } else {
           false
@@ -251,7 +250,7 @@ object LandscapeUtils {
     return privacyBuckets
   }
 
-  fun cartesianProduct(lists: List<List<String>>): List<List<String>> {
+  private fun cartesianProduct(lists: List<List<String>>): List<List<String>> {
     if (lists.isEmpty()) {
       return listOf(emptyList())
     }
@@ -269,9 +268,7 @@ object LandscapeUtils {
     }
   }
 
-  fun getFieldToIndexMapping(privacyLandscape: PrivacyLandscape): Map<String, MutableSet<Int>> {
-    val fieldToIndexMap = mutableMapOf<String, MutableSet<Int>>()
-    // 1. Extract the field values from the dimensions.
+  private fun generateCombinations(privacyLandscape: PrivacyLandscape): List<List<String>> {
     val allFieldValues: List<List<String>> =
       privacyLandscape.dimensionsList
         .sortedBy { it.order }
@@ -281,10 +278,23 @@ object LandscapeUtils {
           }
         }
 
-    // 2. Calculate the Cartesian product of the field values.
-    val combinations: List<List<String>> = cartesianProduct(allFieldValues)
+    return cartesianProduct(allFieldValues)
+  }
 
-    // 3. Print the index for each combination.
+  fun getIndexToFieldMapping(privacyLandscape: PrivacyLandscape): Map<Int, Set<String>> {
+    val indextoFieldMap = mutableMapOf<Int, MutableSet<String>>()
+    val combinations = generateCombinations(privacyLandscape)
+    for ((index, combination) in combinations.withIndex()) {
+      for (fieldPath in combination) {
+        indextoFieldMap.getOrPut(index) { mutableSetOf() }.add(fieldPath)
+      }
+    }
+    return indextoFieldMap
+  }
+
+  fun getFieldToIndexMapping(privacyLandscape: PrivacyLandscape): Map<String, Set<Int>> {
+    val fieldToIndexMap = mutableMapOf<String, MutableSet<Int>>()
+    val combinations = generateCombinations(privacyLandscape)
     for ((index, combination) in combinations.withIndex()) {
       for (fieldPath in combination) {
         fieldToIndexMap.getOrPut(fieldPath) { mutableSetOf() }.add(index)
@@ -293,15 +303,52 @@ object LandscapeUtils {
     return fieldToIndexMap
   }
 
-  fun populate(
-    populationIndexMapping: MutableMap<Int, MutableSet<Int>>,
-    keys: List<Int>,
-    values: List<Int>,
-  ) {
-    for (key in keys) {
-      val valueSet: MutableSet<Int> = populationIndexMapping.getOrPut(key) { mutableSetOf() }
-      valueSet.addAll(values)
+  private fun getDimIndicies(
+    fromFieldValue: String,
+    mapping: Map<String, List<String>>,
+    toLandsacapIndexMapping: Map<String, Set<Int>>,
+  ): List<Int> {
+    val targetIndices = mutableListOf<Int>()
+
+    // Find all "to" field values associated with the given "fromFieldValue"
+    val mappedToValues = mapping[fromFieldValue]
+
+    if (mappedToValues != null) {
+      for (toValue in mappedToValues) {
+        // For each "to" field value, find the corresponding indices in toLandsacapIndexMapping
+        val indices = toLandsacapIndexMapping[toValue]
+        if (indices != null) {
+          targetIndices.addAll(indices)
+        }
+      }
     }
+
+    return targetIndices.distinct() // Return only unique indices
+  }
+
+  private fun getMapping(
+    privacyLandscapeMapping: PrivacyLandscapeMapping
+  ): Map<String, List<String>> {
+    val mappingResult = mutableMapOf<String, MutableList<String>>()
+
+    for (dimensionMapping in privacyLandscapeMapping.mappingsList) {
+      val fromFieldPath = dimensionMapping.fromDimensionFieldPath
+      val toFieldPath = dimensionMapping.toDimensionFieldPath
+
+      for (fieldValueMapping in dimensionMapping.fieldValueMappingsList) {
+        val fromFieldValue = fieldValueMapping.fromFieldValue
+        val toFieldValuesList = fieldValueMapping.toFieldValuesList
+
+        val fromKey = "$fromFieldPath.${fromFieldValue.enumValue}"
+
+        val toValues =
+          toFieldValuesList.map { toFieldValue -> "$toFieldPath.${toFieldValue.enumValue}" }
+
+        mappingResult.computeIfAbsent(fromKey) { mutableListOf() }.addAll(toValues)
+      }
+    }
+
+    return mappingResult
   }
 
   fun getPopulationIndexMapping(
@@ -311,27 +358,40 @@ object LandscapeUtils {
   ): Map<Int, Set<Int>> {
     val populationIndexMapping = mutableMapOf<Int, MutableSet<Int>>()
 
-    val fromLandsacapIndexMapping = getFieldToIndexMapping(from)
+    val fromLandsacapFieldMapping = getIndexToFieldMapping(from)
     val toLandsacapIndexMapping = getFieldToIndexMapping(to)
+    val mapping = getMapping(privacyLandscapeMapping)
 
-    println("fromLandsacapIndexMapping $fromLandsacapIndexMapping")
-    println("toLandsacapIndexMapping $toLandsacapIndexMapping")
+    // Algorithm:
+    //   For a given population index (e.g. 0), find all the field values that constructs it
+    //      e.g. MALE and 18_34
+    //   Then find what all these field values map to
+    //      e.g. MALE->MALE , 18_34->[18_24, 25_34]
+    //   Then find all the indexes these new field values are part of in the new landscape
+    //        e.g. MALE - [0,1,2,3]   18_24 - [0,5]   25_34 - [1,6]
+    //   Then for each dimension join the lists, so for gender [0,1,2,3] for age [0,5,1,6]
+    //   Then take the intersection of these lists [0,1,2,3] intersect [0,5,1,6] = [0,1]
+    //      why? Because index 0 in the new landscape has both  MALE and 18_24
+    //      and index 1 has both MALE and 25_34
+    //   Based on MALE maps to MALE and 18_34 maps to 18_24 25_34. So population index 0
+    //    should be mapped to [0,1]
 
-    for (mapping in privacyLandscapeMapping.mappingsList) {
-      for (fieldValueMapping in mapping.fieldValueMappingsList) {
-        
-        val fromKey = "${mapping.fromDimensionFieldPath}.${fieldValueMapping.fromFieldValue.enumValue}"
-        println("fromKeyfromKeyfromKey $fromKey")
-        val fromIndicies = fromLandsacapIndexMapping.get(fromKey)!!.toList()
-
-        for (toFieldValue in fieldValueMapping.toFieldValuesList) {
-          val toKey = "${mapping.toDimensionFieldPath}.${toFieldValue.enumValue}"
-          val toIndicies = fromLandsacapIndexMapping.get(fromKey)!!.toList()
-          populate(populationIndexMapping, fromIndicies, toIndicies)
-        }
+    for ((index, fromFieldValues) in fromLandsacapFieldMapping.entries) {
+      val allToDimIndicies = mutableListOf<List<Int>>()
+      for (fromFieldValue in fromFieldValues) {
+        allToDimIndicies += getDimIndicies(fromFieldValue, mapping, toLandsacapIndexMapping)
       }
+
+      val intersection =
+        if (allToDimIndicies.isNotEmpty()) {
+          allToDimIndicies.reduce { acc, list -> acc.intersect(list.toSet()).toList() }
+        } else {
+          emptyList()
+        }
+
+      val valueSet: MutableSet<Int> = populationIndexMapping.getOrPut(index) { mutableSetOf() }
+      valueSet.addAll(intersection)
     }
-    println("YOOOOOOOOO!!!!!!!")
     return populationIndexMapping
   }
 
@@ -353,18 +413,15 @@ object LandscapeUtils {
   ): List<PrivacyBucket> {
     val mappedPrivacyBuckets = mutableListOf<PrivacyBucket>()
     val populationIndexMapping = getPopulationIndexMapping(mapping, from, to)
-    println("populationIndexMappingpopulationIndexMapping $populationIndexMapping")
-    println("HELLLLLLOOOOOOOO!!!!!!!!!!")
-    return emptyList()
 
-    // for (bucket in buckets) {
-    //   val mappedPopulationIndicies = populationIndexMapping.get(bucket.populationIndex)
-    //   for (mappedPopulationIndex in mappedPopulationIndicies) {
-    //     mappedPrivacyBuckets.add(
-    //       PrivacyBucket(bucket.rowKey, mappedPopulationIndex, bucket.vidIntervalIndex)
-    //     )
-    //   }
-    // }
-    // return mappedPrivacyBuckets
+    for (bucket in buckets) {
+      val mappedPopulationIndicies = populationIndexMapping.get(bucket.populationIndex)!!
+      for (mappedPopulationIndex in mappedPopulationIndicies) {
+        mappedPrivacyBuckets.add(
+          PrivacyBucket(bucket.rowKey, mappedPopulationIndex, bucket.vidIntervalIndex)
+        )
+      }
+    }
+    return mappedPrivacyBuckets
   }
 }
