@@ -36,6 +36,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.TestName
 import org.junit.rules.TestRule
 import org.wfanet.measurement.access.common.TlsClientPrincipalMapping
 import org.wfanet.measurement.access.deploy.tools.Access
@@ -99,6 +100,8 @@ abstract class InProcessAccessCliTest(
   @get:Rule
   val ruleChain: TestRule = chainRulesSequentially(accessServicesFactory, internalAccessServer)
 
+  @JvmField @Rule val testName = TestName()
+
   private lateinit var server: CommonServer
 
   private lateinit var principalsStub: PrincipalsBlockingStub
@@ -123,7 +126,7 @@ abstract class InProcessAccessCliTest(
         verboseGrpcLogging = true,
         certs = serverCerts,
         clientAuth = ClientAuth.REQUIRE,
-        nameForLogging = "access-cli-test",
+        nameForLogging = "access-cli-test-" + testName.methodName,
         services = services,
       )
     server.start()

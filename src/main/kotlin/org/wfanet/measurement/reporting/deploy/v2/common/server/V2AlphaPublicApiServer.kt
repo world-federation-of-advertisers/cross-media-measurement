@@ -57,7 +57,6 @@ import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withInterceptor
 import org.wfanet.measurement.common.grpc.withShutdownTimeout
 import org.wfanet.measurement.common.grpc.withVerboseLogging
-import org.wfanet.measurement.common.instrumented
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.config.access.OpenIdProvidersConfig
 import org.wfanet.measurement.config.reporting.MeasurementConsumerConfig
@@ -72,6 +71,7 @@ import org.wfanet.measurement.internal.reporting.v2.ReportScheduleIterationsGrpc
 import org.wfanet.measurement.internal.reporting.v2.ReportSchedulesGrpcKt.ReportSchedulesCoroutineStub as InternalReportSchedulesCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt.ReportingSetsCoroutineStub as InternalReportingSetsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.ReportsGrpcKt.ReportsCoroutineStub as InternalReportsCoroutineStub
+import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.internal.reporting.v2.measurementConsumer
 import org.wfanet.measurement.measurementconsumer.stats.VariancesImpl
 import org.wfanet.measurement.reporting.deploy.v2.common.EncryptionKeyPairMap
@@ -245,7 +245,7 @@ private object V2AlphaPublicApiServer {
         Dispatchers.Default,
       )
 
-    val inProcessExecutorService: ExecutorService =
+    val inProcessExecutorService =
       ThreadPoolExecutor(
           1,
           commonServerFlags.threadPoolSize,
@@ -253,7 +253,10 @@ private object V2AlphaPublicApiServer {
           TimeUnit.SECONDS,
           LinkedBlockingQueue(),
         )
-        .instrumented(IN_PROCESS_SERVER_NAME)
+
+    val inProcessInstrumentationHandle: Instrumentation.Handle =
+      Instrumentation.instrumentThreadPool(IN_PROCESS_SERVER_NAME, inProcessExecutorService)
+
 
     val inProcessServer: Server =
       startInProcessServerWithService(
@@ -340,6 +343,7 @@ private object V2AlphaPublicApiServer {
     inProcessExecutorService.shutdown()
     inProcessServer.awaitTermination()
     inProcessExecutorService.awaitTermination(30, TimeUnit.SECONDS)
+    inProcessInstrumentationHandle.close()
   }
 
   class V2AlphaPublicServerFlags {

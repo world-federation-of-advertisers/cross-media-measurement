@@ -29,7 +29,9 @@ import java.time.Instant
 import java.time.ZoneId
 import kotlinx.coroutines.runBlocking
 import org.junit.After
+import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.TestName
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
@@ -222,6 +224,8 @@ class BenchmarkTest {
 
   private lateinit var server: CommonServer
 
+  @JvmField @Rule val testName = TestName()
+
   private fun initServer() {
     val services: List<ServerServiceDefinition> =
       listOf(
@@ -243,7 +247,7 @@ class BenchmarkTest {
         verboseGrpcLogging = true,
         certs = serverCerts,
         clientAuth = ClientAuth.REQUIRE,
-        nameForLogging = "kingdom-test",
+        nameForLogging = "kingdom-test-" + testName.methodName,
         services = services,
       )
     server.start()
