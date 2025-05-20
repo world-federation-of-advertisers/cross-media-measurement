@@ -101,7 +101,7 @@ locals {
         ack_deadline_seconds  = 600
       }
       worker = {
-        instance_template_name      = "requisition-fulfiller-template"edp7_enc_private
+        instance_template_name      = "requisition-fulfiller-template"
         base_instance_name          = "secure-computation"
         managed_instance_group_name = "requisition-fulfiller-mig"
         mig_service_account_name    = "requisition-fulfiller-sa"
