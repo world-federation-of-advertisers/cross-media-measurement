@@ -101,7 +101,43 @@ object LandscapeUtils {
     }
   }
 
-  fun generateEventTemplateProtosFromDescriptors(
+  fun getFieldValueCombinations(
+    dimensions: List<PrivacyLandscape.Dimension>,
+    withFieldPath: Boolean,
+  ): List<List<String>> {
+    val dimensionInfo =
+      dimensions
+        .map { dimension ->
+          val fieldPath = dimension.fieldPath
+          val fieldValues = dimension.fieldValuesList.map { it.enumValue }
+          Triple(fieldPath, fieldValues, dimension.order)
+        }
+        .sortedBy { it.third }
+
+    val combinations = mutableListOf<List<String>>()
+    fun generateCombinationsRecursive(index: Int, currentCombination: List<String>) {
+      if (index == dimensionInfo.size) {
+        combinations.add(currentCombination.toList())
+        return
+      }
+
+      val (fieldPath, fieldValues, _) = dimensionInfo[index]
+      for (value in fieldValues) {
+        val valueToAdd =
+          if (withFieldPath) {
+            "${fieldPath}.$value"
+          } else {
+            value
+          }
+        val newCombination = currentCombination + valueToAdd
+        generateCombinationsRecursive(index + 1, newCombination)
+      }
+    }
+    generateCombinationsRecursive(0, emptyList())
+    return combinations
+  }
+
+  private fun generateEventTemplateProtosFromDescriptors(
     landscapeNode: LandscapeNode
   ): List<DynamicMessage> {
     return landscapeCache.getOrPut(landscapeNode) {
@@ -128,21 +164,7 @@ object LandscapeUtils {
           }
           .sortedBy { it.third }
 
-      val combinations = mutableListOf<List<String>>()
-      fun generateCombinationsRecursive(index: Int, currentCombination: List<String>) {
-        if (index == dimensionInfo.size) {
-          combinations.add(currentCombination.toList())
-          return
-        }
-
-        val (_, fieldValues, _) = dimensionInfo[index]
-        for (value in fieldValues) {
-          val newCombination = currentCombination + value
-          generateCombinationsRecursive(index + 1, newCombination)
-        }
-      }
-      generateCombinationsRecursive(0, emptyList())
-
+      val combinations = getFieldValueCombinations(dimensions, false)
       val generatedProtos = mutableListOf<DynamicMessage>()
       for (combination in combinations) {
         val messageBuilder = DynamicMessage.newBuilder(eventTemplateDescriptor)
@@ -212,6 +234,7 @@ object LandscapeUtils {
    * @param measurementConsumerId: Specifies the Measurement Consumer buckets belong to.
    * @param eventGroupLandscapeMasks: Specifies the filters for each event group.
    * @param privacyLandscape: The landscape to be filtered.
+   * @param eventTemplateDescriptor: Event template descriptor for the top level event message.
    * @returns filtered [PrivacyBucket]s.
    */
   fun getBuckets(
@@ -255,40 +278,9 @@ object LandscapeUtils {
     return privacyBuckets
   }
 
-  private fun cartesianProduct(lists: List<List<String>>): List<List<String>> {
-    if (lists.isEmpty()) {
-      return listOf(emptyList())
-    }
-
-    val firstList = lists.first()
-    val remainingLists = lists.drop(1)
-
-    if (remainingLists.isEmpty()) {
-      return firstList.map { listOf(it) } // Simplify for single list case
-    }
-
-    val remainingProduct = cartesianProduct(remainingLists) // Recursive call
-    return firstList.flatMap { element ->
-      remainingProduct.map { combination -> listOf(element) + combination }
-    }
-  }
-
-  private fun generateCombinations(privacyLandscape: PrivacyLandscape): List<List<String>> {
-    val allFieldValues: List<List<String>> =
-      privacyLandscape.dimensionsList
-        .sortedBy { it.order }
-        .map { dimension ->
-          dimension.fieldValuesList.map { fieldValue ->
-            "${dimension.fieldPath}.${fieldValue.enumValue}"
-          }
-        }
-
-    return cartesianProduct(allFieldValues)
-  }
-
   fun getIndexToFieldMapping(privacyLandscape: PrivacyLandscape): Map<Int, Set<String>> {
     val indextoFieldMap = mutableMapOf<Int, MutableSet<String>>()
-    val combinations = generateCombinations(privacyLandscape)
+    val combinations = getFieldValueCombinations(privacyLandscape.dimensionsList, true)
     for ((index, combination) in combinations.withIndex()) {
       for (fieldPath in combination) {
         indextoFieldMap.getOrPut(index) { mutableSetOf() }.add(fieldPath)
@@ -299,7 +291,7 @@ object LandscapeUtils {
 
   fun getFieldToIndexMapping(privacyLandscape: PrivacyLandscape): Map<String, Set<Int>> {
     val fieldToIndexMap = mutableMapOf<String, MutableSet<Int>>()
-    val combinations = generateCombinations(privacyLandscape)
+    val combinations = getFieldValueCombinations(privacyLandscape.dimensionsList, true)
     for ((index, combination) in combinations.withIndex()) {
       for (fieldPath in combination) {
         fieldToIndexMap.getOrPut(fieldPath) { mutableSetOf() }.add(index)
@@ -366,6 +358,9 @@ object LandscapeUtils {
       val populationIndexMapping = mutableMapOf<Int, MutableSet<Int>>()
 
       val fromLandscapeFieldMapping = getIndexToFieldMapping(from)
+      println()
+      println()
+      println()
       val toLandscapeIndexMapping = getFieldToIndexMapping(to)
       val mapping = getMapping(privacyLandscapeMapping)
 
