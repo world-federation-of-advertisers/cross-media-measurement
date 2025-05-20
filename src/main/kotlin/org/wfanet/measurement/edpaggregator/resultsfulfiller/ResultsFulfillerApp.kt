@@ -29,6 +29,7 @@ import org.wfanet.measurement.common.crypto.readPrivateKey
 import org.wfanet.measurement.common.readByteString
 import org.wfanet.measurement.common.grpc.withShutdownTimeout
 import java.time.Duration
+import java.util.logging.Logger
 import org.wfanet.measurement.common.crypto.tink.loadPrivateKey
 import org.wfanet.measurement.common.identity.withPrincipalName
 
@@ -112,6 +113,13 @@ abstract class ResultsFulfillerApp(
     val consentCertificateFile = checkNotNull(getRuntimePath(Paths.get(fulfillerParams.consentParams.resultCsCertDerResourcePath))).toFile()
     val consentPrivateKeyFile = checkNotNull(getRuntimePath(Paths.get(fulfillerParams.consentParams.resultCsPrivateKeyDerResourcePath))).toFile()
     val encryptionPrivateKeyFile = checkNotNull(getRuntimePath(Paths.get(fulfillerParams.consentParams.privateEncryptionKeyResourcePath))).toFile()
+    logger.info("~~~~~~~~~~~~~~~~~ consentCertificateFile: ${consentCertificateFile}")
+    try {
+      logger.info(consentCertificateFile.readText())
+    }catch (e: Exception){
+      e.printStackTrace()
+    }
+
     val consentCertificate: X509Certificate =
       consentCertificateFile.inputStream().use { input -> readCertificate(input) }
     val consentPrivateEncryptionKey = readPrivateKey(consentPrivateKeyFile.readByteString(), consentCertificate.publicKey.algorithm)
@@ -140,5 +148,8 @@ abstract class ResultsFulfillerApp(
     messageProcessed.complete(workItemParams)
   }
 
+  companion object {
+    val logger: Logger = Logger.getLogger(this::class.java.name)
+  }
 
 }
