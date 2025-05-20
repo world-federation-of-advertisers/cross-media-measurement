@@ -117,7 +117,7 @@ locals {
           "--google-pub-sub-project-id=halo-cmm-dev"
         ]
         machine_type                = "n2d-standard-2"
-        docker_image                = "ghcr.io/world-federation-of-advertisers/edp-aggregator/results_fulfiller:71eb350f1ece3a1b82481998265734b010da63a3"
+        docker_image                = "ghcr.io/world-federation-of-advertisers/edp-aggregator/results_fulfiller:f9f5a77c97f1e1c662b86866b75c3d9e8ffc96fb"
         secrets_to_mount            = [
           {
             secret_key              = "edpa_tee_app_tls_key"
