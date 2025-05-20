@@ -4,8 +4,11 @@ import com.google.crypto.tink.KmsClient
 import com.google.protobuf.Any
 import com.google.protobuf.Parser
 import com.google.protobuf.TypeRegistry
+import com.google.protobuf.kotlin.toByteString
 import io.grpc.Channel
 import java.io.File
+import java.nio.charset.StandardCharsets
+import java.nio.file.Files
 import java.nio.file.Paths
 import kotlinx.coroutines.CompletableDeferred
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
@@ -30,6 +33,7 @@ import org.wfanet.measurement.common.readByteString
 import org.wfanet.measurement.common.grpc.withShutdownTimeout
 import java.time.Duration
 import java.util.logging.Logger
+import java.util.Base64
 import org.wfanet.measurement.common.crypto.tink.loadPrivateKey
 import org.wfanet.measurement.common.identity.withPrincipalName
 
@@ -119,19 +123,53 @@ abstract class ResultsFulfillerApp(
     }catch (e: Exception){
       e.printStackTrace()
     }
+    logger.info("~~~~~~~~~~~~~~~~~ 111")
+    val rawPublicDer = consentCertificateFile.readBytes()
+    val publicDer = String(rawPublicDer, StandardCharsets.US_ASCII).trim().let { text ->
+      if (text.matches(Regex("^[A-Za-z0-9+/=\\r\\n]+$")))
+        Base64.getDecoder().decode(text.replace("\\s+".toRegex(), ""))
+      else
+        rawPublicDer
+    }
+    logger.info("~~~~~~~~~~~~~~~~~ 222")
+
+    val rawPrivateKeyDer = consentPrivateKeyFile.readBytes()
+    val privateKeyDer = String(rawPrivateKeyDer, StandardCharsets.US_ASCII).trim().let { text ->
+      if (text.matches(Regex("^[A-Za-z0-9+/=\\r\\n]+$")))
+        Base64.getDecoder().decode(text.replace("\\s+".toRegex(), ""))
+      else
+        rawPrivateKeyDer
+    }
+    logger.info("~~~~~~~~~~~~~~~~~ 333")
+
+    val rawKeysetBytes = encryptionPrivateKeyFile.readBytes()
+    val keysetBytes = String(rawKeysetBytes, StandardCharsets.US_ASCII).trim().let { text ->
+      if (text.matches(Regex("^[A-Za-z0-9+/=\\r\\n]+$")))
+        Base64.getDecoder().decode(text.replace("\\s+".toRegex(), ""))
+      else
+        rawKeysetBytes
+    }
+    logger.info("~~~~~~~~~~~~~~~~~ 444")
+
+    val decodedKeyFile = Files.createTempFile("decoded-keyset", ".bin").toFile().apply {
+      writeBytes(keysetBytes)
+    }
+    logger.info("~~~~~~~~~~~~~~~~~ 555")
 
     val consentCertificate: X509Certificate =
-      consentCertificateFile.inputStream().use { input -> readCertificate(input) }
-    val consentPrivateEncryptionKey = readPrivateKey(consentPrivateKeyFile.readByteString(), consentCertificate.publicKey.algorithm)
+      publicDer.inputStream().use { input -> readCertificate(input) }
+    val consentPrivateEncryptionKey = readPrivateKey(privateKeyDer.toByteString(), consentCertificate.publicKey.algorithm)
     val dataProviderResultSigningKeyHandle = SigningKeyHandle(
       consentCertificate,
       consentPrivateEncryptionKey
     )
+    logger.info("~~~~~~~~~~~~~~~~~ 666")
+
 
     val kmsClient = getKmsClient()
 
     ResultsFulfiller(
-        loadPrivateKey(encryptionPrivateKeyFile),
+        loadPrivateKey(decodedKeyFile),
         requisitionsStub,
         dataProviderCertificateKey,
         dataProviderResultSigningKeyHandle,
