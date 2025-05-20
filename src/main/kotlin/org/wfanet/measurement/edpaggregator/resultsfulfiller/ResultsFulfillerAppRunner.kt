@@ -49,6 +49,13 @@ class ResultsFulfillerAppRunner : Runnable {
   private lateinit var kingdomPublicApiTarget: String
 
   @CommandLine.Option(
+    names = ["--secure-computation-public-api-target"],
+    description = ["gRPC target of the Secure Conmputation public API server"],
+    required = true
+  )
+  private lateinit var secureComputationPublicApiTarget: String
+
+  @CommandLine.Option(
     names = ["--kingdom-public-api-cert-host"],
     description = [
       "Expected hostname (DNS-ID) in the Kingdom public API server's TLS certificate.",
@@ -62,7 +69,7 @@ class ResultsFulfillerAppRunner : Runnable {
     names = ["--secure-computation-public-api-cert-host"],
     description = [
       "Expected hostname (DNS-ID) in the SecureComputation public API server's TLS certificate.",
-      "This overrides derivation of the TLS DNS-ID from --kingdom-public-api-target."
+      "This overrides derivation of the TLS DNS-ID from --secure-computation-public-api-target."
     ],
     required = false
   )
@@ -110,17 +117,19 @@ class ResultsFulfillerAppRunner : Runnable {
       trustedCertCollectionFile = secureComputationCertCollectionFile
     )
     logger.info("~~~~~~~~~~~~ results fulfiller4")
-    logger.info("~~~KINGDOM TARGET: ${kingdomPublicApiTarget}")
+    logger.info("~~~SEC comp TARGET: ${secureComputationPublicApiTarget}")
     logger.info("~~~secureComputationPublicApiCertHost: ${secureComputationPublicApiCertHost}")
 
     try {
-        logger.info(edpaCertFile.readText())
+      logger.info(edpaCertFile.readText())
+      logger.info(edpaPrivateKeyFile.readText())
+      logger.info(secureComputationCertCollectionFile.readText())
     }catch (e: Exception){
       e.printStackTrace()
     }
     // Build the mutual TLS channel for secure computation API
     val publicChannel = buildMutualTlsChannel(
-      kingdomPublicApiTarget,
+      secureComputationPublicApiTarget,
       secureComputationClientCerts,
       secureComputationPublicApiCertHost
     )
