@@ -78,6 +78,10 @@ class PostgresLedgerTest {
           DROP TABLE IF EXISTS PrivacyChargesMetadata CASCADE;
           DROP TABLE IF EXISTS PrivacyCharges CASCADE;
           DROP TABLE IF EXISTS LedgerEntries CASCADE;
+          DROP TABLE IF EXISTS EdpDimension CASCADE;
+          DROP TABLE IF EXISTS MeasurementConsumerDimension CASCADE;
+          DROP TABLE IF EXISTS EventGroupReferenceDimension CASCADE;
+          DROP TABLE IF EXISTS ExternalReferenceDimension CASCADE;
           """
           .trimIndent()
       )
@@ -136,7 +140,6 @@ class PostgresLedgerTest {
   fun `readQueries returns only the queries in the table correctly`() = runBlocking {
     markLandscapeState(dbConnection, ACTIVE_LANDSCAPE_ID, READY_STATE)
     val ledger = PostgresLedger(::createConnection, ACTIVE_LANDSCAPE_ID)
-    // val tx: PostgresTransactionContext = ledger.startTransaction()
     val query1: Query = query {
       queryIdentifiers = queryIdentifiers {
         eventDataProviderId = "edp1"
@@ -157,7 +160,17 @@ class PostgresLedgerTest {
       privacyLandscapeIdentifier = ACTIVE_LANDSCAPE_ID
     }
 
-    insertQueries(dbConnection, listOf(query1))
+    insertDimension(dbConnection, "EdpDimension", "EdpId_Text", "edp1")
+    insertDimension(
+      dbConnection,
+      "MeasurementConsumerDimension",
+      "MeasurementConsumerId_Text",
+      "mc1",
+    )
+    insertDimension(dbConnection, "ExternalReferenceDimension", "ExternalReferenceId_Text", "ref1")
+    insertDimension(dbConnection, "ExternalReferenceDimension", "ExternalReferenceId_Text", "ref2")
+
+    insertQuery(dbConnection, query1)
 
     val expectedQuery =
       query1.copy {
@@ -220,6 +233,31 @@ class PostgresLedgerTest {
     val ledgerRowKey2 =
       LedgerRowKey("edpid", "othermcid", "otheregid", LocalDate.parse("2025-07-01"))
 
+    insertDimension(dbConnection, "EdpDimension", "EdpId_Text", "edpid")
+    insertDimension(
+      dbConnection,
+      "MeasurementConsumerDimension",
+      "MeasurementConsumerId_Text",
+      "mcid",
+    )
+    insertDimension(
+      dbConnection,
+      "MeasurementConsumerDimension",
+      "MeasurementConsumerId_Text",
+      "othermcid",
+    )
+    insertDimension(
+      dbConnection,
+      "EventGroupReferenceDimension",
+      "EventGroupReferenceId_Text",
+      "egid",
+    )
+    insertDimension(
+      dbConnection,
+      "EventGroupReferenceDimension",
+      "EventGroupReferenceId_Text",
+      "otheregid",
+    )
     insertPrivacyCharges(dbConnection, ledgerRowKey1, charges1)
     insertPrivacyCharges(dbConnection, ledgerRowKey2, charges2)
 
@@ -351,6 +389,42 @@ class PostgresLedgerTest {
       )
     val SCHEMA by lazy { POSTGRES_LEDGER_SCHEMA_FILE.readText() }
 
+    fun insertDimensions(
+      connection: Connection,
+      edpIdText: String,
+      mcIdText: String,
+      egIdText: String,
+    ) {
+      insertDimension(connection, "EdpDimension", "EdpId_Text", edpIdText)
+      insertDimension(
+        connection,
+        "MeasurementConsumerDimension",
+        "MeasurementConsumerId_Text",
+        mcIdText,
+      )
+      insertDimension(
+        connection,
+        "EventGroupReferenceDimension",
+        "EventGroupReferenceId_Text",
+        egIdText,
+      )
+    }
+
+    private fun insertDimension(
+      connection: Connection,
+      tableName: String,
+      textFieldName: String,
+      textValue: String,
+    ) {
+      val insertSql =
+        "INSERT INTO $tableName ($textFieldName) VALUES (?) ON CONFLICT ($textFieldName) DO NOTHING;"
+
+      connection.prepareStatement(insertSql).use { insertStatement ->
+        insertStatement.setString(1, textValue)
+        insertStatement.executeUpdate() // Use executeUpdate as we don't need the result set
+      }
+    }
+
     fun markLandscapeState(connection: Connection, landscapeId: String, state: String) {
       connection
         .prepareStatement(
@@ -371,49 +445,130 @@ class PostgresLedgerTest {
         }
     }
 
+    // fun insertPrivacyCharges(connection: Connection, ledgerRowKey: LedgerRowKey, charges:
+    // Charges) {
+    //   val sql =
+    //     """
+    //       INSERT INTO PrivacyCharges (EdpId, MeasurementConsumerId, EventGroupReferenceId, Date,
+    // Charges)
+    //       VALUES (?, ?, ?, ?, ?)
+    //   """
+
+    //   connection.prepareStatement(sql).use { preparedStatement ->
+    //     preparedStatement.setString(1, ledgerRowKey.edpId)
+    //     preparedStatement.setString(2, ledgerRowKey.measurementConsumerId)
+    //     preparedStatement.setString(3, ledgerRowKey.eventGroupReferenceId)
+    //     preparedStatement.setDate(4, java.sql.Date.valueOf(ledgerRowKey.date))
+    //     preparedStatement.setBytes(5, charges.toByteString().toByteArray())
+    //     preparedStatement.executeUpdate()
+    //   }
+    // }
+
     fun insertPrivacyCharges(connection: Connection, ledgerRowKey: LedgerRowKey, charges: Charges) {
+      val (edpIdInt, mcIdInt, egIdInt) =
+        getDimensionIds(
+          connection,
+          ledgerRowKey.edpId,
+          ledgerRowKey.measurementConsumerId,
+          ledgerRowKey.eventGroupReferenceId,
+        )
+
       val sql =
         """
           INSERT INTO PrivacyCharges (EdpId, MeasurementConsumerId, EventGroupReferenceId, Date, Charges)
           VALUES (?, ?, ?, ?, ?)
-      """
+        """
 
       connection.prepareStatement(sql).use { preparedStatement ->
-        preparedStatement.setString(1, ledgerRowKey.edpId)
-        preparedStatement.setString(2, ledgerRowKey.measurementConsumerId)
-        preparedStatement.setString(3, ledgerRowKey.eventGroupReferenceId)
+        preparedStatement.setInt(1, edpIdInt)
+        preparedStatement.setInt(2, mcIdInt)
+        preparedStatement.setInt(3, egIdInt)
         preparedStatement.setDate(4, java.sql.Date.valueOf(ledgerRowKey.date))
         preparedStatement.setBytes(5, charges.toByteString().toByteArray())
         preparedStatement.executeUpdate()
       }
     }
 
+    private fun getDimensionIds(
+      connection: Connection,
+      edpIdText: String,
+      mcIdText: String,
+      egIdText: String,
+    ): Triple<Int, Int, Int> {
+      val edpIdInt = fetchDimensionId(connection, "EdpDimension", "EdpId_Text", edpIdText)
+      val mcIdInt =
+        fetchDimensionId(
+          connection,
+          "MeasurementConsumerDimension",
+          "MeasurementConsumerId_Text",
+          mcIdText,
+        )
+      val egIdInt =
+        fetchDimensionId(
+          connection,
+          "EventGroupReferenceDimension",
+          "EventGroupReferenceId_Text",
+          egIdText,
+        )
+      return Triple(edpIdInt, mcIdInt, egIdInt)
+    }
+
+    private fun fetchDimensionId(
+      connection: Connection,
+      tableName: String,
+      textFieldName: String,
+      textValue: String,
+    ): Int {
+      val selectSql = "SELECT ${tableName.dropLast(9)}Id FROM $tableName WHERE $textFieldName = ?;"
+
+      connection.prepareStatement(selectSql).use { selectStatement ->
+        selectStatement.setString(1, textValue)
+        selectStatement.executeQuery().use { resultSet ->
+          if (resultSet.next()) {
+            return resultSet.getInt(1)
+          } else {
+            throw NoSuchElementException(
+              "No row found for textValue: $textValue in table $tableName"
+            )
+          }
+        }
+      }
+    }
+
     fun readPrivacyCharges(connection: Connection, ledgerRowKey: LedgerRowKey): Charges {
+      val (edpIdInt, mcIdInt, egIdInt) =
+        getDimensionIds(
+          connection,
+          ledgerRowKey.edpId,
+          ledgerRowKey.measurementConsumerId,
+          ledgerRowKey.eventGroupReferenceId,
+        )
+
       val sql =
         """
-          Select Charges 
-          from PrivacyCharges
+          SELECT Charges
+          FROM PrivacyCharges
           WHERE EdpId = ?
           AND MeasurementConsumerId = ?
           AND EventGroupReferenceId = ?
           AND Date = ?
-      """
-      var charges: Charges = charges {}
+        """
+      var charges: Charges = Charges.newBuilder().build() // Initialize with builder
+
       connection.prepareStatement(sql).use { preparedStatement ->
-        preparedStatement.setString(1, ledgerRowKey.edpId)
-        preparedStatement.setString(2, ledgerRowKey.measurementConsumerId)
-        preparedStatement.setString(3, ledgerRowKey.eventGroupReferenceId)
+        preparedStatement.setInt(1, edpIdInt)
+        preparedStatement.setInt(2, mcIdInt)
+        preparedStatement.setInt(3, egIdInt)
         preparedStatement.setDate(4, java.sql.Date.valueOf(ledgerRowKey.date))
 
         preparedStatement.executeQuery().use { resultSet ->
           if (resultSet.next()) {
             val chargesBytes = resultSet.getBytes("Charges")
-
             charges =
               if (chargesBytes != null && chargesBytes.isNotEmpty()) {
                 Charges.parseFrom(chargesBytes)
               } else {
-                charges {}
+                Charges.newBuilder().build()
               }
           }
         }
@@ -421,22 +576,41 @@ class PostgresLedgerTest {
       return charges
     }
 
-    fun insertQueries(connection: Connection, queries: List<Query>) {
+    fun insertQuery(connection: Connection, query: Query) {
+      val edpIdInt =
+        fetchDimensionId(
+          connection,
+          "EdpDimension",
+          "EdpId_Text",
+          query.queryIdentifiers.eventDataProviderId,
+        )
+      val mcIdInt =
+        fetchDimensionId(
+          connection,
+          "MeasurementConsumerDimension",
+          "MeasurementConsumerId_Text",
+          query.queryIdentifiers.measurementConsumerId,
+        )
+      val refIdInt =
+        fetchDimensionId(
+          connection,
+          "ExternalReferenceDimension",
+          "ExternalReferenceId_Text",
+          query.queryIdentifiers.externalReferenceId,
+        )
       val insertStatement =
         """
             INSERT INTO LedgerEntries (EdpId, MeasurementConsumerId, ExternalReferenceId, IsRefund, CreateTime)
             VALUES (?, ?, ?, ?, ?)
         """
       connection.prepareStatement(insertStatement).use { preparedStatement ->
-        for (query in queries) {
-          val identifiers = query.queryIdentifiers
-          preparedStatement.setString(1, identifiers.eventDataProviderId)
-          preparedStatement.setString(2, identifiers.measurementConsumerId)
-          preparedStatement.setString(3, identifiers.externalReferenceId)
-          preparedStatement.setBoolean(4, identifiers.isRefund)
-          preparedStatement.setTimestamp(5, CREATE_TIME)
-          preparedStatement.addBatch()
-        }
+        val identifiers = query.queryIdentifiers
+        preparedStatement.setInt(1, edpIdInt)
+        preparedStatement.setInt(2, mcIdInt)
+        preparedStatement.setInt(3, refIdInt)
+        preparedStatement.setBoolean(4, identifiers.isRefund)
+        preparedStatement.setTimestamp(5, CREATE_TIME)
+        preparedStatement.addBatch()
         preparedStatement.executeBatch()
       }
     }

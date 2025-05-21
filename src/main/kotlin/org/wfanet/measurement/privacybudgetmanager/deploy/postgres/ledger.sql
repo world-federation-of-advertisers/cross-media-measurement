@@ -42,41 +42,73 @@ CREATE TABLE PrivacyChargesMetadata (
 );
 
 
+CREATE TABLE EdpDimension (
+    EdpId SERIAL PRIMARY KEY,
+    EdpId_Text TEXT UNIQUE NOT NULL
+);
+
+CREATE TABLE MeasurementConsumerDimension (
+    MeasurementConsumerId SERIAL PRIMARY KEY,
+    MeasurementConsumerId_Text TEXT UNIQUE NOT NULL
+);
+
+CREATE TABLE EventGroupReferenceDimension (
+    EventGroupReferenceId SERIAL PRIMARY KEY,
+    EventGroupReferenceId_Text TEXT UNIQUE NOT NULL
+);
+
+-- Dimension table for ExternalReferenceId
+CREATE TABLE ExternalReferenceDimension (
+    ExternalReferenceId SERIAL PRIMARY KEY,
+    ExternalReferenceId_Text TEXT UNIQUE NOT NULL
+);
+
 -- Holds all the charges. As the privacy landscapes are updated, old PrivacyCharges tables
 -- get deleted and migrated to the new PrivacyCharges table which holds in its Charges column, a proto
 -- that adheres to the new Privacy Landscape.
 -- TODO(uakyol) : Consider adding a JSON companion column  for Charges.
-CREATE TABLE PrivacyCharges(
- -- The EDP these charges belong to.
- EdpId text NOT NULl,
- -- The Measurement Consumer these charges belong to.
- MeasurementConsumerId text NOT NULL,
- -- The Event Group Reference assigned by the EDP that these charges belong to.
- EventGroupReferenceId text NOT NULL,
- -- Day for this PrivacyBucket. DD-MM-YYYY.
- Date Date NOT NULL,
- -- A wfa.measurement.privacybudgetmanager.Charges proto capturing charges for each bucket.
- Charges BYTEA,
- -- There can be only one entry per MeasurementConsumerId, EventGroupReferenceId, Date triplet.
- PRIMARY KEY (EdpId, MeasurementConsumerId, EventGroupReferenceId, Date));
+CREATE TABLE PrivacyCharges (
+    -- Unique row identifier for this charge record.
+    row_id SERIAL PRIMARY KEY,
+    -- The integer ID of the EDP these charges belong to.
+    EdpId INTEGER NOT NULL,
+    -- The integer ID of the Measurement Consumer these charges belong to.
+    MeasurementConsumerId INTEGER NOT NULL,
+    -- The integer ID of the Event Group Reference assigned by the EDP that these charges belong to.
+    EventGroupReferenceId INTEGER NOT NULL,
+    -- Day for this PrivacyBucket. DD-MM-YYYY.
+    Date Date NOT NULL,
+    -- A wfa.measurement.privacybudgetmanager.Charges proto capturing charges for each bucket.
+    Charges BYTEA,
+    -- There can be only one entry per EdpId, MeasurementConsumerId, EventGroupReferenceId triplet on a given Date.
+    UNIQUE (EdpId, MeasurementConsumerId, EventGroupReferenceId, Date),
+    FOREIGN KEY (EdpId) REFERENCES EdpDimension(EdpId),
+    FOREIGN KEY (MeasurementConsumerId) REFERENCES MeasurementConsumerDimension(MeasurementConsumerId),
+    FOREIGN KEY (EventGroupReferenceId) REFERENCES EventGroupReferenceDimension(EventGroupReferenceId)
+);
 
 
--- Holds all the ledger Entries.
-CREATE TABLE LedgerEntries(
- -- The EDP these charges belong to.
- EdpId text NOT NULl,
- -- The Measurement Consumer this Ledger Entry belongs to.
- MeasurementConsumerId text NOT NULL,
- -- ID from an external system that uniquely identifies the source all charges in a transaction
- -- for a given MeasurementConsumer. Likely the requisition id.
- ExternalReferenceId text NOT NULL,
- -- Whether or not the charge is a refund.
- IsRefund Boolean NOT NULL,
- -- Time when the row was inserted.
- CreateTime TIMESTAMP NOT NULL);
-
-
--- Used to query references quickly
-CREATE
- INDEX LedgerEntriesByReferenceId
-ON LedgerEntries(EdpId, MeasurementConsumerId, ExternalReferenceId);
+-- Holds all the ledger Entries with integer IDs and a row_id
+CREATE TABLE LedgerEntries (
+    -- Unique row identifier for this ledger entry.
+    row_id SERIAL PRIMARY KEY,
+    -- The integer ID of the EDP these charges belong to.
+    EdpId INTEGER NOT NULL,
+    -- The integer ID of the Measurement Consumer this Ledger Entry belongs to.
+    MeasurementConsumerId INTEGER NOT NULL,
+    -- The integer ID from an external system that uniquely identifies the source all charges in a transaction
+    -- for a given MeasurementConsumer. Likely the requisition id.
+    ExternalReferenceId INTEGER NOT NULL,
+    -- Whether or not the charge is a refund.
+    IsRefund Boolean NOT NULL,
+    -- Time when the row was inserted.
+    CreateTime TIMESTAMP NOT NULL,
+    -- Ensures uniqueness for the combination of EdpId, MeasurementConsumerId, ExternalReferenceId, and CreateTime.
+    UNIQUE (EdpId, MeasurementConsumerId, ExternalReferenceId, CreateTime),
+    -- Foreign key constraint to the EdpDimension table.
+    FOREIGN KEY (EdpId) REFERENCES EdpDimension(EdpId),
+    -- Foreign key constraint to the MeasurementConsumerDimension table.
+    FOREIGN KEY (MeasurementConsumerId) REFERENCES MeasurementConsumerDimension(MeasurementConsumerId),
+    -- Foreign key constraint to the new ExternalReferenceDimension table.
+    FOREIGN KEY (ExternalReferenceId) REFERENCES ExternalReferenceDimension(ExternalReferenceId)
+);
