@@ -141,6 +141,7 @@ import org.wfanet.measurement.populationdataprovider.PopulationInfo
 import com.google.auth.oauth2.GoogleCredentials
 import com.google.auth.oauth2.IdTokenProvider
 import com.google.auth.oauth2.IdToken
+import org.wfanet.measurement.common.crypto.subjectKeyIdentifier
 
 data class MeasurementConsumerData(
   // The MC's public API resource name
@@ -1085,6 +1086,27 @@ class MeasurementConsumerSimulator(
     val signedResult =
       decryptResult(resultOutput.encryptedResult, measurementConsumerData.encryptionKey)
     val x509Certificate: X509Certificate = readCertificate(certificate.x509Der)
+
+    try {
+      println("Looking for trusted issuer with key: " +
+        x509Certificate.authorityKeyIdentifier?.toByteArray()?.joinToString("") { "%02x".format(it) })
+
+      trustedCertificates.keys.forEachIndexed { i, key ->
+        val hex = key.toByteArray().joinToString("") { "%02x".format(it) }
+        println("trustedCertificates[$i]: $hex")
+      }
+      trustedCertificates.values.forEach { cert ->
+        println("Trusted cert subject: ${cert.subjectX500Principal}")
+        println("Subject Key Identifier: " +
+          cert.subjectKeyIdentifier?.joinToString("") { "%02x".format(it) })
+      }
+      println("Certificate subject: ${x509Certificate.subjectX500Principal.name}")
+      println("Certificate issuer: ${x509Certificate.issuerX500Principal.name}")
+    }catch (e: Exception){
+      logger.severe("~~~~~~~ ERROR printing certs: ${e}")
+    }
+
+
     val trustedIssuer =
       checkNotNull(trustedCertificates[checkNotNull(x509Certificate.authorityKeyIdentifier)]) {
         "Issuer of ${certificate.name} not trusted"

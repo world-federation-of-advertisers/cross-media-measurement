@@ -59,6 +59,8 @@ class DataWatcherFunction : CloudEventsFunction {
         .build()
     val blobKey: String = data.getName()
     val bucket: String = data.getBucket()
+    logger.info("~~~ checking metadata")
+
     val metageneration: Long = data.getMetageneration()
     logger.info("~~~~~~~~~~~~~~~~~~~~~ metageneration: ${metageneration}")
     if(metageneration != 1L) {
