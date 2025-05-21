@@ -110,9 +110,11 @@ resource "google_kms_key_ring" "this" {
 }
 
 locals {
-  key_ring_id = length(data.google_kms_key_ring.existing) == 1
-    ? data.google_kms_key_ring.existing.id
-    : google_kms_key_ring.this[0].id
+  key_ring_id = (
+    length(data.google_kms_key_ring.existing) == 1
+      ? data.google_kms_key_ring.existing.id
+      : google_kms_key_ring.this[0].id
+  )
 }
 
 resource "google_kms_crypto_key" "edp_aggregator_kek" {
