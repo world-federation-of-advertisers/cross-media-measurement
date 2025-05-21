@@ -98,8 +98,7 @@ data "google_kms_key_ring" "existing" {
   location = var.key_ring_location
 }
 
-resource "google_kms_key_ring" "edp_aggregator_key_ring" {
-  count    = length(data.google_kms_key_ring.existing) == 0 ? 1 : 0
+data "google_kms_key_ring" "existing" {
   name     = var.key_ring_name
   location = var.key_ring_location
 }
