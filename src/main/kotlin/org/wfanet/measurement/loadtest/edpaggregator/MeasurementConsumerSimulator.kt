@@ -121,6 +121,11 @@ import org.wfanet.measurement.measurementconsumer.stats.ReachMeasurementParams
 import org.wfanet.measurement.measurementconsumer.stats.ReachMeasurementVarianceParams
 import org.wfanet.measurement.measurementconsumer.stats.VariancesImpl
 import org.wfanet.measurement.measurementconsumer.stats.VidSamplingInterval as StatsVidSamplingInterval
+import java.net.URI
+import java.net.http.HttpClient
+import java.net.http.HttpRequest
+import java.net.http.HttpResponse
+import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerSimulator
 
 data class MeasurementConsumerData(
   // The MC's public API resource name
@@ -317,13 +322,31 @@ class MeasurementConsumerSimulator(
     logger.info("Reach and frequency result is equal to the expected result")
   }
 
+  private fun triggerRequisitionFetcher() {
+    val jwt = System.getenv("AUTH_ID_TOKEN")
+      ?: error("AUTH_ID_TOKEN must be set")
+
+    logger.info("Triggering requisition fetcher: ${jwt}")
+    val client = HttpClient.newHttpClient()
+    val request =
+      HttpRequest.newBuilder()
+        .uri(URI.create("https://us-central1-halo-cmm-dev.cloudfunctions.net/requisition-fetcher"))
+        .header("Authorization", "Bearer $jwt")
+        .GET()
+        .build()
+    val response = client.send(request, HttpResponse.BodyHandlers.ofString())
+    check(response.statusCode() == 200)
+  }
+
   /**
    * A sequence of operations done in the simulator involving a direct reach and frequency
    * measurement.
    */
   suspend fun testDirectReachAndFrequency(runId: String) {
+    logger.info("~~~~~~~~~~ testDirectReachAndFrequency 1")
     // Create a new measurement on behalf of the measurement consumer.
     val measurementConsumer = getMeasurementConsumer(measurementConsumerData.name)
+    logger.info("~~~~~~~~~~ testDirectReachAndFrequency, measurementConsumer: ${measurementConsumer}")
     val measurementInfo =
       createMeasurement(
         measurementConsumer,
@@ -335,7 +358,7 @@ class MeasurementConsumerSimulator(
       )
     val measurementName = measurementInfo.measurement.name
     logger.info("Created direct reach and frequency measurement $measurementName.")
-
+    triggerRequisitionFetcher()
     // Get the CMMS computed result and compare it with the expected result.
     val reachAndFrequencyResult = pollForResult { getReachAndFrequencyResult(measurementName) }
     logger.info("Got direct reach and frequency result from Kingdom: $reachAndFrequencyResult")

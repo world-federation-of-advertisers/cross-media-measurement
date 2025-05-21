@@ -24,7 +24,7 @@ import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.integration.common.loadEncryptionPrivateKey
 import org.wfanet.measurement.integration.common.loadSigningKey
-import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerSimulator
+import org.wfanet.measurement.loadtest.edpaggregator.MeasurementConsumerSimulator
 import org.wfanet.measurement.common.crypto.PrivateKeyHandle
 import org.wfanet.measurement.common.crypto.SigningCerts
 

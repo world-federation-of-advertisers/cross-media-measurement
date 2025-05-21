@@ -36,11 +36,8 @@ import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withDefaultDeadline
 import org.wfanet.measurement.common.parseTextProto
-import org.wfanet.measurement.integration.common.SyntheticGenerationSpecs
-import org.wfanet.measurement.loadtest.dataprovider.SyntheticGeneratorEventQuery
-import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
-import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerSimulator
-import org.wfanet.measurement.loadtest.measurementconsumer.MetadataSyntheticGeneratorEventQuery
+import org.wfanet.measurement.loadtest.edpaggregator.MeasurementConsumerData
+import org.wfanet.measurement.loadtest.edpaggregator.MeasurementConsumerSimulator
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.eventGroup
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup.MediaType
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.MetadataKt.AdMetadataKt.campaignMetadata
@@ -56,6 +53,7 @@ import org.wfanet.measurement.storage.SelectedStorageClient
 import com.google.cloud.storage.StorageOptions
 import java.util.logging.Logger
 import kotlinx.coroutines.delay
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 
 class EdpAggregatorCorrectnessTest: AbstractEdpAggregatorCorrectnessTest(measurementSystem) {
 
@@ -173,11 +171,6 @@ class EdpAggregatorCorrectnessTest: AbstractEdpAggregatorCorrectnessTest(measure
           .also { channels.add(it) }
           .withDefaultDeadline(RPC_DEADLINE_DURATION)
 
-      val eventQuery: SyntheticGeneratorEventQuery =
-        MetadataSyntheticGeneratorEventQuery(
-          SyntheticGenerationSpecs.SYNTHETIC_POPULATION_SPEC_LARGE,
-          MC_ENCRYPTION_PRIVATE_KEY,
-        )
       return MeasurementConsumerSimulator(
         measurementConsumerData,
         OUTPUT_DP_PARAMS,
@@ -187,7 +180,7 @@ class EdpAggregatorCorrectnessTest: AbstractEdpAggregatorCorrectnessTest(measure
         MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub(publicApiChannel),
         CertificatesGrpcKt.CertificatesCoroutineStub(publicApiChannel),
         MEASUREMENT_CONSUMER_SIGNING_CERTS.trustedCertificates,
-        eventQuery,
+        TestEvent.getDefaultInstance(),
         ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN,
       )
     }
