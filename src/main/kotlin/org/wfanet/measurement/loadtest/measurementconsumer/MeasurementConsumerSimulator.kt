@@ -1113,7 +1113,15 @@ class MeasurementConsumerSimulator(
       }
     try {
       try{
-        logger.info("~~~~~ signedResult.toString(): ${signedResult.toString()}")
+        logger.info("~~~~~ signedResult.toString(): ${signedResult}")
+        logger.info("~~~~~ x509Certificate: ${x509Certificate.subjectX500Principal}")
+        logger.info("~~~~~ x509Certificate2: ${x509Certificate.issuerX500Principal}")
+        logger.info("~~~~~ x509Certificate3: ${x509Certificate.signature}")
+        logger.info("~~~~~ x509Certificate4: ${x509Certificate.keyUsage}")
+        logger.info("~~~~~ trustedIssuer: ${trustedIssuer.subjectX500Principal}")
+        logger.info("~~~~~ trustedIssuer2: ${trustedIssuer.issuerX500Principal}")
+        logger.info("~~~~~ trustedIssuer3: ${trustedIssuer.signature}")
+        logger.info("~~~~~ trustedIssuer4: ${trustedIssuer.keyUsage}")
       }catch (e: Exception){
         logger.severe("ERROR PRINTING certs")
       }
