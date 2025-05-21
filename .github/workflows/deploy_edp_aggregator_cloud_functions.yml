@@ -15,9 +15,9 @@
 name: "Deploy Cloud Functions"
 
 on:
-#  push:
-#    branches:
-#      - marcopremier/edp_aggregator_cloud_test_requisition_fetcher
+  push:
+    branches:
+      - marcopremier/edp_aggregator_cloud_test_requisition_fetcher
   workflow_dispatch:
     inputs:
       environment:
@@ -85,16 +85,16 @@ jobs:
           extra_env_vars: "CERT_FILE_PATH=/secrets/cert/data_watcher_tls.pem,PRIVATE_KEY_FILE_PATH=/secrets/key/data_watcher_tls.key,CERT_COLLECTION_FILE_PATH=/secrets/ca/secure_computation_root.pem,CONTROL_PLANE_TARGET=${{ env.SECURE_COMPUTATION_PUBLIC_API_TARGET }},CONTROL_PLANE_CERT_HOST=data-watcher.secure-computation.dev.halo-cmm.org"
           secret_mappings: "/secrets/key/data_watcher_tls.key=${{ env.DATA_WATCHER_TLS_KEY_SECRET }}:latest,/secrets/cert/data_watcher_tls.pem=${{ env.DATA_WATCHER_TLS_PEM_SECRET }}:latest,/secrets/ca/secure_computation_root.pem=${{ env.SECURE_COMPUTATION_ROOT_SECRET }}:latest"
 
-      - name: Deploy Requisition Fetcher
-        uses: ./.github/actions/build-and-deploy-cloud-function
-        with:
-          cloud_region: ${{ vars.GCLOUD_REGION }}
-          function_name: requisition-fetcher
-          entry_point: org.wfanet.measurement.edpaggregator.deploy.gcloud.requisitionfetcher.RequisitionFetcherFunction
-          bazel_target_label: //src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/requisitionfetcher:RequisitionFetcherFunction_deploy.jar
-          run_service_account: ${{ env.REQUISITION_FETCHER_SERVICE_ACCOUNT }}
-          extra_env_vars: "KINGDOM_TARGET=${{ env.KINGDOM_PUBLIC_API_TARGET }}"
-          secret_mappings: "/secrets/key/edp7_tls.key=${{ env.EDP7_TLS_KEY_SECRET }}:latest,/secrets/cert/edp7_tls.pem=${{ env.EDP7_TLS_PEM_SECRET }}:latest,/secrets/ca/kingdom_root.pem=${{ env.KINGOM_ROOT_SECRET }}:latest"
+#      - name: Deploy Requisition Fetcher
+#        uses: ./.github/actions/build-and-deploy-cloud-function
+#        with:
+#          cloud_region: ${{ vars.GCLOUD_REGION }}
+#          function_name: requisition-fetcher
+#          entry_point: org.wfanet.measurement.edpaggregator.deploy.gcloud.requisitionfetcher.RequisitionFetcherFunction
+#          bazel_target_label: //src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/requisitionfetcher:RequisitionFetcherFunction_deploy.jar
+#          run_service_account: ${{ env.REQUISITION_FETCHER_SERVICE_ACCOUNT }}
+#          extra_env_vars: "KINGDOM_TARGET=${{ env.KINGDOM_PUBLIC_API_TARGET }}"
+#          secret_mappings: "/secrets/key/edp7_tls.key=${{ env.EDP7_TLS_KEY_SECRET }}:latest,/secrets/cert/edp7_tls.pem=${{ env.EDP7_TLS_PEM_SECRET }}:latest,/secrets/ca/kingdom_root.pem=${{ env.KINGOM_ROOT_SECRET }}:latest"
 
 #      - name: Deploy Event Group Sync
 #        uses: ./.github/actions/build-and-deploy-cloud-function
