@@ -93,14 +93,15 @@ resource "google_pubsub_topic_iam_member" "publisher" {
   member = var.pubsub_iam_service_account_member
 }
 
-resource "google_kms_key_ring" "edp_aggregator_key_ring" {
-
+data "google_kms_key_ring" "existing" {
   name     = var.key_ring_name
   location = var.key_ring_location
+}
 
-  lifecycle {
-    prevent_destroy = false
-  }
+resource "google_kms_key_ring" "edp_aggregator_key_ring" {
+  count    = length(data.google_kms_key_ring.existing) == 0 ? 1 : 0
+  name     = var.key_ring_name
+  location = var.key_ring_location
 }
 
 resource "google_kms_crypto_key" "edp_aggregator_kek" {
