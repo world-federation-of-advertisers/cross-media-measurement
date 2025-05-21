@@ -102,27 +102,26 @@ class ReportingApiServerFlags {
     required = false,
   )
   fun setMeasurementConsumerModelLines(value: Map<String, String>) {
-    measurementConsumerModelLines =
-      buildMap {
-        if (value.entries.isNotEmpty()) {
-          for (entry in value.entries) {
-            val measurementConsumerKey =
-              MeasurementConsumerKey.fromName(entry.key)
-                ?: throw CommandLine.ParameterException(
-                  spec.commandLine(),
-                  "Invalid value for option `--measurement-consumer-model-line`: not a valid measurement consumer name",
-                )
-            val modelLineKey =
-              ModelLineKey.fromName(entry.value)
-                ?: throw CommandLine.ParameterException(
-                  spec.commandLine(),
-                  "Invalid value for option `--measurement-consumer-model-line`: not a valid model line name",
-                )
+    measurementConsumerModelLines = buildMap {
+      if (value.entries.isNotEmpty()) {
+        for (entry in value.entries) {
+          val measurementConsumerKey =
+            MeasurementConsumerKey.fromName(entry.key)
+              ?: throw CommandLine.ParameterException(
+                spec.commandLine(),
+                "Invalid value for option `--measurement-consumer-model-line`: not a valid measurement consumer name",
+              )
+          val modelLineKey =
+            ModelLineKey.fromName(entry.value)
+              ?: throw CommandLine.ParameterException(
+                spec.commandLine(),
+                "Invalid value for option `--measurement-consumer-model-line`: not a valid model line name",
+              )
 
-            put(measurementConsumerKey, modelLineKey)
-          }
+          put(measurementConsumerKey, modelLineKey)
         }
       }
+    }
   }
 
   var measurementConsumerModelLines: Map<MeasurementConsumerKey, ModelLineKey> = emptyMap()
