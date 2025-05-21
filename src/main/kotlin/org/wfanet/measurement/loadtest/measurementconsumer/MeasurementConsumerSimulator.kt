@@ -1090,6 +1090,7 @@ class MeasurementConsumerSimulator(
 
     val signedResult =
       decryptResult(resultOutput.encryptedResult, measurementConsumerData.encryptionKey)
+
     val x509Certificate: X509Certificate = readCertificate(certificate.x509Der)
 
 //    try {

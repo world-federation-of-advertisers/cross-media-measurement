@@ -64,6 +64,12 @@ class DataWatcherFunction : CloudEventsFunction {
     data.metadataMap?.forEach { (key, value) ->
       logger.info("----> $key: $value")
     }
+    logger.info("----> data.generation, ${data.generation}")
+      logger.info("----> data.temporaryHold, ${data.temporaryHold}")
+      logger.info("----> data.eventBasedHold, ${data.eventBasedHold}")
+      logger.info("----> data.isInitialized, ${data.isInitialized}")
+      logger.info("----> data.metadataCount, ${data.metadataCount}")
+
     val metageneration: Long = data.getMetageneration()
     val size: Long = data.size
     logger.info("~~~~~~~~~~~~~~~~~~~~~ metageneration: ${metageneration}, size: ${size}")
