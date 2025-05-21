@@ -28,6 +28,7 @@ import io.grpc.inprocess.InProcessChannelBuilder
 import java.io.File
 import java.security.SecureRandom
 import java.time.Duration
+import java.util.concurrent.ExecutorService
 import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.ThreadPoolExecutor
 import java.util.concurrent.TimeUnit
@@ -48,7 +49,6 @@ import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub as KingdomMeasurementsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt.ModelLinesCoroutineStub as KingdomModelLinesCoroutineStub
 import org.wfanet.measurement.api.withAuthenticationKey
-import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.SigningCerts
@@ -57,6 +57,7 @@ import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withInterceptor
 import org.wfanet.measurement.common.grpc.withShutdownTimeout
 import org.wfanet.measurement.common.grpc.withVerboseLogging
+import org.wfanet.measurement.common.instrumented
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.config.access.OpenIdProvidersConfig
 import org.wfanet.measurement.config.reporting.MeasurementConsumerConfig
@@ -244,17 +245,15 @@ private object V2AlphaPublicApiServer {
         Dispatchers.Default,
       )
 
-    val inProcessExecutorService =
+    val inProcessExecutorService: ExecutorService =
       ThreadPoolExecutor(
-        1,
-        commonServerFlags.threadPoolSize,
-        60L,
-        TimeUnit.SECONDS,
-        LinkedBlockingQueue(),
-      )
-
-    val inProcessInstrumentationHandle: Instrumentation.Handle =
-      Instrumentation.instrumentThreadPool(IN_PROCESS_SERVER_NAME, inProcessExecutorService)
+          1,
+          commonServerFlags.threadPoolSize,
+          60L,
+          TimeUnit.SECONDS,
+          LinkedBlockingQueue(),
+        )
+        .instrumented(IN_PROCESS_SERVER_NAME)
 
     val inProcessServer: Server =
       startInProcessServerWithService(
@@ -341,7 +340,6 @@ private object V2AlphaPublicApiServer {
     inProcessExecutorService.shutdown()
     inProcessServer.awaitTermination()
     inProcessExecutorService.awaitTermination(30, TimeUnit.SECONDS)
-    inProcessInstrumentationHandle.close()
   }
 
   class V2AlphaPublicServerFlags {
