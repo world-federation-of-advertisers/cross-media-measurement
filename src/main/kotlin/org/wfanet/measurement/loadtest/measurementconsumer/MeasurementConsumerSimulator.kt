@@ -1096,12 +1096,12 @@ class MeasurementConsumerSimulator(
         println("trustedCertificates[$i]: $hex")
       }
       trustedCertificates.values.forEach { cert ->
-        println("Trusted cert subject: ${cert.subjectX500Principal}")
-        println("Subject Key Identifier: " +
+        logger.info("Trusted cert subject: ${cert.subjectX500Principal}")
+        logger.info("Subject Key Identifier: " +
           cert.subjectKeyIdentifier?.joinToString("") { "%02x".format(it) })
       }
-      println("Certificate subject: ${x509Certificate.subjectX500Principal.name}")
-      println("Certificate issuer: ${x509Certificate.issuerX500Principal.name}")
+      logger.info("Certificate subject: ${x509Certificate.subjectX500Principal.name}")
+      logger.info("Certificate issuer: ${x509Certificate.issuerX500Principal.name}")
     }catch (e: Exception){
       logger.severe("~~~~~~~ ERROR printing certs: ${e}")
     }
@@ -1112,6 +1112,11 @@ class MeasurementConsumerSimulator(
         "Issuer of ${certificate.name} not trusted"
       }
     try {
+      try{
+        logger.info("~~~~~ signedResult.toString(): ${signedResult.toString()}")
+      }catch (e: Exception){
+        logger.severe("ERROR PRINTING certs")
+      }
       verifyResult(signedResult, x509Certificate, trustedIssuer)
     } catch (e: CertPathValidatorException) {
       throw Exception("Certificate path is invalid for ${certificate.name}", e)
