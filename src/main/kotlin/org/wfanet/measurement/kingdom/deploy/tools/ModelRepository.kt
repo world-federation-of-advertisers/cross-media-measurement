@@ -18,7 +18,6 @@ package org.wfanet.measurement.kingdom.deploy.tools
 
 import io.grpc.ManagedChannel
 import java.time.Duration
-import kotlin.properties.Delegates
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.ListModelSuitesResponse
 import org.wfanet.measurement.api.v2alpha.ModelSuitesGrpcKt.ModelSuitesCoroutineStub
@@ -159,35 +158,37 @@ class CreateModelSuite : Runnable {
 class ListModelSuites : Runnable {
   @ParentCommand private lateinit var parentCommand: ModelSuites
 
-  @set:Option(
-    names = ["--page-size"],
-    description = ["The maximum number of Roles to return"],
-    defaultValue = "1000",
-    required = false,
-  )
-  private var listPageSize: Int by Delegates.notNull()
-
-  @Option(
-    names = ["--page-token"],
-    description =
-      [
-        "A page token, received from a previous `ListModelSuites` call. Provide this to retrieve the subsequent page."
-      ],
-    defaultValue = "",
-    required = false,
-  )
-  private lateinit var listPageToken: String
+  @Mixin private lateinit var pageParams: PageParams
 
   override fun run() {
     val response: ListModelSuitesResponse = runBlocking {
       parentCommand.modelSuitesClient.listModelSuites(
         listModelSuitesRequest {
-          pageSize = listPageSize
-          pageToken = listPageToken
+          pageSize = pageParams.pageSize
+          pageToken = pageParams.pageToken
         }
       )
     }
 
     println(response)
   }
+}
+
+private class PageParams {
+  @Option(
+    names = ["--page-size"],
+    description = ["The maximum number of resources to return. The maximum value is 1000"],
+    required = false,
+  )
+  var pageSize: Int = 1000
+    private set
+
+  @Option(
+    names = ["--page-token"],
+    description = ["Page token from a previous list call to retrieve the next page"],
+    defaultValue = "",
+    required = false,
+  )
+  lateinit var pageToken: String
+    private set
 }
