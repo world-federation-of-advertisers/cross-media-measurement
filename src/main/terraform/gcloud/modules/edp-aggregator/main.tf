@@ -104,10 +104,22 @@ resource "google_kms_key_ring" "edp_aggregator_key_ring" {
   location = var.key_ring_location
 }
 
+resource "google_kms_key_ring" "this" {
+  count    = length(data.google_kms_key_ring.existing) == 0 ? 1 : 0
+  name     = var.key_ring_name
+  location = var.key_ring_location
+}
+
+locals {
+  key_ring_id = length(data.google_kms_key_ring.existing) == 1
+    ? data.google_kms_key_ring.existing.id
+    : google_kms_key_ring.this[0].id
+}
+
 resource "google_kms_crypto_key" "edp_aggregator_kek" {
   name     = var.kms_key_name
 #   key_ring = google_kms_key_ring.edp_aggregator_key_ring.id
-  key_ring = google_kms_key_ring.edp_aggregator_key_ring[0].id
+  key_ring = local.key_ring_id
   purpose  = "ENCRYPT_DECRYPT"
 }
 
