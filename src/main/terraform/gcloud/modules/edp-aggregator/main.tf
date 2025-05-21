@@ -106,7 +106,8 @@ resource "google_kms_key_ring" "edp_aggregator_key_ring" {
 
 resource "google_kms_crypto_key" "edp_aggregator_kek" {
   name     = var.kms_key_name
-  key_ring = google_kms_key_ring.edp_aggregator_key_ring.id
+#   key_ring = google_kms_key_ring.edp_aggregator_key_ring.id
+  key_ring = google_kms_key_ring.edp_aggregator_key_ring[0].id
   purpose  = "ENCRYPT_DECRYPT"
 }
 
