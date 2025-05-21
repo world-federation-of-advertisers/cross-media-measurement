@@ -245,8 +245,8 @@ class MetricsService(
   private val secureRandom: Random,
   signingPrivateKeyDir: File,
   trustedCertificates: Map<ByteString, X509Certificate>,
-  defaultVidModelLine: String,
-  measurementConsumerModelLines: Map<String, String>,
+  defaultVidModelLine: ModelLineKey?,
+  measurementConsumerModelLines: Map<MeasurementConsumerKey, ModelLineKey>,
   certificateCacheExpirationDuration: Duration = Duration.ofMinutes(60),
   dataProviderCacheExpirationDuration: Duration = Duration.ofMinutes(60),
   keyReaderContext: @BlockingExecutor CoroutineContext = Dispatchers.IO,
@@ -309,8 +309,8 @@ class MetricsService(
     dataProviderCacheExpirationDuration: Duration,
     private val keyReaderContext: @BlockingExecutor CoroutineContext = Dispatchers.IO,
     cacheLoaderContext: @NonBlockingExecutor CoroutineContext = Dispatchers.Default,
-    private val defaultModelLine: String,
-    private val measurementConsumerModelLines: Map<String, String>,
+    private val defaultModelLine: ModelLineKey?,
+    private val measurementConsumerModelLines: Map<MeasurementConsumerKey, ModelLineKey>,
   ) {
     private data class ResourceNameApiAuthenticationKey(
       val name: String,
@@ -587,10 +587,12 @@ class MetricsService(
             }
         }
         modelLine =
-          if (metric.cmmsModelLine.isNotEmpty()) {
-            metric.cmmsModelLine
-          } else {
-            measurementConsumerModelLines.getOrDefault(measurementConsumerName, defaultModelLine)
+          metric.cmmsModelLine.ifEmpty {
+            measurementConsumerModelLines[MeasurementConsumerKey.fromName(measurementConsumerName)]
+              ?.toName()
+              ?: defaultModelLine
+                ?.toName()
+              ?: ""
           }
 
         // Add reporting metadata
