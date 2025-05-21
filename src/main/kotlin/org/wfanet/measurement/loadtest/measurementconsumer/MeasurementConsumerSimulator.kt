@@ -362,7 +362,7 @@ class MeasurementConsumerSimulator(
 //    val idToken: IdToken =
 //      credentials.idTokenWithAudience("https://us-central1-halo-cmm-dev.cloudfunctions.net/requisition-fetcher", listOf())
 //    val jwt = idToken.tokenValue
-
+    println("~~~~~~~~~~~~~~~~~~ JWT: ${jwt}")
     val client = HttpClient.newHttpClient()
     val request =
       HttpRequest.newBuilder()
