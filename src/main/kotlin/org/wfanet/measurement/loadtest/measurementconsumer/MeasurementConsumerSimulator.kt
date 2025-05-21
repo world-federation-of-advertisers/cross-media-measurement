@@ -363,7 +363,7 @@ class MeasurementConsumerSimulator(
 //    val idToken: IdToken =
 //      credentials.idTokenWithAudience("https://us-central1-halo-cmm-dev.cloudfunctions.net/requisition-fetcher", listOf())
 //    val jwt = idToken.tokenValue
-    println("~~~~~~~~~~~~~~~~~~ JWT: ${jwt}")
+    logger.info("~~~~~~~~~~~~~~~~~~ JWT: ${jwt}")
     val client = HttpClient.newHttpClient()
     val request =
       HttpRequest.newBuilder()
@@ -1088,12 +1088,12 @@ class MeasurementConsumerSimulator(
     val x509Certificate: X509Certificate = readCertificate(certificate.x509Der)
 
     try {
-      println("Looking for trusted issuer with key: " +
+      logger.info("Looking for trusted issuer with key: " +
         x509Certificate.authorityKeyIdentifier?.toByteArray()?.joinToString("") { "%02x".format(it) })
 
       trustedCertificates.keys.forEachIndexed { i, key ->
         val hex = key.toByteArray().joinToString("") { "%02x".format(it) }
-        println("trustedCertificates[$i]: $hex")
+        logger.info("trustedCertificates[$i]: $hex")
       }
       trustedCertificates.values.forEach { cert ->
         logger.info("Trusted cert subject: ${cert.subjectX500Principal}")
