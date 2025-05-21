@@ -69,7 +69,7 @@ CREATE TABLE ExternalReferenceDimension (
 -- TODO(uakyol) : Consider adding a JSON companion column  for Charges.
 CREATE TABLE PrivacyCharges (
     -- Unique row identifier for this charge record.
-    row_id SERIAL PRIMARY KEY,
+    id SERIAL PRIMARY KEY,
     -- The integer ID of the EDP these charges belong to.
     EdpId INTEGER NOT NULL,
     -- The integer ID of the Measurement Consumer these charges belong to.
@@ -88,10 +88,10 @@ CREATE TABLE PrivacyCharges (
 );
 
 
--- Holds all the ledger Entries with integer IDs and a row_id
+-- Holds all the ledger Entries with integer IDs and a id
 CREATE TABLE LedgerEntries (
     -- Unique row identifier for this ledger entry.
-    row_id SERIAL PRIMARY KEY,
+    id SERIAL PRIMARY KEY,
     -- The integer ID of the EDP these charges belong to.
     EdpId INTEGER NOT NULL,
     -- The integer ID of the Measurement Consumer this Ledger Entry belongs to.

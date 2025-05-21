@@ -126,8 +126,7 @@ class PostgresTransactionContext(
     }
   }
 
-
-    /**
+  /**
    * Reads queries from the database in batches and returns the matching ones with their create
    * times.
    *
@@ -182,12 +181,8 @@ class PostgresTransactionContext(
                 ledgerEntries.add(
                   LedgerEntry(
                     edpId = resultSet.getString("EdpId"),
-                    measurementConsumerId =
-                      resultSet
-                        .getString("MeasurementConsumerId"),
-                    externalReferenceId =
-                      resultSet
-                        .getString("ExternalReferenceId"),
+                    measurementConsumerId = resultSet.getString("MeasurementConsumerId"),
+                    externalReferenceId = resultSet.getString("ExternalReferenceId"),
                     isRefund = resultSet.getBoolean("IsRefund"),
                     createTime = resultSet.getTimestamp("CreateTime"),
                   )
