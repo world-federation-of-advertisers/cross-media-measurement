@@ -2841,9 +2841,7 @@ class MetricsServiceTest {
     }
 
     val result =
-      withPrincipalAndScopes(PRINCIPAL, SCOPES) {
-        runBlocking { service.createMetric(request) }
-      }
+      withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.createMetric(request) } }
 
     val pendingReachMetricWithSingleDataProviderParams =
       requestingReachMetricWithSingleDataProviderParams.copy {
@@ -5411,8 +5409,7 @@ class MetricsServiceTest {
 
     wheneverBlocking { internalMetricsMock.batchCreateMetrics(any()) } doReturn
       internalBatchCreateMetricsResponse {
-        metrics +=
-          INTERNAL_PENDING_INITIAL_SINGLE_PUBLISHER_IMPRESSION_METRIC
+        metrics += INTERNAL_PENDING_INITIAL_SINGLE_PUBLISHER_IMPRESSION_METRIC
       }
 
     val request = batchCreateMetricsRequest {
@@ -5491,9 +5488,9 @@ class MetricsServiceTest {
               report = CONTAINING_REPORT
               metric =
                 MetricKey(
-                  INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.cmmsMeasurementConsumerId,
-                  INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.externalMetricId,
-                )
+                    INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.cmmsMeasurementConsumerId,
+                    INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.externalMetricId,
+                  )
                   .toName()
             }
           }
@@ -5518,9 +5515,9 @@ class MetricsServiceTest {
 
     // Verify proto argument of internal MeasurementsCoroutineImplBase::batchSetCmmsMeasurementId
     verifyProtoArgument(
-      internalMeasurementsMock,
-      InternalMeasurementsGrpcKt.MeasurementsCoroutineImplBase::batchSetCmmsMeasurementIds,
-    )
+        internalMeasurementsMock,
+        InternalMeasurementsGrpcKt.MeasurementsCoroutineImplBase::batchSetCmmsMeasurementIds,
+      )
       .ignoringRepeatedFieldOrder()
       .isEqualTo(
         batchSetCmmsMeasurementIdsRequest {
