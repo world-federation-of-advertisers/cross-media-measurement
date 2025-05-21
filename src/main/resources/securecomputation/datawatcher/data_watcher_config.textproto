@@ -100,7 +100,7 @@ watched_paths {
           result_cs_cert_der_resource_path: "/etc/ssl/edp7_cs_cert.der"
           result_cs_private_key_der_resource_path: "/etc/ssl/edp7_cs_private.der"
           private_encryption_key_resource_path: "/etc/ssl/edp7_enc_private.tink"
-          edp_certificate_name: "dataProviders/Og-Bhg2m-cQ/certificates/R7O8HzFbjYA"
+          edp_certificate_name: "dataProviders/Og-Bhg2m-cQ/certificates/CSHJ9vJZBkk"
         }
         cmms_connection {
           client_cert_resource_path: "/etc/ssl/edp7_tls.pem"
