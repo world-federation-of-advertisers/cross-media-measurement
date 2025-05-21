@@ -69,75 +69,78 @@ jobs:
       image-repo-prefix: ${{ github.repository_owner }}
       image-tag: ${{ needs.publish-images.outputs.image-tag }}
 
-  terraform:
-    uses: ./.github/workflows/terraform-cmms.yml
-    secrets: inherit
-    with:
-      environment: ${{ inputs.environment }}
-      apply: ${{ inputs.apply }}
+#  terraform:
+#    uses: ./.github/workflows/terraform-cmms.yml
+#    secrets: inherit
+#    with:
+#      environment: ${{ inputs.environment }}
+##      apply: ${{ inputs.apply }}
+#      apply: true
 
   update-kingdom:
     uses: ./.github/workflows/configure-kingdom.yml
-    needs: [publish-images, terraform]
+#    needs: [publish-images, terraform]
+    needs: [publish-images]
     secrets: inherit
     with:
       image-tag: ${{ needs.publish-images.outputs.image-tag }}
 #      environment: ${{ inputs.environment }}
       environment: "dev"
-      apply: ${{ inputs.apply }}
+#      apply: ${{ inputs.apply }}
+      apply: true
 
-  update-secure-computation:
-    uses: ./.github/workflows/configure-secure-computation-control-plane.yml
-    needs: [ publish-images, terraform ]
-    secrets: inherit
-    with:
-      image-tag: ${{ needs.publish-images.outputs.image-tag }}
-#      environment: ${{ inputs.environment }}
-      environment: "dev"
-      apply: ${{ inputs.apply }}
+#  update-secure-computation:
+#    uses: ./.github/workflows/configure-secure-computation-control-plane.yml
+#    needs: [ publish-images, terraform ]
+#    secrets: inherit
+#    with:
+#      image-tag: ${{ needs.publish-images.outputs.image-tag }}
+##      environment: ${{ inputs.environment }}
+#      environment: "dev"
+#      apply: ${{ inputs.apply }}
 
-  update-aggregator-duchy:
-    uses: ./.github/workflows/configure-duchy.yml
-    needs: [publish-images, terraform]
-    secrets: inherit
-    with:
-      duchy-name: aggregator
-      image-tag: ${{ needs.publish-images.outputs.image-tag }}
-#      environment: ${{ inputs.environment }}
-      environment: "dev"
-      apply: ${{ inputs.apply }}
-
-  update-worker1-duchy:
-    uses: ./.github/workflows/configure-duchy.yml
-    needs: [publish-images, terraform]
-    secrets: inherit
-    with:
-      duchy-name: worker1
-      image-tag: ${{ needs.publish-images.outputs.image-tag }}
-#      environment: ${{ inputs.environment }}
-      environment: "dev"
-      apply: ${{ inputs.apply }}
-
-  update-worker2-duchy:
-    uses: ./.github/workflows/configure-duchy.yml
-    needs: [publish-images, terraform]
-    secrets: inherit
-    with:
-      duchy-name: worker2
-      image-tag: ${{ needs.publish-images.outputs.image-tag }}
-#      environment: ${{ inputs.environment }}
-      environment: "dev"
-      apply: ${{ inputs.apply }}
-
-  update-simulators:
-    uses: ./.github/workflows/configure-simulators.yml
-    needs: [publish-images, terraform]
-    secrets: inherit
-    with:
-      image-tag: ${{ needs.publish-images.outputs.image-tag }}
-#      environment: ${{ inputs.environment }}
-      environment: "dev"
-      apply: ${{ inputs.apply }}
+#  update-aggregator-duchy:
+#    uses: ./.github/workflows/configure-duchy.yml
+#    needs: [publish-images, terraform]
+#    secrets: inherit
+#    with:
+#      duchy-name: aggregator
+#      image-tag: ${{ needs.publish-images.outputs.image-tag }}
+##      environment: ${{ inputs.environment }}
+#      environment: "dev"
+#      apply: ${{ inputs.apply }}
+#
+#  update-worker1-duchy:
+#    uses: ./.github/workflows/configure-duchy.yml
+#    needs: [publish-images, terraform]
+#    secrets: inherit
+#    with:
+#      duchy-name: worker1
+#      image-tag: ${{ needs.publish-images.outputs.image-tag }}
+##      environment: ${{ inputs.environment }}
+#      environment: "dev"
+#      apply: ${{ inputs.apply }}
+#
+#  update-worker2-duchy:
+#    uses: ./.github/workflows/configure-duchy.yml
+#    needs: [publish-images, terraform]
+#    secrets: inherit
+#    with:
+#      duchy-name: worker2
+#      image-tag: ${{ needs.publish-images.outputs.image-tag }}
+##      environment: ${{ inputs.environment }}
+#      environment: "dev"
+#      apply: ${{ inputs.apply }}
+#
+#  update-simulators:
+#    uses: ./.github/workflows/configure-simulators.yml
+#    needs: [publish-images, terraform]
+#    secrets: inherit
+#    with:
+#      image-tag: ${{ needs.publish-images.outputs.image-tag }}
+##      environment: ${{ inputs.environment }}
+#      environment: "dev"
+#      apply: ${{ inputs.apply }}
 
   # Update the Reporting system.
   #
