@@ -113,6 +113,7 @@ DUCHY_K8S_SETTINGS = struct(
 REPORTING_K8S_SETTINGS = struct(
     public_api_address_name = "$(reporting_public_api_address_name)",
     basic_reports_enabled = "$(basic_reports_enabled)",
+    default_vid_model_line = "$(default_vid_model_line)",
 )
 
 # Settings for simulator Kubernetes deployments.
