@@ -589,10 +589,7 @@ class MetricsService(
         modelLine =
           metric.cmmsModelLine.ifEmpty {
             measurementConsumerModelLines[MeasurementConsumerKey.fromName(measurementConsumerName)]
-              ?.toName()
-              ?: defaultModelLine
-                ?.toName()
-              ?: ""
+              ?.toName() ?: defaultModelLine?.toName() ?: ""
           }
 
         // Add reporting metadata

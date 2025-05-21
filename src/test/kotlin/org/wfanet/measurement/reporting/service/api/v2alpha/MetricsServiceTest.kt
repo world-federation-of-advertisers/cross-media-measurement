@@ -515,7 +515,10 @@ private val ENCRYPTION_KEY_PAIR_STORE =
 
 private val DEFAULT_VID_MODEL_LINE = ModelLineKey("123", "123", "123")
 private val MEASUREMENT_CONSUMER_MODEL_LINES: Map<MeasurementConsumerKey, ModelLineKey> =
-  mapOf(MeasurementConsumerKey.fromName(MEASUREMENT_CONSUMERS.values.first().name)!! to ModelLineKey("123", "123", "123"))
+  mapOf(
+    MeasurementConsumerKey.fromName(MEASUREMENT_CONSUMERS.values.first().name)!! to
+      ModelLineKey("123", "123", "123")
+  )
 
 private val DATA_PROVIDER_PUBLIC_KEY = encryptionPublicKey {
   format = EncryptionPublicKey.Format.TINK_KEYSET
@@ -1035,7 +1038,10 @@ private val BASE_MEASUREMENT_SPEC = measurementSpec {
   measurementPublicKey = MEASUREMENT_CONSUMER_PUBLIC_KEY.pack()
   // TODO(world-federation-of-advertisers/cross-media-measurement#1301): Stop setting this field.
   serializedMeasurementPublicKey = measurementPublicKey.value
-  modelLine = MEASUREMENT_CONSUMER_MODEL_LINES[MeasurementConsumerKey.fromName(MEASUREMENT_CONSUMERS.values.first().name)]!!.toName()
+  modelLine =
+    MEASUREMENT_CONSUMER_MODEL_LINES[
+        MeasurementConsumerKey.fromName(MEASUREMENT_CONSUMERS.values.first().name)]!!
+      .toName()
   reportingMetadata = reportingMetadata {
     report = CONTAINING_REPORT
     metric = METRIC_NAME
