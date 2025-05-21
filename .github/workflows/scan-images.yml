@@ -53,39 +53,39 @@ jobs:
         # This list must be manually maintained as there is no known way to
         # populate it from the GitHub API or the build system.
         image:
-          - duchy/computations-cleaner
-          - kingdom/completed-measurements-deletion
-          - duchy/spanner-update-schema
-          - kingdom/spanner-update-schema
-          - duchy/requisition-fulfillment
-          - duchy/computation-control
-          - kingdom/data-server
-          - kingdom/v2alpha-public-api
-          - duchy/liquid-legions-v2-mill
-          - duchy/async-computation-control
+#          - duchy/computations-cleaner
+#          - kingdom/completed-measurements-deletion
+#          - duchy/spanner-update-schema
+#          - kingdom/spanner-update-schema
+#          - duchy/requisition-fulfillment
+#          - duchy/computation-control
+#          - kingdom/data-server
+#          - kingdom/v2alpha-public-api
+#          - duchy/liquid-legions-v2-mill
+#          - duchy/async-computation-control
           - kingdom/system-api
-          - duchy/herald
-          - duchy/spanner-computations
-          - kingdom/exchanges-deletion
-          - panel-exchange/gcloud-example-daemon
-          - panel-exchange/aws-example-daemon
-          - reporting/v2/v2alpha-public-api
-          - reporting/v2/gcloud-postgres-update-schema
-          - reporting/v2/gcloud-internal-server
-          - simulator/synthetic-generator-edp
-          - duchy/postgres-update-schema
-          - duchy/gcloud-postgres-update-schema
-          - duchy/postgres-internal-server
-          - duchy/aws-liquid-legions-v2-mill
-          - duchy/aws-postgres-update-schema
-          - duchy/aws-computation-control
-          - duchy/aws-requisition-fulfillment
-          - duchy/aws-postgres-internal-server
-          - panel-exchange/forwarded-storage-daemon
-          - prober/measurement-system-prober
-          - secure-computation/public-api
-          - secure-computation/internal-server
-          - secure-computation/update-schema
+#          - duchy/herald
+#          - duchy/spanner-computations
+#          - kingdom/exchanges-deletion
+#          - panel-exchange/gcloud-example-daemon
+#          - panel-exchange/aws-example-daemon
+#          - reporting/v2/v2alpha-public-api
+#          - reporting/v2/gcloud-postgres-update-schema
+#          - reporting/v2/gcloud-internal-server
+#          - simulator/synthetic-generator-edp
+#          - duchy/postgres-update-schema
+#          - duchy/gcloud-postgres-update-schema
+#          - duchy/postgres-internal-server
+#          - duchy/aws-liquid-legions-v2-mill
+#          - duchy/aws-postgres-update-schema
+#          - duchy/aws-computation-control
+#          - duchy/aws-requisition-fulfillment
+#          - duchy/aws-postgres-internal-server
+#          - panel-exchange/forwarded-storage-daemon
+#          - prober/measurement-system-prober
+#          - secure-computation/public-api
+#          - secure-computation/internal-server
+#          - secure-computation/update-schema
     steps:
       - name: Get SARIF file path
         id: get-sarif-file-path
