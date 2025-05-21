@@ -83,7 +83,6 @@ jobs:
           build --define edp6_cert_name=dataProviders/foo6/certificates/bar6
           build --define google_cloud_project=example-project
           build --define basic_reports_enabled=true
-          build --define default_vid_model_line=modelProviders/1/modelSuites/1/modelLines/1
           EOF
 
       # Reduce chance of disconnection from the Build Event Service.

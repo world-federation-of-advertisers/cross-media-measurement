@@ -87,8 +87,6 @@ package k8s
 	_secretName:          string
 	_mcConfigSecretName:  string
 
-	_defaultVidModelLine: string
-
 	_tlsArgs: [
 		"--tls-cert-file=/var/run/secrets/files/reporting_tls.pem",
 		"--tls-key-file=/var/run/secrets/files/reporting_tls.key",
@@ -186,9 +184,6 @@ package k8s
 						"--event-group-metadata-descriptor-cache-duration=1h",
 						"--certificate-cache-expiration-duration=\(_certificateCacheExpirationDuration)",
 						"--data-provider-cache-expiration-duration=\(_dataProviderCacheExpirationDuration)",
-						if Reporting._defaultVidModelLine != _|_ || Reporting._defaultVidModelLine != "" {
-						  "--default-vid-model-line=\(Reporting._defaultVidModelLine)",
-						}
 			] + _tlsArgs + _internalApiTarget.args + _kingdomApiTarget.args + _accessApiTarget.args
 
 			spec: template: spec: {

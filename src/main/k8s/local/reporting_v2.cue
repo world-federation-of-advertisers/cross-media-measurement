@@ -18,7 +18,6 @@ _reportingBasicReportsEnabled: string @tag("basic_reports_enabled")
 _reportingSecretName:          string @tag("secret_name")
 _reportingDbSecretName:        string @tag("db_secret_name")
 _reportingMcConfigSecretName:  string @tag("mc_config_secret_name")
-_reportingDefaultVidModelLine:    string @tag("default_vid_model_line")
 
 objectSets: [ for objectSet in reporting {objectSet}]
 
@@ -26,7 +25,6 @@ reporting: #Reporting & {
 	_basicReportsEnabled: _reportingBasicReportsEnabled
 	_secretName:          _reportingSecretName
 	_mcConfigSecretName:  _reportingMcConfigSecretName
-	_defaultVidModelLine:    _reportingDefaultVidModelLine
 	_postgresConfig: {
 		serviceName: "postgres"
 		password:    "$(POSTGRES_PASSWORD)"
