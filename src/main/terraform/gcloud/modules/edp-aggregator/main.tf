@@ -93,34 +93,19 @@ resource "google_pubsub_topic_iam_member" "publisher" {
   member = var.pubsub_iam_service_account_member
 }
 
-data "google_kms_key_ring" "existing" {
+resource "google_kms_key_ring" "edp_aggregator_key_ring" {
+
   name     = var.key_ring_name
   location = var.key_ring_location
-}
 
-data "google_kms_key_ring" "existing" {
-  name     = var.key_ring_name
-  location = var.key_ring_location
-}
-
-resource "google_kms_key_ring" "this" {
-  count    = length(data.google_kms_key_ring.existing) == 0 ? 1 : 0
-  name     = var.key_ring_name
-  location = var.key_ring_location
-}
-
-locals {
-  key_ring_id = (
-    length(data.google_kms_key_ring.existing) == 1
-      ? data.google_kms_key_ring.existing.id
-      : google_kms_key_ring.this[0].id
-  )
+  lifecycle {
+    prevent_destroy = false
+  }
 }
 
 resource "google_kms_crypto_key" "edp_aggregator_kek" {
   name     = var.kms_key_name
-#   key_ring = google_kms_key_ring.edp_aggregator_key_ring.id
-  key_ring = local.key_ring_id
+  key_ring = google_kms_key_ring.edp_aggregator_key_ring.id
   purpose  = "ENCRYPT_DECRYPT"
 }
 
