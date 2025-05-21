@@ -18,7 +18,9 @@ package org.wfanet.measurement.edpaggregator.resultsfulfiller.compute.protocols.
 
 import com.google.common.truth.Truth.assertThat
 import java.security.SecureRandom
+import kotlin.math.absoluteValue
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -33,10 +35,15 @@ import org.wfanet.measurement.eventdataprovider.noiser.DirectNoiseMechanism
 class DirectReachAndFrequencyResultBuilderTest {
 
   @Test
-  fun `buildMeasurementResult returns non-noisy result when noise mechanism is set to NONE`() = runBlocking {
+  fun `buildMeasurementResult returns non-noisy reach-and-frequency result when noise mechanism is set to NONE`() = runBlocking {
+    val distinctVids = 100
     val sampledVids = flow {
-        for (i in 1..100) {
-        emit(i.toLong())
+        for (i in 1..distinctVids) {
+          emit(i.toLong())
+          // Duplicating the VID for every 10th entry to simulate frequency of 2 for 10 users
+          if(i%10 == 0){
+            emit(i.toLong())
+          }
         }
     }
 
@@ -57,18 +64,22 @@ class DirectReachAndFrequencyResultBuilderTest {
     assertThat(result.hasReach()).isTrue()
     assertThat(result.reach.noiseMechanism).isEqualTo(NoiseMechanism.NONE)
     assertThat(result.reach.hasDeterministicCountDistinct()).isTrue()
+    assertThat(result.reach.value).isEqualTo(distinctVids)
 
     assertThat(result.hasFrequency()).isTrue()
     assertThat(result.frequency.noiseMechanism).isEqualTo(NoiseMechanism.NONE)
     assertThat(result.frequency.hasDeterministicDistribution()).isTrue()
     assertThat(result.frequency.relativeFrequencyDistributionMap).isNotEmpty()
+    // Since every 10th VID was duplicated during the creation of sampledVids, 90% of users saw ad once and 10% saw it twice
+    assertThat(result.frequency.relativeFrequencyDistributionMap[1]).isEqualTo(0.9)
+    assertThat(result.frequency.relativeFrequencyDistributionMap[2]).isEqualTo(0.1)
   }
 
   @Test
-  fun `buildMeasurementResult returns noisy result when noise mechanism is set to CONTINUOUS_GAUSSIAN`() = runBlocking {
+  fun `buildMeasurementResult returns noisy reach-and-frequency result with respect to variance when noise mechanism is set to CONTINUOUS_GAUSSIAN`() = runBlocking {
     val sampledVids = flow {
         for (i in 1..100) {
-        emit(i.toLong())
+          emit(i.toLong())
         }
     }
 
@@ -94,6 +105,41 @@ class DirectReachAndFrequencyResultBuilderTest {
     assertThat(result.frequency.noiseMechanism).isEqualTo(NoiseMechanism.CONTINUOUS_GAUSSIAN)
     assertThat(result.frequency.hasDeterministicDistribution()).isTrue()
     assertThat(result.frequency.relativeFrequencyDistributionMap).isNotEmpty()
+  }
+
+  @Test
+  fun `buildMeasurementResult returns noisy reach-and-frequency result within acceptable range noise mechanism is set to CONTINUOUS_GAUSSIAN`() = runBlocking {
+    val sampledVids = flow {
+      for (i in 1..100) {
+        emit(i.toLong())
+      }
+    }
+
+    val reachResults = mutableListOf<Long>()
+
+    for(round in 1 .. 100) {
+      val directReachAndFrequencyResultBuilder = DirectReachAndFrequencyResultBuilder(
+        directProtocolConfig = DIRECT_PROTOCOL,
+        sampledVids = sampledVids,
+        maxFrequency = MAX_FREQUENCY,
+        reachPrivacyParams = REACH_PRIVACY_PARAMS,
+        frequencyPrivacyParams = FREQUENCY_PRIVACY_PARAMS,
+        samplingRate = SAMPLING_RATE,
+        directNoiseMechanism = DirectNoiseMechanism.CONTINUOUS_GAUSSIAN,
+        random = SecureRandom()
+      )
+
+      val result = directReachAndFrequencyResultBuilder.buildMeasurementResult()
+
+      reachResults.add(result.reach.value)
+    }
+
+    val averageReach = reachResults.map { it }.average()
+
+
+    // Test that average reach size is within acceptable range of +/- 5 when compared to actual reach
+    val reachDifference = (sampledVids.toList().size - averageReach).absoluteValue
+    assertThat(reachDifference).isLessThan(5)
   }
 
   companion object {
