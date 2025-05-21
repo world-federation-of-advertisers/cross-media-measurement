@@ -355,11 +355,13 @@ class MeasurementConsumerSimulator(
 
   private suspend fun triggerRequisitionFetcher() {
 
-    val credentials = GoogleCredentials.getApplicationDefault() as IdTokenProvider
-
-    val idToken: IdToken =
-      credentials.idTokenWithAudience("https://us-central1-halo-cmm-dev.cloudfunctions.net/requisition-fetcher", listOf())
-    val jwt = idToken.tokenValue
+    val jwt = System.getenv("AUTH_ID_TOKEN")
+      ?: error("AUTH_ID_TOKEN must be set")
+//    val credentials = GoogleCredentials.getApplicationDefault() as IdTokenProvider
+//
+//    val idToken: IdToken =
+//      credentials.idTokenWithAudience("https://us-central1-halo-cmm-dev.cloudfunctions.net/requisition-fetcher", listOf())
+//    val jwt = idToken.tokenValue
 
     val client = HttpClient.newHttpClient()
     val request =

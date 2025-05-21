@@ -52,6 +52,8 @@ jobs:
       with:
         workload_identity_provider: ${{ vars.WORKLOAD_IDENTITY_PROVIDER }}
         service_account: ${{ vars.TF_SERVICE_ACCOUNT }}
+        token_format: 'id_token'
+        id_token_audience: 'https://us-central1-halo-cmm-dev.cloudfunctions.net/requisition-fetcher'
 
     - name: Write auth.bazelrc
       env:
@@ -87,6 +89,8 @@ jobs:
 
     - name: Run tests
       id: run-tests
+      env:
+        AUTH_ID_TOKEN: ${{ steps.auth.outputs.id_token }}
       run: |
         bazelisk test \
         --test_env=GOOGLE_APPLICATION_CREDENTIALS \
