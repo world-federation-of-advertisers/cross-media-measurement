@@ -73,6 +73,9 @@ import org.wfanet.measurement.internal.reporting.v2.listMetricCalculationSpecsRe
 import org.wfanet.measurement.internal.reporting.v2.listMetricCalculationSpecsResponse as internalListMetricCalculationSpecsResponse
 import org.wfanet.measurement.internal.reporting.v2.metricCalculationSpec as internalMetricCalculationSpec
 import org.wfanet.measurement.internal.reporting.v2.metricSpec as internalMetricSpec
+import com.google.rpc.errorInfo
+import org.wfanet.measurement.common.grpc.errorInfo
+import org.wfanet.measurement.reporting.service.api.Errors
 import org.wfanet.measurement.reporting.v2alpha.ListMetricCalculationSpecsPageTokenKt
 import org.wfanet.measurement.reporting.v2alpha.MetricCalculationSpec
 import org.wfanet.measurement.reporting.v2alpha.MetricCalculationSpecKt
@@ -657,7 +660,14 @@ class MetricCalculationSpecsServiceTest {
         }
       }
 
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.INVALID_FIELD_VALUE.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "request.metric_calculation_spec.model_line"
+        }
+      )
   }
 
   @Test

@@ -5643,7 +5643,14 @@ class MetricsServiceTest {
         }
       }
 
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.INVALID_FIELD_VALUE.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "request.metric.model_line"
+        }
+      )
   }
 
   @Test

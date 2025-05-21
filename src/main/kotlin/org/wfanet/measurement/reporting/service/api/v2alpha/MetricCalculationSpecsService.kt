@@ -42,6 +42,7 @@ import org.wfanet.measurement.internal.reporting.v2.createMetricCalculationSpecR
 import org.wfanet.measurement.internal.reporting.v2.getMetricCalculationSpecRequest
 import org.wfanet.measurement.internal.reporting.v2.listMetricCalculationSpecsRequest
 import org.wfanet.measurement.internal.reporting.v2.metricCalculationSpec as internalMetricCalculationSpec
+import org.wfanet.measurement.reporting.service.api.InvalidFieldValueException
 import org.wfanet.measurement.reporting.v2alpha.CreateMetricCalculationSpecRequest
 import org.wfanet.measurement.reporting.v2alpha.GetMetricCalculationSpecRequest
 import org.wfanet.measurement.reporting.v2alpha.ListMetricCalculationSpecsPageToken
@@ -242,7 +243,8 @@ class MetricCalculationSpecsService(
 
     if (source.modelLine.isNotEmpty()) {
       ModelLineKey.fromName(source.modelLine)
-        ?: failGrpc(Status.INVALID_ARGUMENT) { "invalid model_line" }
+        ?: throw InvalidFieldValueException("request.metric_calculation_spec.model_line")
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
     return internalMetricCalculationSpec {

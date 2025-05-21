@@ -235,8 +235,11 @@ private object V2AlphaPublicApiServer {
         SecureRandom().asKotlinRandom(),
         v2AlphaFlags.signingPrivateKeyStoreDir,
         commonServerFlags.tlsFlags.signingCerts.trustedCertificates,
-        reportingApiServerFlags.defaultVidModelLine,
-        reportingApiServerFlags.measurementConsumerModelLines,
+        reportingApiServerFlags.defaultVidModelLine?.toName()
+          ?: "",
+        reportingApiServerFlags.measurementConsumerModelLines.entries.associate {
+          it.key.toName() to it.value.toName()
+        },
         certificateCacheExpirationDuration =
           v2AlphaPublicServerFlags.certificateCacheExpirationDuration,
         dataProviderCacheExpirationDuration =

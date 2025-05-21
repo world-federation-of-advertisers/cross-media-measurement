@@ -1601,12 +1601,11 @@ class MetricsService(
       }
     }
 
-    val modelLineKey: ModelLineKey? =
-      if (request.metric.modelLine.isNotEmpty()) {
-        grpcRequireNotNull(ModelLineKey.fromName(request.metric.modelLine)) {
-          "model_line is invalid"
-        }
-      } else null
+    if (request.metric.modelLine.isNotEmpty()) {
+      ModelLineKey.fromName(request.metric.modelLine)
+        ?: throw InvalidFieldValueException("request.metric.model_line")
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
 
     return internalCreateMetricRequest {
       requestId = request.requestId

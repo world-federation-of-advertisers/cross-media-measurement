@@ -75,21 +75,19 @@ class ReportingApiServerFlags {
   @CommandLine.Option(
     names = ["--default-vid-model-line"],
     description = ["The default VID model line to be used by EDPs when fulfilling requisitions."],
-    defaultValue = "",
     required = false,
   )
   fun setDefaultVidModelLine(value: String) {
     if (value.isNotEmpty()) {
-      ModelLineKey.fromName(value)
+      defaultVidModelLine =ModelLineKey.fromName(value)
         ?: throw CommandLine.ParameterException(
           spec.commandLine(),
           "Invalid value for option `--default-vid-model-line`: not a valid model line name",
         )
     }
-    defaultVidModelLine = value
   }
 
-  lateinit var defaultVidModelLine: String
+  var defaultVidModelLine: ModelLineKey? = null
     private set
 
   @CommandLine.Option(
@@ -103,24 +101,27 @@ class ReportingApiServerFlags {
     required = false,
   )
   fun setMeasurementConsumerModelLines(value: Map<String, String>) {
-    if (value.entries.isNotEmpty()) {
-      for (entry in value.entries) {
-        MeasurementConsumerKey.fromName(entry.key)
-          ?: throw CommandLine.ParameterException(
-            spec.commandLine(),
-            "Invalid value for option `--measurement-consumer-model-line`: not a valid measurement consumer name",
-          )
-        ModelLineKey.fromName(entry.value)
-          ?: throw CommandLine.ParameterException(
-            spec.commandLine(),
-            "Invalid value for option `--measurement-consumer-model-line`: not a valid model line name",
-          )
+    measurementConsumerModelLines = buildMap<MeasurementConsumerKey, ModelLineKey> {
+      if (value.entries.isNotEmpty()) {
+        for (entry in value.entries) {
+          val measurementConsumerKey = MeasurementConsumerKey.fromName(entry.key)
+            ?: throw CommandLine.ParameterException(
+              spec.commandLine(),
+              "Invalid value for option `--measurement-consumer-model-line`: not a valid measurement consumer name",
+            )
+          val modelLineKey = ModelLineKey.fromName(entry.value)
+            ?: throw CommandLine.ParameterException(
+              spec.commandLine(),
+              "Invalid value for option `--measurement-consumer-model-line`: not a valid model line name",
+            )
+
+          put(measurementConsumerKey, modelLineKey)
+        }
       }
     }
-    measurementConsumerModelLines = value
   }
 
-  lateinit var measurementConsumerModelLines: Map<String, String>
+  lateinit var measurementConsumerModelLines: Map<MeasurementConsumerKey, ModelLineKey>
     private set
 
   // TODO(world-federation-of-advertisers/cross-media-measurement#2220): Remove this flag when LLv2
