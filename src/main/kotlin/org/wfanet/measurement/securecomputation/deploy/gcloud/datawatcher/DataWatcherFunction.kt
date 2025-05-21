@@ -62,9 +62,10 @@ class DataWatcherFunction : CloudEventsFunction {
     logger.info("~~~ checking metadata")
 
     val metageneration: Long = data.getMetageneration()
-    logger.info("~~~~~~~~~~~~~~~~~~~~~ metageneration: ${metageneration}")
-    if(metageneration != 1L) {
-      logger.info("Skipping processing: metageneration=${metageneration}")
+    val size: Long = data.size
+    logger.info("~~~~~~~~~~~~~~~~~~~~~ metageneration: ${metageneration}, size: ${size}")
+    if(metageneration != 1L || size == 0L) {
+      logger.info("Skipping processing: metageneration=${metageneration}, size: ${size}")
       return
     }
     val path = "$scheme://$bucket/$blobKey"
