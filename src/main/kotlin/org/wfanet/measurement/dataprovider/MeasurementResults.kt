@@ -18,7 +18,9 @@ package org.wfanet.measurement.dataprovider
 
 import com.google.protobuf.TypeRegistry
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.fold
+import kotlinx.coroutines.runBlocking
 import org.projectnessie.cel.Program
 import org.wfanet.measurement.populationdataprovider.PopulationInfo
 import org.wfanet.measurement.populationdataprovider.PopulationRequisitionFulfiller
@@ -62,7 +64,9 @@ object MeasurementResults {
    * "deterministic distribution" methodology.
    */
   fun computeReachAndFrequency(filteredVids: Iterable<Long>, maxFrequency: Int): ReachAndFrequency {
-    return computeReachAndFrequency(filteredVids.asFlow(), maxFrequency)
+    return runBlocking {
+      computeReachAndFrequency(filteredVids.asFlow(), maxFrequency)
+    }
   }
 
   /** Computes reach using the "deterministic count distinct" methodology. */

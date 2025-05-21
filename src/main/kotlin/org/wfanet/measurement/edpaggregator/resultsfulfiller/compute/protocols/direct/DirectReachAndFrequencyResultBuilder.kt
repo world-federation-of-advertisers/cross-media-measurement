@@ -94,7 +94,7 @@ class DirectReachAndFrequencyResultBuilder(
       val sampledNoisedReachValue =
         noiser.addNoise(sampledReachValue, reachPrivacyParams)
       val noisedFrequencyMap =
-        noiser.addNoise(frequencyMap, frequencyPrivacyParams)
+        noiser.addNoise(frequencyMap, frequencyPrivacyParams, sampledReachValue)
 
       sampledReachValue = sampledNoisedReachValue
       frequencyMap = noisedFrequencyMap
@@ -104,7 +104,7 @@ class DirectReachAndFrequencyResultBuilder(
 
     val protocolConfigNoiseMechanism = when (directNoiseMechanism) {
       DirectNoiseMechanism.NONE -> NoiseMechanism.NONE
-      DirectNoiseMechanism.CONTINUOUS_LAPLACE -> NoiseMechanism.CONTINUOUS_LAPLACE        
+      DirectNoiseMechanism.CONTINUOUS_LAPLACE -> NoiseMechanism.CONTINUOUS_LAPLACE
       DirectNoiseMechanism.CONTINUOUS_GAUSSIAN -> NoiseMechanism.CONTINUOUS_GAUSSIAN
     }
 

@@ -33,7 +33,7 @@ import org.wfanet.measurement.eventdataprovider.noiser.DirectNoiseMechanism
 class DirectReachAndFrequencyResultBuilderTest {
 
   @Test
-  fun `buildMeasurementResult returns non-noisy result when noise mechanism is set to DirectNoiseMechanism.NONE`() = runBlocking {
+  fun `buildMeasurementResult returns non-noisy result when noise mechanism is set to NONE`() = runBlocking {
     val sampledVids = flow {
         for (i in 1..100) {
         emit(i.toLong())
@@ -48,6 +48,7 @@ class DirectReachAndFrequencyResultBuilderTest {
       frequencyPrivacyParams = FREQUENCY_PRIVACY_PARAMS,
       samplingRate = SAMPLING_RATE,
       directNoiseMechanism = DirectNoiseMechanism.NONE,
+      random = SecureRandom()
     )
 
     val result = directReachAndFrequencyResultBuilder.buildMeasurementResult()
@@ -64,7 +65,7 @@ class DirectReachAndFrequencyResultBuilderTest {
   }
 
   @Test
-  fun `buildMeasurementResult returns noisy result when noise mechanism is set to DirectNoiseMechanism.CONTINUOUS_GAUSSIAN`() = runBlocking {
+  fun `buildMeasurementResult returns noisy result when noise mechanism is set to CONTINUOUS_GAUSSIAN`() = runBlocking {
     val sampledVids = flow {
         for (i in 1..100) {
         emit(i.toLong())

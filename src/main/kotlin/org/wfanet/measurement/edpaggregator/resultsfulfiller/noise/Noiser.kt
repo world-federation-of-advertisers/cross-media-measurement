@@ -37,7 +37,7 @@ import org.wfanet.measurement.eventdataprovider.noiser.LaplaceNoiser
  * @param random The random number generator to use.
  */
 class Noiser(
-  private val noiseMechanism: NoiseMechanism,
+  private val noiseMechanism: DirectNoiseMechanism,
   private val random: SecureRandom = SecureRandom()
 ) {
   init {
@@ -94,13 +94,13 @@ class Noiser(
    *
    * @param frequencyMap The frequency map to add noise to.
    * @param privacyParams Differential privacy params for frequency map.
-   * @param totalCount The total count to use for scaling the frequency map.
+   * @param reachValue The total reach to use for scaling the frequency map.
    * @return Noised non-negative frequency map.
    */
   fun addNoise(
     frequencyMap: Map<Int, Double>,
     privacyParams: DifferentialPrivacyParams,
-    totalCount: Int
+    reachValue: Int
   ): Map<Int, Double> {
     val noiser: AbstractNoiser = getNoiser(privacyParams)
 
@@ -109,7 +109,7 @@ class Noiser(
       frequencyMap.mapValues { (_, percentage) ->
         // Round the noise for privacy.
         val noisedCount: Int =
-          (percentage * totalCount).roundToInt() + (noiser.sample()).roundToInt()
+          (percentage * reachValue).roundToInt() + (noiser.sample()).roundToInt()
         max(0, noisedCount)
       }
     val normalizationTerm: Double = frequencyHistogram.values.sum().toDouble()
@@ -126,22 +126,5 @@ class Noiser(
     private val SUPPORTED_NOISE_MECHANISMS = setOf(
       DirectNoiseMechanism.CONTINUOUS_GAUSSIAN
     )
-
-    /**
-     * Selects the most preferred [NoiseMechanism] from the overlap of a list of preferred
-     * [NoiseMechanism] and a set of [NoiseMechanism] [options].
-     *
-     * @param options The set of available noise mechanism options.
-     * @return The selected noise mechanism.
-     */
-    fun selectNoiseMechanism(options: Set<NoiseMechanism>): NoiseMechanism {
-      val preferences = listOf(DirectNoiseMechanism.CONTINUOUS_GAUSSIAN)
-
-      return preferences.firstOrNull { preference -> options.contains(preference) }
-        ?: throw RequisitionRefusalException.Default(
-          Requisition.Refusal.Justification.SPEC_INVALID,
-          "No valid noise mechanism option.",
-        )
-    }
   }
 }
