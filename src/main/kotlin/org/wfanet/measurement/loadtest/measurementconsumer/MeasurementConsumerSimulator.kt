@@ -14,6 +14,8 @@
 
 package org.wfanet.measurement.loadtest.measurementconsumer
 
+import org.bouncycastle.asn1.ASN1OctetString
+import org.bouncycastle.asn1.x509.Extension
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.Any as ProtoAny
 import com.google.protobuf.ByteString
@@ -1148,6 +1150,14 @@ class MeasurementConsumerSimulator(
         Base64.getEncoder().encodeToString(signedResult.message.value.toByteArray()))
       logger.info("SignedMessage.signature      (base64): " +
         Base64.getEncoder().encodeToString(signedResult.signature.toByteArray()))
+
+      logger.info("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
+      val skiExt = trustedIssuer.getExtensionValue(Extension.subjectKeyIdentifier.id)
+        ?: error("No SKI on trusted issuer!")
+// 2) strip wrapper
+      val skiBytes = ASN1OctetString.getInstance(skiExt).octets
+// 3) hex-print
+      logger.info("trustedIssuer SKI = ${Hex.toHexString(skiBytes)}")
 
     }catch (e: Exception){
       logger.severe("~~~~ ERROR PRINTING certs")

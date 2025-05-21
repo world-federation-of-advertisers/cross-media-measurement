@@ -60,6 +60,7 @@ class DataWatcherFunction : CloudEventsFunction {
     val blobKey: String = data.getName()
     val bucket: String = data.getBucket()
     logger.info("~~~ checking metadata")
+
     data.metadataMap?.forEach { (key, value) ->
       logger.info("----> $key: $value")
     }
