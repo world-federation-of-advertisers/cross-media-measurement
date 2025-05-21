@@ -15,9 +15,9 @@
 name: Update CMMS
 
 on:
-#  push:
-#    branches:
-#      - marcopremier/edp_aggregator_cloud_test_requisition_fetcher
+  push:
+    branches:
+      - marcopremier/edp_aggregator_cloud_test_requisition_fetcher
   workflow_call:
     inputs:
       environment:
