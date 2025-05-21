@@ -18,73 +18,143 @@ package org.wfanet.measurement.integration.common
 
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.Timestamp
-import io.grpc.Server
+import io.grpc.Channel
 import io.grpc.ServerInterceptors
-import io.grpc.ServerServiceDefinition
-import io.grpc.netty.NettyServerBuilder
+import io.netty.handler.ssl.ClientAuth
 import java.io.File
 import java.nio.file.Paths
+import java.time.Clock
 import java.time.Instant
+import kotlin.random.Random
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Before
+import org.junit.Rule
 import org.junit.Test
-import org.mockito.kotlin.any
+import org.junit.rules.TestRule
 import org.wfanet.measurement.api.v2alpha.ListModelSuitesPageTokenKt.previousPageEnd
 import org.wfanet.measurement.api.v2alpha.ListModelSuitesResponse
 import org.wfanet.measurement.api.v2alpha.ModelProviderKey
 import org.wfanet.measurement.api.v2alpha.ModelSuite
 import org.wfanet.measurement.api.v2alpha.ModelSuiteKey
-import org.wfanet.measurement.api.v2alpha.ModelSuitesGrpcKt.ModelSuitesCoroutineImplBase
-import org.wfanet.measurement.api.v2alpha.listModelSuitesPageToken
-import org.wfanet.measurement.api.v2alpha.listModelSuitesResponse
 import org.wfanet.measurement.api.v2alpha.modelSuite
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.getRuntimePath
-import org.wfanet.measurement.common.grpc.testing.mockService
-import org.wfanet.measurement.common.grpc.toServerTlsContext
+import org.wfanet.measurement.common.grpc.CommonServer
+import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
+import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.testing.CommandLineTesting
 import org.wfanet.measurement.common.testing.HeaderCapturingInterceptor
+import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.common.toProtoTime
+import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
+import org.wfanet.measurement.internal.kingdom.ModelLinesGrpcKt as InternalModelLinesGrpc
+import org.wfanet.measurement.internal.kingdom.ModelOutagesGrpcKt as InternalModelOutagesGrpc
+import org.wfanet.measurement.internal.kingdom.ModelProvidersGrpcKt as InternalModelProvidersGrpc
+import org.wfanet.measurement.internal.kingdom.ModelReleasesGrpcKt as InternalModelReleasesGrpc
+import org.wfanet.measurement.internal.kingdom.ModelRolloutsGrpcKt as InternalModelRolloutsGrpc
+import org.wfanet.measurement.internal.kingdom.ModelShardsGrpcKt as InternalModelShardsGrpc
+import org.wfanet.measurement.internal.kingdom.ModelSuitesGrpcKt as InternalModelSuitesGrpc
+import org.wfanet.measurement.kingdom.deploy.common.service.KingdomDataServices
 import org.wfanet.measurement.kingdom.deploy.tools.ModelRepository
+import org.wfanet.measurement.kingdom.service.api.v2alpha.ModelLinesService
+import org.wfanet.measurement.kingdom.service.api.v2alpha.ModelOutagesService
+import org.wfanet.measurement.kingdom.service.api.v2alpha.ModelProvidersService
+import org.wfanet.measurement.kingdom.service.api.v2alpha.ModelReleasesService
+import org.wfanet.measurement.kingdom.service.api.v2alpha.ModelRolloutsService
+import org.wfanet.measurement.kingdom.service.api.v2alpha.ModelShardsService
+import org.wfanet.measurement.kingdom.service.api.v2alpha.ModelSuitesService
 
-abstract class InProcessModelRepositoryCliIntegrationTest(verboseGrpcLogging: Boolean = true) {
+abstract class InProcessModelRepositoryCliIntegrationTest(
+  private val verboseGrpcLogging: Boolean = true
+) {
   private val headerInterceptor = HeaderCapturingInterceptor()
+  private val clock: Clock = Clock.systemUTC()
+  private val idGenerator = RandomIdGenerator(clock, Random(1L))
 
-  private val modelSuitesServiceMock: ModelSuitesCoroutineImplBase = mockService {
-    onBlocking { getModelSuite(any()) }.thenReturn(MODEL_SUITE)
-    onBlocking { createModelSuite(any()) }.thenReturn(MODEL_SUITE)
-    onBlocking { listModelSuites(any()) }
-      .thenReturn(
-        listModelSuitesResponse {
-          modelSuites += MODEL_SUITE
-          modelSuites += MODEL_SUITE_2
-          nextPageToken = LIST_MODEL_SUITES_PAGE_TOKEN_2.toByteString().base64UrlEncode()
-        }
-      )
+  @get:Rule @JvmField val spannerEmulator = SpannerEmulatorRule()
+  private val kingdomDataServicesFactory by lazy {
+    KingdomDataServicesFactory(spannerEmulator, idGenerator)
   }
 
-  val services: List<ServerServiceDefinition> =
-    listOf(ServerInterceptors.intercept(modelSuitesServiceMock, headerInterceptor))
+  private val internalModelRepositoryServer =
+    GrpcTestServerRule(logAllRequests = verboseGrpcLogging) {
+      val kingdomDataServices: KingdomDataServices = kingdomDataServicesFactory.create(clock)
+      addService(
+        ServerInterceptors.intercept(kingdomDataServices.modelSuitesService, headerInterceptor)
+      )
+      addService(
+        ServerInterceptors.intercept(kingdomDataServices.modelProvidersService, headerInterceptor)
+      )
+      addService(
+        ServerInterceptors.intercept(kingdomDataServices.modelLinesService, headerInterceptor)
+      )
+      addService(
+        ServerInterceptors.intercept(kingdomDataServices.modelReleasesService, headerInterceptor)
+      )
+      addService(
+        ServerInterceptors.intercept(kingdomDataServices.modelRolloutsService, headerInterceptor)
+      )
+      addService(
+        ServerInterceptors.intercept(kingdomDataServices.modelOutagesService, headerInterceptor)
+      )
+      addService(
+        ServerInterceptors.intercept(kingdomDataServices.modelShardsService, headerInterceptor)
+      )
+    }
 
-  private val publicApiServer: Server =
-    NettyServerBuilder.forPort(0)
-      .sslContext(kingdomSigningCerts.toServerTlsContext())
-      .addServices(services)
-      .build()
+  @get:Rule
+  val ruleChain: TestRule by lazy {
+    chainRulesSequentially(kingdomDataServicesFactory, internalModelRepositoryServer)
+  }
+
+  private lateinit var server: CommonServer
 
   @Before
-  fun startServer() {
-    publicApiServer.start()
+  fun initServer() {
+    val internalChannel: Channel = internalModelRepositoryServer.channel
+
+    val internalModelSuitesClient = InternalModelSuitesGrpc.ModelSuitesCoroutineStub(internalChannel)
+    val internalModelProvidersClient =
+      InternalModelProvidersGrpc.ModelProvidersCoroutineStub(internalChannel)
+    val internalModelLinesClient = InternalModelLinesGrpc.ModelLinesCoroutineStub(internalChannel)
+    val internalModelReleasesClient =
+      InternalModelReleasesGrpc.ModelReleasesCoroutineStub(internalChannel)
+    val internalModelRolloutsClient =
+      InternalModelRolloutsGrpc.ModelRolloutsCoroutineStub(internalChannel)
+    val internalModelOutagesClient =
+      InternalModelOutagesGrpc.ModelOutagesCoroutineStub(internalChannel)
+    val internalModelShardsClient = InternalModelShardsGrpc.ModelShardsCoroutineStub(internalChannel)
+
+    val servicesToHost =
+      listOf(
+        ModelSuitesService(internalModelSuitesClient).bindService(),
+        ModelProvidersService(internalModelProvidersClient).bindService(),
+        ModelLinesService(internalModelLinesClient).bindService(),
+        ModelReleasesService(internalModelReleasesClient).bindService(),
+        ModelRolloutsService(internalModelRolloutsClient).bindService(),
+        ModelOutagesService(internalModelOutagesClient).bindService(),
+        ModelShardsService(internalModelShardsClient).bindService(),
+      )
+
+    server =
+      CommonServer.fromParameters(
+        verboseGrpcLogging = verboseGrpcLogging,
+        certs = kingdomSigningCerts,
+        clientAuth = ClientAuth.REQUIRE,
+        nameForLogging = "model-repository-cli-test-public",
+        services = servicesToHost,
+      )
+    server.start()
   }
 
   @After
   fun shutdownServer() {
-    publicApiServer.shutdown()
-    publicApiServer.awaitTermination()
+    server.shutdown()
+    server.blockUntilShutdown()
   }
 
   @Test
@@ -145,7 +215,7 @@ abstract class InProcessModelRepositoryCliIntegrationTest(verboseGrpcLogging: Bo
         "--tls-cert-file=$KINGDOM_TLS_CERT_FILE",
         "--tls-key-file=$KINGDOM_TLS_KEY_FILE",
         "--cert-collection-file=$KINGDOM_CERT_COLLECTION_FILE",
-        "--kingdom-public-api-target=$HOST:${publicApiServer.port}",
+        "--kingdom-public-api-target=$HOST:${server.port}",
       )
 
   companion object {
@@ -158,7 +228,7 @@ abstract class InProcessModelRepositoryCliIntegrationTest(verboseGrpcLogging: Bo
     private val KINGDOM_TLS_CERT_FILE: File = SECRETS_DIR.resolve("kingdom_tls.pem")
     private val KINGDOM_TLS_KEY_FILE: File = SECRETS_DIR.resolve("kingdom_tls.key")
     private val KINGDOM_CERT_COLLECTION_FILE: File = SECRETS_DIR.resolve("kingdom_root.pem")
-    private val kingdomSigningCerts =
+    internal val kingdomSigningCerts = // Made internal for access in potential future factories
       SigningCerts.fromPemFiles(
         KINGDOM_TLS_CERT_FILE,
         KINGDOM_TLS_KEY_FILE,
