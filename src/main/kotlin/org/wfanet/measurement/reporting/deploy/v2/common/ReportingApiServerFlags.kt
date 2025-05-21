@@ -103,7 +103,7 @@ class ReportingApiServerFlags {
   )
   fun setMeasurementConsumerModelLines(value: Map<String, String>) {
     measurementConsumerModelLines =
-      buildMap<MeasurementConsumerKey, ModelLineKey> {
+      buildMap {
         if (value.entries.isNotEmpty()) {
           for (entry in value.entries) {
             val measurementConsumerKey =
@@ -125,7 +125,7 @@ class ReportingApiServerFlags {
       }
   }
 
-  lateinit var measurementConsumerModelLines: Map<MeasurementConsumerKey, ModelLineKey>
+  var measurementConsumerModelLines: Map<MeasurementConsumerKey, ModelLineKey> = emptyMap()
     private set
 
   // TODO(world-federation-of-advertisers/cross-media-measurement#2220): Remove this flag when LLv2
