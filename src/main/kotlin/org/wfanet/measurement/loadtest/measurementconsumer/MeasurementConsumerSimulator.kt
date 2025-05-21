@@ -20,6 +20,7 @@ import com.google.protobuf.ByteString
 import com.google.protobuf.Message
 import com.google.protobuf.TypeRegistry
 import com.google.protobuf.util.Durations
+import org.bouncycastle.util.encoders.Hex
 import io.grpc.StatusException
 import java.security.SignatureException
 import java.security.cert.CertPathValidatorException
@@ -141,6 +142,8 @@ import org.wfanet.measurement.populationdataprovider.PopulationInfo
 import com.google.auth.oauth2.GoogleCredentials
 import com.google.auth.oauth2.IdTokenProvider
 import com.google.auth.oauth2.IdToken
+import java.security.MessageDigest
+import java.util.*
 import org.wfanet.measurement.common.crypto.subjectKeyIdentifier
 
 data class MeasurementConsumerData(
@@ -1087,44 +1090,83 @@ class MeasurementConsumerSimulator(
       decryptResult(resultOutput.encryptedResult, measurementConsumerData.encryptionKey)
     val x509Certificate: X509Certificate = readCertificate(certificate.x509Der)
 
-    try {
-      logger.info("Looking for trusted issuer with key: " +
-        x509Certificate.authorityKeyIdentifier?.toByteArray()?.joinToString("") { "%02x".format(it) })
-
-      trustedCertificates.keys.forEachIndexed { i, key ->
-        val hex = key.toByteArray().joinToString("") { "%02x".format(it) }
-        logger.info("trustedCertificates[$i]: $hex")
-      }
-      trustedCertificates.values.forEach { cert ->
-        logger.info("Trusted cert subject: ${cert.subjectX500Principal}")
-        logger.info("Subject Key Identifier: " +
-          cert.subjectKeyIdentifier?.joinToString("") { "%02x".format(it) })
-      }
-      logger.info("Certificate subject: ${x509Certificate.subjectX500Principal.name}")
-      logger.info("Certificate issuer: ${x509Certificate.issuerX500Principal.name}")
-    }catch (e: Exception){
-      logger.severe("~~~~~~~ ERROR printing certs: ${e}")
-    }
-
+//    try {
+//      logger.info("Looking for trusted issuer with key: " +
+//        x509Certificate.authorityKeyIdentifier?.toByteArray()?.joinToString("") { "%02x".format(it) })
+//
+//      trustedCertificates.keys.forEachIndexed { i, key ->
+//        val hex = key.toByteArray().joinToString("") { "%02x".format(it) }
+//        logger.info("trustedCertificates[$i]: $hex")
+//      }
+//      trustedCertificates.values.forEach { cert ->
+//        logger.info("Trusted cert subject: ${cert.subjectX500Principal}")
+//        logger.info("Subject Key Identifier: " +
+//          cert.subjectKeyIdentifier?.joinToString("") { "%02x".format(it) })
+//      }
+//      logger.info("Certificate subject: ${x509Certificate.subjectX500Principal.name}")
+//      logger.info("Certificate issuer: ${x509Certificate.issuerX500Principal.name}")
+//    }catch (e: Exception){
+//      logger.severe("~~~~~~~ ERROR printing certs: ${e}")
+//    }
 
     val trustedIssuer =
       checkNotNull(trustedCertificates[checkNotNull(x509Certificate.authorityKeyIdentifier)]) {
         "Issuer of ${certificate.name} not trusted"
       }
+
+    try{
+      logger.info("Fetched cert: ${certificate.name}")
+      val x509: X509Certificate = readCertificate(certificate.x509Der)
+
+      logger.info("  ↳ subjectDN:     ${x509.subjectDN}")
+      logger.info("  ↳ issuerDN:      ${x509.issuerDN}")
+      logger.info("  ↳ serialNumber:  ${x509.serialNumber}")
+      logger.info("  ↳ notBefore:     ${x509.notBefore}")
+      logger.info("  ↳ notAfter:      ${x509.notAfter}")
+      logger.info("  ↳ sigAlgOID:     ${x509.sigAlgOID} (${x509.sigAlgName})")
+      logger.info("  ↳ pubKey alg:    ${x509.publicKey.algorithm}")
+      logger.info("  ↳ pubKey format: ${x509.publicKey.format}")
+      logger.info("  ↳ pubKey SHA-256 fingerprint: " +
+        Hex.toHexString(MessageDigest
+          .getInstance("SHA-256")
+          .digest(x509.encoded)
+        )
+      )
+
+      val akidExt = x509.getExtensionValue("2.5.29.35") // authorityKeyIdentifier
+      logger.info("  ↳ authorityKeyId (raw ext): ${akidExt?.let { Hex.toHexString(it) }}")
+      logger.info("  ↳ matched trustedIssuer subjectDN: ${trustedIssuer.subjectDN}")
+      logger.info("  ↳ trustedIssuer pubKey SHA-256: " +
+        Hex.toHexString(
+          MessageDigest
+          .getInstance("SHA-256")
+          .digest(trustedIssuer.encoded)
+        )
+      )
+
+      logger.info("SignedMessage.message.value (base64): " +
+        Base64.getEncoder().encodeToString(signedResult.message.value.toByteArray()))
+      logger.info("SignedMessage.signature      (base64): " +
+        Base64.getEncoder().encodeToString(signedResult.signature.toByteArray()))
+
+    }catch (e: Exception){
+      logger.severe("~~~~ ERROR PRINTING certs")
+    }
+
     try {
-      try{
-        logger.info("~~~~~ signedResult.toString(): ${signedResult}")
-        logger.info("~~~~~ x509Certificate: ${x509Certificate.subjectX500Principal}")
-        logger.info("~~~~~ x509Certificate2: ${x509Certificate.issuerX500Principal}")
-        logger.info("~~~~~ x509Certificate3: ${x509Certificate.signature}")
-        logger.info("~~~~~ x509Certificate4: ${x509Certificate.keyUsage}")
-        logger.info("~~~~~ trustedIssuer: ${trustedIssuer.subjectX500Principal}")
-        logger.info("~~~~~ trustedIssuer2: ${trustedIssuer.issuerX500Principal}")
-        logger.info("~~~~~ trustedIssuer3: ${trustedIssuer.signature}")
-        logger.info("~~~~~ trustedIssuer4: ${trustedIssuer.keyUsage}")
-      }catch (e: Exception){
-        logger.severe("ERROR PRINTING certs")
-      }
+//      try{
+//        logger.info("~~~~~ signedResult.toString(): ${signedResult}")
+//        logger.info("~~~~~ x509Certificate: ${x509Certificate.subjectX500Principal}")
+//        logger.info("~~~~~ x509Certificate2: ${x509Certificate.issuerX500Principal}")
+//        logger.info("~~~~~ x509Certificate3: ${x509Certificate.signature}")
+//        logger.info("~~~~~ x509Certificate4: ${x509Certificate.keyUsage}")
+//        logger.info("~~~~~ trustedIssuer: ${trustedIssuer.subjectX500Principal}")
+//        logger.info("~~~~~ trustedIssuer2: ${trustedIssuer.issuerX500Principal}")
+//        logger.info("~~~~~ trustedIssuer3: ${trustedIssuer.signature}")
+//        logger.info("~~~~~ trustedIssuer4: ${trustedIssuer.keyUsage}")
+//      }catch (e: Exception){
+//        logger.severe("ERROR PRINTING certs")
+//      }
       verifyResult(signedResult, x509Certificate, trustedIssuer)
     } catch (e: CertPathValidatorException) {
       throw Exception("Certificate path is invalid for ${certificate.name}", e)

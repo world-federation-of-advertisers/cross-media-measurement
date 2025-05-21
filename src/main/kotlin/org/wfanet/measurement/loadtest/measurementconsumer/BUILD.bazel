@@ -27,6 +27,7 @@ kt_jvm_library(
     deps = [
         "//imports/java/com/google/auth:google_auth",
         "//imports/java/com/google/auth:google_credentials",
+        "//imports/java/org/bouncycastle:bcpkix",
         "//src/main/kotlin/org/wfanet/measurement/api:api_key_constants",
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:packed_messages",
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
