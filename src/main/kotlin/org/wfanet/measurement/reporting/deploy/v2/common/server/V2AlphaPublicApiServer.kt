@@ -235,8 +235,7 @@ private object V2AlphaPublicApiServer {
         SecureRandom().asKotlinRandom(),
         v2AlphaFlags.signingPrivateKeyStoreDir,
         commonServerFlags.tlsFlags.signingCerts.trustedCertificates,
-        reportingApiServerFlags.defaultVidModelLine?.toName()
-          ?: "",
+        reportingApiServerFlags.defaultVidModelLine?.toName() ?: "",
         reportingApiServerFlags.measurementConsumerModelLines.entries.associate {
           it.key.toName() to it.value.toName()
         },

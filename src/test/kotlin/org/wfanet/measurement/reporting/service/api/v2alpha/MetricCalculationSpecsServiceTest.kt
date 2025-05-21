@@ -18,6 +18,7 @@ package org.wfanet.measurement.reporting.service.api.v2alpha
 
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
+import com.google.rpc.errorInfo
 import com.google.type.DayOfWeek
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
@@ -55,6 +56,7 @@ import org.wfanet.measurement.access.v1alpha.principal
 import org.wfanet.measurement.api.v2alpha.ModelLineKey
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.getRuntimePath
+import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.parseTextProto
@@ -73,8 +75,6 @@ import org.wfanet.measurement.internal.reporting.v2.listMetricCalculationSpecsRe
 import org.wfanet.measurement.internal.reporting.v2.listMetricCalculationSpecsResponse as internalListMetricCalculationSpecsResponse
 import org.wfanet.measurement.internal.reporting.v2.metricCalculationSpec as internalMetricCalculationSpec
 import org.wfanet.measurement.internal.reporting.v2.metricSpec as internalMetricSpec
-import com.google.rpc.errorInfo
-import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.reporting.service.api.Errors
 import org.wfanet.measurement.reporting.v2alpha.ListMetricCalculationSpecsPageTokenKt
 import org.wfanet.measurement.reporting.v2alpha.MetricCalculationSpec
