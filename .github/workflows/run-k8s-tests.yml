@@ -95,6 +95,7 @@ jobs:
         bazelisk test \
         --test_env=GOOGLE_APPLICATION_CREDENTIALS \
         --test_env=GOOGLE_CLOUD_PROJECT \
+        --test_env=AUTH_ID_TOKEN \
         //src/test/kotlin/org/wfanet/measurement/integration/k8s:EdpAggregatorCorrectnessTest
 #        //src/test/kotlin/org/wfanet/measurement/integration/k8s:SyntheticGeneratorCorrectnessTest
         
