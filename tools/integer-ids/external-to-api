@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+shopt -s extglob
+
+padded="$(printf '%016lx' "$1" | xxd -r -p | basenc --base64url)"
+printf "${padded%%+(=)}"

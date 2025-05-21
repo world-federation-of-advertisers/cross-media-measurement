@@ -173,8 +173,8 @@ class SpannerEventGroupsService(
   }
 
   override fun streamEventGroups(request: StreamEventGroupsRequest): Flow<EventGroup> {
-    return StreamEventGroups(request.filter, request.limit).execute(client.singleUse()).map {
-      it.eventGroup
-    }
+    return StreamEventGroups(request.filter, request.orderBy, request.limit)
+      .execute(client.singleUse())
+      .map { it.eventGroup }
   }
 }

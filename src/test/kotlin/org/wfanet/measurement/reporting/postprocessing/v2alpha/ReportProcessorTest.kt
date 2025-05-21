@@ -161,6 +161,19 @@ class ReportProcessorTest {
   }
 
   @Test
+  fun `run correct reach only report successfully`() {
+    val reportFile = TEST_DATA_RUNTIME_DIR.resolve("sample_reach_only_report.json").toFile()
+    val reportAsJson = reportFile.readText()
+
+    val report = ReportConversion.getReportFromJsonString(reportAsJson)
+    assertThat(report.hasConsistentMeasurements()).isFalse()
+
+    val updatedReportAsJson = ReportProcessor.processReportJson(reportAsJson)
+    val updatedReport = ReportConversion.getReportFromJsonString(updatedReportAsJson)
+    assertThat(updatedReport.hasConsistentMeasurements()).isTrue()
+  }
+
+  @Test
   fun `run correct report without logging with unique reach and incremental reach successfully`() {
     val reportFile =
       TEST_DATA_RUNTIME_DIR.resolve("sample_report_unique_reach_incremental_reach_small.json")
@@ -303,6 +316,19 @@ class ReportProcessorTest {
             totalMeasurements[edpCombination]!!.toDouble(),
             kreachSum.toDouble(),
             kreach[edpCombination]!!.size * TOLERANCE,
+          )
+        ) {
+          return false
+        }
+      }
+
+      // Verifies that the relationship between total reach and impression holds.
+      for (edpCombination in impression.keys.intersect(totalMeasurements.keys)) {
+        if (
+          !fuzzyLessEqual(
+            totalMeasurements[edpCombination]!!.toDouble(),
+            impression[edpCombination]!!.toDouble(),
+            TOLERANCE,
           )
         ) {
           return false
