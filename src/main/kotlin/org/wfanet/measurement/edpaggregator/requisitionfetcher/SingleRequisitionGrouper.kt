@@ -84,7 +84,7 @@ class SingleRequisitionGrouper(
           )
           null
         }
-        collectionIntervalsMap[eventGroupName] = eventGroupEntry.value.collectionInterval
+        collectionIntervalsMap[eventGroupReferenceId] = eventGroupEntry.value.collectionInterval
       }
       groupedRequisitions {
         modelLine = measurementSpec!!.modelLine
