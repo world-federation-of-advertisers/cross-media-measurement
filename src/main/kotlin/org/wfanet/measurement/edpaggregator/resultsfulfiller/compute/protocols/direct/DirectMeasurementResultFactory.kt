@@ -61,7 +61,7 @@ object DirectMeasurementResultFactory {
             directNoiseMechanism,
             random
         )
-        reachAndFrequencyResultBuilder.builMeasurementResult()
+        reachAndFrequencyResultBuilder.buildMeasurementResult()
       }
 
       MeasurementSpec.MeasurementTypeCase.IMPRESSION -> {
@@ -93,4 +93,4 @@ object DirectMeasurementResultFactory {
       }
     }
   }
-} 
+}
