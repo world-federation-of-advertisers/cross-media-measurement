@@ -18,13 +18,9 @@ package org.wfanet.measurement.reporting.deploy.v2.common
 
 import java.time.Duration
 import kotlin.properties.Delegates
-import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
-import org.wfanet.measurement.api.v2alpha.ModelLineKey
 import picocli.CommandLine
 
 class ReportingApiServerFlags {
-  @CommandLine.Spec lateinit var spec: CommandLine.Model.CommandSpec
-
   @CommandLine.Mixin
   lateinit var internalApiFlags: InternalApiFlags
     private set
@@ -75,20 +71,10 @@ class ReportingApiServerFlags {
   @CommandLine.Option(
     names = ["--default-vid-model-line"],
     description = ["The default VID model line to be used by EDPs when fulfilling requisitions."],
+    defaultValue = "",
     required = false,
   )
-  fun setDefaultVidModelLine(value: String) {
-    if (value.isNotEmpty()) {
-      defaultVidModelLine =
-        ModelLineKey.fromName(value)
-          ?: throw CommandLine.ParameterException(
-            spec.commandLine(),
-            "Invalid value for option `--default-vid-model-line`: not a valid model line name",
-          )
-    }
-  }
-
-  var defaultVidModelLine: ModelLineKey? = null
+  lateinit var defaultVidModelLine: String
     private set
 
   @CommandLine.Option(
@@ -101,30 +87,7 @@ class ReportingApiServerFlags {
       ],
     required = false,
   )
-  fun setMeasurementConsumerModelLines(value: Map<String, String>) {
-    measurementConsumerModelLines = buildMap {
-      if (value.entries.isNotEmpty()) {
-        for (entry in value.entries) {
-          val measurementConsumerKey =
-            MeasurementConsumerKey.fromName(entry.key)
-              ?: throw CommandLine.ParameterException(
-                spec.commandLine(),
-                "Invalid value for option `--measurement-consumer-model-line`: not a valid measurement consumer name",
-              )
-          val modelLineKey =
-            ModelLineKey.fromName(entry.value)
-              ?: throw CommandLine.ParameterException(
-                spec.commandLine(),
-                "Invalid value for option `--measurement-consumer-model-line`: not a valid model line name",
-              )
-
-          put(measurementConsumerKey, modelLineKey)
-        }
-      }
-    }
-  }
-
-  var measurementConsumerModelLines: Map<MeasurementConsumerKey, ModelLineKey> = emptyMap()
+  var measurementConsumerModelLines: Map<String, String> = emptyMap()
     private set
 
   // TODO(world-federation-of-advertisers/cross-media-measurement#2220): Remove this flag when LLv2
