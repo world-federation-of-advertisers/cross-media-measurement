@@ -82,10 +82,8 @@ class InProcessEdpAggregatorComponents(
   private val internalServicesRule: ProviderRule<InternalApiServices>,
   private val pubSubClient: GooglePubSubEmulatorClient,
   private val storagePath: Path,
-  private val syntheticPopulationSpec: SyntheticPopulationSpec =
-    SyntheticGenerationSpecs.SYNTHETIC_POPULATION_SPEC_SMALL,
-  private val syntheticEventGroupMap: Map<String, SyntheticEventGroupSpec> =
-    mapOf("edpa-eg-reference-id-1" to SyntheticGenerationSpecs.SYNTHETIC_DATA_SPECS_SMALL[0]),
+  private val syntheticPopulationSpec: SyntheticPopulationSpec,
+  private val syntheticEventGroupMap: Map<String, SyntheticEventGroupSpec>,
 ) : TestRule {
 
   private val internalServices: InternalApiServices
