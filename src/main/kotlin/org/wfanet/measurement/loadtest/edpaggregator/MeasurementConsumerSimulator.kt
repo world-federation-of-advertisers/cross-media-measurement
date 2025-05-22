@@ -322,6 +322,8 @@ class MeasurementConsumerSimulator(
   /**
    * A sequence of operations done in the simulator involving a direct reach and frequency
    * measurement.
+   *
+   * @numMeasurements - The number of incremental measurements to request within the time period.
    */
   suspend fun testDirectReachAndFrequency(runId: String, numMeasurements: Int) {
     // Create a new measurement on behalf of the measurement consumer.
@@ -387,7 +389,11 @@ class MeasurementConsumerSimulator(
     }
   }
 
-  /** A sequence of operations done in the simulator involving a direct reach measurement. */
+  /**
+   * A sequence of operations done in the simulator involving a direct reach measurement.
+   *
+   * @numMeasurements - The number of incremental measurements to request within the time period.
+   */
   suspend fun testDirectReachOnly(runId: String, numMeasurements: Int) {
     // Create a new measurement on behalf of the measurement consumer.
     val measurementConsumer = getMeasurementConsumer(measurementConsumerData.name)
@@ -723,7 +729,12 @@ class MeasurementConsumerSimulator(
     }
   }
 
-  /** Creates a Measurement on behalf of the [MeasurementConsumer]. */
+  /**
+   * Creates a Measurement on behalf of the [MeasurementConsumer].
+   *
+   * @timePercentage - the percentage of the time period that will be inclued in the requisition
+   * spec.
+   */
   private suspend fun createMeasurement(
     measurementConsumer: MeasurementConsumer,
     runId: String,
