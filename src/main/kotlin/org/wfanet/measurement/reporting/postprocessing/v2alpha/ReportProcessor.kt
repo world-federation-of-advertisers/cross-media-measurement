@@ -230,7 +230,7 @@ interface ReportProcessor {
       val reportProcessingOutput: ReportProcessingOutput = processReport(report, verbose)
 
       val storageClient: StorageClient = getStorageClient(projectId, bucketName)
-      val blobKey: String = getBlobKey( report)
+      val blobKey: String = getBlobKey(report)
       storageClient.writeBlob(blobKey, reportProcessingOutput.reportPostProcessorLog.toByteString())
 
       return reportProcessingOutput
