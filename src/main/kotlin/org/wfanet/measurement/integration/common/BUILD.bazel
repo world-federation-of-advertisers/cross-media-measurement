@@ -396,6 +396,9 @@ kt_jvm_library(
     srcs = [
         "InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest.kt",
     ],
+    data = [
+        "//src/main/proto/wfa/measurement/loadtest/edpaggregator:specs",
+    ],
     deps = [
         ":all_kingdom_services",
         ":in_process_cmms_components",

@@ -14,7 +14,7 @@
 
 package org.wfanet.measurement.integration.common
 
-// import org.wfanet.measurement.loadtest.measurementconsumer.MetadataSyntheticGeneratorEventQuery
+import java.nio.file.Paths
 import java.util.logging.Logger
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
@@ -36,7 +36,11 @@ import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig.NoiseMechanism
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
+import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
+import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticPopulationSpec
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
+import org.wfanet.measurement.common.getRuntimePath
+import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.testing.ProviderRule
 import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorClient
 import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorProvider
@@ -83,6 +87,8 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
         ),
       storagePath = tempDirectory.root.toPath(),
       pubSubClient = pubSubClient,
+      syntheticEventGroupMap = mapOf("edpa-eg-reference-id-1" to syntheticEventGroupSpec),
+      syntheticPopulationSpec = syntheticPopulationSpec,
     )
   }
 
@@ -130,6 +136,7 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
 
   private fun initMcSimulator() {
     val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
+    val syntheticEventGroupMap = mapOf("edpa-eg-reference-id-1" to syntheticEventGroupSpec)
     mcSimulator =
       MeasurementConsumerSimulator(
         MeasurementConsumerData(
@@ -147,6 +154,8 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
         InProcessCmmsComponents.TRUSTED_CERTIFICATES,
         TestEvent.getDefaultInstance(),
         NoiseMechanism.CONTINUOUS_GAUSSIAN,
+        syntheticPopulationSpec,
+        syntheticEventGroupMap,
       )
   }
 
@@ -183,14 +192,25 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
       )
     }
 
-  @Test
+  /*@Test
   fun `create a direct RF measurement and check the result is equal to the expected result`() =
     runBlocking {
       withTimeout(40000) {
         delay(1000)
         // Use frontend simulator to create a direct reach and frequency measurement and verify its
         // result.
-        mcSimulator.testDirectReachAndFrequency("1234")
+        mcSimulator.testDirectReachAndFrequency("1234", 1)
+      }
+    }*/
+
+  @Test
+  fun `create incremental direct RF measurements and check the result is equal to the expected result`() =
+    runBlocking {
+      withTimeout(40000) {
+        delay(1000)
+        // Use frontend simulator to create a n incremental direct reach and frequency measurement
+        // with two requisitions and verify its result.
+        mcSimulator.testDirectReachAndFrequency("1234", 7)
       }
     }
 
@@ -201,7 +221,7 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
       withTimeout(10000) {
         delay(1000)
         // Use frontend simulator to create a direct reach-only measurement and verify its result.
-        mcSimulator.testDirectReachOnly("1234")
+        mcSimulator.testDirectReachOnly("1234", 1)
       }
     }
 
@@ -244,6 +264,31 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
       epsilon = 1.0
       delta = 1e-15
     }
+
+    // This is the relative location from which population and data spec textprotos are read.
+    private val TEST_DATA_PATH =
+      Paths.get(
+        "wfa_measurement_system",
+        "src",
+        "main",
+        "proto",
+        "wfa",
+        "measurement",
+        "loadtest",
+        "edpaggregator",
+      )
+    private val TEST_DATA_RUNTIME_PATH = getRuntimePath(TEST_DATA_PATH)!!
+
+    val syntheticPopulationSpec: SyntheticPopulationSpec =
+      parseTextProto(
+        TEST_DATA_RUNTIME_PATH.resolve("small_population_spec.textproto").toFile(),
+        SyntheticPopulationSpec.getDefaultInstance(),
+      )
+    val syntheticEventGroupSpec: SyntheticEventGroupSpec =
+      parseTextProto(
+        TEST_DATA_RUNTIME_PATH.resolve("small_data_spec.textproto").toFile(),
+        SyntheticEventGroupSpec.getDefaultInstance(),
+      )
 
     @BeforeClass
     @JvmStatic

@@ -19,12 +19,12 @@ package org.wfanet.measurement.edpaggregator.resultsfulfiller
 import com.google.common.hash.HashFunction
 import com.google.common.hash.Hashing
 import com.google.crypto.tink.KmsClient
+import com.google.protobuf.Any
 import com.google.protobuf.ByteString
 import com.google.protobuf.Descriptors.Descriptor
 import com.google.protobuf.DynamicMessage
 import com.google.protobuf.TypeRegistry
 import com.google.protobuf.kotlin.unpack
-import com.google.protobuf.Any
 import com.google.type.Interval
 import io.grpc.StatusException
 import java.io.File
@@ -37,11 +37,12 @@ import kotlin.math.max
 import kotlin.math.roundToInt
 import kotlin.random.Random
 import kotlin.random.asJavaRandom
+import kotlin.streams.asSequence
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.filter
-import kotlinx.coroutines.flow.flatMapConcat
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.toList
 import org.apache.commons.math3.distribution.ConstantRealDistribution
 import org.projectnessie.cel.Program
 import org.projectnessie.cel.common.types.BoolT
@@ -79,15 +80,12 @@ import org.wfanet.measurement.eventdataprovider.noiser.DirectNoiseMechanism
 import org.wfanet.measurement.eventdataprovider.noiser.DpParams
 import org.wfanet.measurement.eventdataprovider.noiser.GaussianNoiser
 import org.wfanet.measurement.eventdataprovider.noiser.LaplaceNoiser
+import org.wfanet.measurement.storage.BlobUri
 import org.wfanet.measurement.storage.MesosRecordIoStorageClient
 import org.wfanet.measurement.storage.SelectedStorageClient
 import org.wfanet.sampling.VidSampler
-import org.wfanet.measurement.storage.BlobUri
 
-data class StorageConfig(
-  val rootDirectory: File? = null,
-  val projectId: String? = null,
-)
+data class StorageConfig(val rootDirectory: File? = null, val projectId: String? = null)
 
 class ResultsFulfiller(
   private val privateEncryptionKey: PrivateKeyHandle,
@@ -108,20 +106,14 @@ class ResultsFulfiller(
     requisitions.collect { requisition ->
       val signedRequisitionSpec: SignedMessage =
         try {
-          decryptRequisitionSpec(
-            requisition.encryptedRequisitionSpec,
-            privateEncryptionKey,
-          )
+          decryptRequisitionSpec(requisition.encryptedRequisitionSpec, privateEncryptionKey)
         } catch (e: GeneralSecurityException) {
           throw Exception("RequisitionSpec decryption failed", e)
         }
       val requisitionSpec: RequisitionSpec = signedRequisitionSpec.unpack()
       val measurementSpec: MeasurementSpec = requisition.measurementSpec.message.unpack()
 
-      val sampledVids = getSampledVids(
-        requisitionSpec,
-        measurementSpec.vidSamplingInterval
-      )
+      val sampledVids = getSampledVids(requisitionSpec, measurementSpec.vidSamplingInterval)
       val protocols: List<ProtocolConfig.Protocol> = requisition.protocolConfig.protocolsList
 
       if (protocols.any { it.hasDirect() }) {
@@ -174,9 +166,7 @@ class ResultsFulfiller(
   ): DirectNoiseMechanism {
     val preferences = listOf(DirectNoiseMechanism.CONTINUOUS_GAUSSIAN)
     return preferences.firstOrNull { preference -> options.contains(preference) }
-      ?: throw Exception(
-        "No valid noise mechanism option for reach or frequency measurements.",
-      )
+      ?: throw Exception("No valid noise mechanism option for reach or frequency measurements.")
   }
 
   private suspend fun fulfillDirectReachAndFrequencyMeasurement(
@@ -188,12 +178,13 @@ class ResultsFulfiller(
     nonce: Long,
   ) {
     logger.info("Calculating direct reach and frequency...")
-    val measurementResult = buildDirectMeasurementResult(
-      directProtocolConfig,
-      directNoiseMechanism,
-      measurementSpec,
-      sampledVids,
-    )
+    val measurementResult =
+      buildDirectMeasurementResult(
+        directProtocolConfig,
+        directNoiseMechanism,
+        measurementSpec,
+        sampledVids,
+      )
 
     fulfillDirectMeasurement(requisition, measurementSpec, nonce, measurementResult)
   }
@@ -208,9 +199,7 @@ class ResultsFulfiller(
     logger.log(Level.INFO, "Direct MeasurementResult:\n$measurementResult")
 
     DataProviderCertificateKey.fromName(requisition.dataProviderCertificate)
-      ?: throw Exception(
-        "Invalid data provider certificate"
-      )
+      ?: throw Exception("Invalid data provider certificate")
     val measurementEncryptionPublicKey: EncryptionPublicKey =
       if (measurementSpec.hasMeasurementPublicKey()) {
         measurementSpec.measurementPublicKey.unpack()
@@ -218,8 +207,7 @@ class ResultsFulfiller(
         @Suppress("DEPRECATION") // Handle legacy resources.
         EncryptionPublicKey.parseFrom(measurementSpec.serializedMeasurementPublicKey)
       }
-    val signedResult: SignedMessage =
-      signResult(measurementResult, dataProviderSigningKeyHandle)
+    val signedResult: SignedMessage = signResult(measurementResult, dataProviderSigningKeyHandle)
     val encryptedResult: EncryptedMessage =
       encryptResult(signedResult, measurementEncryptionPublicKey)
 
@@ -250,17 +238,18 @@ class ResultsFulfiller(
     measurementSpec: MeasurementSpec,
     samples: Flow<Long>,
   ): Measurement.Result {
-    val protocolConfigNoiseMechanism = when (directNoiseMechanism) {
-      DirectNoiseMechanism.NONE -> {
-        NoiseMechanism.NONE
+    val protocolConfigNoiseMechanism =
+      when (directNoiseMechanism) {
+        DirectNoiseMechanism.NONE -> {
+          NoiseMechanism.NONE
+        }
+        DirectNoiseMechanism.CONTINUOUS_LAPLACE -> {
+          NoiseMechanism.CONTINUOUS_LAPLACE
+        }
+        else -> {
+          NoiseMechanism.CONTINUOUS_GAUSSIAN
+        }
       }
-      DirectNoiseMechanism.CONTINUOUS_LAPLACE -> {
-        NoiseMechanism.CONTINUOUS_LAPLACE
-      }
-      else -> {
-        NoiseMechanism.CONTINUOUS_GAUSSIAN
-      }
-    }
 
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf enum fields cannot be null.
     return when (measurementSpec.measurementTypeCase) {
@@ -303,43 +292,32 @@ class ResultsFulfiller(
           (sampledNoisedReachValue / measurementSpec.vidSamplingInterval.width).toLong()
 
         MeasurementKt.result {
-          reach = MeasurementKt.ResultKt.reach {
-            value = scaledNoisedReachValue
-            this.noiseMechanism = protocolConfigNoiseMechanism
-            deterministicCountDistinct = DeterministicCountDistinct.getDefaultInstance()
-          }
-          frequency = MeasurementKt.ResultKt.frequency {
-            relativeFrequencyDistribution.putAll(noisedFrequencyMap.mapKeys { it.key.toLong() })
-            this.noiseMechanism = protocolConfigNoiseMechanism
-            deterministicDistribution = DeterministicDistribution.getDefaultInstance()
-          }
+          reach =
+            MeasurementKt.ResultKt.reach {
+              value = scaledNoisedReachValue
+              this.noiseMechanism = protocolConfigNoiseMechanism
+              deterministicCountDistinct = DeterministicCountDistinct.getDefaultInstance()
+            }
+          frequency =
+            MeasurementKt.ResultKt.frequency {
+              relativeFrequencyDistribution.putAll(noisedFrequencyMap.mapKeys { it.key.toLong() })
+              this.noiseMechanism = protocolConfigNoiseMechanism
+              deterministicDistribution = DeterministicDistribution.getDefaultInstance()
+            }
         }
       }
-
       MeasurementSpec.MeasurementTypeCase.IMPRESSION -> {
-        MeasurementKt.result {
-          TODO("Not yet implemented")
-        }
+        MeasurementKt.result { TODO("Not yet implemented") }
       }
-
       MeasurementSpec.MeasurementTypeCase.DURATION -> {
-        MeasurementKt.result {
-          TODO("Not yet implemented")
-        }
+        MeasurementKt.result { TODO("Not yet implemented") }
       }
-
       MeasurementSpec.MeasurementTypeCase.POPULATION -> {
-        MeasurementKt.result {
-          TODO("Not yet implemented")
-        }
+        MeasurementKt.result { TODO("Not yet implemented") }
       }
-
       MeasurementSpec.MeasurementTypeCase.REACH -> {
-        MeasurementKt.result {
-          TODO("Not yet implemented")
-        }
+        MeasurementKt.result { TODO("Not yet implemented") }
       }
-
       MeasurementSpec.MeasurementTypeCase.MEASUREMENTTYPE_NOT_SET -> {
         error("Measurement type not set.")
       }
@@ -358,10 +336,8 @@ class ResultsFulfiller(
           override val variance: Double
             get() = distribution.numericalVariance
         }
-
       DirectNoiseMechanism.CONTINUOUS_LAPLACE ->
         LaplaceNoiser(DpParams(privacyParams.epsilon, privacyParams.delta), random.asJavaRandom())
-
       DirectNoiseMechanism.CONTINUOUS_GAUSSIAN ->
         GaussianNoiser(DpParams(privacyParams.epsilon, privacyParams.delta), random.asJavaRandom())
     }
@@ -485,7 +461,8 @@ class ResultsFulfiller(
 
     // TODO(@jojijac0b): Refactor once grouped requisitions are supported
     logger.info("Reading requisition ${storageClientUri.key} from $requisitionsBlobUri")
-    val requisitionBytes: ByteString = requisitionsStorageClient.getBlob(storageClientUri.key)!!.read().flatten()
+    val requisitionBytes: ByteString =
+      requisitionsStorageClient.getBlob(storageClientUri.key)!!.read().flatten()
     val requisition = Any.parseFrom(requisitionBytes).unpack(Requisition::class.java)
 
     return listOf(requisition).asFlow()
@@ -494,19 +471,20 @@ class ResultsFulfiller(
   /**
    * Retrieves a filtered list of VIDs (Virtual IDs) that fall within a specified sampling interval.
    *
-   * This method filters impressions from event groups in the requisition specification based on the provided
-   * VID sampling interval. The interval defines a range between 0 and 1, which is used to determine
-   * which VIDs should be included in the result.
+   * This method filters impressions from event groups in the requisition specification based on the
+   * provided VID sampling interval. The interval defines a range between 0 and 1, which is used to
+   * determine which VIDs should be included in the result.
    *
    * @param requisitionSpec The specification containing events and event groups to process
    * @param vidSamplingInterval The interval parameters defining which VIDs to sample:
-   *                            - start: The starting point of the sampling interval (must be between 0 and 1)
-   *                            - width: The width of the sampling interval (must be between 0 and 1)
+   *     - start: The starting point of the sampling interval (must be between 0 and 1)
+   *     - width: The width of the sampling interval (must be between 0 and 1)
+   *
    * @return A Flow of VIDs that fall within the specified sampling interval
    * @throws IllegalArgumentException If the sampling interval parameters are invalid:
-   *                                  - Width must be greater than 0 and less than or equal to 1
-   *                                  - Start must be between 0 (inclusive) and 1 (exclusive)
-   *                                  - The sum of start and width must not exceed 1
+   *         - Width must be greater than 0 and less than or equal to 1
+   *         - Start must be between 0 (inclusive) and 1 (exclusive)
+   *         - The sum of start and width must not exceed 1
    */
   private suspend fun getSampledVids(
     requisitionSpec: RequisitionSpec,
@@ -529,49 +507,72 @@ class ResultsFulfiller(
 
     // Return a Flow that processes event groups and extracts valid VIDs
     return requisitionSpec.events.eventGroupsList
-      .asFlow()
-      .flatMapConcat { eventGroup ->
+      .flatMap { eventGroup ->
         val collectionInterval = eventGroup.value.collectionInterval
-        val blobDetails = getBlobDetails(collectionInterval, eventGroup.key)
+        val startDate = LocalDate.ofInstant(collectionInterval.startTime.toInstant(), ZONE_ID)
+        val endDate = LocalDate.ofInstant(collectionInterval.endTime.toInstant(), ZONE_ID)
+        val dates = startDate.datesUntil(endDate.plusDays(1)).asSequence().toList()
+        logger.info("DATES: ${dates.map { it.toString() }.joinToString() }")
+        dates.flatMap { date ->
+          val blobDetails = getBlobDetails(date.toString(), eventGroup.key)
+          val i = getLabeledImpressions(blobDetails).toList()
+          logger.info("SIZE1: ${i.size}")
+          logger.info(collectionInterval.toString())
+          logger.info(vidSamplingIntervalStart.toString())
+          logger.info(vidSamplingIntervalWidth.toString())
+          val impressions =
+            getLabeledImpressions(blobDetails)
+              .filter { labeledImpression ->
+                isValidImpression(
+                  labeledImpression,
+                  collectionInterval,
+                  eventGroup,
+                  vidSamplingIntervalStart,
+                  vidSamplingIntervalWidth,
+                )
+              }
+              .map { labeledImpression -> labeledImpression.vid }
 
-        getLabeledImpressions(blobDetails)
-          .filter { labeledImpression ->
-            isValidImpression(labeledImpression, collectionInterval, eventGroup, vidSamplingIntervalStart, vidSamplingIntervalWidth)
-          }
-          .map { labeledImpression -> labeledImpression.vid }
+          val impressionsList = impressions.toList()
+          logger.info("SIZE2: ${impressionsList.size}")
+          impressionsList
+        }
       }
+      .asFlow()
   }
 
   /**
    * Retrieves a list of labeled impressions from the specified storage.
    *
-   * This method handles retrieving encrypted impression data from storage,
-   * setting up the appropriate encryption, and parsing the raw data into
-   * LabeledImpression protocol buffer messages.
+   * This method handles retrieving encrypted impression data from storage, setting up the
+   * appropriate encryption, and parsing the raw data into LabeledImpression protocol buffer
+   * messages.
    *
    * @param blobDetails The [BlobDetails] that contain the blob uri and encrypted dek
    * @return Flow of parsed LabeledImpression objects
    * @throws IllegalStateException if impression data cannot be read or parsed
    */
-  private suspend fun getLabeledImpressions(
-    blobDetails: BlobDetails,
-  ): Flow<LabeledImpression> {
+  private suspend fun getLabeledImpressions(blobDetails: BlobDetails): Flow<LabeledImpression> {
     // Get blob URI from encrypted DEK
     val storageClientUri = SelectedStorageClient.parseBlobUri(blobDetails.blobUri)
 
     // Create and configure storage client with encryption
     val encryptedDek = blobDetails.encryptedDek
     val encryptedImpressionsClient = createStorageClient(storageClientUri, impressionsStorageConfig)
-    val impressionsAeadStorageClient = encryptedImpressionsClient.withEnvelopeEncryption(
-      kmsClient,
-      encryptedDek.kekUri,
-      encryptedDek.encryptedDek
-    )
+    val impressionsAeadStorageClient =
+      encryptedImpressionsClient.withEnvelopeEncryption(
+        kmsClient,
+        encryptedDek.kekUri,
+        encryptedDek.encryptedDek,
+      )
 
     // Access blob storage
     val impressionsMesosStorage = MesosRecordIoStorageClient(impressionsAeadStorageClient)
-    val impressionBlob = impressionsMesosStorage.getBlob(storageClientUri.key)
-      ?: throw IllegalStateException("Could not retrieve impression blob from ${storageClientUri.key}")
+    val impressionBlob =
+      impressionsMesosStorage.getBlob(storageClientUri.key)
+        ?: throw IllegalStateException(
+          "Could not retrieve impression blob from ${storageClientUri.key}"
+        )
 
     // Parse raw data into LabeledImpression objects
     return impressionBlob.read().map { impressionByteString ->
@@ -581,8 +582,8 @@ class ResultsFulfiller(
   }
 
   /**
-   * Determines if a labeled impression is valid based on collection interval, filter criteria,
-   * and sampling bucket.
+   * Determines if a labeled impression is valid based on collection interval, filter criteria, and
+   * sampling bucket.
    *
    * @param labeledImpression The impression to validate
    * @param collectionInterval Time interval for valid impressions
@@ -603,13 +604,13 @@ class ResultsFulfiller(
     val isInCollectionInterval =
       labeledImpression.eventTime.toInstant() >= collectionInterval.startTime.toInstant() &&
         labeledImpression.eventTime.toInstant() < collectionInterval.endTime.toInstant()
-
     // Check if VID is in sampling bucket
-    val isInSamplingInterval = sampler.vidIsInSamplingBucket(
-      labeledImpression.vid,
-      vidSamplingIntervalStart,
-      vidSamplingIntervalWidth
-    )
+    val isInSamplingInterval =
+      sampler.vidIsInSamplingBucket(
+        labeledImpression.vid,
+        vidSamplingIntervalStart,
+        vidSamplingIntervalWidth,
+      )
 
     // Create filter program
     val eventMessageData = labeledImpression.event!!
@@ -621,36 +622,39 @@ class ResultsFulfiller(
     val passesFilter = EventFilters.matches(eventMessage, program)
 
     // Return true only if all conditions are met
-    return isInCollectionInterval && passesFilter && isInSamplingInterval
+    return passesFilter && isInSamplingInterval && isInCollectionInterval
   }
-  private suspend fun getBlobDetails(collectionInterval: Interval, eventGroupId: String): BlobDetails {
-    val ds = LocalDate.ofInstant(collectionInterval.startTime.toInstant(), ZONE_ID)
+
+  private suspend fun getBlobDetails(ds: String, eventGroupId: String): BlobDetails {
     val metadataBlobKey = "ds/$ds/event-group-id/$eventGroupId/metadata"
     val metadataBlobUri = "$labeledImpressionMetadataPrefix/$metadataBlobKey"
     val metadataStorageClientUri = SelectedStorageClient.parseBlobUri(metadataBlobUri)
-    val impressionsMetadataStorageClient = createStorageClient(metadataStorageClientUri, impressionMetadataStorageConfig)
+    val impressionsMetadataStorageClient =
+      createStorageClient(metadataStorageClientUri, impressionMetadataStorageConfig)
     logger.info("Reading impressions ${metadataStorageClientUri} from $metadataBlobUri")
     // Get EncryptedDek message from storage using the blobKey made up of the ds and eventGroupId
-    val metadataBlob = checkNotNull(impressionsMetadataStorageClient.getBlob(metadataBlobKey)) {
-      "$metadataBlobKey blob cannot be null"
-    }
+    val metadataBlob =
+      checkNotNull(impressionsMetadataStorageClient.getBlob(metadataBlobKey)) {
+        "$metadataBlobKey blob cannot be null"
+      }
     return BlobDetails.parseFrom(metadataBlob.read().flatten())
   }
   /**
    * Creates a storage client for accessing blob data.
    *
-   * This function constructs a [StorageClient] using the provided blob key
-   * and storage configuration. It parses the blob URI and initializes the appropriate
-   * client based on the storage configuration properties using [SelectedStorageClient].
+   * This function constructs a [StorageClient] using the provided blob key and storage
+   * configuration. It parses the blob URI and initializes the appropriate client based on the
+   * storage configuration properties using [SelectedStorageClient].
    *
    * @param blobUri The URI or path identifying the blob to access
-   * @param storageConfig Configuration containing settings for storage access,
-   *        including root directory and project ID
+   * @param storageConfig Configuration containing settings for storage access, including root
+   *   directory and project ID
    * @return A configured [StorageClient] instance ready to access the specified blob
    */
   fun createStorageClient(blobUri: BlobUri, storageConfig: StorageConfig): SelectedStorageClient {
     return SelectedStorageClient(blobUri, storageConfig.rootDirectory, storageConfig.projectId)
   }
+
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
     private val VID_SAMPLER_HASH_FUNCTION: HashFunction = Hashing.farmHashFingerprint64()

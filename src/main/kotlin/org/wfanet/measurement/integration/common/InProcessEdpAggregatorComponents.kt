@@ -62,6 +62,7 @@ import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup.Media
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.MetadataKt.AdMetadataKt.campaignMetadata
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.MetadataKt.adMetadata
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.metadata as eventGroupMetadata
+import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.MappedEventGroup
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.eventGroup
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.mappedEventGroup
@@ -86,10 +87,8 @@ class InProcessEdpAggregatorComponents(
   private val internalServicesRule: ProviderRule<InternalApiServices>,
   private val pubSubClient: GooglePubSubEmulatorClient,
   private val storagePath: Path,
-  private val syntheticPopulationSpec: SyntheticPopulationSpec =
-    SyntheticGenerationSpecs.SYNTHETIC_POPULATION_SPEC_SMALL,
-  private val syntheticEventGroupMap: Map<String, SyntheticEventGroupSpec> =
-    mapOf("edpa-eg-reference-id-1" to SyntheticGenerationSpecs.SYNTHETIC_DATA_SPECS_SMALL[0]),
+  private val syntheticPopulationSpec: SyntheticPopulationSpec,
+  private val syntheticEventGroupMap: Map<String, SyntheticEventGroupSpec>,
 ) : TestRule {
 
   private val internalServices: InternalApiServices
@@ -242,12 +241,13 @@ class InProcessEdpAggregatorComponents(
             .atTime(23, 59, 59)
             .atZone(ZONE_ID)
             .toInstant()
+        logger.info("END TIME: $endTime")
         eventGroup {
           this.eventGroupReferenceId = eventGroupReferenceId
           measurementConsumer = measurementConsumerData.name
           dataAvailabilityInterval = interval {
-            this.startTime = timestamp { seconds = startTime.epochSecond }
-            this.endTime = timestamp { seconds = endTime.epochSecond }
+            this.startTime = startTime.toProtoTime()
+            this.endTime = endTime.toProtoTime()
           }
           this.eventGroupMetadata = eventGroupMetadata {
             this.adMetadata = adMetadata {
