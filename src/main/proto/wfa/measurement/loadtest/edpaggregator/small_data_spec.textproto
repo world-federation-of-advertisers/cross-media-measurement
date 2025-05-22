@@ -26,7 +26,7 @@ date_specs {
       non_population_field_values {
         key: "video_ad.viewed_fraction"
         value {
-          double_value: 0.25
+          double_value: 0.1
         }
       }
     }
@@ -41,7 +41,7 @@ date_specs {
       non_population_field_values {
         key: "video_ad.viewed_fraction"
         value {
-          double_value: 0.5
+          double_value: 0.2
         }
       }
     }
@@ -56,7 +56,7 @@ date_specs {
       non_population_field_values {
         key: "video_ad.viewed_fraction"
         value {
-          double_value: 0.25
+          double_value: 0.3
         }
       }
     }
@@ -86,7 +86,7 @@ date_specs {
       non_population_field_values {
         key: "video_ad.viewed_fraction"
         value {
-          double_value: 0.25
+          double_value: 0.1
         }
       }
     }
@@ -101,7 +101,7 @@ date_specs {
       non_population_field_values {
         key: "video_ad.viewed_fraction"
         value {
-          double_value: 0.25
+          double_value: 0.5
         }
       }
     }

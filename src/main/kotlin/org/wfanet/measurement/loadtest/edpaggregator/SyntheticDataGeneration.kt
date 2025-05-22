@@ -16,6 +16,7 @@
 
 package org.wfanet.measurement.loadtest.edpaggregator
 
+import java.time.ZoneId
 import com.google.common.hash.Hashing
 import com.google.protobuf.Any as ProtoAny
 import com.google.protobuf.Descriptors.FieldDescriptor
@@ -67,6 +68,7 @@ object SyntheticDataGeneration {
     messageInstance: T,
     populationSpec: SyntheticPopulationSpec,
     syntheticEventGroupSpec: SyntheticEventGroupSpec,
+    zoneId: ZoneId = ZoneId.of("UTC"),
   ): Flow<DateShardedLabeledImpression> {
     val subPopulations = populationSpec.subPopulationsList
     return flow {
@@ -74,13 +76,13 @@ object SyntheticDataGeneration {
         val dateProgression: LocalDateProgression = dateSpec.dateRange.toProgression()
         val numDays =
           ChronoUnit.DAYS.between(dateProgression.start, dateProgression.endInclusive) + 1
+        val chanceRange = 1 / numDays.toDouble()
         logger.info("Writing $numDays of data")
         for (date in dateProgression) {
           logger.info("Generating data for date: $date")
           val innerFlow: Flow<LabeledImpression> = flow {
             for (frequencySpec: SyntheticEventGroupSpec.FrequencySpec in
               dateSpec.frequencySpecsList) {
-              val chanceRange = 1 / numDays.toDouble()
 
               check(!frequencySpec.hasOverlaps()) { "The VID ranges should be non-overlapping." }
 
@@ -121,15 +123,14 @@ object SyntheticDataGeneration {
 
                 @Suppress("UNCHECKED_CAST") // Safe per protobuf API.
                 val message = builder.build() as T
-
-                val timestamp = date.atStartOfDay().toInstant(ZoneOffset.UTC)
                 for (vid in vidRangeSpec.sampledVids(syntheticEventGroupSpec.samplingNonce)) {
                   for (i in 0 until frequencySpec.frequency) {
                     val randomDouble = Random.nextDouble(0.0, 1.0)
                     if (randomDouble < chanceRange) {
+                      val randomTime = date.atStartOfDay(zoneId).plusSeconds(Random.nextLong(0, 86400 - 1))
                       emit(
                         labeledImpression {
-                          eventTime = timestamp.toProtoTime()
+                          eventTime = randomTime.toInstant().toProtoTime()
                           this.vid = vid
                           event = ProtoAny.pack(message)
                         }
