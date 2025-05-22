@@ -35,12 +35,12 @@ message GroupedRequisitions {
   // A map of event group resource name to event group reference id. Required
   // for all event groups present in requisitions.
   map<string, string> event_group_map = 2
-  [(google.api.field_behavior) = REQUIRED];
+      [(google.api.field_behavior) = REQUIRED];
   // A map of event group reference id to collection intervals. Both
   // `start_time` and `end_time` must be specified. Must include all collection
   // intervals necessary to fulfill requisitions.
   map<string, google.type.Interval> collection_intervals = 3
-  [(google.api.field_behavior) = REQUIRED];
+      [(google.api.field_behavior) = REQUIRED];
   // The requisitions to process together.
   repeated google.protobuf.Any requisitions = 4 [
     (google.api.field_behavior) = REQUIRED,
