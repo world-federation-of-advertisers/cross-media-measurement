@@ -78,7 +78,7 @@ class SingleRequisitionGrouper(
           getEventGroup(eventGroupName).eventGroupReferenceId
         }
         eventGroupMap[eventGroupName] = eventGroupReferenceId
-        if (eventGroupName !in collectionIntervalsMap) {
+        if (eventGroupName in collectionIntervalsMap) {
           logger.info(
             "Identical event group names not allowed in same requisition: ${requisition.name}"
           )
