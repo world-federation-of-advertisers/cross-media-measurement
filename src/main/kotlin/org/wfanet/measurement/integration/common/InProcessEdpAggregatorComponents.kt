@@ -207,8 +207,7 @@ class InProcessEdpAggregatorComponents(
         delay(1000)
       }
     }
-    val eventGroups = getEventGroups(measurementConsumerData)
-
+    val eventGroups = buildEventGroups(measurementConsumerData)
     eventGroupSync =
       EventGroupSync(
         edpResourceName,
@@ -248,6 +247,44 @@ class InProcessEdpAggregatorComponents(
           dataAvailabilityInterval = interval {
             this.startTime = startTime.toProtoTime()
             this.endTime = endTime.toProtoTime()
+          }
+          this.eventGroupMetadata = eventGroupMetadata {
+            this.adMetadata = adMetadata {
+              this.campaignMetadata = campaignMetadata {
+                brand = "some-brand"
+                campaign = "some-brand"
+              }
+            }
+          }
+          mediaTypes += MediaType.valueOf("VIDEO")
+        }
+      }
+    }
+  }
+
+  private fun buildEventGroups(measurementConsumerData: MeasurementConsumerData): List<EventGroup> {
+    return syntheticEventGroupMap.flatMap { (eventGroupReferenceId, syntheticEventGroupSpec) ->
+      syntheticEventGroupSpec.dateSpecsList.map { dateSpec ->
+        val dateRange = dateSpec.dateRange
+        val startTime =
+          LocalDate.of(dateRange.start.year, dateRange.start.month, dateRange.start.day)
+            .atStartOfDay(ZONE_ID)
+            .toInstant()
+        val endTime =
+          LocalDate.of(
+              dateRange.endExclusive.year,
+              dateRange.endExclusive.month,
+              dateRange.endExclusive.day - 1,
+            )
+            .atTime(23, 59, 59)
+            .atZone(ZONE_ID)
+            .toInstant()
+        eventGroup {
+          this.eventGroupReferenceId = eventGroupReferenceId
+          measurementConsumer = measurementConsumerData.name
+          dataAvailabilityInterval = interval {
+            this.startTime = timestamp { seconds = startTime.epochSecond }
+            this.endTime = timestamp { seconds = endTime.epochSecond }
           }
           this.eventGroupMetadata = eventGroupMetadata {
             this.adMetadata = adMetadata {
