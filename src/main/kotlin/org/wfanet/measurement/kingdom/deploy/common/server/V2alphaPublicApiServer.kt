@@ -12,22 +12,33 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+@file:OptIn(ExperimentalStdlibApi::class) // For `HexFormat`.
+
 package org.wfanet.measurement.kingdom.deploy.common.server
 
 import io.grpc.ServerServiceDefinition
 import java.io.File
 import kotlin.properties.Delegates
 import org.wfanet.measurement.api.v2alpha.AkidPrincipalLookup
+import org.wfanet.measurement.api.v2alpha.ContextKeys
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig.NoiseMechanism
-import org.wfanet.measurement.api.v2alpha.withPrincipalsFromX509AuthorityKeyIdentifiers
+import org.wfanet.measurement.common.api.grpc.AkidPrincipalServerInterceptor
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.grpc.CommonServer
+import org.wfanet.measurement.common.grpc.PrincipalRateLimitingServerInterceptor
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withDefaultDeadline
+import org.wfanet.measurement.common.grpc.withInterceptors
 import org.wfanet.measurement.common.grpc.withVerboseLogging
+import org.wfanet.measurement.common.identity.AuthorityKeyServerInterceptor
 import org.wfanet.measurement.common.identity.DuchyInfo
 import org.wfanet.measurement.common.identity.DuchyInfoFlags
+import org.wfanet.measurement.common.parseTextProto
+import org.wfanet.measurement.common.toByteArray
+import org.wfanet.measurement.config.RateLimitConfig
+import org.wfanet.measurement.config.RateLimitConfigKt
+import org.wfanet.measurement.config.rateLimitConfig
 import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt.AccountsCoroutineStub as InternalAccountsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.ApiKeysGrpcKt.ApiKeysCoroutineStub as InternalApiKeysCoroutineStub
 import org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt.CertificatesCoroutineStub as InternalCertificatesCoroutineStub
@@ -55,7 +66,9 @@ import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfigFlags
 import org.wfanet.measurement.kingdom.deploy.common.RoLlv2ProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.RoLlv2ProtocolConfigFlags
+import org.wfanet.measurement.kingdom.service.api.v2alpha.AccountAuthenticationServerInterceptor
 import org.wfanet.measurement.kingdom.service.api.v2alpha.AccountsService
+import org.wfanet.measurement.kingdom.service.api.v2alpha.ApiKeyAuthenticationServerInterceptor
 import org.wfanet.measurement.kingdom.service.api.v2alpha.ApiKeysService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.CertificatesService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.DataProvidersService
@@ -75,11 +88,14 @@ import org.wfanet.measurement.kingdom.service.api.v2alpha.ModelSuitesService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.PopulationsService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.PublicKeysService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.RequisitionsService
-import org.wfanet.measurement.kingdom.service.api.v2alpha.withAccountAuthenticationServerInterceptor
-import org.wfanet.measurement.kingdom.service.api.v2alpha.withApiKeyAuthenticationServerInterceptor
 import picocli.CommandLine
 
 private const val SERVER_NAME = "V2alphaPublicApiServer"
+
+private val KEY_ID_FORMAT = HexFormat {
+  upperCase = true
+  bytes.byteSeparator = ":"
+}
 
 @CommandLine.Command(
   name = SERVER_NAME,
@@ -116,41 +132,66 @@ private fun run(
       .withVerboseLogging(kingdomApiServerFlags.debugVerboseGrpcClientLogging)
       .withDefaultDeadline(kingdomApiServerFlags.internalApiFlags.defaultDeadlineDuration)
 
-  val principalLookup = AkidPrincipalLookup(v2alphaFlags.authorityKeyIdentifierToPrincipalMapFile)
-
   val internalAccountsCoroutineStub = InternalAccountsCoroutineStub(channel)
   val internalApiKeysCoroutineStub = InternalApiKeysCoroutineStub(channel)
   val internalRecurringExchangesCoroutineStub = InternalRecurringExchangesCoroutineStub(channel)
   val internalExchangeStepsCoroutineStub = InternalExchangeStepsCoroutineStub(channel)
   val internalDataProvidersStub = InternalDataProvidersCoroutineStub(channel)
 
+  val accountInterceptor =
+    AccountAuthenticationServerInterceptor(internalAccountsCoroutineStub, v2alphaFlags.redirectUri)
+  val akidInterceptor = AuthorityKeyServerInterceptor()
+  val akidPrincipalInterceptor =
+    AkidPrincipalServerInterceptor(
+      ContextKeys.PRINCIPAL_CONTEXT_KEY,
+      AuthorityKeyServerInterceptor.AUTHORITY_KEY_IDENTIFIERS_CONTEXT_KEY,
+      AkidPrincipalLookup(v2alphaFlags.authorityKeyIdentifierToPrincipalMapFile),
+    )
+  val apiKeyInterceptor = ApiKeyAuthenticationServerInterceptor(internalApiKeysCoroutineStub)
+  val rateLimitingInterceptor =
+    PrincipalRateLimitingServerInterceptor.fromConfig(v2alphaFlags.rateLimitConfig) { context ->
+      AuthorityKeyServerInterceptor.AUTHORITY_KEY_IDENTIFIERS_CONTEXT_KEY.get(context)
+        ?.toByteArray()
+        ?.toHexString(KEY_ID_FORMAT)
+    }
+
   // TODO: do we need something similar to .withDuchyIdentities() for EDP and MC?
   val services: List<ServerServiceDefinition> =
     listOf(
       AccountsService(internalAccountsCoroutineStub, v2alphaFlags.redirectUri)
-        .withAccountAuthenticationServerInterceptor(
-          internalAccountsCoroutineStub,
-          v2alphaFlags.redirectUri,
-        ),
+        .withInterceptors(rateLimitingInterceptor, accountInterceptor),
       ApiKeysService(InternalApiKeysCoroutineStub(channel))
-        .withAccountAuthenticationServerInterceptor(
-          internalAccountsCoroutineStub,
-          v2alphaFlags.redirectUri,
-        ),
+        .withInterceptors(rateLimitingInterceptor, accountInterceptor),
       CertificatesService(InternalCertificatesCoroutineStub(channel))
-        .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup)
-        .withApiKeyAuthenticationServerInterceptor(internalApiKeysCoroutineStub),
+        .withInterceptors(
+          rateLimitingInterceptor,
+          akidPrincipalInterceptor,
+          akidInterceptor,
+          apiKeyInterceptor,
+        ),
       DataProvidersService(internalDataProvidersStub)
-        .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup)
-        .withApiKeyAuthenticationServerInterceptor(internalApiKeysCoroutineStub),
+        .withInterceptors(
+          rateLimitingInterceptor,
+          akidPrincipalInterceptor,
+          akidInterceptor,
+          apiKeyInterceptor,
+        ),
       EventGroupsService(InternalEventGroupsCoroutineStub(channel))
-        .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup)
-        .withApiKeyAuthenticationServerInterceptor(internalApiKeysCoroutineStub),
+        .withInterceptors(
+          rateLimitingInterceptor,
+          akidPrincipalInterceptor,
+          akidInterceptor,
+          apiKeyInterceptor,
+        ),
       EventGroupMetadataDescriptorsService(
           InternalEventGroupMetadataDescriptorsCoroutineStub(channel)
         )
-        .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup)
-        .withApiKeyAuthenticationServerInterceptor(internalApiKeysCoroutineStub),
+        .withInterceptors(
+          rateLimitingInterceptor,
+          akidPrincipalInterceptor,
+          akidInterceptor,
+          apiKeyInterceptor,
+        ),
       MeasurementsService(
           InternalMeasurementsCoroutineStub(channel),
           internalDataProvidersStub,
@@ -159,51 +200,68 @@ private fun run(
           hmssEnabled = v2alphaFlags.hmssEnabled,
           hmssEnabledMeasurementConsumers = v2alphaFlags.hmssEnabledMeasurementConsumers,
         )
-        .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup)
-        .withApiKeyAuthenticationServerInterceptor(internalApiKeysCoroutineStub),
+        .withInterceptors(
+          rateLimitingInterceptor,
+          akidPrincipalInterceptor,
+          akidInterceptor,
+          apiKeyInterceptor,
+        ),
       MeasurementConsumersService(InternalMeasurementConsumersCoroutineStub(channel))
-        .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup)
-        .withAccountAuthenticationServerInterceptor(
-          internalAccountsCoroutineStub,
-          v2alphaFlags.redirectUri,
-        )
-        .withApiKeyAuthenticationServerInterceptor(internalApiKeysCoroutineStub),
+        .withInterceptors(
+          rateLimitingInterceptor,
+          akidPrincipalInterceptor,
+          akidInterceptor,
+          accountInterceptor,
+          apiKeyInterceptor,
+        ),
       PublicKeysService(InternalPublicKeysCoroutineStub(channel))
-        .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup)
-        .withApiKeyAuthenticationServerInterceptor(internalApiKeysCoroutineStub),
+        .withInterceptors(
+          rateLimitingInterceptor,
+          akidPrincipalInterceptor,
+          akidInterceptor,
+          apiKeyInterceptor,
+        ),
       RequisitionsService(InternalRequisitionsCoroutineStub(channel))
-        .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup)
-        .withApiKeyAuthenticationServerInterceptor(internalApiKeysCoroutineStub),
+        .withInterceptors(
+          rateLimitingInterceptor,
+          akidPrincipalInterceptor,
+          akidInterceptor,
+          apiKeyInterceptor,
+        ),
       ExchangesService(
           internalRecurringExchangesCoroutineStub,
           InternalExchangesCoroutineStub(channel),
         )
-        .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup),
+        .withInterceptors(rateLimitingInterceptor, akidPrincipalInterceptor, akidInterceptor),
       ExchangeStepsService(
           internalRecurringExchangesCoroutineStub,
           internalExchangeStepsCoroutineStub,
         )
-        .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup),
+        .withInterceptors(rateLimitingInterceptor, akidPrincipalInterceptor, akidInterceptor),
       ExchangeStepAttemptsService(
           InternalExchangeStepAttemptsCoroutineStub(channel),
           internalExchangeStepsCoroutineStub,
         )
-        .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup),
+        .withInterceptors(rateLimitingInterceptor, akidPrincipalInterceptor, akidInterceptor),
       ModelLinesService(InternalModelLinesCoroutineStub(channel))
-        .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup),
+        .withInterceptors(
+          rateLimitingInterceptor,
+          akidPrincipalInterceptor,
+          akidInterceptor,
+          apiKeyInterceptor,
+        ),
       ModelShardsService(InternalModelShardsCoroutineStub(channel))
-        .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup),
+        .withInterceptors(rateLimitingInterceptor, akidPrincipalInterceptor, akidInterceptor),
       ModelSuitesService(InternalModelSuitesCoroutineStub(channel))
-        .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup)
-        .withApiKeyAuthenticationServerInterceptor(internalApiKeysCoroutineStub),
+        .withInterceptors(rateLimitingInterceptor, akidPrincipalInterceptor, akidInterceptor),
       ModelReleasesService(InternalModelReleasesCoroutineStub(channel))
-        .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup),
+        .withInterceptors(rateLimitingInterceptor, akidPrincipalInterceptor, akidInterceptor),
       ModelOutagesService(InternalModelOutagesCoroutineStub(channel))
-        .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup),
+        .withInterceptors(rateLimitingInterceptor, akidPrincipalInterceptor, akidInterceptor),
       ModelRolloutsService(InternalModelRolloutsCoroutineStub(channel))
-        .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup),
+        .withInterceptors(rateLimitingInterceptor, akidPrincipalInterceptor, akidInterceptor),
       PopulationsService(InternalPopulationsCoroutineStub(channel))
-        .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup),
+        .withInterceptors(rateLimitingInterceptor, akidPrincipalInterceptor, akidInterceptor),
     )
   CommonServer.fromFlags(commonServerFlags, SERVER_NAME, services).start().blockUntilShutdown()
 }
@@ -228,6 +286,26 @@ private class V2alphaFlags {
   )
   lateinit var redirectUri: String
     private set
+
+  @CommandLine.Option(
+    names = ["--rate-limit-config-file"],
+    description =
+      [
+        "File path to RateLimitConfig protobuf message in text format.",
+        "The principal identifier is the authority key identifier of the client certificate in " +
+          "the format used by openssl-x509.",
+      ],
+    required = false,
+  )
+  private lateinit var rateLimitConfigFile: File
+
+  val rateLimitConfig: RateLimitConfig by lazy {
+    if (::rateLimitConfigFile.isInitialized) {
+      parseTextProto(rateLimitConfigFile, RateLimitConfig.getDefaultInstance())
+    } else {
+      DEFAULT_RATE_LIMIT_CONFIG
+    }
+  }
 
   lateinit var directNoiseMechanisms: List<NoiseMechanism>
     private set
@@ -307,5 +385,15 @@ private class V2alphaFlags {
       }
     }
     directNoiseMechanisms = noiseMechanisms
+  }
+
+  companion object {
+    private val DEFAULT_RATE_LIMIT_CONFIG = rateLimitConfig {
+      defaultRateLimit =
+        RateLimitConfigKt.rateLimit {
+          maximumRequestCount = 0 // Unlimited.
+          averageRequestRate = 1.0
+        }
+    }
   }
 }

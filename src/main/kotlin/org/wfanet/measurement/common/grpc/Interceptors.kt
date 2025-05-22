@@ -39,3 +39,15 @@ fun ServerServiceDefinition.withInterceptor(
  */
 fun BindableService.withInterceptor(interceptor: ServerInterceptor): ServerServiceDefinition =
   ServerInterceptors.intercept(this, interceptor)
+
+/**
+ * Creates a new [ServerServiceDefinition] whose [io.grpc.ServerCallHandler]s will call
+ * [interceptor] before calling the pre-existing [io.grpc.ServerCallHandler].
+ *
+ * The last interceptor will have its [ServerInterceptor.interceptCall] called first.
+ *
+ * @see ServerInterceptors.intercept
+ */
+fun BindableService.withInterceptors(
+  vararg serverInterceptors: ServerInterceptor
+): ServerServiceDefinition = ServerInterceptors.intercept(this, *serverInterceptors)
