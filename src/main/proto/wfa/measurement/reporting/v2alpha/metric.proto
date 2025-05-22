@@ -439,6 +439,7 @@ message Metric {
     (google.api.field_behavior) = IMMUTABLE
   ];
 
+  // TODO(@tristanvuong2021): WIll be required in a future release.
   string model_line = 11
       [(google.api.resource_reference).type = "halo.wfanet.org/ModelLine"];
 
