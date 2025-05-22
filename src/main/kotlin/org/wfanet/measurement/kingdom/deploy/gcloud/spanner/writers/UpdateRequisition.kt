@@ -18,13 +18,36 @@ import com.google.cloud.spanner.Key
 import com.google.cloud.spanner.KeySet
 import com.google.cloud.spanner.Value
 import org.wfanet.measurement.common.identity.InternalId
+import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
 import org.wfanet.measurement.gcloud.spanner.getInternalId
 import org.wfanet.measurement.gcloud.spanner.set
+import org.wfanet.measurement.gcloud.spanner.to
 import org.wfanet.measurement.gcloud.spanner.toInt64
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.RequisitionDetails
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.RequisitionInternalKey
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.RequisitionReader
+
+internal fun AsyncDatabaseClient.TransactionContext.updateRequisition(
+  requisitionKey: RequisitionInternalKey,
+  state: Requisition.State,
+  details: RequisitionDetails,
+  fulfillingDuchyId: InternalId? = null,
+) {
+  val (measurementConsumerId, measurementId, requisitionId) = requisitionKey
+  bufferUpdateMutation("Requisitions") {
+    set("MeasurementConsumerId").to(measurementConsumerId)
+    set("MeasurementId").to(measurementId)
+    set("RequisitionId").to(requisitionId)
+    set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
+    set("State").toInt64(state)
+    set("RequisitionDetails").to(details)
+    if (fulfillingDuchyId != null) {
+      set("FulfillingDuchyId").to(fulfillingDuchyId)
+    }
+  }
+}
 
 internal fun SpannerWriter.TransactionScope.updateRequisition(
   readResult: RequisitionReader.Result,
@@ -32,17 +55,16 @@ internal fun SpannerWriter.TransactionScope.updateRequisition(
   details: RequisitionDetails,
   fulfillingDuchyId: InternalId? = null,
 ) {
-  transactionContext.bufferUpdateMutation("Requisitions") {
-    set("MeasurementId" to readResult.measurementId.value)
-    set("MeasurementConsumerId" to readResult.measurementConsumerId.value)
-    set("RequisitionId" to readResult.requisitionId.value)
-    set("UpdateTime" to Value.COMMIT_TIMESTAMP)
-    set("State").toInt64(state)
-    set("RequisitionDetails").to(details)
-    if (fulfillingDuchyId != null) {
-      set("FulfillingDuchyId" to fulfillingDuchyId)
-    }
-  }
+  txn.updateRequisition(
+    RequisitionInternalKey(
+      readResult.measurementConsumerId,
+      readResult.measurementId,
+      readResult.requisitionId,
+    ),
+    state,
+    details,
+    fulfillingDuchyId,
+  )
 }
 
 internal suspend fun SpannerWriter.TransactionScope.withdrawRequisitions(
