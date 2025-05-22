@@ -230,7 +230,7 @@ interface ReportProcessor {
       val reportProcessingOutput: ReportProcessingOutput = processReport(report, verbose)
 
       val storageClient: StorageClient = getStorageClient(projectId, bucketName)
-      val blobKey: String = getBlobKey(bucketName, report)
+      val blobKey: String = getBlobKey( report)
       storageClient.writeBlob(blobKey, reportProcessingOutput.reportPostProcessorLog.toByteString())
 
       return reportProcessingOutput
@@ -464,12 +464,10 @@ interface ReportProcessor {
     }
 
     /** Get blobKey from the bucket name and the report create time. */
-    private fun getBlobKey(bucketName: String, report: Report): String {
+    private fun getBlobKey(report: Report): String {
       val createTime: String = timestampToString(report.createTime)
       val blobKey: String =
-        bucketName +
-          "/" +
-          createTime.substring(0, "yyyyMMdd".length) +
+        createTime.substring(0, "yyyyMMdd".length) +
           "/" +
           createTime +
           "_" +
