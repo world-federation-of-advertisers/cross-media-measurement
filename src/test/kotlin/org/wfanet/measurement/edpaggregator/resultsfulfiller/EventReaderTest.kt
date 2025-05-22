@@ -24,7 +24,6 @@ import com.google.crypto.tink.TinkProtoKeysetFormat
 import com.google.crypto.tink.aead.AeadConfig
 import com.google.crypto.tink.streamingaead.StreamingAeadConfig
 import com.google.protobuf.ByteString
-import com.google.protobuf.Timestamp
 import com.google.type.interval
 import java.nio.file.Files
 import java.time.LocalDate

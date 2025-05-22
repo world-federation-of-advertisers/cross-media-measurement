@@ -10,6 +10,7 @@ kt_jvm_test(
     test_class = "org.wfanet.measurement.edpaggregator.resultsfulfiller.RequisitionSpecsTest",
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha/testing",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator:storage_config",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:requisition_specs",
         "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:test_event_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/common/truth",

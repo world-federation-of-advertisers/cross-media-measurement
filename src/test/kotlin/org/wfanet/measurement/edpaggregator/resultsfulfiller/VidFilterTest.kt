@@ -22,7 +22,6 @@ import com.google.protobuf.TypeRegistry
 import com.google.type.interval
 import java.time.LocalDate
 import kotlinx.coroutines.flow.asFlow
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
@@ -38,7 +37,6 @@ import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
 import org.wfanet.measurement.edpaggregator.v1alpha.copy
-import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters
 
 @RunWith(JUnit4::class)
 class VidFilterTest {
@@ -71,10 +69,12 @@ class VidFilterTest {
       typeRegistry
     )
 
+    val virtualId = 42L
+
     // Create labeled impression with event time within collection interval
     val labeledImpression = LABELED_IMPRESSION_1.copy {
       eventTime = TIME_RANGE.start.toProtoTime()
-      vid = 42L
+      vid = virtualId
     }
 
     // Call the filterAndExtractVids method
@@ -82,7 +82,7 @@ class VidFilterTest {
 
     // Verify the result
     assertThat(result).hasSize(1)
-    assertThat(result[0]).isEqualTo(42L)
+    assertThat(result[0]).isEqualTo(virtualId)
   }
 
   @Test
@@ -137,15 +137,7 @@ class VidFilterTest {
       socialGradeGroup = Person.SocialGradeGroup.A_B_C1
     }
 
-    private val PERSON_2 = person {
-      ageGroup = Person.AgeGroup.YEARS_18_TO_34
-      gender = Person.Gender.FEMALE
-      socialGradeGroup = Person.SocialGradeGroup.A_B_C1
-    }
-
     private val TEST_EVENT_1 = testEvent { person = PERSON_1 }
-
-    private val TEST_EVENT_2 = testEvent { person = PERSON_2 }
 
     private val LABELED_IMPRESSION_1 =
       LabeledImpression.newBuilder()
@@ -153,15 +145,6 @@ class VidFilterTest {
         .setVid(10L)
         .setEvent(
           TEST_EVENT_1.pack()
-        )
-        .build()
-
-    private val LABELED_IMPRESSION_2 =
-      LabeledImpression.newBuilder()
-        .setEventTime(Timestamp.getDefaultInstance())
-        .setVid(10L)
-        .setEvent(
-          TEST_EVENT_2.pack()
         )
         .build()
   }

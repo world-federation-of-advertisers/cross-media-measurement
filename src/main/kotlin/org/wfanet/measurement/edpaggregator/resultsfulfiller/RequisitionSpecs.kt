@@ -16,18 +16,13 @@
 
 package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
-import com.google.crypto.tink.KmsClient
-import com.google.protobuf.Descriptors.Descriptor
 import com.google.protobuf.TypeRegistry
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.flatMapConcat
-import org.projectnessie.cel.Program
-import org.projectnessie.cel.common.types.BoolT
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec
-import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters
 
 /**
  * Utility functions for working with VIDs (Virtual IDs) in the EDP Aggregator.

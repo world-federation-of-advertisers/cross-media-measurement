@@ -31,7 +31,6 @@ import java.nio.file.Files
 import java.time.LocalDate
 import kotlinx.coroutines.flow.count
 import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.flow.fold
 import kotlinx.coroutines.runBlocking
 import org.junit.Rule
 import org.junit.Test
@@ -53,6 +52,7 @@ import org.wfanet.measurement.common.crypto.tink.testing.FakeKmsClient
 import org.wfanet.measurement.common.crypto.tink.withEnvelopeEncryption
 import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.common.toProtoTime
+import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
@@ -183,7 +183,7 @@ class RequisitionSpecsTest {
       IMPRESSION_DEK_BLOB_KEY,
       blobDetails.toByteString()
     )
-    
+
     // Create EventReader
     val eventReader = EventReader(
       kmsClient,
