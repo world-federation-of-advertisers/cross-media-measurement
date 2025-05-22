@@ -8,7 +8,9 @@ import com.google.cloud.storage.BlobId
 import com.google.cloud.storage.StorageOptions
 import com.google.protobuf.ByteString
 import java.io.ByteArrayInputStream
+import java.io.File
 import java.nio.charset.StandardCharsets
+import java.util.*
 
 class LiquidLegionsV3DemoMill() {
   fun run() {
@@ -27,6 +29,37 @@ class LiquidLegionsV3DemoMill() {
     println("- Target SA Email: $targetSaEmail")
     println("- OIDC Token File Path: $oidcTokenFilePath")
     println("---")
+
+    println("--- Attestation Token Debug ---")
+    try {
+      val tokenFile = File(oidcTokenFilePath)
+      if (tokenFile.exists()) {
+        val jwtTokenString = tokenFile.readText(StandardCharsets.UTF_8)
+        println("Raw JWT Token String: $jwtTokenString")
+        println("---")
+
+        val parts = jwtTokenString.split('.')
+        if (parts.size >= 2) { // A JWT has 3 parts, but we only need the payload (index 1)
+          val payloadBase64Url = parts[1]
+          // Base64Url requires a decoder that handles URL and filename safe alphabet.
+          val decodedPayloadBytes = Base64.getUrlDecoder().decode(payloadBase64Url)
+          val decodedPayloadJson = String(decodedPayloadBytes, StandardCharsets.UTF_8)
+
+          println("Decoded Attestation Token Payload (JSON):")
+          // For more structured pretty printing, you could use a JSON library like Klaxon, Gson, or Jackson
+          // Example: org.json.JSONObject(decodedPayloadJson).toString(2)
+          println(decodedPayloadJson)
+        } else {
+          println("Error: OIDC token at '$oidcTokenFilePath' is not a valid JWT (expected at least 2 parts, found ${parts.size}).")
+        }
+      } else {
+        println("Error: OIDC token file not found at '$oidcTokenFilePath'")
+      }
+    } catch (e: Exception) {
+      println("Error reading or parsing OIDC token: ${e.message}")
+      e.printStackTrace()
+    }
+    println("--- End Attestation Token Debug ---")
 
     // --- Step 1: Read ciphertext from GCS ---
     val storage = StorageOptions.getDefaultInstance().service
