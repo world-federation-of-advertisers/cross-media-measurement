@@ -60,7 +60,7 @@ import org.wfanet.measurement.reporting.service.internal.ImpressionQualification
 
 private const val REPO_NAME = "wfa_measurement_system"
 
-private val SECRET_FILES_PATH: Path =
+val SECRET_FILES_PATH: Path =
   checkNotNull(getRuntimePath(Paths.get(REPO_NAME, "src", "main", "k8s", "testing", "secretfiles")))
 
 val AGGREGATOR_PROTOCOLS_SETUP_CONFIG: ProtocolsSetupConfig =
