@@ -98,6 +98,8 @@ import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reportingMetadata
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.ModelLineKey
+import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt.ModelLinesCoroutineImplBase
+import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt.ModelLinesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec
@@ -212,6 +214,7 @@ import org.wfanet.measurement.internal.reporting.v2.metricSpec as internalMetric
 import org.wfanet.measurement.internal.reporting.v2.reachOnlyLiquidLegionsSketchParams as internalReachOnlyLiquidLegionsSketchParams
 import org.wfanet.measurement.internal.reporting.v2.reachOnlyLiquidLegionsV2
 import org.wfanet.measurement.internal.reporting.v2.reportingSet as internalReportingSet
+import org.wfanet.measurement.api.v2alpha.modelLine
 import org.wfanet.measurement.internal.reporting.v2.streamMetricsRequest
 import org.wfanet.measurement.measurementconsumer.stats.FrequencyMeasurementVarianceParams
 import org.wfanet.measurement.measurementconsumer.stats.FrequencyMetricVarianceParams
@@ -2435,6 +2438,11 @@ class MetricsServiceTest {
     }
   }
 
+  private val modelLinesMock: ModelLinesCoroutineImplBase = mockService {
+    onBlocking { getModelLine(any()) }
+      .thenReturn(modelLine {})
+  }
+
   private val randomMock: Random = mock()
 
   private val variancesMock =
@@ -2509,6 +2517,7 @@ class MetricsServiceTest {
     addService(measurementConsumersMock)
     addService(dataProvidersMock)
     addService(certificatesMock)
+    addService(modelLinesMock)
   }
 
   private lateinit var service: MetricsService
@@ -2532,6 +2541,7 @@ class MetricsServiceTest {
         MeasurementsGrpcKt.MeasurementsCoroutineStub(grpcTestServerRule.channel),
         CertificatesGrpcKt.CertificatesCoroutineStub(grpcTestServerRule.channel),
         MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub(grpcTestServerRule.channel),
+        ModelLinesCoroutineStub(grpcTestServerRule.channel),
         Authorization(PermissionsGrpcKt.PermissionsCoroutineStub(grpcTestServerRule.channel)),
         ENCRYPTION_KEY_PAIR_STORE,
         randomMock,
@@ -5385,6 +5395,7 @@ class MetricsServiceTest {
         MeasurementsGrpcKt.MeasurementsCoroutineStub(grpcTestServerRule.channel),
         CertificatesGrpcKt.CertificatesCoroutineStub(grpcTestServerRule.channel),
         MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub(grpcTestServerRule.channel),
+        ModelLinesCoroutineStub(grpcTestServerRule.channel),
         Authorization(PermissionsGrpcKt.PermissionsCoroutineStub(grpcTestServerRule.channel)),
         ENCRYPTION_KEY_PAIR_STORE,
         randomMock,
@@ -5771,6 +5782,45 @@ class MetricsServiceTest {
         }
       }
 
+    assertThat(exception.status.code).isEqualTo(Status.INVALID_ARGUMENT.code)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.INVALID_FIELD_VALUE.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "request.metric.model_line"
+        }
+      )
+  }
+
+  @Test
+  fun `batchCreateMetrics throws NOT_FOUND when model_line not found`() {
+    wheneverBlocking {
+      modelLinesMock.getModelLine(any())
+    }.thenThrow(StatusRuntimeException(Status.NOT_FOUND))
+
+    val modelLineKey = ModelLineKey("123", "124", "125")
+    wheneverBlocking {
+      permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+    } doReturn checkPermissionsResponse { permissions += PermissionName.CREATE }
+    val request = batchCreateMetricsRequest {
+      parent = MEASUREMENT_CONSUMERS.values.first().name
+
+      requests += createMetricRequest {
+        parent = MEASUREMENT_CONSUMERS.values.first().name
+        metric = REQUESTING_INCREMENTAL_REACH_METRIC.copy { modelLine = modelLineKey.toName() }
+        metricId = "metric-id"
+      }
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) {
+          runBlocking { service.batchCreateMetrics(request) }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.NOT_FOUND.code)
     assertThat(exception.errorInfo)
       .isEqualTo(
         errorInfo {

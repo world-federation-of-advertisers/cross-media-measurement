@@ -75,7 +75,6 @@ import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.EventGroupKey as CmmsEventGroupKey
 import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumer
-import org.wfanet.measurement.api.v2alpha.MeasurementConsumerCertificateKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementKey
@@ -113,7 +112,6 @@ import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.readByteString
-import org.wfanet.measurement.config.reporting.MeasurementConsumerConfig
 import org.wfanet.measurement.config.reporting.MeasurementConsumerConfigs
 import org.wfanet.measurement.config.reporting.MetricSpecConfig
 import org.wfanet.measurement.consent.client.measurementconsumer.decryptResult
@@ -186,6 +184,8 @@ import org.wfanet.measurement.reporting.service.api.MetricNotFoundException
 import org.wfanet.measurement.reporting.service.api.RequiredFieldNotSetException
 import org.wfanet.measurement.reporting.service.api.submitBatchRequests
 import org.wfanet.measurement.reporting.service.internal.Errors as InternalErrors
+import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt.ModelLinesCoroutineStub
+import org.wfanet.measurement.api.v2alpha.getModelLineRequest
 import org.wfanet.measurement.reporting.v2alpha.BatchCreateMetricsRequest
 import org.wfanet.measurement.reporting.v2alpha.BatchCreateMetricsResponse
 import org.wfanet.measurement.reporting.v2alpha.BatchGetMetricsRequest
@@ -240,6 +240,7 @@ class MetricsService(
   measurementsStub: MeasurementsCoroutineStub,
   certificatesStub: CertificatesCoroutineStub,
   measurementConsumersStub: MeasurementConsumersCoroutineStub,
+  private val kingdomModelLinesStub: ModelLinesCoroutineStub,
   private val authorization: Authorization,
   encryptionKeyPairStore: EncryptionKeyPairStore,
   private val secureRandom: Random,
@@ -252,24 +253,6 @@ class MetricsService(
   keyReaderContext: @BlockingExecutor CoroutineContext = Dispatchers.IO,
   cacheLoaderContext: @NonBlockingExecutor CoroutineContext = Dispatchers.Default,
 ) : MetricsCoroutineImplBase() {
-
-  private data class MeasurementConsumerCredentials(
-    val resourceKey: MeasurementConsumerKey,
-    val callCredentials: ApiKeyCredentials,
-    val signingCertificateKey: MeasurementConsumerCertificateKey,
-    val signingPrivateKeyPath: String,
-  ) {
-    companion object {
-      fun fromConfig(resourceKey: MeasurementConsumerKey, config: MeasurementConsumerConfig) =
-        MeasurementConsumerCredentials(
-          resourceKey,
-          ApiKeyCredentials(config.apiKey),
-          requireNotNull(MeasurementConsumerCertificateKey.fromName(config.signingCertificateName)),
-          config.signingPrivateKeyPath,
-        )
-    }
-  }
-
   private data class DataProviderInfo(
     val dataProviderName: String,
     val publicKey: SignedMessage,
@@ -1391,6 +1374,7 @@ class MetricsService(
         request,
         batchGetReportingSetsResponse.reportingSetsList.single(),
         internalPrimitiveReportingSetMap,
+        measurementConsumerCreds,
       )
 
     val internalMetric =
@@ -1511,6 +1495,7 @@ class MetricsService(
                 createMetricRequest.metric.reportingSet
               ),
               internalPrimitiveReportingSetMap,
+              measurementConsumerCreds,
             )
           }
         }
@@ -1557,11 +1542,12 @@ class MetricsService(
   }
 
   /** Builds an [InternalCreateMetricRequest]. */
-  private fun buildInternalCreateMetricRequest(
+  private suspend fun buildInternalCreateMetricRequest(
     cmmsMeasurementConsumerId: String,
     request: CreateMetricRequest,
     internalReportingSet: InternalReportingSet,
     internalPrimitiveReportingSetMap: Map<String, InternalReportingSet>,
+    measurementConsumerCreds: MeasurementConsumerCredentials
   ): InternalCreateMetricRequest {
     grpcRequire(request.metricId.matches(RESOURCE_ID_REGEX)) { "Metric ID is invalid." }
     grpcRequire(request.metric.reportingSet.isNotEmpty()) {
@@ -1603,6 +1589,21 @@ class MetricsService(
       ModelLineKey.fromName(request.metric.modelLine)
         ?: throw InvalidFieldValueException("request.metric.model_line")
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+
+      try {
+        kingdomModelLinesStub
+          .withAuthenticationKey(measurementConsumerCreds.callCredentials.apiAuthenticationKey)
+          .getModelLine(getModelLineRequest {
+            name = request.metric.modelLine
+          })
+      } catch (e: StatusException) {
+        throw when (e.status.code) {
+          Status.Code.NOT_FOUND ->
+            InvalidFieldValueException("request.metric.model_line")
+              .asStatusRuntimeException(Status.Code.NOT_FOUND)
+          else -> StatusRuntimeException(Status.INTERNAL)
+        }
+      }
     }
 
     return internalCreateMetricRequest {

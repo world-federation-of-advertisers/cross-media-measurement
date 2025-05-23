@@ -54,6 +54,8 @@ import org.wfanet.measurement.access.v1alpha.checkPermissionsResponse
 import org.wfanet.measurement.access.v1alpha.copy
 import org.wfanet.measurement.access.v1alpha.principal
 import org.wfanet.measurement.api.v2alpha.ModelLineKey
+import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt.ModelLinesCoroutineImplBase
+import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt.ModelLinesCoroutineStub
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.grpc.errorInfo
@@ -75,6 +77,9 @@ import org.wfanet.measurement.internal.reporting.v2.listMetricCalculationSpecsRe
 import org.wfanet.measurement.internal.reporting.v2.listMetricCalculationSpecsResponse as internalListMetricCalculationSpecsResponse
 import org.wfanet.measurement.internal.reporting.v2.metricCalculationSpec as internalMetricCalculationSpec
 import org.wfanet.measurement.internal.reporting.v2.metricSpec as internalMetricSpec
+import org.wfanet.measurement.api.v2alpha.modelLine
+import org.wfanet.measurement.config.reporting.measurementConsumerConfig
+import org.wfanet.measurement.config.reporting.measurementConsumerConfigs
 import org.wfanet.measurement.reporting.service.api.Errors
 import org.wfanet.measurement.reporting.v2alpha.ListMetricCalculationSpecsPageTokenKt
 import org.wfanet.measurement.reporting.v2alpha.MetricCalculationSpec
@@ -130,12 +135,18 @@ class MetricCalculationSpecsServiceTest {
       }
   }
 
+  private val modelLinesServiceMock: ModelLinesCoroutineImplBase = mockService {
+    onBlocking { getModelLine(any()) }
+      .thenReturn(modelLine {})
+  }
+
   private val randomMock: Random = mock()
 
   @get:Rule
   val grpcTestServerRule = GrpcTestServerRule {
     addService(internalMetricCalculationSpecsMock)
     addService(permissionsServiceMock)
+    addService(modelLinesServiceMock)
   }
 
   private lateinit var service: MetricCalculationSpecsService
@@ -150,9 +161,11 @@ class MetricCalculationSpecsServiceTest {
     service =
       MetricCalculationSpecsService(
         MetricCalculationSpecsCoroutineStub(grpcTestServerRule.channel),
+        ModelLinesCoroutineStub(grpcTestServerRule.channel),
         METRIC_SPEC_CONFIG,
         Authorization(PermissionsGrpcKt.PermissionsCoroutineStub(grpcTestServerRule.channel)),
         randomMock,
+        MEASUREMENT_CONSUMER_CONFIGS,
       )
   }
 
@@ -660,6 +673,39 @@ class MetricCalculationSpecsServiceTest {
         }
       }
 
+    assertThat(exception.status.code).isEqualTo(Status.INVALID_ARGUMENT.code)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.INVALID_FIELD_VALUE.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "request.metric_calculation_spec.model_line"
+        }
+      )
+  }
+
+  @Test
+  fun `createMetricCalculationSpec throws NOT_FOUND when model_line not found`() {
+    wheneverBlocking {
+      modelLinesServiceMock.getModelLine(any())
+    }.thenThrow(StatusRuntimeException(Status.NOT_FOUND))
+
+    val modelLineKey = ModelLineKey("123", "124", "125")
+
+    val request = createMetricCalculationSpecRequest {
+      parent = MEASUREMENT_CONSUMER_NAME
+      metricCalculationSpec = METRIC_CALCULATION_SPEC.copy { modelLine = modelLineKey.toName() }
+      metricCalculationSpecId = METRIC_CALCULATION_SPEC_ID
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) {
+          runBlocking { service.createMetricCalculationSpec(request) }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.NOT_FOUND.code)
     assertThat(exception.errorInfo)
       .isEqualTo(
         errorInfo {
@@ -1522,6 +1568,18 @@ class MetricCalculationSpecsServiceTest {
           Paths.get("wfa_measurement_system", "src", "main", "k8s", "testing", "secretfiles")
         )!!
         .toFile()
+
+    private const val API_AUTHENTICATION_KEY = "nR5QPN7ptx"
+
+    private val CONFIG = measurementConsumerConfig {
+      apiKey = API_AUTHENTICATION_KEY
+      signingCertificateName = "$MEASUREMENT_CONSUMER_NAME/certificates/123"
+      signingPrivateKeyPath = "mc_cs_private.der"
+    }
+
+    private val MEASUREMENT_CONSUMER_CONFIGS = measurementConsumerConfigs {
+      configs[MEASUREMENT_CONSUMER_NAME] = CONFIG
+    }
 
     private val METRIC_SPEC_CONFIG: MetricSpecConfig =
       parseTextProto(
