@@ -93,10 +93,11 @@ class SpannerModelLinesService(
 
     if (result == null) {
       throw ModelLineNotFoundException(
-        ExternalId(request.externalModelProviderId),
-        ExternalId(request.externalModelSuiteId),
-        ExternalId(request.externalModelLineId),
-      ).asStatusRuntimeException(Status.Code.NOT_FOUND)
+          ExternalId(request.externalModelProviderId),
+          ExternalId(request.externalModelSuiteId),
+          ExternalId(request.externalModelLineId),
+        )
+        .asStatusRuntimeException(Status.Code.NOT_FOUND)
     }
 
     return result.modelLine
