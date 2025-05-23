@@ -18,7 +18,6 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 
 import com.google.protobuf.util.Timestamps
 import io.grpc.Status
-import io.grpc.StatusRuntimeException
 import java.time.Clock
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -93,7 +92,11 @@ class SpannerModelLinesService(
         )
 
     if (result == null) {
-      throw StatusRuntimeException(Status.NOT_FOUND)
+      throw ModelLineNotFoundException(
+        ExternalId(request.externalModelProviderId),
+        ExternalId(request.externalModelSuiteId),
+        ExternalId(request.externalModelLineId),
+      ).asStatusRuntimeException(Status.Code.NOT_FOUND)
     }
 
     return result.modelLine
