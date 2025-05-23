@@ -47,6 +47,11 @@ message MetricCalculationSpec {
     (google.api.field_behavior) = IMMUTABLE
   ];
 
+  // TODO(@tristanvuong2021): WIll be required in a future release. See
+  // https://github.com/world-federation-of-advertisers/cross-media-measurement/issues/2345
+  string model_line = 10
+      [(google.api.resource_reference).type = "halo.wfanet.org/ModelLine"];
+
   // A collection of metrics.
   repeated MetricSpec metric_specs = 3 [
     (google.api.field_behavior) = REQUIRED,

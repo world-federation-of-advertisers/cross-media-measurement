@@ -16,6 +16,7 @@ syntax = "proto3";
 
 package wfa.measurement.internal.reporting.v2;
 
+import "google/api/resource.proto";
 import "google/type/dayofweek.proto";
 import "wfa/measurement/internal/reporting/v2/metric.proto";
 
@@ -27,6 +28,9 @@ message MetricCalculationSpec {
   // `MeasurementConsumer` ID from the CMMS public API.
   string cmms_measurement_consumer_id = 1;
   string external_metric_calculation_spec_id = 2;
+
+  string cmms_model_line = 4
+      [(google.api.resource_reference).type = "halo.wfanet.org/ModelLine"];
 
   message Grouping {
     repeated string predicates = 1;

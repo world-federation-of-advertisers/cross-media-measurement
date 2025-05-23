@@ -575,6 +575,108 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
       .isNotEmpty()
   }
 
+  fun `createMetric succeeds with model line`() = runBlocking {
+    createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
+    val createdReportingSet = createReportingSet(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService)
+
+    val metric = metric {
+      cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+      externalReportingSetId = createdReportingSet.externalReportingSetId
+      timeInterval = interval {
+        startTime = timestamp { seconds = 10 }
+        endTime = timestamp { seconds = 100 }
+      }
+      cmmsModelLine = "modelProviders/123/modelSuites/123/modelLines/123"
+      metricSpec = metricSpec {
+        reach =
+          MetricSpecKt.reachParams {
+            multipleDataProviderParams =
+              MetricSpecKt.samplingAndPrivacyParams {
+                privacyParams =
+                  MetricSpecKt.differentialPrivacyParams {
+                    epsilon = 1.0
+                    delta = 2.0
+                  }
+                vidSamplingInterval =
+                  MetricSpecKt.vidSamplingInterval {
+                    start = 0.1f
+                    width = 0.5f
+                  }
+              }
+          }
+      }
+      weightedMeasurements +=
+        MetricKt.weightedMeasurement {
+          weight = 2
+          binaryRepresentation = 1
+          measurement = measurement {
+            cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+            timeInterval = interval {
+              startTime = timestamp { seconds = 10 }
+              endTime = timestamp { seconds = 100 }
+            }
+            primitiveReportingSetBases +=
+              ReportingSetKt.primitiveReportingSetBasis {
+                externalReportingSetId = createdReportingSet.externalReportingSetId
+                filters += "filter1"
+                filters += "filter2"
+              }
+            primitiveReportingSetBases +=
+              ReportingSetKt.primitiveReportingSetBasis {
+                externalReportingSetId = createdReportingSet.externalReportingSetId
+                filters += "filter1"
+                filters += "filter2"
+              }
+          }
+        }
+      weightedMeasurements +=
+        MetricKt.weightedMeasurement {
+          weight = 3
+          binaryRepresentation = 2
+          measurement = measurement {
+            cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+            timeInterval = interval {
+              startTime = timestamp { seconds = 10 }
+              endTime = timestamp { seconds = 100 }
+            }
+            primitiveReportingSetBases +=
+              ReportingSetKt.primitiveReportingSetBasis {
+                externalReportingSetId = createdReportingSet.externalReportingSetId
+                filters += "filter1"
+                filters += "filter2"
+              }
+            primitiveReportingSetBases +=
+              ReportingSetKt.primitiveReportingSetBasis {
+                externalReportingSetId = createdReportingSet.externalReportingSetId
+                filters += "filter1"
+                filters += "filter2"
+              }
+          }
+        }
+      details =
+        MetricKt.details {
+          filters += "filter1"
+          filters += "filter2"
+          containingReport = "reportX"
+        }
+    }
+
+    val createdMetric =
+      service.createMetric(
+        createMetricRequest {
+          this.metric = metric
+          externalMetricId = "external-metric-id"
+        }
+      )
+
+    assertThat(createdMetric.externalMetricId).isNotEqualTo(0)
+    assertThat(createdMetric.hasCreateTime()).isTrue()
+    assertThat(createdMetric.state).isEqualTo(Metric.State.RUNNING)
+    createdMetric.weightedMeasurementsList.forEach {
+      assertThat(it.measurement.cmmsCreateMeasurementRequestId).isNotEmpty()
+    }
+  }
+
   @Test
   fun `createMetric succeeds when no filters in bases in measurements`() = runBlocking {
     createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
@@ -2282,6 +2384,29 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
         .ignoringRepeatedFieldOrder()
         .containsExactly(createdMetric)
     }
+
+  @Test
+  fun `batchGetMetrics succeeds when model line is set`(): Unit = runBlocking {
+    createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
+
+    val createMetricRequest =
+      createCreateMetricRequest(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService).copy {
+        metric = metric.copy { cmmsModelLine = "modelProviders/123/modelSuites/123/modelLines/123" }
+      }
+    val createdMetric = service.createMetric(createMetricRequest)
+
+    val retrievedMetrics =
+      service.batchGetMetrics(
+        batchGetMetricsRequest {
+          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+          externalMetricIds += createdMetric.externalMetricId
+        }
+      )
+
+    assertThat(retrievedMetrics.metricsList)
+      .ignoringRepeatedFieldOrder()
+      .containsExactly(createdMetric)
+  }
 
   @Test
   fun `batchGetMetrics succeeds when measurement has data_provider_count set to 1`(): Unit =

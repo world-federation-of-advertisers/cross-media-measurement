@@ -16,6 +16,7 @@ syntax = "proto3";
 
 package wfa.measurement.internal.reporting.v2;
 
+import "google/api/resource.proto";
 import "google/protobuf/duration.proto";
 import "google/protobuf/timestamp.proto";
 import "google/type/interval.proto";
@@ -95,6 +96,9 @@ message Metric {
   google.type.Interval time_interval = 5;
 
   MetricSpec metric_spec = 6;
+
+  string cmms_model_line = 10
+      [(google.api.resource_reference).type = "halo.wfanet.org/ModelLine"];
 
   message WeightedMeasurement {
     int32 weight = 1;

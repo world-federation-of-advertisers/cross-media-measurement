@@ -97,6 +97,9 @@ import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reportingMetadata
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineImplBase
+import org.wfanet.measurement.api.v2alpha.ModelLineKey
+import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt.ModelLinesCoroutineImplBase
+import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt.ModelLinesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec
@@ -119,6 +122,7 @@ import org.wfanet.measurement.api.v2alpha.liquidLegionsDistribution
 import org.wfanet.measurement.api.v2alpha.measurement
 import org.wfanet.measurement.api.v2alpha.measurementConsumer
 import org.wfanet.measurement.api.v2alpha.measurementSpec
+import org.wfanet.measurement.api.v2alpha.modelLine
 import org.wfanet.measurement.api.v2alpha.protocolConfig
 import org.wfanet.measurement.api.v2alpha.reachOnlyLiquidLegionsSketchParams
 import org.wfanet.measurement.api.v2alpha.requisitionSpec
@@ -2434,6 +2438,10 @@ class MetricsServiceTest {
     }
   }
 
+  private val modelLinesMock: ModelLinesCoroutineImplBase = mockService {
+    onBlocking { getModelLine(any()) }.thenReturn(modelLine {})
+  }
+
   private val randomMock: Random = mock()
 
   private val variancesMock =
@@ -2508,6 +2516,7 @@ class MetricsServiceTest {
     addService(measurementConsumersMock)
     addService(dataProvidersMock)
     addService(certificatesMock)
+    addService(modelLinesMock)
   }
 
   private lateinit var service: MetricsService
@@ -2531,6 +2540,7 @@ class MetricsServiceTest {
         MeasurementsGrpcKt.MeasurementsCoroutineStub(grpcTestServerRule.channel),
         CertificatesGrpcKt.CertificatesCoroutineStub(grpcTestServerRule.channel),
         MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub(grpcTestServerRule.channel),
+        ModelLinesCoroutineStub(grpcTestServerRule.channel),
         Authorization(PermissionsGrpcKt.PermissionsCoroutineStub(grpcTestServerRule.channel)),
         ENCRYPTION_KEY_PAIR_STORE,
         randomMock,
@@ -2671,30 +2681,6 @@ class MetricsServiceTest {
 
   @Test
   fun `createMetric creates measurements for single pub reach when single edp params set`() {
-    // Create a local service with an empty measurement consumer model line map so that the
-    // default model line behavior can be tested.
-    val localService =
-      MetricsService(
-        METRIC_SPEC_CONFIG,
-        MEASUREMENT_CONSUMER_CONFIGS,
-        InternalReportingSetsGrpcKt.ReportingSetsCoroutineStub(grpcTestServerRule.channel),
-        InternalMetricsGrpcKt.MetricsCoroutineStub(grpcTestServerRule.channel),
-        variancesMock,
-        InternalMeasurementsGrpcKt.MeasurementsCoroutineStub(grpcTestServerRule.channel),
-        DataProvidersGrpcKt.DataProvidersCoroutineStub(grpcTestServerRule.channel),
-        MeasurementsGrpcKt.MeasurementsCoroutineStub(grpcTestServerRule.channel),
-        CertificatesGrpcKt.CertificatesCoroutineStub(grpcTestServerRule.channel),
-        MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub(grpcTestServerRule.channel),
-        Authorization(PermissionsGrpcKt.PermissionsCoroutineStub(grpcTestServerRule.channel)),
-        ENCRYPTION_KEY_PAIR_STORE,
-        randomMock,
-        SECRETS_DIR,
-        listOf(AGGREGATOR_ROOT_CERTIFICATE, DATA_PROVIDER_ROOT_CERTIFICATE).associateBy {
-          it.subjectKeyIdentifier!!
-        },
-        DEFAULT_VID_MODEL_LINE,
-        measurementConsumerModelLines = mapOf(),
-      )
     val metricId = METRIC_ID
     val cmmsMeasurementSpec =
       BASE_MEASUREMENT_SPEC.copy {
@@ -2714,7 +2700,6 @@ class MetricsServiceTest {
             start = SINGLE_DATA_PROVIDER_REACH_ONLY_VID_SAMPLING_START
             width = SINGLE_DATA_PROVIDER_REACH_ONLY_VID_SAMPLING_WIDTH
           }
-        modelLine = DEFAULT_VID_MODEL_LINE
         reportingMetadata = reportingMetadata {
           report = CONTAINING_REPORT
           metric =
@@ -2858,9 +2843,7 @@ class MetricsServiceTest {
     }
 
     val result =
-      withPrincipalAndScopes(PRINCIPAL, SCOPES) {
-        runBlocking { localService.createMetric(request) }
-      }
+      withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.createMetric(request) } }
 
     val pendingReachMetricWithSingleDataProviderParams =
       requestingReachMetricWithSingleDataProviderParams.copy {
@@ -5398,6 +5381,304 @@ class MetricsServiceTest {
   }
 
   @Test
+  fun `batchCreateMetrics creates CMMS measurements with default model_line`() = runBlocking {
+    service =
+      MetricsService(
+        METRIC_SPEC_CONFIG,
+        MEASUREMENT_CONSUMER_CONFIGS,
+        InternalReportingSetsGrpcKt.ReportingSetsCoroutineStub(grpcTestServerRule.channel),
+        InternalMetricsGrpcKt.MetricsCoroutineStub(grpcTestServerRule.channel),
+        variancesMock,
+        InternalMeasurementsGrpcKt.MeasurementsCoroutineStub(grpcTestServerRule.channel),
+        DataProvidersGrpcKt.DataProvidersCoroutineStub(grpcTestServerRule.channel),
+        MeasurementsGrpcKt.MeasurementsCoroutineStub(grpcTestServerRule.channel),
+        CertificatesGrpcKt.CertificatesCoroutineStub(grpcTestServerRule.channel),
+        MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub(grpcTestServerRule.channel),
+        ModelLinesCoroutineStub(grpcTestServerRule.channel),
+        Authorization(PermissionsGrpcKt.PermissionsCoroutineStub(grpcTestServerRule.channel)),
+        ENCRYPTION_KEY_PAIR_STORE,
+        randomMock,
+        SECRETS_DIR,
+        listOf(AGGREGATOR_ROOT_CERTIFICATE, DATA_PROVIDER_ROOT_CERTIFICATE).associateBy {
+          it.subjectKeyIdentifier!!
+        },
+        DEFAULT_VID_MODEL_LINE,
+        emptyMap(),
+      )
+
+    wheneverBlocking {
+      permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+    } doReturn checkPermissionsResponse { permissions += PermissionName.CREATE }
+
+    wheneverBlocking { internalMetricsMock.batchCreateMetrics(any()) } doReturn
+      internalBatchCreateMetricsResponse {
+        metrics += INTERNAL_PENDING_INITIAL_SINGLE_PUBLISHER_IMPRESSION_METRIC
+      }
+
+    val request = batchCreateMetricsRequest {
+      parent = MEASUREMENT_CONSUMERS.values.first().name
+      requests += createMetricRequest {
+        parent = MEASUREMENT_CONSUMERS.values.first().name
+        metric = REQUESTING_SINGLE_PUBLISHER_IMPRESSION_METRIC
+        metricId = "metric-id2"
+      }
+    }
+
+    val result =
+      withPrincipalAndScopes(PRINCIPAL, SCOPES) {
+        runBlocking { service.batchCreateMetrics(request) }
+      }
+
+    val expected = batchCreateMetricsResponse {
+      metrics += PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC
+    }
+
+    assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
+
+    // Verify proto argument of the internal MetricsCoroutineImplBase::batchCreateMetrics
+    verifyProtoArgument(internalMetricsMock, MetricsCoroutineImplBase::batchCreateMetrics)
+      .ignoringRepeatedFieldOrder()
+      .isEqualTo(
+        internalBatchCreateMetricsRequest {
+          cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
+          requests += internalCreateMetricRequest {
+            metric = INTERNAL_REQUESTING_SINGLE_PUBLISHER_IMPRESSION_METRIC
+            externalMetricId = "metric-id2"
+          }
+        }
+      )
+
+    // Verify proto argument of MeasurementsCoroutineImplBase::batchCreateMeasurements
+    val measurementsCaptor: KArgumentCaptor<BatchCreateMeasurementsRequest> = argumentCaptor()
+    verifyBlocking(measurementsMock, times(1)) {
+      batchCreateMeasurements(measurementsCaptor.capture())
+    }
+    val capturedMeasurementRequests = measurementsCaptor.allValues
+    assertThat(capturedMeasurementRequests)
+      .ignoringRepeatedFieldOrder()
+      .ignoringFieldDescriptors(MEASUREMENT_SPEC_FIELD, ENCRYPTED_REQUISITION_SPEC_FIELD)
+      .containsExactly(
+        batchCreateMeasurementsRequest {
+          parent = request.parent
+          requests += createMeasurementRequest {
+            parent = request.parent
+            measurement = REQUESTING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT
+            requestId =
+              INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT
+                .cmmsCreateMeasurementRequestId
+          }
+        }
+      )
+
+    capturedMeasurementRequests.single().requestsList.forEach { createMeasurementRequest ->
+      verifyMeasurementSpec(
+        createMeasurementRequest.measurement.measurementSpec,
+        MEASUREMENT_CONSUMER_CERTIFICATE,
+        TRUSTED_MEASUREMENT_CONSUMER_ISSUER,
+      )
+
+      val dataProvidersList =
+        createMeasurementRequest.measurement.dataProvidersList.sortedBy { it.key }
+
+      val measurementSpec: MeasurementSpec =
+        createMeasurementRequest.measurement.measurementSpec.unpack()
+
+      assertThat(measurementSpec)
+        .isEqualTo(
+          SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT_SPEC.copy {
+            modelLine = DEFAULT_VID_MODEL_LINE
+            reportingMetadata = reportingMetadata {
+              report = CONTAINING_REPORT
+              metric =
+                MetricKey(
+                    INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.cmmsMeasurementConsumerId,
+                    INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.externalMetricId,
+                  )
+                  .toName()
+            }
+          }
+        )
+
+      dataProvidersList.map { dataProviderEntry ->
+        val signedRequisitionSpec =
+          decryptRequisitionSpec(
+            dataProviderEntry.value.encryptedRequisitionSpec,
+            DATA_PROVIDER_PRIVATE_KEY_HANDLE,
+          )
+        val requisitionSpec: RequisitionSpec = signedRequisitionSpec.unpack()
+        verifyRequisitionSpec(
+          signedRequisitionSpec,
+          requisitionSpec,
+          measurementSpec,
+          MEASUREMENT_CONSUMER_CERTIFICATE,
+          TRUSTED_MEASUREMENT_CONSUMER_ISSUER,
+        )
+      }
+    }
+
+    // Verify proto argument of internal MeasurementsCoroutineImplBase::batchSetCmmsMeasurementId
+    verifyProtoArgument(
+        internalMeasurementsMock,
+        InternalMeasurementsGrpcKt.MeasurementsCoroutineImplBase::batchSetCmmsMeasurementIds,
+      )
+      .ignoringRepeatedFieldOrder()
+      .isEqualTo(
+        batchSetCmmsMeasurementIdsRequest {
+          cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
+          this.measurementIds += measurementIds {
+            cmmsCreateMeasurementRequestId =
+              INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT
+                .cmmsCreateMeasurementRequestId
+            cmmsMeasurementId =
+              INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.cmmsMeasurementId
+          }
+        }
+      )
+  }
+
+  @Test
+  fun `batchCreateMetrics creates CMMS measurements with specified model_line`() = runBlocking {
+    val modelLineKey = ModelLineKey("1234", "124", "125")
+
+    wheneverBlocking {
+      permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+    } doReturn checkPermissionsResponse { permissions += PermissionName.CREATE }
+
+    wheneverBlocking { internalMetricsMock.batchCreateMetrics(any()) } doReturn
+      internalBatchCreateMetricsResponse {
+        metrics +=
+          INTERNAL_PENDING_INITIAL_SINGLE_PUBLISHER_IMPRESSION_METRIC.copy {
+            cmmsModelLine = modelLineKey.toName()
+          }
+      }
+
+    val request = batchCreateMetricsRequest {
+      parent = MEASUREMENT_CONSUMERS.values.first().name
+      requests += createMetricRequest {
+        parent = MEASUREMENT_CONSUMERS.values.first().name
+        metric =
+          REQUESTING_SINGLE_PUBLISHER_IMPRESSION_METRIC.copy { modelLine = modelLineKey.toName() }
+        metricId = "metric-id2"
+      }
+    }
+
+    val result =
+      withPrincipalAndScopes(PRINCIPAL, SCOPES) {
+        runBlocking { service.batchCreateMetrics(request) }
+      }
+
+    val expected = batchCreateMetricsResponse {
+      metrics +=
+        PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.copy { modelLine = modelLineKey.toName() }
+    }
+
+    assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
+
+    // Verify proto argument of the internal MetricsCoroutineImplBase::batchCreateMetrics
+    verifyProtoArgument(internalMetricsMock, MetricsCoroutineImplBase::batchCreateMetrics)
+      .ignoringRepeatedFieldOrder()
+      .isEqualTo(
+        internalBatchCreateMetricsRequest {
+          cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
+          requests += internalCreateMetricRequest {
+            metric =
+              INTERNAL_REQUESTING_SINGLE_PUBLISHER_IMPRESSION_METRIC.copy {
+                cmmsModelLine = modelLineKey.toName()
+              }
+            externalMetricId = "metric-id2"
+          }
+        }
+      )
+
+    // Verify proto argument of MeasurementsCoroutineImplBase::batchCreateMeasurements
+    val measurementsCaptor: KArgumentCaptor<BatchCreateMeasurementsRequest> = argumentCaptor()
+    verifyBlocking(measurementsMock, times(1)) {
+      batchCreateMeasurements(measurementsCaptor.capture())
+    }
+    val capturedMeasurementRequests = measurementsCaptor.allValues
+    assertThat(capturedMeasurementRequests)
+      .ignoringRepeatedFieldOrder()
+      .ignoringFieldDescriptors(MEASUREMENT_SPEC_FIELD, ENCRYPTED_REQUISITION_SPEC_FIELD)
+      .containsExactly(
+        batchCreateMeasurementsRequest {
+          parent = request.parent
+          requests += createMeasurementRequest {
+            parent = request.parent
+            measurement = REQUESTING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT
+            requestId =
+              INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT
+                .cmmsCreateMeasurementRequestId
+          }
+        }
+      )
+
+    capturedMeasurementRequests.single().requestsList.forEach { createMeasurementRequest ->
+      verifyMeasurementSpec(
+        createMeasurementRequest.measurement.measurementSpec,
+        MEASUREMENT_CONSUMER_CERTIFICATE,
+        TRUSTED_MEASUREMENT_CONSUMER_ISSUER,
+      )
+
+      val dataProvidersList =
+        createMeasurementRequest.measurement.dataProvidersList.sortedBy { it.key }
+
+      val measurementSpec: MeasurementSpec =
+        createMeasurementRequest.measurement.measurementSpec.unpack()
+
+      assertThat(measurementSpec)
+        .isEqualTo(
+          SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT_SPEC.copy {
+            modelLine = modelLineKey.toName()
+            reportingMetadata = reportingMetadata {
+              report = CONTAINING_REPORT
+              metric =
+                MetricKey(
+                    INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.cmmsMeasurementConsumerId,
+                    INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.externalMetricId,
+                  )
+                  .toName()
+            }
+          }
+        )
+
+      dataProvidersList.map { dataProviderEntry ->
+        val signedRequisitionSpec =
+          decryptRequisitionSpec(
+            dataProviderEntry.value.encryptedRequisitionSpec,
+            DATA_PROVIDER_PRIVATE_KEY_HANDLE,
+          )
+        val requisitionSpec: RequisitionSpec = signedRequisitionSpec.unpack()
+        verifyRequisitionSpec(
+          signedRequisitionSpec,
+          requisitionSpec,
+          measurementSpec,
+          MEASUREMENT_CONSUMER_CERTIFICATE,
+          TRUSTED_MEASUREMENT_CONSUMER_ISSUER,
+        )
+      }
+    }
+
+    // Verify proto argument of internal MeasurementsCoroutineImplBase::batchSetCmmsMeasurementId
+    verifyProtoArgument(
+        internalMeasurementsMock,
+        InternalMeasurementsGrpcKt.MeasurementsCoroutineImplBase::batchSetCmmsMeasurementIds,
+      )
+      .ignoringRepeatedFieldOrder()
+      .isEqualTo(
+        batchSetCmmsMeasurementIdsRequest {
+          cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
+          this.measurementIds += measurementIds {
+            cmmsCreateMeasurementRequestId =
+              INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT
+                .cmmsCreateMeasurementRequestId
+            cmmsMeasurementId =
+              INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.cmmsMeasurementId
+          }
+        }
+      )
+  }
+
+  @Test
   fun `batchCreateMetrics with request IDs when metrics are already succeeded`() = runBlocking {
     val request = batchCreateMetricsRequest {
       parent = MEASUREMENT_CONSUMERS.values.first().name
@@ -5476,6 +5757,76 @@ class MetricsServiceTest {
     }
 
     assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
+  }
+
+  @Test
+  fun `batchCreateMetrics throws INVALID_ARGUMENT when model_line invalid`() {
+    wheneverBlocking {
+      permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+    } doReturn checkPermissionsResponse { permissions += PermissionName.CREATE }
+    val request = batchCreateMetricsRequest {
+      parent = MEASUREMENT_CONSUMERS.values.first().name
+
+      requests += createMetricRequest {
+        parent = MEASUREMENT_CONSUMERS.values.first().name
+        metric = REQUESTING_INCREMENTAL_REACH_METRIC.copy { modelLine = "invalid" }
+        metricId = "metric-id"
+      }
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) {
+          runBlocking { service.batchCreateMetrics(request) }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.INVALID_ARGUMENT.code)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.INVALID_FIELD_VALUE.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "request.metric.model_line"
+        }
+      )
+  }
+
+  @Test
+  fun `batchCreateMetrics throws NOT_FOUND when model_line not found`() {
+    wheneverBlocking { modelLinesMock.getModelLine(any()) }
+      .thenThrow(StatusRuntimeException(Status.NOT_FOUND))
+
+    val modelLineKey = ModelLineKey("123", "124", "125")
+    wheneverBlocking {
+      permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+    } doReturn checkPermissionsResponse { permissions += PermissionName.CREATE }
+    val request = batchCreateMetricsRequest {
+      parent = MEASUREMENT_CONSUMERS.values.first().name
+
+      requests += createMetricRequest {
+        parent = MEASUREMENT_CONSUMERS.values.first().name
+        metric = REQUESTING_INCREMENTAL_REACH_METRIC.copy { modelLine = modelLineKey.toName() }
+        metricId = "metric-id"
+      }
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) {
+          runBlocking { service.batchCreateMetrics(request) }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.NOT_FOUND.code)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.INVALID_FIELD_VALUE.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "request.metric.model_line"
+        }
+      )
   }
 
   @Test
