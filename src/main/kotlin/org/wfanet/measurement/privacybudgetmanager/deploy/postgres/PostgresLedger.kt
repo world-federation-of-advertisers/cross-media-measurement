@@ -36,7 +36,6 @@ import org.wfanet.measurement.privacybudgetmanager.copy
 
 private const val MAX_BATCH_INSERT = 1000
 private const val MAX_BATCH_READ = 1000
-private const val CHARGES_TABLE_READY_STATE: String = "READY"
 
 /**
  * A [Ledger] implemented in Postgres compatible SQL.
@@ -86,19 +85,24 @@ class PostgresTransactionContext(
     val createTime: Timestamp,
   )
 
+  enum class ChargesTableState {
+    BACKFILLING,
+    READY,
+  }
+
   private var transactionHasEnded = false
 
   val isClosed: Boolean
     get() = transactionHasEnded
 
-  private suspend fun getChargesTableState(): String {
+  private suspend fun getChargesTableState(): ChargesTableState {
     throwIfTransactionHasEnded()
     val query = "SELECT State FROM PrivacyChargesMetadata WHERE PrivacyLandscapeName = ?"
     connection.prepareStatement(query).use { preparedStatement ->
       preparedStatement.setString(1, activeLandscapeId)
       preparedStatement.executeQuery().use { resultSet ->
         if (resultSet.next()) {
-          return resultSet.getString("State")
+          return ChargesTableState.valueOf(resultSet.getString("State"))
         } else {
           throw LedgerException(
             LedgerExceptionType.TABLE_METADATA_DOESNT_EXIST,
@@ -117,7 +121,7 @@ class PostgresTransactionContext(
 
   private suspend fun checkTableState() {
     val chargesTableState = getChargesTableState()
-    if (chargesTableState != CHARGES_TABLE_READY_STATE) {
+    if (chargesTableState != ChargesTableState.READY) {
       throw LedgerException(LedgerExceptionType.TABLE_NOT_READY, "landscapeid : $activeLandscapeId")
     }
   }
