@@ -122,6 +122,7 @@ import org.wfanet.measurement.api.v2alpha.liquidLegionsDistribution
 import org.wfanet.measurement.api.v2alpha.measurement
 import org.wfanet.measurement.api.v2alpha.measurementConsumer
 import org.wfanet.measurement.api.v2alpha.measurementSpec
+import org.wfanet.measurement.api.v2alpha.modelLine
 import org.wfanet.measurement.api.v2alpha.protocolConfig
 import org.wfanet.measurement.api.v2alpha.reachOnlyLiquidLegionsSketchParams
 import org.wfanet.measurement.api.v2alpha.requisitionSpec
@@ -214,7 +215,6 @@ import org.wfanet.measurement.internal.reporting.v2.metricSpec as internalMetric
 import org.wfanet.measurement.internal.reporting.v2.reachOnlyLiquidLegionsSketchParams as internalReachOnlyLiquidLegionsSketchParams
 import org.wfanet.measurement.internal.reporting.v2.reachOnlyLiquidLegionsV2
 import org.wfanet.measurement.internal.reporting.v2.reportingSet as internalReportingSet
-import org.wfanet.measurement.api.v2alpha.modelLine
 import org.wfanet.measurement.internal.reporting.v2.streamMetricsRequest
 import org.wfanet.measurement.measurementconsumer.stats.FrequencyMeasurementVarianceParams
 import org.wfanet.measurement.measurementconsumer.stats.FrequencyMetricVarianceParams
@@ -2439,8 +2439,7 @@ class MetricsServiceTest {
   }
 
   private val modelLinesMock: ModelLinesCoroutineImplBase = mockService {
-    onBlocking { getModelLine(any()) }
-      .thenReturn(modelLine {})
+    onBlocking { getModelLine(any()) }.thenReturn(modelLine {})
   }
 
   private val randomMock: Random = mock()
@@ -5795,9 +5794,8 @@ class MetricsServiceTest {
 
   @Test
   fun `batchCreateMetrics throws NOT_FOUND when model_line not found`() {
-    wheneverBlocking {
-      modelLinesMock.getModelLine(any())
-    }.thenThrow(StatusRuntimeException(Status.NOT_FOUND))
+    wheneverBlocking { modelLinesMock.getModelLine(any()) }
+      .thenThrow(StatusRuntimeException(Status.NOT_FOUND))
 
     val modelLineKey = ModelLineKey("123", "124", "125")
     wheneverBlocking {

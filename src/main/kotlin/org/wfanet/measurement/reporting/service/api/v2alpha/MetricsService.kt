@@ -84,6 +84,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reportingMetadata
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ModelLineKey
+import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt.ModelLinesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec.EventGroupEntry
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt
 import org.wfanet.measurement.api.v2alpha.SignedMessage
@@ -93,6 +94,7 @@ import org.wfanet.measurement.api.v2alpha.createMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.getCertificateRequest
 import org.wfanet.measurement.api.v2alpha.getDataProviderRequest
 import org.wfanet.measurement.api.v2alpha.getMeasurementConsumerRequest
+import org.wfanet.measurement.api.v2alpha.getModelLineRequest
 import org.wfanet.measurement.api.v2alpha.measurement
 import org.wfanet.measurement.api.v2alpha.measurementSpec
 import org.wfanet.measurement.api.v2alpha.requisitionSpec
@@ -184,8 +186,6 @@ import org.wfanet.measurement.reporting.service.api.MetricNotFoundException
 import org.wfanet.measurement.reporting.service.api.RequiredFieldNotSetException
 import org.wfanet.measurement.reporting.service.api.submitBatchRequests
 import org.wfanet.measurement.reporting.service.internal.Errors as InternalErrors
-import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt.ModelLinesCoroutineStub
-import org.wfanet.measurement.api.v2alpha.getModelLineRequest
 import org.wfanet.measurement.reporting.v2alpha.BatchCreateMetricsRequest
 import org.wfanet.measurement.reporting.v2alpha.BatchCreateMetricsResponse
 import org.wfanet.measurement.reporting.v2alpha.BatchGetMetricsRequest
@@ -1547,7 +1547,7 @@ class MetricsService(
     request: CreateMetricRequest,
     internalReportingSet: InternalReportingSet,
     internalPrimitiveReportingSetMap: Map<String, InternalReportingSet>,
-    measurementConsumerCreds: MeasurementConsumerCredentials
+    measurementConsumerCreds: MeasurementConsumerCredentials,
   ): InternalCreateMetricRequest {
     grpcRequire(request.metricId.matches(RESOURCE_ID_REGEX)) { "Metric ID is invalid." }
     grpcRequire(request.metric.reportingSet.isNotEmpty()) {
@@ -1593,9 +1593,7 @@ class MetricsService(
       try {
         kingdomModelLinesStub
           .withAuthenticationKey(measurementConsumerCreds.callCredentials.apiAuthenticationKey)
-          .getModelLine(getModelLineRequest {
-            name = request.metric.modelLine
-          })
+          .getModelLine(getModelLineRequest { name = request.metric.modelLine })
       } catch (e: StatusException) {
         throw when (e.status.code) {
           Status.Code.NOT_FOUND ->

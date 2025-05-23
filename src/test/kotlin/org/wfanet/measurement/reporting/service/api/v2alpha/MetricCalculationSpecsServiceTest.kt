@@ -56,6 +56,7 @@ import org.wfanet.measurement.access.v1alpha.principal
 import org.wfanet.measurement.api.v2alpha.ModelLineKey
 import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt.ModelLinesCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt.ModelLinesCoroutineStub
+import org.wfanet.measurement.api.v2alpha.modelLine
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.grpc.errorInfo
@@ -64,6 +65,8 @@ import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.config.reporting.MetricSpecConfig
+import org.wfanet.measurement.config.reporting.measurementConsumerConfig
+import org.wfanet.measurement.config.reporting.measurementConsumerConfigs
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpec as InternalMetricCalculationSpec
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpecKt as InternalMetricCalculationSpecKt
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpecsGrpcKt.MetricCalculationSpecsCoroutineImplBase
@@ -77,9 +80,6 @@ import org.wfanet.measurement.internal.reporting.v2.listMetricCalculationSpecsRe
 import org.wfanet.measurement.internal.reporting.v2.listMetricCalculationSpecsResponse as internalListMetricCalculationSpecsResponse
 import org.wfanet.measurement.internal.reporting.v2.metricCalculationSpec as internalMetricCalculationSpec
 import org.wfanet.measurement.internal.reporting.v2.metricSpec as internalMetricSpec
-import org.wfanet.measurement.api.v2alpha.modelLine
-import org.wfanet.measurement.config.reporting.measurementConsumerConfig
-import org.wfanet.measurement.config.reporting.measurementConsumerConfigs
 import org.wfanet.measurement.reporting.service.api.Errors
 import org.wfanet.measurement.reporting.v2alpha.ListMetricCalculationSpecsPageTokenKt
 import org.wfanet.measurement.reporting.v2alpha.MetricCalculationSpec
@@ -136,8 +136,7 @@ class MetricCalculationSpecsServiceTest {
   }
 
   private val modelLinesServiceMock: ModelLinesCoroutineImplBase = mockService {
-    onBlocking { getModelLine(any()) }
-      .thenReturn(modelLine {})
+    onBlocking { getModelLine(any()) }.thenReturn(modelLine {})
   }
 
   private val randomMock: Random = mock()
@@ -686,9 +685,8 @@ class MetricCalculationSpecsServiceTest {
 
   @Test
   fun `createMetricCalculationSpec throws NOT_FOUND when model_line not found`() {
-    wheneverBlocking {
-      modelLinesServiceMock.getModelLine(any())
-    }.thenThrow(StatusRuntimeException(Status.NOT_FOUND))
+    wheneverBlocking { modelLinesServiceMock.getModelLine(any()) }
+      .thenThrow(StatusRuntimeException(Status.NOT_FOUND))
 
     val modelLineKey = ModelLineKey("123", "124", "125")
 
