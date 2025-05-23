@@ -37,7 +37,6 @@ bazel_dep(
 )
 bazel_dep(
     name = "common-jvm",
-    version = "0.104.0",
     repo_name = "wfa_common_jvm",
 )
 bazel_dep(
@@ -365,4 +364,14 @@ http_archive(
 single_version_override(
     module_name = "boringssl",
     version = BORINGSSL_VERSION,
+)
+
+# DO_NOT_SUBMIT(world-federation-of-advertisers/common-jvm#315): Use version.
+archive_override(
+    module_name = "common-jvm",
+    integrity = "sha256-KEn6+/BNO5DCL5BTp22c0OaXaLArKFBMF9rV5Nsbhs0=",
+    strip_prefix = "common-jvm-a98c8c8b8c938e919f059c57b6bb330a40adc839",
+    urls = [
+        "https://github.com/world-federation-of-advertisers/common-jvm/archive/a98c8c8b8c938e919f059c57b6bb330a40adc839.tar.gz",
+    ],
 )

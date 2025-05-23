@@ -14,8 +14,11 @@
 
 package org.wfanet.measurement.duchy.herald
 
+import com.google.protobuf.util.Durations
 import io.grpc.Status
 import io.grpc.StatusException
+import io.grpc.serviceconfig.MethodConfigKt
+import io.grpc.serviceconfig.methodConfig
 import java.time.Clock
 import java.util.logging.Level
 import java.util.logging.Logger
@@ -31,6 +34,7 @@ import org.wfanet.measurement.common.ExponentialBackoff
 import org.wfanet.measurement.common.crypto.PrivateKeyStore
 import org.wfanet.measurement.common.crypto.tink.TinkKeyId
 import org.wfanet.measurement.common.crypto.tink.TinkPrivateKeyHandle
+import org.wfanet.measurement.common.grpc.ProtobufServiceConfig
 import org.wfanet.measurement.common.grpc.grpcStatusCode
 import org.wfanet.measurement.common.protoTimestamp
 import org.wfanet.measurement.duchy.service.internal.computations.toGetTokenRequest
@@ -46,6 +50,7 @@ import org.wfanet.measurement.system.v1alpha.Computation.State
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantKey
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantKt
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineStub as SystemComputationParticipantsCoroutineStub
+import org.wfanet.measurement.system.v1alpha.ComputationsGrpcKt
 import org.wfanet.measurement.system.v1alpha.ComputationsGrpcKt.ComputationsCoroutineStub as SystemComputationsCoroutineStub
 import org.wfanet.measurement.system.v1alpha.failComputationParticipantRequest
 import org.wfanet.measurement.system.v1alpha.streamActiveComputationsRequest
@@ -112,8 +117,7 @@ class Herald(
   suspend fun continuallySyncStatuses() {
     logger.info("Server starting...")
 
-    // TODO(world-federation-of-advertisers/cross-media-measurement#695): Use gRPC service config
-    // rather than custom retry logic w/backoff.
+    // Use custom retry logic to handle the stream potentially being partially processed.
     var attemptNumber = 1
     while (coroutineContext.isActive) {
       try {
@@ -451,6 +455,19 @@ class Herald(
 
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
+
+    val SERVICE_CONFIG =
+      ProtobufServiceConfig.DEFAULT.copy {
+        // Allow long streaming calls with custom retry logic.
+        methodConfig += methodConfig {
+          name +=
+            MethodConfigKt.name {
+              service = ComputationsGrpcKt.SERVICE_NAME
+              method = ComputationsGrpcKt.streamActiveComputationsMethod.bareMethodName!!
+            }
+          timeout = Durations.fromMinutes(11)
+        }
+      }
   }
 }
 

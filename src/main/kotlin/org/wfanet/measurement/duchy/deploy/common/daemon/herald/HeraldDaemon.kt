@@ -130,7 +130,12 @@ abstract class HeraldDaemon : Runnable {
       )
 
     val systemServiceChannel =
-      buildMutualTlsChannel(flags.systemApiFlags.target, clientCerts, flags.systemApiFlags.certHost)
+      buildMutualTlsChannel(
+          flags.systemApiFlags.target,
+          clientCerts,
+          flags.systemApiFlags.certHost,
+          Herald.SERVICE_CONFIG,
+        )
         .withShutdownTimeout(flags.channelShutdownTimeout)
         .withVerboseLogging(flags.verboseGrpcClientLogging)
     val systemComputationsClient =
@@ -144,6 +149,7 @@ abstract class HeraldDaemon : Runnable {
           flags.computationsServiceFlags.target,
           clientCerts,
           flags.computationsServiceFlags.certHost,
+          Herald.SERVICE_CONFIG,
         )
         .withShutdownTimeout(flags.channelShutdownTimeout)
         .withDefaultDeadline(flags.computationsServiceFlags.defaultDeadlineDuration)
