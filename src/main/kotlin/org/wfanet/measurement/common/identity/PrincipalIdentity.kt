@@ -14,24 +14,42 @@
 
 package org.wfanet.measurement.common.identity
 
+import io.grpc.CallCredentials
 import io.grpc.Metadata
 import io.grpc.stub.AbstractStub
-import io.grpc.stub.MetadataUtils
-
-private const val KEY_NAME = "principal"
-private val PRINCIPAL_NAME_METADATA_KEY: Metadata.Key<String> =
-  Metadata.Key.of(KEY_NAME, Metadata.ASCII_STRING_MARSHALLER)
+import java.util.concurrent.Executor
 
 /**
- * Sets metadata key "principal" on all outgoing requests. Principal is [ResourceKey] for
- * DataProviders or ModelProviders. On the server side, use [MetadataPrincipalServerInterceptor].
- * Note that this should only be used in in-process tests where mTLS isn't used.
+ * Returns a new stub that uses [TrustedPrincipalCallCredentials].
  *
  * Usage: val someStub =
  * SomeServiceCoroutineStub(channel).withPrincipalName("dataProviders/Ac8hsieOp")
  */
-fun <T : AbstractStub<T>> T.withPrincipalName(name: String): T {
-  val extraHeaders = Metadata()
-  extraHeaders.put(PRINCIPAL_NAME_METADATA_KEY, name)
-  return withInterceptors(MetadataUtils.newAttachHeadersInterceptor(extraHeaders))
+fun <T : AbstractStub<T>> T.withPrincipalName(name: String): T =
+  withCallCredentials(TrustedPrincipalCallCredentials(name))
+
+/**
+ * Trusted credentials for use with
+ * [org.wfanet.measurement.api.v2alpha.testing.MetadataPrincipalServerInterceptor].
+ */
+class TrustedPrincipalCallCredentials(val name: String) : CallCredentials() {
+  override fun applyRequestMetadata(
+    requestInfo: RequestInfo,
+    appExecutor: Executor,
+    applier: MetadataApplier,
+  ) {
+    val headers = Metadata().apply { put(PRINCIPAL_NAME_METADATA_KEY, name) }
+    applier.apply(headers)
+  }
+
+  companion object {
+    private const val KEY_NAME = "x-trusted-principal-name"
+    private val PRINCIPAL_NAME_METADATA_KEY: Metadata.Key<String> =
+      Metadata.Key.of(KEY_NAME, Metadata.ASCII_STRING_MARSHALLER)
+
+    fun fromHeaders(headers: Metadata): TrustedPrincipalCallCredentials? {
+      val name = headers.get(PRINCIPAL_NAME_METADATA_KEY) ?: return null
+      return TrustedPrincipalCallCredentials(name)
+    }
+  }
 }
