@@ -26,3 +26,14 @@ kt_jvm_proto_library(
     name = "authority_key_to_principal_map_kt_jvm_proto",
     deps = [":authority_key_to_principal_map_proto"],
 )
+
+proto_library(
+    name = "rate_limit_config_proto",
+    srcs = ["rate_limit_config.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+)
+
+kt_jvm_proto_library(
+    name = "rate_limit_config_kt_jvm_proto",
+    deps = [":rate_limit_config_proto"],
+)

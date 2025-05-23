@@ -44,6 +44,8 @@ kt_jvm_library(
     deps = [
         ":utils",
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:akid_principal_lookup",
+        "//src/main/kotlin/org/wfanet/measurement/common/grpc:interceptors",
+        "//src/main/kotlin/org/wfanet/measurement/common/grpc:principal_rate_limiting_server_interceptor",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:accounts_service",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:api_key_authentication_server_interceptor",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:api_keys_service",
@@ -65,6 +67,7 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:populations_service",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:public_keys_service",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:requisitions_service",
+        "//src/main/proto/wfa/measurement/config:rate_limit_config_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/io/grpc:api",
         "@wfa_common_jvm//imports/java/picocli",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",

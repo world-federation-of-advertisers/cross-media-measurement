@@ -1,0 +1,8 @@
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_grpc_proto_library")
+
+package(default_visibility = ["//visibility:public"])
+
+kt_jvm_grpc_proto_library(
+    name = "operations_kt_jvm_grpc_proto",
+    deps = ["@com_google_googleapis//google/longrunning:operations_proto"],
+)

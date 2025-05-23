@@ -25,21 +25,11 @@ import io.grpc.ServerInterceptor
 import io.grpc.Status
 import java.security.cert.X509Certificate
 import javax.net.ssl.SSLSession
-import org.wfanet.measurement.api.v2alpha.ContextKeys
 import org.wfanet.measurement.common.crypto.authorityKeyIdentifier
-import org.wfanet.measurement.common.grpc.failGrpc
-
-/** Returns an [X509Certificate] installed in the current [io.grpc.Context]. */
-val authorityKeyIdentifiersFromCurrentContext: List<ByteString>
-  get() =
-    AuthorityKeyServerInterceptor.AUTHORITY_KEY_IDENTIFIERS_CONTEXT_KEY.get()
-      ?: failGrpc(Status.UNAUTHENTICATED) { "No authority keys available" }
 
 /**
- * gRPC [ServerInterceptor] that extracts Authority Key Identifiers from X509 certificates.
- *
- * The Authority Key Identifiers can be accessed by using
- * [authorityKeyIdentifiersFromCurrentContext].
+ * gRPC [ServerInterceptor] that extracts the Authority Key Identifier (AKID) from the client
+ * certificate into [CLIENT_AUTHORITY_KEY_IDENTIFIER_CONTEXT_KEY].
  */
 class AuthorityKeyServerInterceptor : ServerInterceptor {
   override fun <ReqT, RespT> interceptCall(
@@ -47,36 +37,36 @@ class AuthorityKeyServerInterceptor : ServerInterceptor {
     headers: Metadata,
     next: ServerCallHandler<ReqT, RespT>,
   ): ServerCall.Listener<ReqT> {
-    if (ContextKeys.PRINCIPAL_CONTEXT_KEY.get() != null) {
-      return Contexts.interceptCall(Context.current(), call, headers, next)
-    }
+    val sslSession: SSLSession =
+      call.attributes[Grpc.TRANSPORT_ATTR_SSL_SESSION]
+        ?: return closeCall(
+          call,
+          Status.PERMISSION_DENIED.withDescription("Connection is not secure"),
+        )
+    val clientCertificate =
+      sslSession.peerCertificates.singleOrNull() as? X509Certificate
+        ?: return next.startCall(call, headers)
+    val authorityKeyIdentifier =
+      clientCertificate.authorityKeyIdentifier ?: return next.startCall(call, headers)
 
-    val sslSession: SSLSession? = call.attributes[Grpc.TRANSPORT_ATTR_SSL_SESSION]
-
-    if (sslSession == null) {
-      call.close(Status.UNAUTHENTICATED.withDescription("No SSL session found"), Metadata())
-      return object : ServerCall.Listener<ReqT>() {}
-    }
-
-    val x509Certificates = sslSession.peerCertificates.filterIsInstance<X509Certificate>()
-    val authorityKeys: List<ByteString> = x509Certificates.mapNotNull { it.authorityKeyIdentifier }
-
-    if (authorityKeys.size != x509Certificates.size) {
-      call.close(
-        Status.UNAUTHENTICATED.withDescription(
-          "X509 certificate is missing an authority key identifier"
-        ),
-        Metadata(),
-      )
-      return object : ServerCall.Listener<ReqT>() {}
-    }
-
-    val context = Context.current().withValue(AUTHORITY_KEY_IDENTIFIERS_CONTEXT_KEY, authorityKeys)
+    val context =
+      Context.current()
+        .withValue(CLIENT_AUTHORITY_KEY_IDENTIFIER_CONTEXT_KEY, authorityKeyIdentifier)
     return Contexts.interceptCall(context, call, headers, next)
   }
 
+  private fun <ReqT, RespT> closeCall(
+    call: ServerCall<ReqT, RespT>,
+    status: Status,
+    trailers: Metadata = Metadata(),
+  ): ServerCall.Listener<ReqT> {
+    call.close(status, trailers)
+    return object : ServerCall.Listener<ReqT>() {}
+  }
+
   companion object {
-    val AUTHORITY_KEY_IDENTIFIERS_CONTEXT_KEY: Context.Key<List<ByteString>> =
-      Context.key("authority-key-identifiers")
+    /** Context key for authority key identifier (AKID) of client certificate. */
+    val CLIENT_AUTHORITY_KEY_IDENTIFIER_CONTEXT_KEY: Context.Key<ByteString> =
+      Context.key("client-authority-key-identifier")
   }
 }
