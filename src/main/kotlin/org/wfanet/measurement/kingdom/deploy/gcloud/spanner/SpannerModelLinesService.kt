@@ -83,12 +83,14 @@ class SpannerModelLinesService(
     grpcRequire(request.externalModelSuiteId != 0L) { "external_model_suite_id not specified" }
     grpcRequire(request.externalModelLineId != 0L) { "external_model_line_id not specified" }
 
-    val result: ModelLineReader.Result? = ModelLineReader().readByExternalModelLineId(
-      client.singleUseReadOnlyTransaction(),
-      externalModelProviderId = ExternalId(request.externalModelProviderId),
-      externalModelSuiteId = ExternalId(request.externalModelSuiteId),
-      externalModelLineId = ExternalId(request.externalModelLineId),
-    )
+    val result: ModelLineReader.Result? =
+      ModelLineReader()
+        .readByExternalModelLineId(
+          client.singleUseReadOnlyTransaction(),
+          externalModelProviderId = ExternalId(request.externalModelProviderId),
+          externalModelSuiteId = ExternalId(request.externalModelSuiteId),
+          externalModelLineId = ExternalId(request.externalModelLineId),
+        )
 
     if (result == null) {
       throw StatusRuntimeException(Status.NOT_FOUND)

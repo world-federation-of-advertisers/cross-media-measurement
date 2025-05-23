@@ -26,6 +26,7 @@ import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.DataProviderPrincipal
 import org.wfanet.measurement.api.v2alpha.EnumerateValidModelLinesRequest
 import org.wfanet.measurement.api.v2alpha.EnumerateValidModelLinesResponse
+import org.wfanet.measurement.api.v2alpha.GetModelLineRequest
 import org.wfanet.measurement.api.v2alpha.ListModelLinesPageToken
 import org.wfanet.measurement.api.v2alpha.ListModelLinesPageTokenKt.previousPageEnd
 import org.wfanet.measurement.api.v2alpha.ListModelLinesRequest
@@ -56,9 +57,8 @@ import org.wfanet.measurement.internal.kingdom.StreamModelLinesRequest
 import org.wfanet.measurement.internal.kingdom.StreamModelLinesRequestKt.afterFilter
 import org.wfanet.measurement.internal.kingdom.StreamModelLinesRequestKt.filter
 import org.wfanet.measurement.internal.kingdom.enumerateValidModelLinesRequest
-import org.wfanet.measurement.internal.kingdom.setActiveEndTimeRequest as internalSetActiveEndTimeRequest
-import org.wfanet.measurement.api.v2alpha.GetModelLineRequest
 import org.wfanet.measurement.internal.kingdom.getModelLineRequest
+import org.wfanet.measurement.internal.kingdom.setActiveEndTimeRequest as internalSetActiveEndTimeRequest
 import org.wfanet.measurement.internal.kingdom.setModelLineHoldbackModelLineRequest
 import org.wfanet.measurement.internal.kingdom.streamModelLinesRequest
 
@@ -117,11 +117,15 @@ class ModelLinesService(private val internalClient: ModelLinesCoroutineStub) :
     }
 
     return try {
-      internalClient.getModelLine(getModelLineRequest {
-        externalModelProviderId = apiIdToExternalId(modelLineKey.modelProviderId)
-        externalModelSuiteId = apiIdToExternalId(modelLineKey.modelSuiteId)
-        externalModelLineId = apiIdToExternalId(modelLineKey.modelLineId)
-      }).toModelLine()
+      internalClient
+        .getModelLine(
+          getModelLineRequest {
+            externalModelProviderId = apiIdToExternalId(modelLineKey.modelProviderId)
+            externalModelSuiteId = apiIdToExternalId(modelLineKey.modelSuiteId)
+            externalModelLineId = apiIdToExternalId(modelLineKey.modelLineId)
+          }
+        )
+        .toModelLine()
     } catch (e: StatusException) {
       throw when (e.status.code) {
         Status.Code.NOT_FOUND -> Status.NOT_FOUND

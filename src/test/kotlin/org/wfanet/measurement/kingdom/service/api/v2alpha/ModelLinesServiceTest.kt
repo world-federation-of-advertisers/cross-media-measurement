@@ -36,6 +36,7 @@ import org.mockito.kotlin.any
 import org.mockito.kotlin.stub
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
+import org.mockito.kotlin.wheneverBlocking
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.ListModelLinesPageTokenKt.previousPageEnd
 import org.wfanet.measurement.api.v2alpha.ListModelLinesRequest
@@ -49,6 +50,7 @@ import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.createModelLineRequest
 import org.wfanet.measurement.api.v2alpha.enumerateValidModelLinesRequest
 import org.wfanet.measurement.api.v2alpha.enumerateValidModelLinesResponse
+import org.wfanet.measurement.api.v2alpha.getModelLineRequest
 import org.wfanet.measurement.api.v2alpha.listModelLinesPageToken
 import org.wfanet.measurement.api.v2alpha.listModelLinesRequest
 import org.wfanet.measurement.api.v2alpha.listModelLinesResponse
@@ -80,17 +82,15 @@ import org.wfanet.measurement.internal.kingdom.StreamModelLinesRequestKt.filter 
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.enumerateValidModelLinesRequest as internalEnumerateValidModelLinesRequest
 import org.wfanet.measurement.internal.kingdom.enumerateValidModelLinesResponse as internalEnumerateValidModelLinesResponse
+import org.wfanet.measurement.internal.kingdom.getModelLineRequest as internalGetModelLineRequest
 import org.wfanet.measurement.internal.kingdom.modelLine as internalModelLine
 import org.wfanet.measurement.internal.kingdom.setActiveEndTimeRequest as internalsetActiveEndTimeRequest
 import org.wfanet.measurement.internal.kingdom.setModelLineHoldbackModelLineRequest as internalSetModelLineHoldbackModelLineRequest
 import org.wfanet.measurement.internal.kingdom.streamModelLinesRequest as internalStreamModelLinesRequest
-import org.mockito.kotlin.wheneverBlocking
-import org.wfanet.measurement.api.v2alpha.getModelLineRequest
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelLineInvalidArgsException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelLineNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelLineTypeIllegalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelSuiteNotFoundException
-import org.wfanet.measurement.internal.kingdom.getModelLineRequest as internalGetModelLineRequest
 
 private const val DEFAULT_LIMIT = 50
 private val TYPES: Set<InternalType> =
@@ -337,17 +337,11 @@ class ModelLinesServiceTest {
 
   @Test
   fun `getModelLine returns model line successfully`() {
-    wheneverBlocking {
-      internalModelLinesMock.getModelLine(any())
-    }.thenReturn(INTERNAL_MODEL_LINE)
+    wheneverBlocking { internalModelLinesMock.getModelLine(any()) }.thenReturn(INTERNAL_MODEL_LINE)
 
     val modelLine =
       withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
-        runBlocking {
-          service.getModelLine(getModelLineRequest {
-            name = MODEL_LINE_NAME
-          })
-        }
+        runBlocking { service.getModelLine(getModelLineRequest { name = MODEL_LINE_NAME }) }
       }
 
     assertThat(modelLine).isEqualTo(MODEL_LINE)
@@ -367,11 +361,7 @@ class ModelLinesServiceTest {
     val exception =
       assertFailsWith<StatusRuntimeException> {
         withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
-          runBlocking {
-            service.getModelLine(getModelLineRequest {
-              name = "123"
-            })
-          }
+          runBlocking { service.getModelLine(getModelLineRequest { name = "123" }) }
         }
       }
 
@@ -383,9 +373,9 @@ class ModelLinesServiceTest {
     val exception =
       assertFailsWith<StatusRuntimeException> {
         runBlocking {
-          service.getModelLine(getModelLineRequest {
-            name = "modelProviders/1/modelSuites/2/modelLines/3"
-          })
+          service.getModelLine(
+            getModelLineRequest { name = "modelProviders/1/modelSuites/2/modelLines/3" }
+          )
         }
       }
 
@@ -398,9 +388,9 @@ class ModelLinesServiceTest {
       assertFailsWith<StatusRuntimeException> {
         withModelProviderPrincipal("modelProviders/2") {
           runBlocking {
-            service.getModelLine(getModelLineRequest {
-              name = "modelProviders/1/modelSuites/2/modelLines/3"
-            })
+            service.getModelLine(
+              getModelLineRequest { name = "modelProviders/1/modelSuites/2/modelLines/3" }
+            )
           }
         }
       }

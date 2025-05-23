@@ -371,11 +371,14 @@ abstract class ModelLinesServiceTest<T : ModelLinesCoroutineImplBase> {
 
     val createdModelLine = modelLinesService.createModelLine(modelLine)
 
-    val retrievedModelLine = modelLinesService.getModelLine(getModelLineRequest {
-      externalModelProviderId = createdModelLine.externalModelProviderId
-      externalModelSuiteId = createdModelLine.externalModelSuiteId
-      externalModelLineId = createdModelLine.externalModelLineId
-    })
+    val retrievedModelLine =
+      modelLinesService.getModelLine(
+        getModelLineRequest {
+          externalModelProviderId = createdModelLine.externalModelProviderId
+          externalModelSuiteId = createdModelLine.externalModelSuiteId
+          externalModelLineId = createdModelLine.externalModelLineId
+        }
+      )
 
     assertThat(retrievedModelLine).isEqualTo(createdModelLine)
   }
@@ -384,11 +387,13 @@ abstract class ModelLinesServiceTest<T : ModelLinesCoroutineImplBase> {
   fun `getModelLine throws NOT_FOUND when model line not found`() = runBlocking {
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        modelLinesService.getModelLine(getModelLineRequest {
-          externalModelProviderId = 123L
-          externalModelSuiteId = 124L
-          externalModelLineId = 125L
-        })
+        modelLinesService.getModelLine(
+          getModelLineRequest {
+            externalModelProviderId = 123L
+            externalModelSuiteId = 124L
+            externalModelLineId = 125L
+          }
+        )
       }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
@@ -398,10 +403,12 @@ abstract class ModelLinesServiceTest<T : ModelLinesCoroutineImplBase> {
   fun `getModelLine throws INVALID_ARGUMENT when external_model_line_id missing`() = runBlocking {
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        modelLinesService.getModelLine(getModelLineRequest {
-          externalModelProviderId = 123L
-          externalModelSuiteId = 124L
-        })
+        modelLinesService.getModelLine(
+          getModelLineRequest {
+            externalModelProviderId = 123L
+            externalModelSuiteId = 124L
+          }
+        )
       }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
