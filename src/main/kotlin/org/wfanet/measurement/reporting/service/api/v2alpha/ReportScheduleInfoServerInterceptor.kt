@@ -38,8 +38,6 @@ import org.wfanet.measurement.common.grpc.withContext
  *   yourService.withReportScheduleNameInterceptor()
  * ```
  *
- * The principal can be accessed within gRPC services via [principalFromCurrentContext].
- *
  * This expects the Metadata to have a key "report-schedule-info-bin" associated with a value equal
  * to the binary serialization of a [ReportScheduleInfo] for a ReportSchedule. The recommended way
  * to set this is to use [withReportScheduleInfo] on a stub.
