@@ -33,10 +33,7 @@ class InProcessSecureComputationPublicApi(
   private val internalServices: InternalApiServices by lazy { internalServicesProvider() }
 
   private val internalApiServer =
-    GrpcTestServerRule(
-      logAllRequests = verboseGrpcLogging,
-      defaultServiceConfig = DEFAULT_SERVICE_CONFIG_MAP,
-    ) {
+    GrpcTestServerRule(logAllRequests = verboseGrpcLogging) {
       logger.info("Building Control Plane's internal API services")
       internalServices.build().toList().forEach {
         logger.info("Adding service $it")

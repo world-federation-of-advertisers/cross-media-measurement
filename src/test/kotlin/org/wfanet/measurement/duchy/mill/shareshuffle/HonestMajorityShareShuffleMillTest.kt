@@ -80,6 +80,7 @@ import org.wfanet.measurement.consent.client.dataprovider.verifyEncryptionPublic
 import org.wfanet.measurement.duchy.db.computation.ComputationDataClients
 import org.wfanet.measurement.duchy.db.computation.testing.FakeComputationsDatabase
 import org.wfanet.measurement.duchy.mill.Certificate
+import org.wfanet.measurement.duchy.mill.MillBase
 import org.wfanet.measurement.duchy.mill.shareshuffle.crypto.HonestMajorityShareShuffleCryptor
 import org.wfanet.measurement.duchy.service.internal.computations.ComputationsService
 import org.wfanet.measurement.duchy.service.internal.computations.newOutputBlobMetadata
@@ -387,38 +388,40 @@ class HonestMajorityShareShuffleMillTest {
 
   private val tempDirectory = TemporaryFolder()
 
-  private val grpcTestServerRule = GrpcTestServerRule {
-    DuchyInfo.setForTest(setOf(DUCHY_ONE_ID, DUCHY_TWO_ID, DUCHY_THREE_ID))
+  private val grpcTestServerRule =
+    GrpcTestServerRule(defaultServiceConfig = MillBase.SERVICE_CONFIG) {
+      DuchyInfo.setForTest(setOf(DUCHY_ONE_ID, DUCHY_TWO_ID, DUCHY_THREE_ID))
 
-    val storageClient = FileSystemStorageClient(tempDirectory.root)
-    computationStore = ComputationStore(storageClient)
-    requisitionStore = RequisitionStore(storageClient)
-    val kmsClient = FakeKmsClient().also { it.setAead(KEK_URI, AEAD) }
-    privateKeyStore =
-      TinkKeyStorageProvider(kmsClient).makeKmsPrivateKeyStore(TinkKeyStore(storageClient), KEK_URI)
-    computationDataClients =
-      ComputationDataClients.forTesting(
-        ComputationsCoroutineStub(channel),
-        computationStore,
-        requisitionStore,
+      val storageClient = FileSystemStorageClient(tempDirectory.root)
+      computationStore = ComputationStore(storageClient)
+      requisitionStore = RequisitionStore(storageClient)
+      val kmsClient = FakeKmsClient().also { it.setAead(KEK_URI, AEAD) }
+      privateKeyStore =
+        TinkKeyStorageProvider(kmsClient)
+          .makeKmsPrivateKeyStore(TinkKeyStore(storageClient), KEK_URI)
+      computationDataClients =
+        ComputationDataClients.forTesting(
+          ComputationsCoroutineStub(channel),
+          computationStore,
+          requisitionStore,
+        )
+      addService(mockComputationControl)
+      addService(mockSystemComputations)
+      addService(mockComputationLogEntries)
+      addService(mockComputationParticipants)
+      addService(mockComputationStats)
+      addService(
+        ComputationsService(
+          fakeComputationDb,
+          systemComputationLogEntriesStub,
+          computationStore,
+          requisitionStore,
+          DUCHY_THREE_ID,
+          Clock.systemUTC(),
+        )
       )
-    addService(mockComputationControl)
-    addService(mockSystemComputations)
-    addService(mockComputationLogEntries)
-    addService(mockComputationParticipants)
-    addService(mockComputationStats)
-    addService(
-      ComputationsService(
-        fakeComputationDb,
-        systemComputationLogEntriesStub,
-        computationStore,
-        requisitionStore,
-        DUCHY_THREE_ID,
-        Clock.systemUTC(),
-      )
-    )
-    addService(mockCertificates)
-  }
+      addService(mockCertificates)
+    }
 
   @get:Rule val ruleChain = chainRulesSequentially(tempDirectory, grpcTestServerRule)
 

@@ -30,6 +30,7 @@ import org.wfanet.measurement.common.identity.DuchyInfo
 import org.wfanet.measurement.common.identity.withDuchyId
 import org.wfanet.measurement.duchy.db.computation.ComputationDataClients
 import org.wfanet.measurement.duchy.mill.Certificate
+import org.wfanet.measurement.duchy.mill.MillBase
 import org.wfanet.measurement.duchy.mill.liquidlegionsv2.LiquidLegionsV2Mill
 import org.wfanet.measurement.duchy.mill.liquidlegionsv2.ReachFrequencyLiquidLegionsV2Mill
 import org.wfanet.measurement.duchy.mill.liquidlegionsv2.ReachOnlyLiquidLegionsV2Mill
@@ -67,6 +68,7 @@ abstract class LiquidLegionsV2MillJob : Runnable {
           flags.computationsServiceFlags.target,
           clientCerts,
           flags.computationsServiceFlags.certHost,
+          MillBase.SERVICE_CONFIG,
         )
         .withShutdownTimeout(flags.channelShutdownTimeout)
         .withDefaultDeadline(flags.computationsServiceFlags.defaultDeadlineDuration)
@@ -92,7 +94,12 @@ abstract class LiquidLegionsV2MillJob : Runnable {
         }
 
     val systemApiChannel =
-      buildMutualTlsChannel(flags.systemApiFlags.target, clientCerts, flags.systemApiFlags.certHost)
+      buildMutualTlsChannel(
+          flags.systemApiFlags.target,
+          clientCerts,
+          flags.systemApiFlags.certHost,
+          MillBase.SERVICE_CONFIG,
+        )
         .withShutdownTimeout(flags.channelShutdownTimeout)
 
     val systemComputationsClient =

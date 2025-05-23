@@ -124,10 +124,7 @@ class InProcessKingdom(
   }
 
   private val internalDataServer =
-    GrpcTestServerRule(
-      logAllRequests = verboseGrpcLogging,
-      defaultServiceConfig = DEFAULT_SERVICE_CONFIG_MAP,
-    ) {
+    GrpcTestServerRule(logAllRequests = verboseGrpcLogging) {
       logger.info("Building Kingdom's internal Data services")
       kingdomDataServices.buildDataServices().toList().forEach { addService(it) }
     }
