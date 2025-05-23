@@ -1280,7 +1280,7 @@ class MetricsService(
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
 
     val measurementConsumerName: String = metricKey.parentKey.toName()
-    authorization.check(measurementConsumerName, Permission.CREATE)
+    authorization.check(measurementConsumerName, Permission.INVALIDATE)
 
     try {
       return internalMetricsStub
@@ -1897,6 +1897,7 @@ class MetricsService(
     const val GET = "reporting.metrics.get"
     const val LIST = "reporting.metrics.list"
     const val CREATE = "reporting.metrics.create"
+    const val INVALIDATE = "reporting.metrics.invalidate"
   }
 
   companion object {
