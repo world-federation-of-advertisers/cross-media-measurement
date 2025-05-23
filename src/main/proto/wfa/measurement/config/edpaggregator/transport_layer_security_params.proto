@@ -23,10 +23,10 @@ option java_outer_classname = "TransportLayerSecurityParamsProto";
 // The details to connect via an MTLS Channel from an EDP Aggregator Cloud
 // Function
 message TransportLayerSecurityParams {
-  // The path in the jar to the cert
-  string cert_jar_resource_path = 1;
-  // The path in the jar to the private key
-  string private_key_jar_resource_path = 2;
-  // The path in the jar to the cert collection
-  string cert_collection_jar_resource_path = 3;
+  // The path on the filesystem where the cert is mounted
+  string cert_file_path = 1;
+  /// The path on the filesystem where the private key is mounted
+  string private_key_file_path = 2;
+  // The path on the filesystem where the cert collection is mounted
+  string cert_collection_file_path = 3;
 }
