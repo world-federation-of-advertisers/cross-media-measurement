@@ -56,5 +56,8 @@ variable "dashboard_json_files" {
   description = "List of filenames of dashboard json templates"
   type        = list(string)
   nullable    = true
-  default     = ["duchy_dashboard.json.tmpl"]
+  default     = [
+    "duchy_dashboard_1.json.tmpl",
+    "duchy_dashboard_2.json.tmpl",
+  ]
 }
