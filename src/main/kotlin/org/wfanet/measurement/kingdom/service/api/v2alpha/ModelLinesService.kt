@@ -57,6 +57,8 @@ import org.wfanet.measurement.internal.kingdom.StreamModelLinesRequestKt.afterFi
 import org.wfanet.measurement.internal.kingdom.StreamModelLinesRequestKt.filter
 import org.wfanet.measurement.internal.kingdom.enumerateValidModelLinesRequest
 import org.wfanet.measurement.internal.kingdom.setActiveEndTimeRequest as internalSetActiveEndTimeRequest
+import org.wfanet.measurement.api.v2alpha.GetModelLineRequest
+import org.wfanet.measurement.internal.kingdom.getModelLineRequest
 import org.wfanet.measurement.internal.kingdom.setModelLineHoldbackModelLineRequest
 import org.wfanet.measurement.internal.kingdom.streamModelLinesRequest
 
@@ -91,6 +93,39 @@ class ModelLinesService(private val internalClient: ModelLinesCoroutineStub) :
         Status.Code.NOT_FOUND -> Status.NOT_FOUND
         Status.Code.INVALID_ARGUMENT -> Status.INVALID_ARGUMENT
         else -> Status.UNKNOWN
+      }.toExternalStatusRuntimeException(e)
+    }
+  }
+
+  override suspend fun getModelLine(request: GetModelLineRequest): ModelLine {
+    val modelLineKey =
+      grpcRequireNotNull(ModelLineKey.fromName(request.name)) {
+        "name is either unspecified or invalid"
+      }
+
+    when (val principal: MeasurementPrincipal = principalFromCurrentContext) {
+      is ModelProviderPrincipal -> {
+        if (principal.resourceKey.modelProviderId != modelLineKey.modelProviderId) {
+          failGrpc(Status.PERMISSION_DENIED) { "Cannot list ModelLines for another ModelProvider" }
+        }
+      }
+      is DataProviderPrincipal,
+      is MeasurementConsumerPrincipal -> {}
+      else -> {
+        failGrpc(Status.PERMISSION_DENIED) { "Caller does not have permission to list ModelLines" }
+      }
+    }
+
+    return try {
+      internalClient.getModelLine(getModelLineRequest {
+        externalModelProviderId = apiIdToExternalId(modelLineKey.modelProviderId)
+        externalModelSuiteId = apiIdToExternalId(modelLineKey.modelSuiteId)
+        externalModelLineId = apiIdToExternalId(modelLineKey.modelLineId)
+      }).toModelLine()
+    } catch (e: StatusException) {
+      throw when (e.status.code) {
+        Status.Code.NOT_FOUND -> Status.NOT_FOUND
+        else -> Status.INTERNAL
       }.toExternalStatusRuntimeException(e)
     }
   }

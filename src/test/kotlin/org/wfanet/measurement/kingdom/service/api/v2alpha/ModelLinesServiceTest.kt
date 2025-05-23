@@ -84,10 +84,13 @@ import org.wfanet.measurement.internal.kingdom.modelLine as internalModelLine
 import org.wfanet.measurement.internal.kingdom.setActiveEndTimeRequest as internalsetActiveEndTimeRequest
 import org.wfanet.measurement.internal.kingdom.setModelLineHoldbackModelLineRequest as internalSetModelLineHoldbackModelLineRequest
 import org.wfanet.measurement.internal.kingdom.streamModelLinesRequest as internalStreamModelLinesRequest
+import org.mockito.kotlin.wheneverBlocking
+import org.wfanet.measurement.api.v2alpha.getModelLineRequest
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelLineInvalidArgsException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelLineNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelLineTypeIllegalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelSuiteNotFoundException
+import org.wfanet.measurement.internal.kingdom.getModelLineRequest as internalGetModelLineRequest
 
 private const val DEFAULT_LIMIT = 50
 private val TYPES: Set<InternalType> =
@@ -330,6 +333,79 @@ class ModelLinesServiceTest {
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+  }
+
+  @Test
+  fun `getModelLine returns model line successfully`() {
+    wheneverBlocking {
+      internalModelLinesMock.getModelLine(any())
+    }.thenReturn(INTERNAL_MODEL_LINE)
+
+    val modelLine =
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+        runBlocking {
+          service.getModelLine(getModelLineRequest {
+            name = MODEL_LINE_NAME
+          })
+        }
+      }
+
+    assertThat(modelLine).isEqualTo(MODEL_LINE)
+
+    verifyProtoArgument(internalModelLinesMock, ModelLinesCoroutineImplBase::getModelLine)
+      .isEqualTo(
+        internalGetModelLineRequest {
+          externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
+          externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
+          externalModelLineId = EXTERNAL_MODEL_LINE_ID
+        }
+      )
+  }
+
+  @Test
+  fun `getModelLine throws INVALID_ARGUMENT when name invalid`() {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+          runBlocking {
+            service.getModelLine(getModelLineRequest {
+              name = "123"
+            })
+          }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.INVALID_ARGUMENT.code)
+  }
+
+  @Test
+  fun `getModelLine throws UNAUTHENTICATED when missing principal`() {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        runBlocking {
+          service.getModelLine(getModelLineRequest {
+            name = "modelProviders/1/modelSuites/2/modelLines/3"
+          })
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.UNAUTHENTICATED.code)
+  }
+
+  @Test
+  fun `getModelLine throws PERMISSION_DENIED when model provider caller doesn't match`() {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withModelProviderPrincipal("modelProviders/2") {
+          runBlocking {
+            service.getModelLine(getModelLineRequest {
+              name = "modelProviders/1/modelSuites/2/modelLines/3"
+            })
+          }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
   }
 
   @Test

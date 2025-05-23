@@ -18,6 +18,7 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 
 import com.google.protobuf.util.Timestamps
 import io.grpc.Status
+import io.grpc.StatusRuntimeException
 import java.time.Clock
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -29,6 +30,7 @@ import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.internal.kingdom.EnumerateValidModelLinesRequest
 import org.wfanet.measurement.internal.kingdom.EnumerateValidModelLinesResponse
+import org.wfanet.measurement.internal.kingdom.GetModelLineRequest
 import org.wfanet.measurement.internal.kingdom.ModelLine
 import org.wfanet.measurement.internal.kingdom.ModelLinesGrpcKt.ModelLinesCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.SetActiveEndTimeRequest
@@ -72,6 +74,27 @@ class SpannerModelLinesService(
         e.message ?: "ActiveStartTime and/or ActiveEndTime is invalid.",
       )
     }
+  }
+
+  override suspend fun getModelLine(request: GetModelLineRequest): ModelLine {
+    grpcRequire(request.externalModelProviderId != 0L) {
+      "external_model_provider_id not specified"
+    }
+    grpcRequire(request.externalModelSuiteId != 0L) { "external_model_suite_id not specified" }
+    grpcRequire(request.externalModelLineId != 0L) { "external_model_line_id not specified" }
+
+    val result: ModelLineReader.Result? = ModelLineReader().readByExternalModelLineId(
+      client.singleUseReadOnlyTransaction(),
+      externalModelProviderId = ExternalId(request.externalModelProviderId),
+      externalModelSuiteId = ExternalId(request.externalModelSuiteId),
+      externalModelLineId = ExternalId(request.externalModelLineId),
+    )
+
+    if (result == null) {
+      throw StatusRuntimeException(Status.NOT_FOUND)
+    }
+
+    return result.modelLine
   }
 
   override suspend fun setActiveEndTime(request: SetActiveEndTimeRequest): ModelLine {
