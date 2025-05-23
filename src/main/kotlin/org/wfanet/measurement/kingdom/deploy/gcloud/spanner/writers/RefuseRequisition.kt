@@ -47,8 +47,8 @@ class RefuseRequisition(private val request: RefuseRequisitionRequest) :
   SpannerWriter<Requisition, Requisition>() {
   override suspend fun TransactionScope.runTransaction(): Requisition {
     val readResult: RequisitionReader.Result = readRequisition()
-    val (measurementConsumerId, measurementId, requisitionId, requisition, measurementDetails) =
-      readResult
+    val (requisitionKey, requisition, measurementDetails) = readResult
+    val (measurementConsumerId, measurementId, requisitionId) = requisitionKey
 
     val state = requisition.state
     if (state != Requisition.State.UNFULFILLED) {

@@ -14,26 +14,35 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
+import com.google.cloud.spanner.TimestampBound
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.singleOrNull
 import org.wfanet.measurement.common.identity.ExternalId
+import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.InternalId
+import org.wfanet.measurement.common.singleOrNullIfEmpty
+import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
+import org.wfanet.measurement.gcloud.spanner.appendClause
 import org.wfanet.measurement.gcloud.spanner.bind
+import org.wfanet.measurement.gcloud.spanner.getInternalId
 import org.wfanet.measurement.gcloud.spanner.statement
+import org.wfanet.measurement.gcloud.spanner.to
 import org.wfanet.measurement.gcloud.spanner.toInt64
 import org.wfanet.measurement.internal.kingdom.FulfillRequisitionRequest
 import org.wfanet.measurement.internal.kingdom.Measurement
+import org.wfanet.measurement.internal.kingdom.ProtocolConfig
 import org.wfanet.measurement.internal.kingdom.Requisition
+import org.wfanet.measurement.internal.kingdom.RequisitionDetails
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.measurementLogEntryDetails
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DuchyNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementStateIllegalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.RequisitionNotFoundByComputationException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.RequisitionNotFoundByDataProviderException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.RequisitionStateIllegalException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.RequisitionInternalKey
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.RequisitionReader
 
 private object Params {
@@ -47,34 +56,51 @@ private object Params {
  *
  * Throws a subclass of [KingdomInternalException] on [execute].
  *
- * @throws [MeasurementStateIllegalException] Measurement state is not
- *   PENDING_REQUISITION_FULFILLMENT
  * @throws [RequisitionStateIllegalException] Requisition state is not UNFULFILLED
  * @throws [RequisitionNotFoundByComputationException] Requisition not found
  * @throws [RequisitionNotFoundByDataProviderException] Requisition not found
  * @throws [DuchyNotFoundException] Duchy not found
  */
 class FulfillRequisition(private val request: FulfillRequisitionRequest) :
-  SpannerWriter<Requisition, Requisition>() {
-  override suspend fun TransactionScope.runTransaction(): Requisition {
-    val readResult: RequisitionReader.Result = readRequisition()
-    val (measurementConsumerId, measurementId, requisitionId, requisition) = readResult
+  BaseSpannerWriter<Requisition> {
+  private data class RequisitionResult(
+    val key: RequisitionInternalKey,
+    val state: Requisition.State,
+    val details: RequisitionDetails,
+    val measurementState: Measurement.State,
+    val protocol: ProtocolConfig.ProtocolCase,
+  )
 
-    val state = requisition.state
+  override suspend fun execute(
+    databaseClient: AsyncDatabaseClient,
+    idGenerator: IdGenerator,
+  ): Requisition {
+    val writeTxnRunner: AsyncDatabaseClient.TransactionRunner =
+      databaseClient.readWriteTransaction()
+    val key: RequisitionInternalKey =
+      writeTxnRunner.run { txn -> SpannerWriter.TransactionScope(txn, idGenerator).executeWrite() }
+
+    val readTxn: AsyncDatabaseClient.ReadContext =
+      databaseClient.singleUse(
+        TimestampBound.ofMinReadTimestamp(writeTxnRunner.getCommitTimestamp())
+      )
+    return checkNotNull(RequisitionReader.readByKey(readTxn, key)).requisition
+  }
+
+  private suspend fun SpannerWriter.TransactionScope.executeWrite(): RequisitionInternalKey {
+    val requisition: RequisitionResult = txn.readRequisition()
+    val (measurementConsumerId: InternalId, measurementId: InternalId, requisitionId: InternalId) =
+      requisition.key
+    val state: Requisition.State = requisition.state
+
     if (state != Requisition.State.UNFULFILLED) {
       throw RequisitionStateIllegalException(ExternalId(request.externalRequisitionId), state) {
         "Expected ${Requisition.State.UNFULFILLED}, got $state"
       }
     }
-    val measurementState = requisition.parentMeasurement.state
-    if (measurementState != Measurement.State.PENDING_REQUISITION_FULFILLMENT) {
-      throw MeasurementStateIllegalException(
-        ExternalId(requisition.externalMeasurementConsumerId),
-        ExternalId(requisition.externalMeasurementId),
-        measurementState,
-      ) {
-        "Expected ${Measurement.State.PENDING_REQUISITION_FULFILLMENT}, got $measurementState"
-      }
+    val measurementState = requisition.measurementState
+    check(measurementState == Measurement.State.PENDING_REQUISITION_FULFILLMENT) {
+      error("Unexpected measurement state $measurementState")
     }
 
     val updatedDetails =
@@ -88,78 +114,109 @@ class FulfillRequisition(private val request: FulfillRequisitionRequest) :
       }
 
     val nonFulfilledRequisitionIds =
-      readRequisitionsNotInState(measurementConsumerId, measurementId, Requisition.State.FULFILLED)
-    val updatedMeasurementState: Measurement.State? =
-      if (nonFulfilledRequisitionIds.singleOrNull() == requisitionId) {
-        val nextState =
-          if (request.hasComputedParams()) {
-            if (requisition.parentMeasurement.protocolConfig.hasHonestMajorityShareShuffle()) {
-              Measurement.State.PENDING_COMPUTATION
-            } else {
-              Measurement.State.PENDING_PARTICIPANT_CONFIRMATION
-            }
-          } else Measurement.State.SUCCEEDED
-        val measurementLogEntryDetails = measurementLogEntryDetails {
-          logMessage = "All requisitions fulfilled"
+      txn.readRequisitionsNotInState(
+        measurementConsumerId,
+        measurementId,
+        Requisition.State.FULFILLED,
+      )
+    if (nonFulfilledRequisitionIds.singleOrNull() == requisitionId) {
+      val nextState: Measurement.State =
+        when (requisition.protocol) {
+          ProtocolConfig.ProtocolCase.DIRECT -> Measurement.State.SUCCEEDED
+          ProtocolConfig.ProtocolCase.LIQUID_LEGIONS_V2,
+          ProtocolConfig.ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2 ->
+            Measurement.State.PENDING_PARTICIPANT_CONFIRMATION
+          ProtocolConfig.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE ->
+            Measurement.State.PENDING_COMPUTATION
+          ProtocolConfig.ProtocolCase.PROTOCOL_NOT_SET -> error("protocol not set")
         }
-        // All other Requisitions are already FULFILLED, so update Measurement state.
-        nextState.also {
-          updateMeasurementState(
-            measurementConsumerId = measurementConsumerId,
-            measurementId = measurementId,
-            nextState = it,
-            previousState = measurementState,
-            measurementLogEntryDetails = measurementLogEntryDetails,
-          )
-        }
-      } else {
-        null
+      val measurementLogEntryDetails = measurementLogEntryDetails {
+        logMessage = "All requisitions fulfilled"
       }
+      // All other Requisitions are already FULFILLED, so update Measurement state.
+      updateMeasurementState(
+        measurementConsumerId = measurementConsumerId,
+        measurementId = measurementId,
+        nextState = nextState,
+        previousState = measurementState,
+        measurementLogEntryDetails = measurementLogEntryDetails,
+      )
+    }
 
     val fulfillDuchyId = if (request.hasComputedParams()) getFulfillDuchyId() else null
-    updateRequisition(readResult, Requisition.State.FULFILLED, updatedDetails, fulfillDuchyId)
+    txn.updateRequisition(
+      requisition.key,
+      Requisition.State.FULFILLED,
+      updatedDetails,
+      fulfillDuchyId,
+    )
 
-    return requisition.copy {
-      if (request.hasComputedParams()) {
-        externalFulfillingDuchyId = request.computedParams.externalFulfillingDuchyId
-      }
-      this.state = Requisition.State.FULFILLED
-      details = updatedDetails
-      if (updatedMeasurementState != null) {
-        parentMeasurement = parentMeasurement.copy { this.state = updatedMeasurementState }
-      }
-    }
+    return requisition.key
   }
 
-  override fun ResultScope<Requisition>.buildResult(): Requisition {
-    return checkNotNull(transactionResult).copy { updateTime = commitTimestamp.toProto() }
-  }
-
-  private suspend fun TransactionScope.readRequisition(): RequisitionReader.Result {
+  private suspend fun AsyncDatabaseClient.ReadContext.readRequisition(): RequisitionResult {
     val externalRequisitionId = ExternalId(request.externalRequisitionId)
-    if (request.hasComputedParams()) {
-      val externalComputationId = ExternalId(request.computedParams.externalComputationId)
-      return RequisitionReader.readByExternalComputationId(
-        transactionContext,
-        externalComputationId = externalComputationId,
-        externalRequisitionId = externalRequisitionId,
+    val query =
+      statement(SELECT) {
+        bind("externalRequisitionId").to(externalRequisitionId)
+        if (request.hasComputedParams()) {
+          appendClause(
+            """
+          FROM
+            Measurements
+            JOIN Requisitions USING (MeasurementConsumerId, MeasurementId)
+          WHERE
+            ExternalComputationId = @externalComputationId
+            AND ExternalRequisitionId = @externalRequisitionId
+          """
+              .trimIndent()
+          )
+          bind("externalComputationId").to(request.computedParams.externalComputationId)
+        } else {
+          appendClause(
+            """
+          FROM
+            Requisitions
+            JOIN DataProviders USING (DataProviderId)
+            JOIN Measurements USING (MeasurementConsumerId, MeasurementId)
+          WHERE
+            ExternalDataProviderId = @externalDataProviderId
+            AND ExternalRequisitionId = @externalRequisitionId
+          """
+              .trimIndent()
+          )
+          bind("externalDataProviderId").to(request.directParams.externalDataProviderId)
+        }
+      }
+
+    val row =
+      executeQuery(query).singleOrNullIfEmpty()
+        ?: if (request.hasComputedParams()) {
+          throw RequisitionNotFoundByComputationException(
+            ExternalId(request.computedParams.externalComputationId),
+            externalRequisitionId,
+          )
+        } else {
+          throw RequisitionNotFoundByDataProviderException(
+            ExternalId(request.directParams.externalDataProviderId),
+            externalRequisitionId,
+          )
+        }
+
+    val key =
+      RequisitionInternalKey(
+        row.getInternalId("MeasurementConsumerId"),
+        row.getInternalId("MeasurementId"),
+        row.getInternalId("RequisitionId"),
       )
-        ?: throw RequisitionNotFoundByComputationException(
-          externalComputationId,
-          externalRequisitionId,
-        )
-    } else {
-      val externalDataProviderId = ExternalId(request.directParams.externalDataProviderId)
-      return RequisitionReader.readByExternalDataProviderId(
-        transactionContext,
-        externalDataProviderId = externalDataProviderId,
-        externalRequisitionId = externalRequisitionId,
-      )
-        ?: throw RequisitionNotFoundByDataProviderException(
-          externalDataProviderId,
-          externalRequisitionId,
-        )
-    }
+    val protocolConfig = row.getProtoMessage("ProtocolConfig", ProtocolConfig.getDefaultInstance())
+    return RequisitionResult(
+      key,
+      row.getProtoEnum("State", Requisition.State::forNumber),
+      row.getProtoMessage("RequisitionDetails", RequisitionDetails.getDefaultInstance()),
+      row.getProtoEnum("MeasurementState", Measurement.State::forNumber),
+      protocolConfig.protocolCase,
+    )
   }
 
   private fun getFulfillDuchyId(): InternalId {
@@ -171,7 +228,20 @@ class FulfillRequisition(private val request: FulfillRequisitionRequest) :
   }
 
   companion object {
-    private fun TransactionScope.readRequisitionsNotInState(
+    private val SELECT =
+      """
+      SELECT
+        MeasurementConsumerId,
+        MeasurementId,
+        RequisitionId,
+        Requisitions.State,
+        RequisitionDetails,
+        Measurements.State AS MeasurementState,
+        MeasurementDetails.protocol_config AS ProtocolConfig,
+      """
+        .trimIndent()
+
+    private fun AsyncDatabaseClient.ReadContext.readRequisitionsNotInState(
       measurementConsumerId: InternalId,
       measurementId: InternalId,
       state: Requisition.State,
@@ -192,9 +262,7 @@ class FulfillRequisition(private val request: FulfillRequisitionRequest) :
           bind(Params.MEASUREMENT_ID to measurementId)
           bind(Params.REQUISITION_STATE).toInt64(state)
         }
-      return transactionContext.executeQuery(query).map { struct ->
-        InternalId(struct.getLong("RequisitionId"))
-      }
+      return executeQuery(query).map { struct -> InternalId(struct.getLong("RequisitionId")) }
     }
   }
 }

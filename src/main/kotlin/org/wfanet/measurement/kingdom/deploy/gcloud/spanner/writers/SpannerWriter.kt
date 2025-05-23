@@ -22,6 +22,15 @@ import java.util.logging.Logger
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 
+sealed interface BaseSpannerWriter<R> {
+  /**
+   * Executes the writer in a new transaction.
+   *
+   * This may only be called once per instance.
+   */
+  suspend fun execute(databaseClient: AsyncDatabaseClient, idGenerator: IdGenerator): R
+}
+
 /**
  * Abstracts a common pattern:
  * - Run a RMW transaction
@@ -32,7 +41,7 @@ import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
  *
  * This provides some conveniences, like running in the right dispatcher for Spanner.
  */
-abstract class SpannerWriter<T, R> {
+abstract class SpannerWriter<T, R> : BaseSpannerWriter<R> {
   class TransactionScope(
     val txn: AsyncDatabaseClient.TransactionContext,
     val idGenerator: IdGenerator,
@@ -80,7 +89,7 @@ abstract class SpannerWriter<T, R> {
    *
    * @return the output of [buildResult]
    */
-  suspend fun execute(databaseClient: AsyncDatabaseClient, idGenerator: IdGenerator): R {
+  override suspend fun execute(databaseClient: AsyncDatabaseClient, idGenerator: IdGenerator): R {
     val className: String = this::class.simpleName ?: "Anonymous"
     logger.fine("Running $className transaction")
     check(executed.compareAndSet(false, true)) { "Cannot execute SpannerWriter multiple times" }

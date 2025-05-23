@@ -36,12 +36,31 @@ import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 class RequisitionReader private constructor(override val builder: Statement.Builder) :
   BaseSpannerReader<RequisitionReader.Result>() {
   data class Result(
-    val measurementConsumerId: InternalId,
-    val measurementId: InternalId,
-    val requisitionId: InternalId,
+    val key: RequisitionInternalKey,
     val requisition: Requisition,
     val measurementDetails: MeasurementDetails,
-  )
+  ) {
+    constructor(
+      measurementConsumerId: InternalId,
+      measurementId: InternalId,
+      requisitionId: InternalId,
+      requisition: Requisition,
+      measurementDetails: MeasurementDetails,
+    ) : this(
+      RequisitionInternalKey(measurementConsumerId, measurementId, requisitionId),
+      requisition,
+      measurementDetails,
+    )
+
+    val measurementConsumerId: InternalId
+      get() = key.measurementConsumerId
+
+    val measurementId: InternalId
+      get() = key.measurementId
+
+    val requisitionId: InternalId
+      get() = key.requisitionId
+  }
 
   enum class Parent(val sqlTemplate: FillableTemplate) {
     MEASUREMENT(
@@ -170,6 +189,9 @@ class RequisitionReader private constructor(override val builder: Statement.Buil
       const val EXTERNAL_COMPUTATION_ID = "externalComputationId"
       const val EXTERNAL_DATA_PROVIDER_ID = "externalDataProviderId"
       const val EXTERNAL_REQUISITION_ID = "externalRequisitionId"
+      const val MEASUREMENT_CONSUMER_ID = "measurementConsumerId"
+      const val MEASUREMENT_ID = "measurementId"
+      const val REQUISITION_ID = "requisitionId"
     }
 
     private val COMMON_COLUMNS =
@@ -276,6 +298,28 @@ class RequisitionReader private constructor(override val builder: Statement.Buil
         .singleOrNull()
     }
 
+    suspend fun readByKey(
+      readContext: AsyncDatabaseClient.ReadContext,
+      key: RequisitionInternalKey,
+    ): Result? {
+      val whereClause =
+        """
+        WHERE
+          MeasurementConsumerId = @${Params.MEASUREMENT_CONSUMER_ID}
+          AND MeasurementId = @${Params.MEASUREMENT_ID}
+          AND RequisitionId = @${Params.REQUISITION_ID}
+        """
+          .trimIndent()
+      return build(Parent.MEASUREMENT) {
+          this.whereClause = whereClause
+          bind(Params.MEASUREMENT_CONSUMER_ID).to(key.measurementConsumerId)
+          bind(Params.MEASUREMENT_ID).to(key.measurementId)
+          bind(Params.REQUISITION_ID).to(key.requisitionId)
+        }
+        .execute(readContext)
+        .singleOrNull()
+    }
+
     /** Builds a [Requisition] from [struct]. */
     private fun buildRequisition(struct: Struct): Requisition {
       // Map of external Duchy ID to ComputationParticipant struct.
@@ -375,3 +419,9 @@ class RequisitionReader private constructor(override val builder: Statement.Buil
     }
   }
 }
+
+data class RequisitionInternalKey(
+  val measurementConsumerId: InternalId,
+  val measurementId: InternalId,
+  val requisitionId: InternalId,
+)
