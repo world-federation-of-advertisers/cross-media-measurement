@@ -42,25 +42,28 @@ CREATE TABLE PrivacyChargesMetadata (
 );
 
 
-CREATE TABLE EdpDimension (
-    EdpId SERIAL PRIMARY KEY,
-    EdpId_Text TEXT UNIQUE NOT NULL
+CREATE TABLE EventDataProviders (
+    id SERIAL PRIMARY KEY,
+    -- Kingdom resource name for the Edp
+    EventDataProviderName TEXT UNIQUE NOT NULL
 );
 
-CREATE TABLE MeasurementConsumerDimension (
-    MeasurementConsumerId SERIAL PRIMARY KEY,
-    MeasurementConsumerId_Text TEXT UNIQUE NOT NULL
+CREATE TABLE MeasurementConsumers (
+    id SERIAL PRIMARY KEY,
+    -- Kingdom resource name for the MC
+    MeasurementConsumerName TEXT UNIQUE NOT NULL
 );
 
-CREATE TABLE EventGroupReferenceDimension (
-    EventGroupReferenceId SERIAL PRIMARY KEY,
-    EventGroupReferenceId_Text TEXT UNIQUE NOT NULL
+CREATE TABLE EventGroupReferences (
+    id SERIAL PRIMARY KEY,
+    -- Internal reference name for the Event group.
+    EventGroupReferenceName TEXT UNIQUE NOT NULL
 );
 
--- Dimension table for ExternalReferenceId
-CREATE TABLE ExternalReferenceDimension (
-    ExternalReferenceId SERIAL PRIMARY KEY,
-    ExternalReferenceId_Text TEXT UNIQUE NOT NULL
+CREATE TABLE LedgerEntryExternalReferences (
+    id SERIAL PRIMARY KEY,
+    -- Kingdom resource name for the requisition
+    LedgerEntryExternalReferenceName TEXT UNIQUE NOT NULL
 );
 
 -- Holds all the charges. As the privacy landscapes are updated, old PrivacyCharges tables
@@ -71,7 +74,7 @@ CREATE TABLE PrivacyCharges (
     -- Unique row identifier for this charge record.
     id SERIAL PRIMARY KEY,
     -- The integer ID of the EDP these charges belong to.
-    EdpId INTEGER NOT NULL,
+    EventDataProviderId INTEGER NOT NULL,
     -- The integer ID of the Measurement Consumer these charges belong to.
     MeasurementConsumerId INTEGER NOT NULL,
     -- The integer ID of the Event Group Reference assigned by the EDP that these charges belong to.
@@ -80,11 +83,11 @@ CREATE TABLE PrivacyCharges (
     Date Date NOT NULL,
     -- A wfa.measurement.privacybudgetmanager.Charges proto capturing charges for each bucket.
     Charges BYTEA,
-    -- There can be only one entry per EdpId, MeasurementConsumerId, EventGroupReferenceId triplet on a given Date.
-    UNIQUE (EdpId, MeasurementConsumerId, EventGroupReferenceId, Date),
-    FOREIGN KEY (EdpId) REFERENCES EdpDimension(EdpId),
-    FOREIGN KEY (MeasurementConsumerId) REFERENCES MeasurementConsumerDimension(MeasurementConsumerId),
-    FOREIGN KEY (EventGroupReferenceId) REFERENCES EventGroupReferenceDimension(EventGroupReferenceId)
+    -- There can be only one entry per EventDataProviderId, MeasurementConsumerId, EventGroupReferenceId triplet on a given Date.
+    UNIQUE (EventDataProviderId, MeasurementConsumerId, EventGroupReferenceId, Date),
+    FOREIGN KEY (EventDataProviderId) REFERENCES EventDataProviders(id),
+    FOREIGN KEY (MeasurementConsumerId) REFERENCES MeasurementConsumers(id),
+    FOREIGN KEY (EventGroupReferenceId) REFERENCES EventGroupReferences(id)
 );
 
 
@@ -93,7 +96,7 @@ CREATE TABLE LedgerEntries (
     -- Unique row identifier for this ledger entry.
     id SERIAL PRIMARY KEY,
     -- The integer ID of the EDP these charges belong to.
-    EdpId INTEGER NOT NULL,
+    EventDataProviderId INTEGER NOT NULL,
     -- The integer ID of the Measurement Consumer this Ledger Entry belongs to.
     MeasurementConsumerId INTEGER NOT NULL,
     -- The integer ID from an external system that uniquely identifies the source all charges in a transaction
@@ -104,11 +107,11 @@ CREATE TABLE LedgerEntries (
     -- Time when the row was inserted.
     CreateTime TIMESTAMP NOT NULL,
     -- Ensures uniqueness for the combination of EdpId, MeasurementConsumerId, ExternalReferenceId, and CreateTime.
-    UNIQUE (EdpId, MeasurementConsumerId, ExternalReferenceId, CreateTime),
+    UNIQUE (EventDataProviderId, MeasurementConsumerId, ExternalReferenceId, CreateTime),
     -- Foreign key constraint to the EdpDimension table.
-    FOREIGN KEY (EdpId) REFERENCES EdpDimension(EdpId),
-    -- Foreign key constraint to the MeasurementConsumerDimension table.
-    FOREIGN KEY (MeasurementConsumerId) REFERENCES MeasurementConsumerDimension(MeasurementConsumerId),
-    -- Foreign key constraint to the new ExternalReferenceDimension table.
-    FOREIGN KEY (ExternalReferenceId) REFERENCES ExternalReferenceDimension(ExternalReferenceId)
+    FOREIGN KEY (EventDataProviderId) REFERENCES EventDataProviders(id),
+    -- Foreign key constraint to the MeasurementConsumers table.
+    FOREIGN KEY (MeasurementConsumerId) REFERENCES MeasurementConsumers(id),
+    -- Foreign key constraint to the new LedgerEntryExternalReferences table.
+    FOREIGN KEY (ExternalReferenceId) REFERENCES LedgerEntryExternalReferences(id)
 );

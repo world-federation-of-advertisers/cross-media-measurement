@@ -24,5 +24,12 @@ enum class LedgerExceptionType(val errorMessage: String) {
 }
 
 /** An exception thrown by the privacy budget manager ledger. */
-class LedgerException(val errorType: LedgerExceptionType, cause: Throwable? = null) :
-  Exception(errorType.errorMessage, cause)
+class LedgerException(
+  val errorType: LedgerExceptionType,
+  val details: String? = null, // Make details a nullable String
+  cause: Throwable? = null,
+) :
+  Exception(
+    "${errorType.errorMessage}${if (!details.isNullOrBlank()) ": $details" else ""}".trim(),
+    cause,
+  )

@@ -78,10 +78,10 @@ class PostgresLedgerTest {
           DROP TABLE IF EXISTS PrivacyChargesMetadata CASCADE;
           DROP TABLE IF EXISTS PrivacyCharges CASCADE;
           DROP TABLE IF EXISTS LedgerEntries CASCADE;
-          DROP TABLE IF EXISTS EdpDimension CASCADE;
-          DROP TABLE IF EXISTS MeasurementConsumerDimension CASCADE;
-          DROP TABLE IF EXISTS EventGroupReferenceDimension CASCADE;
-          DROP TABLE IF EXISTS ExternalReferenceDimension CASCADE;
+          DROP TABLE IF EXISTS Eventdataproviders CASCADE;
+          DROP TABLE IF EXISTS MeasurementConsumers CASCADE;
+          DROP TABLE IF EXISTS EventGroupReferences CASCADE;
+          DROP TABLE IF EXISTS Ledgerentryexternalreferences CASCADE;
           """
           .trimIndent()
       )
@@ -160,15 +160,20 @@ class PostgresLedgerTest {
       privacyLandscapeIdentifier = ACTIVE_LANDSCAPE_ID
     }
 
-    insertDimension(dbConnection, "EdpDimension", "EdpId_Text", "edp1")
+    insertDimension(dbConnection, "Eventdataproviders", "Eventdataprovidername", "edp1")
+    insertDimension(dbConnection, "MeasurementConsumers", "MeasurementConsumerName", "mc1")
     insertDimension(
       dbConnection,
-      "MeasurementConsumerDimension",
-      "MeasurementConsumerId_Text",
-      "mc1",
+      "LedgerEntryExternalReferences",
+      "LedgerEntryExternalReferenceName",
+      "ref1",
     )
-    insertDimension(dbConnection, "ExternalReferenceDimension", "ExternalReferenceId_Text", "ref1")
-    insertDimension(dbConnection, "ExternalReferenceDimension", "ExternalReferenceId_Text", "ref2")
+    insertDimension(
+      dbConnection,
+      "LedgerEntryExternalReferences",
+      "LedgerEntryExternalReferenceName",
+      "ref2",
+    )
 
     insertQuery(dbConnection, query1)
 
@@ -233,31 +238,11 @@ class PostgresLedgerTest {
     val ledgerRowKey2 =
       LedgerRowKey("edpid", "othermcid", "otheregid", LocalDate.parse("2025-07-01"))
 
-    insertDimension(dbConnection, "EdpDimension", "EdpId_Text", "edpid")
-    insertDimension(
-      dbConnection,
-      "MeasurementConsumerDimension",
-      "MeasurementConsumerId_Text",
-      "mcid",
-    )
-    insertDimension(
-      dbConnection,
-      "MeasurementConsumerDimension",
-      "MeasurementConsumerId_Text",
-      "othermcid",
-    )
-    insertDimension(
-      dbConnection,
-      "EventGroupReferenceDimension",
-      "EventGroupReferenceId_Text",
-      "egid",
-    )
-    insertDimension(
-      dbConnection,
-      "EventGroupReferenceDimension",
-      "EventGroupReferenceId_Text",
-      "otheregid",
-    )
+    insertDimension(dbConnection, "Eventdataproviders", "EventdataproviderName", "edpid")
+    insertDimension(dbConnection, "MeasurementConsumers", "MeasurementConsumerName", "mcid")
+    insertDimension(dbConnection, "MeasurementConsumers", "MeasurementConsumerName", "othermcid")
+    insertDimension(dbConnection, "EventGroupReferences", "EventGroupReferenceName", "egid")
+    insertDimension(dbConnection, "EventGroupReferences", "EventGroupReferenceName", "otheregid")
     insertPrivacyCharges(dbConnection, ledgerRowKey1, charges1)
     insertPrivacyCharges(dbConnection, ledgerRowKey2, charges2)
 
@@ -395,19 +380,9 @@ class PostgresLedgerTest {
       mcIdText: String,
       egIdText: String,
     ) {
-      insertDimension(connection, "EdpDimension", "EdpId_Text", edpIdText)
-      insertDimension(
-        connection,
-        "MeasurementConsumerDimension",
-        "MeasurementConsumerId_Text",
-        mcIdText,
-      )
-      insertDimension(
-        connection,
-        "EventGroupReferenceDimension",
-        "EventGroupReferenceId_Text",
-        egIdText,
-      )
+      insertDimension(connection, "Eventdataproviders", "EventdataproviderName", edpIdText)
+      insertDimension(connection, "MeasurementConsumers", "MeasurementConsumerName", mcIdText)
+      insertDimension(connection, "EventGroupReferences", "EventGroupReferenceName", egIdText)
     }
 
     private fun insertDimension(
@@ -445,25 +420,6 @@ class PostgresLedgerTest {
         }
     }
 
-    // fun insertPrivacyCharges(connection: Connection, ledgerRowKey: LedgerRowKey, charges:
-    // Charges) {
-    //   val sql =
-    //     """
-    //       INSERT INTO PrivacyCharges (EdpId, MeasurementConsumerId, EventGroupReferenceId, Date,
-    // Charges)
-    //       VALUES (?, ?, ?, ?, ?)
-    //   """
-
-    //   connection.prepareStatement(sql).use { preparedStatement ->
-    //     preparedStatement.setString(1, ledgerRowKey.edpId)
-    //     preparedStatement.setString(2, ledgerRowKey.measurementConsumerId)
-    //     preparedStatement.setString(3, ledgerRowKey.eventGroupReferenceId)
-    //     preparedStatement.setDate(4, java.sql.Date.valueOf(ledgerRowKey.date))
-    //     preparedStatement.setBytes(5, charges.toByteString().toByteArray())
-    //     preparedStatement.executeUpdate()
-    //   }
-    // }
-
     fun insertPrivacyCharges(connection: Connection, ledgerRowKey: LedgerRowKey, charges: Charges) {
       val (edpIdInt, mcIdInt, egIdInt) =
         getDimensionIds(
@@ -475,7 +431,7 @@ class PostgresLedgerTest {
 
       val sql =
         """
-          INSERT INTO PrivacyCharges (EdpId, MeasurementConsumerId, EventGroupReferenceId, Date, Charges)
+          INSERT INTO PrivacyCharges (EventDataProviderId, MeasurementConsumerId, EventGroupReferenceId, Date, Charges)
           VALUES (?, ?, ?, ?, ?)
         """
 
@@ -495,21 +451,12 @@ class PostgresLedgerTest {
       mcIdText: String,
       egIdText: String,
     ): Triple<Int, Int, Int> {
-      val edpIdInt = fetchDimensionId(connection, "EdpDimension", "EdpId_Text", edpIdText)
+      val edpIdInt =
+        fetchDimensionId(connection, "EventDataProviders", "EventDataProviderName", edpIdText)
       val mcIdInt =
-        fetchDimensionId(
-          connection,
-          "MeasurementConsumerDimension",
-          "MeasurementConsumerId_Text",
-          mcIdText,
-        )
+        fetchDimensionId(connection, "MeasurementConsumers", "MeasurementConsumerName", mcIdText)
       val egIdInt =
-        fetchDimensionId(
-          connection,
-          "EventGroupReferenceDimension",
-          "EventGroupReferenceId_Text",
-          egIdText,
-        )
+        fetchDimensionId(connection, "EventGroupReferences", "EventGroupReferenceName", egIdText)
       return Triple(edpIdInt, mcIdInt, egIdInt)
     }
 
@@ -519,7 +466,7 @@ class PostgresLedgerTest {
       textFieldName: String,
       textValue: String,
     ): Int {
-      val selectSql = "SELECT ${tableName.dropLast(9)}Id FROM $tableName WHERE $textFieldName = ?;"
+      val selectSql = "SELECT id FROM $tableName WHERE $textFieldName = ?;"
 
       connection.prepareStatement(selectSql).use { selectStatement ->
         selectStatement.setString(1, textValue)
@@ -548,7 +495,7 @@ class PostgresLedgerTest {
         """
           SELECT Charges
           FROM PrivacyCharges
-          WHERE EdpId = ?
+          WHERE EventDataProviderId = ?
           AND MeasurementConsumerId = ?
           AND EventGroupReferenceId = ?
           AND Date = ?
@@ -580,27 +527,27 @@ class PostgresLedgerTest {
       val edpIdInt =
         fetchDimensionId(
           connection,
-          "EdpDimension",
-          "EdpId_Text",
+          "EventDataProviders",
+          "EventDataProviderName",
           query.queryIdentifiers.eventDataProviderId,
         )
       val mcIdInt =
         fetchDimensionId(
           connection,
-          "MeasurementConsumerDimension",
-          "MeasurementConsumerId_Text",
+          "MeasurementConsumers",
+          "MeasurementConsumerName",
           query.queryIdentifiers.measurementConsumerId,
         )
       val refIdInt =
         fetchDimensionId(
           connection,
-          "ExternalReferenceDimension",
-          "ExternalReferenceId_Text",
+          "Ledgerentryexternalreferences",
+          "LedgerentryexternalreferenceName",
           query.queryIdentifiers.externalReferenceId,
         )
       val insertStatement =
         """
-            INSERT INTO LedgerEntries (EdpId, MeasurementConsumerId, ExternalReferenceId, IsRefund, CreateTime)
+            INSERT INTO LedgerEntries (EventDataProviderId, MeasurementConsumerId, ExternalReferenceId, IsRefund, CreateTime)
             VALUES (?, ?, ?, ?, ?)
         """
       connection.prepareStatement(insertStatement).use { preparedStatement ->

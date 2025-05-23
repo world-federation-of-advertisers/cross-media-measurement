@@ -76,6 +76,8 @@ class PostgresTransactionContext(
   private val activeLandscapeId: String,
 ) : TransactionContext {
 
+  private val idCache = mutableMapOf<Pair<String, String>, Int>()
+
   private data class LedgerEntry(
     val edpId: String,
     val measurementConsumerId: String,
@@ -90,20 +92,20 @@ class PostgresTransactionContext(
     get() = transactionHasEnded
 
   private suspend fun getChargesTableState(): String {
-    try {
-      val query = "SELECT State FROM PrivacyChargesMetadata WHERE PrivacyLandscapeName = ?"
-      connection.prepareStatement(query).use { preparedStatement ->
-        preparedStatement.setString(1, activeLandscapeId)
-        preparedStatement.executeQuery().use { resultSet ->
-          if (resultSet.next()) {
-            return resultSet.getString("State")
-          } else {
-            throw LedgerException(LedgerExceptionType.TABLE_METADATA_DOESNT_EXIST)
-          }
+    throwIfTransactionHasEnded()
+    val query = "SELECT State FROM PrivacyChargesMetadata WHERE PrivacyLandscapeName = ?"
+    connection.prepareStatement(query).use { preparedStatement ->
+      preparedStatement.setString(1, activeLandscapeId)
+      preparedStatement.executeQuery().use { resultSet ->
+        if (resultSet.next()) {
+          return resultSet.getString("State")
+        } else {
+          throw LedgerException(
+            LedgerExceptionType.TABLE_METADATA_DOESNT_EXIST,
+            "landscapeid : $activeLandscapeId",
+          )
         }
       }
-    } catch (e: Exception) {
-      throw e
     }
   }
 
@@ -116,13 +118,22 @@ class PostgresTransactionContext(
   private suspend fun checkTableState() {
     val chargesTableState = getChargesTableState()
     if (chargesTableState != CHARGES_TABLE_READY_STATE) {
-      throw LedgerException(LedgerExceptionType.TABLE_NOT_READY)
+      throw LedgerException(LedgerExceptionType.TABLE_NOT_READY, "landscapeid : $activeLandscapeId")
     }
   }
 
-  private suspend fun areValid(queries: List<Query>) {
-    if (!queries.all { it.privacyLandscapeIdentifier == activeLandscapeId }) {
-      throw LedgerException(LedgerExceptionType.INVALID_PRIVACY_LANDSCAPE_IDS)
+  private suspend fun validateQueries(queries: List<Query>) {
+    val invalidIds =
+      queries
+        .filterNot { it.privacyLandscapeIdentifier == activeLandscapeId }
+        .map { it.privacyLandscapeIdentifier }
+        .distinct()
+
+    if (invalidIds.isNotEmpty()) {
+      throw LedgerException(
+        LedgerExceptionType.INVALID_PRIVACY_LANDSCAPE_IDS,
+        "Mismatched landscape IDs: ${invalidIds.joinToString(", ")}",
+      )
     }
   }
 
@@ -134,7 +145,8 @@ class PostgresTransactionContext(
    * @return The list of queries that existed in the ledger, with createTime populated.
    */
   override suspend fun readQueries(queries: List<Query>, maxBatchSize: Int): List<Query> {
-    areValid(queries)
+    throwIfTransactionHasEnded()
+    validateQueries(queries)
     checkTableState()
     return withContext(Dispatchers.IO) {
       val foundQueries = mutableListOf<Query>()
@@ -142,79 +154,78 @@ class PostgresTransactionContext(
         return@withContext emptyList()
       }
 
-      try {
-        queries.chunked(MAX_BATCH_READ).forEach { queryBatch ->
-          val batchSize = queryBatch.size
+      queries.chunked(MAX_BATCH_READ).forEach { queryBatch ->
+        val batchSize = queryBatch.size
 
-          val selectStatement =
-            """
-            SELECT ed.EdpId_Text as edpid, mc.MeasurementConsumerId_Text as MeasurementConsumerId, er.ExternalReferenceId_Text as ExternalReferenceId, le.IsRefund, le.CreateTime
+        val selectStatement =
+          """
+            SELECT ed.EventDataProviderName as EventDataProviderId, 
+                   mc.MeasurementConsumerName as MeasurementConsumerId, 
+                   er.LedgerEntryExternalReferenceName as ExternalReferenceId, 
+                   le.IsRefund, 
+                   le.CreateTime
             FROM LedgerEntries le
-            INNER JOIN EdpDimension ed ON le.EdpId = ed.EdpId
-            INNER JOIN MeasurementConsumerDimension mc ON le.MeasurementConsumerId = mc.MeasurementConsumerId
-            INNER JOIN ExternalReferenceDimension er ON le.ExternalReferenceId = er.ExternalReferenceId
-            WHERE (ed.EdpId_Text, mc.MeasurementConsumerId_Text, er.ExternalReferenceId_Text, le.IsRefund) IN
+            INNER JOIN EventDataProviders ed ON le.EventDataProviderId = ed.id
+            INNER JOIN MeasurementConsumers mc ON le.MeasurementConsumerId = mc.id
+            INNER JOIN LedgerEntryExternalReferences er ON le.ExternalReferenceId = er.id
+            WHERE (ed.EventDataProviderName, mc.MeasurementConsumerName, er.LedgerEntryExternalReferenceName, le.IsRefund) IN
             (${generateInClausePlaceholders(batchSize, 4)})
             """
 
-          connection.prepareStatement(selectStatement).use { preparedStatement ->
-            var parameterIndex = 1
-            queryBatch.forEach { query ->
-              preparedStatement.setString(
-                parameterIndex++,
-                query.queryIdentifiers.eventDataProviderId,
+        connection.prepareStatement(selectStatement).use { preparedStatement ->
+          var parameterIndex = 1
+          queryBatch.forEach { query ->
+            preparedStatement.setString(
+              parameterIndex++,
+              query.queryIdentifiers.eventDataProviderId,
+            )
+            preparedStatement.setString(
+              parameterIndex++,
+              query.queryIdentifiers.measurementConsumerId,
+            )
+            preparedStatement.setString(
+              parameterIndex++,
+              query.queryIdentifiers.externalReferenceId,
+            )
+            preparedStatement.setBoolean(parameterIndex++, query.queryIdentifiers.isRefund)
+          }
+
+          preparedStatement.executeQuery().use { resultSet ->
+            val ledgerEntries = mutableListOf<LedgerEntry>()
+            while (resultSet.next()) {
+              ledgerEntries.add(
+                LedgerEntry(
+                  edpId = resultSet.getString("EventDataProviderId"),
+                  measurementConsumerId = resultSet.getString("MeasurementConsumerId"),
+                  externalReferenceId = resultSet.getString("ExternalReferenceId"),
+                  isRefund = resultSet.getBoolean("IsRefund"),
+                  createTime = resultSet.getTimestamp("CreateTime"),
+                )
               )
-              preparedStatement.setString(
-                parameterIndex++,
-                query.queryIdentifiers.measurementConsumerId,
-              )
-              preparedStatement.setString(
-                parameterIndex++,
-                query.queryIdentifiers.externalReferenceId,
-              )
-              preparedStatement.setBoolean(parameterIndex++, query.queryIdentifiers.isRefund)
             }
 
-            preparedStatement.executeQuery().use { resultSet ->
-              val ledgerEntries = mutableListOf<LedgerEntry>()
-              while (resultSet.next()) {
-                ledgerEntries.add(
-                  LedgerEntry(
-                    edpId = resultSet.getString("EdpId"),
-                    measurementConsumerId = resultSet.getString("MeasurementConsumerId"),
-                    externalReferenceId = resultSet.getString("ExternalReferenceId"),
-                    isRefund = resultSet.getBoolean("IsRefund"),
-                    createTime = resultSet.getTimestamp("CreateTime"),
-                  )
-                )
-              }
-
-              ledgerEntries.forEach { ledgerEntry ->
-                val matchingQuery =
-                  queryBatch.find { query ->
-                    query.queryIdentifiers.eventDataProviderId == ledgerEntry.edpId &&
-                      query.queryIdentifiers.measurementConsumerId ==
-                        ledgerEntry.measurementConsumerId &&
-                      query.queryIdentifiers.externalReferenceId ==
-                        ledgerEntry.externalReferenceId &&
-                      query.queryIdentifiers.isRefund == ledgerEntry.isRefund
-                  }
-                if (matchingQuery != null) {
-                  val updatedQuery =
-                    matchingQuery.copy {
-                      queryIdentifiers =
-                        queryIdentifiers.copy {
-                          createTime = ledgerEntry.createTime.toInstant().toProtoTime()
-                        }
-                    }
-                  foundQueries.add(updatedQuery)
+            ledgerEntries.forEach { ledgerEntry ->
+              val matchingQuery =
+                queryBatch.find { query ->
+                  query.queryIdentifiers.eventDataProviderId == ledgerEntry.edpId &&
+                    query.queryIdentifiers.measurementConsumerId ==
+                      ledgerEntry.measurementConsumerId &&
+                    query.queryIdentifiers.externalReferenceId == ledgerEntry.externalReferenceId &&
+                    query.queryIdentifiers.isRefund == ledgerEntry.isRefund
                 }
+              if (matchingQuery != null) {
+                val updatedQuery =
+                  matchingQuery.copy {
+                    queryIdentifiers =
+                      queryIdentifiers.copy {
+                        createTime = ledgerEntry.createTime.toInstant().toProtoTime()
+                      }
+                  }
+                foundQueries.add(updatedQuery)
               }
             }
           }
         }
-      } catch (e: Exception) {
-        throw e
       }
       return@withContext foundQueries
     }
@@ -222,6 +233,7 @@ class PostgresTransactionContext(
 
   override suspend fun readChargeRows(rowKeys: List<LedgerRowKey>, maxBatchSize: Int): Slice =
     withContext(Dispatchers.IO) {
+      throwIfTransactionHasEnded()
       checkTableState()
       val slice = Slice()
       if (rowKeys.isEmpty()) {
@@ -234,13 +246,16 @@ class PostgresTransactionContext(
 
           val selectStatement =
             """
-          SELECT ed.EdpId_Text as edpid, mc.MeasurementConsumerId_Text as MeasurementConsumerId, 
-                 egr.EventGroupReferenceId_Text as EventGroupReferenceId, pc.Date, pc.Charges
+          SELECT ed.EventDataProviderName as EventDataProviderId,
+                 mc.MeasurementConsumerName as MeasurementConsumerId, 
+                 egr.EventGroupReferenceName as EventGroupReferenceId, 
+                 pc.Date, 
+                 pc.Charges
           FROM PrivacyCharges pc
-          INNER JOIN EdpDimension ed ON pc.EdpId = ed.EdpId
-          INNER JOIN MeasurementConsumerDimension mc ON pc.MeasurementConsumerId = mc.MeasurementConsumerId
-          INNER JOIN EventGroupReferenceDimension egr ON pc.EventGroupReferenceId = egr.EventGroupReferenceId
-          WHERE (ed.EdpId_Text, mc.MeasurementConsumerId_Text, egr.EventGroupReferenceId_Text, pc.Date) IN
+          INNER JOIN EventDataProviders ed ON pc.EventDataProviderId = ed.id
+          INNER JOIN MeasurementConsumers mc ON pc.MeasurementConsumerId = mc.id
+          INNER JOIN EventGroupReferences egr ON pc.EventGroupReferenceId = egr.id
+          WHERE (ed.EventDataProviderName, mc.MeasurementConsumerName, egr.EventGroupReferenceName, pc.Date) IN
           (${generateInClausePlaceholders(batchSize, 4)})
         """
           connection.prepareStatement(selectStatement).use { preparedStatement ->
@@ -254,7 +269,7 @@ class PostgresTransactionContext(
 
             preparedStatement.executeQuery().use { resultSet ->
               while (resultSet.next()) {
-                val edpId = resultSet.getString("EdpId")
+                val edpId = resultSet.getString("EventDataProviderId")
                 val measurementConsumerId = resultSet.getString("MeasurementConsumerId")
                 val eventGroupReferenceId = resultSet.getString("EventGroupReferenceId")
                 val date = resultSet.getDate("Date").toLocalDate()
@@ -264,8 +279,7 @@ class PostgresTransactionContext(
                   if (chargesBytes != null && chargesBytes.isNotEmpty()) {
                     Charges.parseFrom(chargesBytes)
                   } else {
-                    Charges.newBuilder()
-                      .build() // Use the builder to create an empty Charges object
+                    charges {}
                   }
 
                 val rowKey = LedgerRowKey(edpId, measurementConsumerId, eventGroupReferenceId, date)
@@ -282,16 +296,22 @@ class PostgresTransactionContext(
 
   override suspend fun write(delta: Slice, queries: List<Query>, maxBatchSize: Int): List<Query> =
     withContext(Dispatchers.IO) {
-      areValid(queries)
+      throwIfTransactionHasEnded()
+      validateQueries(queries)
       checkTableState()
 
       val insertChargesStatement =
         """
-      INSERT INTO PrivacyCharges (EdpId, MeasurementConsumerId, EventGroupReferenceId, Date, Charges)
+      INSERT INTO PrivacyCharges (EventDataProviderId, MeasurementConsumerId, EventGroupReferenceId, Date, Charges)
       VALUES (?, ?, ?, ?, ?)
-      ON CONFLICT (EdpId, MeasurementConsumerId, EventGroupReferenceId, Date) DO UPDATE
+      ON CONFLICT (EventDataProviderId, MeasurementConsumerId, EventGroupReferenceId, Date) DO UPDATE
       SET Charges = EXCLUDED.Charges;
       """
+      // The numnber of keys here are the number of unique rows a batch of requisitions target.
+      // Assuming a report worth of reqisitions are packed, a high end reasonable scenario of the
+      // union
+      // of all the requisitions is that they target 90 days * 50 Event Groups * 1 MC * 1 EDP = 4500
+      // rows.
       val keys = delta.getLedgerRowKeys()
       connection.prepareStatement(insertChargesStatement).use { preparedStatement ->
         keys.chunked(maxBatchSize).forEach { batchKeys ->
@@ -319,7 +339,7 @@ class PostgresTransactionContext(
 
       val insertLedgerEntriesStatement =
         """
-      INSERT INTO LedgerEntries (EdpId, MeasurementConsumerId, ExternalReferenceId, IsRefund, CreateTime)
+      INSERT INTO LedgerEntries (EventDataProviderId, MeasurementConsumerId, ExternalReferenceId, IsRefund, CreateTime)
       VALUES (?, ?, ?, ?, NOW())
       """
       connection.prepareStatement(insertLedgerEntriesStatement).use { preparedStatement ->
@@ -348,62 +368,45 @@ class PostgresTransactionContext(
       return@withContext readQueries(queries)
     }
 
-  // Helper functions to get or insert into dimension tables
-  private fun getOrInsertEdpId(edpIdText: String): Int {
-    return getOrInsertDimensionId("EdpDimension", "EdpId_Text", "EdpId", edpIdText)
-  }
+  private suspend fun getOrInsertEdpId(eventDataProviderName: String) =
+    getOrInsertResourceId("EventDataProviders", eventDataProviderName)
 
-  private fun getOrInsertMeasurementConsumerId(measurementConsumerIdText: String): Int {
-    return getOrInsertDimensionId(
-      "MeasurementConsumerDimension",
-      "MeasurementConsumerId_Text",
-      "MeasurementConsumerId",
-      measurementConsumerIdText,
-    )
-  }
+  private suspend fun getOrInsertMeasurementConsumerId(measurementConsumerName: String) =
+    getOrInsertResourceId("MeasurementConsumers", measurementConsumerName)
 
-  private fun getOrInsertEventGroupReferenceId(eventGroupReferenceIdText: String): Int {
-    return getOrInsertDimensionId(
-      "EventGroupReferenceDimension",
-      "EventGroupReferenceId_Text",
-      "EventGroupReferenceId",
-      eventGroupReferenceIdText,
-    )
-  }
+  private suspend fun getOrInsertEventGroupReferenceId(eventGroupReferenceName: String) =
+    getOrInsertResourceId("EventGroupReferences", eventGroupReferenceName)
 
-  private fun getOrInsertExternalReferenceId(externalReferenceIdText: String): Int {
-    return getOrInsertDimensionId(
-      "ExternalReferenceDimension",
-      "ExternalReferenceId_Text",
-      "ExternalReferenceId",
-      externalReferenceIdText,
-    )
-  }
+  private suspend fun getOrInsertExternalReferenceId(externalReferenceName: String) =
+    getOrInsertResourceId("LedgerEntryExternalReferences", externalReferenceName)
 
-  private fun getOrInsertDimensionId(
-    tableName: String,
-    textFieldName: String,
-    idColumnName: String,
-    textValue: String,
-  ): Int {
-    val selectSql = "SELECT $idColumnName FROM $tableName WHERE $textFieldName = ?;"
-    val insertSql =
-      "INSERT INTO $tableName ($textFieldName) VALUES (?) ON CONFLICT ($textFieldName) DO UPDATE SET $textFieldName = EXCLUDED.$textFieldName RETURNING $idColumnName;"
+  private suspend fun getOrInsertResourceId(tableName: String, value: String): Int {
+    throwIfTransactionHasEnded()
+    val nameColumn = "${tableName.dropLast(1)}Name"
+    val key = Pair(tableName, value)
+    return idCache.getOrPut(key) {
+      val insertSql =
+        """
+        INSERT INTO $tableName ($nameColumn) VALUES (?)
+        ON CONFLICT ($nameColumn) DO UPDATE SET $nameColumn = EXCLUDED.$nameColumn
+        RETURNING id;
+      """
+          .trimIndent()
 
-    connection.prepareStatement(selectSql).use { selectStatement ->
-      selectStatement.setString(1, textValue)
-      selectStatement.executeQuery().use { resultSet ->
-        if (resultSet.next()) {
-          return resultSet.getInt(1)
+      connection.prepareStatement(insertSql).use { insertStatement ->
+        insertStatement.setString(1, value)
+        insertStatement.executeQuery().use { resultSet ->
+          if (resultSet.next()) {
+            return resultSet.getInt(1)
+          } else {
+            // This should ideally not happen with ON CONFLICT DO UPDATE RETURNING id
+            // unless there's a different error during the operation.
+            // However, we keep the exception for robustness.
+            throw IllegalStateException(
+              "Failed to retrieve or insert resource ID for '$value' in '$tableName.$nameColumn'."
+            )
+          }
         }
-      }
-    }
-
-    connection.prepareStatement(insertSql).use { insertStatement ->
-      insertStatement.setString(1, textValue)
-      insertStatement.executeQuery().use { resultSet ->
-        resultSet.next()
-        return resultSet.getInt(1)
       }
     }
   }
