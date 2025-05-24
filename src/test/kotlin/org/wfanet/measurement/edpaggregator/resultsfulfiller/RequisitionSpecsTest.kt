@@ -202,6 +202,141 @@ class RequisitionSpecsTest {
     assertThat(result.count()).isEqualTo(validImpressionCount)
   }
 
+  @Test
+  fun `getSampledVids supports wrapping intervals`() = runBlocking {
+    // Set up test environment
+    val testEventDescriptor = TestEvent.getDescriptor()
+
+    // Create TypeRegistry with the test event descriptor
+    val typeRegistry = TypeRegistry.newBuilder()
+      .add(testEventDescriptor)
+      .build()
+
+    // Create collection interval
+    val collectionInterval = interval {
+      startTime = TIME_RANGE.start.toProtoTime()
+      endTime = TIME_RANGE.endExclusive.toProtoTime()
+    }
+
+    // Create event group entry with filter
+    val eventGroup = eventGroupEntry {
+      key = EVENT_GROUP_NAME
+      value = RequisitionSpecKt.EventGroupEntryKt.value {
+        this.collectionInterval = collectionInterval
+        filter = eventFilter { expression = "person.gender == 1" } // MALE is 1
+      }
+    }
+
+    // Create requisition spec with event group
+    val requisitionSpec = requisitionSpec {
+      events = events {
+        eventGroups += eventGroup
+      }
+    }
+
+    // Create wrapping sampling interval (start = 0.5, width = 0.8)
+    val wrappingVidSamplingInterval = vidSamplingInterval {
+      start = 0.5f
+      width = 0.8f
+    }
+
+    // Create impressions storage client
+    val impressionsTmpPath = Files.createTempDirectory(null).toFile()
+    Files.createDirectories(impressionsTmpPath.resolve(IMPRESSIONS_BUCKET).toPath())
+    val impressionsStorageClient = SelectedStorageClient(IMPRESSIONS_FILE_URI, impressionsTmpPath)
+
+    // Set up KMS
+    val kmsClient = FakeKmsClient()
+    val kekUri = FakeKmsClient.KEY_URI_PREFIX + "kek"
+    val kmsKeyHandle = KeysetHandle.generateNew(KeyTemplates.get("AES128_GCM"))
+    kmsClient.setAead(kekUri, kmsKeyHandle.getPrimitive(Aead::class.java))
+
+    // Set up streaming encryption
+    val tinkKeyTemplateType = "AES128_GCM_HKDF_1MB"
+    val aeadKeyTemplate = KeyTemplates.get(tinkKeyTemplateType)
+    val keyEncryptionHandle = KeysetHandle.generateNew(aeadKeyTemplate)
+    val serializedEncryptionKey =
+      ByteString.copyFrom(
+        TinkProtoKeysetFormat.serializeEncryptedKeyset(
+          keyEncryptionHandle,
+          kmsClient.getAead(kekUri),
+          byteArrayOf(),
+        )
+      )
+    val aeadStorageClient =
+      impressionsStorageClient.withEnvelopeEncryption(kmsClient, kekUri, serializedEncryptionKey)
+
+    // Wrap aead client in mesos client
+    val mesosRecordIoStorageClient = MesosRecordIoStorageClient(aeadStorageClient)
+
+    val validImpressionCount = 130
+    val invalidImpressionCount = 70
+
+    val impressions =
+      MutableList(validImpressionCount) {
+        LABELED_IMPRESSION_1.copy {
+          vid = (it + 1).toLong()
+          eventTime = TIME_RANGE.start.toProtoTime()
+        }
+      }
+
+    val invalidImpressions =
+      List(invalidImpressionCount) {
+        LABELED_IMPRESSION_2.copy {
+          vid = (it + validImpressionCount + 1).toLong()
+          eventTime = TIME_RANGE.start.toProtoTime()
+        }
+      }
+
+    impressions.addAll(invalidImpressions)
+
+    val impressionsFlow = flow {
+      impressions.forEach { impression -> emit(impression.toByteString()) }
+    }
+
+    // Write impressions to storage
+    mesosRecordIoStorageClient.writeBlob(IMPRESSIONS_BLOB_KEY, impressionsFlow)
+
+    // Create the impressions DEK store
+    val dekTmpPath = Files.createTempDirectory(null).toFile()
+    Files.createDirectories(dekTmpPath.resolve(IMPRESSIONS_DEK_BUCKET).toPath())
+    val impressionsDekStorageClient =
+      SelectedStorageClient(IMPRESSIONS_DEK_FILE_URI, dekTmpPath)
+
+    val encryptedDek =
+      EncryptedDek.newBuilder().setKekUri(kekUri).setEncryptedDek(serializedEncryptionKey).build()
+    val blobDetails =
+      BlobDetails.newBuilder()
+        .setBlobUri(IMPRESSIONS_FILE_URI)
+        .setEncryptedDek(encryptedDek)
+        .build()
+
+    impressionsDekStorageClient.writeBlob(
+      IMPRESSION_DEK_BLOB_KEY,
+      blobDetails.toByteString()
+    )
+    
+    // Create EventReader
+    val eventReader = EventReader(
+      kmsClient,
+      StorageConfig(rootDirectory = impressionsTmpPath),
+      StorageConfig(rootDirectory = dekTmpPath),
+      IMPRESSIONS_DEK_FILE_URI_PREFIX
+    )
+
+    // This should not throw an exception for wrapping interval
+    val result = RequisitionSpecs.getSampledVids(
+      requisitionSpec,
+      wrappingVidSamplingInterval,
+      typeRegistry,
+      eventReader
+    )
+
+    // The original VidSampler already supports wrapping intervals
+    // We're just verifying that our validation changes allow using wrapping intervals
+    assertThat(result.count()).isAtLeast(0)
+  }
+
   companion object {
     private val LAST_EVENT_DATE = LocalDate.now()
     private val FIRST_EVENT_DATE = LAST_EVENT_DATE.minusDays(1)

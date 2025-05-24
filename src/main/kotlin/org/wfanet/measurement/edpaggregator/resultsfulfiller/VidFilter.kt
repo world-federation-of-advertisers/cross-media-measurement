@@ -28,10 +28,10 @@ import kotlinx.coroutines.flow.map
 import org.projectnessie.cel.Program
 import org.projectnessie.cel.common.types.BoolT
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec
-import org.wfanet.sampling.VidSampler
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
 import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters
+import org.wfanet.sampling.VidSampler
 
 /**
  * Filters labeled impressions based on various criteria.
@@ -50,15 +50,14 @@ class VidFilter(
   private val typeRegistry: TypeRegistry
 ) {
   init {
-    // Validating VID sampling intervals are within [0, 1] and do not overlap
+    // Validating VID sampling intervals are within [0, 1]
     require(vidSamplingIntervalWidth > 0 && vidSamplingIntervalWidth <= 1.0) {
       "Invalid vidSamplingIntervalWidth $vidSamplingIntervalWidth"
     }
     require(
       vidSamplingIntervalStart < 1 &&
         vidSamplingIntervalStart >= 0 &&
-        vidSamplingIntervalWidth > 0 &&
-        vidSamplingIntervalStart + vidSamplingIntervalWidth <= 1
+        vidSamplingIntervalWidth > 0
     ) {
       "Invalid vidSamplingInterval: start = $vidSamplingIntervalStart, width = " +
         "$vidSamplingIntervalWidth"
@@ -132,8 +131,8 @@ class VidFilter(
     // creation of a CEL Env.
     if (eventFilter.expression.isEmpty()) {
       return Program { TRUE_EVAL_RESULT }
+    }
     
-}
     return EventFilters.compileProgram(eventMessageDescriptor, eventFilter.expression)
   }
 
