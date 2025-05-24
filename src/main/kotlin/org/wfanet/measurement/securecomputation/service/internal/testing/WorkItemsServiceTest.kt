@@ -23,6 +23,7 @@ import com.google.rpc.errorInfo
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import java.time.Instant
+import java.util.logging.Logger
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.runBlocking
@@ -153,16 +154,16 @@ abstract class WorkItemsServiceTest {
         ackExtensionPeriod = Duration.ofHours(6),
       ) { message, consumer ->
         try {
-
-          val anyMessage = Any.parseFrom(message.data.toByteArray())
-          val testWork = anyMessage.unpack(TestWork::class.java)
+          val workItem = WorkItem.parseFrom(message.data.toByteArray())
+          val testWork = workItem.workItemParams.unpack(TestWork::class.java)
           deferred.complete(testWork.userName)
           consumer.ack()
         } catch (e: Exception) {
+          val stackTrace = e.stackTrace.joinToString("\n")
+          logger.info("Subscriber Exception: $stackTrace")
           consumer.nack()
         }
       }
-
     subscriber.startAsync().awaitRunning()
     val result = deferred.await()
     assertThat(result).isEqualTo("UserName")
@@ -526,5 +527,9 @@ abstract class WorkItemsServiceTest {
         }
       )
     }
+  }
+
+  companion object {
+    private val logger: Logger = Logger.getLogger(this::class.java.name)
   }
 }

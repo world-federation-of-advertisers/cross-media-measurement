@@ -47,11 +47,11 @@ message ReportPostProcessorLog {
     // The QP solver failed to find any feasible solution for the whole report.
     QP_SOLUTION_NOT_FOUND = 1;
 
-    // Linear TV measurements failed consistency checks before correction.
-    LINEAR_TV_INCONSISTENT_PRE_CORRECTION = 2;
+    // Zero variance measurements failed consistency checks before correction.
+    ZERO_VARIANCE_MEASUREMENTS_INCONSISTENT_PRE_CORRECTION = 2;
 
-    // Linear TV measurements failed consistency checks after correction.
-    LINEAR_TV_INCONSISTENT_POST_CORRECTION = 3;
+    // Zero variance measurements failed consistency checks after correction.
+    ZERO_VARIANCE_MEASUREMENTS_INCONSISTENT_POST_CORRECTION = 3;
 
     // Independence check for union failed before correction.
     INDEPENDENCE_CHECK_FAILS_PRE_CORRECTION = 4;

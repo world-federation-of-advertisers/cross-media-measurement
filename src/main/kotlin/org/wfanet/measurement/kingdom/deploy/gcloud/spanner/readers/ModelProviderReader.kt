@@ -16,9 +16,11 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers
 
 import com.google.cloud.spanner.Struct
 import kotlinx.coroutines.flow.singleOrNull
+import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.appendClause
+import org.wfanet.measurement.internal.kingdom.ListModelProvidersPageToken
 import org.wfanet.measurement.internal.kingdom.ModelProvider
 import org.wfanet.measurement.internal.kingdom.modelProvider
 
@@ -48,6 +50,22 @@ class ModelProviderReader : SpannerReader<ModelProviderReader.Result>() {
       }
       .execute(readContext)
       .singleOrNull()
+  }
+
+  suspend fun readModelProviders(
+    readContext: AsyncDatabaseClient.ReadContext,
+    limit: Int,
+    after: ListModelProvidersPageToken.After? = null,
+  ): List<Result> {
+    return fillStatementBuilder {
+        if (after != null) {
+          appendClause("WHERE ExternalModelProviderId > ${after.externalModelProviderId}")
+        }
+        appendClause("ORDER BY ExternalModelProviderId ASC")
+        appendClause("LIMIT $limit")
+      }
+      .execute(readContext)
+      .toList()
   }
 
   private fun buildModelProvider(struct: Struct): ModelProvider {

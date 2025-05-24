@@ -71,7 +71,7 @@ jobs:
           - panel-exchange/aws-example-daemon
           - reporting/v2/v2alpha-public-api
           - reporting/v2/gcloud-postgres-update-schema
-          - reporting/v2/postgres-internal-server
+          - reporting/v2/gcloud-internal-server
           - simulator/synthetic-generator-edp
           - duchy/postgres-update-schema
           - duchy/gcloud-postgres-update-schema
@@ -83,9 +83,9 @@ jobs:
           - duchy/aws-postgres-internal-server
           - panel-exchange/forwarded-storage-daemon
           - prober/measurement-system-prober
-          - secure-computation/control-plane-public-api
-          - secure-computation/control-plane-internal-server
-          - secure-computation/control-plane-update-schema
+          - secure-computation/public-api
+          - secure-computation/internal-server
+          - secure-computation/update-schema
     steps:
       - name: Get SARIF file path
         id: get-sarif-file-path

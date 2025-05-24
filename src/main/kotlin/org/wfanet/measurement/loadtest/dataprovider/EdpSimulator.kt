@@ -358,7 +358,7 @@ class EdpSimulator(
                 parent = edpData.name
                 filter =
                   ListEventGroupsRequestKt.filter {
-                    measurementConsumers += measurementConsumerName
+                    measurementConsumerIn += measurementConsumerName
                   }
                 this.pageToken = pageToken
               }

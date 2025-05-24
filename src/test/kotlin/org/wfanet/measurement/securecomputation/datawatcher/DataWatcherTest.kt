@@ -71,13 +71,16 @@ class DataWatcherTest() {
         }
       }
 
-      val dataWatcher = DataWatcher(workItemsStub, listOf(config))
+      val dataWatcher =
+        DataWatcher(workItemsStub, listOf(config), workItemIdGenerator = { "some-work-item-id" })
 
       dataWatcher.receivePath("test-schema://test-bucket/path-to-watch/some-data")
       val createWorkItemRequestCaptor = argumentCaptor<CreateWorkItemRequest>()
       verifyBlocking(workItemsServiceMock, times(1)) {
         createWorkItem(createWorkItemRequestCaptor.capture())
       }
+      assertThat(createWorkItemRequestCaptor.allValues.single().workItemId)
+        .isEqualTo("some-work-item-id")
       assertThat(createWorkItemRequestCaptor.allValues.single().workItem.queue).isEqualTo(topicId)
       val workItemParams =
         createWorkItemRequestCaptor.allValues

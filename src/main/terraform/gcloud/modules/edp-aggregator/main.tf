@@ -19,6 +19,24 @@ module "edp_aggregator_bucket" {
   location = var.edp_aggregator_bucket_location
 }
 
+module "data_watcher_private_key" {
+  source    = "../secret"
+  secret_id = var.data_watcher_private_key_id
+  secret_path = var.data_watcher_private_key_path
+}
+
+module "data_watcher_cert" {
+  source    = "../secret"
+  secret_id = var.data_watcher_cert_id
+  secret_path = var.data_watcher_cert_path
+}
+
+module "secure_computation_root_ca" {
+  source    = "../secret"
+  secret_id = var.secure_computation_root_ca_id
+  secret_path = var.secure_computation_root_ca_path
+}
+
 module "data_watcher_function_service_accounts" {
   source    = "../gcs-bucket-cloud-function"
 
@@ -26,6 +44,32 @@ module "data_watcher_function_service_accounts" {
   cloud_function_trigger_service_account_name    = var.data_watcher_trigger_service_account_name
   trigger_bucket_name                       = module.edp_aggregator_bucket.storage_bucket.name
   terraform_service_account                 = var.terraform_service_account
+}
+
+module "requisition_fetcher_function_service_account" {
+  source    = "../http-cloud-function"
+
+  http_cloud_function_service_account_name  = var.requisition_fetcher_service_account_name
+  bucket_name                               = module.edp_aggregator_bucket.storage_bucket.name
+  terraform_service_account                 = var.terraform_service_account
+}
+
+resource "google_secret_manager_secret_iam_member" "data_watcher_tls_key_accessor" {
+  secret_id = module.data_watcher_private_key.secret_id
+  role      = "roles/secretmanager.secretAccessor"
+  member    = "serviceAccount:${module.data_watcher_function_service_accounts.cloud_function_service_account_email}"
+}
+
+resource "google_secret_manager_secret_iam_member" "data_watcher_tls_pem_accessor" {
+  secret_id = module.data_watcher_cert.secret_id
+  role      = "roles/secretmanager.secretAccessor"
+  member    = "serviceAccount:${module.data_watcher_function_service_accounts.cloud_function_service_account_email}"
+}
+
+resource "google_secret_manager_secret_iam_member" "secure_computation_root_ca_accessor" {
+  secret_id = module.secure_computation_root_ca.secret_id
+  role      = "roles/secretmanager.secretAccessor"
+  member    = "serviceAccount:${module.data_watcher_function_service_accounts.cloud_function_service_account_email}"
 }
 
 module "edp_aggregator_queues" {
@@ -65,7 +109,6 @@ module "tee_apps" {
   for_each = var.queue_worker_configs
   source   = "../mig"
 
-
   instance_template_name        = each.value.worker.instance_template_name
   base_instance_name            = each.value.worker.base_instance_name
   managed_instance_group_name   = each.value.worker.managed_instance_group_name
@@ -95,4 +138,16 @@ resource "google_storage_bucket_iam_member" "mig_storage_creator" {
   bucket = module.edp_aggregator_bucket.storage_bucket.name
   role   = "roles/storage.objectCreator"
   member = "serviceAccount:${each.value.mig_service_account.email}"
+}
+
+resource "google_storage_bucket_iam_member" "requisition_fetcher_storage_viewer" {
+  bucket = module.edp_aggregator_bucket.storage_bucket.name
+  role   = "roles/storage.objectViewer"
+  member = "serviceAccount:${module.requisition_fetcher_function_service_account.cloud_function_service_account.email}"
+}
+
+resource "google_storage_bucket_iam_member" "requisition_fetcher_storage_creator" {
+  bucket = module.edp_aggregator_bucket.storage_bucket.name
+  role   = "roles/storage.objectCreator"
+  member = "serviceAccount:${module.requisition_fetcher_function_service_account.cloud_function_service_account.email}"
 }

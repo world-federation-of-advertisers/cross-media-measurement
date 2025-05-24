@@ -40,8 +40,10 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
 class DataWatcher(
   private val workItemsStub: WorkItemsCoroutineStub,
   private val dataWatcherConfigs: List<WatchedPath>,
+  private val workItemIdGenerator: () -> String = { "work-item-" + UUID.randomUUID().toString() },
 ) {
   suspend fun receivePath(path: String) {
+    logger.info("Received Path: $path")
     for (config in dataWatcherConfigs) {
       try {
         val regex = config.sourcePathRegex.toRegex()
@@ -57,6 +59,8 @@ class DataWatcher(
             WatchedPath.SinkConfigCase.SINKCONFIG_NOT_SET ->
               error("${config.identifier}: Invalid sink config: ${config.sinkConfigCase}")
           }
+        } else {
+          logger.info("$path does not match ${config.sourcePathRegex}")
         }
       } catch (e: Exception) {
         logger.severe("${config.identifier}: Unable to process $path for $config: ${e.message}")
@@ -67,7 +71,7 @@ class DataWatcher(
   private suspend fun sendToControlPlane(config: WatchedPath, path: String) {
 
     val queueConfig = config.controlPlaneQueueSink
-    val workItemId = UUID.randomUUID().toString()
+    val workItemId = workItemIdGenerator()
     val workItemParams =
       workItemParams {
           appParams = queueConfig.appParams
