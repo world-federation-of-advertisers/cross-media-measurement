@@ -1,0 +1,39 @@
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
+
+package(
+    default_visibility = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:__subpackages__",
+        "//src/test/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:__subpackages__",
+    ],
+)
+
+kt_jvm_library(
+    name = "direct_measurement_result_factory",
+    srcs = ["DirectMeasurementResultFactory.kt"],
+    deps = [
+        ":direct_reach_and_frequency_result_builder",
+        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/noiser",
+        "//src/main/proto/wfa/measurement/api/v2alpha:measurement_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:measurement_spec_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:protocol_config_kt_jvm_proto",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+    ],
+)
+
+kt_jvm_library(
+    name = "direct_reach_and_frequency_result_builder",
+    srcs = ["DirectReachAndFrequencyResultBuilder.kt"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/dataprovider:measurement_results",
+        "//src/main/kotlin/org/wfanet/measurement/dataprovider:requisition_refusal_exception",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller/compute:measurement_result_builder",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller/noise:noiser",
+        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/noiser",
+        "//src/main/proto/wfa/measurement/api/v2alpha:measurement_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:measurement_spec_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:protocol_config_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:requisition_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/org/apache/commons:math3",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+    ],
+)

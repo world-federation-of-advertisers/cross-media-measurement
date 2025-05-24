@@ -1,0 +1,13 @@
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_test")
+
+kt_jvm_test(
+    name = "MeasurementResultsTest",
+    srcs = ["MeasurementResultsTest.kt"],
+    test_class = "org.wfanet.measurement.dataprovider.MeasurementResultsTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/dataprovider:measurement_results",
+        "//src/main/kotlin/org/wfanet/measurement/populationdataprovider:population_requisition_fulfiller",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:test_event_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+    ],
+)
