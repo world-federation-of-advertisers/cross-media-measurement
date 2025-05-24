@@ -38,7 +38,7 @@ import org.wfanet.measurement.eventdataprovider.noiser.LaplaceNoiser
  */
 class Noiser(
   private val noiseMechanism: DirectNoiseMechanism,
-  private val random: SecureRandom = SecureRandom()
+  private val random: SecureRandom
 ) {
   init {
     // Check if the noise mechanism is supported
@@ -57,21 +57,10 @@ class Noiser(
    * @return A noiser for the given parameters.
    */
   fun getNoiser(privacyParams: DifferentialPrivacyParams): AbstractNoiser =
-    when (noiseMechanism) {
-      DirectNoiseMechanism.CONTINUOUS_GAUSSIAN ->
-        GaussianNoiser(DpParams(privacyParams.epsilon, privacyParams.delta), random)
-      DirectNoiseMechanism.CONTINUOUS_LAPLACE ->
-        throw RequisitionRefusalException.Default(
-          Requisition.Refusal.Justification.SPEC_INVALID,
-          "Laplace noise is not supported"
-        )
-      DirectNoiseMechanism.NONE ->
-        throw RequisitionRefusalException.Default(
-          Requisition.Refusal.Justification.SPEC_INVALID,
-          "NONE is not a valid noise mechanism. If no noise is required, do not use a Noiser."
-        )
-      else ->
-        throw RequisitionRefusalException.Default(
+    if (noiseMechanism == DirectNoiseMechanism.CONTINUOUS_GAUSSIAN) {
+      GaussianNoiser(DpParams(privacyParams.epsilon, privacyParams.delta), random)
+    } else {
+      throw RequisitionRefusalException.Default(
           Requisition.Refusal.Justification.SPEC_INVALID,
           "Unsupported noise mechanism: $noiseMechanism"
         )
