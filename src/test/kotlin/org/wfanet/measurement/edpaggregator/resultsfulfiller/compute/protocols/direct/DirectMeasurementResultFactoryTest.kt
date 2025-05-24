@@ -23,7 +23,6 @@ import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig.NoiseMechanism
@@ -51,7 +50,6 @@ class DirectMeasurementResultFactoryTest {
 
     val measurementSpec = measurementSpec {
       reachAndFrequency = MeasurementSpecKt.reachAndFrequency {
-        privacyParams = REACH_PRIVACY_PARAMS
         reachPrivacyParams = REACH_PRIVACY_PARAMS
         frequencyPrivacyParams = FREQUENCY_PRIVACY_PARAMS
         maximumFrequency = MAX_FREQUENCY
