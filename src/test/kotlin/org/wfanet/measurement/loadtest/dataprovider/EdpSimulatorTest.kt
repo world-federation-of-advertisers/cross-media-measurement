@@ -895,7 +895,7 @@ class EdpSimulatorTest {
           refusal = refusal { justification = Refusal.Justification.SPEC_INVALID }
         }
       )
-    assertThat(refuseRequest.refusal.message).contains("Protocol not supported")
+    assertThat(refuseRequest.refusal.message).contains("Protocol not set or not supported.")
     assertThat(fakeRequisitionFulfillmentService.fullfillRequisitionInvocations).isEmpty()
   }
 
