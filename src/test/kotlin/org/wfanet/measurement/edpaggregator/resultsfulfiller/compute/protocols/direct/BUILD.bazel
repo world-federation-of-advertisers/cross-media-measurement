@@ -9,3 +9,14 @@ kt_jvm_test(
         "@wfa_common_jvm//imports/java/com/google/common/truth",
     ],
 )
+
+kt_jvm_test(
+    name = "DirectMeasurementResultFactoryTest",
+    srcs = ["DirectMeasurementResultFactoryTest.kt"],
+    test_class = "org.wfanet.measurement.edpaggregator.resultsfulfiller.compute.protocols.direct.DirectMeasurementResultFactoryTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller/compute/protocols/direct:direct_measurement_result_factory",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+    ],
+)
