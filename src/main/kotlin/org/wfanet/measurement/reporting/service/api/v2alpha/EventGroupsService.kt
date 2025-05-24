@@ -37,10 +37,12 @@ import org.wfanet.measurement.api.v2alpha.EventGroup as CmmsEventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupKey as CmmsEventGroupKey
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadata
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt
+import org.wfanet.measurement.api.v2alpha.ListEventGroupsRequest as CmmsListEventGroupsRequest
+import org.wfanet.measurement.api.v2alpha.ListEventGroupsRequestKt as CmmsListEventGroupsRequestKt
 import org.wfanet.measurement.api.v2alpha.ListEventGroupsResponse as CmmsListEventGroupsResponse
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MediaType as CmmsMediaType
-import org.wfanet.measurement.api.v2alpha.listEventGroupsRequest
+import org.wfanet.measurement.api.v2alpha.listEventGroupsRequest as cmmsListEventGroupsRequest
 import org.wfanet.measurement.api.withAuthenticationKey
 import org.wfanet.measurement.common.api.grpc.ResourceList
 import org.wfanet.measurement.common.api.grpc.listResources
@@ -99,26 +101,41 @@ class EventGroupsService(
       ) { pageToken, remaining ->
         val response: CmmsListEventGroupsResponse =
           listEventGroups(
-            listEventGroupsRequest {
+            cmmsListEventGroupsRequest {
               this.parent = parent
               this.pageSize = remaining
               this.pageToken = pageToken
+              if (request.hasStructuredFilter()) {
+                filter = request.structuredFilter.toCmmsFilter()
+              }
+              if (request.hasOrderBy()) {
+                orderBy = request.orderBy.toCmmsOrderBy()
+              }
             }
           )
 
         val eventGroups: List<EventGroup> =
-          response.eventGroupsList.map {
-            val cmmsMetadata: CmmsEventGroup.Metadata? =
-              if (it.hasEncryptedMetadata()) {
-                decryptMetadata(it, parentKey.toName())
+          response.eventGroupsList
+            .map {
+              val cmmsMetadata: CmmsEventGroup.Metadata? =
+                if (it.hasEncryptedMetadata()) {
+                  decryptMetadata(it, parentKey.toName())
+                } else {
+                  null
+                }
+
+              it.toEventGroup(cmmsMetadata)
+            }
+            .let {
+              // TODO(@SanjayVas): Stop reading deprecated field.
+              if (request.hasFilter()) {
+                filterEventGroups(it, request.filter)
               } else {
-                null
+                it
               }
+            }
 
-            it.toEventGroup(cmmsMetadata)
-          }
-
-        ResourceList(filterEventGroups(eventGroups, request.filter), response.nextPageToken)
+        ResourceList(eventGroups, response.nextPageToken)
       }
 
     var hasResponse = false
@@ -149,7 +166,7 @@ class EventGroupsService(
             }
           }
           else ->
-            throw Status.UNKNOWN.withDescription("Error listing EventGroups from backend")
+            throw Status.INTERNAL.withDescription("Error listing EventGroups from backend")
               .withCause(e)
               .asRuntimeException()
         }
@@ -329,5 +346,48 @@ private fun CmmsMediaType.toMediaType(): MediaType {
     CmmsMediaType.OTHER -> MediaType.OTHER
     CmmsMediaType.MEDIA_TYPE_UNSPECIFIED -> MediaType.MEDIA_TYPE_UNSPECIFIED
     CmmsMediaType.UNRECOGNIZED -> error("MediaType unrecognized")
+  }
+}
+
+private fun MediaType.toCmmsMediaType(): CmmsMediaType {
+  return when (this) {
+    MediaType.VIDEO -> CmmsMediaType.VIDEO
+    MediaType.DISPLAY -> CmmsMediaType.DISPLAY
+    MediaType.OTHER -> CmmsMediaType.OTHER
+    MediaType.MEDIA_TYPE_UNSPECIFIED -> CmmsMediaType.MEDIA_TYPE_UNSPECIFIED
+    MediaType.UNRECOGNIZED -> error("MediaType unrecognized")
+  }
+}
+
+private fun ListEventGroupsRequest.OrderBy.toCmmsOrderBy(): CmmsListEventGroupsRequest.OrderBy {
+  val source = this
+  return CmmsListEventGroupsRequestKt.orderBy {
+    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf enum accessors cannot return null.
+    field =
+      when (source.field) {
+        ListEventGroupsRequest.OrderBy.Field.FIELD_UNSPECIFIED ->
+          CmmsListEventGroupsRequest.OrderBy.Field.FIELD_UNSPECIFIED
+        ListEventGroupsRequest.OrderBy.Field.DATA_AVAILABILITY_START_TIME ->
+          CmmsListEventGroupsRequest.OrderBy.Field.DATA_AVAILABILITY_START_TIME
+        ListEventGroupsRequest.OrderBy.Field.UNRECOGNIZED -> error("Unrecognized OrderBy.Field")
+      }
+    descending = source.descending
+  }
+}
+
+private fun ListEventGroupsRequest.Filter.toCmmsFilter(): CmmsListEventGroupsRequest.Filter {
+  val source = this
+  return CmmsListEventGroupsRequestKt.filter {
+    dataProviderIn += source.cmmsDataProviderInList
+    for (mediaType in source.mediaTypesIntersectList) {
+      mediaTypesIntersect += mediaType.toCmmsMediaType()
+    }
+    if (source.hasDataAvailabilityEndTimeOnOrBefore()) {
+      dataAvailabilityEndTimeOnOrBefore = source.dataAvailabilityEndTimeOnOrBefore
+    }
+    if (source.hasDataAvailabilityStartTimeOnOrAfter()) {
+      dataAvailabilityStartTimeOnOrAfter = source.dataAvailabilityStartTimeOnOrAfter
+    }
+    metadataSearchQuery = source.metadataSearchQuery
   }
 }

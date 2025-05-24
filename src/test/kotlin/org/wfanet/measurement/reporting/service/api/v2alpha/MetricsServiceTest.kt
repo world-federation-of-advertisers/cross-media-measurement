@@ -10568,7 +10568,7 @@ class MetricsServiceTest {
   fun `invalidateMetric returns Metric with state INVALID`() = runBlocking {
     wheneverBlocking {
       permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
-    } doReturn checkPermissionsResponse { permissions += PermissionName.CREATE }
+    } doReturn checkPermissionsResponse { permissions += PermissionName.INVALIDATE }
 
     whenever(internalMetricsMock.invalidateMetric(any()))
       .thenReturn(
@@ -10603,7 +10603,7 @@ class MetricsServiceTest {
   fun `invalidateMetric throws FAILED_PRECONDITION when metric FAILED`() = runBlocking {
     wheneverBlocking {
       permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
-    } doReturn checkPermissionsResponse { permissions += PermissionName.CREATE }
+    } doReturn checkPermissionsResponse { permissions += PermissionName.INVALIDATE }
 
     val measurementConsumerKey =
       MeasurementConsumerKey.fromName(MEASUREMENT_CONSUMERS.values.first().name)
@@ -10640,7 +10640,7 @@ class MetricsServiceTest {
   fun `invalidateMetric throws NOT_FOUND when metric not found`() = runBlocking {
     wheneverBlocking {
       permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
-    } doReturn checkPermissionsResponse { permissions += PermissionName.CREATE }
+    } doReturn checkPermissionsResponse { permissions += PermissionName.INVALIDATE }
 
     val measurementConsumerKey =
       MeasurementConsumerKey.fromName(MEASUREMENT_CONSUMERS.values.first().name)
@@ -10720,6 +10720,7 @@ class MetricsServiceTest {
     const val GET = "permissions/${MetricsService.Permission.GET}"
     const val LIST = "permissions/${MetricsService.Permission.LIST}"
     const val CREATE = "permissions/${MetricsService.Permission.CREATE}"
+    const val INVALIDATE = "permissions/${MetricsService.Permission.INVALIDATE}"
   }
 
   companion object {
@@ -10729,6 +10730,7 @@ class MetricsServiceTest {
         MetricsService.Permission.GET,
         MetricsService.Permission.LIST,
         MetricsService.Permission.CREATE,
+        MetricsService.Permission.INVALIDATE,
       )
     private val SCOPES = ALL_PERMISSIONS
 
