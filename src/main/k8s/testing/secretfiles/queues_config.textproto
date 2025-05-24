@@ -1,6 +1,0 @@
-# proto-file: wfa/measurement/config/securecomputation/queues_config.proto
-# proto-message: wfa.measurement.config.securecomputation.QueuesConfig
-
-queueInfos {
-  queue_resource_id: "requisition-fulfiller-queue"
-}
