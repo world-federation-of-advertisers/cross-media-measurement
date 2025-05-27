@@ -14,19 +14,14 @@
  * limitations under the License.
  */
 
-package org.wfanet.measurement.integration.deploy.gcloud
+package org.wfanet.measurement.api.v2alpha
 
-import org.junit.ClassRule
-import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
-import org.wfanet.measurement.integration.common.InProcessModelRepositoryCliIntegrationTest
+import org.wfanet.measurement.common.api.PrincipalLookup
+import org.wfanet.measurement.common.identity.externalIdToApiId
 
-/** Implementation of [InProcessModelRepositoryCliIntegrationTest] for Google Cloud. */
-class GCloudInProcessModelRepositoryCliIntegrationTest :
-  InProcessModelRepositoryCliIntegrationTest(
-    KingdomDataServicesProviderRule(spannerEmulator),
-    verboseGrpcLogging = true,
-  ) {
-  companion object {
-    @get:ClassRule @JvmStatic val spannerEmulator = SpannerEmulatorRule()
+class ExternalModelProviderIdPrincipalLookup : PrincipalLookup<MeasurementPrincipal, Long> {
+  override suspend fun getPrincipal(lookupKey: Long): MeasurementPrincipal? {
+    val modelProviderApiId = externalIdToApiId(lookupKey)
+    return ModelProviderPrincipal(ModelProviderKey(modelProviderApiId))
   }
 }
