@@ -9,10 +9,10 @@ kt_jvm_library(
     name = "computation",
     srcs = glob(["*.kt"]),
     deps = [
+        "//src/main/kotlin/org/wfanet/measurement/common:id_generator",
         "//src/main/kotlin/org/wfanet/measurement/duchy/db/computation",
         "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/spanner/common",
         "//src/main/kotlin/org/wfanet/measurement/duchy/service/internal:internal_exception",
-        "//src/main/kotlin/org/wfanet/measurement/common:id_generator",
         "//src/main/proto/wfa/measurement/internal/duchy:computation_blob_dependency_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/internal/duchy:computation_details_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/internal/duchy:computation_token_kt_jvm_proto",
