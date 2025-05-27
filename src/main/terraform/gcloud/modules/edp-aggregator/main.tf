@@ -12,6 +12,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+locals {
+  secret_access_map = merge([
+    for fn, cfg in var.secret_accessor_configs : {
+      for secret in cfg.secrets_to_access :
+      "${fn}:${secret.secret_key}" => {
+        function_name = fn
+        secret_key    = secret.secret_key
+      }
+    }
+  ]...)
+  service_accounts = {
+    "data_watcher"        = module.data_watcher_function_service_accounts.cloud_function_service_account_email
+    "requisition_fetcher" = module.requisition_fetcher_function_service_account.cloud_function_service_account_email
+    "event_group_sync"    = module.event_group_sync_function_service_account.cloud_function_service_account_email
+  }
+}
+
 module "edp_aggregator_bucket" {
   source   = "../storage-bucket"
 
@@ -19,22 +36,12 @@ module "edp_aggregator_bucket" {
   location = var.edp_aggregator_bucket_location
 }
 
-module "data_watcher_private_key" {
-  source    = "../secret"
-  secret_id = var.data_watcher_private_key_id
-  secret_path = var.data_watcher_private_key_path
-}
-
-module "data_watcher_cert" {
-  source    = "../secret"
-  secret_id = var.data_watcher_cert_id
-  secret_path = var.data_watcher_cert_path
-}
-
-module "secure_computation_root_ca" {
-  source    = "../secret"
-  secret_id = var.secure_computation_root_ca_id
-  secret_path = var.secure_computation_root_ca_path
+module "secrets" {
+  source            = "../secret"
+  for_each          = var.secrets
+  secret_id         = each.value.secret_id
+  secret_path       = each.value.secret_local_path
+  is_binary_format  = each.value.is_binary_format
 }
 
 module "data_watcher_function_service_accounts" {
@@ -50,26 +57,23 @@ module "requisition_fetcher_function_service_account" {
   source    = "../http-cloud-function"
 
   http_cloud_function_service_account_name  = var.requisition_fetcher_service_account_name
-  bucket_name                               = module.edp_aggregator_bucket.storage_bucket.name
   terraform_service_account                 = var.terraform_service_account
 }
 
-resource "google_secret_manager_secret_iam_member" "data_watcher_tls_key_accessor" {
-  secret_id = module.data_watcher_private_key.secret_id
-  role      = "roles/secretmanager.secretAccessor"
-  member    = "serviceAccount:${module.data_watcher_function_service_accounts.cloud_function_service_account_email}"
+module "event_group_sync_function_service_account" {
+  source    = "../http-cloud-function"
+
+  http_cloud_function_service_account_name  = var.event_group_sync_service_account_name
+  terraform_service_account                 = var.terraform_service_account
 }
 
-resource "google_secret_manager_secret_iam_member" "data_watcher_tls_pem_accessor" {
-  secret_id = module.data_watcher_cert.secret_id
-  role      = "roles/secretmanager.secretAccessor"
-  member    = "serviceAccount:${module.data_watcher_function_service_accounts.cloud_function_service_account_email}"
-}
+resource "google_secret_manager_secret_iam_member" "secret_accessor" {
+  for_each = local.secret_access_map
 
-resource "google_secret_manager_secret_iam_member" "secure_computation_root_ca_accessor" {
-  secret_id = module.secure_computation_root_ca.secret_id
+  secret_id = var.secrets[each.value.secret_key].secret_id
   role      = "roles/secretmanager.secretAccessor"
-  member    = "serviceAccount:${module.data_watcher_function_service_accounts.cloud_function_service_account_email}"
+  member    = "serviceAccount:${local.service_accounts[each.value.function_name]}"
+
 }
 
 module "edp_aggregator_queues" {
@@ -112,7 +116,7 @@ module "tee_apps" {
   instance_template_name        = each.value.worker.instance_template_name
   base_instance_name            = each.value.worker.base_instance_name
   managed_instance_group_name   = each.value.worker.managed_instance_group_name
-  subscription_id               = module.edp_aggregator_queues[each.key].pubsub_subscription.id
+  subscription_id               = module.edp_aggregator_queues[each.key].pubsub_subscription.name
   mig_service_account_name      = each.value.worker.mig_service_account_name
   single_instance_assignment    = each.value.worker.single_instance_assignment
   min_replicas                  = each.value.worker.min_replicas
@@ -122,6 +126,8 @@ module "tee_apps" {
   kms_key_id                    = google_kms_crypto_key.edp_aggregator_kek.id
   docker_image                  = each.value.worker.docker_image
   terraform_service_account     = var.terraform_service_account
+  secrets_to_mount              = each.value.worker.secrets_to_mount
+  secrets                       = var.secrets
 }
 
 resource "google_storage_bucket_iam_member" "mig_storage_viewer" {
@@ -140,14 +146,17 @@ resource "google_storage_bucket_iam_member" "mig_storage_creator" {
   member = "serviceAccount:${each.value.mig_service_account.email}"
 }
 
-resource "google_storage_bucket_iam_member" "requisition_fetcher_storage_viewer" {
+resource "google_storage_bucket_iam_binding" "aggregator_storage_viewers" {
   bucket = module.edp_aggregator_bucket.storage_bucket.name
-  role   = "roles/storage.objectViewer"
-  member = "serviceAccount:${module.requisition_fetcher_function_service_account.cloud_function_service_account.email}"
+  role   = "roles/storage.objectAdmin"
+  members = [
+    "serviceAccount:${module.requisition_fetcher_function_service_account.cloud_function_service_account_email}",
+    "serviceAccount:${module.event_group_sync_function_service_account.cloud_function_service_account_email}",
+  ]
 }
 
-resource "google_storage_bucket_iam_member" "requisition_fetcher_storage_creator" {
-  bucket = module.edp_aggregator_bucket.storage_bucket.name
-  role   = "roles/storage.objectCreator"
-  member = "serviceAccount:${module.requisition_fetcher_function_service_account.cloud_function_service_account.email}"
+resource "google_cloud_run_service_iam_member" "event_group_sync_invoker" {
+  service  = var.event_group_sync_function_name
+  role     = "roles/run.invoker"
+  member   = "serviceAccount:${module.data_watcher_function_service_accounts.cloud_function_service_account_email}"
 }
