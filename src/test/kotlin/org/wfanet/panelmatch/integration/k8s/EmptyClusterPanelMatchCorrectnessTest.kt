@@ -55,6 +55,7 @@ import org.wfanet.measurement.common.k8s.testing.PortForwarder
 import org.wfanet.measurement.common.k8s.testing.Processes
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.common.toProtoDate
+import org.wfanet.measurement.integration.common.EntityContent
 import org.wfanet.measurement.integration.common.createEntityContent
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt
 import org.wfanet.measurement.internal.kingdom.ModelProvidersGrpcKt
@@ -63,7 +64,6 @@ import org.wfanet.measurement.internal.testing.ForwardedStorageGrpcKt
 import org.wfanet.measurement.loadtest.panelmatch.EntitiesData
 import org.wfanet.measurement.loadtest.panelmatch.PanelMatchSimulator
 import org.wfanet.measurement.loadtest.panelmatchresourcesetup.PanelMatchResourceSetup
-import org.wfanet.measurement.loadtest.resourcesetup.EntityContent
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.forwarded.ForwardedStorageClient
 import org.wfanet.panelmatch.client.deploy.DaemonStorageClientDefaults

@@ -55,12 +55,16 @@ abstract class InProcessMeasurementSystemProberIntegrationTest(
   kingdomDataServicesRule: ProviderRule<DataServices>,
   duchyDependenciesRule:
     ProviderRule<(String, ComputationLogEntriesCoroutineStub) -> InProcessDuchy.DuchyDependencies>,
-) {
+  accessServicesFactory: AccessServicesFactory,
+  ) {
 
   @get:Rule
   val inProcessCmmsComponents =
-    InProcessCmmsComponents(kingdomDataServicesRule, duchyDependenciesRule)
-
+    InProcessCmmsComponents(
+      kingdomDataServicesRule = kingdomDataServicesRule,
+      duchyDependenciesRule = duchyDependenciesRule,
+      accessServicesFactory = accessServicesFactory,
+    )
   private val publicMeasurementsClient by lazy {
     MeasurementsCoroutineStub(inProcessCmmsComponents.kingdom.publicApiChannel)
   }

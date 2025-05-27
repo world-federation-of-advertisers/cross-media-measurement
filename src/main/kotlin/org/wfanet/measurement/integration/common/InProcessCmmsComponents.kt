@@ -18,12 +18,18 @@ package org.wfanet.measurement.integration.common
 
 import com.google.protobuf.ByteString
 import com.google.protobuf.TypeRegistry
+import io.grpc.Channel
 import java.security.cert.X509Certificate
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.runBlocking
 import org.junit.rules.TestRule
 import org.junit.runner.Description
 import org.junit.runners.model.Statement
+import org.wfanet.measurement.access.common.TlsClientPrincipalMapping
+import org.wfanet.measurement.access.service.internal.PermissionMapping
+import org.wfanet.measurement.access.v1alpha.PoliciesGrpcKt
+import org.wfanet.measurement.access.v1alpha.PrincipalsGrpcKt
+import org.wfanet.measurement.access.v1alpha.RolesGrpcKt
 import org.wfanet.measurement.api.v2alpha.AccountsGrpcKt
 import org.wfanet.measurement.api.v2alpha.ApiKeysGrpcKt
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
@@ -43,6 +49,7 @@ import org.wfanet.measurement.common.identity.DuchyInfo
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.testing.ProviderRule
 import org.wfanet.measurement.common.testing.chainRulesSequentially
+import org.wfanet.measurement.config.AuthorityKeyToPrincipalMap
 import org.wfanet.measurement.config.DuchyCertConfig
 import org.wfanet.measurement.dataprovider.DataProviderData
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
@@ -55,7 +62,6 @@ import org.wfanet.measurement.loadtest.dataprovider.toPopulationSpec
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
 import org.wfanet.measurement.loadtest.measurementconsumer.PopulationData
 import org.wfanet.measurement.loadtest.resourcesetup.DuchyCert
-import org.wfanet.measurement.loadtest.resourcesetup.EntityContent
 import org.wfanet.measurement.loadtest.resourcesetup.ResourceSetup
 import org.wfanet.measurement.loadtest.resourcesetup.Resources
 import org.wfanet.measurement.loadtest.resourcesetup.ResourcesKt.ResourceKt
@@ -71,7 +77,8 @@ class InProcessCmmsComponents(
     SyntheticGenerationSpecs.SYNTHETIC_POPULATION_SPEC_SMALL,
   private val syntheticEventGroupSpecs: List<SyntheticEventGroupSpec> =
     SyntheticGenerationSpecs.SYNTHETIC_DATA_SPECS_SMALL,
-) : TestRule {
+  private val accessServicesFactory: AccessServicesFactory,
+  ) : TestRule {
   private val kingdomDataServices: DataServices
     get() = kingdomDataServicesRule.value
 
@@ -140,12 +147,22 @@ class InProcessCmmsComponents(
     )
   }
 
+  private val access =
+    InProcessAccess(true) {
+      val tlsClientMapping =
+        TlsClientPrincipalMapping(AuthorityKeyToPrincipalMap.getDefaultInstance())
+      val permissionMapping = PermissionMapping(PERMISSIONS_CONFIG)
+      accessServicesFactory.create(permissionMapping, tlsClientMapping)
+    }
+
   val ruleChain: TestRule by lazy {
     chainRulesSequentially(
       kingdomDataServicesRule,
       kingdom,
       duchyDependenciesRule,
       *duchies.toTypedArray(),
+      accessServicesFactory,
+      access,
     )
   }
 
@@ -160,12 +177,25 @@ class InProcessCmmsComponents(
   private val publicApiKeysClient by lazy {
     ApiKeysGrpcKt.ApiKeysCoroutineStub(kingdom.publicApiChannel)
   }
+  private val policiesClient by lazy {
+    PoliciesGrpcKt.PoliciesCoroutineStub(access.channel)
+  }
+  private val principalsClient by lazy {
+    PrincipalsGrpcKt.PrincipalsCoroutineStub(access.channel)
+  }
+  private val rolesClient by lazy {
+    RolesGrpcKt.RolesCoroutineStub(access.channel)
+  }
 
   val modelProviderResourceName: String
     get() = _modelProviderResourceName
 
   val typeRegistry: TypeRegistry
     get() = _typeRegistry
+
+  /** gRPC [Channel] for Access API. */
+  val accessChannel: Channel
+    get() = access.channel
 
   private lateinit var mcResourceName: String
   private lateinit var apiAuthenticationKey: String
@@ -189,6 +219,9 @@ class InProcessCmmsComponents(
         apiKeysClient = publicApiKeysClient,
         internalCertificatesClient = kingdom.internalCertificatesClient,
         measurementConsumersClient = publicMeasurementConsumersClient,
+        rolesClient = rolesClient,
+        principalsClient = principalsClient,
+        policiesClient = policiesClient,
         runId = "12345",
         requiredDuchies = listOf("worker1", "worker2"),
       )

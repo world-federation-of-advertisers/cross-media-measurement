@@ -37,6 +37,7 @@ import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.config.AuthorityKeyToPrincipalMapKt
 import org.wfanet.measurement.config.authorityKeyToPrincipalMap
 import org.wfanet.measurement.consent.client.measurementconsumer.signEncryptionPublicKey
+import org.wfanet.measurement.integration.common.EntityContent
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt
 import org.wfanet.measurement.internal.kingdom.ModelProvidersGrpcKt
 import org.wfanet.measurement.internal.kingdom.RecurringExchange
@@ -54,7 +55,6 @@ import org.wfanet.measurement.loadtest.common.FileOutput
 import org.wfanet.measurement.loadtest.panelmatch.resourcesetup.Resources
 import org.wfanet.measurement.loadtest.panelmatch.resourcesetup.ResourcesKt
 import org.wfanet.measurement.loadtest.panelmatch.resourcesetup.ResourcesKt.resource
-import org.wfanet.measurement.loadtest.resourcesetup.EntityContent
 
 class PanelMatchResourceSetup(
   private val internalDataProvidersClient: DataProvidersGrpcKt.DataProvidersCoroutineStub,

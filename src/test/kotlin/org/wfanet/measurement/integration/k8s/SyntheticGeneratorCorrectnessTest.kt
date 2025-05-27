@@ -18,7 +18,6 @@ package org.wfanet.measurement.integration.k8s
 
 import com.google.crypto.tink.InsecureSecretKeyAccess
 import com.google.crypto.tink.TinkProtoKeysetFormat
-import com.google.protobuf.util.JsonFormat
 import io.grpc.ManagedChannel
 import java.nio.file.Paths
 import java.security.KeyPair
@@ -48,9 +47,11 @@ import org.wfanet.measurement.common.grpc.testing.OpenIdProvider
 import org.wfanet.measurement.common.grpc.withDefaultDeadline
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.testing.chainRulesSequentially
-import org.wfanet.measurement.config.access.OpenIdProvidersConfig
 import org.wfanet.measurement.integration.common.SyntheticGenerationSpecs
 import org.wfanet.measurement.internal.reporting.v2.BasicReportsGrpcKt as InternalBasicReportsGrpcKt
+import kotlinx.coroutines.runBlocking
+import org.wfanet.measurement.access.v1alpha.PrincipalsGrpcKt
+import org.wfanet.measurement.access.v1alpha.getPrincipalRequest
 import org.wfanet.measurement.loadtest.dataprovider.SyntheticGeneratorEventQuery
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerSimulator
@@ -184,18 +185,16 @@ class SyntheticGeneratorCorrectnessTest : AbstractCorrectnessTest(measurementSys
           .sslSocketFactory(certificates.sslSocketFactory(), certificates.trustManager)
           .build()
 
-      val openIdProvidersConfigBuilder = OpenIdProvidersConfig.newBuilder()
-      JsonFormat.parser()
-        .ignoringUnknownFields()
-        .merge(OPEN_ID_PROVIDERS_CONFIG_JSON_FILE.readText(), openIdProvidersConfigBuilder)
-      val openIdProvidersConfig = openIdProvidersConfigBuilder.build()
 
+      val principalsClient = PrincipalsGrpcKt.PrincipalsCoroutineStub(accessPublicApiChannel)
       val principal =
-        createAccessPrincipal(
-          TEST_CONFIG.measurementConsumer,
-          accessPublicApiChannel,
-          openIdProvidersConfig.providerConfigByIssuerMap.keys.first(),
-        )
+        runBlocking {
+          principalsClient.getPrincipal(
+            getPrincipalRequest {
+              name = TEST_CONFIG.principal
+            }
+          )
+        }
 
       val bearerTokenCallCredentials: BearerTokenCallCredentials =
         OpenIdProvider(
@@ -227,7 +226,7 @@ class SyntheticGeneratorCorrectnessTest : AbstractCorrectnessTest(measurementSys
         reportsClient = ReportsGrpcKt.ReportsCoroutineStub(publicApiChannel),
         okHttpReportingClient = okHttpReportingClient,
         reportingGatewayHost = TEST_CONFIG.reportingGatewayTarget,
-        reportingGatewayPort = 8443,
+        reportingGatewayPort = 443,
         reportingAccessToken = bearerTokenCallCredentials.token,
         internalBasicReportsClient =
           InternalBasicReportsGrpcKt.BasicReportsCoroutineStub(internalApiChannel),

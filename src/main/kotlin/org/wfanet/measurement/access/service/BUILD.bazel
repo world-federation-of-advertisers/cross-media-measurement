@@ -5,6 +5,7 @@ package(
         "//src/main/kotlin/org/wfanet/measurement/access/client:__subpackages__",
         "//src/main/kotlin/org/wfanet/measurement/access/deploy:__subpackages__",
         "//src/main/kotlin/org/wfanet/measurement/access/service:__subpackages__",
+        "//src/main/kotlin/org/wfanet/measurement/loadtest/resourcesetup:__pkg__",
         "//src/test/kotlin/org/wfanet/measurement/access/service:__subpackages__",
         "//src/test/kotlin/org/wfanet/measurement/integration/k8s:__pkg__",
     ],

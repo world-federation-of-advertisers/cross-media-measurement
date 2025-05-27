@@ -23,12 +23,17 @@ import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TestRule
+import org.wfanet.measurement.access.v1alpha.PoliciesGrpcKt.PoliciesCoroutineStub
+import org.wfanet.measurement.access.v1alpha.PrincipalsGrpcKt.PrincipalsCoroutineStub
+import org.wfanet.measurement.access.v1alpha.RolesGrpcKt.RolesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.AccountsGrpcKt.AccountsCoroutineStub as PublicAccountsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ApiKeysGrpcKt.ApiKeysCoroutineStub as PublicApiKeysCoroutineStub
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub as PublicEventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub as PublicMeasurementConsumersCoroutineStub
+import org.wfanet.measurement.access.common.TlsClientPrincipalMapping
+import org.wfanet.measurement.access.service.internal.PermissionMapping
 import org.wfanet.measurement.api.v2alpha.createEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.deleteEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.eventGroup
@@ -38,8 +43,8 @@ import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.identity.withPrincipalName
 import org.wfanet.measurement.common.testing.ProviderRule
 import org.wfanet.measurement.common.testing.chainRulesSequentially
+import org.wfanet.measurement.config.AuthorityKeyToPrincipalMap
 import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
-import org.wfanet.measurement.loadtest.resourcesetup.EntityContent
 import org.wfanet.measurement.loadtest.resourcesetup.ResourceSetup
 
 private const val REDIRECT_URI = "https://localhost:2050"
@@ -63,8 +68,18 @@ abstract class InProcessLifeOfAnEventGroupIntegrationTest {
       verboseGrpcLogging = false,
     )
 
+  abstract val accessServicesFactory: AccessServicesFactory
+
+  private val access =
+    InProcessAccess(true) {
+      val tlsClientMapping =
+        TlsClientPrincipalMapping(AuthorityKeyToPrincipalMap.getDefaultInstance())
+      val permissionMapping = PermissionMapping(PERMISSIONS_CONFIG)
+      accessServicesFactory.create(permissionMapping, tlsClientMapping)
+    }
+
   @get:Rule
-  val ruleChain: TestRule by lazy { chainRulesSequentially(kingdomDataServicesRule, kingdom) }
+  val ruleChain: TestRule by lazy { chainRulesSequentially(kingdomDataServicesRule, kingdom, accessServicesFactory, access) }
 
   private val publicMeasurementConsumersClient by lazy {
     PublicMeasurementConsumersCoroutineStub(kingdom.publicApiChannel)
@@ -74,6 +89,10 @@ abstract class InProcessLifeOfAnEventGroupIntegrationTest {
   }
   private val publicAccountsClient by lazy { PublicAccountsCoroutineStub(kingdom.publicApiChannel) }
   private val publicApiKeysClient by lazy { PublicApiKeysCoroutineStub(kingdom.publicApiChannel) }
+
+  private val policiesClient by lazy { PoliciesCoroutineStub(access.channel) }
+  private val principalsClient by lazy { PrincipalsCoroutineStub(access.channel) }
+  private val rolesClient by lazy { RolesCoroutineStub(access.channel) }
 
   private lateinit var mcResourceName: String
   private lateinit var edpDisplayName: String
@@ -89,6 +108,9 @@ abstract class InProcessLifeOfAnEventGroupIntegrationTest {
         apiKeysClient = publicApiKeysClient,
         internalCertificatesClient = kingdom.internalCertificatesClient,
         measurementConsumersClient = publicMeasurementConsumersClient,
+        rolesClient = rolesClient,
+        principalsClient = principalsClient,
+        policiesClient = policiesClient,
         runId = "67890",
         requiredDuchies = listOf(),
       )

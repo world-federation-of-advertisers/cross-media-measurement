@@ -41,6 +41,7 @@ Then run the tool, outputting to some directory (e.g. `/tmp/resource-setup`):
 src/main/k8s/testing/resource_setup.sh \
   --kingdom-public-api-target=v2alpha.kingdom.dev.halo-cmm.org:8443 \
   --kingdom-internal-api-target=localhost:9443 \
+  --access-api-target=v1alpha.access.dev.halo-cmm.org:8443 \
   --bazel-config-name=halo-dev \
   --output-dir=/tmp/resource-setup
 ```
@@ -83,8 +84,9 @@ bazel test //src/test/kotlin/org/wfanet/measurement/integration/k8s:SyntheticGen
 --define=mc_api_key=W9q4zad246g \
 --define=reporting_public_api_target=v2alpha.reporting.dev.halo-cmm.org:8443 \
 --define=reporting_internal_api_target=internal.reporting.dev.halo-cmm.org:8443 \
---define=reporting_gateway_target=gateway.reporting.dev.halo-cmm.org:443 \
---define=access_public_api_target=access.reporting.dev.halo-cmm.org:8443
+--define=reporting_gateway_target=v2alpha.reporting.dev.halo-cmm.org \
+--define=access_public_api_target=access.reporting.dev.halo-cmm.org:8443 \
+--define=principal_name=principals/123 
 ```
 
 The time the test takes depends on the size of the data set. With the default

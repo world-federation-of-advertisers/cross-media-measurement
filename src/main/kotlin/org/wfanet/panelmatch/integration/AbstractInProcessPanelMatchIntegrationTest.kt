@@ -55,9 +55,9 @@ import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.common.toProtoDate
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
+import org.wfanet.measurement.integration.common.EntityContent
 import org.wfanet.measurement.integration.common.InProcessKingdom
 import org.wfanet.measurement.integration.deploy.gcloud.KingdomDataServicesProviderRule
-import org.wfanet.measurement.loadtest.resourcesetup.EntityContent
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 import org.wfanet.panelmatch.client.deploy.DaemonStorageClientDefaults

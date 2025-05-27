@@ -188,7 +188,11 @@ abstract class InProcessLifeOfAReportIntegrationTest(
   reportingDataServicesProviderRule: ProviderRule<Services>,
 ) {
   private val inProcessCmmsComponents: InProcessCmmsComponents =
-    InProcessCmmsComponents(kingdomDataServicesRule, duchyDependenciesRule)
+    InProcessCmmsComponents(
+      kingdomDataServicesRule = kingdomDataServicesRule,
+      duchyDependenciesRule = duchyDependenciesRule,
+      accessServicesFactory = accessServicesFactory,
+    )
 
   private val inProcessCmmsComponentsStartup = TestRule { base, _ ->
     object : Statement() {
@@ -235,8 +239,8 @@ abstract class InProcessLifeOfAReportIntegrationTest(
 
         return InProcessReportingServer(
           reportingDataServicesProviderRule.value,
-          accessServicesFactory,
           inProcessCmmsComponents.kingdom.publicApiChannel,
+          inProcessCmmsComponents.accessChannel,
           encryptionKeyPairConfig,
           SECRETS_DIR,
           measurementConsumerConfig,
@@ -274,7 +278,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
   fun createAccessPolicy() {
     val measurementConsumerData: MeasurementConsumerData =
       inProcessCmmsComponents.getMeasurementConsumerData()
-    val accessChannel = reportingServer.accessChannel
+    val accessChannel = inProcessCmmsComponents.accessChannel
 
     val rolesStub = RolesGrpc.newBlockingStub(accessChannel)
     val mcResourceType = "halo.wfanet.org/MeasurementConsumer"

@@ -18,6 +18,7 @@ package org.wfanet.measurement.integration.deploy.gcloud
 
 import org.junit.ClassRule
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
+import org.wfanet.measurement.integration.common.AccessServicesFactory
 import org.wfanet.measurement.integration.common.InProcessLifeOfAnEventGroupIntegrationTest
 
 /**
@@ -28,6 +29,8 @@ class GCloudInProcessLifeOfAnEventGroupIntegrationTest :
   InProcessLifeOfAnEventGroupIntegrationTest() {
 
   override val kingdomDataServicesRule by lazy { KingdomDataServicesProviderRule(spannerEmulator) }
+
+  override val accessServicesFactory by lazy { SpannerAccessServicesFactory(spannerEmulator) }
 
   companion object {
     @get:ClassRule @JvmStatic val spannerEmulator = SpannerEmulatorRule()

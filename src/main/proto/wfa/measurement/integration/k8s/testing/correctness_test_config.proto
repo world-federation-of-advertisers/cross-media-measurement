@@ -57,7 +57,7 @@ message CorrectnessTestConfig {
   // If not specified, standard TLS DNS-ID derivation will be used.
   string reporting_internal_api_cert_host = 8;
 
-  // gRPC target of Reporting gateway server.
+  // http target of Reporting gateway server.
   string reporting_gateway_target = 9;
 
   // gRPC target of Access public API server.
@@ -68,4 +68,9 @@ message CorrectnessTestConfig {
   //
   // If not specified, standard TLS DNS-ID derivation will be used.
   string access_public_api_cert_host = 11;
+
+  // Principal resource name.
+  string principal = 12 [
+    (google.api.resource_reference).type = "access.halo-cmm.org/Principal"
+  ];
 }

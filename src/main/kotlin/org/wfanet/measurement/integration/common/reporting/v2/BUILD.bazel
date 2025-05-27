@@ -55,9 +55,7 @@ kt_jvm_library(
     ],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/access/client/v1alpha:trusted_principal_auth_interceptor",
-        "//src/main/kotlin/org/wfanet/measurement/integration/common:access_services_factory",
         "//src/main/kotlin/org/wfanet/measurement/integration/common:configs",
-        "//src/main/kotlin/org/wfanet/measurement/integration/common:in_process_access",
         "//src/main/kotlin/org/wfanet/measurement/measurementconsumer/stats:variances",
         "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/common/server:internal_reporting_server",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api:cel_env_provider",

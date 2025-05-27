@@ -28,7 +28,7 @@ import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.toProtoDate
 import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
-import org.wfanet.measurement.loadtest.resourcesetup.EntityContent
+import org.wfanet.measurement.integration.common.EntityContent
 import picocli.CommandLine
 
 private val EXCHANGE_DATE = LocalDate.now()

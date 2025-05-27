@@ -297,13 +297,10 @@ package k8s
 
 	networkPolicies: {
 		"postgres-internal-reporting-server": {
-			_ingresses: {
-				gRpc: {
-					ports: [{
-						port: #GrpcPort
-					}]
-				}
-			}
+			_sourceMatchLabels: [
+				"reporting-v2alpha-public-api-server-app",
+				"report-scheduling-app",
+			]
 			_egresses: {
 				// Needs to call out to Postgres and Spanner.
 				any: {}
