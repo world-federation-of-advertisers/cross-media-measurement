@@ -158,12 +158,20 @@ class CreateModelSuite : Runnable {
 class ListModelSuites : Runnable {
   @ParentCommand private lateinit var parentCommand: ModelSuites
 
+  @Option(
+    names = ["--parent"],
+    description = ["Resource name of the parent ModelProvider"],
+    required = true,
+  )
+  private lateinit var parentModelProvider: String
+
   @Mixin private lateinit var pageParams: PageParams
 
   override fun run() {
     val response: ListModelSuitesResponse = runBlocking {
       parentCommand.modelSuitesClient.listModelSuites(
         listModelSuitesRequest {
+          parent = parentModelProvider
           pageSize = pageParams.pageSize
           pageToken = pageParams.pageToken
         }
