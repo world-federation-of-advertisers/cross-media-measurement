@@ -284,7 +284,6 @@ class GcpSpannerComputationsDatabaseTransactorTest :
 
   @Test
   fun `insert two computations`() = runBlocking {
-    val idGenerator = IdGenerator.Default
     val globalId1 = "12345"
     val localId1 = 1L
     database.insertComputation(
