@@ -53,7 +53,8 @@ object RequisitionSpecs {
     require(
       vidSamplingIntervalStart < 1 &&
         vidSamplingIntervalStart >= 0 &&
-        vidSamplingIntervalWidth > 0
+        vidSamplingIntervalWidth > 0 &&
+        vidSamplingIntervalWidth <= 1
     ) {
       "Invalid vidSamplingInterval: start = $vidSamplingIntervalStart, width = " +
         "$vidSamplingIntervalWidth"
