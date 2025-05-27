@@ -16,6 +16,15 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
+    name = "external_id_principal_server_interceptor",
+    srcs = ["ExternalIdPrincipalServerInterceptor.kt"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/common/api:principal",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
+    ],
+)
+
+kt_jvm_library(
     name = "list_resources",
     srcs = ["ListResources.kt"],
     deps = [

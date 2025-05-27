@@ -22,6 +22,7 @@ import io.grpc.ServerServiceDefinition
 import io.grpc.Status
 import org.wfanet.measurement.common.api.PrincipalLookup
 import org.wfanet.measurement.common.api.grpc.AkidPrincipalServerInterceptor
+import org.wfanet.measurement.common.api.grpc.ExternalIdPrincipalServerInterceptor
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.withContext
 import org.wfanet.measurement.common.identity.AuthorityKeyServerInterceptor
@@ -102,6 +103,21 @@ fun BindableService.withPrincipalsFromX509AuthorityKeyIdentifiers(
       ContextKeys.PRINCIPAL_CONTEXT_KEY,
       AuthorityKeyServerInterceptor.CLIENT_AUTHORITY_KEY_IDENTIFIER_CONTEXT_KEY,
       akidPrincipalLookup,
+    ),
+  )
+}
+
+/** Convenience helper for [ExternalIdPrincipalServerInterceptor]. */
+fun BindableService.withModelProviderPrincipalsFromExternalIds(
+  externalId: Long,
+  externalModelProviderIdPrincipalLookup: PrincipalLookup<MeasurementPrincipal, Long>,
+): ServerServiceDefinition {
+  return ServerInterceptors.interceptForward(
+    this,
+    ExternalIdPrincipalServerInterceptor(
+      ContextKeys.PRINCIPAL_CONTEXT_KEY,
+      externalId,
+      externalModelProviderIdPrincipalLookup,
     ),
   )
 }
