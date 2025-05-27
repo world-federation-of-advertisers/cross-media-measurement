@@ -26,9 +26,9 @@ kt_jvm_test(
     data = [
         "//src/main/proto/wfa/measurement/loadtest/edpaggregator:specs",
     ],
-    test_class = "org.wfanet.measurement.loadtest.edpaggregator.SyntheticDataGenerationTest",
+    test_class = "org.wfanet.measurement.loadtest.common.SyntheticDataGenerationTest",
     deps = [
-        "//src/main/kotlin/org/wfanet/measurement/loadtest/edpaggregator:synthetic_data_generation",
+        "//src/main/kotlin/org/wfanet/measurement/loadtest/common:synthetic_data_generation",
         "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:test_event_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/java/com/google/common/truth/extensions/proto",

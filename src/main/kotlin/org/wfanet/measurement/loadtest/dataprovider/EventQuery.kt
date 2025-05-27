@@ -22,6 +22,7 @@ import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec.EventFilter
 import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters
+import org.wfanet.measurement.loadtest.common.LabeledEvent
 
 /** A query to get the list of user virtual IDs for a particular requisition. */
 interface EventQuery<out T : Message> {

@@ -12,13 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.loadtest.edpaggregator
+package org.wfanet.measurement.loadtest.common
 
+import com.google.protobuf.Message
 import java.time.LocalDate
 import kotlinx.coroutines.flow.Flow
-import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
 
-data class DateShardedLabeledImpression(
+data class DateShardedLabeledImpression<T : Message>(
   val localDate: LocalDate,
-  val impressions: Flow<LabeledImpression>,
+  val impressions: Flow<LabeledEvent<T>>,
 )

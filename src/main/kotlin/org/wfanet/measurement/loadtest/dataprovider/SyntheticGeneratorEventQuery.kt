@@ -26,6 +26,8 @@ import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.Synthetic
 import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.toRange
 import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters
+import org.wfanet.measurement.loadtest.common.LabeledEvent
+import org.wfanet.measurement.loadtest.common.SyntheticDataGeneration
 
 /** [EventQuery] that uses [SyntheticDataGeneration]. */
 abstract class SyntheticGeneratorEventQuery(

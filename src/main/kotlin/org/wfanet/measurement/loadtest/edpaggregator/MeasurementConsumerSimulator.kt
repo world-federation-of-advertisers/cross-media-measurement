@@ -25,7 +25,6 @@ import java.security.SignatureException
 import java.security.cert.CertPathValidatorException
 import java.security.cert.X509Certificate
 import java.time.Duration
-import java.time.LocalDate
 import java.util.logging.Logger
 import kotlin.math.max
 import kotlin.math.sqrt
@@ -90,7 +89,6 @@ import org.wfanet.measurement.api.v2alpha.testing.MeasurementResultSubject.Compa
 import org.wfanet.measurement.api.v2alpha.unpack
 import org.wfanet.measurement.api.withAuthenticationKey
 import org.wfanet.measurement.common.ExponentialBackoff
-import org.wfanet.measurement.common.OpenEndTimeRange
 import org.wfanet.measurement.common.api.grpc.ResourceList
 import org.wfanet.measurement.common.api.grpc.flattenConcat
 import org.wfanet.measurement.common.api.grpc.listResources
@@ -123,6 +121,7 @@ import org.wfanet.measurement.measurementconsumer.stats.ReachMeasurementVariance
 import org.wfanet.measurement.measurementconsumer.stats.VariancesImpl
 import org.wfanet.measurement.measurementconsumer.stats.VidSamplingInterval as StatsVidSamplingInterval
 import com.google.type.Interval
+import org.wfanet.measurement.loadtest.common.SyntheticDataGeneration
 
 data class MeasurementConsumerData(
   // The MC's public API resource name

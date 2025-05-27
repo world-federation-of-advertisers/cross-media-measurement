@@ -62,31 +62,6 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
-    name = "sharded_impressions",
-    srcs = [
-        "ShardedImpressions.kt",
-    ],
-    deps = [
-        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:labeled_impression_kt_jvm_proto",
-        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
-    ],
-)
-
-kt_jvm_library(
-    name = "synthetic_data_generation",
-    srcs = [
-        "SyntheticDataGeneration.kt",
-    ],
-    deps = [
-        ":sharded_impressions",
-        "//src/main/proto/wfa/measurement/api/v2alpha/event_group_metadata/testing:simulator_synthetic_data_spec_kt_jvm_proto",
-        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:labeled_impression_kt_jvm_proto",
-        "@wfa_common_jvm//imports/java/com/google/common:guava",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
-    ],
-)
-
-kt_jvm_library(
     name = "impression_writer",
     srcs = [
         "ImpressionWriter.kt",

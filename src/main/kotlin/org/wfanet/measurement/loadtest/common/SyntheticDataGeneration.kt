@@ -14,9 +14,8 @@
  * limitations under the License.
  */
 
-package org.wfanet.measurement.loadtest.edpaggregator
+package org.wfanet.measurement.loadtest.common
 
-import java.time.ZoneId
 import com.google.common.hash.Hashing
 import com.google.protobuf.Any as ProtoAny
 import com.google.protobuf.Descriptors.FieldDescriptor
@@ -24,7 +23,8 @@ import com.google.protobuf.Message
 import com.google.protobuf.kotlin.toByteStringUtf8
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
-import java.time.ZoneOffset
+import java.time.Instant
+import java.time.ZoneId
 import java.time.temporal.ChronoUnit
 import java.util.logging.Logger
 import kotlin.math.max
@@ -42,45 +42,57 @@ import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.Synthetic
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.VidRange
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.syntheticEventGroupSpec
 import org.wfanet.measurement.common.LocalDateProgression
+import org.wfanet.measurement.common.OpenEndTimeRange
 import org.wfanet.measurement.common.rangeTo
 import org.wfanet.measurement.common.toLocalDate
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
 import org.wfanet.measurement.edpaggregator.v1alpha.labeledImpression
+import java.math.BigInteger
 
 object SyntheticDataGeneration {
   private val VID_SAMPLING_FINGERPRINT_FUNCTION = Hashing.farmHashFingerprint64()
   private const val FINGERPRINT_BUFFER_SIZE_BYTES = 512
 
   /**
-   * Generates events probablistically. Given a total frequency across a date period, it will
-   * generate events based on the probability that a user would have had an impression that day. For
-   * example, for a user with frequency of 5, over a 10 day period, there is a 50% chance they have
-   * an impression each day.
+   * Generates events deterministicly. Given a total frequency across a date period, it will
+   * generate events across that time period based on a hash function. For
+   * example, for a user with frequency of 5, over a 10 day period, that user will have exactly
+   * 5 vids in the output over the 10 day period.
    *
-   * Generates a flow of [LabeledImpression].
+   * Generates a flow of [DateShardedLabeledImpression].
    *
    * @param messageInstance an instance of the event message type [T]
    * @param populationSpec specification of the synthetic population
    * @param syntheticEventGroupSpec specification of the synthetic event group
+   * @param timeRange range in which to generate events
+   * @param zoneId the zoneId in which to segment the flows
    */
   fun <T : Message> generateEvents(
     messageInstance: T,
     populationSpec: SyntheticPopulationSpec,
     syntheticEventGroupSpec: SyntheticEventGroupSpec,
+    timeRange: OpenEndTimeRange = OpenEndTimeRange(Instant.MIN, Instant.MAX),
     zoneId: ZoneId = ZoneId.of("UTC"),
-  ): Flow<DateShardedLabeledImpression> {
+  ): Flow<DateShardedLabeledImpression<T>> {
     val subPopulations = populationSpec.subPopulationsList
     return flow {
       for (dateSpec: SyntheticEventGroupSpec.DateSpec in syntheticEventGroupSpec.dateSpecsList) {
         val dateProgression: LocalDateProgression = dateSpec.dateRange.toProgression()
+
+        // Optimization: Skip the entire DateSpec if it does not overlap the specified time range.
+        val dateSpecTimeRange = OpenEndTimeRange.fromClosedDateRange(dateProgression)
+        if (!dateSpecTimeRange.overlaps(timeRange)) {
+          continue
+        }
         val numDays =
           ChronoUnit.DAYS.between(dateProgression.start, dateProgression.endInclusive) + 1
-        val chanceRange = 1 / numDays.toDouble()
-        logger.info("Writing $numDays of data")
+        logger.info("Writing $numDays days of data")
         for (date in dateProgression) {
-          logger.info("Generating data for date: $date")
-          val innerFlow: Flow<LabeledImpression> = flow {
+          val innerFlow: Flow<LabeledEvent<T>> = flow {
+            val dayNumber =
+              ChronoUnit.DAYS.between(dateProgression.start, date)
+            logger.info("Generating data for day: $dayNumber date: $date")
             for (frequencySpec: SyntheticEventGroupSpec.FrequencySpec in
               dateSpec.frequencySpecsList) {
 
@@ -124,17 +136,20 @@ object SyntheticDataGeneration {
                 @Suppress("UNCHECKED_CAST") // Safe per protobuf API.
                 val message = builder.build() as T
                 for (vid in vidRangeSpec.sampledVids(syntheticEventGroupSpec.samplingNonce)) {
-                  for (i in 0 until frequencySpec.frequency) {
-                    val randomDouble = Random.nextDouble(0.0, 1.0)
-                    if (randomDouble < chanceRange) {
-                      val randomTime = date.atStartOfDay(zoneId).plusSeconds(Random.nextLong(0, 86400 - 1))
-                      emit(
-                        labeledImpression {
-                          eventTime = randomTime.toInstant().toProtoTime()
-                          this.vid = vid
-                          event = ProtoAny.pack(message)
-                        }
-                      )
+                  for (i in 1..frequencySpec.frequency) {
+                    val dayToLog = (VID_SAMPLING_FINGERPRINT_FUNCTION.hashLong(vid * i).asLong() % numDays + numDays) % numDays
+                    if (dayToLog == dayNumber) {
+                      val randomTime =
+                        date.atStartOfDay(zoneId).plusSeconds(Random.nextLong(0, 86400 - 1))
+                      if (randomTime.toInstant() in timeRange) {
+                        emit(
+                          LabeledEvent(
+                            randomTime.toInstant(),
+                            vid,
+                            message,
+                          )
+                        )
+                      }
                     }
                   }
                 }
@@ -381,6 +396,7 @@ fun CartesianSyntheticEventGroupSpecRecipe.toSyntheticEventGroupSpec(
     samplingNonce = givenSamplingNonce
     dateSpecs += mappedDateSpecs
   }
+
 }
 
 private fun createFrequencySpec(

@@ -42,6 +42,7 @@ import org.wfanet.measurement.api.v2alpha.event_templates.testing.testEvent
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.video
 import org.wfanet.measurement.common.OpenEndTimeRange
 import org.wfanet.measurement.common.toProtoDuration
+import org.wfanet.measurement.loadtest.common.LabeledEvent
 
 @RunWith(JUnit4::class)
 class SyntheticDataGenerationTest {
