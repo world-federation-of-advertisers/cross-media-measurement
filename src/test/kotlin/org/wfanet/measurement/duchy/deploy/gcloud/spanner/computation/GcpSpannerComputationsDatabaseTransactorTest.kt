@@ -22,6 +22,7 @@ import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.kotlin.toByteStringUtf8
 import java.time.Duration
 import java.time.Instant
+import java.util.concurrent.atomic.AtomicLong
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertNull
@@ -30,6 +31,7 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.measurement.common.IdGenerator
 import org.wfanet.measurement.common.testing.TestClockWithNamedInstants
 import org.wfanet.measurement.duchy.db.computation.AfterTransition
 import org.wfanet.measurement.duchy.db.computation.BlobRef
@@ -261,6 +263,14 @@ class GcpSpannerComputationsDatabaseTransactorTest :
       FakeComputationDetails,
     >
 
+  class TestIdGenerator() : IdGenerator {
+    var next = AtomicLong(1)
+
+    override fun generateId(): Long {
+      return next.getAndIncrement()
+    }
+  }
+
   @Before
   fun initDatabase() {
     database =
@@ -268,14 +278,15 @@ class GcpSpannerComputationsDatabaseTransactorTest :
         databaseClient,
         computationMutations = computationMutations,
         clock = testClock,
+        TestIdGenerator(),
       )
   }
 
   @Test
   fun `insert two computations`() = runBlocking {
-    val idGenerator = GlobalBitsPlusTimeStampIdGenerator(testClock)
+    val idGenerator = IdGenerator.Default
     val globalId1 = "12345"
-    val localId1 = idGenerator.localId(globalId1)
+    val localId1 = 1L
     database.insertComputation(
       globalId1,
       FakeProtocol.ZERO,
@@ -284,7 +295,7 @@ class GcpSpannerComputationsDatabaseTransactorTest :
       FAKE_COMPUTATION_DETAILS,
     )
     val globalId2 = "5678"
-    val localId2 = idGenerator.localId(globalId2)
+    val localId2 = 2L
     database.insertComputation(
       globalId2,
       FakeProtocol.ZERO,
@@ -299,7 +310,7 @@ class GcpSpannerComputationsDatabaseTransactorTest :
       SELECT ComputationId, ComputationStage, UpdateTime, GlobalComputationId, LockOwner,
              LockExpirationTime, ComputationDetails, ComputationDetailsJSON
       FROM Computations
-      ORDER BY ComputationId DESC
+      ORDER BY ComputationId ASC
       """
         .trimIndent(),
       Struct.newBuilder()
@@ -334,7 +345,7 @@ class GcpSpannerComputationsDatabaseTransactorTest :
       SELECT ComputationId, ComputationStage, CreationTime, NextAttempt,
              EndTime, Details, DetailsJSON
       FROM ComputationStages
-      ORDER BY ComputationId DESC
+      ORDER BY ComputationId ASC
       """
         .trimIndent(),
       Struct.newBuilder()

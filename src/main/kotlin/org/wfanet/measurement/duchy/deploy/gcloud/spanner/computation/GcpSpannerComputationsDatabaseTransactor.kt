@@ -27,6 +27,8 @@ import java.util.logging.Logger
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.toList
+import org.wfanet.measurement.common.IdGenerator
+import org.wfanet.measurement.common.generateNewId
 import org.wfanet.measurement.duchy.db.computation.AfterTransition
 import org.wfanet.measurement.duchy.db.computation.BlobRef
 import org.wfanet.measurement.duchy.db.computation.ComputationEditToken
@@ -60,10 +62,8 @@ class GcpSpannerComputationsDatabaseTransactor<
   private val databaseClient: AsyncDatabaseClient,
   private val computationMutations: ComputationMutations<ProtocolT, StageT, StageDT, ComputationDT>,
   private val clock: Clock = Clock.systemUTC(),
+  private val computationIdGenerator: IdGenerator,
 ) : ComputationsDatabaseTransactor<ProtocolT, StageT, StageDT, ComputationDT> {
-
-  private val localComputationIdGenerator: LocalComputationIdGenerator =
-    GlobalBitsPlusTimeStampIdGenerator(clock)
 
   override suspend fun insertComputation(
     globalId: String,
@@ -77,12 +77,17 @@ class GcpSpannerComputationsDatabaseTransactor<
       "Invalid initial stage $initialStage"
     }
 
-    val localId: Long = localComputationIdGenerator.localId(globalId)
+    val localComputationId: Long =
+      computationIdGenerator.generateNewId { id ->
+        databaseClient
+          .singleUseReadOnlyTransaction()
+          .readRow("Computations", Key.of(id), listOf("ComputationId")) != null
+      }
 
     val writeTimestamp = clock.gcloudTimestamp()
     val computationRow =
       computationMutations.insertComputation(
-        localId,
+        localComputationId,
         creationTime = writeTimestamp,
         updateTime = writeTimestamp,
         globalId = globalId,
@@ -95,7 +100,7 @@ class GcpSpannerComputationsDatabaseTransactor<
 
     val computationStageRow =
       computationMutations.insertComputationStage(
-        localId = localId,
+        localId = localComputationId,
         stage = initialStage,
         creationTime = writeTimestamp,
         nextAttempt = 1,
@@ -105,7 +110,7 @@ class GcpSpannerComputationsDatabaseTransactor<
     val requisitionRows =
       requisitions.map {
         computationMutations.insertRequisition(
-          localComputationId = localId,
+          localComputationId = localComputationId,
           requisitionId = requisitions.indexOf(it).toLong(),
           externalRequisitionId = it.key.externalRequisitionId,
           requisitionFingerprint = it.key.requisitionFingerprint,
