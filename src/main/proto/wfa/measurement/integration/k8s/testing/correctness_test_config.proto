@@ -70,7 +70,6 @@ message CorrectnessTestConfig {
   string access_public_api_cert_host = 11;
 
   // Principal resource name.
-  string principal = 12 [
-    (google.api.resource_reference).type = "access.halo-cmm.org/Principal"
-  ];
+  string principal = 12
+      [(google.api.resource_reference).type = "access.halo-cmm.org/Principal"];
 }

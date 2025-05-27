@@ -32,7 +32,7 @@ class GCloudSpannerInProcessMeasurementSystemProberIntegrationTest :
     KingdomDataServicesProviderRule(spannerEmulator),
     SpannerDuchyDependencyProviderRule(spannerEmulator, ALL_DUCHY_NAMES),
     SpannerAccessServicesFactory(spannerEmulator),
-    ) {
+  ) {
   /**
    * Rule to enforce test method timeout.
    *
