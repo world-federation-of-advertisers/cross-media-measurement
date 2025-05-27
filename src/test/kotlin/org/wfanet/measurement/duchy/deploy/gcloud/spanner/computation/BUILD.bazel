@@ -12,17 +12,6 @@ kt_jvm_proto_library(
     deps = [":fake_protocol_stage_details_proto"],
 )
 
-kt_jvm_test(
-    name = "LocalComputationIdGeneratorsTest",
-    srcs = ["LocalComputationIdGeneratorsTest.kt"],
-    test_class = "org.wfanet.measurement.duchy.deploy.gcloud.spanner.computation.LocalComputationIdGeneratorsTest",
-    deps = [
-        "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/spanner/computation",
-        "@wfa_common_jvm//imports/java/org/junit",
-        "@wfa_common_jvm//imports/kotlin/kotlin/test",
-    ],
-)
-
 spanner_emulator_test(
     name = "ComputationsSchemaTest",
     srcs = ["ComputationsSchemaTest.kt"],
