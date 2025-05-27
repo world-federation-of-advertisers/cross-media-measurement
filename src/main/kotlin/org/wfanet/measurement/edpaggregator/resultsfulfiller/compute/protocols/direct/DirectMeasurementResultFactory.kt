@@ -58,7 +58,7 @@ object DirectMeasurementResultFactory {
             measurementSpec.reachAndFrequency.frequencyPrivacyParams,
             measurementSpec.vidSamplingInterval.width,
             directNoiseMechanism,
-            random
+            random,
           )
         reachAndFrequencyResultBuilder.buildMeasurementResult()
       }

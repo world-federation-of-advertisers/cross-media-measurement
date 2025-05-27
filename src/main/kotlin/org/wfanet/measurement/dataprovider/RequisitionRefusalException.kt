@@ -28,7 +28,7 @@ import org.wfanet.measurement.api.v2alpha.Requisition
 sealed class RequisitionRefusalException(
   val justification: Requisition.Refusal.Justification,
   message: String,
-  cause: Throwable? = null
+  cause: Throwable? = null,
 ) : Exception(message, cause) {
 
   /** Base implementation of [RequisitionRefusalException]. */

@@ -22,6 +22,7 @@ import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCorouti
 interface MeasurementFulfiller {
   /** The stub for the Requisitions service. */
   val requisitionsStub: RequisitionsCoroutineStub
+
   /** Fulfills a requisition. */
   suspend fun fulfillRequisition()
 }

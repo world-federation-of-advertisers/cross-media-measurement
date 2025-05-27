@@ -79,10 +79,7 @@ class DirectReachAndFrequencyResultBuilder(
     }
 
     var (sampledReachValue, frequencyMap) =
-      MeasurementResults.computeReachAndFrequency(
-        sampledVids,
-        maxFrequency,
-      )
+      MeasurementResults.computeReachAndFrequency(sampledVids, maxFrequency)
 
     if (directNoiseMechanism != DirectNoiseMechanism.NONE) {
       logger.info("Adding $directNoiseMechanism publisher noise to direct reach and frequency...")

@@ -70,7 +70,7 @@ class DirectMeasurementResultFactoryTest {
           directNoiseMechanism = DirectNoiseMechanism.NONE,
           measurementSpec = measurementSpec,
           sampledVids = sampledVids,
-          random = SecureRandom()
+          random = SecureRandom(),
         )
 
       // Verify

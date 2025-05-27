@@ -81,7 +81,7 @@ class DirectMeasurementFulfillerTest {
           directNoiseMechanism = DirectNoiseMechanism.CONTINUOUS_GAUSSIAN,
           dataProviderSigningKeyHandle = EDP_SIGNING_KEY,
           dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
-          requisitionsStub = requisitionsStub
+          requisitionsStub = requisitionsStub,
         )
 
       directMeasurementFulfiller.fulfillRequisition()
@@ -89,7 +89,7 @@ class DirectMeasurementFulfillerTest {
       // Verify the stub was called with the correct parameters
       verifyProtoArgument(
           requisitionsServiceMock,
-          RequisitionsCoroutineImplBase::fulfillDirectRequisition
+          RequisitionsCoroutineImplBase::fulfillDirectRequisition,
         )
         .comparingExpectedFieldsOnly()
         .isEqualTo(

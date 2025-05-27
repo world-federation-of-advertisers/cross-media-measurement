@@ -39,7 +39,7 @@ class Noiser(private val noiseMechanism: DirectNoiseMechanism, private val rando
     if (!SUPPORTED_NOISE_MECHANISMS.contains(noiseMechanism)) {
       throw RequisitionRefusalException.Default(
         Requisition.Refusal.Justification.SPEC_INVALID,
-        "Unsupported noise mechanism: $noiseMechanism"
+        "Unsupported noise mechanism: $noiseMechanism",
       )
     }
   }
@@ -56,7 +56,7 @@ class Noiser(private val noiseMechanism: DirectNoiseMechanism, private val rando
     } else {
       throw RequisitionRefusalException.Default(
         Requisition.Refusal.Justification.SPEC_INVALID,
-        "Unsupported noise mechanism: $noiseMechanism"
+        "Unsupported noise mechanism: $noiseMechanism",
       )
     }
 
@@ -83,7 +83,7 @@ class Noiser(private val noiseMechanism: DirectNoiseMechanism, private val rando
   fun addNoise(
     frequencyMap: Map<Int, Double>,
     privacyParams: DifferentialPrivacyParams,
-    reachValue: Int
+    reachValue: Int,
   ): Map<Int, Double> {
     val noiser: AbstractNoiser = getNoiser(privacyParams)
 

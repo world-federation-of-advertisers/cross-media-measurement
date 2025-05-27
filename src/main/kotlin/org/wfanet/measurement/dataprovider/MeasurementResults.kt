@@ -35,7 +35,7 @@ object MeasurementResults {
    */
   suspend fun computeReachAndFrequency(
     filteredVids: Flow<Long>,
-    maxFrequency: Int
+    maxFrequency: Int,
   ): ReachAndFrequency {
     // Count occurrences of each VID using fold operation on the flow
     val eventsPerVid =

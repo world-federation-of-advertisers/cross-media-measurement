@@ -72,7 +72,7 @@ class MeasurementResultsTest {
           9L,
           9L,
           9L, // VID 9 appears 3 times
-          10L // VID 10 appears 1 time
+          10L, // VID 10 appears 1 time
         )
       val maxFrequency = 5
 
@@ -92,7 +92,7 @@ class MeasurementResultsTest {
         .isEqualTo(1.0 / 10.0) // 1 VID with frequency 4
       assertThat(result.relativeFrequencyDistribution[5])
         .isEqualTo(2.0 / 10.0) // 2 VIDs with frequency 5 (including capped)
-  }
+    }
 
   @Test
   fun `computeReachAndFrequency with Flow handles empty input`() = runBlocking {
@@ -161,7 +161,7 @@ class MeasurementResultsTest {
         9L,
         9L,
         9L, // VID 9 appears 3 times
-        10L // VID 10 appears 1 time
+        10L, // VID 10 appears 1 time
       )
 
     // Execute
@@ -215,7 +215,7 @@ class MeasurementResultsTest {
         9L,
         9L,
         9L, // VID 9 appears 3 times
-        10L // VID 10 appears 1 time
+        10L, // VID 10 appears 1 time
       )
     val maxFrequency = 5
 
@@ -280,19 +280,9 @@ class MeasurementResultsTest {
 
     val typeRegistry = TypeRegistry.newBuilder().add(Person.getDescriptor()).build()
 
-    val program: Program =
-      EventFilters.compileProgram(
-        eventMessageDescriptor,
-        filterExpression,
-        operativeFields,
-      )
+    val program: Program = EventFilters.compileProgram(eventMessageDescriptor, filterExpression, operativeFields)
 
-    val result =
-      MeasurementResults.computePopulation(
-        POPULATION_INFO,
-        program,
-        typeRegistry,
-      )
+    val result = MeasurementResults.computePopulation(POPULATION_INFO, program, typeRegistry)
 
     // Result should be the size of VID_RANGE_1
     assertThat(result).isEqualTo(100)

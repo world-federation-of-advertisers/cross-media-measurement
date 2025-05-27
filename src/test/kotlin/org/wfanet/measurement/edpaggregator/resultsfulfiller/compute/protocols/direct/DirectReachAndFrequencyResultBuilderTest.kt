@@ -57,7 +57,7 @@ class DirectReachAndFrequencyResultBuilderTest {
           frequencyPrivacyParams = FREQUENCY_PRIVACY_PARAMS,
           samplingRate = SAMPLING_RATE,
           directNoiseMechanism = DirectNoiseMechanism.NONE,
-          random = SecureRandom()
+          random = SecureRandom(),
         )
 
       val result = directReachAndFrequencyResultBuilder.buildMeasurementResult()
@@ -96,7 +96,7 @@ class DirectReachAndFrequencyResultBuilderTest {
           frequencyPrivacyParams = FREQUENCY_PRIVACY_PARAMS,
           samplingRate = SAMPLING_RATE,
           directNoiseMechanism = DirectNoiseMechanism.CONTINUOUS_GAUSSIAN,
-          random = SecureRandom()
+          random = SecureRandom(),
         )
 
       val result = directReachAndFrequencyResultBuilder.buildMeasurementResult()
@@ -133,7 +133,7 @@ class DirectReachAndFrequencyResultBuilderTest {
             frequencyPrivacyParams = FREQUENCY_PRIVACY_PARAMS,
             samplingRate = SAMPLING_RATE,
             directNoiseMechanism = DirectNoiseMechanism.CONTINUOUS_GAUSSIAN,
-            random = SecureRandom()
+            random = SecureRandom(),
           )
 
         val result = directReachAndFrequencyResultBuilder.buildMeasurementResult()
