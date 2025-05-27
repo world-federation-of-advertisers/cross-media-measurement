@@ -19,16 +19,13 @@ package org.wfanet.measurement.edpaggregator.resultsfulfiller.noise
 import java.security.SecureRandom
 import kotlin.math.max
 import kotlin.math.roundToInt
-import org.apache.commons.math3.distribution.ConstantRealDistribution
 import org.wfanet.measurement.api.v2alpha.DifferentialPrivacyParams
-import org.wfanet.measurement.api.v2alpha.ProtocolConfig.NoiseMechanism
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.dataprovider.RequisitionRefusalException
 import org.wfanet.measurement.eventdataprovider.noiser.AbstractNoiser
 import org.wfanet.measurement.eventdataprovider.noiser.DirectNoiseMechanism
 import org.wfanet.measurement.eventdataprovider.noiser.DpParams
 import org.wfanet.measurement.eventdataprovider.noiser.GaussianNoiser
-import org.wfanet.measurement.eventdataprovider.noiser.LaplaceNoiser
 
 /**
  * A class for adding noise to measurement results.
@@ -36,10 +33,7 @@ import org.wfanet.measurement.eventdataprovider.noiser.LaplaceNoiser
  * @param noiseMechanism The direct noise mechanism to use.
  * @param random The random number generator to use.
  */
-class Noiser(
-  private val noiseMechanism: DirectNoiseMechanism,
-  private val random: SecureRandom
-) {
+class Noiser(private val noiseMechanism: DirectNoiseMechanism, private val random: SecureRandom) {
   init {
     // Check if the noise mechanism is supported
     if (!SUPPORTED_NOISE_MECHANISMS.contains(noiseMechanism)) {
@@ -61,9 +55,9 @@ class Noiser(
       GaussianNoiser(DpParams(privacyParams.epsilon, privacyParams.delta), random)
     } else {
       throw RequisitionRefusalException.Default(
-          Requisition.Refusal.Justification.SPEC_INVALID,
-          "Unsupported noise mechanism: $noiseMechanism"
-        )
+        Requisition.Refusal.Justification.SPEC_INVALID,
+        "Unsupported noise mechanism: $noiseMechanism"
+      )
     }
 
   /**
@@ -112,8 +106,6 @@ class Noiser(
 
   companion object {
     // The supported noise mechanisms in order of preference.
-    private val SUPPORTED_NOISE_MECHANISMS = setOf(
-      DirectNoiseMechanism.CONTINUOUS_GAUSSIAN
-    )
+    private val SUPPORTED_NOISE_MECHANISMS = setOf(DirectNoiseMechanism.CONTINUOUS_GAUSSIAN)
   }
 }

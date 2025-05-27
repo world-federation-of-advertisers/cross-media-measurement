@@ -35,54 +35,59 @@ import org.wfanet.measurement.eventdataprovider.noiser.DirectNoiseMechanism
 class DirectMeasurementResultFactoryTest {
 
   @Test
-  fun `buildMeasurementResult returns reach and frequency result for REACH_AND_FREQUENCY measurement type`() = runBlocking {
-    // Setup
-    val distinctVids = 100
-    val sampledVids = flow {
-      for (i in 1..distinctVids) {
-        emit(i.toLong())
-        // Duplicating the VID for every 10th entry to simulate frequency of 2 for 10 users
-        if (i % 10 == 0) {
+  fun `buildMeasurementResult returns reach and frequency result for REACH_AND_FREQUENCY measurement type`() =
+    runBlocking {
+      // Setup
+      val distinctVids = 100
+      val sampledVids = flow {
+        for (i in 1..distinctVids) {
           emit(i.toLong())
+          // Duplicating the VID for every 10th entry to simulate frequency of 2 for 10 users
+          if (i % 10 == 0) {
+            emit(i.toLong())
+          }
         }
       }
-    }
 
-    val measurementSpec = measurementSpec {
-      reachAndFrequency = MeasurementSpecKt.reachAndFrequency {
-        reachPrivacyParams = REACH_PRIVACY_PARAMS
-        frequencyPrivacyParams = FREQUENCY_PRIVACY_PARAMS
-        maximumFrequency = MAX_FREQUENCY
+      val measurementSpec = measurementSpec {
+        reachAndFrequency =
+          MeasurementSpecKt.reachAndFrequency {
+            reachPrivacyParams = REACH_PRIVACY_PARAMS
+            frequencyPrivacyParams = FREQUENCY_PRIVACY_PARAMS
+            maximumFrequency = MAX_FREQUENCY
+          }
+        vidSamplingInterval =
+          MeasurementSpecKt.vidSamplingInterval {
+            start = 0.0f
+            width = SAMPLING_RATE
+          }
       }
-      vidSamplingInterval = MeasurementSpecKt.vidSamplingInterval {
-        start = 0.0f
-        width = SAMPLING_RATE
-      }
+
+      // Execute
+      val result =
+        DirectMeasurementResultFactory.buildMeasurementResult(
+          directProtocolConfig = DIRECT_PROTOCOL,
+          directNoiseMechanism = DirectNoiseMechanism.NONE,
+          measurementSpec = measurementSpec,
+          sampledVids = sampledVids,
+          random = SecureRandom()
+        )
+
+      // Verify
+      assertThat(result.hasReach()).isTrue()
+      assertThat(result.reach.noiseMechanism).isEqualTo(NoiseMechanism.NONE)
+      assertThat(result.reach.hasDeterministicCountDistinct()).isTrue()
+      assertThat(result.reach.value).isEqualTo(distinctVids)
+
+      assertThat(result.hasFrequency()).isTrue()
+      assertThat(result.frequency.noiseMechanism).isEqualTo(NoiseMechanism.NONE)
+      assertThat(result.frequency.hasDeterministicDistribution()).isTrue()
+      assertThat(result.frequency.relativeFrequencyDistributionMap).isNotEmpty()
+      // Since every 10th VID was duplicated during the creation of sampledVids, 90% of users saw ad
+      // once and 10% saw it twice
+      assertThat(result.frequency.relativeFrequencyDistributionMap[1]).isEqualTo(0.9)
+      assertThat(result.frequency.relativeFrequencyDistributionMap[2]).isEqualTo(0.1)
     }
-
-    // Execute
-    val result = DirectMeasurementResultFactory.buildMeasurementResult(
-      directProtocolConfig = DIRECT_PROTOCOL,
-      directNoiseMechanism = DirectNoiseMechanism.NONE,
-      measurementSpec = measurementSpec,
-      sampledVids = sampledVids,
-      random = SecureRandom()
-    )
-
-    // Verify
-    assertThat(result.hasReach()).isTrue()
-    assertThat(result.reach.noiseMechanism).isEqualTo(NoiseMechanism.NONE)
-    assertThat(result.reach.hasDeterministicCountDistinct()).isTrue()
-    assertThat(result.reach.value).isEqualTo(distinctVids)
-
-    assertThat(result.hasFrequency()).isTrue()
-    assertThat(result.frequency.noiseMechanism).isEqualTo(NoiseMechanism.NONE)
-    assertThat(result.frequency.hasDeterministicDistribution()).isTrue()
-    assertThat(result.frequency.relativeFrequencyDistributionMap).isNotEmpty()
-    // Since every 10th VID was duplicated during the creation of sampledVids, 90% of users saw ad once and 10% saw it twice
-    assertThat(result.frequency.relativeFrequencyDistributionMap[1]).isEqualTo(0.9)
-    assertThat(result.frequency.relativeFrequencyDistributionMap[2]).isEqualTo(0.1)
-  }
 
   companion object {
     private const val MAX_FREQUENCY = 10

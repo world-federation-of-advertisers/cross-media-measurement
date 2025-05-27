@@ -33,7 +33,6 @@ import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters
 import org.wfanet.measurement.populationdataprovider.PopulationInfo
 
-
 // This suite of tests only tests the methods that take in flows as the vids parameter. The methods
 // take in iterable types as the vids parameter are inherently tested because they call the methods
 // that take in flows.
@@ -41,33 +40,58 @@ import org.wfanet.measurement.populationdataprovider.PopulationInfo
 class MeasurementResultsTest {
 
   @Test
-  fun `computeReachAndFrequency with Flow returns correct reach and frequency distribution`() = runBlocking {
-    // Setup - Create 10 VIDs with different frequencies
-    val vids = flowOf(
-      1L, 1L, 1L,           // VID 1 appears 3 times
-      2L, 2L,               // VID 2 appears 2 times
-      3L,                   // VID 3 appears 1 time
-      4L, 4L, 4L, 4L,       // VID 4 appears 4 times
-      5L, 5L, 5L, 5L, 5L,   // VID 5 appears 5 times
-      6L, 6L, 6L, 6L, 6L, 6L, // VID 6 appears 6 times (will be capped at 5)
-      7L,                   // VID 7 appears 1 time
-      8L, 8L,               // VID 8 appears 2 times
-      9L, 9L, 9L,           // VID 9 appears 3 times
-      10L                   // VID 10 appears 1 time
-    )
-    val maxFrequency = 5
+  fun `computeReachAndFrequency with Flow returns correct reach and frequency distribution`() =
+    runBlocking {
+      // Setup - Create 10 VIDs with different frequencies
+      val vids =
+        flowOf(
+          1L,
+          1L,
+          1L, // VID 1 appears 3 times
+          2L,
+          2L, // VID 2 appears 2 times
+          3L, // VID 3 appears 1 time
+          4L,
+          4L,
+          4L,
+          4L, // VID 4 appears 4 times
+          5L,
+          5L,
+          5L,
+          5L,
+          5L, // VID 5 appears 5 times
+          6L,
+          6L,
+          6L,
+          6L,
+          6L,
+          6L, // VID 6 appears 6 times (will be capped at 5)
+          7L, // VID 7 appears 1 time
+          8L,
+          8L, // VID 8 appears 2 times
+          9L,
+          9L,
+          9L, // VID 9 appears 3 times
+          10L // VID 10 appears 1 time
+        )
+      val maxFrequency = 5
 
-    // Execute
-    val result = MeasurementResults.computeReachAndFrequency(vids, maxFrequency)
+      // Execute
+      val result = MeasurementResults.computeReachAndFrequency(vids, maxFrequency)
 
-    // Verify
-    assertThat(result.reach).isEqualTo(10) // 10 distinct VIDs
-    assertThat(result.relativeFrequencyDistribution).hasSize(maxFrequency)
-    assertThat(result.relativeFrequencyDistribution[1]).isEqualTo(3.0 / 10.0) // 3 VIDs with frequency 1
-    assertThat(result.relativeFrequencyDistribution[2]).isEqualTo(2.0 / 10.0) // 2 VIDs with frequency 2
-    assertThat(result.relativeFrequencyDistribution[3]).isEqualTo(2.0 / 10.0) // 2 VIDs with frequency 3
-    assertThat(result.relativeFrequencyDistribution[4]).isEqualTo(1.0 / 10.0) // 1 VID with frequency 4
-    assertThat(result.relativeFrequencyDistribution[5]).isEqualTo(2.0 / 10.0) // 2 VIDs with frequency 5 (including capped)
+      // Verify
+      assertThat(result.reach).isEqualTo(10) // 10 distinct VIDs
+      assertThat(result.relativeFrequencyDistribution).hasSize(maxFrequency)
+      assertThat(result.relativeFrequencyDistribution[1])
+        .isEqualTo(3.0 / 10.0) // 3 VIDs with frequency 1
+      assertThat(result.relativeFrequencyDistribution[2])
+        .isEqualTo(2.0 / 10.0) // 2 VIDs with frequency 2
+      assertThat(result.relativeFrequencyDistribution[3])
+        .isEqualTo(2.0 / 10.0) // 2 VIDs with frequency 3
+      assertThat(result.relativeFrequencyDistribution[4])
+        .isEqualTo(1.0 / 10.0) // 1 VID with frequency 4
+      assertThat(result.relativeFrequencyDistribution[5])
+        .isEqualTo(2.0 / 10.0) // 2 VIDs with frequency 5 (including capped)
   }
 
   @Test
@@ -101,25 +125,44 @@ class MeasurementResultsTest {
     assertThat(result.relativeFrequencyDistribution).hasSize(maxFrequency)
     assertThat(result.relativeFrequencyDistribution[1]).isEqualTo(0.0) // No VIDs with frequency 1
     assertThat(result.relativeFrequencyDistribution[2]).isEqualTo(0.5) // 1 VID with frequency 2
-    assertThat(result.relativeFrequencyDistribution[3]).isEqualTo(0.5) // 1 VID with frequency 3 (capped from 5)
+    assertThat(result.relativeFrequencyDistribution[3])
+      .isEqualTo(0.5) // 1 VID with frequency 3 (capped from 5)
   }
-
 
   @Test
   fun `computeReach with Flow returns correct count of distinct VIDs`() = runBlocking {
     // Setup - Create 10 VIDs with some duplicates
-    val vids = flowOf(
-      1L, 1L, 1L,           // VID 1 appears 3 times
-      2L, 2L,               // VID 2 appears 2 times
-      3L,                   // VID 3 appears 1 time
-      4L, 4L, 4L, 4L,       // VID 4 appears 4 times
-      5L, 5L, 5L, 5L, 5L,   // VID 5 appears 5 times
-      6L, 6L, 6L, 6L, 6L, 6L, // VID 6 appears 6 times
-      7L,                   // VID 7 appears 1 time
-      8L, 8L,               // VID 8 appears 2 times
-      9L, 9L, 9L,           // VID 9 appears 3 times
-      10L                   // VID 10 appears 1 time
-    )
+    val vids =
+      flowOf(
+        1L,
+        1L,
+        1L, // VID 1 appears 3 times
+        2L,
+        2L, // VID 2 appears 2 times
+        3L, // VID 3 appears 1 time
+        4L,
+        4L,
+        4L,
+        4L, // VID 4 appears 4 times
+        5L,
+        5L,
+        5L,
+        5L,
+        5L, // VID 5 appears 5 times
+        6L,
+        6L,
+        6L,
+        6L,
+        6L,
+        6L, // VID 6 appears 6 times
+        7L, // VID 7 appears 1 time
+        8L,
+        8L, // VID 8 appears 2 times
+        9L,
+        9L,
+        9L, // VID 9 appears 3 times
+        10L // VID 10 appears 1 time
+      )
 
     // Execute
     val result = MeasurementResults.computeReach(vids)
@@ -143,18 +186,37 @@ class MeasurementResultsTest {
   @Test
   fun `computeImpression with Flow returns correct impression count`() = runBlocking {
     // Setup - Create 10 VIDs with different frequencies
-    val vids = flowOf(
-      1L, 1L, 1L,           // VID 1 appears 3 times
-      2L, 2L,               // VID 2 appears 2 times
-      3L,                   // VID 3 appears 1 time
-      4L, 4L, 4L, 4L,       // VID 4 appears 4 times
-      5L, 5L, 5L, 5L, 5L,   // VID 5 appears 5 times
-      6L, 6L, 6L, 6L, 6L, 6L, // VID 6 appears 6 times (will be capped at 5)
-      7L,                   // VID 7 appears 1 time
-      8L, 8L,               // VID 8 appears 2 times
-      9L, 9L, 9L,           // VID 9 appears 3 times
-      10L                   // VID 10 appears 1 time
-    )
+    val vids =
+      flowOf(
+        1L,
+        1L,
+        1L, // VID 1 appears 3 times
+        2L,
+        2L, // VID 2 appears 2 times
+        3L, // VID 3 appears 1 time
+        4L,
+        4L,
+        4L,
+        4L, // VID 4 appears 4 times
+        5L,
+        5L,
+        5L,
+        5L,
+        5L, // VID 5 appears 5 times
+        6L,
+        6L,
+        6L,
+        6L,
+        6L,
+        6L, // VID 6 appears 6 times (will be capped at 5)
+        7L, // VID 7 appears 1 time
+        8L,
+        8L, // VID 8 appears 2 times
+        9L,
+        9L,
+        9L, // VID 9 appears 3 times
+        10L // VID 10 appears 1 time
+      )
     val maxFrequency = 5
 
     // Execute
@@ -200,20 +262,21 @@ class MeasurementResultsTest {
   fun `computePopulation returns correct population value`() = runBlocking {
     val eventMessageDescriptor = TestEvent.getDescriptor()
     val filterExpression = "person.age_group == ${Person.AgeGroup.YEARS_18_TO_34_VALUE}"
-    val operativeFields = eventMessageDescriptor.fields
-      .flatMap { templateField ->
-        templateField.messageType.fields.map { templateFieldDescriptor ->
-          if (
-            templateFieldDescriptor.options
-              .getExtension(EventAnnotationsProto.templateField)
-              .populationAttribute
-          ) {
-            "${templateField.name}.${templateFieldDescriptor.name}"
-          } else null
+    val operativeFields =
+      eventMessageDescriptor.fields
+        .flatMap { templateField ->
+          templateField.messageType.fields.map { templateFieldDescriptor ->
+            if (
+              templateFieldDescriptor.options
+                .getExtension(EventAnnotationsProto.templateField)
+                .populationAttribute
+            ) {
+              "${templateField.name}.${templateFieldDescriptor.name}"
+            } else null
+          }
         }
-      }
-      .filterNotNull()
-      .toSet()
+        .filterNotNull()
+        .toSet()
 
     val typeRegistry = TypeRegistry.newBuilder().add(Person.getDescriptor()).build()
 
@@ -224,11 +287,12 @@ class MeasurementResultsTest {
         operativeFields,
       )
 
-    val result = MeasurementResults.computePopulation(
-      POPULATION_INFO,
-      program,
-      typeRegistry,
-    )
+    val result =
+      MeasurementResults.computePopulation(
+        POPULATION_INFO,
+        program,
+        typeRegistry,
+      )
 
     // Result should be the size of VID_RANGE_1
     assertThat(result).isEqualTo(100)
@@ -276,6 +340,5 @@ class MeasurementResultsTest {
       subpopulations += listOf(SUB_POPULATION_1, SUB_POPULATION_2)
     }
     private val POPULATION_INFO = PopulationInfo(POPULATION_SPEC, TestEvent.getDescriptor())
-
   }
 }

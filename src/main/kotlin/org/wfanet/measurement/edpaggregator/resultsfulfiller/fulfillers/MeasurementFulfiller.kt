@@ -18,16 +18,10 @@ package org.wfanet.measurement.edpaggregator.resultsfulfiller.fulfillers
 
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 
-/**
- * Interface for fulfilling measurement requisitions.
- */
+/** Interface for fulfilling measurement requisitions. */
 interface MeasurementFulfiller {
-  /**
-   * The stub for the Requisitions service.
-   */
+  /** The stub for the Requisitions service. */
   val requisitionsStub: RequisitionsCoroutineStub
-  /**
-   * Fulfills a requisition.
-   */
+  /** Fulfills a requisition. */
   suspend fun fulfillRequisition()
-} 
+}

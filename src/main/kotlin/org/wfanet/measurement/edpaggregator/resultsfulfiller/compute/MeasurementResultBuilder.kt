@@ -18,9 +18,7 @@ package org.wfanet.measurement.edpaggregator.resultsfulfiller.compute
 
 import org.wfanet.measurement.api.v2alpha.Measurement
 
-/**
- * Interface for building measurement results.
- */
+/** Interface for building measurement results. */
 interface MeasurementResultBuilder {
   /**
    * Builds a measurement result.

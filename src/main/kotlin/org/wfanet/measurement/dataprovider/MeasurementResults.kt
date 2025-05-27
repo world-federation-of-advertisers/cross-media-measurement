@@ -33,12 +33,16 @@ object MeasurementResults {
    * Computes reach and frequency using the "deterministic count distinct" methodology and the
    * "deterministic distribution" methodology.
    */
-  suspend fun computeReachAndFrequency(filteredVids: Flow<Long>, maxFrequency: Int): ReachAndFrequency {
+  suspend fun computeReachAndFrequency(
+    filteredVids: Flow<Long>,
+    maxFrequency: Int
+  ): ReachAndFrequency {
     // Count occurrences of each VID using fold operation on the flow
-    val eventsPerVid = filteredVids.fold(mutableMapOf<Long, Int>()) { acc, vid ->
-      acc[vid] = acc.getOrDefault(vid, 0) + 1
-      acc
-    }
+    val eventsPerVid =
+      filteredVids.fold(mutableMapOf<Long, Int>()) { acc, vid ->
+        acc[vid] = acc.getOrDefault(vid, 0) + 1
+        acc
+      }
 
     val reach: Int = eventsPerVid.keys.size
 
@@ -64,9 +68,7 @@ object MeasurementResults {
    * "deterministic distribution" methodology.
    */
   fun computeReachAndFrequency(filteredVids: Iterable<Long>, maxFrequency: Int): ReachAndFrequency {
-    return runBlocking {
-      computeReachAndFrequency(filteredVids.asFlow(), maxFrequency)
-    }
+    return runBlocking { computeReachAndFrequency(filteredVids.asFlow(), maxFrequency) }
   }
 
   /** Computes reach using the "deterministic count distinct" methodology. */
@@ -74,9 +76,7 @@ object MeasurementResults {
     // Use a mutable set to track distinct VIDs as they flow through
     val distinctVids = mutableSetOf<Long>()
 
-    filteredVids.collect { vid ->
-      distinctVids.add(vid)
-    }
+    filteredVids.collect { vid -> distinctVids.add(vid) }
 
     return distinctVids.size
   }
@@ -89,10 +89,11 @@ object MeasurementResults {
   /** Computes impression using the "deterministic count" methodology. */
   suspend fun computeImpression(filteredVids: Flow<Long>, maxFrequency: Int): Long {
     // Count occurrences of each VID using fold operation on the flow
-    val eventsPerVid = filteredVids.fold(mutableMapOf<Long, Int>()) { acc, vid ->
-      acc[vid] = acc.getOrDefault(vid, 0) + 1
-      acc
-    }
+    val eventsPerVid =
+      filteredVids.fold(mutableMapOf<Long, Int>()) { acc, vid ->
+        acc[vid] = acc.getOrDefault(vid, 0) + 1
+        acc
+      }
 
     // Cap each count at `maxFrequency`.
     return eventsPerVid.values.sumOf { count -> count.coerceAtMost(maxFrequency).toLong() }

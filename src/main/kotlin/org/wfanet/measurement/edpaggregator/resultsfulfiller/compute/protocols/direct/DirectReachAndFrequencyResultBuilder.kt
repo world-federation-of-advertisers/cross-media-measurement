@@ -16,6 +16,8 @@
 
 package org.wfanet.measurement.edpaggregator.resultsfulfiller.compute.protocols.direct
 
+import java.security.SecureRandom
+import java.util.logging.Logger
 import kotlinx.coroutines.flow.Flow
 import org.wfanet.measurement.api.v2alpha.DeterministicCountDistinct
 import org.wfanet.measurement.api.v2alpha.DeterministicDistribution
@@ -30,10 +32,8 @@ import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.dataprovider.MeasurementResults
 import org.wfanet.measurement.dataprovider.RequisitionRefusalException
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.compute.MeasurementResultBuilder
-import org.wfanet.measurement.eventdataprovider.noiser.DirectNoiseMechanism
-import java.security.SecureRandom
-import java.util.logging.Logger
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.noise.Noiser
+import org.wfanet.measurement.eventdataprovider.noiser.DirectNoiseMechanism
 
 /**
  * Builder for direct reach and frequency measurement results.
@@ -84,15 +84,11 @@ class DirectReachAndFrequencyResultBuilder(
         maxFrequency,
       )
 
-    if(directNoiseMechanism != DirectNoiseMechanism.NONE) {
+    if (directNoiseMechanism != DirectNoiseMechanism.NONE) {
       logger.info("Adding $directNoiseMechanism publisher noise to direct reach and frequency...")
-      val noiser = Noiser(
-        directNoiseMechanism,
-        random
-      )
+      val noiser = Noiser(directNoiseMechanism, random)
 
-      val sampledNoisedReachValue =
-        noiser.addNoise(sampledReachValue, reachPrivacyParams)
+      val sampledNoisedReachValue = noiser.addNoise(sampledReachValue, reachPrivacyParams)
       val noisedFrequencyMap =
         noiser.addNoise(frequencyMap, frequencyPrivacyParams, sampledReachValue)
 
@@ -102,11 +98,12 @@ class DirectReachAndFrequencyResultBuilder(
 
     val scaledReachValue = (sampledReachValue / samplingRate).toLong()
 
-    val protocolConfigNoiseMechanism = when (directNoiseMechanism) {
-      DirectNoiseMechanism.NONE -> NoiseMechanism.NONE
-      DirectNoiseMechanism.CONTINUOUS_LAPLACE -> NoiseMechanism.CONTINUOUS_LAPLACE
-      DirectNoiseMechanism.CONTINUOUS_GAUSSIAN -> NoiseMechanism.CONTINUOUS_GAUSSIAN
-    }
+    val protocolConfigNoiseMechanism =
+      when (directNoiseMechanism) {
+        DirectNoiseMechanism.NONE -> NoiseMechanism.NONE
+        DirectNoiseMechanism.CONTINUOUS_LAPLACE -> NoiseMechanism.CONTINUOUS_LAPLACE
+        DirectNoiseMechanism.CONTINUOUS_GAUSSIAN -> NoiseMechanism.CONTINUOUS_GAUSSIAN
+      }
 
     return MeasurementKt.result {
       reach = reach {

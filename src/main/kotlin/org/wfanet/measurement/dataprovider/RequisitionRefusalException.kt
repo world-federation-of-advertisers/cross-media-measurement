@@ -31,21 +31,17 @@ sealed class RequisitionRefusalException(
   cause: Throwable? = null
 ) : Exception(message, cause) {
 
-  /**
-   * Base implementation of [RequisitionRefusalException].
-   */
+  /** Base implementation of [RequisitionRefusalException]. */
   class Default(
     justification: Requisition.Refusal.Justification,
     message: String,
-    cause: Throwable? = null
+    cause: Throwable? = null,
   ) : RequisitionRefusalException(justification, message, cause)
 
-  /**
-   * [RequisitionRefusalException] for test EventGroups.
-   */
+  /** [RequisitionRefusalException] for test EventGroups. */
   class Test(
     justification: Requisition.Refusal.Justification,
     message: String,
-    cause: Throwable? = null
+    cause: Throwable? = null,
   ) : RequisitionRefusalException(justification, message, cause)
 }

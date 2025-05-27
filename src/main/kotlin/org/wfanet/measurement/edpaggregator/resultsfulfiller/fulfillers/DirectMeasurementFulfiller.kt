@@ -63,19 +63,14 @@ class DirectMeasurementFulfiller(
 ) : MeasurementFulfiller {
   private val logger: Logger = Logger.getLogger(this::class.java.name)
 
-  /**
-   * Fulfills a requisition.
-   */
+  /** Fulfills a requisition. */
   override suspend fun fulfillRequisition() {
     logger.log(Level.INFO, "Direct MeasurementResult: $measurementResult")
 
     DataProviderCertificateKey.fromName(requisitionDataProviderCertificateName)
-      ?: throw Exception(
-        "Invalid data provider certificate"
-      )
+      ?: throw Exception("Invalid data provider certificate")
 
-    val signedResult: SignedMessage =
-      signResult(measurementResult, dataProviderSigningKeyHandle)
+    val signedResult: SignedMessage = signResult(measurementResult, dataProviderSigningKeyHandle)
     val signedEncryptedResult: EncryptedMessage =
       encryptResult(signedResult, measurementEncryptionPublicKey)
 

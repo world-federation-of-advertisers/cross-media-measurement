@@ -85,6 +85,7 @@ import org.wfanet.measurement.config.reporting.EncryptionKeyPairConfigKt.princip
 import org.wfanet.measurement.config.reporting.encryptionKeyPairConfig
 import org.wfanet.measurement.config.reporting.measurementConsumerConfig
 import org.wfanet.measurement.consent.client.dataprovider.encryptMetadata
+import org.wfanet.measurement.dataprovider.MeasurementResults
 import org.wfanet.measurement.integration.common.ALL_EDP_WITHOUT_HMSS_CAPABILITIES_DISPLAY_NAMES
 import org.wfanet.measurement.integration.common.ALL_EDP_WITH_HMSS_CAPABILITIES_DISPLAY_NAMES
 import org.wfanet.measurement.integration.common.AccessServicesFactory
@@ -108,7 +109,6 @@ import org.wfanet.measurement.internal.reporting.v2.metricFrequencySpec as inter
 import org.wfanet.measurement.internal.reporting.v2.reportingImpressionQualificationFilter as internalReportingImpressionQualificationFilter
 import org.wfanet.measurement.internal.reporting.v2.reportingInterval as internalReportingInterval
 import org.wfanet.measurement.internal.reporting.v2.resultGroup as internalResultGroup
-import org.wfanet.measurement.dataprovider.MeasurementResults
 import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
 import org.wfanet.measurement.loadtest.dataprovider.EventQuery
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
@@ -181,7 +181,8 @@ abstract class InProcessLifeOfAReportIntegrationTest(
   duchyDependenciesRule:
     ProviderRule<
       (
-        String, ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub,
+        String,
+        ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub,
       ) -> InProcessDuchy.DuchyDependencies
     >,
   accessServicesFactory: AccessServicesFactory,
