@@ -17,82 +17,147 @@
 package org.wfanet.measurement.integration.common
 
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
-import com.google.protobuf.Timestamp
-import io.grpc.Server
-import io.grpc.ServerInterceptors
-import io.grpc.ServerServiceDefinition
-import io.grpc.netty.NettyServerBuilder
+import io.grpc.Channel
+import io.grpc.ManagedChannel
+import io.netty.handler.ssl.ClientAuth
 import java.io.File
 import java.nio.file.Paths
-import java.time.Instant
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Before
+import org.junit.ClassRule
+import org.junit.Rule
 import org.junit.Test
-import org.mockito.kotlin.any
+import org.junit.rules.TestRule
+import org.wfanet.measurement.api.v2alpha.ExternalModelProviderIdPrincipalLookup
 import org.wfanet.measurement.api.v2alpha.ListModelSuitesPageTokenKt.previousPageEnd
 import org.wfanet.measurement.api.v2alpha.ListModelSuitesResponse
 import org.wfanet.measurement.api.v2alpha.ModelProviderKey
 import org.wfanet.measurement.api.v2alpha.ModelSuite
 import org.wfanet.measurement.api.v2alpha.ModelSuiteKey
-import org.wfanet.measurement.api.v2alpha.ModelSuitesGrpcKt.ModelSuitesCoroutineImplBase
+import org.wfanet.measurement.api.v2alpha.ModelSuitesGrpc
+import org.wfanet.measurement.api.v2alpha.ModelSuitesGrpc.ModelSuitesBlockingStub
+import org.wfanet.measurement.api.v2alpha.createModelSuiteRequest
 import org.wfanet.measurement.api.v2alpha.listModelSuitesPageToken
 import org.wfanet.measurement.api.v2alpha.listModelSuitesResponse
 import org.wfanet.measurement.api.v2alpha.modelSuite
+import org.wfanet.measurement.api.v2alpha.withModelProviderPrincipalsFromExternalIds
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.getRuntimePath
-import org.wfanet.measurement.common.grpc.testing.mockService
-import org.wfanet.measurement.common.grpc.toServerTlsContext
+import org.wfanet.measurement.common.grpc.CommonServer
+import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
+import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.identity.apiIdToExternalId
+import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.testing.CommandLineTesting
-import org.wfanet.measurement.common.testing.HeaderCapturingInterceptor
-import org.wfanet.measurement.common.toProtoTime
+import org.wfanet.measurement.common.testing.ProviderRule
+import org.wfanet.measurement.common.testing.chainRulesSequentially
+import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
+import org.wfanet.measurement.internal.kingdom.ModelProvider as InternalModelProvider
+import org.wfanet.measurement.internal.kingdom.ModelProvidersGrpcKt as InternalModelProvidersGrpc
+import org.wfanet.measurement.internal.kingdom.ModelSuitesGrpcKt as InternalModelSuitesGrpc
+import org.wfanet.measurement.internal.kingdom.modelProvider
+import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
+import org.wfanet.measurement.kingdom.deploy.common.service.toList
 import org.wfanet.measurement.kingdom.deploy.tools.ModelRepository
+import org.wfanet.measurement.kingdom.service.api.v2alpha.ModelSuitesService
 
-abstract class InProcessModelRepositoryCliIntegrationTest(verboseGrpcLogging: Boolean = true) {
-  private val headerInterceptor = HeaderCapturingInterceptor()
+abstract class InProcessModelRepositoryCliIntegrationTest(
+  kingdomDataServicesRule: ProviderRule<DataServices>,
+  verboseGrpcLogging: Boolean = true,
+) {
+  private val internalModelRepositoryServer =
+    GrpcTestServerRule(logAllRequests = verboseGrpcLogging) {
+      val services =
+        kingdomDataServicesRule.value.buildDataServices().toList().map { it.bindService() }
+      for (service in services) {
+        addService(service)
+      }
+    }
 
-  private val modelSuitesServiceMock: ModelSuitesCoroutineImplBase = mockService {
-    onBlocking { getModelSuite(any()) }.thenReturn(MODEL_SUITE)
-    onBlocking { createModelSuite(any()) }.thenReturn(MODEL_SUITE)
-    onBlocking { listModelSuites(any()) }
-      .thenReturn(
-        listModelSuitesResponse {
-          modelSuites += MODEL_SUITE
-          modelSuites += MODEL_SUITE_2
-          nextPageToken = LIST_MODEL_SUITES_PAGE_TOKEN_2.toByteString().base64UrlEncode()
+  @get:Rule
+  val ruleChain: TestRule =
+    chainRulesSequentially(kingdomDataServicesRule, internalModelRepositoryServer)
+
+  private lateinit var publicModelSuitesClient: ModelSuitesBlockingStub
+
+  private lateinit var server: CommonServer
+
+  @Before
+  fun startServer() {
+    val internalChannel: Channel = internalModelRepositoryServer.channel
+    val internalModelProvidersService =
+      InternalModelProvidersGrpc.ModelProvidersCoroutineStub(internalChannel)
+    internalModelProvider = runBlocking {
+      internalModelProvidersService.createModelProvider(
+        modelProvider { externalModelProviderId = FIXED_GENERATED_EXTERNAL_ID }
+      )
+    }
+
+    val modelProviderApiId = externalIdToApiId(internalModelProvider.externalModelProviderId)
+    modelProviderName = ModelProviderKey(modelProviderApiId).toName()
+
+    val principalLookup = ExternalModelProviderIdPrincipalLookup()
+
+    val internalModelSuitesClient =
+      InternalModelSuitesGrpc.ModelSuitesCoroutineStub(internalChannel)
+
+    val publicModelSuitesServices =
+      ModelSuitesService(internalModelSuitesClient)
+        .withModelProviderPrincipalsFromExternalIds(
+          internalModelProvider.externalModelProviderId,
+          principalLookup,
+        )
+    val services = listOf(publicModelSuitesServices)
+
+    val serverCerts =
+      SigningCerts.fromPemFiles(
+        KINGDOM_TLS_CERT_FILE,
+        KINGDOM_TLS_KEY_FILE,
+        KINGDOM_CERT_COLLECTION_FILE,
+      )
+
+    server =
+      CommonServer.fromParameters(
+        verboseGrpcLogging = true,
+        certs = kingdomSigningCerts,
+        clientAuth = ClientAuth.REQUIRE,
+        nameForLogging = "model-repository-cli-test-public",
+        services = services,
+      )
+    server.start()
+
+    val publicChannel: ManagedChannel =
+      buildMutualTlsChannel("localhost:${server.port}", serverCerts)
+    publicModelSuitesClient = ModelSuitesGrpc.newBlockingStub(publicChannel)
+
+    modelSuite =
+      publicModelSuitesClient.createModelSuite(
+        createModelSuiteRequest {
+          parent = modelProviderName
+          modelSuite = modelSuite {
+            displayName = DISPLAY_NAME
+            description = DESCRIPTION
+          }
         }
       )
   }
 
-  val services: List<ServerServiceDefinition> =
-    listOf(ServerInterceptors.intercept(modelSuitesServiceMock, headerInterceptor))
-
-  private val publicApiServer: Server =
-    NettyServerBuilder.forPort(0)
-      .sslContext(kingdomSigningCerts.toServerTlsContext())
-      .addServices(services)
-      .build()
-
-  @Before
-  fun startServer() {
-    publicApiServer.start()
-  }
-
   @After
   fun shutdownServer() {
-    publicApiServer.shutdown()
-    publicApiServer.awaitTermination()
+    server.shutdown()
+    server.blockUntilShutdown()
   }
 
   @Test
   fun `model-suites get prints ModelSuite`() = runBlocking {
-    var args = commonArgs + arrayOf("model-suites", "get", MODEL_SUITE_NAME)
+    var args = commonArgs + arrayOf("model-suites", "get", modelSuite.name)
     var output = callCli(args)
+
     assertThat(parseTextProto(output.reader(), ModelSuite.getDefaultInstance()))
-      .isEqualTo(MODEL_SUITE)
+      .isEqualTo(modelSuite)
   }
 
   @Test
@@ -102,35 +167,59 @@ abstract class InProcessModelRepositoryCliIntegrationTest(verboseGrpcLogging: Bo
         arrayOf(
           "model-suites",
           "create",
-          "--parent=$MODEL_PROVIDER_NAME",
+          "--parent=$modelProviderName",
           "--display-name=$DISPLAY_NAME",
           "--description=$DESCRIPTION",
         )
-
     val output = callCli(args)
+
     assertThat(parseTextProto(output.reader(), ModelSuite.getDefaultInstance()))
-      .isEqualTo(MODEL_SUITE)
+      .comparingExpectedFieldsOnly()
+      .isEqualTo(
+        modelSuite {
+          displayName = DISPLAY_NAME
+          description = DESCRIPTION
+        }
+      )
   }
 
   @Test
   fun `model-suites list prints ModelSuites`() = runBlocking {
+    val createdModelSuite2 =
+      publicModelSuitesClient.createModelSuite(
+        createModelSuiteRequest {
+          parent = modelProviderName
+          modelSuite = modelSuite {
+            displayName = DISPLAY_NAME
+            description = DESCRIPTION
+          }
+        }
+      )
+
+    val pageToken = listModelSuitesPageToken {
+      pageSize = PAGE_SIZE
+      externalModelProviderId = internalModelProvider.externalModelProviderId
+      lastModelSuite = previousPageEnd {
+        externalModelProviderId = internalModelProvider.externalModelProviderId
+        externalModelSuiteId =
+          apiIdToExternalId(ModelSuiteKey.fromName(modelSuite.name)!!.modelSuiteId)
+        createTime = modelSuite.createTime
+      }
+    }
+
     val args =
       commonArgs +
         arrayOf(
           "model-suites",
           "list",
-          "--page-size=50",
-          "--page-token=${LIST_MODEL_SUITES_PAGE_TOKEN.toByteArray().base64UrlEncode()}",
+          "--parent=$modelProviderName",
+          "--page-size=$PAGE_SIZE",
+          "--page-token=${pageToken.toByteArray().base64UrlEncode()}",
         )
     val output = callCli(args)
+
     assertThat(parseTextProto(output.reader(), ListModelSuitesResponse.getDefaultInstance()))
-      .isEqualTo(
-        listModelSuitesResponse {
-          modelSuites += MODEL_SUITE
-          modelSuites += MODEL_SUITE_2
-          nextPageToken = LIST_MODEL_SUITES_PAGE_TOKEN_2.toByteString().base64UrlEncode()
-        }
-      )
+      .isEqualTo(listModelSuitesResponse { modelSuites += createdModelSuite2 })
   }
 
   private fun callCli(args: Array<String>): String {
@@ -145,7 +234,7 @@ abstract class InProcessModelRepositoryCliIntegrationTest(verboseGrpcLogging: Bo
         "--tls-cert-file=$KINGDOM_TLS_CERT_FILE",
         "--tls-key-file=$KINGDOM_TLS_KEY_FILE",
         "--cert-collection-file=$KINGDOM_CERT_COLLECTION_FILE",
-        "--kingdom-public-api-target=$HOST:${publicApiServer.port}",
+        "--kingdom-public-api-target=$HOST:${server.port}",
       )
 
   companion object {
@@ -165,50 +254,17 @@ abstract class InProcessModelRepositoryCliIntegrationTest(verboseGrpcLogging: Bo
         KINGDOM_CERT_COLLECTION_FILE,
       )
 
+    private const val FIXED_GENERATED_EXTERNAL_ID = 6789L
+
+    private lateinit var internalModelProvider: InternalModelProvider
+    private lateinit var modelProviderName: String
+
     private const val DISPLAY_NAME = "Display name"
     private const val DESCRIPTION = "Description"
-    private val CREATE_TIME: Timestamp = Instant.ofEpochSecond(123).toProtoTime()
-
-    private const val MODEL_PROVIDER_NAME = "modelProviders/AAAAAAAAAHs"
-    private val EXTERNAL_MODEL_PROVIDER_ID =
-      apiIdToExternalId(ModelProviderKey.fromName(MODEL_PROVIDER_NAME)!!.modelProviderId)
-
-    private const val MODEL_SUITE_NAME = "$MODEL_PROVIDER_NAME/modelSuites/AAAAAAAAAHs"
-    private const val MODEL_SUITE_NAME_2 = "$MODEL_PROVIDER_NAME/modelSuites/AAAAAAAAAJs"
-    private val EXTERNAL_MODEL_SUITE_ID =
-      apiIdToExternalId(ModelSuiteKey.fromName(MODEL_SUITE_NAME)!!.modelSuiteId)
-    private val EXTERNAL_MODEL_SUITE_ID_2 =
-      apiIdToExternalId(ModelSuiteKey.fromName(MODEL_SUITE_NAME_2)!!.modelSuiteId)
-    private val MODEL_SUITE: ModelSuite = modelSuite {
-      name = MODEL_SUITE_NAME
-      displayName = DISPLAY_NAME
-      description = DESCRIPTION
-      createTime = CREATE_TIME
-    }
-    private val MODEL_SUITE_2: ModelSuite = modelSuite {
-      name = MODEL_SUITE_NAME_2
-      displayName = DISPLAY_NAME
-      description = DESCRIPTION
-      createTime = CREATE_TIME
-    }
+    private lateinit var modelSuite: ModelSuite
 
     private const val PAGE_SIZE = 50
-    private val LIST_MODEL_SUITES_PAGE_TOKEN = listModelSuitesPageToken {
-      pageSize = PAGE_SIZE
-      externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
-      lastModelSuite = previousPageEnd {
-        createTime = CREATE_TIME
-        externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID - 1
-      }
-    }
 
-    private val LIST_MODEL_SUITES_PAGE_TOKEN_2 = listModelSuitesPageToken {
-      pageSize = PAGE_SIZE
-      externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
-      lastModelSuite = previousPageEnd {
-        createTime = CREATE_TIME
-        externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID_2
-      }
-    }
+    @get:ClassRule @JvmStatic val spannerEmulator = SpannerEmulatorRule()
   }
 }
