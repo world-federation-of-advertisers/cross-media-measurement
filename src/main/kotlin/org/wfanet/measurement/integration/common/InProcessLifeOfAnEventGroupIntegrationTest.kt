@@ -23,6 +23,8 @@ import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TestRule
+import org.wfanet.measurement.access.common.TlsClientPrincipalMapping
+import org.wfanet.measurement.access.service.internal.PermissionMapping
 import org.wfanet.measurement.access.v1alpha.PoliciesGrpcKt.PoliciesCoroutineStub
 import org.wfanet.measurement.access.v1alpha.PrincipalsGrpcKt.PrincipalsCoroutineStub
 import org.wfanet.measurement.access.v1alpha.RolesGrpcKt.RolesCoroutineStub
@@ -32,8 +34,6 @@ import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub as PublicEventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub as PublicMeasurementConsumersCoroutineStub
-import org.wfanet.measurement.access.common.TlsClientPrincipalMapping
-import org.wfanet.measurement.access.service.internal.PermissionMapping
 import org.wfanet.measurement.api.v2alpha.createEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.deleteEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.eventGroup
@@ -79,7 +79,9 @@ abstract class InProcessLifeOfAnEventGroupIntegrationTest {
     }
 
   @get:Rule
-  val ruleChain: TestRule by lazy { chainRulesSequentially(kingdomDataServicesRule, kingdom, accessServicesFactory, access) }
+  val ruleChain: TestRule by lazy {
+    chainRulesSequentially(kingdomDataServicesRule, kingdom, accessServicesFactory, access)
+  }
 
   private val publicMeasurementConsumersClient by lazy {
     PublicMeasurementConsumersCoroutineStub(kingdom.publicApiChannel)

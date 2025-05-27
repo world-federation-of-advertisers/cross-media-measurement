@@ -52,6 +52,12 @@ import org.junit.runner.Description
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.junit.runners.model.Statement
+import org.wfanet.measurement.access.v1alpha.PoliciesGrpcKt
+import org.wfanet.measurement.access.v1alpha.Principal
+import org.wfanet.measurement.access.v1alpha.PrincipalKt
+import org.wfanet.measurement.access.v1alpha.PrincipalsGrpcKt
+import org.wfanet.measurement.access.v1alpha.RolesGrpcKt
+import org.wfanet.measurement.access.v1alpha.principal
 import org.wfanet.measurement.api.v2alpha.ApiKeysGrpcKt
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt
@@ -73,6 +79,7 @@ import org.wfanet.measurement.common.k8s.testing.Processes
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.config.access.OpenIdProvidersConfig
 import org.wfanet.measurement.integration.common.ALL_DUCHY_NAMES
+import org.wfanet.measurement.integration.common.EntityContent
 import org.wfanet.measurement.integration.common.MC_DISPLAY_NAME
 import org.wfanet.measurement.integration.common.SyntheticGenerationSpecs
 import org.wfanet.measurement.integration.common.createEntityContent
@@ -80,13 +87,6 @@ import org.wfanet.measurement.integration.common.loadEncryptionPrivateKey
 import org.wfanet.measurement.integration.common.loadTestCertDerFile
 import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt
 import org.wfanet.measurement.internal.reporting.v2.BasicReportsGrpcKt as InternalBasicReportsGrpcKt
-import org.wfanet.measurement.access.v1alpha.PoliciesGrpcKt
-import org.wfanet.measurement.access.v1alpha.Principal
-import org.wfanet.measurement.access.v1alpha.PrincipalKt
-import org.wfanet.measurement.access.v1alpha.PrincipalsGrpcKt
-import org.wfanet.measurement.access.v1alpha.RolesGrpcKt
-import org.wfanet.measurement.access.v1alpha.principal
-import org.wfanet.measurement.integration.common.EntityContent
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerSimulator
 import org.wfanet.measurement.loadtest.measurementconsumer.MetadataSyntheticGeneratorEventQuery
@@ -276,30 +276,27 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
           loadEncryptionPrivateKey("${MC_DISPLAY_NAME}_enc_private.tink")
         }
 
-      val measurementConsumerData = MeasurementConsumerData(
-        resourceInfo.measurementConsumer,
-        measurementConsumerContent.signingKey,
-        encryptionPrivateKey,
-        resourceInfo.apiKey,
-      )
+      val measurementConsumerData =
+        MeasurementConsumerData(
+          resourceInfo.measurementConsumer,
+          measurementConsumerContent.signingKey,
+          encryptionPrivateKey,
+          resourceInfo.apiKey,
+        )
 
       val principal = principal {
         name = resourceInfo.principal
-        user = PrincipalKt.oAuthUser {
-          issuer = resourceInfo.principalIssuer
-          subject = resourceInfo.principalSubject
-        }
+        user =
+          PrincipalKt.oAuthUser {
+            issuer = resourceInfo.principalIssuer
+            subject = resourceInfo.principalSubject
+          }
       }
 
-      return ClusterData(
-        measurementConsumerData = measurementConsumerData,
-        principal = principal,
-      )
+      return ClusterData(measurementConsumerData = measurementConsumerData, principal = principal)
     }
 
-    private suspend fun createTestHarness(
-      clusterData: ClusterData
-    ): MeasurementConsumerSimulator {
+    private suspend fun createTestHarness(clusterData: ClusterData): MeasurementConsumerSimulator {
       val kingdomPublicPod: V1Pod = getPod(KINGDOM_PUBLIC_DEPLOYMENT_NAME)
 
       val publicApiForwarder = PortForwarder(kingdomPublicPod, SERVER_PORT)
@@ -396,11 +393,14 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
           .also { channels.add(it) }
           .withDefaultDeadline(DEFAULT_RPC_DEADLINE)
 
-      val openIdProvidersConfig = OpenIdProvidersConfig.newBuilder().apply {
-        JsonFormat.parser()
-          .ignoringUnknownFields()
-          .merge(OPEN_ID_PROVIDERS_CONFIG_JSON_FILE.readText(), this)
-      }.build()
+      val openIdProvidersConfig =
+        OpenIdProvidersConfig.newBuilder()
+          .apply {
+            JsonFormat.parser()
+              .ignoringUnknownFields()
+              .merge(OPEN_ID_PROVIDERS_CONFIG_JSON_FILE.readText(), this)
+          }
+          .build()
 
       val bearerTokenCallCredentials: BearerTokenCallCredentials =
         OpenIdProvider(
@@ -538,21 +538,24 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
             buildMutualTlsChannel(internalAddress.toTarget(), KINGDOM_SIGNING_CERTS)
           PortForwarder(kingdomPublicPod, SERVER_PORT)
             .use { publicForward ->
-                val publicAddress: InetSocketAddress =
-                  withContext(Dispatchers.IO) { publicForward.start() }
-                val publicChannel =
-                  buildMutualTlsChannel(publicAddress.toTarget(), KINGDOM_SIGNING_CERTS)
+              val publicAddress: InetSocketAddress =
+                withContext(Dispatchers.IO) { publicForward.start() }
+              val publicChannel =
+                buildMutualTlsChannel(publicAddress.toTarget(), KINGDOM_SIGNING_CERTS)
               PortForwarder(accessPublicPod, SERVER_PORT).use { accessPublicForward ->
                 val accessPublicApiAddress: InetSocketAddress =
                   withContext(Dispatchers.IO) { accessPublicForward.start() }
                 val accessPublicApiChannel =
                   buildMutualTlsChannel(accessPublicApiAddress.toTarget(), ACCESS_SIGNING_CERTS)
 
-                val openIdProvidersConfig = OpenIdProvidersConfig.newBuilder().apply {
-                  JsonFormat.parser()
-                    .ignoringUnknownFields()
-                    .merge(OPEN_ID_PROVIDERS_CONFIG_JSON_FILE.readText(), this)
-                }.build()
+                val openIdProvidersConfig =
+                  OpenIdProvidersConfig.newBuilder()
+                    .apply {
+                      JsonFormat.parser()
+                        .ignoringUnknownFields()
+                        .merge(OPEN_ID_PROVIDERS_CONFIG_JSON_FILE.readText(), this)
+                    }
+                    .build()
 
                 val resourceSetup =
                   ResourceSetup(
@@ -575,7 +578,12 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
                   )
                 withContext(Dispatchers.IO) {
                   resourceSetup
-                    .process(edpEntityContents, measurementConsumerContent, duchyCerts, openIdProvidersConfig)
+                    .process(
+                      edpEntityContents,
+                      measurementConsumerContent,
+                      duchyCerts,
+                      openIdProvidersConfig,
+                    )
                     .also { publicChannel.shutdown() }
                 }
               }

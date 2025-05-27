@@ -293,11 +293,7 @@ class InProcessReportingServer(
 
   override fun apply(base: Statement, description: Description): Statement {
     publicApiServer = createPublicApiTestServerRule()
-    return chainRulesSequentially(
-        internalReportingServer,
-        celEnvCacheProvider,
-        publicApiServer,
-      )
+    return chainRulesSequentially(internalReportingServer, celEnvCacheProvider, publicApiServer)
       .apply(base, description)
   }
 

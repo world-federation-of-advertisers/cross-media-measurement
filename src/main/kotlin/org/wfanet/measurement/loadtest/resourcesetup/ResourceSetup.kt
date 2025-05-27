@@ -30,6 +30,22 @@ import kotlinx.coroutines.flow.retry
 import kotlinx.coroutines.flow.single
 import kotlinx.coroutines.withContext
 import org.jetbrains.annotations.Blocking
+import org.wfanet.measurement.access.service.PermissionKey
+import org.wfanet.measurement.access.service.PolicyKey
+import org.wfanet.measurement.access.service.PrincipalKey
+import org.wfanet.measurement.access.service.RoleKey
+import org.wfanet.measurement.access.v1alpha.PoliciesGrpcKt
+import org.wfanet.measurement.access.v1alpha.PolicyKt
+import org.wfanet.measurement.access.v1alpha.Principal
+import org.wfanet.measurement.access.v1alpha.PrincipalKt
+import org.wfanet.measurement.access.v1alpha.PrincipalsGrpcKt
+import org.wfanet.measurement.access.v1alpha.RolesGrpcKt
+import org.wfanet.measurement.access.v1alpha.createPolicyRequest
+import org.wfanet.measurement.access.v1alpha.createPrincipalRequest
+import org.wfanet.measurement.access.v1alpha.createRoleRequest
+import org.wfanet.measurement.access.v1alpha.policy
+import org.wfanet.measurement.access.v1alpha.principal
+import org.wfanet.measurement.access.v1alpha.role
 import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.api.v2alpha.AccountKey
 import org.wfanet.measurement.api.v2alpha.AccountsGrpcKt.AccountsCoroutineStub
@@ -52,12 +68,15 @@ import org.wfanet.measurement.common.crypto.authorityKeyIdentifier
 import org.wfanet.measurement.common.crypto.tink.SelfIssuedIdTokens.generateIdToken
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.config.AuthorityKeyToPrincipalMapKt
+import org.wfanet.measurement.config.access.OpenIdProvidersConfig
 import org.wfanet.measurement.config.authorityKeyToPrincipalMap
 import org.wfanet.measurement.config.reporting.EncryptionKeyPairConfigKt
 import org.wfanet.measurement.config.reporting.encryptionKeyPairConfig
 import org.wfanet.measurement.config.reporting.measurementConsumerConfig
 import org.wfanet.measurement.config.reporting.measurementConsumerConfigs
 import org.wfanet.measurement.consent.client.measurementconsumer.signEncryptionPublicKey
+import org.wfanet.measurement.integration.common.EntityContent
+import org.wfanet.measurement.integration.common.PERMISSIONS_CONFIG
 import org.wfanet.measurement.internal.kingdom.Account as InternalAccount
 import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt
 import org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt
@@ -76,25 +95,6 @@ import org.wfanet.measurement.internal.kingdom.dataProviderDetails
 import org.wfanet.measurement.internal.kingdom.eventTemplate
 import org.wfanet.measurement.internal.kingdom.modelProvider as internalModelProvider
 import org.wfanet.measurement.internal.kingdom.population as internalPopulation
-import org.wfanet.measurement.access.service.PermissionKey
-import org.wfanet.measurement.access.service.PolicyKey
-import org.wfanet.measurement.access.service.PrincipalKey
-import org.wfanet.measurement.access.service.RoleKey
-import org.wfanet.measurement.access.v1alpha.PoliciesGrpcKt
-import org.wfanet.measurement.access.v1alpha.PolicyKt
-import org.wfanet.measurement.access.v1alpha.Principal
-import org.wfanet.measurement.access.v1alpha.PrincipalKt
-import org.wfanet.measurement.access.v1alpha.PrincipalsGrpcKt
-import org.wfanet.measurement.access.v1alpha.RolesGrpcKt
-import org.wfanet.measurement.access.v1alpha.createPolicyRequest
-import org.wfanet.measurement.access.v1alpha.createPrincipalRequest
-import org.wfanet.measurement.access.v1alpha.createRoleRequest
-import org.wfanet.measurement.access.v1alpha.policy
-import org.wfanet.measurement.access.v1alpha.principal
-import org.wfanet.measurement.access.v1alpha.role
-import org.wfanet.measurement.config.access.OpenIdProvidersConfig
-import org.wfanet.measurement.integration.common.EntityContent
-import org.wfanet.measurement.integration.common.PERMISSIONS_CONFIG
 import org.wfanet.measurement.kingdom.service.api.v2alpha.fillCertificateFromDer
 import org.wfanet.measurement.kingdom.service.api.v2alpha.parseCertificateDer
 import org.wfanet.measurement.loadtest.common.ConsoleOutput
@@ -222,10 +222,11 @@ class ResourceSetup(
     resources.add(
       resource {
         name = principal.name
-        this.principal = ResourcesKt.ResourceKt.principal {
-          issuer = principal.user.issuer
-          subject = principal.user.subject
-        }
+        this.principal =
+          ResourcesKt.ResourceKt.principal {
+            issuer = principal.user.issuer
+            subject = principal.user.subject
+          }
       }
     )
 

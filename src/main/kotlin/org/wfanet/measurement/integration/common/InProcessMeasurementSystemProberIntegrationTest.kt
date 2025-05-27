@@ -56,7 +56,7 @@ abstract class InProcessMeasurementSystemProberIntegrationTest(
   duchyDependenciesRule:
     ProviderRule<(String, ComputationLogEntriesCoroutineStub) -> InProcessDuchy.DuchyDependencies>,
   accessServicesFactory: AccessServicesFactory,
-  ) {
+) {
 
   @get:Rule
   val inProcessCmmsComponents =

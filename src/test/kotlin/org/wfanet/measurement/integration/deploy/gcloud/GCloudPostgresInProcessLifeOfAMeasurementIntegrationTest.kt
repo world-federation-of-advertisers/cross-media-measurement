@@ -35,7 +35,7 @@ class GCloudPostgresInProcessLifeOfAMeasurementIntegrationTest :
     KingdomDataServicesProviderRule(spannerEmulator),
     PostgresDuchyDependencyProviderRule(databaseProvider, ALL_DUCHY_NAMES),
     SpannerAccessServicesFactory(spannerEmulator),
-    ) {
+  ) {
 
   /**
    * Rule to enforce test method timeout.

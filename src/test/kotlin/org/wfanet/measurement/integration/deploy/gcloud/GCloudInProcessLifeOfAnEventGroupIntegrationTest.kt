@@ -18,7 +18,6 @@ package org.wfanet.measurement.integration.deploy.gcloud
 
 import org.junit.ClassRule
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
-import org.wfanet.measurement.integration.common.AccessServicesFactory
 import org.wfanet.measurement.integration.common.InProcessLifeOfAnEventGroupIntegrationTest
 
 /**

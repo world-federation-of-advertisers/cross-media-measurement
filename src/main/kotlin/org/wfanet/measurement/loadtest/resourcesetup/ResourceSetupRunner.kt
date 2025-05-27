@@ -14,8 +14,12 @@
 
 package org.wfanet.measurement.loadtest.resourcesetup
 
+import com.google.protobuf.util.JsonFormat
 import io.grpc.Channel
 import kotlinx.coroutines.runBlocking
+import org.wfanet.measurement.access.v1alpha.PoliciesGrpcKt.PoliciesCoroutineStub
+import org.wfanet.measurement.access.v1alpha.PrincipalsGrpcKt.PrincipalsCoroutineStub
+import org.wfanet.measurement.access.v1alpha.RolesGrpcKt.RolesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.AccountsGrpcKt.AccountsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ApiKeysGrpcKt.ApiKeysCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
@@ -26,16 +30,12 @@ import org.wfanet.measurement.common.crypto.tink.loadPublicKey
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withDefaultDeadline
 import org.wfanet.measurement.common.readByteString
+import org.wfanet.measurement.config.access.OpenIdProvidersConfig
 import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
+import org.wfanet.measurement.integration.common.EntityContent
 import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt.AccountsCoroutineStub as InternalAccountsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt.CertificatesCoroutineStub as InternalCertificatesCoroutineStub
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineStub as InternalDataProvidersCoroutineStub
-import com.google.protobuf.util.JsonFormat
-import org.wfanet.measurement.access.v1alpha.PoliciesGrpcKt.PoliciesCoroutineStub
-import org.wfanet.measurement.access.v1alpha.PrincipalsGrpcKt.PrincipalsCoroutineStub
-import org.wfanet.measurement.access.v1alpha.RolesGrpcKt.RolesCoroutineStub
-import org.wfanet.measurement.config.access.OpenIdProvidersConfig
-import org.wfanet.measurement.integration.common.EntityContent
 import picocli.CommandLine
 
 @CommandLine.Command(
@@ -104,11 +104,14 @@ private fun run(@CommandLine.Mixin flags: ResourceSetupFlags) {
       DuchyCert(duchyId = it.key, consentSignalCertificateDer = it.value.readByteString())
     }
 
-  val openIdProvidersConfig = OpenIdProvidersConfig.newBuilder().apply {
-    JsonFormat.parser()
-      .ignoringUnknownFields()
-      .merge(flags.openIdProvidersConfigJson.readText(), this)
-  }.build()
+  val openIdProvidersConfig =
+    OpenIdProvidersConfig.newBuilder()
+      .apply {
+        JsonFormat.parser()
+          .ignoringUnknownFields()
+          .merge(flags.openIdProvidersConfigJson.readText(), this)
+      }
+      .build()
 
   runBlocking {
     // Runs the resource setup job.

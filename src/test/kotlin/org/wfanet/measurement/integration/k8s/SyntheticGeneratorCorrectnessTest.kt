@@ -24,6 +24,7 @@ import java.security.KeyPair
 import java.security.cert.X509Certificate
 import java.time.Duration
 import java.util.UUID
+import kotlinx.coroutines.runBlocking
 import okhttp3.OkHttpClient
 import okhttp3.tls.HandshakeCertificates
 import okhttp3.tls.HeldCertificate
@@ -34,6 +35,8 @@ import org.junit.rules.TestRule
 import org.junit.runner.Description
 import org.junit.runners.model.Statement
 import org.measurement.integration.k8s.testing.CorrectnessTestConfig
+import org.wfanet.measurement.access.v1alpha.PrincipalsGrpcKt
+import org.wfanet.measurement.access.v1alpha.getPrincipalRequest
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt
@@ -49,9 +52,6 @@ import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.integration.common.SyntheticGenerationSpecs
 import org.wfanet.measurement.internal.reporting.v2.BasicReportsGrpcKt as InternalBasicReportsGrpcKt
-import kotlinx.coroutines.runBlocking
-import org.wfanet.measurement.access.v1alpha.PrincipalsGrpcKt
-import org.wfanet.measurement.access.v1alpha.getPrincipalRequest
 import org.wfanet.measurement.loadtest.dataprovider.SyntheticGeneratorEventQuery
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerSimulator
@@ -185,16 +185,10 @@ class SyntheticGeneratorCorrectnessTest : AbstractCorrectnessTest(measurementSys
           .sslSocketFactory(certificates.sslSocketFactory(), certificates.trustManager)
           .build()
 
-
       val principalsClient = PrincipalsGrpcKt.PrincipalsCoroutineStub(accessPublicApiChannel)
-      val principal =
-        runBlocking {
-          principalsClient.getPrincipal(
-            getPrincipalRequest {
-              name = TEST_CONFIG.principal
-            }
-          )
-        }
+      val principal = runBlocking {
+        principalsClient.getPrincipal(getPrincipalRequest { name = TEST_CONFIG.principal })
+      }
 
       val bearerTokenCallCredentials: BearerTokenCallCredentials =
         OpenIdProvider(

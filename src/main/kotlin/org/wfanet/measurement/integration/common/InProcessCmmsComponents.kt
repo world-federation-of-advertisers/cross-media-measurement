@@ -78,7 +78,7 @@ class InProcessCmmsComponents(
   private val syntheticEventGroupSpecs: List<SyntheticEventGroupSpec> =
     SyntheticGenerationSpecs.SYNTHETIC_DATA_SPECS_SMALL,
   private val accessServicesFactory: AccessServicesFactory,
-  ) : TestRule {
+) : TestRule {
   private val kingdomDataServices: DataServices
     get() = kingdomDataServicesRule.value
 
@@ -177,15 +177,9 @@ class InProcessCmmsComponents(
   private val publicApiKeysClient by lazy {
     ApiKeysGrpcKt.ApiKeysCoroutineStub(kingdom.publicApiChannel)
   }
-  private val policiesClient by lazy {
-    PoliciesGrpcKt.PoliciesCoroutineStub(access.channel)
-  }
-  private val principalsClient by lazy {
-    PrincipalsGrpcKt.PrincipalsCoroutineStub(access.channel)
-  }
-  private val rolesClient by lazy {
-    RolesGrpcKt.RolesCoroutineStub(access.channel)
-  }
+  private val policiesClient by lazy { PoliciesGrpcKt.PoliciesCoroutineStub(access.channel) }
+  private val principalsClient by lazy { PrincipalsGrpcKt.PrincipalsCoroutineStub(access.channel) }
+  private val rolesClient by lazy { RolesGrpcKt.RolesCoroutineStub(access.channel) }
 
   val modelProviderResourceName: String
     get() = _modelProviderResourceName
