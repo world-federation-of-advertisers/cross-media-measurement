@@ -6,6 +6,7 @@ package(
         "//src/main/kotlin/org/wfanet/measurement/securecomputation/deploy:__subpackages__",
         "//src/main/kotlin/org/wfanet/measurement/securecomputation/service:__subpackages__",
         "//src/test/kotlin/org/wfanet/measurement/securecomputation/controlplane/v1alpha:__subpackages__",
+        "//src/test/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/deadletter:__subpackages__",
         "//src/test/kotlin/org/wfanet/measurement/securecomputation/service:__subpackages__",
     ],
 )
