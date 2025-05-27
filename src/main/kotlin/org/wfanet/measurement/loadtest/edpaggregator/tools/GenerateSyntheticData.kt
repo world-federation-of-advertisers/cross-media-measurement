@@ -33,7 +33,7 @@ import org.wfanet.measurement.common.crypto.tink.testing.FakeKmsClient
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.loadtest.edpaggregator.ImpressionsWriter
-import org.wfanet.measurement.loadtest.edpaggregator.SyntheticDataGeneration
+import org.wfanet.measurement.loadtest.dataprovider.SyntheticDataGeneration
 import picocli.CommandLine.Command
 import picocli.CommandLine.Option
 

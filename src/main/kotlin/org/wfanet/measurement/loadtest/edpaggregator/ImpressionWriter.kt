@@ -18,8 +18,11 @@ import com.google.crypto.tink.KeyTemplates
 import com.google.crypto.tink.KeysetHandle
 import com.google.crypto.tink.KmsClient
 import com.google.crypto.tink.TinkProtoKeysetFormat
+import com.google.protobuf.Any
 import com.google.protobuf.ByteString
+import com.google.protobuf.Message
 import com.google.protobuf.kotlin.toByteString
+import com.google.protobuf.timestamp
 import java.io.File
 import java.time.LocalDate
 import java.util.logging.Logger
@@ -27,9 +30,12 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.crypto.tink.withEnvelopeEncryption
+import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
-import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
 import org.wfanet.measurement.edpaggregator.v1alpha.blobDetails
+import org.wfanet.measurement.edpaggregator.v1alpha.labeledImpression
+import org.wfanet.measurement.loadtest.dataprovider.DateShardedLabeledImpression
+import org.wfanet.measurement.loadtest.dataprovider.LabeledEvent
 import org.wfanet.measurement.storage.MesosRecordIoStorageClient
 import org.wfanet.measurement.storage.SelectedStorageClient
 
@@ -67,7 +73,9 @@ class ImpressionsWriter(
    * and outputs the data to storage along with the necessary metadata for the ResultsFulfiller
    * to be able to find and read the contents.
    */
-  suspend fun writeLabeledImpressionData(events: Flow<DateShardedLabeledImpression>) {
+  suspend fun <T : Message> writeLabeledImpressionData(
+    events: Flow<DateShardedLabeledImpression<T>>
+  ) {
     // Set up streaming encryption
     val tinkKeyTemplateType = "AES128_GCM_HKDF_1MB"
     val aeadKeyTemplate = KeyTemplates.get(tinkKeyTemplateType)
@@ -83,7 +91,15 @@ class ImpressionsWriter(
     val encryptedDek =
       EncryptedDek.newBuilder().setKekUri(kekUri).setEncryptedDek(serializedEncryptionKey).build()
 
-    events.collect { (localDate: LocalDate, labeledImpressions: Flow<LabeledImpression>) ->
+    events.collect { (localDate: LocalDate, labeledEvents: Flow<LabeledEvent<T>>) ->
+      val labeledImpressions =
+        labeledEvents.map { it: LabeledEvent<T> ->
+          labeledImpression {
+            vid = it.vid
+            event = Any.pack(it.message)
+            eventTime = it.timestamp.toProtoTime()
+          }
+        }
       val ds = localDate.toString()
       logger.info("Writing Date: $ds")
 
