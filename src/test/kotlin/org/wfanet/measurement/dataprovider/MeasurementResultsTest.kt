@@ -280,7 +280,8 @@ class MeasurementResultsTest {
 
     val typeRegistry = TypeRegistry.newBuilder().add(Person.getDescriptor()).build()
 
-    val program: Program = EventFilters.compileProgram(eventMessageDescriptor, filterExpression, operativeFields)
+    val program: Program =
+      EventFilters.compileProgram(eventMessageDescriptor, filterExpression, operativeFields)
 
     val result = MeasurementResults.computePopulation(POPULATION_INFO, program, typeRegistry)
 
