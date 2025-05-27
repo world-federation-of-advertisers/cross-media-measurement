@@ -79,7 +79,7 @@ class SpannerComputationsServiceTest : ComputationsServiceTest<ComputationsServi
           ),
         clock = clock,
         computationIdGenerator = IdGenerator.Default,
-        )
+      )
     val systemComputationLogEntriesClient =
       ComputationLogEntriesCoroutineStub(grpcTestServerRule.channel)
     val computationsDatabase =
