@@ -184,15 +184,14 @@ class SpannerModelLinesService(
         request.typesList
       }
     val modelLineResults =
-      ModelLineReader()
-        .readValidModelLines(
-          client.singleUseReadOnlyTransaction(),
-          externalModelProviderId = ExternalId(request.externalModelProviderId),
-          externalModelSuiteId = ExternalId(request.externalModelSuiteId),
-          request.timeInterval,
-          types,
-          request.externalDataProviderIdsList.map { ExternalId(it) },
-        )
+      ModelLineReader.readValidModelLines(
+        client.singleUseReadOnlyTransaction(),
+        externalModelProviderId = ExternalId(request.externalModelProviderId),
+        externalModelSuiteId = ExternalId(request.externalModelSuiteId),
+        request.timeInterval,
+        types,
+        request.externalDataProviderIdsList.map { ExternalId(it) },
+      )
 
     return enumerateValidModelLinesResponse {
       /**
