@@ -17,6 +17,8 @@
 package org.wfanet.measurement.loadtest.dataprovider
 
 import com.google.protobuf.TypeRegistry
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.toList
 import org.projectnessie.cel.Program
 import org.wfanet.measurement.populationdataprovider.PopulationInfo
 import org.wfanet.measurement.populationdataprovider.PopulationRequisitionFulfiller
@@ -29,8 +31,11 @@ object MeasurementResults {
    * Computes reach and frequency using the "deterministic count distinct" methodology and the
    * "deterministic distribution" methodology.
    */
-  fun computeReachAndFrequency(filteredVids: Iterable<Long>, maxFrequency: Int): ReachAndFrequency {
-    val eventsPerVid: Map<Long, Int> = filteredVids.groupingBy { it }.eachCount()
+  suspend fun computeReachAndFrequency(
+    filteredVids: Flow<Long>,
+    maxFrequency: Int,
+  ): ReachAndFrequency {
+    val eventsPerVid: Map<Long, Int> = filteredVids.toList().groupingBy { it }.eachCount()
     val reach: Int = eventsPerVid.keys.size
 
     // If the filtered VIDs is empty, set the distribution with all 0s up to maxFrequency.
@@ -51,13 +56,13 @@ object MeasurementResults {
   }
 
   /** Computes reach using the "deterministic count distinct" methodology. */
-  fun computeReach(filteredVids: Iterable<Long>): Int {
-    return filteredVids.distinct().size
+  suspend fun computeReach(filteredVids: Flow<Long>): Int {
+    return filteredVids.toList().distinct().size
   }
 
   /** Computes impression using the "deterministic count" methodology. */
-  fun computeImpression(filteredVids: Iterable<Long>, maxFrequency: Int): Long {
-    val eventsPerVid: Map<Long, Int> = filteredVids.groupingBy { it }.eachCount()
+  suspend fun computeImpression(filteredVids: Flow<Long>, maxFrequency: Int): Long {
+    val eventsPerVid: Map<Long, Int> = filteredVids.toList().groupingBy { it }.eachCount()
     // Cap each count at `maxFrequency`.
     return eventsPerVid.values.sumOf { count -> count.coerceAtMost(maxFrequency).toLong() }
   }
