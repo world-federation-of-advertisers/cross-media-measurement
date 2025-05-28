@@ -197,6 +197,7 @@ java_test(
 kt_jvm_library(
     name = "gcloud_in_process_model_repository_cli_integration_test",
     srcs = ["GCloudInProcessModelRepositoryCliIntegrationTest.kt"],
+    data = ["@cloud_spanner_emulator//:emulator"],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/integration/common:in_process_model_repository_cli_integration_test",
     ],

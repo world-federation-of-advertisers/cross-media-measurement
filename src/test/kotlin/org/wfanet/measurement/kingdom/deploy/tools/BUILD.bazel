@@ -4,7 +4,6 @@ kt_jvm_test(
     name = "ModelRepositoryTest",
     srcs = ["ModelRepositoryTest.kt"],
     data = [
-        "textproto_files",
         "//src/main/k8s/testing/secretfiles:root_certs",
         "//src/main/k8s/testing/secretfiles:secret_files",
     ],
