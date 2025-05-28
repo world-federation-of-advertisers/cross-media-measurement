@@ -17,13 +17,8 @@
 package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
 import com.google.common.truth.Truth.assertThat
-import com.google.crypto.tink.Aead
-import com.google.crypto.tink.KeyTemplates
-import com.google.crypto.tink.KeysetHandle
-import com.google.crypto.tink.TinkProtoKeysetFormat
 import com.google.crypto.tink.aead.AeadConfig
 import com.google.crypto.tink.streamingaead.StreamingAeadConfig
-import com.google.protobuf.ByteString
 import com.google.protobuf.Timestamp
 import com.google.protobuf.TypeRegistry
 import com.google.type.interval
@@ -49,15 +44,11 @@ import org.wfanet.measurement.api.v2alpha.event_templates.testing.testEvent
 import org.wfanet.measurement.api.v2alpha.requisitionSpec
 import org.wfanet.measurement.common.OpenEndTimeRange
 import org.wfanet.measurement.common.crypto.tink.testing.FakeKmsClient
-import org.wfanet.measurement.common.crypto.tink.withEnvelopeEncryption
 import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.edpaggregator.StorageConfig
-import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
-import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
 import org.wfanet.measurement.edpaggregator.v1alpha.copy
-import org.wfanet.measurement.storage.MesosRecordIoStorageClient
 import org.wfanet.measurement.storage.SelectedStorageClient
 
 @RunWith(JUnit4::class)
@@ -114,28 +105,19 @@ class RequisitionSpecsTest {
     val impressionsStorageClient = SelectedStorageClient(IMPRESSIONS_FILE_URI, impressionsTmpPath)
 
     // Set up KMS
-    val kmsClient = FakeKmsClient()
-    val kekUri = FakeKmsClient.KEY_URI_PREFIX + "kek"
-    val kmsKeyHandle = KeysetHandle.generateNew(KeyTemplates.get("AES128_GCM"))
-    kmsClient.setAead(kekUri, kmsKeyHandle.getPrimitive(Aead::class.java))
+    val kekUri = FakeKmsClient.KEY_URI_PREFIX
+    val kmsClient = EncryptedMesosStorage.createKmsClient(FakeKmsClient.KEY_URI_PREFIX)
 
-    // Set up streaming encryption
-    val tinkKeyTemplateType = "AES128_GCM_HKDF_1MB"
-    val aeadKeyTemplate = KeyTemplates.get(tinkKeyTemplateType)
-    val keyEncryptionHandle = KeysetHandle.generateNew(aeadKeyTemplate)
-    val serializedEncryptionKey =
-      ByteString.copyFrom(
-        TinkProtoKeysetFormat.serializeEncryptedKeyset(
-          keyEncryptionHandle,
-          kmsClient.getAead(kekUri),
-          byteArrayOf(),
-        )
+    // Set up streaming encryption key
+    val serializedEncryptionKey = EncryptedMesosStorage.generateSerializedEnryptionKey(kmsClient, kekUri)
+
+    val mesosRecordIoStorageClient =
+      EncryptedMesosStorage.createEncryptedMesosStorage(
+        impressionsStorageClient,
+        kmsClient,
+        kekUri,
+        serializedEncryptionKey
       )
-    val aeadStorageClient =
-      impressionsStorageClient.withEnvelopeEncryption(kmsClient, kekUri, serializedEncryptionKey)
-
-    // Wrap aead client in mesos client
-    val mesosRecordIoStorageClient = MesosRecordIoStorageClient(aeadStorageClient)
 
     val validImpressionCount = 130
     val invalidImpressionCount = 70
@@ -171,13 +153,12 @@ class RequisitionSpecsTest {
     val impressionsDekStorageClient =
       SelectedStorageClient(IMPRESSIONS_DEK_FILE_URI, dekTmpPath)
 
-    val encryptedDek =
-      EncryptedDek.newBuilder().setKekUri(kekUri).setEncryptedDek(serializedEncryptionKey).build()
     val blobDetails =
-      BlobDetails.newBuilder()
-        .setBlobUri(IMPRESSIONS_FILE_URI)
-        .setEncryptedDek(encryptedDek)
-        .build()
+      EncryptedMesosStorage.encryptAndCreateBlobDetails(
+        kekUri,
+        serializedEncryptionKey,
+        IMPRESSIONS_FILE_URI
+      )
 
     impressionsDekStorageClient.writeBlob(
       IMPRESSION_DEK_BLOB_KEY,
@@ -246,28 +227,19 @@ class RequisitionSpecsTest {
     val impressionsStorageClient = SelectedStorageClient(IMPRESSIONS_FILE_URI, impressionsTmpPath)
 
     // Set up KMS
-    val kmsClient = FakeKmsClient()
-    val kekUri = FakeKmsClient.KEY_URI_PREFIX + "kek"
-    val kmsKeyHandle = KeysetHandle.generateNew(KeyTemplates.get("AES128_GCM"))
-    kmsClient.setAead(kekUri, kmsKeyHandle.getPrimitive(Aead::class.java))
+    val kekUri = FakeKmsClient.KEY_URI_PREFIX
+    val kmsClient = EncryptedMesosStorage.createKmsClient(FakeKmsClient.KEY_URI_PREFIX)
 
-    // Set up streaming encryption
-    val tinkKeyTemplateType = "AES128_GCM_HKDF_1MB"
-    val aeadKeyTemplate = KeyTemplates.get(tinkKeyTemplateType)
-    val keyEncryptionHandle = KeysetHandle.generateNew(aeadKeyTemplate)
-    val serializedEncryptionKey =
-      ByteString.copyFrom(
-        TinkProtoKeysetFormat.serializeEncryptedKeyset(
-          keyEncryptionHandle,
-          kmsClient.getAead(kekUri),
-          byteArrayOf(),
-        )
+    // Set up streaming encryption key
+    val serializedEncryptionKey = EncryptedMesosStorage.generateSerializedEnryptionKey(kmsClient, kekUri)
+
+    val mesosRecordIoStorageClient =
+      EncryptedMesosStorage.createEncryptedMesosStorage(
+        impressionsStorageClient,
+        kmsClient,
+        kekUri,
+        serializedEncryptionKey
       )
-    val aeadStorageClient =
-      impressionsStorageClient.withEnvelopeEncryption(kmsClient, kekUri, serializedEncryptionKey)
-
-    // Wrap aead client in mesos client
-    val mesosRecordIoStorageClient = MesosRecordIoStorageClient(aeadStorageClient)
 
     val validImpressionCount = 130
     val invalidImpressionCount = 70
@@ -303,19 +275,18 @@ class RequisitionSpecsTest {
     val impressionsDekStorageClient =
       SelectedStorageClient(IMPRESSIONS_DEK_FILE_URI, dekTmpPath)
 
-    val encryptedDek =
-      EncryptedDek.newBuilder().setKekUri(kekUri).setEncryptedDek(serializedEncryptionKey).build()
     val blobDetails =
-      BlobDetails.newBuilder()
-        .setBlobUri(IMPRESSIONS_FILE_URI)
-        .setEncryptedDek(encryptedDek)
-        .build()
+      EncryptedMesosStorage.encryptAndCreateBlobDetails(
+        kekUri,
+        serializedEncryptionKey,
+        IMPRESSIONS_FILE_URI
+      )
 
     impressionsDekStorageClient.writeBlob(
       IMPRESSION_DEK_BLOB_KEY,
       blobDetails.toByteString()
     )
-    
+
     // Create EventReader
     val eventReader = EventReader(
       kmsClient,

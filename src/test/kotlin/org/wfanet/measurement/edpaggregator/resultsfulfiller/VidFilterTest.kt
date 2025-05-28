@@ -60,15 +60,6 @@ class VidFilterTest {
     // Create event filter
     val filter = eventFilter { expression = "person.gender == 1" } // MALE is 1
 
-    // Create VidFilter
-    val vidFilter = VidFilter(
-      filter,
-      collectionInterval,
-      0.0f,
-      1.0f,
-      typeRegistry
-    )
-
     val virtualId = 42L
 
     // Create labeled impression with event time within collection interval
@@ -78,7 +69,14 @@ class VidFilterTest {
     }
 
     // Call the filterAndExtractVids method
-    val result = vidFilter.filterAndExtractVids(listOf(labeledImpression).asFlow()).toList()
+    val result = VidFilter.filterAndExtractVids(
+      listOf(labeledImpression).asFlow(),
+      0.0f,
+      1.0f,
+      filter,
+      collectionInterval,
+      typeRegistry
+    ).toList()
 
     // Verify the result
     assertThat(result).hasSize(1)
@@ -104,15 +102,6 @@ class VidFilterTest {
     // Create event filter that requires FEMALE (gender == 2)
     val filter = eventFilter { expression = "person.gender == 2" } // FEMALE is 2
 
-    // Create VidFilter
-    val vidFilter = VidFilter(
-      filter,
-      collectionInterval,
-      0.0f,
-      1.0f,
-      typeRegistry
-    )
-
     // Create labeled impression with MALE gender (1)
     val labeledImpression = LABELED_IMPRESSION_1.copy {
       eventTime = TIME_RANGE.start.toProtoTime()
@@ -120,7 +109,14 @@ class VidFilterTest {
     }
 
     // Call the filterAndExtractVids method
-    val result = vidFilter.filterAndExtractVids(listOf(labeledImpression).asFlow()).toList()
+    val result = VidFilter.filterAndExtractVids(
+      listOf(labeledImpression).asFlow(),
+      0.0f,
+      1.0f,
+      filter,
+      collectionInterval,
+      typeRegistry
+    ).toList()
 
     // Verify the result
     assertThat(result).isEmpty()

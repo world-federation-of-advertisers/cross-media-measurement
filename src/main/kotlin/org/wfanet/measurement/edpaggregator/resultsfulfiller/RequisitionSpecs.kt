@@ -66,22 +66,21 @@ object RequisitionSpecs {
       .flatMapConcat { eventGroup ->
         val collectionInterval = eventGroup.value.collectionInterval
 
-        // Create a VidFilter to filter labeled impressions
-        val vidFilter = VidFilter(
-          eventGroup.value.filter,
-          collectionInterval,
-          vidSamplingIntervalStart,
-          vidSamplingIntervalWidth,
-          typeRegistry
-        )
-
         // Get labeled impressions and filter them
         val labeledImpressions = eventReader.getLabeledImpressionsFlow(
           collectionInterval,
           eventGroup.key
         )
 
-        vidFilter.filterAndExtractVids(labeledImpressions)
+        // Filter labeled impressions
+        VidFilter.filterAndExtractVids(
+          labeledImpressions,
+          vidSamplingIntervalStart,
+          vidSamplingIntervalWidth,
+          eventGroup.value.filter,
+          collectionInterval,
+          typeRegistry
+        )
       }
   }
 }

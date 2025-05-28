@@ -17,10 +17,7 @@
 package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
 import com.google.common.truth.Truth.assertThat
-import com.google.crypto.tink.Aead
-import com.google.crypto.tink.KeyTemplates
-import com.google.crypto.tink.KeysetHandle
-import com.google.crypto.tink.TinkProtoKeysetFormat
+import com.google.crypto.tink.KmsClient
 import com.google.crypto.tink.aead.AeadConfig
 import com.google.crypto.tink.streamingaead.StreamingAeadConfig
 import com.google.protobuf.ByteString
@@ -41,14 +38,12 @@ import org.wfanet.measurement.api.v2alpha.event_templates.testing.testEvent
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.person
 import org.wfanet.measurement.common.OpenEndTimeRange
 import org.wfanet.measurement.common.crypto.tink.testing.FakeKmsClient
-import org.wfanet.measurement.common.crypto.tink.withEnvelopeEncryption
 import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
-import org.wfanet.measurement.storage.MesosRecordIoStorageClient
 import org.wfanet.measurement.storage.SelectedStorageClient
 
 @RunWith(JUnit4::class)
@@ -56,7 +51,7 @@ class EventReaderTest {
 
   @get:Rule val tempFolder = TemporaryFolder()
 
-  private lateinit var kmsClient: FakeKmsClient
+  private lateinit var kmsClient: KmsClient
   private lateinit var kekUri: String
   private lateinit var serializedEncryptionKey: ByteString
   private lateinit var impressionsTmpPath: java.io.File
@@ -70,22 +65,17 @@ class EventReaderTest {
   @Before
   fun setUp() {
     // Set up KMS
-    kmsClient = FakeKmsClient()
-    kekUri = FakeKmsClient.KEY_URI_PREFIX + "kek"
-    val kmsKeyHandle = KeysetHandle.generateNew(KeyTemplates.get("AES128_GCM"))
-    kmsClient.setAead(kekUri, kmsKeyHandle.getPrimitive(Aead::class.java))
+    kekUri = FakeKmsClient.KEY_URI_PREFIX
+    kmsClient = EncryptedMesosStorage.createKmsClient(FakeKmsClient.KEY_URI_PREFIX)
+
+
 
     // Set up encryption key
-    val tinkKeyTemplateType = "AES128_GCM_HKDF_1MB"
-    val aeadKeyTemplate = KeyTemplates.get(tinkKeyTemplateType)
-    val keyEncryptionHandle = KeysetHandle.generateNew(aeadKeyTemplate)
-    serializedEncryptionKey = ByteString.copyFrom(
-      TinkProtoKeysetFormat.serializeEncryptedKeyset(
-        keyEncryptionHandle,
-        kmsClient.getAead(kekUri),
-        byteArrayOf(),
+    serializedEncryptionKey =
+      EncryptedMesosStorage.generateSerializedEnryptionKey(
+        kmsClient,
+        kekUri
       )
-    )
 
     // Create temporary directories for storage
     impressionsTmpPath = Files.createTempDirectory(null).toFile()
@@ -100,12 +90,13 @@ class EventReaderTest {
     // Create impressions storage client
     val impressionsStorageClient = SelectedStorageClient(IMPRESSIONS_FILE_URI, impressionsTmpPath)
 
-    // Set up streaming encryption
-    val aeadStorageClient =
-      impressionsStorageClient.withEnvelopeEncryption(kmsClient, kekUri, serializedEncryptionKey)
-
-    // Wrap aead client in mesos client
-    val mesosRecordIoStorageClient = MesosRecordIoStorageClient(aeadStorageClient)
+    // Setup encrypted mesos client
+    val mesosRecordIoStorageClient =  EncryptedMesosStorage.createEncryptedMesosStorage(
+      impressionsStorageClient,
+      kmsClient,
+      kekUri,
+      serializedEncryptionKey,
+    )
 
     // Create test impressions
     val impressionCount = 1000

@@ -27,30 +27,60 @@ import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.map
 import org.projectnessie.cel.Program
 import org.projectnessie.cel.common.types.BoolT
-import org.wfanet.measurement.api.v2alpha.RequisitionSpec
+import org.wfanet.measurement.api.v2alpha.RequisitionSpec.EventFilter
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
 import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters
 import org.wfanet.sampling.VidSampler
 
-/**
- * Filters labeled impressions based on various criteria.
- *
- * @param program The compiled CEL program used to filter events
- * @param collectionInterval The time interval for collection
- * @param vidSamplingIntervalStart The start of the VID sampling interval
- * @param vidSamplingIntervalWidth The width of the VID sampling interval
- * @param typeRegistry The registry for looking up protobuf descriptors
- */
-class VidFilter(
-  private val eventFilter: RequisitionSpec.EventFilter,
-  private val collectionInterval: Interval,
-  private val vidSamplingIntervalStart: Float,
-  private val vidSamplingIntervalWidth: Float,
-  private val typeRegistry: TypeRegistry
-) {
-  init {
-    // Validating VID sampling intervals are within [0, 1]
+object VidFilter {
+  /**
+   * Filters a flow of labeled impressions and extracts their VIDs.
+   *
+   * @param labeledImpressions The flow of labeled impressions to filter
+   * @return A flow of VIDs from the filtered labeled impressions
+   */
+  fun filterAndExtractVids(
+    labeledImpressions: Flow<LabeledImpression>,
+    vidSamplingIntervalStart: Float,
+    vidSamplingIntervalWidth: Float,
+    eventFilter: EventFilter,
+    collectionInterval: Interval,
+    typeRegistry: TypeRegistry,
+    ): Flow<Long> {
+    return labeledImpressions
+      .filter { labeledImpression ->
+        isValidImpression(
+          labeledImpression,
+          vidSamplingIntervalStart,
+          vidSamplingIntervalWidth,
+          eventFilter,
+          collectionInterval,
+          typeRegistry,
+        )
+      }
+      .map { labeledImpression -> labeledImpression.vid }
+  }
+
+  /**
+   * Determines if an impression is valid based on various criteria.
+   *
+   * @param labeledImpression The impression to validate
+   * @param vidSamplingIntervalStart The start of the VID sampling interval
+   * @param vidSamplingIntervalWidth The width of the VID sampling interval
+   * @param eventFilter The event filter criteria
+   * @param collectionInterval The time interval for collection
+   * @param typeRegistry The registry for looking up protobuf descriptors
+   * @return True if the impression is valid, false otherwise
+   */
+  private fun isValidImpression(
+    labeledImpression: LabeledImpression,
+    vidSamplingIntervalStart: Float,
+    vidSamplingIntervalWidth: Float,
+    eventFilter: EventFilter,
+    collectionInterval: Interval,
+    typeRegistry: TypeRegistry,
+  ): Boolean {
     require(vidSamplingIntervalWidth > 0 && vidSamplingIntervalWidth <= 1.0) {
       "Invalid vidSamplingIntervalWidth $vidSamplingIntervalWidth"
     }
@@ -62,44 +92,24 @@ class VidFilter(
       "Invalid vidSamplingInterval: start = $vidSamplingIntervalStart, width = " +
         "$vidSamplingIntervalWidth"
     }
-  }
-  private val sampler = VidSampler(VID_SAMPLER_HASH_FUNCTION)
 
-  /**
-   * Filters a flow of labeled impressions and extracts their VIDs.
-   *
-   * @param labeledImpressions The flow of labeled impressions to filter
-   * @return A flow of VIDs from the filtered labeled impressions
-   */
-  fun filterAndExtractVids(labeledImpressions: Flow<LabeledImpression>): Flow<Long> {
-    return labeledImpressions
-      .filter { labeledImpression -> isValidImpression(labeledImpression) }
-      .map { labeledImpression -> labeledImpression.vid }
-  }
-
-  /**
-   * Determines if an impression is valid based on various criteria.
-   *
-   * @param labeledImpression The impression to validate
-   * @return True if the impression is valid, false otherwise
-   */
-  private fun isValidImpression(labeledImpression: LabeledImpression): Boolean {
     // Check if impression is within collection time interval
     val isInCollectionInterval =
       labeledImpression.eventTime.toInstant() >= collectionInterval.startTime.toInstant() &&
         labeledImpression.eventTime.toInstant() < collectionInterval.endTime.toInstant()
-    
+
     if (!isInCollectionInterval) {
       return false
     }
 
+    val sampler = VidSampler(Hashing.farmHashFingerprint64())
     // Check if VID is in sampling bucket
     val isInSamplingInterval = sampler.vidIsInSamplingBucket(
       labeledImpression.vid,
       vidSamplingIntervalStart,
       vidSamplingIntervalWidth
     )
-    
+
     if (!isInSamplingInterval) {
       return false
     }
@@ -107,12 +117,12 @@ class VidFilter(
     // Create filter program
     val eventMessageData = labeledImpression.event
     val eventTemplateDescriptor = typeRegistry.getDescriptorForTypeUrl(eventMessageData.typeUrl)
-    val program = compileProgram(eventTemplateDescriptor)
+    val program = compileProgram(eventTemplateDescriptor, eventFilter.expression)
     val eventMessage = DynamicMessage.parseFrom(eventTemplateDescriptor, eventMessageData.value)
 
     // Pass event message through program
     val passesFilter = EventFilters.matches(eventMessage, program)
-    
+
     return passesFilter
   }
 
@@ -124,20 +134,16 @@ class VidFilter(
    * @param eventMessageDescriptor The descriptor for the event message type
    * @return A compiled Program that can be used to filter events
    */
-  fun compileProgram(
+  private fun compileProgram(
     eventMessageDescriptor: Descriptors.Descriptor,
+    filterExpression: String,
   ): Program {
     // EventFilters should take care of this, but checking here is an optimization that can skip
     // creation of a CEL Env.
-    if (eventFilter.expression.isEmpty()) {
-      return Program { TRUE_EVAL_RESULT }
+    if (filterExpression.isEmpty()) {
+      return Program { Program.newEvalResult(BoolT.True, null) }
     }
-    
-    return EventFilters.compileProgram(eventMessageDescriptor, eventFilter.expression)
-  }
 
-  companion object {
-    private val VID_SAMPLER_HASH_FUNCTION: HashFunction = Hashing.farmHashFingerprint64()
-    private val TRUE_EVAL_RESULT = Program.newEvalResult(BoolT.True, null)
+    return EventFilters.compileProgram(eventMessageDescriptor, filterExpression)
   }
 }
