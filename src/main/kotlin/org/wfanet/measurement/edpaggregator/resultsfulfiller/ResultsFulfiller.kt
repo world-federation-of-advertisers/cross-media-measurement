@@ -26,6 +26,7 @@ import java.security.SecureRandom
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.asFlow
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
+import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig.NoiseMechanism
@@ -40,6 +41,9 @@ import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.consent.client.dataprovider.decryptRequisitionSpec
 import org.wfanet.measurement.eventdataprovider.noiser.DirectNoiseMechanism
 import org.wfanet.measurement.storage.SelectedStorageClient
+import org.wfanet.measurement.dataprovider.RequisitionRefusalException
+import org.wfanet.measurement.edpaggregator.resultsfulfiller.compute.protocols.direct.DirectMeasurementResultFactory
+import org.wfanet.measurement.edpaggregator.resultsfulfiller.fulfillers.DirectMeasurementFulfiller
 
 class ResultsFulfiller(
   private val privateEncryptionKey: PrivateKeyHandle,
@@ -79,15 +83,15 @@ class ResultsFulfiller(
         impressionMetadataStorageConfig,
         labeledImpressionMetadataPrefix,
       )
+      val measurementEncryptionPublicKey: EncryptionPublicKey =
+        if (measurementSpec.hasMeasurementPublicKey()) {
+          measurementSpec.measurementPublicKey.unpack()
+        } else {
+          @Suppress("DEPRECATION") // Handle legacy resources.
+          EncryptionPublicKey.parseFrom(measurementSpec.serializedMeasurementPublicKey)
+        }
 
       val protocols: List<ProtocolConfig.Protocol> = requisition.protocolConfig.protocolsList
-
-      val measurementHelper = MeasurementHelper(
-        requisitionsStub,
-        dataProviderSigningKeyHandle,
-        random,
-        dataProviderCertificateKey
-      )
 
       if (protocols.any { it.hasDirect() }) {
         val directProtocolConfig =
@@ -98,25 +102,27 @@ class ResultsFulfiller(
               protocolConfigNoiseMechanism.toDirectNoiseMechanism()
             }
             .toSet()
-        if (measurementSpec.hasReach() || measurementSpec.hasReachAndFrequency()) {
-          measurementHelper.fulfillDirectReachAndFrequencyMeasurement(
-            requisition,
-            measurementSpec,
-            sampledVids,
-            directProtocolConfig,
-            selectReachAndFrequencyNoiseMechanism(directNoiseMechanismOptions),
-            requisitionSpec.nonce,
-          )
-        } else if (measurementSpec.hasDuration()) {
-          TODO("Not yet implemented")
-        } else if (measurementSpec.hasImpression()) {
-          TODO("Not yet implemented")
-        } else {
-          throw MeasurementHelper.RequisitionRefusalException(
-            Requisition.Refusal.Justification.SPEC_INVALID,
-            "Measurement type not supported for direct fulfillment.",
-          )
-        }
+        val result = DirectMeasurementResultFactory.buildMeasurementResult(
+          directProtocolConfig,
+          selectReachAndFrequencyNoiseMechanism(directNoiseMechanismOptions),
+          measurementSpec,
+          sampledVids,
+          random,
+        )
+        val fulfiller = DirectMeasurementFulfiller(
+          requisition.name,
+          requisition.dataProviderCertificate,
+          result,
+          requisitionSpec.nonce,
+          measurementEncryptionPublicKey,
+          sampledVids,
+          directProtocolConfig,
+          selectReachAndFrequencyNoiseMechanism(directNoiseMechanismOptions),
+          dataProviderSigningKeyHandle,
+          dataProviderCertificateKey,
+          requisitionsStub,
+        )
+        fulfiller.fulfillRequisition()
       } else if (protocols.any { it.hasLiquidLegionsV2() }) {
         TODO("Not yet implemented")
       } else if (protocols.any { it.hasReachOnlyLiquidLegionsV2() }) {
