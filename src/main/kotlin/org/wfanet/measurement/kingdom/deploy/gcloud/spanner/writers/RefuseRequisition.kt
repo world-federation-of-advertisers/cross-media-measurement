@@ -18,6 +18,7 @@ import java.time.Clock
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.protoTimestamp
+import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.MeasurementFailure
 import org.wfanet.measurement.internal.kingdom.MeasurementLogEntryError
@@ -27,8 +28,10 @@ import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.measurementFailure
 import org.wfanet.measurement.internal.kingdom.measurementLogEntryDetails
 import org.wfanet.measurement.internal.kingdom.measurementLogEntryError
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ETags
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementStateIllegalException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.RequisitionEtagMismatchException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.RequisitionNotFoundByDataProviderException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.RequisitionStateIllegalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.RequisitionReader
@@ -49,6 +52,13 @@ class RefuseRequisition(private val request: RefuseRequisitionRequest) :
     val readResult: RequisitionReader.Result = readRequisition()
     val (measurementConsumerId, measurementId, requisitionId, requisition, measurementDetails) =
       readResult
+
+    if (request.etag.isNotBlank()) {
+      val currentEtag = ETags.computeETag(requisition.updateTime.toGcloudTimestamp())
+      if (request.etag != currentEtag) {
+        throw RequisitionEtagMismatchException(request.etag, currentEtag)
+      }
+    }
 
     val state = requisition.state
     if (state != Requisition.State.UNFULFILLED) {
@@ -106,7 +116,10 @@ class RefuseRequisition(private val request: RefuseRequisitionRequest) :
   }
 
   override fun ResultScope<Requisition>.buildResult(): Requisition {
-    return checkNotNull(transactionResult).copy { updateTime = commitTimestamp.toProto() }
+    return checkNotNull(transactionResult).copy {
+      updateTime = commitTimestamp.toProto()
+      etag = ETags.computeETag(commitTimestamp)
+    }
   }
 
   private suspend fun TransactionScope.readRequisition(): RequisitionReader.Result {

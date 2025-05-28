@@ -272,6 +272,11 @@ fun Status.toExternalStatusRuntimeException(
         errorMessage =
           "Requisition with id: $requisitionApiId is in illegal state: $requisitionState"
       }
+      ErrorCode.REQUISITION_ETAG_MISMATCH -> {
+        put("requestEtag", checkNotNull(errorInfo.metadataMap["request_etag"]))
+        put("actualEtag", checkNotNull(errorInfo.metadataMap["actual_etag"]))
+        errorMessage = "Requisition is inconsistent with initial state."
+      }
       ErrorCode.ACCOUNT_NOT_FOUND -> {
         val accountName =
           AccountKey(

@@ -56,6 +56,8 @@ enum ErrorCode {
   REQUISITION_NOT_FOUND = 13;
   /** Requisition is in an illegal state for the operation. */
   REQUISITION_STATE_ILLEGAL = 14;
+  /** Requisition etag requested does not match actual Requisition etag. */
+  REQUISITION_ETAG_MISMATCH = 46;
   /** Account resource queried could not be found. */
   ACCOUNT_NOT_FOUND = 15;
   /** Account already exists with the identity. */

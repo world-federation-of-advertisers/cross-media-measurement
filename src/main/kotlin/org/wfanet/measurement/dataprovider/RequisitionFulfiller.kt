@@ -188,6 +188,7 @@ abstract class RequisitionFulfiller(
     requisitionName: String,
     justification: Requisition.Refusal.Justification,
     message: String,
+    etag: String,
   ): Requisition {
     try {
       return requisitionsStub.refuseRequisition(
@@ -197,6 +198,7 @@ abstract class RequisitionFulfiller(
             this.justification = justification
             this.message = message
           }
+          this.etag = etag
         }
       )
     } catch (e: StatusException) {

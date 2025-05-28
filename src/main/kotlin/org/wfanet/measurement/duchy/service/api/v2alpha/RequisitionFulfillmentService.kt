@@ -136,6 +136,7 @@ class RequisitionFulfillmentService(
           computationToken.globalComputationId,
           externalRequisitionKey.externalRequisitionId,
           header.nonce,
+          header.etag,
         )
 
         return FULFILLED_RESPONSE
@@ -252,11 +253,13 @@ class RequisitionFulfillmentService(
     computationId: String,
     requisitionId: String,
     nonce: Long,
+    etag: String,
   ) {
     systemRequisitionsClient.fulfillRequisition(
       systemFulfillRequisitionRequest {
         name = SystemRequisitionKey(computationId, requisitionId).toName()
         this.nonce = nonce
+        this.etag = etag
       }
     )
   }

@@ -50,6 +50,16 @@ bazel_dep(
     version = "0.76.0",
     repo_name = "wfa_measurement_proto",
 )
+
+# DO_NOT_SUBMIT: Use version instead.
+archive_override(
+    module_name = "cross-media-measurement-api",
+    strip_prefix = "cross-media-measurement-api-5a45b48f0845f830aa6fd957407c98850f1ae011",
+    urls = [
+        "https://github.com/world-federation-of-advertisers/cross-media-measurement-api/archive/5a45b48f0845f830aa6fd957407c98850f1ae011.tar.gz",
+    ],
+)
+
 bazel_dep(
     name = "consent-signaling-client",
     version = "0.22.0",
