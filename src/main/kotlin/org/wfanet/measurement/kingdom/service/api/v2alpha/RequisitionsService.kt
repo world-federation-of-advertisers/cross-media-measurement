@@ -31,6 +31,7 @@ import org.wfanet.measurement.api.v2alpha.ElGamalPublicKey
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.FulfillDirectRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.FulfillDirectRequisitionResponse
+import org.wfanet.measurement.api.v2alpha.GetRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.ListRequisitionsPageToken
 import org.wfanet.measurement.api.v2alpha.ListRequisitionsPageTokenKt.previousPageEnd
 import org.wfanet.measurement.api.v2alpha.ListRequisitionsRequest
@@ -81,6 +82,7 @@ import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCo
 import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequest
 import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequestKt
 import org.wfanet.measurement.internal.kingdom.fulfillRequisitionRequest
+import org.wfanet.measurement.internal.kingdom.getRequisitionRequest
 import org.wfanet.measurement.internal.kingdom.refuseRequisitionRequest
 import org.wfanet.measurement.internal.kingdom.requisitionRefusal as internalRequisitionRefusal
 import org.wfanet.measurement.internal.kingdom.streamRequisitionsRequest
@@ -93,6 +95,7 @@ class RequisitionsService(private val internalRequisitionStub: RequisitionsCorou
 
   private enum class Permission {
     LIST,
+    GET,
     REFUSE,
     FULFILL;
 
@@ -186,6 +189,38 @@ class RequisitionsService(private val internalRequisitionStub: RequisitionsCorou
     }
   }
 
+  override suspend fun getRequisition(request: GetRequisitionRequest): Requisition {
+    val key: CanonicalRequisitionKey =
+      grpcRequireNotNull(CanonicalRequisitionKey.fromName(request.name)) {
+        "Resource name unspecified or invalid"
+      }
+
+    val authenticatedPrincipal = principalFromCurrentContext
+    if (key.parentKey != authenticatedPrincipal.resourceKey) {
+      throw Permission.GET.deniedStatus(request.name).asRuntimeException()
+    }
+
+    val getRequest = getRequisitionRequest {
+      externalDataProviderId = apiIdToExternalId(key.dataProviderId)
+      externalRequisitionId = apiIdToExternalId(key.requisitionId)
+    }
+
+    val result =
+      try {
+        internalRequisitionStub.getRequisition(getRequest)
+      } catch (e: StatusException) {
+        throw when (e.status.code) {
+          Status.Code.INVALID_ARGUMENT -> Status.INVALID_ARGUMENT
+          Status.Code.NOT_FOUND -> Status.NOT_FOUND
+          Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
+          Status.Code.UNAVAILABLE -> Status.UNAVAILABLE
+          else -> Status.UNKNOWN
+        }.toExternalStatusRuntimeException(e)
+      }
+
+    return result.toRequisition()
+  }
+
   override suspend fun refuseRequisition(request: RefuseRequisitionRequest): Requisition {
     val key: CanonicalRequisitionKey =
       grpcRequireNotNull(CanonicalRequisitionKey.fromName(request.name)) {
@@ -207,6 +242,7 @@ class RequisitionsService(private val internalRequisitionStub: RequisitionsCorou
         justification = request.refusal.justification.toInternal()
         message = request.refusal.message
       }
+      etag = request.etag
     }
 
     val result =
@@ -278,6 +314,8 @@ class RequisitionsService(private val internalRequisitionStub: RequisitionsCorou
         }
         apiVersion = Version.V2_ALPHA.string
       }
+
+      etag = request.etag
     }
     try {
       internalRequisitionStub.fulfillRequisition(fulfillRequest)
@@ -394,6 +432,7 @@ private fun InternalRequisition.toRequisition(): Requisition {
     }
     measurementState = this@toRequisition.parentMeasurement.state.toState()
     updateTime = this@toRequisition.updateTime
+    etag = this@toRequisition.etag
   }
 }
 

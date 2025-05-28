@@ -215,4 +215,7 @@ message Requisition {
   }
   // Denormalized fields from the parent Measurement. Output-only.
   ParentMeasurement parent_measurement = 12;
+
+  // Current etag. Output only.
+  string etag = 13;
 }

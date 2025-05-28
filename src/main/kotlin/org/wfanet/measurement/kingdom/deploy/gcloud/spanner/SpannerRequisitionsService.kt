@@ -33,6 +33,7 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DuchyNotFound
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementStateIllegalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.RequiredFieldNotSetException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.RequisitionEtagMismatchException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.RequisitionNotFoundByDataProviderException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.RequisitionNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.RequisitionStateIllegalException
@@ -127,6 +128,8 @@ class SpannerRequisitionsService(
       )
     } catch (e: DuchyNotFoundException) {
       throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION, "Duchy not found.")
+    } catch (e: RequisitionEtagMismatchException) {
+      throw e.asStatusRuntimeException(Status.Code.ABORTED, "Requisition etags mismatch")
     } catch (e: KingdomInternalException) {
       throw e.asStatusRuntimeException(Status.Code.INTERNAL, "Unexpected internal error.")
     }
@@ -155,6 +158,8 @@ class SpannerRequisitionsService(
         Status.Code.FAILED_PRECONDITION,
         "Requisition state illegal.",
       )
+    } catch (e: RequisitionEtagMismatchException) {
+      throw e.asStatusRuntimeException(Status.Code.ABORTED, "Requisition etags mismatch")
     } catch (e: MeasurementStateIllegalException) {
       throw e.asStatusRuntimeException(
         Status.Code.FAILED_PRECONDITION,

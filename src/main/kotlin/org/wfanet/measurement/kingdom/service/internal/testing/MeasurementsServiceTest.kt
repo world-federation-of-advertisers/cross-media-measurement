@@ -954,7 +954,10 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
         )
         .isEqualTo(createdMeasurement.copy { dataProviders.clear() })
       assertThat(measurement.requisitionsList)
-        .ignoringFields(Requisition.EXTERNAL_REQUISITION_ID_FIELD_NUMBER)
+        .ignoringFields(
+          Requisition.EXTERNAL_REQUISITION_ID_FIELD_NUMBER,
+          Requisition.ETAG_FIELD_NUMBER,
+        )
         .containsExactly(
           requisition {
             externalMeasurementId = createdMeasurement.externalMeasurementId

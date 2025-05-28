@@ -32,6 +32,7 @@ import org.wfanet.measurement.internal.kingdom.RequisitionKt.duchyValue
 import org.wfanet.measurement.internal.kingdom.RequisitionKt.parentMeasurement
 import org.wfanet.measurement.internal.kingdom.requisition
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ETags
 
 class RequisitionReader private constructor(override val builder: Statement.Builder) :
   BaseSpannerReader<RequisitionReader.Result>() {
@@ -324,6 +325,7 @@ class RequisitionReader private constructor(override val builder: Statement.Buil
       dataProviderCertificate = CertificateReader.buildDataProviderCertificate(requisitionStruct)
 
       parentMeasurement = buildParentMeasurement(measurementStruct, dataProviderCount)
+      etag = ETags.computeETag(requisitionStruct.getTimestamp("UpdateTime"))
     }
 
     /**
@@ -346,11 +348,9 @@ class RequisitionReader private constructor(override val builder: Statement.Buil
         ComputationParticipantDetails.ProtocolCase.LIQUID_LEGIONS_V2 -> {
           liquidLegionsV2 = participantDetails.liquidLegionsV2
         }
-
         ComputationParticipantDetails.ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2 -> {
           reachOnlyLiquidLegionsV2 = participantDetails.reachOnlyLiquidLegionsV2
         }
-
         ComputationParticipantDetails.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE -> {
           honestMajorityShareShuffle = participantDetails.honestMajorityShareShuffle
         }

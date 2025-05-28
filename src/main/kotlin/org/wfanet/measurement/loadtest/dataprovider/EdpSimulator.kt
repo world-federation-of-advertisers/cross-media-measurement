@@ -774,7 +774,7 @@ class EdpSimulator(
           logger.log(Level.WARNING, e) { "Refusing Requisition ${requisition.name}" }
         }
 
-        refuseRequisition(requisition.name, e.justification, e.message!!)
+        refuseRequisition(requisition.name, e.justification, e.message!!, requisition.etag)
       }
     }
   }
@@ -1103,6 +1103,7 @@ class EdpSimulator(
             name = requisition.name
             this.requisitionFingerprint = requisitionFingerprint
             this.nonce = nonce
+            etag = requisition.etag
           }
         }
       )

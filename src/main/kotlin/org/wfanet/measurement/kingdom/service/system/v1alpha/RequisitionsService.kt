@@ -56,6 +56,7 @@ class RequisitionsService(
             externalComputationId = apiIdToExternalId(requisitionKey.computationId)
             externalFulfillingDuchyId = duchyIdentityProvider().id
           }
+          etag = request.etag
         }
       )
     return internalResponse.toSystemRequisition()

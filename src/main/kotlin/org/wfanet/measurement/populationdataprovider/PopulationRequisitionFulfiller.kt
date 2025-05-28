@@ -148,7 +148,7 @@ class PopulationRequisitionFulfiller(
           logger.log(Level.WARNING, e) { "Refusing Requisition ${requisition.name}" }
         }
 
-        refuseRequisition(requisition.name, e.justification, e.message!!)
+        refuseRequisition(requisition.name, e.justification, e.message!!, requisition.etag)
       }
     }
   }
