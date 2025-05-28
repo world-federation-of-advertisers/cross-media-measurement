@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 The Cross-Media Measurement Authors
+ * Copyright 2025 The Cross-Media Measurement Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,25 +14,21 @@
  * limitations under the License.
  */
 
-package org.wfanet.measurement.securecomputation.deploy.gcloud.deadletter
+package org.wfanet.measurement.securecomputation.deploy.common.server
 
 import io.grpc.ManagedChannel
 import io.grpc.ManagedChannelBuilder
 import java.util.logging.Logger
-import kotlin.concurrent.thread
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.runBlocking
+import java.io.File
 import org.wfanet.measurement.common.commandLineMain
-import org.wfanet.measurement.common.crypto.tink.TinkPrivateKeyHandle
-import org.wfanet.measurement.common.grpc.TlsFlags
+import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
-import org.wfanet.measurement.common.identity.withPrincipalName
-import org.wfanet.measurement.gcloud.pubsub.GoogleCloudPubSubClient
+import org.wfanet.measurement.gcloud.pubsub.DefaultGooglePubSubClient
 import org.wfanet.measurement.gcloud.pubsub.Subscriber
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
+import org.wfanet.measurement.securecomputation.deploy.gcloud.deadletter.DeadLetterQueueListener
 import picocli.CommandLine
 
 private const val SERVICE_NAME = "DeadLetterQueueListener"
@@ -47,26 +43,12 @@ private class DeadLetterQueueListenerServer : Runnable {
   @CommandLine.Mixin
   private lateinit var flags: DeadLetterQueueListenerFlags
 
-  @CommandLine.Mixin
-  private lateinit var tlsFlags: TlsFlags
-
-  private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
-
   override fun run() = runBlocking {
-    val deadLetterListener = createDeadLetterQueueListener()
-    
-    // Register shutdown hook to close resources gracefully
-    val mainThread = Thread.currentThread()
-    Runtime.getRuntime().addShutdownHook(thread(start = false) {
-      logger.info("Shutting down $SERVICE_NAME...")
-      deadLetterListener.close()
-      mainThread.join()
-      logger.info("$SERVICE_NAME shutdown complete")
-    })
-    
-    // Start listening for messages
     logger.info("Starting $SERVICE_NAME...")
-    deadLetterListener.run()
+    createDeadLetterQueueListener().use { listener ->
+      listener.run()
+    }
+    logger.info("$SERVICE_NAME shutdown complete")
   }
 
   private fun createDeadLetterQueueListener(): DeadLetterQueueListener {
@@ -75,7 +57,7 @@ private class DeadLetterQueueListenerServer : Runnable {
     val workItemsStub = WorkItemsCoroutineStub(workItemsChannel)
     
     // Set up the PubSub subscriber
-    val googlePubSubClient = GoogleCloudPubSubClient()
+    val googlePubSubClient = DefaultGooglePubSubClient()
     val subscriber = Subscriber(flags.projectId, googlePubSubClient)
     
     // Create the listener
@@ -88,20 +70,75 @@ private class DeadLetterQueueListenerServer : Runnable {
   }
 
   private fun createChannel(): ManagedChannel {
-    return if (tlsFlags.tlsCertFile != null && tlsFlags.tlsKeyFile != null) {
+    return if (flags.tlsCertFile != null && flags.tlsKeyFile != null) {
       // Set up mutual TLS authentication
+      val clientCerts = SigningCerts.fromPemFiles(
+        certificateFile = File(flags.tlsCertFile!!),
+        privateKeyFile = File(flags.tlsKeyFile!!),
+        trustedCertCollectionFile = flags.certCollectionFile?.let { File(it) }
+      )
       buildMutualTlsChannel(
         flags.workItemsApiTarget,
-        tlsFlags.certCollectionFile,
-        TinkPrivateKeyHandle.fromPemFile(tlsFlags.tlsKeyFile!!),
-        tlsFlags.tlsCertFile!!
-      ).withPrincipalName(SERVICE_NAME)
+        clientCerts,
+        hostName = flags.workItemsApiTarget
+      )
     } else {
       // Use plaintext channel for testing or non-TLS environments
       ManagedChannelBuilder.forTarget(flags.workItemsApiTarget)
         .usePlaintext()
         .build()
     }
+  }
+
+  /** Command-line flags for [DeadLetterQueueListener]. */
+  private class DeadLetterQueueListenerFlags {
+    @CommandLine.Option(
+      names = ["--dead-letter-subscription-id"],
+      description = ["PubSub subscription ID for the dead letter queue"],
+      required = true
+    )
+    lateinit var deadLetterSubscriptionId: String
+      private set
+
+    @CommandLine.Option(
+      names = ["--project-id"],
+      description = ["Google Cloud project ID"],
+      required = true
+    )
+    lateinit var projectId: String
+      private set
+
+    @CommandLine.Option(
+      names = ["--work-items-api-target"],
+      description = ["gRPC target (authority) for the WorkItems API"],
+      required = true
+    )
+    lateinit var workItemsApiTarget: String
+      private set
+
+    @CommandLine.Option(
+      names = ["--tls-cert-file"],
+      description = ["File containing the TLS certificate for the client"],
+      required = false
+    )
+    var tlsCertFile: String? = null
+      private set
+
+    @CommandLine.Option(
+      names = ["--tls-key-file"],
+      description = ["File containing the TLS private key for the client"],
+      required = false
+    )
+    var tlsKeyFile: String? = null
+      private set
+
+    @CommandLine.Option(
+      names = ["--cert-collection-file"],
+      description = ["File containing the trusted CA certificates"],
+      required = false
+    )
+    var certCollectionFile: String? = null
+      private set
   }
 
   companion object {

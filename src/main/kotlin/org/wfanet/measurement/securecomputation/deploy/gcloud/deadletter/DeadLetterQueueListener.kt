@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 The Cross-Media Measurement Authors
+ * Copyright 2025 The Cross-Media Measurement Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -34,7 +34,7 @@ import org.wfanet.measurement.securecomputation.service.WorkItemNotFoundExceptio
 /**
  * Service that listens to a dead letter queue and marks failed work items as FAILED in the database.
  *
- * This service subscribes to a Google PubSub dead letter queue where messages are sent after a TEE 
+ * This service subscribes to a Google PubSub dead letter queue where messages are sent after a TEE
  * application fails to process them after multiple attempts. It processes each message by extracting
  * the work item ID and calling the WorkItems API to mark the item as failed.
  *
@@ -63,9 +63,9 @@ class DeadLetterQueueListener(
   private suspend fun receiveAndProcessMessages() {
     val messageChannel: ReceiveChannel<QueueSubscriber.QueueMessage<WorkItem>> =
       queueSubscriber.subscribe(subscriptionId, parser)
-    
+
     logger.info("Successfully subscribed to dead letter queue: $subscriptionId")
-    
+
     for (message: QueueSubscriber.QueueMessage<WorkItem> in messageChannel) {
       try {
         processMessage(message)
@@ -84,30 +84,22 @@ class DeadLetterQueueListener(
    */
   private suspend fun processMessage(queueMessage: QueueSubscriber.QueueMessage<WorkItem>) {
     val workItem = queueMessage.body
-    
+
     if (workItem.name.isEmpty()) {
       logger.warning("Received message with empty WorkItem name. Acknowledging and skipping.")
       queueMessage.ack()
       return
     }
-    
+
     logger.info("Processing dead letter message for work item: ${workItem.name}")
-    
+
     try {
-      // If workItem.name is already a resource name (starts with workItems/), use it directly
-      // Otherwise, create a resource name from the ID
-      val workItemName = if (workItem.name.startsWith("workItems/")) {
-        workItem.name
-      } else {
-        WorkItemKey(workItem.name).toName()
-      }
-      markWorkItemAsFailed(workItemName)
-      logger.info("Successfully marked work item as failed: $workItemName")
+      markWorkItemAsFailed(workItem.name)
+      logger.info("Successfully marked work item as failed: $workItem.name")
       queueMessage.ack()
     } catch (e: Exception) {
       when (e) {
         is WorkItemNotFoundException -> {
-          // If the work item doesn't exist, just acknowledge the message
           logger.warning("Work item not found: ${workItem.name}. Acknowledging message.")
           queueMessage.ack()
         }
@@ -134,20 +126,22 @@ class DeadLetterQueueListener(
   /**
    * Calls the WorkItems API to mark a work item as failed.
    *
-   * @param workItemName The resource name of the work item to mark as failed.
+   * @param workItemId The ID of the work item to mark as failed.
    * @throws StatusRuntimeException If the API call fails.
    * @throws WorkItemNotFoundException If the work item does not exist.
    */
-  private suspend fun markWorkItemAsFailed(workItemName: String) {
+  private suspend fun markWorkItemAsFailed(workItemId: String) {
+    val resourceName = WorkItemKey(workItemId).toName()
+    
     try {
       workItemsStub.failWorkItem(
-        failWorkItemRequest { name = workItemName }
+        failWorkItemRequest { name = resourceName }
       )
     } catch (e: StatusRuntimeException) {
       // Translate specific error cases
       when {
         e.status.code == Status.Code.NOT_FOUND -> {
-          throw WorkItemNotFoundException(workItemName, e)
+          throw WorkItemNotFoundException(resourceName, e)
         }
         else -> throw e
       }
@@ -161,7 +155,7 @@ class DeadLetterQueueListener(
     // Check if this is a failed precondition error due to the item already being in FAILED state
     return e.status.code == Status.Code.FAILED_PRECONDITION &&
         e.errorInfo?.reason == Errors.Reason.INVALID_WORK_ITEM_STATE.name &&
-        e.errorInfo?.metadataMap?.get(Errors.Metadata.WORK_ITEM_STATE.key) == 
+        e.errorInfo?.metadataMap?.get(Errors.Metadata.WORK_ITEM_STATE.key) ==
         WorkItem.State.FAILED.name
   }
 
