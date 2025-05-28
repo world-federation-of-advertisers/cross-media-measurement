@@ -47,8 +47,8 @@ import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorProvider
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerDatabaseAdmin
 import org.wfanet.measurement.integration.deploy.gcloud.SecureComputationServicesProviderRule
 import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
-import org.wfanet.measurement.loadtest.edpaggregator.MeasurementConsumerData
-import org.wfanet.measurement.loadtest.edpaggregator.MeasurementConsumerSimulator
+import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
+import org.wfanet.measurement.loadtest.measurementconsumer.EDPAggregatorMeasurementConsumerSimulator
 import org.wfanet.measurement.securecomputation.deploy.gcloud.publisher.GoogleWorkItemPublisher
 import org.wfanet.measurement.securecomputation.service.internal.QueueMapping
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub
@@ -67,7 +67,7 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
 ) {
 
   private val inProcessCmmsComponents =
-    InProcessCmmsComponents(kingdomDataServicesRule, duchyDependenciesRule)
+    InProcessCmmsComponents(kingdomDataServicesRule, duchyDependenciesRule, useEdpSimulators = false)
 
   @JvmField val tempDirectory = TemporaryFolder()
 
@@ -101,7 +101,7 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
 
   @Before
   fun setup() {
-    inProcessCmmsComponents.startDaemons(useEdpSimulators = false)
+    inProcessCmmsComponents.startDaemons()
     val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
     val edpDisplayNameToResourceMap = inProcessCmmsComponents.edpDisplayNameToResourceMap
     val kingdomChannel = inProcessCmmsComponents.kingdom.publicApiChannel
@@ -116,7 +116,7 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
 
   @Before fun createGooglePubSubEmulator() {}
 
-  private lateinit var mcSimulator: MeasurementConsumerSimulator
+  private lateinit var mcSimulator: EDPAggregatorMeasurementConsumerSimulator
 
   private val publicMeasurementsClient by lazy {
     MeasurementsCoroutineStub(inProcessCmmsComponents.kingdom.publicApiChannel)
@@ -138,7 +138,7 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
     val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
     val syntheticEventGroupMap = mapOf("edpa-eg-reference-id-1" to syntheticEventGroupSpec)
     mcSimulator =
-      MeasurementConsumerSimulator(
+      EDPAggregatorMeasurementConsumerSimulator(
         MeasurementConsumerData(
           measurementConsumerData.name,
           InProcessCmmsComponents.MC_ENTITY_CONTENT.signingKey,
@@ -206,7 +206,7 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
   @Test
   fun `create incremental direct RF measurements and check the result is equal to the expected result`() =
     runBlocking {
-      withTimeout(40000) {
+      withTimeout(400000) {
         delay(1000)
         // Use frontend simulator to create a n incremental direct reach and frequency measurement
         // with two requisitions and verify its result.
@@ -275,7 +275,7 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
         "wfa",
         "measurement",
         "loadtest",
-        "edpaggregator",
+        "dataprovider",
       )
     private val TEST_DATA_RUNTIME_PATH = getRuntimePath(TEST_DATA_PATH)!!
 

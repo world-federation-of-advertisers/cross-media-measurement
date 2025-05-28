@@ -22,6 +22,7 @@ import com.google.crypto.tink.KeysetHandle
 import com.google.crypto.tink.aead.AeadConfig
 import com.google.crypto.tink.streamingaead.StreamingAeadConfig
 import java.time.LocalDate
+import java.time.ZoneId
 import kotlin.test.assertNotNull
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
@@ -31,9 +32,10 @@ import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.common.crypto.tink.testing.FakeKmsClient
-import org.wfanet.measurement.edpaggregator.v1alpha.labeledImpression
-import org.wfanet.measurement.loadtest.common.DateShardedLabeledImpression
+import org.wfanet.measurement.loadtest.dataprovider.DateShardedLabeledImpression
+import org.wfanet.measurement.loadtest.dataprovider.LabeledEvent
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 
 @RunWith(JUnit4::class)
@@ -62,10 +64,28 @@ class ImpressionWriterTest {
         tempFolder.root,
         "file:///",
       )
-    val events: Flow<DateShardedLabeledImpression> =
+    val events: Flow<DateShardedLabeledImpression<TestEvent>> =
       flowOf(
-        DateShardedLabeledImpression(LocalDate.parse("2020-01-01"), flowOf(labeledImpression {})),
-        DateShardedLabeledImpression(LocalDate.parse("2020-01-02"), flowOf(labeledImpression {})),
+        DateShardedLabeledImpression(
+          LocalDate.parse("2020-01-01"),
+          flowOf(
+            LabeledEvent(
+              vid = 1,
+              message = TestEvent.getDefaultInstance(),
+              timestamp = LocalDate.parse("2020-01-01").atStartOfDay(ZoneId.of("UTC")).toInstant(),
+            )
+          ),
+        ),
+        DateShardedLabeledImpression(
+          LocalDate.parse("2020-01-02"),
+          flowOf(
+            LabeledEvent(
+              vid = 1,
+              message = TestEvent.getDefaultInstance(),
+              timestamp = LocalDate.parse("2020-01-02").atStartOfDay(ZoneId.of("UTC")).toInstant(),
+            )
+          ),
+        ),
       )
     runBlocking { impressionWriter.writeLabeledImpressionData(events) }
     val client = FileSystemStorageClient(tempFolder.root)

@@ -68,8 +68,8 @@ import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionFetche
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.ResultsFulfillerTestApp
 import org.wfanet.measurement.gcloud.pubsub.Subscriber
 import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorClient
+import org.wfanet.measurement.loadtest.dataprovider.SyntheticDataGeneration
 import org.wfanet.measurement.loadtest.edpaggregator.ImpressionsWriter
-import org.wfanet.measurement.loadtest.common.SyntheticDataGeneration
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
 import org.wfanet.measurement.loadtest.resourcesetup.Resources.Resource
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem

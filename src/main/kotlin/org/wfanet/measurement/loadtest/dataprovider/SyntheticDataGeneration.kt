@@ -14,10 +14,9 @@
  * limitations under the License.
  */
 
-package org.wfanet.measurement.loadtest.common
+package org.wfanet.measurement.loadtest.dataprovider
 
 import com.google.common.hash.Hashing
-import com.google.protobuf.Any as ProtoAny
 import com.google.protobuf.Descriptors.FieldDescriptor
 import com.google.protobuf.Message
 import com.google.protobuf.kotlin.toByteStringUtf8
@@ -45,10 +44,6 @@ import org.wfanet.measurement.common.LocalDateProgression
 import org.wfanet.measurement.common.OpenEndTimeRange
 import org.wfanet.measurement.common.rangeTo
 import org.wfanet.measurement.common.toLocalDate
-import org.wfanet.measurement.common.toProtoTime
-import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
-import org.wfanet.measurement.edpaggregator.v1alpha.labeledImpression
-import java.math.BigInteger
 
 object SyntheticDataGeneration {
   private val VID_SAMPLING_FINGERPRINT_FUNCTION = Hashing.farmHashFingerprint64()
@@ -56,9 +51,9 @@ object SyntheticDataGeneration {
 
   /**
    * Generates events deterministicly. Given a total frequency across a date period, it will
-   * generate events across that time period based on a hash function. For
-   * example, for a user with frequency of 5, over a 10 day period, that user will have exactly
-   * 5 vids in the output over the 10 day period.
+   * generate events across that time period based on a hash function. For example, for a user with
+   * frequency of 5, over a 10 day period, that user will have exactly 5 vids in the output over the
+   * 10 day period.
    *
    * Generates a flow of [DateShardedLabeledImpression].
    *
@@ -90,8 +85,7 @@ object SyntheticDataGeneration {
         logger.info("Writing $numDays days of data")
         for (date in dateProgression) {
           val innerFlow: Flow<LabeledEvent<T>> = flow {
-            val dayNumber =
-              ChronoUnit.DAYS.between(dateProgression.start, date)
+            val dayNumber = ChronoUnit.DAYS.between(dateProgression.start, date)
             logger.info("Generating data for day: $dayNumber date: $date")
             for (frequencySpec: SyntheticEventGroupSpec.FrequencySpec in
               dateSpec.frequencySpecsList) {
@@ -137,18 +131,14 @@ object SyntheticDataGeneration {
                 val message = builder.build() as T
                 for (vid in vidRangeSpec.sampledVids(syntheticEventGroupSpec.samplingNonce)) {
                   for (i in 1..frequencySpec.frequency) {
-                    val dayToLog = (VID_SAMPLING_FINGERPRINT_FUNCTION.hashLong(vid * i).asLong() % numDays + numDays) % numDays
+                    val dayToLog =
+                      (VID_SAMPLING_FINGERPRINT_FUNCTION.hashLong(vid * i).asLong() % numDays +
+                        numDays) % numDays
                     if (dayToLog == dayNumber) {
                       val randomTime =
                         date.atStartOfDay(zoneId).plusSeconds(Random.nextLong(0, 86400 - 1))
                       if (randomTime.toInstant() in timeRange) {
-                        emit(
-                          LabeledEvent(
-                            randomTime.toInstant(),
-                            vid,
-                            message,
-                          )
-                        )
+                        emit(LabeledEvent(randomTime.toInstant(), vid, message))
                       }
                     }
                   }
@@ -396,7 +386,6 @@ fun CartesianSyntheticEventGroupSpecRecipe.toSyntheticEventGroupSpec(
     samplingNonce = givenSamplingNonce
     dateSpecs += mappedDateSpecs
   }
-
 }
 
 private fun createFrequencySpec(

@@ -19,6 +19,8 @@ package org.wfanet.measurement.loadtest.dataprovider
 import com.google.protobuf.Descriptors
 import com.google.protobuf.DynamicMessage
 import com.google.protobuf.TypeRegistry
+import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.runBlocking
 import org.projectnessie.cel.Program
 import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
@@ -26,8 +28,6 @@ import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.Synthetic
 import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.toRange
 import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters
-import org.wfanet.measurement.loadtest.common.LabeledEvent
-import org.wfanet.measurement.loadtest.common.SyntheticDataGeneration
 
 /** [EventQuery] that uses [SyntheticDataGeneration]. */
 abstract class SyntheticGeneratorEventQuery(
@@ -57,13 +57,19 @@ abstract class SyntheticGeneratorEventQuery(
     val syntheticDataSpec: SyntheticEventGroupSpec = getSyntheticDataSpec(eventGroupSpec.eventGroup)
     val program: Program =
       EventQuery.compileProgram(eventGroupSpec.spec.filter, eventMessageDescriptor)
-    return SyntheticDataGeneration.generateEvents(
-        DynamicMessage.getDefaultInstance(eventMessageDescriptor),
-        populationSpec,
-        syntheticDataSpec,
-        timeRange,
-      )
-      .filter { EventFilters.matches(it.message, program) }
+    return runBlocking {
+      SyntheticDataGeneration.generateEvents(
+          DynamicMessage.getDefaultInstance(eventMessageDescriptor),
+          populationSpec,
+          syntheticDataSpec,
+          timeRange,
+        )
+        .toList()
+        .map { it.impressions }
+        .flatMap { it.toList() }
+        .filter { EventFilters.matches(it.message, program) }
+        .asSequence()
+    }
   }
 
   override fun getUserVirtualIdUniverse(): Sequence<Long> {

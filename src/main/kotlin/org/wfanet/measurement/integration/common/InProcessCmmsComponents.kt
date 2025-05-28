@@ -71,6 +71,7 @@ class InProcessCmmsComponents(
     SyntheticGenerationSpecs.SYNTHETIC_POPULATION_SPEC_SMALL,
   private val syntheticEventGroupSpecs: List<SyntheticEventGroupSpec> =
     SyntheticGenerationSpecs.SYNTHETIC_DATA_SPECS_SMALL,
+  private val useEdpSimulators: Boolean
 ) : TestRule {
   private val kingdomDataServices: DataServices
     get() = kingdomDataServicesRule.value
@@ -299,7 +300,7 @@ class InProcessCmmsComponents(
     return edpDisplayNameToResourceMap.values.map { it.name }
   }
 
-  fun startDaemons(useEdpSimulators: Boolean = true) = runBlocking {
+  fun startDaemons() = runBlocking {
     // Create all resources
     createAllResources()
     // Start daemons. Mills and EDP simulators can only be started after resources have been
@@ -330,7 +331,7 @@ class InProcessCmmsComponents(
     populationRequisitionFulfiller.stop()
   }
 
-  fun stopDaemons(useEdpSimulators: Boolean = true) {
+  fun stopDaemons() {
     if (useEdpSimulators) {
       stopEdpSimulators()
     }

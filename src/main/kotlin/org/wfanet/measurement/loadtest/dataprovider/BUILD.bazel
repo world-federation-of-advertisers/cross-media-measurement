@@ -17,9 +17,9 @@ kt_jvm_library(
     name = "event_query",
     srcs = ["EventQuery.kt"],
     deps = [
+        ":labeled_event",
         "//imports/java/org/projectnessie/cel",
         "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/eventfiltration:event_filters",
-        "//src/main/kotlin/org/wfanet/measurement/loadtest/common:labeled_event",
         "//src/main/proto/wfa/measurement/api/v2alpha:event_group_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:requisition_spec_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/protobuf",
@@ -40,13 +40,45 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
+    name = "labeled_event",
+    srcs = ["LabeledEvent.kt"],
+    deps = ["@wfa_common_jvm//imports/java/com/google/protobuf"],
+)
+
+kt_jvm_library(
+    name = "sharded_impressions",
+    srcs = [
+        "ShardedImpressions.kt",
+    ],
+    deps = [
+        ":labeled_event",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+    ],
+)
+
+kt_jvm_library(
+    name = "synthetic_data_generation",
+    srcs = [
+        "SyntheticDataGeneration.kt",
+    ],
+    deps = [
+        ":labeled_event",
+        ":sharded_impressions",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_group_metadata/testing:simulator_synthetic_data_spec_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/common:guava",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+    ],
+)
+
+kt_jvm_library(
     name = "synthetic_generator_event_query",
     srcs = ["SyntheticGeneratorEventQuery.kt"],
     deps = [
         ":event_query",
+        ":labeled_event",
+        ":synthetic_data_generation",
         "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/eventfiltration:event_filters",
-        "//src/main/kotlin/org/wfanet/measurement/loadtest/common:labeled_event",
-        "//src/main/kotlin/org/wfanet/measurement/loadtest/common:synthetic_data_generation",
         "//src/main/proto/wfa/measurement/api/v2alpha/event_group_metadata/testing:simulator_synthetic_data_spec_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/protobuf",
     ],
