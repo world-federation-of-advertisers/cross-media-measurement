@@ -19,6 +19,7 @@ package org.wfanet.measurement.kingdom.service.internal.testing
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.copy
+import com.google.rpc.errorInfo
 import com.google.type.interval
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
@@ -33,11 +34,13 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.internal.kingdom.DataProviderKt
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.ErrorCode
 import org.wfanet.measurement.internal.kingdom.ModelLine
 import org.wfanet.measurement.internal.kingdom.ModelLinesGrpcKt.ModelLinesCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ModelProvidersGrpcKt.ModelProvidersCoroutineImplBase
@@ -57,6 +60,7 @@ import org.wfanet.measurement.internal.kingdom.setActiveEndTimeRequest
 import org.wfanet.measurement.internal.kingdom.setModelLineHoldbackModelLineRequest
 import org.wfanet.measurement.internal.kingdom.streamModelLinesRequest
 import org.wfanet.measurement.kingdom.deploy.common.testing.DuchyIdSetter
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 
 private const val RANDOM_SEED = 1
 
@@ -130,7 +134,14 @@ abstract class ModelLinesServiceTest<T : ModelLinesCoroutineImplBase> {
       assertFailsWith<StatusRuntimeException> { modelLinesService.createModelLine(modelLine) }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception).hasMessageThat().contains("ActiveStartTime is missing.")
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = KingdomInternalException.DOMAIN
+          reason = ErrorCode.REQUIRED_FIELD_NOT_SET.name
+          metadata["field_name"] = "active_start_time"
+        }
+      )
   }
 
   @Test
@@ -150,7 +161,14 @@ abstract class ModelLinesServiceTest<T : ModelLinesCoroutineImplBase> {
       assertFailsWith<StatusRuntimeException> { modelLinesService.createModelLine(modelLine) }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception).hasMessageThat().contains("ActiveStartTime must be in the future.")
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = KingdomInternalException.DOMAIN
+          reason = ErrorCode.INVALID_FIELD_VALUE.name
+          metadata["field_name"] = "active_start_time"
+        }
+      )
   }
 
   @Test
@@ -171,18 +189,24 @@ abstract class ModelLinesServiceTest<T : ModelLinesCoroutineImplBase> {
       assertFailsWith<StatusRuntimeException> { modelLinesService.createModelLine(modelLine) }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception).hasMessageThat().contains("ActiveEndTime cannot precede ActiveStartTime.")
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = KingdomInternalException.DOMAIN
+          reason = ErrorCode.INVALID_FIELD_VALUE.name
+          metadata["field_name"] = "active_end_time"
+        }
+      )
   }
 
   @Test
-  fun `createModelLine fails when 'type' is 'TYPE_UNSPECIFIED'`() = runBlocking {
+  fun `createModelLine fails when 'type' is not specified`() = runBlocking {
     val modelSuite = population.createModelSuite(modelProvidersService, modelSuitesService)
 
     val modelLine = modelLine {
       externalModelSuiteId = modelSuite.externalModelSuiteId
       externalModelProviderId = modelSuite.externalModelProviderId
       activeStartTime = Instant.now().plusSeconds(2000L).toProtoTime()
-      type = ModelLine.Type.TYPE_UNSPECIFIED
       displayName = "display name"
       description = "description"
     }
@@ -191,7 +215,14 @@ abstract class ModelLinesServiceTest<T : ModelLinesCoroutineImplBase> {
       assertFailsWith<StatusRuntimeException> { modelLinesService.createModelLine(modelLine) }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception).hasMessageThat().contains("Unrecognized ModelLine's type")
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = KingdomInternalException.DOMAIN
+          reason = ErrorCode.REQUIRED_FIELD_NOT_SET.name
+          metadata["field_name"] = "type"
+        }
+      )
   }
 
   @Test
@@ -226,9 +257,14 @@ abstract class ModelLinesServiceTest<T : ModelLinesCoroutineImplBase> {
         assertFailsWith<StatusRuntimeException> { modelLinesService.createModelLine(devModelLine) }
 
       assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception)
-        .hasMessageThat()
-        .contains("Only ModelLine with type == PROD can have a Holdback ModelLine.")
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = KingdomInternalException.DOMAIN
+            reason = ErrorCode.INVALID_FIELD_VALUE.name
+            metadata["field_name"] = "external_holdback_model_line_id"
+          }
+        )
     }
 
   @Test
@@ -262,10 +298,20 @@ abstract class ModelLinesServiceTest<T : ModelLinesCoroutineImplBase> {
       val exception =
         assertFailsWith<StatusRuntimeException> { modelLinesService.createModelLine(prodModelLine) }
 
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception)
-        .hasMessageThat()
-        .contains("Only ModelLine with type == HOLDBACK can be set as Holdback ModelLine.")
+      assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = KingdomInternalException.DOMAIN
+            reason = ErrorCode.MODEL_LINE_TYPE_ILLEGAL.name
+            metadata["external_model_provider_id"] =
+              prodModelLine.externalModelProviderId.toString()
+            metadata["external_model_suite_id"] = prodModelLine.externalModelSuiteId.toString()
+            metadata["external_model_line_id"] =
+              prodModelLine.externalHoldbackModelLineId.toString()
+            metadata["model_line_type"] = ModelLine.Type.DEV.toString()
+          }
+        )
     }
 
   @Test
