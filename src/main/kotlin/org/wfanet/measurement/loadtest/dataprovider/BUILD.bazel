@@ -107,7 +107,6 @@ kt_jvm_library(
         ":sketch_encrypter",
         ":sketch_generator",
         ":vid_to_index_map_generator",
-        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:vid_utils",
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:packed_messages",
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
         "//src/main/kotlin/org/wfanet/measurement/common:health",

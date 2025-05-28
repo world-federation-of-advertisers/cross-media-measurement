@@ -25,6 +25,7 @@ import java.security.GeneralSecurityException
 import java.security.SecureRandom
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.asFlow
+import kotlinx.coroutines.flow.flatMapConcat
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
@@ -39,9 +40,9 @@ import org.wfanet.measurement.common.crypto.PrivateKeyHandle
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.consent.client.dataprovider.decryptRequisitionSpec
+import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.eventdataprovider.noiser.DirectNoiseMechanism
 import org.wfanet.measurement.storage.SelectedStorageClient
-import org.wfanet.measurement.dataprovider.RequisitionRefusalException
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.compute.protocols.direct.DirectMeasurementResultFactory
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.fulfillers.DirectMeasurementFulfiller
 
@@ -52,10 +53,10 @@ class ResultsFulfiller(
   private val dataProviderSigningKeyHandle: SigningKeyHandle,
   private val typeRegistry: TypeRegistry,
   private val requisitionsBlobUri: String,
-  private val labeledImpressionMetadataPrefix: String,
+  private val labeledImpressionDekPrefix: String,
   private val kmsClient: KmsClient,
   private val impressionsStorageConfig: StorageConfig,
-  private val impressionMetadataStorageConfig: StorageConfig,
+  private val impressionDekStorageConfig: StorageConfig,
   private val requisitionsStorageConfig: StorageConfig,
   private val random: SecureRandom = SecureRandom(),
 ) {
@@ -74,15 +75,32 @@ class ResultsFulfiller(
       val requisitionSpec: RequisitionSpec = signedRequisitionSpec.unpack()
       val measurementSpec: MeasurementSpec = requisition.measurementSpec.message.unpack()
 
-      val sampledVids = VidUtils.getSampledVids(
-        requisitionSpec,
-        measurementSpec.vidSamplingInterval,
-        typeRegistry,
+      val eventReader = EventReader(
         kmsClient,
         impressionsStorageConfig,
-        impressionMetadataStorageConfig,
-        labeledImpressionMetadataPrefix,
+        impressionDekStorageConfig,
+        labeledImpressionDekPrefix
       )
+
+      val sampledVids = requisitionSpec.events.eventGroupsList
+        .asFlow()
+        .flatMapConcat { eventGroup ->
+          val labeledImpressions = eventReader.getLabeledImpressionsFlow(
+            eventGroup.value.collectionInterval,
+            eventGroup.key,
+          )
+          VidFilter.filterAndExtractVids(
+            labeledImpressions,
+            measurementSpec.vidSamplingInterval.start,
+            measurementSpec.vidSamplingInterval.width,
+            eventGroup.value.filter,
+            eventGroup.value.collectionInterval,
+            typeRegistry,
+          )
+        }
+
+
+
       val measurementEncryptionPublicKey: EncryptionPublicKey =
         if (measurementSpec.hasMeasurementPublicKey()) {
           measurementSpec.measurementPublicKey.unpack()
@@ -185,7 +203,7 @@ class ResultsFulfiller(
   private suspend fun getRequisitions(): Flow<Requisition> {
     // Create storage client based on blob URI
     val storageClientUri = SelectedStorageClient.parseBlobUri(requisitionsBlobUri)
-    val requisitionsStorageClient = VidUtils.createStorageClient(storageClientUri, requisitionsStorageConfig)
+    val requisitionsStorageClient = SelectedStorageClient(storageClientUri, requisitionsStorageConfig.rootDirectory, requisitionsStorageConfig.projectId)
 
     // TODO(@jojijac0b): Refactor once grouped requisitions are supported
     val requisitionBytes: ByteString = requisitionsStorageClient.getBlob(storageClientUri.key)!!.read().flatten()
