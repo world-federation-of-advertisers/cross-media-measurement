@@ -22,7 +22,6 @@ import com.google.cloud.spanner.Struct
 import com.google.cloud.spanner.Value
 import com.google.protobuf.util.Timestamps
 import java.time.Clock
-import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.singleOrNull
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
@@ -203,6 +202,7 @@ class CreateModelRollout(private val modelRollout: ModelRollout, private val clo
     ModelSuites.ExternalModelSuiteId = @externalModelSuiteId AND
     ModelLines.ExternalModelLineId = @externalModelLineId
     ORDER BY ModelRollouts.RolloutPeriodStartTime DESC
+    LIMIT 1
     """
         .trimIndent()
 
@@ -213,7 +213,7 @@ class CreateModelRollout(private val modelRollout: ModelRollout, private val clo
         bind("externalModelLineId" to externalModelLineId.value)
       }
 
-    val result = transactionContext.executeQuery(statement).firstOrNull()
+    val result = transactionContext.executeQuery(statement).singleOrNull()
 
     return if (result == null) null
     else
