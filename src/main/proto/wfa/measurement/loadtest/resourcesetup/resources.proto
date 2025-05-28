@@ -38,10 +38,15 @@ message Resources {
     message DuchyCertificate {
       string duchy_id = 1;
     }
+    message Principal {
+      string issuer = 1;
+      string subject = 2;
+    }
     oneof resource {
       MeasurementConsumer measurement_consumer = 2;
       DataProvider data_provider = 3;
       DuchyCertificate duchy_certificate = 4;
+      Principal principal = 5;
     }
   }
   repeated Resource resources = 1;

@@ -67,6 +67,7 @@ abstract class InProcessReachMeasurementAccuracyTest(
         String, ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub,
       ) -> InProcessDuchy.DuchyDependencies
     >,
+  accessServicesFactory: AccessServicesFactory,
 ) {
 
   @get:Rule
@@ -76,6 +77,7 @@ abstract class InProcessReachMeasurementAccuracyTest(
       duchyDependenciesRule,
       SYNTHETIC_POPULATION_SPEC,
       SYNTHETIC_EVENT_GROUP_SPECS,
+      accessServicesFactory,
     )
 
   private lateinit var mcSimulator: MeasurementConsumerSimulator

@@ -16,27 +16,42 @@
 
 package org.wfanet.measurement.integration.k8s
 
+import com.google.crypto.tink.InsecureSecretKeyAccess
+import com.google.crypto.tink.TinkProtoKeysetFormat
 import io.grpc.ManagedChannel
 import java.nio.file.Paths
+import java.security.KeyPair
+import java.security.cert.X509Certificate
 import java.time.Duration
 import java.util.UUID
+import kotlinx.coroutines.runBlocking
+import okhttp3.OkHttpClient
+import okhttp3.tls.HandshakeCertificates
+import okhttp3.tls.HeldCertificate
+import okhttp3.tls.decodeCertificatePem
 import org.junit.ClassRule
 import org.junit.rules.TemporaryFolder
 import org.junit.rules.TestRule
 import org.junit.runner.Description
 import org.junit.runners.model.Statement
 import org.measurement.integration.k8s.testing.CorrectnessTestConfig
+import org.wfanet.measurement.access.v1alpha.PrincipalsGrpcKt
+import org.wfanet.measurement.access.v1alpha.getPrincipalRequest
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
+import org.wfanet.measurement.common.crypto.readPrivateKey
+import org.wfanet.measurement.common.grpc.BearerTokenCallCredentials
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
+import org.wfanet.measurement.common.grpc.testing.OpenIdProvider
 import org.wfanet.measurement.common.grpc.withDefaultDeadline
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.integration.common.SyntheticGenerationSpecs
+import org.wfanet.measurement.internal.reporting.v2.BasicReportsGrpcKt as InternalBasicReportsGrpcKt
 import org.wfanet.measurement.loadtest.dataprovider.SyntheticGeneratorEventQuery
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerSimulator
@@ -129,6 +144,66 @@ class SyntheticGeneratorCorrectnessTest : AbstractCorrectnessTest(measurementSys
           .also { channels.add(it) }
           .withDefaultDeadline(RPC_DEADLINE_DURATION)
 
+      val internalApiChannel =
+        buildMutualTlsChannel(
+            TEST_CONFIG.reportingPublicApiTarget,
+            REPORTING_SIGNING_CERTS,
+            TEST_CONFIG.reportingPublicApiCertHost,
+          )
+          .also { channels.add(it) }
+          .withDefaultDeadline(RPC_DEADLINE_DURATION)
+
+      val accessPublicApiChannel =
+        buildMutualTlsChannel(
+            TEST_CONFIG.accessPublicApiTarget,
+            ACCESS_SIGNING_CERTS,
+            TEST_CONFIG.accessPublicApiCertHost,
+          )
+          .also { channels.add(it) }
+          .withDefaultDeadline(RPC_DEADLINE_DURATION)
+
+      val secretFiles = getRuntimePath(SECRET_FILES_PATH)
+      val reportingRootCert = secretFiles.resolve("reporting_root.pem").toFile()
+      val cert = secretFiles.resolve("mc_tls.pem").toFile()
+      val key = secretFiles.resolve("mc_tls.key").toFile()
+
+      val clientCertificate: X509Certificate = cert.readText().decodeCertificatePem()
+      val keyAlgorithm = clientCertificate.publicKey.algorithm
+      val certificates =
+        HandshakeCertificates.Builder()
+          .addTrustedCertificate(reportingRootCert.readText().decodeCertificatePem())
+          .heldCertificate(
+            HeldCertificate(
+              KeyPair(clientCertificate.publicKey, readPrivateKey(key, keyAlgorithm)),
+              clientCertificate,
+            )
+          )
+          .build()
+
+      val okHttpReportingClient =
+        OkHttpClient.Builder()
+          .sslSocketFactory(certificates.sslSocketFactory(), certificates.trustManager)
+          .build()
+
+      val principalsClient = PrincipalsGrpcKt.PrincipalsCoroutineStub(accessPublicApiChannel)
+      val principal = runBlocking {
+        principalsClient.getPrincipal(getPrincipalRequest { name = TEST_CONFIG.principal })
+      }
+
+      val bearerTokenCallCredentials: BearerTokenCallCredentials =
+        OpenIdProvider(
+            principal.user.issuer,
+            TinkProtoKeysetFormat.parseKeyset(
+              OPEN_ID_PROVIDERS_TINK_FILE.readBytes(),
+              InsecureSecretKeyAccess.get(),
+            ),
+          )
+          .generateCredentials(
+            audience = TEST_CONFIG.reportingPublicApiTarget,
+            subject = principal.user.subject,
+            scopes = setOf("reporting.basicReports.get"),
+          )
+
       return ReportingUserSimulator(
         measurementConsumerName = TEST_CONFIG.measurementConsumer,
         dataProvidersClient = DataProvidersGrpcKt.DataProvidersCoroutineStub(publicApiChannel),
@@ -143,6 +218,12 @@ class SyntheticGeneratorCorrectnessTest : AbstractCorrectnessTest(measurementSys
         metricCalculationSpecsClient =
           MetricCalculationSpecsGrpcKt.MetricCalculationSpecsCoroutineStub(publicApiChannel),
         reportsClient = ReportsGrpcKt.ReportsCoroutineStub(publicApiChannel),
+        okHttpReportingClient = okHttpReportingClient,
+        reportingGatewayHost = TEST_CONFIG.reportingGatewayTarget,
+        reportingGatewayPort = 443,
+        reportingAccessToken = bearerTokenCallCredentials.token,
+        internalBasicReportsClient =
+          InternalBasicReportsGrpcKt.BasicReportsCoroutineStub(internalApiChannel),
       )
     }
 

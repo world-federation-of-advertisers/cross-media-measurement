@@ -29,6 +29,7 @@ class GCloudSpannerInProcessLifeOfAMeasurementIntegrationTest :
   InProcessLifeOfAMeasurementIntegrationTest(
     KingdomDataServicesProviderRule(spannerEmulator),
     SpannerDuchyDependencyProviderRule(spannerEmulator, ALL_DUCHY_NAMES),
+    SpannerAccessServicesFactory(spannerEmulator),
   ) {
 
   /**

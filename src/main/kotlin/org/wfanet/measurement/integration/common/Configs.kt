@@ -25,6 +25,7 @@ import java.security.cert.X509Certificate
 import java.time.Instant
 import org.jetbrains.annotations.Blocking
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
+import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.common.crypto.PrivateKeyHandle
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.readCertificateCollection
@@ -48,14 +49,12 @@ import org.wfanet.measurement.config.securecomputation.watchedPath
 import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParamsKt
-import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParamsKt.storageParams
 import org.wfanet.measurement.edpaggregator.v1alpha.resultsFulfillerParams
 import org.wfanet.measurement.internal.duchy.config.ProtocolsSetupConfig
 import org.wfanet.measurement.internal.kingdom.DuchyIdConfig
 import org.wfanet.measurement.internal.kingdom.HmssProtocolConfigConfig
 import org.wfanet.measurement.internal.kingdom.Llv2ProtocolConfigConfig
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
-import org.wfanet.measurement.loadtest.resourcesetup.EntityContent
 import org.wfanet.measurement.reporting.service.internal.ImpressionQualificationFilterMapping
 
 private const val REPO_NAME = "wfa_measurement_system"
@@ -306,3 +305,13 @@ fun getDataProviderPrivateEncryptionKey(edpShortName: String): PrivateKeyHandle 
       .toFile()
   return loadPrivateKey(privateKeyHandleFile)
 }
+
+/** Relevant data required to create entity like EDP or MC. */
+data class EntityContent(
+  /** The display name of the entity. */
+  val displayName: String,
+  /** The consent signaling encryption key. */
+  val encryptionPublicKey: EncryptionPublicKey,
+  /** The consent signaling signing key. */
+  val signingKey: SigningKeyHandle,
+)

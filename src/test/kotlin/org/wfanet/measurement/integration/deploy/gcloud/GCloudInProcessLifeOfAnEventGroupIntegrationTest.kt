@@ -29,6 +29,8 @@ class GCloudInProcessLifeOfAnEventGroupIntegrationTest :
 
   override val kingdomDataServicesRule by lazy { KingdomDataServicesProviderRule(spannerEmulator) }
 
+  override val accessServicesFactory by lazy { SpannerAccessServicesFactory(spannerEmulator) }
+
   companion object {
     @get:ClassRule @JvmStatic val spannerEmulator = SpannerEmulatorRule()
   }

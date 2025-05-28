@@ -34,6 +34,7 @@ class GCloudPostgresInProcessLifeOfAMeasurementIntegrationTest :
   InProcessLifeOfAMeasurementIntegrationTest(
     KingdomDataServicesProviderRule(spannerEmulator),
     PostgresDuchyDependencyProviderRule(databaseProvider, ALL_DUCHY_NAMES),
+    SpannerAccessServicesFactory(spannerEmulator),
   ) {
 
   /**

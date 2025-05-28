@@ -30,6 +30,22 @@ import kotlinx.coroutines.flow.retry
 import kotlinx.coroutines.flow.single
 import kotlinx.coroutines.withContext
 import org.jetbrains.annotations.Blocking
+import org.wfanet.measurement.access.service.PermissionKey
+import org.wfanet.measurement.access.service.PolicyKey
+import org.wfanet.measurement.access.service.PrincipalKey
+import org.wfanet.measurement.access.service.RoleKey
+import org.wfanet.measurement.access.v1alpha.PoliciesGrpcKt
+import org.wfanet.measurement.access.v1alpha.PolicyKt
+import org.wfanet.measurement.access.v1alpha.Principal
+import org.wfanet.measurement.access.v1alpha.PrincipalKt
+import org.wfanet.measurement.access.v1alpha.PrincipalsGrpcKt
+import org.wfanet.measurement.access.v1alpha.RolesGrpcKt
+import org.wfanet.measurement.access.v1alpha.createPolicyRequest
+import org.wfanet.measurement.access.v1alpha.createPrincipalRequest
+import org.wfanet.measurement.access.v1alpha.createRoleRequest
+import org.wfanet.measurement.access.v1alpha.policy
+import org.wfanet.measurement.access.v1alpha.principal
+import org.wfanet.measurement.access.v1alpha.role
 import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.api.v2alpha.AccountKey
 import org.wfanet.measurement.api.v2alpha.AccountsGrpcKt.AccountsCoroutineStub
@@ -38,7 +54,6 @@ import org.wfanet.measurement.api.v2alpha.Certificate
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.DuchyCertificateKey
-import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumer
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.activateAccountRequest
@@ -49,17 +64,19 @@ import org.wfanet.measurement.api.v2alpha.createApiKeyRequest
 import org.wfanet.measurement.api.v2alpha.createMeasurementConsumerRequest
 import org.wfanet.measurement.api.v2alpha.measurementConsumer
 import org.wfanet.measurement.api.withIdToken
-import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.authorityKeyIdentifier
 import org.wfanet.measurement.common.crypto.tink.SelfIssuedIdTokens.generateIdToken
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.config.AuthorityKeyToPrincipalMapKt
+import org.wfanet.measurement.config.access.OpenIdProvidersConfig
 import org.wfanet.measurement.config.authorityKeyToPrincipalMap
 import org.wfanet.measurement.config.reporting.EncryptionKeyPairConfigKt
 import org.wfanet.measurement.config.reporting.encryptionKeyPairConfig
 import org.wfanet.measurement.config.reporting.measurementConsumerConfig
 import org.wfanet.measurement.config.reporting.measurementConsumerConfigs
 import org.wfanet.measurement.consent.client.measurementconsumer.signEncryptionPublicKey
+import org.wfanet.measurement.integration.common.EntityContent
+import org.wfanet.measurement.integration.common.PERMISSIONS_CONFIG
 import org.wfanet.measurement.internal.kingdom.Account as InternalAccount
 import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt
 import org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt
@@ -105,6 +122,9 @@ class ResourceSetup(
   private val apiKeysClient: ApiKeysCoroutineStub,
   private val internalCertificatesClient: CertificatesGrpcKt.CertificatesCoroutineStub,
   private val measurementConsumersClient: MeasurementConsumersCoroutineStub,
+  private val rolesClient: RolesGrpcKt.RolesCoroutineStub,
+  private val principalsClient: PrincipalsGrpcKt.PrincipalsCoroutineStub,
+  private val policiesClient: PoliciesGrpcKt.PoliciesCoroutineStub,
   private val runId: String,
   private val requiredDuchies: List<String>,
   private val bazelConfigName: String = DEFAULT_BAZEL_CONFIG_NAME,
@@ -123,6 +143,7 @@ class ResourceSetup(
     dataProviderContents: List<EntityContent>,
     measurementConsumerContent: EntityContent,
     duchyCerts: List<DuchyCert>,
+    openIdProvidersConfig: OpenIdProvidersConfig,
   ): List<Resources.Resource> {
     logger.info("Starting with RunID: $runId ...")
     val resources = mutableListOf<Resources.Resource>()
@@ -194,6 +215,21 @@ class ResourceSetup(
     }
 
     withContext(Dispatchers.IO) { writeOutput(resources) }
+
+    // Step4: Create access principal.
+    val principal = createAccessPrincipal(measurementConsumer.name, openIdProvidersConfig)
+    logger.info("Successfully created principal ${principal.name}")
+    resources.add(
+      resource {
+        name = principal.name
+        this.principal =
+          ResourcesKt.ResourceKt.principal {
+            issuer = principal.user.issuer
+            subject = principal.user.subject
+          }
+      }
+    )
+
     logger.info("Resource setup was successful.")
 
     return resources
@@ -296,6 +332,7 @@ class ResourceSetup(
             val duchyId = resource.duchyCertificate.duchyId
             writer.appendLine("build:$configName --define=${duchyId}_cert_name=${resource.name}")
           }
+          Resources.Resource.ResourceCase.PRINCIPAL -> {}
           Resources.Resource.ResourceCase.RESOURCE_NOT_SET -> error("Bad resource case")
         }
       }
@@ -486,6 +523,62 @@ class ResourceSetup(
     }
   }
 
+  suspend fun createAccessPrincipal(
+    measurementConsumer: String,
+    openIdProvidersConfig: OpenIdProvidersConfig,
+  ): Principal {
+    val issuer = openIdProvidersConfig.providerConfigByIssuerMap.keys.first()
+
+    val mcUserRoleKey = RoleKey("mcUser")
+    val mcResourceType = "halo.wfanet.org/MeasurementConsumer"
+    val mcUserRole =
+      rolesClient.createRole(
+        createRoleRequest {
+          roleId = mcUserRoleKey.roleId
+          role = role {
+            resourceTypes += mcResourceType
+            permissions +=
+              PERMISSIONS_CONFIG.permissionsMap
+                .filterValues { it.protectedResourceTypesList.contains(mcResourceType) }
+                .keys
+                .map { PermissionKey(it).toName() }
+          }
+        }
+      )
+
+    val principalKey = PrincipalKey("mc-user")
+    val principal =
+      principalsClient.createPrincipal(
+        createPrincipalRequest {
+          principalId = principalKey.principalId
+          this.principal = principal {
+            user =
+              PrincipalKt.oAuthUser {
+                this.issuer = issuer
+                subject = "mc-user@example.com"
+              }
+          }
+        }
+      )
+
+    val policyKey = PolicyKey("test-mc-policy")
+    policiesClient.createPolicy(
+      createPolicyRequest {
+        policyId = policyKey.policyId
+        policy = policy {
+          protectedResource = measurementConsumer
+          bindings +=
+            PolicyKt.binding {
+              this.role = mcUserRole.name
+              members += principal.name
+            }
+        }
+      }
+    )
+
+    return principal
+  }
+
   companion object {
     const val DEFAULT_BAZEL_CONFIG_NAME = "halo"
     const val RESOURCES_OUTPUT_FILE = "resources.textproto"
@@ -500,16 +593,6 @@ class ResourceSetup(
     private val logger: Logger = Logger.getLogger(this::class.java.name)
   }
 }
-
-/** Relevant data required to create entity like EDP or MC. */
-data class EntityContent(
-  /** The display name of the entity. */
-  val displayName: String,
-  /** The consent signaling encryption key. */
-  val encryptionPublicKey: EncryptionPublicKey,
-  /** The consent signaling signing key. */
-  val signingKey: SigningKeyHandle,
-)
 
 data class DuchyCert(
   /** The external duchy Id. */
