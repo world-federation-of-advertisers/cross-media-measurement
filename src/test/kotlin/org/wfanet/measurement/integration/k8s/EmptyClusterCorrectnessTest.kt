@@ -261,6 +261,7 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
       k8sClient.waitForServiceAccount("default", timeout = READY_TIMEOUT)
 
       loadKingdom()
+      loadReporting()
       val resourceSetupOutput =
         runResourceSetup(duchyCerts, edpEntityContents, measurementConsumerContent)
       val resourceInfo = ResourceInfo.from(resourceSetupOutput.resources)
@@ -382,17 +383,6 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
           .also { channels.add(it) }
           .withDefaultDeadline(DEFAULT_RPC_DEADLINE)
 
-      val accessPublicPod: V1Pod = getPod(ACCESS_PUBLIC_API_DEPLOYMENT_NAME)
-      val accessPublicApiForwarder = PortForwarder(accessPublicPod, SERVER_PORT)
-      portForwarders.add(accessPublicApiForwarder)
-
-      val accessPublicApiAddress: InetSocketAddress =
-        withContext(Dispatchers.IO) { accessPublicApiForwarder.start() }
-      val accessPublicApiChannel: Channel =
-        buildMutualTlsChannel(accessPublicApiAddress.toTarget(), ACCESS_SIGNING_CERTS)
-          .also { channels.add(it) }
-          .withDefaultDeadline(DEFAULT_RPC_DEADLINE)
-
       val openIdProvidersConfig =
         OpenIdProvidersConfig.newBuilder()
           .apply {
@@ -510,6 +500,26 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
           val config: File = outputDir.resolve("config.yaml")
           kustomize(
             outputDir.toPath().resolve(LOCAL_K8S_PATH).resolve("kingdom_setup").toFile(),
+            config,
+          )
+
+          kubectlApply(config)
+        }
+
+      waitUntilDeploymentsComplete(appliedObjects)
+    }
+
+    private suspend fun loadReporting() {
+      val appliedObjects: List<KubernetesObject> =
+        withContext(Dispatchers.IO) {
+          val outputDir = tempDir.newFolder("reporting-setup")
+          extractTar(
+            getRuntimePath(LOCAL_K8S_PATH.resolve("reporting_setup.tar")).toFile(),
+            outputDir,
+          )
+          val config: File = outputDir.resolve("config.yaml")
+          kustomize(
+            outputDir.toPath().resolve(LOCAL_K8S_PATH).resolve("reporting_setup").toFile(),
             config,
           )
 

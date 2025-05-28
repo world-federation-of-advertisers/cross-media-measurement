@@ -138,8 +138,7 @@ abstract class AbstractCorrectnessTest(private val measurementSystem: Measuremen
     }
 
     val LOCAL_K8S_PATH = Paths.get("src", "main", "k8s", "local")
-    val OPEN_ID_PROVIDERS_CONFIG_JSON_FILE: File =
-      LOCAL_K8S_PATH.resolve("open_id_providers_config.json").toFile()
+
     val OPEN_ID_PROVIDERS_TINK_FILE: File =
       SECRET_FILES_PATH.resolve("open_id_provider.tink").toFile()
 

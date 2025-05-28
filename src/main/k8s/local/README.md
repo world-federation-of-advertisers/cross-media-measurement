@@ -89,7 +89,28 @@ You can then apply it using `kubectl` from this directory:
 kubectl apply -k /tmp/cmms/src/main/k8s/local/kingdom_setup/
 ```
 
-This will create the emulators and the Kingdom with an empty configuration.
+Build a tar archive containing the Kustomization directory for Reporting setup:
+
+```shell
+bazel build //src/main/k8s/local:reporting_setup.tar \
+  --define container_registry=registry.dev.svc.cluster.local:5001 \
+  --define image_repo_prefix=halo --define image_tag=latest
+```
+
+Extract this archive to some directory (e.g. `/tmp/cmms`). For example:
+
+```shell
+tar -xf bazel-bin/src/main/k8s/local/reporting_setup.tar -C /tmp/cmms
+```
+
+You can then apply it using `kubectl` from this directory:
+
+```shell
+kubectl apply -k /tmp/cmms/src/main/k8s/local/reporting_setup/
+```
+
+This will create the emulators, Kingdom, and Reporting with empty 
+configurations.
 
 ### Run ResourceSetup
 
