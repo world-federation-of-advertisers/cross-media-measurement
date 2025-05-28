@@ -26,6 +26,7 @@ import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
+import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.internal.kingdom.EnumerateValidModelLinesRequest
 import org.wfanet.measurement.internal.kingdom.EnumerateValidModelLinesResponse
@@ -36,10 +37,12 @@ import org.wfanet.measurement.internal.kingdom.SetActiveEndTimeRequest
 import org.wfanet.measurement.internal.kingdom.SetModelLineHoldbackModelLineRequest
 import org.wfanet.measurement.internal.kingdom.StreamModelLinesRequest
 import org.wfanet.measurement.internal.kingdom.enumerateValidModelLinesResponse
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.InvalidFieldValueException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelLineInvalidArgsException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelLineNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelLineTypeIllegalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelSuiteNotFoundException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.RequiredFieldNotSetException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamModelLines
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ModelLineReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateModelLine
@@ -53,25 +56,56 @@ class SpannerModelLinesService(
 ) : ModelLinesCoroutineImplBase() {
 
   override suspend fun createModelLine(request: ModelLine): ModelLine {
-    grpcRequire(request.hasActiveStartTime()) { "ActiveStartTime is missing." }
-    grpcRequire(request.type != ModelLine.Type.TYPE_UNSPECIFIED) {
-      "Unrecognized ModelLine's type ${request.type}"
+    val now = clock.instant()
+    if (!request.hasActiveStartTime()) {
+      throw RequiredFieldNotSetException("active_start_time")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
+    val activeStartTime = request.activeStartTime.toInstant()
+    if (activeStartTime <= now) {
+      throw InvalidFieldValueException("active_start_time") { fieldName ->
+          "$fieldName must be in the future"
+        }
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    if (request.hasActiveEndTime()) {
+      val activeEndTime = request.activeEndTime.toInstant()
+      if (activeEndTime < activeStartTime) {
+        throw InvalidFieldValueException("active_end_time") { fieldName ->
+            "$fieldName must be at least active_start_time"
+          }
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      }
+    }
+    if (request.externalHoldbackModelLineId != 0L && request.type != ModelLine.Type.PROD) {
+      throw InvalidFieldValueException("external_holdback_model_line_id") { fieldName ->
+          "$fieldName may only be specified when type is PROD"
+        }
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf enum accessors cannot return null.
+    when (request.type) {
+      ModelLine.Type.DEV,
+      ModelLine.Type.HOLDBACK,
+      ModelLine.Type.PROD -> {}
+      ModelLine.Type.TYPE_UNSPECIFIED ->
+        throw RequiredFieldNotSetException("type")
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      ModelLine.Type.UNRECOGNIZED ->
+        throw InvalidFieldValueException("type") { fieldName ->
+            "Unrecognized value for $fieldName"
+          }
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+
     try {
-      return CreateModelLine(request, clock).execute(client, idGenerator)
+      return CreateModelLine(request).execute(client, idGenerator)
     } catch (e: ModelSuiteNotFoundException) {
-      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "ModelSuite not found.")
+      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
+    } catch (e: ModelLineNotFoundException) {
+      throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
     } catch (e: ModelLineTypeIllegalException) {
-      throw e.asStatusRuntimeException(
-        Status.Code.INVALID_ARGUMENT,
-        e.message
-          ?: "Only ModelLines with type equal to 'PROD' can have a HoldbackModelLine having type equal to 'HOLDBACK'.",
-      )
-    } catch (e: ModelLineInvalidArgsException) {
-      throw e.asStatusRuntimeException(
-        Status.Code.INVALID_ARGUMENT,
-        e.message ?: "ActiveStartTime and/or ActiveEndTime is invalid.",
-      )
+      throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
     }
   }
 

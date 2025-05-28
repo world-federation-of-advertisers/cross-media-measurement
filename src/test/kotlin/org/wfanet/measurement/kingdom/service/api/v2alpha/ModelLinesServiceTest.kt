@@ -20,6 +20,7 @@ import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.Timestamp
 import com.google.protobuf.timestamp
+import com.google.rpc.errorInfo
 import com.google.type.interval
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
@@ -72,6 +73,7 @@ import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.testing.captureFirst
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.common.toProtoTime
+import org.wfanet.measurement.internal.kingdom.ErrorCode
 import org.wfanet.measurement.internal.kingdom.ModelLine as InternalModelLine
 import org.wfanet.measurement.internal.kingdom.ModelLine.Type as InternalType
 import org.wfanet.measurement.internal.kingdom.ModelLinesGrpcKt.ModelLinesCoroutineImplBase
@@ -87,6 +89,7 @@ import org.wfanet.measurement.internal.kingdom.modelLine as internalModelLine
 import org.wfanet.measurement.internal.kingdom.setActiveEndTimeRequest as internalsetActiveEndTimeRequest
 import org.wfanet.measurement.internal.kingdom.setModelLineHoldbackModelLineRequest as internalSetModelLineHoldbackModelLineRequest
 import org.wfanet.measurement.internal.kingdom.streamModelLinesRequest as internalStreamModelLinesRequest
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.InvalidFieldValueException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelLineInvalidArgsException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelLineNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelLineTypeIllegalException
@@ -1121,16 +1124,13 @@ class ModelLinesServiceTest {
   }
 
   @Test
-  fun `createModelLine throws INVALID_ARGUMENT with model line name when model line args invalid`() {
+  fun `createModelLine throws INVALID_ARGUMENT when field has invalid value`() {
+    val fieldName = "active_start_time"
     internalModelLinesMock.stub {
       onBlocking { createModelLine(any()) }
         .thenThrow(
-          ModelLineInvalidArgsException(
-              ExternalId(EXTERNAL_MODEL_PROVIDER_ID),
-              ExternalId(EXTERNAL_MODEL_SUITE_ID),
-              ExternalId(EXTERNAL_MODEL_LINE_ID),
-            )
-            .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT, "ModelLine args invalid")
+          InvalidFieldValueException(fieldName)
+            .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
         )
     }
     val exception =
@@ -1147,7 +1147,14 @@ class ModelLinesServiceTest {
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.errorInfo?.metadataMap).containsEntry("modelLine", MODEL_LINE_NAME)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = "halo.wfanet.org"
+          reason = ErrorCode.INVALID_FIELD_VALUE.name
+          metadata["fieldName"] = fieldName
+        }
+      )
   }
 
   @Test
