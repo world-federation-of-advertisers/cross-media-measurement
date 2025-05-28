@@ -37,24 +37,6 @@ module "secure_computation_root_ca" {
   secret_path = var.secure_computation_root_ca_path
 }
 
-module "edp7_private_key" {
-  source    = "../secret"
-  secret_id = var.edp7_private_key_id
-  secret_path = var.edp7_private_key_path
-}
-
-module "edp7_cert" {
-  source    = "../secret"
-  secret_id = var.edp7_cert_id
-  secret_path = var.edp7_cert_path
-}
-
-module "kingdom_root_ca" {
-  source    = "../secret"
-  secret_id = var.kingdom_root_ca_id
-  secret_path = var.kingdom_root_ca_path
-}
-
 module "data_watcher_function_service_accounts" {
   source    = "../gcs-bucket-cloud-function"
 

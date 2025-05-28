@@ -125,33 +125,3 @@ variable "secure_computation_root_ca_path" {
   type        = string
   description = "The path of the secure computation CA root"
 }
-
-variable "edp7_private_key_id" {
-  type        = string
-  description = "The ID of edp7 private key"
-}
-
-variable "edp7_private_key_path" {
-  type        = string
-  description = "The path of the edp7 private key"
-}
-
-variable "edp7_cert_id" {
-  type        = string
-  description = "The ID of edp7 cert"
-}
-
-variable "edp7_cert_path" {
-  type        = string
-  description = "The path of the edp7 cert"
-}
-
-variable "kingdom_root_ca_id" {
-  type        = string
-  description = "The ID of kingdom CA root"
-}
-
-variable "kingdom_root_ca_path" {
-  type        = string
-  description = "The path of the kingdom CA root"
-}
