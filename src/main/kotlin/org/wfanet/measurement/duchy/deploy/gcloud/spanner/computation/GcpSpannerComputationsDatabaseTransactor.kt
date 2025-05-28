@@ -18,6 +18,7 @@ import com.google.cloud.Timestamp
 import com.google.cloud.spanner.Key
 import com.google.cloud.spanner.KeySet
 import com.google.cloud.spanner.Mutation
+import com.google.cloud.spanner.Options
 import com.google.cloud.spanner.Struct
 import com.google.protobuf.AbstractMessage
 import java.time.Clock
@@ -76,49 +77,52 @@ class GcpSpannerComputationsDatabaseTransactor<
     require(computationMutations.validInitialStage(protocol, initialStage)) {
       "Invalid initial stage $initialStage"
     }
+    val runner: AsyncDatabaseClient.TransactionRunner =
+      databaseClient.readWriteTransaction(Options.tag("action=insertComputation"))
 
-    val localComputationId: Long =
-      computationIdGenerator.generateNewId { id ->
-        databaseClient
-          .singleUseReadOnlyTransaction()
-          .readRow("Computations", Key.of(id), listOf("ComputationId")) != null
-      }
+    runner.run { txn ->
+      val localComputationId: Long =
+        computationIdGenerator.generateNewId { id ->
+          txn.readRow("Computations", Key.of(id), listOf("ComputationId")) != null
+        }
 
-    val writeTimestamp = clock.gcloudTimestamp()
-    val computationRow =
-      computationMutations.insertComputation(
-        localComputationId,
-        creationTime = writeTimestamp,
-        updateTime = writeTimestamp,
-        globalId = globalId,
-        lockOwner = WRITE_NULL_STRING,
-        lockExpirationTime = writeTimestamp,
-        details = computationDetails,
-        protocol = protocol,
-        stage = initialStage,
-      )
-
-    val computationStageRow =
-      computationMutations.insertComputationStage(
-        localId = localComputationId,
-        stage = initialStage,
-        creationTime = writeTimestamp,
-        nextAttempt = 1,
-        details = stageDetails,
-      )
-
-    val requisitionRows =
-      requisitions.map {
-        computationMutations.insertRequisition(
-          localComputationId = localComputationId,
-          requisitionId = requisitions.indexOf(it).toLong(),
-          externalRequisitionId = it.key.externalRequisitionId,
-          requisitionFingerprint = it.key.requisitionFingerprint,
-          requisitionDetails = it.value,
+      val writeTimestamp = clock.gcloudTimestamp()
+      txn.buffer(
+        computationMutations.insertComputation(
+          localComputationId,
+          creationTime = writeTimestamp,
+          updateTime = writeTimestamp,
+          globalId = globalId,
+          lockOwner = WRITE_NULL_STRING,
+          lockExpirationTime = writeTimestamp,
+          details = computationDetails,
+          protocol = protocol,
+          stage = initialStage,
         )
-      }
+      )
 
-    databaseClient.write(listOf(computationRow, computationStageRow) + requisitionRows)
+      txn.buffer(
+        computationMutations.insertComputationStage(
+          localId = localComputationId,
+          stage = initialStage,
+          creationTime = writeTimestamp,
+          nextAttempt = 1,
+          details = stageDetails,
+        )
+      )
+
+      txn.buffer(
+        requisitions.map {
+          computationMutations.insertRequisition(
+            localComputationId = localComputationId,
+            requisitionId = requisitions.indexOf(it).toLong(),
+            externalRequisitionId = it.key.externalRequisitionId,
+            requisitionFingerprint = it.key.requisitionFingerprint,
+            requisitionDetails = it.value,
+          )
+        }
+      )
+    }
   }
 
   override suspend fun enqueue(token: ComputationEditToken<ProtocolT, StageT>, delaySecond: Int) {
