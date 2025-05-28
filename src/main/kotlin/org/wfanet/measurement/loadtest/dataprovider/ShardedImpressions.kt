@@ -18,7 +18,7 @@ import com.google.protobuf.Message
 import java.time.LocalDate
 import kotlinx.coroutines.flow.Flow
 
-data class DateShardedLabeledImpression<T: Message>(
+data class DateShardedLabeledImpression<T : Message>(
   val localDate: LocalDate,
   val impressions: Flow<LabeledEvent<T>>,
 )

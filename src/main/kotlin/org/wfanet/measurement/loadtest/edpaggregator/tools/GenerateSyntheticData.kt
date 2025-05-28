@@ -32,8 +32,8 @@ import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.tink.testing.FakeKmsClient
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.parseTextProto
-import org.wfanet.measurement.loadtest.edpaggregator.ImpressionsWriter
 import org.wfanet.measurement.loadtest.dataprovider.SyntheticDataGeneration
+import org.wfanet.measurement.loadtest.edpaggregator.ImpressionsWriter
 import picocli.CommandLine.Command
 import picocli.CommandLine.Option
 
@@ -176,7 +176,7 @@ class GenerateSyntheticData : Runnable {
         "wfa",
         "measurement",
         "loadtest",
-        "edpaggregator",
+        "dataprovider",
       )
     private val TEST_DATA_RUNTIME_PATH = getRuntimePath(TEST_DATA_PATH)!!
   }
