@@ -67,8 +67,8 @@ import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.eventGroup
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.mappedEventGroup
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionFetcher
 import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorClient
+import org.wfanet.measurement.loadtest.dataprovider.SyntheticDataGeneration
 import org.wfanet.measurement.loadtest.edpaggregator.ImpressionsWriter
-import org.wfanet.measurement.loadtest.edpaggregator.SyntheticDataGeneration
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
 import org.wfanet.measurement.loadtest.resourcesetup.Resources.Resource
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
@@ -127,7 +127,7 @@ class InProcessEdpAggregatorComponents(
     kmsClient
   }
 
-  // TODO: Add Results Fulfiller App when ready
+  // TODO(@stevenewarejones): Add Results Fulfiller App when ready
 
   val ruleChain: TestRule by lazy {
     chainRulesSequentially(internalServicesRule, secureComputationPublicApi)
@@ -202,7 +202,7 @@ class InProcessEdpAggregatorComponents(
     backgroundScope.launch {
       runBlocking { writeImpressionData(mappedEventGroups) }
 
-      // TODO: Run Results Fulfiller App
+      // TODO(@stevenwarejones): Run Results Fulfiller App
     }
   }
 
