@@ -24,6 +24,8 @@ enum ErrorCode {
 
   /** A required field was not set. */
   REQUIRED_FIELD_NOT_SET = 45;
+  /** Field has invalid value. */
+  INVALID_FIELD_VALUE = 46;
   /** MeasurementConsumer resource queried could not be found. */
   MEASUREMENT_CONSUMER_NOT_FOUND = 1;
   /** DataProvider resource queried could not be found. */
@@ -57,7 +59,7 @@ enum ErrorCode {
   /** Requisition is in an illegal state for the operation. */
   REQUISITION_STATE_ILLEGAL = 14;
   /** Requisition etag requested does not match actual Requisition etag. */
-  REQUISITION_ETAG_MISMATCH = 46;
+  REQUISITION_ETAG_MISMATCH = 47;
   /** Account resource queried could not be found. */
   ACCOUNT_NOT_FOUND = 15;
   /** Account already exists with the identity. */

@@ -39,6 +39,7 @@ import org.wfanet.measurement.common.identity.withDuchyId
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.duchy.db.computation.ComputationDataClients
 import org.wfanet.measurement.duchy.mill.Certificate
+import org.wfanet.measurement.duchy.mill.MillBase
 import org.wfanet.measurement.duchy.mill.shareshuffle.HonestMajorityShareShuffleMill
 import org.wfanet.measurement.duchy.mill.shareshuffle.crypto.JniHonestMajorityShareShuffleCryptor
 import org.wfanet.measurement.duchy.storage.TinkKeyStore
@@ -98,11 +99,21 @@ abstract class HonestMajorityShareShuffleMillJob : Runnable {
         }
 
     val systemApiChannel =
-      buildMutualTlsChannel(flags.systemApiFlags.target, clientCerts, flags.systemApiFlags.certHost)
+      buildMutualTlsChannel(
+          flags.systemApiFlags.target,
+          clientCerts,
+          flags.systemApiFlags.certHost,
+          MillBase.SERVICE_CONFIG,
+        )
         .withShutdownTimeout(flags.channelShutdownTimeout)
 
     val publicApiChannel =
-      buildMutualTlsChannel(flags.publicApiFlags.target, clientCerts, flags.publicApiFlags.certHost)
+      buildMutualTlsChannel(
+          flags.publicApiFlags.target,
+          clientCerts,
+          flags.publicApiFlags.certHost,
+          MillBase.SERVICE_CONFIG,
+        )
         .withShutdownTimeout(flags.channelShutdownTimeout)
 
     val systemComputationsClient =

@@ -2,8 +2,33 @@ load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
 
 package(
     default_visibility = [
+        "//src/main/kotlin/org/wfanet/measurement/dataprovider:__subpackages__",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator:__subpackages__",
+        "//src/main/kotlin/org/wfanet/measurement/integration/common/reporting/v2:__subpackages__",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:__subpackages__",
+        "//src/main/kotlin/org/wfanet/measurement/loadtest/measurementconsumer:__subpackages__",
         "//src/main/kotlin/org/wfanet/measurement/populationdataprovider:__subpackages__",
+        "//src/test/kotlin/org/wfanet/measurement/dataprovider:__subpackages__",
+        "//src/test/kotlin/org/wfanet/measurement/loadtest/dataprovider:__subpackages__",
+    ],
+)
+
+kt_jvm_library(
+    name = "measurement_results",
+    srcs = ["MeasurementResults.kt"],
+    deps = [
+        "//imports/java/org/projectnessie/cel",
+        "//src/main/kotlin/org/wfanet/measurement/populationdataprovider:population_requisition_fulfiller",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+    ],
+)
+
+kt_jvm_library(
+    name = "requisition_refusal_exception",
+    srcs = ["RequisitionRefusalException.kt"],
+    deps = [
+        "//src/main/proto/wfa/measurement/api/v2alpha:requisition_kt_jvm_proto",
     ],
 )
 
@@ -11,6 +36,7 @@ kt_jvm_library(
     name = "requisition_fulfiller",
     srcs = ["RequisitionFulfiller.kt"],
     deps = [
+        ":requisition_refusal_exception",
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:packed_messages",
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
         "//src/main/proto/wfa/measurement/api/v2alpha:certificates_service_kt_jvm_grpc_proto",
