@@ -1,10 +1,5 @@
 load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_test")
 
-package(
-    default_testonly = True,
-    default_visibility = ["//visibility:public"],
-)
-
 kt_jvm_test(
     name = "DirectMeasurementFulfillerTest",
     srcs = ["DirectMeasurementFulfillerTest.kt"],
