@@ -52,8 +52,8 @@ import org.wfanet.measurement.common.testing.ProviderRule
 import org.wfanet.measurement.common.toProtoDate
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
+import org.wfanet.measurement.loadtest.measurementconsumer.EventQueryMeasurementConsumerSimulator
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
-import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerSimulator
 import org.wfanet.measurement.loadtest.measurementconsumer.MetadataSyntheticGeneratorEventQuery
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub
 
@@ -73,7 +73,7 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest(
   val inProcessCmmsComponents =
     InProcessCmmsComponents(kingdomDataServicesRule, duchyDependenciesRule, useEdpSimulators = true)
 
-  private lateinit var mcSimulator: MeasurementConsumerSimulator
+  private lateinit var mcSimulator: EventQueryMeasurementConsumerSimulator
 
   private val publicMeasurementsClient by lazy {
     MeasurementsCoroutineStub(inProcessCmmsComponents.kingdom.publicApiChannel)
@@ -128,7 +128,7 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest(
         InProcessCmmsComponents.MC_ENCRYPTION_PRIVATE_KEY,
       )
     mcSimulator =
-      MeasurementConsumerSimulator(
+      EventQueryMeasurementConsumerSimulator(
         MeasurementConsumerData(
           measurementConsumerData.name,
           InProcessCmmsComponents.MC_ENTITY_CONTENT.signingKey,
@@ -187,14 +187,14 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest(
     runBlocking {
       // Use frontend simulator to create a direct reach and frequency measurement and verify its
       // result.
-      mcSimulator.testDirectReachAndFrequency("1234")
+      mcSimulator.testDirectReachAndFrequency("1234", 1)
     }
 
   @Test
   fun `create a direct reach-only measurement and check the result is equal to the expected result`() =
     runBlocking {
       // Use frontend simulator to create a direct reach-only measurement and verify its result.
-      mcSimulator.testDirectReachOnly("1234")
+      mcSimulator.testDirectReachOnly("1234", 1)
     }
 
   @Test

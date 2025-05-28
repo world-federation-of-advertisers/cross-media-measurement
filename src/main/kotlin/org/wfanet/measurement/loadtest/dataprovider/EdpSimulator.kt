@@ -158,7 +158,7 @@ class EdpSimulator(
   private val eventGroupMetadataDescriptorsStub: EventGroupMetadataDescriptorsCoroutineStub,
   requisitionsStub: RequisitionsCoroutineStub,
   private val requisitionFulfillmentStubsByDuchyId:
-    Map<String, RequisitionFulfillmentCoroutineStub>,
+  Map<String, RequisitionFulfillmentCoroutineStub>,
   private val eventQuery: EventQuery<Message>,
   throttler: Throttler,
   private val privacyBudgetManager: PrivacyBudgetManager,
@@ -1041,12 +1041,12 @@ class EdpSimulator(
   ) {
     val protocolConfig: ProtocolConfig.ReachOnlyLiquidLegionsV2 =
       requireNotNull(
-          requisition.protocolConfig.protocolsList.find { protocol ->
-            protocol.hasReachOnlyLiquidLegionsV2()
-          }
-        ) {
-          "Protocol with ReachOnlyLiquidLegionsV2 is missing"
+        requisition.protocolConfig.protocolsList.find { protocol ->
+          protocol.hasReachOnlyLiquidLegionsV2()
         }
+      ) {
+        "Protocol with ReachOnlyLiquidLegionsV2 is missing"
+      }
         .reachOnlyLiquidLegionsV2
     val combinedPublicKey: AnySketchElGamalPublicKey =
       requisition.getCombinedPublicKey(protocolConfig.ellipticCurveId)
@@ -1157,12 +1157,12 @@ class EdpSimulator(
 
     val protocolConfig: ProtocolConfig.HonestMajorityShareShuffle =
       requireNotNull(
-          requisition.protocolConfig.protocolsList.find { protocol ->
-            protocol.hasHonestMajorityShareShuffle()
-          }
-        ) {
-          "Protocol with HonestMajorityShareShuffle is missing"
+        requisition.protocolConfig.protocolsList.find { protocol ->
+          protocol.hasHonestMajorityShareShuffle()
         }
+      ) {
+        "Protocol with HonestMajorityShareShuffle is missing"
+      }
         .honestMajorityShareShuffle
 
     chargeMpcPrivacyBudget(
@@ -1187,12 +1187,12 @@ class EdpSimulator(
 
     val requests =
       FulfillRequisitionRequestBuilder.build(
-          requisition,
-          nonce,
-          sampledFrequencyVector,
-          edpData.certificateKey,
-          edpData.signingKeyHandle,
-        )
+        requisition,
+        nonce,
+        sampledFrequencyVector,
+        edpData.certificateKey,
+        edpData.signingKeyHandle,
+      )
         .asFlow()
 
     val duchyId = getDuchyWithoutPublicKey(requisition)
