@@ -20,9 +20,9 @@ import io.grpc.ManagedChannel
 import io.grpc.ManagedChannelBuilder
 import java.util.logging.Logger
 import kotlinx.coroutines.runBlocking
-import java.io.File
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.SigningCerts
+import org.wfanet.measurement.common.grpc.TlsFlags
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.gcloud.pubsub.DefaultGooglePubSubClient
 import org.wfanet.measurement.gcloud.pubsub.Subscriber
@@ -42,6 +42,9 @@ private const val SERVICE_NAME = "DeadLetterQueueListener"
 private class DeadLetterQueueListenerServer : Runnable {
   @CommandLine.Mixin
   private lateinit var flags: DeadLetterQueueListenerFlags
+  
+  @CommandLine.Mixin
+  private lateinit var tlsFlags: TlsFlags
 
   override fun run() = runBlocking {
     logger.info("Starting $SERVICE_NAME...")
@@ -70,17 +73,17 @@ private class DeadLetterQueueListenerServer : Runnable {
   }
 
   private fun createChannel(): ManagedChannel {
-    return if (flags.tlsCertFile != null && flags.tlsKeyFile != null) {
+    return if (tlsFlags.certFile != null) {
       // Set up mutual TLS authentication
       val clientCerts = SigningCerts.fromPemFiles(
-        certificateFile = File(flags.tlsCertFile!!),
-        privateKeyFile = File(flags.tlsKeyFile!!),
-        trustedCertCollectionFile = flags.certCollectionFile?.let { File(it) }
+        certificateFile = tlsFlags.certFile!!,
+        privateKeyFile = tlsFlags.privateKeyFile!!,
+        trustedCertCollectionFile = tlsFlags.certCollectionFile
       )
       buildMutualTlsChannel(
         flags.workItemsApiTarget,
         clientCerts,
-        hostName = flags.workItemsApiTarget
+        hostName = flags.workItemsApiCertHost
       )
     } else {
       // Use plaintext channel for testing or non-TLS environments
@@ -117,27 +120,11 @@ private class DeadLetterQueueListenerServer : Runnable {
       private set
 
     @CommandLine.Option(
-      names = ["--tls-cert-file"],
-      description = ["File containing the TLS certificate for the client"],
+      names = ["--work-items-api-cert-host"],
+      description = ["Expected hostname (DNS-ID) in the WorkItems API server's TLS certificate. This overrides derivation of the TLS DNS-ID from --work-items-api-target."],
       required = false
     )
-    var tlsCertFile: String? = null
-      private set
-
-    @CommandLine.Option(
-      names = ["--tls-key-file"],
-      description = ["File containing the TLS private key for the client"],
-      required = false
-    )
-    var tlsKeyFile: String? = null
-      private set
-
-    @CommandLine.Option(
-      names = ["--cert-collection-file"],
-      description = ["File containing the trusted CA certificates"],
-      required = false
-    )
-    var certCollectionFile: String? = null
+    var workItemsApiCertHost: String? = null
       private set
   }
 

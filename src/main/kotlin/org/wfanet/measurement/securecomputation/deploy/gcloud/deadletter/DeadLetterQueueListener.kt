@@ -105,17 +105,14 @@ class DeadLetterQueueListener(
         }
         is StatusRuntimeException -> {
           if (isAlreadyFailedError(e)) {
-            // If the work item is already failed, just acknowledge the message
             logger.info("Work item ${workItem.name} is already in FAILED state. Acknowledging message.")
             queueMessage.ack()
           } else {
-            // For other API errors, log and nack to retry
             logger.log(Level.SEVERE, "Error calling WorkItems API", e)
             queueMessage.nack()
           }
         }
         else -> {
-          // For unexpected errors, log and nack to retry
           logger.log(Level.SEVERE, "Unexpected error processing message", e)
           queueMessage.nack()
         }
@@ -132,13 +129,12 @@ class DeadLetterQueueListener(
    */
   private suspend fun markWorkItemAsFailed(workItemId: String) {
     val resourceName = WorkItemKey(workItemId).toName()
-    
+
     try {
       workItemsStub.failWorkItem(
         failWorkItemRequest { name = resourceName }
       )
     } catch (e: StatusRuntimeException) {
-      // Translate specific error cases
       when {
         e.status.code == Status.Code.NOT_FOUND -> {
           throw WorkItemNotFoundException(resourceName, e)
