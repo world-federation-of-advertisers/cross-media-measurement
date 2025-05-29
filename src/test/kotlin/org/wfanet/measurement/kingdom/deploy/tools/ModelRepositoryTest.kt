@@ -154,6 +154,7 @@ class ModelRepositoryTest {
         arrayOf(
           "model-suites",
           "list",
+          "--parent=$MODEL_PROVIDER_NAME",
           "--page-size=50",
           "--page-token=${LIST_MODEL_SUITES_PAGE_TOKEN.toByteArray().base64UrlEncode()}",
         )
@@ -166,6 +167,7 @@ class ModelRepositoryTest {
     assertThat(request)
       .isEqualTo(
         listModelSuitesRequest {
+          parent = MODEL_PROVIDER_NAME
           pageSize = 50
           pageToken = LIST_MODEL_SUITES_PAGE_TOKEN.toByteArray().base64UrlEncode()
         }
