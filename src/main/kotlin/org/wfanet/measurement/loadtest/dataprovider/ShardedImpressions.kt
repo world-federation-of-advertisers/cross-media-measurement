@@ -18,6 +18,13 @@ import com.google.protobuf.Message
 import java.time.LocalDate
 import kotlinx.coroutines.flow.Flow
 
+/**
+ * A data class representing a sharded collection of labeled impressions, partitioned by date.
+ *
+ * @param localDate The date associated with this shard of impressions.
+ * @param impressions A flow of labeled events of type [T], where each event represents an
+ *   impression.
+ */
 data class DateShardedLabeledImpression<T : Message>(
   val localDate: LocalDate,
   val impressions: Flow<LabeledEvent<T>>,

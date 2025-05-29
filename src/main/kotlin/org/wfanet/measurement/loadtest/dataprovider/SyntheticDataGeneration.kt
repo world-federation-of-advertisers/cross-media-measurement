@@ -23,6 +23,7 @@ import com.google.protobuf.kotlin.toByteStringUtf8
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.time.Instant
+import java.time.LocalDate
 import java.time.ZoneId
 import java.time.temporal.ChronoUnit
 import java.util.logging.Logger
@@ -44,6 +45,7 @@ import org.wfanet.measurement.common.LocalDateProgression
 import org.wfanet.measurement.common.OpenEndTimeRange
 import org.wfanet.measurement.common.rangeTo
 import org.wfanet.measurement.common.toLocalDate
+import org.wfanet.measurement.loadtest.dataprovider.SyntheticDataGeneration.setField
 
 object SyntheticDataGeneration {
   private val VID_SAMPLING_FINGERPRINT_FUNCTION = Hashing.farmHashFingerprint64()
@@ -70,7 +72,6 @@ object SyntheticDataGeneration {
     timeRange: OpenEndTimeRange = OpenEndTimeRange(Instant.MIN, Instant.MAX),
     zoneId: ZoneId = ZoneId.of("UTC"),
   ): Flow<DateShardedLabeledImpression<T>> {
-    val subPopulations = populationSpec.subPopulationsList
     return flow {
       for (dateSpec: SyntheticEventGroupSpec.DateSpec in syntheticEventGroupSpec.dateSpecsList) {
         val dateProgression: LocalDateProgression = dateSpec.dateRange.toProgression()
@@ -84,69 +85,91 @@ object SyntheticDataGeneration {
           ChronoUnit.DAYS.between(dateProgression.start, dateProgression.endInclusive) + 1
         logger.info("Writing $numDays days of data")
         for (date in dateProgression) {
-          val innerFlow: Flow<LabeledEvent<T>> = flow {
-            val dayNumber = ChronoUnit.DAYS.between(dateProgression.start, date)
-            logger.info("Generating data for day: $dayNumber date: $date")
-            for (frequencySpec: SyntheticEventGroupSpec.FrequencySpec in
-              dateSpec.frequencySpecsList) {
+          val innerFlow: Flow<LabeledEvent<T>> =
+            getFlowForDay(
+              dateProgression,
+              date,
+              zoneId,
+              messageInstance,
+              syntheticEventGroupSpec,
+              dateSpec,
+              populationSpec,
+              numDays.toInt(),
+              timeRange,
+            )
+          emit(DateShardedLabeledImpression(date, innerFlow))
+        }
+      }
+    }
+  }
 
-              check(!frequencySpec.hasOverlaps()) { "The VID ranges should be non-overlapping." }
+  private fun <T : Message> getFlowForDay(
+    dateProgression: LocalDateProgression,
+    date: LocalDate,
+    zoneId: ZoneId,
+    messageInstance: T,
+    syntheticEventGroupSpec: SyntheticEventGroupSpec,
+    dateSpec: SyntheticEventGroupSpec.DateSpec,
+    populationSpec: SyntheticPopulationSpec,
+    numDays: Int,
+    timeRange: OpenEndTimeRange,
+  ): Flow<LabeledEvent<T>> = flow {
+    val subPopulations = populationSpec.subPopulationsList
+    val dayNumber = ChronoUnit.DAYS.between(dateProgression.start, date)
+    logger.info("Generating data for day: $dayNumber date: $date")
+    for (frequencySpec: SyntheticEventGroupSpec.FrequencySpec in dateSpec.frequencySpecsList) {
 
-              for (vidRangeSpec: VidRangeSpec in frequencySpec.vidRangeSpecsList) {
-                val subPopulation: SubPopulation =
-                  vidRangeSpec.vidRange.findSubPopulation(subPopulations)
-                    ?: error("Sub-population not found")
-                check(vidRangeSpec.samplingRate in 0.0..1.0) { "Invalid sampling_rate" }
-                if (vidRangeSpec.sampled) {
-                  check(syntheticEventGroupSpec.samplingNonce != 0L) {
-                    "sampling_nonce is required for VID sampling"
-                  }
-                }
+      check(!frequencySpec.hasOverlaps()) { "The VID ranges should be non-overlapping." }
 
-                val builder: Message.Builder = messageInstance.newBuilderForType()
+      for (vidRangeSpec: VidRangeSpec in frequencySpec.vidRangeSpecsList) {
+        val subPopulation: SubPopulation =
+          vidRangeSpec.vidRange.findSubPopulation(subPopulations)
+            ?: error("Sub-population not found")
+        check(vidRangeSpec.samplingRate in 0.0..1.0) { "Invalid sampling_rate" }
+        if (vidRangeSpec.sampled) {
+          check(syntheticEventGroupSpec.samplingNonce != 0L) {
+            "sampling_nonce is required for VID sampling"
+          }
+        }
 
-                populationSpec.populationFieldsList.forEach {
-                  val subPopulationFieldValue: FieldValue =
-                    subPopulation.populationFieldsValuesMap.getValue(it)
-                  val fieldPath = it.split('.')
-                  try {
-                    builder.setField(fieldPath, subPopulationFieldValue)
-                  } catch (e: IllegalArgumentException) {
-                    throw IllegalStateException(e)
-                  }
-                }
+        val builder: Message.Builder = messageInstance.newBuilderForType()
 
-                populationSpec.nonPopulationFieldsList.forEach {
-                  val nonPopulationFieldValue: FieldValue =
-                    vidRangeSpec.nonPopulationFieldValuesMap.getValue(it)
-                  val fieldPath = it.split('.')
-                  try {
-                    builder.setField(fieldPath, nonPopulationFieldValue)
-                  } catch (e: IllegalArgumentException) {
-                    throw IllegalStateException(e)
-                  }
-                }
+        populationSpec.populationFieldsList.forEach {
+          val subPopulationFieldValue: FieldValue =
+            subPopulation.populationFieldsValuesMap.getValue(it)
+          val fieldPath = it.split('.')
+          try {
+            builder.setField(fieldPath, subPopulationFieldValue)
+          } catch (e: IllegalArgumentException) {
+            throw IllegalStateException(e)
+          }
+        }
 
-                @Suppress("UNCHECKED_CAST") // Safe per protobuf API.
-                val message = builder.build() as T
-                for (vid in vidRangeSpec.sampledVids(syntheticEventGroupSpec.samplingNonce)) {
-                  for (i in 1..frequencySpec.frequency) {
-                    val dayToLog =
-                      (VID_SAMPLING_FINGERPRINT_FUNCTION.hashLong(vid * i).asLong() % numDays +
-                        numDays) % numDays
-                    if (dayToLog == dayNumber) {
-                      val randomTime =
-                        date.atStartOfDay(zoneId).plusSeconds(Random.nextLong(0, 86400 - 1))
-                      if (randomTime.toInstant() in timeRange) {
-                        emit(LabeledEvent(randomTime.toInstant(), vid, message))
-                      }
-                    }
-                  }
-                }
+        populationSpec.nonPopulationFieldsList.forEach {
+          val nonPopulationFieldValue: FieldValue =
+            vidRangeSpec.nonPopulationFieldValuesMap.getValue(it)
+          val fieldPath = it.split('.')
+          try {
+            builder.setField(fieldPath, nonPopulationFieldValue)
+          } catch (e: IllegalArgumentException) {
+            throw IllegalStateException(e)
+          }
+        }
+
+        @Suppress("UNCHECKED_CAST") // Safe per protobuf API.
+        val message = builder.build() as T
+        for (vid in vidRangeSpec.sampledVids(syntheticEventGroupSpec.samplingNonce)) {
+          for (i in 1..frequencySpec.frequency) {
+            val dayToLog =
+              (VID_SAMPLING_FINGERPRINT_FUNCTION.hashLong(vid * i).asLong() % numDays + numDays) %
+                numDays
+            if (dayToLog == dayNumber) {
+              val randomTime = date.atStartOfDay(zoneId).plusSeconds(Random.nextLong(0, 86400 - 1))
+              if (randomTime.toInstant() in timeRange) {
+                emit(LabeledEvent(randomTime.toInstant(), vid, message))
               }
             }
           }
-          emit(DateShardedLabeledImpression(date, innerFlow))
         }
       }
     }
