@@ -97,10 +97,10 @@ class ImpressionsWriter(
         val selectedStorageClient = SelectedStorageClient(impressionsFileUri, storagePath)
 
         val aeadStorageClient =
-          MesosRecordIoStorageClient(selectedStorageClient)
+          selectedStorageClient
             .withEnvelopeEncryption(kmsClient, kekUri, serializedEncryptionKey)
 
-        aeadStorageClient
+        MesosRecordIoStorageClient(aeadStorageClient)
       }
       logger.info("Writing impressions to $impressionsFileUri")
       // Write impressions to storage

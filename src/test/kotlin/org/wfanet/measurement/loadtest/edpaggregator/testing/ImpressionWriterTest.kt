@@ -29,6 +29,7 @@ import java.time.ZoneId
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.junit.Rule
 import org.junit.Test
@@ -83,12 +84,32 @@ class ImpressionWriterTest {
               vid = 1,
               message = TestEvent.getDefaultInstance(),
               timestamp = LocalDate.parse("2020-01-01").atStartOfDay(ZoneId.of("UTC")).toInstant(),
+            ),
+            LabeledEvent(
+              vid = 1,
+              message = TestEvent.getDefaultInstance(),
+              timestamp = LocalDate.parse("2020-01-01").atStartOfDay(ZoneId.of("UTC")).toInstant(),
+            ),
+            LabeledEvent(
+              vid = 1,
+              message = TestEvent.getDefaultInstance(),
+              timestamp = LocalDate.parse("2020-01-01").atStartOfDay(ZoneId.of("UTC")).toInstant(),
             )
           ),
         ),
         DateShardedLabeledImpression(
           LocalDate.parse("2020-01-02"),
           flowOf(
+            LabeledEvent(
+              vid = 1,
+              message = TestEvent.getDefaultInstance(),
+              timestamp = LocalDate.parse("2020-01-02").atStartOfDay(ZoneId.of("UTC")).toInstant(),
+            ),
+            LabeledEvent(
+              vid = 1,
+              message = TestEvent.getDefaultInstance(),
+              timestamp = LocalDate.parse("2020-01-02").atStartOfDay(ZoneId.of("UTC")).toInstant(),
+            ),
             LabeledEvent(
               vid = 1,
               message = TestEvent.getDefaultInstance(),
@@ -116,9 +137,11 @@ class ImpressionWriterTest {
 
         val selectedStorageClient = SelectedStorageClient(blobDetails.blobUri, tempFolder.root)
         val decryptionClient =
-          MesosRecordIoStorageClient(selectedStorageClient)
+          selectedStorageClient
             .withEnvelopeEncryption(kmsClient, kekUri, serializedEncryptionKey)
-        decryptionClient.getBlob("ds/$date/some-event-group-path/impressions")!!.read().collect {
+            val impressions = MesosRecordIoStorageClient(decryptionClient).getBlob("ds/$date/some-event-group-path/impressions")!!.read().toList()
+        assertThat(impressions.size).isEqualTo(3)
+        impressions.forEach {
           it: ByteString ->
           val event = LabeledImpression.parseFrom(it)
           assertThat(event.vid).isEqualTo(1)

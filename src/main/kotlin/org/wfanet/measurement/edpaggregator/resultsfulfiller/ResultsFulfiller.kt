@@ -558,18 +558,16 @@ class ResultsFulfiller(
 
     // Create and configure storage client with encryption
     val encryptedDek = blobDetails.encryptedDek
-    val encryptedImpressionsClient = createStorageClient(storageClientUri, impressionsStorageConfig)
+    val selectedStorageClient = createStorageClient(storageClientUri, impressionsStorageConfig)
     val impressionsAeadStorageClient =
-      encryptedImpressionsClient.withEnvelopeEncryption(
+      selectedStorageClient.withEnvelopeEncryption(
         kmsClient,
         encryptedDek.kekUri,
         encryptedDek.encryptedDek,
       )
 
-    // Access blob storage
-    val impressionsMesosStorage = MesosRecordIoStorageClient(impressionsAeadStorageClient)
     val impressionBlob =
-      impressionsMesosStorage.getBlob(storageClientUri.key)
+      MesosRecordIoStorageClient(impressionsAeadStorageClient).getBlob(storageClientUri.key)
         ?: throw IllegalStateException(
           "Could not retrieve impression blob from ${storageClientUri.key}"
         )
