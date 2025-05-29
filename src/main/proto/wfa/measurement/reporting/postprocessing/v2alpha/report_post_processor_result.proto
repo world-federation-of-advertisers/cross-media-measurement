@@ -119,6 +119,9 @@ message ReportQuality {
 // The result message encapsulating the entire outcome of the post-processing
 // pipeline for a single report.
 message ReportPostProcessorResult {
+  // Stores the pre-corrected report summary.
+  ReportSummary pre_correction_report_summary = 5;
+
   // Stores the corrected value for each measurement, identified by its unique
   // name. The names in this map must correspond to names found within the
   // pre_correction_report_summary. The corrected report can be computed from
@@ -142,7 +145,4 @@ message ReportPostProcessorResult {
   // the corrected measurements from the 'updated_measurements' map (if a
   // solution was found).
   ReportQuality post_correction_quality = 4;
-
-  // Stores the pre-corrected report summary.
-  ReportSummary pre_correction_report_summary = 5;
 }
