@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package org.wfanet.measurement.loadtest.edpaggregator
+package org.wfanet.measurement.loadtest.edpaggregator.testing
 
 import com.google.crypto.tink.Aead
 import com.google.crypto.tink.KeyTemplates
