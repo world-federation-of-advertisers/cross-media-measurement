@@ -169,7 +169,19 @@ class RequisitionFetcherFunctionTest {
       )!!
     private val CONFIG_DIR: Path =
       getRuntimePath(
-        Paths.get("wfa_measurement_system", "src", "main", "kotlin", "org", "wfanet", "measurement", "edpaggregator", "deploy", "gcloud", "requisitionfetcher")
+        Paths.get(
+          "wfa_measurement_system",
+          "src",
+          "main",
+          "kotlin",
+          "org",
+          "wfanet",
+          "measurement",
+          "edpaggregator",
+          "deploy",
+          "gcloud",
+          "requisitionfetcher",
+        )
       )!!
     private val serverCerts =
       SigningCerts.fromPemFiles(

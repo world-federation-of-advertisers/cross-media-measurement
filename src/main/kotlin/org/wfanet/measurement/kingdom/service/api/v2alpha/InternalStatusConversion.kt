@@ -77,6 +77,10 @@ fun Status.toExternalStatusRuntimeException(
         put("fieldName", errorInfo.metadataMap.getValue("field_name"))
         Unit
       }
+      ErrorCode.INVALID_FIELD_VALUE -> {
+        put("fieldName", errorInfo.metadataMap.getValue("field_name"))
+        Unit
+      }
       ErrorCode.MEASUREMENT_NOT_FOUND -> {
         val measurementName =
           MeasurementKey(

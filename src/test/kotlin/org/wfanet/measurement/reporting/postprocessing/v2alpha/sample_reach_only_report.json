@@ -1,0 +1,955 @@
+{
+  "name": "measurementConsumers/TjyUnormbAg/reports/a9c1a2b3fc74ebf8c5ab81d7763aa70",
+  "reportingMetricEntries": [
+    {
+      "key": "measurementConsumers/TjyUnormbAg/reportingSets/single_edp_edp2",
+      "value": {
+        "metricCalculationSpecs": [
+          "measurementConsumers/TjyUnormbAg/metricCalculationSpecs/union",
+          "measurementConsumers/TjyUnormbAg/metricCalculationSpecs/cumulative"
+        ]
+      }
+    },
+    {
+      "key": "measurementConsumers/TjyUnormbAg/reportingSets/unique_reach_edp2",
+      "value": {
+        "metricCalculationSpecs": [
+          "measurementConsumers/TjyUnormbAg/metricCalculationSpecs/difference"
+        ]
+      }
+    },
+    {
+      "key": "measurementConsumers/TjyUnormbAg/reportingSets/edp2_edp1",
+      "value": {
+        "metricCalculationSpecs": [
+          "measurementConsumers/TjyUnormbAg/metricCalculationSpecs/difference"
+        ]
+      }
+    },
+    {
+      "key": "measurementConsumers/TjyUnormbAg/reportingSets/unique_reach_edp1",
+      "value": {
+        "metricCalculationSpecs": [
+          "measurementConsumers/TjyUnormbAg/metricCalculationSpecs/difference"
+        ]
+      }
+    },
+    {
+      "key": "measurementConsumers/TjyUnormbAg/reportingSets/single_edp_edp3",
+      "value": {
+        "metricCalculationSpecs": [
+          "measurementConsumers/TjyUnormbAg/metricCalculationSpecs/union",
+          "measurementConsumers/TjyUnormbAg/metricCalculationSpecs/cumulative"
+        ]
+      }
+    },
+    {
+      "key": "measurementConsumers/TjyUnormbAg/reportingSets/all_edps",
+      "value": {
+        "metricCalculationSpecs": [
+          "measurementConsumers/TjyUnormbAg/metricCalculationSpecs/union",
+          "measurementConsumers/TjyUnormbAg/metricCalculationSpecs/cumulative"
+        ]
+      }
+    },
+    {
+      "key": "measurementConsumers/TjyUnormbAg/reportingSets/single_edp_edp1",
+      "value": {
+        "metricCalculationSpecs": [
+          "measurementConsumers/TjyUnormbAg/metricCalculationSpecs/union",
+          "measurementConsumers/TjyUnormbAg/metricCalculationSpecs/cumulative"
+        ]
+      }
+    },
+    {
+      "key": "measurementConsumers/TjyUnormbAg/reportingSets/unique_reach_edp3",
+      "value": {
+        "metricCalculationSpecs": [
+          "measurementConsumers/TjyUnormbAg/metricCalculationSpecs/difference"
+        ]
+      }
+    }
+  ],
+  "state": "SUCCEEDED",
+  "createTime": "2024-09-13T15:19:51.691697Z",
+  "metricCalculationResults": [
+    {
+      "displayName": "METRICS_frequency_impressions_reach_CUMULATIVE_false",
+      "reportingSet": "measurementConsumers/TjyUnormbAg/reportingSets/single_edp_edp2",
+      "resultAttributes": [
+        {
+          "groupingPredicates": [],
+          "metricSpec": {
+            "reachAndFrequency": {
+              "maximumFrequency": 2,
+              "multipleDataProviderParams": {
+                "reachPrivacyParams": {
+                  "epsilon": 0.0033,
+                  "delta": 1e-12
+                },
+                "frequencyPrivacyParams": {
+                  "epsilon": 0.115,
+                  "delta": 1e-12
+                },
+                "vidSamplingInterval": {
+                  "start": 0.16,
+                  "width": 0.016666668
+                }
+              },
+              "singleDataProviderParams": {
+                "reachPrivacyParams": {
+                  "epsilon": 0.0033,
+                  "delta": 1e-12
+                },
+                "frequencyPrivacyParams": {
+                  "epsilon": 0.115,
+                  "delta": 1e-12
+                },
+                "vidSamplingInterval": {
+                  "start": 0.16,
+                  "width": 0.016666668
+                }
+              }
+            }
+          },
+          "timeInterval": {
+            "startTime": "2024-01-01T00:00:00Z",
+            "endTime": "2024-01-08T00:00:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "value": "74640",
+              "univariateStatistics": {
+                "standardDeviation": 102032.8580350049
+              }
+            },
+            "cmmsMeasurements": [
+              "measurementConsumers/TjyUnormbAg/measurements/K8xh2BQVhXM"
+            ]
+          },
+          "filter": "",
+          "metric": "measurementConsumers/TjyUnormbAg/metrics/union/single_edp_edp2",
+          "state": "SUCCEEDED"
+        },
+        {
+          "groupingPredicates": [],
+          "metricSpec": {
+            "impressionCount": {
+              "privacyParams": {
+                "epsilon": 0.0011,
+                "delta": 1e-12
+              },
+              "maximumFrequencyPerUser": 60,
+              "params": {
+                "privacyParams": {
+                  "epsilon": 0.0011,
+                  "delta": 1e-12
+                },
+                "vidSamplingInterval": {
+                  "start": 0.47666666,
+                  "width": 0.20666666
+                }
+              }
+            },
+            "vidSamplingInterval": {
+              "start": 0.47666666,
+              "width": 0.20666666
+            }
+          },
+          "timeInterval": {
+            "startTime": "2024-01-01T00:00:00Z",
+            "endTime": "2024-01-08T00:00:00Z"
+          },
+          "metricResult": {
+            "impressionCount": {
+              "value": "0",
+              "univariateStatistics": {
+                "standardDeviation": 1432701.2690834094
+              }
+            },
+            "cmmsMeasurements": [
+              "measurementConsumers/TjyUnormbAg/measurements/VL3WZhQVhXc"
+            ]
+          },
+          "filter": "",
+          "metric": "measurementConsumers/TjyUnormbAg/metrics/aee3941f8-5be9-4a2e-b771-d32ad3e7e6ba",
+          "state": "SUCCEEDED"
+        }
+      ],
+      "metricCalculationSpec": "measurementConsumers/TjyUnormbAg/metricCalculationSpecs/union"
+    },
+    {
+      "displayName": "METRICS_reach_CUMULATIVE_true",
+      "reportingSet": "measurementConsumers/TjyUnormbAg/reportingSets/single_edp_edp2",
+      "resultAttributes": [
+        {
+          "groupingPredicates": [],
+          "metricSpec": {
+            "reach": {
+              "multipleDataProviderParams": {
+                "privacyParams": {
+                  "epsilon": 0.0041,
+                  "delta": 1e-12
+                },
+                "vidSamplingInterval": {
+                  "start": 0.0,
+                  "width": 0.01
+                }
+              },
+              "singleDataProviderParams": {
+                "privacyParams": {
+                  "epsilon": 0.0041,
+                  "delta": 1e-12
+                },
+                "vidSamplingInterval": {
+                  "start": 0.0,
+                  "width": 0.01
+                }
+              }
+            }
+          },
+          "timeInterval": {
+            "startTime": "2024-01-01T00:00:00Z",
+            "endTime": "2024-01-08T00:00:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "value": "30000",
+              "univariateStatistics": {
+                "standardDeviation": 137708.79990420337
+              }
+            },
+            "cmmsMeasurements": [
+              "measurementConsumers/TjyUnormbAg/measurements/CbQBMBQVhXM"
+            ]
+          },
+          "filter": "",
+          "metric": "measurementConsumers/TjyUnormbAg/metrics/cumulative/single_edp_edp2",
+          "state": "SUCCEEDED"
+        }
+      ],
+      "metricCalculationSpec": "measurementConsumers/TjyUnormbAg/metricCalculationSpecs/cumulative"
+    },
+    {
+      "displayName": "METRICS_reach_CUMULATIVE_false",
+      "reportingSet": "measurementConsumers/TjyUnormbAg/reportingSets/unique_reach_edp2",
+      "resultAttributes": [
+        {
+          "groupingPredicates": [],
+          "metricSpec": {
+            "reach": {
+              "multipleDataProviderParams": {
+                "privacyParams": {
+                  "epsilon": 0.0041,
+                  "delta": 1e-12
+                },
+                "vidSamplingInterval": {
+                  "start": 0.0,
+                  "width": 0.01
+                }
+              },
+              "singleDataProviderParams": {
+                "privacyParams": {
+                  "epsilon": 0.0041,
+                  "delta": 1e-12
+                },
+                "vidSamplingInterval": {
+                  "start": 0.0,
+                  "width": 0.01
+                }
+              }
+            }
+          },
+          "timeInterval": {
+            "startTime": "2024-01-01T00:00:00Z",
+            "endTime": "2024-01-08T00:00:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "value": "2000",
+              "univariateStatistics": {
+                "standardDeviation": 262192.75285658167
+              }
+            },
+            "cmmsMeasurements": [
+              "measurementConsumers/TjyUnormbAg/measurements/ZHzJLRQVhWw",
+              "measurementConsumers/TjyUnormbAg/measurements/NiC3zOvqepQ"
+            ]
+          },
+          "filter": "",
+          "metric": "measurementConsumers/TjyUnormbAg/metrics/difference/unique_reach_edp2",
+          "state": "SUCCEEDED"
+        }
+      ],
+      "metricCalculationSpec": "measurementConsumers/TjyUnormbAg/metricCalculationSpecs/difference"
+    },
+    {
+      "displayName": "METRICS_reach_CUMULATIVE_false",
+      "reportingSet": "measurementConsumers/TjyUnormbAg/reportingSets/edp2_edp1",
+      "resultAttributes": [
+        {
+          "groupingPredicates": [],
+          "metricSpec": {
+            "reach": {
+              "multipleDataProviderParams": {
+                "privacyParams": {
+                  "epsilon": 0.0041,
+                  "delta": 1e-12
+                },
+                "vidSamplingInterval": {
+                  "start": 0.0,
+                  "width": 0.01
+                }
+              },
+              "singleDataProviderParams": {
+                "privacyParams": {
+                  "epsilon": 0.0041,
+                  "delta": 1e-12
+                },
+                "vidSamplingInterval": {
+                  "start": 0.0,
+                  "width": 0.01
+                }
+              }
+            }
+          },
+          "timeInterval": {
+            "startTime": "2024-01-01T00:00:00Z",
+            "endTime": "2024-01-08T00:00:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "value": "400",
+              "univariateStatistics": {
+                "standardDeviation": 230564.3972774748
+              }
+            },
+            "cmmsMeasurements": [
+              "measurementConsumers/TjyUnormbAg/measurements/B2npmev4HqY",
+              "measurementConsumers/TjyUnormbAg/measurements/SEpgUhQH4Vk"
+            ]
+          },
+          "filter": "",
+          "metric": "measurementConsumers/TjyUnormbAg/metrics/a3c0f4fda-c0c9-41f0-bb8e-a88f1354181f",
+          "state": "SUCCEEDED"
+        }
+      ],
+      "metricCalculationSpec": "measurementConsumers/TjyUnormbAg/metricCalculationSpecs/difference"
+    },
+    {
+      "displayName": "METRICS_reach_CUMULATIVE_false",
+      "reportingSet": "measurementConsumers/TjyUnormbAg/reportingSets/unique_reach_edp1",
+      "resultAttributes": [
+        {
+          "groupingPredicates": [],
+          "metricSpec": {
+            "reach": {
+              "multipleDataProviderParams": {
+                "privacyParams": {
+                  "epsilon": 0.0041,
+                  "delta": 1e-12
+                },
+                "vidSamplingInterval": {
+                  "start": 0.0,
+                  "width": 0.01
+                }
+              },
+              "singleDataProviderParams": {
+                "privacyParams": {
+                  "epsilon": 0.0041,
+                  "delta": 1e-12
+                },
+                "vidSamplingInterval": {
+                  "start": 0.0,
+                  "width": 0.01
+                }
+              }
+            }
+          },
+          "timeInterval": {
+            "startTime": "2024-01-01T00:00:00Z",
+            "endTime": "2024-01-08T00:00:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "value": "300",
+              "univariateStatistics": {
+                "standardDeviation": 261177.24408350688
+              }
+            },
+            "cmmsMeasurements": [
+              "measurementConsumers/TjyUnormbAg/measurements/AOvKmRQVhW4",
+              "measurementConsumers/TjyUnormbAg/measurements/W6dI1xQVhW0"
+            ]
+          },
+          "filter": "",
+          "metric": "measurementConsumers/TjyUnormbAg/metrics/difference/unique_reach_edp1",
+          "state": "SUCCEEDED"
+        }
+      ],
+      "metricCalculationSpec": "measurementConsumers/TjyUnormbAg/metricCalculationSpecs/difference"
+    },
+    {
+      "displayName": "METRICS_frequency_impressions_reach_CUMULATIVE_false",
+      "reportingSet": "measurementConsumers/TjyUnormbAg/reportingSets/single_edp_edp3",
+      "resultAttributes": [
+        {
+          "groupingPredicates": [],
+          "metricSpec": {
+            "impressionCount": {
+              "privacyParams": {
+                "epsilon": 0.0011,
+                "delta": 1e-12
+              },
+              "maximumFrequencyPerUser": 60,
+              "params": {
+                "privacyParams": {
+                  "epsilon": 0.0011,
+                  "delta": 1e-12
+                },
+                "vidSamplingInterval": {
+                  "start": 0.47666666,
+                  "width": 0.20666666
+                }
+              }
+            },
+            "vidSamplingInterval": {
+              "start": 0.47666666,
+              "width": 0.20666666
+            }
+          },
+          "timeInterval": {
+            "startTime": "2024-01-01T00:00:00Z",
+            "endTime": "2024-01-08T00:00:00Z"
+          },
+          "metricResult": {
+            "impressionCount": {
+              "value": "0",
+              "univariateStatistics": {
+                "standardDeviation": 1432701.2690834094
+              }
+            },
+            "cmmsMeasurements": [
+              "measurementConsumers/TjyUnormbAg/measurements/Woop_RQVhW8"
+            ]
+          },
+          "filter": "",
+          "metric": "measurementConsumers/TjyUnormbAg/metrics/a6db34b4f-a6a8-4478-8263-ddefd446a975",
+          "state": "SUCCEEDED"
+        },
+        {
+          "groupingPredicates": [],
+          "metricSpec": {
+            "reachAndFrequency": {
+              "maximumFrequency": 2,
+              "multipleDataProviderParams": {
+                "reachPrivacyParams": {
+                  "epsilon": 0.0033,
+                  "delta": 1e-12
+                },
+                "frequencyPrivacyParams": {
+                  "epsilon": 0.115,
+                  "delta": 1e-12
+                },
+                "vidSamplingInterval": {
+                  "start": 0.16,
+                  "width": 0.016666668
+                }
+              },
+              "singleDataProviderParams": {
+                "reachPrivacyParams": {
+                  "epsilon": 0.0033,
+                  "delta": 1e-12
+                },
+                "frequencyPrivacyParams": {
+                  "epsilon": 0.115,
+                  "delta": 1e-12
+                },
+                "vidSamplingInterval": {
+                  "start": 0.16,
+                  "width": 0.016666668
+                }
+              }
+            }
+          },
+          "timeInterval": {
+            "startTime": "2024-01-01T00:00:00Z",
+            "endTime": "2024-01-08T00:00:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "value": "187439",
+              "univariateStatistics": {
+                "standardDeviation": 102065.46555734947
+              }
+            },
+            "cmmsMeasurements": [
+              "measurementConsumers/TjyUnormbAg/measurements/K3YbMRQVhW8"
+            ]
+          },
+          "filter": "",
+          "metric": "measurementConsumers/TjyUnormbAg/metrics/union/single_edp_edp3",
+          "state": "SUCCEEDED"
+        }
+      ],
+      "metricCalculationSpec": "measurementConsumers/TjyUnormbAg/metricCalculationSpecs/union"
+    },
+    {
+      "displayName": "METRICS_reach_CUMULATIVE_true",
+      "reportingSet": "measurementConsumers/TjyUnormbAg/reportingSets/single_edp_edp3",
+      "resultAttributes": [
+        {
+          "groupingPredicates": [],
+          "metricSpec": {
+            "reach": {
+              "multipleDataProviderParams": {
+                "privacyParams": {
+                  "epsilon": 0.0041,
+                  "delta": 1e-12
+                },
+                "vidSamplingInterval": {
+                  "start": 0.0,
+                  "width": 0.01
+                }
+              },
+              "singleDataProviderParams": {
+                "privacyParams": {
+                  "epsilon": 0.0041,
+                  "delta": 1e-12
+                },
+                "vidSamplingInterval": {
+                  "start": 0.0,
+                  "width": 0.01
+                }
+              }
+            }
+          },
+          "timeInterval": {
+            "startTime": "2024-01-01T00:00:00Z",
+            "endTime": "2024-01-08T00:00:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "value": "0",
+              "univariateStatistics": {
+                "standardDeviation": 137708.79990420337
+              }
+            },
+            "cmmsMeasurements": [
+              "measurementConsumers/TjyUnormbAg/measurements/Z2bMEhQVhW4"
+            ]
+          },
+          "filter": "",
+          "metric": "measurementConsumers/TjyUnormbAg/metrics/cumulative/single_edp_edp3",
+          "state": "SUCCEEDED"
+        }
+      ],
+      "metricCalculationSpec": "measurementConsumers/TjyUnormbAg/metricCalculationSpecs/cumulative"
+    },
+    {
+      "displayName": "METRICS_frequency_impressions_reach_CUMULATIVE_false",
+      "reportingSet": "measurementConsumers/TjyUnormbAg/reportingSets/all_edps",
+      "resultAttributes": [
+        {
+          "groupingPredicates": [],
+          "metricSpec": {
+            "reachAndFrequency": {
+              "maximumFrequency": 2,
+              "multipleDataProviderParams": {
+                "reachPrivacyParams": {
+                  "epsilon": 0.0033,
+                  "delta": 1e-12
+                },
+                "frequencyPrivacyParams": {
+                  "epsilon": 0.115,
+                  "delta": 1e-12
+                },
+                "vidSamplingInterval": {
+                  "start": 0.16,
+                  "width": 0.016666668
+                }
+              },
+              "singleDataProviderParams": {
+                "reachPrivacyParams": {
+                  "epsilon": 0.0033,
+                  "delta": 1e-12
+                },
+                "frequencyPrivacyParams": {
+                  "epsilon": 0.115,
+                  "delta": 1e-12
+                },
+                "vidSamplingInterval": {
+                  "start": 0.16,
+                  "width": 0.016666668
+                }
+              }
+            }
+          },
+          "timeInterval": {
+            "startTime": "2024-01-01T00:00:00Z",
+            "endTime": "2024-01-08T00:00:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "value": "91199",
+              "univariateStatistics": {
+                "standardDeviation": 137993.02905314422
+              }
+            },
+            "cmmsMeasurements": [
+              "measurementConsumers/TjyUnormbAg/measurements/F2CQQhQVhXA"
+            ]
+          },
+          "filter": "",
+          "metric": "measurementConsumers/TjyUnormbAg/metrics/union/all_edps",
+          "state": "SUCCEEDED"
+        },
+        {
+          "groupingPredicates": [],
+          "metricSpec": {
+            "impressionCount": {
+              "privacyParams": {
+                "epsilon": 0.0011,
+                "delta": 1e-12
+              },
+              "maximumFrequencyPerUser": 60,
+              "params": {
+                "privacyParams": {
+                  "epsilon": 0.0011,
+                  "delta": 1e-12
+                },
+                "vidSamplingInterval": {
+                  "start": 0.47666666,
+                  "width": 0.20666666
+                }
+              }
+            },
+            "vidSamplingInterval": {
+              "start": 0.47666666,
+              "width": 0.20666666
+            }
+          },
+          "timeInterval": {
+            "startTime": "2024-01-01T00:00:00Z",
+            "endTime": "2024-01-08T00:00:00Z"
+          },
+          "metricResult": {
+            "impressionCount": {
+              "value": "0",
+              "univariateStatistics": {
+                "standardDeviation": 2481511.3901208748
+              }
+            },
+            "cmmsMeasurements": [
+              "measurementConsumers/TjyUnormbAg/measurements/BNGxdOvqeo0"
+            ]
+          },
+          "filter": "",
+          "metric": "measurementConsumers/TjyUnormbAg/metrics/aa7c347f9-0ea1-4e7b-85eb-c87969d8dbc2",
+          "state": "SUCCEEDED"
+        }
+      ],
+      "metricCalculationSpec": "measurementConsumers/TjyUnormbAg/metricCalculationSpecs/union"
+    },
+    {
+      "displayName": "METRICS_reach_CUMULATIVE_true",
+      "reportingSet": "measurementConsumers/TjyUnormbAg/reportingSets/all_edps",
+      "resultAttributes": [
+        {
+          "groupingPredicates": [],
+          "metricSpec": {
+            "reach": {
+              "multipleDataProviderParams": {
+                "privacyParams": {
+                  "epsilon": 0.0041,
+                  "delta": 1e-12
+                },
+                "vidSamplingInterval": {
+                  "start": 0.0,
+                  "width": 0.01
+                }
+              },
+              "singleDataProviderParams": {
+                "privacyParams": {
+                  "epsilon": 0.0041,
+                  "delta": 1e-12
+                },
+                "vidSamplingInterval": {
+                  "start": 0.0,
+                  "width": 0.01
+                }
+              }
+            }
+          },
+          "timeInterval": {
+            "startTime": "2024-01-01T00:00:00Z",
+            "endTime": "2024-01-08T00:00:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "value": "48300",
+              "univariateStatistics": {
+                "standardDeviation": 184559.25807765797
+              }
+            },
+            "cmmsMeasurements": [
+              "measurementConsumers/TjyUnormbAg/measurements/QzwdQBQVhW8"
+            ]
+          },
+          "filter": "",
+          "metric": "measurementConsumers/TjyUnormbAg/metrics/cumulative/all_edps",
+          "state": "SUCCEEDED"
+        }
+      ],
+      "metricCalculationSpec": "measurementConsumers/TjyUnormbAg/metricCalculationSpecs/cumulative"
+    },
+    {
+      "displayName": "METRICS_frequency_impressions_reach_CUMULATIVE_false",
+      "reportingSet": "measurementConsumers/TjyUnormbAg/reportingSets/single_edp_edp1",
+      "resultAttributes": [
+        {
+          "groupingPredicates": [],
+          "metricSpec": {
+            "reachAndFrequency": {
+              "maximumFrequency": 2,
+              "multipleDataProviderParams": {
+                "reachPrivacyParams": {
+                  "epsilon": 0.0033,
+                  "delta": 1e-12
+                },
+                "frequencyPrivacyParams": {
+                  "epsilon": 0.115,
+                  "delta": 1e-12
+                },
+                "vidSamplingInterval": {
+                  "start": 0.16,
+                  "width": 0.016666668
+                }
+              },
+              "singleDataProviderParams": {
+                "reachPrivacyParams": {
+                  "epsilon": 0.0033,
+                  "delta": 1e-12
+                },
+                "frequencyPrivacyParams": {
+                  "epsilon": 0.115,
+                  "delta": 1e-12
+                },
+                "vidSamplingInterval": {
+                  "start": 0.16,
+                  "width": 0.016666668
+                }
+              }
+            }
+          },
+          "timeInterval": {
+            "startTime": "2024-01-01T00:00:00Z",
+            "endTime": "2024-01-08T00:00:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "value": "0",
+              "univariateStatistics": {
+                "standardDeviation": 102011.27564649425
+              }
+            },
+            "cmmsMeasurements": [
+              "measurementConsumers/TjyUnormbAg/measurements/JUrpdBUjXFs"
+            ]
+          },
+          "filter": "",
+          "metric": "measurementConsumers/TjyUnormbAg/metrics/union/single_edp_edp1",
+          "state": "SUCCEEDED"
+        },
+        {
+          "groupingPredicates": [],
+          "metricSpec": {
+            "impressionCount": {
+              "privacyParams": {
+                "epsilon": 0.0011,
+                "delta": 1e-12
+              },
+              "maximumFrequencyPerUser": 60,
+              "params": {
+                "privacyParams": {
+                  "epsilon": 0.0011,
+                  "delta": 1e-12
+                },
+                "vidSamplingInterval": {
+                  "start": 0.47666666,
+                  "width": 0.20666666
+                }
+              }
+            },
+            "vidSamplingInterval": {
+              "start": 0.47666666,
+              "width": 0.20666666
+            }
+          },
+          "timeInterval": {
+            "startTime": "2024-01-01T00:00:00Z",
+            "endTime": "2024-01-08T00:00:00Z"
+          },
+          "metricResult": {
+            "impressionCount": {
+              "value": "3270106",
+              "univariateStatistics": {
+                "standardDeviation": 1432964.0978411257
+              }
+            },
+            "cmmsMeasurements": [
+              "measurementConsumers/TjyUnormbAg/measurements/c3f1LBUjXFw"
+            ]
+          },
+          "filter": "",
+          "metric": "measurementConsumers/TjyUnormbAg/metrics/a22025b98-9854-4fb7-87ee-e0c6f90519ae",
+          "state": "SUCCEEDED"
+        }
+      ],
+      "metricCalculationSpec": "measurementConsumers/TjyUnormbAg/metricCalculationSpecs/union"
+    },
+    {
+      "displayName": "METRICS_reach_CUMULATIVE_true",
+      "reportingSet": "measurementConsumers/TjyUnormbAg/reportingSets/single_edp_edp1",
+      "resultAttributes": [
+        {
+          "groupingPredicates": [],
+          "metricSpec": {
+            "reach": {
+              "multipleDataProviderParams": {
+                "privacyParams": {
+                  "epsilon": 0.0041,
+                  "delta": 1e-12
+                },
+                "vidSamplingInterval": {
+                  "start": 0.0,
+                  "width": 0.01
+                }
+              },
+              "singleDataProviderParams": {
+                "privacyParams": {
+                  "epsilon": 0.0041,
+                  "delta": 1e-12
+                },
+                "vidSamplingInterval": {
+                  "start": 0.0,
+                  "width": 0.01
+                }
+              }
+            }
+          },
+          "timeInterval": {
+            "startTime": "2024-01-01T00:00:00Z",
+            "endTime": "2024-01-08T00:00:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "value": "189700",
+              "univariateStatistics": {
+                "standardDeviation": 137776.9714846423
+              }
+            },
+            "cmmsMeasurements": [
+              "measurementConsumers/TjyUnormbAg/measurements/QwItCerco6E"
+            ]
+          },
+          "filter": "",
+          "metric": "measurementConsumers/TjyUnormbAg/metrics/cumulative/single_edp_edp1",
+          "state": "SUCCEEDED"
+        }
+      ],
+      "metricCalculationSpec": "measurementConsumers/TjyUnormbAg/metricCalculationSpecs/cumulative"
+    },
+    {
+      "displayName": "METRICS_reach_CUMULATIVE_false",
+      "reportingSet": "measurementConsumers/TjyUnormbAg/reportingSets/unique_reach_edp3",
+      "resultAttributes": [
+        {
+          "groupingPredicates": [],
+          "metricSpec": {
+            "reach": {
+              "multipleDataProviderParams": {
+                "privacyParams": {
+                  "epsilon": 0.0041,
+                  "delta": 1e-12
+                },
+                "vidSamplingInterval": {
+                  "start": 0.0,
+                  "width": 0.01
+                }
+              },
+              "singleDataProviderParams": {
+                "privacyParams": {
+                  "epsilon": 0.0041,
+                  "delta": 1e-12
+                },
+                "vidSamplingInterval": {
+                  "start": 0.0,
+                  "width": 0.01
+                }
+              }
+            }
+          },
+          "timeInterval": {
+            "startTime": "2024-01-01T00:00:00Z",
+            "endTime": "2024-01-08T00:00:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "value": "100",
+              "univariateStatistics": {
+                "standardDeviation": 261663.2405567259
+              }
+            },
+            "cmmsMeasurements": [
+              "measurementConsumers/TjyUnormbAg/measurements/dxCVCBQVhW8",
+              "measurementConsumers/TjyUnormbAg/measurements/BXLXMBQVhW4"
+            ]
+          },
+          "filter": "",
+          "metric": "measurementConsumers/TjyUnormbAg/metrics/difference/unique_reach_edp3",
+          "state": "SUCCEEDED"
+        }
+      ],
+      "metricCalculationSpec": "measurementConsumers/TjyUnormbAg/metricCalculationSpecs/difference"
+    }
+  ],
+  "reportSchedule": "",
+  "tags": {
+    "brands": "'Good Buy' 'Homemade Cheese' 'Supermarket'",
+    "campaign_name": "dc3edps",
+    "end_date": "2024-01-08T10:00:00Z",
+    "measurementConsumers/TjyUnormbAg/metricCalculationSpecs/union": "{common_filter=FEMALE_YEARS_35_TO_54;, cumulative=false, grouping=-, metric_frequency=-, metrics=frequency2,impressions, set_operation=union}",
+    "measurementConsumers/TjyUnormbAg/metricCalculationSpecs/difference": "{common_filter=FEMALE_YEARS_35_TO_54;, cumulative=false, grouping=-, metric_frequency=-, metrics=reach, set_operation=difference}",
+    "measurementConsumers/TjyUnormbAg/metricCalculationSpecs/cumulative": "{common_filter=FEMALE_YEARS_35_TO_54;, cumulative=true, grouping=-, metric_frequency=weekly1, metrics=reach, set_operation=cumulative}",
+    "measurementConsumers/TjyUnormbAg/reportingSets/unique_reach_edp2": "{anchor=edp2, campaign_id=, channels=, incrementality_type=ENTITY, lhs_reporting_set_ids=single_edp_edp2, measured_entity=edp2, measurement_entities=edp1,edp3, measurement_policy=, measurement_policy_incrementality=AMI, media_type=DISPLAY OTHER VIDEO, position_in_incrementality=, primitive_egroup_id=, rhs_reporting_set_ids=single_edp_edp1 single_edp_edp3, set_operation=difference,incrementality, target=edp2,edp1,edp3, unique_Reach_Target=edp2, version=1.0, video_completion=, viewability=}",
+    "measurementConsumers/TjyUnormbAg/reportingSets/unique_reach_edp1": "{anchor=edp2, campaign_id=, channels=, incrementality_type=ENTITY, lhs_reporting_set_ids=single_edp_edp1, measured_entity=edp1, measurement_entities=edp1,edp3, measurement_policy=AMI, measurement_policy_incrementality=AMI, media_type=DISPLAY OTHER VIDEO, position_in_incrementality=, primitive_egroup_id=, rhs_reporting_set_ids=single_edp_edp2 single_edp_edp3, set_operation=difference,incrementality, target=edp2,edp1,edp3, unique_Reach_Target=edp1, version=1.0, video_completion=, viewability=}",
+    "measurementConsumers/TjyUnormbAg/reportingSets/single_edp_edp2": "{anchor=edp2, campaign_id=, channels=, incrementality_type=ENTITY, lhs_reporting_set_ids=, measured_entity=edp2, measurement_entities=edp1,edp3, measurement_policy=AMI, measurement_policy_incrementality=AMI, media_type=OTHER, position_in_incrementality=, primitive_egroup_id=LqROIPcxtwU, rhs_reporting_set_ids=, set_operation=union,incrementality,cumulative,marked unions for reach only, target=edp2, unique_Reach_Target=, version=1.0, video_completion=, viewability=}",
+    "measurementConsumers/TjyUnormbAg/reportingSets/edp2_edp1": "{anchor=edp2, campaign_id=, channels=, incrementality_type=ENTITY, lhs_reporting_set_ids=single_edp_edp1, measured_entity=edp1, measurement_entities=edp1,edp3, measurement_policy=AMI, measurement_policy_incrementality=, media_type=DISPLAY OTHER, position_in_incrementality=measuredEntity2, primitive_egroup_id=, rhs_reporting_set_ids=single_edp_edp2, set_operation=difference,incrementality, target=edp2,edp1, unique_Reach_Target=, version=1.0, video_completion=, viewability=}",
+    "measurementConsumers/TjyUnormbAg/reportingSets/single_edp_edp1": "{anchor=edp2, campaign_id=, channels=, incrementality_type=ENTITY, lhs_reporting_set_ids=, measured_entity=edp1, measurement_entities=edp1,edp3, measurement_policy=AMI, measurement_policy_incrementality=AMI, media_type=DISPLAY, position_in_incrementality=, primitive_egroup_id=AxhBSBJE3JE, rhs_reporting_set_ids=, set_operation=union,incrementality,cumulative,marked unions for reach only, target=edp1, unique_Reach_Target=, version=1.0, video_completion=, viewability=}",
+    "measurementConsumers/TjyUnormbAg/reportingSets/single_edp_edp3": "{anchor=edp2, campaign_id=, channels=, incrementality_type=ENTITY, lhs_reporting_set_ids=, measured_entity=edp3, measurement_entities=edp1,edp3, measurement_policy=AMI, measurement_policy_incrementality=AMI, media_type=VIDEO, position_in_incrementality=, primitive_egroup_id=J6vqyPc8j_I, rhs_reporting_set_ids=, set_operation=union,incrementality,cumulative,marked unions for reach only, target=edp3, unique_Reach_Target=, version=1.0, video_completion=, viewability=}",
+    "measurementConsumers/TjyUnormbAg/reportingSets/unique_reach_edp3": "{anchor=edp2, campaign_id=, channels=, incrementality_type=ENTITY, lhs_reporting_set_ids=single_edp_edp3, measured_entity=edp3, measurement_entities=edp1,edp3, measurement_policy=AMI, measurement_policy_incrementality=AMI, media_type=DISPLAY OTHER VIDEO, position_in_incrementality=measuredEntity3, primitive_egroup_id=, rhs_reporting_set_ids=single_edp_edp2 single_edp_edp1, set_operation=difference,incrementality, target=edp2,edp1,edp3, unique_Reach_Target=edp3, version=1.0, video_completion=, viewability=}",
+    "measurementConsumers/TjyUnormbAg/reportingSets/all_edps": "{anchor=edp2, campaign_id=9a7d3316-83d6-404f-9408-cfbbe5ed6d40, channels=, incrementality_type=ENTITY, lhs_reporting_set_ids=single_edp_edp2 single_edp_edp1 single_edp_edp3, measured_entity=edp2,edp3,edp1, measurement_entities=edp1,edp3, measurement_policy=AMI, measurement_policy_incrementality=AMI, media_type=DISPLAY OTHER VIDEO, position_in_incrementality=, primitive_egroup_id=, rhs_reporting_set_ids=, set_operation=union,incrementality,cumulative,marked unions for reach only, target=edp2,edp1,edp3, unique_Reach_Target=, version=1.0, video_completion=, viewability=}",
+    "media_types": "DISPLAY OTHER VIDEO",
+    "report_name": "DC_3edps_cross_incr",
+    "start_date": "2024-01-01T00:00:00Z",
+    "target": "'edp2' 'edp1' 'edp3'"
+  },
+  "reportingInterval": {
+    "reportStart": {
+      "year": 2024,
+      "month": 1,
+      "day": 1,
+      "hours": 0,
+      "minutes": 0,
+      "seconds": 0,
+      "nanos": 0,
+      "utcOffset": "0s"
+    },
+    "reportEnd": {
+      "year": 2024,
+      "month": 1,
+      "day": 8
+    }
+  }
+}
