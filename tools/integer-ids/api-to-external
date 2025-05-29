@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+hex="$(printf "$1" | basenc --base64url -d | xxd -p -u)"
+printf '%ld' "0x$hex"

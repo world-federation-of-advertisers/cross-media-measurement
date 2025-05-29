@@ -56,7 +56,7 @@ message StreamRequisitionsRequest {
     int64 external_data_provider_id = 3;
     repeated Requisition.State states = 4;
     google.protobuf.Timestamp updated_after = 5;
-    repeated Measurement.State measurement_states = 8;
+    repeated Measurement.State measurement_states = 8 [deprecated = true];
 
     message After {
       google.protobuf.Timestamp update_time = 1;

@@ -17,6 +17,7 @@ syntax = "proto3";
 package wfa.measurement.internal.kingdom;
 
 import "google/protobuf/timestamp.proto";
+import "google/type/interval.proto";
 import "wfa/measurement/internal/kingdom/model_line.proto";
 
 option java_package = "org.wfanet.measurement.internal.kingdom";
@@ -25,13 +26,27 @@ option java_multiple_files = true;
 // Internal service for persistence of ModelLine entities.
 service ModelLines {
   rpc CreateModelLine(ModelLine) returns (ModelLine);
+  rpc GetModelLine(GetModelLineRequest) returns (ModelLine);
   // Streams `ModelLine`s.
   rpc StreamModelLines(StreamModelLinesRequest) returns (stream ModelLine);
 
   rpc SetModelLineHoldbackModelLine(SetModelLineHoldbackModelLineRequest)
       returns (ModelLine);
+
   // Sets the active_end_time for a `ModelLine`.
   rpc SetActiveEndTime(SetActiveEndTimeRequest) returns (ModelLine);
+
+  // Lists `ModelLine`s that are valid given an `Interval` representing the time
+  // range and a set of `ExternalDataProviderId`s. Ordered by `type` from `PROD`
+  // to `HOLDBACK` to `DEV`, `active_start_time` descending.
+  rpc EnumerateValidModelLines(EnumerateValidModelLinesRequest)
+      returns (EnumerateValidModelLinesResponse);
+}
+
+message GetModelLineRequest {
+  fixed64 external_model_provider_id = 1;
+  fixed64 external_model_suite_id = 2;
+  fixed64 external_model_line_id = 3;
 }
 
 message StreamModelLinesRequest {
@@ -70,4 +85,32 @@ message SetActiveEndTimeRequest {
   fixed64 external_model_suite_id = 2;
   fixed64 external_model_provider_id = 3;
   google.protobuf.Timestamp active_end_time = 4;
+}
+
+// Request message for `EnumerateValidModelLines` method.
+message EnumerateValidModelLinesRequest {
+  fixed64 external_model_provider_id = 1;
+  fixed64 external_model_suite_id = 2;
+
+  // If `active_end_time` is set, only `ModelLine`s with this interval fully
+  // contained between  `active_start_time`  and `active_end_time` are
+  // considered. If `active_end_time` is not set, then the `start_time` of this
+  // interval needs to be after `active_start_time` for the `ModelLine` to be
+  // considered.
+  google.type.Interval time_interval = 3;
+
+  // Each `data_availability_intervals` must have an entry for the `ModelLine`
+  // for the `ModelLine` to be considered, and the interval in each entry
+  // associated with the `ModelLine` must fully contain the `time_interval` for
+  // the `ModelLine` to be considered.
+  repeated fixed64 external_data_provider_ids = 4;
+
+  // List of `ModelLine.Type`s to consider. Defaults to `PROD`.
+  repeated ModelLine.Type types = 5;
+}
+
+// Response message for `EnumerateValidModelLines` method.
+message EnumerateValidModelLinesResponse {
+  // The `ModelLine`s that met all the criteria.
+  repeated ModelLine model_lines = 1;
 }

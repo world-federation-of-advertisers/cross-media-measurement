@@ -102,7 +102,8 @@
     "https://bcr.bazel.build/modules/lz4/1.9.4/MODULE.bazel": "e3d307b1d354d70f6c809167eafecf5d622c3f27e3971ab7273410f429c7f83a",
     "https://bcr.bazel.build/modules/lz4/1.9.4/source.json": "233f0bdfc21f254e3dda14683ddc487ca68c6a3a83b7d5db904c503f85bd089b",
     "https://bcr.bazel.build/modules/platforms/0.0.10/MODULE.bazel": "8cb8efaf200bdeb2150d93e162c40f388529a25852b332cec879373771e48ed5",
-    "https://bcr.bazel.build/modules/platforms/0.0.10/source.json": "f22828ff4cf021a6b577f1bf6341cb9dcd7965092a439f64fc1bb3b7a5ae4bd5",
+    "https://bcr.bazel.build/modules/platforms/0.0.11/MODULE.bazel": "0daefc49732e227caa8bfa834d65dc52e8cc18a2faf80df25e8caea151a9413f",
+    "https://bcr.bazel.build/modules/platforms/0.0.11/source.json": "f7e188b79ebedebfe75e9e1d098b8845226c7992b307e28e1496f23112e8fc29",
     "https://bcr.bazel.build/modules/platforms/0.0.4/MODULE.bazel": "9b328e31ee156f53f3c416a64f8491f7eb731742655a47c9eec4703a71644aee",
     "https://bcr.bazel.build/modules/platforms/0.0.5/MODULE.bazel": "5733b54ea419d5eaf7997054bb55f6a1d0b5ff8aedf0176fef9eea44f3acda37",
     "https://bcr.bazel.build/modules/platforms/0.0.6/MODULE.bazel": "ad6eeef431dc52aefd2d77ed20a4b353f8ebf0f4ecdd26a807d2da5aa8cd0615",
@@ -315,18 +316,19 @@
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/c-ares/1.15.0/MODULE.bazel": "not found",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/cloud-spanner-emulator-bin/1.5.13/MODULE.bazel": "63ae6c13c6c372fe03cc56b20dab1fc28a62cb1e0f451d8ed2fd5bf5df3b19a5",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/cloud-spanner-emulator-bin/1.5.23/MODULE.bazel": "451c90440b42c7854ce058fadcd70b0d61397aa04ae149460aa516ac966e5eac",
-    "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/cloud-spanner-emulator-bin/1.5.23/source.json": "926daaa2d16c8fb3fa40853a937e069a0097d37f01ba3dec459d8f7cd908d59b",
+    "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/cloud-spanner-emulator-bin/1.5.32/MODULE.bazel": "95188672a58d63cf835116dceb7b1976e7a8b94e92bb47675a33aa9bda982f66",
+    "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/cloud-spanner-emulator-bin/1.5.32/source.json": "90ff3caa536e07d60a28aa278ed804e16a440ddb50d710ecb200fcd44cff1f5c",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/common-cpp/0.11.0/MODULE.bazel": "22f7e06ac78cd614d2143fcd0e7028eb595d9902dbfa94f777531439c616f13f",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/common-cpp/0.13.0/MODULE.bazel": "ad9f152e8f710943b2d9aa4ea19e06b47911abd8a5fb63d9e69e66636475794d",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/common-cpp/0.13.0/source.json": "910ffe09948e90417f98e00fd88819dbaa54efda4175e05e528481acc81c5d71",
-    "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/common-jvm/0.103.0/MODULE.bazel": "c4d0eef967ef7ce3389b948be41b6cfe97236c73d91c1231d64b5d58aee6dfea",
-    "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/common-jvm/0.103.0/source.json": "baa83feef55e911427913879f80389b5d4b45dd69c40cd4ac20e610d50d440dc",
+    "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/common-jvm/0.105.0/MODULE.bazel": "9e2612e4b0382065a8fedf7e8e18fed5d8fd140938e7dff91d0527c31c5be699",
+    "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/common-jvm/0.105.0/source.json": "af035cb19f1e8ca93997b73ed6aa8df71a2103f97dd31663e61dfc610d5d4e1a",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/common-jvm/0.82.1/MODULE.bazel": "e5d9aee83831d55952c193f6f05b3952d3f3cd61d8d4e3bfedf3549e25edf308",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/consent-signaling-client/0.22.0/MODULE.bazel": "6437a69ac68ec8e3589d595a5ed79d3f6404510124e455838ce9cf51b8b27d52",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/consent-signaling-client/0.22.0/source.json": "844344f41ae9b780cfb0452438388465d3cf7c7b5accedb1fcc4900ace5111ca",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/cross-media-measurement-api/0.62.0/MODULE.bazel": "ff213234cf605ff0cf7dc5d55b0e1d0aab7df065f32759e6e64d2d1315110b18",
-    "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/cross-media-measurement-api/0.74.1/MODULE.bazel": "087832022dd5cd4d84f4b97d909a85e7cf3c807f31c8a8908482b38f0fbc13da",
-    "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/cross-media-measurement-api/0.74.1/source.json": "012ee946c9e601231c359a61a44a7d182d38aabe39d27d611aad1486d960606b",
+    "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/cross-media-measurement-api/0.78.0.bzlmod.2/MODULE.bazel": "aa64d0069274ac2b0f1e8c93e4db10947e7f1369e68a709a355884701cbd0a92",
+    "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/cross-media-measurement-api/0.78.0.bzlmod.2/source.json": "5787828eced64aa14bca9b241e45c6a88c61fcc98f1674829a5f39614ff1f7cb",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/gazelle/0.27.0/MODULE.bazel": "not found",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/gazelle/0.30.0/MODULE.bazel": "not found",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/gazelle/0.32.0/MODULE.bazel": "not found",
@@ -357,6 +359,7 @@
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/libpfm/4.11.0/MODULE.bazel": "not found",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/lz4/1.9.4/MODULE.bazel": "not found",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/platforms/0.0.10/MODULE.bazel": "not found",
+    "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/platforms/0.0.11/MODULE.bazel": "not found",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/platforms/0.0.4/MODULE.bazel": "not found",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/platforms/0.0.5/MODULE.bazel": "not found",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/platforms/0.0.6/MODULE.bazel": "not found",
@@ -1161,7 +1164,7 @@
     "@@cross-media-measurement-api~//build:non_module_deps.bzl%non_module_deps": {
       "general": {
         "bzlTransitiveDigest": "R+oKPToJy5pjlpXuN6LkhlOZ0PtXjtvDLGNadJgQnf8=",
-        "usagesDigest": "pnl2dUPmvVrF/51EVlVHI9OTmwN2HkBBg5marlvAnJE=",
+        "usagesDigest": "UXOttbf8eNVFtIf8f1cE/XhpplC3wpsK6iC4eqb5ubs=",
         "recordedFileInputs": {},
         "recordedDirentsInputs": {},
         "envVariables": {},
@@ -1914,23 +1917,6 @@
         ]
       }
     },
-    "@@platforms//host:extension.bzl%host_platform": {
-      "general": {
-        "bzlTransitiveDigest": "xelQcPZH8+tmuOHVjL9vDxMnnQNMlwj0SlvgoqBkm4U=",
-        "usagesDigest": "hgylFkgWSg0ulUwWZzEM1aIftlUnbmw2ynWLdEfHnZc=",
-        "recordedFileInputs": {},
-        "recordedDirentsInputs": {},
-        "envVariables": {},
-        "generatedRepoSpecs": {
-          "host_platform": {
-            "bzlFile": "@@platforms//host:extension.bzl",
-            "ruleClassName": "host_platform_repo",
-            "attributes": {}
-          }
-        },
-        "recordedRepoMappingEntries": []
-      }
-    },
     "@@pybind11_bazel~//:internal_configure.bzl%internal_configure_extension": {
       "general": {
         "bzlTransitiveDigest": "CyAKLVVonohnkTSqg9II/HA7M49sOlnMkgMHL3CmDuc=",
@@ -2305,7 +2291,7 @@
     "@@rules_oci~//oci:extensions.bzl%oci": {
       "general": {
         "bzlTransitiveDigest": "Pwl3buD1so+kkqQIhc0set/YV3qQif9bq1U9dF30htA=",
-        "usagesDigest": "QJjhi7c9FFmJrjkITj56bPzqw32O69riIsN85ySNhX8=",
+        "usagesDigest": "O2WAEwf2A9vYMCIVm5sO/jGAjIeLr6RmCfA5yPGzstA=",
         "recordedFileInputs": {},
         "recordedDirentsInputs": {},
         "envVariables": {},

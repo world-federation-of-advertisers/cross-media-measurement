@@ -126,7 +126,10 @@ import org.wfanet.measurement.consent.client.dataprovider.encryptMetadata
 import org.wfanet.measurement.consent.client.dataprovider.verifyElGamalPublicKey
 import org.wfanet.measurement.consent.client.measurementconsumer.verifyEncryptionPublicKey
 import org.wfanet.measurement.dataprovider.DataProviderData
+import org.wfanet.measurement.dataprovider.MeasurementResults
+import org.wfanet.measurement.dataprovider.MeasurementResults.computeImpression
 import org.wfanet.measurement.dataprovider.RequisitionFulfiller
+import org.wfanet.measurement.dataprovider.RequisitionRefusalException
 import org.wfanet.measurement.eventdataprovider.eventfiltration.validation.EventFilterValidationException
 import org.wfanet.measurement.eventdataprovider.noiser.AbstractNoiser
 import org.wfanet.measurement.eventdataprovider.noiser.DirectNoiseMechanism
@@ -144,7 +147,6 @@ import org.wfanet.measurement.eventdataprovider.shareshuffle.v2alpha.FulfillRequ
 import org.wfanet.measurement.eventdataprovider.shareshuffle.v2alpha.VidIndexMap
 import org.wfanet.measurement.loadtest.common.sampleVids
 import org.wfanet.measurement.loadtest.config.TestIdentifiers.SIMULATOR_EVENT_GROUP_REFERENCE_ID_PREFIX
-import org.wfanet.measurement.loadtest.dataprovider.MeasurementResults.computeImpression
 
 /** A simulator handling EDP businesses. */
 class EdpSimulator(
@@ -355,7 +357,7 @@ class EdpSimulator(
                 parent = edpData.name
                 filter =
                   ListEventGroupsRequestKt.filter {
-                    measurementConsumers += measurementConsumerName
+                    measurementConsumerIn += measurementConsumerName
                   }
                 this.pageToken = pageToken
               }
@@ -414,9 +416,9 @@ class EdpSimulator(
   ) {
     if (protocol !in supportedProtocols) {
       logger.log(Level.WARNING, "Skipping $requsitionName: Protocol not supported.")
-      throw RequisitionRefusalException(
+      throw RequisitionRefusalException.Default(
         Requisition.Refusal.Justification.SPEC_INVALID,
-        "Protocol not supported.",
+        "Protocol not set or not supported.",
       )
     }
   }
@@ -491,7 +493,7 @@ class EdpSimulator(
       logger.log(Level.WARNING, e) {
         "Consent signaling verification failed for ${requisition.name}"
       }
-      throw RequisitionRefusalException(
+      throw RequisitionRefusalException.Default(
         Requisition.Refusal.Justification.CONSENT_SIGNAL_INVALID,
         e.message.orEmpty(),
       )
@@ -503,7 +505,7 @@ class EdpSimulator(
           Level.WARNING,
           "Two duchy entries are expected, but there are ${requisition.duchiesList.size}.",
         )
-        throw RequisitionRefusalException(
+        throw RequisitionRefusalException.Default(
           Requisition.Refusal.Justification.SPEC_INVALID,
           "Two duchy entries are expected, but there are ${requisition.duchiesList.size}.",
         )
@@ -519,7 +521,7 @@ class EdpSimulator(
           Level.WARNING,
           "Exactly one duchy entry is expected to have the encryption public key, but ${publicKeyList.size} duchy entries do.",
         )
-        throw RequisitionRefusalException(
+        throw RequisitionRefusalException.Default(
           Requisition.Refusal.Justification.SPEC_INVALID,
           "Exactly one duchy entry is expected to have the encryption public key, but ${publicKeyList.size} duchy entries do.",
         )
@@ -582,7 +584,7 @@ class EdpSimulator(
           try {
             verifySpecifications(requisition, measurementConsumerCertificate)
           } catch (e: InvalidConsentSignalException) {
-            throw RequisitionRefusalException(
+            throw RequisitionRefusalException.Default(
               Requisition.Refusal.Justification.CONSENT_SIGNAL_INVALID,
               e.message.orEmpty(),
               e,
@@ -595,41 +597,41 @@ class EdpSimulator(
         for (eventGroupEntry in requisitionSpec.events.eventGroupsList) {
           val eventGroupKey =
             EventGroupKey.fromName(eventGroupEntry.key)
-              ?: throw TestRequisitionRefusalException(
+              ?: throw RequisitionRefusalException.Test(
                 Requisition.Refusal.Justification.SPEC_INVALID,
                 "Invalid EventGroup resource name ${eventGroupEntry.key}",
               )
           val eventGroupId = eventGroupKey.eventGroupId
           if (eventGroupId == CONSENT_SIGNAL_INVALID_EVENT_GROUP_ID) {
-            throw TestRequisitionRefusalException(
+            throw RequisitionRefusalException.Test(
               Requisition.Refusal.Justification.CONSENT_SIGNAL_INVALID,
               "consent signal invalid",
             )
           }
 
           if (eventGroupId == SPEC_INVALID_EVENT_GROUP_ID) {
-            throw TestRequisitionRefusalException(
+            throw RequisitionRefusalException.Test(
               Requisition.Refusal.Justification.SPEC_INVALID,
               "spec invalid",
             )
           }
 
           if (eventGroupId == INSUFFICIENT_PRIVACY_BUDGET_EVENT_GROUP_ID) {
-            throw TestRequisitionRefusalException(
+            throw RequisitionRefusalException.Test(
               Requisition.Refusal.Justification.INSUFFICIENT_PRIVACY_BUDGET,
               "insufficient privacy budget",
             )
           }
 
           if (eventGroupId == UNFULFILLABLE_EVENT_GROUP_ID) {
-            throw TestRequisitionRefusalException(
+            throw RequisitionRefusalException.Test(
               Requisition.Refusal.Justification.UNFULFILLABLE,
               "unfulfillable",
             )
           }
 
           if (eventGroupId == DECLINED_EVENT_GROUP_ID) {
-            throw TestRequisitionRefusalException(
+            throw RequisitionRefusalException.Test(
               Requisition.Refusal.Justification.DECLINED,
               "declined",
             )
@@ -640,7 +642,7 @@ class EdpSimulator(
           try {
             buildEventGroupSpecs(requisitionSpec)
           } catch (e: InvalidSpecException) {
-            throw RequisitionRefusalException(
+            throw RequisitionRefusalException.Default(
               Requisition.Refusal.Justification.SPEC_INVALID,
               e.message.orEmpty(),
             )
@@ -700,14 +702,14 @@ class EdpSimulator(
               directProtocol,
             )
           } else {
-            throw RequisitionRefusalException(
+            throw RequisitionRefusalException.Default(
               Requisition.Refusal.Justification.SPEC_INVALID,
               "Measurement type not supported for direct fulfillment.",
             )
           }
         } else if (protocols.any { it.hasLiquidLegionsV2() }) {
           if (!measurementSpec.hasReach() && !measurementSpec.hasReachAndFrequency()) {
-            throw RequisitionRefusalException(
+            throw RequisitionRefusalException.Default(
               Requisition.Refusal.Justification.SPEC_INVALID,
               "Measurement type not supported for protocol llv2.",
             )
@@ -726,7 +728,7 @@ class EdpSimulator(
           )
         } else if (protocols.any { it.hasReachOnlyLiquidLegionsV2() }) {
           if (!measurementSpec.hasReach()) {
-            throw RequisitionRefusalException(
+            throw RequisitionRefusalException.Default(
               Requisition.Refusal.Justification.SPEC_INVALID,
               "Measurement type not supported for protocol rollv2.",
             )
@@ -745,7 +747,7 @@ class EdpSimulator(
           )
         } else if (protocols.any { it.hasHonestMajorityShareShuffle() }) {
           if (!measurementSpec.hasReach() && !measurementSpec.hasReachAndFrequency()) {
-            throw RequisitionRefusalException(
+            throw RequisitionRefusalException.Default(
               Requisition.Refusal.Justification.SPEC_INVALID,
               "Measurement type not supported for protocol hmss.",
             )
@@ -762,17 +764,17 @@ class EdpSimulator(
             eventGroupSpecs,
           )
         } else {
-          throw RequisitionRefusalException(
+          throw RequisitionRefusalException.Default(
             Requisition.Refusal.Justification.SPEC_INVALID,
             "Protocol not set or not supported.",
           )
         }
       } catch (e: RequisitionRefusalException) {
-        if (e !is TestRequisitionRefusalException) {
+        if (e !is RequisitionRefusalException.Test) {
           logger.log(Level.WARNING, e) { "Refusing Requisition ${requisition.name}" }
         }
 
-        refuseRequisition(requisition.name, e.justification, e.message)
+        refuseRequisition(requisition.name, e.justification, e.message!!)
       }
     }
   }
@@ -838,19 +840,19 @@ class EdpSimulator(
       logger.log(Level.WARNING, "chargeMpcPrivacyBudget failed due to ${e.errorType}", e)
       when (e.errorType) {
         PrivacyBudgetManagerExceptionType.PRIVACY_BUDGET_EXCEEDED -> {
-          throw RequisitionRefusalException(
+          throw RequisitionRefusalException.Default(
             Requisition.Refusal.Justification.INSUFFICIENT_PRIVACY_BUDGET,
             "Privacy budget exceeded",
           )
         }
         PrivacyBudgetManagerExceptionType.INVALID_PRIVACY_BUCKET_FILTER -> {
-          throw RequisitionRefusalException(
+          throw RequisitionRefusalException.Default(
             Requisition.Refusal.Justification.SPEC_INVALID,
             "Invalid event filter",
           )
         }
         PrivacyBudgetManagerExceptionType.INCORRECT_NOISE_MECHANISM -> {
-          throw RequisitionRefusalException(
+          throw RequisitionRefusalException.Default(
             Requisition.Refusal.Justification.SPEC_INVALID,
             "Incorrect noise mechanism. Should be DISCRETE_GAUSSIAN for ACDP composition but is $noiseMechanism",
           )
@@ -891,19 +893,19 @@ class EdpSimulator(
       logger.log(Level.WARNING, "chargeDirectPrivacyBudget failed due to ${e.errorType}", e)
       when (e.errorType) {
         PrivacyBudgetManagerExceptionType.PRIVACY_BUDGET_EXCEEDED -> {
-          throw RequisitionRefusalException(
+          throw RequisitionRefusalException.Default(
             Requisition.Refusal.Justification.INSUFFICIENT_PRIVACY_BUDGET,
             "Privacy budget exceeded",
           )
         }
         PrivacyBudgetManagerExceptionType.INVALID_PRIVACY_BUCKET_FILTER -> {
-          throw RequisitionRefusalException(
+          throw RequisitionRefusalException.Default(
             Requisition.Refusal.Justification.SPEC_INVALID,
             "Invalid event filter",
           )
         }
         PrivacyBudgetManagerExceptionType.INCORRECT_NOISE_MECHANISM -> {
-          throw RequisitionRefusalException(
+          throw RequisitionRefusalException.Default(
             Requisition.Refusal.Justification.SPEC_INVALID,
             "Incorrect noise mechanism. Should be GAUSSIAN for ACDP composition but is $directNoiseMechanism",
           )
@@ -1011,7 +1013,7 @@ class EdpSimulator(
           "RequisitionFulfillmentWorkflow failed due to invalid event filter",
           e,
         )
-        throw RequisitionRefusalException(
+        throw RequisitionRefusalException.Default(
           Requisition.Refusal.Justification.SPEC_INVALID,
           "Invalid event filter (${e.code}): ${e.code.description}",
         )
@@ -1071,7 +1073,7 @@ class EdpSimulator(
           "RequisitionFulfillmentWorkflow failed due to invalid event filter",
           e,
         )
-        throw RequisitionRefusalException(
+        throw RequisitionRefusalException.Default(
           Requisition.Refusal.Justification.SPEC_INVALID,
           "Invalid event filter (${e.code}): ${e.code.description}",
         )
@@ -1265,7 +1267,7 @@ class EdpSimulator(
         "RequisitionFulfillmentWorkflow failed due to invalid event filter",
         e,
       )
-      throw RequisitionRefusalException(
+      throw RequisitionRefusalException.Default(
         Requisition.Refusal.Justification.SPEC_INVALID,
         "Invalid event filter (${e.code}): ${e.code.description}",
       )
@@ -1384,13 +1386,13 @@ class EdpSimulator(
     return when (measurementSpec.measurementTypeCase) {
       MeasurementSpec.MeasurementTypeCase.REACH_AND_FREQUENCY -> {
         if (!directProtocolConfig.hasDeterministicCountDistinct()) {
-          throw RequisitionRefusalException(
+          throw RequisitionRefusalException.Default(
             Requisition.Refusal.Justification.DECLINED,
             "No valid methodologies for direct reach computation.",
           )
         }
         if (!directProtocolConfig.hasDeterministicDistribution()) {
-          throw RequisitionRefusalException(
+          throw RequisitionRefusalException.Default(
             Requisition.Refusal.Justification.DECLINED,
             "No valid methodologies for direct frequency distribution computation.",
           )
@@ -1435,7 +1437,7 @@ class EdpSimulator(
       }
       MeasurementSpec.MeasurementTypeCase.IMPRESSION -> {
         if (!directProtocolConfig.hasDeterministicCount()) {
-          throw RequisitionRefusalException(
+          throw RequisitionRefusalException.Default(
             Requisition.Refusal.Justification.DECLINED,
             "No valid methodologies for impression computation.",
           )
@@ -1484,7 +1486,7 @@ class EdpSimulator(
       }
       MeasurementSpec.MeasurementTypeCase.REACH -> {
         if (!directProtocolConfig.hasDeterministicCountDistinct()) {
-          throw RequisitionRefusalException(
+          throw RequisitionRefusalException.Default(
             Requisition.Refusal.Justification.DECLINED,
             "No valid methodologies for direct reach computation.",
           )
@@ -1527,7 +1529,7 @@ class EdpSimulator(
     val preferences = DIRECT_MEASUREMENT_ACDP_NOISE_MECHANISM_PREFERENCES
 
     return preferences.firstOrNull { preference -> options.contains(preference) }
-      ?: throw RequisitionRefusalException(
+      ?: throw RequisitionRefusalException.Default(
         Requisition.Refusal.Justification.SPEC_INVALID,
         "No valid noise mechanism option for reach or frequency measurements.",
       )
@@ -1543,7 +1545,7 @@ class EdpSimulator(
     val preferences = DIRECT_MEASUREMENT_ACDP_NOISE_MECHANISM_PREFERENCES
 
     return preferences.firstOrNull { preference -> options.contains(preference) }
-      ?: throw RequisitionRefusalException(
+      ?: throw RequisitionRefusalException.Default(
         Requisition.Refusal.Justification.SPEC_INVALID,
         "No valid noise mechanism option for impression measurements.",
       )
@@ -1560,7 +1562,7 @@ class EdpSimulator(
     val preferences = DIRECT_MEASUREMENT_ACDP_NOISE_MECHANISM_PREFERENCES
 
     return preferences.firstOrNull { preference -> options.contains(preference) }
-      ?: throw RequisitionRefusalException(
+      ?: throw RequisitionRefusalException.Default(
         Requisition.Refusal.Justification.SPEC_INVALID,
         "No valid noise mechanism option for watch duration measurements.",
       )

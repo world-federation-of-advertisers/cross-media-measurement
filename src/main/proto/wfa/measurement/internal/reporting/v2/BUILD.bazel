@@ -95,6 +95,7 @@ proto_and_kt_jvm_proto_library(
     name = "metric",
     deps = [
         ":measurement_proto",
+        "@com_google_googleapis//google/api:resource_proto",
         "@com_google_googleapis//google/type:interval_proto",
         "@com_google_protobuf//:duration_proto",
         "@com_google_protobuf//:timestamp_proto",
@@ -117,6 +118,7 @@ proto_and_kt_jvm_proto_library(
     name = "metric_calculation_spec",
     deps = [
         ":metric_proto",
+        "@com_google_googleapis//google/api:resource_proto",
         "@com_google_googleapis//google/type:dayofweek_proto",
     ],
 )

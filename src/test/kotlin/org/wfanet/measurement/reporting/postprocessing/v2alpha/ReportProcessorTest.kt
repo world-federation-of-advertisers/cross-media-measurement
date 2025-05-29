@@ -77,8 +77,7 @@ class ReportProcessorTest {
       ReportConversion.getReportFromJsonString(reportProcessingOutput.updatedReportJson)
     assertThat(updatedReport.hasConsistentMeasurements()).isTrue()
 
-    val expectedBlobKey =
-      "bucketName/20241213/20241213102410_c8f5ab1b95b44c0691f44111700054c3.textproto"
+    val expectedBlobKey = "20241213/20241213102410_c8f5ab1b95b44c0691f44111700054c3.textproto"
     assertThat(inMemoryStorageClient.contents).containsKey(expectedBlobKey)
 
     assertThat(
@@ -104,8 +103,7 @@ class ReportProcessorTest {
       ReportConversion.getReportFromJsonString(reportProcessingOutput.updatedReportJson)
     assertThat(updatedReport.hasConsistentMeasurements()).isTrue()
 
-    val expectedBlobKey =
-      "bucketName/20250206/20250206144635_bd39d48654554a83ba9c8534a5bb7502.textproto"
+    val expectedBlobKey = "20250206/20250206144635_bd39d48654554a83ba9c8534a5bb7502.textproto"
 
     assertThat(inMemoryStorageClient.contents).containsKey(expectedBlobKey)
 
@@ -134,8 +132,7 @@ class ReportProcessorTest {
         ReportConversion.getReportFromJsonString(reportProcessingOutput.updatedReportJson)
       assertThat(updatedReport.hasConsistentMeasurements()).isTrue()
 
-      val expectedBlobKey =
-        "bucketName/20240913/20240913151951_a9c1a2b3fc74ebf8c5ab81d7763aa70.textproto"
+      val expectedBlobKey = "20240913/20240913151951_a9c1a2b3fc74ebf8c5ab81d7763aa70.textproto"
 
       assertThat(inMemoryStorageClient.contents).containsKey(expectedBlobKey)
 
@@ -150,6 +147,19 @@ class ReportProcessorTest {
   @Test
   fun `run correct report without logging with custom policy successfully`() {
     val reportFile = TEST_DATA_RUNTIME_DIR.resolve("sample_report_with_custom_policy.json").toFile()
+    val reportAsJson = reportFile.readText()
+
+    val report = ReportConversion.getReportFromJsonString(reportAsJson)
+    assertThat(report.hasConsistentMeasurements()).isFalse()
+
+    val updatedReportAsJson = ReportProcessor.processReportJson(reportAsJson)
+    val updatedReport = ReportConversion.getReportFromJsonString(updatedReportAsJson)
+    assertThat(updatedReport.hasConsistentMeasurements()).isTrue()
+  }
+
+  @Test
+  fun `run correct reach only report successfully`() {
+    val reportFile = TEST_DATA_RUNTIME_DIR.resolve("sample_reach_only_report.json").toFile()
     val reportAsJson = reportFile.readText()
 
     val report = ReportConversion.getReportFromJsonString(reportAsJson)
@@ -303,6 +313,19 @@ class ReportProcessorTest {
             totalMeasurements[edpCombination]!!.toDouble(),
             kreachSum.toDouble(),
             kreach[edpCombination]!!.size * TOLERANCE,
+          )
+        ) {
+          return false
+        }
+      }
+
+      // Verifies that the relationship between total reach and impression holds.
+      for (edpCombination in impression.keys.intersect(totalMeasurements.keys)) {
+        if (
+          !fuzzyLessEqual(
+            totalMeasurements[edpCombination]!!.toDouble(),
+            impression[edpCombination]!!.toDouble(),
+            TOLERANCE,
           )
         ) {
           return false
