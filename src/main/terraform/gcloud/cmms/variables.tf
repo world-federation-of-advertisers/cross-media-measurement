@@ -101,3 +101,17 @@ variable "terraform_service_account" {
   type        = string
   nullable    = false
 }
+
+variable "edpa_secrets" {
+  description = "Secrets JSON string passed from GitHub variable"
+  type        = string
+}
+
+variable "edpa_secret_accessor_configs" {
+  description = "JSON-encoded map of secret accessor configs"
+  type        = string
+}
+
+variable "requisition_fulfiller_secrets_to_mount" {
+  type = string
+}

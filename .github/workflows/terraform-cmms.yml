@@ -82,6 +82,9 @@ jobs:
         TERRAFORM_SERVICE_ACCOUNT: ${{ vars.TF_SERVICE_ACCOUNT }}
         POSTGRES_INSTANCE: ${{ vars.POSTGRES_INSTANCE }}
         POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+        EDP_AGGREGATOR_SECRET_ACCESSOR_CONFIG: ${{ vars.EDP_AGGREGATOR_SECRET_ACCESSOR_CONFIG }}
+        EDP_AGGREGATOR_SECRETS: ${{ vars.EDP_AGGREGATOR_SECRETS }}
+        REQUISITION_FULFILLER_SECRETS_TO_MOUNT: ${{ secrets.REQUISITION_FULFILLER_SECRETS_TO_MOUNT }}
       working-directory: ${{ env.GCLOUD_MODULE_PATH }}
       run: >
         terraform plan
@@ -94,6 +97,9 @@ jobs:
         -var="terraform_service_account=$TERRAFORM_SERVICE_ACCOUNT"
         -var="postgres_instance_name=$POSTGRES_INSTANCE"
         -var="postgres_password=$POSTGRES_PASSWORD"
+        -var="edpa_secrets=$EDP_AGGREGATOR_SECRETS"
+        -var="edpa_secret_accessor_configs=$EDP_AGGREGATOR_SECRET_ACCESSOR_CONFIG"
+        -var="requisition_fulfiller_secrets_to_mount=$REQUISITION_FULFILLER_SECRETS_TO_MOUNT"
         -out=tfplan
 
     - name: terraform apply

@@ -13,86 +13,16 @@
 # limitations under the License.
 
 locals {
+  raw_secrets = jsondecode(var.edpa_secrets)
+
   secrets = {
-    edpa_tee_app_tls_key = {
-      secret_id         = "edpa-tee-app-tls-key-4"
-      secret_local_path = "${path.root}/../../../k8s/testing/secretfiles/edpa_tee_app_tls.key"
-      is_binary_format  = false
-    }
-    edpa_tee_app_tls_pem = {
-      secret_id         = "edpa-tee-app-tls-pem-4"
-      secret_local_path = "${path.root}/../../../k8s/testing/secretfiles/edpa_tee_app_tls.pem"
-      is_binary_format  = false
-    }
-    data_watcher_tls_key = {
-      secret_id         = "edpa-datawatcher-tls-key-4"
-      secret_local_path = "${path.root}/../../../k8s/testing/secretfiles/data_watcher_tls.key"
-      is_binary_format  = false
-    }
-    data_watcher_tls_pem = {
-      secret_id         = "edpa-datawatcher-tls-pem-4"
-      secret_local_path = "${path.root}/../../../k8s/testing/secretfiles/data_watcher_tls.pem"
-      is_binary_format  = false
-    }
-    secure_computation_root_ca = {
-      secret_id         = "secure-computation-root-ca-4"
-      secret_local_path = "${path.root}/../../../k8s/testing/secretfiles/secure_computation_root.pem"
-      is_binary_format  = false
-    }
-    kingdom_root_ca = {
-      secret_id         = "kingdom-root-ca-4"
-      secret_local_path = "${path.root}/../../../k8s/testing/secretfiles/kingdom_root.pem"
-      is_binary_format  = false
-    }
-    edp7_cert_der = {
-      secret_id         = "edp7-cert-der-6"
-      secret_local_path = "${path.root}/../../../k8s/testing/secretfiles/edp7_cs_cert.der"
-      is_binary_format  = true
-    }
-    edp7_private_der = {
-      secret_id         = "edp7-private-der-6"
-      secret_local_path = "${path.root}/../../../k8s/testing/secretfiles/edp7_cs_private.der"
-      is_binary_format  = true
-    }
-    edp7_enc_private = {
-      secret_id         = "edp7-enc-private-4"
-      secret_local_path = "${path.root}/../../../k8s/testing/secretfiles/edp7_enc_private.tink"
-      is_binary_format  = true
-    }
-    edp7_tls_key = {
-      secret_id         = "edp7-tls-key-4"
-      secret_local_path = "${path.root}/../../../k8s/testing/secretfiles/edp7_tls.key"
-      is_binary_format  = false
-    }
-    edp7_tls_pem = {
-      secret_id         = "edp7-tls-pem-4"
-      secret_local_path = "${path.root}/../../../k8s/testing/secretfiles/edp7_tls.pem"
-      is_binary_format  = false
+    for key, value in local.raw_secrets : key => {
+      secret_id         = value.secret_id
+      secret_local_path = "${path.root}/${value.secret_local_path}"
+      is_binary_format  = value.is_binary_format
     }
   }
-  secret_accessor_configs = {
-    data_watcher = {
-      secrets_to_access = [
-        { secret_key = "secure_computation_root_ca" },
-        { secret_key = "data_watcher_tls_key" },
-        { secret_key = "data_watcher_tls_pem" }
-      ]
-    },
-    requisition_fetcher = {
-      secrets_to_access = [
-        { secret_key = "kingdom_root_ca" },
-        { secret_key = "edp7_tls_key" },
-        { secret_key = "edp7_tls_pem" }
-      ]
-    },
-    event_group_sync = {
-      secrets_to_access = [
-        { secret_key = "kingdom_root_ca" },
-        { secret_key = "edp7_tls_key" },
-        { secret_key = "edp7_tls_pem" }
-      ]
-    }
-  }
+  secret_accessor_configs = jsondecode(var.edpa_secret_accessor_configs)
   queue_worker_configs = {
     requisition_fulfiller = {
       queue = {
@@ -118,57 +48,7 @@ locals {
         ]
         machine_type                = "n2d-standard-2"
         docker_image                = "ghcr.io/world-federation-of-advertisers/edp-aggregator/results_fulfiller:a25ce11fa004967647cf6b2bdb237e8fa9a24849"
-        secrets_to_mount            = [
-          {
-            secret_key              = "edpa_tee_app_tls_key"
-            version                 = "latest"
-            mount_path              = "/etc/ssl/edpa_tee_app_tls.key"
-            flag_name               = "--edpa-tls-key-file-path"
-          },
-          {
-            secret_key              = "edpa_tee_app_tls_pem"
-            version                 = "latest"
-            mount_path              = "/etc/ssl/edpa_tee_app_tls.pem"
-            flag_name               = "--edpa-tls-cert-file-path"
-          },
-          {
-            secret_key              = "secure_computation_root_ca"
-            version                 = "latest"
-            mount_path              = "/etc/ssl/secure_computation_root.pem"
-            flag_name               = "--secure-computation-cert-collection-file-path"
-          },
-          {
-            secret_key              = "kingdom_root_ca"
-            version                 = "latest"
-            mount_path              = "/etc/ssl/kingdom_root.pem"
-            flag_name               = "--kingdom-cert-collection-file-path"
-          },
-          {
-            secret_key              = "edp7_cert_der"
-            version                 = "latest"
-            mount_path              = "/etc/ssl/edp7_cs_cert.der"
-          },
-          {
-            secret_key              = "edp7_private_der"
-            version                 = "latest"
-            mount_path              = "/etc/ssl/edp7_cs_private.der"
-          },
-          {
-            secret_key              = "edp7_enc_private"
-            version                 = "latest"
-            mount_path              = "/etc/ssl/edp7_enc_private.tink"
-          },
-          {
-            secret_key              = "edp7_tls_key"
-            version                 = "latest"
-            mount_path              = "/etc/ssl/edp7_tls.key"
-          },
-          {
-            secret_key              = "edp7_tls_pem"
-            version                 = "latest"
-            mount_path              = "/etc/ssl/edp7_tls.pem"
-          },
-        ]
+        secrets_to_mount            = jsondecode(var.requisition_fulfiller_secrets_to_mount)
       }
     }
   }
