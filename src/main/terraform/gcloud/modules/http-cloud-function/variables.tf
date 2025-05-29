@@ -18,6 +18,12 @@ variable "http_cloud_function_service_account_name" {
   nullable    = false
 }
 
+variable "bucket_name" {
+  description = "The name of the Google Cloud Storage bucket that triggers to read and write data into."
+  type        = string
+  nullable    = false
+}
+
 variable "terraform_service_account" {
   description = "Service account used by terraform that needs to attach the MIG service account to the VM."
   type        = string

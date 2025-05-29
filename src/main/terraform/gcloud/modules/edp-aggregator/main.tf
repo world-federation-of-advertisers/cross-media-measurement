@@ -37,24 +37,6 @@ module "secure_computation_root_ca" {
   secret_path = var.secure_computation_root_ca_path
 }
 
-module "edp7_private_key" {
-  source    = "../secret"
-  secret_id = var.edp7_private_key_id
-  secret_path = var.edp7_private_key_path
-}
-
-module "edp7_cert" {
-  source    = "../secret"
-  secret_id = var.edp7_cert_id
-  secret_path = var.edp7_cert_path
-}
-
-module "kingdom_root_ca" {
-  source    = "../secret"
-  secret_id = var.kingdom_root_ca_id
-  secret_path = var.kingdom_root_ca_path
-}
-
 module "data_watcher_function_service_accounts" {
   source    = "../gcs-bucket-cloud-function"
 
@@ -68,13 +50,7 @@ module "requisition_fetcher_function_service_account" {
   source    = "../http-cloud-function"
 
   http_cloud_function_service_account_name  = var.requisition_fetcher_service_account_name
-  terraform_service_account                 = var.terraform_service_account
-}
-
-module "event_group_sync_function_service_account" {
-  source    = "../http-cloud-function"
-
-  http_cloud_function_service_account_name  = var.event_group_sync_service_account_name
+  bucket_name                               = module.edp_aggregator_bucket.storage_bucket.name
   terraform_service_account                 = var.terraform_service_account
 }
 
@@ -174,16 +150,4 @@ resource "google_storage_bucket_iam_member" "requisition_fetcher_storage_creator
   bucket = module.edp_aggregator_bucket.storage_bucket.name
   role   = "roles/storage.objectCreator"
   member = "serviceAccount:${module.requisition_fetcher_function_service_account.cloud_function_service_account.email}"
-}
-
-resource "google_storage_bucket_iam_member" "event_group_sync_storage_viewer" {
-  bucket = module.edp_aggregator_bucket.storage_bucket.name
-  role   = "roles/storage.objectViewer"
-  member = "serviceAccount:${module.event_group_sync_function_service_account.cloud_function_service_account.email}"
-}
-
-resource "google_storage_bucket_iam_member" "event_group_sync_storage_creator" {
-  bucket = module.edp_aggregator_bucket.storage_bucket.name
-  role   = "roles/storage.objectCreator"
-  member = "serviceAccount:${module.event_group_sync_function_service_account.cloud_function_service_account.email}"
 }
