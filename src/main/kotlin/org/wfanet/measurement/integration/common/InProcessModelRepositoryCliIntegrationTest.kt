@@ -16,6 +16,9 @@
 
 package org.wfanet.measurement.integration.common
 
+import org.wfanet.measurement.internal.kingdom.ModelProvider as InternalModelProvider
+import org.wfanet.measurement.internal.kingdom.ModelProvidersGrpcKt as InternalModelProvidersGrpc
+import org.wfanet.measurement.internal.kingdom.ModelSuitesGrpcKt as InternalModelSuitesGrpc
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import io.grpc.Channel
 import io.grpc.ManagedChannel
@@ -29,7 +32,7 @@ import org.junit.ClassRule
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TestRule
-import org.wfanet.measurement.api.v2alpha.ExternalModelProviderIdPrincipalLookup
+import org.wfanet.measurement.api.v2alpha.AkidPrincipalLookup
 import org.wfanet.measurement.api.v2alpha.ListModelSuitesPageTokenKt.previousPageEnd
 import org.wfanet.measurement.api.v2alpha.ListModelSuitesResponse
 import org.wfanet.measurement.api.v2alpha.ModelProviderKey
@@ -41,9 +44,11 @@ import org.wfanet.measurement.api.v2alpha.createModelSuiteRequest
 import org.wfanet.measurement.api.v2alpha.listModelSuitesPageToken
 import org.wfanet.measurement.api.v2alpha.listModelSuitesResponse
 import org.wfanet.measurement.api.v2alpha.modelSuite
-import org.wfanet.measurement.api.v2alpha.withModelProviderPrincipalsFromExternalIds
+import org.wfanet.measurement.api.v2alpha.withPrincipalsFromX509AuthorityKeyIdentifiers
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.crypto.SigningCerts
+import org.wfanet.measurement.common.crypto.authorityKeyIdentifier
+import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.grpc.CommonServer
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
@@ -54,10 +59,9 @@ import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.testing.CommandLineTesting
 import org.wfanet.measurement.common.testing.ProviderRule
 import org.wfanet.measurement.common.testing.chainRulesSequentially
+import org.wfanet.measurement.config.AuthorityKeyToPrincipalMapKt
+import org.wfanet.measurement.config.authorityKeyToPrincipalMap
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
-import org.wfanet.measurement.internal.kingdom.ModelProvider as InternalModelProvider
-import org.wfanet.measurement.internal.kingdom.ModelProvidersGrpcKt as InternalModelProvidersGrpc
-import org.wfanet.measurement.internal.kingdom.ModelSuitesGrpcKt as InternalModelSuitesGrpc
 import org.wfanet.measurement.internal.kingdom.modelProvider
 import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
 import org.wfanet.measurement.kingdom.deploy.common.service.toList
@@ -99,17 +103,25 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
     val modelProviderApiId = externalIdToApiId(internalModelProvider.externalModelProviderId)
     modelProviderName = ModelProviderKey(modelProviderApiId).toName()
 
-    val principalLookup = ExternalModelProviderIdPrincipalLookup()
+    val principalLookup =
+      AkidPrincipalLookup(
+        config =
+          authorityKeyToPrincipalMap {
+            entries +=
+              AuthorityKeyToPrincipalMapKt.entry {
+                authorityKeyIdentifier =
+                  readCertificate(KINGDOM_TLS_CERT_FILE).authorityKeyIdentifier!!
+                principalResourceName = modelProviderName
+              }
+          }
+      )
 
     val internalModelSuitesClient =
       InternalModelSuitesGrpc.ModelSuitesCoroutineStub(internalChannel)
 
     val publicModelSuitesServices =
       ModelSuitesService(internalModelSuitesClient)
-        .withModelProviderPrincipalsFromExternalIds(
-          internalModelProvider.externalModelProviderId,
-          principalLookup,
-        )
+        .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup)
     val services = listOf(publicModelSuitesServices)
 
     val serverCerts =
@@ -124,7 +136,7 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
         verboseGrpcLogging = true,
         certs = kingdomSigningCerts,
         clientAuth = ClientAuth.REQUIRE,
-        nameForLogging = "model-repository-cli-test-public",
+        nameForLogging = "model-repository-cli-integration-test",
         services = services,
       )
     server.start()
@@ -147,8 +159,7 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
 
   @After
   fun shutdownServer() {
-    server.shutdown()
-    server.blockUntilShutdown()
+    server.close()
   }
 
   @Test
