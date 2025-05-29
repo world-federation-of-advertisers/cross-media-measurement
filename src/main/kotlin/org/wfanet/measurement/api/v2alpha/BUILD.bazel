@@ -10,15 +10,6 @@ package_group(
     ],
 )
 
-kt_jvm_library(
-    name = "external_id_principal_lookup",
-    srcs = ["ExternalIdPrincipalLookup.kt"],
-    deps = [
-        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:measurement_principal",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/identity",
-    ],
-)
-
 package_group(
     name = "kingdom",
     packages = [
@@ -62,7 +53,6 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:context_keys",
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:measurement_principal",
         "//src/main/kotlin/org/wfanet/measurement/common/api/grpc:akid_principal_server_interceptor",
-        "//src/main/kotlin/org/wfanet/measurement/common/api/grpc:external_id_principal_server_interceptor",
         "//src/main/kotlin/org/wfanet/measurement/common/grpc:context",
         "//src/main/kotlin/org/wfanet/measurement/common/identity",
         "//src/main/proto/wfa/measurement/api/v2alpha:duchy_kt_jvm_proto",
