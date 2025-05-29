@@ -327,8 +327,8 @@
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/consent-signaling-client/0.22.0/MODULE.bazel": "6437a69ac68ec8e3589d595a5ed79d3f6404510124e455838ce9cf51b8b27d52",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/consent-signaling-client/0.22.0/source.json": "844344f41ae9b780cfb0452438388465d3cf7c7b5accedb1fcc4900ace5111ca",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/cross-media-measurement-api/0.62.0/MODULE.bazel": "ff213234cf605ff0cf7dc5d55b0e1d0aab7df065f32759e6e64d2d1315110b18",
-    "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/cross-media-measurement-api/0.76.0/MODULE.bazel": "747462363b4bf421d75e3ceedb59fb84846ccfe2a1cbad3cf24e636f89295f60",
-    "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/cross-media-measurement-api/0.76.0/source.json": "6677880dc43ba2a54711ee0aeaddbbfde2877c3a11ad18a3e745d3613894f5c6",
+    "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/cross-media-measurement-api/0.78.0.bzlmod.2/MODULE.bazel": "aa64d0069274ac2b0f1e8c93e4db10947e7f1369e68a709a355884701cbd0a92",
+    "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/cross-media-measurement-api/0.78.0.bzlmod.2/source.json": "5787828eced64aa14bca9b241e45c6a88c61fcc98f1674829a5f39614ff1f7cb",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/gazelle/0.27.0/MODULE.bazel": "not found",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/gazelle/0.30.0/MODULE.bazel": "not found",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/gazelle/0.32.0/MODULE.bazel": "not found",
@@ -1164,7 +1164,7 @@
     "@@cross-media-measurement-api~//build:non_module_deps.bzl%non_module_deps": {
       "general": {
         "bzlTransitiveDigest": "R+oKPToJy5pjlpXuN6LkhlOZ0PtXjtvDLGNadJgQnf8=",
-        "usagesDigest": "mwIUP9sUuxfBOi/SobUCv0xt1It0kvu/rCak/W29E7w=",
+        "usagesDigest": "UXOttbf8eNVFtIf8f1cE/XhpplC3wpsK6iC4eqb5ubs=",
         "recordedFileInputs": {},
         "recordedDirentsInputs": {},
         "envVariables": {},

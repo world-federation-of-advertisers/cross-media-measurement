@@ -26,6 +26,7 @@ option java_multiple_files = true;
 // Internal service for persistence of ModelLine entities.
 service ModelLines {
   rpc CreateModelLine(ModelLine) returns (ModelLine);
+  rpc GetModelLine(GetModelLineRequest) returns (ModelLine);
   // Streams `ModelLine`s.
   rpc StreamModelLines(StreamModelLinesRequest) returns (stream ModelLine);
 
@@ -40,6 +41,12 @@ service ModelLines {
   // to `HOLDBACK` to `DEV`, `active_start_time` descending.
   rpc EnumerateValidModelLines(EnumerateValidModelLinesRequest)
       returns (EnumerateValidModelLinesResponse);
+}
+
+message GetModelLineRequest {
+  fixed64 external_model_provider_id = 1;
+  fixed64 external_model_suite_id = 2;
+  fixed64 external_model_line_id = 3;
 }
 
 message StreamModelLinesRequest {

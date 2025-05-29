@@ -37,6 +37,7 @@ import org.mockito.kotlin.any
 import org.mockito.kotlin.stub
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
+import org.mockito.kotlin.wheneverBlocking
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.ListModelLinesPageTokenKt.previousPageEnd
 import org.wfanet.measurement.api.v2alpha.ListModelLinesRequest
@@ -50,6 +51,7 @@ import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.createModelLineRequest
 import org.wfanet.measurement.api.v2alpha.enumerateValidModelLinesRequest
 import org.wfanet.measurement.api.v2alpha.enumerateValidModelLinesResponse
+import org.wfanet.measurement.api.v2alpha.getModelLineRequest
 import org.wfanet.measurement.api.v2alpha.listModelLinesPageToken
 import org.wfanet.measurement.api.v2alpha.listModelLinesRequest
 import org.wfanet.measurement.api.v2alpha.listModelLinesResponse
@@ -82,6 +84,7 @@ import org.wfanet.measurement.internal.kingdom.StreamModelLinesRequestKt.filter 
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.enumerateValidModelLinesRequest as internalEnumerateValidModelLinesRequest
 import org.wfanet.measurement.internal.kingdom.enumerateValidModelLinesResponse as internalEnumerateValidModelLinesResponse
+import org.wfanet.measurement.internal.kingdom.getModelLineRequest as internalGetModelLineRequest
 import org.wfanet.measurement.internal.kingdom.modelLine as internalModelLine
 import org.wfanet.measurement.internal.kingdom.setActiveEndTimeRequest as internalsetActiveEndTimeRequest
 import org.wfanet.measurement.internal.kingdom.setModelLineHoldbackModelLineRequest as internalSetModelLineHoldbackModelLineRequest
@@ -333,6 +336,69 @@ class ModelLinesServiceTest {
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+  }
+
+  @Test
+  fun `getModelLine returns model line successfully`() {
+    wheneverBlocking { internalModelLinesMock.getModelLine(any()) }.thenReturn(INTERNAL_MODEL_LINE)
+
+    val modelLine =
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+        runBlocking { service.getModelLine(getModelLineRequest { name = MODEL_LINE_NAME }) }
+      }
+
+    assertThat(modelLine).isEqualTo(MODEL_LINE)
+
+    verifyProtoArgument(internalModelLinesMock, ModelLinesCoroutineImplBase::getModelLine)
+      .isEqualTo(
+        internalGetModelLineRequest {
+          externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
+          externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
+          externalModelLineId = EXTERNAL_MODEL_LINE_ID
+        }
+      )
+  }
+
+  @Test
+  fun `getModelLine throws INVALID_ARGUMENT when name invalid`() {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+          runBlocking { service.getModelLine(getModelLineRequest { name = "123" }) }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.INVALID_ARGUMENT.code)
+  }
+
+  @Test
+  fun `getModelLine throws UNAUTHENTICATED when missing principal`() {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        runBlocking {
+          service.getModelLine(
+            getModelLineRequest { name = "modelProviders/1/modelSuites/2/modelLines/3" }
+          )
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.UNAUTHENTICATED.code)
+  }
+
+  @Test
+  fun `getModelLine throws PERMISSION_DENIED when model provider caller doesn't match`() {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withModelProviderPrincipal("modelProviders/2") {
+          runBlocking {
+            service.getModelLine(
+              getModelLineRequest { name = "modelProviders/1/modelSuites/2/modelLines/3" }
+            )
+          }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
   }
 
   @Test
