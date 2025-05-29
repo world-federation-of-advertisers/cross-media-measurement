@@ -353,6 +353,5 @@ class EventGroupSyncFunctionTest() {
           mediaTypes += listOf(MediaType.OTHER)
         },
       )
-
   }
 }
