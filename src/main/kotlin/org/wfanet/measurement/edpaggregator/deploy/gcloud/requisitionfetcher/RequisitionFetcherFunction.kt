@@ -37,6 +37,7 @@ class RequisitionFetcherFunction : HttpFunction {
 
   override fun service(request: HttpRequest, response: HttpResponse) {
     for (dataProviderConfig in requisitionFetcherConfig.configsList) {
+
       val fileSystemPath = System.getenv("REQUISITION_FILE_SYSTEM_PATH")
       // 'FileSystemStorageClient' is used for testing purposes only and used by
       // [RequisitionFetcherFunctionTest]
@@ -96,7 +97,7 @@ class RequisitionFetcherFunction : HttpFunction {
     private val CLASS_LOADER: ClassLoader = RequisitionFetcherFunction::class.java.classLoader
     private val requisitionFetcherConfigResourcePath: String
       get() = System.getenv("REQUISITION_FETCHER_CONFIG")
-        ?: "edpaggregator/requisitionfetcher/requisition_fetcher_config_cloud_test.textproto"//    private val requisitionFetcherConfigResourcePath = "edpaggregator/requisitionfetcher/requisition_fetcher_config_cloud_test.textproto"
+        ?: "edpaggregator/requisitionfetcher/requisition_fetcher_config_cloud_test.textproto"
     private val config by lazy {
       checkNotNull(CLASS_LOADER.getJarResourceFile(requisitionFetcherConfigResourcePath))
     }

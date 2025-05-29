@@ -56,7 +56,7 @@ class RequisitionFetcher(
    */
   suspend fun fetchAndStoreRequisitions() {
     logger.info("Executing requisitionFetchingWorkflow for $dataProviderName...")
-    println("~~>>>>>>>>>>>>>>>>> 1")
+
     var requisitionsCount = 0
 
     // TODO(world-federation-of-advertisers/cross-media-measurement#2095): Update logic once we have
@@ -64,7 +64,6 @@ class RequisitionFetcher(
     val requisitions: Flow<Requisition> =
       requisitionsStub
         .listResources { pageToken: String ->
-          println("~~>>>>>>>>>>>>>>>>> 2")
           val request = listRequisitionsRequest {
             parent = dataProviderName
             filter = ListRequisitionsRequestKt.filter { states += Requisition.State.UNFULFILLED }
@@ -75,7 +74,6 @@ class RequisitionFetcher(
           }
           val response: ListRequisitionsResponse =
             try {
-              println("~~>>>>>>>>>>>>>>>>> 3")
               requisitionsStub.listRequisitions(request)
             } catch (e: StatusException) {
               throw Exception("Error listing requisitions", e)
@@ -84,7 +82,7 @@ class RequisitionFetcher(
           ResourceList(response.requisitionsList, response.nextPageToken)
         }
         .flattenConcat()
-    println("~~>>>>>>>>>>>>>>>>> 4: ${requisitions}")
+
     val storedRequisitions: Int = storeRequisitions(requisitions)
 
     logger.fine {
@@ -105,21 +103,17 @@ class RequisitionFetcher(
    */
   private suspend fun storeRequisitions(requisitions: Flow<Requisition>): Int {
     var storedRequisitions = 0
-    println("~~~~~~~~~~>>>>>>>>>>>>> |||| 1")
     requisitions.collect { requisition ->
-      println("~~~~~~~~~~>>>>>>>>>>>>> |||| 2")
       val blobKey = "$storagePathPrefix/${requisition.name}"
 
       // Only stores the requisition if it does not already exist in storage by checking if
       // the blob key(created using the requisition name, ensuring uniqueness) is populated.
-      println("~~~~~~~~~~>>>>>>>>>>>>> |||| 3")
       if (storageClient.getBlob(blobKey) == null) {
-        println("~~~~~~~~~~>>>>>>>>>>>>> |||| 4 blobkey: ${blobKey}")
         storageClient.writeBlob(blobKey, Any.pack(requisition).toByteString())
         storedRequisitions += 1
       }
     }
-    println("~~~~~~~~~~>>>>>>>>>>>>> |||| 5: ${storedRequisitions}")
+
     return storedRequisitions
   }
 
