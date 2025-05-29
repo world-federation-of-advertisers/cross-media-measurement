@@ -494,10 +494,10 @@ class RequisitionStateIllegalException(
 class RequisitionEtagMismatchException(
   val requestedEtag: String,
   val actualEtag: String,
-  provideDescription: () -> String = { "Measurement etag mismatch" },
-) : KingdomInternalException(ErrorCode.REQUISITION_ETAG_MISMATCH, provideDescription) {
+  message: String = "Request etag $requestedEtag does not match actual etag $actualEtag",
+) : KingdomInternalException(ErrorCode.REQUISITION_ETAG_MISMATCH, message) {
   override val context
-    get() = mapOf("actual_etag" to requestedEtag, "request_etag" to actualEtag)
+    get() = mapOf("request_etag" to requestedEtag, "actual_etag" to actualEtag)
 }
 
 class AccountNotFoundException(

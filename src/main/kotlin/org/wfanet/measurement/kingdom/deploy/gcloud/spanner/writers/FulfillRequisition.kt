@@ -63,7 +63,7 @@ class FulfillRequisition(private val request: FulfillRequisitionRequest) :
     val readResult: RequisitionReader.Result = readRequisition()
     val (measurementConsumerId, measurementId, requisitionId, requisition) = readResult
 
-    if (request.etag.isNotBlank()) {
+    if (request.etag.isNotEmpty()) {
       val currentEtag = ETags.computeETag(requisition.updateTime.toGcloudTimestamp())
       if (request.etag != currentEtag) {
         throw RequisitionEtagMismatchException(request.etag, currentEtag)

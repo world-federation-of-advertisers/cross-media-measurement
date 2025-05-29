@@ -52,6 +52,7 @@ bazel_dep(
 )
 
 # DO_NOT_SUBMIT: Use version instead.
+# Pending API PR https://github.com/world-federation-of-advertisers/cross-media-measurement-api/pull/240
 archive_override(
     module_name = "cross-media-measurement-api",
     strip_prefix = "cross-media-measurement-api-5a45b48f0845f830aa6fd957407c98850f1ae011",

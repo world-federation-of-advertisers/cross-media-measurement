@@ -53,7 +53,7 @@ class RefuseRequisition(private val request: RefuseRequisitionRequest) :
     val (measurementConsumerId, measurementId, requisitionId, requisition, measurementDetails) =
       readResult
 
-    if (request.etag.isNotBlank()) {
+    if (request.etag.isNotEmpty()) {
       val currentEtag = ETags.computeETag(requisition.updateTime.toGcloudTimestamp())
       if (request.etag != currentEtag) {
         throw RequisitionEtagMismatchException(request.etag, currentEtag)

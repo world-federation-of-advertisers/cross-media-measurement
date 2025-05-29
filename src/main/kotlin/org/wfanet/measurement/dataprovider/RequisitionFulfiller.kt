@@ -186,6 +186,7 @@ abstract class RequisitionFulfiller(
         }
       )
     } catch (e: StatusException) {
+      // TODO(@renjiezh): Handle ABORT exception by calling GetRequisition.
       throw Exception("Error refusing requisition $requisitionName", e)
     }
   }
@@ -239,6 +240,7 @@ abstract class RequisitionFulfiller(
         }
       )
     } catch (e: StatusException) {
+      // TODO(@renjiezh): Handle ABORT exception by calling GetRequisition.
       throw Exception("Error fulfilling direct requisition ${requisition.name}", e)
     }
   }
