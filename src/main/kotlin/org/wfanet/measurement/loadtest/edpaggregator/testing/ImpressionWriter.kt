@@ -12,26 +12,24 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.loadtest.edpaggregator
+package org.wfanet.measurement.loadtest.edpaggregator.testing
 
-import com.google.crypto.tink.KeyTemplates
-import com.google.crypto.tink.KeysetHandle
 import com.google.crypto.tink.KmsClient
-import com.google.crypto.tink.TinkProtoKeysetFormat
 import com.google.protobuf.Any
-import com.google.protobuf.ByteString
 import com.google.protobuf.Message
 import com.google.protobuf.kotlin.toByteString
-import com.google.protobuf.timestamp
 import java.io.File
 import java.time.LocalDate
 import java.util.logging.Logger
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.crypto.tink.withEnvelopeEncryption
 import org.wfanet.measurement.common.toProtoTime
+import org.wfanet.measurement.edpaggregator.requisitionfetcher.EncryptedDekUtils
 import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
+import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
 import org.wfanet.measurement.edpaggregator.v1alpha.blobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.labeledImpression
 import org.wfanet.measurement.loadtest.dataprovider.DateShardedLabeledImpression
@@ -69,30 +67,20 @@ class ImpressionsWriter(
 ) {
 
   /*
-   * Takes a Flow<Pair<LocalDate, Flow<LabeledImpression>>>, encrypts that data with a KMS,
+   * Takes a Flow<DateShardedLabeledImpression<T>>, encrypts that data with a KMS,
    * and outputs the data to storage along with the necessary metadata for the ResultsFulfiller
    * to be able to find and read the contents.
    */
   suspend fun <T : Message> writeLabeledImpressionData(
     events: Flow<DateShardedLabeledImpression<T>>
   ) {
-    // Set up streaming encryption
-    val tinkKeyTemplateType = "AES128_GCM_HKDF_1MB"
-    val aeadKeyTemplate = KeyTemplates.get(tinkKeyTemplateType)
-    val keyEncryptionHandle = KeysetHandle.generateNew(aeadKeyTemplate)
     val serializedEncryptionKey =
-      ByteString.copyFrom(
-        TinkProtoKeysetFormat.serializeEncryptedKeyset(
-          keyEncryptionHandle,
-          kmsClient.getAead(kekUri),
-          byteArrayOf(),
-        )
-      )
+      EncryptedDekUtils.getSerializedEncryptionKey(kmsClient, kekUri, "AES128_GCM_HKDF_1MB")
     val encryptedDek =
       EncryptedDek.newBuilder().setKekUri(kekUri).setEncryptedDek(serializedEncryptionKey).build()
 
     events.collect { (localDate: LocalDate, labeledEvents: Flow<LabeledEvent<T>>) ->
-      val labeledImpressions =
+      val labeledImpressions: Flow<LabeledImpression> =
         labeledEvents.map { it: LabeledEvent<T> ->
           labeledImpression {
             vid = it.vid
@@ -105,27 +93,19 @@ class ImpressionsWriter(
 
       val impressionsBlobKey = "ds/$ds/$eventGroupPath/impressions"
       val impressionsFileUri = "$schema$impressionsBucket/$impressionsBlobKey"
-      val mesosRecordIoStorageClient = run {
-        val impressionsStorageClient = SelectedStorageClient(impressionsFileUri, storagePath)
+      val encryptedStorage = run {
+        val selectedStorageClient = SelectedStorageClient(impressionsFileUri, storagePath)
 
         val aeadStorageClient =
-          impressionsStorageClient.withEnvelopeEncryption(
-            kmsClient,
-            kekUri,
-            serializedEncryptionKey,
-          )
+          MesosRecordIoStorageClient(selectedStorageClient)
+            .withEnvelopeEncryption(kmsClient, kekUri, serializedEncryptionKey)
 
-        // Wrap aead client in mesos client
-        val mesosRecordIoStorageClient = MesosRecordIoStorageClient(aeadStorageClient)
-        mesosRecordIoStorageClient
+        aeadStorageClient
       }
       logger.info("Writing impressions to $impressionsFileUri")
       // Write impressions to storage
       runBlocking {
-        mesosRecordIoStorageClient.writeBlob(
-          impressionsBlobKey,
-          labeledImpressions.map { it.toByteString() },
-        )
+        encryptedStorage.writeBlob(impressionsBlobKey, labeledImpressions.map { it.toByteString() })
       }
       val impressionsMetaDataBlobKey = "ds/$ds/$eventGroupPath/metadata"
 

@@ -33,7 +33,7 @@ import org.wfanet.measurement.common.crypto.tink.testing.FakeKmsClient
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.loadtest.dataprovider.SyntheticDataGeneration
-import org.wfanet.measurement.loadtest.edpaggregator.ImpressionsWriter
+import org.wfanet.measurement.loadtest.edpaggregator.testing.ImpressionsWriter
 import picocli.CommandLine.Command
 import picocli.CommandLine.Option
 
@@ -127,7 +127,7 @@ class GenerateSyntheticData : Runnable {
         TEST_DATA_RUNTIME_PATH.resolve(dataSpecResourcePath).toFile(),
         SyntheticEventGroupSpec.getDefaultInstance(),
       )
-    // TODO: Support other event types
+    // TODO(#2360): Support other event types
     val events =
       SyntheticDataGeneration.generateEvents(
         messageInstance = TestEvent.getDefaultInstance(),
