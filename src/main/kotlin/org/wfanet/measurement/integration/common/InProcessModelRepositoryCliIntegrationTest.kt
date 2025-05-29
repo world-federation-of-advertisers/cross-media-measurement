@@ -72,7 +72,7 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
   kingdomDataServicesRule: ProviderRule<DataServices>,
   verboseGrpcLogging: Boolean = true,
 ) {
-  private val internalModelRepositoryServer =
+  private val internalApiServer =
     GrpcTestServerRule(logAllRequests = verboseGrpcLogging) {
       val services =
         kingdomDataServicesRule.value.buildDataServices().toList().map { it.bindService() }
@@ -82,8 +82,7 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
     }
 
   @get:Rule
-  val ruleChain: TestRule =
-    chainRulesSequentially(kingdomDataServicesRule, internalModelRepositoryServer)
+  val ruleChain: TestRule = chainRulesSequentially(kingdomDataServicesRule, internalApiServer)
 
   private lateinit var publicModelSuitesClient: ModelSuitesBlockingStub
 
@@ -91,7 +90,7 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
 
   @Before
   fun startServer() {
-    val internalChannel: Channel = internalModelRepositoryServer.channel
+    val internalChannel: Channel = internalApiServer.channel
     val internalModelProvidersService =
       InternalModelProvidersGrpc.ModelProvidersCoroutineStub(internalChannel)
     internalModelProvider = runBlocking {
