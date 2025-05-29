@@ -30,6 +30,7 @@ import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.internal.kingdom.EnumerateValidModelLinesRequest
 import org.wfanet.measurement.internal.kingdom.EnumerateValidModelLinesResponse
+import org.wfanet.measurement.internal.kingdom.GetModelLineRequest
 import org.wfanet.measurement.internal.kingdom.ModelLine
 import org.wfanet.measurement.internal.kingdom.ModelLinesGrpcKt.ModelLinesCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.SetActiveEndTimeRequest
@@ -106,6 +107,34 @@ class SpannerModelLinesService(
     } catch (e: ModelLineTypeIllegalException) {
       throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
     }
+  }
+
+  override suspend fun getModelLine(request: GetModelLineRequest): ModelLine {
+    grpcRequire(request.externalModelProviderId != 0L) {
+      "external_model_provider_id not specified"
+    }
+    grpcRequire(request.externalModelSuiteId != 0L) { "external_model_suite_id not specified" }
+    grpcRequire(request.externalModelLineId != 0L) { "external_model_line_id not specified" }
+
+    val result: ModelLineReader.Result? =
+      ModelLineReader()
+        .readByExternalModelLineId(
+          client.singleUseReadOnlyTransaction(),
+          externalModelProviderId = ExternalId(request.externalModelProviderId),
+          externalModelSuiteId = ExternalId(request.externalModelSuiteId),
+          externalModelLineId = ExternalId(request.externalModelLineId),
+        )
+
+    if (result == null) {
+      throw ModelLineNotFoundException(
+          ExternalId(request.externalModelProviderId),
+          ExternalId(request.externalModelSuiteId),
+          ExternalId(request.externalModelLineId),
+        )
+        .asStatusRuntimeException(Status.Code.NOT_FOUND)
+    }
+
+    return result.modelLine
   }
 
   override suspend fun setActiveEndTime(request: SetActiveEndTimeRequest): ModelLine {

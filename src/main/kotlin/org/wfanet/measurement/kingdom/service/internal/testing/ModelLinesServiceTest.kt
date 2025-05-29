@@ -52,6 +52,7 @@ import org.wfanet.measurement.internal.kingdom.StreamModelLinesRequestKt.afterFi
 import org.wfanet.measurement.internal.kingdom.StreamModelLinesRequestKt.filter
 import org.wfanet.measurement.internal.kingdom.enumerateValidModelLinesRequest
 import org.wfanet.measurement.internal.kingdom.enumerateValidModelLinesResponse
+import org.wfanet.measurement.internal.kingdom.getModelLineRequest
 import org.wfanet.measurement.internal.kingdom.modelLine
 import org.wfanet.measurement.internal.kingdom.modelLineKey
 import org.wfanet.measurement.internal.kingdom.modelRollout
@@ -397,6 +398,66 @@ abstract class ModelLinesServiceTest<T : ModelLinesCoroutineImplBase> {
           description = "description2"
         }
       )
+  }
+
+  @Test
+  fun `getModelLine returns model line successfully`() = runBlocking {
+    val modelSuite = population.createModelSuite(modelProvidersService, modelSuitesService)
+
+    val ast = Instant.now().plusSeconds(2000L).toProtoTime()
+
+    val modelLine = modelLine {
+      externalModelSuiteId = modelSuite.externalModelSuiteId
+      externalModelProviderId = modelSuite.externalModelProviderId
+      activeStartTime = ast
+      type = ModelLine.Type.PROD
+      displayName = "display name"
+      description = "description"
+    }
+
+    val createdModelLine = modelLinesService.createModelLine(modelLine)
+
+    val retrievedModelLine =
+      modelLinesService.getModelLine(
+        getModelLineRequest {
+          externalModelProviderId = createdModelLine.externalModelProviderId
+          externalModelSuiteId = createdModelLine.externalModelSuiteId
+          externalModelLineId = createdModelLine.externalModelLineId
+        }
+      )
+
+    assertThat(retrievedModelLine).isEqualTo(createdModelLine)
+  }
+
+  @Test
+  fun `getModelLine throws NOT_FOUND when model line not found`() = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        modelLinesService.getModelLine(
+          getModelLineRequest {
+            externalModelProviderId = 123L
+            externalModelSuiteId = 124L
+            externalModelLineId = 125L
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+  }
+
+  @Test
+  fun `getModelLine throws INVALID_ARGUMENT when external_model_line_id missing`() = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        modelLinesService.getModelLine(
+          getModelLineRequest {
+            externalModelProviderId = 123L
+            externalModelSuiteId = 124L
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
   }
 
   @Test
