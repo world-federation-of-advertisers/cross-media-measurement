@@ -18,7 +18,7 @@ locals {
   secrets = {
     for key, value in local.raw_secrets : key => {
       secret_id         = value.secret_id
-      secret_local_path = "${path.root}/${value.secret_local_path}"
+      secret_local_path = abspath("${path.root}/${value.secret_local_path}")
       is_binary_format  = value.is_binary_format
     }
   }
