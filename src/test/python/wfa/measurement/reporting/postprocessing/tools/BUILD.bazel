@@ -12,6 +12,20 @@ py_test(
     ],
 )
 
+py_test(
+    name = "test_log_processor",
+    srcs = ["test_log_processor.py"],
+    deps = [
+        "//src/main/python/wfa/measurement/reporting/postprocessing/tools:log_processor",
+        requirement("absl-py"),
+        requirement("google-cloud-storage"),
+        requirement("protobuf"),
+        "//src/main/proto/wfa/measurement/reporting/postprocessing/v2alpha:report_summary_py_pb2",
+        "//src/main/python/wfa/measurement/reporting/postprocessing/tools:post_process_origin_report",
+    ],
+    size = "small",
+)
+
 filegroup(
     name = "sample_reports",
     srcs = glob(["*.json"]),

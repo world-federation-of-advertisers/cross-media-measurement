@@ -1,5 +1,6 @@
 load("@pip//:requirements.bzl", "requirement")
 load("@rules_python//python:py_binary.bzl", "py_binary")
+load("@rules_python//python:defs.bzl", "py_library")
 
 package(default_visibility = ["//visibility:public"])
 
@@ -20,5 +21,17 @@ py_binary(
         requirement("absl-py"),
         requirement("openpyxl"),
         requirement("pandas"),
+    ],
+)
+
+py_library(
+    name = "log_processor",
+    srcs = ["log_processor.py"],
+    imports = ["../"],
+    deps = [
+        requirement("absl-py"),
+        requirement("google-cloud-storage"),
+        "//src/main/proto/wfa/measurement/reporting/postprocessing/v2alpha:report_summary_py_pb2",
+        "//src/main/python/wfa/measurement/reporting/postprocessing/report",
     ],
 )

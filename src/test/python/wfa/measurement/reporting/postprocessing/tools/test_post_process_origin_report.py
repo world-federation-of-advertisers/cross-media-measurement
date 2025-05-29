@@ -26,6 +26,8 @@ from tools.post_process_origin_report import ReportSummaryProcessor
 from src.main.proto.wfa.measurement.reporting.postprocessing.v2alpha import \
   report_post_processor_result_pb2
 
+from google.protobuf import json_format
+
 StatusCode = report_post_processor_result_pb2.ReportPostProcessorStatus.StatusCode
 
 TOLERANCE = 1
@@ -353,6 +355,7 @@ class TestOriginReport(unittest.TestCase):
         'src/test/python/wfa/measurement/reporting/postprocessing/tools/sample_report_summary.json')
     noise_correction_result = ReportSummaryProcessor(
         report_summary).process()
+    print(json_format.MessageToJson(noise_correction_result))
 
     primitive_edp_combinations = ['edp1', 'edp2', 'edp1_edp2']
     composite_edp_combinations = ['edp1_minus_edp2', 'edp2_minus_edp1']
