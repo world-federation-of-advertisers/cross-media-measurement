@@ -68,7 +68,7 @@ class TestLogProcessor(unittest.TestCase):
     self.mock_logging_set_verbosity = self.patcher_logging_set_verbosity.start()
 
   # Cleans up patches after each test.
-  def tear_down(self):
+  def tearDown(self):
     self.patcher_storage_client.stop()
     self.patcher_stdout.stop()
     self.patcher_stderr.stop()
@@ -223,7 +223,6 @@ class TestLogProcessor(unittest.TestCase):
 
       # Verifies stdout capture.
       captured_output = self.held_stdout.getvalue()
-
       self.assertEqual(captured_output, expected_printed_output)
 
       # Verifies no error output.

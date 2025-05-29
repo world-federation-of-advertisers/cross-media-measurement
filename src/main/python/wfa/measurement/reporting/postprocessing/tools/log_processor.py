@@ -24,7 +24,7 @@ from src.main.proto.wfa.measurement.reporting.postprocessing.v2alpha import \
 ReportPostProcessorStatus = report_post_processor_result_pb2.ReportPostProcessorStatus
 ReportPostProcessorResult = report_post_processor_result_pb2.ReportPostProcessorResult
 
-# Define absl flags for command-line arguments
+# Define absl flags for command-line arguments.
 FLAGS = flags.FLAGS
 
 flags.DEFINE_string(
