@@ -468,18 +468,6 @@ class PostgresTransactionContext(
       return (1..batchSize).joinToString(separator = ", ") { questionMarks }
     }
 
-    /** Sets the parameters for the prepared statement for a batch of queries. */
-    fun setBatchQueryReadParameters(preparedStatement: PreparedStatement, queryBatch: List<Query>) {
-      var parameterIndex = 1
-      for (query in queryBatch) {
-        val identifiers = query.queryIdentifiers
-        preparedStatement.setString(parameterIndex++, identifiers.eventDataProviderId)
-        preparedStatement.setString(parameterIndex++, identifiers.measurementConsumerId)
-        preparedStatement.setString(parameterIndex++, identifiers.externalReferenceId)
-        preparedStatement.setBoolean(parameterIndex++, identifiers.isRefund)
-      }
-    }
-
     /** Sets the parameters for the prepared statement for a batch of ledger row keys. */
     fun setBatchChargeReadParameters(
       preparedStatement: PreparedStatement,
