@@ -56,8 +56,9 @@ CREATE TABLE MeasurementConsumers (
 
 CREATE TABLE EventGroupReferences (
     id SERIAL PRIMARY KEY,
-    -- Internal reference name for the Event group.
-    EventGroupReferenceName TEXT UNIQUE NOT NULL
+    -- Id that is taken from here:
+    -- https://github.com/world-federation-of-advertisers/cross-media-measurement-api/blob/0a67a616d86aa65596bf7eff65d66f74296c7aaf/src/main/proto/wfa/measurement/api/v2alpha/event_group.proto#L64
+    EventGroupReferenceId TEXT UNIQUE NOT NULL
 );
 
 CREATE TABLE LedgerEntryExternalReferences (
@@ -92,6 +93,9 @@ CREATE TABLE PrivacyCharges (
 
 
 -- Holds all the ledger Entries with integer IDs and a id
+-- There is an argument to hold a many to many mapping table between this table and
+-- the PrivacyCharges table. This mapping will not have any use at charge or check time
+-- but would serve as another mechanism to validate if the audit logs hold.
 CREATE TABLE LedgerEntries (
     -- Unique row identifier for this ledger entry.
     id SERIAL PRIMARY KEY,

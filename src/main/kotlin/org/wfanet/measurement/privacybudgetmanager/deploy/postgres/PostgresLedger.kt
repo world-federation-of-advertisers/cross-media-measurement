@@ -147,6 +147,8 @@ class PostgresTransactionContext(
    *
    * @param queries The list of queries to find in the ledger.
    * @return The list of queries that existed in the ledger, with createTime populated.
+   *
+   * TODO(uakyol): this function does not support refunds for now. Add this functionality.
    */
   override suspend fun readQueries(queries: List<Query>, maxBatchSize: Int): List<Query> {
     throwIfTransactionHasEnded()
@@ -158,9 +160,11 @@ class PostgresTransactionContext(
         return@withContext emptyList()
       }
 
+      // Read Queries in batches
       queries.chunked(MAX_BATCH_READ).forEach { queryBatch ->
         val batchSize = queryBatch.size
 
+        // Get the query from the database with it's create time if it exists.
         val selectStatement =
           """
             SELECT ed.EventDataProviderName as EventDataProviderId, 
@@ -173,10 +177,12 @@ class PostgresTransactionContext(
             INNER JOIN MeasurementConsumers mc ON le.MeasurementConsumerId = mc.id
             INNER JOIN LedgerEntryExternalReferences er ON le.ExternalReferenceId = er.id
             WHERE (ed.EventDataProviderName, mc.MeasurementConsumerName, er.LedgerEntryExternalReferenceName, le.IsRefund) IN
-            (${generateInClausePlaceholders(batchSize, 4)})
+            (${generateInClausePlaceholders(batchSize, clauseSize=4)})
             """
 
         connection.prepareStatement(selectStatement).use { preparedStatement ->
+
+          // Construct the select sql with the parameters for each query.
           var parameterIndex = 1
           queryBatch.forEach { query ->
             preparedStatement.setString(
@@ -196,6 +202,9 @@ class PostgresTransactionContext(
 
           preparedStatement.executeQuery().use { resultSet ->
             val ledgerEntries = mutableListOf<LedgerEntry>()
+
+            // Iterate over the retrieved ledger entries from the ledger. Each corresponds to
+            // a query in the input to this function.
             while (resultSet.next()) {
               ledgerEntries.add(
                 LedgerEntry(
@@ -208,6 +217,11 @@ class PostgresTransactionContext(
               )
             }
 
+            // Match the ledger entries to the given queries. Update each query with
+            // the createtime retrieved from the database. This operation is important.
+            // See
+            // /src/main/kotlin/org/wfanet/measurement/privacybudgetmanager/PrivacyBudgetManager.kt
+            // for more detailed comments.
             ledgerEntries.forEach { ledgerEntry ->
               val matchingQuery =
                 queryBatch.find { query ->
@@ -217,16 +231,15 @@ class PostgresTransactionContext(
                     query.queryIdentifiers.externalReferenceId == ledgerEntry.externalReferenceId &&
                     query.queryIdentifiers.isRefund == ledgerEntry.isRefund
                 }
-              if (matchingQuery != null) {
-                val updatedQuery =
-                  matchingQuery.copy {
-                    queryIdentifiers =
-                      queryIdentifiers.copy {
-                        createTime = ledgerEntry.createTime.toInstant().toProtoTime()
-                      }
-                  }
-                foundQueries.add(updatedQuery)
-              }
+              checkNotNull(matchingQuery)
+              val updatedQuery =
+                matchingQuery.copy {
+                  queryIdentifiers =
+                    queryIdentifiers.copy {
+                      createTime = ledgerEntry.createTime.toInstant().toProtoTime()
+                    }
+                }
+              foundQueries.add(updatedQuery)
             }
           }
         }
@@ -252,15 +265,15 @@ class PostgresTransactionContext(
             """
           SELECT ed.EventDataProviderName as EventDataProviderId,
                  mc.MeasurementConsumerName as MeasurementConsumerId, 
-                 egr.EventGroupReferenceName as EventGroupReferenceId, 
+                 egr.EventGroupReferenceId as EventGroupReferenceId, 
                  pc.Date, 
                  pc.Charges
           FROM PrivacyCharges pc
           INNER JOIN EventDataProviders ed ON pc.EventDataProviderId = ed.id
           INNER JOIN MeasurementConsumers mc ON pc.MeasurementConsumerId = mc.id
           INNER JOIN EventGroupReferences egr ON pc.EventGroupReferenceId = egr.id
-          WHERE (ed.EventDataProviderName, mc.MeasurementConsumerName, egr.EventGroupReferenceName, pc.Date) IN
-          (${generateInClausePlaceholders(batchSize, 4)})
+          WHERE (ed.EventDataProviderName, mc.MeasurementConsumerName, egr.EventGroupReferenceId, pc.Date) IN
+          (${generateInClausePlaceholders(batchSize, clauseSize=4)})
         """
           connection.prepareStatement(selectStatement).use { preparedStatement ->
             var parameterIndex = 1
@@ -378,15 +391,15 @@ class PostgresTransactionContext(
   private suspend fun getOrInsertMeasurementConsumerId(measurementConsumerName: String) =
     getOrInsertResourceId("MeasurementConsumers", measurementConsumerName)
 
-  private suspend fun getOrInsertEventGroupReferenceId(eventGroupReferenceName: String) =
-    getOrInsertResourceId("EventGroupReferences", eventGroupReferenceName)
+  private suspend fun getOrInsertEventGroupReferenceId(eventGroupReferenceId: String) =
+    getOrInsertResourceId("EventGroupReferences", eventGroupReferenceId)
 
   private suspend fun getOrInsertExternalReferenceId(externalReferenceName: String) =
     getOrInsertResourceId("LedgerEntryExternalReferences", externalReferenceName)
 
   private suspend fun getOrInsertResourceId(tableName: String, value: String): Int {
     throwIfTransactionHasEnded()
-    val nameColumn = "${tableName.dropLast(1)}Name"
+    val nameColumn = resourceTablesToNameCols.get(tableName)
     val key = Pair(tableName, value)
     return idCache.getOrPut(key) {
       val insertSql =
@@ -426,6 +439,16 @@ class PostgresTransactionContext(
   }
 
   private companion object {
+
+    // Maps the resource table names for the to the name columns.
+    val resourceTablesToNameCols =
+      mapOf(
+        "EventDataProviders" to "EventDataProviderName",
+        "MeasurementConsumers" to "MeasurementConsumerName",
+        "EventGroupReferences" to "EventGroupReferenceId",
+        "LedgerEntryExternalReferences" to "LedgerEntryExternalReferenceName",
+      )
+
     /**
      * Generates the placeholders for an IN clause to be used in a database query, based on the
      * specified batch size and the number of parameters per element in the IN clause.

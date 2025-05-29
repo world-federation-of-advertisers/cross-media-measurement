@@ -140,6 +140,8 @@ class PostgresLedgerTest {
   fun `readQueries returns only the queries in the table correctly`() = runBlocking {
     markLandscapeState(dbConnection, ACTIVE_LANDSCAPE_ID, READY_STATE)
     val ledger = PostgresLedger(::createConnection, ACTIVE_LANDSCAPE_ID)
+
+    // Inserted to the DB beforehand and also queried
     val query1: Query = query {
       queryIdentifiers = queryIdentifiers {
         eventDataProviderId = "edp1"
@@ -150,10 +152,22 @@ class PostgresLedgerTest {
       privacyLandscapeIdentifier = ACTIVE_LANDSCAPE_ID
     }
 
+    // NOT Inserted to the DB beforehand but queried
     val query2: Query = query {
       queryIdentifiers = queryIdentifiers {
         eventDataProviderId = "edp1"
         externalReferenceId = "ref2"
+        measurementConsumerId = "mc1"
+        isRefund = false
+      }
+      privacyLandscapeIdentifier = ACTIVE_LANDSCAPE_ID
+    }
+
+    // Inserted to the DB beforehand but not queried
+    val query3: Query = query {
+      queryIdentifiers = queryIdentifiers {
+        eventDataProviderId = "edp1"
+        externalReferenceId = "ref3"
         measurementConsumerId = "mc1"
         isRefund = false
       }
@@ -174,8 +188,15 @@ class PostgresLedgerTest {
       "LedgerEntryExternalReferenceName",
       "ref2",
     )
+    insertDimension(
+      dbConnection,
+      "LedgerEntryExternalReferences",
+      "LedgerEntryExternalReferenceName",
+      "ref3",
+    )
 
     insertQuery(dbConnection, query1)
+    insertQuery(dbConnection, query3)
 
     val expectedQuery =
       query1.copy {
@@ -241,8 +262,8 @@ class PostgresLedgerTest {
     insertDimension(dbConnection, "Eventdataproviders", "EventdataproviderName", "edpid")
     insertDimension(dbConnection, "MeasurementConsumers", "MeasurementConsumerName", "mcid")
     insertDimension(dbConnection, "MeasurementConsumers", "MeasurementConsumerName", "othermcid")
-    insertDimension(dbConnection, "EventGroupReferences", "EventGroupReferenceName", "egid")
-    insertDimension(dbConnection, "EventGroupReferences", "EventGroupReferenceName", "otheregid")
+    insertDimension(dbConnection, "EventGroupReferences", "EventGroupReferenceId", "egid")
+    insertDimension(dbConnection, "EventGroupReferences", "EventGroupReferenceId", "otheregid")
     insertPrivacyCharges(dbConnection, ledgerRowKey1, charges1)
     insertPrivacyCharges(dbConnection, ledgerRowKey2, charges2)
 
@@ -319,6 +340,16 @@ class PostgresLedgerTest {
       privacyLandscapeIdentifier = ACTIVE_LANDSCAPE_ID
     }
 
+    val query4: Query = query {
+      queryIdentifiers = queryIdentifiers {
+        eventDataProviderId = "edp2"
+        externalReferenceId = "ref2"
+        measurementConsumerId = "mc3"
+        isRefund = false
+      }
+      privacyLandscapeIdentifier = ACTIVE_LANDSCAPE_ID
+    }
+
     val charges1 = charges {
       populationIndexToCharges[456] =
         ChargesKt.intervalCharges {
@@ -349,6 +380,7 @@ class PostgresLedgerTest {
     slice.merge(ledgerRowKey3, charges2)
     var returnedQueries = emptyList<Query>()
     ledger.startTransaction().use { tx: PostgresTransactionContext ->
+      // 2 is used here for batch size in order to test the batching behaviour in the code
       returnedQueries = tx.write(slice, listOf(query1, query2, query3), 2)
       tx.commit()
     }
@@ -382,7 +414,7 @@ class PostgresLedgerTest {
     ) {
       insertDimension(connection, "Eventdataproviders", "EventdataproviderName", edpIdText)
       insertDimension(connection, "MeasurementConsumers", "MeasurementConsumerName", mcIdText)
-      insertDimension(connection, "EventGroupReferences", "EventGroupReferenceName", egIdText)
+      insertDimension(connection, "EventGroupReferences", "EventGroupReferenceId", egIdText)
     }
 
     private fun insertDimension(
@@ -456,7 +488,7 @@ class PostgresLedgerTest {
       val mcIdInt =
         fetchDimensionId(connection, "MeasurementConsumers", "MeasurementConsumerName", mcIdText)
       val egIdInt =
-        fetchDimensionId(connection, "EventGroupReferences", "EventGroupReferenceName", egIdText)
+        fetchDimensionId(connection, "EventGroupReferences", "EventGroupReferenceId", egIdText)
       return Triple(edpIdInt, mcIdInt, egIdInt)
     }
 
