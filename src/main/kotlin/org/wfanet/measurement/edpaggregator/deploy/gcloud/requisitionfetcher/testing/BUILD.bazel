@@ -17,6 +17,7 @@ java_binary(
         ":config",
         "//src/main/k8s/testing/secretfiles:root_certs",
         "//src/main/k8s/testing/secretfiles:secret_files",
+        "//src/main/resources/edpaggregator/requisitionfetcher:config",
     ],
     runtime_deps = [
         "//imports/java/com/google/cloud/functions/invoker:java_function_invoker",
