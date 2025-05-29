@@ -15,8 +15,11 @@
 package org.wfanet.measurement.duchy.mill
 
 import com.google.protobuf.ByteString
+import com.google.protobuf.util.Durations
 import io.grpc.Status
 import io.grpc.StatusException
+import io.grpc.serviceconfig.MethodConfigKt
+import io.grpc.serviceconfig.methodConfig
 import io.opentelemetry.api.common.AttributeKey
 import io.opentelemetry.api.common.Attributes
 import io.opentelemetry.api.metrics.DoubleHistogram
@@ -44,6 +47,7 @@ import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.asBufferedFlow
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.flatten
+import org.wfanet.measurement.common.grpc.ProtobufServiceConfig
 import org.wfanet.measurement.common.logAndSuppressExceptionSuspend
 import org.wfanet.measurement.common.protoTimestamp
 import org.wfanet.measurement.common.toInstant
@@ -82,6 +86,7 @@ import org.wfanet.measurement.system.v1alpha.ComputationLogEntryKt
 import org.wfanet.measurement.system.v1alpha.ComputationParticipant
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantKey
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantKt
+import org.wfanet.measurement.system.v1alpha.ComputationParticipantsGrpcKt
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineStub
 import org.wfanet.measurement.system.v1alpha.ComputationsGrpcKt
 import org.wfanet.measurement.system.v1alpha.StageKey
@@ -872,6 +877,32 @@ abstract class MillBase(
       AttributeKey.stringKey("$COMPUTATION_NAMESPACE.type")
     private val COMPUTATION_STAGE_ATTRIBUTE_KEY =
       AttributeKey.stringKey("$COMPUTATION_NAMESPACE.stage")
+
+    val SERVICE_CONFIG =
+      ProtobufServiceConfig.DEFAULT.copy {
+        // Allow custom retry logic for updating ComputationParticipant.
+        methodConfig += methodConfig {
+          name +=
+            MethodConfigKt.name {
+              service = ComputationParticipantsGrpcKt.SERVICE_NAME
+              method =
+                ComputationParticipantsGrpcKt.confirmComputationParticipantMethod.bareMethodName!!
+            }
+          name +=
+            MethodConfigKt.name {
+              service = ComputationParticipantsGrpcKt.SERVICE_NAME
+              method =
+                ComputationParticipantsGrpcKt.failComputationParticipantMethod.bareMethodName!!
+            }
+          name +=
+            MethodConfigKt.name {
+              service = ComputationParticipantsGrpcKt.SERVICE_NAME
+              method =
+                ComputationParticipantsGrpcKt.setParticipantRequisitionParamsMethod.bareMethodName!!
+            }
+          timeout = Durations.fromSeconds(30)
+        }
+      }
 
     private val logger: Logger = Logger.getLogger(this::class.java.name)
   }
