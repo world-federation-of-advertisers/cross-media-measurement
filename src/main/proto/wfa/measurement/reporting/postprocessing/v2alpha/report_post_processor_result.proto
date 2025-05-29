@@ -119,27 +119,30 @@ message ReportQuality {
 // The result message encapsulating the entire outcome of the post-processing
 // pipeline for a single report.
 message ReportPostProcessorResult {
-  // Stores the pre-corrected report summary.
-  ReportSummary pre_correction_report_summary = 1;
-
   // Stores the corrected value for each measurement, identified by its unique
-  // name. This map is populated if and only if the solver found a solution
+  // name. The names in this map must correspond to names found within the
+  // pre_correction_report_summary. The corrected report can be computed from
+  // the pre_correction_report_summary and the updated_measurements map. Note
+  // that this map is populated if and only if the solver found a solution
   // (i.e. when the status.status_code is not SOLUTION_NOT_FOUND).
-  map<string, int64> updated_measurements = 2;
+  map<string, int64> updated_measurements = 1;
 
   // Contains the detailed status and metrics from the QP solver step. The
   // status indicates if the report post processor found a solution, a partial
   // solution, or fail to find any. It also provides metrics such as the primal
   // equality and inequality residuals.
-  ReportPostProcessorStatus status = 3;
+  ReportPostProcessorStatus status = 2;
 
   // Contains the results of data quality checks (e.g., zero variance
   // measurements consistency, Union Test) performed on the original noisy
   // report data before noise correction was applied.
-  ReportQuality pre_correction_quality = 4;
+  ReportQuality pre_correction_quality = 3;
 
   // Contains the results of data quality checks performed after applying
   // the corrected measurements from the 'updated_measurements' map (if a
   // solution was found).
-  ReportQuality post_correction_quality = 5;
+  ReportQuality post_correction_quality = 4;
+
+  // Stores the pre-corrected report summary.
+  ReportSummary pre_correction_report_summary = 5;
 }

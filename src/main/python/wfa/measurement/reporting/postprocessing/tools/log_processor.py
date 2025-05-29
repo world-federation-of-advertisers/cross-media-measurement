@@ -77,7 +77,7 @@ def main():
 
     # Exits with success code.
     sys.exit(0)
-  except ValueError as e:
+  except Exception as e:
     # Prints error to stderr.
     print(e, file=sys.stderr)
 
