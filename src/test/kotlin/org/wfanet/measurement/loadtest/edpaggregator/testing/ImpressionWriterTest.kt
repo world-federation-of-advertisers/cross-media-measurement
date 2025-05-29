@@ -16,15 +16,18 @@
 
 package org.wfanet.measurement.loadtest.edpaggregator.testing
 
+import com.google.common.truth.Truth.assertThat
 import com.google.crypto.tink.Aead
 import com.google.crypto.tink.KeyTemplates
 import com.google.crypto.tink.KeysetHandle
 import com.google.crypto.tink.aead.AeadConfig
 import com.google.crypto.tink.streamingaead.StreamingAeadConfig
+import com.google.protobuf.ByteString
+import com.google.protobuf.kotlin.unpack
 import java.time.LocalDate
 import java.time.ZoneId
-import kotlin.test.assertNotNull
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
 import org.junit.Rule
@@ -34,8 +37,15 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.common.crypto.tink.testing.FakeKmsClient
+import org.wfanet.measurement.common.crypto.tink.withEnvelopeEncryption
+import org.wfanet.measurement.common.flatten
+import org.wfanet.measurement.common.toProtoTime
+import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
+import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
 import org.wfanet.measurement.loadtest.dataprovider.DateShardedLabeledImpression
 import org.wfanet.measurement.loadtest.dataprovider.LabeledEvent
+import org.wfanet.measurement.storage.MesosRecordIoStorageClient
+import org.wfanet.measurement.storage.SelectedStorageClient
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 
 @RunWith(JUnit4::class)
@@ -88,13 +98,37 @@ class ImpressionWriterTest {
         ),
       )
     runBlocking { impressionWriter.writeLabeledImpressionData(events) }
-    val client = FileSystemStorageClient(tempFolder.root)
+    val storageClient = FileSystemStorageClient(tempFolder.root)
     runBlocking {
-      listOf("2020-01-01", "2020-01-02").forEach {
-        assertNotNull(client.getBlob("some-metadata-bucket/ds/$it/some-event-group-path/metadata"))
-        assertNotNull(
-          client.getBlob("some-impression-bucket/ds/$it/some-event-group-path/impressions")
-        )
+      listOf("2020-01-01", "2020-01-02").forEach { date ->
+        val blobDetails =
+          BlobDetails.parseFrom(
+            storageClient
+              .getBlob("some-metadata-bucket/ds/$date/some-event-group-path/metadata")!!
+              .read()
+              .flatten()
+          )
+        assertThat(blobDetails.blobUri)
+          .isEqualTo("file:///some-impression-bucket/ds/$date/some-event-group-path/impressions")
+        val encryptedDek = blobDetails.encryptedDek
+        assertThat(encryptedDek.kekUri).isEqualTo(kekUri)
+        val serializedEncryptionKey = encryptedDek.encryptedDek
+
+        val selectedStorageClient = SelectedStorageClient(blobDetails.blobUri, tempFolder.root)
+        val decryptionClient =
+          MesosRecordIoStorageClient(selectedStorageClient)
+            .withEnvelopeEncryption(kmsClient, kekUri, serializedEncryptionKey)
+        decryptionClient.getBlob("ds/$date/some-event-group-path/impressions")!!.read().collect {
+          it: ByteString ->
+          val event = LabeledImpression.parseFrom(it)
+          assertThat(event.vid).isEqualTo(1)
+          assertThat(event.event.unpack(TestEvent::class.java))
+            .isEqualTo(TestEvent.getDefaultInstance())
+          assertThat(event.eventTime)
+            .isEqualTo(
+              LocalDate.parse(date).atStartOfDay(ZoneId.of("UTC")).toInstant().toProtoTime()
+            )
+        }
       }
     }
   }
