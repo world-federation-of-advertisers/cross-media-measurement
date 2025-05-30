@@ -12,6 +12,7 @@ kt_jvm_test(
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/tools:model_repository",
+        "//src/main/proto/wfa/measurement/api/v2alpha:model_providers_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:model_suites_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:page_token_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/common/truth",

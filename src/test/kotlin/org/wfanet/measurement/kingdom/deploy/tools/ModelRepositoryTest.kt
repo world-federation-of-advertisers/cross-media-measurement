@@ -34,19 +34,30 @@ import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
 import org.mockito.kotlin.verify
 import org.wfanet.measurement.api.v2alpha.CreateModelSuiteRequest
+import org.wfanet.measurement.api.v2alpha.GetModelProviderRequest
 import org.wfanet.measurement.api.v2alpha.GetModelSuiteRequest
-import org.wfanet.measurement.api.v2alpha.ListModelSuitesPageTokenKt.previousPageEnd
+import org.wfanet.measurement.api.v2alpha.ListModelProvidersPageTokenKt.previousPageEnd as modelProviderPreviousPageEnd
+import org.wfanet.measurement.api.v2alpha.ListModelProvidersRequest
+import org.wfanet.measurement.api.v2alpha.ListModelProvidersResponse
+import org.wfanet.measurement.api.v2alpha.ListModelSuitesPageTokenKt.previousPageEnd as modelSuitePreviousPageEnd
 import org.wfanet.measurement.api.v2alpha.ListModelSuitesRequest
 import org.wfanet.measurement.api.v2alpha.ListModelSuitesResponse
+import org.wfanet.measurement.api.v2alpha.ModelProvider
 import org.wfanet.measurement.api.v2alpha.ModelProviderKey
+import org.wfanet.measurement.api.v2alpha.ModelProvidersGrpcKt.ModelProvidersCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.ModelSuite
 import org.wfanet.measurement.api.v2alpha.ModelSuiteKey
 import org.wfanet.measurement.api.v2alpha.ModelSuitesGrpcKt.ModelSuitesCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.createModelSuiteRequest
+import org.wfanet.measurement.api.v2alpha.getModelProviderRequest
 import org.wfanet.measurement.api.v2alpha.getModelSuiteRequest
+import org.wfanet.measurement.api.v2alpha.listModelProvidersPageToken
+import org.wfanet.measurement.api.v2alpha.listModelProvidersRequest
+import org.wfanet.measurement.api.v2alpha.listModelProvidersResponse
 import org.wfanet.measurement.api.v2alpha.listModelSuitesPageToken
 import org.wfanet.measurement.api.v2alpha.listModelSuitesRequest
 import org.wfanet.measurement.api.v2alpha.listModelSuitesResponse
+import org.wfanet.measurement.api.v2alpha.modelProvider
 import org.wfanet.measurement.api.v2alpha.modelSuite
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.crypto.SigningCerts
@@ -61,6 +72,18 @@ import org.wfanet.measurement.common.toProtoTime
 
 @RunWith(JUnit4::class)
 class ModelRepositoryTest {
+  private val modelProvidersServiceMock: ModelProvidersCoroutineImplBase = mockService {
+    onBlocking { getModelProvider(any()) }.thenReturn(MODEL_PROVIDER)
+    onBlocking { listModelProviders(any()) }
+      .thenReturn(
+        listModelProvidersResponse {
+          modelProviders += MODEL_PROVIDER
+          modelProviders += MODEL_PROVIDER_2
+          nextPageToken = LIST_MODEL_PROVIDERS_PAGE_TOKEN_2.toByteString().base64UrlEncode()
+        }
+      )
+  }
+
   private val modelSuitesServiceMock: ModelSuitesCoroutineImplBase = mockService {
     onBlocking { getModelSuite(any()) }.thenReturn(MODEL_SUITE)
     onBlocking { createModelSuite(any()) }.thenReturn(MODEL_SUITE)
@@ -81,7 +104,8 @@ class ModelRepositoryTest {
       trustedCertCollectionFile = SECRETS_DIR.resolve("kingdom_root.pem").toFile(),
     )
 
-  private val services: List<ServerServiceDefinition> = listOf(modelSuitesServiceMock.bindService())
+  private val services: List<ServerServiceDefinition> =
+    listOf(modelProvidersServiceMock.bindService(), modelSuitesServiceMock.bindService())
 
   private val server: Server =
     NettyServerBuilder.forPort(0)
@@ -98,6 +122,54 @@ class ModelRepositoryTest {
   fun shutdownServer() {
     server.shutdown()
     server.awaitTermination(1, SECONDS)
+  }
+
+  @Test
+  fun `modelProviders get calls GetModelProvider with valid request`() {
+    val args = commonArgs + arrayOf("model-providers", "get", MODEL_PROVIDER_NAME)
+
+    val output = callCli(args)
+
+    val request: GetModelProviderRequest = captureFirst {
+      runBlocking { verify(modelProvidersServiceMock).getModelProvider(capture()) }
+    }
+
+    assertThat(request).isEqualTo(getModelProviderRequest { name = MODEL_PROVIDER_NAME })
+    assertThat(parseTextProto(output.reader(), ModelProvider.getDefaultInstance()))
+      .isEqualTo(MODEL_PROVIDER)
+  }
+
+  @Test
+  fun `modelProviders list calls ListModelProvider with valid request`() {
+    val args =
+      commonArgs +
+        arrayOf(
+          "model-providers",
+          "list",
+          "--page-size=50",
+          "--page-token=${LIST_MODEL_PROVIDERS_PAGE_TOKEN.toByteArray().base64UrlEncode()}",
+        )
+    val output = callCli(args)
+
+    val request: ListModelProvidersRequest = captureFirst {
+      runBlocking { verify(modelProvidersServiceMock).listModelProviders(capture()) }
+    }
+
+    assertThat(request)
+      .isEqualTo(
+        listModelProvidersRequest {
+          pageSize = 50
+          pageToken = LIST_MODEL_PROVIDERS_PAGE_TOKEN.toByteArray().base64UrlEncode()
+        }
+      )
+    assertThat(parseTextProto(output.reader(), ListModelProvidersResponse.getDefaultInstance()))
+      .isEqualTo(
+        listModelProvidersResponse {
+          modelProviders += MODEL_PROVIDER
+          modelProviders += MODEL_PROVIDER_2
+          nextPageToken = LIST_MODEL_PROVIDERS_PAGE_TOKEN_2.toByteString().base64UrlEncode()
+        }
+      )
   }
 
   @Test
@@ -209,8 +281,33 @@ class ModelRepositoryTest {
     private val CREATE_TIME: Timestamp = Instant.ofEpochSecond(123).toProtoTime()
 
     private const val MODEL_PROVIDER_NAME = "modelProviders/AAAAAAAAAHs"
+    private const val MODEL_PROVIDER_NAME_2 = "modelProviders/AAAAAAAAAHs"
     private val EXTERNAL_MODEL_PROVIDER_ID =
       apiIdToExternalId(ModelProviderKey.fromName(MODEL_PROVIDER_NAME)!!.modelProviderId)
+    private val EXTERNAL_MODEL_PROVIDER_ID_2 =
+      apiIdToExternalId(ModelProviderKey.fromName(MODEL_PROVIDER_NAME_2)!!.modelProviderId)
+    private val MODEL_PROVIDER = modelProvider {
+      name = MODEL_PROVIDER_NAME
+      displayName = "Default model provider"
+    }
+    private val MODEL_PROVIDER_2 = modelProvider {
+      name = MODEL_PROVIDER_NAME_2
+      displayName = "Alternative model provider"
+    }
+    private val LIST_MODEL_PROVIDERS_PAGE_TOKEN = listModelProvidersPageToken {
+      pageSize = PAGE_SIZE
+      lastModelProvider = modelProviderPreviousPageEnd {
+        createTime = CREATE_TIME
+        externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID - 1
+      }
+    }
+    private val LIST_MODEL_PROVIDERS_PAGE_TOKEN_2 = listModelProvidersPageToken {
+      pageSize = PAGE_SIZE
+      lastModelProvider = modelProviderPreviousPageEnd {
+        createTime = CREATE_TIME
+        externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID_2
+      }
+    }
 
     private const val MODEL_SUITE_NAME = "$MODEL_PROVIDER_NAME/modelSuites/AAAAAAAAAHs"
     private const val MODEL_SUITE_NAME_2 = "$MODEL_PROVIDER_NAME/modelSuites/AAAAAAAAAJs"
@@ -235,7 +332,7 @@ class ModelRepositoryTest {
     private val LIST_MODEL_SUITES_PAGE_TOKEN = listModelSuitesPageToken {
       pageSize = PAGE_SIZE
       externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
-      lastModelSuite = previousPageEnd {
+      lastModelSuite = modelSuitePreviousPageEnd {
         createTime = CREATE_TIME
         externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID - 1
       }
@@ -244,7 +341,7 @@ class ModelRepositoryTest {
     private val LIST_MODEL_SUITES_PAGE_TOKEN_2 = listModelSuitesPageToken {
       pageSize = PAGE_SIZE
       externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
-      lastModelSuite = previousPageEnd {
+      lastModelSuite = modelSuitePreviousPageEnd {
         createTime = CREATE_TIME
         externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID_2
       }
