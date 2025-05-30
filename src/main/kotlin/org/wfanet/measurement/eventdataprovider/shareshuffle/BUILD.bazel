@@ -9,6 +9,19 @@ package(default_visibility = [
 
 MAVEN_COORDINATES = "org.wfanet.measurement.eventdataprovider:shareshuffle-native:" + artifact_version()
 
+kt_jvm_library(
+    name = "shareshuffle",
+    srcs = glob(
+        include = ["*.kt"],
+        exclude = ["Native.kt"],
+    ),
+    deps = [
+        "//imports/java/org/roaringbitmap",
+        "//src/main/proto/wfa/frequency_count:frequency_vector_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+    ],
+)
+
 java_native_libraries(
     name = "native_deps",
     java_target = "@any_sketch_java//src/main/java/org/wfanet/frequencycount",
