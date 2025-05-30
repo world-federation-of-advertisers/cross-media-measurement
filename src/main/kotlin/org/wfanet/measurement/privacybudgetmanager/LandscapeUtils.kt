@@ -348,6 +348,16 @@ object LandscapeUtils {
     return mappingResult
   }
 
+  /**
+   * Computes a mapping of population indices from one privacy landscape to another.
+   *
+   * @param privacyLandscapeMapping The mapping between dimensions and field values of the two
+   *   privacy landscapes.
+   * @param from The source [PrivacyLandscape] whose indices are being mapped.
+   * @param to The target [PrivacyLandscape] to which the indices are mapped.
+   * @return A map where each key is an index from the source privacy landscape, and the value is a
+   *   set of indices in the target privacy landscape that correspond to the key.
+   */
   fun getPopulationIndexMapping(
     privacyLandscapeMapping: PrivacyLandscapeMapping,
     from: PrivacyLandscape,
@@ -374,7 +384,6 @@ object LandscapeUtils {
       //      and index 1 has both MALE and 25_34
       //   Based on MALE maps to MALE and 18_34 maps to 18_24 25_34. So population index 0
       //    should be mapped to [0,1]
-
       for ((index, fromFieldValues) in fromLandscapeFieldMapping.entries) {
         val allToDimIndicies = mutableListOf<List<Int>>()
         for (fromFieldValue in fromFieldValues) {
@@ -415,13 +424,13 @@ object LandscapeUtils {
     val populationIndexMapping = getPopulationIndexMapping(mapping, from, to)
 
     for (bucket in buckets) {
-      val mappedPopulationIndicies =
+      val mappedPopulationIndices =
         populationIndexMapping.getOrElse(bucket.populationIndex) {
           throw IllegalStateException(
             "Population index '${bucket.populationIndex}' not found in mapping. This should never happen."
           )
         }
-      for (mappedPopulationIndex in mappedPopulationIndicies) {
+      for (mappedPopulationIndex in mappedPopulationIndices) {
         mappedPrivacyBuckets.add(
           PrivacyBucket(bucket.rowKey, mappedPopulationIndex, bucket.vidIntervalIndex)
         )
