@@ -2,6 +2,7 @@ load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_test")
 
 package(
     default_testonly = True,
+    default_visibility = ["//src/test/kotlin/org/wfanet/measurement/integration:__subpackages__"],
 )
 
 kt_jvm_test(
