@@ -199,7 +199,10 @@ object LandscapeUtils {
         }
       for (mappedPopulationIndex in mappedPopulationIndices) {
         mappedPrivacyBuckets.add(
-          PrivacyBucket(bucket.rowKey, BucketIndex(mappedPopulationIndex, bucket.bucketIndex.vidIntervalIndex))
+          PrivacyBucket(
+            bucket.rowKey,
+            BucketIndex(mappedPopulationIndex, bucket.bucketIndex.vidIntervalIndex),
+          )
         )
       }
     }
@@ -368,7 +371,7 @@ object LandscapeUtils {
   }
 
   private fun getLedgerRowKeys(
-    eventDataProviderName:String,
+    eventDataProviderName: String,
     measurementConsumerName: String,
     eventGroupId: String,
     dateRange: DateRange,

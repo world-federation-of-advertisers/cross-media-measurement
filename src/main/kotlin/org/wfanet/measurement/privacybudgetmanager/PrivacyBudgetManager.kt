@@ -136,7 +136,7 @@ class PrivacyBudgetManager(
    * @return The list of PrivacyBuckets mapped to the tail PrivacyLandscape.
    */
   fun processBucketsForLandscape(
-    eventDataProviderId:String,
+    eventDataProviderId: String,
     measurementConsumerId: String,
     inactivelandscapeIdentifier: String,
     eventGroupLandscapeMasks: List<EventGroupLandscapeMask>,
