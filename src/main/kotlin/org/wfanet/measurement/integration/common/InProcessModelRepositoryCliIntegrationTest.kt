@@ -88,6 +88,10 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
 
   private lateinit var server: CommonServer
 
+  private lateinit var internalModelProvider: InternalModelProvider
+  private lateinit var modelProviderName: String
+  private lateinit var modelSuite: ModelSuite
+
   @Before
   fun startServer() {
     val internalChannel: Channel = internalApiServer.channel
@@ -109,7 +113,7 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
             entries +=
               AuthorityKeyToPrincipalMapKt.entry {
                 authorityKeyIdentifier =
-                  readCertificate(KINGDOM_TLS_CERT_FILE).authorityKeyIdentifier!!
+                  readCertificate(MODEL_PROVIDER_TLS_CERT_FILE).authorityKeyIdentifier!!
                 principalResourceName = modelProviderName
               }
           }
@@ -125,15 +129,15 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
 
     val serverCerts =
       SigningCerts.fromPemFiles(
-        KINGDOM_TLS_CERT_FILE,
-        KINGDOM_TLS_KEY_FILE,
-        KINGDOM_CERT_COLLECTION_FILE,
+        MODEL_PROVIDER_TLS_CERT_FILE,
+        MODEL_PROVIDER_TLS_KEY_FILE,
+        MODEL_PROVIDER_CERT_COLLECTION_FILE,
       )
 
     server =
       CommonServer.fromParameters(
         verboseGrpcLogging = true,
-        certs = kingdomSigningCerts,
+        certs = serverCerts,
         clientAuth = ClientAuth.REQUIRE,
         nameForLogging = "model-repository-cli-integration-test",
         services = services,
@@ -241,9 +245,9 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
   private val commonArgs: Array<String>
     get() =
       arrayOf(
-        "--tls-cert-file=$KINGDOM_TLS_CERT_FILE",
-        "--tls-key-file=$KINGDOM_TLS_KEY_FILE",
-        "--cert-collection-file=$KINGDOM_CERT_COLLECTION_FILE",
+        "--tls-cert-file=$MODEL_PROVIDER_TLS_CERT_FILE",
+        "--tls-key-file=$MODEL_PROVIDER_TLS_KEY_FILE",
+        "--cert-collection-file=$MODEL_PROVIDER_CERT_COLLECTION_FILE",
         "--kingdom-public-api-target=$HOST:${server.port}",
       )
 
@@ -254,24 +258,15 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
           Paths.get("wfa_measurement_system", "src", "main", "k8s", "testing", "secretfiles")
         )!!
         .toFile()
-    private val KINGDOM_TLS_CERT_FILE: File = SECRETS_DIR.resolve("kingdom_tls.pem")
-    private val KINGDOM_TLS_KEY_FILE: File = SECRETS_DIR.resolve("kingdom_tls.key")
-    private val KINGDOM_CERT_COLLECTION_FILE: File = SECRETS_DIR.resolve("kingdom_root.pem")
-    private val kingdomSigningCerts =
-      SigningCerts.fromPemFiles(
-        KINGDOM_TLS_CERT_FILE,
-        KINGDOM_TLS_KEY_FILE,
-        KINGDOM_CERT_COLLECTION_FILE,
-      )
+
+    private val MODEL_PROVIDER_TLS_CERT_FILE: File = SECRETS_DIR.resolve("mp1_tls.pem")
+    private val MODEL_PROVIDER_TLS_KEY_FILE: File = SECRETS_DIR.resolve("mp1_tls.key")
+    private val MODEL_PROVIDER_CERT_COLLECTION_FILE: File = SECRETS_DIR.resolve("mp1_root.pem")
 
     private const val FIXED_GENERATED_EXTERNAL_ID = 6789L
 
-    private lateinit var internalModelProvider: InternalModelProvider
-    private lateinit var modelProviderName: String
-
     private const val DISPLAY_NAME = "Display name"
     private const val DESCRIPTION = "Description"
-    private lateinit var modelSuite: ModelSuite
 
     private const val PAGE_SIZE = 50
 
