@@ -582,8 +582,7 @@ private fun buildInternalStreamRequisitionsRequest(
           after =
             StreamRequisitionsRequestKt.FilterKt.after {
               updateTime = pageToken.lastRequisition.updateTime
-              externalDataProviderId = pageToken.lastRequisition.externalDataProviderId
-              externalRequisitionId = pageToken.lastRequisition.externalRequisitionId
+              requisitionIdentity = pageToken.lastRequisition.requisitionIdentity
             }
         }
       }
@@ -610,10 +609,8 @@ private fun buildNextPageToken(
     states += filter.statesList
     lastRequisition = previousPageEnd {
       updateTime = internalRequisitions[internalRequisitions.lastIndex - 1].updateTime
-      externalDataProviderId =
-        internalRequisitions[internalRequisitions.lastIndex - 1].externalDataProviderId
-      externalRequisitionId =
-        internalRequisitions[internalRequisitions.lastIndex - 1].externalRequisitionId
+      requisitionIdentity =
+        internalRequisitions[internalRequisitions.lastIndex - 1].requisitionIdentity
     }
   }
 }

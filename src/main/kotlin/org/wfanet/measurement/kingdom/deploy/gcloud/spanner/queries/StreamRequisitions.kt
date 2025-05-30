@@ -61,28 +61,34 @@ class StreamRequisitions(requestFilter: StreamRequisitionsRequest.Filter, limit:
     }
     if (filter.hasUpdatedAfter()) {
       conjuncts.add("Requisitions.UpdateTime > @$UPDATE_TIME")
+      conjuncts.add("RequisitionIndexShardId >= 0")
       bind(UPDATE_TIME).to(filter.updatedAfter.toGcloudTimestamp())
     }
 
     if (filter.hasAfter()) {
       conjuncts.add(
         """
-          CASE
-            WHEN Requisitions.UpdateTime > @$UPDATED_AFTER THEN TRUE
-            WHEN Requisitions.UpdateTime = @$UPDATED_AFTER
-              AND ExternalDataProviderId > @$EXTERNAL_DATA_PROVIDER_ID_AFTER THEN TRUE
-            WHEN Requisitions.UpdateTime = @$UPDATED_AFTER
-              AND ExternalDataProviderId = @$EXTERNAL_DATA_PROVIDER_ID_AFTER
-              AND ExternalRequisitionId > @$EXTERNAL_REQUISITION_ID_AFTER THEN TRUE
-            ELSE FALSE
-          END
+        RequisitionIdentity IN (
+          SELECT
+            RequisitionIdentity
+          FROM
+            Requisitions
+          WHERE
+            RequisitionIndexShardId >= 0
+            AND (
+              Requisitions.UpdateTime > @$UPDATED_AFTER
+              OR (
+                Requisitions.UpdateTime = @$UPDATED_AFTER
+                AND RequisitionIdentity > @$REQUISITION_IDENTITY_AFTER
+              )
+            )
+        )
         """
           .trimIndent()
       )
 
       bind(UPDATED_AFTER).to(filter.after.updateTime.toGcloudTimestamp())
-      bind(EXTERNAL_DATA_PROVIDER_ID_AFTER).to(filter.after.externalDataProviderId)
-      bind(EXTERNAL_REQUISITION_ID_AFTER).to(filter.after.externalRequisitionId)
+      bind(REQUISITION_IDENTITY_AFTER).to(filter.after.requisitionIdentity)
     }
 
     if (conjuncts.isEmpty()) {
@@ -93,8 +99,7 @@ class StreamRequisitions(requestFilter: StreamRequisitionsRequest.Filter, limit:
   }
 
   companion object {
-    private const val ORDER_BY_CLAUSE =
-      "ORDER BY UpdateTime ASC, ExternalDataProviderId ASC, ExternalRequisitionId ASC"
+    private const val ORDER_BY_CLAUSE = "ORDER BY UpdateTime, RequisitionIdentity"
 
     const val LIMIT = "limit"
     const val EXTERNAL_MEASUREMENT_CONSUMER_ID = "externalMeasurementConsumerId"
@@ -103,7 +108,6 @@ class StreamRequisitions(requestFilter: StreamRequisitionsRequest.Filter, limit:
     const val STATES = "states"
     const val UPDATE_TIME = "updateTime"
     const val UPDATED_AFTER = "updatedAfter"
-    const val EXTERNAL_REQUISITION_ID_AFTER = "externalRequisitionIdAfter"
-    const val EXTERNAL_DATA_PROVIDER_ID_AFTER = "externalDataProviderIdAfter"
+    const val REQUISITION_IDENTITY_AFTER = "requisitionIdentityAfter"
   }
 }

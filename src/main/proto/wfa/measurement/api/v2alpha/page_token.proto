@@ -106,9 +106,9 @@ message ListRequisitionsPageToken {
   fixed64 external_data_provider_id = 4;
   repeated Requisition.State states = 5;
   message PreviousPageEnd {
+    reserved 1, 2;
     google.protobuf.Timestamp update_time = 3;
-    fixed64 external_data_provider_id = 1;
-    fixed64 external_requisition_id = 2;
+    fixed64 requisition_identity = 4;
   }
   PreviousPageEnd last_requisition = 6;
 }

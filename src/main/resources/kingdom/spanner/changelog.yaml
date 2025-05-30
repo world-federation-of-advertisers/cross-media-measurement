@@ -90,3 +90,6 @@ databaseChangeLog:
 - include:
     file: add-event-group-metadata.sql
     relativeToChangeLogFile: true
+- include:
+    file: create-requisitions-by-update-time.sql
+    relativeToChangeLogFile: true

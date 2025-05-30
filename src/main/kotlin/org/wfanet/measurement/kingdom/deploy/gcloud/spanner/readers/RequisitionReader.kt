@@ -177,6 +177,7 @@ class RequisitionReader private constructor(override val builder: Statement.Buil
       MeasurementConsumerId,
       MeasurementId,
       RequisitionId,
+      RequisitionIdentity,
       Requisitions.UpdateTime,
       ExternalRequisitionId,
       Requisitions.State AS RequisitionState,
@@ -288,23 +289,23 @@ class RequisitionReader private constructor(override val builder: Statement.Buil
         }
       val dataProvidersCount = struct.getLong("MeasurementRequisitionCount")
 
-      return buildRequisition(struct, struct, participantStructs, dataProvidersCount.toInt())
+      return buildRequisition(struct, participantStructs, dataProvidersCount.toInt())
     }
 
     fun buildRequisition(
-      measurementStruct: Struct,
       requisitionStruct: Struct,
       participantStructs: Map<String, Struct>,
       dataProviderCount: Int,
     ) = requisition {
-      externalMeasurementConsumerId = measurementStruct.getLong("ExternalMeasurementConsumerId")
-      externalMeasurementId = measurementStruct.getLong("ExternalMeasurementId")
+      requisitionIdentity = requisitionStruct.getLong("RequisitionIdentity")
+      externalMeasurementConsumerId = requisitionStruct.getLong("ExternalMeasurementConsumerId")
+      externalMeasurementId = requisitionStruct.getLong("ExternalMeasurementId")
       externalRequisitionId = requisitionStruct.getLong("ExternalRequisitionId")
       externalDataProviderId = requisitionStruct.getLong("ExternalDataProviderId")
       updateTime = requisitionStruct.getTimestamp("UpdateTime").toProto()
       state = requisitionStruct.getProtoEnum("RequisitionState", Requisition.State::forNumber)
-      if (!measurementStruct.isNull("ExternalComputationId")) {
-        externalComputationId = measurementStruct.getLong("ExternalComputationId")
+      if (!requisitionStruct.isNull("ExternalComputationId")) {
+        externalComputationId = requisitionStruct.getLong("ExternalComputationId")
       }
       if (!requisitionStruct.isNull("FulfillingDuchyId")) {
         val fulfillingDuchyId = requisitionStruct.getLong("FulfillingDuchyId")
@@ -323,7 +324,7 @@ class RequisitionReader private constructor(override val builder: Statement.Buil
         )
       dataProviderCertificate = CertificateReader.buildDataProviderCertificate(requisitionStruct)
 
-      parentMeasurement = buildParentMeasurement(measurementStruct, dataProviderCount)
+      parentMeasurement = buildParentMeasurement(requisitionStruct, dataProviderCount)
     }
 
     /**

@@ -364,10 +364,8 @@ class RequisitionsServiceTest {
       val request: StreamRequisitionsRequest = it.getArgument(0)
       if (request.filter.hasAfter()) {
         assertThat(request.filter.after.updateTime).isEqualTo(INTERNAL_REQUISITION.updateTime)
-        assertThat(request.filter.after.externalDataProviderId)
-          .isEqualTo(INTERNAL_REQUISITION.externalDataProviderId)
-        assertThat(request.filter.after.externalRequisitionId)
-          .isEqualTo(INTERNAL_REQUISITION.externalRequisitionId)
+        assertThat(request.filter.after.requisitionIdentity)
+          .isEqualTo(INTERNAL_REQUISITION.requisitionIdentity)
       }
       flowOf(INTERNAL_REQUISITION, INTERNAL_REQUISITION)
     }
@@ -425,8 +423,7 @@ class RequisitionsServiceTest {
           externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
           lastRequisition = previousPageEnd {
             updateTime = INTERNAL_REQUISITION.updateTime
-            externalRequisitionId = EXTERNAL_REQUISITION_ID
-            externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
+            requisitionIdentity = INTERNAL_REQUISITION.requisitionIdentity
           }
         }
       )
@@ -1287,6 +1284,7 @@ class RequisitionsServiceTest {
       }
 
     private val INTERNAL_REQUISITION: InternalRequisition = internalRequisition {
+      requisitionIdentity = 5408823152471965696L // Bit-reversed 1234L.
       externalMeasurementConsumerId = EXTERNAL_MEASUREMENT_CONSUMER_ID
       externalMeasurementId = EXTERNAL_MEASUREMENT_ID
       externalRequisitionId = EXTERNAL_REQUISITION_ID
