@@ -19,8 +19,8 @@ import org.wfanet.measurement.privacybudgetmanager.ChargesKt.intervalCharges
 
 /** Key for a row of the Ledger. PBM is opinionated about this structure. */
 data class LedgerRowKey(
-  val edpId: String,
-  val measurementConsumerId: String,
+  val eventDataProviderName: String,
+  val measurementConsumerName: String,
   val eventGroupReferenceId: String,
   val date: LocalDate,
 )

@@ -456,8 +456,8 @@ class PostgresLedgerTest {
       val (edpIdInt, mcIdInt, egIdInt) =
         getDimensionIds(
           connection,
-          ledgerRowKey.edpId,
-          ledgerRowKey.measurementConsumerId,
+          ledgerRowKey.eventDataProviderName,
+          ledgerRowKey.measurementConsumerName,
           ledgerRowKey.eventGroupReferenceId,
         )
 
@@ -518,8 +518,8 @@ class PostgresLedgerTest {
       val (edpIdInt, mcIdInt, egIdInt) =
         getDimensionIds(
           connection,
-          ledgerRowKey.edpId,
-          ledgerRowKey.measurementConsumerId,
+          ledgerRowKey.eventDataProviderName,
+          ledgerRowKey.measurementConsumerName,
           ledgerRowKey.eventGroupReferenceId,
         )
 
@@ -596,11 +596,14 @@ class PostgresLedgerTest {
 
     @get:ClassRule
     @JvmStatic
-    val postgresContainer =
-      PostgreSQLContainer<Nothing>(POSTGRES_IMAGE_NAME).apply {
-        withLogConsumer { outputFrame ->
-          println("PostgreSQL Container Log: ${outputFrame.getUtf8String()}")
-        }
-      }
+    val postgresContainer = PostgreSQLContainer<Nothing>(POSTGRES_IMAGE_NAME)
+
+    // Logs can be enabled as below.
+    //  val postgresContainer =
+    //   PostgreSQLContainer<Nothing>(POSTGRES_IMAGE_NAME).apply {
+    //   withLogConsumer { outputFrame ->
+    //     println("PostgreSQL Container Log: ${outputFrame.getUtf8String()}")
+    //   }
+    // }
   }
 }

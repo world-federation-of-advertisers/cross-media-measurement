@@ -15,7 +15,6 @@ package org.wfanet.measurement.privacybudgetmanager.deploy.postgres
 
 import java.sql.Connection
 import java.sql.Date
-import java.sql.PreparedStatement
 import java.sql.Statement
 import java.sql.Timestamp
 import kotlinx.coroutines.Dispatchers
@@ -263,9 +262,9 @@ class PostgresTransactionContext(
 
           val selectStatement =
             """
-          SELECT ed.EventDataProviderName as EventDataProviderId,
-                 mc.MeasurementConsumerName as MeasurementConsumerId, 
-                 egr.EventGroupReferenceId as EventGroupReferenceId, 
+          SELECT ed.EventDataProviderName,
+                 mc.MeasurementConsumerName,
+                 egr.EventGroupReferenceId,
                  pc.Date, 
                  pc.Charges
           FROM PrivacyCharges pc
@@ -278,16 +277,16 @@ class PostgresTransactionContext(
           connection.prepareStatement(selectStatement).use { preparedStatement ->
             var parameterIndex = 1
             rowKeyBatch.forEach { rowKey ->
-              preparedStatement.setString(parameterIndex++, rowKey.edpId)
-              preparedStatement.setString(parameterIndex++, rowKey.measurementConsumerId)
+              preparedStatement.setString(parameterIndex++, rowKey.eventDataProviderName)
+              preparedStatement.setString(parameterIndex++, rowKey.measurementConsumerName)
               preparedStatement.setString(parameterIndex++, rowKey.eventGroupReferenceId)
               preparedStatement.setObject(parameterIndex++, java.sql.Date.valueOf(rowKey.date))
             }
 
             preparedStatement.executeQuery().use { resultSet ->
               while (resultSet.next()) {
-                val edpId = resultSet.getString("EventDataProviderId")
-                val measurementConsumerId = resultSet.getString("MeasurementConsumerId")
+                val eventDataProviderName = resultSet.getString("EventDataProviderName")
+                val measurementConsumerName = resultSet.getString("MeasurementConsumerName")
                 val eventGroupReferenceId = resultSet.getString("EventGroupReferenceId")
                 val date = resultSet.getDate("Date").toLocalDate()
                 val chargesBytes = resultSet.getBytes("Charges")
@@ -299,7 +298,13 @@ class PostgresTransactionContext(
                     charges {}
                   }
 
-                val rowKey = LedgerRowKey(edpId, measurementConsumerId, eventGroupReferenceId, date)
+                val rowKey =
+                  LedgerRowKey(
+                    eventDataProviderName,
+                    measurementConsumerName,
+                    eventGroupReferenceId,
+                    date,
+                  )
                 slice.merge(rowKey, charges)
               }
             }
@@ -336,9 +341,9 @@ class PostgresTransactionContext(
             val charges = delta.get(key)!!
 
             // Look up integer IDs from dimension tables
-            val edpIdInt = getOrInsertEdpId(key.edpId)
+            val edpIdInt = getOrInsertEdpId(key.eventDataProviderName)
             val measurementConsumerIdInt =
-              getOrInsertMeasurementConsumerId(key.measurementConsumerId)
+              getOrInsertMeasurementConsumerId(key.measurementConsumerName)
             val eventGroupReferenceIdInt =
               getOrInsertEventGroupReferenceId(key.eventGroupReferenceId)
 
@@ -466,20 +471,6 @@ class PostgresTransactionContext(
     fun generateInClausePlaceholders(batchSize: Int, clauseSize: Int): String {
       val questionMarks = "(?" + ", ?".repeat(clauseSize - 1) + ")"
       return (1..batchSize).joinToString(separator = ", ") { questionMarks }
-    }
-
-    /** Sets the parameters for the prepared statement for a batch of ledger row keys. */
-    fun setBatchChargeReadParameters(
-      preparedStatement: PreparedStatement,
-      rowKeys: List<LedgerRowKey>,
-    ) {
-      var parameterIndex = 1
-      for (key in rowKeys) {
-        preparedStatement.setString(parameterIndex++, key.edpId)
-        preparedStatement.setString(parameterIndex++, key.measurementConsumerId)
-        preparedStatement.setString(parameterIndex++, key.eventGroupReferenceId)
-        preparedStatement.setDate(parameterIndex++, Date.valueOf(key.date))
-      }
     }
   }
 }
