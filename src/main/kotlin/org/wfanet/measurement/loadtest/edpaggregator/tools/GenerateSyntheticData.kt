@@ -23,6 +23,7 @@ import com.google.crypto.tink.integration.gcpkms.GcpKmsClient
 import com.google.crypto.tink.streamingaead.StreamingAeadConfig
 import java.io.File
 import java.nio.file.Paths
+import java.time.ZoneId
 import java.util.logging.Logger
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
@@ -33,7 +34,7 @@ import org.wfanet.measurement.common.crypto.tink.testing.FakeKmsClient
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.loadtest.dataprovider.SyntheticDataGeneration
-import org.wfanet.measurement.loadtest.edpaggregator.ImpressionsWriter
+import org.wfanet.measurement.loadtest.edpaggregator.testing.ImpressionsWriter
 import picocli.CommandLine.Command
 import picocli.CommandLine.Option
 
@@ -100,6 +101,15 @@ class GenerateSyntheticData : Runnable {
     private set
 
   @Option(
+    names = ["--zone-id"],
+    description = ["The Zone ID by which to generate the events"],
+    required = true,
+    defaultValue = "UTC",
+  )
+  lateinit var zoneId: String
+    private set
+
+  @Option(
     names = ["--population-spec-resource-path"],
     description = ["The path to the resource of the population-spec. Must be textproto format."],
     required = true,
@@ -127,12 +137,13 @@ class GenerateSyntheticData : Runnable {
         TEST_DATA_RUNTIME_PATH.resolve(dataSpecResourcePath).toFile(),
         SyntheticEventGroupSpec.getDefaultInstance(),
       )
-    // TODO: Support other event types
+    // TODO(#2360): Support other event types
     val events =
       SyntheticDataGeneration.generateEvents(
         messageInstance = TestEvent.getDefaultInstance(),
         populationSpec = syntheticPopulationSpec,
         syntheticEventGroupSpec = syntheticEventGroupSpec,
+        zoneId = ZoneId.of(zoneId),
       )
     val kmsClient: KmsClient = run {
       when (kmsType) {

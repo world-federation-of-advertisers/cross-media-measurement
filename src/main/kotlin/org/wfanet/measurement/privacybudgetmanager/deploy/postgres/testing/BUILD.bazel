@@ -1,0 +1,17 @@
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
+
+package(
+    default_testonly = True,
+    default_visibility = ["//visibility:public"],
+)
+
+kt_jvm_library(
+    name = "schemata",
+    srcs = ["Schemata.kt"],
+    data = [
+        "//src/main/kotlin/org/wfanet/measurement/privacybudgetmanager/deploy/postgres:ledger.sql",
+    ],
+    deps = [
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+    ],
+)

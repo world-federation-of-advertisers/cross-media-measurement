@@ -1,4 +1,4 @@
-// Copyright 2021 The Cross-Media Measurement Authors
+// Copyright 2025 The Cross-Media Measurement Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -30,18 +30,14 @@ import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupKey
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
-import org.wfanet.measurement.api.v2alpha.MeasurementSpec.VidSamplingInterval
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig.NoiseMechanism
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
 import org.wfanet.measurement.api.v2alpha.requisitionSpec
 import org.wfanet.measurement.common.OpenEndTimeRange
-import org.wfanet.measurement.eventdataprovider.noiser.DpParams as NoiserDpParams
 import org.wfanet.measurement.loadtest.config.TestIdentifiers
 import org.wfanet.measurement.loadtest.dataprovider.EventQuery
-import org.wfanet.measurement.measurementconsumer.stats.NoiseMechanism as StatsNoiseMechanism
-import org.wfanet.measurement.measurementconsumer.stats.VidSamplingInterval as StatsVidSamplingInterval
 
 /**
  * Implementation of MeasurementConsumerSimulator that uses Synthetic Event Query typically with the
@@ -134,33 +130,3 @@ class EventQueryMeasurementConsumerSimulator(
     private val logger: Logger = Logger.getLogger(this::class.java.name)
   }
 }
-
-/** Converts a [NoiseMechanism] to a [StatsNoiseMechanism]. */
-private fun NoiseMechanism.toStatsNoiseMechanism(): StatsNoiseMechanism {
-  return when (this) {
-    NoiseMechanism.NONE -> StatsNoiseMechanism.NONE
-    NoiseMechanism.GEOMETRIC,
-    NoiseMechanism.CONTINUOUS_LAPLACE -> StatsNoiseMechanism.LAPLACE
-    NoiseMechanism.DISCRETE_GAUSSIAN,
-    NoiseMechanism.CONTINUOUS_GAUSSIAN -> StatsNoiseMechanism.GAUSSIAN
-    NoiseMechanism.NOISE_MECHANISM_UNSPECIFIED,
-    NoiseMechanism.UNRECOGNIZED -> {
-      error("Invalid NoiseMechanism.")
-    }
-  }
-}
-
-/** Converts a [VidSamplingInterval] to a [StatsVidSamplingInterval]. */
-private fun VidSamplingInterval.toStatsVidSamplingInterval(): StatsVidSamplingInterval {
-  val source = this
-  return StatsVidSamplingInterval(source.start.toDouble(), source.width.toDouble())
-}
-
-/** Converts a [DifferentialPrivacyParams] to [NoiserDpParams]. */
-fun DifferentialPrivacyParams.toNoiserDpParams(): NoiserDpParams {
-  val source = this
-  return NoiserDpParams(source.epsilon, source.delta)
-}
-
-private val RequisitionSpec.eventGroupsMap: Map<String, RequisitionSpec.EventGroupEntry.Value>
-  get() = events.eventGroupsList.associate { it.key to it.value }
