@@ -142,8 +142,7 @@ abstract class InProcessAccessCliTest(
 
   @After
   fun shutdownServer() {
-    server.shutdown()
-    server.blockUntilShutdown()
+    server.close()
   }
 
   @Test
