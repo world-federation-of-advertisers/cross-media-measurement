@@ -52,6 +52,7 @@ import org.wfanet.measurement.api.v2alpha.eventGroup
 import org.wfanet.measurement.api.v2alpha.eventGroupMetadata
 import org.wfanet.measurement.api.v2alpha.listEventGroupsPageToken
 import org.wfanet.measurement.api.v2alpha.listEventGroupsResponse
+import org.wfanet.measurement.api.v2alpha.orderByOrNull
 import org.wfanet.measurement.api.v2alpha.packedValue
 import org.wfanet.measurement.api.v2alpha.principalFromCurrentContext
 import org.wfanet.measurement.api.v2alpha.signedMessage
@@ -340,6 +341,7 @@ class EventGroupsService(private val internalEventGroupsStub: InternalEventGroup
       buildInternalStreamEventGroupsRequest(
         request.filter,
         request.showDeleted,
+        request.orderByOrNull,
         parentKey,
         pageSize,
         pageToken,
@@ -412,6 +414,7 @@ class EventGroupsService(private val internalEventGroupsStub: InternalEventGroup
   private fun buildInternalStreamEventGroupsRequest(
     filter: ListEventGroupsRequest.Filter,
     showDeleted: Boolean,
+    orderBy: ListEventGroupsRequest.OrderBy?,
     parentKey: ResourceKey,
     pageSize: Int,
     pageToken: ListEventGroupsPageToken?,
@@ -489,6 +492,13 @@ class EventGroupsService(private val internalEventGroupsStub: InternalEventGroup
             eventGroupKeyAfter = after.eventGroupKey
           }
         }
+      if (orderBy != null) {
+        this.orderBy =
+          StreamEventGroupsRequestKt.orderBy {
+            field = orderBy.field.toInternal()
+            descending = orderBy.descending
+          }
+      }
       limit = pageSize + 1
     }
   }
@@ -679,5 +689,16 @@ private fun EventGroupMetadata.toInternal(): EventGroupDetails.EventGroupMetadat
       }
       EventGroupMetadata.SelectorCase.SELECTOR_NOT_SET -> error("metadata not set")
     }
+  }
+}
+
+private fun ListEventGroupsRequest.OrderBy.Field.toInternal():
+  StreamEventGroupsRequest.OrderBy.Field {
+  return when (this) {
+    ListEventGroupsRequest.OrderBy.Field.FIELD_UNSPECIFIED ->
+      StreamEventGroupsRequest.OrderBy.Field.FIELD_NOT_SPECIFIED
+    ListEventGroupsRequest.OrderBy.Field.DATA_AVAILABILITY_START_TIME ->
+      StreamEventGroupsRequest.OrderBy.Field.DATA_AVAILABILITY_START_TIME
+    ListEventGroupsRequest.OrderBy.Field.UNRECOGNIZED -> error("field unrecognized")
   }
 }

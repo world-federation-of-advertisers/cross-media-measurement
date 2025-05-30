@@ -18,7 +18,6 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 
 import java.time.Clock
 import org.junit.ClassRule
-import org.junit.Ignore
 import org.junit.Rule
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
@@ -26,7 +25,6 @@ import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.Schemata
 import org.wfanet.measurement.kingdom.service.internal.testing.ModelRolloutsServiceTest
 
-@Ignore("https://github.com/world-federation-of-advertisers/cross-media-measurement/issues/1368")
 class SpannerModelRolloutsServiceTest : ModelRolloutsServiceTest<SpannerModelRolloutsService>() {
 
   @get:Rule

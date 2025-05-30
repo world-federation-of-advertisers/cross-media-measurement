@@ -61,27 +61,14 @@ class RequisitionFetcherFunction : HttpFunction {
         }
       val signingCerts =
         SigningCerts.fromPemFiles(
-          certificateFile =
-            checkNotNull(
-              CLASS_LOADER.getJarResourceFile(dataProviderConfig.cmmsConnection.certJarResourcePath)
-            ),
-          privateKeyFile =
-            checkNotNull(
-              CLASS_LOADER.getJarResourceFile(
-                dataProviderConfig.cmmsConnection.privateKeyJarResourcePath
-              )
-            ),
+          certificateFile = checkNotNull(File(dataProviderConfig.cmmsConnection.certFilePath)),
+          privateKeyFile = checkNotNull(File(dataProviderConfig.cmmsConnection.privateKeyFilePath)),
           trustedCertCollectionFile =
-            checkNotNull(
-              CLASS_LOADER.getJarResourceFile(
-                dataProviderConfig.cmmsConnection.certCollectionJarResourcePath
-              )
-            ),
+            checkNotNull(File(dataProviderConfig.cmmsConnection.certCollectionFilePath)),
         )
       val publicChannel by lazy {
         buildMutualTlsChannel(kingdomTarget, signingCerts, kingdomCertHost)
       }
-
       val requisitionsStub = RequisitionsCoroutineStub(publicChannel)
       val requisitionFetcher =
         RequisitionFetcher(
@@ -91,7 +78,6 @@ class RequisitionFetcherFunction : HttpFunction {
           dataProviderConfig.storagePathPrefix,
           pageSize,
         )
-
       runBlocking { requisitionFetcher.fetchAndStoreRequisitions() }
     }
   }

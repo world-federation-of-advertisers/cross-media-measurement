@@ -71,7 +71,7 @@ class InProcessCmmsComponents(
     SyntheticGenerationSpecs.SYNTHETIC_POPULATION_SPEC_SMALL,
   private val syntheticEventGroupSpecs: List<SyntheticEventGroupSpec> =
     SyntheticGenerationSpecs.SYNTHETIC_DATA_SPECS_SMALL,
-  private val useEdpSimulators: Boolean
+  private val useEdpSimulators: Boolean,
 ) : TestRule {
   private val kingdomDataServices: DataServices
     get() = kingdomDataServicesRule.value

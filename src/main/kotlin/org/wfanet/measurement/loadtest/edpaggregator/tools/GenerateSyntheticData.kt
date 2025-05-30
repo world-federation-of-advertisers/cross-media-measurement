@@ -23,6 +23,7 @@ import com.google.crypto.tink.integration.gcpkms.GcpKmsClient
 import com.google.crypto.tink.streamingaead.StreamingAeadConfig
 import java.io.File
 import java.nio.file.Paths
+import java.time.ZoneId
 import java.util.logging.Logger
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
@@ -100,6 +101,15 @@ class GenerateSyntheticData : Runnable {
     private set
 
   @Option(
+    names = ["--zone-id"],
+    description = ["The Zone ID by which to generate the events"],
+    required = true,
+    defaultValue = "UTC",
+  )
+  lateinit var zoneId: String
+    private set
+
+  @Option(
     names = ["--population-spec-resource-path"],
     description = ["The path to the resource of the population-spec. Must be textproto format."],
     required = true,
@@ -133,6 +143,7 @@ class GenerateSyntheticData : Runnable {
         messageInstance = TestEvent.getDefaultInstance(),
         populationSpec = syntheticPopulationSpec,
         syntheticEventGroupSpec = syntheticEventGroupSpec,
+        zoneId = ZoneId.of(zoneId),
       )
     val kmsClient: KmsClient = run {
       when (kmsType) {
