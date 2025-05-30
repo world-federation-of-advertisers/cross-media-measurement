@@ -17,12 +17,11 @@
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
 import com.google.cloud.Timestamp
+import com.google.cloud.spanner.Options
 import com.google.cloud.spanner.Statement
-import com.google.cloud.spanner.Struct
 import com.google.cloud.spanner.Value
 import com.google.protobuf.util.Timestamps
 import java.time.Clock
-import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.singleOrNull
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
@@ -34,11 +33,15 @@ import org.wfanet.measurement.gcloud.spanner.bind
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
 import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.gcloud.spanner.statement
+import org.wfanet.measurement.gcloud.spanner.to
 import org.wfanet.measurement.internal.kingdom.ModelRollout
 import org.wfanet.measurement.internal.kingdom.copy
+import org.wfanet.measurement.internal.kingdom.modelLineKey
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelLineNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelReleaseNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelRolloutInvalidArgsException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ModelLineInternalKey
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ModelLineReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ModelReleaseReader
 
 class CreateModelRollout(private val modelRollout: ModelRollout, private val clock: Clock) :
@@ -52,11 +55,14 @@ class CreateModelRollout(private val modelRollout: ModelRollout, private val clo
 
   override suspend fun TransactionScope.runTransaction(): ModelRollout {
     val now = clock.instant().toProtoTime()
+    val externalModelProviderId = ExternalId(modelRollout.externalModelProviderId)
+    val externalModelSuiteId = ExternalId(modelRollout.externalModelSuiteId)
+    val externalModelLineId = ExternalId(modelRollout.externalModelLineId)
     if (Timestamps.compare(now, modelRollout.rolloutPeriodStartTime) >= 0) {
       throw ModelRolloutInvalidArgsException(
-        ExternalId(modelRollout.externalModelProviderId),
-        ExternalId(modelRollout.externalModelSuiteId),
-        ExternalId(modelRollout.externalModelLineId),
+        externalModelProviderId,
+        externalModelSuiteId,
+        externalModelLineId,
       ) {
         "RolloutPeriodStartTime must be in the future."
       }
@@ -65,20 +71,16 @@ class CreateModelRollout(private val modelRollout: ModelRollout, private val clo
       Timestamps.compare(modelRollout.rolloutPeriodStartTime, modelRollout.rolloutPeriodEndTime) > 0
     ) {
       throw ModelRolloutInvalidArgsException(
-        ExternalId(modelRollout.externalModelProviderId),
-        ExternalId(modelRollout.externalModelSuiteId),
-        ExternalId(modelRollout.externalModelLineId),
+        externalModelProviderId,
+        externalModelSuiteId,
+        externalModelLineId,
       ) {
         "RolloutPeriodEndTime cannot precede RolloutPeriodStartTime."
       }
     }
 
     val latestModelRolloutData =
-      readLatestModelRolloutData(
-        ExternalId(modelRollout.externalModelProviderId),
-        ExternalId(modelRollout.externalModelSuiteId),
-        ExternalId(modelRollout.externalModelLineId),
-      )
+      readLatestModelRolloutData(externalModelProviderId, externalModelSuiteId, externalModelLineId)
 
     val latestModelRolloutStartTime = latestModelRolloutData?.rolloutPeriodStartTime
 
@@ -89,23 +91,26 @@ class CreateModelRollout(private val modelRollout: ModelRollout, private val clo
         latestModelRolloutStartTime.toInstant() > modelRollout.rolloutPeriodStartTime.toInstant()
     ) {
       throw ModelRolloutInvalidArgsException(
-        ExternalId(modelRollout.externalModelProviderId),
-        ExternalId(modelRollout.externalModelSuiteId),
-        ExternalId(modelRollout.externalModelLineId),
+        externalModelProviderId,
+        externalModelSuiteId,
+        externalModelLineId,
       ) {
         "RolloutPeriodStartTime cannot precede that of previous ModelRollout."
       }
     }
-    val modelLineData =
-      readModelLineData(
-        ExternalId(modelRollout.externalModelProviderId),
-        ExternalId(modelRollout.externalModelSuiteId),
-        ExternalId(modelRollout.externalModelLineId),
+    val internalKey: ModelLineInternalKey =
+      ModelLineReader.readInternalKey(
+        transactionContext,
+        modelLineKey {
+          this.externalModelProviderId = externalModelProviderId.value
+          this.externalModelSuiteId = externalModelSuiteId.value
+          this.externalModelLineId = externalModelLineId.value
+        },
       )
         ?: throw ModelLineNotFoundException(
-          ExternalId(modelRollout.externalModelProviderId),
-          ExternalId(modelRollout.externalModelSuiteId),
-          ExternalId(modelRollout.externalModelLineId),
+          externalModelProviderId,
+          externalModelSuiteId,
+          externalModelLineId,
         )
 
     val modelReleaseResult =
@@ -113,12 +118,12 @@ class CreateModelRollout(private val modelRollout: ModelRollout, private val clo
         .readByExternalIds(
           transactionContext,
           ExternalId(modelRollout.externalModelReleaseId),
-          ExternalId(modelRollout.externalModelSuiteId),
-          ExternalId(modelRollout.externalModelProviderId),
+          externalModelSuiteId,
+          externalModelProviderId,
         )
         ?: throw ModelReleaseNotFoundException(
-          ExternalId(modelRollout.externalModelProviderId),
-          ExternalId(modelRollout.externalModelSuiteId),
+          externalModelProviderId,
+          externalModelSuiteId,
           ExternalId(modelRollout.externalModelReleaseId),
         )
 
@@ -126,9 +131,9 @@ class CreateModelRollout(private val modelRollout: ModelRollout, private val clo
     val externalModelRolloutId = idGenerator.generateExternalId()
 
     transactionContext.bufferInsertMutation("ModelRollouts") {
-      set("ModelProviderId" to InternalId(modelLineData.getLong("ModelProviderId")))
-      set("ModelSuiteId" to InternalId(modelLineData.getLong("ModelSuiteId")))
-      set("ModelLineId" to InternalId(modelLineData.getLong("ModelLineId")))
+      set("ModelProviderId").to(internalKey.modelProviderId)
+      set("ModelSuiteId").to(internalKey.modelSuiteId)
+      set("ModelLineId").to(internalKey.modelLineId)
       set("ModelRolloutId" to internalModelRolloutId)
       set("ExternalModelRolloutId" to externalModelRolloutId)
       set("RolloutPeriodStartTime" to modelRollout.rolloutPeriodStartTime.toGcloudTimestamp())
@@ -149,40 +154,7 @@ class CreateModelRollout(private val modelRollout: ModelRollout, private val clo
     }
   }
 
-  private suspend fun TransactionScope.readModelLineData(
-    externalModelProviderId: ExternalId,
-    externalModelSuiteId: ExternalId,
-    externalModelLineId: ExternalId,
-  ): Struct? {
-    val sql =
-      """
-    SELECT
-    ModelLines.ModelProviderId,
-    ModelLines.ModelSuiteId,
-    ModelLines.ModelLineId
-    FROM ModelSuites JOIN ModelProviders USING(ModelProviderId)
-    JOIN ModelLines
-      ON(
-        ModelSuites.ModelSuiteId = ModelLines.ModelSuiteId
-        AND ModelSuites.ModelProviderId = ModelLines.ModelProviderId
-      )
-    WHERE ExternalModelProviderId = @externalModelProviderId
-    AND ExternalModelSuiteId = @externalModelSuiteId
-    AND ExternalModelLineId = @externalModelLineId
-    """
-        .trimIndent()
-
-    val statement: Statement =
-      statement(sql) {
-        bind("externalModelProviderId" to externalModelProviderId.value)
-        bind("externalModelSuiteId" to externalModelSuiteId.value)
-        bind("externalModelLineId" to externalModelLineId.value)
-      }
-
-    return transactionContext.executeQuery(statement).singleOrNull()
-  }
-
-  // Reads the ModelRollout for a given ModelLine with the latest RolloutPeriodStartTime.
+  /** Reads the ModelRollout for a given ModelLine with the latest RolloutPeriodStartTime. */
   private suspend fun TransactionScope.readLatestModelRolloutData(
     externalModelProviderId: ExternalId,
     externalModelSuiteId: ExternalId,
@@ -190,20 +162,21 @@ class CreateModelRollout(private val modelRollout: ModelRollout, private val clo
   ): LatestModelRolloutResult? {
     val sql =
       """
-    SELECT
-    ModelRollouts.ModelRolloutId,
-    ModelRollouts.ExternalModelRolloutId,
-    ModelRollouts.RolloutPeriodStartTime
-    FROM ModelRollouts JOIN ModelLines
-    USING (ModelProviderId, ModelSuiteId, ModelLineId)
-    JOIN ModelSuites
-    USING (ModelProviderId, ModelSuiteId)
-    JOIN ModelProviders USING (ModelProviderId)
-    WHERE ModelProviders.ExternalModelProviderId = @externalModelProviderId AND
-    ModelSuites.ExternalModelSuiteId = @externalModelSuiteId AND
-    ModelLines.ExternalModelLineId = @externalModelLineId
-    ORDER BY ModelRollouts.RolloutPeriodStartTime DESC
-    """
+      SELECT
+      ModelRollouts.ModelRolloutId,
+      ModelRollouts.ExternalModelRolloutId,
+      ModelRollouts.RolloutPeriodStartTime
+      FROM ModelRollouts JOIN ModelLines
+      USING (ModelProviderId, ModelSuiteId, ModelLineId)
+      JOIN ModelSuites
+      USING (ModelProviderId, ModelSuiteId)
+      JOIN ModelProviders USING (ModelProviderId)
+      WHERE ModelProviders.ExternalModelProviderId = @externalModelProviderId AND
+      ModelSuites.ExternalModelSuiteId = @externalModelSuiteId AND
+      ModelLines.ExternalModelLineId = @externalModelLineId
+      ORDER BY ModelRollouts.RolloutPeriodStartTime DESC
+      LIMIT 1
+      """
         .trimIndent()
 
     val statement: Statement =
@@ -213,15 +186,23 @@ class CreateModelRollout(private val modelRollout: ModelRollout, private val clo
         bind("externalModelLineId" to externalModelLineId.value)
       }
 
-    val result = transactionContext.executeQuery(statement).firstOrNull()
+    val result =
+      transactionContext
+        .executeQuery(
+          statement,
+          Options.tag("writer=$writerName,action=readLatestModelRolloutData"),
+        )
+        .singleOrNull()
 
-    return if (result == null) null
-    else
+    return if (result == null) {
+      null
+    } else {
       LatestModelRolloutResult(
         result.getLong("ModelRolloutId"),
         result.getLong("ExternalModelRolloutId"),
         result.getTimestamp("RolloutPeriodStartTime"),
       )
+    }
   }
 
   override fun ResultScope<ModelRollout>.buildResult(): ModelRollout {
