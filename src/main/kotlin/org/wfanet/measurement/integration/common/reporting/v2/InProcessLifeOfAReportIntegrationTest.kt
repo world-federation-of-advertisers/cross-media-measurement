@@ -32,6 +32,7 @@ import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.BeforeClass
@@ -2554,7 +2555,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
     }
   }
 
-  private fun calculateExpectedReachMeasurementResult(
+  private suspend fun calculateExpectedReachMeasurementResult(
     eventGroupSpecs: Iterable<EventQuery.EventGroupSpec>
   ): Measurement.Result {
     val reach =
@@ -2562,14 +2563,14 @@ abstract class InProcessLifeOfAReportIntegrationTest(
         eventGroupSpecs
           .asSequence()
           .flatMap { SYNTHETIC_EVENT_QUERY.getUserVirtualIds(it) }
-          .asIterable()
+          .asFlow()
       )
     return MeasurementKt.result {
       this.reach = MeasurementKt.ResultKt.reach { value = reach.toLong() }
     }
   }
 
-  private fun calculateExpectedReachAndFrequencyMeasurementResult(
+  private suspend fun calculateExpectedReachAndFrequencyMeasurementResult(
     eventGroupSpecs: Iterable<EventQuery.EventGroupSpec>,
     maxFrequency: Int,
   ): Measurement.Result {
@@ -2578,7 +2579,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
         eventGroupSpecs
           .asSequence()
           .flatMap { SYNTHETIC_EVENT_QUERY.getUserVirtualIds(it) }
-          .asIterable(),
+          .asFlow(),
         maxFrequency,
       )
     return MeasurementKt.result {
@@ -2592,7 +2593,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
     }
   }
 
-  private fun calculateExpectedImpressionMeasurementResult(
+  private suspend fun calculateExpectedImpressionMeasurementResult(
     eventGroupSpecs: Iterable<EventQuery.EventGroupSpec>,
     maxFrequency: Int,
   ): Measurement.Result {
@@ -2601,7 +2602,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
         eventGroupSpecs
           .asSequence()
           .flatMap { SYNTHETIC_EVENT_QUERY.getUserVirtualIds(it) }
-          .asIterable(),
+          .asFlow(),
         maxFrequency,
       )
     return MeasurementKt.result {
