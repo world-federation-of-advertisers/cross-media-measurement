@@ -64,6 +64,7 @@ import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.Met
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.metadata as eventGroupMetadata
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.MappedEventGroup
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.eventGroup
+import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.mappedEventGroup
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionFetcher
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.ResultsFulfillerTestApp
 import org.wfanet.measurement.gcloud.pubsub.Subscriber
@@ -281,9 +282,7 @@ class InProcessEdpAggregatorComponents(
           storagePath.toFile(),
           "file:///",
         )
-      val tEvents = events.toList()
-      //tEvents.forEach { it.impressions.toList().forEach { logger.info(it.toString()) } }
-      runBlocking { impressionWriter.writeLabeledImpressionData(tEvents.asFlow()) }
+      runBlocking { impressionWriter.writeLabeledImpressionData(events) }
     }
   }
 
