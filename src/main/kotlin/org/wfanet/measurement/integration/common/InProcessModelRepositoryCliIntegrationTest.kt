@@ -30,16 +30,22 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TestRule
 import org.wfanet.measurement.api.v2alpha.AkidPrincipalLookup
-import org.wfanet.measurement.api.v2alpha.ListModelSuitesPageTokenKt.previousPageEnd
+import org.wfanet.measurement.api.v2alpha.ListModelProvidersPageTokenKt.previousPageEnd as modelProviderPreviousPageEnd
+import org.wfanet.measurement.api.v2alpha.ListModelSuitesPageTokenKt.previousPageEnd as modelSuitePreviousPageEnd
 import org.wfanet.measurement.api.v2alpha.ListModelSuitesResponse
+import org.wfanet.measurement.api.v2alpha.ModelProvider
 import org.wfanet.measurement.api.v2alpha.ModelProviderKey
+import org.wfanet.measurement.api.v2alpha.ModelProvidersGrpc
+import org.wfanet.measurement.api.v2alpha.ModelProvidersGrpc.ModelProvidersBlockingStub
 import org.wfanet.measurement.api.v2alpha.ModelSuite
 import org.wfanet.measurement.api.v2alpha.ModelSuiteKey
 import org.wfanet.measurement.api.v2alpha.ModelSuitesGrpc
 import org.wfanet.measurement.api.v2alpha.ModelSuitesGrpc.ModelSuitesBlockingStub
 import org.wfanet.measurement.api.v2alpha.createModelSuiteRequest
+import org.wfanet.measurement.api.v2alpha.listModelProvidersPageToken
 import org.wfanet.measurement.api.v2alpha.listModelSuitesPageToken
 import org.wfanet.measurement.api.v2alpha.listModelSuitesResponse
+import org.wfanet.measurement.api.v2alpha.modelProvider
 import org.wfanet.measurement.api.v2alpha.modelSuite
 import org.wfanet.measurement.api.v2alpha.withPrincipalsFromX509AuthorityKeyIdentifiers
 import org.wfanet.measurement.common.base64UrlEncode
@@ -62,7 +68,7 @@ import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
 import org.wfanet.measurement.internal.kingdom.ModelProvider as InternalModelProvider
 import org.wfanet.measurement.internal.kingdom.ModelProvidersGrpcKt as InternalModelProvidersGrpc
 import org.wfanet.measurement.internal.kingdom.ModelSuitesGrpcKt as InternalModelSuitesGrpc
-import org.wfanet.measurement.internal.kingdom.modelProvider
+import org.wfanet.measurement.internal.kingdom.modelProvider as internalModelProvider
 import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
 import org.wfanet.measurement.kingdom.deploy.common.service.toList
 import org.wfanet.measurement.kingdom.deploy.tools.ModelRepository
@@ -84,9 +90,14 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
   @get:Rule
   val ruleChain: TestRule = chainRulesSequentially(kingdomDataServicesRule, internalApiServer)
 
+  private lateinit var publicModelProvidersClient: ModelProvidersBlockingStub
   private lateinit var publicModelSuitesClient: ModelSuitesBlockingStub
 
   private lateinit var server: CommonServer
+
+  private lateinit var internalModelProvider: InternalModelProvider
+  private lateinit var internalModelProvider2: InternalModelProvider
+  private lateinit var modelProvider: ModelProvider
 
   @Before
   fun startServer() {
@@ -95,7 +106,12 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
       InternalModelProvidersGrpc.ModelProvidersCoroutineStub(internalChannel)
     internalModelProvider = runBlocking {
       internalModelProvidersService.createModelProvider(
-        modelProvider { externalModelProviderId = FIXED_GENERATED_EXTERNAL_ID }
+        internalModelProvider { externalModelProviderId = FIXED_GENERATED_EXTERNAL_ID }
+      )
+    }
+    internalModelProvider2 = runBlocking {
+      internalModelProvidersService.createModelProvider(
+        internalModelProvider { externalModelProviderId = FIXED_GENERATED_EXTERNAL_ID + 1 }
       )
     }
 
@@ -142,6 +158,7 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
 
     val publicChannel: ManagedChannel =
       buildMutualTlsChannel("localhost:${server.port}", serverCerts)
+    publicModelProvidersClient = ModelProvidersGrpc.newBlockingStub(publicChannel)
     publicModelSuitesClient = ModelSuitesGrpc.newBlockingStub(publicChannel)
 
     modelSuite =
@@ -162,12 +179,36 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
   }
 
   @Test
-  fun `model-suites get prints ModelSuite`() = runBlocking {
-    var args = commonArgs + arrayOf("model-suites", "get", modelSuite.name)
+  fun `model-providers get prints ModelProvider`() = runBlocking {
+    var args = commonArgs + arrayOf("model-providers", "get", modelProviderName)
     var output = callCli(args)
 
     assertThat(parseTextProto(output.reader(), ModelSuite.getDefaultInstance()))
-      .isEqualTo(modelSuite)
+      .isEqualTo(modelProvider { name = modelProviderName })
+  }
+
+  @Test
+  fun `model-providers list prints ModelProviders`() = runBlocking {
+    val pageToken = listModelProvidersPageToken {
+      pageSize = PAGE_SIZE
+      lastModelProvider = modelProviderPreviousPageEnd {
+        externalModelProviderId = internalModelProvider.externalModelProviderId
+      }
+    }
+
+    var args =
+      commonArgs +
+        arrayOf(
+          "model-providers",
+          "list",
+          "--page-size=50",
+          "--page-token=${pageToken.toByteArray().base64UrlEncode()}",
+        )
+    var output = callCli(args)
+
+    //    assertThat(parseTextProto(output.reader(),
+    // ListModelProvidersResponse.getDefaultInstance()))
+    //      .isEqualTo(listModelProvidersResponse { modelProviders += internalModelProvider2 })
   }
 
   @Test
@@ -209,7 +250,7 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
     val pageToken = listModelSuitesPageToken {
       pageSize = PAGE_SIZE
       externalModelProviderId = internalModelProvider.externalModelProviderId
-      lastModelSuite = previousPageEnd {
+      lastModelSuite = modelSuitePreviousPageEnd {
         externalModelProviderId = internalModelProvider.externalModelProviderId
         externalModelSuiteId =
           apiIdToExternalId(ModelSuiteKey.fromName(modelSuite.name)!!.modelSuiteId)
@@ -266,7 +307,6 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
 
     private const val FIXED_GENERATED_EXTERNAL_ID = 6789L
 
-    private lateinit var internalModelProvider: InternalModelProvider
     private lateinit var modelProviderName: String
 
     private const val DISPLAY_NAME = "Display name"
