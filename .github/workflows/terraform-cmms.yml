@@ -24,6 +24,10 @@ on:
         description: "Apply the new configuration"
         type: boolean
         required: true
+      image-tag:
+        description: Tag of container images
+        type: string
+        required: true
   workflow_dispatch:
     inputs:
       environment:
@@ -38,6 +42,10 @@ on:
         description: "Apply the new configuration"
         type: boolean
         default: false
+      image-tag:
+        description: Tag of container images
+        type: string
+        required: true
 
 permissions:
   id-token: write
@@ -89,6 +97,7 @@ jobs:
         SECURE_COMPUTATION_PUBLIC_API_TARGET: ${{ vars.SECURE_COMPUTATION_PUBLIC_API_TARGET }}
         RESULTS_FULFILLER_KINGDOM_CERT_HOST: ${{ vars.RESULTS_FULFILLER_KINGDOM_CERT_HOST }}
         RESULTS_FULFILLER_SECURE_COMPUTATION_CERT_HOST: ${{ vars.RESULTS_FULFILLER_SECURE_COMPUTATION_CERT_HOST }}
+        IMAGE_TAG: ${{ inputs.image-tag }}
       working-directory: ${{ env.GCLOUD_MODULE_PATH }}
       run: >
         terraform plan
@@ -108,6 +117,7 @@ jobs:
         -var="secure_computation_public_api_target=$SECURE_COMPUTATION_PUBLIC_API_TARGET"
         -var="kingdom_public_api_cert_host=$RESULTS_FULFILLER_KINGDOM_CERT_HOST"
         -var="secure_computation_public_api_cert_host=$RESULTS_FULFILLER_SECURE_COMPUTATION_CERT_HOST"
+        -var="image_tag=$IMAGE_TAG"
         -out=tfplan
 
     - name: terraform apply

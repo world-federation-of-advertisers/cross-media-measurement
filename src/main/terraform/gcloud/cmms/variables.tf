@@ -136,3 +136,8 @@ variable "secure_computation_public_api_cert_host" {
   description = "Secure Computation public api cert host"
   type        = string
 }
+
+variable "image_tag" {
+  description = "Tag of container images"
+  type        = string
+}
