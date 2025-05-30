@@ -24,8 +24,19 @@ py_binary(
     ],
 )
 
-py_library(
+py_binary(
     name = "log_processor",
+    srcs = ["log_processor.py"],
+    deps = [
+        requirement("absl-py"),
+        requirement("google-cloud-storage"),
+        "//src/main/proto/wfa/measurement/reporting/postprocessing/v2alpha:report_summary_py_pb2",
+        "//src/main/python/wfa/measurement/reporting/postprocessing/report",
+    ],
+)
+
+py_library(
+    name = "log_processor_lib",
     srcs = ["log_processor.py"],
     imports = ["../"],
     deps = [

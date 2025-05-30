@@ -25,7 +25,7 @@ from unittest.mock import patch
 ReportPostProcessorResult = report_post_processor_result_pb2.ReportPostProcessorResult
 
 
-class TestLogProcessor(unittest.TestCase):
+class LogProcessorTest(unittest.TestCase):
   def setUp(self):
     # Creates the mock objects.
     self.mock_storage_client = MagicMock()

@@ -64,7 +64,7 @@ def main():
   # Sends the log to stderr.
   FLAGS.logtostderr = True
 
-  # Sets the log level base on the --debug flag.
+  # Sets the log level based on the --debug flag.
   logging.set_verbosity(logging.DEBUG if FLAGS.debug else logging.INFO)
 
   # Accesses arguments via FLAGS object.

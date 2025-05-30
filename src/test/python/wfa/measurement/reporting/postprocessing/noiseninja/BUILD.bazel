@@ -2,9 +2,9 @@ load("@pip//:requirements.bzl", "requirement")
 load("@rules_python//python:defs.bzl", "py_test")
 
 py_test(
-    name = "test_solver",
+    name = "solver_test",
     size = "small",
-    srcs = ["test_solver.py"],
+    srcs = ["solver_test.py"],
     deps = [
         "//src/main/proto/wfa/measurement/reporting/postprocessing/v2alpha:report_post_processor_result_py_pb2",
         "//src/main/python/wfa/measurement/reporting/postprocessing/noiseninja",
