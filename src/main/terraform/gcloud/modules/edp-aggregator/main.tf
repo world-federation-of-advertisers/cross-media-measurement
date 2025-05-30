@@ -146,7 +146,7 @@ resource "google_storage_bucket_iam_member" "mig_storage_creator" {
   member = "serviceAccount:${each.value.mig_service_account.email}"
 }
 
-resource "google_storage_bucket_iam_binding" "aggregator_storage_viewers" {
+resource "google_storage_bucket_iam_binding" "aggregator_storage_admin" {
   bucket = module.edp_aggregator_bucket.storage_bucket.name
   role   = "roles/storage.objectAdmin"
   members = [

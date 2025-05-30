@@ -85,6 +85,10 @@ jobs:
         EDP_AGGREGATOR_SECRET_ACCESSOR_CONFIG: ${{ vars.EDP_AGGREGATOR_SECRET_ACCESSOR_CONFIG }}
         EDP_AGGREGATOR_SECRETS: ${{ vars.EDP_AGGREGATOR_SECRETS }}
         REQUISITION_FULFILLER_SECRETS_TO_MOUNT: ${{ vars.REQUISITION_FULFILLER_SECRETS_TO_MOUNT }}
+        KINGDOM_PUBLIC_API_TARGET: ${{ vars.KINGDOM_PUBLIC_API_TARGET }}
+        SECURE_COMPUTATION_PUBLIC_API_TARGET: ${{ vars.SECURE_COMPUTATION_PUBLIC_API_TARGET }}
+        RESULTS_FULFILLER_KINGDOM_CERT_HOST: ${{ vars.RESULTS_FULFILLER_KINGDOM_CERT_HOST }}
+        RESULTS_FULFILLER_SECURE_COMPUTATION_CERT_HOST: ${{ vars.RESULTS_FULFILLER_SECURE_COMPUTATION_CERT_HOST }}
       working-directory: ${{ env.GCLOUD_MODULE_PATH }}
       run: >
         terraform plan
@@ -100,6 +104,10 @@ jobs:
         -var="edpa_secrets=$EDP_AGGREGATOR_SECRETS"
         -var="edpa_secret_accessor_configs=$EDP_AGGREGATOR_SECRET_ACCESSOR_CONFIG"
         -var="requisition_fulfiller_secrets_to_mount=$REQUISITION_FULFILLER_SECRETS_TO_MOUNT"
+        -var="kingdom_public_api_target=$KINGDOM_PUBLIC_API_TARGET"
+        -var="secure_computation_public_api_target=$SECURE_COMPUTATION_PUBLIC_API_TARGET"
+        -var="kingdom_public_api_cert_host=$RESULTS_FULFILLER_KINGDOM_CERT_HOST"
+        -var="secure_computation_public_api_cert_host=$RESULTS_FULFILLER_SECURE_COMPUTATION_CERT_HOST"
         -out=tfplan
 
     - name: terraform apply

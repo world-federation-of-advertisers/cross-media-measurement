@@ -39,12 +39,12 @@ locals {
         min_replicas                = 1
         max_replicas                = 10
         app_args = [
-          "--kingdom-public-api-target=v2alpha.kingdom.dev.halo-cmm.org:8443",
-          "--secure-computation-public-api-target=v1alpha.secure-computation.dev.halo-cmm.org:8443",
-          "--kingdom-public-api-cert-host=results-fulfiller.kingdom.dev.halo-cmm.org",
-          "--secure-computation-public-api-cert-host=results-fulfiller.secure-computation.dev.halo-cmm.org",
+          "--kingdom-public-api-target=${var.kingdom_public_api_target}",
+          "--secure-computation-public-api-target=${var.secure_computation_public_api_target}",
+          "--kingdom-public-api-cert-host=${var.kingdom_public_api_cert_host}",
+          "--secure-computation-public-api-cert-host=${var.secure_computation_public_api_cert_host}",
           "--subscription-id=requisition-fulfiller-subscription",
-          "--google-pub-sub-project-id=halo-cmm-dev"
+          "--google-pub-sub-project-id=${data.google_client_config.default.project}"
         ]
         machine_type                = "n2d-standard-2"
         docker_image                = "ghcr.io/world-federation-of-advertisers/edp-aggregator/results_fulfiller:a25ce11fa004967647cf6b2bdb237e8fa9a24849"

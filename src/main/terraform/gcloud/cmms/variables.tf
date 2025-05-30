@@ -103,7 +103,7 @@ variable "terraform_service_account" {
 }
 
 variable "edpa_secrets" {
-  description = "Secrets JSON string passed from GitHub variable"
+  description = "Secrets JSON string"
   type        = string
 }
 
@@ -113,5 +113,26 @@ variable "edpa_secret_accessor_configs" {
 }
 
 variable "requisition_fulfiller_secrets_to_mount" {
+  description = "Secrets JSON string to be mounted in `ResultsFulfiller` TEE app"
   type = string
+}
+
+variable "kingdom_public_api_target" {
+  description = "Kingdom public api target"
+  type        = string
+}
+
+variable "secure_computation_public_api_target" {
+  description = "Secure Computation public api target"
+  type        = string
+}
+
+variable "kingdom_public_api_cert_host" {
+  description = "Kingdom public api cert host"
+  type        = string
+}
+
+variable "secure_computation_public_api_cert_host" {
+  description = "Secure Computation public api cert host"
+  type        = string
 }
