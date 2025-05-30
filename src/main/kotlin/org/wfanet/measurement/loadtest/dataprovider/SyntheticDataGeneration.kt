@@ -27,9 +27,9 @@ import java.time.LocalDate
 import java.time.ZoneId
 import java.time.temporal.ChronoUnit
 import java.util.logging.Logger
+import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
-import kotlin.random.Random
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.CartesianSyntheticEventGroupSpecRecipe
@@ -44,12 +44,14 @@ import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.synthetic
 import org.wfanet.measurement.common.LocalDateProgression
 import org.wfanet.measurement.common.OpenEndTimeRange
 import org.wfanet.measurement.common.rangeTo
+import org.wfanet.measurement.common.toByteString
 import org.wfanet.measurement.common.toLocalDate
 import org.wfanet.measurement.loadtest.dataprovider.SyntheticDataGeneration.setField
 
 object SyntheticDataGeneration {
   private val VID_SAMPLING_FINGERPRINT_FUNCTION = Hashing.farmHashFingerprint64()
   private const val FINGERPRINT_BUFFER_SIZE_BYTES = 512
+  private const val SECONDS_PER_DAY = 86400
 
   /**
    * Generates events deterministicly. Given a total frequency across a date period, it will
@@ -164,9 +166,16 @@ object SyntheticDataGeneration {
               (VID_SAMPLING_FINGERPRINT_FUNCTION.hashLong(vid * i).asLong() % numDays + numDays) %
                 numDays
             if (dayToLog == dayNumber) {
-              val randomTime = date.atStartOfDay(zoneId).plusSeconds(Random.nextLong(0, 86400 - 1))
-              if (randomTime.toInstant() in timeRange) {
-                emit(LabeledEvent(randomTime.toInstant(), vid, message))
+              val hashInput =
+                vid
+                  .toByteString(ByteOrder.BIG_ENDIAN)
+                  .concat(dayToLog.toByteString(ByteOrder.BIG_ENDIAN))
+              val hashValue =
+                abs(Hashing.farmHashFingerprint64().hashBytes(hashInput.toByteArray()).asLong())
+              val impressionTime =
+                date.atStartOfDay(zoneId).plusSeconds(hashValue % SECONDS_PER_DAY)
+              if (impressionTime.toInstant() in timeRange) {
+                emit(LabeledEvent(impressionTime.toInstant(), vid, message))
               }
             }
           }
