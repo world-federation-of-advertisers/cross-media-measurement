@@ -43,7 +43,6 @@ import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import org.apache.commons.math3.distribution.ConstantRealDistribution
 import org.jetbrains.annotations.BlockingExecutor
@@ -160,7 +159,7 @@ class EdpSimulator(
   private val eventGroupMetadataDescriptorsStub: EventGroupMetadataDescriptorsCoroutineStub,
   requisitionsStub: RequisitionsCoroutineStub,
   private val requisitionFulfillmentStubsByDuchyId:
-  Map<String, RequisitionFulfillmentCoroutineStub>,
+    Map<String, RequisitionFulfillmentCoroutineStub>,
   private val eventQuery: EventQuery<Message>,
   throttler: Throttler,
   private val privacyBudgetManager: PrivacyBudgetManager,
@@ -1043,12 +1042,12 @@ class EdpSimulator(
   ) {
     val protocolConfig: ProtocolConfig.ReachOnlyLiquidLegionsV2 =
       requireNotNull(
-        requisition.protocolConfig.protocolsList.find { protocol ->
-          protocol.hasReachOnlyLiquidLegionsV2()
+          requisition.protocolConfig.protocolsList.find { protocol ->
+            protocol.hasReachOnlyLiquidLegionsV2()
+          }
+        ) {
+          "Protocol with ReachOnlyLiquidLegionsV2 is missing"
         }
-      ) {
-        "Protocol with ReachOnlyLiquidLegionsV2 is missing"
-      }
         .reachOnlyLiquidLegionsV2
     val combinedPublicKey: AnySketchElGamalPublicKey =
       requisition.getCombinedPublicKey(protocolConfig.ellipticCurveId)
@@ -1159,12 +1158,12 @@ class EdpSimulator(
 
     val protocolConfig: ProtocolConfig.HonestMajorityShareShuffle =
       requireNotNull(
-        requisition.protocolConfig.protocolsList.find { protocol ->
-          protocol.hasHonestMajorityShareShuffle()
+          requisition.protocolConfig.protocolsList.find { protocol ->
+            protocol.hasHonestMajorityShareShuffle()
+          }
+        ) {
+          "Protocol with HonestMajorityShareShuffle is missing"
         }
-      ) {
-        "Protocol with HonestMajorityShareShuffle is missing"
-      }
         .honestMajorityShareShuffle
 
     chargeMpcPrivacyBudget(
@@ -1189,12 +1188,12 @@ class EdpSimulator(
 
     val requests =
       FulfillRequisitionRequestBuilder.build(
-        requisition,
-        nonce,
-        sampledFrequencyVector,
-        edpData.certificateKey,
-        edpData.signingKeyHandle,
-      )
+          requisition,
+          nonce,
+          sampledFrequencyVector,
+          edpData.certificateKey,
+          edpData.signingKeyHandle,
+        )
         .asFlow()
 
     val duchyId = getDuchyWithoutPublicKey(requisition)
@@ -1400,12 +1399,10 @@ class EdpSimulator(
         }
 
         val (sampledReachValue, frequencyMap) =
-          runBlocking {
-            MeasurementResults.computeReachAndFrequency(
-              samples.asFlow(),
-              measurementSpec.reachAndFrequency.maximumFrequency,
-            )
-          }
+          MeasurementResults.computeReachAndFrequency(
+            samples,
+            measurementSpec.reachAndFrequency.maximumFrequency,
+          )
 
         logger.info("Adding $directNoiseMechanism publisher noise to direct reach and frequency...")
         val sampledNoisedReachValue =
@@ -1446,9 +1443,9 @@ class EdpSimulator(
           )
         }
 
-        val sampledImpressionCount = runBlocking {
-          computeImpression(samples.asFlow(), measurementSpec.impression.maximumFrequencyPerUser)
-        }
+        val sampledImpressionCount =
+          computeImpression(samples, measurementSpec.impression.maximumFrequencyPerUser)
+
         logger.info("Adding $directNoiseMechanism publisher noise to impression...")
         val sampledNoisedImpressionCount =
           addImpressionPublisherNoise(
@@ -1495,7 +1492,7 @@ class EdpSimulator(
           )
         }
 
-        val sampledReachValue = runBlocking { MeasurementResults.computeReach(samples.asFlow()) }
+        val sampledReachValue = MeasurementResults.computeReach(samples)
 
         logger.info("Adding $directNoiseMechanism publisher noise to direct reach for reach-only")
         val sampledNoisedReachValue =

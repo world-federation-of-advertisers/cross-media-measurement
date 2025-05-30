@@ -18,13 +18,9 @@ package org.wfanet.measurement.dataprovider
 
 import com.google.protobuf.TypeRegistry
 import kotlinx.coroutines.flow.Flow
-<<<<<<< HEAD:src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider/MeasurementResults.kt
-import kotlinx.coroutines.flow.toList
-=======
 import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.fold
 import kotlinx.coroutines.runBlocking
->>>>>>> origin/main:src/main/kotlin/org/wfanet/measurement/dataprovider/MeasurementResults.kt
 import org.projectnessie.cel.Program
 import org.wfanet.measurement.populationdataprovider.PopulationInfo
 import org.wfanet.measurement.populationdataprovider.PopulationRequisitionFulfiller
@@ -41,9 +37,6 @@ object MeasurementResults {
     filteredVids: Flow<Long>,
     maxFrequency: Int,
   ): ReachAndFrequency {
-<<<<<<< HEAD:src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider/MeasurementResults.kt
-    val eventsPerVid: Map<Long, Int> = filteredVids.toList().groupingBy { it }.eachCount()
-=======
     // Count occurrences of each VID using fold operation on the flow
     val eventsPerVid =
       filteredVids.fold(mutableMapOf<Long, Int>()) { acc, vid ->
@@ -51,7 +44,6 @@ object MeasurementResults {
         acc
       }
 
->>>>>>> origin/main:src/main/kotlin/org/wfanet/measurement/dataprovider/MeasurementResults.kt
     val reach: Int = eventsPerVid.keys.size
 
     // If the filtered VIDs is empty, set the distribution with all 0s up to maxFrequency.
@@ -90,15 +82,12 @@ object MeasurementResults {
   }
 
   /** Computes reach using the "deterministic count distinct" methodology. */
-  suspend fun computeReach(filteredVids: Flow<Long>): Int {
-    return filteredVids.toList().distinct().size
+  fun computeReach(filteredVids: Iterable<Long>): Int {
+    return filteredVids.distinct().size
   }
 
   /** Computes impression using the "deterministic count" methodology. */
   suspend fun computeImpression(filteredVids: Flow<Long>, maxFrequency: Int): Long {
-<<<<<<< HEAD:src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider/MeasurementResults.kt
-    val eventsPerVid: Map<Long, Int> = filteredVids.toList().groupingBy { it }.eachCount()
-=======
     // Count occurrences of each VID using fold operation on the flow
     val eventsPerVid =
       filteredVids.fold(mutableMapOf<Long, Int>()) { acc, vid ->
@@ -113,7 +102,6 @@ object MeasurementResults {
   /** Computes impression using the "deterministic count" methodology. */
   fun computeImpression(filteredVids: Iterable<Long>, maxFrequency: Int): Long {
     val eventsPerVid: Map<Long, Int> = filteredVids.groupingBy { it }.eachCount()
->>>>>>> origin/main:src/main/kotlin/org/wfanet/measurement/dataprovider/MeasurementResults.kt
     // Cap each count at `maxFrequency`.
     return eventsPerVid.values.sumOf { count -> count.coerceAtMost(maxFrequency).toLong() }
   }
