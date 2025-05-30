@@ -16,6 +16,8 @@ syntax = "proto3";
 
 package wfa.measurement.reporting.postprocessing.v2alpha;
 
+import "src/main/proto/wfa/measurement/reporting/postprocessing/v2alpha/report_summary.proto";
+
 option java_package = "org.wfanet.measurement.reporting.postprocessing.v2alpha";
 option java_multiple_files = true;
 option java_outer_classname = "ReportPostProcessorResultProto";
@@ -117,8 +119,14 @@ message ReportQuality {
 // The result message encapsulating the entire outcome of the post-processing
 // pipeline for a single report.
 message ReportPostProcessorResult {
+  // Stores the pre-corrected report summary.
+  ReportSummary pre_correction_report_summary = 5;
+
   // Stores the corrected value for each measurement, identified by its unique
-  // name. This map is populated if and only if the solver found a solution
+  // name. The names in this map must correspond to names found within the
+  // pre_correction_report_summary. The corrected report can be computed from
+  // the pre_correction_report_summary and the updated_measurements map. Note
+  // that this map is populated if and only if the solver found a solution
   // (i.e. when the status.status_code is not SOLUTION_NOT_FOUND).
   map<string, int64> updated_measurements = 1;
 
