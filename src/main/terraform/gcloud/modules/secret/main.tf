@@ -21,5 +21,5 @@ resource "google_secret_manager_secret" "secret" {
 
 resource "google_secret_manager_secret_version" "secret_version" {
   secret      = google_secret_manager_secret.secret.id
-  secret_data = file(var.secret_path)
+  secret_data = var.is_binary_format ? filebase64(var.secret_path) : file(var.secret_path)
 }

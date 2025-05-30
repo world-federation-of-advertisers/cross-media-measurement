@@ -72,6 +72,7 @@ jobs:
     with:
       environment: ${{ inputs.environment }}
       apply: ${{ inputs.apply }}
+      image-tag: ${{ needs.publish-images.outputs.image-tag }}
 
   update-kingdom:
     uses: ./.github/workflows/configure-kingdom.yml

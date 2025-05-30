@@ -49,7 +49,37 @@ variable "queue_worker_configs" {
       app_args                    = list(string)
       machine_type                = string
       docker_image                = string
+      secrets_to_mount = optional(
+        list(object({
+          secret_key = string
+          version    = string
+          mount_path = string
+          flag_name  = optional(string)
+        })),
+        []
+      )
     })
+  }))
+}
+
+variable "secret_accessor_configs" {
+  description = "Secrets for which the Cloud Functions service account requires access"
+  type = map(object({
+    secrets_to_access = optional(
+      list(object({
+        secret_key = string
+      })),
+      []
+    )
+  }))
+}
+
+variable "secrets" {
+  description = "All secrets to upload"
+  type = map(object({
+    secret_id         = string
+    secret_local_path = string
+    is_binary_format  = bool
   }))
 }
 
@@ -96,32 +126,14 @@ variable "requisition_fetcher_service_account_name" {
   nullable    = false
 }
 
-variable "data_watcher_private_key_id" {
+variable "event_group_sync_service_account_name" {
+  description = "Name of the EventGroupSync service account."
   type        = string
-  description = "The ID of data watcher private key"
+  nullable    = false
 }
 
-variable "data_watcher_private_key_path" {
+variable "event_group_sync_function_name" {
+  description = "Name of the EventGroupSync cloud function."
   type        = string
-  description = "The path of the data watcher private key"
-}
-
-variable "data_watcher_cert_id" {
-  type        = string
-  description = "The ID of data watcher cert"
-}
-
-variable "data_watcher_cert_path" {
-  type        = string
-  description = "The path of the data watcher cert"
-}
-
-variable "secure_computation_root_ca_id" {
-  type        = string
-  description = "The ID of secure computation CA root"
-}
-
-variable "secure_computation_root_ca_path" {
-  type        = string
-  description = "The path of the secure computation CA root"
+  nullable    = false
 }

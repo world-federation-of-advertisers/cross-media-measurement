@@ -101,3 +101,43 @@ variable "terraform_service_account" {
   type        = string
   nullable    = false
 }
+
+variable "edpa_secrets" {
+  description = "Secrets JSON string"
+  type        = string
+}
+
+variable "edpa_secret_accessor_configs" {
+  description = "JSON-encoded map of secret accessor configs"
+  type        = string
+}
+
+variable "requisition_fulfiller_secrets_to_mount" {
+  description = "Secrets JSON string to be mounted in `ResultsFulfiller` TEE app"
+  type = string
+}
+
+variable "kingdom_public_api_target" {
+  description = "Kingdom public api target"
+  type        = string
+}
+
+variable "secure_computation_public_api_target" {
+  description = "Secure Computation public api target"
+  type        = string
+}
+
+variable "kingdom_public_api_cert_host" {
+  description = "Kingdom public api cert host"
+  type        = string
+}
+
+variable "secure_computation_public_api_cert_host" {
+  description = "Secure Computation public api cert host"
+  type        = string
+}
+
+variable "image_tag" {
+  description = "Tag of container images"
+  type        = string
+}

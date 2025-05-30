@@ -13,6 +13,16 @@
 # limitations under the License.
 
 locals {
+  raw_secrets = jsondecode(var.edpa_secrets)
+
+  secrets = {
+    for key, value in local.raw_secrets : key => {
+      secret_id         = value.secret_id
+      secret_local_path = abspath("${path.root}/${value.secret_local_path}")
+      is_binary_format  = value.is_binary_format
+    }
+  }
+  secret_accessor_configs = jsondecode(var.edpa_secret_accessor_configs)
   queue_worker_configs = {
     requisition_fulfiller = {
       queue = {
@@ -28,9 +38,17 @@ locals {
         single_instance_assignment  = 1
         min_replicas                = 1
         max_replicas                = 10
-        app_args                    = []
+        app_args = [
+          "--kingdom-public-api-target=${var.kingdom_public_api_target}",
+          "--secure-computation-public-api-target=${var.secure_computation_public_api_target}",
+          "--kingdom-public-api-cert-host=${var.kingdom_public_api_cert_host}",
+          "--secure-computation-public-api-cert-host=${var.secure_computation_public_api_cert_host}",
+          "--subscription-id=requisition-fulfiller-subscription",
+          "--google-pub-sub-project-id=${data.google_client_config.default.project}"
+        ]
         machine_type                = "n2d-standard-2"
-        docker_image                = "" # @TODO(MarcoPremier): set this value once TEE APP is merged
+        docker_image                = "ghcr.io/world-federation-of-advertisers/edp-aggregator/results_fulfiller:${var.image_tag}"
+        secrets_to_mount            = jsondecode(var.requisition_fulfiller_secrets_to_mount)
       }
     }
   }
@@ -39,10 +57,12 @@ locals {
 module "edp_aggregator" {
   source = "../modules/edp-aggregator"
 
-  key_ring_name                             = "edpa-secure-computation-cloud-test-key-ring"
+  key_ring_name                             = "edpa-secure-computation-cloud-test-key-ring-9"
   key_ring_location                         = local.key_ring_location
   kms_key_name                              = "edpa-secure-computation-kek"
   queue_worker_configs                      = local.queue_worker_configs
+  secrets                                   = local.secrets
+  secret_accessor_configs                   = local.secret_accessor_configs
   pubsub_iam_service_account_member         = module.secure_computation.secure_computation_internal_iam_service_account_member
   edp_aggregator_bucket_name                = var.secure_computation_storage_bucket_name
   edp_aggregator_bucket_location            = local.storage_bucket_location
@@ -50,12 +70,7 @@ module "edp_aggregator" {
   data_watcher_trigger_service_account_name = "edpa-data-watcher-trigger"
   terraform_service_account                 = var.terraform_service_account
   requisition_fetcher_service_account_name  = "edpa-requisition-fetcher"
-
-  data_watcher_private_key_id               = "edpa-datawatcher-tls-key"
-  data_watcher_private_key_path             = "${path.root}/../../../k8s/testing/secretfiles/data_watcher_tls.key"
-  data_watcher_cert_id                      = "edpa-datawatcher-tls-pem"
-  data_watcher_cert_path                    = "${path.root}/../../../k8s/testing/secretfiles/data_watcher_tls.pem"
-  secure_computation_root_ca_id             = "secure-computation-root-ca"
-  secure_computation_root_ca_path           = "${path.root}/../../../k8s/testing/secretfiles/secure_computation_root.pem"
+  event_group_sync_service_account_name     = "edpa-event-group-sync"
+  event_group_sync_function_name            = "event-group-sync"
 
 }

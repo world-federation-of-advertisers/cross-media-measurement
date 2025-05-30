@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-#TODO(@MarcoPremier): Update `configure-secure-computation-control-plane.yml` to use kingdom cluster (https://github.com/world-federation-of-advertisers/cross-media-measurement/blob/main/.github/workflows/configure-secure-computation-control-plane.yml#L98)
 
 module "secure_computation" {
   source = "../modules/secure-computation"

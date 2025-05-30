@@ -42,6 +42,25 @@ variable "app_args" {
   default     = []
 }
 
+variable "secrets" {
+  description = "Map of all secrets (uploaded separately), keyed for mounting"
+  type = map(object({
+    secret_id         = string
+    secret_local_path = string
+  }))
+}
+
+variable "secrets_to_mount" {
+  description = "Subset of var.secrets to actually mount into this MIG"
+  type = list(object({
+    secret_key = string
+    version    = string
+    mount_path = string
+    flag_name  = optional(string)
+  }))
+  default = []
+}
+
 variable "subscription_id" {
   description = "The ID of the Pub/Sub subscription to which the service account will be granted access."
   type        = string
