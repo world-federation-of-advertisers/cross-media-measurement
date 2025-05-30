@@ -30,18 +30,14 @@ import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupKey
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
-import org.wfanet.measurement.api.v2alpha.MeasurementSpec.VidSamplingInterval
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig.NoiseMechanism
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
 import org.wfanet.measurement.api.v2alpha.requisitionSpec
 import org.wfanet.measurement.common.OpenEndTimeRange
-import org.wfanet.measurement.eventdataprovider.noiser.DpParams as NoiserDpParams
 import org.wfanet.measurement.loadtest.config.TestIdentifiers
 import org.wfanet.measurement.loadtest.dataprovider.EventQuery
-import org.wfanet.measurement.measurementconsumer.stats.NoiseMechanism as StatsNoiseMechanism
-import org.wfanet.measurement.measurementconsumer.stats.VidSamplingInterval as StatsVidSamplingInterval
 
 /**
  * Implementation of MeasurementConsumerSimulator that uses Synthetic Event Query typically with the
