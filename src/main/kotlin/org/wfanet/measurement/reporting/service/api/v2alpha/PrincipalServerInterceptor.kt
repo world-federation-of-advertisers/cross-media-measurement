@@ -81,7 +81,7 @@ fun BindableService.withPrincipalsFromX509AuthorityKeyIdentifiers(
     AuthorityKeyServerInterceptor(),
     AkidPrincipalServerInterceptor(
       ContextKeys.PRINCIPAL_CONTEXT_KEY,
-      AuthorityKeyServerInterceptor.AUTHORITY_KEY_IDENTIFIERS_CONTEXT_KEY,
+      AuthorityKeyServerInterceptor.CLIENT_AUTHORITY_KEY_IDENTIFIER_CONTEXT_KEY,
       akidPrincipalLookup,
     ),
   )
