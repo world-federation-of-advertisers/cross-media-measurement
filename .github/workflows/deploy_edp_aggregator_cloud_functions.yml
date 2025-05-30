@@ -48,6 +48,9 @@ jobs:
       DATA_WATCHER_TLS_KEY_SECRET: ${{ vars.DATA_WATCHER_TLS_KEY_SECRET }}
       SECURE_COMPUTATION_ROOT_SECRET: ${{ vars.SECURE_COMPUTATION_ROOT_SECRET }}
       EVENT_GROUP_SYNC_SERVICE_ACCOUNT: ${{ vars.EVENT_GROUP_SYNC_SERVICE_ACCOUNT }}
+      EDP7_TLS_KEY_SECRET: ${{ vars.EDP7_TLS_KEY_SECRET }}
+      EDP7_TLS_PEM_SECRET: ${{ vars.EDP7_TLS_PEM_SECRET }}
+      KINGOM_ROOT_SECRET: ${{ vars.KINGOM_ROOT_SECRET }}
 
     steps:
 
@@ -86,6 +89,7 @@ jobs:
           bazel_target_label: //src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/requisitionfetcher:RequisitionFetcherFunction_deploy.jar
           run_service_account: ${{ env.REQUISITION_FETCHER_SERVICE_ACCOUNT }}
           extra_env_vars: "KINGDOM_TARGET=${{ env.KINGDOM_PUBLIC_API_TARGET }}"
+          secret_mappings: "/secrets/key/edp7_tls.key=${{ env.EDP7_TLS_KEY_SECRET }}:latest,/secrets/cert/edp7_tls.pem=${{ env.EDP7_TLS_PEM_SECRET }}:latest,/secrets/ca/kingdom_root.pem=${{ env.KINGOM_ROOT_SECRET }}:latest"
 
       - name: Deploy Event Group Sync
         uses: ./.github/actions/build-and-deploy-cloud-function
@@ -96,3 +100,4 @@ jobs:
           bazel_target_label: //src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/eventgroups:EventGroupSyncFunction_deploy.jar
           run_service_account: ${{ env.EVENT_GROUP_SYNC_SERVICE_ACCOUNT }}
           extra_env_vars: "KINGDOM_TARGET=${{ env.KINGDOM_PUBLIC_API_TARGET }}"
+          secret_mappings: "/secrets/key/edp7_tls.key=${{ env.EDP7_TLS_KEY_SECRET }}:latest,/secrets/cert/edp7_tls.pem=${{ env.EDP7_TLS_PEM_SECRET }}:latest,/secrets/ca/kingdom_root.pem=${{ env.KINGOM_ROOT_SECRET }}:latest"
