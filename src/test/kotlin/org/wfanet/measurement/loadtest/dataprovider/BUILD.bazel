@@ -14,6 +14,7 @@ kt_jvm_library(
     ],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha/testing",
+        "//src/main/kotlin/org/wfanet/measurement/dataprovider:measurement_results",
         "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/eventfiltration:event_filters",
         "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/privacybudgetmanagement:privacy_budget_manager",
         "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/privacybudgetmanagement/testing",
@@ -24,7 +25,6 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/loadtest/config:test_identifiers",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:edp_simulator",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:in_memory_event_query",
-        "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:measurement_results",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:synthetic_generator_event_query",
         "//src/main/proto/wfa/measurement/api/v2alpha:protocol_config_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:test_event_kt_jvm_proto",
@@ -85,6 +85,7 @@ kt_jvm_library(
     ],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha/testing",
+        "//src/main/kotlin/org/wfanet/measurement/dataprovider:measurement_results",
         "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/eventfiltration:event_filters",
         "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/privacybudgetmanagement:privacy_budget_manager",
         "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/privacybudgetmanagement/testing",
@@ -94,7 +95,6 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/loadtest/config:event_group_metadata",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/config:test_identifiers",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:in_memory_event_query",
-        "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:measurement_results",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:synthetic_generator_event_query",
         "//src/main/kotlin/org/wfanet/measurement/populationdataprovider:population_requisition_fulfiller",
         "//src/main/proto/wfa/measurement/api/v2alpha:model_releases_service_kt_jvm_grpc_proto",

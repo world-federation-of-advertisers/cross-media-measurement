@@ -14,6 +14,7 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
+import com.google.cloud.spanner.Options
 import com.google.cloud.spanner.Statement
 import com.google.cloud.spanner.Struct
 import com.google.type.Date
@@ -165,9 +166,12 @@ class FinishExchangeStepAttempt(
         bind("recurring_exchange_id" to recurringExchangeId.value)
         bind("date" to exchangeDate.toCloudDate())
       }
-    return transactionContext.executeQuery(statement).toList().associate {
-      it.getLong("StepIndex").toInt() to it.getProtoEnum("State", ExchangeStep.State::forNumber)
-    }
+    return transactionContext
+      .executeQuery(statement, Options.tag("writer=$writerName,action=readExchangeStepStates"))
+      .toList()
+      .associate {
+        it.getLong("StepIndex").toInt() to it.getProtoEnum("State", ExchangeStep.State::forNumber)
+      }
   }
 
   private suspend fun TransactionScope.findNewlyUnblockedExchangeSteps(
@@ -257,7 +261,10 @@ class FinishExchangeStepAttempt(
         bind("date" to exchangeDate.toCloudDate())
         bind("state").toInt64(ExchangeStep.State.SUCCEEDED)
       }
-    val row: Struct = transactionContext.executeQuery(statement).single()
+    val row: Struct =
+      transactionContext
+        .executeQuery(statement, Options.tag("writer=$writerName,action=allStepsCompleted"))
+        .single()
 
     // Since the current step is still IN_PROGRESS, if this is 1 then after updating the current
     // step, there will be no more incomplete steps.

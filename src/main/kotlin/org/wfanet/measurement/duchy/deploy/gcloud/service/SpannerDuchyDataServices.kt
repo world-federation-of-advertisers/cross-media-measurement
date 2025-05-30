@@ -14,6 +14,7 @@
 
 package org.wfanet.measurement.duchy.deploy.gcloud.service
 
+import org.wfanet.measurement.common.IdGenerator
 import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStageDetails
 import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStageDetailsHelper
 import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStages
@@ -82,6 +83,7 @@ object SpannerDuchyDataServices {
             protocolStagesEnumHelper,
             computationProtocolStageDetailsHelper,
           ),
+        computationIdGenerator = IdGenerator.Default,
       )
     val computationsDatabase =
       newComputationsDatabase(computationReader, computationDb, protocolStagesEnumHelper)

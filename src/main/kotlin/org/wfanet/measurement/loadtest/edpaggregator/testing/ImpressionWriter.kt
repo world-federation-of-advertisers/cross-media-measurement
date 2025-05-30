@@ -22,12 +22,14 @@ import java.io.File
 import java.time.LocalDate
 import java.util.logging.Logger
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.crypto.tink.withEnvelopeEncryption
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.EncryptedDekUtils
 import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
+import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
 import org.wfanet.measurement.edpaggregator.v1alpha.blobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.labeledImpression
 import org.wfanet.measurement.loadtest.dataprovider.DateShardedLabeledImpression
@@ -78,7 +80,7 @@ class ImpressionsWriter(
       EncryptedDek.newBuilder().setKekUri(kekUri).setEncryptedDek(serializedEncryptionKey).build()
 
     events.collect { (localDate: LocalDate, labeledEvents: Flow<LabeledEvent<T>>) ->
-      val labeledImpressions =
+      val labeledImpressions: Flow<LabeledImpression> =
         labeledEvents.map { it: LabeledEvent<T> ->
           labeledImpression {
             vid = it.vid
@@ -91,27 +93,18 @@ class ImpressionsWriter(
 
       val impressionsBlobKey = "ds/$ds/$eventGroupPath/impressions"
       val impressionsFileUri = "$schema$impressionsBucket/$impressionsBlobKey"
-      val mesosRecordIoStorageClient = run {
-        val impressionsStorageClient = SelectedStorageClient(impressionsFileUri, storagePath)
+      val encryptedStorage = run {
+        val selectedStorageClient = SelectedStorageClient(impressionsFileUri, storagePath)
 
         val aeadStorageClient =
-          impressionsStorageClient.withEnvelopeEncryption(
-            kmsClient,
-            kekUri,
-            serializedEncryptionKey,
-          )
+          selectedStorageClient.withEnvelopeEncryption(kmsClient, kekUri, serializedEncryptionKey)
 
-        // Wrap aead client in mesos client
-        val mesosRecordIoStorageClient = MesosRecordIoStorageClient(aeadStorageClient)
-        mesosRecordIoStorageClient
+        MesosRecordIoStorageClient(aeadStorageClient)
       }
       logger.info("Writing impressions to $impressionsFileUri")
       // Write impressions to storage
       runBlocking {
-        mesosRecordIoStorageClient.writeBlob(
-          impressionsBlobKey,
-          labeledImpressions.map { it.toByteString() },
-        )
+        encryptedStorage.writeBlob(impressionsBlobKey, labeledImpressions.map { it.toByteString() })
       }
       val impressionsMetaDataBlobKey = "ds/$ds/$eventGroupPath/metadata"
 

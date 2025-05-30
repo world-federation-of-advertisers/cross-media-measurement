@@ -1,5 +1,5 @@
 /*
- * Copyright 2023 The Cross-Media Measurement Authors
+ * Copyright 2025 The Cross-Media Measurement Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,11 +14,13 @@
  * limitations under the License.
  */
 
-package org.wfanet.measurement.loadtest.dataprovider
+package org.wfanet.measurement.dataprovider
 
 import com.google.protobuf.TypeRegistry
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.flow.asFlow
+import kotlinx.coroutines.flow.fold
+import kotlinx.coroutines.runBlocking
 import org.projectnessie.cel.Program
 import org.wfanet.measurement.populationdataprovider.PopulationInfo
 import org.wfanet.measurement.populationdataprovider.PopulationRequisitionFulfiller
@@ -35,7 +37,13 @@ object MeasurementResults {
     filteredVids: Flow<Long>,
     maxFrequency: Int,
   ): ReachAndFrequency {
-    val eventsPerVid: Map<Long, Int> = filteredVids.toList().groupingBy { it }.eachCount()
+    // Count occurrences of each VID using fold operation on the flow
+    val eventsPerVid =
+      filteredVids.fold(mutableMapOf<Long, Int>()) { acc, vid ->
+        acc[vid] = acc.getOrDefault(vid, 0) + 1
+        acc
+      }
+
     val reach: Int = eventsPerVid.keys.size
 
     // If the filtered VIDs is empty, set the distribution with all 0s up to maxFrequency.
@@ -55,14 +63,45 @@ object MeasurementResults {
     return ReachAndFrequency(reach, frequencyDistribution)
   }
 
+  /**
+   * Computes reach and frequency using the "deterministic count distinct" methodology and the
+   * "deterministic distribution" methodology.
+   */
+  fun computeReachAndFrequency(filteredVids: Iterable<Long>, maxFrequency: Int): ReachAndFrequency {
+    return runBlocking { computeReachAndFrequency(filteredVids.asFlow(), maxFrequency) }
+  }
+
   /** Computes reach using the "deterministic count distinct" methodology. */
   suspend fun computeReach(filteredVids: Flow<Long>): Int {
-    return filteredVids.toList().distinct().size
+    // Use a mutable set to track distinct VIDs as they flow through
+    val distinctVids = mutableSetOf<Long>()
+
+    filteredVids.collect { vid -> distinctVids.add(vid) }
+
+    return distinctVids.size
+  }
+
+  /** Computes reach using the "deterministic count distinct" methodology. */
+  fun computeReach(filteredVids: Iterable<Long>): Int {
+    return filteredVids.distinct().size
   }
 
   /** Computes impression using the "deterministic count" methodology. */
   suspend fun computeImpression(filteredVids: Flow<Long>, maxFrequency: Int): Long {
-    val eventsPerVid: Map<Long, Int> = filteredVids.toList().groupingBy { it }.eachCount()
+    // Count occurrences of each VID using fold operation on the flow
+    val eventsPerVid =
+      filteredVids.fold(mutableMapOf<Long, Int>()) { acc, vid ->
+        acc[vid] = acc.getOrDefault(vid, 0) + 1
+        acc
+      }
+
+    // Cap each count at `maxFrequency`.
+    return eventsPerVid.values.sumOf { count -> count.coerceAtMost(maxFrequency).toLong() }
+  }
+
+  /** Computes impression using the "deterministic count" methodology. */
+  fun computeImpression(filteredVids: Iterable<Long>, maxFrequency: Int): Long {
+    val eventsPerVid: Map<Long, Int> = filteredVids.groupingBy { it }.eachCount()
     // Cap each count at `maxFrequency`.
     return eventsPerVid.values.sumOf { count -> count.coerceAtMost(maxFrequency).toLong() }
   }

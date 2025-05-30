@@ -16,12 +16,17 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers
 
+import com.google.cloud.spanner.Options
 import com.google.cloud.spanner.Struct
 import kotlinx.coroutines.flow.singleOrNull
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
+import org.wfanet.measurement.common.singleOrNullIfEmpty
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.appendClause
+import org.wfanet.measurement.gcloud.spanner.getInternalId
+import org.wfanet.measurement.gcloud.spanner.statement
+import org.wfanet.measurement.gcloud.spanner.to
 import org.wfanet.measurement.internal.kingdom.ModelSuite
 import org.wfanet.measurement.internal.kingdom.modelSuite
 
@@ -79,4 +84,46 @@ class ModelSuiteReader : SpannerReader<ModelSuiteReader.Result>() {
       .execute(readContext)
       .singleOrNull()
   }
+
+  companion object {
+    suspend fun readModelSuiteKey(
+      readContext: AsyncDatabaseClient.ReadContext,
+      externalModelProviderId: ExternalId,
+      externalModelSuiteId: ExternalId,
+    ): ModelSuiteInternalKey? {
+      val sql =
+        """
+        SELECT
+          ModelProviderId,
+          ModelSuiteId,
+        FROM
+          ModelProviders
+          JOIN ModelSuites USING (ModelProviderId)
+        WHERE
+          ExternalModelProviderId = @externalModelProviderId
+          AND ExternalModelSuiteId = @externalModelSuiteId
+        """
+          .trimIndent()
+      val query =
+        statement(sql) {
+          bind("externalModelSuiteId").to(externalModelSuiteId)
+          bind("externalModelProviderId").to(externalModelProviderId)
+        }
+      val row =
+        readContext
+          .executeQuery(query, Options.tag("reader=ModelSuiteReader,action=readModelSuiteKey"))
+          .singleOrNullIfEmpty()
+
+      return if (row == null) {
+        null
+      } else {
+        ModelSuiteInternalKey(
+          row.getInternalId("ModelProviderId"),
+          row.getInternalId("ModelSuiteId"),
+        )
+      }
+    }
+  }
 }
+
+data class ModelSuiteInternalKey(val modelProviderId: InternalId, val modelSuiteId: InternalId)
