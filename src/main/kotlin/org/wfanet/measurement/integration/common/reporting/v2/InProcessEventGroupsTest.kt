@@ -367,6 +367,10 @@ abstract class InProcessEventGroupsTest(
             parent = reportingRule.dataProvider1Name
             eventGroup =
               eventGroup1.copy {
+                dataAvailabilityInterval =
+                  dataAvailabilityInterval.copy {
+                    startTime = now.minus(92L, ChronoUnit.DAYS).toProtoTime()
+                  }
                 mediaTypes.clear()
                 mediaTypes += CmmsMediaType.DISPLAY
                 eventGroupMetadata =
