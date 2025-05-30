@@ -47,7 +47,7 @@ locals {
           "--google-pub-sub-project-id=${data.google_client_config.default.project}"
         ]
         machine_type                = "n2d-standard-2"
-        docker_image                = "ghcr.io/world-federation-of-advertisers/edp-aggregator/results_fulfiller:a25ce11fa004967647cf6b2bdb237e8fa9a24849"
+        docker_image                = "ghcr.io/world-federation-of-advertisers/edp-aggregator/results_fulfiller:${var.image_tag}"
         secrets_to_mount            = jsondecode(var.requisition_fulfiller_secrets_to_mount)
       }
     }
