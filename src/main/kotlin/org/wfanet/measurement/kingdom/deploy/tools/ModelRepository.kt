@@ -22,6 +22,7 @@ import java.time.Duration
 import java.time.Instant
 import java.time.ZoneOffset
 import kotlinx.coroutines.runBlocking
+import org.wfanet.measurement.api.v2alpha.ListModelProvidersResponse
 import org.wfanet.measurement.api.v2alpha.ListModelSuitesResponse
 import org.wfanet.measurement.api.v2alpha.ModelLine
 import org.wfanet.measurement.api.v2alpha.ModelLinesGrpc
@@ -30,6 +31,7 @@ import org.wfanet.measurement.api.v2alpha.ModelReleasesGrpc
 import org.wfanet.measurement.api.v2alpha.ModelReleasesGrpc.ModelReleasesBlockingStub
 import org.wfanet.measurement.api.v2alpha.ModelRolloutsGrpc
 import org.wfanet.measurement.api.v2alpha.ModelRolloutsGrpc.ModelRolloutsBlockingStub
+import org.wfanet.measurement.api.v2alpha.ModelProvidersGrpcKt.ModelProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ModelSuitesGrpc
 import org.wfanet.measurement.api.v2alpha.ModelSuitesGrpc.ModelSuitesBlockingStub
 import org.wfanet.measurement.api.v2alpha.PopulationKt.populationBlob
@@ -41,8 +43,10 @@ import org.wfanet.measurement.api.v2alpha.createModelRolloutRequest
 import org.wfanet.measurement.api.v2alpha.createModelSuiteRequest
 import org.wfanet.measurement.api.v2alpha.createPopulationRequest
 import org.wfanet.measurement.api.v2alpha.eventTemplate
+import org.wfanet.measurement.api.v2alpha.getModelProviderRequest
 import org.wfanet.measurement.api.v2alpha.getModelSuiteRequest
 import org.wfanet.measurement.api.v2alpha.getPopulationRequest
+import org.wfanet.measurement.api.v2alpha.listModelProvidersRequest
 import org.wfanet.measurement.api.v2alpha.listModelSuitesRequest
 import org.wfanet.measurement.api.v2alpha.listPopulationsRequest
 import org.wfanet.measurement.api.v2alpha.modelLine
@@ -70,8 +74,7 @@ private val CHANNEL_SHUTDOWN_TIMEOUT = Duration.ofSeconds(30)
 @Command(
   name = "model-repository",
   description = ["Manages all Model Repository artifacts"],
-  subcommands =
-    [CommandLine.HelpCommand::class, ModelSuites::class, Populations::class, ModelLines::class],
+  subcommands = [CommandLine.HelpCommand::class, ModelProviders::class, ModelSuites::class, Populations::class, ModelLines::class],
 )
 class ModelRepository private constructor() : Runnable {
   @Mixin private lateinit var tlsFlags: TlsFlags
@@ -105,6 +108,55 @@ class ModelRepository private constructor() : Runnable {
 
   companion object {
     @JvmStatic fun main(args: Array<String>) = commandLineMain(ModelRepository(), args)
+  }
+}
+
+@Command(
+  name = "model-providers",
+  subcommands = [CommandLine.HelpCommand::class, GetModelProvider::class, ListModelProviders::class],
+)
+private class ModelProviders {
+  @ParentCommand private lateinit var parentCommand: ModelRepository
+
+  val modelProvidersClient: ModelProvidersCoroutineStub by lazy {
+    ModelProvidersCoroutineStub(parentCommand.channel)
+  }
+}
+
+@Command(name = "get", description = ["Get a ModelProvider"])
+class GetModelProvider : Runnable {
+  @ParentCommand private lateinit var parentCommand: ModelProviders
+
+  @Parameters(index = "0", description = ["API resource name of the ModelProvider"], arity = "1")
+  private lateinit var modelProviderName: String
+
+  override fun run() {
+    val modelProvider = runBlocking {
+      parentCommand.modelProvidersClient.getModelProvider(
+        getModelProviderRequest { name = modelProviderName }
+      )
+    }
+    println(modelProvider)
+  }
+}
+
+@Command(name = "list", description = ["List ModelProviders"])
+class ListModelProviders : Runnable {
+  @ParentCommand private lateinit var parentCommand: ModelProviders
+
+  @Mixin private lateinit var pageParams: PageParams
+
+  override fun run() {
+    val response: ListModelProvidersResponse = runBlocking {
+      parentCommand.modelProvidersClient.listModelProviders(
+        listModelProvidersRequest {
+          pageSize = pageParams.pageSize
+          pageToken = pageParams.pageToken
+        }
+      )
+    }
+
+    println(response)
   }
 }
 
