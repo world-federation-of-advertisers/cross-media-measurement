@@ -17,7 +17,7 @@ kt_jvm_library(
     deps = [
         "//imports/java/com/google/crypto/tink/integration/gcpkms",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:synthetic_data_generation",
-        "//src/main/kotlin/org/wfanet/measurement/loadtest/edpaggregator:impression_writer",
+        "//src/main/kotlin/org/wfanet/measurement/loadtest/edpaggregator/testing:impression_writer",
         "//src/main/proto/wfa/measurement/api/v2alpha:event_group_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:test_event_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/picocli",
