@@ -109,7 +109,8 @@ object LandscapeUtils {
    * (derived from date ranges). It then creates `PrivacyBucket`s representing the Cartesian product
    * of these determined elements.
    *
-   * @param measurementConsumerId The ID of the Measurement Consumer to whom the buckets belong.
+   * @param eventDataProviderName The name of the Event Data Provider to whom the buckets belong.
+   * @param measurementConsumerName The name of the Measurement Consumer to whom the buckets belong.
    * @param eventGroupLandscapeMasks A list of [EventGroupLandscapeMask]s, each defining filtering
    *   criteria for an event group.
    * @param privacyLandscape The [PrivacyLandscape] defining the population segments.
@@ -118,7 +119,8 @@ object LandscapeUtils {
    * @return A list of [PrivacyBucket]s derived from applying the masks to the landscape.
    */
   fun getBuckets(
-    measurementConsumerId: String,
+    eventDataProviderName: String,
+    measurementConsumerName: String,
     eventGroupLandscapeMasks: List<EventGroupLandscapeMask>,
     privacyLandscape: PrivacyLandscape,
     eventTemplateDescriptor: Descriptors.Descriptor,
@@ -141,7 +143,8 @@ object LandscapeUtils {
 
       val ledgerRowKeys =
         getLedgerRowKeys(
-          measurementConsumerId,
+          eventDataProviderName,
+          measurementConsumerName,
           eventGroupLandscapeMask.eventGroupId,
           eventGroupLandscapeMask.dateRange,
         )
@@ -150,7 +153,9 @@ object LandscapeUtils {
       for (ledgerRowKey in ledgerRowKeys) {
         for (populationIndex in populationIndices) {
           for (vidIntervalIndex in vidIntervalIndices) {
-            privacyBuckets.add(PrivacyBucket(ledgerRowKey, populationIndex, vidIntervalIndex))
+            privacyBuckets.add(
+              PrivacyBucket(ledgerRowKey, BucketIndex(populationIndex, vidIntervalIndex))
+            )
           }
         }
       }
@@ -187,14 +192,14 @@ object LandscapeUtils {
 
     for (bucket in buckets) {
       val mappedPopulationIndices =
-        populationIndexMapping.getOrElse(bucket.populationIndex) {
+        populationIndexMapping.getOrElse(bucket.bucketIndex.populationIndex) {
           throw IllegalStateException(
-            "Population index '${bucket.populationIndex}' not found in mapping. This should never happen."
+            "Population index '${bucket.bucketIndex.populationIndex}' not found in mapping. This should never happen."
           )
         }
       for (mappedPopulationIndex in mappedPopulationIndices) {
         mappedPrivacyBuckets.add(
-          PrivacyBucket(bucket.rowKey, mappedPopulationIndex, bucket.vidIntervalIndex)
+          PrivacyBucket(bucket.rowKey, BucketIndex(mappedPopulationIndex, bucket.bucketIndex.vidIntervalIndex))
         )
       }
     }
@@ -363,7 +368,8 @@ object LandscapeUtils {
   }
 
   private fun getLedgerRowKeys(
-    measurementConsumerId: String,
+    eventDataProviderName:String,
+    measurementConsumerName: String,
     eventGroupId: String,
     dateRange: DateRange,
   ): List<LedgerRowKey> {
@@ -372,7 +378,7 @@ object LandscapeUtils {
 
     return generateSequence(startDate) { it.plusDays(1) }
       .takeWhile { it < endDateExclusive }
-      .map { LedgerRowKey(measurementConsumerId, eventGroupId, it) }
+      .map { LedgerRowKey(eventDataProviderName, measurementConsumerName, eventGroupId, it) }
       .toList()
   }
 
