@@ -330,6 +330,7 @@ abstract class MeasurementConsumerSimulator(
           DataProviderKt.capabilities { honestMajorityShareShuffleSupported = false },
           DEFAULT_VID_SAMPLING_INTERVAL,
           measurementNumber.toDouble() / numMeasurements,
+          1,
         )
       val measurementName = measurementInfo.measurement.name
       logger.info("Created direct reach and frequency measurement $measurementName.")
@@ -340,7 +341,6 @@ abstract class MeasurementConsumerSimulator(
 
       val expectedResult = getExpectedResult(measurementInfo)
       logger.info("Expected result: $expectedResult")
-
       assertThat(reachAndFrequencyResult.reach.hasDeterministicCountDistinct()).isTrue()
       assertThat(reachAndFrequencyResult.reach.noiseMechanism)
         .isEqualTo(expectedDirectNoiseMechanism)
@@ -399,6 +399,7 @@ abstract class MeasurementConsumerSimulator(
           DataProviderKt.capabilities { honestMajorityShareShuffleSupported = false },
           DEFAULT_VID_SAMPLING_INTERVAL,
           measurementNumber.toDouble() / numMeasurements,
+          1,
         )
       val measurementName = measurementInfo.measurement.name
       logger.info("Created direct reach measurement $measurementName.")
@@ -1456,5 +1457,5 @@ fun DifferentialPrivacyParams.toNoiserDpParams(): NoiserDpParams {
   return NoiserDpParams(source.epsilon, source.delta)
 }
 
-private val RequisitionSpec.eventGroupsMap: Map<String, RequisitionSpec.EventGroupEntry.Value>
+val RequisitionSpec.eventGroupsMap: Map<String, RequisitionSpec.EventGroupEntry.Value>
   get() = events.eventGroupsList.associate { it.key to it.value }

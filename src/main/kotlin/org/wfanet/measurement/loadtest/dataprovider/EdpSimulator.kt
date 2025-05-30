@@ -43,7 +43,6 @@ import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import org.apache.commons.math3.distribution.ConstantRealDistribution
 import org.jetbrains.annotations.BlockingExecutor
@@ -1400,12 +1399,10 @@ class EdpSimulator(
         }
 
         val (sampledReachValue, frequencyMap) =
-          runBlocking {
-            MeasurementResults.computeReachAndFrequency(
-              samples.asFlow(),
-              measurementSpec.reachAndFrequency.maximumFrequency,
-            )
-          }
+          MeasurementResults.computeReachAndFrequency(
+            samples,
+            measurementSpec.reachAndFrequency.maximumFrequency,
+          )
 
         logger.info("Adding $directNoiseMechanism publisher noise to direct reach and frequency...")
         val sampledNoisedReachValue =
@@ -1446,9 +1443,9 @@ class EdpSimulator(
           )
         }
 
-        val sampledImpressionCount = runBlocking {
-          computeImpression(samples.asFlow(), measurementSpec.impression.maximumFrequencyPerUser)
-        }
+        val sampledImpressionCount =
+          computeImpression(samples, measurementSpec.impression.maximumFrequencyPerUser)
+
         logger.info("Adding $directNoiseMechanism publisher noise to impression...")
         val sampledNoisedImpressionCount =
           addImpressionPublisherNoise(
@@ -1495,7 +1492,7 @@ class EdpSimulator(
           )
         }
 
-        val sampledReachValue = runBlocking { MeasurementResults.computeReach(samples.asFlow()) }
+        val sampledReachValue = MeasurementResults.computeReach(samples)
 
         logger.info("Adding $directNoiseMechanism publisher noise to direct reach for reach-only")
         val sampledNoisedReachValue =
