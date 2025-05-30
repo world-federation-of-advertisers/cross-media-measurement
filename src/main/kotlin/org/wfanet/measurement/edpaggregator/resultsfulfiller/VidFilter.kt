@@ -87,7 +87,8 @@ object VidFilter {
     require(
       vidSamplingIntervalStart < 1 &&
         vidSamplingIntervalStart >= 0 &&
-        vidSamplingIntervalWidth > 0
+        vidSamplingIntervalWidth > 0 &&
+        vidSamplingIntervalStart + vidSamplingIntervalWidth <= 1.0
     ) {
       "Invalid vidSamplingInterval: start = $vidSamplingIntervalStart, width = " +
         "$vidSamplingIntervalWidth"
