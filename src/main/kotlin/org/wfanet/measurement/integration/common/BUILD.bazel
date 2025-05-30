@@ -426,6 +426,9 @@ kt_jvm_library(
         "//src/main/k8s/testing/secretfiles:kingdom_root.pem",
         "//src/main/k8s/testing/secretfiles:kingdom_tls.key",
         "//src/main/k8s/testing/secretfiles:kingdom_tls.pem",
+        "//src/main/k8s/testing/secretfiles:mp1_root.pem",
+        "//src/main/k8s/testing/secretfiles:mp1_tls.key",
+        "//src/main/k8s/testing/secretfiles:mp1_tls.pem",
     ],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:akid_principal_lookup",
