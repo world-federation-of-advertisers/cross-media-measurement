@@ -167,7 +167,7 @@ object LandscapeUtils {
    * Maps a list of [PrivacyBucket]s from a source [PrivacyLandscape] to a target
    * [PrivacyLandscape].
    *
-   * This function uses a [PrivacyLandscapeMapping] to determine how population indices in the
+   * Uses a [PrivacyLandscapeMapping] to determine how population indices in the
    * `from` landscape correspond to population indices in the `to` landscape. Each input bucket is
    * then transformed into one or more output buckets based on this mapping, preserving the original
    * row key and VID interval index.
