@@ -14,6 +14,7 @@
 
 package org.wfanet.measurement.privacybudgetmanager
 
+import com.google.protobuf.Descriptors
 import org.wfanet.measurement.privacybudgetmanager.LandscapeUtils.MappingNode
 
 /**
@@ -34,13 +35,8 @@ class PrivacyBudgetManager(
   private val ledger: Ledger,
   private val maximumPrivacyBudget: Float,
   private val maximumTotalDelta: Float,
+  private val eventTemplateDescriptor: Descriptors.Descriptor,
 ) {
-  init {
-    val activePrivacyLandscape =
-      requireNotNull(landscapeMappingChain.lastOrNull()?.fromLandscape) {
-        "Active privacy landscape cannot be null."
-      }
-  }
 
   /**
    * Charges the PBM in batch with the charges resulting from the given queries and writes the
@@ -119,6 +115,8 @@ class PrivacyBudgetManager(
     for (query in queries) {
       delta.add(
         processBucketsForLandscape(
+          query.queryIdentifiers.eventDataProviderId,
+          query.queryIdentifiers.measurementConsumerId,
           query.privacyLandscapeIdentifier,
           query.eventGroupLandscapeMasksList,
         ),
@@ -138,6 +136,8 @@ class PrivacyBudgetManager(
    * @return The list of PrivacyBuckets mapped to the tail PrivacyLandscape.
    */
   fun processBucketsForLandscape(
+    eventDataProviderId: String,
+    measurementConsumerId: String,
     inactivelandscapeIdentifier: String,
     eventGroupLandscapeMasks: List<EventGroupLandscapeMask>,
   ): List<PrivacyBucket> {
@@ -150,7 +150,14 @@ class PrivacyBudgetManager(
         )
 
     val initialLandscape = initialNode.fromLandscape
-    val initialBuckets = LandscapeUtils.getBuckets(eventGroupLandscapeMasks, initialLandscape)
+    val initialBuckets =
+      LandscapeUtils.getBuckets(
+        eventDataProviderId,
+        measurementConsumerId,
+        eventGroupLandscapeMasks,
+        initialLandscape,
+        eventTemplateDescriptor,
+      )
 
     var currentBuckets = initialBuckets
     var currentLandscape = initialLandscape
