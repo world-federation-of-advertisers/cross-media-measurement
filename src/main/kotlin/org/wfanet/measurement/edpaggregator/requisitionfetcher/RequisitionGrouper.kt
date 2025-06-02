@@ -19,6 +19,7 @@ package org.wfanet.measurement.edpaggregator.requisitionfetcher
 import com.google.protobuf.Any
 import com.google.protobuf.InvalidProtocolBufferException
 import com.google.type.Interval
+import io.grpc.StatusException
 import java.security.GeneralSecurityException
 import java.util.logging.Logger
 import kotlinx.coroutines.runBlocking
@@ -26,83 +27,199 @@ import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.Requisition
+import org.wfanet.measurement.api.v2alpha.Requisition.Refusal
+import org.wfanet.measurement.api.v2alpha.RequisitionKt.refusal
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec
+import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.getEventGroupRequest
+import org.wfanet.measurement.api.v2alpha.refuseRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.unpack
 import org.wfanet.measurement.common.crypto.PrivateKeyHandle
+import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.consent.client.dataprovider.decryptRequisitionSpec
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
 import org.wfanet.measurement.edpaggregator.v1alpha.groupedRequisitions
 
-/** An interface to group a list of requisitions. */
+/**
+ * An interface to group a list of requisitions.
+ *
+ * This class provides functionality to categorize a collection of [Requisition] objects into
+ * groups, facilitating efficient execution.
+ *
+ * @param privateEncryptionKey The DataProvider's decryption key used for decrypting requisition
+ *   data.
+ * @param eventGroupsClient The gRPC client used to interact with event groups.
+ */
 abstract class RequisitionGrouper(
-  /** The DataProvider's decryption key. */
   private val privateEncryptionKey: PrivateKeyHandle,
   private val eventGroupsClient: EventGroupsCoroutineStub,
+  private val requisitionsClient: RequisitionsCoroutineStub,
+  private val throttler: Throttler,
 ) {
 
+  /**
+   * Groups a list of disparate [Requisition] objects for execution.
+   *
+   * This method takes in a list of [Requisition] objects, maps them to their respective groups, and
+   * then combines these groups into a single list of [GroupedRequisitions].
+   *
+   * @param requisitions A list of [Requisition] objects to be grouped.
+   * @return A list of [GroupedRequisitions] containing the categorized [Requisition] objects.
+   */
   fun groupRequisitions(requisitions: List<Requisition>): List<GroupedRequisitions> {
-    val mappedRequisitions = mapRequisitions(requisitions)
+    val mappedRequisitions = requisitions.mapNotNull { mapRequisition(it) }
     return combineGroupedRequisitions(mappedRequisitions)
   }
 
+  /** Function to be implemented to combine [GroupedRequisition]s for optimal execution. */
   protected abstract fun combineGroupedRequisitions(
     groupedRequisitions: List<GroupedRequisitions>
   ): List<GroupedRequisitions>
 
-  private fun mapRequisitions(requisitions: List<Requisition>): List<GroupedRequisitions> {
-    return requisitions.mapNotNull { requisition ->
-      val measurementSpec: MeasurementSpec? =
-        try {
-          requisition.measurementSpec.unpack()
-        } catch (e: InvalidProtocolBufferException) {
-          logger.info("Unable to parse measurement spec for ${requisition.name}: ${e.message}")
-          null
-        }
-      if (measurementSpec == null) {
-        null
-      }
-      val requisitionSpec: RequisitionSpec? =
-        try {
-          decryptRequisitionSpec(requisition.encryptedRequisitionSpec, privateEncryptionKey)
-            .unpack()
-        } catch (e: GeneralSecurityException) {
-          logger.info("RequisitionSpec decryption failed for ${requisition.name}: ${e.message}")
-          null
-        } catch (e: InvalidProtocolBufferException) {
-          logger.info("Unable to parse requisition spec for ${requisition.name}: ${e.message}")
-          null
-        }
-      if (requisitionSpec == null) {
-        null
-      }
-      val eventGroupMap = mutableMapOf<String, String>()
-      val collectionIntervalsMap = mutableMapOf<String, Interval>()
-      for (eventGroupEntry in requisitionSpec!!.events.eventGroupsList) {
-        val eventGroupName = eventGroupEntry.key
-        val eventGroupReferenceId = runBlocking {
-          getEventGroup(eventGroupName).eventGroupReferenceId
-        }
-        eventGroupMap[eventGroupName] = eventGroupReferenceId
-        if (eventGroupName in collectionIntervalsMap) {
-          logger.info(
-            "Identical event group names not allowed in same requisition: ${requisition.name}"
+  /* Maps a single [Requisition] to a single [GroupedRequisition]. */
+  private fun mapRequisition(requisition: Requisition): GroupedRequisitions? {
+
+    val measurementSpec: MeasurementSpec? =
+      try {
+        requisition.measurementSpec.unpack()
+      } catch (e: InvalidProtocolBufferException) {
+        logger.info("Unable to parse measurement spec for ${requisition.name}: ${e.message}")
+        runBlocking {
+          refuseRequisition(
+            requisition.name,
+            refusal {
+              justification = Refusal.Justification.SPEC_INVALID
+              message = "Unable to parse MeasurementSpec"
+            },
           )
-          null
         }
-        collectionIntervalsMap[eventGroupReferenceId] = eventGroupEntry.value.collectionInterval
+        null
       }
-      groupedRequisitions {
-        modelLine = measurementSpec!!.modelLine
-        this.requisitions += Any.pack(requisition)
-        this.eventGroupMap.putAll(eventGroupMap)
-        collectionIntervals.putAll(collectionIntervalsMap)
+    if (measurementSpec == null) {
+      logger.info("Measurement Spec is null for ${requisition.name}")
+      runBlocking {
+        refuseRequisition(
+          requisition.name,
+          refusal {
+            justification = Refusal.Justification.SPEC_INVALID
+            message = "MeasurementSpec is null"
+          },
+        )
       }
+      null
+    }
+    val requisitionSpec: RequisitionSpec? =
+      try {
+        decryptRequisitionSpec(requisition.encryptedRequisitionSpec, privateEncryptionKey).unpack()
+      } catch (e: GeneralSecurityException) {
+        logger.info("RequisitionSpec decryption failed for ${requisition.name}: ${e.message}")
+        runBlocking {
+          refuseRequisition(
+            requisition.name,
+            refusal {
+              justification = Refusal.Justification.CONSENT_SIGNAL_INVALID
+              message = "Unable to decrypt RequisitionSpec"
+            },
+          )
+        }
+        null
+      } catch (e: InvalidProtocolBufferException) {
+        logger.info("Unable to parse requisition spec for ${requisition.name}: ${e.message}")
+        runBlocking {
+          refuseRequisition(
+            requisition.name,
+            refusal {
+              justification = Refusal.Justification.SPEC_INVALID
+              message = "Unable to parse RequisitionSpec"
+            },
+          )
+        }
+        null
+      }
+    if (requisitionSpec == null) {
+      logger.info("Requisition Spec is null for ${requisition.name}")
+      runBlocking {
+        refuseRequisition(
+          requisition.name,
+          refusal {
+            justification = Refusal.Justification.SPEC_INVALID
+            message = "RequisitionSpec is null"
+          },
+        )
+      }
+      null
+    }
+    val eventGroupMap = mutableMapOf<String, String>()
+    val collectionIntervalsMap = mutableMapOf<String, Interval>()
+    for (eventGroupEntry in requisitionSpec!!.events.eventGroupsList) {
+      val eventGroupName = eventGroupEntry.key
+      val eventGroup = runBlocking { getEventGroup(eventGroupName) }
+      if (eventGroup == null) {
+        logger.info(
+          "Unable to fetch event group $eventGroupName for ${requisition.name}"
+        )
+        runBlocking {
+          refuseRequisition(
+            requisition.name,
+            refusal {
+              justification = Refusal.Justification.UNFULFILLABLE
+              message = "Found duplicate event groups within a requisition spec"
+            },
+          )
+        }
+        null
+      }
+      val eventGroupReferenceId = eventGroup!!.eventGroupReferenceId
+      eventGroupMap[eventGroupName] = eventGroupReferenceId
+      if (eventGroupName in collectionIntervalsMap) {
+        logger.info(
+          "Identical event group names not allowed in same requisition: ${requisition.name}"
+        )
+        runBlocking {
+          refuseRequisition(
+            requisition.name,
+            refusal {
+              justification = Refusal.Justification.UNFULFILLABLE
+              message = "Found duplicate event groups within a requisition spec"
+            },
+          )
+        }
+        null
+      }
+      collectionIntervalsMap[eventGroupReferenceId] = eventGroupEntry.value.collectionInterval
+    }
+    return groupedRequisitions {
+      modelLine = measurementSpec!!.modelLine
+      this.requisitions += Any.pack(requisition)
+      this.eventGroupMap.putAll(eventGroupMap)
+      collectionIntervals.putAll(collectionIntervalsMap)
     }
   }
 
-  private suspend fun getEventGroup(name: String): EventGroup {
-    return eventGroupsClient.getEventGroup(getEventGroupRequest { this.name = name })
+  private suspend fun getEventGroup(name: String): EventGroup? {
+    return try {
+      throttler.onReady {
+        eventGroupsClient.getEventGroup(getEventGroupRequest { this.name = name })
+      }
+    } catch (e: StatusException) {
+      logger.info("Error getting EventGroup: $name")
+      null
+    }
+  }
+
+  private suspend fun refuseRequisition(name: String, reason: Refusal) {
+    try {
+      throttler.onReady {
+        requisitionsClient.refuseRequisition(
+          refuseRequisitionRequest {
+            this.name = name
+            refusal = reason
+          }
+        )
+      }
+    } catch (e: StatusException) {
+      throw Exception("Error refusing Requisition: $name", e)
+    }
   }
 
   companion object {

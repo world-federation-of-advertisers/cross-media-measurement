@@ -18,7 +18,9 @@ package org.wfanet.measurement.edpaggregator.requisitionfetcher
 
 import java.util.logging.Logger
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.common.crypto.PrivateKeyHandle
+import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
 
 /**
@@ -29,7 +31,9 @@ class SingleRequisitionGrouper(
   /** The DataProvider's decryption key. */
   privateEncryptionKey: PrivateKeyHandle,
   eventGroupsClient: EventGroupsCoroutineStub,
-) : RequisitionGrouper(privateEncryptionKey, eventGroupsClient) {
+  requisitionsClient: RequisitionsCoroutineStub,
+  throttler: Throttler,
+) : RequisitionGrouper(privateEncryptionKey, eventGroupsClient, requisitionsClient, throttler) {
 
   override fun combineGroupedRequisitions(
     groupedRequisitions: List<GroupedRequisitions>
