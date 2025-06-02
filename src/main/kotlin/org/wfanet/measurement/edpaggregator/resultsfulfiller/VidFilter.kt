@@ -16,7 +16,6 @@
 
 package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
-import com.google.common.hash.HashFunction
 import com.google.common.hash.Hashing
 import com.google.protobuf.Descriptors
 import com.google.protobuf.DynamicMessage
@@ -81,9 +80,6 @@ object VidFilter {
     collectionInterval: Interval,
     typeRegistry: TypeRegistry,
   ): Boolean {
-    require(vidSamplingIntervalWidth > 0 && vidSamplingIntervalWidth <= 1.0) {
-      "Invalid vidSamplingIntervalWidth $vidSamplingIntervalWidth"
-    }
     require(
       vidSamplingIntervalStart < 1 &&
         vidSamplingIntervalStart >= 0 &&
