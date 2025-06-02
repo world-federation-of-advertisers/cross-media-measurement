@@ -246,9 +246,14 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
     val publicModelProviderChannel: ManagedChannel =
       buildMutualTlsChannel("localhost:${server.port}", modelProviderCerts)
     publicModelSuitesClient = ModelSuitesGrpc.newBlockingStub(publicModelProviderChannel)
+<<<<<<< HEAD
     publicModelLinesClient = ModelLinesGrpc.newBlockingStub(publicModelProviderChannel)
 
     modelSuite = createModelSuite()
+=======
+    publicModelSuitesClient = ModelSuitesGrpc.newBlockingStub(publicModelProviderChannel)
+    publicPopulationsClient = PopulationsGrpc.newBlockingStub(publicModelProviderChannel)
+>>>>>>> ed275316f (feat: implement population cli, and fix errors in PopulationsService and StreamPopulation)
 
     val dataProviderCerts =
       SigningCerts.fromPemFiles(
