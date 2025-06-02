@@ -355,7 +355,6 @@ class TestOriginReport(unittest.TestCase):
         'src/test/python/wfa/measurement/reporting/postprocessing/tools/sample_report_summary.json')
     noise_correction_result = ReportSummaryProcessor(
         report_summary).process()
-    print(json_format.MessageToJson(noise_correction_result))
 
     primitive_edp_combinations = ['edp1', 'edp2', 'edp1_edp2']
     composite_edp_combinations = ['edp1_minus_edp2', 'edp2_minus_edp1']
