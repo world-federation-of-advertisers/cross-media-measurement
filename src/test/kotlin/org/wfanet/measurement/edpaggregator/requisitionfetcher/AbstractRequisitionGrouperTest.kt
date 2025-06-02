@@ -19,35 +19,34 @@ package org.wfanet.measurement.edpaggregator.requisitionfetcher
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.FieldScopes
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
-import com.google.protobuf.ByteString
+import com.google.protobuf.Any
+import com.google.protobuf.StringValue
 import com.google.protobuf.kotlin.toByteString
+import com.google.protobuf.kotlin.toByteStringUtf8
 import com.google.type.interval
 import io.grpc.Status
-import java.lang.UnsupportedOperationException
-import java.security.cert.X509Certificate
+import java.nio.file.Path
+import java.nio.file.Paths
+import java.time.LocalDate
 import kotlin.random.Random
-import kotlinx.coroutines.runBlocking
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
-import org.mockito.kotlin.never
 import org.mockito.kotlin.stub
 import org.mockito.kotlin.times
-import org.mockito.kotlin.verifyBlocking
-import org.wfanet.anysketch.Sketch
-import org.wfanet.anysketch.crypto.ElGamalPublicKey
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DuchyCertificateKey
 import org.wfanet.measurement.api.v2alpha.DuchyKey
-import org.wfanet.measurement.api.v2alpha.EventGroup
+import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineImplBase
+import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.GetEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.impression
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reach
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reachAndFrequency
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.vidSamplingInterval
-import org.wfanet.measurement.api.v2alpha.PopulationSpecKt.subPopulation
-import org.wfanet.measurement.api.v2alpha.PopulationSpecKt.vidRange
+import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt
 import org.wfanet.measurement.api.v2alpha.RefuseRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.Requisition
@@ -57,6 +56,7 @@ import org.wfanet.measurement.api.v2alpha.RequisitionKt.DuchyEntryKt.liquidLegio
 import org.wfanet.measurement.api.v2alpha.RequisitionKt.DuchyEntryKt.value
 import org.wfanet.measurement.api.v2alpha.RequisitionKt.duchyEntry
 import org.wfanet.measurement.api.v2alpha.RequisitionKt.refusal
+import org.wfanet.measurement.api.v2alpha.RequisitionSpec
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventFilter
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventGroupEntry
@@ -67,35 +67,35 @@ import org.wfanet.measurement.api.v2alpha.certificate
 import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.elGamalPublicKey
-import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
-import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpecKt
+import org.wfanet.measurement.api.v2alpha.encryptedMessage
+import org.wfanet.measurement.api.v2alpha.eventGroup
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.copy
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.api.v2alpha.liquidLegionsSketchParams
 import org.wfanet.measurement.api.v2alpha.measurementSpec
-import org.wfanet.measurement.api.v2alpha.populationSpec
 import org.wfanet.measurement.api.v2alpha.protocolConfig
 import org.wfanet.measurement.api.v2alpha.refuseRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.requisition
 import org.wfanet.measurement.api.v2alpha.requisitionSpec
+import org.wfanet.measurement.api.v2alpha.signedMessage
 import org.wfanet.measurement.api.v2alpha.testing.MeasurementResultSubject.Companion.assertThat
+import org.wfanet.measurement.common.HexString
+import org.wfanet.measurement.common.OpenEndTimeRange
+import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.crypto.Hashing
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
-import org.wfanet.measurement.common.crypto.authorityKeyIdentifier
-import org.wfanet.measurement.common.crypto.readCertificateCollection
 import org.wfanet.measurement.common.crypto.subjectKeyIdentifier
 import org.wfanet.measurement.common.crypto.testing.loadSigningKey
 import org.wfanet.measurement.common.crypto.tink.TinkPrivateKeyHandle
 import org.wfanet.measurement.common.crypto.tink.loadPrivateKey
 import org.wfanet.measurement.common.crypto.tink.loadPublicKey
+import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.pack
+import org.wfanet.measurement.common.readByteString
 import org.wfanet.measurement.common.testing.verifyAndCapture
-import org.wfanet.measurement.common.throttler.Throttler
-import org.wfanet.measurement.common.toProtoDate
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
 import org.wfanet.measurement.consent.client.duchy.signElgamalPublicKey
@@ -104,32 +104,83 @@ import org.wfanet.measurement.consent.client.measurementconsumer.signEncryptionP
 import org.wfanet.measurement.consent.client.measurementconsumer.signMeasurementSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.signRequisitionSpec
 import org.wfanet.measurement.dataprovider.DataProviderData
-import org.wfanet.measurement.eventdataprovider.shareshuffle.v2alpha.InMemoryVidIndexMap
-import org.wfanet.measurement.integration.common.SyntheticGenerationSpecs
-import org.wfanet.measurement.loadtest.config.EventGroupMetadata
+import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
 
 @RunWith(JUnit4::class)
-class AbstractRequisitionGrouperTest {
+abstract class AbstractRequisitionGrouperTest {
   private val requisitionsServiceMock: RequisitionsGrpcKt.RequisitionsCoroutineImplBase =
     mockService {
       onBlocking { refuseRequisition(any()) }.thenReturn(REQUISITION)
     }
 
-  @get:Rule val grpcTestServerRule = GrpcTestServerRule { addService(requisitionsServiceMock) }
-  private val requisitionsStub: RequisitionsGrpcKt.RequisitionsCoroutineStub by lazy {
+  private val eventGroupsServiceMock: EventGroupsCoroutineImplBase = mockService {
+    onBlocking { getEventGroup(any()) }
+      .thenAnswer { invocation ->
+        val request = invocation.getArgument<GetEventGroupRequest>(0)
+        eventGroup {
+          name = request.name
+          eventGroupReferenceId = "some-event-group-reference-id"
+        }
+      }
+  }
+
+  @get:Rule
+  val grpcTestServerRule = GrpcTestServerRule {
+    addService(requisitionsServiceMock)
+    addService(eventGroupsServiceMock)
+  }
+
+  protected val requisitionsStub: RequisitionsGrpcKt.RequisitionsCoroutineStub by lazy {
     RequisitionsGrpcKt.RequisitionsCoroutineStub(grpcTestServerRule.channel)
   }
 
-  abstract val requistionGrouper: RequisitionGrouper
+  protected val eventGroupsStub: EventGroupsCoroutineStub by lazy {
+    EventGroupsCoroutineStub(grpcTestServerRule.channel)
+  }
+
+  protected abstract val requisitionGrouper: RequisitionGrouper
+
+  @Test
+  fun `able to map Requisition to GroupedRequisisions`() {
+
+    eventGroupsServiceMock.stub {
+      onBlocking { getEventGroup(any()) }
+        .thenReturn(eventGroup { eventGroupReferenceId = "some-event-group-reference-id" })
+    }
+    val groupedRequisitions: List<GroupedRequisitions> =
+      requisitionGrouper.groupRequisitions(listOf(REQUISITION, REQUISITION))
+    assertThat(groupedRequisitions).hasSize(2)
+    groupedRequisitions.forEach { groupedRequisition ->
+      assertThat(groupedRequisition.eventGroupMap)
+        .isEqualTo(
+          mapOf(
+            "dataProviders/someDataProvider/eventGroups/name" to "some-event-group-reference-id"
+          )
+        )
+      assertThat(
+          groupedRequisition.collectionIntervals["some-event-group-reference-id"]!!
+            .startTime
+            .seconds
+        )
+        .isEqualTo(1748736000)
+      assertThat(
+          groupedRequisition.collectionIntervals["some-event-group-reference-id"]!!.endTime.seconds
+        )
+        .isEqualTo(1748908800)
+      assertThat(
+          groupedRequisition.requisitionsList.map { it.unpack(Requisition::class.java) }.single()
+        )
+        .isEqualTo(REQUISITION)
+    }
+  }
 
   @Test
   fun `refuses Requisition when EventGroup not found`() {
-    requisitionGrouper.mapRequisition { REQUISTION }
+
     eventGroupsServiceMock.stub {
       onBlocking { getEventGroup(any()) }.thenThrow(Status.NOT_FOUND.asRuntimeException())
     }
-
-    runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
+    requisitionGrouper.groupRequisitions(listOf(REQUISITION))
 
     val refuseRequest: RefuseRequisitionRequest =
       verifyAndCapture(requisitionsServiceMock, RequisitionsCoroutineImplBase::refuseRequisition)
@@ -145,13 +196,128 @@ class AbstractRequisitionGrouperTest {
           refusal = refusal { justification = Refusal.Justification.SPEC_INVALID }
         }
       )
-    assertThat(refuseRequest.refusal.message)
-      .contains(REQUISITION_SPEC.events.eventGroupsList.first().key)
-    assertThat(fakeRequisitionFulfillmentService.fullfillRequisitionInvocations).isEmpty()
-    verifyBlocking(requisitionsServiceMock, never()) { fulfillDirectRequisition(any()) }
+  }
+
+  @Test
+  fun `refuses Requisition when Measurement Spec cannot be parsed`() {
+
+    eventGroupsServiceMock.stub {
+      onBlocking { getEventGroup(any()) }
+        .thenReturn(eventGroup { eventGroupReferenceId = "some-event-group-reference-id" })
+    }
+    val requisition =
+      REQUISITION.copy {
+        measurementSpec = signedMessage {
+          message = Any.pack(StringValue.newBuilder().setValue("some-invalid-spec").build())
+        }
+      }
+    requisitionGrouper.groupRequisitions(listOf(requisition))
+
+    val refuseRequest: RefuseRequisitionRequest =
+      verifyAndCapture(requisitionsServiceMock, RequisitionsCoroutineImplBase::refuseRequisition)
+    assertThat(refuseRequest)
+      .ignoringFieldScope(
+        FieldScopes.allowingFieldDescriptors(
+          Refusal.getDescriptor().findFieldByNumber(Refusal.MESSAGE_FIELD_NUMBER)
+        )
+      )
+      .isEqualTo(
+        refuseRequisitionRequest {
+          name = REQUISITION.name
+          refusal = refusal { justification = Refusal.Justification.SPEC_INVALID }
+        }
+      )
+  }
+
+  @Test
+  fun `refuses Requisition when Requisition Spec cannot be parsed`() {
+
+    eventGroupsServiceMock.stub {
+      onBlocking { getEventGroup(any()) }
+        .thenReturn(eventGroup { eventGroupReferenceId = "some-event-group-reference-id" })
+    }
+    val requisition =
+      REQUISITION.copy {
+        encryptedRequisitionSpec = encryptedMessage {
+          ciphertext = "some-invalid-spec".toByteStringUtf8()
+          typeUrl = ProtoReflection.getTypeUrl(RequisitionSpec.getDescriptor())
+        }
+      }
+    requisitionGrouper.groupRequisitions(listOf(requisition))
+
+    val refuseRequest: RefuseRequisitionRequest =
+      verifyAndCapture(requisitionsServiceMock, RequisitionsCoroutineImplBase::refuseRequisition)
+    assertThat(refuseRequest)
+      .ignoringFieldScope(
+        FieldScopes.allowingFieldDescriptors(
+          Refusal.getDescriptor().findFieldByNumber(Refusal.MESSAGE_FIELD_NUMBER)
+        )
+      )
+      .isEqualTo(
+        refuseRequisitionRequest {
+          name = REQUISITION.name
+          refusal = refusal { justification = Refusal.Justification.CONSENT_SIGNAL_INVALID }
+        }
+      )
   }
 
   companion object {
+    private const val MC_ID = "mc"
+    private const val MC_NAME = "measurementConsumers/$MC_ID"
+    private const val EDP_DISPLAY_NAME = "edp1"
+    private val SECRET_FILES_PATH: Path =
+      checkNotNull(
+        getRuntimePath(
+          Paths.get("wfa_measurement_system", "src", "main", "k8s", "testing", "secretfiles")
+        )
+      )
+    private const val EDP_ID = "someDataProvider"
+    private const val EDP_NAME = "dataProviders/$EDP_ID"
+
+    private const val LLV2_DECAY_RATE = 12.0
+    private const val LLV2_MAX_SIZE = 100_000L
+    private val NOISE_MECHANISM = ProtocolConfig.NoiseMechanism.DISCRETE_GAUSSIAN
+
+    private val MEASUREMENT_CONSUMER_CERTIFICATE_DER =
+      SECRET_FILES_PATH.resolve("mc_cs_cert.der").toFile().readByteString()
+    private const val MEASUREMENT_CONSUMER_NAME = "measurementConsumers/AAAAAAAAAHs"
+    private const val MEASUREMENT_NAME = "$MC_NAME/measurements/BBBBBBBBBHs"
+    private const val MEASUREMENT_CONSUMER_CERTIFICATE_NAME =
+      "$MEASUREMENT_CONSUMER_NAME/certificates/AAAAAAAAAcg"
+    private val MEASUREMENT_CONSUMER_CERTIFICATE = certificate {
+      name = MEASUREMENT_CONSUMER_CERTIFICATE_NAME
+      x509Der = MEASUREMENT_CONSUMER_CERTIFICATE_DER
+    }
+
+    private val CONSENT_SIGNALING_ELGAMAL_PUBLIC_KEY = elGamalPublicKey {
+      ellipticCurveId = 415
+      generator =
+        HexString("036B17D1F2E12C4247F8BCE6E563A440F277037D812DEB33A0F4A13945D898C296").bytes
+      element =
+        HexString("0277BF406C5AA4376413E480E0AB8B0EFCA999D362204E6D1686E0BE567811604D").bytes
+    }
+
+    private val LAST_EVENT_DATE = LocalDate.now()
+    private val FIRST_EVENT_DATE = LAST_EVENT_DATE.minusDays(1)
+    private val TIME_RANGE = OpenEndTimeRange.fromClosedDateRange(FIRST_EVENT_DATE..LAST_EVENT_DATE)
+
+    private const val DUCHY_ONE_ID = "worker1"
+    private const val DUCHY_TWO_ID = "worker2"
+    private const val RANDOM_SEED: Long = 0
+
+    private const val RING_MODULUS = 127
+
+    // Resource ID for EventGroup that fails Requisitions with CONSENT_SIGNAL_INVALID if used.
+    private const val CONSENT_SIGNAL_INVALID_EVENT_GROUP_ID = "consent-signal-invalid"
+    // Resource ID for EventGroup that fails Requisitions with SPEC_INVALID if used.
+    private const val SPEC_INVALID_EVENT_GROUP_ID = "spec-invalid"
+    // Resource ID for EventGroup that fails Requisitions with INSUFFICIENT_PRIVACY_BUDGET if used.
+    private const val INSUFFICIENT_PRIVACY_BUDGET_EVENT_GROUP_ID = "insufficient-privacy-budget"
+    // Resource ID for EventGroup that fails Requisitions with UNFULFILLABLE if used.
+    private const val UNFULFILLABLE_EVENT_GROUP_ID = "unfulfillable"
+    // Resource ID for EventGroup that fails Requisitions with DECLINED if used.
+    private const val DECLINED_EVENT_GROUP_ID = "declined"
+
     private const val EVENT_GROUP_METADATA_DESCRIPTOR_NAME =
       "dataProviders/foo/eventGroupMetadataDescriptors/bar"
 
@@ -198,7 +364,8 @@ class AbstractRequisitionGrouperTest {
       x509Der = EDP_RESULT_SIGNING_KEY.certificate.encoded.toByteString()
       subjectKeyIdentifier = EDP_RESULT_SIGNING_KEY.certificate.subjectKeyIdentifier!!
     }
-    private val EDP_DATA =
+    @JvmStatic
+    protected val EDP_DATA =
       DataProviderData(
         EDP_NAME,
         EDP_DISPLAY_NAME,
@@ -361,76 +528,6 @@ class AbstractRequisitionGrouperTest {
       duchies += DUCHY_ENTRY_ONE
       duchies += DUCHY_ENTRY_TWO
     }
-
-    private val TRUSTED_CERTIFICATES: Map<ByteString, X509Certificate> =
-      readCertificateCollection(SECRET_FILES_PATH.resolve("edp_trusted_certs.pem").toFile())
-        .associateBy { requireNotNull(it.authorityKeyIdentifier) }
-
-    private val TEST_EVENT_TEMPLATES = EdpSimulator.buildEventTemplates(TestEvent.getDescriptor())
-    private val TEST_METADATA = EventGroupMetadata.testMetadata(1)
-
-    private val SYNTHETIC_DATA_SPEC =
-      SyntheticGenerationSpecs.SYNTHETIC_DATA_SPECS_SMALL.first().copy {
-        dateSpecs.forEachIndexed { index, dateSpec ->
-          dateSpecs[index] =
-            dateSpec.copy {
-              dateRange =
-                SyntheticEventGroupSpecKt.DateSpecKt.dateRange {
-                  start = FIRST_EVENT_DATE.toProtoDate()
-                  endExclusive = (LAST_EVENT_DATE.plusDays(1)).toProtoDate()
-                }
-            }
-        }
-      }
-    private val syntheticGeneratorEventQuery =
-      object :
-        SyntheticGeneratorEventQuery(
-          SyntheticGenerationSpecs.SYNTHETIC_POPULATION_SPEC_SMALL,
-          TestEvent.getDescriptor(),
-        ) {
-        override fun getSyntheticDataSpec(eventGroup: EventGroup): SyntheticEventGroupSpec {
-          return SYNTHETIC_DATA_SPEC
-        }
-      }
-
-    private val POPULATION_SPEC = populationSpec {
-      subpopulations += subPopulation {
-        vidRanges += vidRange {
-          startVid = 1L
-          endVidInclusive = 1000L
-        }
-      }
-    }
-    private val HMSS_VID_INDEX_MAP = InMemoryVidIndexMap.build(POPULATION_SPEC)
-
-    /** Dummy [Throttler] for satisfying signatures without being used. */
-    private val dummyThrottler =
-      object : Throttler {
-        override suspend fun <T> onReady(block: suspend () -> T): T {
-          throw UnsupportedOperationException("Should not be called")
-        }
-      }
-
-    /** [SketchEncrypter] that does not encrypt, just returning the plaintext. */
-    private val fakeSketchEncrypter =
-      object : SketchEncrypter {
-        override fun encrypt(
-          sketch: Sketch,
-          ellipticCurveId: Int,
-          encryptionKey: ElGamalPublicKey,
-          maximumValue: Int,
-        ): ByteString {
-          return sketch.toByteString()
-        }
-
-        override fun encrypt(
-          sketch: Sketch,
-          ellipticCurveId: Int,
-          encryptionKey: ElGamalPublicKey,
-        ): ByteString {
-          return sketch.toByteString()
-        }
-      }
 
     private fun loadSigningKey(
       certDerFileName: String,

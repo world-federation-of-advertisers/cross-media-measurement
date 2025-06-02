@@ -49,6 +49,8 @@ import org.wfanet.measurement.edpaggregator.v1alpha.groupedRequisitions
  * @param privateEncryptionKey The DataProvider's decryption key used for decrypting requisition
  *   data.
  * @param eventGroupsClient The gRPC client used to interact with event groups.
+ *
+ * TODO(#2373): Everything that the [ResultsFulfiller] verifies should be pre-verified here also.
  */
 abstract class RequisitionGrouper(
   private val privateEncryptionKey: PrivateKeyHandle,
@@ -93,7 +95,7 @@ abstract class RequisitionGrouper(
             },
           )
         }
-        null
+        return null
       }
     if (measurementSpec == null) {
       logger.info("Measurement Spec is null for ${requisition.name}")
@@ -106,7 +108,7 @@ abstract class RequisitionGrouper(
           },
         )
       }
-      null
+      return null
     }
     val requisitionSpec: RequisitionSpec? =
       try {
@@ -122,7 +124,7 @@ abstract class RequisitionGrouper(
             },
           )
         }
-        null
+        return null
       } catch (e: InvalidProtocolBufferException) {
         logger.info("Unable to parse requisition spec for ${requisition.name}: ${e.message}")
         runBlocking {
@@ -134,7 +136,7 @@ abstract class RequisitionGrouper(
             },
           )
         }
-        null
+        return null
       }
     if (requisitionSpec == null) {
       logger.info("Requisition Spec is null for ${requisition.name}")
@@ -147,7 +149,7 @@ abstract class RequisitionGrouper(
           },
         )
       }
-      null
+      return null
     }
     val eventGroupMap = mutableMapOf<String, String>()
     val collectionIntervalsMap = mutableMapOf<String, Interval>()
@@ -162,12 +164,12 @@ abstract class RequisitionGrouper(
           refuseRequisition(
             requisition.name,
             refusal {
-              justification = Refusal.Justification.UNFULFILLABLE
+              justification = Refusal.Justification.SPEC_INVALID
               message = "Found duplicate event groups within a requisition spec"
             },
           )
         }
-        null
+        return null
       }
       val eventGroupReferenceId = eventGroup!!.eventGroupReferenceId
       eventGroupMap[eventGroupName] = eventGroupReferenceId
@@ -184,7 +186,7 @@ abstract class RequisitionGrouper(
             },
           )
         }
-        null
+        return null
       }
       collectionIntervalsMap[eventGroupReferenceId] = eventGroupEntry.value.collectionInterval
     }

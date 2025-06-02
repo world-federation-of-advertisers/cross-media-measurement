@@ -16,34 +16,20 @@
 
 package org.wfanet.measurement.edpaggregator.requisitionfetcher
 
-import com.google.common.truth.Truth.assertThat
-import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
-import com.google.protobuf.Any
-import com.google.protobuf.ByteString
-import com.google.protobuf.ExtensionRegistry
-import com.google.protobuf.TypeRegistry
-import kotlinx.coroutines.runBlocking
-import org.junit.Rule
-import org.junit.Test
-import org.junit.rules.TemporaryFolder
+import java.time.Clock
+import java.time.Duration
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.mockito.kotlin.any
-import org.mockito.kotlin.stub
-import org.wfanet.measurement.api.v2alpha.Requisition
-import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt
-import org.wfanet.measurement.api.v2alpha.copy
-import org.wfanet.measurement.api.v2alpha.listRequisitionsResponse
-import org.wfanet.measurement.api.v2alpha.requisition
-import org.wfanet.measurement.common.flatten
-import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
-import org.wfanet.measurement.common.grpc.testing.mockService
-import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
+import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 
 @RunWith(JUnit4::class)
-class SingleRequisitionGrouperTest: AbstractRequisitionGrouperTest {
+class SingleRequisitionGrouperTest : AbstractRequisitionGrouperTest() {
 
-
-  override val requistionGrouper: RequisitionGrouper
-    get() = TODO("Not yet implemented")
+  override val requisitionGrouper: RequisitionGrouper =
+    SingleRequisitionGrouper(
+      privateEncryptionKey = EDP_DATA.privateEncryptionKey,
+      eventGroupsClient = eventGroupsStub,
+      requisitionsClient = requisitionsStub,
+      throttler = MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofSeconds(1L)),
+    )
 }

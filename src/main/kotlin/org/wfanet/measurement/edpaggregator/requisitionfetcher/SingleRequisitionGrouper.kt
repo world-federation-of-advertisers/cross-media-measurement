@@ -28,7 +28,6 @@ import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
  * cases.
  */
 class SingleRequisitionGrouper(
-  /** The DataProvider's decryption key. */
   privateEncryptionKey: PrivateKeyHandle,
   eventGroupsClient: EventGroupsCoroutineStub,
   requisitionsClient: RequisitionsCoroutineStub,
