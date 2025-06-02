@@ -42,8 +42,6 @@ import org.wfanet.measurement.api.v2alpha.DuchyKey
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.GetEventGroupRequest
-import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.impression
-import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reach
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reachAndFrequency
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.vidSamplingInterval
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
@@ -51,7 +49,6 @@ import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt
 import org.wfanet.measurement.api.v2alpha.RefuseRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.Requisition.Refusal
-import org.wfanet.measurement.api.v2alpha.RequisitionKt.DuchyEntryKt.honestMajorityShareShuffle
 import org.wfanet.measurement.api.v2alpha.RequisitionKt.DuchyEntryKt.liquidLegionsV2
 import org.wfanet.measurement.api.v2alpha.RequisitionKt.DuchyEntryKt.value
 import org.wfanet.measurement.api.v2alpha.RequisitionKt.duchyEntry
@@ -78,7 +75,6 @@ import org.wfanet.measurement.api.v2alpha.refuseRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.requisition
 import org.wfanet.measurement.api.v2alpha.requisitionSpec
 import org.wfanet.measurement.api.v2alpha.signedMessage
-import org.wfanet.measurement.api.v2alpha.testing.MeasurementResultSubject.Companion.assertThat
 import org.wfanet.measurement.common.HexString
 import org.wfanet.measurement.common.OpenEndTimeRange
 import org.wfanet.measurement.common.ProtoReflection
@@ -94,20 +90,18 @@ import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.pack
-import org.wfanet.measurement.common.readByteString
 import org.wfanet.measurement.common.testing.verifyAndCapture
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
 import org.wfanet.measurement.consent.client.duchy.signElgamalPublicKey
 import org.wfanet.measurement.consent.client.measurementconsumer.encryptRequisitionSpec
-import org.wfanet.measurement.consent.client.measurementconsumer.signEncryptionPublicKey
 import org.wfanet.measurement.consent.client.measurementconsumer.signMeasurementSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.signRequisitionSpec
 import org.wfanet.measurement.dataprovider.DataProviderData
 
 @RunWith(JUnit4::class)
 abstract class AbstractRequisitionGrouperTest {
-  private val requisitionsServiceMock: RequisitionsGrpcKt.RequisitionsCoroutineImplBase =
+  protected val requisitionsServiceMock: RequisitionsGrpcKt.RequisitionsCoroutineImplBase =
     mockService {
       onBlocking { refuseRequisition(any()) }.thenReturn(REQUISITION)
     }
@@ -258,11 +252,13 @@ abstract class AbstractRequisitionGrouperTest {
 
     private val LAST_EVENT_DATE = LocalDate.now()
     private val FIRST_EVENT_DATE = LAST_EVENT_DATE.minusDays(1)
-    private val TIME_RANGE = OpenEndTimeRange.fromClosedDateRange(FIRST_EVENT_DATE..LAST_EVENT_DATE)
+    @JvmStatic
+    protected val TIME_RANGE =
+      OpenEndTimeRange.fromClosedDateRange(FIRST_EVENT_DATE..LAST_EVENT_DATE)
 
     private const val DUCHY_ONE_ID = "worker1"
-
-    private val MC_SIGNING_KEY = loadSigningKey("${MC_ID}_cs_cert.der", "${MC_ID}_cs_private.der")
+    @JvmStatic
+    protected val MC_SIGNING_KEY = loadSigningKey("${MC_ID}_cs_cert.der", "${MC_ID}_cs_private.der")
     private val DUCHY_ONE_SIGNING_KEY =
       loadSigningKey("${DUCHY_ONE_ID}_cs_cert.der", "${DUCHY_ONE_ID}_cs_private.der")
 
@@ -302,12 +298,13 @@ abstract class AbstractRequisitionGrouperTest {
     private val MC_PUBLIC_KEY =
       loadPublicKey(SECRET_FILES_PATH.resolve("mc_enc_public.tink").toFile())
         .toEncryptionPublicKey()
-    private val DATA_PROVIDER_PUBLIC_KEY =
+    @JvmStatic
+    protected val DATA_PROVIDER_PUBLIC_KEY =
       loadPublicKey(SECRET_FILES_PATH.resolve("${EDP_DISPLAY_NAME}_enc_public.tink").toFile())
         .toEncryptionPublicKey()
-
-    private const val EVENT_GROUP_NAME = "$EDP_NAME/eventGroups/name"
-    private val REQUISITION_SPEC = requisitionSpec {
+    protected const val EVENT_GROUP_NAME = "$EDP_NAME/eventGroups/name"
+    @JvmStatic
+    protected val REQUISITION_SPEC = requisitionSpec {
       events =
         RequisitionSpecKt.events {
           eventGroups += eventGroupEntry {
@@ -340,7 +337,8 @@ abstract class AbstractRequisitionGrouperTest {
       epsilon = 1.0
       delta = 1E-12
     }
-    private val MEASUREMENT_SPEC = measurementSpec {
+    @JvmStatic
+    protected val MEASUREMENT_SPEC = measurementSpec {
       measurementPublicKey = MC_PUBLIC_KEY.pack()
       reachAndFrequency = reachAndFrequency {
         reachPrivacyParams = OUTPUT_DP_PARAMS
@@ -352,6 +350,7 @@ abstract class AbstractRequisitionGrouperTest {
         width = 1.0f
       }
       nonceHashes += Hashing.hashSha256(REQUISITION_SPEC.nonce)
+      modelLine = "some-model-line"
     }
 
     private val LIQUID_LEGIONS_SKETCH_PARAMS = liquidLegionsSketchParams {

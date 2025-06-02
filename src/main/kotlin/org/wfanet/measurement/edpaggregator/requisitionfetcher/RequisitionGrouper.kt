@@ -207,7 +207,7 @@ abstract class RequisitionGrouper(
     }
   }
 
-  private suspend fun refuseRequisition(name: String, reason: Refusal) {
+  protected suspend fun refuseRequisition(name: String, reason: Refusal) {
     try {
       throttler.onReady {
         requisitionsClient.refuseRequisition(
@@ -223,6 +223,7 @@ abstract class RequisitionGrouper(
   }
 
   companion object {
-    private val logger: Logger = Logger.getLogger(this::class.java.name)
+    @JvmStatic
+    protected val logger: Logger = Logger.getLogger(this::class.java.name)
   }
 }

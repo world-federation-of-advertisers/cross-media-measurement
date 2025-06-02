@@ -43,3 +43,13 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:grouped_requisitions_kt_jvm_proto",
     ],
 )
+
+kt_jvm_library(
+    name = "requisition_grouper_by_report_id",
+    srcs = ["RequisitionGrouperByReportId.kt"],
+    deps = [
+        ":requisition_grouper",
+        "//src/main/proto/wfa/measurement/api/v2alpha:event_groups_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:grouped_requisitions_kt_jvm_proto",
+    ],
+)
