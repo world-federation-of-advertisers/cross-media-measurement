@@ -32,10 +32,12 @@ import org.wfanet.measurement.api.v2alpha.listModelSuitesRequest
 import org.wfanet.measurement.api.v2alpha.listPopulationsRequest
 import org.wfanet.measurement.api.v2alpha.modelSuite
 import org.wfanet.measurement.api.v2alpha.population
+import org.wfanet.measurement.api.v2alpha.withDataProviderPrincipal
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.grpc.TlsFlags
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withShutdownTimeout
+import org.wfanet.measurement.common.identity.withPrincipalName
 import picocli.CommandLine
 import picocli.CommandLine.Command
 import picocli.CommandLine.Mixin
@@ -236,18 +238,23 @@ class CreatePopulation : Runnable {
   private lateinit var eventTemplateType: String
 
   override fun run() {
-    val population = runBlocking {
-      parentCommand.populationsClient.createPopulation(
-        createPopulationRequest {
-          parent = parentDataProvider
-          population = population {
-            description = populationDescription
-            populationBlob = populationBlob { modelBlobUri = modelBlobUriValue }
-            eventTemplate = eventTemplate { type = eventTemplateType }
-          }
+    val population =
+      withDataProviderPrincipal(parentDataProvider) {
+        runBlocking {
+          parentCommand.populationsClient
+            .withPrincipalName(parentDataProvider)
+            .createPopulation(
+              createPopulationRequest {
+                parent = parentDataProvider
+                population = population {
+                  description = populationDescription
+                  populationBlob = populationBlob { modelBlobUri = modelBlobUriValue }
+                  eventTemplate = eventTemplate { type = eventTemplateType }
+                }
+              }
+            )
         }
-      )
-    }
+      }
 
     println(population)
   }

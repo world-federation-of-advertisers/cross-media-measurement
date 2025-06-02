@@ -56,6 +56,7 @@ import org.wfanet.measurement.api.v2alpha.listPopulationsPageToken
 import org.wfanet.measurement.api.v2alpha.listPopulationsResponse
 import org.wfanet.measurement.api.v2alpha.modelSuite
 import org.wfanet.measurement.api.v2alpha.population
+import org.wfanet.measurement.api.v2alpha.withDataProviderPrincipal
 import org.wfanet.measurement.api.v2alpha.withPrincipalsFromX509AuthorityKeyIdentifiers
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.crypto.SigningCerts
@@ -67,6 +68,7 @@ import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
+import org.wfanet.measurement.common.identity.withPrincipalName
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.testing.CommandLineTesting
 import org.wfanet.measurement.common.testing.ProviderRule
@@ -163,6 +165,12 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
             entries +=
               AuthorityKeyToPrincipalMapKt.entry {
                 authorityKeyIdentifier =
+                  readCertificate(DATA_PROVIDER_TLS_CERT_FILE).authorityKeyIdentifier!!
+                principalResourceName = dataProviderName
+              }
+            entries +=
+              AuthorityKeyToPrincipalMapKt.entry {
+                authorityKeyIdentifier =
                   readCertificate(MODEL_PROVIDER_TLS_CERT_FILE).authorityKeyIdentifier!!
                 principalResourceName = modelProviderName
               }
@@ -172,14 +180,19 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
     val internalModelSuitesClient =
       InternalModelSuitesGrpc.ModelSuitesCoroutineStub(internalChannel)
     val internalPopulationsClient =
-      InternalPopulationsGrpc.PopulationsCoroutineStub(internalChannel)
+      withDataProviderPrincipal(dataProviderName) {
+        InternalPopulationsGrpc.PopulationsCoroutineStub(internalChannel)
+          .withPrincipalName(dataProviderName)
+      }
 
     val publicModelSuitesService =
       ModelSuitesService(internalModelSuitesClient)
         .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup)
     val publicPopulationsService =
-      PopulationsService(internalPopulationsClient)
-        .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup)
+      withDataProviderPrincipal(dataProviderName) {
+        PopulationsService(internalPopulationsClient)
+          .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup)
+      }
     val services = listOf(publicModelSuitesService, publicPopulationsService)
 
     val serverCerts =
@@ -202,7 +215,10 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
     val publicChannel: ManagedChannel =
       buildMutualTlsChannel("localhost:${server.port}", serverCerts)
     publicModelSuitesClient = ModelSuitesGrpc.newBlockingStub(publicChannel)
-    publicPopulationsClient = PopulationsGrpc.newBlockingStub(publicChannel)
+    publicPopulationsClient =
+      withDataProviderPrincipal(dataProviderName) {
+        PopulationsGrpc.newBlockingStub(publicChannel).withPrincipalName(dataProviderName)
+      }
 
     modelSuite =
       publicModelSuitesClient.createModelSuite(
@@ -366,16 +382,22 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
   }
 
   private fun createPopulation(): Population {
-    return publicPopulationsClient.createPopulation(
-      createPopulationRequest {
-        parent = dataProviderName
-        population = population {
-          description = DESCRIPTION
-          populationBlob = populationBlob { modelBlobUri = MODEL_BLOB_URI }
-          eventTemplate = eventTemplate { type = EVENT_TEMPLATE_TYPE }
-        }
+    val population =
+      withDataProviderPrincipal(dataProviderName) {
+        publicPopulationsClient
+          .withPrincipalName(dataProviderName)
+          .createPopulation(
+            createPopulationRequest {
+              parent = dataProviderName
+              population = population {
+                description = DESCRIPTION
+                populationBlob = populationBlob { modelBlobUri = MODEL_BLOB_URI }
+                eventTemplate = eventTemplate { type = EVENT_TEMPLATE_TYPE }
+              }
+            }
+          )
       }
-    )
+    return population
   }
 
   private val commonArgs: Array<String>
@@ -395,6 +417,7 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
         )!!
         .toFile()
 
+    private val DATA_PROVIDER_TLS_CERT_FILE: File = SECRETS_DIR.resolve("edp1_tls.pem")
     private val MODEL_PROVIDER_TLS_CERT_FILE: File = SECRETS_DIR.resolve("mp1_tls.pem")
     private val MODEL_PROVIDER_TLS_KEY_FILE: File = SECRETS_DIR.resolve("mp1_tls.key")
     private val MODEL_PROVIDER_CERT_COLLECTION_FILE: File = SECRETS_DIR.resolve("mp1_root.pem")

@@ -423,12 +423,14 @@ kt_jvm_library(
         "InProcessModelRepositoryCliIntegrationTest.kt",
     ],
     data = [
+        "//src/main/k8s/testing/secretfiles:edp1_tls.pem",
         "//src/main/k8s/testing/secretfiles:mp1_root.pem",
         "//src/main/k8s/testing/secretfiles:mp1_tls.key",
         "//src/main/k8s/testing/secretfiles:mp1_tls.pem",
     ],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:akid_principal_lookup",
+        "//src/main/kotlin/org/wfanet/measurement/common/identity:principal_identity",
         "//src/main/kotlin/org/wfanet/measurement/integration/deploy/gcloud:kingdom_data_services_provider_rule",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common/service:data_services",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/tools:model_repository",
