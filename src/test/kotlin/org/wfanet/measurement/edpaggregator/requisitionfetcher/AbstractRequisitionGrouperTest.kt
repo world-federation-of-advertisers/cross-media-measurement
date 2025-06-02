@@ -150,7 +150,7 @@ abstract class AbstractRequisitionGrouperTest {
     val groupedRequisitions: List<GroupedRequisitions> =
       requisitionGrouper.groupRequisitions(listOf(REQUISITION, REQUISITION))
     assertThat(groupedRequisitions).hasSize(2)
-    groupedRequisitions.forEach { groupedRequisition ->
+    groupedRequisitions.forEach { groupedRequisition: GroupedRequisition ->
       assertThat(groupedRequisition.eventGroupMap)
         .isEqualTo(
           mapOf(

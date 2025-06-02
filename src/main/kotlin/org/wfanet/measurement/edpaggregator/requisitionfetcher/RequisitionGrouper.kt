@@ -157,9 +157,7 @@ abstract class RequisitionGrouper(
       val eventGroupName = eventGroupEntry.key
       val eventGroup = runBlocking { getEventGroup(eventGroupName) }
       if (eventGroup == null) {
-        logger.info(
-          "Unable to fetch event group $eventGroupName for ${requisition.name}"
-        )
+        logger.info("Unable to fetch event group $eventGroupName for ${requisition.name}")
         runBlocking {
           refuseRequisition(
             requisition.name,
