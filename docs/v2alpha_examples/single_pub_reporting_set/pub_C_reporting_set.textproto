@@ -1,0 +1,16 @@
+# proto-file: wfa/measurement/reporting/v2alpha/reporting_set.proto
+# proto-message: ReportingSet
+
+# name: "measurementConsumers/VCTqwV_vFXw/reportingSets/publisher_C"
+
+display_name: "pub_C_age_18+"
+
+# For age 18-34, 35-54, 55+
+filter: "person.age==YEARS_18_TO_34 || person.age==YEARS_35_TO_54 || person.age==YEARS_55_PLUS"
+
+value {
+  primitive {
+    # Pub C
+    event_groups: "measurementConsumers/VCTqwV_vFXw/dataProviders/publisher_C/eventGroups/eg_from_pub_C"
+  }
+}
