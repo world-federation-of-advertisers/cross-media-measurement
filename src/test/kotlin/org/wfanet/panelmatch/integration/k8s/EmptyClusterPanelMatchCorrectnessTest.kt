@@ -48,7 +48,6 @@ import org.wfanet.measurement.api.v2alpha.ExchangesGrpcKt
 import org.wfanet.measurement.api.v2alpha.ModelProviderKey
 import org.wfanet.measurement.common.crypto.jceProvider
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
-import org.wfanet.measurement.common.grpc.withDefaultDeadline
 import org.wfanet.measurement.common.k8s.KubernetesClient
 import org.wfanet.measurement.common.k8s.KubernetesClientImpl
 import org.wfanet.measurement.common.k8s.testing.PortForwarder
@@ -214,9 +213,9 @@ class EmptyClusterPanelMatchCorrectnessTest : AbstractPanelMatchCorrectnessTest(
         val dpStorageAddress: InetSocketAddress =
           withContext(Dispatchers.IO) { dpStorageForwarder.start() }
         val dpStorageChannel =
-          buildMutualTlsChannel(dpStorageAddress.toTarget(), EDP_SIGNING_CERTS)
-            .also { channels.add(it) }
-            .withDefaultDeadline(DEFAULT_RPC_DEADLINE)
+          buildMutualTlsChannel(dpStorageAddress.toTarget(), EDP_SIGNING_CERTS).also {
+            channels.add(it)
+          }
         dpForwardedStorage =
           ForwardedStorageClient(
             ForwardedStorageGrpcKt.ForwardedStorageCoroutineStub(dpStorageChannel)
@@ -256,9 +255,9 @@ class EmptyClusterPanelMatchCorrectnessTest : AbstractPanelMatchCorrectnessTest(
         val mpStorageAddress: InetSocketAddress =
           withContext(Dispatchers.IO) { mpStorageForwarder.start() }
         val mpStorageChannel =
-          buildMutualTlsChannel(mpStorageAddress.toTarget(), MP_SIGNING_CERTS)
-            .also { channels.add(it) }
-            .withDefaultDeadline(DEFAULT_RPC_DEADLINE)
+          buildMutualTlsChannel(mpStorageAddress.toTarget(), MP_SIGNING_CERTS).also {
+            channels.add(it)
+          }
         mpForwardedStorage =
           ForwardedStorageClient(
             ForwardedStorageGrpcKt.ForwardedStorageCoroutineStub(mpStorageChannel)
@@ -504,7 +503,6 @@ class EmptyClusterPanelMatchCorrectnessTest : AbstractPanelMatchCorrectnessTest(
     private const val DP_PRIVATE_STORAGE_DEPLOYMENT_NAME = "dp-private-storage-server-deployment"
     private const val SHARED_STORAGE_DEPLOYMENT_NAME = "shared-storage-server-deployment"
 
-    private val DEFAULT_RPC_DEADLINE = Duration.ofSeconds(30)
     private val IMAGE_PUSHER_PATH = Paths.get("src", "main", "docker", "push_all_local_images.bash")
     private val IMAGE_PANEL_MATCH_PUSHER_PATH =
       Paths.get("src", "main", "docker", "panel_exchange_client", "push_all_images.bash")

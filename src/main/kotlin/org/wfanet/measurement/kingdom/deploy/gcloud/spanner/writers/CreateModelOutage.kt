@@ -16,69 +16,68 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
-import com.google.cloud.spanner.Statement
-import com.google.cloud.spanner.Struct
 import com.google.cloud.spanner.Value
 import com.google.protobuf.util.Timestamps
-import kotlinx.coroutines.flow.singleOrNull
 import org.wfanet.measurement.common.identity.ExternalId
-import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
-import org.wfanet.measurement.gcloud.spanner.bind
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
 import org.wfanet.measurement.gcloud.spanner.set
-import org.wfanet.measurement.gcloud.spanner.statement
+import org.wfanet.measurement.gcloud.spanner.to
 import org.wfanet.measurement.gcloud.spanner.toInt64
 import org.wfanet.measurement.internal.kingdom.ModelLine
 import org.wfanet.measurement.internal.kingdom.ModelOutage
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelLineNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelOutageInvalidArgsException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ModelLineReader
 
 class CreateModelOutage(private val modelOutage: ModelOutage) :
   SpannerWriter<ModelOutage, ModelOutage>() {
 
   override suspend fun TransactionScope.runTransaction(): ModelOutage {
-
-    val modelLineData: Struct =
-      readModelLineData(
-        ExternalId(modelOutage.externalModelProviderId),
-        ExternalId(modelOutage.externalModelSuiteId),
-        ExternalId(modelOutage.externalModelLineId),
-      )
+    val externalModelProviderId = ExternalId(modelOutage.externalModelProviderId)
+    val externalModelSuiteId = ExternalId(modelOutage.externalModelSuiteId)
+    val externalModelLineId = ExternalId(modelOutage.externalModelLineId)
+    val modelLineResult: ModelLineReader.Result =
+      ModelLineReader()
+        .readByExternalModelLineId(
+          transactionContext,
+          externalModelProviderId,
+          externalModelSuiteId,
+          externalModelLineId,
+        )
         ?: throw ModelLineNotFoundException(
-          ExternalId(modelOutage.externalModelProviderId),
-          ExternalId(modelOutage.externalModelSuiteId),
-          ExternalId(modelOutage.externalModelLineId),
+          externalModelProviderId,
+          externalModelSuiteId,
+          externalModelLineId,
         )
 
     if (Timestamps.compare(modelOutage.modelOutageStartTime, modelOutage.modelOutageEndTime) >= 0) {
       throw ModelOutageInvalidArgsException(
-        ExternalId(modelOutage.externalModelProviderId),
-        ExternalId(modelOutage.externalModelSuiteId),
-        ExternalId(modelOutage.externalModelLineId),
+        externalModelProviderId,
+        externalModelSuiteId,
+        externalModelLineId,
       ) {
         "ModelOutageStartTime cannot precede ModelOutageEndTime."
       }
     }
 
-    val modelLineType: ModelLine.Type =
-      modelLineData.getProtoEnum("Type", ModelLine.Type::forNumber)
+    val modelLineType: ModelLine.Type = modelLineResult.modelLine.type
     if (modelLineType != ModelLine.Type.PROD) {
       throw ModelOutageInvalidArgsException(
-        ExternalId(modelOutage.externalModelProviderId),
-        ExternalId(modelOutage.externalModelSuiteId),
-        ExternalId(modelOutage.externalModelLineId),
+        externalModelProviderId,
+        externalModelSuiteId,
+        externalModelLineId,
       ) {
         "ModelOutage can be created only for model lines having type equal to 'PROD'."
       }
     }
 
-    if (modelLineData.isNull("HoldbackModelLineId")) {
+    if (modelLineResult.modelLine.externalHoldbackModelLineId == 0L) {
       throw ModelOutageInvalidArgsException(
-        ExternalId(modelOutage.externalModelProviderId),
-        ExternalId(modelOutage.externalModelSuiteId),
-        ExternalId(modelOutage.externalModelLineId),
+        externalModelProviderId,
+        externalModelSuiteId,
+        externalModelLineId,
       ) {
         "ModelOutage can be created only for model lines having a HoldbackModelLine."
       }
@@ -88,9 +87,9 @@ class CreateModelOutage(private val modelOutage: ModelOutage) :
     val externalModelOutageId = idGenerator.generateExternalId()
 
     transactionContext.bufferInsertMutation("ModelOutages") {
-      set("ModelProviderId" to InternalId(modelLineData.getLong("ModelProviderId")))
-      set("ModelSuiteId" to InternalId(modelLineData.getLong("ModelSuiteId")))
-      set("ModelLineId" to modelLineData.getLong("ModelLineId"))
+      set("ModelProviderId").to(modelLineResult.modelProviderId)
+      set("ModelSuiteId").to(modelLineResult.modelSuiteId)
+      set("ModelLineId").to(modelLineResult.modelLineId)
       set("ModelOutageId" to internalModelOutageId)
       set("ExternalModelOutageId" to externalModelOutageId)
       set("OutageStartTime" to modelOutage.modelOutageStartTime.toGcloudTimestamp())
@@ -103,37 +102,6 @@ class CreateModelOutage(private val modelOutage: ModelOutage) :
       this.externalModelOutageId = externalModelOutageId.value
       this.state = ModelOutage.State.ACTIVE
     }
-  }
-
-  private suspend fun TransactionScope.readModelLineData(
-    externalModelProviderId: ExternalId,
-    externalModelSuiteId: ExternalId,
-    externalModelLineId: ExternalId,
-  ): Struct? {
-    val sql =
-      """
-    SELECT
-    ModelLines.ModelProviderId,
-    ModelLines.ModelSuiteId,
-    ModelLines.ModelLineId,
-    ModelLines.HoldbackModelLineId,
-    ModelLines.Type
-    FROM ModelSuites JOIN ModelProviders USING(ModelProviderId)
-    JOIN ModelLines USING (ModelSuiteId, ModelProviderId)
-    WHERE ExternalModelProviderId = @externalModelProviderId
-    AND ExternalModelSuiteId = @externalModelSuiteId
-    AND ExternalModelLineId = @externalModelLineId
-    """
-        .trimIndent()
-
-    val statement: Statement =
-      statement(sql) {
-        bind("externalModelProviderId" to externalModelProviderId.value)
-        bind("externalModelSuiteId" to externalModelSuiteId.value)
-        bind("externalModelLineId" to externalModelLineId.value)
-      }
-
-    return transactionContext.executeQuery(statement).singleOrNull()
   }
 
   override fun ResultScope<ModelOutage>.buildResult(): ModelOutage {

@@ -28,14 +28,13 @@ import org.wfanet.measurement.api.v2alpha.ContextKeys
 import org.wfanet.measurement.api.v2alpha.MeasurementPrincipal
 import org.wfanet.measurement.api.v2alpha.principalFromCurrentContext
 import org.wfanet.measurement.api.v2alpha.withPrincipal
-import org.wfanet.measurement.common.identity.withPrincipalName
-
-private const val KEY_NAME = "principal"
-private val PRINCIPAL_METADATA_KEY: Metadata.Key<String> =
-  Metadata.Key.of(KEY_NAME, Metadata.ASCII_STRING_MARSHALLER)
+import org.wfanet.measurement.common.identity.TrustedPrincipalCallCredentials
 
 /**
- * Extracts a [MeasurementPrincipal] from the gRPC [Metadata] and adds it to the gRPC [Context].
+ * Extracts a [MeasurementPrincipal] from the gRPC [headers][Metadata] and adds it to the gRPC
+ * [Context].
+ *
+ * This is only for testing with in-process transport.
  *
  * To install, wrap a service with:
  * ```
@@ -44,9 +43,7 @@ private val PRINCIPAL_METADATA_KEY: Metadata.Key<String> =
  *
  * The principal can be accessed within gRPC services via [principalFromCurrentContext].
  *
- * This expects the Metadata to have a key "principal" associated with a value equal to the v2Alpha
- * resource name of the principal. The recommended way to set this is to use [withPrincipalName] on
- * a stub.
+ * See [TrustedPrincipalCallCredentials].
  */
 class MetadataPrincipalServerInterceptor : ServerInterceptor {
   override fun <ReqT, RespT> interceptCall(
@@ -55,18 +52,18 @@ class MetadataPrincipalServerInterceptor : ServerInterceptor {
     next: ServerCallHandler<ReqT, RespT>,
   ): ServerCall.Listener<ReqT> {
     if (ContextKeys.PRINCIPAL_CONTEXT_KEY.get() != null) {
-      return Contexts.interceptCall(Context.current(), call, headers, next)
+      return next.startCall(call, headers)
     }
 
-    val principalName = headers[PRINCIPAL_METADATA_KEY]
-    if (principalName == null) {
+    val credentials = TrustedPrincipalCallCredentials.fromHeaders(headers)
+    if (credentials == null) {
       call.close(
-        Status.UNAUTHENTICATED.withDescription("$PRINCIPAL_METADATA_KEY not found"),
+        Status.UNAUTHENTICATED.withDescription("Credentials not found in headers"),
         Metadata(),
       )
       return object : ServerCall.Listener<ReqT>() {}
     }
-    val principal = MeasurementPrincipal.fromName(principalName)
+    val principal = MeasurementPrincipal.fromName(credentials.name)
     if (principal == null) {
       call.close(Status.UNAUTHENTICATED.withDescription("No valid Principal found"), Metadata())
       return object : ServerCall.Listener<ReqT>() {}

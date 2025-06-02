@@ -15,6 +15,7 @@
 package org.wfanet.measurement.duchy.deploy.gcloud.server
 
 import kotlinx.coroutines.runBlocking
+import org.wfanet.measurement.common.IdGenerator
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStageDetails
 import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStages
@@ -60,6 +61,7 @@ class GcsSpannerComputationsServer : ComputationsServer() {
               protocolStageEnumHelper,
               computationProtocolStageDetails,
             ),
+          computationIdGenerator = IdGenerator.Default,
         ),
         SpannerContinuationTokensService(databaseClient),
         storageClient,

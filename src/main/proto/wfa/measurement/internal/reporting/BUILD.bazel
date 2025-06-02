@@ -1,87 +1,17 @@
 load("@com_google_protobuf//bazel:proto_library.bzl", "proto_library")
-load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_grpc_proto_library")
-load("//src/main/proto/wfa/measurement/internal/common:macros.bzl", "IMPORT_PREFIX", "proto_and_kt_jvm_proto_library")
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_proto_library")
 
-package(default_visibility = ["//:__subpackages__"])
+package(default_visibility = ["//src/main/kotlin/org/wfanet/measurement/reporting:__subpackages__"])
 
-proto_and_kt_jvm_proto_library(
-    name = "error_code",
-)
-
-proto_and_kt_jvm_proto_library(
-    name = "measurement",
-    deps = [
-        "@com_google_protobuf//:duration_proto",
-    ],
-)
+IMPORT_PREFIX = "/src/main/proto"
 
 proto_library(
-    name = "measurements_service_proto",
-    srcs = ["measurements_service.proto"],
+    name = "error_code_proto",
+    srcs = ["error_code.proto"],
     strip_import_prefix = IMPORT_PREFIX,
-    deps = [
-        ":measurement_proto",
-    ],
 )
 
-kt_jvm_grpc_proto_library(
-    name = "measurements_service_kt_jvm_grpc_proto",
-    deps = [":measurements_service_proto"],
-)
-
-proto_and_kt_jvm_proto_library(
-    name = "reporting_set",
-)
-
-proto_library(
-    name = "reporting_sets_service_proto",
-    srcs = ["reporting_sets_service.proto"],
-    strip_import_prefix = IMPORT_PREFIX,
-    deps = [
-        ":reporting_set_proto",
-    ],
-)
-
-kt_jvm_grpc_proto_library(
-    name = "reporting_sets_service_kt_jvm_grpc_proto",
-    deps = [":reporting_sets_service_proto"],
-)
-
-proto_and_kt_jvm_proto_library(
-    name = "time_interval",
-    deps = [
-        "@com_google_protobuf//:duration_proto",
-        "@com_google_protobuf//:timestamp_proto",
-    ],
-)
-
-proto_and_kt_jvm_proto_library(
-    name = "metric",
-    deps = [
-        ":time_interval_proto",
-    ],
-)
-
-proto_and_kt_jvm_proto_library(
-    name = "report",
-    deps = [
-        ":measurement_proto",
-        ":metric_proto",
-        ":time_interval_proto",
-        "@com_google_protobuf//:timestamp_proto",
-    ],
-)
-
-proto_library(
-    name = "reports_service_proto",
-    srcs = ["reports_service.proto"],
-    strip_import_prefix = IMPORT_PREFIX,
-    deps = [
-        ":report_proto",
-    ],
-)
-
-kt_jvm_grpc_proto_library(
-    name = "reports_service_kt_jvm_grpc_proto",
-    deps = [":reports_service_proto"],
+kt_jvm_proto_library(
+    name = "error_code_kt_jvm_proto",
+    deps = [":error_code_proto"],
 )
