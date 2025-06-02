@@ -53,7 +53,6 @@ import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.common.crypto.jceProvider
 import org.wfanet.measurement.common.crypto.tink.TinkPrivateKeyHandle
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
-import org.wfanet.measurement.common.grpc.withDefaultDeadline
 import org.wfanet.measurement.common.k8s.KubernetesClient
 import org.wfanet.measurement.common.k8s.KubernetesClientImpl
 import org.wfanet.measurement.common.k8s.testing.PortForwarder
@@ -66,8 +65,8 @@ import org.wfanet.measurement.integration.common.createEntityContent
 import org.wfanet.measurement.integration.common.loadEncryptionPrivateKey
 import org.wfanet.measurement.integration.common.loadTestCertDerFile
 import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt
+import org.wfanet.measurement.loadtest.measurementconsumer.EventQueryMeasurementConsumerSimulator
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
-import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerSimulator
 import org.wfanet.measurement.loadtest.measurementconsumer.MetadataSyntheticGeneratorEventQuery
 import org.wfanet.measurement.loadtest.reporting.ReportingUserSimulator
 import org.wfanet.measurement.loadtest.resourcesetup.DuchyCert
@@ -178,8 +177,8 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
     private val tempDir: TemporaryFolder by tempDir
     override val runId: String by runId
 
-    private lateinit var _testHarness: MeasurementConsumerSimulator
-    override val testHarness: MeasurementConsumerSimulator
+    private lateinit var _testHarness: EventQueryMeasurementConsumerSimulator
+    override val testHarness: EventQueryMeasurementConsumerSimulator
       get() = _testHarness
 
     private lateinit var _reportingTestHarness: ReportingUserSimulator
@@ -246,7 +245,7 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
 
     private suspend fun createTestHarness(
       measurementConsumerData: MeasurementConsumerData
-    ): MeasurementConsumerSimulator {
+    ): EventQueryMeasurementConsumerSimulator {
       val kingdomPublicPod: V1Pod = getPod(KINGDOM_PUBLIC_DEPLOYMENT_NAME)
 
       val publicApiForwarder = PortForwarder(kingdomPublicPod, SERVER_PORT)
@@ -257,10 +256,9 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
       val publicApiChannel: Channel =
         buildMutualTlsChannel(publicApiAddress.toTarget(), MEASUREMENT_CONSUMER_SIGNING_CERTS)
           .also { channels.add(it) }
-          .withDefaultDeadline(DEFAULT_RPC_DEADLINE)
       val eventGroupsClient = EventGroupsGrpcKt.EventGroupsCoroutineStub(publicApiChannel)
 
-      return MeasurementConsumerSimulator(
+      return EventQueryMeasurementConsumerSimulator(
         measurementConsumerData,
         OUTPUT_DP_PARAMS,
         DataProvidersGrpcKt.DataProvidersCoroutineStub(publicApiChannel),
@@ -288,9 +286,9 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
       val publicApiAddress: InetSocketAddress =
         withContext(Dispatchers.IO) { publicApiForwarder.start() }
       val publicApiChannel: Channel =
-        buildMutualTlsChannel(publicApiAddress.toTarget(), REPORTING_SIGNING_CERTS)
-          .also { channels.add(it) }
-          .withDefaultDeadline(DEFAULT_RPC_DEADLINE)
+        buildMutualTlsChannel(publicApiAddress.toTarget(), REPORTING_SIGNING_CERTS).also {
+          channels.add(it)
+        }
 
       return ReportingUserSimulator(
         measurementConsumerName = measurementConsumerData.name,
@@ -518,7 +516,6 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
     }
 
     private const val SERVER_PORT: Int = 8443
-    private val DEFAULT_RPC_DEADLINE = Duration.ofSeconds(30)
     private const val KINGDOM_INTERNAL_DEPLOYMENT_NAME = "gcp-kingdom-data-server-deployment"
     private const val KINGDOM_PUBLIC_DEPLOYMENT_NAME = "v2alpha-public-api-server-deployment"
     private const val REPORTING_PUBLIC_DEPLOYMENT_NAME =

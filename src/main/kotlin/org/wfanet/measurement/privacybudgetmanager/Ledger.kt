@@ -14,6 +14,9 @@
 
 package org.wfanet.measurement.privacybudgetmanager
 
+private const val MAX_BATCH_INSERT = 1000
+private const val MAX_BATCH_READ = 1000
+
 /**
  * Manages interaction with the persistance layer that stores [PrivacyBucket]s, [Charge]s and
  * [Query]s
@@ -46,21 +49,20 @@ interface Ledger {
  */
 interface TransactionContext : AutoCloseable {
   /**
-   * Reads the [BackingStore] and returns the Queries that are already present with their CreateTime
-   * read from the DB.
+   * Reads and returns the Queries that are already present with their CreateTime read from the DB.
    *
    * @param list of queries to find in the ledger.
    * @returns list of [Query] that existed in the ledger. These have createTime field populated.
    * @throws PrivacyBudgetManager exception if the read operation was unsuccessful.
    */
-  suspend fun readQueries(queries: List<Query>): List<Query>
+  suspend fun readQueries(queries: List<Query>, maxBatchSize: Int = MAX_BATCH_READ): List<Query>
 
   /**
-   * Reads the rows specified by the [rowKeys] from the backing store.
+   * Reads the rows specified by the [rowKeys] from the db.
    *
    * @throws PrivacyBudgetManager exception if the read operation was unsuccessful.
    */
-  suspend fun readChargeRows(rowKeys: List<LedgerRowKey>): Slice
+  suspend fun readChargeRows(rowKeys: List<LedgerRowKey>, maxBatchSize: Int = MAX_BATCH_READ): Slice
 
   /**
    * Writes a [Slice] to the backing store together with the [queries] responsible for its creation.
@@ -68,7 +70,11 @@ interface TransactionContext : AutoCloseable {
    * @returns the Queries that are written with their createTime read from the DB.
    * @throws PrivacyBudgetManager exception if the write operation was unsuccessful.
    */
-  suspend fun write(delta: Slice, queries: List<Query>): List<Query>
+  suspend fun write(
+    delta: Slice,
+    queries: List<Query>,
+    maxBatchSize: Int = MAX_BATCH_INSERT,
+  ): List<Query>
 
   /**
    * Commits the current transaction.

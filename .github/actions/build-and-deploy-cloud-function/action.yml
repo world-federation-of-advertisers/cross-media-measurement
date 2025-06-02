@@ -105,7 +105,6 @@ runs:
         else
           ARGS+=(
             --trigger-http
-            --allow-unauthenticated
           )
         fi
         

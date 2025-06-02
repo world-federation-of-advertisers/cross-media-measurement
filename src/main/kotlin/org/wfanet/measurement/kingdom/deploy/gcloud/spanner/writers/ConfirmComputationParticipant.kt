@@ -14,6 +14,7 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
+import com.google.cloud.spanner.Options
 import com.google.cloud.spanner.Statement
 import com.google.cloud.spanner.Value
 import kotlinx.coroutines.flow.map
@@ -166,7 +167,10 @@ class ConfirmComputationParticipant(private val request: ConfirmComputationParti
         bind("measurement_id" to measurementId)
       }
     return transactionContext
-      .executeQuery(statement)
+      .executeQuery(
+        statement,
+        Options.tag("writer=$writerName,action=getComputationParticipantsDuchyIds"),
+      )
       .map { InternalId(it.getLong("DuchyId")) }
       .toList()
   }

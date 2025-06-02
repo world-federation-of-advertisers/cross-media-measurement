@@ -20,7 +20,6 @@ import com.google.protobuf.DescriptorProtos
 import com.google.protobuf.Descriptors
 import com.google.protobuf.util.JsonFormat
 import io.grpc.Channel
-import io.grpc.Server
 import io.grpc.ServerServiceDefinition
 import io.grpc.Status
 import io.grpc.StatusException
@@ -28,7 +27,6 @@ import io.grpc.inprocess.InProcessChannelBuilder
 import java.io.File
 import java.security.SecureRandom
 import java.time.Duration
-import java.util.concurrent.ExecutorService
 import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.ThreadPoolExecutor
 import java.util.concurrent.TimeUnit
@@ -49,6 +47,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub as KingdomMeasurementsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt.ModelLinesCoroutineStub as KingdomModelLinesCoroutineStub
 import org.wfanet.measurement.api.withAuthenticationKey
+import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.SigningCerts
@@ -57,7 +56,6 @@ import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withInterceptor
 import org.wfanet.measurement.common.grpc.withShutdownTimeout
 import org.wfanet.measurement.common.grpc.withVerboseLogging
-import org.wfanet.measurement.common.instrumented
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.config.access.OpenIdProvidersConfig
 import org.wfanet.measurement.config.reporting.MeasurementConsumerConfig
@@ -230,6 +228,7 @@ private object V2AlphaPublicApiServer {
         KingdomMeasurementsCoroutineStub(kingdomChannel),
         KingdomCertificatesCoroutineStub(kingdomChannel),
         KingdomMeasurementConsumersCoroutineStub(kingdomChannel),
+        KingdomModelLinesCoroutineStub(kingdomChannel),
         authorization,
         InMemoryEncryptionKeyPairStore(encryptionKeyPairMap.keyPairs),
         SecureRandom().asKotlinRandom(),
@@ -245,7 +244,7 @@ private object V2AlphaPublicApiServer {
         Dispatchers.Default,
       )
 
-    val inProcessExecutorService: ExecutorService =
+    val inProcessThreadPool =
       ThreadPoolExecutor(
           1,
           commonServerFlags.threadPoolSize,
@@ -253,15 +252,13 @@ private object V2AlphaPublicApiServer {
           TimeUnit.SECONDS,
           LinkedBlockingQueue(),
         )
-        .instrumented(IN_PROCESS_SERVER_NAME)
-
-    val inProcessServer: Server =
-      startInProcessServerWithService(
-        IN_PROCESS_SERVER_NAME,
-        commonServerFlags,
-        metricsService.withInterceptor(TrustedPrincipalAuthInterceptor),
-        inProcessExecutorService,
-      )
+        .also { Instrumentation.instrumentThreadPool(IN_PROCESS_SERVER_NAME, it) }
+    startInProcessServerWithService(
+      IN_PROCESS_SERVER_NAME,
+      commonServerFlags,
+      metricsService.withInterceptor(TrustedPrincipalAuthInterceptor),
+      inProcessThreadPool,
+    )
     val inProcessChannel =
       InProcessChannelBuilder.forName(IN_PROCESS_SERVER_NAME)
         .directExecutor()
@@ -319,9 +316,11 @@ private object V2AlphaPublicApiServer {
           .withInterceptor(principalAuthInterceptor),
         MetricCalculationSpecsService(
             InternalMetricCalculationSpecsCoroutineStub(channel),
+            KingdomModelLinesCoroutineStub(kingdomChannel),
             metricSpecConfig,
             authorization,
             SecureRandom().asKotlinRandom(),
+            measurementConsumerConfigs,
           )
           .withInterceptor(principalAuthInterceptor),
         BasicReportsService(InternalBasicReportsCoroutineStub(channel), authorization)
@@ -335,11 +334,6 @@ private object V2AlphaPublicApiServer {
       )
 
     CommonServer.fromFlags(commonServerFlags, SERVER_NAME, services).start().blockUntilShutdown()
-    inProcessChannel.shutdown()
-    inProcessServer.shutdown()
-    inProcessExecutorService.shutdown()
-    inProcessServer.awaitTermination()
-    inProcessExecutorService.awaitTermination(30, TimeUnit.SECONDS)
   }
 
   class V2AlphaPublicServerFlags {
