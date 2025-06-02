@@ -73,7 +73,6 @@ object RequisitionSpecs {
         val dates = startDate.datesUntil(endDate.plusDays(1)).asSequence().asFlow()
 
         val impressions = dates.flatMapConcat { date ->
-          println("JOJI: ${date.toString()}")
           eventReader.getLabeledImpressionsFlow(date.toString(), eventGroup.key)
         }
 
