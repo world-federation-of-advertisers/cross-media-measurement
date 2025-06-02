@@ -61,7 +61,7 @@ jobs:
     - name: create-deploy-dispatch
       uses: actions/github-script@v7
       env:
-        TAG: ${{ steps.get-tag.outputs.tag }}
+        TAG: ${{ steps.compute-next-nightly-tag.outputs.tag }}
       with:
         script: |
           const tag = process.env['TAG'];
