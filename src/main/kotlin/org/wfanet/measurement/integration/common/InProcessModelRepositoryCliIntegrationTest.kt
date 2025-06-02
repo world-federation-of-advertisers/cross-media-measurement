@@ -209,6 +209,8 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
     val publicModelProviderChannel: ManagedChannel =
       buildMutualTlsChannel("localhost:${server.port}", modelProviderCerts)
     publicModelSuitesClient = ModelSuitesGrpc.newBlockingStub(publicModelProviderChannel)
+    publicModelSuitesClient = ModelSuitesGrpc.newBlockingStub(publicModelProviderChannel)
+    publicPopulationsClient = PopulationsGrpc.newBlockingStub(publicModelProviderChannel)
 
     val dataProviderCerts =
       SigningCerts.fromPemFiles(
