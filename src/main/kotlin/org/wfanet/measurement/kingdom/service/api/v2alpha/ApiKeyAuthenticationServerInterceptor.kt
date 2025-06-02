@@ -26,7 +26,7 @@ import io.grpc.Status
 import io.grpc.StatusException
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
-import org.wfanet.measurement.api.ApiKeyConstants
+import org.wfanet.measurement.api.ApiKeyCredentials
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerPrincipal
 import org.wfanet.measurement.api.v2alpha.withPrincipal
@@ -39,7 +39,10 @@ import org.wfanet.measurement.internal.kingdom.ApiKeysGrpcKt.ApiKeysCoroutineStu
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumer
 import org.wfanet.measurement.internal.kingdom.authenticateApiKeyRequest
 
-/** gRPC [ServerInterceptor] to check [ApiKey] credentials coming in from a request. */
+/**
+ * gRPC [ServerInterceptor] to check [ApiKey] credentials from request headers and map them to a
+ * [MeasurementConsumerPrincipal] in the [Context].
+ */
 class ApiKeyAuthenticationServerInterceptor(
   private val internalApiKeysClient: ApiKeysCoroutineStub,
   coroutineContext: CoroutineContext = EmptyCoroutineContext,
@@ -51,8 +54,8 @@ class ApiKeyAuthenticationServerInterceptor(
     next: ServerCallHandler<ReqT, RespT>,
   ): ServerCall.Listener<ReqT> {
     val authenticationKey =
-      headers.get(ApiKeyConstants.API_AUTHENTICATION_KEY_METADATA_KEY)
-        ?: return Contexts.interceptCall(Context.current(), call, headers, next)
+      ApiKeyCredentials.fromHeaders(headers)?.apiAuthenticationKey
+        ?: return next.startCall(call, headers)
 
     var context = Context.current()
     try {
