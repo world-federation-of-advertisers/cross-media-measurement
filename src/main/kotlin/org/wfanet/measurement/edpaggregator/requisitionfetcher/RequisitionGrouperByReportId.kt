@@ -30,6 +30,7 @@ import org.wfanet.measurement.api.v2alpha.unpack
 import org.wfanet.measurement.common.crypto.PrivateKeyHandle
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.common.toInstant
+import org.wfanet.measurement.dataprovider.RequisitionRefusalException
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
 import org.wfanet.measurement.edpaggregator.v1alpha.groupedRequisitions
 
@@ -86,31 +87,31 @@ class RequisitionGrouperByReportId(
               )
             }
           }
-          logger.info("NULL NULL NULL1 for $modelLine")
         }
         sortedGroups.forEach { combinedEventGroupMap.putAll(it.eventGroupMap) }
         val combinedCollectionIntervalMap = mutableMapOf<String, Interval>()
-        val ableToCombineCollectionIntervalMap = try {
-          sortedGroups.forEach {
-            combinedCollectionIntervalMap.mergeIntervals(it.collectionIntervals)
-          }
-          true
-        } catch (e: Exception) {
-          groups.forEach {
-            val requisition = it.requisitionsList.single().unpack(Requisition::class.java)
-            runBlocking {
-              refuseRequisition(
-                requisition.name,
-                refusal {
-                  justification = Requisition.Refusal.Justification.UNFULFILLABLE
-                  message = "Report $reportId cannot contain multiple model lines"
-                },
-              )
+        val ableToCombineCollectionIntervalMap =
+          try {
+            sortedGroups.forEach {
+              combinedCollectionIntervalMap.mergeIntervals(it.collectionIntervals)
             }
+            true
+          } catch (e: RequisitionRefusalException) {
+            logger.info("Report $reportId cannot contain disparate collection intervals")
+            groups.forEach {
+              val requisition = it.requisitionsList.single().unpack(Requisition::class.java)
+              runBlocking {
+                refuseRequisition(
+                  requisition.name,
+                  refusal {
+                    justification = e.justification
+                    message = e.message!!
+                  },
+                )
+              }
+            }
+            false
           }
-          logger.info("NULL NULL NULL2")
-          false
-        }
         if (foundInvalidModelLine || !ableToCombineCollectionIntervalMap) {
           null
         } else {
@@ -136,7 +137,10 @@ class RequisitionGrouperByReportId(
       } else {
         val newValue =
           combinedCollectionIntervalMap.getValue(eventGroupReferenceId).combine(collectionInterval)
-            ?: throw Exception("Unable to combine interval maps")
+            ?: throw RequisitionRefusalException.Default(
+              justification = Requisition.Refusal.Justification.UNFULFILLABLE,
+              message = "Report cannot contain multiple model lines",
+            )
         combinedCollectionIntervalMap[eventGroupReferenceId] = newValue!!
       }
     }
