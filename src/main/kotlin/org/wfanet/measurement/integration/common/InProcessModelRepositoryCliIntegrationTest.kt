@@ -163,6 +163,12 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
             entries +=
               AuthorityKeyToPrincipalMapKt.entry {
                 authorityKeyIdentifier =
+                  readCertificate(DATA_PROVIDER_TLS_CERT_FILE).authorityKeyIdentifier!!
+                principalResourceName = dataProviderName
+              }
+            entries +=
+              AuthorityKeyToPrincipalMapKt.entry {
+                authorityKeyIdentifier =
                   readCertificate(MODEL_PROVIDER_TLS_CERT_FILE).authorityKeyIdentifier!!
                 principalResourceName = modelProviderName
               }
@@ -172,14 +178,14 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
     val internalModelSuitesClient =
       InternalModelSuitesGrpc.ModelSuitesCoroutineStub(internalChannel)
     val internalPopulationsClient =
-      InternalPopulationsGrpc.PopulationsCoroutineStub(internalChannel)
+        InternalPopulationsGrpc.PopulationsCoroutineStub(internalChannel)
 
     val publicModelSuitesService =
       ModelSuitesService(internalModelSuitesClient)
         .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup)
     val publicPopulationsService =
-      PopulationsService(internalPopulationsClient)
-        .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup)
+        PopulationsService(internalPopulationsClient)
+          .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup)
     val services = listOf(publicModelSuitesService, publicPopulationsService)
 
     val serverCerts =
@@ -209,7 +215,8 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
     val publicChannel: ManagedChannel =
       buildMutualTlsChannel("localhost:${server.port}", modelProviderCerts)
     publicModelSuitesClient = ModelSuitesGrpc.newBlockingStub(publicChannel)
-    publicPopulationsClient = PopulationsGrpc.newBlockingStub(publicChannel)
+    publicPopulationsClient =
+        PopulationsGrpc.newBlockingStub(publicChannel)
 
     modelSuite =
       publicModelSuitesClient.createModelSuite(
@@ -409,6 +416,8 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
     private val MODEL_PROVIDER_TLS_CERT_FILE: File = SECRETS_DIR.resolve("mp1_tls.pem")
     private val MODEL_PROVIDER_TLS_KEY_FILE: File = SECRETS_DIR.resolve("mp1_tls.key")
     private val MODEL_PROVIDER_ROOT_CERT_FILE: File = SECRETS_DIR.resolve("mp1_root.pem")
+
+    private val DATA_PROVIDER_TLS_CERT_FILE: File = SECRETS_DIR.resolve("edp1_tls.pem")
 
     private const val FIXED_GENERATED_EXTERNAL_ID = 6789L
 
