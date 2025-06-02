@@ -112,6 +112,7 @@ message LatestRequisitionReadTableRow {
   int64 update_time = 1;
   int64 external_data_provider_id = 2;
   int64 external_requisition_id = 3;
+  int64 requisition_identity = 4;
 }
 
 message LatestComputationReadTableRow {

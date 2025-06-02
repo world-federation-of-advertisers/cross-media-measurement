@@ -305,10 +305,16 @@ class OperationalMetricsExport(
                   Timestamps.fromNanos(
                     latestRequisitionReadFromPreviousJob.get("update_time").longValue
                   )
-                externalDataProviderId =
-                  latestRequisitionReadFromPreviousJob.get("external_data_provider_id").longValue
-                externalRequisitionId =
-                  latestRequisitionReadFromPreviousJob.get("external_requisition_id").longValue
+                val requisitionIdentityValue =
+                  latestRequisitionReadFromPreviousJob.get("requisition_identity")
+                if (requisitionIdentityValue.isNull) {
+                  externalDataProviderId =
+                    latestRequisitionReadFromPreviousJob.get("external_data_provider_id").longValue
+                  externalRequisitionId =
+                    latestRequisitionReadFromPreviousJob.get("external_requisition_id").longValue
+                } else {
+                  requisitionIdentity = requisitionIdentityValue.longValue
+                }
               }
           }
         }
@@ -338,6 +344,7 @@ class OperationalMetricsExport(
 
               val requisitionsProtoRowsBuilder: ProtoRows.Builder = ProtoRows.newBuilder()
               var latestUpdateTime: Timestamp = Timestamp.getDefaultInstance()
+              var latestRequisitionIdentity = 0L
 
               requisitionsClient
                 .streamRequisitions(streamRequisitionsRequest)
@@ -350,6 +357,7 @@ class OperationalMetricsExport(
                 .collect { requisition ->
                   requisitionsQueryResponseSize++
                   latestUpdateTime = requisition.updateTime
+                  latestRequisitionIdentity = requisition.requisitionIdentity
 
                   val measurementType =
                     getMeasurementType(
@@ -434,10 +442,7 @@ class OperationalMetricsExport(
                       after =
                         StreamRequisitionsRequestKt.FilterKt.after {
                           updateTime = latestUpdateTime
-                          externalDataProviderId =
-                            latestRequisitionReadTableRow.externalDataProviderId
-                          externalRequisitionId =
-                            latestRequisitionReadTableRow.externalRequisitionId
+                          requisitionIdentity = latestRequisitionIdentity
                         }
                     }
                 }

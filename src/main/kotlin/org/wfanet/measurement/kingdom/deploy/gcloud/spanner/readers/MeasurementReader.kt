@@ -585,12 +585,7 @@ private fun MeasurementKt.Dsl.fillComputationView(struct: Struct) {
 
   for (requisitionStruct in requisitionsStructs) {
     requisitions +=
-      RequisitionReader.buildRequisition(
-        struct,
-        requisitionStruct,
-        participantStructs,
-        dataProvidersCount,
-      )
+      RequisitionReader.buildRequisition(requisitionStruct, participantStructs, dataProvidersCount)
   }
 }
 
