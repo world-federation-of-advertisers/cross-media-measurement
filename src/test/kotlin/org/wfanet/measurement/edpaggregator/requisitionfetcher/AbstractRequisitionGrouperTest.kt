@@ -104,7 +104,6 @@ import org.wfanet.measurement.consent.client.measurementconsumer.signEncryptionP
 import org.wfanet.measurement.consent.client.measurementconsumer.signMeasurementSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.signRequisitionSpec
 import org.wfanet.measurement.dataprovider.DataProviderData
-import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
 
 @RunWith(JUnit4::class)
 abstract class AbstractRequisitionGrouperTest {
@@ -139,40 +138,6 @@ abstract class AbstractRequisitionGrouperTest {
   }
 
   protected abstract val requisitionGrouper: RequisitionGrouper
-
-  @Test
-  fun `able to map Requisition to GroupedRequisisions`() {
-
-    eventGroupsServiceMock.stub {
-      onBlocking { getEventGroup(any()) }
-        .thenReturn(eventGroup { eventGroupReferenceId = "some-event-group-reference-id" })
-    }
-    val groupedRequisitions: List<GroupedRequisitions> =
-      requisitionGrouper.groupRequisitions(listOf(REQUISITION, REQUISITION))
-    assertThat(groupedRequisitions).hasSize(2)
-    groupedRequisitions.forEach { groupedRequisition: GroupedRequisition ->
-      assertThat(groupedRequisition.eventGroupMap)
-        .isEqualTo(
-          mapOf(
-            "dataProviders/someDataProvider/eventGroups/name" to "some-event-group-reference-id"
-          )
-        )
-      assertThat(
-          groupedRequisition.collectionIntervals["some-event-group-reference-id"]!!
-            .startTime
-            .seconds
-        )
-        .isEqualTo(1748736000)
-      assertThat(
-          groupedRequisition.collectionIntervals["some-event-group-reference-id"]!!.endTime.seconds
-        )
-        .isEqualTo(1748908800)
-      assertThat(
-          groupedRequisition.requisitionsList.map { it.unpack(Requisition::class.java) }.single()
-        )
-        .isEqualTo(REQUISITION)
-    }
-  }
 
   @Test
   fun `refuses Requisition when EventGroup not found`() {
@@ -277,17 +242,11 @@ abstract class AbstractRequisitionGrouperTest {
     private const val LLV2_DECAY_RATE = 12.0
     private const val LLV2_MAX_SIZE = 100_000L
     private val NOISE_MECHANISM = ProtocolConfig.NoiseMechanism.DISCRETE_GAUSSIAN
-
-    private val MEASUREMENT_CONSUMER_CERTIFICATE_DER =
-      SECRET_FILES_PATH.resolve("mc_cs_cert.der").toFile().readByteString()
+    
     private const val MEASUREMENT_CONSUMER_NAME = "measurementConsumers/AAAAAAAAAHs"
     private const val MEASUREMENT_NAME = "$MC_NAME/measurements/BBBBBBBBBHs"
     private const val MEASUREMENT_CONSUMER_CERTIFICATE_NAME =
       "$MEASUREMENT_CONSUMER_NAME/certificates/AAAAAAAAAcg"
-    private val MEASUREMENT_CONSUMER_CERTIFICATE = certificate {
-      name = MEASUREMENT_CONSUMER_CERTIFICATE_NAME
-      x509Der = MEASUREMENT_CONSUMER_CERTIFICATE_DER
-    }
 
     private val CONSENT_SIGNALING_ELGAMAL_PUBLIC_KEY = elGamalPublicKey {
       ellipticCurveId = 415
@@ -302,45 +261,16 @@ abstract class AbstractRequisitionGrouperTest {
     private val TIME_RANGE = OpenEndTimeRange.fromClosedDateRange(FIRST_EVENT_DATE..LAST_EVENT_DATE)
 
     private const val DUCHY_ONE_ID = "worker1"
-    private const val DUCHY_TWO_ID = "worker2"
-    private const val RANDOM_SEED: Long = 0
-
-    private const val RING_MODULUS = 127
-
-    // Resource ID for EventGroup that fails Requisitions with CONSENT_SIGNAL_INVALID if used.
-    private const val CONSENT_SIGNAL_INVALID_EVENT_GROUP_ID = "consent-signal-invalid"
-    // Resource ID for EventGroup that fails Requisitions with SPEC_INVALID if used.
-    private const val SPEC_INVALID_EVENT_GROUP_ID = "spec-invalid"
-    // Resource ID for EventGroup that fails Requisitions with INSUFFICIENT_PRIVACY_BUDGET if used.
-    private const val INSUFFICIENT_PRIVACY_BUDGET_EVENT_GROUP_ID = "insufficient-privacy-budget"
-    // Resource ID for EventGroup that fails Requisitions with UNFULFILLABLE if used.
-    private const val UNFULFILLABLE_EVENT_GROUP_ID = "unfulfillable"
-    // Resource ID for EventGroup that fails Requisitions with DECLINED if used.
-    private const val DECLINED_EVENT_GROUP_ID = "declined"
-
-    private const val EVENT_GROUP_METADATA_DESCRIPTOR_NAME =
-      "dataProviders/foo/eventGroupMetadataDescriptors/bar"
 
     private val MC_SIGNING_KEY = loadSigningKey("${MC_ID}_cs_cert.der", "${MC_ID}_cs_private.der")
     private val DUCHY_ONE_SIGNING_KEY =
       loadSigningKey("${DUCHY_ONE_ID}_cs_cert.der", "${DUCHY_ONE_ID}_cs_private.der")
-    private val DUCHY_TWO_SIGNING_KEY =
-      loadSigningKey("${DUCHY_TWO_ID}_cs_cert.der", "${DUCHY_TWO_ID}_cs_private.der")
 
     private val DUCHY_ONE_NAME = DuchyKey(DUCHY_ONE_ID).toName()
-    private val DUCHY_TWO_NAME = DuchyKey(DUCHY_TWO_ID).toName()
     private val DUCHY_ONE_CERTIFICATE = certificate {
       name = DuchyCertificateKey(DUCHY_ONE_ID, externalIdToApiId(6L)).toName()
       x509Der = DUCHY_ONE_SIGNING_KEY.certificate.encoded.toByteString()
     }
-    private val DUCHY_TWO_CERTIFICATE = certificate {
-      name = DuchyCertificateKey(DUCHY_TWO_ID, externalIdToApiId(6L)).toName()
-      x509Der = DUCHY_TWO_SIGNING_KEY.certificate.encoded.toByteString()
-    }
-
-    private val DUCHY1_ENCRYPTION_PUBLIC_KEY =
-      loadPublicKey(SECRET_FILES_PATH.resolve("mc_enc_public.tink").toFile())
-        .toEncryptionPublicKey()
 
     private val EDP_SIGNING_KEY =
       loadSigningKey("${EDP_DISPLAY_NAME}_cs_cert.der", "${EDP_DISPLAY_NAME}_cs_private.der")
@@ -359,11 +289,6 @@ abstract class AbstractRequisitionGrouperTest {
       x509Der = EDP_SIGNING_KEY.certificate.encoded.toByteString()
       subjectKeyIdentifier = EDP_SIGNING_KEY.certificate.subjectKeyIdentifier!!
     }
-    private val DATA_PROVIDER_RESULT_CERTIFICATE = certificate {
-      name = DATA_PROVIDER_RESULT_CERTIFICATE_KEY.toName()
-      x509Der = EDP_RESULT_SIGNING_KEY.certificate.encoded.toByteString()
-      subjectKeyIdentifier = EDP_RESULT_SIGNING_KEY.certificate.subjectKeyIdentifier!!
-    }
     @JvmStatic
     protected val EDP_DATA =
       DataProviderData(
@@ -377,8 +302,6 @@ abstract class AbstractRequisitionGrouperTest {
     private val MC_PUBLIC_KEY =
       loadPublicKey(SECRET_FILES_PATH.resolve("mc_enc_public.tink").toFile())
         .toEncryptionPublicKey()
-    private val MC_PRIVATE_KEY =
-      loadPrivateKey(SECRET_FILES_PATH.resolve("mc_enc_private.tink").toFile())
     private val DATA_PROVIDER_PUBLIC_KEY =
       loadPublicKey(SECRET_FILES_PATH.resolve("${EDP_DISPLAY_NAME}_enc_public.tink").toFile())
         .toEncryptionPublicKey()
@@ -431,34 +354,14 @@ abstract class AbstractRequisitionGrouperTest {
       nonceHashes += Hashing.hashSha256(REQUISITION_SPEC.nonce)
     }
 
-    private val REACH_ONLY_MEASUREMENT_SPEC =
-      MEASUREMENT_SPEC.copy {
-        clearReachAndFrequency()
-        reach = reach { privacyParams = OUTPUT_DP_PARAMS }
-      }
-    private val IMPRESSION_MEASUREMENT_SPEC = measurementSpec {
-      measurementPublicKey = MC_PUBLIC_KEY.pack()
-      impression = impression {
-        privacyParams = differentialPrivacyParams {
-          epsilon = 10.0
-          delta = 1E-12
-        }
-        maximumFrequencyPerUser = 10
-      }
-      vidSamplingInterval = vidSamplingInterval {
-        start = 0.0f
-        width = 1.0f
-      }
-      nonceHashes += Hashing.hashSha256(REQUISITION_SPEC.nonce)
-    }
-
     private val LIQUID_LEGIONS_SKETCH_PARAMS = liquidLegionsSketchParams {
       decayRate = LLV2_DECAY_RATE
       maxSize = LLV2_MAX_SIZE
       samplingIndicatorSize = 10_000_000
     }
 
-    private val REQUISITION = requisition {
+    @JvmStatic
+    protected val REQUISITION = requisition {
       name = "${EDP_NAME}/requisitions/foo"
       measurement = MEASUREMENT_NAME
       state = Requisition.State.UNFULFILLED
@@ -488,45 +391,6 @@ abstract class AbstractRequisitionGrouperTest {
           }
         }
       }
-    }
-
-    private val DUCHY_ENTRY_ONE = duchyEntry {
-      key = DUCHY_ONE_NAME
-      value = value {
-        duchyCertificate = DUCHY_ONE_CERTIFICATE.name
-        honestMajorityShareShuffle = honestMajorityShareShuffle {
-          publicKey = signEncryptionPublicKey(DUCHY1_ENCRYPTION_PUBLIC_KEY, DUCHY_ONE_SIGNING_KEY)
-        }
-      }
-    }
-
-    private val DUCHY_ENTRY_TWO = duchyEntry {
-      key = DUCHY_TWO_NAME
-      value = value { duchyCertificate = DUCHY_TWO_CERTIFICATE.name }
-    }
-
-    /** TODO(@kungfucraig): Replace this with the object in HmmsRequisitions.kt */
-    private val HMSS_REQUISITION = requisition {
-      name = "${EDP_NAME}/requisitions/foo"
-      measurement = MEASUREMENT_NAME
-      state = Requisition.State.UNFULFILLED
-      measurementConsumerCertificate = MEASUREMENT_CONSUMER_CERTIFICATE_NAME
-      measurementSpec = signMeasurementSpec(MEASUREMENT_SPEC, MC_SIGNING_KEY)
-      encryptedRequisitionSpec = ENCRYPTED_REQUISITION_SPEC
-      protocolConfig = protocolConfig {
-        protocols +=
-          ProtocolConfigKt.protocol {
-            honestMajorityShareShuffle =
-              ProtocolConfigKt.honestMajorityShareShuffle {
-                ringModulus = RING_MODULUS
-                noiseMechanism = NOISE_MECHANISM
-              }
-          }
-      }
-      dataProviderCertificate = DATA_PROVIDER_CERTIFICATE.name
-      dataProviderPublicKey = DATA_PROVIDER_PUBLIC_KEY.pack()
-      duchies += DUCHY_ENTRY_ONE
-      duchies += DUCHY_ENTRY_TWO
     }
 
     private fun loadSigningKey(

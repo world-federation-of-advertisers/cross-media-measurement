@@ -16,11 +16,17 @@
 
 package org.wfanet.measurement.edpaggregator.requisitionfetcher
 
+import com.google.common.truth.Truth
+import com.google.common.truth.Truth.assertThat
 import java.time.Clock
 import java.time.Duration
+import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.mockito.kotlin.times
+import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
+import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
 
 @RunWith(JUnit4::class)
 class SingleRequisitionGrouperTest : AbstractRequisitionGrouperTest() {
@@ -32,4 +38,33 @@ class SingleRequisitionGrouperTest : AbstractRequisitionGrouperTest() {
       requisitionsClient = requisitionsStub,
       throttler = MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofSeconds(1L)),
     )
+
+  @Test
+  fun `able to map Requisition to GroupedRequisisions`() {
+    val groupedRequisitions: List<GroupedRequisitions> =
+      requisitionGrouper.groupRequisitions(listOf(REQUISITION, REQUISITION))
+    Truth.assertThat(groupedRequisitions).hasSize(2)
+    groupedRequisitions.forEach { groupedRequisition: GroupedRequisitions ->
+      assertThat(groupedRequisition.eventGroupMap)
+        .isEqualTo(
+          mapOf(
+            "dataProviders/someDataProvider/eventGroups/name" to "some-event-group-reference-id"
+          )
+        )
+      assertThat(
+          groupedRequisition.collectionIntervals["some-event-group-reference-id"]!!
+            .startTime
+            .seconds
+        )
+        .isEqualTo(1748736000)
+      assertThat(
+          groupedRequisition.collectionIntervals["some-event-group-reference-id"]!!.endTime.seconds
+        )
+        .isEqualTo(1748908800)
+      assertThat(
+          groupedRequisition.requisitionsList.map { it.unpack(Requisition::class.java) }.single()
+        )
+        .isEqualTo(REQUISITION)
+    }
+  }
 }
