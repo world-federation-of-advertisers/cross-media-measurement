@@ -17,17 +17,25 @@
 package org.wfanet.measurement.loadtest.dataprovider
 
 import com.google.common.truth.Truth.assertThat
+import com.google.protobuf.Message
 import com.google.type.date
+import java.nio.file.Paths
 import java.time.Duration
 import java.time.LocalDate
+import java.time.ZoneId
 import java.time.ZoneOffset
 import kotlin.test.assertFailsWith
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.CartesianSyntheticEventGroupSpecRecipeKt
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.CartesianSyntheticEventGroupSpecRecipeKt.NonPopulationDimensionSpecKt.fieldValueRatio
+import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpecKt
+import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticPopulationSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticPopulationSpecKt
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.cartesianSyntheticEventGroupSpecRecipe
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.fieldValue
@@ -41,12 +49,15 @@ import org.wfanet.measurement.api.v2alpha.event_templates.testing.person
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.testEvent
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.video
 import org.wfanet.measurement.common.OpenEndTimeRange
+import org.wfanet.measurement.common.getRuntimePath
+import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.toProtoDuration
 
 @RunWith(JUnit4::class)
 class SyntheticDataGenerationTest {
   @Test
-  fun `generateEvents returns a sequence of dynamic event messages`() {
+  fun `multiple calls to generateEvents return identical results`() {
+    // This test ensures that event generation is deterministic
     val population = syntheticPopulationSpec {
       vidRange = vidRange {
         start = 0L
@@ -189,13 +200,178 @@ class SyntheticDataGenerationTest {
         }
     }
 
-    val labeledEvents: List<LabeledEvent<TestEvent>> =
+    val labeledEvents1: List<LabeledEvent<TestEvent>> = runBlocking {
       SyntheticDataGeneration.generateEvents(
           TestEvent.getDefaultInstance(),
           population,
           eventGroupSpec,
         )
-        .toList()
+        .toEventsList()
+    }
+
+    val labeledEvents2: List<LabeledEvent<TestEvent>> = runBlocking {
+      SyntheticDataGeneration.generateEvents(
+          TestEvent.getDefaultInstance(),
+          population,
+          eventGroupSpec,
+        )
+        .toEventsList()
+    }
+    assertThat(labeledEvents1).containsExactlyElementsIn(labeledEvents2)
+  }
+
+  @Test
+  fun `generateEvents returns a flow of dynamic event messages`() {
+    val population = syntheticPopulationSpec {
+      vidRange = vidRange {
+        start = 0L
+        endExclusive = 100L
+      }
+
+      populationFields += "person.gender"
+      populationFields += "person.age_group"
+
+      nonPopulationFields += "banner_ad.viewable"
+      nonPopulationFields += "video_ad.viewed_fraction"
+
+      subPopulations +=
+        SyntheticPopulationSpecKt.subPopulation {
+          vidSubRange = vidRange {
+            start = 0L
+            endExclusive = 50L
+          }
+
+          populationFieldsValues["person.gender"] = fieldValue {
+            enumValue = Person.Gender.MALE_VALUE
+          }
+          populationFieldsValues["person.age_group"] = fieldValue {
+            enumValue = Person.AgeGroup.YEARS_18_TO_34_VALUE
+          }
+        }
+      subPopulations +=
+        SyntheticPopulationSpecKt.subPopulation {
+          vidSubRange = vidRange {
+            start = 50L
+            endExclusive = 100L
+          }
+
+          populationFieldsValues["person.gender"] = fieldValue {
+            enumValue = Person.Gender.FEMALE_VALUE
+          }
+          populationFieldsValues["person.age_group"] = fieldValue {
+            enumValue = Person.AgeGroup.YEARS_18_TO_34_VALUE
+          }
+        }
+    }
+    val eventGroupSpec = syntheticEventGroupSpec {
+      description = "event group 1"
+
+      dateSpecs +=
+        SyntheticEventGroupSpecKt.dateSpec {
+          dateRange =
+            SyntheticEventGroupSpecKt.DateSpecKt.dateRange {
+              start = date {
+                year = 2023
+                month = 6
+                day = 27
+              }
+              endExclusive = date {
+                year = 2023
+                month = 6
+                day = 28
+              }
+            }
+
+          frequencySpecs +=
+            SyntheticEventGroupSpecKt.frequencySpec {
+              frequency = 2
+
+              vidRangeSpecs +=
+                SyntheticEventGroupSpecKt.FrequencySpecKt.vidRangeSpec {
+                  vidRange = vidRange {
+                    start = 0L
+                    endExclusive = 25L
+                  }
+
+                  nonPopulationFieldValues["banner_ad.viewable"] = fieldValue { boolValue = true }
+                  nonPopulationFieldValues["video_ad.viewed_fraction"] = fieldValue {
+                    doubleValue = 0.5
+                  }
+                }
+              vidRangeSpecs +=
+                SyntheticEventGroupSpecKt.FrequencySpecKt.vidRangeSpec {
+                  vidRange = vidRange {
+                    start = 25L
+                    endExclusive = 50L
+                  }
+
+                  nonPopulationFieldValues["banner_ad.viewable"] = fieldValue { boolValue = false }
+                  nonPopulationFieldValues["video_ad.viewed_fraction"] = fieldValue {
+                    doubleValue = 0.7
+                  }
+                }
+            }
+          frequencySpecs +=
+            SyntheticEventGroupSpecKt.frequencySpec {
+              frequency = 1
+
+              vidRangeSpecs +=
+                SyntheticEventGroupSpecKt.FrequencySpecKt.vidRangeSpec {
+                  vidRange = vidRange {
+                    start = 50L
+                    endExclusive = 75L
+                  }
+
+                  nonPopulationFieldValues["banner_ad.viewable"] = fieldValue { boolValue = true }
+                  nonPopulationFieldValues["video_ad.viewed_fraction"] = fieldValue {
+                    doubleValue = 0.8
+                  }
+                }
+            }
+        }
+      dateSpecs +=
+        SyntheticEventGroupSpecKt.dateSpec {
+          dateRange =
+            SyntheticEventGroupSpecKt.DateSpecKt.dateRange {
+              start = date {
+                year = 2023
+                month = 6
+                day = 28
+              }
+              endExclusive = date {
+                year = 2023
+                month = 6
+                day = 29
+              }
+            }
+          frequencySpecs +=
+            SyntheticEventGroupSpecKt.frequencySpec {
+              frequency = 1
+
+              vidRangeSpecs +=
+                SyntheticEventGroupSpecKt.FrequencySpecKt.vidRangeSpec {
+                  vidRange = vidRange {
+                    start = 75L
+                    endExclusive = 100L
+                  }
+
+                  nonPopulationFieldValues["banner_ad.viewable"] = fieldValue { boolValue = true }
+                  nonPopulationFieldValues["video_ad.viewed_fraction"] = fieldValue {
+                    doubleValue = 0.9
+                  }
+                }
+            }
+        }
+    }
+
+    val labeledEvents: List<LabeledEvent<TestEvent>> = runBlocking {
+      SyntheticDataGeneration.generateEvents(
+          TestEvent.getDefaultInstance(),
+          population,
+          eventGroupSpec,
+        )
+        .toEventsList()
+    }
 
     val subPopulationPerson = person {
       gender = Person.Gender.MALE
@@ -250,11 +426,18 @@ class SyntheticDataGenerationTest {
       expectedTestEvents.add(LabeledEvent(timestamp2, vid, expectedTestEvent4))
     }
 
-    assertThat(labeledEvents).containsExactlyElementsIn(expectedTestEvents)
+    assertThat(
+        labeledEvents.map {
+          val zdt = it.timestamp.atZone(ZoneId.of("UTC"))
+          val startOfDay = zdt.withHour(0).withMinute(0).withSecond(0)
+          LabeledEvent(startOfDay.toInstant(), it.vid, it.message)
+        }
+      )
+      .containsExactlyElementsIn(expectedTestEvents)
   }
 
   @Test
-  fun `generateEvents returns sequence of events filtered by time range`() {
+  fun `generateEvents returns flow of events filtered by time range`() {
     val population = syntheticPopulationSpec {
       vidRange = vidRange {
         start = 0L
@@ -406,14 +589,14 @@ class SyntheticDataGenerationTest {
           eventGroupSpec,
           timeRange,
         )
-        .toList()
+        .toEventsList()
 
     val eventOutsideRange = events.firstOrNull { it.timestamp !in timeRange }
     assertThat(eventOutsideRange).isNull()
   }
 
   @Test
-  fun `generateEvents returns a sequence of sampled events when sample size specified`() {
+  fun `generateEvents returns a flow of sampled events when sample size specified`() {
     val population = syntheticPopulationSpec {
       vidRange = vidRange {
         start = 0L
@@ -533,7 +716,7 @@ class SyntheticDataGenerationTest {
           population,
           eventGroupSpec,
         )
-        .toList()
+        .toEventsList()
 
     // Since the sampling is relying on the uniform distribution of a fingerprinting function, it
     // will not output the exact expected sample size of 250 * 0.2 + 2 * (250 * 0.4 + 250 * 0.08) =
@@ -542,7 +725,7 @@ class SyntheticDataGenerationTest {
   }
 
   @Test
-  fun `sequence from generateEvents throws IllegalStateException when sampling rate is invalid`() {
+  fun `flow from generateEvents throws IllegalStateException when sampling rate is invalid`() {
     val population = syntheticPopulationSpec {
       vidRange = vidRange {
         start = 0L
@@ -631,12 +814,12 @@ class SyntheticDataGenerationTest {
           population,
           eventGroupSpec,
         )
-        .toList()
+        .toEventsList()
     }
   }
 
   @Test
-  fun `sequence from generateEvents throws IllegalStateException when sampling nonce required but missing`() {
+  fun `flow from generateEvents throws IllegalStateException when sampling nonce required but missing`() {
     val population = syntheticPopulationSpec {
       vidRange = vidRange {
         start = 0L
@@ -754,12 +937,12 @@ class SyntheticDataGenerationTest {
           population,
           eventGroupSpec,
         )
-        .toList()
+        .toEventsList()
     }
   }
 
   @Test
-  fun `sequence from generateEvents throws IllegalStateException when vid ranges overlap`() {
+  fun `flow from generateEvents throws IllegalStateException when vid ranges overlap`() {
     val population = syntheticPopulationSpec {
       vidRange = vidRange {
         start = 0L
@@ -859,12 +1042,12 @@ class SyntheticDataGenerationTest {
           population,
           eventGroupSpec,
         )
-        .toList()
+        .toEventsList()
     }
   }
 
   @Test
-  fun `generateEvents returns a sequence of messages with a Duration field`() {
+  fun `generateEvents returns a flow of messages with a Duration field`() {
     val populationSpec = syntheticPopulationSpec {
       vidRange = vidRange {
         start = 1L
@@ -919,8 +1102,8 @@ class SyntheticDataGenerationTest {
           populationSpec,
           eventGroupSpec,
         )
+        .toEventsList()
         .map { TestEvent.parseFrom(it.message.toByteString()) }
-        .toList()
 
     assertThat(testEvents).hasSize(10)
     assertThat(testEvents)
@@ -933,7 +1116,7 @@ class SyntheticDataGenerationTest {
   }
 
   @Test
-  fun `sequence from generateEvents throws IllegalStateException when vidrange not in subpop`() {
+  fun `flow from generateEvents throws IllegalStateException when vidrange not in subpop`() {
     val population = syntheticPopulationSpec {
       vidRange = vidRange {
         start = 0L
@@ -994,12 +1177,12 @@ class SyntheticDataGenerationTest {
           population,
           eventGroupSpec,
         )
-        .toList()
+        .toEventsList()
     }
   }
 
   @Test
-  fun `sequence from generateEvents throws IllegalStateException when field is message`() {
+  fun `flow from generateEvents throws IllegalStateException when field is message`() {
     val population = syntheticPopulationSpec {
       vidRange = vidRange {
         start = 0L
@@ -1064,12 +1247,12 @@ class SyntheticDataGenerationTest {
           population,
           eventGroupSpec,
         )
-        .toList()
+        .toEventsList()
     }
   }
 
   @Test
-  fun `sequence from generateEvents throws IllegalStateException when field type wrong`() {
+  fun `flow from generateEvents throws IllegalStateException when field type wrong`() {
     val population = syntheticPopulationSpec {
       vidRange = vidRange {
         start = 0L
@@ -1134,12 +1317,12 @@ class SyntheticDataGenerationTest {
           population,
           eventGroupSpec,
         )
-        .toList()
+        .toEventsList()
     }
   }
 
   @Test
-  fun `sequence from generateEvents throws IllegalStateException when field doesn't exist`() {
+  fun `flow from generateEvents throws IllegalStateException when field doesn't exist`() {
     val population = syntheticPopulationSpec {
       vidRange = vidRange {
         start = 0L
@@ -1204,7 +1387,7 @@ class SyntheticDataGenerationTest {
           population,
           eventGroupSpec,
         )
-        .toList()
+        .toEventsList()
     }
   }
 
@@ -2060,5 +2243,61 @@ class SyntheticDataGenerationTest {
     assertFailsWith<IllegalStateException> {
       cartesianSyntheticEventGroupSpecRecipe.toSyntheticEventGroupSpec(populationSpec)
     }
+  }
+
+  @Test
+  fun `verifies that data is correctly spread across days`() {
+    val syntheticPopulationSpec: SyntheticPopulationSpec =
+      parseTextProto(
+        TEST_DATA_RUNTIME_PATH.resolve("small_population_spec.textproto").toFile(),
+        SyntheticPopulationSpec.getDefaultInstance(),
+      )
+    val syntheticEventGroupSpec: SyntheticEventGroupSpec =
+      parseTextProto(
+        TEST_DATA_RUNTIME_PATH.resolve("small_data_spec.textproto").toFile(),
+        SyntheticEventGroupSpec.getDefaultInstance(),
+      )
+    val events =
+      SyntheticDataGeneration.generateEvents(
+        messageInstance = TestEvent.getDefaultInstance(),
+        populationSpec = syntheticPopulationSpec,
+        syntheticEventGroupSpec = syntheticEventGroupSpec,
+      )
+    runBlocking {
+      val eventsList = events.toList()
+      assertThat(eventsList.map { it.localDate.toString() })
+        .isEqualTo(
+          listOf(
+            "2021-03-15",
+            "2021-03-16",
+            "2021-03-17",
+            "2021-03-18",
+            "2021-03-19",
+            "2021-03-20",
+            "2021-03-21",
+          )
+        )
+      // 8000 total reach / 7 days
+      eventsList.map { assertThat(it.impressions.toList().size).isWithin(100).of(8000 / 7) }
+      assertThat(eventsList.flatMap { it.impressions.toList() }.size).isEqualTo(8001)
+    }
+  }
+
+  private fun <T : Message> Flow<DateShardedLabeledImpression<T>>.toEventsList():
+    List<LabeledEvent<T>> = runBlocking { toList().map { it.impressions }.flatMap { it.toList() } }
+
+  companion object {
+    private val TEST_DATA_PATH =
+      Paths.get(
+        "wfa_measurement_system",
+        "src",
+        "main",
+        "proto",
+        "wfa",
+        "measurement",
+        "loadtest",
+        "dataprovider",
+      )
+    private val TEST_DATA_RUNTIME_PATH = getRuntimePath(TEST_DATA_PATH)!!
   }
 }
