@@ -17,6 +17,9 @@
 package org.wfanet.measurement.integration.common
 
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
+import com.google.protobuf.ByteString
+import com.google.protobuf.timestamp
+import io.grpc.Channel
 import io.grpc.ManagedChannel
 import io.netty.handler.ssl.ClientAuth
 import java.io.File
@@ -29,17 +32,30 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TestRule
 import org.wfanet.measurement.api.v2alpha.AkidPrincipalLookup
+import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.ListModelSuitesPageTokenKt.previousPageEnd
 import org.wfanet.measurement.api.v2alpha.ListModelSuitesResponse
+import org.wfanet.measurement.api.v2alpha.ListPopulationsPageTokenKt.previousPageEnd as populationPreviousPageEnd
+import org.wfanet.measurement.api.v2alpha.ListPopulationsResponse
 import org.wfanet.measurement.api.v2alpha.ModelProviderKey
 import org.wfanet.measurement.api.v2alpha.ModelSuite
 import org.wfanet.measurement.api.v2alpha.ModelSuiteKey
 import org.wfanet.measurement.api.v2alpha.ModelSuitesGrpc
 import org.wfanet.measurement.api.v2alpha.ModelSuitesGrpc.ModelSuitesBlockingStub
+import org.wfanet.measurement.api.v2alpha.Population
+import org.wfanet.measurement.api.v2alpha.PopulationKey
+import org.wfanet.measurement.api.v2alpha.PopulationKt.populationBlob
+import org.wfanet.measurement.api.v2alpha.PopulationsGrpc
+import org.wfanet.measurement.api.v2alpha.PopulationsGrpc.PopulationsBlockingStub
 import org.wfanet.measurement.api.v2alpha.createModelSuiteRequest
+import org.wfanet.measurement.api.v2alpha.createPopulationRequest
+import org.wfanet.measurement.api.v2alpha.eventTemplate
 import org.wfanet.measurement.api.v2alpha.listModelSuitesPageToken
 import org.wfanet.measurement.api.v2alpha.listModelSuitesResponse
+import org.wfanet.measurement.api.v2alpha.listPopulationsPageToken
+import org.wfanet.measurement.api.v2alpha.listPopulationsResponse
 import org.wfanet.measurement.api.v2alpha.modelSuite
+import org.wfanet.measurement.api.v2alpha.population
 import org.wfanet.measurement.api.v2alpha.withPrincipalsFromX509AuthorityKeyIdentifiers
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.crypto.SigningCerts
@@ -59,14 +75,22 @@ import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.config.AuthorityKeyToPrincipalMapKt
 import org.wfanet.measurement.config.authorityKeyToPrincipalMap
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
+import org.wfanet.measurement.internal.kingdom.DataProvider as InternalDataProvider
+import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt as InternalDataProvidersGrpc
 import org.wfanet.measurement.internal.kingdom.ModelProvider as InternalModelProvider
 import org.wfanet.measurement.internal.kingdom.ModelProvidersGrpcKt as InternalModelProvidersGrpc
 import org.wfanet.measurement.internal.kingdom.ModelSuitesGrpcKt as InternalModelSuitesGrpc
+import org.wfanet.measurement.internal.kingdom.PopulationsGrpcKt as InternalPopulationsGrpc
+import org.wfanet.measurement.internal.kingdom.certificate
+import org.wfanet.measurement.internal.kingdom.certificateDetails
+import org.wfanet.measurement.internal.kingdom.dataProvider
+import org.wfanet.measurement.internal.kingdom.dataProviderDetails
 import org.wfanet.measurement.internal.kingdom.modelProvider
 import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
 import org.wfanet.measurement.kingdom.deploy.common.service.toList
 import org.wfanet.measurement.kingdom.deploy.tools.ModelRepository
 import org.wfanet.measurement.kingdom.service.api.v2alpha.ModelSuitesService
+import org.wfanet.measurement.kingdom.service.api.v2alpha.PopulationsService
 
 abstract class InProcessModelRepositoryCliIntegrationTest(
   kingdomDataServicesRule: ProviderRule<DataServices>,
@@ -85,8 +109,12 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
   val ruleChain: TestRule = chainRulesSequentially(kingdomDataServicesRule, internalApiServer)
 
   private lateinit var publicModelSuitesClient: ModelSuitesBlockingStub
+  private lateinit var publicPopulationsClient: PopulationsBlockingStub
 
   private lateinit var server: CommonServer
+
+  private lateinit var internalDataProvider: InternalDataProvider
+  private lateinit var dataProviderName: String
 
   private lateinit var internalModelProvider: InternalModelProvider
   private lateinit var modelProviderName: String
@@ -102,9 +130,31 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
         modelProvider { externalModelProviderId = FIXED_GENERATED_EXTERNAL_ID }
       )
     }
-
     val modelProviderApiId = externalIdToApiId(internalModelProvider.externalModelProviderId)
     modelProviderName = ModelProviderKey(modelProviderApiId).toName()
+
+    val internalDataProvidersService =
+      InternalDataProvidersGrpc.DataProvidersCoroutineStub(internalChannel)
+    internalDataProvider = runBlocking {
+      internalDataProvidersService.createDataProvider(
+        dataProvider {
+          certificate {
+            notValidBefore = timestamp { seconds = 12345 }
+            notValidAfter = timestamp { seconds = 23456 }
+            details = certificateDetails {
+              x509Der = ByteString.copyFromUtf8("This is a certificate der.")
+            }
+          }
+          details = dataProviderDetails {
+            apiVersion = "v2alpha"
+            publicKey = ByteString.copyFromUtf8("This is a  public key.")
+            publicKeySignature = ByteString.copyFromUtf8("This is a  public key signature.")
+          }
+        }
+      )
+    }
+    val dataProviderApiId = externalIdToApiId(internalDataProvider.externalDataProviderId)
+    dataProviderName = DataProviderKey(dataProviderApiId).toName()
 
     val principalLookup =
       AkidPrincipalLookup(
@@ -121,11 +171,16 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
 
     val internalModelSuitesClient =
       InternalModelSuitesGrpc.ModelSuitesCoroutineStub(internalChannel)
+    val internalPopulationsClient =
+      InternalPopulationsGrpc.PopulationsCoroutineStub(internalChannel)
 
-    val publicModelSuitesServices =
+    val publicModelSuitesService =
       ModelSuitesService(internalModelSuitesClient)
         .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup)
-    val services = listOf(publicModelSuitesServices)
+    val publicPopulationsService =
+      PopulationsService(internalPopulationsClient)
+        .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup)
+    val services = listOf(publicModelSuitesService, publicPopulationsService)
 
     val serverCerts =
       SigningCerts.fromPemFiles(
@@ -154,6 +209,7 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
     val publicChannel: ManagedChannel =
       buildMutualTlsChannel("localhost:${server.port}", modelProviderCerts)
     publicModelSuitesClient = ModelSuitesGrpc.newBlockingStub(publicChannel)
+    publicPopulationsClient = PopulationsGrpc.newBlockingStub(publicChannel)
 
     modelSuite =
       publicModelSuitesClient.createModelSuite(
@@ -174,8 +230,8 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
 
   @Test
   fun `model-suites get prints ModelSuite`() = runBlocking {
-    var args = commonArgs + arrayOf("model-suites", "get", modelSuite.name)
-    var output = callCli(args)
+    val args = commonArgs + arrayOf("model-suites", "get", modelSuite.name)
+    val output = callCli(args)
 
     assertThat(parseTextProto(output.reader(), ModelSuite.getDefaultInstance()))
       .isEqualTo(modelSuite)
@@ -243,10 +299,90 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
       .isEqualTo(listModelSuitesResponse { modelSuites += createdModelSuite2 })
   }
 
+  @Test
+  fun `populations get prints Population`() = runBlocking {
+    val createdPopulation = createPopulation()
+
+    val args = commonArgs + arrayOf("populations", "get", createdPopulation.name)
+    val output = callCli(args)
+
+    assertThat(parseTextProto(output.reader(), Population.getDefaultInstance()))
+      .isEqualTo(createdPopulation)
+  }
+
+  @Test
+  fun `populations create prints Population`() = runBlocking {
+    val args =
+      commonArgs +
+        arrayOf(
+          "populations",
+          "create",
+          "--parent=$dataProviderName",
+          "--description=$DESCRIPTION",
+          "--model-blob-uri=$MODEL_BLOB_URI",
+          "--event-template-type=$EVENT_TEMPLATE_TYPE",
+        )
+    val output = callCli(args)
+
+    assertThat(parseTextProto(output.reader(), Population.getDefaultInstance()))
+      .comparingExpectedFieldsOnly()
+      .isEqualTo(
+        population {
+          description = DESCRIPTION
+          populationBlob = populationBlob { modelBlobUri = MODEL_BLOB_URI }
+          eventTemplate = eventTemplate { type = EVENT_TEMPLATE_TYPE }
+        }
+      )
+  }
+
+  @Test
+  fun `populations list prints Populations`() = runBlocking {
+    val createdPopulation = createPopulation()
+    val createdPopulation2 = createPopulation()
+
+    val pageToken = listPopulationsPageToken {
+      pageSize = PAGE_SIZE
+      externalDataProviderId = internalDataProvider.externalDataProviderId
+      lastPopulation = populationPreviousPageEnd {
+        externalDataProviderId = internalDataProvider.externalDataProviderId
+        externalPopulationId =
+          apiIdToExternalId(PopulationKey.fromName(createdPopulation.name)!!.populationId)
+        createTime = createdPopulation.createTime
+      }
+    }
+
+    val args =
+      commonArgs +
+        arrayOf(
+          "populations",
+          "list",
+          "--parent=$dataProviderName",
+          "--page-size=$PAGE_SIZE",
+          "--page-token=${pageToken.toByteArray().base64UrlEncode()}",
+        )
+    val output = callCli(args)
+
+    assertThat(parseTextProto(output.reader(), ListPopulationsResponse.getDefaultInstance()))
+      .isEqualTo(listPopulationsResponse { populations += createdPopulation2 })
+  }
+
   private fun callCli(args: Array<String>): String {
     val capturedOutput = CommandLineTesting.capturingOutput(args, ModelRepository::main)
     CommandLineTesting.assertThat(capturedOutput).status().isEqualTo(0)
     return capturedOutput.out
+  }
+
+  private fun createPopulation(): Population {
+    return publicPopulationsClient.createPopulation(
+      createPopulationRequest {
+        parent = dataProviderName
+        population = population {
+          description = DESCRIPTION
+          populationBlob = populationBlob { modelBlobUri = MODEL_BLOB_URI }
+          eventTemplate = eventTemplate { type = EVENT_TEMPLATE_TYPE }
+        }
+      }
+    )
   }
 
   private val commonArgs: Array<String>
@@ -278,6 +414,8 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
 
     private const val DISPLAY_NAME = "Display name"
     private const val DESCRIPTION = "Description"
+    private const val EVENT_TEMPLATE_TYPE = "event_template_type"
+    private const val MODEL_BLOB_URI = "model_blob_uri"
 
     private const val PAGE_SIZE = 50
 

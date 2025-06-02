@@ -14,6 +14,7 @@ kt_jvm_test(
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/tools:model_repository",
         "//src/main/proto/wfa/measurement/api/v2alpha:model_suites_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:page_token_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:populations_service_kt_jvm_grpc_proto",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/java/com/google/common/truth/extensions/proto",
         "@wfa_common_jvm//imports/java/io/grpc/netty",
