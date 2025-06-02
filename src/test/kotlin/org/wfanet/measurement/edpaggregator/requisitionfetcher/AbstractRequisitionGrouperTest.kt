@@ -242,7 +242,7 @@ abstract class AbstractRequisitionGrouperTest {
     private const val LLV2_DECAY_RATE = 12.0
     private const val LLV2_MAX_SIZE = 100_000L
     private val NOISE_MECHANISM = ProtocolConfig.NoiseMechanism.DISCRETE_GAUSSIAN
-    
+
     private const val MEASUREMENT_CONSUMER_NAME = "measurementConsumers/AAAAAAAAAHs"
     private const val MEASUREMENT_NAME = "$MC_NAME/measurements/BBBBBBBBBHs"
     private const val MEASUREMENT_CONSUMER_CERTIFICATE_NAME =
