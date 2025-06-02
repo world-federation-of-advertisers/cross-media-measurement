@@ -82,8 +82,16 @@ class PopulationsService(
         "Parent is either unspecified or invalid"
       }
 
-    if (authenticatedPrincipal.resourceKey != parentKey) {
-      throw permissionDeniedStatus().asRuntimeException()
+    when (val authenticatedPrincipal: MeasurementPrincipal = principalFromCurrentContext) {
+      is DataProviderPrincipal -> {
+        if (authenticatedPrincipal.resourceKey != parentKey) {
+          throw permissionDeniedStatus().asRuntimeException()
+        }
+      }
+      is ModelProviderPrincipal -> {}
+      else -> {
+        throw permissionDeniedStatus().asRuntimeException()
+      }
     }
 
     val createPopulationRequest = request.population.toInternal(parentKey)
