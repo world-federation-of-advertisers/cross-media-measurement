@@ -34,20 +34,37 @@ import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
 import org.mockito.kotlin.verify
 import org.wfanet.measurement.api.v2alpha.CreateModelSuiteRequest
+import org.wfanet.measurement.api.v2alpha.CreatePopulationRequest
+import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.GetModelSuiteRequest
+import org.wfanet.measurement.api.v2alpha.GetPopulationRequest
 import org.wfanet.measurement.api.v2alpha.ListModelSuitesPageTokenKt.previousPageEnd
 import org.wfanet.measurement.api.v2alpha.ListModelSuitesRequest
 import org.wfanet.measurement.api.v2alpha.ListModelSuitesResponse
+import org.wfanet.measurement.api.v2alpha.ListPopulationsPageTokenKt
+import org.wfanet.measurement.api.v2alpha.ListPopulationsRequest
+import org.wfanet.measurement.api.v2alpha.ListPopulationsResponse
 import org.wfanet.measurement.api.v2alpha.ModelProviderKey
 import org.wfanet.measurement.api.v2alpha.ModelSuite
 import org.wfanet.measurement.api.v2alpha.ModelSuiteKey
 import org.wfanet.measurement.api.v2alpha.ModelSuitesGrpcKt.ModelSuitesCoroutineImplBase
+import org.wfanet.measurement.api.v2alpha.Population
+import org.wfanet.measurement.api.v2alpha.PopulationKey
+import org.wfanet.measurement.api.v2alpha.PopulationKt.populationBlob
+import org.wfanet.measurement.api.v2alpha.PopulationsGrpcKt
 import org.wfanet.measurement.api.v2alpha.createModelSuiteRequest
+import org.wfanet.measurement.api.v2alpha.createPopulationRequest
+import org.wfanet.measurement.api.v2alpha.eventTemplate
 import org.wfanet.measurement.api.v2alpha.getModelSuiteRequest
+import org.wfanet.measurement.api.v2alpha.getPopulationRequest
 import org.wfanet.measurement.api.v2alpha.listModelSuitesPageToken
 import org.wfanet.measurement.api.v2alpha.listModelSuitesRequest
 import org.wfanet.measurement.api.v2alpha.listModelSuitesResponse
+import org.wfanet.measurement.api.v2alpha.listPopulationsPageToken
+import org.wfanet.measurement.api.v2alpha.listPopulationsRequest
+import org.wfanet.measurement.api.v2alpha.listPopulationsResponse
 import org.wfanet.measurement.api.v2alpha.modelSuite
+import org.wfanet.measurement.api.v2alpha.population
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.getRuntimePath
@@ -74,6 +91,19 @@ class ModelRepositoryTest {
       )
   }
 
+  private val populationsServiceMock: PopulationsGrpcKt.PopulationsCoroutineImplBase = mockService {
+    onBlocking { getPopulation(any()) }.thenReturn(POPULATION)
+    onBlocking { createPopulation(any()) }.thenReturn(POPULATION)
+    onBlocking { listPopulations(any()) }
+      .thenReturn(
+        listPopulationsResponse {
+          populations += POPULATION
+          populations += POPULATION_2
+          nextPageToken = LIST_POPULATIONS_PAGE_TOKEN_2.toByteString().base64UrlEncode()
+        }
+      )
+  }
+
   private val serverCerts =
     SigningCerts.fromPemFiles(
       certificateFile = SECRETS_DIR.resolve("kingdom_tls.pem").toFile(),
@@ -81,7 +111,8 @@ class ModelRepositoryTest {
       trustedCertCollectionFile = SECRETS_DIR.resolve("kingdom_root.pem").toFile(),
     )
 
-  private val services: List<ServerServiceDefinition> = listOf(modelSuitesServiceMock.bindService())
+  private val services: List<ServerServiceDefinition> =
+    listOf(modelSuitesServiceMock.bindService(), populationsServiceMock.bindService())
 
   private val server: Server =
     NettyServerBuilder.forPort(0)
@@ -182,6 +213,90 @@ class ModelRepositoryTest {
       )
   }
 
+  @Test
+  fun `populations get calls GetPopulation with valid request`() {
+    val args = commonArgs + arrayOf("populations", "get", POPULATION_NAME)
+
+    val output = callCli(args)
+
+    val request: GetPopulationRequest = captureFirst {
+      runBlocking { verify(populationsServiceMock).getPopulation(capture()) }
+    }
+
+    assertThat(request).isEqualTo(getPopulationRequest { name = POPULATION_NAME })
+    assertThat(parseTextProto(output.reader(), Population.getDefaultInstance()))
+      .isEqualTo(POPULATION)
+  }
+
+  @Test
+  fun `populations create calls CreatePopulation with valid request`() {
+    val args =
+      commonArgs +
+        arrayOf(
+          "populations",
+          "create",
+          "--parent=$DATA_PROVIDER_NAME",
+          "--description=$DESCRIPTION",
+          "--model-blob-uri=$MODEL_BLOB_URI",
+          "--event-template-type=$EVENT_TEMPLATE_TYPE",
+        )
+
+    val output = callCli(args)
+
+    val request: CreatePopulationRequest = captureFirst {
+      runBlocking { verify(populationsServiceMock).createPopulation(capture()) }
+    }
+
+    assertThat(request)
+      .isEqualTo(
+        createPopulationRequest {
+          parent = DATA_PROVIDER_NAME
+          population = population {
+            description = DESCRIPTION
+            eventTemplate = eventTemplate { type = EVENT_TEMPLATE_TYPE }
+            populationBlob = populationBlob { modelBlobUri = MODEL_BLOB_URI }
+          }
+        }
+      )
+    assertThat(parseTextProto(output.reader(), Population.getDefaultInstance()))
+      .isEqualTo(POPULATION)
+  }
+
+  @Test
+  fun `populations list calls ListPopulations with valid request`() {
+    val args =
+      commonArgs +
+        arrayOf(
+          "populations",
+          "list",
+          "--parent=$DATA_PROVIDER_NAME",
+          "--page-size=50",
+          "--page-token=${LIST_POPULATIONS_PAGE_TOKEN.toByteArray().base64UrlEncode()}",
+        )
+    val output = callCli(args)
+
+    val request: ListPopulationsRequest = captureFirst {
+      runBlocking { verify(populationsServiceMock).listPopulations(capture()) }
+    }
+
+    assertThat(request)
+      .isEqualTo(
+        listPopulationsRequest {
+          parent = DATA_PROVIDER_NAME
+          pageSize = 50
+          pageToken = LIST_POPULATIONS_PAGE_TOKEN.toByteArray().base64UrlEncode()
+        }
+      )
+    assertThat(parseTextProto(output.reader(), ListPopulationsResponse.getDefaultInstance()))
+      .isEqualTo(
+        listPopulationsResponse {
+          populations += POPULATION
+          populations += POPULATION_2
+          nextPageToken = LIST_POPULATIONS_PAGE_TOKEN_2.toByteString().base64UrlEncode()
+        }
+      )
+  }
+
   private val commonArgs: Array<String>
     get() =
       arrayOf(
@@ -206,7 +321,13 @@ class ModelRepositoryTest {
 
     private const val DISPLAY_NAME = "Display name"
     private const val DESCRIPTION = "Description"
+    private const val EVENT_TEMPLATE_TYPE = "event_template_type"
+    private const val MODEL_BLOB_URI = "model_blob_uri"
     private val CREATE_TIME: Timestamp = Instant.ofEpochSecond(123).toProtoTime()
+
+    private const val DATA_PROVIDER_NAME = "dataProviders/AAAAAAAAAHs"
+    private val EXTERNAL_DATA_PROVIDER_ID =
+      apiIdToExternalId(DataProviderKey.fromName(DATA_PROVIDER_NAME)!!.dataProviderId)
 
     private const val MODEL_PROVIDER_NAME = "modelProviders/AAAAAAAAAHs"
     private val EXTERNAL_MODEL_PROVIDER_ID =
@@ -231,6 +352,27 @@ class ModelRepositoryTest {
       createTime = CREATE_TIME
     }
 
+    private const val POPULATION_NAME = "$DATA_PROVIDER_NAME/populations/AAAAAAAAAHs"
+    private const val POPULATION_NAME_2 = "$DATA_PROVIDER_NAME/populations/AAAAAAAAAJs"
+    private val EXTERNAL_POPULATION_ID =
+      apiIdToExternalId(PopulationKey.fromName(POPULATION_NAME)!!.populationId)
+    private val EXTERNAL_POPULATION_ID_2 =
+      apiIdToExternalId(PopulationKey.fromName(POPULATION_NAME_2)!!.populationId)
+    private val POPULATION: Population = population {
+      name = POPULATION_NAME
+      description = DESCRIPTION
+      createTime = CREATE_TIME
+      eventTemplate = eventTemplate { type = EVENT_TEMPLATE_TYPE }
+      populationBlob = populationBlob { modelBlobUri = MODEL_BLOB_URI }
+    }
+    private val POPULATION_2: Population = population {
+      name = POPULATION_NAME_2
+      description = DESCRIPTION
+      createTime = CREATE_TIME
+      eventTemplate = eventTemplate { type = EVENT_TEMPLATE_TYPE }
+      populationBlob = populationBlob { modelBlobUri = MODEL_BLOB_URI }
+    }
+
     private const val PAGE_SIZE = 50
     private val LIST_MODEL_SUITES_PAGE_TOKEN = listModelSuitesPageToken {
       pageSize = PAGE_SIZE
@@ -248,6 +390,26 @@ class ModelRepositoryTest {
         createTime = CREATE_TIME
         externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID_2
       }
+    }
+
+    private val LIST_POPULATIONS_PAGE_TOKEN = listPopulationsPageToken {
+      pageSize = PAGE_SIZE
+      externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
+      lastPopulation =
+        ListPopulationsPageTokenKt.previousPageEnd {
+          createTime = CREATE_TIME
+          externalPopulationId = EXTERNAL_POPULATION_ID - 1
+        }
+    }
+
+    private val LIST_POPULATIONS_PAGE_TOKEN_2 = listPopulationsPageToken {
+      pageSize = PAGE_SIZE
+      externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
+      lastPopulation =
+        ListPopulationsPageTokenKt.previousPageEnd {
+          createTime = CREATE_TIME
+          externalPopulationId = EXTERNAL_POPULATION_ID_2
+        }
     }
   }
 }
