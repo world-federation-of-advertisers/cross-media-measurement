@@ -15,7 +15,9 @@
 package org.wfanet.measurement.reporting.postprocessing.v2alpha
 
 import com.google.cloud.storage.StorageOptions
+import com.google.protobuf.TextFormat
 import com.google.protobuf.Timestamp
+import com.google.protobuf.kotlin.toByteStringUtf8
 import java.io.BufferedReader
 import java.io.File
 import java.io.InputStreamReader
@@ -231,7 +233,9 @@ interface ReportProcessor {
 
       val storageClient: StorageClient = getStorageClient(projectId, bucketName)
       val blobKey: String = getBlobKey(report)
-      storageClient.writeBlob(blobKey, reportProcessingOutput.reportPostProcessorLog.toByteString())
+      val reportPostProcessorLogTextProto: String =
+        TextFormat.printer().printToString(reportProcessingOutput.reportPostProcessorLog)
+      storageClient.writeBlob(blobKey, reportPostProcessorLogTextProto.toByteStringUtf8())
 
       return reportProcessingOutput
     }

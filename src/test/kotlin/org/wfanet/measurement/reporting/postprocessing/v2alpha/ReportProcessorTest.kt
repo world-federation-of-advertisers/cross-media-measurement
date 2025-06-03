@@ -15,6 +15,7 @@
 package org.wfanet.measurement.reporting.postprocessing.v2alpha
 
 import com.google.common.truth.Truth.assertThat
+import com.google.protobuf.TextFormat
 import java.nio.file.Path
 import java.nio.file.Paths
 import kotlin.math.abs
@@ -80,12 +81,12 @@ class ReportProcessorTest {
     val expectedBlobKey = "20241213/20241213102410_c8f5ab1b95b44c0691f44111700054c3.textproto"
     assertThat(inMemoryStorageClient.contents).containsKey(expectedBlobKey)
 
-    assertThat(
-        ReportPostProcessorLog.parseFrom(
-          inMemoryStorageClient.getBlob(expectedBlobKey)!!.read().flatten()
-        )
-      )
-      .isEqualTo(reportProcessingOutput.reportPostProcessorLog)
+    val reportPostProcessorLogBuilder = ReportPostProcessorLog.newBuilder()
+    val text: String =
+      inMemoryStorageClient.getBlob(expectedBlobKey)!!.read().flatten().toStringUtf8()
+    TextFormat.getParser().merge(text, reportPostProcessorLogBuilder)
+    val reportPostProcessorLog = reportPostProcessorLogBuilder.build()
+    assertThat(reportPostProcessorLog).isEqualTo(reportProcessingOutput.reportPostProcessorLog)
   }
 
   @Test
@@ -107,12 +108,12 @@ class ReportProcessorTest {
 
     assertThat(inMemoryStorageClient.contents).containsKey(expectedBlobKey)
 
-    assertThat(
-        ReportPostProcessorLog.parseFrom(
-          inMemoryStorageClient.getBlob(expectedBlobKey)!!.read().flatten()
-        )
-      )
-      .isEqualTo(reportProcessingOutput.reportPostProcessorLog)
+    val reportPostProcessorLogBuilder = ReportPostProcessorLog.newBuilder()
+    val text: String =
+      inMemoryStorageClient.getBlob(expectedBlobKey)!!.read().flatten().toStringUtf8()
+    TextFormat.getParser().merge(text, reportPostProcessorLogBuilder)
+    val reportPostProcessorLog = reportPostProcessorLogBuilder.build()
+    assertThat(reportPostProcessorLog).isEqualTo(reportProcessingOutput.reportPostProcessorLog)
   }
 
   @Test
@@ -136,12 +137,12 @@ class ReportProcessorTest {
 
       assertThat(inMemoryStorageClient.contents).containsKey(expectedBlobKey)
 
-      assertThat(
-          ReportPostProcessorLog.parseFrom(
-            inMemoryStorageClient.getBlob(expectedBlobKey)!!.read().flatten()
-          )
-        )
-        .isEqualTo(reportProcessingOutput.reportPostProcessorLog)
+      val reportPostProcessorLogBuilder = ReportPostProcessorLog.newBuilder()
+      val text: String =
+        inMemoryStorageClient.getBlob(expectedBlobKey)!!.read().flatten().toStringUtf8()
+      TextFormat.getParser().merge(text, reportPostProcessorLogBuilder)
+      val reportPostProcessorLog = reportPostProcessorLogBuilder.build()
+      assertThat(reportPostProcessorLog).isEqualTo(reportProcessingOutput.reportPostProcessorLog)
     }
 
   @Test
