@@ -50,7 +50,7 @@ locals {
 module "edp_aggregator" {
   source = "../modules/edp-aggregator"
 
-  key_ring_name                             = "edpa-secure-computation-cloud-test-key-ring-9"
+  key_ring_name                             = "edpa-secure-computation-cloud-test-key-ring-10"
   key_ring_location                         = local.key_ring_location
   kms_key_name                              = "edpa-secure-computation-kek"
   queue_worker_configs                      = local.queue_worker_configs

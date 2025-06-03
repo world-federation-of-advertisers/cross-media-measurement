@@ -167,3 +167,15 @@ resource "google_storage_bucket_iam_member" "requisition_fetcher_storage_creator
   role   = "roles/storage.objectCreator"
   member = "serviceAccount:${module.requisition_fetcher_function_service_account.cloud_function_service_account.email}"
 }
+
+resource "google_storage_bucket_iam_member" "requisition_fetcher_config_storage_viewer" {
+  bucket = module.config_files_bucket.storage_bucket.name
+  role   = "roles/storage.objectViewer"
+  member = "serviceAccount:${module.requisition_fetcher_function_service_account.cloud_function_service_account.email}"
+}
+
+resource "google_storage_bucket_iam_member" "data_watcher_config_storage_viewer" {
+  bucket = module.config_files_bucket.storage_bucket.name
+  role   = "roles/storage.objectViewer"
+  member = "serviceAccount:${module.data_watcher_function_service_accounts.cloud_function_service_account_email
+}
