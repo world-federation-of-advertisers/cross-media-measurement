@@ -23,20 +23,20 @@ locals {
   }
 
   edpa_tee_app_tls_pem = {
-    secret_id         = "projects/my-project/secrets/edpa-cert"
-    secret_local_path = abspath("${path.root}/../../../k8s/testing/secretfiles/edpa_tee_app_tls.key"),
-    is_binary_format  = false
-  }
-
-  data_watcher_tls_key = {
     secret_id         = "edpa-tee-app-tls-pem"
     secret_local_path = abspath("${path.root}/../../../k8s/testing/secretfiles/edpa_tee_app_tls.pem"),
     is_binary_format  = false
   }
 
-  data_watcher_tls_pem = {
+  data_watcher_tls_key = {
     secret_id         = "edpa-datawatcher-tls-key"
-    secret_local_path = abspath("${path.root}/../../../k8s/testing/secretfiles/data_watcher_tls.key"),
+    secret_local_path = abspath("${path.root}/../../../k8s/testing/secretfiles/edpa_tee_app_tls.key"),
+    is_binary_format  = false
+  }
+
+  data_watcher_tls_pem = {
+    secret_id         = "edpa-datawatcher-tls-pem"
+    secret_local_path = abspath("${path.root}/../../../k8s/testing/secretfiles/data_watcher_tls.pem"),
     is_binary_format  = false
   }
 
