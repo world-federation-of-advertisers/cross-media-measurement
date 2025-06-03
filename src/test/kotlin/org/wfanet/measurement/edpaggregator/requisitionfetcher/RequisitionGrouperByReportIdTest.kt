@@ -50,6 +50,7 @@ import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.consent.client.measurementconsumer.encryptRequisitionSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.signMeasurementSpec
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
+import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt.eventGroupMapEntry
 
 @RunWith(JUnit4::class)
 class RequisitionGrouperByReportIdTest : AbstractRequisitionGrouperTest() {
@@ -100,23 +101,22 @@ class RequisitionGrouperByReportIdTest : AbstractRequisitionGrouperTest() {
       requisitionGrouper.groupRequisitions(listOf(REQUISITION, requisition2))
     assertThat(groupedRequisitions).hasSize(1)
     groupedRequisitions.forEach { groupedRequisition: GroupedRequisitions ->
-      assertThat(groupedRequisition.eventGroupMap)
+      assertThat(groupedRequisition.eventGroupMapList.single())
         .isEqualTo(
-          mapOf(
-            "dataProviders/someDataProvider/eventGroups/name" to "some-event-group-reference-id"
-          )
+          eventGroupMapEntry {
+            eventGroup = "dataProviders/someDataProvider/eventGroups/name"
+            eventGroupReferenceId = "some-event-group-reference-id"
+          }
         )
       assertThat(
-          groupedRequisition.collectionIntervals["some-event-group-reference-id"]!!
-            .startTime
-            .seconds
+          groupedRequisition.collectionIntervals["some-event-group-reference-id"]!!.startTime
         )
-        .isEqualTo(1748736000)
+        .isEqualTo(TIME_RANGE.start.toProtoTime())
+      assertThat(groupedRequisition.collectionIntervals["some-event-group-reference-id"]!!.endTime)
+        .isEqualTo(TIME_RANGE.endExclusive.plusSeconds(3600).toProtoTime())
       assertThat(
-          groupedRequisition.collectionIntervals["some-event-group-reference-id"]!!.endTime.seconds
+          groupedRequisition.requisitionsList.map { it.requisition.unpack(Requisition::class.java) }
         )
-        .isEqualTo(1748908800 + 3600)
-      assertThat(groupedRequisition.requisitionsList.map { it.unpack(Requisition::class.java) })
         .isEqualTo(listOf(REQUISITION, requisition2))
     }
   }

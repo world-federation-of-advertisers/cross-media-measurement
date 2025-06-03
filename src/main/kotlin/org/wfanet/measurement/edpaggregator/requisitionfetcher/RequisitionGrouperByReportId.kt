@@ -32,6 +32,7 @@ import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.dataprovider.RequisitionRefusalException
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
+import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt.eventGroupMapEntry
 import org.wfanet.measurement.edpaggregator.v1alpha.groupedRequisitions
 
 /**
@@ -54,7 +55,12 @@ class RequisitionGrouperByReportId(
     val groupedByReport: Map<String, List<GroupedRequisitions>> =
       groupedRequisitions.groupBy {
         val measurementSpec: MeasurementSpec =
-          it.requisitionsList.single().unpack(Requisition::class.java).measurementSpec.unpack()
+          it.requisitionsList
+            .single()
+            .requisition
+            .unpack(Requisition::class.java)
+            .measurementSpec
+            .unpack()
         measurementSpec.reportingMetadata.report
       }
     val combinedByReportId =
@@ -76,7 +82,8 @@ class RequisitionGrouperByReportId(
         if (foundInvalidModelLine) {
           logger.info("Report $reportId cannot contain multiple model lines")
           groups.forEach {
-            val requisition = it.requisitionsList.single().unpack(Requisition::class.java)
+            val requisition =
+              it.requisitionsList.single().requisition.unpack(Requisition::class.java)
             runBlocking {
               refuseRequisition(
                 requisition.name,
@@ -88,7 +95,11 @@ class RequisitionGrouperByReportId(
             }
           }
         }
-        sortedGroups.forEach { combinedEventGroupMap.putAll(it.eventGroupMap) }
+        sortedGroups.forEach {
+          combinedEventGroupMap.putAll(
+            it.eventGroupMapList.map { Pair(it.eventGroup, it.eventGroupReferenceId) }
+          )
+        }
         val combinedCollectionIntervalMap = mutableMapOf<String, Interval>()
         val ableToCombineCollectionIntervalMap =
           try {
@@ -99,7 +110,8 @@ class RequisitionGrouperByReportId(
           } catch (e: RequisitionRefusalException) {
             logger.info("Report $reportId cannot contain disparate collection intervals")
             groups.forEach {
-              val requisition = it.requisitionsList.single().unpack(Requisition::class.java)
+              val requisition =
+                it.requisitionsList.single().requisition.unpack(Requisition::class.java)
               runBlocking {
                 refuseRequisition(
                   requisition.name,
@@ -117,7 +129,13 @@ class RequisitionGrouperByReportId(
         } else {
           groupedRequisitions {
             this.modelLine = modelLine
-            this.eventGroupMap.putAll(combinedEventGroupMap)
+            this.eventGroupMap +=
+              combinedEventGroupMap.toList().map {
+                eventGroupMapEntry {
+                  this.eventGroup = it.first
+                  this.eventGroupReferenceId = it.second
+                }
+              }
             this.requisitions += groups.flatMap { it.requisitionsList }
             this.collectionIntervals.putAll(combinedCollectionIntervalMap)
           }
