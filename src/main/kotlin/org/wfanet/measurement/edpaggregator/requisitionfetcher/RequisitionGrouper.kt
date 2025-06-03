@@ -38,6 +38,8 @@ import org.wfanet.measurement.common.crypto.PrivateKeyHandle
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.consent.client.dataprovider.decryptRequisitionSpec
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
+import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt.eventGroupMapEntry
+import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt.requisitionEntry
 import org.wfanet.measurement.edpaggregator.v1alpha.groupedRequisitions
 
 /**
@@ -190,8 +192,14 @@ abstract class RequisitionGrouper(
     }
     return groupedRequisitions {
       modelLine = measurementSpec!!.modelLine
-      this.requisitions += Any.pack(requisition)
-      this.eventGroupMap.putAll(eventGroupMap)
+      this.requisitions += requisitionEntry { this.requisition = Any.pack(requisition) }
+      this.eventGroupMap +=
+        eventGroupMap.toList().map {
+          eventGroupMapEntry {
+            eventGroup = it.first
+            eventGroupReferenceId = it.second
+          }
+        }
       collectionIntervals.putAll(collectionIntervalsMap)
     }
   }
