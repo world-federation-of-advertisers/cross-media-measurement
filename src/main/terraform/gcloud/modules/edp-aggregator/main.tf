@@ -31,7 +31,7 @@ resource "google_storage_bucket_object" "uploaded_objects" {
     for file in var.configs_to_upload : file.destination => file
   }
   name   = each.value.destination
-  bucket = module.config_files_bucket.name
+  bucket = module.config_files_bucket.storage_bucket.name
   source = each.value.local_path
 }
 
