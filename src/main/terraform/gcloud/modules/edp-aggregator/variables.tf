@@ -159,60 +159,6 @@ variable "edps_certs" {
   }))
 }
 
-variable "edpa_tee_app_tls_key" {
-  description = "EDPA tls key"
-  type = object({
-    secret_id         = string
-    secret_local_path = string
-    is_binary_format  = bool
-  })
-}
-
-variable "edpa_tee_app_tls_pem" {
-  description = "EDPA tls pem"
-  type = object({
-    secret_id         = string
-    secret_local_path = string
-    is_binary_format  = bool
-  })
-}
-
-variable "data_watcher_tls_key" {
-  description = "Data Watcher tls key"
-  type = object({
-    secret_id         = string
-    secret_local_path = string
-    is_binary_format  = bool
-  })
-}
-
-variable "data_watcher_tls_pem" {
-  description = "Data Watcher tls pem"
-  type = object({
-    secret_id         = string
-    secret_local_path = string
-    is_binary_format  = bool
-  })
-}
-
-variable "secure_computation_root_ca" {
-  description = "Secure Computation root CA"
-  type = object({
-    secret_id         = string
-    secret_local_path = string
-    is_binary_format  = bool
-  })
-}
-
-variable "kingdom_root_ca" {
-  description = "Kingdom root CA"
-  type = object({
-    secret_id         = string
-    secret_local_path = string
-    is_binary_format  = bool
-  })
-}
-
 variable "pubsub_iam_service_account_member" {
   description = "IAM `google_service_account` for public api to access pubsub."
   type        = string

@@ -124,12 +124,11 @@ locals {
 
   secret_access_map = merge([
     for fn, key_list in local.cloud_function_secret_pairs : {
-      for secret_key in key_list : (
+      for secret_key in key_list :
         "${fn}:${secret_key}" => {
           function_name = fn
           secret_key    = secret_key
         }
-      )
     }
   ]...)
 
