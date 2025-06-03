@@ -96,6 +96,12 @@ variable "secure_computation_storage_bucket_name" {
   nullable    = false
 }
 
+variable "edpa_config_files_bucket_name" {
+  description = "Name of Google Cloud Storage bucket for Edp Aggregator cloud functions' configs."
+  type        = string
+  nullable    = false
+}
+
 variable "terraform_service_account" {
   description = "Service account used by terraform that needs to attach the MIG service account to the VM."
   type        = string

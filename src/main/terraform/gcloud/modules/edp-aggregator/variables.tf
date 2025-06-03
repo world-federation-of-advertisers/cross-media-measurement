@@ -66,8 +66,22 @@ variable "edp_aggregator_bucket_name" {
   nullable    = false
 }
 
-variable "edp_aggregator_bucket_location" {
-  description = "Location of the Storage bucket used by the Edp Aggregator."
+variable "config_files_bucket_name" {
+  description = "Name of the Google Cloud Storage bucket used to store configuration."
+  type        = string
+  nullable    = false
+}
+
+variable "configs_to_upload" {
+  description = "List of maps with local file path and destination object path"
+  type = list(object({
+    local_path  = string
+    destination = string
+  }))
+}
+
+variable "edp_aggregator_buckets_location" {
+  description = "Location of the Storage buckets used by the Edp Aggregator."
   type        = string
   nullable    = false
 }
