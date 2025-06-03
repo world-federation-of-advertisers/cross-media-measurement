@@ -24,6 +24,8 @@ enum ErrorCode {
 
   /** A required field was not set. */
   REQUIRED_FIELD_NOT_SET = 45;
+  /** Field has invalid value. */
+  INVALID_FIELD_VALUE = 46;
   /** MeasurementConsumer resource queried could not be found. */
   MEASUREMENT_CONSUMER_NOT_FOUND = 1;
   /** DataProvider resource queried could not be found. */

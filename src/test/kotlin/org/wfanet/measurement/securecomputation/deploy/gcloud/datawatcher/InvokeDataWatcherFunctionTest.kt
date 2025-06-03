@@ -117,8 +117,8 @@ class InvokeDataWatcherFunctionTest() {
             "CONTROL_PLANE_TARGET" to "localhost:${grpcServer.port}",
             "CONTROL_PLANE_CERT_HOST" to "localhost",
             "CONTROL_PLANE_CHANNEL_SHUTDOWN_DURATION_SECONDS" to "3",
-            "CERT_FILE_PATH" to SECRETS_DIR.resolve("edp1_tls.pem").toString(),
-            "PRIVATE_KEY_FILE_PATH" to SECRETS_DIR.resolve("edp1_tls.key").toString(),
+            "CERT_FILE_PATH" to SECRETS_DIR.resolve("edp7_tls.pem").toString(),
+            "PRIVATE_KEY_FILE_PATH" to SECRETS_DIR.resolve("edp7_tls.key").toString(),
             "CERT_COLLECTION_FILE_PATH" to SECRETS_DIR.resolve("kingdom_root.pem").toString(),
           ) + additionalFlags
         )
@@ -195,7 +195,7 @@ class InvokeDataWatcherFunctionTest() {
       SigningCerts.fromPemFiles(
         certificateFile = SECRETS_DIR.resolve("kingdom_tls.pem"),
         privateKeyFile = SECRETS_DIR.resolve("kingdom_tls.key"),
-        trustedCertCollectionFile = SECRETS_DIR.resolve("edp1_root.pem"),
+        trustedCertCollectionFile = SECRETS_DIR.resolve("edp7_root.pem"),
       )
     private val logger: Logger = Logger.getLogger(this::class.java.name)
   }

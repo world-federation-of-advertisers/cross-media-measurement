@@ -32,6 +32,7 @@ import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.BeforeClass
@@ -85,6 +86,7 @@ import org.wfanet.measurement.config.reporting.EncryptionKeyPairConfigKt.princip
 import org.wfanet.measurement.config.reporting.encryptionKeyPairConfig
 import org.wfanet.measurement.config.reporting.measurementConsumerConfig
 import org.wfanet.measurement.consent.client.dataprovider.encryptMetadata
+import org.wfanet.measurement.dataprovider.MeasurementResults
 import org.wfanet.measurement.integration.common.ALL_EDP_WITHOUT_HMSS_CAPABILITIES_DISPLAY_NAMES
 import org.wfanet.measurement.integration.common.ALL_EDP_WITH_HMSS_CAPABILITIES_DISPLAY_NAMES
 import org.wfanet.measurement.integration.common.AccessServicesFactory
@@ -110,7 +112,6 @@ import org.wfanet.measurement.internal.reporting.v2.reportingInterval as interna
 import org.wfanet.measurement.internal.reporting.v2.resultGroup as internalResultGroup
 import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
 import org.wfanet.measurement.loadtest.dataprovider.EventQuery
-import org.wfanet.measurement.loadtest.dataprovider.MeasurementResults
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
 import org.wfanet.measurement.loadtest.measurementconsumer.MetadataSyntheticGeneratorEventQuery
 import org.wfanet.measurement.reporting.deploy.v2.common.service.Services
@@ -188,7 +189,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
   reportingDataServicesProviderRule: ProviderRule<Services>,
 ) {
   private val inProcessCmmsComponents: InProcessCmmsComponents =
-    InProcessCmmsComponents(kingdomDataServicesRule, duchyDependenciesRule)
+    InProcessCmmsComponents(kingdomDataServicesRule, duchyDependenciesRule, useEdpSimulators = true)
 
   private val inProcessCmmsComponentsStartup = TestRule { base, _ ->
     object : Statement() {
@@ -2554,7 +2555,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
     }
   }
 
-  private fun calculateExpectedReachMeasurementResult(
+  private suspend fun calculateExpectedReachMeasurementResult(
     eventGroupSpecs: Iterable<EventQuery.EventGroupSpec>
   ): Measurement.Result {
     val reach =
@@ -2562,14 +2563,14 @@ abstract class InProcessLifeOfAReportIntegrationTest(
         eventGroupSpecs
           .asSequence()
           .flatMap { SYNTHETIC_EVENT_QUERY.getUserVirtualIds(it) }
-          .asIterable()
+          .asFlow()
       )
     return MeasurementKt.result {
       this.reach = MeasurementKt.ResultKt.reach { value = reach.toLong() }
     }
   }
 
-  private fun calculateExpectedReachAndFrequencyMeasurementResult(
+  private suspend fun calculateExpectedReachAndFrequencyMeasurementResult(
     eventGroupSpecs: Iterable<EventQuery.EventGroupSpec>,
     maxFrequency: Int,
   ): Measurement.Result {
@@ -2578,7 +2579,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
         eventGroupSpecs
           .asSequence()
           .flatMap { SYNTHETIC_EVENT_QUERY.getUserVirtualIds(it) }
-          .asIterable(),
+          .asFlow(),
         maxFrequency,
       )
     return MeasurementKt.result {
@@ -2592,7 +2593,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
     }
   }
 
-  private fun calculateExpectedImpressionMeasurementResult(
+  private suspend fun calculateExpectedImpressionMeasurementResult(
     eventGroupSpecs: Iterable<EventQuery.EventGroupSpec>,
     maxFrequency: Int,
   ): Measurement.Result {
@@ -2601,7 +2602,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
         eventGroupSpecs
           .asSequence()
           .flatMap { SYNTHETIC_EVENT_QUERY.getUserVirtualIds(it) }
-          .asIterable(),
+          .asFlow(),
         maxFrequency,
       )
     return MeasurementKt.result {
