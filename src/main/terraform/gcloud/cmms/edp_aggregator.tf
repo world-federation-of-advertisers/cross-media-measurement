@@ -82,7 +82,6 @@ locals {
     }
   }
 
-  secret_accessor_configs = jsondecode(var.edpa_secret_accessor_configs)
   requisition_fulfiller_config = {
     queue = {
     subscription_name     = "requisition-fulfiller-subscription"
@@ -107,7 +106,6 @@ locals {
       ]
       machine_type                = "n2d-standard-2"
       docker_image                = "ghcr.io/world-federation-of-advertisers/edp-aggregator/results_fulfiller:${var.image_tag}"
-      secrets_to_mount            = jsondecode(var.requisition_fulfiller_secrets_to_mount)
     }
   }
 }
@@ -119,8 +117,6 @@ module "edp_aggregator" {
   key_ring_location                         = local.key_ring_location
   kms_key_name                              = "edpa-secure-computation-kek"
   requisition_fulfiller_config              = local.requisition_fulfiller_config
-#   secrets                                   = local.secrets
-  secret_accessor_configs                   = local.secret_accessor_configs
   pubsub_iam_service_account_member         = module.secure_computation.secure_computation_internal_iam_service_account_member
   edp_aggregator_bucket_name                = var.secure_computation_storage_bucket_name
   edp_aggregator_bucket_location            = local.storage_bucket_location
@@ -136,6 +132,6 @@ module "edp_aggregator" {
   data_watcher_tls_pem                      = local.data_watcher_tls_pem
   secure_computation_root_ca                = local.secure_computation_root_ca
   kingdom_root_ca                           = local.kingdom_root_ca
-  edps_certs                                = locals.edps_certs
+  edps_certs                                = local.edps_certs
 
 }

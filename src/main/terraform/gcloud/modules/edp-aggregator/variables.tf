@@ -49,83 +49,62 @@ variable "requisition_fulfiller_config" {
       app_args                    = list(string)
       machine_type                = string
       docker_image                = string
-      secrets_to_mount = optional(
-        list(object({
-          secret_key = string
-          version    = string
-          mount_path = string
-          flag_name  = optional(string)
-        })),
-        []
-      )
     })
   })
 }
 
-variable "secret_accessor_configs" {
-  description = "Secrets for which the Cloud Functions service account requires access"
-  type = map(object({
-    secrets_to_access = optional(
-      list(object({
-        secret_key = string
-      })),
-      []
-    )
-  }))
-}
-
 variable "edpa_tee_app_tls_key" {
   description = "EDPA tls key"
-  type = map(object({
+  type = object({
     secret_id         = string
     secret_local_path = string
     is_binary_format  = bool
-  }))
+  })
 }
 
 variable "edpa_tee_app_tls_pem" {
   description = "EDPA tls pem"
-  type = map(object({
+  type = object({
     secret_id         = string
     secret_local_path = string
     is_binary_format  = bool
-  }))
+  })
 }
 
 variable "data_watcher_tls_key" {
   description = "Data Watcher tls key"
-  type = map(object({
+  type = object({
     secret_id         = string
     secret_local_path = string
     is_binary_format  = bool
-  }))
+  })
 }
 
 variable "data_watcher_tls_pem" {
   description = "Data Watcher tls pem"
-  type = map(object({
+  type = object({
     secret_id         = string
     secret_local_path = string
     is_binary_format  = bool
-  }))
+  })
 }
 
 variable "secure_computation_root_ca" {
   description = "Secure Computation root CA"
-  type = map(object({
+  type = object({
     secret_id         = string
     secret_local_path = string
     is_binary_format  = bool
-  }))
+  })
 }
 
 variable "kingdom_root_ca" {
   description = "Kingdom root CA"
-  type = map(object({
+  type = object({
     secret_id         = string
     secret_local_path = string
     is_binary_format  = bool
-  }))
+  })
 }
 
 variable "edps_certs" {

@@ -195,9 +195,7 @@ module "result_fulfiller_queue" {
 }
 
 resource "google_pubsub_topic_iam_member" "publisher" {
-  for_each = var.queue_worker_configs
-
-  topic  = module.edp_aggregator_queues[each.key].pubsub_topic.id
+  topic  = module.result_fulfiller_queue.pubsub_topic.id
   role   = "roles/pubsub.publisher"
   member = var.pubsub_iam_service_account_member
 }
@@ -218,7 +216,7 @@ resource "google_kms_crypto_key" "edp_aggregator_kek" {
   purpose  = "ENCRYPT_DECRYPT"
 }
 
-module "result_fulfiller_tee_apps" {
+module "result_fulfiller_tee_app" {
   source   = "../mig"
 
   instance_template_name        = var.requisition_fulfiller_config.worker.instance_template_name
@@ -237,20 +235,16 @@ module "result_fulfiller_tee_apps" {
   secrets_to_mount              = local.result_fulfiller_secrets_to_mount
 }
 
-resource "google_storage_bucket_iam_member" "mig_storage_viewer" {
-  for_each = module.tee_apps
-
+resource "google_storage_bucket_iam_member" "result_fulfiller_storage_viewer" {
   bucket = module.edp_aggregator_bucket.storage_bucket.name
   role   = "roles/storage.objectViewer"
-  member = "serviceAccount:${each.value.mig_service_account.email}"
+  member = "serviceAccount:${module.result_fulfiller_tee_app.mig_service_account.email}"
 }
 
-resource "google_storage_bucket_iam_member" "mig_storage_creator" {
-  for_each = module.tee_apps
-
+resource "google_storage_bucket_iam_member" "result_fulfiller_storage_creator" {
   bucket = module.edp_aggregator_bucket.storage_bucket.name
   role   = "roles/storage.objectCreator"
-  member = "serviceAccount:${each.value.mig_service_account.email}"
+  member = "serviceAccount:${module.result_fulfiller_tee_app.mig_service_account.email}"
 }
 
 resource "google_storage_bucket_iam_binding" "aggregator_storage_admin" {
