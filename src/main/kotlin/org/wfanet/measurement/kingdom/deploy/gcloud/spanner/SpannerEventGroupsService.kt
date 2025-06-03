@@ -14,7 +14,10 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 
+import com.google.cloud.spanner.TimestampBound
 import io.grpc.Status
+import java.time.Duration
+import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.common.grpc.grpcRequire
@@ -47,7 +50,10 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.UpdateEventG
 class SpannerEventGroupsService(
   private val idGenerator: IdGenerator,
   private val client: AsyncDatabaseClient,
+  maxReadStaleness: Duration,
 ) : EventGroupsCoroutineImplBase() {
+  private val staleReadTimestampBound =
+    TimestampBound.ofMaxStaleness(maxReadStaleness.toMillis(), TimeUnit.MILLISECONDS)
 
   override suspend fun createEventGroup(request: CreateEventGroupRequest): EventGroup {
     try {
@@ -173,8 +179,14 @@ class SpannerEventGroupsService(
   }
 
   override fun streamEventGroups(request: StreamEventGroupsRequest): Flow<EventGroup> {
+    val timestampBound =
+      if (request.allowStaleReads) {
+        staleReadTimestampBound
+      } else {
+        TimestampBound.strong()
+      }
     return StreamEventGroups(request.filter, request.orderBy, request.limit)
-      .execute(client.singleUse())
+      .execute(client.singleUse(timestampBound))
       .map { it.eventGroup }
   }
 }

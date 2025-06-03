@@ -16,6 +16,7 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 
 import com.google.protobuf.Descriptors
 import java.time.Clock
+import java.time.Duration
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
@@ -26,6 +27,7 @@ class SpannerDataServices(
   private val idGenerator: IdGenerator,
   private val client: AsyncDatabaseClient,
   override val knownEventGroupMetadataTypes: Iterable<Descriptors.FileDescriptor> = emptyList(),
+  private val maxReadStaleness: Duration = Duration.ofSeconds(1L),
 ) : DataServices {
   override fun buildDataServices(): KingdomDataServices {
     return KingdomDataServices(
@@ -39,7 +41,7 @@ class SpannerDataServices(
         client,
         knownEventGroupMetadataTypes,
       ),
-      SpannerEventGroupsService(idGenerator, client),
+      SpannerEventGroupsService(idGenerator, client, maxReadStaleness),
       SpannerMeasurementConsumersService(idGenerator, client),
       SpannerMeasurementsService(idGenerator, client),
       SpannerPublicKeysService(idGenerator, client),
