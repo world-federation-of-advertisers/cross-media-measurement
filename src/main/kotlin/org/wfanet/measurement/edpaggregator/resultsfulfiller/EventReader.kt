@@ -44,9 +44,9 @@ class EventReader(
   private val labeledImpressionsDekPrefix: String
 ) {
   /**
-   * Retrieves a flow of labeled impressions for a given collection interval and event group ID.
+   * Retrieves a flow of labeled impressions for a given ds and event group ID.
    *
-   * @param ds The ds for impression
+   * @param ds The ds for the labeled impressions
    * @param eventGroupId The ID of the event group
    * @return A flow of labeled impressions
    */
@@ -59,9 +59,9 @@ class EventReader(
   }
 
   /**
-   * Retrieves blob details for a given collection interval and event group ID.
+   * Retrieves blob details for a given ds and event group ID.
    *
-   * @param collectionInterval The time interval for collection
+   * @param ds The ds of the encrypted dek
    * @param eventGroupId The ID of the event group
    * @return The blob details with the DEK
    */
@@ -72,8 +72,12 @@ class EventReader(
     val dekBlobKey = "ds/$ds/event-group-id/$eventGroupId/metadata"
     val dekBlobUri = "$labeledImpressionsDekPrefix/$dekBlobKey"
 
-    val dekStorageClientUri = SelectedStorageClient.parseBlobUri(dekBlobUri)
-    val impressionsDekStorageClient = createStorageClient(dekStorageClientUri, impressionDekStorageConfig)
+    val storageClientUri = SelectedStorageClient.parseBlobUri(dekBlobUri)
+    val impressionsDekStorageClient = SelectedStorageClient(
+      storageClientUri,
+      impressionDekStorageConfig.rootDirectory,
+      impressionDekStorageConfig.projectId,
+    )
     // Get EncryptedDek message from storage using the blobKey made up of the ds and eventGroupId
     return BlobDetails.parseFrom(impressionsDekStorageClient.getBlob(dekBlobKey)!!.read().flatten())
   }
@@ -90,7 +94,11 @@ class EventReader(
 
     // Create and configure storage client with encryption
     val encryptedDek = blobDetails.encryptedDek
-    val encryptedImpressionsClient = createStorageClient(storageClientUri, impressionsStorageConfig)
+    val encryptedImpressionsClient = SelectedStorageClient(
+      storageClientUri,
+      impressionsStorageConfig.rootDirectory,
+      impressionsStorageConfig.projectId,
+    )
     val impressionsAeadStorageClient = encryptedImpressionsClient.withEnvelopeEncryption(
       kmsClient,
       encryptedDek.kekUri,
@@ -107,12 +115,5 @@ class EventReader(
       LabeledImpression.parseFrom(impressionByteString)
         ?: throw IllegalStateException("Failed to parse LabeledImpression from bytes")
     }
-  }
-
-  /**
-   * Creates a storage client based on the provided URI and configuration.
-   */
-  private fun createStorageClient(blobUri: BlobUri, storageConfig: StorageConfig): StorageClient {
-    return SelectedStorageClient(blobUri, storageConfig.rootDirectory, storageConfig.projectId)
   }
 }
