@@ -228,6 +228,7 @@ private object V2AlphaPublicApiServer {
         KingdomMeasurementsCoroutineStub(kingdomChannel),
         KingdomCertificatesCoroutineStub(kingdomChannel),
         KingdomMeasurementConsumersCoroutineStub(kingdomChannel),
+        KingdomModelLinesCoroutineStub(kingdomChannel),
         authorization,
         InMemoryEncryptionKeyPairStore(encryptionKeyPairMap.keyPairs),
         SecureRandom().asKotlinRandom(),
@@ -315,9 +316,11 @@ private object V2AlphaPublicApiServer {
           .withInterceptor(principalAuthInterceptor),
         MetricCalculationSpecsService(
             InternalMetricCalculationSpecsCoroutineStub(channel),
+            KingdomModelLinesCoroutineStub(kingdomChannel),
             metricSpecConfig,
             authorization,
             SecureRandom().asKotlinRandom(),
+            measurementConsumerConfigs,
           )
           .withInterceptor(principalAuthInterceptor),
         BasicReportsService(InternalBasicReportsCoroutineStub(channel), authorization)

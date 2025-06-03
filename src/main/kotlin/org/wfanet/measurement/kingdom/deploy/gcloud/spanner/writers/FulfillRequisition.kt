@@ -14,6 +14,7 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
+import com.google.cloud.spanner.Options
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.singleOrNull
@@ -205,9 +206,12 @@ class FulfillRequisition(private val request: FulfillRequisitionRequest) :
           bind(Params.MEASUREMENT_ID to measurementId)
           bind(Params.REQUISITION_STATE).toInt64(state)
         }
-      return transactionContext.executeQuery(query).map { struct ->
-        InternalId(struct.getLong("RequisitionId"))
-      }
+      return transactionContext
+        .executeQuery(
+          query,
+          Options.tag("writer=FulfillRequisition,action=readRequisitionsNotInState"),
+        )
+        .map { struct -> InternalId(struct.getLong("RequisitionId")) }
     }
   }
 }
