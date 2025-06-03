@@ -17,11 +17,9 @@
 package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
 import com.google.crypto.tink.KmsClient
-import com.google.type.Interval
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.common.flatten
-import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
@@ -48,21 +46,6 @@ class EventReader(
   /**
    * Retrieves a flow of labeled impressions for a given collection interval and event group ID.
    *
-   * @param collectionInterval The time interval for collection
-   * @param eventGroupId The ID of the event group
-   * @return A flow of labeled impressions
-   */
-  suspend fun getLabeledImpressionsFlow(
-    collectionInterval: Interval,
-    eventGroupId: String
-  ): Flow<LabeledImpression> {
-    val blobDetails = getBlobDetails(collectionInterval, eventGroupId)
-    return getLabeledImpressions(blobDetails)
-  }
-
-  /**
-   * Retrieves a flow of labeled impressions for a given collection interval and event group ID.
-   *
    * @param ds The ds for impression
    * @param eventGroupId The ID of the event group
    * @return A flow of labeled impressions
@@ -83,31 +66,12 @@ class EventReader(
    * @return The blob details with the DEK
    */
   private suspend fun getBlobDetails(
-    collectionInterval: Interval,
-    eventGroupId: String
-  ): BlobDetails {
-    val ds = collectionInterval.startTime.toInstant().toString()
-    val dekBlobKey = "ds/$ds/event-group-id/$eventGroupId/metadata"
-    val dekBlobUri = "$labeledImpressionsDekPrefix/$dekBlobKey"
-    val dekStorageClientUri = SelectedStorageClient.parseBlobUri(dekBlobUri)
-    val impressionsDekStorageClient = createStorageClient(dekStorageClientUri, impressionDekStorageConfig)
-    // Get EncryptedDek message from storage using the blobKey made up of the ds and eventGroupId
-    return BlobDetails.parseFrom(impressionsDekStorageClient.getBlob(dekBlobKey)!!.read().flatten())
-  }
-
-  /**
-   * Retrieves blob details for a given collection interval and event group ID.
-   *
-   * @param collectionInterval The time interval for collection
-   * @param eventGroupId The ID of the event group
-   * @return The blob details with the DEK
-   */
-  private suspend fun getBlobDetails(
     ds: String,
     eventGroupId: String
   ): BlobDetails {
     val dekBlobKey = "ds/$ds/event-group-id/$eventGroupId/metadata"
     val dekBlobUri = "$labeledImpressionsDekPrefix/$dekBlobKey"
+
     val dekStorageClientUri = SelectedStorageClient.parseBlobUri(dekBlobUri)
     val impressionsDekStorageClient = createStorageClient(dekStorageClientUri, impressionDekStorageConfig)
     // Get EncryptedDek message from storage using the blobKey made up of the ds and eventGroupId

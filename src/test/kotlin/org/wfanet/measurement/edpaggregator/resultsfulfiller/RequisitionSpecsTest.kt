@@ -19,11 +19,14 @@ package org.wfanet.measurement.edpaggregator.resultsfulfiller
 import com.google.common.truth.Truth.assertThat
 import com.google.crypto.tink.aead.AeadConfig
 import com.google.crypto.tink.streamingaead.StreamingAeadConfig
+import com.google.protobuf.ByteString
 import com.google.protobuf.Timestamp
 import com.google.protobuf.TypeRegistry
 import com.google.type.interval
 import java.nio.file.Files
 import java.time.LocalDate
+import java.time.ZoneId
+import kotlin.streams.asSequence
 import kotlinx.coroutines.flow.count
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.runBlocking
@@ -49,7 +52,8 @@ import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
 import org.wfanet.measurement.edpaggregator.v1alpha.copy
-import org.wfanet.measurement.storage.SelectedStorageClient
+import org.wfanet.measurement.storage.StorageClient
+import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 
 @RunWith(JUnit4::class)
 class RequisitionSpecsTest {
@@ -99,17 +103,18 @@ class RequisitionSpecsTest {
       width = 1.0f
     }
 
-    // Create impressions storage client
-    val impressionsTmpPath = Files.createTempDirectory(null).toFile()
-    Files.createDirectories(impressionsTmpPath.resolve(IMPRESSIONS_BUCKET).toPath())
-    val impressionsStorageClient = SelectedStorageClient(IMPRESSIONS_FILE_URI, impressionsTmpPath)
-
     // Set up KMS
     val kekUri = FakeKmsClient.KEY_URI_PREFIX
     val kmsClient = EncryptedMesosStorage.createKmsClient(FakeKmsClient.KEY_URI_PREFIX)
 
     // Set up streaming encryption key
     val serializedEncryptionKey = EncryptedMesosStorage.generateSerializedEnryptionKey(kmsClient, kekUri)
+
+    // Create impressions storage client
+    val impressionsTmpPath = Files.createTempDirectory(null).toFile()
+    val impressionsBucketDir = impressionsTmpPath.resolve(IMPRESSIONS_BUCKET)
+    Files.createDirectories(impressionsBucketDir.toPath())
+    val impressionsStorageClient = FileSystemStorageClient(impressionsBucketDir)
 
     val mesosRecordIoStorageClient =
       EncryptedMesosStorage.createEncryptedMesosStorage(
@@ -119,9 +124,50 @@ class RequisitionSpecsTest {
         serializedEncryptionKey
       )
 
-    val validImpressionCount = 130
-    val invalidImpressionCount = 70
+    // Upload impressions for 2 days
+    val validImpressionCount1 = 130
+    val invalidImpressionCount1 = 70
+    uploadImpressions(mesosRecordIoStorageClient, DS_1.toString(), validImpressionCount1, invalidImpressionCount1)
 
+    val validImpressionCount2 = 50
+    val invalidImpressionCount2 = 200
+    uploadImpressions(mesosRecordIoStorageClient, DS_2.toString(), validImpressionCount2, invalidImpressionCount2)
+
+    // Create the impressions DEK store
+    val dekTmpPath = Files.createTempDirectory(null).toFile()
+    val deksBucketDir = dekTmpPath.resolve(IMPRESSIONS_DEK_BUCKET)
+    Files.createDirectories(deksBucketDir.toPath())
+    val impressionsDekStorageClient = FileSystemStorageClient(deksBucketDir)
+
+    val dates = DS_1.datesUntil(DS_2.plusDays(1)).asSequence()
+    dates.forEach { date ->
+      uploadDek(impressionsDekStorageClient, date.toString(), kekUri, serializedEncryptionKey)
+    }
+
+    // Create EventReader
+    val eventReader = EventReader(
+      kmsClient,
+      StorageConfig(rootDirectory = impressionsTmpPath),
+      StorageConfig(rootDirectory = dekTmpPath),
+      IMPRESSIONS_DEK_FILE_URI_PREFIX
+    )
+
+    val result = RequisitionSpecs.getSampledVids(
+      requisitionSpec,
+      vidSamplingInterval,
+      typeRegistry,
+      eventReader
+    )
+
+    assertThat(result.count()).isEqualTo(validImpressionCount1 + validImpressionCount2)
+  }
+
+  private suspend fun uploadImpressions(
+    storageClient: StorageClient,
+    date: String,
+    validImpressionCount: Int,
+    invalidImpressionCount: Int,
+  ) {
     val impressions =
       MutableList(validImpressionCount) {
         LABELED_IMPRESSION_1.copy {
@@ -145,48 +191,37 @@ class RequisitionSpecsTest {
     }
 
     // Write impressions to storage
-    mesosRecordIoStorageClient.writeBlob(IMPRESSIONS_BLOB_KEY, impressionsFlow)
+    storageClient.writeBlob(date, impressionsFlow)
+  }
 
-    // Create the impressions DEK store
-    val dekTmpPath = Files.createTempDirectory(null).toFile()
-    Files.createDirectories(dekTmpPath.resolve(IMPRESSIONS_DEK_BUCKET).toPath())
-    val impressionsDekStorageClient =
-      SelectedStorageClient(IMPRESSIONS_DEK_FILE_URI, dekTmpPath)
-
+  suspend fun uploadDek(
+    storageClient: StorageClient,
+    date: String,
+    kekUri: String,
+    serializedEncryptionKey: ByteString,
+  ) {
     val blobDetails =
       EncryptedMesosStorage.encryptAndCreateBlobDetails(
         kekUri,
         serializedEncryptionKey,
-        IMPRESSIONS_FILE_URI
+        "$IMPRESSIONS_FILE_URI/$date"
       )
 
-    impressionsDekStorageClient.writeBlob(
-      IMPRESSION_DEK_BLOB_KEY,
+    storageClient.writeBlob(
+      "ds/$date/event-group-id/$EVENT_GROUP_NAME/metadata",
       blobDetails.toByteString()
     )
-
-    // Create EventReader
-    val eventReader = EventReader(
-      kmsClient,
-      StorageConfig(rootDirectory = impressionsTmpPath),
-      StorageConfig(rootDirectory = dekTmpPath),
-      IMPRESSIONS_DEK_FILE_URI_PREFIX
-    )
-
-    val result = RequisitionSpecs.getSampledVids(
-      requisitionSpec,
-      vidSamplingInterval,
-      typeRegistry,
-      eventReader
-    )
-
-    assertThat(result.count()).isEqualTo(validImpressionCount)
   }
 
   companion object {
-    private val LAST_EVENT_DATE = LocalDate.now()
-    private val FIRST_EVENT_DATE = LAST_EVENT_DATE.minusDays(1)
+    private val ZONE_ID =  ZoneId.of("America/New_York")
+    private val LAST_EVENT_DATE = LocalDate.now(ZONE_ID)
+    private val FIRST_EVENT_DATE = LAST_EVENT_DATE.minusDays(0) // Subtracts 1 day
     private val TIME_RANGE = OpenEndTimeRange.fromClosedDateRange(FIRST_EVENT_DATE..LAST_EVENT_DATE)
+
+    private val DS_1 = LocalDate.ofInstant(TIME_RANGE.start, ZONE_ID)
+    private val DS_2 = LocalDate.ofInstant(TIME_RANGE.endExclusive, ZONE_ID)
+
 
     private val PERSON_1 = person {
       ageGroup = Person.AgeGroup.YEARS_18_TO_34
@@ -226,14 +261,9 @@ class RequisitionSpecsTest {
     private const val EVENT_GROUP_NAME = "dataProviders/someDataProvider/eventGroups/name"
 
     private const val IMPRESSIONS_BUCKET = "impression-bucket"
-    private const val IMPRESSIONS_BLOB_KEY = "impressions"
-    private const val IMPRESSIONS_FILE_URI = "file:///$IMPRESSIONS_BUCKET/$IMPRESSIONS_BLOB_KEY"
+    private val IMPRESSIONS_FILE_URI = "file:///$IMPRESSIONS_BUCKET"
 
     private const val IMPRESSIONS_DEK_BUCKET = "impression-dek-bucket"
-    private val IMPRESSION_DEK_BLOB_KEY =
-      "ds/${TIME_RANGE.start}/event-group-id/$EVENT_GROUP_NAME/metadata"
-    private val IMPRESSIONS_DEK_FILE_URI =
-      "file:///$IMPRESSIONS_DEK_BUCKET/$IMPRESSION_DEK_BLOB_KEY"
     private const val IMPRESSIONS_DEK_FILE_URI_PREFIX = "file:///$IMPRESSIONS_DEK_BUCKET"
   }
 }

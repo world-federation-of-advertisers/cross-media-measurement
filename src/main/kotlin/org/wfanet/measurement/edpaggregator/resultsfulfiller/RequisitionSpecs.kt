@@ -72,6 +72,7 @@ object RequisitionSpecs {
         val endDate = LocalDate.ofInstant(collectionInterval.endTime.toInstant(), zoneId)
         val dates = startDate.datesUntil(endDate.plusDays(1)).asSequence().asFlow()
 
+        // Iterates through all dates up to the end date in the collection interval(inclusive)
         val impressions = dates.flatMapConcat { date ->
           eventReader.getLabeledImpressionsFlow(date.toString(), eventGroup.key)
         }
