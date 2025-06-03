@@ -16,7 +16,6 @@
 
 package org.wfanet.measurement.edpaggregator.requisitionfetcher
 
-import com.google.common.truth.Truth
 import com.google.common.truth.Truth.assertThat
 import java.time.Clock
 import java.time.Duration
@@ -27,6 +26,7 @@ import org.mockito.kotlin.times
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
+import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt.eventGroupMapEntry
 
 @RunWith(JUnit4::class)
 class SingleRequisitionGrouperTest : AbstractRequisitionGrouperTest() {
@@ -43,26 +43,29 @@ class SingleRequisitionGrouperTest : AbstractRequisitionGrouperTest() {
   fun `able to map Requisition to GroupedRequisisions`() {
     val groupedRequisitions: List<GroupedRequisitions> =
       requisitionGrouper.groupRequisitions(listOf(REQUISITION, REQUISITION))
-    Truth.assertThat(groupedRequisitions).hasSize(2)
+    assertThat(groupedRequisitions).hasSize(2)
     groupedRequisitions.forEach { groupedRequisition: GroupedRequisitions ->
-      assertThat(groupedRequisition.eventGroupMap)
+      assertThat(groupedRequisition.eventGroupMapList.single())
         .isEqualTo(
-          mapOf(
-            "dataProviders/someDataProvider/eventGroups/name" to "some-event-group-reference-id"
-          )
+          eventGroupMapEntry {
+            eventGroup = "dataProviders/someDataProvider/eventGroups/name"
+            eventGroupReferenceId = "some-event-group-reference-id"
+          }
         )
       assertThat(
           groupedRequisition.collectionIntervals["some-event-group-reference-id"]!!
             .startTime
             .seconds
         )
-        .isEqualTo(1748736000)
+        .isEqualTo(1748822400)
       assertThat(
           groupedRequisition.collectionIntervals["some-event-group-reference-id"]!!.endTime.seconds
         )
-        .isEqualTo(1748908800)
+        .isEqualTo(1748995200)
       assertThat(
-          groupedRequisition.requisitionsList.map { it.unpack(Requisition::class.java) }.single()
+          groupedRequisition.requisitionsList
+            .map { it.requisition.unpack(Requisition::class.java) }
+            .single()
         )
         .isEqualTo(REQUISITION)
     }

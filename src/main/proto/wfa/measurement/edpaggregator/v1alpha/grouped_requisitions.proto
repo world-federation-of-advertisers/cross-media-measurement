@@ -25,24 +25,43 @@ option java_package = "org.wfanet.measurement.edpaggregator.v1alpha";
 option java_multiple_files = true;
 option java_outer_classname = "GroupedRequisitionsProto";
 
-// Message representing a group of requisitions to be processed together.
+// Message representing a group of requisitions to be processed together based
+// upon with [RequisitionGrouper] was used.
 message GroupedRequisitions {
   // The model line for the requisitions
   string model_line = 1 [
-    (google.api.resource_reference).type = "halo-system.wfanet.org/ModelLine",
+    (google.api.resource_reference).type = "halo.wfanet.org/ModelLine",
     (google.api.field_behavior) = REQUIRED
   ];
+  // A single entry mapping an Event Group to an Event Group Reference Id.
+  message EventGroupMapEntry {
+    // The event group in the cmms
+    string event_group = 1 [
+      (google.api.resource_reference).type = "halo.wfanet.org/EventGroup",
+      (google.api.field_behavior) = REQUIRED
+    ];
+    // The event group reference id.
+    string event_group_reference_id = 2
+        [(google.api.field_behavior) = REQUIRED];
+  }
   // A map of event group resource name to event group reference id. Required
   // for all event groups present in requisitions.
-  map<string, string> event_group_map = 2
+  repeated EventGroupMapEntry event_group_map = 2
       [(google.api.field_behavior) = REQUIRED];
   // A map of event group reference id to collection intervals. Both
   // `start_time` and `end_time` must be specified. Must include all collection
   // intervals necessary to fulfill requisitions.
   map<string, google.type.Interval> collection_intervals = 3
       [(google.api.field_behavior) = REQUIRED];
-  // The requisitions to process together.
-  repeated google.protobuf.Any requisitions = 4 [
+  // The requisition entry to be processed
+  message RequisitionEntry {
+    // The requisitions to process together. Expected to be of type
+    // halo.wfanet.org/Requisition.
+    google.protobuf.Any requisition = 4
+        [(google.api.field_behavior) = REQUIRED];
+  }
+  // The list of requisition entries to process together.
+  repeated RequisitionEntry requisitions = 4 [
     (google.api.field_behavior) = REQUIRED,
     (google.api.field_behavior) = UNORDERED_LIST
   ];
