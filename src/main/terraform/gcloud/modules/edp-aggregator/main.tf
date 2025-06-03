@@ -106,7 +106,7 @@ locals {
     ]
   ])
 
-  requisition_fetcher_secrets = concat(
+  requisition_fetcher_secrets_access = concat(
     ["kingdom_root_ca"],
     local.edp_tls_keys
   )
@@ -117,9 +117,9 @@ locals {
   )
 
   cloud_function_secret_pairs = tomap({
-    data_watcher        = local.data_watcher_secrets,
-    requisition_fetcher = local.requisition_fetcher_secrets,
-    event_group_sync    = local.event_group_sync_secrets,
+    data_watcher        = local.data_watcher_secrets_access,
+    requisition_fetcher = local.requisition_fetcher_secrets_access,
+    event_group_sync    = local.event_group_sync_secrets_access,
   })
 
   secret_access_map = merge([
