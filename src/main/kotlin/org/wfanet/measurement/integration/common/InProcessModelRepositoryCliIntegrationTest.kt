@@ -113,12 +113,6 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
             entries +=
               AuthorityKeyToPrincipalMapKt.entry {
                 authorityKeyIdentifier =
-                  readCertificate(KINGDOM_TLS_CERT_FILE).authorityKeyIdentifier!!
-                principalResourceName = modelProviderName
-              }
-            entries +=
-              AuthorityKeyToPrincipalMapKt.entry {
-                authorityKeyIdentifier =
                   readCertificate(MODEL_PROVIDER_TLS_CERT_FILE).authorityKeyIdentifier!!
                 principalResourceName = modelProviderName
               }
@@ -134,7 +128,11 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
     val services = listOf(publicModelSuitesServices)
 
     val serverCerts =
-      SigningCerts.fromPemFiles(KINGDOM_TLS_CERT_FILE, KINGDOM_TLS_KEY_FILE, ALL_ROOT_CERT_FILE)
+      SigningCerts.fromPemFiles(
+        KINGDOM_TLS_CERT_FILE,
+        KINGDOM_TLS_KEY_FILE,
+        MODEL_PROVIDER_ROOT_CERT_FILE,
+      )
 
     server =
       CommonServer.fromParameters(
@@ -146,8 +144,15 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
       )
     server.start()
 
+    val modelProviderCerts =
+      SigningCerts.fromPemFiles(
+        MODEL_PROVIDER_TLS_CERT_FILE,
+        MODEL_PROVIDER_TLS_KEY_FILE,
+        KINGDOM_ROOT_CERT_FILE,
+      )
+
     val publicChannel: ManagedChannel =
-      buildMutualTlsChannel("localhost:${server.port}", serverCerts)
+      buildMutualTlsChannel("localhost:${server.port}", modelProviderCerts)
     publicModelSuitesClient = ModelSuitesGrpc.newBlockingStub(publicChannel)
 
     modelSuite =
@@ -249,7 +254,7 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
       arrayOf(
         "--tls-cert-file=$MODEL_PROVIDER_TLS_CERT_FILE",
         "--tls-key-file=$MODEL_PROVIDER_TLS_KEY_FILE",
-        "--cert-collection-file=$ALL_ROOT_CERT_FILE",
+        "--cert-collection-file=$KINGDOM_ROOT_CERT_FILE",
         "--kingdom-public-api-target=$HOST:${server.port}",
       )
 
@@ -263,11 +268,11 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
 
     private val KINGDOM_TLS_CERT_FILE: File = SECRETS_DIR.resolve("kingdom_tls.pem")
     private val KINGDOM_TLS_KEY_FILE: File = SECRETS_DIR.resolve("kingdom_tls.key")
+    private val KINGDOM_ROOT_CERT_FILE: File = SECRETS_DIR.resolve("kingdom_root.pem")
 
     private val MODEL_PROVIDER_TLS_CERT_FILE: File = SECRETS_DIR.resolve("mp1_tls.pem")
     private val MODEL_PROVIDER_TLS_KEY_FILE: File = SECRETS_DIR.resolve("mp1_tls.key")
-
-    private val ALL_ROOT_CERT_FILE: File = SECRETS_DIR.resolve("mp_trusted_certs.pem")
+    private val MODEL_PROVIDER_ROOT_CERT_FILE: File = SECRETS_DIR.resolve("mp1_root.pem")
 
     private const val FIXED_GENERATED_EXTERNAL_ID = 6789L
 
