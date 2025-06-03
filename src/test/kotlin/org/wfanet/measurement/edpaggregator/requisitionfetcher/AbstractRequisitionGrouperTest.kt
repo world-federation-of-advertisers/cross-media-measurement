@@ -253,7 +253,9 @@ abstract class AbstractRequisitionGrouperTest {
 
     private val LAST_EVENT_DATE = LocalDate.now()
     private val FIRST_EVENT_DATE = LAST_EVENT_DATE.minusDays(1)
-    private val TIME_RANGE = OpenEndTimeRange.fromClosedDateRange(FIRST_EVENT_DATE..LAST_EVENT_DATE)
+    @JvmStatic
+    protected val TIME_RANGE =
+      OpenEndTimeRange.fromClosedDateRange(FIRST_EVENT_DATE..LAST_EVENT_DATE)
 
     private const val DUCHY_ONE_ID = "worker1"
 
