@@ -25,6 +25,7 @@ import org.junit.runners.JUnit4
 import org.mockito.kotlin.times
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
+import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt.eventGroupMapEntry
 
@@ -53,15 +54,11 @@ class SingleRequisitionGrouperTest : AbstractRequisitionGrouperTest() {
           }
         )
       assertThat(
-          groupedRequisition.collectionIntervals["some-event-group-reference-id"]!!
-            .startTime
-            .seconds
+          groupedRequisition.collectionIntervals["some-event-group-reference-id"]!!.startTime
         )
-        .isEqualTo(1748822400)
-      assertThat(
-          groupedRequisition.collectionIntervals["some-event-group-reference-id"]!!.endTime.seconds
-        )
-        .isEqualTo(1748995200)
+        .isEqualTo(TIME_RANGE.start.toProtoTime())
+      assertThat(groupedRequisition.collectionIntervals["some-event-group-reference-id"]!!.endTime)
+        .isEqualTo(TIME_RANGE.endExclusive.toProtoTime())
       assertThat(
           groupedRequisition.requisitionsList
             .map { it.requisition.unpack(Requisition::class.java) }
