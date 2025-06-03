@@ -13,43 +13,101 @@
 # limitations under the License.
 
 locals {
-  raw_secrets = jsondecode(var.edpa_secrets)
 
-  secrets = {
-    for key, value in local.raw_secrets : key => {
-      secret_id         = value.secret_id
-      secret_local_path = abspath("${path.root}/${value.secret_local_path}")
-      is_binary_format  = value.is_binary_format
+  edp_names = jsondecode(var.edp_names)
+
+  edpa_tee_app_tls_key = {
+    secret_id         = "edpa-tee-app-tls-key",
+    secret_local_path = abspath("${path.root}/../../../k8s/testing/secretfiles/edpa_tee_app_tls.key"),
+    is_binary_format  = false
+  }
+
+  edpa_tee_app_tls_pem = {
+    secret_id         = "projects/my-project/secrets/edpa-cert"
+    secret_local_path = abspath("${path.root}/../../../k8s/testing/secretfiles/edpa_tee_app_tls.key"),
+    is_binary_format  = false
+  }
+
+  data_watcher_tls_key = {
+    secret_id         = "edpa-tee-app-tls-pem"
+    secret_local_path = abspath("${path.root}/../../../k8s/testing/secretfiles/edpa_tee_app_tls.pem"),
+    is_binary_format  = false
+  }
+
+  data_watcher_tls_pem = {
+    secret_id         = "edpa-datawatcher-tls-key"
+    secret_local_path = abspath("${path.root}/../../../k8s/testing/secretfiles/data_watcher_tls.key"),
+    is_binary_format  = false
+  }
+
+  secure_computation_root_ca = {
+    secret_id         = "secure-computation-root-ca"
+    secret_local_path = abspath("${path.root}/../../../k8s/testing/secretfiles/secure_computation_root.pem"),
+    is_binary_format  = false
+  }
+
+  kingdom_root_ca = {
+    secret_id         = "kingdom-root-ca"
+    secret_local_path = abspath("${path.root}/../../../k8s/testing/secretfiles/kingdom_root.pem"),
+    is_binary_format  = false
+  }
+
+  edps_certs = {
+    for edp in local.edp_names : edp => {
+      cert_der = {
+        secret_id         = "${edp}-cert-der"
+        secret_local_path = "../../../k8s/testing/secretfiles/${edp}_cs_cert.der"
+        is_binary_format  = true
+      }
+      private_der = {
+        secret_id         = "${edp}-private-der"
+        secret_local_path = "../../../k8s/testing/secretfiles/${edp}_cs_private.der"
+        is_binary_format  = true
+      }
+      enc_private = {
+        secret_id         = "${edp}-enc-private"
+        secret_local_path = "../../../k8s/testing/secretfiles/${edp}_enc_private.tink"
+        is_binary_format  = true
+      }
+      tls_key = {
+        secret_id         = "${edp}-tls-key"
+        secret_local_path = "../../../k8s/testing/secretfiles/${edp}_tls.key"
+        is_binary_format  = false
+      }
+      tls_pem = {
+        secret_id         = "${edp}-tls-pem"
+        secret_local_path = "../../../k8s/testing/secretfiles/${edp}_tls.pem"
+        is_binary_format  = false
+      }
     }
   }
+
   secret_accessor_configs = jsondecode(var.edpa_secret_accessor_configs)
-  queue_worker_configs = {
-    requisition_fulfiller = {
-      queue = {
-        subscription_name     = "requisition-fulfiller-subscription"
-        topic_name            = "requisition-fulfiller-queue"
-        ack_deadline_seconds  = 600
-      }
-      worker = {
-        instance_template_name      = "requisition-fulfiller-template"
-        base_instance_name          = "secure-computation"
-        managed_instance_group_name = "requisition-fulfiller-mig"
-        mig_service_account_name    = "requisition-fulfiller-sa"
-        single_instance_assignment  = 1
-        min_replicas                = 1
-        max_replicas                = 10
-        app_args = [
-          "--kingdom-public-api-target=${var.kingdom_public_api_target}",
-          "--secure-computation-public-api-target=${var.secure_computation_public_api_target}",
-          "--kingdom-public-api-cert-host=${var.kingdom_public_api_cert_host}",
-          "--secure-computation-public-api-cert-host=${var.secure_computation_public_api_cert_host}",
-          "--subscription-id=requisition-fulfiller-subscription",
-          "--google-pub-sub-project-id=${data.google_client_config.default.project}"
-        ]
-        machine_type                = "n2d-standard-2"
-        docker_image                = "ghcr.io/world-federation-of-advertisers/edp-aggregator/results_fulfiller:${var.image_tag}"
-        secrets_to_mount            = jsondecode(var.requisition_fulfiller_secrets_to_mount)
-      }
+  requisition_fulfiller_config = {
+    queue = {
+    subscription_name     = "requisition-fulfiller-subscription"
+    topic_name            = "requisition-fulfiller-queue"
+      ack_deadline_seconds  = 600
+    }
+    worker = {
+      instance_template_name      = "requisition-fulfiller-template"
+      base_instance_name          = "secure-computation"
+      managed_instance_group_name = "requisition-fulfiller-mig"
+      mig_service_account_name    = "requisition-fulfiller-sa"
+      single_instance_assignment  = 1
+      min_replicas                = 1
+      max_replicas                = 10
+      app_args = [
+        "--kingdom-public-api-target=${var.kingdom_public_api_target}",
+        "--secure-computation-public-api-target=${var.secure_computation_public_api_target}",
+        "--kingdom-public-api-cert-host=${var.kingdom_public_api_cert_host}",
+        "--secure-computation-public-api-cert-host=${var.secure_computation_public_api_cert_host}",
+        "--subscription-id=requisition-fulfiller-subscription",
+        "--google-pub-sub-project-id=${data.google_client_config.default.project}"
+      ]
+      machine_type                = "n2d-standard-2"
+      docker_image                = "ghcr.io/world-federation-of-advertisers/edp-aggregator/results_fulfiller:${var.image_tag}"
+      secrets_to_mount            = jsondecode(var.requisition_fulfiller_secrets_to_mount)
     }
   }
 }
@@ -60,8 +118,8 @@ module "edp_aggregator" {
   key_ring_name                             = "edpa-secure-computation-cloud-test-key-ring-9"
   key_ring_location                         = local.key_ring_location
   kms_key_name                              = "edpa-secure-computation-kek"
-  queue_worker_configs                      = local.queue_worker_configs
-  secrets                                   = local.secrets
+  requisition_fulfiller_config              = local.requisition_fulfiller_config
+#   secrets                                   = local.secrets
   secret_accessor_configs                   = local.secret_accessor_configs
   pubsub_iam_service_account_member         = module.secure_computation.secure_computation_internal_iam_service_account_member
   edp_aggregator_bucket_name                = var.secure_computation_storage_bucket_name
@@ -72,5 +130,12 @@ module "edp_aggregator" {
   requisition_fetcher_service_account_name  = "edpa-requisition-fetcher"
   event_group_sync_service_account_name     = "edpa-event-group-sync"
   event_group_sync_function_name            = "event-group-sync"
+  edpa_tee_app_tls_key                      = local.edpa_tee_app_tls_key
+  edpa_tee_app_tls_pem                      = local.edpa_tee_app_tls_pem
+  data_watcher_tls_key                      = local.data_watcher_tls_key
+  data_watcher_tls_pem                      = local.data_watcher_tls_pem
+  secure_computation_root_ca                = local.secure_computation_root_ca
+  kingdom_root_ca                           = local.kingdom_root_ca
+  edps_certs                                = locals.edps_certs
 
 }

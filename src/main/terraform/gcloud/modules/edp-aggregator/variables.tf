@@ -30,9 +30,9 @@ variable "kms_key_name" {
   nullable    = false
 }
 
-variable "queue_worker_configs" {
-  description = "Combined config for each Pub/Sub queue and its corresponding MIG worker"
-  type = map(object({
+variable "requisition_fulfiller_config" {
+  description = "Config for a single Pub/Sub queue and its corresponding MIG worker"
+  type = object({
     queue = object({
       subscription_name     = string
       topic_name            = string
@@ -59,7 +59,7 @@ variable "queue_worker_configs" {
         []
       )
     })
-  }))
+  })
 }
 
 variable "secret_accessor_configs" {
@@ -74,13 +74,143 @@ variable "secret_accessor_configs" {
   }))
 }
 
-variable "secrets" {
-  description = "All secrets to upload"
+variable "edpa_tee_app_tls_key" {
+  description = "EDPA tls key"
   type = map(object({
     secret_id         = string
     secret_local_path = string
     is_binary_format  = bool
   }))
+}
+
+variable "edpa_tee_app_tls_pem" {
+  description = "EDPA tls pem"
+  type = map(object({
+    secret_id         = string
+    secret_local_path = string
+    is_binary_format  = bool
+  }))
+}
+
+variable "data_watcher_tls_key" {
+  description = "Data Watcher tls key"
+  type = map(object({
+    secret_id         = string
+    secret_local_path = string
+    is_binary_format  = bool
+  }))
+}
+
+variable "data_watcher_tls_pem" {
+  description = "Data Watcher tls pem"
+  type = map(object({
+    secret_id         = string
+    secret_local_path = string
+    is_binary_format  = bool
+  }))
+}
+
+variable "secure_computation_root_ca" {
+  description = "Secure Computation root CA"
+  type = map(object({
+    secret_id         = string
+    secret_local_path = string
+    is_binary_format  = bool
+  }))
+}
+
+variable "kingdom_root_ca" {
+  description = "Kingdom root CA"
+  type = map(object({
+    secret_id         = string
+    secret_local_path = string
+    is_binary_format  = bool
+  }))
+}
+
+variable "edps_certs" {
+  description = "Map of EDPs and their certificates"
+  type = map(object({
+    cert_der = object({
+      secret_id         = string
+      secret_local_path = string
+      is_binary_format  = bool
+    })
+    private_der = object({
+      secret_id         = string
+      secret_local_path = string
+      is_binary_format  = bool
+    })
+    enc_private = object({
+      secret_id         = string
+      secret_local_path = string
+      is_binary_format  = bool
+    })
+    tls_key = object({
+      secret_id         = string
+      secret_local_path = string
+      is_binary_format  = bool
+    })
+    tls_pem = object({
+      secret_id         = string
+      secret_local_path = string
+      is_binary_format  = bool
+    })
+  }))
+}
+
+variable "edpa_tee_app_tls_key" {
+  description = "EDPA tls key"
+  type = object({
+    secret_id         = string
+    secret_local_path = string
+    is_binary_format  = bool
+  })
+}
+
+variable "edpa_tee_app_tls_pem" {
+  description = "EDPA tls pem"
+  type = object({
+    secret_id         = string
+    secret_local_path = string
+    is_binary_format  = bool
+  })
+}
+
+variable "data_watcher_tls_key" {
+  description = "Data Watcher tls key"
+  type = object({
+    secret_id         = string
+    secret_local_path = string
+    is_binary_format  = bool
+  })
+}
+
+variable "data_watcher_tls_pem" {
+  description = "Data Watcher tls pem"
+  type = object({
+    secret_id         = string
+    secret_local_path = string
+    is_binary_format  = bool
+  })
+}
+
+variable "secure_computation_root_ca" {
+  description = "Secure Computation root CA"
+  type = object({
+    secret_id         = string
+    secret_local_path = string
+    is_binary_format  = bool
+  })
+}
+
+variable "kingdom_root_ca" {
+  description = "Kingdom root CA"
+  type = object({
+    secret_id         = string
+    secret_local_path = string
+    is_binary_format  = bool
+  })
 }
 
 variable "pubsub_iam_service_account_member" {

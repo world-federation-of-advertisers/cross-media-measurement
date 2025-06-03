@@ -42,18 +42,10 @@ variable "app_args" {
   default     = []
 }
 
-variable "secrets" {
-  description = "Map of all secrets (uploaded separately), keyed for mounting"
-  type = map(object({
-    secret_id         = string
-    secret_local_path = string
-  }))
-}
-
 variable "secrets_to_mount" {
-  description = "Subset of var.secrets to actually mount into this MIG"
+  description = "List of secrets to mount into the VM"
   type = list(object({
-    secret_key = string
+    secret_id  = string
     version    = string
     mount_path = string
     flag_name  = optional(string)

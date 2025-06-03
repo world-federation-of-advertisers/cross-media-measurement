@@ -13,15 +13,126 @@
 # limitations under the License.
 
 locals {
-  secret_access_map = merge([
-    for fn, cfg in var.secret_accessor_configs : {
-      for secret in cfg.secrets_to_access :
-      "${fn}:${secret.secret_key}" => {
-        function_name = fn
-        secret_key    = secret.secret_key
-      }
+  common_secrets_to_mount = [
+    {
+      secret_id  = var.edpa_tee_app_tls_key.secret_id
+      version    = "latest"
+      mount_path = "/etc/ssl/edpa_tee_app_tls.key",
+      flag_name  = "--edpa-tls-key-file-path"
+    },
+    {
+      secret_id  = var.edpa_tee_app_tls_pem.secret_id
+      version    = "latest"
+      mount_path = "/etc/ssl/edpa_tee_app_tls.pem",
+      flag_name  = "--edpa-tls-cert-file-path"
+    },
+    {
+      secret_id  = var.secure_computation_root_ca.secret_id
+      version    = "latest"
+      mount_path = "/etc/ssl/secure_computation_root.pem",
+      flag_name  = "--secure-computation-cert-collection-file-path"
+    },
+    {
+      secret_id  = var.kingdom_root_ca.secret_id
+      version    = "latest"
+      mount_path = "/etc/ssl/kingdom_root.pem",
+      flag_name  = "--kingdom-cert-collection-file-path"
+    }
+  ]
+
+  edp_secrets_to_mount = flatten([
+    for edp_name, certs in var.edps_certs : [
+      {
+        secret_id  = certs.cert_der.secret_id
+        version    = "latest"
+        mount_path = "/etc/ssl/${edp_name}_cs_cert.der"
+      },
+      {
+        secret_id  = certs.private_der.secret_id
+        version    = "latest"
+        mount_path = "/etc/ssl/${edp_name}_cs_private.der"
+      },
+      {
+        secret_id  = certs.enc_private.secret_id
+        version    = "latest"
+        mount_path = "/etc/ssl/${edp_name}_enc_private.tink"
+      },
+      {
+        secret_id  = certs.tls_key.secret_id
+        version    = "latest"
+        mount_path = "/etc/ssl/${edp_name}_tls.key"
+      },
+      {
+        secret_id  = certs.tls_pem.secret_id
+        version    = "latest"
+        mount_path = "/etc/ssl/${edp_name}_tls.pem"
+      },
+    ]
+  ])
+
+  result_fulfiller_secrets_to_mount = concat(
+    local.common_secrets_to_mount,
+    local.edp_secrets_to_mount,
+  )
+
+  edps_secrets = merge([
+    for edp_name, certs in var.edps_certs : {
+      for key, value in certs : "${edp_name}_${key}" => value
     }
   ]...)
+
+  all_secrets = merge(
+    {
+      edpa_tee_app_tls_key   = var.edpa_tee_app_tls_key
+      edpa_tee_app_tls_pem   = var.edpa_tee_app_tls_pem
+      data_watcher_tls_key   = var.data_watcher_tls_key
+      data_watcher_tls_pem   = var.data_watcher_tls_pem
+      secure_computation_root_ca = var.secure_computation_root_ca
+      kingdom_root_ca        = var.kingdom_root_ca
+    },
+    local.edps_secrets
+  )
+
+  data_watcher_secrets_access = [
+    "secure_computation_root_ca",
+    "data_watcher_tls_key",
+    "data_watcher_tls_pem",
+  ]
+
+  edp_tls_keys = flatten([
+    for edp_name, certs in var.edps_certs : [
+      "${edp_name}_tls_key",
+      "${edp_name}_tls_pem",
+    ]
+  ])
+
+  requisition_fetcher_secrets = concat(
+    ["kingdom_root_ca"],
+    local.edp_tls_keys
+  )
+
+  event_group_sync_secrets_access = concat(
+    ["kingdom_root_ca"],
+    local.edp_tls_keys
+  )
+
+  cloud_function_secret_pairs = tomap({
+    data_watcher        = local.data_watcher_secrets,
+    requisition_fetcher = local.requisition_fetcher_secrets,
+    event_group_sync    = local.event_group_sync_secrets,
+  })
+
+  secret_access_map = merge([
+    for fn, key_list in local.cloud_function_secret_pairs : {
+      for secret_key in key_list : (
+        "${fn}:${secret_key}" => {
+          function_name = fn
+          secret_key    = secret_key
+        }
+      )
+    }
+  ]...)
+
   service_accounts = {
     "data_watcher"        = module.data_watcher_function_service_accounts.cloud_function_service_account_email
     "requisition_fetcher" = module.requisition_fetcher_function_service_account.cloud_function_service_account_email
@@ -38,7 +149,7 @@ module "edp_aggregator_bucket" {
 
 module "secrets" {
   source            = "../secret"
-  for_each          = var.secrets
+  for_each          = local.all_secrets
   secret_id         = each.value.secret_id
   secret_path       = each.value.secret_local_path
   is_binary_format  = each.value.is_binary_format
@@ -76,13 +187,12 @@ resource "google_secret_manager_secret_iam_member" "secret_accessor" {
 
 }
 
-module "edp_aggregator_queues" {
-  for_each = var.queue_worker_configs
+module "result_fulfiller_queue" {
   source   = "../pubsub"
 
-  topic_name              = each.value.queue.topic_name
-  subscription_name       = each.value.queue.subscription_name
-  ack_deadline_seconds    = each.value.queue.ack_deadline_seconds
+  topic_name              = var.requisition_fulfiller_config.queue.topic_name
+  subscription_name       = var.requisition_fulfiller_config.queue.subscription_name
+  ack_deadline_seconds    = var.requisition_fulfiller_config.queue.ack_deadline_seconds
 }
 
 resource "google_pubsub_topic_iam_member" "publisher" {
@@ -109,25 +219,23 @@ resource "google_kms_crypto_key" "edp_aggregator_kek" {
   purpose  = "ENCRYPT_DECRYPT"
 }
 
-module "tee_apps" {
-  for_each = var.queue_worker_configs
+module "result_fulfiller_tee_apps" {
   source   = "../mig"
 
-  instance_template_name        = each.value.worker.instance_template_name
-  base_instance_name            = each.value.worker.base_instance_name
-  managed_instance_group_name   = each.value.worker.managed_instance_group_name
-  subscription_id               = module.edp_aggregator_queues[each.key].pubsub_subscription.name
-  mig_service_account_name      = each.value.worker.mig_service_account_name
-  single_instance_assignment    = each.value.worker.single_instance_assignment
-  min_replicas                  = each.value.worker.min_replicas
-  max_replicas                  = each.value.worker.max_replicas
-  app_args                      = each.value.worker.app_args
-  machine_type                  = each.value.worker.machine_type
+  instance_template_name        = var.requisition_fulfiller_config.worker.instance_template_name
+  base_instance_name            = var.requisition_fulfiller_config.worker.base_instance_name
+  managed_instance_group_name   = var.requisition_fulfiller_config.worker.managed_instance_group_name
+  subscription_id               = module.result_fulfiller_queue.pubsub_subscription.name
+  mig_service_account_name      = var.requisition_fulfiller_config.worker.mig_service_account_name
+  single_instance_assignment    = var.requisition_fulfiller_config.worker.single_instance_assignment
+  min_replicas                  = var.requisition_fulfiller_config.worker.min_replicas
+  max_replicas                  = var.requisition_fulfiller_config.worker.max_replicas
+  app_args                      = var.requisition_fulfiller_config.worker.app_args
+  machine_type                  = var.requisition_fulfiller_config.worker.machine_type
   kms_key_id                    = google_kms_crypto_key.edp_aggregator_kek.id
-  docker_image                  = each.value.worker.docker_image
+  docker_image                  = var.requisition_fulfiller_config.worker.docker_image
   terraform_service_account     = var.terraform_service_account
-  secrets_to_mount              = each.value.worker.secrets_to_mount
-  secrets                       = var.secrets
+  secrets_to_mount              = local.result_fulfiller_secrets_to_mount
 }
 
 resource "google_storage_bucket_iam_member" "mig_storage_viewer" {

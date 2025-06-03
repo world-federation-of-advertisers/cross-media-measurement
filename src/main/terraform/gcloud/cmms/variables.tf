@@ -102,19 +102,9 @@ variable "terraform_service_account" {
   nullable    = false
 }
 
-variable "edpa_secrets" {
-  description = "Secrets JSON string"
+variable "edp_names" {
+  description = "JSON-encoded list of all EDP names"
   type        = string
-}
-
-variable "edpa_secret_accessor_configs" {
-  description = "JSON-encoded map of secret accessor configs"
-  type        = string
-}
-
-variable "requisition_fulfiller_secrets_to_mount" {
-  description = "Secrets JSON string to be mounted in `ResultsFulfiller` TEE app"
-  type = string
 }
 
 variable "kingdom_public_api_target" {

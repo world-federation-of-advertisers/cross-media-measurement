@@ -39,9 +39,9 @@ resource "google_kms_crypto_key_iam_member" "mig_kms_user" {
 }
 
 resource "google_secret_manager_secret_iam_member" "mig_sa_secret_accessor" {
-  for_each = { for s in var.secrets_to_mount : s.secret_key => s }
+  for_each = { for s in var.secrets_to_mount : s.secret_id => s }
 
-  secret_id = var.secrets[each.key].secret_id
+  secret_id = each.value.secret_id
   role      = "roles/secretmanager.secretAccessor"
   member    = "serviceAccount:${google_service_account.mig_service_account.email}"
 }
@@ -83,18 +83,15 @@ resource "google_compute_instance_template" "confidential_vm_template" {
           #!/bin/bash
           set -euo pipefail
           %{ for s in var.secrets_to_mount }
-          # get an access token from the metadata server
-          TOKEN=$(curl -s -H "Metadata-Flavor: Google" \
-            http://metadata/computeMetadata/v1/instance/service-accounts/default/token \
-            | jq -r .access_token)
-
-          curl -s -H "Authorization: Bearer $TOKEN" \
-            "https://secretmanager.googleapis.com/v1/projects/${data.google_project.project.name}/secrets/${var.secrets[s.secret_key].secret_id}/versions/${s.version}:access" \
-            | jq -r .payload.data \
-            | base64 --decode > ${s.mount_path}
+          docker run --rm \
+            gcr.io/google.com/cloudsdktool/cloud-sdk:slim \
+            gcloud secrets versions access ${s.version} \
+              --secret=${s.secret_id} \
+              --project=${data.google_project.project.name} \
+          > ${s.mount_path}
           chmod 644 ${s.mount_path}
           %{ endfor }
-        EOT
+          EOT
       },
       {
         # 2) append a --<flag>=<path> for each mount into the container args

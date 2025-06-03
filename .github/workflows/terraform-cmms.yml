@@ -90,9 +90,7 @@ jobs:
         TERRAFORM_SERVICE_ACCOUNT: ${{ vars.TF_SERVICE_ACCOUNT }}
         POSTGRES_INSTANCE: ${{ vars.POSTGRES_INSTANCE }}
         POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
-        EDP_AGGREGATOR_SECRET_ACCESSOR_CONFIG: ${{ vars.EDP_AGGREGATOR_SECRET_ACCESSOR_CONFIG }}
-        EDP_AGGREGATOR_SECRETS: ${{ vars.EDP_AGGREGATOR_SECRETS }}
-        REQUISITION_FULFILLER_SECRETS_TO_MOUNT: ${{ vars.REQUISITION_FULFILLER_SECRETS_TO_MOUNT }}
+        EDPA_EDP_NAMES: ${{ vars.EDPA_EDP_NAMES }}
         KINGDOM_PUBLIC_API_TARGET: ${{ vars.KINGDOM_PUBLIC_API_TARGET }}
         SECURE_COMPUTATION_PUBLIC_API_TARGET: ${{ vars.SECURE_COMPUTATION_PUBLIC_API_TARGET }}
         RESULTS_FULFILLER_KINGDOM_CERT_HOST: ${{ vars.RESULTS_FULFILLER_KINGDOM_CERT_HOST }}
@@ -110,9 +108,7 @@ jobs:
         -var="terraform_service_account=$TERRAFORM_SERVICE_ACCOUNT"
         -var="postgres_instance_name=$POSTGRES_INSTANCE"
         -var="postgres_password=$POSTGRES_PASSWORD"
-        -var="edpa_secrets=$EDP_AGGREGATOR_SECRETS"
-        -var="edpa_secret_accessor_configs=$EDP_AGGREGATOR_SECRET_ACCESSOR_CONFIG"
-        -var="requisition_fulfiller_secrets_to_mount=$REQUISITION_FULFILLER_SECRETS_TO_MOUNT"
+        -var="edp_names=$EDPA_EDP_NAMES"
         -var="kingdom_public_api_target=$KINGDOM_PUBLIC_API_TARGET"
         -var="secure_computation_public_api_target=$SECURE_COMPUTATION_PUBLIC_API_TARGET"
         -var="kingdom_public_api_cert_host=$RESULTS_FULFILLER_KINGDOM_CERT_HOST"
