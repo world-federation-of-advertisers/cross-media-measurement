@@ -23,10 +23,8 @@ import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
-import org.wfanet.measurement.storage.BlobUri
 import org.wfanet.measurement.storage.MesosRecordIoStorageClient
 import org.wfanet.measurement.storage.SelectedStorageClient
-import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.common.crypto.tink.withEnvelopeEncryption
 
 /**
