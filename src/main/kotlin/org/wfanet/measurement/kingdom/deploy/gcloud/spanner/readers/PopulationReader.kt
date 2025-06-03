@@ -19,8 +19,10 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers
 import com.google.cloud.spanner.Struct
 import kotlinx.coroutines.flow.singleOrNull
 import org.wfanet.measurement.common.identity.ExternalId
+import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.appendClause
+import org.wfanet.measurement.gcloud.spanner.getInternalId
 import org.wfanet.measurement.internal.kingdom.Population
 import org.wfanet.measurement.internal.kingdom.PopulationKt.populationBlob
 import org.wfanet.measurement.internal.kingdom.eventTemplate
@@ -28,7 +30,11 @@ import org.wfanet.measurement.internal.kingdom.population
 
 class PopulationReader : SpannerReader<PopulationReader.Result>() {
 
-  data class Result(val population: Population, val populationId: Long)
+  data class Result(
+    val dataProviderId: InternalId,
+    val populationId: InternalId,
+    val population: Population,
+  )
 
   override val baseSql: String =
     """
@@ -47,7 +53,11 @@ class PopulationReader : SpannerReader<PopulationReader.Result>() {
       .trimIndent()
 
   override suspend fun translate(struct: Struct): Result =
-    Result(buildPopulation(struct), struct.getLong("PopulationId"))
+    Result(
+      struct.getInternalId("DataProviderId"),
+      struct.getInternalId("PopulationId"),
+      buildPopulation(struct),
+    )
 
   suspend fun readByExternalPopulationId(
     readContext: AsyncDatabaseClient.ReadContext,

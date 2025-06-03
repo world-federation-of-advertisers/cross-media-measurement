@@ -77,6 +77,14 @@ class RequiredFieldNotSetException(
     get() = mapOf("field_name" to fieldName)
 }
 
+class InvalidFieldValueException(
+  val fieldName: String,
+  provideDescription: (fieldName: String) -> String = { "Value of $fieldName is invalid" },
+) : KingdomInternalException(ErrorCode.INVALID_FIELD_VALUE, provideDescription(fieldName)) {
+  override val context: Map<String, String>
+    get() = mapOf("field_name" to fieldName)
+}
+
 class MeasurementConsumerNotFoundException(
   val externalMeasurementConsumerId: ExternalId,
   provideDescription: () -> String = { "MeasurementConsumer not found" },

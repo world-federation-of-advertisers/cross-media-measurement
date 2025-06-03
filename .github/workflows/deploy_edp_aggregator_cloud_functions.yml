@@ -38,15 +38,16 @@ jobs:
     runs-on: ubuntu-22.04
     environment: ${{ github.event.inputs.environment }}
     env:
-      SECURE_COMPUTATION_BUCKET:            ${{ vars.SECURE_COMPUTATION_BUCKET }}
-      DATA_WATCHER_SERVICE_ACCOUNT:         ${{ vars.DATA_WATCHER_SERVICE_ACCOUNT }}
+      SECURE_COMPUTATION_BUCKET: ${{ vars.SECURE_COMPUTATION_BUCKET }}
+      DATA_WATCHER_SERVICE_ACCOUNT: ${{ vars.DATA_WATCHER_SERVICE_ACCOUNT }}
       DATA_WATCHER_TRIGGER_SERVICE_ACCOUNT: ${{ vars.DATA_WATCHER_TRIGGER_SERVICE_ACCOUNT }}
       SECURE_COMPUTATION_PUBLIC_API_TARGET: ${{ vars.SECURE_COMPUTATION_PUBLIC_API_TARGET }}
-      REQUISITION_FETCHER_SERVICE_ACCOUNT:  ${{ vars.REQUISITION_FETCHER_SERVICE_ACCOUNT }}
-      KINGDOM_PUBLIC_API_TARGET:            ${{ vars.KINGDOM_PUBLIC_API_TARGET }}
-      DATA_WATCHER_TLS_PEM_SECRET:          ${{ vars.DATA_WATCHER_TLS_PEM_SECRET }}
-      DATA_WATCHER_TLS_KEY_SECRET:          ${{ vars.DATA_WATCHER_TLS_KEY_SECRET }}
-      SECURE_COMPUTATION_ROOT_SECRET:       ${{ vars.SECURE_COMPUTATION_ROOT_SECRET }}
+      REQUISITION_FETCHER_SERVICE_ACCOUNT: ${{ vars.REQUISITION_FETCHER_SERVICE_ACCOUNT }}
+      KINGDOM_PUBLIC_API_TARGET: ${{ vars.KINGDOM_PUBLIC_API_TARGET }}
+      DATA_WATCHER_TLS_PEM_SECRET: ${{ vars.DATA_WATCHER_TLS_PEM_SECRET }}
+      DATA_WATCHER_TLS_KEY_SECRET: ${{ vars.DATA_WATCHER_TLS_KEY_SECRET }}
+      SECURE_COMPUTATION_ROOT_SECRET: ${{ vars.SECURE_COMPUTATION_ROOT_SECRET }}
+      EVENT_GROUP_SYNC_SERVICE_ACCOUNT: ${{ vars.EVENT_GROUP_SYNC_SERVICE_ACCOUNT }}
 
     steps:
 
@@ -84,4 +85,14 @@ jobs:
           entry_point: org.wfanet.measurement.edpaggregator.deploy.gcloud.requisitionfetcher.RequisitionFetcherFunction
           bazel_target_label: //src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/requisitionfetcher:RequisitionFetcherFunction_deploy.jar
           run_service_account: ${{ env.REQUISITION_FETCHER_SERVICE_ACCOUNT }}
+          extra_env_vars: "KINGDOM_TARGET=${{ env.KINGDOM_PUBLIC_API_TARGET }}"
+
+      - name: Deploy Event Group Sync
+        uses: ./.github/actions/build-and-deploy-cloud-function
+        with:
+          cloud_region: ${{ vars.GCLOUD_REGION }}
+          function_name: event-group-sync
+          entry_point: org.wfanet.measurement.edpaggregator.deploy.gcloud.eventgroups.EventGroupSyncFunction
+          bazel_target_label: //src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/eventgroups:EventGroupSyncFunction_deploy.jar
+          run_service_account: ${{ env.EVENT_GROUP_SYNC_SERVICE_ACCOUNT }}
           extra_env_vars: "KINGDOM_TARGET=${{ env.KINGDOM_PUBLIC_API_TARGET }}"

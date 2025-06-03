@@ -15,6 +15,7 @@
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
 import com.google.cloud.spanner.Key
+import com.google.cloud.spanner.Options
 import com.google.cloud.spanner.Statement
 import com.google.cloud.spanner.Value
 import kotlinx.coroutines.flow.Flow
@@ -205,7 +206,8 @@ class SetParticipantRequisitionParams(private val request: SetParticipantRequisi
             )
             bind("measurementConsumerId" to measurementConsumerId)
             bind("measurementId" to measurementId)
-          }
+          },
+          Options.tag("writer=$writerName,action=readRequisitionsByMeasurementConsumer"),
         )
         .collect {
           val requisitionId = it.getLong("RequisitionId")
@@ -271,11 +273,16 @@ class SetParticipantRequisitionParams(private val request: SetParticipantRequisi
     val statement: Statement =
       statement(sql) { bind("externalComputationId" to externalComputationId.value) }
 
-    return transactionContext.executeQuery(statement).map {
-      val duchyId = InternalId(it.getLong("DuchyId"))
-      val details =
-        it.getProtoMessage("ParticipantDetails", ComputationParticipantDetails.getDefaultInstance())
-      ComputationParticipantResult(duchyId, details)
-    }
+    return transactionContext
+      .executeQuery(statement, Options.tag("writer=$writerName,action=findComputationParticipants"))
+      .map {
+        val duchyId = InternalId(it.getLong("DuchyId"))
+        val details =
+          it.getProtoMessage(
+            "ParticipantDetails",
+            ComputationParticipantDetails.getDefaultInstance(),
+          )
+        ComputationParticipantResult(duchyId, details)
+      }
   }
 }
