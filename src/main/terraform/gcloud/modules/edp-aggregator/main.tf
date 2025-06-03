@@ -82,14 +82,12 @@ locals {
   ]...)
 
   all_secrets = merge(
-    {
-      edpa_tee_app_tls_key   = var.edpa_tee_app_tls_key
-      edpa_tee_app_tls_pem   = var.edpa_tee_app_tls_pem
-      data_watcher_tls_key   = var.data_watcher_tls_key
-      data_watcher_tls_pem   = var.data_watcher_tls_pem
-      secure_computation_root_ca = var.secure_computation_root_ca
-      kingdom_root_ca        = var.kingdom_root_ca
-    },
+    var.edpa_tee_app_tls_key,
+    var.edpa_tee_app_tls_pem,
+    var.data_watcher_tls_key,
+    var.data_watcher_tls_pem,
+    var.secure_computation_root_ca,
+    var.kingdom_root_ca,
     local.edps_secrets
   )
 
@@ -179,8 +177,7 @@ module "event_group_sync_function_service_account" {
 
 resource "google_secret_manager_secret_iam_member" "secret_accessor" {
   for_each = local.secret_access_map
-
-  secret_id = var.secrets[each.value.secret_key].secret_id
+  secret_id = local.all_secrets[each.value.secret_key].secret_id
   role      = "roles/secretmanager.secretAccessor"
   member    = "serviceAccount:${local.service_accounts[each.value.function_name]}"
 
