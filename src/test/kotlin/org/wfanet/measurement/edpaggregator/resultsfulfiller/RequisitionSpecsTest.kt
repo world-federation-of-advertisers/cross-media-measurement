@@ -127,11 +127,27 @@ class RequisitionSpecsTest {
     // Upload impressions for 2 days
     val validImpressionCount1 = 130
     val invalidImpressionCount1 = 70
-    uploadImpressions(mesosRecordIoStorageClient, DS_1.toString(), validImpressionCount1, invalidImpressionCount1)
+    EncryptedMesosStorage.uploadImpressions(
+      mesosRecordIoStorageClient,
+      DS_1.toString(),
+      validImpressionCount1,
+      invalidImpressionCount1,
+      LABELED_IMPRESSION_1,
+      LABELED_IMPRESSION_2,
+      TIME_RANGE.start.toProtoTime()
+    )
 
     val validImpressionCount2 = 50
     val invalidImpressionCount2 = 200
-    uploadImpressions(mesosRecordIoStorageClient, DS_2.toString(), validImpressionCount2, invalidImpressionCount2)
+    EncryptedMesosStorage.uploadImpressions(
+      mesosRecordIoStorageClient,
+      DS_2.toString(),
+      validImpressionCount2,
+      invalidImpressionCount2,
+      LABELED_IMPRESSION_1,
+      LABELED_IMPRESSION_2,
+      TIME_RANGE.start.toProtoTime()
+    )
 
     // Create the impressions DEK store
     val dekTmpPath = Files.createTempDirectory(null).toFile()
@@ -141,7 +157,12 @@ class RequisitionSpecsTest {
 
     val dates = DS_1.datesUntil(DS_2.plusDays(1)).asSequence()
     dates.forEach { date ->
-      uploadDek(impressionsDekStorageClient, date.toString(), kekUri, serializedEncryptionKey)
+      EncryptedMesosStorage.uploadDek(
+        impressionsDekStorageClient,
+        kekUri, serializedEncryptionKey,
+        "$IMPRESSIONS_FILE_URI/$date",
+        "ds/$date/event-group-id/$EVENT_GROUP_NAME/metadata"
+      )
     }
 
     // Create EventReader
@@ -160,57 +181,6 @@ class RequisitionSpecsTest {
     )
 
     assertThat(result.count()).isEqualTo(validImpressionCount1 + validImpressionCount2)
-  }
-
-  private suspend fun uploadImpressions(
-    storageClient: StorageClient,
-    date: String,
-    validImpressionCount: Int,
-    invalidImpressionCount: Int,
-  ) {
-    val impressions =
-      MutableList(validImpressionCount) {
-        LABELED_IMPRESSION_1.copy {
-          vid = (it + 1).toLong()
-          eventTime = TIME_RANGE.start.toProtoTime()
-        }
-      }
-
-    val invalidImpressions =
-      List(invalidImpressionCount) {
-        LABELED_IMPRESSION_2.copy {
-          vid = (it + validImpressionCount + 1).toLong()
-          eventTime = TIME_RANGE.start.toProtoTime()
-        }
-      }
-
-    impressions.addAll(invalidImpressions)
-
-    val impressionsFlow = flow {
-      impressions.forEach { impression -> emit(impression.toByteString()) }
-    }
-
-    // Write impressions to storage
-    storageClient.writeBlob(date, impressionsFlow)
-  }
-
-  suspend fun uploadDek(
-    storageClient: StorageClient,
-    date: String,
-    kekUri: String,
-    serializedEncryptionKey: ByteString,
-  ) {
-    val blobDetails =
-      EncryptedMesosStorage.encryptAndCreateBlobDetails(
-        kekUri,
-        serializedEncryptionKey,
-        "$IMPRESSIONS_FILE_URI/$date"
-      )
-
-    storageClient.writeBlob(
-      "ds/$date/event-group-id/$EVENT_GROUP_NAME/metadata",
-      blobDetails.toByteString()
-    )
   }
 
   companion object {
@@ -261,7 +231,7 @@ class RequisitionSpecsTest {
     private const val EVENT_GROUP_NAME = "dataProviders/someDataProvider/eventGroups/name"
 
     private const val IMPRESSIONS_BUCKET = "impression-bucket"
-    private val IMPRESSIONS_FILE_URI = "file:///$IMPRESSIONS_BUCKET"
+    private const val IMPRESSIONS_FILE_URI = "file:///$IMPRESSIONS_BUCKET"
 
     private const val IMPRESSIONS_DEK_BUCKET = "impression-dek-bucket"
     private const val IMPRESSIONS_DEK_FILE_URI_PREFIX = "file:///$IMPRESSIONS_DEK_BUCKET"
