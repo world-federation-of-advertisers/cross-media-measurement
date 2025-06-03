@@ -16,12 +16,14 @@
 
 package org.wfanet.measurement.kingdom.service.api.v2alpha
 
+import com.google.protobuf.InvalidProtocolBufferException
 import io.grpc.Status
 import io.grpc.StatusException
 import org.wfanet.measurement.api.v2alpha.DataProviderPrincipal
 import org.wfanet.measurement.api.v2alpha.GetModelProviderRequest
 import org.wfanet.measurement.api.v2alpha.ListModelProvidersRequest
 import org.wfanet.measurement.api.v2alpha.ListModelProvidersResponse
+import org.wfanet.measurement.api.v2alpha.MeasurementConsumerPrincipal
 import org.wfanet.measurement.api.v2alpha.MeasurementPrincipal
 import org.wfanet.measurement.api.v2alpha.ModelProvider
 import org.wfanet.measurement.api.v2alpha.ModelProviderKey
@@ -57,6 +59,7 @@ class ModelProvidersService(
         }
       }
       is DataProviderPrincipal -> {}
+      is MeasurementConsumerPrincipal -> {}
       else -> {
         failGrpc(Status.PERMISSION_DENIED) {
           "Caller does not have permission to get ModelProvider"
@@ -75,7 +78,7 @@ class ModelProvidersService(
     } catch (e: StatusException) {
       throw when (e.status.code) {
         Status.Code.NOT_FOUND -> Status.NOT_FOUND
-        else -> Status.UNKNOWN
+        else -> Status.INTERNAL
       }.toExternalStatusRuntimeException(e)
     }
   }
@@ -91,7 +94,7 @@ class ModelProvidersService(
       } else {
         try {
           InternalListModelProvidersPageToken.parseFrom(request.pageToken.base64UrlDecode())
-        } catch (e: Exception) {
+        } catch (e: InvalidProtocolBufferException) {
           throw Status.INVALID_ARGUMENT.withCause(e)
             .withDescription("invalid page token for public ListModelProviders")
             .asRuntimeException()
@@ -110,9 +113,7 @@ class ModelProvidersService(
 
     return listModelProvidersResponse {
       modelProviders += response.modelProvidersList.map { it.toModelProvider() }
-      if (response.nextPageToken == null) {
-        clearNextPageToken()
-      } else {
+      if (response.hasNextPageToken()) {
         nextPageToken = response.nextPageToken.toByteString().base64UrlEncode()
       }
     }

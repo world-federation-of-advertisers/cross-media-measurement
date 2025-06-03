@@ -117,6 +117,32 @@ class ModelProvidersServiceTest {
   }
 
   @Test
+  fun `getModelProvider returns ModelProvider when MeasurementConsumer caller is found`() =
+    runBlocking {
+      val internalModelProvider = internalModelProvider {
+        externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
+      }
+      internalModelProvidersMock.stub {
+        onBlocking { getModelProvider(any()) } doReturn internalModelProvider
+      }
+
+      val request = getModelProviderRequest { name = MODEL_PROVIDER_NAME }
+      val result =
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+          service.getModelProvider(request)
+        }
+
+      verifyProtoArgument(
+          internalModelProvidersMock,
+          InternalModelProvidersGrpcKt.ModelProvidersCoroutineImplBase::getModelProvider,
+        )
+        .isEqualTo(
+          internalGetModelProviderRequest { externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID }
+        )
+      assertThat(result).isEqualTo(MODEL_PROVIDER)
+    }
+
+  @Test
   fun `getModelProvider throws PERMISSION_DENIED when Principal is duchy`() = runBlocking {
     val request = getModelProviderRequest { name = MODEL_PROVIDER_NAME }
 
@@ -126,20 +152,6 @@ class ModelProvidersServiceTest {
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
   }
-
-  @Test
-  fun `getModelProvider throws PERMISSION_DENIED when Principal is MeasurementConsumer`() =
-    runBlocking {
-      val request = getModelProviderRequest { name = MODEL_PROVIDER_NAME }
-
-      val exception =
-        assertFailsWith<StatusRuntimeException> {
-          withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
-            service.getModelProvider(request)
-          }
-        }
-      assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
-    }
 
   @Test
   fun `getModelProvider throws PERMISSION_DENIED when ModelProvider caller doesn't match`() =
@@ -234,7 +246,7 @@ class ModelProvidersServiceTest {
   fun `listModelProviders throws INVALID_ARGUMENT when page token is invalid`() = runBlocking {
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        service.listModelProviders(listModelProvidersRequest { pageToken = "betty black" })
+        service.listModelProviders(listModelProvidersRequest { pageToken = "mayhem" })
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
   }
