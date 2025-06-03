@@ -152,6 +152,9 @@ message Requisition {
 
   fixed64 external_data_provider_id = 5;
 
+  // Unique ID across all Requisitions. Output-only.
+  fixed64 requisition_identity = 13;
+
   google.protobuf.Timestamp update_time = 6;
 
   enum State {

@@ -335,6 +335,11 @@ resource "google_bigquery_table" "latest_requisition_read" {
     "name": "external_requisition_id",
     "type": "INTEGER",
     "mode": "REQUIRED"
+  },
+  {
+    "name": "requisition_identity",
+    "type": "INTEGER",
+    "mode": "NULLABLE"
   }
 ]
 EOF
@@ -392,8 +397,8 @@ resource "google_project_iam_member" "bigquery_job_user" {
 
 
 resource "google_monitoring_dashboard" "dashboards" {
-  for_each        = toset(var.dashboard_json_files)
+  for_each = toset(var.dashboard_json_files)
 
-  dashboard_json  = file("${path.module}/${each.value}")
-  project         = data.google_project.project.project_id
+  dashboard_json = file("${path.module}/${each.value}")
+  project        = data.google_project.project.project_id
 }

@@ -440,8 +440,7 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
               externalDataProviderId = dataProvider.externalDataProviderId
               after = after {
                 updateTime = requisitions[0].updateTime
-                externalDataProviderId = requisitions[0].externalDataProviderId
-                externalRequisitionId = requisitions[0].externalRequisitionId
+                requisitionIdentity = requisitions[0].requisitionIdentity
               }
             }
             limit = 1
@@ -528,7 +527,11 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
       }
     }
     assertThat(requisition)
-      .ignoringFields(Requisition.UPDATE_TIME_FIELD_NUMBER, Requisition.DUCHIES_FIELD_NUMBER)
+      .ignoringFields(
+        Requisition.REQUISITION_IDENTITY_FIELD_NUMBER,
+        Requisition.UPDATE_TIME_FIELD_NUMBER,
+        Requisition.DUCHIES_FIELD_NUMBER,
+      )
       .isEqualTo(expectedRequisition)
     assertThat(requisition.duchiesMap)
       .containsExactly(
@@ -610,7 +613,11 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
       }
     }
     assertThat(requisition)
-      .ignoringFields(Requisition.UPDATE_TIME_FIELD_NUMBER, Requisition.DUCHIES_FIELD_NUMBER)
+      .ignoringFields(
+        Requisition.REQUISITION_IDENTITY_FIELD_NUMBER,
+        Requisition.UPDATE_TIME_FIELD_NUMBER,
+        Requisition.DUCHIES_FIELD_NUMBER,
+      )
       .isEqualTo(expectedRequisition)
     assertThat(requisition).isEqualTo(listedRequisition)
   }

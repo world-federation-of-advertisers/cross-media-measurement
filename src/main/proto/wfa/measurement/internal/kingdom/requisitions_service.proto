@@ -28,8 +28,7 @@ option java_multiple_files = true;
 service Requisitions {
   rpc GetRequisition(GetRequisitionRequest) returns (Requisition);
 
-  // Streams Requisitions response ordered by update_time asc,
-  // external_data_provider_id asc, external_requisition_id asc.
+  // Streams Requisitions ordered by [Requisition.update_time][].
   rpc StreamRequisitions(StreamRequisitionsRequest)
       returns (stream Requisition);
 
@@ -60,8 +59,18 @@ message StreamRequisitionsRequest {
 
     message After {
       google.protobuf.Timestamp update_time = 1;
-      fixed64 external_data_provider_id = 2;
-      fixed64 external_requisition_id = 3;
+      oneof tie_breaker {
+        // External DataProvider ID of the previous page end. Deprecated in
+        // favor of `requisition_identity`.
+        //
+        // TODO(@SanjayVas): Remove this when it's no longer being used by
+        // OperationalMetricsExport.
+        fixed64 external_data_provider_id = 2 [deprecated = true];
+        fixed64 requisition_identity = 4;
+      }
+      // External Requisition ID of previous page end. Required if
+      // `external_data_provider_id` is set, ignored otherwise.
+      fixed64 external_requisition_id = 3 [deprecated = true];
     }
     After after = 9;
   }

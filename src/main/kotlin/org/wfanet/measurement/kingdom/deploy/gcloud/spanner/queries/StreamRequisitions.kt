@@ -34,7 +34,15 @@ class StreamRequisitions(requestFilter: StreamRequisitionsRequest.Filter, limit:
   override val reader =
     RequisitionReader.build(parent) {
       setWhereClause(requestFilter)
-      orderByClause = ORDER_BY_CLAUSE
+      @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf enum accessors cannot return null.
+      when (requestFilter.after.tieBreakerCase) {
+        StreamRequisitionsRequest.Filter.After.TieBreakerCase.EXTERNAL_DATA_PROVIDER_ID ->
+          LEGACY_ORDER_BY_CLAUSE
+        StreamRequisitionsRequest.Filter.After.TieBreakerCase.REQUISITION_IDENTITY ->
+          ORDER_BY_CLAUSE
+        StreamRequisitionsRequest.Filter.After.TieBreakerCase.TIEBREAKER_NOT_SET ->
+          throw IllegalArgumentException("tie_breaker not set")
+      }
       if (limit > 0) {
         limitClause = "LIMIT @$LIMIT"
         bind(LIMIT).to(limit.toLong())
@@ -61,28 +69,59 @@ class StreamRequisitions(requestFilter: StreamRequisitionsRequest.Filter, limit:
     }
     if (filter.hasUpdatedAfter()) {
       conjuncts.add("Requisitions.UpdateTime > @$UPDATE_TIME")
+      conjuncts.add("RequisitionIndexShardId >= 0")
       bind(UPDATE_TIME).to(filter.updatedAfter.toGcloudTimestamp())
     }
 
     if (filter.hasAfter()) {
-      conjuncts.add(
-        """
-          CASE
-            WHEN Requisitions.UpdateTime > @$UPDATED_AFTER THEN TRUE
-            WHEN Requisitions.UpdateTime = @$UPDATED_AFTER
-              AND ExternalDataProviderId > @$EXTERNAL_DATA_PROVIDER_ID_AFTER THEN TRUE
-            WHEN Requisitions.UpdateTime = @$UPDATED_AFTER
-              AND ExternalDataProviderId = @$EXTERNAL_DATA_PROVIDER_ID_AFTER
-              AND ExternalRequisitionId > @$EXTERNAL_REQUISITION_ID_AFTER THEN TRUE
-            ELSE FALSE
-          END
-        """
-          .trimIndent()
-      )
+      @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf enum accessors cannot return null.
+      when (filter.after.tieBreakerCase) {
+        StreamRequisitionsRequest.Filter.After.TieBreakerCase.EXTERNAL_DATA_PROVIDER_ID -> {
+          conjuncts.add(
+            """
+            CASE
+              WHEN Requisitions.UpdateTime > @$UPDATED_AFTER THEN TRUE
+              WHEN Requisitions.UpdateTime = @$UPDATED_AFTER
+                AND ExternalDataProviderId > @$EXTERNAL_DATA_PROVIDER_ID_AFTER THEN TRUE
+              WHEN Requisitions.UpdateTime = @$UPDATED_AFTER
+                AND ExternalDataProviderId = @$EXTERNAL_DATA_PROVIDER_ID_AFTER
+                AND ExternalRequisitionId > @$EXTERNAL_REQUISITION_ID_AFTER THEN TRUE
+              ELSE FALSE
+            END
+            """
+              .trimIndent()
+          )
+          bind(EXTERNAL_DATA_PROVIDER_ID_AFTER).to(filter.after.externalDataProviderId)
+          bind(EXTERNAL_REQUISITION_ID_AFTER).to(filter.after.externalRequisitionId)
+        }
+        StreamRequisitionsRequest.Filter.After.TieBreakerCase.REQUISITION_IDENTITY -> {
+          conjuncts.add(
+            """
+            RequisitionIdentity IN (
+              SELECT
+                RequisitionIdentity
+              FROM
+                Requisitions
+              WHERE
+                RequisitionIndexShardId >= 0
+                AND (
+                  Requisitions.UpdateTime > @$UPDATED_AFTER
+                  OR (
+                    Requisitions.UpdateTime = @$UPDATED_AFTER
+                    AND RequisitionIdentity > @$REQUISITION_IDENTITY_AFTER
+                  )
+                )
+            )
+            """
+              .trimIndent()
+          )
+          bind(REQUISITION_IDENTITY_AFTER).to(filter.after.requisitionIdentity)
+        }
+        StreamRequisitionsRequest.Filter.After.TieBreakerCase.TIEBREAKER_NOT_SET ->
+          error("tie_breaker not set")
+      }
 
       bind(UPDATED_AFTER).to(filter.after.updateTime.toGcloudTimestamp())
-      bind(EXTERNAL_DATA_PROVIDER_ID_AFTER).to(filter.after.externalDataProviderId)
-      bind(EXTERNAL_REQUISITION_ID_AFTER).to(filter.after.externalRequisitionId)
     }
 
     if (conjuncts.isEmpty()) {
@@ -93,8 +132,9 @@ class StreamRequisitions(requestFilter: StreamRequisitionsRequest.Filter, limit:
   }
 
   companion object {
-    private const val ORDER_BY_CLAUSE =
-      "ORDER BY UpdateTime ASC, ExternalDataProviderId ASC, ExternalRequisitionId ASC"
+    private const val ORDER_BY_CLAUSE = "ORDER BY UpdateTime, RequisitionIdentity"
+    private const val LEGACY_ORDER_BY_CLAUSE =
+      "ORDER BY UpdateTime, ExternalDataProviderId, ExternalRequisitionId"
 
     const val LIMIT = "limit"
     const val EXTERNAL_MEASUREMENT_CONSUMER_ID = "externalMeasurementConsumerId"
@@ -105,5 +145,6 @@ class StreamRequisitions(requestFilter: StreamRequisitionsRequest.Filter, limit:
     const val UPDATED_AFTER = "updatedAfter"
     const val EXTERNAL_REQUISITION_ID_AFTER = "externalRequisitionIdAfter"
     const val EXTERNAL_DATA_PROVIDER_ID_AFTER = "externalDataProviderIdAfter"
+    const val REQUISITION_IDENTITY_AFTER = "requisitionIdentityAfter"
   }
 }
