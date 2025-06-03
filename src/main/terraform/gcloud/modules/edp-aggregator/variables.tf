@@ -39,16 +39,17 @@ variable "requisition_fulfiller_config" {
       ack_deadline_seconds  = number
     })
     worker = object({
-      instance_template_name      = string
-      base_instance_name          = string
-      managed_instance_group_name = string
-      mig_service_account_name    = string
-      single_instance_assignment  = number
-      min_replicas                = number
-      max_replicas                = number
-      app_args                    = list(string)
-      machine_type                = string
-      docker_image                = string
+      instance_template_name        = string
+      base_instance_name            = string
+      managed_instance_group_name   = string
+      mig_service_account_name      = string
+      single_instance_assignment    = number
+      min_replicas                  = number
+      max_replicas                  = number
+      app_args                      = list(string)
+      machine_type                  = string
+      docker_image                  = string
+      mig_distribution_policy_zones = list(string)
     })
   })
 }

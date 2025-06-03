@@ -144,9 +144,7 @@ resource "google_compute_region_instance_group_manager" "mig" {
   version {
     instance_template = google_compute_instance_template.confidential_vm_template.id
   }
-  distribution_policy_zones = [
-    "us-central1-a"
-  ]
+  distribution_policy_zones = var.mig_distribution_policy_zones
   lifecycle {
     create_before_destroy = true
   }

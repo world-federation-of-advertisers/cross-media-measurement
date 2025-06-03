@@ -131,9 +131,9 @@ locals {
   ]...)
 
   service_accounts = {
-    "data_watcher"        = module.data_watcher_function_service_accounts.cloud_function_service_account_email
-    "requisition_fetcher" = module.requisition_fetcher_function_service_account.cloud_function_service_account_email
-    "event_group_sync"    = module.event_group_sync_function_service_account.cloud_function_service_account_email
+    "data_watcher"        = module.data_watcher_function_service_accounts.cloud_function_service_account.email
+    "requisition_fetcher" = module.requisition_fetcher_function_service_account.cloud_function_service_account.email
+    "event_group_sync"    = module.event_group_sync_function_service_account.cloud_function_service_account.email
   }
 }
 
@@ -228,6 +228,7 @@ module "result_fulfiller_tee_app" {
   machine_type                  = var.requisition_fulfiller_config.worker.machine_type
   kms_key_id                    = google_kms_crypto_key.edp_aggregator_kek.id
   docker_image                  = var.requisition_fulfiller_config.worker.docker_image
+  mig_distribution_policy_zones = var.requisition_fulfiller_config.worker.mig_distribution_policy_zones
   terraform_service_account     = var.terraform_service_account
   secrets_to_mount              = local.result_fulfiller_secrets_to_mount
 }
@@ -248,13 +249,13 @@ resource "google_storage_bucket_iam_binding" "aggregator_storage_admin" {
   bucket = module.edp_aggregator_bucket.storage_bucket.name
   role   = "roles/storage.objectAdmin"
   members = [
-    "serviceAccount:${module.requisition_fetcher_function_service_account.cloud_function_service_account_email}",
-    "serviceAccount:${module.event_group_sync_function_service_account.cloud_function_service_account_email}",
+    "serviceAccount:${module.requisition_fetcher_function_service_account.cloud_function_service_account.email}",
+    "serviceAccount:${module.event_group_sync_function_service_account.cloud_function_service_account.email}",
   ]
 }
 
 resource "google_cloud_run_service_iam_member" "event_group_sync_invoker" {
   service  = var.event_group_sync_function_name
   role     = "roles/run.invoker"
-  member   = "serviceAccount:${module.data_watcher_function_service_accounts.cloud_function_service_account_email}"
+  member   = "serviceAccount:${module.data_watcher_function_service_accounts.cloud_function_service_account.email}"
 }

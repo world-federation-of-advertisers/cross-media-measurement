@@ -111,8 +111,6 @@ jobs:
         -var="edp_names=$EDPA_EDP_NAMES"
         -var="kingdom_public_api_target=$KINGDOM_PUBLIC_API_TARGET"
         -var="secure_computation_public_api_target=$SECURE_COMPUTATION_PUBLIC_API_TARGET"
-        -var="kingdom_public_api_cert_host=$RESULTS_FULFILLER_KINGDOM_CERT_HOST"
-        -var="secure_computation_public_api_cert_host=$RESULTS_FULFILLER_SECURE_COMPUTATION_CERT_HOST"
         -var="image_tag=$IMAGE_TAG"
         -out=tfplan
 

@@ -89,23 +89,22 @@ locals {
       ack_deadline_seconds  = 600
     }
     worker = {
-      instance_template_name      = "requisition-fulfiller-template"
-      base_instance_name          = "secure-computation"
-      managed_instance_group_name = "requisition-fulfiller-mig"
-      mig_service_account_name    = "requisition-fulfiller-sa"
-      single_instance_assignment  = 1
-      min_replicas                = 1
-      max_replicas                = 10
+      instance_template_name        = "requisition-fulfiller-template"
+      base_instance_name            = "secure-computation"
+      managed_instance_group_name   = "requisition-fulfiller-mig"
+      mig_service_account_name      = "requisition-fulfiller-sa"
+      single_instance_assignment    = 1
+      min_replicas                  = 1
+      max_replicas                  = 10
       app_args = [
         "--kingdom-public-api-target=${var.kingdom_public_api_target}",
         "--secure-computation-public-api-target=${var.secure_computation_public_api_target}",
-        "--kingdom-public-api-cert-host=${var.kingdom_public_api_cert_host}",
-        "--secure-computation-public-api-cert-host=${var.secure_computation_public_api_cert_host}",
         "--subscription-id=requisition-fulfiller-subscription",
         "--google-pub-sub-project-id=${data.google_client_config.default.project}"
       ]
-      machine_type                = "n2d-standard-2"
-      docker_image                = "ghcr.io/world-federation-of-advertisers/edp-aggregator/results_fulfiller:${var.image_tag}"
+      machine_type                  = "n2d-standard-2"
+      docker_image                  = "ghcr.io/world-federation-of-advertisers/edp-aggregator/results_fulfiller:${var.image_tag}"
+      mig_distribution_policy_zones = ["us-central1-a"]
     }
   }
 }
@@ -113,7 +112,7 @@ locals {
 module "edp_aggregator" {
   source = "../modules/edp-aggregator"
 
-  key_ring_name                             = "edpa-secure-computation-cloud-test-key-ring-9"
+  key_ring_name                             = "edpa-secure-computation-cloud-test-key-ring"
   key_ring_location                         = local.key_ring_location
   kms_key_name                              = "edpa-secure-computation-kek"
   requisition_fulfiller_config              = local.requisition_fulfiller_config
