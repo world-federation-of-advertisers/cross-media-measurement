@@ -20,7 +20,8 @@ import io.grpc.ManagedChannel
 import java.time.Duration
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.ListModelSuitesResponse
-import org.wfanet.measurement.api.v2alpha.ModelSuitesGrpcKt.ModelSuitesCoroutineStub
+import org.wfanet.measurement.api.v2alpha.ModelSuitesGrpc
+import org.wfanet.measurement.api.v2alpha.ModelSuitesGrpc.ModelSuitesBlockingStub
 import org.wfanet.measurement.api.v2alpha.createModelSuiteRequest
 import org.wfanet.measurement.api.v2alpha.getModelSuiteRequest
 import org.wfanet.measurement.api.v2alpha.listModelSuitesRequest
@@ -92,8 +93,8 @@ class ModelRepository private constructor() : Runnable {
 private class ModelSuites {
   @ParentCommand private lateinit var parentCommand: ModelRepository
 
-  val modelSuitesClient: ModelSuitesCoroutineStub by lazy {
-    ModelSuitesCoroutineStub(parentCommand.channel)
+  val modelSuitesClient: ModelSuitesBlockingStub by lazy {
+    ModelSuitesGrpc.newBlockingStub(parentCommand.channel)
   }
 }
 

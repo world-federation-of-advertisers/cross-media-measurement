@@ -469,9 +469,11 @@ kt_jvm_library(
         "InProcessModelRepositoryCliIntegrationTest.kt",
     ],
     data = [
-        "//src/main/k8s/testing/secretfiles:mp1_root.pem",
+        "//src/main/k8s/testing/secretfiles:kingdom_tls.key",
+        "//src/main/k8s/testing/secretfiles:kingdom_tls.pem",
         "//src/main/k8s/testing/secretfiles:mp1_tls.key",
         "//src/main/k8s/testing/secretfiles:mp1_tls.pem",
+        "//src/main/k8s/testing/secretfiles:mp_trusted_certs.pem",
     ],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:akid_principal_lookup",

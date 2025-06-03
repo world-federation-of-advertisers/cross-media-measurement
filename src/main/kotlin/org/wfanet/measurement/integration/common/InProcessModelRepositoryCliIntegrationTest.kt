@@ -17,7 +17,6 @@
 package org.wfanet.measurement.integration.common
 
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
-import io.grpc.Channel
 import io.grpc.ManagedChannel
 import io.netty.handler.ssl.ClientAuth
 import java.io.File
@@ -50,6 +49,7 @@ import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.grpc.CommonServer
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
+import org.wfanet.measurement.common.identity.DuchyInfo
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.parseTextProto
@@ -94,7 +94,7 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
 
   @Before
   fun startServer() {
-    val internalChannel: Channel = internalApiServer.channel
+    val internalChannel = internalApiServer.channel
     val internalModelProvidersService =
       InternalModelProvidersGrpc.ModelProvidersCoroutineStub(internalChannel)
     internalModelProvider = runBlocking {
@@ -113,6 +113,12 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
             entries +=
               AuthorityKeyToPrincipalMapKt.entry {
                 authorityKeyIdentifier =
+                  readCertificate(KINGDOM_TLS_CERT_FILE).authorityKeyIdentifier!!
+                principalResourceName = modelProviderName
+              }
+            entries +=
+              AuthorityKeyToPrincipalMapKt.entry {
+                authorityKeyIdentifier =
                   readCertificate(MODEL_PROVIDER_TLS_CERT_FILE).authorityKeyIdentifier!!
                 principalResourceName = modelProviderName
               }
@@ -128,11 +134,7 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
     val services = listOf(publicModelSuitesServices)
 
     val serverCerts =
-      SigningCerts.fromPemFiles(
-        MODEL_PROVIDER_TLS_CERT_FILE,
-        MODEL_PROVIDER_TLS_KEY_FILE,
-        MODEL_PROVIDER_CERT_COLLECTION_FILE,
-      )
+      SigningCerts.fromPemFiles(KINGDOM_TLS_CERT_FILE, KINGDOM_TLS_KEY_FILE, ALL_ROOT_CERT_FILE)
 
     server =
       CommonServer.fromParameters(
@@ -247,7 +249,7 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
       arrayOf(
         "--tls-cert-file=$MODEL_PROVIDER_TLS_CERT_FILE",
         "--tls-key-file=$MODEL_PROVIDER_TLS_KEY_FILE",
-        "--cert-collection-file=$MODEL_PROVIDER_CERT_COLLECTION_FILE",
+        "--cert-collection-file=$ALL_ROOT_CERT_FILE",
         "--kingdom-public-api-target=$HOST:${server.port}",
       )
 
@@ -259,9 +261,13 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
         )!!
         .toFile()
 
+    private val KINGDOM_TLS_CERT_FILE: File = SECRETS_DIR.resolve("kingdom_tls.pem")
+    private val KINGDOM_TLS_KEY_FILE: File = SECRETS_DIR.resolve("kingdom_tls.key")
+
     private val MODEL_PROVIDER_TLS_CERT_FILE: File = SECRETS_DIR.resolve("mp1_tls.pem")
     private val MODEL_PROVIDER_TLS_KEY_FILE: File = SECRETS_DIR.resolve("mp1_tls.key")
-    private val MODEL_PROVIDER_CERT_COLLECTION_FILE: File = SECRETS_DIR.resolve("mp1_root.pem")
+
+    private val ALL_ROOT_CERT_FILE: File = SECRETS_DIR.resolve("mp_trusted_certs.pem")
 
     private const val FIXED_GENERATED_EXTERNAL_ID = 6789L
 
@@ -269,6 +275,10 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
     private const val DESCRIPTION = "Description"
 
     private const val PAGE_SIZE = 50
+
+    init {
+      DuchyInfo.setForTest(emptySet())
+    }
 
     @get:ClassRule @JvmStatic val spannerEmulator = SpannerEmulatorRule()
   }
