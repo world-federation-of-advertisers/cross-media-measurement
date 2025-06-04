@@ -110,8 +110,7 @@ class OperationalMetricsExport(
 
     val latestMeasurementReadFromPreviousJob: FieldValueList? = results.firstOrNull()
 
-    var offset =
-      latestMeasurementReadFromPreviousJob?.get("next_offset")?.longValue ?: 0L
+    var offset = latestMeasurementReadFromPreviousJob?.get("next_offset")?.longValue ?: 0L
 
     var streamMeasurementsRequest = streamMeasurementsRequest {
       measurementView = Measurement.View.DEFAULT
@@ -301,8 +300,7 @@ class OperationalMetricsExport(
 
     val latestRequisitionReadFromPreviousJob: FieldValueList? = results.firstOrNull()
 
-    var offset =
-      latestRequisitionReadFromPreviousJob?.get("next_offset")?.longValue ?: 0L
+    var offset = latestRequisitionReadFromPreviousJob?.get("next_offset")?.longValue ?: 0L
 
     var streamRequisitionsRequest = streamRequisitionsRequest {
       limit = batchSize
@@ -482,8 +480,7 @@ class OperationalMetricsExport(
 
     val latestComputationReadFromPreviousJob: FieldValueList? = results.firstOrNull()
 
-    var offset =
-      latestComputationReadFromPreviousJob?.get("next_offset")?.longValue ?: 0L
+    var offset = latestComputationReadFromPreviousJob?.get("next_offset")?.longValue ?: 0L
 
     var streamComputationsRequest = streamMeasurementsRequest {
       measurementView = Measurement.View.COMPUTATION_STATS
@@ -769,7 +766,14 @@ class OperationalMetricsExport(
           if (!streamWriter.isUserClosed && recreateCount < MAX_RECREATE_COUNT) {
             logger.info("Recreating stream writer")
             streamWriter =
-              streamWriterFactory.create(projectId, datasetId, tableId, streamId, client, protoSchema)
+              streamWriterFactory.create(
+                projectId,
+                datasetId,
+                tableId,
+                streamId,
+                client,
+                protoSchema,
+              )
             recreateCount++
           } else {
             throw IllegalStateException("Unable to recreate stream writer")
@@ -794,7 +798,7 @@ class OperationalMetricsExport(
             logger.info("End writing to stream ${streamWriter.streamName}")
             break
           }
-        // If error occurred before storing the next offset, but after the append
+          // If error occurred before storing the next offset, but after the append
         } catch (e: OffsetAlreadyExists) {
           // If this append has more rows than the previous one, only the rows that haven't been
           // appended will actually be appended
@@ -817,8 +821,8 @@ class OperationalMetricsExport(
             logger.info("End writing to stream ${streamWriter.streamName}")
             break
           }
-        // If stream closed due to lack of activity, then offset is no longer valid and restarts
-        // from 0
+          // If stream closed due to lack of activity, then offset is no longer valid and restarts
+          // from 0
         } catch (e: OffsetOutOfRange) {
           val response = streamWriter.append(protoRows).get()
           if (response.hasError()) {

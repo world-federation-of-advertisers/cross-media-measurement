@@ -61,7 +61,11 @@ class StreamWriterFactoryImpl : StreamWriterFactory {
           client.getWriteStream(writeStreamName)
         } catch (e: ApiException) {
           if (e.statusCode.code.equals(StatusCode.Code.NOT_FOUND)) {
-            val writeStream = WriteStream.newBuilder().setType(WriteStream.Type.COMMITTED).setName(writeStreamName.toString()).build()
+            val writeStream =
+              WriteStream.newBuilder()
+                .setType(WriteStream.Type.COMMITTED)
+                .setName(writeStreamName.toString())
+                .build()
             client.createWriteStream(tableName, writeStream)
           }
 
