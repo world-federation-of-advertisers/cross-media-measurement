@@ -145,10 +145,8 @@ locals {
 #   value = "-----------> edpa key: ${jsonencode(var.edpa_tee_app_tls_key)}"
 # }
 
-resource "null_resource" "debug_all_secrets" {
-  triggers = {
-    all_secrets = "-----------> local secret: ${jsonencode(local.all_secrets)}"
-  }
+output "all_secrets_debug" {
+  value = local.all_secrets
 }
 # output "all_secrets" {
 #     value = "-----------> local secret: ${jsonencode(local.all_secrets)}"
