@@ -19,7 +19,6 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.job
 import com.google.cloud.bigquery.BigQuery
 import com.google.cloud.bigquery.FieldValueList
 import com.google.cloud.bigquery.QueryJobConfiguration
-import com.google.cloud.bigquery.storage.v1.AppendRowsResponse
 import com.google.cloud.bigquery.storage.v1.BigQueryWriteClient
 import com.google.cloud.bigquery.storage.v1.Exceptions.AppendSerializationError
 import com.google.cloud.bigquery.storage.v1.Exceptions.OffsetAlreadyExists
