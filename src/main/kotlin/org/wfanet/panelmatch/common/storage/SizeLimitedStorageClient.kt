@@ -16,6 +16,7 @@ package org.wfanet.panelmatch.common.storage
 
 import com.google.protobuf.ByteString
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
 import org.wfanet.measurement.storage.StorageClient
 
@@ -47,6 +48,10 @@ class SizeLimitedStorageClient(
     }
 
     return Blob(this, delegateBlob)
+  }
+
+  override suspend fun listBlobs(prefix: String?): Flow<StorageClient.Blob> {
+    return delegate.listBlobs(prefix).map { Blob(this, it) }
   }
 
   private class Blob(override val storageClient: StorageClient, delegate: StorageClient.Blob) :
