@@ -19,6 +19,7 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.job
 import com.google.cloud.bigquery.BigQuery
 import com.google.cloud.bigquery.FieldValueList
 import com.google.cloud.bigquery.QueryJobConfiguration
+import com.google.cloud.bigquery.storage.v1.AppendRowsResponse
 import com.google.cloud.bigquery.storage.v1.BigQueryWriteClient
 import com.google.cloud.bigquery.storage.v1.Exceptions.AppendSerializationError
 import com.google.cloud.bigquery.storage.v1.Exceptions.OffsetAlreadyExists
@@ -780,76 +781,56 @@ class OperationalMetricsExport(
           }
         }
 
-        try {
-          val response =
+        val response =
+          try {
             if (offset != null) {
               streamWriter.append(protoRows, offset).get()
             } else {
               streamWriter.append(protoRows).get()
             }
-          if (response.hasError()) {
-            logger.warning("Write response error: ${response.error}")
-            if (response.error.code != Code.INTERNAL.number) {
-              throw IllegalStateException("Cannot retry failed append.")
-            } else if (i == RETRY_COUNT) {
-              throw IllegalStateException("Too many retries.")
-            }
-          } else {
-            logger.info("End writing to stream ${streamWriter.streamName}")
-            break
-          }
-          // If error occurred before storing the next offset, but after the append
-        } catch (e: OffsetAlreadyExists) {
-          // If this append has more rows than the previous one, only the rows that haven't been
-          // appended will actually be appended
-          val numRowsAppended = (e.expectedOffset - offset!!).toInt()
-          val newProtoRowsList =
-            if (numRowsAppended < protoRows.serializedRowsCount) {
-              protoRows.serializedRowsList.subList(numRowsAppended, protoRows.serializedRowsCount)
-            } else break
+            // If error occurred before storing the next offset, but after the append
+          } catch (e: OffsetAlreadyExists) {
+            // If this append has more rows than the previous one, only the rows that haven't been
+            // appended will actually be appended
+            val numRowsAppended = (e.expectedOffset - offset!!).toInt()
+            val newProtoRowsList =
+              if (numRowsAppended < protoRows.serializedRowsCount) {
+                protoRows.serializedRowsList.subList(numRowsAppended, protoRows.serializedRowsCount)
+              } else break
 
-          val newProtoRows = ProtoRows.newBuilder().addAllSerializedRows(newProtoRowsList).build()
-          val response = streamWriter.append(newProtoRows, e.expectedOffset).get()
-          if (response.hasError()) {
-            logger.warning("Write response error: ${response.error}")
-            if (response.error.code != Code.INTERNAL.number) {
-              throw IllegalStateException("Cannot retry failed append.")
-            } else if (i == RETRY_COUNT) {
-              throw IllegalStateException("Too many retries.")
-            }
-          } else {
-            logger.info("End writing to stream ${streamWriter.streamName}")
-            break
-          }
-          // If stream closed due to lack of activity, then offset is no longer valid and restarts
-          // from 0
-        } catch (e: OffsetOutOfRange) {
-          val response = streamWriter.append(protoRows).get()
-          if (response.hasError()) {
-            logger.warning("Write response error: ${response.error}")
-            if (response.error.code != Code.INTERNAL.number) {
-              throw IllegalStateException("Cannot retry failed append.")
-            } else if (i == RETRY_COUNT) {
-              throw IllegalStateException("Too many retries.")
-            }
-          } else {
-            logger.info("End writing to stream ${streamWriter.streamName}")
-            break
-          }
-        } catch (e: AppendSerializationError) {
-          logger.warning("Logging serialization errors")
-          for (value in e.rowIndexToErrorMessage.values) {
-            logger.warning(value)
-          }
-          throw e
-        } catch (e: ExecutionException) {
-          if (e.cause is AppendSerializationError) {
+            val newProtoRows = ProtoRows.newBuilder().addAllSerializedRows(newProtoRowsList).build()
+            streamWriter.append(newProtoRows, e.expectedOffset).get()
+
+            // If stream closed due to lack of activity, then offset is no longer valid and restarts
+            // from 0
+          } catch (e: OffsetOutOfRange) {
+            streamWriter.append(protoRows).get()
+          } catch (e: AppendSerializationError) {
             logger.warning("Logging serialization errors")
-            for (value in (e.cause as AppendSerializationError).rowIndexToErrorMessage.values) {
+            for (value in e.rowIndexToErrorMessage.values) {
               logger.warning(value)
             }
+            throw e
+          } catch (e: ExecutionException) {
+            if (e.cause is AppendSerializationError) {
+              logger.warning("Logging serialization errors")
+              for (value in (e.cause as AppendSerializationError).rowIndexToErrorMessage.values) {
+                logger.warning(value)
+              }
+            }
+            throw e
           }
-          throw e
+
+        if (response.hasError()) {
+          logger.warning("Write response error: ${response.error}")
+          if (response.error.code != Code.INTERNAL.number) {
+            throw IllegalStateException("Cannot retry failed append.")
+          } else if (i == RETRY_COUNT) {
+            throw IllegalStateException("Too many retries.")
+          }
+        } else {
+          logger.info("End writing to stream ${streamWriter.streamName}")
+          break
         }
       }
     }
