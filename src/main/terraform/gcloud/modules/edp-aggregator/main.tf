@@ -137,17 +137,22 @@ locals {
   }
 }
 
-output "edps_secrets" {
-  value = "-----------> edp certs: ${jsonencode(local.edps_secrets)}"
-}
+# output "edps_secrets" {
+#   value = "-----------> edp certs: ${jsonencode(local.edps_secrets)}"
+# }
+#
+# output "edpa_tee_app_tls_key" {
+#   value = "-----------> edpa key: ${jsonencode(var.edpa_tee_app_tls_key)}"
+# }
 
-output "edpa_tee_app_tls_key" {
-  value = "-----------> edpa key: ${jsonencode(var.edpa_tee_app_tls_key)}"
-}
-
-output "all_secrets" {
-    value = "-----------> local secret: ${jsonencode(local.all_secrets)}"
+resource "null_resource" "debug_all_secrets" {
+  triggers = {
+    all_secrets = "-----------> local secret: ${jsonencode(local.all_secrets)}"
   }
+}
+# output "all_secrets" {
+#     value = "-----------> local secret: ${jsonencode(local.all_secrets)}"
+#   }
 
 module "edp_aggregator_bucket" {
   source   = "../storage-bucket"
