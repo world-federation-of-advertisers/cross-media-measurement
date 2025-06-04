@@ -294,13 +294,13 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
 
   @Test
   fun `populations get prints Population`() = runBlocking {
-    val createdPopulation = createPopulation()
+    val population = createPopulation()
 
-    val args = commonArgsWithDataProvider + arrayOf("populations", "get", createdPopulation.name)
+    val args = commonArgsWithDataProvider + arrayOf("populations", "get", population.name)
     val output = callCli(args)
 
     assertThat(parseTextProto(output.reader(), Population.getDefaultInstance()))
-      .isEqualTo(createdPopulation)
+      .isEqualTo(population)
   }
 
   @Test
@@ -330,8 +330,8 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
 
   @Test
   fun `populations list prints Populations`() = runBlocking {
-    val createdPopulation = createPopulation()
-    val createdPopulation2 = createPopulation()
+    val population = createPopulation()
+    val population2 = createPopulation()
 
     val pageToken = listPopulationsPageToken {
       pageSize = PAGE_SIZE
@@ -339,8 +339,8 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
       lastPopulation = populationPreviousPageEnd {
         externalDataProviderId = internalDataProvider.externalDataProviderId
         externalPopulationId =
-          apiIdToExternalId(PopulationKey.fromName(createdPopulation2.name)!!.populationId)
-        createTime = createdPopulation2.createTime
+          apiIdToExternalId(PopulationKey.fromName(population2.name)!!.populationId)
+        createTime = population2.createTime
       }
     }
 
@@ -356,7 +356,7 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
     val output = callCli(args)
 
     assertThat(parseTextProto(output.reader(), ListPopulationsResponse.getDefaultInstance()))
-      .isEqualTo(listPopulationsResponse { populations += createdPopulation })
+      .isEqualTo(listPopulationsResponse { populations += population })
   }
 
   private fun callCli(args: Array<String>): String {
