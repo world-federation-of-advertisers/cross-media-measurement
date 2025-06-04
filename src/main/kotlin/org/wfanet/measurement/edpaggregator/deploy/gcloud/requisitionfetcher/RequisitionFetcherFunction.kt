@@ -20,11 +20,16 @@ import com.google.cloud.functions.HttpFunction
 import com.google.cloud.functions.HttpRequest
 import com.google.cloud.functions.HttpResponse
 import com.google.cloud.storage.StorageOptions
+import com.google.protobuf.ByteString
 import java.io.File
+import java.io.StringReader
+import kotlinx.coroutines.flow.fold
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.common.EnvVars
 import org.wfanet.measurement.common.crypto.SigningCerts
+import org.wfanet.measurement.common.edpaggregator.getConfig
+import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.getJarResourceFile
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.parseTextProto
@@ -36,6 +41,11 @@ import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 class RequisitionFetcherFunction : HttpFunction {
 
   override fun service(request: HttpRequest, response: HttpResponse) {
+
+    val requisitionFetcherConfig = runBlocking {
+      retrieveRequisitionFetcherConfig()
+    }
+
     for (dataProviderConfig in requisitionFetcherConfig.configsList) {
 
       val fileSystemPath = System.getenv("REQUISITION_FILE_SYSTEM_PATH")
@@ -82,6 +92,11 @@ class RequisitionFetcherFunction : HttpFunction {
     }
   }
 
+  suspend fun retrieveRequisitionFetcherConfig(): RequisitionFetcherConfig {
+    val requisitionFetcherConfigContent = getConfig("REQUISITION_FETCHER_CONFIG_FILE_SYSTEM_PATH", configBlobKey)
+    return parseTextProto(StringReader(requisitionFetcherConfigContent), RequisitionFetcherConfig.getDefaultInstance())
+  }
+
   companion object {
     private val kingdomTarget = EnvVars.checkNotNullOrEmpty("KINGDOM_TARGET")
     private val kingdomCertHost: String? = System.getenv("KINGDOM_CERT_HOST")
@@ -94,14 +109,7 @@ class RequisitionFetcherFunction : HttpFunction {
         null
       }
     }
-    private val CLASS_LOADER: ClassLoader = Thread.currentThread().contextClassLoader
-    private val requisitionFetcherConfigResourcePath =
-      EnvVars.checkIsPath("REQUISITION_FETCHER_CONFIG_RESOURCE_PATH")
-    private val config by lazy {
-      checkNotNull(CLASS_LOADER.getJarResourceFile(requisitionFetcherConfigResourcePath))
-    }
-    private val requisitionFetcherConfig: RequisitionFetcherConfig by lazy {
-      runBlocking { parseTextProto(config, RequisitionFetcherConfig.getDefaultInstance()) }
-    }
+
+    private val configBlobKey = "requisition-fetcher-config.textproto"
   }
 }

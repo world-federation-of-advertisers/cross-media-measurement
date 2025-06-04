@@ -79,6 +79,7 @@ jobs:
         SPANNER_PROCESSING_UNITS: ${{ vars.SPANNER_PROCESSING_UNITS }}
         STORAGE_BUCKET: ${{ vars.STORAGE_BUCKET }}
         SECURE_COMPUTATION_BUCKET: ${{ vars.SECURE_COMPUTATION_BUCKET }}
+        EDPA_CONFIG_FILES_BUCKET: ${{ vars.EDPA_CONFIG_FILES_BUCKET }}
         TERRAFORM_SERVICE_ACCOUNT: ${{ vars.TF_SERVICE_ACCOUNT }}
         POSTGRES_INSTANCE: ${{ vars.POSTGRES_INSTANCE }}
         POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
@@ -91,6 +92,7 @@ jobs:
         -var="spanner_processing_units=$SPANNER_PROCESSING_UNITS"
         -var="storage_bucket_name=$STORAGE_BUCKET"
         -var="secure_computation_storage_bucket_name=$SECURE_COMPUTATION_BUCKET"
+        -var="edpa_config_files_bucket_name=$EDPA_CONFIG_FILES_BUCKET"
         -var="terraform_service_account=$TERRAFORM_SERVICE_ACCOUNT"
         -var="postgres_instance_name=$POSTGRES_INSTANCE"
         -var="postgres_password=$POSTGRES_PASSWORD"

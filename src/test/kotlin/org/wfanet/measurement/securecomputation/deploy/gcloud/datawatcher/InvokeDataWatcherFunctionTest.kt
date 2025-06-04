@@ -71,7 +71,6 @@ class InvokeDataWatcherFunctionTest() {
     "org.wfanet.measurement.securecomputation.deploy.gcloud.datawatcher.DataWatcherFunction"
   val additionalFlags = emptyMap<String, String>()
   val projectId = "some-project-id"
-  val topicId = "some-topic-id"
 
   private lateinit var storageClient: GcsStorageClient
   private lateinit var grpcServer: CommonServer
@@ -110,9 +109,6 @@ class InvokeDataWatcherFunctionTest() {
       val port =
         functionProcess.start(
           mapOf(
-            "DATA_WATCHER_CONFIG_JAR_RESOURCE_PATH" to
-              Paths.get("securecomputation", "datawatcher", "data_watcher_config.textproto")
-                .toString(),
             "CONTROL_PLANE_PROJECT_ID" to projectId,
             "CONTROL_PLANE_TARGET" to "localhost:${grpcServer.port}",
             "CONTROL_PLANE_CERT_HOST" to "localhost",
@@ -120,6 +116,7 @@ class InvokeDataWatcherFunctionTest() {
             "CERT_FILE_PATH" to SECRETS_DIR.resolve("edp7_tls.pem").toString(),
             "PRIVATE_KEY_FILE_PATH" to SECRETS_DIR.resolve("edp7_tls.key").toString(),
             "CERT_COLLECTION_FILE_PATH" to SECRETS_DIR.resolve("kingdom_root.pem").toString(),
+            "DATA_WATCHER_CONFIG_FILE_SYSTEM_PATH" to DATA_WATCHER_CONFIG_FILE_SYSTEM_PATH.toString()
           ) + additionalFlags
         )
       logger.info("Started DataWatcher process on port $port")
@@ -190,6 +187,10 @@ class InvokeDataWatcherFunctionTest() {
           Paths.get("wfa_measurement_system", "src", "main", "k8s", "testing", "secretfiles")
         )!!
         .toFile()
+    private val DATA_WATCHER_CONFIG_FILE_SYSTEM_PATH =
+      getRuntimePath(
+        Paths.get("wfa_measurement_system", "src", "main", "kotlin", "org", "wfanet", "measurement", "securecomputation", "deploy", "gcloud", "datawatcher", "testing")
+      )!!
     private const val BUCKET = "test-bucket"
     private val serverCerts =
       SigningCerts.fromPemFiles(

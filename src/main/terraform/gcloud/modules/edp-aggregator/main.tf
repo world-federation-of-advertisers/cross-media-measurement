@@ -16,7 +16,23 @@ module "edp_aggregator_bucket" {
   source   = "../storage-bucket"
 
   name     = var.edp_aggregator_bucket_name
-  location = var.edp_aggregator_bucket_location
+  location = var.edp_aggregator_buckets_location
+}
+
+module "config_files_bucket" {
+  source   = "../storage-bucket"
+
+  name     = var.config_files_bucket_name
+  location = var.edp_aggregator_buckets_location
+}
+
+resource "google_storage_bucket_object" "uploaded_objects" {
+  for_each = {
+    for file in var.configs_to_upload : file.destination => file
+  }
+  name   = each.value.destination
+  bucket = module.config_files_bucket.storage_bucket.name
+  source = each.value.local_path
 }
 
 module "data_watcher_private_key" {
@@ -150,4 +166,16 @@ resource "google_storage_bucket_iam_member" "requisition_fetcher_storage_creator
   bucket = module.edp_aggregator_bucket.storage_bucket.name
   role   = "roles/storage.objectCreator"
   member = "serviceAccount:${module.requisition_fetcher_function_service_account.cloud_function_service_account.email}"
+}
+
+resource "google_storage_bucket_iam_member" "requisition_fetcher_config_storage_viewer" {
+  bucket = module.config_files_bucket.storage_bucket.name
+  role   = "roles/storage.objectViewer"
+  member = "serviceAccount:${module.requisition_fetcher_function_service_account.cloud_function_service_account.email}"
+}
+
+resource "google_storage_bucket_iam_member" "data_watcher_config_storage_viewer" {
+  bucket = module.config_files_bucket.storage_bucket.name
+  role   = "roles/storage.objectViewer"
+  member = "serviceAccount:${module.data_watcher_function_service_accounts.cloud_function_service_account_email}"
 }

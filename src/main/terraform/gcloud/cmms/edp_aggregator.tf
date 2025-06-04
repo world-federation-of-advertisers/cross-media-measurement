@@ -34,23 +34,35 @@ locals {
       }
     }
   }
+
+  configs_to_upload = [
+    {
+      local_path  = abspath("${path.root}/../../../kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/datawatcher/testing/data-watcher-config-cloud-test.textproto"),
+      destination = "data-watcher-config.textproto"
+    },
+    {
+      local_path  = abspath("${path.root}/../../../kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/requisitionfetcher/testing/requisition-fetcher-config-cloud-test.textproto"),
+      destination = "requisition-fetcher-config.textproto"
+    },
+  ]
 }
 
 module "edp_aggregator" {
   source = "../modules/edp-aggregator"
 
-  key_ring_name                             = "edpa-secure-computation-cloud-test-key-ring"
+  key_ring_name                             = "edpa-secure-computation-cloud-test-key-ring-10"
   key_ring_location                         = local.key_ring_location
   kms_key_name                              = "edpa-secure-computation-kek"
   queue_worker_configs                      = local.queue_worker_configs
   pubsub_iam_service_account_member         = module.secure_computation.secure_computation_internal_iam_service_account_member
   edp_aggregator_bucket_name                = var.secure_computation_storage_bucket_name
-  edp_aggregator_bucket_location            = local.storage_bucket_location
+  config_files_bucket_name                  = var.edpa_config_files_bucket_name
+  edp_aggregator_buckets_location           = local.storage_bucket_location
   data_watcher_service_account_name         = "edpa-data-watcher"
   data_watcher_trigger_service_account_name = "edpa-data-watcher-trigger"
   terraform_service_account                 = var.terraform_service_account
   requisition_fetcher_service_account_name  = "edpa-requisition-fetcher"
-
+  configs_to_upload                         = local.configs_to_upload
   data_watcher_private_key_id               = "edpa-datawatcher-tls-key"
   data_watcher_private_key_path             = "${path.root}/../../../k8s/testing/secretfiles/data_watcher_tls.key"
   data_watcher_cert_id                      = "edpa-datawatcher-tls-pem"

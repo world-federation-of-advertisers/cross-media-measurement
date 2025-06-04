@@ -6,7 +6,7 @@ configs {
     file_system {
     }
   }
-  storage_path_prefix: "edp1"
+  storage_path_prefix: "edp7"
   cmms_connection {
     cert_file_path: "src/main/k8s/testing/secretfiles/edp7_tls.pem"
     private_key_file_path: "src/main/k8s/testing/secretfiles/edp7_tls.key"
