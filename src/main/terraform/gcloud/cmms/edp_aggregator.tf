@@ -56,27 +56,27 @@ locals {
     for edp in local.edp_display_names : edp => {
       cert_der = {
         secret_id         = "${edp}-cert-der"
-        secret_local_path = "../../../k8s/testing/secretfiles/${edp}_cs_cert.der"
+        secret_local_path = abspath("${path.root}/../../../k8s/testing/secretfiles/${edp}_cs_cert.der")
         is_binary_format  = true
       }
       private_der = {
         secret_id         = "${edp}-private-der"
-        secret_local_path = "../../../k8s/testing/secretfiles/${edp}_cs_private.der"
+        secret_local_path = abspath("${path.root}/../../../k8s/testing/secretfiles/${edp}_cs_private.der")
         is_binary_format  = true
       }
       enc_private = {
         secret_id         = "${edp}-enc-private"
-        secret_local_path = "../../../k8s/testing/secretfiles/${edp}_enc_private.tink"
+        secret_local_path = abspath("${path.root}/../../../k8s/testing/secretfiles/${edp}_enc_private.tink")
         is_binary_format  = true
       }
       tls_key = {
         secret_id         = "${edp}-tls-key"
-        secret_local_path = "../../../k8s/testing/secretfiles/${edp}_tls.key"
+        secret_local_path = abspath("${path.root}/../../../k8s/testing/secretfiles/${edp}_tls.key")
         is_binary_format  = false
       }
       tls_pem = {
         secret_id         = "${edp}-tls-pem"
-        secret_local_path = "../../../k8s/testing/secretfiles/${edp}_tls.pem"
+        secret_local_path = abspath("${path.root}/../../../k8s/testing/secretfiles/${edp}_tls.pem")
         is_binary_format  = false
       }
     }
