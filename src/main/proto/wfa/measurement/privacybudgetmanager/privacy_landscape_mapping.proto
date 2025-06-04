@@ -24,29 +24,29 @@ option java_outer_classname = "PrivacyLandscapeMappingProto";
 
 // Represents a mapping from one PrivacyLandscape to another.
 // Using this proto PBM maps all the PrivacyBuckets that was defined in a
-// given from_landscape to a given to_landscape.
+// given source_landscape to a given target_landscape.
 // Does not define adding Dimensions. If a dimension is added in the
 // to_landscape All the buckets will be automatically fanned out to that
 // dimension.
 message PrivacyLandscapeMapping {
-  string from_landscape = 1;
-  string to_landscape = 2;
+  string source_landscape = 1;
+  string target_landscape = 2;
 
   repeated DimensionMapping mappings = 3;
 
   // Represents that all from_dimension charges should be copied to
   // field values specified by to_dimension
   message DimensionMapping {
-    string from_dimension_field_path = 1;
-    string to_dimension_field_path = 2;
+    string source_dimension_field_path = 1;
+    string target_dimension_field_path = 2;
 
     repeated FieldValueMapping field_value_mappings = 3;
 
     // Maps the field value from the old dimension to multiple field
     // values to new dimension
     message FieldValueMapping {
-      PrivacyLandscape.Dimension.FieldValue from_field_value = 1;
-      repeated PrivacyLandscape.Dimension.FieldValue to_field_values = 2;
+      PrivacyLandscape.Dimension.FieldValue source_field_value = 1;
+      repeated PrivacyLandscape.Dimension.FieldValue target_field_values = 2;
     }
   }
 }

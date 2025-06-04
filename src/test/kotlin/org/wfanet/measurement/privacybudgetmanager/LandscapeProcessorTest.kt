@@ -29,7 +29,7 @@ import org.wfanet.measurement.privacybudgetmanager.PrivacyLandscapeMappingKt.Dim
 import org.wfanet.measurement.privacybudgetmanager.PrivacyLandscapeMappingKt.dimensionMapping
 
 @RunWith(JUnit4::class)
-class LandscapeUtilsTest {
+class LandscapeProcessorTest {
 
   @Test
   fun `getBuckets works as expected`() {
@@ -74,7 +74,8 @@ class LandscapeUtilsTest {
 
     val landscapeMasks = listOf(landscapeMask)
 
-    val result = LandscapeUtils.getBuckets("edpid", "mcid", landscapeMasks, landscape, descriptor)
+    val result =
+      LandscapeProcessor().getBuckets("edpid", "mcid", landscapeMasks, landscape, descriptor)
 
     // [18_34, MALE] has the population index of 0
     // [18_34, FEMALE] has the population index of 3
@@ -189,33 +190,33 @@ class LandscapeUtilsTest {
     }
     val mapping = privacyLandscapeMapping {
       mappings += dimensionMapping {
-        fromDimensionFieldPath = "person.gender"
-        toDimensionFieldPath = "person.gender"
+        sourceDimensionFieldPath = "person.gender"
+        targetDimensionFieldPath = "person.gender"
         fieldValueMappings += fieldValueMapping {
-          fromFieldValue = fieldValue { enumValue = "MALE" }
-          toFieldValues += fieldValue { enumValue = "MALE" }
+          sourceFieldValue = fieldValue { enumValue = "MALE" }
+          targetFieldValues += fieldValue { enumValue = "MALE" }
         }
         fieldValueMappings += fieldValueMapping {
-          fromFieldValue = fieldValue { enumValue = "FEMALE" }
-          toFieldValues += fieldValue { enumValue = "FEMALE" }
+          sourceFieldValue = fieldValue { enumValue = "FEMALE" }
+          targetFieldValues += fieldValue { enumValue = "FEMALE" }
         }
       }
       mappings += dimensionMapping {
-        fromDimensionFieldPath = "person.age_group"
-        toDimensionFieldPath = "person.age_group"
+        sourceDimensionFieldPath = "person.age_group"
+        targetDimensionFieldPath = "person.age_group"
         fieldValueMappings += fieldValueMapping {
-          fromFieldValue = fieldValue { enumValue = "YEARS_18_TO_34" }
-          toFieldValues += fieldValue { enumValue = "YEARS_18_TO_34" }
+          sourceFieldValue = fieldValue { enumValue = "YEARS_18_TO_34" }
+          targetFieldValues += fieldValue { enumValue = "YEARS_18_TO_34" }
         }
         fieldValueMappings += fieldValueMapping {
-          fromFieldValue = fieldValue { enumValue = "YEARS_35_TO_54" }
-          toFieldValues += fieldValue { enumValue = "YEARS_35_TO_44" }
-          toFieldValues += fieldValue { enumValue = "YEARS_45_TO_54" }
+          sourceFieldValue = fieldValue { enumValue = "YEARS_35_TO_54" }
+          targetFieldValues += fieldValue { enumValue = "YEARS_35_TO_44" }
+          targetFieldValues += fieldValue { enumValue = "YEARS_45_TO_54" }
         }
         fieldValueMappings += fieldValueMapping {
-          fromFieldValue = fieldValue { enumValue = "YEARS_55_PLUS" }
-          toFieldValues += fieldValue { enumValue = "YEARS_55_TO_64" }
-          toFieldValues += fieldValue { enumValue = "YEARS_65_PLUS" }
+          sourceFieldValue = fieldValue { enumValue = "YEARS_55_PLUS" }
+          targetFieldValues += fieldValue { enumValue = "YEARS_55_TO_64" }
+          targetFieldValues += fieldValue { enumValue = "YEARS_65_PLUS" }
         }
       }
     }
@@ -253,7 +254,7 @@ class LandscapeUtilsTest {
         ),
       )
 
-    val result = LandscapeUtils.mapBuckets(buckets, mapping, fomLandscape, toLandscape)
+    val result = LandscapeProcessor().mapBuckets(buckets, mapping, fomLandscape, toLandscape)
 
     // Population index 0 is mapped to 0 in the new landscape
     //  This corresponds to (MALE, YEARS_18_TO_34) being mapped to  (MALE, YEARS_18_TO_34)
@@ -369,31 +370,31 @@ class LandscapeUtilsTest {
     }
     val mapping = privacyLandscapeMapping {
       mappings += dimensionMapping {
-        fromDimensionFieldPath = "person.gender"
-        toDimensionFieldPath = "person.gender"
+        sourceDimensionFieldPath = "person.gender"
+        targetDimensionFieldPath = "person.gender"
         fieldValueMappings += fieldValueMapping {
-          fromFieldValue = fieldValue { enumValue = "MALE" }
-          toFieldValues += fieldValue { enumValue = "MALE" }
+          sourceFieldValue = fieldValue { enumValue = "MALE" }
+          targetFieldValues += fieldValue { enumValue = "MALE" }
         }
         fieldValueMappings += fieldValueMapping {
-          fromFieldValue = fieldValue { enumValue = "FEMALE" }
-          toFieldValues += fieldValue { enumValue = "FEMALE" }
+          sourceFieldValue = fieldValue { enumValue = "FEMALE" }
+          targetFieldValues += fieldValue { enumValue = "FEMALE" }
         }
       }
       mappings += dimensionMapping {
-        fromDimensionFieldPath = "person.age_group"
-        toDimensionFieldPath = "person.age_group"
+        sourceDimensionFieldPath = "person.age_group"
+        targetDimensionFieldPath = "person.age_group"
         fieldValueMappings += fieldValueMapping {
-          fromFieldValue = fieldValue { enumValue = "YEARS_18_TO_34" }
-          toFieldValues += fieldValue { enumValue = "YEARS_18_TO_34" }
+          sourceFieldValue = fieldValue { enumValue = "YEARS_18_TO_34" }
+          targetFieldValues += fieldValue { enumValue = "YEARS_18_TO_34" }
         }
         fieldValueMappings += fieldValueMapping {
-          fromFieldValue = fieldValue { enumValue = "YEARS_35_TO_54" }
-          toFieldValues += fieldValue { enumValue = "YEARS_35_TO_54" }
+          sourceFieldValue = fieldValue { enumValue = "YEARS_35_TO_54" }
+          targetFieldValues += fieldValue { enumValue = "YEARS_35_TO_54" }
         }
         fieldValueMappings += fieldValueMapping {
-          fromFieldValue = fieldValue { enumValue = "YEARS_55_PLUS" }
-          toFieldValues += fieldValue { enumValue = "YEARS_55_PLUS" }
+          sourceFieldValue = fieldValue { enumValue = "YEARS_55_PLUS" }
+          targetFieldValues += fieldValue { enumValue = "YEARS_55_PLUS" }
         }
       }
     }
@@ -431,12 +432,12 @@ class LandscapeUtilsTest {
         ),
       )
 
-    val result = LandscapeUtils.mapBuckets(buckets, mapping, fomLandscape, toLandscape)
+    val result = LandscapeProcessor().mapBuckets(buckets, mapping, fomLandscape, toLandscape)
 
     // Adding a new dimension with 2 values to the landscape fansout all other dimensions.
     // While there are 3 input buckets, we receive 6 mapped buckets because of the new social grade
     // dimension
-    // Population indexes for the From Landscape  :
+    // Population indexes for the source Landscape  :
     // /populationIndex 0 ---- [person.gender.MALE, person.age_group.YEARS_18_TO_34]
     // populationIndex 1 ---- [person.gender.MALE, person.age_group.YEARS_35_TO_54]
     // populationIndex 2 ---- [person.gender.MALE, person.age_group.YEARS_55_PLUS]

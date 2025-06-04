@@ -33,9 +33,9 @@ kt_jvm_test(
 )
 
 kt_jvm_test(
-    name = "landscape_utils_test",
-    srcs = ["LandscapeUtilsTest.kt"],
-    test_class = "org.wfanet.measurement.privacybudgetmanager.LandscapeUtilsTest",
+    name = "landscape_processor_test",
+    srcs = ["LandscapeProcessorTest.kt"],
+    test_class = "org.wfanet.measurement.privacybudgetmanager.LandscapeProcessorTest",
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/privacybudgetmanager:privacy_budget_manager",
         "//src/main/kotlin/org/wfanet/measurement/privacybudgetmanager/testing",

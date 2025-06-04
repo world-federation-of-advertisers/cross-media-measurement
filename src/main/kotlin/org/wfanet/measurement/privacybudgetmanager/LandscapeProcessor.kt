@@ -28,10 +28,10 @@ import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters.mat
 const val NUM_VID_INTERVALS = 300
 
 /**
- * Provides utilities for processing and transforming `PrivacyLandscape` definitions, by generation
- * and mapping of `PrivacyBucket`s.
+ * The `LandscapeProcessor` handles the processing and transformation of `PrivacyLandscape`
+ * definitions, primarily for generating and mapping `PrivacyBucket`s.
  *
- * This object implements two core functionalities:
+ * It provides two core functionalities:
  * 1. **Privacy Bucket Generation (`getBuckets`)**: This function creates `PrivacyBucket` instances
  *    by applying filtering criteria (defined by `EventGroupLandscapeMask`s) to a given
  *    `PrivacyLandscape`. It determines the relevant population segments, VID intervals, and
@@ -41,7 +41,7 @@ const val NUM_VID_INTERVALS = 300
  *    `PrivacyLandscapeMapping` to translate population indices between the two landscapes, allowing
  *    buckets defined in one structural context to be accurately represented in another.
  */
-object LandscapeUtils {
+class LandscapeProcessor {
 
   // Cache the landscape based event message generation so its not recomputed for same inputs.
   private val landscapeCache = ConcurrentHashMap<LandscapeNode, List<DynamicMessage>>()
@@ -52,8 +52,8 @@ object LandscapeUtils {
    */
   private data class PopulationMappingKey(
     val mapping: PrivacyLandscapeMapping,
-    val sourceLandscape: PrivacyLandscape,
-    val targetLandscape: PrivacyLandscape,
+    val source: PrivacyLandscape,
+    val target: PrivacyLandscape,
   )
 
   /**
@@ -66,12 +66,12 @@ object LandscapeUtils {
    * - `targetLandscape`: The [PrivacyLandscape] to which indices are being mapped.
    *
    * The value is a `Map<Int, Set<Int>>`. In this map:
-   * - The key (`Int`) represents a **population index from the `sourceLandscape`**. A population
+   * - The key (`Int`) represents a **population index from the `source Landscape`**. A population
    *   index is a unique identifier for a specific combination of dimension values within that
    *   source landscape e.g : (Age_18_24, Female) or (Age_25_34, Male).
-   * - The value (`Set<Int>`) is a set of **population indices within the `targetLandscape`**. These
-   *   are all the combinations of dimension values in the target landscape that correspond to the
-   *   source population index, according to the rules defined in the
+   * - The value (`Set<Int>`) is a set of **population indices within the `target Landscape`**.
+   *   These are all the combinations of dimension values in the target landscape that correspond to
+   *   the source population index, according to the rules defined in the
    *   `PopulationMappingKey.mapping`.
    */
   private val mappingCache = ConcurrentHashMap<PopulationMappingKey, Map<Int, Set<Int>>>()
@@ -94,10 +94,7 @@ object LandscapeUtils {
   )
 
   /** Wraps a landscape to be mapped from and its mapping to another landscape. */
-  data class MappingNode(
-    val fromLandscape: PrivacyLandscape,
-    val mapping: PrivacyLandscapeMapping?,
-  )
+  data class MappingNode(val source: PrivacyLandscape, val mapping: PrivacyLandscapeMapping?)
 
   /**
    * Generates a list of [PrivacyBucket]s based on filtering criteria applied to a
@@ -168,15 +165,15 @@ object LandscapeUtils {
    * [PrivacyLandscape].
    *
    * This function uses a [PrivacyLandscapeMapping] to determine how population indices in the
-   * `from` landscape correspond to population indices in the `to` landscape. Each input bucket is
+   * `source` landscape correspond to population indices in the `to` landscape. Each input bucket is
    * then transformed into one or more output buckets based on this mapping, preserving the original
    * row key and VID interval index.
    *
    * @param buckets The list of [PrivacyBucket]s to be mapped.
    * @param mapping The [PrivacyLandscapeMapping] defining the transformation rules between the
    *   source and target landscapes.
-   * @param from The source [PrivacyLandscape] from which the buckets originate.
-   * @param to The target [PrivacyLandscape] to which the buckets will be mapped.
+   * @param source The source [PrivacyLandscape] from which the buckets originate.
+   * @param target The target [PrivacyLandscape] to which the buckets will be mapped.
    * @return A new list of [PrivacyBucket]s mapped to the target landscape.
    * @throws IllegalStateException if a population index from an input bucket cannot be found in the
    *   computed population index mapping (which indicates an inconsistency).
@@ -184,11 +181,11 @@ object LandscapeUtils {
   fun mapBuckets(
     buckets: List<PrivacyBucket>,
     mapping: PrivacyLandscapeMapping,
-    from: PrivacyLandscape,
-    to: PrivacyLandscape,
+    source: PrivacyLandscape,
+    target: PrivacyLandscape,
   ): List<PrivacyBucket> {
     val mappedPrivacyBuckets = mutableListOf<PrivacyBucket>()
-    val populationIndexMapping = getPopulationIndexMapping(mapping, from, to)
+    val populationIndexMapping = getPopulationIndexMapping(mapping, source, target)
 
     for (bucket in buckets) {
       val mappedPopulationIndices =
@@ -294,7 +291,7 @@ object LandscapeUtils {
     return combinations
   }
 
-  private fun generateEventTemplateProtosFromDescriptors(
+  private fun generateEventProtosFromDescriptors(
     landscapeNode: LandscapeNode
   ): List<DynamicMessage> {
     return landscapeCache.getOrPut(landscapeNode) {
@@ -308,7 +305,7 @@ object LandscapeUtils {
 
       if (eventTemplateDescriptor == null) {
         throw IllegalArgumentException(
-          "Event template '${landscapeNode.landscape.eventTemplateName}' not found in the fileDescriptor."
+          "Event template '${landscapeNode.landscape.eventTemplateName}' not found in the Descriptor."
         )
       }
 
@@ -343,9 +340,7 @@ object LandscapeUtils {
     eventTemplateDescriptor: Descriptors.Descriptor,
   ): List<Int> {
     val generatedProtos =
-      generateEventTemplateProtosFromDescriptors(
-        LandscapeNode(privacyLandscape, eventTemplateDescriptor)
-      )
+      generateEventProtosFromDescriptors(LandscapeNode(privacyLandscape, eventTemplateDescriptor))
     val operativeFields = privacyLandscape.dimensionsList.map { it.fieldPath }.toSet()
     val program = compileProgram(eventTemplateDescriptor, eventFilter, operativeFields)
 
@@ -396,7 +391,7 @@ object LandscapeUtils {
     return indextoFieldMap
   }
 
-  private fun getFieldToIndexMapping(privacyLandscape: PrivacyLandscape): Map<String, Set<Int>> {
+  fun getFieldToIndexMapping(privacyLandscape: PrivacyLandscape): Map<String, Set<Int>> {
     val fieldToIndexMap = mutableMapOf<String, MutableSet<Int>>()
     val combinations = getFieldValueCombinations(privacyLandscape.dimensionsList, true)
     for ((index, combination) in combinations.withIndex()) {
@@ -408,19 +403,19 @@ object LandscapeUtils {
   }
 
   private fun getDimIndices(
-    fromFieldValue: String,
+    sourceFieldValue: String,
     mapping: Map<String, List<String>>,
-    toLandscapeIndexMapping: Map<String, Set<Int>>,
+    targetLandscapeIndexMapping: Map<String, Set<Int>>,
   ): List<Int> {
     val targetIndices = mutableListOf<Int>()
 
-    // Find all "to" field values associated with the given "fromFieldValue"
-    val mappedToValues = mapping[fromFieldValue]
+    // Find all "to" field values associated with the given "sourceFieldValue"
+    val mappedTargetValues = mapping[sourceFieldValue]
 
-    if (mappedToValues != null) {
-      for (toValue in mappedToValues) {
+    if (mappedTargetValues != null) {
+      for (targetValue in mappedTargetValues) {
         // For each "to" field value, find the corresponding indices in toLandscapeIndexMapping
-        val indices = toLandscapeIndexMapping[toValue]
+        val indices = targetLandscapeIndexMapping[targetValue]
         if (indices != null) {
           targetIndices.addAll(indices)
         }
@@ -436,19 +431,21 @@ object LandscapeUtils {
     val mappingResult = mutableMapOf<String, MutableList<String>>()
 
     for (dimensionMapping in privacyLandscapeMapping.mappingsList) {
-      val fromFieldPath = dimensionMapping.fromDimensionFieldPath
-      val toFieldPath = dimensionMapping.toDimensionFieldPath
+      val sourceFieldPath = dimensionMapping.sourceDimensionFieldPath
+      val targetFieldPath = dimensionMapping.targetDimensionFieldPath
 
       for (fieldValueMapping in dimensionMapping.fieldValueMappingsList) {
-        val fromFieldValue = fieldValueMapping.fromFieldValue
-        val toFieldValuesList = fieldValueMapping.toFieldValuesList
+        val sourceFieldValue = fieldValueMapping.sourceFieldValue
+        val targetFieldValuesList = fieldValueMapping.targetFieldValuesList
 
-        val fromKey = "$fromFieldPath.${fromFieldValue.enumValue}"
+        val sourceKey = "$sourceFieldPath.${sourceFieldValue.enumValue}"
 
-        val toValues =
-          toFieldValuesList.map { toFieldValue -> "$toFieldPath.${toFieldValue.enumValue}" }
+        val targetValues =
+          targetFieldValuesList.map { targetFieldValue ->
+            "$targetFieldPath.${targetFieldValue.enumValue}"
+          }
 
-        mappingResult.computeIfAbsent(fromKey) { mutableListOf() }.addAll(toValues)
+        mappingResult.computeIfAbsent(sourceKey) { mutableListOf() }.addAll(targetValues)
       }
     }
 
@@ -460,22 +457,22 @@ object LandscapeUtils {
    *
    * @param privacyLandscapeMapping The mapping between dimensions and field values of the two
    *   privacy landscapes.
-   * @param from The source [PrivacyLandscape] whose indices are being mapped.
-   * @param to The target [PrivacyLandscape] to which the indices are mapped.
+   * @param source The [PrivacyLandscape] whose indices are being mapped.
+   * @param target The [PrivacyLandscape] to which the indices are mapped.
    * @return A map where each key is an index from the source privacy landscape, and the value is a
    *   set of indices in the target privacy landscape that correspond to the key.
    */
   private fun getPopulationIndexMapping(
     privacyLandscapeMapping: PrivacyLandscapeMapping,
-    from: PrivacyLandscape,
-    to: PrivacyLandscape,
+    source: PrivacyLandscape,
+    target: PrivacyLandscape,
   ): Map<Int, Set<Int>> {
-    val key = PopulationMappingKey(privacyLandscapeMapping, from, to)
+    val key = PopulationMappingKey(privacyLandscapeMapping, source, target)
     return mappingCache.getOrPut(key) {
       val populationIndexMapping = mutableMapOf<Int, MutableSet<Int>>()
 
-      val fromLandscapeFieldMapping = getIndexToFieldMapping(from)
-      val toLandscapeIndexMapping = getFieldToIndexMapping(to)
+      val sourceLandscapeFieldMapping = getIndexToFieldMapping(source)
+      val targetLandscapeIndexMapping = getFieldToIndexMapping(target)
       val mapping = getMapping(privacyLandscapeMapping)
 
       // Algorithm:
@@ -491,15 +488,16 @@ object LandscapeUtils {
       //      and index 1 has both MALE and 25_34
       //   Based on MALE maps to MALE and 18_34 maps to 18_24 25_34. So population index 0
       //    should be mapped to [0,1]
-      for ((index, fromFieldValues) in fromLandscapeFieldMapping.entries) {
-        val allToDimIndicies = mutableListOf<List<Int>>()
-        for (fromFieldValue in fromFieldValues) {
-          allToDimIndicies += getDimIndices(fromFieldValue, mapping, toLandscapeIndexMapping)
+      for ((index, sourceFieldValues) in sourceLandscapeFieldMapping.entries) {
+        val allTargetDimIndicies = mutableListOf<List<Int>>()
+        for (sourceFieldValue in sourceFieldValues) {
+          allTargetDimIndicies +=
+            getDimIndices(sourceFieldValue, mapping, targetLandscapeIndexMapping)
         }
 
         val intersection =
-          if (allToDimIndicies.isNotEmpty()) {
-            allToDimIndicies.reduce { acc, list -> acc.intersect(list.toSet()).toList() }
+          if (allTargetDimIndicies.isNotEmpty()) {
+            allTargetDimIndicies.reduce { acc, list -> acc.intersect(list.toSet()).toList() }
           } else {
             emptyList()
           }

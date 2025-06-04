@@ -15,7 +15,7 @@
 package org.wfanet.measurement.privacybudgetmanager
 
 import com.google.protobuf.Descriptors
-import org.wfanet.measurement.privacybudgetmanager.LandscapeUtils.MappingNode
+import org.wfanet.measurement.privacybudgetmanager.LandscapeProcessor.MappingNode
 
 /**
  * Instantiates a privacy budget manager.
@@ -33,6 +33,7 @@ class PrivacyBudgetManager(
   private val auditLog: AuditLog,
   private val landscapeMappingChain: List<MappingNode>,
   private val ledger: Ledger,
+  private val landscapeProcessor: LandscapeProcessor,
   private val maximumPrivacyBudget: Float,
   private val maximumTotalDelta: Float,
   private val eventTemplateDescriptor: Descriptors.Descriptor,
@@ -142,16 +143,14 @@ class PrivacyBudgetManager(
     eventGroupLandscapeMasks: List<EventGroupLandscapeMask>,
   ): List<PrivacyBucket> {
     val initialNode =
-      landscapeMappingChain.find {
-        it.fromLandscape.landscapeIdentifier == inactivelandscapeIdentifier
-      }
+      landscapeMappingChain.find { it.source.landscapeIdentifier == inactivelandscapeIdentifier }
         ?: throw IllegalStateException(
           "Inactive Privacy landscape with name '$inactivelandscapeIdentifier' not found."
         )
 
-    val initialLandscape = initialNode.fromLandscape
+    val initialLandscape = initialNode.source
     val initialBuckets =
-      LandscapeUtils.getBuckets(
+      landscapeProcessor.getBuckets(
         eventDataProviderId,
         measurementConsumerId,
         eventGroupLandscapeMasks,
@@ -169,13 +168,13 @@ class PrivacyBudgetManager(
 
       if (
         currentNode.mapping == null ||
-          (nextNode.fromLandscape.landscapeIdentifier != currentNode.mapping.toLandscape)
+          (nextNode.source.landscapeIdentifier != currentNode.mapping.targetLandscape)
       ) {
         throw IllegalStateException("Privacy landscape mapping is illegal")
       }
-      val toLandscape = nextNode.fromLandscape
+      val toLandscape = nextNode.source
       currentBuckets =
-        LandscapeUtils.mapBuckets(
+        landscapeProcessor.mapBuckets(
           currentBuckets,
           currentNode.mapping,
           currentLandscape,
