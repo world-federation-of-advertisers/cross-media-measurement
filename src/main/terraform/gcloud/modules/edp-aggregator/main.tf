@@ -81,14 +81,6 @@ locals {
     }
   ]...)
 
-    output "all_secrets_debug" {
-      value = local.edps_secrets
-    }
-
-    output "edpa_tee_app_tls_key" {
-      value = var.edpa_tee_app_tls_key
-    }
-
   all_secrets = merge(
     { edpa_tee_app_tls_key       = var.edpa_tee_app_tls_key },
     { edpa_tee_app_tls_pem       = var.edpa_tee_app_tls_pem },
@@ -148,6 +140,18 @@ locals {
     "event_group_sync"    = module.event_group_sync_function_service_account.cloud_function_service_account.email
   }
 }
+
+output "edps_secrets" {
+  value = "-----------> edp certs: ${local.edps_secrets}"
+}
+
+output "edpa_tee_app_tls_key" {
+  value = "-----------> edpa key: ${var.edpa_tee_app_tls_key}"
+}
+
+output "all_secrets" {
+    value = "-----------> local secret: ${local.all_secrets}"
+  }
 
 module "edp_aggregator_bucket" {
   source   = "../storage-bucket"
