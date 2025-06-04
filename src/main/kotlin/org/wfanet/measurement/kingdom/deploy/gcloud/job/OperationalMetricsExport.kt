@@ -21,6 +21,8 @@ import com.google.cloud.bigquery.FieldValueList
 import com.google.cloud.bigquery.QueryJobConfiguration
 import com.google.cloud.bigquery.storage.v1.BigQueryWriteClient
 import com.google.cloud.bigquery.storage.v1.Exceptions.AppendSerializationError
+import com.google.cloud.bigquery.storage.v1.Exceptions.OffsetAlreadyExists
+import com.google.cloud.bigquery.storage.v1.Exceptions.OffsetOutOfRange
 import com.google.cloud.bigquery.storage.v1.ProtoRows
 import com.google.cloud.bigquery.storage.v1.ProtoSchema
 import com.google.cloud.bigquery.storage.v1.ProtoSchemaConverter
@@ -93,7 +95,7 @@ class OperationalMetricsExport(
 
     val query =
       """
-    SELECT update_time, external_measurement_consumer_id, external_measurement_id
+    SELECT update_time, external_measurement_consumer_id, external_measurement_id, next_offset
     FROM `$datasetId.$latestMeasurementReadTableId`
     ORDER BY update_time DESC, external_measurement_consumer_id DESC, external_measurement_id DESC
     LIMIT 1
@@ -107,6 +109,9 @@ class OperationalMetricsExport(
     logger.info("Retrieved latest measurement read info from BigQuery")
 
     val latestMeasurementReadFromPreviousJob: FieldValueList? = results.firstOrNull()
+
+    var offset =
+      latestMeasurementReadFromPreviousJob?.get("next_offset")?.longValue ?: 0L
 
     var streamMeasurementsRequest = streamMeasurementsRequest {
       measurementView = Measurement.View.DEFAULT
@@ -139,6 +144,7 @@ class OperationalMetricsExport(
         projectId = projectId,
         datasetId = datasetId,
         tableId = measurementsTableId,
+        streamId = "measurements",
         client = bigQueryWriteClient,
         protoSchema = ProtoSchemaConverter.convert(MeasurementsTableRow.getDescriptor()),
         streamWriterFactory = streamWriterFactory,
@@ -148,6 +154,7 @@ class OperationalMetricsExport(
             projectId = projectId,
             datasetId = datasetId,
             tableId = latestMeasurementReadTableId,
+            streamId = null,
             client = bigQueryWriteClient,
             protoSchema =
               ProtoSchemaConverter.convert(LatestMeasurementReadTableRow.getDescriptor()),
@@ -226,7 +233,8 @@ class OperationalMetricsExport(
               logger.info("Measurements read from the Kingdom Internal Server")
 
               if (measurementsProtoRowsBuilder.serializedRowsCount > 0) {
-                measurementsDataWriter.appendRows(measurementsProtoRowsBuilder.build())
+                measurementsDataWriter.appendRows(measurementsProtoRowsBuilder.build(), offset)
+                offset += measurementsProtoRowsBuilder.serializedRowsCount
               } else {
                 logger.info("No more Measurements to process")
                 break
@@ -243,6 +251,7 @@ class OperationalMetricsExport(
                 externalMeasurementConsumerId =
                   apiIdToExternalId(lastMeasurement.measurementConsumerId)
                 externalMeasurementId = apiIdToExternalId(lastMeasurement.measurementId)
+                nextOffset = offset
               }
 
               latestMeasurementReadDataWriter.appendRows(
@@ -277,7 +286,7 @@ class OperationalMetricsExport(
 
     val query =
       """
-    SELECT update_time, external_data_provider_id, external_requisition_id
+    SELECT update_time, external_data_provider_id, external_requisition_id, next_offset
     FROM `$datasetId.$latestRequisitionReadTableId`
     ORDER BY update_time DESC, external_data_provider_id DESC, external_requisition_id DESC
     LIMIT 1
@@ -291,6 +300,9 @@ class OperationalMetricsExport(
     logger.info("Retrieved latest requisition read info from BigQuery")
 
     val latestRequisitionReadFromPreviousJob: FieldValueList? = results.firstOrNull()
+
+    var offset =
+      latestRequisitionReadFromPreviousJob?.get("next_offset")?.longValue ?: 0L
 
     var streamRequisitionsRequest = streamRequisitionsRequest {
       limit = batchSize
@@ -318,6 +330,7 @@ class OperationalMetricsExport(
         projectId = projectId,
         datasetId = datasetId,
         tableId = requisitionsTableId,
+        streamId = "requisitions",
         client = bigQueryWriteClient,
         protoSchema = ProtoSchemaConverter.convert(RequisitionsTableRow.getDescriptor()),
         streamWriterFactory = streamWriterFactory,
@@ -327,6 +340,7 @@ class OperationalMetricsExport(
             projectId = projectId,
             datasetId = datasetId,
             tableId = latestRequisitionReadTableId,
+            streamId = null,
             client = bigQueryWriteClient,
             protoSchema =
               ProtoSchemaConverter.convert(LatestRequisitionReadTableRow.getDescriptor()),
@@ -403,7 +417,8 @@ class OperationalMetricsExport(
               logger.info("Requisitions read from the Kingdom Internal Server")
 
               if (requisitionsProtoRowsBuilder.serializedRowsCount > 0) {
-                requisitionsDataWriter.appendRows(requisitionsProtoRowsBuilder.build())
+                requisitionsDataWriter.appendRows(requisitionsProtoRowsBuilder.build(), offset)
+                offset += requisitionsProtoRowsBuilder.serializedRowsCount
               } else {
                 logger.info("No more Requisitions to process")
                 break
@@ -419,6 +434,7 @@ class OperationalMetricsExport(
                 updateTime = Timestamps.toNanos(latestUpdateTime)
                 externalDataProviderId = apiIdToExternalId(lastRequisition.dataProviderId)
                 externalRequisitionId = apiIdToExternalId(lastRequisition.requisitionId)
+                nextOffset = offset
               }
 
               latestRequisitionReadDataWriter.appendRows(
@@ -451,7 +467,7 @@ class OperationalMetricsExport(
 
     val query =
       """
-    SELECT update_time, external_computation_id
+    SELECT update_time, external_computation_id, next_offset
     FROM `$datasetId.$latestComputationReadTableId`
     ORDER BY update_time DESC, external_computation_id DESC
     LIMIT 1
@@ -465,6 +481,9 @@ class OperationalMetricsExport(
     logger.info("Retrieved latest computation read info from BigQuery")
 
     val latestComputationReadFromPreviousJob: FieldValueList? = results.firstOrNull()
+
+    var offset =
+      latestComputationReadFromPreviousJob?.get("next_offset")?.longValue ?: 0L
 
     var streamComputationsRequest = streamMeasurementsRequest {
       measurementView = Measurement.View.COMPUTATION_STATS
@@ -493,6 +512,7 @@ class OperationalMetricsExport(
         projectId = projectId,
         datasetId = datasetId,
         tableId = computationParticipantStagesTableId,
+        streamId = "computation-participant-stages",
         client = bigQueryWriteClient,
         protoSchema =
           ProtoSchemaConverter.convert(ComputationParticipantStagesTableRow.getDescriptor()),
@@ -503,6 +523,7 @@ class OperationalMetricsExport(
             projectId = projectId,
             datasetId = datasetId,
             tableId = latestComputationReadTableId,
+            streamId = null,
             client = bigQueryWriteClient,
             protoSchema =
               ProtoSchemaConverter.convert(LatestComputationReadTableRow.getDescriptor()),
@@ -640,22 +661,25 @@ class OperationalMetricsExport(
 
               logger.info("Computations read from the Kingdom Internal Server")
 
+              // Possible for there to be no stages because all measurements in response are
+              // direct.
               if (computationParticipantStagesProtoRowsBuilder.serializedRowsCount > 0) {
                 computationParticipantStagesDataWriter.appendRows(
-                  computationParticipantStagesProtoRowsBuilder.build()
+                  computationParticipantStagesProtoRowsBuilder.build(),
+                  offset,
                 )
-
-                logger.info("Computation Participant Stages Metrics written to BigQuery")
-                // Possible for there to be no stages because all measurements in response are
-                // direct.
+                offset += computationParticipantStagesProtoRowsBuilder.serializedRowsCount
               } else if (computationsQueryResponseSize == 0) {
                 logger.info("No more Computations to process")
                 break
               }
 
+              logger.info("Computation Participant Stages Metrics written to BigQuery")
+
               val latestComputationReadTableRow = latestComputationReadTableRow {
                 updateTime = Timestamps.toNanos(latestComputation.updateTime)
                 externalComputationId = latestComputation.externalComputationId
+                nextOffset = offset
               }
 
               latestComputationReadDataWriter.appendRows(
@@ -716,12 +740,13 @@ class OperationalMetricsExport(
     private val projectId: String,
     private val datasetId: String,
     private val tableId: String,
+    private val streamId: String?,
     private val client: BigQueryWriteClient,
     private val protoSchema: ProtoSchema,
     private val streamWriterFactory: StreamWriterFactory,
   ) : AutoCloseable {
     private var streamWriter: StreamWriter =
-      streamWriterFactory.create(projectId, datasetId, tableId, client, protoSchema)
+      streamWriterFactory.create(projectId, datasetId, tableId, streamId, client, protoSchema)
     private var recreateCount: Int = 0
 
     override fun close() {
@@ -732,18 +757,19 @@ class OperationalMetricsExport(
      * Writes data to the stream.
      *
      * @param protoRows protos representing the rows to write.
+     * @param offset stream offset
      * @throws IllegalStateException if append fails and error is not retriable or too many retry
      *   attempts have been made
      */
     @Blocking
-    fun appendRows(protoRows: ProtoRows) {
+    fun appendRows(protoRows: ProtoRows, offset: Long? = null) {
       logger.info("Begin writing to stream ${streamWriter.streamName}")
       for (i in 1..RETRY_COUNT) {
         if (streamWriter.isClosed) {
           if (!streamWriter.isUserClosed && recreateCount < MAX_RECREATE_COUNT) {
             logger.info("Recreating stream writer")
             streamWriter =
-              streamWriterFactory.create(projectId, datasetId, tableId, client, protoSchema)
+              streamWriterFactory.create(projectId, datasetId, tableId, streamId, client, protoSchema)
             recreateCount++
           } else {
             throw IllegalStateException("Unable to recreate stream writer")
@@ -751,6 +777,49 @@ class OperationalMetricsExport(
         }
 
         try {
+          val response =
+            if (offset != null) {
+              streamWriter.append(protoRows, offset).get()
+            } else {
+              streamWriter.append(protoRows).get()
+            }
+          if (response.hasError()) {
+            logger.warning("Write response error: ${response.error}")
+            if (response.error.code != Code.INTERNAL.number) {
+              throw IllegalStateException("Cannot retry failed append.")
+            } else if (i == RETRY_COUNT) {
+              throw IllegalStateException("Too many retries.")
+            }
+          } else {
+            logger.info("End writing to stream ${streamWriter.streamName}")
+            break
+          }
+        // If error occurred before storing the next offset, but after the append
+        } catch (e: OffsetAlreadyExists) {
+          // If this append has more rows than the previous one, only the rows that haven't been
+          // appended will actually be appended
+          val numRowsAppended = (e.expectedOffset - offset!!).toInt()
+          val newProtoRowsList =
+            if (numRowsAppended < protoRows.serializedRowsCount) {
+              protoRows.serializedRowsList.subList(numRowsAppended, protoRows.serializedRowsCount)
+            } else break
+
+          val newProtoRows = ProtoRows.newBuilder().addAllSerializedRows(newProtoRowsList).build()
+          val response = streamWriter.append(newProtoRows, e.expectedOffset).get()
+          if (response.hasError()) {
+            logger.warning("Write response error: ${response.error}")
+            if (response.error.code != Code.INTERNAL.number) {
+              throw IllegalStateException("Cannot retry failed append.")
+            } else if (i == RETRY_COUNT) {
+              throw IllegalStateException("Too many retries.")
+            }
+          } else {
+            logger.info("End writing to stream ${streamWriter.streamName}")
+            break
+          }
+        // If stream closed due to lack of activity, then offset is no longer valid and restarts
+        // from 0
+        } catch (e: OffsetOutOfRange) {
           val response = streamWriter.append(protoRows).get()
           if (response.hasError()) {
             logger.warning("Write response error: ${response.error}")

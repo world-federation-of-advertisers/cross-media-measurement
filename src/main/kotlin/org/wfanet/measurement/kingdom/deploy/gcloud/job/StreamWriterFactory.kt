@@ -17,11 +17,15 @@
 package org.wfanet.measurement.kingdom.deploy.gcloud.job
 
 import com.google.api.gax.core.FixedExecutorProvider
+import com.google.api.gax.rpc.ApiException
+import com.google.api.gax.rpc.StatusCode
 import com.google.cloud.bigquery.storage.v1.AppendRowsRequest
 import com.google.cloud.bigquery.storage.v1.BigQueryWriteClient
 import com.google.cloud.bigquery.storage.v1.ProtoSchema
 import com.google.cloud.bigquery.storage.v1.StreamWriter
 import com.google.cloud.bigquery.storage.v1.TableName
+import com.google.cloud.bigquery.storage.v1.WriteStream
+import com.google.cloud.bigquery.storage.v1.WriteStreamName
 import java.util.concurrent.Executors
 
 fun interface StreamWriterFactory {
@@ -29,6 +33,7 @@ fun interface StreamWriterFactory {
     projectId: String,
     datasetId: String,
     tableId: String,
+    streamId: String?,
     client: BigQueryWriteClient,
     protoSchema: ProtoSchema,
   ): StreamWriter
@@ -39,11 +44,33 @@ class StreamWriterFactoryImpl : StreamWriterFactory {
     projectId: String,
     datasetId: String,
     tableId: String,
+    streamId: String?,
     client: BigQueryWriteClient,
     protoSchema: ProtoSchema,
   ): StreamWriter {
     val tableName = TableName.of(projectId, datasetId, tableId)
-    return StreamWriter.newBuilder(StreamWriter.getDefaultStreamName(tableName), client)
+
+    val streamWriterBuilder =
+      if (streamId == null) {
+        StreamWriter.newBuilder(StreamWriter.getDefaultStreamName(tableName), client)
+      } else {
+        val writeStreamName = WriteStreamName.of(projectId, datasetId, tableId, streamId)
+
+        // Stream can be closed if nothing is appended after 3 days
+        try {
+          client.getWriteStream(writeStreamName)
+        } catch (e: ApiException) {
+          if (e.statusCode.code.equals(StatusCode.Code.NOT_FOUND)) {
+            val writeStream = WriteStream.newBuilder().setType(WriteStream.Type.COMMITTED).setName(writeStreamName.toString()).build()
+            client.createWriteStream(tableName, writeStream)
+          }
+
+          throw e
+        }
+        StreamWriter.newBuilder(writeStreamName.toString(), client)
+      }
+
+    return streamWriterBuilder
       .setExecutorProvider(FixedExecutorProvider.create(Executors.newScheduledThreadPool(1)))
       .setEnableConnectionPool(true)
       .setDefaultMissingValueInterpretation(
