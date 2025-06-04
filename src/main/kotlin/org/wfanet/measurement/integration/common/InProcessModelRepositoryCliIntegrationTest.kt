@@ -19,7 +19,6 @@ package org.wfanet.measurement.integration.common
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
 import com.google.protobuf.timestamp
-import io.grpc.Channel
 import io.grpc.ManagedChannel
 import io.netty.handler.ssl.ClientAuth
 import java.io.File
@@ -112,6 +111,7 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
   private lateinit var publicPopulationsClient: PopulationsBlockingStub
 
   private lateinit var server: CommonServer
+  private lateinit var server2: CommonServer
 
   private lateinit var internalDataProvider: InternalDataProvider
   private lateinit var dataProviderName: String
@@ -178,14 +178,14 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
     val internalModelSuitesClient =
       InternalModelSuitesGrpc.ModelSuitesCoroutineStub(internalChannel)
     val internalPopulationsClient =
-        InternalPopulationsGrpc.PopulationsCoroutineStub(internalChannel)
+      InternalPopulationsGrpc.PopulationsCoroutineStub(internalChannel)
 
     val publicModelSuitesService =
       ModelSuitesService(internalModelSuitesClient)
         .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup)
     val publicPopulationsService =
-        PopulationsService(internalPopulationsClient)
-          .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup)
+      PopulationsService(internalPopulationsClient)
+        .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup)
     val services = listOf(publicModelSuitesService, publicPopulationsService)
 
     val serverCerts =
@@ -215,8 +215,6 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
     val publicChannel: ManagedChannel =
       buildMutualTlsChannel("localhost:${server.port}", modelProviderCerts)
     publicModelSuitesClient = ModelSuitesGrpc.newBlockingStub(publicChannel)
-    publicPopulationsClient =
-        PopulationsGrpc.newBlockingStub(publicChannel)
 
     modelSuite =
       publicModelSuitesClient.createModelSuite(
@@ -228,11 +226,40 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
           }
         }
       )
+
+    val serverCerts2 =
+      SigningCerts.fromPemFiles(
+        KINGDOM_TLS_CERT_FILE,
+        KINGDOM_TLS_KEY_FILE,
+        DATA_PROVIDER_ROOT_CERT_FILE,
+      )
+
+    server2 =
+      CommonServer.fromParameters(
+        verboseGrpcLogging = true,
+        certs = serverCerts2,
+        clientAuth = ClientAuth.REQUIRE,
+        nameForLogging = "model-repository-cli-integration-test-2",
+        services = services,
+      )
+    server2.start()
+
+    val dataProviderCerts =
+      SigningCerts.fromPemFiles(
+        DATA_PROVIDER_TLS_CERT_FILE,
+        DATA_PROVIDER_TLS_KEY_FILE,
+        KINGDOM_ROOT_CERT_FILE,
+      )
+
+    val publicChannel2: ManagedChannel =
+      buildMutualTlsChannel("localhost:${server2.port}", dataProviderCerts)
+    publicPopulationsClient = PopulationsGrpc.newBlockingStub(publicChannel2)
   }
 
   @After
   fun shutdownServer() {
     server.close()
+    server2.close()
   }
 
   @Test
@@ -310,7 +337,7 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
   fun `populations get prints Population`() = runBlocking {
     val createdPopulation = createPopulation()
 
-    val args = commonArgs + arrayOf("populations", "get", createdPopulation.name)
+    val args = commonArgs2 + arrayOf("populations", "get", createdPopulation.name)
     val output = callCli(args)
 
     assertThat(parseTextProto(output.reader(), Population.getDefaultInstance()))
@@ -320,7 +347,7 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
   @Test
   fun `populations create prints Population`() = runBlocking {
     val args =
-      commonArgs +
+      commonArgs2 +
         arrayOf(
           "populations",
           "create",
@@ -359,7 +386,7 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
     }
 
     val args =
-      commonArgs +
+      commonArgs2 +
         arrayOf(
           "populations",
           "list",
@@ -401,6 +428,15 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
         "--kingdom-public-api-target=$HOST:${server.port}",
       )
 
+  private val commonArgs2: Array<String>
+    get() =
+      arrayOf(
+        "--tls-cert-file=$DATA_PROVIDER_TLS_CERT_FILE",
+        "--tls-key-file=$DATA_PROVIDER_TLS_KEY_FILE",
+        "--cert-collection-file=$KINGDOM_ROOT_CERT_FILE",
+        "--kingdom-public-api-target=$HOST:${server2.port}",
+      )
+
   companion object {
     private const val HOST = "localhost"
     private val SECRETS_DIR: File =
@@ -418,6 +454,8 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
     private val MODEL_PROVIDER_ROOT_CERT_FILE: File = SECRETS_DIR.resolve("mp1_root.pem")
 
     private val DATA_PROVIDER_TLS_CERT_FILE: File = SECRETS_DIR.resolve("edp1_tls.pem")
+    private val DATA_PROVIDER_TLS_KEY_FILE: File = SECRETS_DIR.resolve("edp1_tls.key")
+    private val DATA_PROVIDER_ROOT_CERT_FILE: File = SECRETS_DIR.resolve("edp1_root.pem")
 
     private const val FIXED_GENERATED_EXTERNAL_ID = 6789L
 
