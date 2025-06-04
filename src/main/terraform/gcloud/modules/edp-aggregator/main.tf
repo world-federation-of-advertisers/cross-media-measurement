@@ -81,6 +81,14 @@ locals {
     }
   ]...)
 
+    output "all_secrets_debug" {
+      value = local.edps_secrets
+    }
+
+    output "edpa_tee_app_tls_key" {
+      value = var.edpa_tee_app_tls_key
+    }
+
   all_secrets = merge(
     { edpa_tee_app_tls_key       = var.edpa_tee_app_tls_key },
     { edpa_tee_app_tls_pem       = var.edpa_tee_app_tls_pem },
@@ -90,6 +98,10 @@ locals {
     { kingdom_root_ca            = var.kingdom_root_ca },
     local.edps_secrets
   )
+
+  output "all_secrets" {
+    value = local.all_secrets
+  }
 
   data_watcher_secrets_access = [
     "secure_computation_root_ca",
