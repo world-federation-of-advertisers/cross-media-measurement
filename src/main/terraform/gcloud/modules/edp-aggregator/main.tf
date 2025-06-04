@@ -91,10 +91,6 @@ locals {
     local.edps_secrets
   )
 
-  output "all_secrets" {
-    value = local.all_secrets
-  }
-
   data_watcher_secrets_access = [
     "secure_computation_root_ca",
     "data_watcher_tls_key",
