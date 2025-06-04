@@ -13,9 +13,10 @@ kt_jvm_test(
         "//src/main/k8s/testing/secretfiles:root_certs",
         "//src/main/k8s/testing/secretfiles:secret_files",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/requisitionfetcher/testing:InvokeRequisitionFetcherFunction",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/requisitionfetcher/testing:config",
     ],
     env = {
-        "REQUISITION_FETCHER_CONFIG": "edpaggregator/requisitionfetcher/requisition_fetcher_config.textproto",
+        "REQUISITION_FETCHER_CONFIG": "edpaggregator/requisitionfetcher/requisition-fetcher-config.textproto",
     },
     tags = [
         "cpu:2",

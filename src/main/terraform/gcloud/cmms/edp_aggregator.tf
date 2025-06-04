@@ -37,12 +37,12 @@ locals {
 
   configs_to_upload = [
     {
-      local_path  = abspath("${path.root}/../../../kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/datawatcher/testing/data_watcher_config.textproto"),
-      destination = "data-watcher/config.textproto"
+      local_path  = abspath("${path.root}/../../../kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/datawatcher/testing/data-watcher-config-cloud-test.textproto"),
+      destination = "data-watcher-config.textproto"
     },
     {
-      local_path  = abspath("${path.root}/../../../kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/requisitionfetcher/testing/requisition_fetcher_config_cloud_test.textproto"),
-      destination = "requisition-fetcher/config.textproto"
+      local_path  = abspath("${path.root}/../../../kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/requisitionfetcher/testing/requisition-fetcher-config-cloud-test.textproto"),
+      destination = "requisition-fetcher-config.textproto"
     },
   ]
 }

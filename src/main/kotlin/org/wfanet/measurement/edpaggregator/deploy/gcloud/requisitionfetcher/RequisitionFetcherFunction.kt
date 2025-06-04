@@ -28,6 +28,8 @@ import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.common.EnvVars
 import org.wfanet.measurement.common.crypto.SigningCerts
+import org.wfanet.measurement.common.edpaggregator.getConfig
+import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.getJarResourceFile
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.parseTextProto
@@ -91,34 +93,8 @@ class RequisitionFetcherFunction : HttpFunction {
   }
 
   suspend fun retrieveRequisitionFetcherConfig(): RequisitionFetcherConfig {
-    val fileSystemPath = System.getenv("REQUISITION_CONFIG_FILE_SYSTEM_PATH")
-    // 'FileSystemStorageClient' is used for testing purposes only and used by
-    // [RequisitionFetcherFunctionTest]
-    // in order to pull config from local storage.
-    val configStorageClient =
-      if (!fileSystemPath.isNullOrEmpty()) {
-        FileSystemStorageClient(File(EnvVars.checkIsPath("REQUISITION_CONFIG_FILE_SYSTEM_PATH")))
-      } else {
-        val configGcsBucket = System.getenv("EDPA_CONFIG_STORAGE_BUCKET")
-        val googleProjectId = checkNotNull(System.getenv("GOOGLE_PROJECT_ID"))
-        GcsStorageClient(
-          StorageOptions.newBuilder()
-            .setProjectId(googleProjectId)
-            .build()
-            .service,
-          configGcsBucket,
-        )
-      }
-    val configBlob = checkNotNull(configStorageClient.getBlob(configBlobKey)) {
-      "Configuration file $configBlobKey not found"
-    }
-    val configBlobByteString: ByteString = configBlob.read()
-      .fold(ByteString.EMPTY) { acc, chunk ->
-        acc.concat(chunk)
-      }
-
-    val requisitionConfigContent = configBlobByteString.toStringUtf8()
-    return parseTextProto(StringReader(requisitionConfigContent), RequisitionFetcherConfig.getDefaultInstance())
+    val requisitionFetcherConfigContent = getConfig("REQUISITION_FETCHER_CONFIG_FILE_SYSTEM_PATH", configBlobKey)
+    return parseTextProto(StringReader(requisitionFetcherConfigContent), RequisitionFetcherConfig.getDefaultInstance())
   }
 
   companion object {
@@ -133,16 +109,7 @@ class RequisitionFetcherFunction : HttpFunction {
         null
       }
     }
-//    private val CLASS_LOADER: ClassLoader = RequisitionFetcherFunction::class.java.classLoader
-//    private val requisitionFetcherConfigResourcePath: String
-//      get() = System.getenv("REQUISITION_FETCHER_CONFIG")
-//        ?: "edpaggregator/requisitionfetcher/requisition_fetcher_config_cloud_test.textproto"
-//    private val config by lazy {
-//      checkNotNull(CLASS_LOADER.getJarResourceFile(requisitionFetcherConfigResourcePath))
-//    }
-//    private val requisitionFetcherConfig: RequisitionFetcherConfig by lazy {
-//      runBlocking { parseTextProto(config, RequisitionFetcherConfig.getDefaultInstance()) }
-//    }
-    private val configBlobKey = "requisition-fetcher/config.textproto"
+
+    private val configBlobKey = "requisition-fetcher-config.textproto"
   }
 }

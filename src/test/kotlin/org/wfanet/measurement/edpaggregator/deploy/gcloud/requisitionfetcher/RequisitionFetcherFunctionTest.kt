@@ -91,7 +91,7 @@ class RequisitionFetcherFunctionTest {
             "KINGDOM_CERT_HOST" to "localhost",
             "PAGE_SIZE" to "10",
             "STORAGE_PATH_PREFIX" to STORAGE_PATH_PREFIX,
-            "REQUISITION_CONFIG_FILE_SYSTEM_PATH" to REQUISITION_CONFIG_FILE_SYSTEM_PATH
+            "REQUISITION_FETCHER_CONFIG_FILE_SYSTEM_PATH" to REQUISITION_CONFIG_FILE_SYSTEM_PATH.toString()
           )
         )
       logger.info("Started RequisitionFetcher process on port $port")
@@ -110,7 +110,6 @@ class RequisitionFetcherFunctionTest {
   fun `test RequisitionFetcherFunction as local process`() {
     val url = "http://localhost:${functionProcess.port}"
     logger.info("Testing Cloud Function at: $url")
-
     val client = HttpClient.newHttpClient()
     val getRequest = HttpRequest.newBuilder().uri(URI.create(url)).GET().build()
     val getResponse = client.send(getRequest, BodyHandlers.ofString())
@@ -155,7 +154,7 @@ class RequisitionFetcherFunctionTest {
       )!!
     private val REQUISITION_CONFIG_FILE_SYSTEM_PATH =
       getRuntimePath(
-        Paths.get("wfa_measurement_system", "src", "main", "kotlin", "org", "wfanet", "measurement", "edpaggregator", "deploy", "gcloud", "requisitionfetcher", "testing", "requisition_fetcher_config.textproto")
+        Paths.get("wfa_measurement_system", "src", "main", "kotlin", "org", "wfanet", "measurement", "edpaggregator", "deploy", "gcloud", "requisitionfetcher", "testing")
       )!!
     private val serverCerts =
       SigningCerts.fromPemFiles(

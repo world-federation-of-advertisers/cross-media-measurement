@@ -22,11 +22,13 @@ import com.google.protobuf.TypeRegistry
 import com.google.protobuf.util.JsonFormat
 import io.cloudevents.CloudEvent
 import java.io.File
+import java.io.StringReader
 import java.nio.file.Paths
 import java.time.Duration
 import java.util.logging.Logger
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.crypto.SigningCerts
+import org.wfanet.measurement.common.edpaggregator.getConfig
 import org.wfanet.measurement.common.getJarResourceFile
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withShutdownTimeout
@@ -44,6 +46,7 @@ class DataWatcherFunction : CloudEventsFunction {
 
   override fun accept(event: CloudEvent) {
     logger.fine("Starting DataWatcherFunction")
+
     val cloudEventData =
       requireNotNull(event.getData()) { "event must have data" }.toBytes().decodeToString()
     val data =
@@ -61,12 +64,12 @@ class DataWatcherFunction : CloudEventsFunction {
     private const val scheme = "gs"
     private val logger: Logger = Logger.getLogger(this::class.java.name)
     private const val DEFAULT_CHANNEL_SHUTDOWN_DURATION_SECONDS: Long = 3L
-    private val CLASS_LOADER: ClassLoader = DataWatcherFunction::class.java.classLoader
+//    private val CLASS_LOADER: ClassLoader = DataWatcherFunction::class.java.classLoader
     private val certFilePath = checkIsPath("CERT_FILE_PATH")
     private val privateKeyFilePath = checkIsPath("PRIVATE_KEY_FILE_PATH")
     private val certCollectionFilePath = checkIsPath("CERT_COLLECTION_FILE_PATH")
-    private const val dataWatcherConfigResourcePath =
-      "securecomputation/datawatcher/data_watcher_config.textproto"
+//    private const val dataWatcherConfigResourcePath =
+//      "securecomputation/datawatcher/data-watcher-config.textproto"
     private val controlPlaneTarget = checkNotEmpty("CONTROL_PLANE_TARGET")
     private val controlPlaneCertHost = checkNotEmpty("CONTROL_PLANE_CERT_HOST")
     private val channelShutdownTimeout =
@@ -74,6 +77,7 @@ class DataWatcherFunction : CloudEventsFunction {
         System.getenv("CONTROL_PLANE_CHANNEL_SHUTDOWN_DURATION_SECONDS")?.toLong()
           ?: DEFAULT_CHANNEL_SHUTDOWN_DURATION_SECONDS
       )
+    private val configBlobKey = "data-watcher-config.textproto"
 
     private fun checkNotEmpty(envVar: String): String {
       val value = System.getenv(envVar)
@@ -86,6 +90,21 @@ class DataWatcherFunction : CloudEventsFunction {
       val value = System.getenv(envVar) ?: throw IllegalStateException("Missing env var: $envVar")
       Paths.get(value)
       return value
+    }
+
+    suspend fun retrieveDataWatcherConfig(): DataWatcherConfig {
+      val dataWatcherConfigContent = getConfig("DATA_WATCHER_CONFIG_FILE_SYSTEM_PATH", configBlobKey)
+      val registry = TypeRegistry.newBuilder()
+        .add(ResultsFulfillerParams.getDescriptor())
+        .build()
+
+      runBlocking { parseTextProto(
+        textProto = StringReader(dataWatcherConfigContent),
+        messageInstance = DataWatcherConfig.getDefaultInstance(),
+        typeRegistry = registry
+      )
+      }
+      return parseTextProto(StringReader(dataWatcherConfigContent), DataWatcherConfig.getDefaultInstance())
     }
 
     private fun getClientCerts(): SigningCerts {
@@ -123,21 +142,24 @@ class DataWatcherFunction : CloudEventsFunction {
     }
 
     private val workItemsStub by lazy { WorkItemsCoroutineStub(publicChannel) }
-    private val config by lazy {
-      checkNotNull(CLASS_LOADER.getJarResourceFile(dataWatcherConfigResourcePath))
-    }
-    private val dataWatcherConfig by lazy {
-      val registry = TypeRegistry.newBuilder()
-        .add(ResultsFulfillerParams.getDescriptor())
-        .build()
-
-      runBlocking { parseTextProto(
-          textProto = config,
-          messageInstance = DataWatcherConfig.getDefaultInstance(),
-          typeRegistry = registry
-        )
-      }
-    }
+//    private val config by lazy {
+//      checkNotNull(CLASS_LOADER.getJarResourceFile(dataWatcherConfigResourcePath))
+//    }
+//    private val dataWatcherConfig by lazy {
+//      val registry = TypeRegistry.newBuilder()
+//        .add(ResultsFulfillerParams.getDescriptor())
+//        .build()
+//
+//      runBlocking { parseTextProto(
+//          textProto = config,
+//          messageInstance = DataWatcherConfig.getDefaultInstance(),
+//          typeRegistry = registry
+//        )
+//      }
+//    }
+  private val dataWatcherConfig by lazy {
+    runBlocking { retrieveDataWatcherConfig() }
+  }
     private val dataWatcher by lazy {
       DataWatcher(
         workItemsStub = workItemsStub,
