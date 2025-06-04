@@ -102,11 +102,6 @@ variable "terraform_service_account" {
   nullable    = false
 }
 
-variable "edp_names" {
-  description = "JSON-encoded list of all EDP names"
-  type        = string
-}
-
 variable "kingdom_public_api_target" {
   description = "Kingdom public api target"
   type        = string

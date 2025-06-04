@@ -14,7 +14,7 @@
 
 locals {
 
-  edp_names = jsondecode(var.edp_names)
+  edp_display_names = ["epd7"]
 
   edpa_tee_app_tls_key = {
     secret_id         = "edpa-tee-app-tls-key",
@@ -53,7 +53,7 @@ locals {
   }
 
   edps_certs = {
-    for edp in local.edp_names : edp => {
+    for edp in local.edp_display_names : edp => {
       cert_der = {
         secret_id         = "${edp}-cert-der"
         secret_local_path = "../../../k8s/testing/secretfiles/${edp}_cs_cert.der"

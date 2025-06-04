@@ -90,11 +90,8 @@ jobs:
         TERRAFORM_SERVICE_ACCOUNT: ${{ vars.TF_SERVICE_ACCOUNT }}
         POSTGRES_INSTANCE: ${{ vars.POSTGRES_INSTANCE }}
         POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
-        EDPA_EDP_NAMES: ${{ vars.EDPA_EDP_NAMES }}
         KINGDOM_PUBLIC_API_TARGET: ${{ vars.KINGDOM_PUBLIC_API_TARGET }}
         SECURE_COMPUTATION_PUBLIC_API_TARGET: ${{ vars.SECURE_COMPUTATION_PUBLIC_API_TARGET }}
-        RESULTS_FULFILLER_KINGDOM_CERT_HOST: ${{ vars.RESULTS_FULFILLER_KINGDOM_CERT_HOST }}
-        RESULTS_FULFILLER_SECURE_COMPUTATION_CERT_HOST: ${{ vars.RESULTS_FULFILLER_SECURE_COMPUTATION_CERT_HOST }}
         IMAGE_TAG: ${{ inputs.image-tag }}
       working-directory: ${{ env.GCLOUD_MODULE_PATH }}
       run: >
@@ -108,7 +105,6 @@ jobs:
         -var="terraform_service_account=$TERRAFORM_SERVICE_ACCOUNT"
         -var="postgres_instance_name=$POSTGRES_INSTANCE"
         -var="postgres_password=$POSTGRES_PASSWORD"
-        -var="edp_names=$EDPA_EDP_NAMES"
         -var="kingdom_public_api_target=$KINGDOM_PUBLIC_API_TARGET"
         -var="secure_computation_public_api_target=$SECURE_COMPUTATION_PUBLIC_API_TARGET"
         -var="image_tag=$IMAGE_TAG"
