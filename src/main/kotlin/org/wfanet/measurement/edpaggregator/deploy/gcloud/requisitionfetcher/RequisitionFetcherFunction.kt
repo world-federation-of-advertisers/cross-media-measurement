@@ -20,7 +20,10 @@ import com.google.cloud.functions.HttpFunction
 import com.google.cloud.functions.HttpRequest
 import com.google.cloud.functions.HttpResponse
 import com.google.cloud.storage.StorageOptions
+import com.google.protobuf.ByteString
 import java.io.File
+import java.io.StringReader
+import kotlinx.coroutines.flow.fold
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.common.EnvVars
@@ -36,6 +39,11 @@ import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 class RequisitionFetcherFunction : HttpFunction {
 
   override fun service(request: HttpRequest, response: HttpResponse) {
+
+    val requisitionFetcherConfig = runBlocking {
+      retrieveRequisitionFetcherConfig()
+    }
+
     for (dataProviderConfig in requisitionFetcherConfig.configsList) {
 
       val fileSystemPath = System.getenv("REQUISITION_FILE_SYSTEM_PATH")
@@ -82,6 +90,37 @@ class RequisitionFetcherFunction : HttpFunction {
     }
   }
 
+  suspend fun retrieveRequisitionFetcherConfig(): RequisitionFetcherConfig {
+    val fileSystemPath = System.getenv("REQUISITION_CONFIG_FILE_SYSTEM_PATH")
+    // 'FileSystemStorageClient' is used for testing purposes only and used by
+    // [RequisitionFetcherFunctionTest]
+    // in order to pull config from local storage.
+    val configStorageClient =
+      if (!fileSystemPath.isNullOrEmpty()) {
+        FileSystemStorageClient(File(EnvVars.checkIsPath("REQUISITION_CONFIG_FILE_SYSTEM_PATH")))
+      } else {
+        val configGcsBucket = System.getenv("EDPA_CONFIG_STORAGE_BUCKET")
+        val googleProjectId = checkNotNull(System.getenv("GOOGLE_PROJECT_ID"))
+        GcsStorageClient(
+          StorageOptions.newBuilder()
+            .setProjectId(googleProjectId)
+            .build()
+            .service,
+          configGcsBucket,
+        )
+      }
+    val configBlob = checkNotNull(configStorageClient.getBlob(configBlobKey)) {
+      "Configuration file $configBlobKey not found"
+    }
+    val configBlobByteString: ByteString = configBlob.read()
+      .fold(ByteString.EMPTY) { acc, chunk ->
+        acc.concat(chunk)
+      }
+
+    val requisitionConfigContent = configBlobByteString.toStringUtf8()
+    return parseTextProto(StringReader(requisitionConfigContent), RequisitionFetcherConfig.getDefaultInstance())
+  }
+
   companion object {
     private val kingdomTarget = EnvVars.checkNotNullOrEmpty("KINGDOM_TARGET")
     private val kingdomCertHost: String? = System.getenv("KINGDOM_CERT_HOST")
@@ -94,15 +133,16 @@ class RequisitionFetcherFunction : HttpFunction {
         null
       }
     }
-    private val CLASS_LOADER: ClassLoader = RequisitionFetcherFunction::class.java.classLoader
-    private val requisitionFetcherConfigResourcePath: String
-      get() = System.getenv("REQUISITION_FETCHER_CONFIG")
-        ?: "edpaggregator/requisitionfetcher/requisition_fetcher_config_cloud_test.textproto"
-    private val config by lazy {
-      checkNotNull(CLASS_LOADER.getJarResourceFile(requisitionFetcherConfigResourcePath))
-    }
-    private val requisitionFetcherConfig: RequisitionFetcherConfig by lazy {
-      runBlocking { parseTextProto(config, RequisitionFetcherConfig.getDefaultInstance()) }
-    }
+//    private val CLASS_LOADER: ClassLoader = RequisitionFetcherFunction::class.java.classLoader
+//    private val requisitionFetcherConfigResourcePath: String
+//      get() = System.getenv("REQUISITION_FETCHER_CONFIG")
+//        ?: "edpaggregator/requisitionfetcher/requisition_fetcher_config_cloud_test.textproto"
+//    private val config by lazy {
+//      checkNotNull(CLASS_LOADER.getJarResourceFile(requisitionFetcherConfigResourcePath))
+//    }
+//    private val requisitionFetcherConfig: RequisitionFetcherConfig by lazy {
+//      runBlocking { parseTextProto(config, RequisitionFetcherConfig.getDefaultInstance()) }
+//    }
+    private val configBlobKey = "requisition-fetcher/config.textproto"
   }
 }
