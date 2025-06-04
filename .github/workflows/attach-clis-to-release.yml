@@ -55,7 +55,12 @@ jobs:
           //src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha/tools:Reporting_deploy.jar
           //src/main/kotlin/org/wfanet/measurement/access/deploy/tools:Access_deploy.jar
 
-      - name: Attach CLI uber jars to release
+      - name: Build CLI pyzips
+        run: >
+          bazel build
+          //src/main/python/wfa/measurement/reporting/postprocessing/tools:log_processor_pyzip
+
+      - name: Attach CLI uber jars and pyzips to release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: >
@@ -65,17 +70,5 @@ jobs:
           ./bazel-bin/src/main/kotlin/org/wfanet/measurement/api/v2alpha/tools/EventTemplateValidator_deploy.jar
           ./bazel-bin/src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha/tools/Reporting_deploy.jar
           ./bazel-bin/src/main/kotlin/org/wfanet/measurement/access/deploy/tools/Access_deploy.jar
-          --clobber
-
-      - name: Build CLI pyzips
-        run: >
-          bazel build
-          //src/main/python/wfa/measurement/reporting/postprocessing/tools:log_processor_pyzip
-
-      - name: Attach CLI pyzips to release
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: >
-          gh release upload "${{ github.event.release.tag_name }}"
           ./bazel-bin/src/main/python/wfa/measurement/reporting/postprocessing/tools:log_processor.zip
           --clobber
