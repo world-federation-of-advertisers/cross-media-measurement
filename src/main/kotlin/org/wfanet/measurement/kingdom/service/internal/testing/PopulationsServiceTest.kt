@@ -217,7 +217,7 @@ abstract class PopulationsServiceTest<T : PopulationsCoroutineImplBase> {
 
     assertThat(response)
       .comparingExpectedFieldsOnly()
-      .containsExactly(population1, population2, population3)
+      .containsExactly(population3, population2, population1)
       .inOrder()
   }
 
@@ -260,15 +260,15 @@ abstract class PopulationsServiceTest<T : PopulationsCoroutineImplBase> {
         externalDataProviderId = dataProvider.externalDataProviderId
         after = afterFilter {
           externalDataProviderId = dataProvider.externalDataProviderId
-          externalPopulationId = population1.externalPopulationId
-          createTime = population1.createTime
+          externalPopulationId = population3.externalPopulationId
+          createTime = population3.createTime
         }
       }
     }
 
     val response: List<Population> = populationsService.streamPopulations(request).toList()
 
-    assertThat(response).containsExactly(population2, population3).inOrder()
+    assertThat(response).containsExactly(population2, population1).inOrder()
   }
 
   companion object {
