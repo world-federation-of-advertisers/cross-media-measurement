@@ -97,8 +97,8 @@ class ModelRepositoryTest {
     onBlocking { listPopulations(any()) }
       .thenReturn(
         listPopulationsResponse {
-          populations += POPULATION
           populations += POPULATION_2
+          populations += POPULATION
           nextPageToken = LIST_POPULATIONS_PAGE_TOKEN_2.toByteString().base64UrlEncode()
         }
       )
@@ -290,8 +290,8 @@ class ModelRepositoryTest {
     assertThat(parseTextProto(output.reader(), ListPopulationsResponse.getDefaultInstance()))
       .isEqualTo(
         listPopulationsResponse {
-          populations += POPULATION
           populations += POPULATION_2
+          populations += POPULATION
           nextPageToken = LIST_POPULATIONS_PAGE_TOKEN_2.toByteString().base64UrlEncode()
         }
       )
