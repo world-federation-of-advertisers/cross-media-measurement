@@ -111,14 +111,12 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
   private lateinit var publicPopulationsClient: PopulationsBlockingStub
 
   private lateinit var server: CommonServer
-  private lateinit var server2: CommonServer
 
   private lateinit var internalDataProvider: InternalDataProvider
   private lateinit var dataProviderName: String
 
   private lateinit var internalModelProvider: InternalModelProvider
   private lateinit var modelProviderName: String
-  private lateinit var modelSuite: ModelSuite
 
   @Before
   fun startServer() {
@@ -189,11 +187,7 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
     val services = listOf(publicModelSuitesService, publicPopulationsService)
 
     val serverCerts =
-      SigningCerts.fromPemFiles(
-        KINGDOM_TLS_CERT_FILE,
-        KINGDOM_TLS_KEY_FILE,
-        MODEL_PROVIDER_ROOT_CERT_FILE,
-      )
+      SigningCerts.fromPemFiles(KINGDOM_TLS_CERT_FILE, KINGDOM_TLS_KEY_FILE, ALL_ROOT_CERT_FILE)
 
     server =
       CommonServer.fromParameters(
@@ -209,62 +203,35 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
       SigningCerts.fromPemFiles(
         MODEL_PROVIDER_TLS_CERT_FILE,
         MODEL_PROVIDER_TLS_KEY_FILE,
-        KINGDOM_ROOT_CERT_FILE,
+        ALL_ROOT_CERT_FILE,
       )
 
     val publicChannel: ManagedChannel =
       buildMutualTlsChannel("localhost:${server.port}", modelProviderCerts)
     publicModelSuitesClient = ModelSuitesGrpc.newBlockingStub(publicChannel)
 
-    modelSuite =
-      publicModelSuitesClient.createModelSuite(
-        createModelSuiteRequest {
-          parent = modelProviderName
-          modelSuite = modelSuite {
-            displayName = DISPLAY_NAME
-            description = DESCRIPTION
-          }
-        }
-      )
-
-    val serverCerts2 =
-      SigningCerts.fromPemFiles(
-        KINGDOM_TLS_CERT_FILE,
-        KINGDOM_TLS_KEY_FILE,
-        DATA_PROVIDER_ROOT_CERT_FILE,
-      )
-
-    server2 =
-      CommonServer.fromParameters(
-        verboseGrpcLogging = true,
-        certs = serverCerts2,
-        clientAuth = ClientAuth.REQUIRE,
-        nameForLogging = "model-repository-cli-integration-test-2",
-        services = services,
-      )
-    server2.start()
-
     val dataProviderCerts =
       SigningCerts.fromPemFiles(
         DATA_PROVIDER_TLS_CERT_FILE,
         DATA_PROVIDER_TLS_KEY_FILE,
-        KINGDOM_ROOT_CERT_FILE,
+        ALL_ROOT_CERT_FILE,
       )
 
     val publicChannel2: ManagedChannel =
-      buildMutualTlsChannel("localhost:${server2.port}", dataProviderCerts)
+      buildMutualTlsChannel("localhost:${server.port}", dataProviderCerts)
     publicPopulationsClient = PopulationsGrpc.newBlockingStub(publicChannel2)
   }
 
   @After
   fun shutdownServer() {
     server.close()
-    server2.close()
   }
 
   @Test
   fun `model-suites get prints ModelSuite`() = runBlocking {
-    val args = commonArgs + arrayOf("model-suites", "get", modelSuite.name)
+    val modelSuite = createModelSuite()
+
+    val args = commonArgsWithModelProvider + arrayOf("model-suites", "get", modelSuite.name)
     val output = callCli(args)
 
     assertThat(parseTextProto(output.reader(), ModelSuite.getDefaultInstance()))
@@ -274,7 +241,7 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
   @Test
   fun `model-suites create prints ModelSuite`() = runBlocking {
     val args =
-      commonArgs +
+      commonArgsWithModelProvider +
         arrayOf(
           "model-suites",
           "create",
@@ -296,16 +263,8 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
 
   @Test
   fun `model-suites list prints ModelSuites`() = runBlocking {
-    val createdModelSuite2 =
-      publicModelSuitesClient.createModelSuite(
-        createModelSuiteRequest {
-          parent = modelProviderName
-          modelSuite = modelSuite {
-            displayName = DISPLAY_NAME
-            description = DESCRIPTION
-          }
-        }
-      )
+    val modelSuite = createModelSuite()
+    val modelSuite2 = createModelSuite()
 
     val pageToken = listModelSuitesPageToken {
       pageSize = PAGE_SIZE
@@ -319,7 +278,7 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
     }
 
     val args =
-      commonArgs +
+      commonArgsWithModelProvider +
         arrayOf(
           "model-suites",
           "list",
@@ -330,14 +289,14 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
     val output = callCli(args)
 
     assertThat(parseTextProto(output.reader(), ListModelSuitesResponse.getDefaultInstance()))
-      .isEqualTo(listModelSuitesResponse { modelSuites += createdModelSuite2 })
+      .isEqualTo(listModelSuitesResponse { modelSuites += modelSuite2 })
   }
 
   @Test
   fun `populations get prints Population`() = runBlocking {
     val createdPopulation = createPopulation()
 
-    val args = commonArgs2 + arrayOf("populations", "get", createdPopulation.name)
+    val args = commonArgsWithDataProvider + arrayOf("populations", "get", createdPopulation.name)
     val output = callCli(args)
 
     assertThat(parseTextProto(output.reader(), Population.getDefaultInstance()))
@@ -347,7 +306,7 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
   @Test
   fun `populations create prints Population`() = runBlocking {
     val args =
-      commonArgs2 +
+      commonArgsWithDataProvider +
         arrayOf(
           "populations",
           "create",
@@ -380,13 +339,13 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
       lastPopulation = populationPreviousPageEnd {
         externalDataProviderId = internalDataProvider.externalDataProviderId
         externalPopulationId =
-          apiIdToExternalId(PopulationKey.fromName(createdPopulation.name)!!.populationId)
-        createTime = createdPopulation.createTime
+          apiIdToExternalId(PopulationKey.fromName(createdPopulation2.name)!!.populationId)
+        createTime = createdPopulation2.createTime
       }
     }
 
     val args =
-      commonArgs2 +
+      commonArgsWithDataProvider +
         arrayOf(
           "populations",
           "list",
@@ -397,13 +356,25 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
     val output = callCli(args)
 
     assertThat(parseTextProto(output.reader(), ListPopulationsResponse.getDefaultInstance()))
-      .isEqualTo(listPopulationsResponse { populations += createdPopulation2 })
+      .isEqualTo(listPopulationsResponse { populations += createdPopulation })
   }
 
   private fun callCli(args: Array<String>): String {
     val capturedOutput = CommandLineTesting.capturingOutput(args, ModelRepository::main)
     CommandLineTesting.assertThat(capturedOutput).status().isEqualTo(0)
     return capturedOutput.out
+  }
+
+  private fun createModelSuite(): ModelSuite {
+    return publicModelSuitesClient.createModelSuite(
+      createModelSuiteRequest {
+        parent = modelProviderName
+        modelSuite = modelSuite {
+          displayName = DISPLAY_NAME
+          description = DESCRIPTION
+        }
+      }
+    )
   }
 
   private fun createPopulation(): Population {
@@ -419,22 +390,22 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
     )
   }
 
-  private val commonArgs: Array<String>
+  private val commonArgsWithModelProvider: Array<String>
     get() =
       arrayOf(
         "--tls-cert-file=$MODEL_PROVIDER_TLS_CERT_FILE",
         "--tls-key-file=$MODEL_PROVIDER_TLS_KEY_FILE",
-        "--cert-collection-file=$KINGDOM_ROOT_CERT_FILE",
+        "--cert-collection-file=$ALL_ROOT_CERT_FILE",
         "--kingdom-public-api-target=$HOST:${server.port}",
       )
 
-  private val commonArgs2: Array<String>
+  private val commonArgsWithDataProvider: Array<String>
     get() =
       arrayOf(
         "--tls-cert-file=$DATA_PROVIDER_TLS_CERT_FILE",
         "--tls-key-file=$DATA_PROVIDER_TLS_KEY_FILE",
-        "--cert-collection-file=$KINGDOM_ROOT_CERT_FILE",
-        "--kingdom-public-api-target=$HOST:${server2.port}",
+        "--cert-collection-file=$ALL_ROOT_CERT_FILE",
+        "--kingdom-public-api-target=$HOST:${server.port}",
       )
 
   companion object {
@@ -447,23 +418,21 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
 
     private val KINGDOM_TLS_CERT_FILE: File = SECRETS_DIR.resolve("kingdom_tls.pem")
     private val KINGDOM_TLS_KEY_FILE: File = SECRETS_DIR.resolve("kingdom_tls.key")
-    private val KINGDOM_ROOT_CERT_FILE: File = SECRETS_DIR.resolve("kingdom_root.pem")
 
     private val MODEL_PROVIDER_TLS_CERT_FILE: File = SECRETS_DIR.resolve("mp1_tls.pem")
     private val MODEL_PROVIDER_TLS_KEY_FILE: File = SECRETS_DIR.resolve("mp1_tls.key")
-    private val MODEL_PROVIDER_ROOT_CERT_FILE: File = SECRETS_DIR.resolve("mp1_root.pem")
 
     private val DATA_PROVIDER_TLS_CERT_FILE: File = SECRETS_DIR.resolve("edp1_tls.pem")
     private val DATA_PROVIDER_TLS_KEY_FILE: File = SECRETS_DIR.resolve("edp1_tls.key")
-    private val DATA_PROVIDER_ROOT_CERT_FILE: File = SECRETS_DIR.resolve("edp1_root.pem")
 
-    private const val FIXED_GENERATED_EXTERNAL_ID = 6789L
+    private val ALL_ROOT_CERT_FILE: File = SECRETS_DIR.resolve("all_root_certs.pem")
 
     private const val DISPLAY_NAME = "Display name"
     private const val DESCRIPTION = "Description"
     private const val EVENT_TEMPLATE_TYPE = "event_template_type"
     private const val MODEL_BLOB_URI = "model_blob_uri"
 
+    private const val FIXED_GENERATED_EXTERNAL_ID = 6789L
     private const val PAGE_SIZE = 50
 
     init {
