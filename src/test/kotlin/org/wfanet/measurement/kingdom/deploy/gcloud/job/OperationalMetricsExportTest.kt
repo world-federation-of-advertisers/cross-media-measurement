@@ -16,7 +16,6 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.job
 
-import com.google.protobuf.Any
 import com.google.api.core.ApiFutures
 import com.google.cloud.bigquery.BigQuery
 import com.google.cloud.bigquery.Field
@@ -39,6 +38,7 @@ import com.google.cloud.bigquery.storage.v1.TableSchema
 import com.google.cloud.bigquery.storage.v1.WriteStream
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
+import com.google.protobuf.Any
 import com.google.protobuf.ByteString
 import com.google.protobuf.timestamp
 import com.google.protobuf.util.Timestamps
@@ -250,13 +250,16 @@ class OperationalMetricsExportTest {
 
     val measurementsProtoRowsArgumentCaptor = argumentCaptor<ProtoRows>()
     val measurementsOffsetArgumentCaptor = argumentCaptor<Long>()
-    verify(measurementsStreamWriterMock).append(measurementsProtoRowsArgumentCaptor.capture(), measurementsOffsetArgumentCaptor.capture())
+    verify(measurementsStreamWriterMock)
+      .append(
+        measurementsProtoRowsArgumentCaptor.capture(),
+        measurementsOffsetArgumentCaptor.capture(),
+      )
 
     with(measurementsProtoRowsArgumentCaptor.firstValue) {
       assertThat(serializedRowsList).hasSize(2)
 
-      val computationMeasurementTableRow =
-        MeasurementsTableRow.parseFrom(serializedRowsList[1])
+      val computationMeasurementTableRow = MeasurementsTableRow.parseFrom(serializedRowsList[1])
       assertThat(computationMeasurementTableRow)
         .isEqualTo(
           measurementsTableRow {
@@ -270,16 +273,15 @@ class OperationalMetricsExportTest {
             updateTime = COMPUTATION_MEASUREMENT.updateTime
             completionDurationSeconds =
               Duration.between(
-                COMPUTATION_MEASUREMENT.createTime.toInstant(),
-                COMPUTATION_MEASUREMENT.updateTime.toInstant(),
-              )
+                  COMPUTATION_MEASUREMENT.createTime.toInstant(),
+                  COMPUTATION_MEASUREMENT.updateTime.toInstant(),
+                )
                 .seconds
             completionDurationSecondsSquared = completionDurationSeconds * completionDurationSeconds
           }
         )
 
-      val directMeasurementTableRow =
-        MeasurementsTableRow.parseFrom(serializedRowsList[0])
+      val directMeasurementTableRow = MeasurementsTableRow.parseFrom(serializedRowsList[0])
       assertThat(directMeasurementTableRow)
         .isEqualTo(
           measurementsTableRow {
@@ -293,9 +295,9 @@ class OperationalMetricsExportTest {
             updateTime = DIRECT_MEASUREMENT.updateTime
             completionDurationSeconds =
               Duration.between(
-                DIRECT_MEASUREMENT.createTime.toInstant(),
-                DIRECT_MEASUREMENT.updateTime.toInstant(),
-              )
+                  DIRECT_MEASUREMENT.createTime.toInstant(),
+                  DIRECT_MEASUREMENT.updateTime.toInstant(),
+                )
                 .seconds
             completionDurationSecondsSquared = completionDurationSeconds * completionDurationSeconds
           }
@@ -306,7 +308,11 @@ class OperationalMetricsExportTest {
 
     val requisitionsProtoRowsArgumentCaptor = argumentCaptor<ProtoRows>()
     val requisitionsOffsetArgumentCaptor = argumentCaptor<Long>()
-    verify(requisitionsStreamWriterMock).append(requisitionsProtoRowsArgumentCaptor.capture(), requisitionsOffsetArgumentCaptor.capture())
+    verify(requisitionsStreamWriterMock)
+      .append(
+        requisitionsProtoRowsArgumentCaptor.capture(),
+        requisitionsOffsetArgumentCaptor.capture(),
+      )
 
     with(requisitionsProtoRowsArgumentCaptor.firstValue) {
       assertThat(serializedRowsList).hasSize(2)
@@ -362,13 +368,16 @@ class OperationalMetricsExportTest {
 
     val computationParticipantStagesProtoRowsArgumentCaptor = argumentCaptor<ProtoRows>()
     val computationParticipantStagesOffsetArgumentCaptor = argumentCaptor<Long>()
-    verify(computationParticipantStagesStreamWriterMock).append(computationParticipantStagesProtoRowsArgumentCaptor.capture(), computationParticipantStagesOffsetArgumentCaptor.capture())
+    verify(computationParticipantStagesStreamWriterMock)
+      .append(
+        computationParticipantStagesProtoRowsArgumentCaptor.capture(),
+        computationParticipantStagesOffsetArgumentCaptor.capture(),
+      )
 
-    with (computationParticipantStagesProtoRowsArgumentCaptor.firstValue) {
+    with(computationParticipantStagesProtoRowsArgumentCaptor.firstValue) {
       assertThat(serializedRowsList).hasSize(4)
 
-      val stageOneTableRow =
-        ComputationParticipantStagesTableRow.parseFrom(serializedRowsList[0])
+      val stageOneTableRow = ComputationParticipantStagesTableRow.parseFrom(serializedRowsList[0])
 
       assertThat(stageOneTableRow)
         .isEqualTo(
@@ -387,8 +396,7 @@ class OperationalMetricsExportTest {
           }
         )
 
-      val stageTwoTableRow =
-        ComputationParticipantStagesTableRow.parseFrom(serializedRowsList[1])
+      val stageTwoTableRow = ComputationParticipantStagesTableRow.parseFrom(serializedRowsList[1])
 
       assertThat(stageTwoTableRow)
         .isEqualTo(
@@ -407,8 +415,7 @@ class OperationalMetricsExportTest {
           }
         )
 
-      val stageOneTableRow2 =
-        ComputationParticipantStagesTableRow.parseFrom(serializedRowsList[2])
+      val stageOneTableRow2 = ComputationParticipantStagesTableRow.parseFrom(serializedRowsList[2])
 
       assertThat(stageOneTableRow2)
         .isEqualTo(
@@ -427,8 +434,7 @@ class OperationalMetricsExportTest {
           }
         )
 
-      val stageTwoTableRow2 =
-        ComputationParticipantStagesTableRow.parseFrom(serializedRowsList[3])
+      val stageTwoTableRow2 = ComputationParticipantStagesTableRow.parseFrom(serializedRowsList[3])
 
       assertThat(stageTwoTableRow2)
         .isEqualTo(
@@ -541,13 +547,16 @@ class OperationalMetricsExportTest {
 
     val computationParticipantStagesProtoRowsArgumentCaptor = argumentCaptor<ProtoRows>()
     val computationParticipantStagesOffsetArgumentCaptor = argumentCaptor<Long>()
-    verify(computationParticipantStagesStreamWriterMock).append(computationParticipantStagesProtoRowsArgumentCaptor.capture(), computationParticipantStagesOffsetArgumentCaptor.capture())
+    verify(computationParticipantStagesStreamWriterMock)
+      .append(
+        computationParticipantStagesProtoRowsArgumentCaptor.capture(),
+        computationParticipantStagesOffsetArgumentCaptor.capture(),
+      )
 
     with(computationParticipantStagesProtoRowsArgumentCaptor.firstValue) {
       assertThat(serializedRowsList).hasSize(4)
 
-      val stageOneTableRow =
-        ComputationParticipantStagesTableRow.parseFrom(serializedRowsList[0])
+      val stageOneTableRow = ComputationParticipantStagesTableRow.parseFrom(serializedRowsList[0])
 
       assertThat(stageOneTableRow)
         .isEqualTo(
@@ -566,8 +575,7 @@ class OperationalMetricsExportTest {
           }
         )
 
-      val stageTwoTableRow =
-        ComputationParticipantStagesTableRow.parseFrom(serializedRowsList[1])
+      val stageTwoTableRow = ComputationParticipantStagesTableRow.parseFrom(serializedRowsList[1])
 
       assertThat(stageTwoTableRow)
         .isEqualTo(
@@ -586,8 +594,7 @@ class OperationalMetricsExportTest {
           }
         )
 
-      val stageOneTableRow2 =
-        ComputationParticipantStagesTableRow.parseFrom(serializedRowsList[2])
+      val stageOneTableRow2 = ComputationParticipantStagesTableRow.parseFrom(serializedRowsList[2])
 
       assertThat(stageOneTableRow2)
         .isEqualTo(
@@ -606,8 +613,7 @@ class OperationalMetricsExportTest {
           }
         )
 
-      val stageTwoTableRow2 =
-        ComputationParticipantStagesTableRow.parseFrom(serializedRowsList[3])
+      val stageTwoTableRow2 = ComputationParticipantStagesTableRow.parseFrom(serializedRowsList[3])
 
       assertThat(stageTwoTableRow2)
         .isEqualTo(
@@ -645,8 +651,7 @@ class OperationalMetricsExportTest {
         )
       val externalMeasurementIdFieldValue: FieldValue =
         FieldValue.of(FieldValue.Attribute.PRIMITIVE, "${directMeasurement.externalMeasurementId}")
-      val nextOffsetFieldValue: FieldValue =
-        FieldValue.of(FieldValue.Attribute.PRIMITIVE, "1")
+      val nextOffsetFieldValue: FieldValue = FieldValue.of(FieldValue.Attribute.PRIMITIVE, "1")
 
       val tableResultMock: TableResult = mock { tableResult ->
         whenever(tableResult.iterateAll())
@@ -737,8 +742,7 @@ class OperationalMetricsExportTest {
       )
     val externalMeasurementIdFieldValue: FieldValue =
       FieldValue.of(FieldValue.Attribute.PRIMITIVE, "${directMeasurement.externalMeasurementId}")
-    val nextOffsetFieldValue: FieldValue =
-      FieldValue.of(FieldValue.Attribute.PRIMITIVE, "1")
+    val nextOffsetFieldValue: FieldValue = FieldValue.of(FieldValue.Attribute.PRIMITIVE, "1")
 
     val tableResultMock: TableResult = mock { tableResult ->
       whenever(tableResult.iterateAll())
@@ -827,8 +831,7 @@ class OperationalMetricsExportTest {
         FieldValue.of(FieldValue.Attribute.PRIMITIVE, "${requisition.externalDataProviderId}")
       val externalRequisitionIdFieldValue: FieldValue =
         FieldValue.of(FieldValue.Attribute.PRIMITIVE, "${requisition.externalRequisitionId}")
-      val nextOffsetFieldValue: FieldValue =
-        FieldValue.of(FieldValue.Attribute.PRIMITIVE, "1")
+      val nextOffsetFieldValue: FieldValue = FieldValue.of(FieldValue.Attribute.PRIMITIVE, "1")
 
       val tableResultMock: TableResult = mock { tableResult ->
         whenever(tableResult.iterateAll())
@@ -909,8 +912,7 @@ class OperationalMetricsExportTest {
       FieldValue.of(FieldValue.Attribute.PRIMITIVE, "${requisition.externalDataProviderId}")
     val externalRequisitionIdFieldValue: FieldValue =
       FieldValue.of(FieldValue.Attribute.PRIMITIVE, "${requisition.externalRequisitionId}")
-    val nextOffsetFieldValue: FieldValue =
-      FieldValue.of(FieldValue.Attribute.PRIMITIVE, "1")
+    val nextOffsetFieldValue: FieldValue = FieldValue.of(FieldValue.Attribute.PRIMITIVE, "1")
 
     val tableResultMock: TableResult = mock { tableResult ->
       whenever(tableResult.iterateAll())
@@ -997,8 +999,7 @@ class OperationalMetricsExportTest {
           FieldValue.Attribute.PRIMITIVE,
           "${computationMeasurement.externalComputationId}",
         )
-      val nextOffsetFieldValue: FieldValue =
-        FieldValue.of(FieldValue.Attribute.PRIMITIVE, "1")
+      val nextOffsetFieldValue: FieldValue = FieldValue.of(FieldValue.Attribute.PRIMITIVE, "1")
 
       val tableResultMock: TableResult = mock { tableResult ->
         whenever(tableResult.iterateAll())
@@ -1007,7 +1008,11 @@ class OperationalMetricsExportTest {
           .thenReturn(
             listOf(
               FieldValueList.of(
-                mutableListOf(updateTimeFieldValue, externalMeasurementConsumerIdFieldValue, nextOffsetFieldValue),
+                mutableListOf(
+                  updateTimeFieldValue,
+                  externalMeasurementConsumerIdFieldValue,
+                  nextOffsetFieldValue,
+                ),
                 LATEST_COMPUTATION_FIELD_LIST,
               )
             )
@@ -1082,8 +1087,7 @@ class OperationalMetricsExportTest {
         FieldValue.Attribute.PRIMITIVE,
         "${computationMeasurement.externalComputationId}",
       )
-    val nextOffsetFieldValue: FieldValue =
-      FieldValue.of(FieldValue.Attribute.PRIMITIVE, "1")
+    val nextOffsetFieldValue: FieldValue = FieldValue.of(FieldValue.Attribute.PRIMITIVE, "1")
 
     val tableResultMock: TableResult = mock { tableResult ->
       whenever(tableResult.iterateAll())
@@ -1092,7 +1096,11 @@ class OperationalMetricsExportTest {
         .thenReturn(
           listOf(
             FieldValueList.of(
-              mutableListOf(updateTimeFieldValue, externalMeasurementConsumerIdFieldValue, nextOffsetFieldValue),
+              mutableListOf(
+                updateTimeFieldValue,
+                externalMeasurementConsumerIdFieldValue,
+                nextOffsetFieldValue,
+              ),
               LATEST_COMPUTATION_FIELD_LIST,
             )
           )
@@ -1200,7 +1208,8 @@ class OperationalMetricsExportTest {
 
     val protoRowsArgumentCaptor = argumentCaptor<ProtoRows>()
     val offsetArgumentCaptor = argumentCaptor<Long>()
-    verify(computationParticipantStagesStreamWriterMock).append(protoRowsArgumentCaptor.capture(), offsetArgumentCaptor.capture())
+    verify(computationParticipantStagesStreamWriterMock)
+      .append(protoRowsArgumentCaptor.capture(), offsetArgumentCaptor.capture())
 
     val protoRows: ProtoRows = protoRowsArgumentCaptor.allValues.first()
     assertThat(protoRows.serializedRowsList).hasSize(4)
@@ -1297,8 +1306,7 @@ class OperationalMetricsExportTest {
       )
     val externalMeasurementIdFieldValue: FieldValue =
       FieldValue.of(FieldValue.Attribute.PRIMITIVE, "${directMeasurement.externalMeasurementId}")
-    val nextOffsetFieldValue: FieldValue =
-      FieldValue.of(FieldValue.Attribute.PRIMITIVE, "1")
+    val nextOffsetFieldValue: FieldValue = FieldValue.of(FieldValue.Attribute.PRIMITIVE, "1")
 
     val tableResultMock: TableResult = mock { tableResult ->
       whenever(tableResult.iterateAll())
@@ -1324,10 +1332,11 @@ class OperationalMetricsExportTest {
 
     val actualOffset = 1L
 
-    val storageError = StorageError.newBuilder()
-      .setCode(StorageError.StorageErrorCode.OFFSET_OUT_OF_RANGE)
-      .setErrorMessage("expected offset 0, received $actualOffset")
-      .build()
+    val storageError =
+      StorageError.newBuilder()
+        .setCode(StorageError.StorageErrorCode.OFFSET_OUT_OF_RANGE)
+        .setErrorMessage("expected offset 0, received $actualOffset")
+        .build()
 
     val status = status {
       code = Code.INVALID_ARGUMENT_VALUE
@@ -1361,7 +1370,8 @@ class OperationalMetricsExportTest {
 
     val protoRowsArgumentCaptor = argumentCaptor<ProtoRows>()
     val offsetArgumentCaptor = argumentCaptor<Long>()
-    verify(measurementsStreamWriterMock).append(protoRowsArgumentCaptor.capture(), offsetArgumentCaptor.capture())
+    verify(measurementsStreamWriterMock)
+      .append(protoRowsArgumentCaptor.capture(), offsetArgumentCaptor.capture())
     verify(measurementsStreamWriterMock).append(protoRowsArgumentCaptor.capture())
     assertThat(protoRowsArgumentCaptor.allValues).hasSize(2)
     assertThat(offsetArgumentCaptor.allValues).hasSize(1)
@@ -1385,10 +1395,11 @@ class OperationalMetricsExportTest {
       val expectedOffset = 1L
       val actualOffset = 0L
 
-      val storageError = StorageError.newBuilder()
-        .setCode(StorageError.StorageErrorCode.OFFSET_ALREADY_EXISTS)
-        .setErrorMessage("expected offset $expectedOffset, received $actualOffset")
-        .build()
+      val storageError =
+        StorageError.newBuilder()
+          .setCode(StorageError.StorageErrorCode.OFFSET_ALREADY_EXISTS)
+          .setErrorMessage("expected offset $expectedOffset, received $actualOffset")
+          .build()
 
       val status = status {
         code = Code.INVALID_ARGUMENT_VALUE
@@ -1420,7 +1431,8 @@ class OperationalMetricsExportTest {
 
       val protoRowsArgumentCaptor = argumentCaptor<ProtoRows>()
       val offsetArgumentCaptor = argumentCaptor<Long>()
-      verify(measurementsStreamWriterMock, times(2)).append(protoRowsArgumentCaptor.capture(), offsetArgumentCaptor.capture())
+      verify(measurementsStreamWriterMock, times(2))
+        .append(protoRowsArgumentCaptor.capture(), offsetArgumentCaptor.capture())
       assertThat(protoRowsArgumentCaptor.allValues).hasSize(2)
       assertThat(protoRowsArgumentCaptor.firstValue.serializedRowsCount).isEqualTo(2)
       assertThat(protoRowsArgumentCaptor.lastValue.serializedRowsCount).isEqualTo(1)
@@ -1446,10 +1458,11 @@ class OperationalMetricsExportTest {
       val expectedOffset = 2L
       val actualOffset = 0L
 
-      val storageError = StorageError.newBuilder()
-        .setCode(StorageError.StorageErrorCode.OFFSET_ALREADY_EXISTS)
-        .setErrorMessage("expected offset $expectedOffset, received $actualOffset")
-        .build()
+      val storageError =
+        StorageError.newBuilder()
+          .setCode(StorageError.StorageErrorCode.OFFSET_ALREADY_EXISTS)
+          .setErrorMessage("expected offset $expectedOffset, received $actualOffset")
+          .build()
 
       val status = status {
         code = Code.INVALID_ARGUMENT_VALUE
@@ -1481,7 +1494,8 @@ class OperationalMetricsExportTest {
 
       val protoRowsArgumentCaptor = argumentCaptor<ProtoRows>()
       val offsetArgumentCaptor = argumentCaptor<Long>()
-      verify(measurementsStreamWriterMock).append(protoRowsArgumentCaptor.capture(), offsetArgumentCaptor.capture())
+      verify(measurementsStreamWriterMock)
+        .append(protoRowsArgumentCaptor.capture(), offsetArgumentCaptor.capture())
       assertThat(offsetArgumentCaptor.firstValue).isEqualTo(actualOffset)
     }
 
