@@ -138,15 +138,15 @@ locals {
 }
 
 output "edps_secrets" {
-  value = "-----------> edp certs: ${local.edps_secrets}"
+  value = "-----------> edp certs: ${jsonencode(local.edps_secrets)}"
 }
 
 output "edpa_tee_app_tls_key" {
-  value = "-----------> edpa key: ${var.edpa_tee_app_tls_key}"
+  value = "-----------> edpa key: ${jsonencode(var.edpa_tee_app_tls_key)}"
 }
 
 output "all_secrets" {
-    value = "-----------> local secret: ${local.all_secrets}"
+    value = "-----------> local secret: ${jsonencode(local.all_secrets)}"
   }
 
 module "edp_aggregator_bucket" {
