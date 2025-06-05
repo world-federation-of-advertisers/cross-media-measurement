@@ -12,6 +12,14 @@ filegroup(
     output_group = "python_zip_file",
 )
 
+filegroup(
+    name = "log_processor_pyzip",
+    srcs = [
+        "//src/main/python/wfa/measurement/reporting/postprocessing/tools:log_processor",
+    ],
+    output_group = "python_zip_file",
+)
+
 py_binary(
     name = "post_process_origin_report",
     srcs = ["post_process_origin_report.py"],

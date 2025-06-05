@@ -14,7 +14,8 @@
 
 package org.wfanet.measurement.privacybudgetmanager
 
-import org.wfanet.measurement.privacybudgetmanager.LandscapeUtils.MappingNode
+import com.google.protobuf.Descriptors
+import org.wfanet.measurement.privacybudgetmanager.LandscapeProcessor.MappingNode
 
 /**
  * Instantiates a privacy budget manager.
@@ -27,20 +28,18 @@ import org.wfanet.measurement.privacybudgetmanager.LandscapeUtils.MappingNode
  * @param maximumPrivacyBudget: The maximum privacy budget that can be used in any privacy bucket.
  * @param maximumTotalDelta: Maximum total value of the delta parameter that can be used in any
  *   privacy bucket.
+ *
+ * TODO(uakyol): Validate the Mapping nodes and their constituents
  */
 class PrivacyBudgetManager(
   private val auditLog: AuditLog,
   private val landscapeMappingChain: List<MappingNode>,
   private val ledger: Ledger,
+  private val landscapeProcessor: LandscapeProcessor,
   private val maximumPrivacyBudget: Float,
   private val maximumTotalDelta: Float,
+  private val eventTemplateDescriptor: Descriptors.Descriptor,
 ) {
-  init {
-    val activePrivacyLandscape =
-      requireNotNull(landscapeMappingChain.lastOrNull()?.fromLandscape) {
-        "Active privacy landscape cannot be null."
-      }
-  }
 
   /**
    * Charges the PBM in batch with the charges resulting from the given queries and writes the
@@ -119,6 +118,8 @@ class PrivacyBudgetManager(
     for (query in queries) {
       delta.add(
         processBucketsForLandscape(
+          query.queryIdentifiers.eventDataProviderId,
+          query.queryIdentifiers.measurementConsumerId,
           query.privacyLandscapeIdentifier,
           query.eventGroupLandscapeMasksList,
         ),
@@ -138,19 +139,26 @@ class PrivacyBudgetManager(
    * @return The list of PrivacyBuckets mapped to the tail PrivacyLandscape.
    */
   fun processBucketsForLandscape(
+    eventDataProviderId: String,
+    measurementConsumerId: String,
     inactivelandscapeIdentifier: String,
     eventGroupLandscapeMasks: List<EventGroupLandscapeMask>,
   ): List<PrivacyBucket> {
     val initialNode =
-      landscapeMappingChain.find {
-        it.fromLandscape.landscapeIdentifier == inactivelandscapeIdentifier
-      }
+      landscapeMappingChain.find { it.source.landscapeIdentifier == inactivelandscapeIdentifier }
         ?: throw IllegalStateException(
           "Inactive Privacy landscape with name '$inactivelandscapeIdentifier' not found."
         )
 
-    val initialLandscape = initialNode.fromLandscape
-    val initialBuckets = LandscapeUtils.getBuckets(eventGroupLandscapeMasks, initialLandscape)
+    val initialLandscape = initialNode.source
+    val initialBuckets =
+      landscapeProcessor.getBuckets(
+        eventDataProviderId,
+        measurementConsumerId,
+        eventGroupLandscapeMasks,
+        initialLandscape,
+        eventTemplateDescriptor,
+      )
 
     var currentBuckets = initialBuckets
     var currentLandscape = initialLandscape
@@ -162,13 +170,13 @@ class PrivacyBudgetManager(
 
       if (
         currentNode.mapping == null ||
-          (nextNode.fromLandscape.landscapeIdentifier != currentNode.mapping.toLandscape)
+          (nextNode.source.landscapeIdentifier != currentNode.mapping.targetLandscape)
       ) {
         throw IllegalStateException("Privacy landscape mapping is illegal")
       }
-      val toLandscape = nextNode.fromLandscape
+      val toLandscape = nextNode.source
       currentBuckets =
-        LandscapeUtils.mapBuckets(
+        landscapeProcessor.mapBuckets(
           currentBuckets,
           currentNode.mapping,
           currentLandscape,
