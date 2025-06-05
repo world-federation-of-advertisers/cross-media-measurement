@@ -28,8 +28,11 @@ option java_outer_classname = "GroupedRequisitionsProto";
 // Message representing a group of requisitions to be processed together based
 // upon with [RequisitionGrouper] was used.
 message GroupedRequisitions {
+  // The grouped requisitions id
+  string id = 1
+    [(google.api.field_behavior) = REQUIRED];
   // The model line for the requisitions
-  string model_line = 1 [
+  string model_line = 2 [
     (google.api.resource_reference).type = "halo.wfanet.org/ModelLine",
     (google.api.field_behavior) = REQUIRED
   ];
@@ -46,22 +49,22 @@ message GroupedRequisitions {
   }
   // A map of event group resource name to event group reference id. Required
   // for all event groups present in requisitions.
-  repeated EventGroupMapEntry event_group_map = 2
+  repeated EventGroupMapEntry event_group_map = 3
       [(google.api.field_behavior) = REQUIRED];
   // A map of event group reference id to collection intervals. Both
   // `start_time` and `end_time` must be specified. Must include all collection
   // intervals necessary to fulfill requisitions.
-  map<string, google.type.Interval> collection_intervals = 3
+  map<string, google.type.Interval> collection_intervals = 4
       [(google.api.field_behavior) = REQUIRED];
   // The requisition entry to be processed
   message RequisitionEntry {
     // The requisitions to process together. Expected to be of type
     // halo.wfanet.org/Requisition.
-    google.protobuf.Any requisition = 4
+    google.protobuf.Any requisition = 1
         [(google.api.field_behavior) = REQUIRED];
   }
   // The list of requisition entries to process together.
-  repeated RequisitionEntry requisitions = 4 [
+  repeated RequisitionEntry requisitions = 5 [
     (google.api.field_behavior) = REQUIRED,
     (google.api.field_behavior) = UNORDERED_LIST
   ];

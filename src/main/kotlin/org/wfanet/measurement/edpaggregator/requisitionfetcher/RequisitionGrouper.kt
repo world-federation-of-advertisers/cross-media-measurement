@@ -41,6 +41,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt.eventGroupMapEntry
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt.requisitionEntry
 import org.wfanet.measurement.edpaggregator.v1alpha.groupedRequisitions
+import java.util.UUID
 
 /**
  * An interface to group a list of requisitions.
@@ -191,6 +192,7 @@ abstract class RequisitionGrouper(
       collectionIntervalsMap[eventGroupReferenceId] = eventGroupEntry.value.collectionInterval
     }
     return groupedRequisitions {
+      id = UUID.randomUUID().toString()
       modelLine = measurementSpec!!.modelLine
       this.requisitions += requisitionEntry { this.requisition = Any.pack(requisition) }
       this.eventGroupMap +=
