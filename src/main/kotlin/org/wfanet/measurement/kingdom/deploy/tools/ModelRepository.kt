@@ -24,6 +24,8 @@ import java.time.ZoneOffset
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.ListModelProvidersResponse
 import org.wfanet.measurement.api.v2alpha.ListModelSuitesResponse
+import org.wfanet.measurement.api.v2alpha.ModelProvidersGrpc
+import org.wfanet.measurement.api.v2alpha.ModelProvidersGrpc.ModelProvidersBlockingStub
 import org.wfanet.measurement.api.v2alpha.ModelLine
 import org.wfanet.measurement.api.v2alpha.ModelLinesGrpc
 import org.wfanet.measurement.api.v2alpha.ModelLinesGrpc.ModelLinesBlockingStub
@@ -118,8 +120,8 @@ class ModelRepository private constructor() : Runnable {
 private class ModelProviders {
   @ParentCommand private lateinit var parentCommand: ModelRepository
 
-  val modelProvidersClient: ModelProvidersCoroutineStub by lazy {
-    ModelProvidersCoroutineStub(parentCommand.channel)
+  val modelProvidersClient: ModelProvidersBlockingStub by lazy {
+    ModelProvidersGrpc.newBlockingStub(parentCommand.channel)
   }
 }
 
