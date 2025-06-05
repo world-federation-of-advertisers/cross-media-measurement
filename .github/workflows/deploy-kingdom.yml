@@ -22,6 +22,7 @@ jobs:
     uses: ./.github/workflows/terraform-cmms.yml
     secrets: inherit
     with:
+      image-tag: bigquery-offset-testing
       environment: dev
       apply: true
   update-kingdom:
@@ -29,6 +30,6 @@ jobs:
     uses: ./.github/workflows/configure-kingdom.yml
     secrets: inherit
     with:
-      image-tag: nightly-20250427.1
+      image-tag: bigquery-offset-testing
       environment: dev
       apply: true

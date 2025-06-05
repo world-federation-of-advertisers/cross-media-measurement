@@ -15,13 +15,14 @@
 name: Deploy Reporting
 
 on:
-  push:
+  workflow_dispatch:
 
 jobs:
   terraform:
     uses: ./.github/workflows/terraform-cmms.yml
     secrets: inherit
     with:
+      image-tag: bigquery-offset-testing-2
       environment: dev
       apply: true
   update-kingdom:
