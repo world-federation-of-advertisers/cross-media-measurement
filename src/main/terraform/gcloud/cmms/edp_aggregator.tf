@@ -29,19 +29,19 @@ locals {
   }
 
   data_watcher_tls_key = {
-    secret_id         = "edpa-datawatcher-tls-key"
+    secret_id         = "edpa-data-watcher-tls-key"
     secret_local_path = abspath("${path.root}/../../../k8s/testing/secretfiles/edpa_tee_app_tls.key"),
     is_binary_format  = false
   }
 
   data_watcher_tls_pem = {
-    secret_id         = "edpa-datawatcher-tls-pem"
+    secret_id         = "edpa-data-watcher-tls-pem"
     secret_local_path = abspath("${path.root}/../../../k8s/testing/secretfiles/data_watcher_tls.pem"),
     is_binary_format  = false
   }
 
   secure_computation_root_ca = {
-    secret_id         = "secure-computation-root-ca"
+    secret_id         = "securecomputation-root-ca"
     secret_local_path = abspath("${path.root}/../../../k8s/testing/secretfiles/secure_computation_root.pem"),
     is_binary_format  = false
   }
@@ -84,15 +84,15 @@ locals {
 
   requisition_fulfiller_config = {
     queue = {
-    subscription_name     = "requisition-fulfiller-subscription"
-    topic_name            = "requisition-fulfiller-queue"
+    subscription_name     = "results-fulfiller-subscription"
+    topic_name            = "results-fulfiller-queue"
       ack_deadline_seconds  = 600
     }
     worker = {
       instance_template_name        = "requisition-fulfiller-template"
       base_instance_name            = "secure-computation"
-      managed_instance_group_name   = "requisition-fulfiller-mig"
-      mig_service_account_name      = "requisition-fulfiller-sa"
+      managed_instance_group_name   = "results-fulfiller-mig"
+      mig_service_account_name      = "results-fulfiller-sa"
       single_instance_assignment    = 1
       min_replicas                  = 1
       max_replicas                  = 10
@@ -112,7 +112,7 @@ locals {
 module "edp_aggregator" {
   source = "../modules/edp-aggregator"
 
-  key_ring_name                             = "edpa-secure-computation-cloud-test-key-ring"
+  key_ring_name                             = "securecomputation-key-ring"
   key_ring_location                         = local.key_ring_location
   kms_key_name                              = "edpa-secure-computation-kek"
   requisition_fulfiller_config              = local.requisition_fulfiller_config
