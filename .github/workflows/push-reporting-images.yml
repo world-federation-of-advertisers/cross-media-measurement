@@ -39,7 +39,7 @@ jobs:
 
       - name: Write ~/.bazelrc
         env:
-          IMAGE_TAG: bigquery-offset-testing
+          IMAGE_TAG: bigquery-offset-testing-2
         run: |
           cat << EOF > ~/.bazelrc
           common --config=ci
