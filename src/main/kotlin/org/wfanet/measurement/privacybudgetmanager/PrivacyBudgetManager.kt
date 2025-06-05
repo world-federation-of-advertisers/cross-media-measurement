@@ -28,6 +28,8 @@ import org.wfanet.measurement.privacybudgetmanager.LandscapeProcessor.MappingNod
  * @param maximumPrivacyBudget: The maximum privacy budget that can be used in any privacy bucket.
  * @param maximumTotalDelta: Maximum total value of the delta parameter that can be used in any
  *   privacy bucket.
+ *
+ * TODO(uakyol): Validate the Mapping nodes and their constituents
  */
 class PrivacyBudgetManager(
   private val auditLog: AuditLog,
