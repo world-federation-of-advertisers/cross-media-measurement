@@ -15,14 +15,14 @@
 name: Deploy Kingdom
 
 on:
-  workflow_dispatch:
+  push:
 
 jobs:
   terraform:
     uses: ./.github/workflows/terraform-cmms.yml
     secrets: inherit
     with:
-      image-tag: bigquery-offset-testing
+      image-tag: bigquery-offset-testing-2
       environment: dev
       apply: true
   update-kingdom:
