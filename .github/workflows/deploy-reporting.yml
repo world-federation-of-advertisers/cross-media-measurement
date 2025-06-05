@@ -15,7 +15,7 @@
 name: Deploy Reporting
 
 on:
-  workflow_dispatch:
+  push:
 
 jobs:
   terraform:
@@ -29,6 +29,6 @@ jobs:
     uses: ./.github/workflows/configure-reporting-v2.yml
     secrets: inherit
     with:
-      image-tag: bigquery-batch-size-testing
+      image-tag: bigquery-offset-testing-2
       environment: dev
       apply: true
