@@ -12,10 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-output "cloud_function_service_account_email" {
-  value = google_service_account.cloud_function_service_account.email
-}
-
-output "cloud_function_trigger_service_account_email" {
-  value = google_service_account.cloud_function_trigger_service_account.email
+output "cloud_function_service_account" {
+  value = google_service_account.cloud_function_service_account
 }
