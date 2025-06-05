@@ -42,7 +42,7 @@ message ListModelProvidersRequest {
   // The maximum number of results to return.
   //
   // If unspecified, at most 50 results will be returned. The maximum value is
-  // 100; values above this will be coerced to the maximum value.
+  // 1000; values above this will be coerced to the maximum value.
   int32 page_size = 1;
   ListModelProvidersPageToken page_token = 2;
 }
