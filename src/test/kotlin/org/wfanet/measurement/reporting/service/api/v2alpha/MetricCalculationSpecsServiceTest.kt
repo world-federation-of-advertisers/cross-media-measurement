@@ -18,6 +18,7 @@ package org.wfanet.measurement.reporting.service.api.v2alpha
 
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
+import com.google.rpc.errorInfo
 import com.google.type.DayOfWeek
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
@@ -52,13 +53,20 @@ import org.wfanet.measurement.access.v1alpha.PermissionsGrpcKt
 import org.wfanet.measurement.access.v1alpha.checkPermissionsResponse
 import org.wfanet.measurement.access.v1alpha.copy
 import org.wfanet.measurement.access.v1alpha.principal
+import org.wfanet.measurement.api.v2alpha.ModelLineKey
+import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt.ModelLinesCoroutineImplBase
+import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt.ModelLinesCoroutineStub
+import org.wfanet.measurement.api.v2alpha.modelLine
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.getRuntimePath
+import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.config.reporting.MetricSpecConfig
+import org.wfanet.measurement.config.reporting.measurementConsumerConfig
+import org.wfanet.measurement.config.reporting.measurementConsumerConfigs
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpec as InternalMetricCalculationSpec
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpecKt as InternalMetricCalculationSpecKt
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpecsGrpcKt.MetricCalculationSpecsCoroutineImplBase
@@ -72,6 +80,7 @@ import org.wfanet.measurement.internal.reporting.v2.listMetricCalculationSpecsRe
 import org.wfanet.measurement.internal.reporting.v2.listMetricCalculationSpecsResponse as internalListMetricCalculationSpecsResponse
 import org.wfanet.measurement.internal.reporting.v2.metricCalculationSpec as internalMetricCalculationSpec
 import org.wfanet.measurement.internal.reporting.v2.metricSpec as internalMetricSpec
+import org.wfanet.measurement.reporting.service.api.Errors
 import org.wfanet.measurement.reporting.v2alpha.ListMetricCalculationSpecsPageTokenKt
 import org.wfanet.measurement.reporting.v2alpha.MetricCalculationSpec
 import org.wfanet.measurement.reporting.v2alpha.MetricCalculationSpecKt
@@ -126,12 +135,17 @@ class MetricCalculationSpecsServiceTest {
       }
   }
 
+  private val modelLinesServiceMock: ModelLinesCoroutineImplBase = mockService {
+    onBlocking { getModelLine(any()) }.thenReturn(modelLine {})
+  }
+
   private val randomMock: Random = mock()
 
   @get:Rule
   val grpcTestServerRule = GrpcTestServerRule {
     addService(internalMetricCalculationSpecsMock)
     addService(permissionsServiceMock)
+    addService(modelLinesServiceMock)
   }
 
   private lateinit var service: MetricCalculationSpecsService
@@ -146,9 +160,11 @@ class MetricCalculationSpecsServiceTest {
     service =
       MetricCalculationSpecsService(
         MetricCalculationSpecsCoroutineStub(grpcTestServerRule.channel),
+        ModelLinesCoroutineStub(grpcTestServerRule.channel),
         METRIC_SPEC_CONFIG,
         Authorization(PermissionsGrpcKt.PermissionsCoroutineStub(grpcTestServerRule.channel)),
         randomMock,
+        MEASUREMENT_CONSUMER_CONFIGS,
       )
   }
 
@@ -304,6 +320,43 @@ class MetricCalculationSpecsServiceTest {
         }
       )
   }
+
+  @Test
+  fun `createMetricCalculationSpec returns metric calculation spec when model_line set`() =
+    runBlocking {
+      val modelLineName = ModelLineKey("123", "1234", "125").toName()
+      val internalMetricCalculationSpec =
+        INTERNAL_METRIC_CALCULATION_SPEC.copy { cmmsModelLine = modelLineName }
+
+      whenever(internalMetricCalculationSpecsMock.createMetricCalculationSpec(any()))
+        .thenReturn(internalMetricCalculationSpec)
+
+      val metricCalculationSpec = METRIC_CALCULATION_SPEC.copy { modelLine = modelLineName }
+      val request = createMetricCalculationSpecRequest {
+        parent = MEASUREMENT_CONSUMER_NAME
+        this.metricCalculationSpec = metricCalculationSpec
+        metricCalculationSpecId = METRIC_CALCULATION_SPEC_ID
+      }
+
+      val createdMetricCalculationSpec =
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) {
+          runBlocking { service.createMetricCalculationSpec(request) }
+        }
+
+      assertThat(createdMetricCalculationSpec).isEqualTo(metricCalculationSpec)
+
+      verifyProtoArgument(
+          internalMetricCalculationSpecsMock,
+          MetricCalculationSpecsCoroutineImplBase::createMetricCalculationSpec,
+        )
+        .isEqualTo(
+          internalCreateMetricCalculationSpecRequest {
+            this.metricCalculationSpec =
+              internalMetricCalculationSpec.copy { clearExternalMetricCalculationSpecId() }
+            externalMetricCalculationSpecId = METRIC_CALCULATION_SPEC_ID
+          }
+        )
+    }
 
   @Test
   fun `createMetricCalculationSpec returns metric calculation spec when both no freq and window`() =
@@ -602,6 +655,63 @@ class MetricCalculationSpecsServiceTest {
 
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     assertThat(exception.message).contains("display_name")
+  }
+
+  @Test
+  fun `createMetricCalculationSpec throws INVALID_ARGUMENT when model_line invalid`() {
+    val request = createMetricCalculationSpecRequest {
+      parent = MEASUREMENT_CONSUMER_NAME
+      metricCalculationSpec = METRIC_CALCULATION_SPEC.copy { modelLine = "invalid" }
+      metricCalculationSpecId = METRIC_CALCULATION_SPEC_ID
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) {
+          runBlocking { service.createMetricCalculationSpec(request) }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.INVALID_ARGUMENT.code)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.INVALID_FIELD_VALUE.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "request.metric_calculation_spec.model_line"
+        }
+      )
+  }
+
+  @Test
+  fun `createMetricCalculationSpec throws NOT_FOUND when model_line not found`() {
+    wheneverBlocking { modelLinesServiceMock.getModelLine(any()) }
+      .thenThrow(StatusRuntimeException(Status.NOT_FOUND))
+
+    val modelLineKey = ModelLineKey("123", "124", "125")
+
+    val request = createMetricCalculationSpecRequest {
+      parent = MEASUREMENT_CONSUMER_NAME
+      metricCalculationSpec = METRIC_CALCULATION_SPEC.copy { modelLine = modelLineKey.toName() }
+      metricCalculationSpecId = METRIC_CALCULATION_SPEC_ID
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) {
+          runBlocking { service.createMetricCalculationSpec(request) }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.NOT_FOUND.code)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.INVALID_FIELD_VALUE.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "request.metric_calculation_spec.model_line"
+        }
+      )
   }
 
   @Test
@@ -1456,6 +1566,18 @@ class MetricCalculationSpecsServiceTest {
           Paths.get("wfa_measurement_system", "src", "main", "k8s", "testing", "secretfiles")
         )!!
         .toFile()
+
+    private const val API_AUTHENTICATION_KEY = "nR5QPN7ptx"
+
+    private val CONFIG = measurementConsumerConfig {
+      apiKey = API_AUTHENTICATION_KEY
+      signingCertificateName = "$MEASUREMENT_CONSUMER_NAME/certificates/123"
+      signingPrivateKeyPath = "mc_cs_private.der"
+    }
+
+    private val MEASUREMENT_CONSUMER_CONFIGS = measurementConsumerConfigs {
+      configs[MEASUREMENT_CONSUMER_NAME] = CONFIG
+    }
 
     private val METRIC_SPEC_CONFIG: MetricSpecConfig =
       parseTextProto(

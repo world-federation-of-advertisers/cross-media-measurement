@@ -16,6 +16,7 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers
 
 import com.google.cloud.Date
 import com.google.cloud.spanner.Key
+import com.google.cloud.spanner.Options
 import com.google.cloud.spanner.Struct
 import kotlinx.coroutines.flow.singleOrNull
 import org.wfanet.measurement.common.identity.ExternalId
@@ -86,7 +87,13 @@ class ExchangeReader : SpannerReader<ExchangeReader.Result>() {
           appendClause("LIMIT 1")
         }
 
-      val row: Struct = readContext.executeQuery(statement).singleOrNull() ?: return null
+      val row: Struct =
+        readContext
+          .executeQuery(
+            statement,
+            Options.tag("reader=ExchangeReader,action=readExchangeKeyByExternalIds"),
+          )
+          .singleOrNull() ?: return null
 
       return Key.of(row.getInternalId("recurringExchangeId").value, row.getDate("date"))
     }

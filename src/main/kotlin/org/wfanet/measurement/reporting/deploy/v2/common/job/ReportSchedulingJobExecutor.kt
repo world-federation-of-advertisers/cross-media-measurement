@@ -33,6 +33,7 @@ import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCorou
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub as KingdomEventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub as KingdomMeasurementConsumersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub as KingdomMeasurementsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt.ModelLinesCoroutineStub as KingdomModelLinesCoroutineStub
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.grpc.CommonServer
@@ -131,6 +132,7 @@ private fun run(
         KingdomMeasurementsCoroutineStub(kingdomChannel),
         KingdomCertificatesCoroutineStub(kingdomChannel),
         KingdomMeasurementConsumersCoroutineStub(kingdomChannel),
+        KingdomModelLinesCoroutineStub(kingdomChannel),
         authorization,
         InMemoryEncryptionKeyPairStore(encryptionKeyPairMap.keyPairs),
         SecureRandom().asKotlinRandom(),

@@ -14,6 +14,7 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
+import com.google.cloud.spanner.Options
 import com.google.cloud.spanner.Struct
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.singleOrNull
@@ -138,7 +139,8 @@ class CreateDuchyMeasurementLogEntry(private val request: CreateDuchyMeasurement
 
     return transactionContext
       .executeQuery(
-        statement(baseSql) { bind("externalComputationId").to(request.externalComputationId) }
+        statement(baseSql) { bind("externalComputationId").to(request.externalComputationId) },
+        Options.tag("writer=$writerName,action=readMeasurementInfo"),
       )
       .map(::translateToInternalMeasurementInfo)
       .singleOrNull()

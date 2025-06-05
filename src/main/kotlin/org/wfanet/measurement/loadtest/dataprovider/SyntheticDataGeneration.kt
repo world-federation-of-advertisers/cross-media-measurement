@@ -1,5 +1,5 @@
 /*
- * Copyright 2023 The Cross-Media Measurement Authors
+ * Copyright 2025 The Cross-Media Measurement Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,12 +23,17 @@ import com.google.protobuf.kotlin.toByteStringUtf8
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.time.Instant
-import java.time.ZoneOffset
+import java.time.LocalDate
+import java.time.ZoneId
+import java.time.temporal.ChronoUnit
+import java.util.logging.Logger
+import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.CartesianSyntheticEventGroupSpecRecipe
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.FieldValue
-import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SimulatorSyntheticDataSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec.FrequencySpec.VidRangeSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpecKt
@@ -39,33 +44,37 @@ import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.synthetic
 import org.wfanet.measurement.common.LocalDateProgression
 import org.wfanet.measurement.common.OpenEndTimeRange
 import org.wfanet.measurement.common.rangeTo
+import org.wfanet.measurement.common.toByteString
 import org.wfanet.measurement.common.toLocalDate
+import org.wfanet.measurement.loadtest.dataprovider.SyntheticDataGeneration.setField
 
 object SyntheticDataGeneration {
   private val VID_SAMPLING_FINGERPRINT_FUNCTION = Hashing.farmHashFingerprint64()
   private const val FINGERPRINT_BUFFER_SIZE_BYTES = 512
+  private const val SECONDS_PER_DAY = 86400
 
   /**
-   * Generates a sequence of [LabeledEvent].
+   * Generates events deterministicly. Given a total frequency across a date period, it will
+   * generate events across that time period based on a hash function. For example, for a user with
+   * frequency of 5, over a 10 day period, that user will have exactly 5 vids in the output over the
+   * 10 day period.
    *
-   * Consumption of [Sequence] throws
-   * * [IllegalStateException] when [SimulatorSyntheticDataSpec] is invalid, or incompatible
-   * * with [T].
+   * Generates a flow of [DateShardedLabeledImpression].
    *
    * @param messageInstance an instance of the event message type [T]
    * @param populationSpec specification of the synthetic population
    * @param syntheticEventGroupSpec specification of the synthetic event group
    * @param timeRange range in which to generate events
+   * @param zoneId the zoneId in which to segment the flows
    */
   fun <T : Message> generateEvents(
     messageInstance: T,
     populationSpec: SyntheticPopulationSpec,
     syntheticEventGroupSpec: SyntheticEventGroupSpec,
     timeRange: OpenEndTimeRange = OpenEndTimeRange(Instant.MIN, Instant.MAX),
-  ): Sequence<LabeledEvent<T>> {
-    val subPopulations = populationSpec.subPopulationsList
-
-    return sequence {
+    zoneId: ZoneId = ZoneId.of("UTC"),
+  ): Flow<DateShardedLabeledImpression<T>> {
+    return flow {
       for (dateSpec: SyntheticEventGroupSpec.DateSpec in syntheticEventGroupSpec.dateSpecsList) {
         val dateProgression: LocalDateProgression = dateSpec.dateRange.toProgression()
 
@@ -74,58 +83,99 @@ object SyntheticDataGeneration {
         if (!dateSpecTimeRange.overlaps(timeRange)) {
           continue
         }
+        val numDays =
+          ChronoUnit.DAYS.between(dateProgression.start, dateProgression.endInclusive) + 1
+        logger.info("Writing $numDays days of data")
+        for (date in dateProgression) {
+          val innerFlow: Flow<LabeledEvent<T>> =
+            getFlowForDay(
+              dateProgression,
+              date,
+              zoneId,
+              messageInstance,
+              syntheticEventGroupSpec,
+              dateSpec,
+              populationSpec,
+              numDays.toInt(),
+              timeRange,
+            )
+          emit(DateShardedLabeledImpression(date, innerFlow))
+        }
+      }
+    }
+  }
 
-        for (frequencySpec: SyntheticEventGroupSpec.FrequencySpec in dateSpec.frequencySpecsList) {
+  private fun <T : Message> getFlowForDay(
+    dateProgression: LocalDateProgression,
+    date: LocalDate,
+    zoneId: ZoneId,
+    messageInstance: T,
+    syntheticEventGroupSpec: SyntheticEventGroupSpec,
+    dateSpec: SyntheticEventGroupSpec.DateSpec,
+    populationSpec: SyntheticPopulationSpec,
+    numDays: Int,
+    timeRange: OpenEndTimeRange,
+  ): Flow<LabeledEvent<T>> = flow {
+    val subPopulations = populationSpec.subPopulationsList
+    val dayNumber = ChronoUnit.DAYS.between(dateProgression.start, date)
+    logger.info("Generating data for day: $dayNumber date: $date")
+    for (frequencySpec: SyntheticEventGroupSpec.FrequencySpec in dateSpec.frequencySpecsList) {
 
-          check(!frequencySpec.hasOverlaps()) { "The VID ranges should be non-overlapping." }
+      check(!frequencySpec.hasOverlaps()) { "The VID ranges should be non-overlapping." }
 
-          for (vidRangeSpec: VidRangeSpec in frequencySpec.vidRangeSpecsList) {
-            val subPopulation: SubPopulation =
-              vidRangeSpec.vidRange.findSubPopulation(subPopulations)
-                ?: error("Sub-population not found")
-            check(vidRangeSpec.samplingRate in 0.0..1.0) { "Invalid sampling_rate" }
-            if (vidRangeSpec.sampled) {
-              check(syntheticEventGroupSpec.samplingNonce != 0L) {
-                "sampling_nonce is required for VID sampling"
-              }
-            }
+      for (vidRangeSpec: VidRangeSpec in frequencySpec.vidRangeSpecsList) {
+        val subPopulation: SubPopulation =
+          vidRangeSpec.vidRange.findSubPopulation(subPopulations)
+            ?: error("Sub-population not found")
+        check(vidRangeSpec.samplingRate in 0.0..1.0) { "Invalid sampling_rate" }
+        if (vidRangeSpec.sampled) {
+          check(syntheticEventGroupSpec.samplingNonce != 0L) {
+            "sampling_nonce is required for VID sampling"
+          }
+        }
 
-            val builder: Message.Builder = messageInstance.newBuilderForType()
+        val builder: Message.Builder = messageInstance.newBuilderForType()
 
-            populationSpec.populationFieldsList.forEach {
-              val subPopulationFieldValue: FieldValue =
-                subPopulation.populationFieldsValuesMap.getValue(it)
-              val fieldPath = it.split('.')
-              try {
-                builder.setField(fieldPath, subPopulationFieldValue)
-              } catch (e: IllegalArgumentException) {
-                throw IllegalStateException(e)
-              }
-            }
+        populationSpec.populationFieldsList.forEach {
+          val subPopulationFieldValue: FieldValue =
+            subPopulation.populationFieldsValuesMap.getValue(it)
+          val fieldPath = it.split('.')
+          try {
+            builder.setField(fieldPath, subPopulationFieldValue)
+          } catch (e: IllegalArgumentException) {
+            throw IllegalStateException(e)
+          }
+        }
 
-            populationSpec.nonPopulationFieldsList.forEach {
-              val nonPopulationFieldValue: FieldValue =
-                vidRangeSpec.nonPopulationFieldValuesMap.getValue(it)
-              val fieldPath = it.split('.')
-              try {
-                builder.setField(fieldPath, nonPopulationFieldValue)
-              } catch (e: IllegalArgumentException) {
-                throw IllegalStateException(e)
-              }
-            }
+        populationSpec.nonPopulationFieldsList.forEach {
+          val nonPopulationFieldValue: FieldValue =
+            vidRangeSpec.nonPopulationFieldValuesMap.getValue(it)
+          val fieldPath = it.split('.')
+          try {
+            builder.setField(fieldPath, nonPopulationFieldValue)
+          } catch (e: IllegalArgumentException) {
+            throw IllegalStateException(e)
+          }
+        }
 
-            @Suppress("UNCHECKED_CAST") // Safe per protobuf API.
-            val message = builder.build() as T
-
-            for (date in dateProgression) {
-              val timestamp = date.atStartOfDay().toInstant(ZoneOffset.UTC)
-              if (timestamp !in timeRange) {
-                continue
-              }
-              for (i in 1..frequencySpec.frequency) {
-                for (vid in vidRangeSpec.sampledVids(syntheticEventGroupSpec.samplingNonce)) {
-                  yield(LabeledEvent(timestamp, vid, message))
-                }
+        @Suppress("UNCHECKED_CAST") // Safe per protobuf API.
+        val message = builder.build() as T
+        for (vid in vidRangeSpec.sampledVids(syntheticEventGroupSpec.samplingNonce)) {
+          for (i in 1..frequencySpec.frequency) {
+            val dayToLog =
+              (VID_SAMPLING_FINGERPRINT_FUNCTION.hashLong(vid * i).asLong() % numDays + numDays) %
+                numDays
+            if (dayToLog == dayNumber) {
+              val hashInput =
+                vid
+                  .toByteString(ByteOrder.BIG_ENDIAN)
+                  .concat(dayToLog.toByteString(ByteOrder.BIG_ENDIAN))
+              val hashValue =
+                abs(Hashing.farmHashFingerprint64().hashBytes(hashInput.toByteArray()).asLong())
+              val impressionTime =
+                date.atStartOfDay(zoneId).plusSeconds(hashValue % SECONDS_PER_DAY)
+              if (impressionTime.toInstant() in timeRange) {
+                emit(LabeledEvent(impressionTime.toInstant(), vid, message))
               }
             }
           }
@@ -222,6 +272,8 @@ object SyntheticDataGeneration {
     val traversedFieldPath = fieldPath.drop(1)
     nestedBuilder.setField(traversedFieldPath, fieldValue)
   }
+
+  private val logger: Logger = Logger.getLogger(this::class.java.name)
 }
 
 private fun SyntheticEventGroupSpec.DateSpec.DateRange.toProgression(): LocalDateProgression {
