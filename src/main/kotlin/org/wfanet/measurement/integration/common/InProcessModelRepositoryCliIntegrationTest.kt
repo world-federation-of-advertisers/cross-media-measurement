@@ -203,23 +203,23 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
       SigningCerts.fromPemFiles(
         MODEL_PROVIDER_TLS_CERT_FILE,
         MODEL_PROVIDER_TLS_KEY_FILE,
-        ALL_ROOT_CERT_FILE,
+        KINGDOM_ROOT_CERT_FILE,
       )
 
-    val publicChannel: ManagedChannel =
+    val publicModelProviderChannel: ManagedChannel =
       buildMutualTlsChannel("localhost:${server.port}", modelProviderCerts)
-    publicModelSuitesClient = ModelSuitesGrpc.newBlockingStub(publicChannel)
+    publicModelSuitesClient = ModelSuitesGrpc.newBlockingStub(publicModelProviderChannel)
 
     val dataProviderCerts =
       SigningCerts.fromPemFiles(
         DATA_PROVIDER_TLS_CERT_FILE,
         DATA_PROVIDER_TLS_KEY_FILE,
-        ALL_ROOT_CERT_FILE,
+        KINGDOM_ROOT_CERT_FILE,
       )
 
-    val publicChannel2: ManagedChannel =
+    val publicDataProviderChannel: ManagedChannel =
       buildMutualTlsChannel("localhost:${server.port}", dataProviderCerts)
-    publicPopulationsClient = PopulationsGrpc.newBlockingStub(publicChannel2)
+    publicPopulationsClient = PopulationsGrpc.newBlockingStub(publicDataProviderChannel)
   }
 
   @After
@@ -231,7 +231,7 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
   fun `model-suites get prints ModelSuite`() = runBlocking {
     val modelSuite = createModelSuite()
 
-    val args = commonArgsWithModelProvider + arrayOf("model-suites", "get", modelSuite.name)
+    val args = modelProviderArgs + arrayOf("model-suites", "get", modelSuite.name)
     val output = callCli(args)
 
     assertThat(parseTextProto(output.reader(), ModelSuite.getDefaultInstance()))
@@ -241,7 +241,7 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
   @Test
   fun `model-suites create prints ModelSuite`() = runBlocking {
     val args =
-      commonArgsWithModelProvider +
+      modelProviderArgs +
         arrayOf(
           "model-suites",
           "create",
@@ -278,7 +278,7 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
     }
 
     val args =
-      commonArgsWithModelProvider +
+      modelProviderArgs +
         arrayOf(
           "model-suites",
           "list",
@@ -296,7 +296,7 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
   fun `populations get prints Population`() = runBlocking {
     val population = createPopulation()
 
-    val args = commonArgsWithDataProvider + arrayOf("populations", "get", population.name)
+    val args = dataProviderArgs + arrayOf("populations", "get", population.name)
     val output = callCli(args)
 
     assertThat(parseTextProto(output.reader(), Population.getDefaultInstance()))
@@ -306,7 +306,7 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
   @Test
   fun `populations create prints Population`() = runBlocking {
     val args =
-      commonArgsWithDataProvider +
+      dataProviderArgs +
         arrayOf(
           "populations",
           "create",
@@ -345,7 +345,7 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
     }
 
     val args =
-      commonArgsWithDataProvider +
+      dataProviderArgs +
         arrayOf(
           "populations",
           "list",
@@ -390,21 +390,21 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
     )
   }
 
-  private val commonArgsWithModelProvider: Array<String>
+  private val modelProviderArgs: Array<String>
     get() =
       arrayOf(
         "--tls-cert-file=$MODEL_PROVIDER_TLS_CERT_FILE",
         "--tls-key-file=$MODEL_PROVIDER_TLS_KEY_FILE",
-        "--cert-collection-file=$ALL_ROOT_CERT_FILE",
+        "--cert-collection-file=$KINGDOM_ROOT_CERT_FILE",
         "--kingdom-public-api-target=$HOST:${server.port}",
       )
 
-  private val commonArgsWithDataProvider: Array<String>
+  private val dataProviderArgs: Array<String>
     get() =
       arrayOf(
         "--tls-cert-file=$DATA_PROVIDER_TLS_CERT_FILE",
         "--tls-key-file=$DATA_PROVIDER_TLS_KEY_FILE",
-        "--cert-collection-file=$ALL_ROOT_CERT_FILE",
+        "--cert-collection-file=$KINGDOM_ROOT_CERT_FILE",
         "--kingdom-public-api-target=$HOST:${server.port}",
       )
 
@@ -418,6 +418,7 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
 
     private val KINGDOM_TLS_CERT_FILE: File = SECRETS_DIR.resolve("kingdom_tls.pem")
     private val KINGDOM_TLS_KEY_FILE: File = SECRETS_DIR.resolve("kingdom_tls.key")
+    private val KINGDOM_ROOT_CERT_FILE: File = SECRETS_DIR.resolve("kingdom_root.pem")
 
     private val MODEL_PROVIDER_TLS_CERT_FILE: File = SECRETS_DIR.resolve("mp1_tls.pem")
     private val MODEL_PROVIDER_TLS_KEY_FILE: File = SECRETS_DIR.resolve("mp1_tls.key")
