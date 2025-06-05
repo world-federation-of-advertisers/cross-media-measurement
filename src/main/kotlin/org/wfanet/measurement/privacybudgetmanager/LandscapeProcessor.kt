@@ -402,6 +402,21 @@ class LandscapeProcessor {
     return fieldToIndexMap
   }
 
+  /**
+   * Retrieves a list of unique target dimension indices based on a source field value and mappings.
+   *
+   * This function takes a [sourceFieldValue] and uses the provided [mapping] to find associated
+   * target field values. For each found target field value, it then looks up its corresponding
+   * indices in the [targetLandscapeIndexMapping].
+   *
+   * @param sourceFieldValue The specific source field value to find mappings for.
+   * @param mapping A map where keys are source field values and values are lists of mapped target
+   *   field values.
+   * @param targetLandscapeIndexMapping A map where keys are target field values and values are sets
+   *   of their corresponding landscape indices.
+   * @return A [List] of unique integer indices from the target landscape, or an empty list if no
+   *   mappings or indices are found for the given [sourceFieldValue].
+   */
   private fun getDimIndices(
     sourceFieldValue: String,
     mapping: Map<String, List<String>>,
@@ -409,12 +424,12 @@ class LandscapeProcessor {
   ): List<Int> {
     val targetIndices = mutableListOf<Int>()
 
-    // Find all "to" field values associated with the given "sourceFieldValue"
+    // Find all "target" field values associated with the given "sourceFieldValue"
     val mappedTargetValues = mapping[sourceFieldValue]
 
     if (mappedTargetValues != null) {
       for (targetValue in mappedTargetValues) {
-        // For each "to" field value, find the corresponding indices in toLandscapeIndexMapping
+        // For each "target" field value, find the corresponding indices in toLandscapeIndexMapping
         val indices = targetLandscapeIndexMapping[targetValue]
         if (indices != null) {
           targetIndices.addAll(indices)
@@ -425,6 +440,18 @@ class LandscapeProcessor {
     return targetIndices.distinct() // Return only unique indices
   }
 
+  /**
+   * Transforms a [PrivacyLandscapeMapping] into a flattened map of source-to-target field values.
+   *
+   * This function iterates through the provided `privacyLandscapeMapping` to create a new map where
+   * each key represents a unique combination of a source dimension's field path and its enum value.
+   *
+   * @param privacyLandscapeMapping The privacy landscape mapping data to be transformed.
+   * @return A [Map] where keys are concatenated source field paths and enum values, and values are
+   *   lists of concatenated target field paths and enum values.
+   * @throws IllegalStateException if a duplicate source key is encountered, indicating an error in
+   *   the `privacyLandscapeMapping` data.
+   */
   private fun getMapping(
     privacyLandscapeMapping: PrivacyLandscapeMapping
   ): Map<String, List<String>> {
@@ -445,7 +472,10 @@ class LandscapeProcessor {
             "$targetFieldPath.${targetFieldValue.enumValue}"
           }
 
-        mappingResult.computeIfAbsent(sourceKey) { mutableListOf() }.addAll(targetValues)
+        check(!mappingResult.containsKey(sourceKey)) {
+          "Source key '$sourceKey' already exists in the landscape mapping. This should never happen."
+        }
+        mappingResult[sourceKey] = targetValues.toMutableList()
       }
     }
 
@@ -471,9 +501,9 @@ class LandscapeProcessor {
     return mappingCache.getOrPut(key) {
       val populationIndexMapping = mutableMapOf<Int, MutableSet<Int>>()
 
-      val sourceLandscapeFieldMapping = getIndexToFieldMapping(source)
-      val targetLandscapeIndexMapping = getFieldToIndexMapping(target)
-      val mapping = getMapping(privacyLandscapeMapping)
+      val sourceLandscapeFieldMapping: Map<Int, Set<String>> = getIndexToFieldMapping(source)
+      val targetLandscapeIndexMapping: Map<String, Set<Int>> = getFieldToIndexMapping(target)
+      val mapping: Map<String, List<String>> = getMapping(privacyLandscapeMapping)
 
       // Algorithm:
       //   For a given population index (e.g. 0), find all the field values that constructs it
@@ -496,11 +526,7 @@ class LandscapeProcessor {
         }
 
         val intersection =
-          if (allTargetDimIndicies.isNotEmpty()) {
-            allTargetDimIndicies.reduce { acc, list -> acc.intersect(list.toSet()).toList() }
-          } else {
-            emptyList()
-          }
+          allTargetDimIndicies.reduce { acc, list -> acc.intersect(list.toSet()).toList() }
 
         val valueSet: MutableSet<Int> = populationIndexMapping.getOrPut(index) { mutableSetOf() }
         valueSet.addAll(intersection)
