@@ -106,49 +106,44 @@ class OperationalMetricsExport(
         }
         .toList()
 
-    val readMeasurements: (suspend (Measurement) -> List<Measurement>) = { measurement: Measurement ->
-      measurementsClient
-        .streamMeasurements(streamMeasurementsRequest.copy {
-          filter =
-            filter.copy {
-              after =
-                StreamMeasurementsRequestKt.FilterKt.after {
-                  this.updateTime = measurement.updateTime
-                  this.measurement = measurementKey {
-                    externalMeasurementConsumerId =
-                      measurement.externalMeasurementConsumerId
-                    externalMeasurementId = measurement.externalMeasurementId
-                  }
+    val readMeasurements: (suspend (Measurement) -> List<Measurement>) =
+      { measurement: Measurement ->
+        measurementsClient
+          .streamMeasurements(
+            streamMeasurementsRequest.copy {
+              filter =
+                filter.copy {
+                  after =
+                    StreamMeasurementsRequestKt.FilterKt.after {
+                      this.updateTime = measurement.updateTime
+                      this.measurement = measurementKey {
+                        externalMeasurementConsumerId = measurement.externalMeasurementConsumerId
+                        externalMeasurementId = measurement.externalMeasurementId
+                      }
+                    }
                 }
             }
-        })
-        .catch { e ->
-          if (e is StatusException) {
-            logger.warning("Failed to retrieved Measurements")
-            throw e
+          )
+          .catch { e ->
+            if (e is StatusException) {
+              logger.warning("Failed to retrieved Measurements")
+              throw e
+            }
           }
-        }
-        .toList()
-    }
+          .toList()
+      }
 
     val processMeasurement: ((Measurement) -> List<ByteString>) = { measurement: Measurement ->
       val protoRowsList = mutableListOf<ByteString>()
 
       val measurementType =
-        getMeasurementType(
-          measurement.details.measurementSpec,
-          measurement.details.apiVersion,
-        )
+        getMeasurementType(measurement.details.measurementSpec, measurement.details.apiVersion)
 
-      val measurementConsumerId =
-        externalIdToApiId(measurement.externalMeasurementConsumerId)
+      val measurementConsumerId = externalIdToApiId(measurement.externalMeasurementConsumerId)
       val measurementId = externalIdToApiId(measurement.externalMeasurementId)
 
       val measurementCompletionDurationSeconds =
-        Duration.between(
-          measurement.createTime.toInstant(),
-          measurement.updateTime.toInstant(),
-        )
+        Duration.between(measurement.createTime.toInstant(), measurement.updateTime.toInstant())
           .seconds
 
       val measurementState =
@@ -169,18 +164,18 @@ class OperationalMetricsExport(
 
       val measurementsTableRow =
         measurementsTableRow {
-          this.measurementConsumerId = measurementConsumerId
-          this.measurementId = measurementId
-          isDirect = measurement.details.protocolConfig.hasDirect()
-          this.measurementType = measurementType
-          state = measurementState
-          createTime = measurement.createTime
-          this.updateTime = measurement.updateTime
-          completionDurationSeconds = measurementCompletionDurationSeconds
-          completionDurationSecondsSquared =
-            measurementCompletionDurationSeconds * measurementCompletionDurationSeconds
-          updateTimeNanoseconds = Timestamps.toNanos(measurement.updateTime)
-        }
+            this.measurementConsumerId = measurementConsumerId
+            this.measurementId = measurementId
+            isDirect = measurement.details.protocolConfig.hasDirect()
+            this.measurementType = measurementType
+            state = measurementState
+            createTime = measurement.createTime
+            this.updateTime = measurement.updateTime
+            completionDurationSeconds = measurementCompletionDurationSeconds
+            completionDurationSecondsSquared =
+              measurementCompletionDurationSeconds * measurementCompletionDurationSeconds
+            updateTimeNanoseconds = Timestamps.toNanos(measurement.updateTime)
+          }
           .toByteString()
 
       protoRowsList.add(measurementsTableRow)
@@ -233,28 +228,30 @@ class OperationalMetricsExport(
         }
         .toList()
 
-
-    val readRequisitions: (suspend (Requisition) -> List<Requisition>) = { requisition: Requisition ->
-      requisitionsClient
-        .streamRequisitions(streamRequisitionsRequest.copy {
-          filter =
-            filter.copy {
-              after =
-                StreamRequisitionsRequestKt.FilterKt.after {
-                  this.updateTime = requisition.updateTime
-                  externalDataProviderId = requisition.externalDataProviderId
-                  externalRequisitionId = requisition.externalRequisitionId
+    val readRequisitions: (suspend (Requisition) -> List<Requisition>) =
+      { requisition: Requisition ->
+        requisitionsClient
+          .streamRequisitions(
+            streamRequisitionsRequest.copy {
+              filter =
+                filter.copy {
+                  after =
+                    StreamRequisitionsRequestKt.FilterKt.after {
+                      this.updateTime = requisition.updateTime
+                      externalDataProviderId = requisition.externalDataProviderId
+                      externalRequisitionId = requisition.externalRequisitionId
+                    }
                 }
             }
-        })
-        .catch { e ->
-          if (e is StatusException) {
-            logger.warning("Failed to retrieved Requisitions")
-            throw e
+          )
+          .catch { e ->
+            if (e is StatusException) {
+              logger.warning("Failed to retrieved Requisitions")
+              throw e
+            }
           }
-        }
-        .toList()
-    }
+          .toList()
+      }
 
     val processRequisition: ((Requisition) -> List<ByteString>) = { requisition: Requisition ->
       val protoRowsList = mutableListOf<ByteString>()
@@ -265,8 +262,7 @@ class OperationalMetricsExport(
           requisition.parentMeasurement.apiVersion,
         )
 
-      val measurementConsumerId =
-        externalIdToApiId(requisition.externalMeasurementConsumerId)
+      val measurementConsumerId = externalIdToApiId(requisition.externalMeasurementConsumerId)
       val measurementId = externalIdToApiId(requisition.externalMeasurementId)
 
       val requisitionState =
@@ -283,27 +279,27 @@ class OperationalMetricsExport(
 
       val requisitionCompletionDurationSeconds =
         Duration.between(
-          requisition.parentMeasurement.createTime.toInstant(),
-          requisition.updateTime.toInstant(),
-        )
+            requisition.parentMeasurement.createTime.toInstant(),
+            requisition.updateTime.toInstant(),
+          )
           .seconds
 
       val requisitionsTableRow =
         requisitionsTableRow {
-          this.measurementConsumerId = measurementConsumerId
-          this.measurementId = measurementId
-          requisitionId = externalIdToApiId(requisition.externalRequisitionId)
-          dataProviderId = externalIdToApiId(requisition.externalDataProviderId)
-          isDirect = requisition.parentMeasurement.protocolConfig.hasDirect()
-          this.measurementType = measurementType
-          state = requisitionState
-          createTime = requisition.parentMeasurement.createTime
-          this.updateTime = requisition.updateTime
-          completionDurationSeconds = requisitionCompletionDurationSeconds
-          completionDurationSecondsSquared =
-            requisitionCompletionDurationSeconds * requisitionCompletionDurationSeconds
-          updateTimeNanoseconds = Timestamps.toNanos(requisition.updateTime)
-        }
+            this.measurementConsumerId = measurementConsumerId
+            this.measurementId = measurementId
+            requisitionId = externalIdToApiId(requisition.externalRequisitionId)
+            dataProviderId = externalIdToApiId(requisition.externalDataProviderId)
+            isDirect = requisition.parentMeasurement.protocolConfig.hasDirect()
+            this.measurementType = measurementType
+            state = requisitionState
+            createTime = requisition.parentMeasurement.createTime
+            this.updateTime = requisition.updateTime
+            completionDurationSeconds = requisitionCompletionDurationSeconds
+            completionDurationSecondsSquared =
+              requisitionCompletionDurationSeconds * requisitionCompletionDurationSeconds
+            updateTimeNanoseconds = Timestamps.toNanos(requisition.updateTime)
+          }
           .toByteString()
 
       protoRowsList.add(requisitionsTableRow)
@@ -332,7 +328,11 @@ class OperationalMetricsExport(
   }
 
   private suspend fun exportComputationParticipants() {
-    val updateTime = getLatestUpdateTime(computationParticipantStagesTableId, "computation_update_time_nanoseconds")
+    val updateTime =
+      getLatestUpdateTime(
+        computationParticipantStagesTableId,
+        "computation_update_time_nanoseconds",
+      )
     logger.info("Retrieved latest computation read info from BigQuery")
 
     val streamComputationsRequest = streamMeasurementsRequest {
@@ -357,20 +357,23 @@ class OperationalMetricsExport(
         }
         .toList()
 
-    val readComputations: (suspend (Measurement) -> List<Measurement>) = { measurement: Measurement ->
+    val readComputations: (suspend (Measurement) -> List<Measurement>) =
+      { measurement: Measurement ->
         measurementsClient
-          .streamMeasurements(streamComputationsRequest.copy {
-            filter =
-              filter.copy {
-                after =
-                  StreamMeasurementsRequestKt.FilterKt.after {
-                    this.updateTime = measurement.updateTime
-                    computation = computationKey {
-                      externalComputationId = measurement.externalComputationId
+          .streamMeasurements(
+            streamComputationsRequest.copy {
+              filter =
+                filter.copy {
+                  after =
+                    StreamMeasurementsRequestKt.FilterKt.after {
+                      this.updateTime = measurement.updateTime
+                      computation = computationKey {
+                        externalComputationId = measurement.externalComputationId
+                      }
                     }
-                  }
-              }
-          })
+                }
+            }
+          )
           .catch { e ->
             if (e is StatusException) {
               logger.warning("Failed to retrieved Computations")
@@ -378,29 +381,24 @@ class OperationalMetricsExport(
             }
           }
           .toList()
-    }
+      }
 
     val processComputation: ((Measurement) -> List<ByteString>) = { measurement: Measurement ->
       val protoRowsList = mutableListOf<ByteString>()
       if (measurement.externalComputationId != 0L) {
         val measurementType =
-          getMeasurementType(
-            measurement.details.measurementSpec,
-            measurement.details.apiVersion,
-          )
+          getMeasurementType(measurement.details.measurementSpec, measurement.details.apiVersion)
 
-        val measurementConsumerId =
-          externalIdToApiId(measurement.externalMeasurementConsumerId)
+        val measurementConsumerId = externalIdToApiId(measurement.externalMeasurementConsumerId)
         val measurementId = externalIdToApiId(measurement.externalMeasurementId)
         val computationId = externalIdToApiId(measurement.externalComputationId)
 
-        val baseComputationParticipantStagesTableRow =
-          computationParticipantStagesTableRow {
-            this.measurementConsumerId = measurementConsumerId
-            this.measurementId = measurementId
-            this.computationId = computationId
-            this.measurementType = measurementType
-          }
+        val baseComputationParticipantStagesTableRow = computationParticipantStagesTableRow {
+          this.measurementConsumerId = measurementConsumerId
+          this.measurementId = measurementId
+          this.computationId = computationId
+          this.measurementType = measurementType
+        }
 
         // Map of ExternalDuchyId to log entries.
         val logEntriesMap: Map<String, MutableList<DuchyMeasurementLogEntry>> = buildMap {
@@ -431,9 +429,9 @@ class OperationalMetricsExport(
                     stageStartTime = logEntry.details.stageAttempt.stageStartTime
                     completionDurationSeconds =
                       Duration.between(
-                        logEntry.details.stageAttempt.stageStartTime.toInstant(),
-                        nextLogEntry.details.stageAttempt.stageStartTime.toInstant(),
-                      )
+                          logEntry.details.stageAttempt.stageStartTime.toInstant(),
+                          nextLogEntry.details.stageAttempt.stageStartTime.toInstant(),
+                        )
                         .seconds
                     completionDurationSecondsSquared =
                       completionDurationSeconds * completionDurationSeconds
@@ -460,9 +458,9 @@ class OperationalMetricsExport(
                     stageStartTime = logEntry.details.stageAttempt.stageStartTime
                     completionDurationSeconds =
                       Duration.between(
-                        logEntry.details.stageAttempt.stageStartTime.toInstant(),
-                        measurement.updateTime.toInstant(),
-                      )
+                          logEntry.details.stageAttempt.stageStartTime.toInstant(),
+                          measurement.updateTime.toInstant(),
+                        )
                         .seconds
                     completionDurationSecondsSquared =
                       completionDurationSeconds * completionDurationSeconds
@@ -478,9 +476,9 @@ class OperationalMetricsExport(
                     stageStartTime = logEntry.details.stageAttempt.stageStartTime
                     completionDurationSeconds =
                       Duration.between(
-                        logEntry.details.stageAttempt.stageStartTime.toInstant(),
-                        measurement.updateTime.toInstant(),
-                      )
+                          logEntry.details.stageAttempt.stageStartTime.toInstant(),
+                          measurement.updateTime.toInstant(),
+                        )
                         .seconds
                     completionDurationSecondsSquared =
                       completionDurationSeconds * completionDurationSeconds
@@ -491,9 +489,7 @@ class OperationalMetricsExport(
             }
 
           if (computationParticipantStagesProtoRow != null) {
-            protoRowsList.add(
-              computationParticipantStagesProtoRow
-            )
+            protoRowsList.add(computationParticipantStagesProtoRow)
           }
         }
       }
@@ -556,7 +552,7 @@ class OperationalMetricsExport(
     retrieveUpdateTime: (T) -> Timestamp,
     processBatchItem: (T) -> List<ByteString>,
     successfulBatchReadMessage: String,
-    successfulAppendMessage: String
+    successfulAppendMessage: String,
   ) {
     val protoRowsList = mutableListOf<ByteString>()
     var latestUpdateTime: Timestamp? = null
@@ -596,7 +592,6 @@ class OperationalMetricsExport(
       } else {
         batch = emptyList()
       }
-
     } while (batch.isNotEmpty())
 
     if (protoRowsList.isNotEmpty()) {

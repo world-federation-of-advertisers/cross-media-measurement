@@ -368,7 +368,8 @@ class OperationalMetricsExportTest {
             stageStartTime = timestamp { seconds = 100 }
             completionDurationSeconds = 200
             completionDurationSecondsSquared = completionDurationSeconds * completionDurationSeconds
-            computationUpdateTimeNanoseconds = Timestamps.toNanos(COMPUTATION_MEASUREMENT.updateTime)
+            computationUpdateTimeNanoseconds =
+              Timestamps.toNanos(COMPUTATION_MEASUREMENT.updateTime)
           }
         )
 
@@ -389,7 +390,8 @@ class OperationalMetricsExportTest {
             stageStartTime = timestamp { seconds = 300 }
             completionDurationSeconds = 300
             completionDurationSecondsSquared = completionDurationSeconds * completionDurationSeconds
-            computationUpdateTimeNanoseconds = Timestamps.toNanos(COMPUTATION_MEASUREMENT.updateTime)
+            computationUpdateTimeNanoseconds =
+              Timestamps.toNanos(COMPUTATION_MEASUREMENT.updateTime)
           }
         )
 
@@ -410,7 +412,8 @@ class OperationalMetricsExportTest {
             stageStartTime = timestamp { seconds = 100 }
             completionDurationSeconds = 200
             completionDurationSecondsSquared = completionDurationSeconds * completionDurationSeconds
-            computationUpdateTimeNanoseconds = Timestamps.toNanos(COMPUTATION_MEASUREMENT.updateTime)
+            computationUpdateTimeNanoseconds =
+              Timestamps.toNanos(COMPUTATION_MEASUREMENT.updateTime)
           }
         )
 
@@ -431,7 +434,8 @@ class OperationalMetricsExportTest {
             stageStartTime = timestamp { seconds = 300 }
             completionDurationSeconds = 300
             completionDurationSecondsSquared = completionDurationSeconds * completionDurationSeconds
-            computationUpdateTimeNanoseconds = Timestamps.toNanos(COMPUTATION_MEASUREMENT.updateTime)
+            computationUpdateTimeNanoseconds =
+              Timestamps.toNanos(COMPUTATION_MEASUREMENT.updateTime)
           }
         )
     }
@@ -489,7 +493,8 @@ class OperationalMetricsExportTest {
             stageStartTime = timestamp { seconds = 100 }
             completionDurationSeconds = 200
             completionDurationSecondsSquared = completionDurationSeconds * completionDurationSeconds
-            computationUpdateTimeNanoseconds = Timestamps.toNanos(COMPUTATION_MEASUREMENT.updateTime)
+            computationUpdateTimeNanoseconds =
+              Timestamps.toNanos(COMPUTATION_MEASUREMENT.updateTime)
           }
         )
 
@@ -510,7 +515,8 @@ class OperationalMetricsExportTest {
             stageStartTime = timestamp { seconds = 300 }
             completionDurationSeconds = 300
             completionDurationSecondsSquared = completionDurationSeconds * completionDurationSeconds
-            computationUpdateTimeNanoseconds = Timestamps.toNanos(COMPUTATION_MEASUREMENT.updateTime)
+            computationUpdateTimeNanoseconds =
+              Timestamps.toNanos(COMPUTATION_MEASUREMENT.updateTime)
           }
         )
 
@@ -531,7 +537,8 @@ class OperationalMetricsExportTest {
             stageStartTime = timestamp { seconds = 100 }
             completionDurationSeconds = 200
             completionDurationSecondsSquared = completionDurationSeconds * completionDurationSeconds
-            computationUpdateTimeNanoseconds = Timestamps.toNanos(COMPUTATION_MEASUREMENT.updateTime)
+            computationUpdateTimeNanoseconds =
+              Timestamps.toNanos(COMPUTATION_MEASUREMENT.updateTime)
           }
         )
 
@@ -552,7 +559,8 @@ class OperationalMetricsExportTest {
             stageStartTime = timestamp { seconds = 300 }
             completionDurationSeconds = 300
             completionDurationSecondsSquared = completionDurationSeconds * completionDurationSeconds
-            computationUpdateTimeNanoseconds = Timestamps.toNanos(COMPUTATION_MEASUREMENT.updateTime)
+            computationUpdateTimeNanoseconds =
+              Timestamps.toNanos(COMPUTATION_MEASUREMENT.updateTime)
           }
         )
     }
@@ -573,7 +581,10 @@ class OperationalMetricsExportTest {
         whenever(tableResult.iterateAll())
           .thenReturn(
             listOf(
-              FieldValueList.of(mutableListOf(updateTimeNanosecondsFieldValue), MEASUREMENT_FIELD_LIST)
+              FieldValueList.of(
+                mutableListOf(updateTimeNanosecondsFieldValue),
+                MEASUREMENT_FIELD_LIST,
+              )
             )
           )
           .thenReturn(emptyList())
@@ -637,7 +648,10 @@ class OperationalMetricsExportTest {
       whenever(tableResult.iterateAll())
         .thenReturn(
           listOf(
-            FieldValueList.of(mutableListOf(updateTimeNanosecondsFieldValue), MEASUREMENT_FIELD_LIST)
+            FieldValueList.of(
+              mutableListOf(updateTimeNanosecondsFieldValue),
+              MEASUREMENT_FIELD_LIST,
+            )
           )
         )
         .thenReturn(emptyList())
@@ -703,7 +717,10 @@ class OperationalMetricsExportTest {
           .thenReturn(emptyList())
           .thenReturn(
             listOf(
-              FieldValueList.of(mutableListOf(updateTimeNanosecondsFieldValue), REQUISITION_FIELD_LIST)
+              FieldValueList.of(
+                mutableListOf(updateTimeNanosecondsFieldValue),
+                REQUISITION_FIELD_LIST,
+              )
             )
           )
           .thenReturn(emptyList())
@@ -763,7 +780,10 @@ class OperationalMetricsExportTest {
         .thenReturn(emptyList())
         .thenReturn(
           listOf(
-            FieldValueList.of(mutableListOf(updateTimeNanosecondsFieldValue), REQUISITION_FIELD_LIST)
+            FieldValueList.of(
+              mutableListOf(updateTimeNanosecondsFieldValue),
+              REQUISITION_FIELD_LIST,
+            )
           )
         )
         .thenReturn(emptyList())
@@ -829,7 +849,10 @@ class OperationalMetricsExportTest {
           .thenReturn(emptyList())
           .thenReturn(
             listOf(
-              FieldValueList.of(mutableListOf(computationUpdateTimeNanosecondsFieldValue), COMPUTATION_PARTICIPANT_STAGE_FIELD_LIST)
+              FieldValueList.of(
+                mutableListOf(computationUpdateTimeNanosecondsFieldValue),
+                COMPUTATION_PARTICIPANT_STAGE_FIELD_LIST,
+              )
             )
           )
           .thenReturn(emptyList())
@@ -895,7 +918,10 @@ class OperationalMetricsExportTest {
         .thenReturn(emptyList())
         .thenReturn(
           listOf(
-            FieldValueList.of(mutableListOf(computationUpdateTimeNanosecondsFieldValue), COMPUTATION_PARTICIPANT_STAGE_FIELD_LIST)
+            FieldValueList.of(
+              mutableListOf(computationUpdateTimeNanosecondsFieldValue),
+              COMPUTATION_PARTICIPANT_STAGE_FIELD_LIST,
+            )
           )
         )
         .thenReturn(emptyList())
@@ -1000,19 +1026,14 @@ class OperationalMetricsExportTest {
   @Test
   fun `job succeeds when column in latest read query is null`() = runBlocking {
     val updateTimeNanosecondsFieldValue: FieldValue =
-      FieldValue.of(
-        FieldValue.Attribute.PRIMITIVE,
-        null,
-      )
+      FieldValue.of(FieldValue.Attribute.PRIMITIVE, null)
 
     val tableResultMock: TableResult = mock { tableResult ->
       whenever(tableResult.iterateAll())
         .thenReturn(
           listOf(
             FieldValueList.of(
-              mutableListOf(
-                updateTimeNanosecondsFieldValue,
-              ),
+              mutableListOf(updateTimeNanosecondsFieldValue),
               MEASUREMENT_FIELD_LIST,
             )
           )
@@ -1511,6 +1532,8 @@ class OperationalMetricsExportTest {
       FieldList.of(listOf(Field.of("update_time_nanoseconds", LegacySQLTypeName.INTEGER)))
 
     private val COMPUTATION_PARTICIPANT_STAGE_FIELD_LIST: FieldList =
-      FieldList.of(listOf(Field.of("computation_update_time_nanoseconds", LegacySQLTypeName.INTEGER)))
+      FieldList.of(
+        listOf(Field.of("computation_update_time_nanoseconds", LegacySQLTypeName.INTEGER))
+      )
   }
 }
