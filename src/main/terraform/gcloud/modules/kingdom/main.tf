@@ -67,6 +67,8 @@ resource "google_bigquery_table" "measurements" {
     type  = "MONTH"
   }
 
+  clustering = ["update_time_nanoseconds"]
+
   schema = <<EOF
 [
   {
@@ -118,6 +120,11 @@ resource "google_bigquery_table" "measurements" {
     "type": "INTEGER",
     "mode": "REQUIRED",
     "defaultValueExpression": "0"
+  },
+  {
+    "name": "update_time_nanoseconds",
+    "type": "INTEGER",
+    "mode": "NULLABLE"
   }
 ]
 EOF
@@ -134,6 +141,8 @@ resource "google_bigquery_table" "requisitions" {
     field = "update_time"
     type  = "MONTH"
   }
+
+  clustering = ["update_time_nanoseconds"]
 
   schema = <<EOF
 [
@@ -196,6 +205,11 @@ resource "google_bigquery_table" "requisitions" {
     "type": "INTEGER",
     "mode": "REQUIRED",
     "defaultValueExpression": "0"
+  },
+  {
+    "name": "update_time_nanoseconds",
+    "type": "INTEGER",
+    "mode": "NULLABLE"
   }
 ]
 EOF
@@ -212,6 +226,8 @@ resource "google_bigquery_table" "computation_participant_stages" {
     field = "stage_start_time"
     type  = "MONTH"
   }
+
+  clustering = ["computation_update_time_nanoseconds"]
 
   schema = <<EOF
 [
@@ -269,75 +285,11 @@ resource "google_bigquery_table" "computation_participant_stages" {
     "type": "INTEGER",
     "mode": "REQUIRED",
     "defaultValueExpression": "0"
-  }
-]
-EOF
-
-}
-
-resource "google_bigquery_table" "latest_measurement_read" {
-  dataset_id = google_bigquery_dataset.operational_metrics.dataset_id
-  table_id   = "latest_measurement_read"
-
-  deletion_protection = true
-
-  time_partitioning {
-    expiration_ms = 3888000000 // 45 days
-    type          = "MONTH"
-  }
-
-  schema = <<EOF
-[
+  },
   {
-    "name": "update_time",
+    "name": "computation_update_time_nanoseconds",
     "type": "INTEGER",
-    "mode": "REQUIRED"
-  }
-]
-EOF
-
-}
-
-resource "google_bigquery_table" "latest_requisition_read" {
-  dataset_id = google_bigquery_dataset.operational_metrics.dataset_id
-  table_id   = "latest_requisition_read"
-
-  deletion_protection = true
-
-  time_partitioning {
-    expiration_ms = 3888000000 // 45 days
-    type          = "MONTH"
-  }
-
-  schema = <<EOF
-[
-  {
-    "name": "update_time",
-    "type": "INTEGER",
-    "mode": "REQUIRED"
-  }
-]
-EOF
-
-}
-
-resource "google_bigquery_table" "latest_computation_read" {
-  dataset_id = google_bigquery_dataset.operational_metrics.dataset_id
-  table_id   = "latest_computation_read"
-
-  deletion_protection = true
-
-  time_partitioning {
-    expiration_ms = 3888000000 // 45 days
-    type          = "MONTH"
-  }
-
-  schema = <<EOF
-[
-  {
-    "name": "update_time",
-    "type": "INTEGER",
-    "mode": "REQUIRED"
+    "mode": "NULLABLE"
   }
 ]
 EOF

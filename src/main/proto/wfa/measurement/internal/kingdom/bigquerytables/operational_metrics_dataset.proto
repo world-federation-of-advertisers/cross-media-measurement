@@ -49,6 +49,10 @@ message MeasurementsTableRow {
 
   int64 completion_duration_seconds = 8;
   int64 completion_duration_seconds_squared = 9;
+
+  // Since BigQuery timestamp is microsecond precision, this is in nanoseconds
+  // and is stored as an integer.
+  int64 update_time_nanoseconds = 10;
 }
 
 message RequisitionsTableRow {
@@ -72,6 +76,10 @@ message RequisitionsTableRow {
 
   int64 completion_duration_seconds = 10;
   int64 completion_duration_seconds_squared = 11;
+
+  // Since BigQuery timestamp is microsecond precision, this is in nanoseconds
+  // and is stored as an integer.
+  int64 update_time_nanoseconds = 12;
 }
 
 message ComputationParticipantStagesTableRow {
@@ -96,27 +104,8 @@ message ComputationParticipantStagesTableRow {
   // Difference between start of this stage and start of next stage.
   int64 completion_duration_seconds = 9;
   int64 completion_duration_seconds_squared = 10;
-}
-
-message LatestMeasurementReadTableRow {
-  reserved 2, 3;
 
   // Since BigQuery timestamp is microsecond precision, this is in nanoseconds
   // and is stored as an integer.
-  int64 update_time = 1;
-}
-
-message LatestRequisitionReadTableRow {
-  reserved 2, 3;
-
-  // Since BigQuery timestamp is microsecond precision, this is in nanoseconds
-  // and is stored as an integer.
-  int64 update_time = 1;
-}
-
-message LatestComputationReadTableRow {
-  reserved 2;
-  // Since BigQuery timestamp is microsecond precision, this is in nanoseconds
-  // and is stored as an integer.
-  int64 update_time = 1;
+  int64 computation_update_time_nanoseconds = 11;
 }
