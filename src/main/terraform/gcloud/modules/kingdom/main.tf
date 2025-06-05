@@ -292,16 +292,6 @@ resource "google_bigquery_table" "latest_measurement_read" {
     "name": "update_time",
     "type": "INTEGER",
     "mode": "REQUIRED"
-  },
-  {
-    "name": "external_measurement_consumer_id",
-    "type": "INTEGER",
-    "mode": "REQUIRED"
-  },
-  {
-    "name": "external_measurement_id",
-    "type": "INTEGER",
-    "mode": "REQUIRED"
   }
 ]
 EOF
@@ -323,16 +313,6 @@ resource "google_bigquery_table" "latest_requisition_read" {
 [
   {
     "name": "update_time",
-    "type": "INTEGER",
-    "mode": "REQUIRED"
-  },
-  {
-    "name": "external_data_provider_id",
-    "type": "INTEGER",
-    "mode": "REQUIRED"
-  },
-  {
-    "name": "external_requisition_id",
     "type": "INTEGER",
     "mode": "REQUIRED"
   }
@@ -358,12 +338,6 @@ resource "google_bigquery_table" "latest_computation_read" {
     "name": "update_time",
     "type": "INTEGER",
     "mode": "REQUIRED"
-  },
-  {
-    "name": "external_computation_id",
-    "type": "INTEGER",
-    "mode": "REQUIRED",
-    "defaultValueExpression": "0"
   }
 ]
 EOF

@@ -99,24 +99,24 @@ message ComputationParticipantStagesTableRow {
 }
 
 message LatestMeasurementReadTableRow {
+  reserved 2, 3;
+
   // Since BigQuery timestamp is microsecond precision, this is in nanoseconds
   // and is stored as an integer.
   int64 update_time = 1;
-  int64 external_measurement_consumer_id = 2;
-  int64 external_measurement_id = 3;
 }
 
 message LatestRequisitionReadTableRow {
+  reserved 2, 3;
+
   // Since BigQuery timestamp is microsecond precision, this is in nanoseconds
   // and is stored as an integer.
   int64 update_time = 1;
-  int64 external_data_provider_id = 2;
-  int64 external_requisition_id = 3;
 }
 
 message LatestComputationReadTableRow {
+  reserved 2;
   // Since BigQuery timestamp is microsecond precision, this is in nanoseconds
   // and is stored as an integer.
   int64 update_time = 1;
-  int64 external_computation_id = 2;
 }
