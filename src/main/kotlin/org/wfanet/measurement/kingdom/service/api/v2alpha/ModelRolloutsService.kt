@@ -21,6 +21,8 @@ import com.google.type.interval
 import io.grpc.Status
 import io.grpc.StatusException
 import java.time.ZoneOffset
+import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.EmptyCoroutineContext
 import kotlin.math.min
 import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.v2alpha.CreateModelRolloutRequest
@@ -65,8 +67,10 @@ import org.wfanet.measurement.internal.kingdom.streamModelRolloutsRequest
 private const val DEFAULT_PAGE_SIZE = 50
 private const val MAX_PAGE_SIZE = 1000
 
-class ModelRolloutsService(private val internalClient: ModelRolloutsCoroutineStub) :
-  ModelRolloutsCoroutineService() {
+class ModelRolloutsService(
+  private val internalClient: ModelRolloutsCoroutineStub,
+  coroutineContext: CoroutineContext = EmptyCoroutineContext,
+) : ModelRolloutsCoroutineService(coroutineContext) {
 
   override suspend fun createModelRollout(request: CreateModelRolloutRequest): ModelRollout {
     val parentKey =

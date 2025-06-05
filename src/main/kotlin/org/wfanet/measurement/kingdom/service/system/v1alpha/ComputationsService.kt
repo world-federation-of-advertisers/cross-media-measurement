@@ -16,6 +16,8 @@ package org.wfanet.measurement.kingdom.service.system.v1alpha
 
 import io.grpc.Status
 import io.grpc.StatusException
+import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.EmptyCoroutineContext
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
@@ -56,11 +58,12 @@ import org.wfanet.measurement.system.v1alpha.streamActiveComputationsResponse
 
 class ComputationsService(
   private val measurementsClient: MeasurementsCoroutineStub,
+  coroutineContext: CoroutineContext = EmptyCoroutineContext,
   private val duchyIdentityProvider: () -> DuchyIdentity = ::duchyIdentityFromContext,
   private val streamingTimeout: Duration = 10.minutes,
   private val streamingThrottle: Duration = 1.seconds,
   private val streamingLimit: Int = DEFAULT_STREAMING_LIMIT,
-) : ComputationsCoroutineImplBase() {
+) : ComputationsCoroutineImplBase(coroutineContext) {
   override suspend fun getComputation(request: GetComputationRequest): Computation {
     val computationKey =
       grpcRequireNotNull(ComputationKey.fromName(request.name)) {

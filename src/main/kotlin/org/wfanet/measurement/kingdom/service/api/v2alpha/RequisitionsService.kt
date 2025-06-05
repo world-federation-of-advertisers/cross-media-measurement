@@ -20,6 +20,8 @@ import com.google.protobuf.any
 import com.google.protobuf.kotlin.unpack
 import io.grpc.Status
 import io.grpc.StatusException
+import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.EmptyCoroutineContext
 import kotlin.math.min
 import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.Version
@@ -90,8 +92,10 @@ import org.wfanet.measurement.internal.kingdom.streamRequisitionsRequest
 private const val DEFAULT_PAGE_SIZE = 10
 private const val MAX_PAGE_SIZE = 500
 
-class RequisitionsService(private val internalRequisitionStub: RequisitionsCoroutineStub) :
-  RequisitionsCoroutineImplBase() {
+class RequisitionsService(
+  private val internalRequisitionStub: RequisitionsCoroutineStub,
+  coroutineContext: CoroutineContext = EmptyCoroutineContext,
+) : RequisitionsCoroutineImplBase(coroutineContext) {
 
   private enum class Permission {
     LIST,

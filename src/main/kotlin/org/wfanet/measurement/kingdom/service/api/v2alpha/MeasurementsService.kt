@@ -22,6 +22,8 @@ import com.google.protobuf.kotlin.unpack
 import io.grpc.Status
 import io.grpc.StatusException
 import java.util.AbstractMap
+import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.EmptyCoroutineContext
 import kotlin.math.min
 import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.v2alpha.BatchCreateMeasurementsRequest
@@ -106,7 +108,8 @@ class MeasurementsService(
   private val reachOnlyLlV2Enabled: Boolean = false,
   private val hmssEnabled: Boolean = false,
   private val hmssEnabledMeasurementConsumers: List<String> = emptyList(),
-) : MeasurementsCoroutineImplBase() {
+  coroutineContext: CoroutineContext = EmptyCoroutineContext,
+) : MeasurementsCoroutineImplBase(coroutineContext) {
 
   override suspend fun getMeasurement(request: GetMeasurementRequest): Measurement {
     val authenticatedMeasurementConsumerKey = getAuthenticatedMeasurementConsumerKey()

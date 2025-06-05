@@ -21,6 +21,8 @@ import java.io.IOException
 import java.lang.NumberFormatException
 import java.time.LocalDate
 import java.time.format.DateTimeParseException
+import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.EmptyCoroutineContext
 import org.wfanet.measurement.api.v2alpha.AccountPrincipal
 import org.wfanet.measurement.api.v2alpha.AppendExchangeStepAttemptLogEntryRequest
 import org.wfanet.measurement.api.v2alpha.DataProviderPrincipal
@@ -48,7 +50,8 @@ import org.wfanet.measurement.internal.kingdom.getExchangeStepRequest as interna
 class ExchangeStepAttemptsService(
   private val internalExchangeStepAttempts: InternalExchangeStepAttemptsCoroutineStub,
   private val internalExchangeSteps: InternalExchangeStepsCoroutineStub,
-) : ExchangeStepAttemptsCoroutineImplBase() {
+  coroutineContext: CoroutineContext = EmptyCoroutineContext,
+) : ExchangeStepAttemptsCoroutineImplBase(coroutineContext) {
 
   private enum class Permission {
     FINISH,

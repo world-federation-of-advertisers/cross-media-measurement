@@ -27,9 +27,6 @@ import io.grpc.inprocess.InProcessChannelBuilder
 import java.io.File
 import java.security.SecureRandom
 import java.time.Duration
-import java.util.concurrent.LinkedBlockingQueue
-import java.util.concurrent.ThreadPoolExecutor
-import java.util.concurrent.TimeUnit
 import kotlin.random.asKotlinRandom
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
@@ -47,7 +44,6 @@ import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub as KingdomMeasurementsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt.ModelLinesCoroutineStub as KingdomModelLinesCoroutineStub
 import org.wfanet.measurement.api.withAuthenticationKey
-import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.SigningCerts
@@ -244,20 +240,10 @@ private object V2AlphaPublicApiServer {
         Dispatchers.Default,
       )
 
-    val inProcessThreadPool =
-      ThreadPoolExecutor(
-          1,
-          commonServerFlags.threadPoolSize,
-          60L,
-          TimeUnit.SECONDS,
-          LinkedBlockingQueue(),
-        )
-        .also { Instrumentation.instrumentThreadPool(IN_PROCESS_SERVER_NAME, it) }
     startInProcessServerWithService(
       IN_PROCESS_SERVER_NAME,
       commonServerFlags,
       metricsService.withInterceptor(TrustedPrincipalAuthInterceptor),
-      inProcessThreadPool,
     )
     val inProcessChannel =
       InProcessChannelBuilder.forName(IN_PROCESS_SERVER_NAME)

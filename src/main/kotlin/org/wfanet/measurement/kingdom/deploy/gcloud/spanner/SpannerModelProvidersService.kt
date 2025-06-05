@@ -15,6 +15,8 @@
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 
 import io.grpc.Status
+import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.EmptyCoroutineContext
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.identity.ExternalId
@@ -34,7 +36,8 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateModelP
 class SpannerModelProvidersService(
   private val idGenerator: IdGenerator,
   private val client: AsyncDatabaseClient,
-) : ModelProvidersCoroutineImplBase() {
+  coroutineContext: CoroutineContext = EmptyCoroutineContext,
+) : ModelProvidersCoroutineImplBase(coroutineContext) {
   override suspend fun createModelProvider(request: ModelProvider): ModelProvider {
     return CreateModelProvider().execute(client, idGenerator)
   }
