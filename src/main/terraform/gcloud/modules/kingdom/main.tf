@@ -306,7 +306,7 @@ resource "google_bigquery_table" "latest_measurement_read" {
   {
     "name": "next_offset",
     "type": "INTEGER",
-    "mode": "NULLABLE"
+    "mode": "NULLABLE",
     "defaultValueExpression": "0"
   }
 ]
@@ -345,7 +345,7 @@ resource "google_bigquery_table" "latest_requisition_read" {
   {
     "name": "next_offset",
     "type": "INTEGER",
-    "mode": "NULLABLE"
+    "mode": "NULLABLE",
     "defaultValueExpression": "0"
   }
 ]
@@ -380,7 +380,7 @@ resource "google_bigquery_table" "latest_computation_read" {
   {
     "name": "next_offset",
     "type": "INTEGER",
-    "mode": "NULLABLE"
+    "mode": "NULLABLE",
     "defaultValueExpression": "0"
   }
 ]
