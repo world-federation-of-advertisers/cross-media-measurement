@@ -21,3 +21,9 @@ variable "secret_path" {
   type        = string
   description = "The path of the file to upload as secret"
 }
+
+
+variable "is_binary_format" {
+  type    = bool
+  default = false
+}

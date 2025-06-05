@@ -42,6 +42,22 @@ variable "app_args" {
   default     = []
 }
 
+variable "mig_distribution_policy_zones" {
+  description = "Availability zones for MIG"
+  type        = list(string)
+}
+
+variable "secrets_to_mount" {
+  description = "List of secrets to mount into the VM"
+  type = list(object({
+    secret_id  = string
+    version    = string
+    mount_path = string
+    flag_name  = optional(string)
+  }))
+  default = []
+}
+
 variable "subscription_id" {
   description = "The ID of the Pub/Sub subscription to which the service account will be granted access."
   type        = string
