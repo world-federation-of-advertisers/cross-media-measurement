@@ -1291,6 +1291,70 @@ class OperationalMetricsExportTest {
   }
 
   @Test
+  fun `job succeeds when column in latest read query is null`() = runBlocking {
+    val directMeasurement = DIRECT_MEASUREMENT
+
+    val updateTimeFieldValue: FieldValue =
+      FieldValue.of(
+        FieldValue.Attribute.PRIMITIVE,
+        "${Timestamps.toNanos(directMeasurement.updateTime)}",
+      )
+    val externalMeasurementConsumerIdFieldValue: FieldValue =
+      FieldValue.of(
+        FieldValue.Attribute.PRIMITIVE,
+        "${directMeasurement.externalMeasurementConsumerId}",
+      )
+    val externalMeasurementIdFieldValue: FieldValue =
+      FieldValue.of(FieldValue.Attribute.PRIMITIVE, "${directMeasurement.externalMeasurementId}")
+    val nextOffsetFieldValue: FieldValue =
+      FieldValue.of(FieldValue.Attribute.PRIMITIVE, null)
+
+    val tableResultMock: TableResult = mock { tableResult ->
+      whenever(tableResult.iterateAll())
+        .thenReturn(
+          listOf(
+            FieldValueList.of(
+              mutableListOf(
+                updateTimeFieldValue,
+                externalMeasurementConsumerIdFieldValue,
+                externalMeasurementIdFieldValue,
+                nextOffsetFieldValue,
+              ),
+              LATEST_MEASUREMENT_FIELD_LIST,
+            )
+          )
+        )
+        .thenReturn(emptyList())
+    }
+
+    val bigQueryMock: BigQuery = mock { bigQuery ->
+      whenever(bigQuery.query(any())).thenReturn(tableResultMock)
+    }
+
+    whenever(measurementsStreamWriterMock.append(any(), any()))
+      .thenReturn(ApiFutures.immediateFuture(AppendRowsResponse.getDefaultInstance()))
+
+    val operationalMetricsExport =
+      OperationalMetricsExport(
+        measurementsClient = measurementsClient,
+        requisitionsClient = requisitionsClient,
+        bigQuery = bigQueryMock,
+        bigQueryWriteClient = bigQueryWriteClientMock,
+        projectId = PROJECT_ID,
+        datasetId = DATASET_ID,
+        latestMeasurementReadTableId = LATEST_MEASUREMENT_READ_TABLE_ID,
+        measurementsTableId = MEASUREMENTS_TABLE_ID,
+        latestRequisitionReadTableId = LATEST_REQUISITION_READ_TABLE_ID,
+        requisitionsTableId = REQUISITIONS_TABLE_ID,
+        latestComputationReadTableId = LATEST_COMPUTATION_READ_TABLE_ID,
+        computationParticipantStagesTableId = COMPUTATION_PARTICIPANT_STAGES_TABLE_ID,
+        streamWriterFactory = streamWriterFactoryTestImpl,
+      )
+
+    operationalMetricsExport.execute()
+  }
+
+  @Test
   fun `job succeeds when bigquery append fails with OFFSET_OUT_OF_RANGE`() = runBlocking {
     val directMeasurement = DIRECT_MEASUREMENT
 

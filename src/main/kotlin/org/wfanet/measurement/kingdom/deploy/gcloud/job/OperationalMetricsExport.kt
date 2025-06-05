@@ -110,7 +110,17 @@ class OperationalMetricsExport(
 
     val latestMeasurementReadFromPreviousJob: FieldValueList? = results.firstOrNull()
 
-    var offset = latestMeasurementReadFromPreviousJob?.get("next_offset")?.longValue ?: 0L
+    var offset =
+      if (latestMeasurementReadFromPreviousJob != null) {
+        val readValue = latestMeasurementReadFromPreviousJob.get("next_offset")
+        if (!readValue.isNull) {
+          readValue.longValue
+        } else {
+          0L
+        }
+      } else {
+        0L
+      }
 
     var streamMeasurementsRequest = streamMeasurementsRequest {
       measurementView = Measurement.View.DEFAULT
@@ -300,7 +310,17 @@ class OperationalMetricsExport(
 
     val latestRequisitionReadFromPreviousJob: FieldValueList? = results.firstOrNull()
 
-    var offset = latestRequisitionReadFromPreviousJob?.get("next_offset")?.longValue ?: 0L
+    var offset =
+      if (latestRequisitionReadFromPreviousJob != null) {
+        val readValue = latestRequisitionReadFromPreviousJob.get("next_offset")
+        if (!readValue.isNull) {
+          readValue.longValue
+        } else {
+          0L
+        }
+      } else {
+        0L
+      }
 
     var streamRequisitionsRequest = streamRequisitionsRequest {
       limit = batchSize
@@ -480,7 +500,17 @@ class OperationalMetricsExport(
 
     val latestComputationReadFromPreviousJob: FieldValueList? = results.firstOrNull()
 
-    var offset = latestComputationReadFromPreviousJob?.get("next_offset")?.longValue ?: 0L
+    var offset =
+      if (latestComputationReadFromPreviousJob != null) {
+        val readValue = latestComputationReadFromPreviousJob.get("next_offset")
+        if (!readValue.isNull) {
+          readValue.longValue
+        } else {
+          0L
+        }
+      } else {
+        0L
+      }
 
     var streamComputationsRequest = streamMeasurementsRequest {
       measurementView = Measurement.View.COMPUTATION_STATS
