@@ -115,9 +115,10 @@ class OperationalMetricsExport(
           states += Measurement.State.SUCCEEDED
           states += Measurement.State.FAILED
           if (latestMeasurementReadFromPreviousJob != null) {
-            updatedAfter = Timestamps.fromNanos(
-              latestMeasurementReadFromPreviousJob.get("update_time").longValue
-            )
+            updatedAfter =
+              Timestamps.fromNanos(
+                latestMeasurementReadFromPreviousJob.get("update_time").longValue
+              )
           }
         }
     }
@@ -157,7 +158,8 @@ class OperationalMetricsExport(
                       logger.warning("Failed to retrieved Measurements")
                       throw e
                     }
-                  }.toList()
+                  }
+                  .toList()
 
               if (measurementsList.isEmpty()) {
                 break
@@ -189,9 +191,9 @@ class OperationalMetricsExport(
 
                 val measurementCompletionDurationSeconds =
                   Duration.between(
-                    measurement.createTime.toInstant(),
-                    measurement.updateTime.toInstant(),
-                  )
+                      measurement.createTime.toInstant(),
+                      measurement.updateTime.toInstant(),
+                    )
                     .seconds
 
                 val measurementState =
@@ -212,18 +214,17 @@ class OperationalMetricsExport(
 
                 val measurementsTableRow =
                   measurementsTableRow {
-                    this.measurementConsumerId = measurementConsumerId
-                    this.measurementId = measurementId
-                    isDirect = measurement.details.protocolConfig.hasDirect()
-                    this.measurementType = measurementType
-                    state = measurementState
-                    createTime = measurement.createTime
-                    updateTime = measurement.updateTime
-                    completionDurationSeconds = measurementCompletionDurationSeconds
-                    completionDurationSecondsSquared =
-                      measurementCompletionDurationSeconds *
-                        measurementCompletionDurationSeconds
-                  }
+                      this.measurementConsumerId = measurementConsumerId
+                      this.measurementId = measurementId
+                      isDirect = measurement.details.protocolConfig.hasDirect()
+                      this.measurementType = measurementType
+                      state = measurementState
+                      createTime = measurement.createTime
+                      updateTime = measurement.updateTime
+                      completionDurationSeconds = measurementCompletionDurationSeconds
+                      completionDurationSecondsSquared =
+                        measurementCompletionDurationSeconds * measurementCompletionDurationSeconds
+                    }
                     .toByteString()
 
                 measurementsProtoRowsList.add(measurementsTableRow)
@@ -309,9 +310,10 @@ class OperationalMetricsExport(
           states += Requisition.State.FULFILLED
           states += Requisition.State.REFUSED
           if (latestRequisitionReadFromPreviousJob != null) {
-            updatedAfter = Timestamps.fromNanos(
-              latestRequisitionReadFromPreviousJob.get("update_time").longValue
-            )
+            updatedAfter =
+              Timestamps.fromNanos(
+                latestRequisitionReadFromPreviousJob.get("update_time").longValue
+              )
           }
         }
     }
@@ -344,13 +346,14 @@ class OperationalMetricsExport(
 
               val requisitionsList: List<Requisition> =
                 requisitionsClient
-                .streamRequisitions(streamRequisitionsRequest)
-                .catch { e ->
-                  if (e is StatusException) {
-                    logger.warning("Failed to retrieved Requisitions")
-                    throw e
+                  .streamRequisitions(streamRequisitionsRequest)
+                  .catch { e ->
+                    if (e is StatusException) {
+                      logger.warning("Failed to retrieved Requisitions")
+                      throw e
+                    }
                   }
-                }.toList()
+                  .toList()
 
               if (requisitionsList.isEmpty()) {
                 break
@@ -394,27 +397,26 @@ class OperationalMetricsExport(
 
                 val requisitionCompletionDurationSeconds =
                   Duration.between(
-                    requisition.parentMeasurement.createTime.toInstant(),
-                    requisition.updateTime.toInstant(),
-                  )
+                      requisition.parentMeasurement.createTime.toInstant(),
+                      requisition.updateTime.toInstant(),
+                    )
                     .seconds
 
                 val requisitionsTableRow =
                   requisitionsTableRow {
-                    this.measurementConsumerId = measurementConsumerId
-                    this.measurementId = measurementId
-                    requisitionId = externalIdToApiId(requisition.externalRequisitionId)
-                    dataProviderId = externalIdToApiId(requisition.externalDataProviderId)
-                    isDirect = requisition.parentMeasurement.protocolConfig.hasDirect()
-                    this.measurementType = measurementType
-                    state = requisitionState
-                    createTime = requisition.parentMeasurement.createTime
-                    updateTime = requisition.updateTime
-                    completionDurationSeconds = requisitionCompletionDurationSeconds
-                    completionDurationSecondsSquared =
-                      requisitionCompletionDurationSeconds *
-                        requisitionCompletionDurationSeconds
-                  }
+                      this.measurementConsumerId = measurementConsumerId
+                      this.measurementId = measurementId
+                      requisitionId = externalIdToApiId(requisition.externalRequisitionId)
+                      dataProviderId = externalIdToApiId(requisition.externalDataProviderId)
+                      isDirect = requisition.parentMeasurement.protocolConfig.hasDirect()
+                      this.measurementType = measurementType
+                      state = requisitionState
+                      createTime = requisition.parentMeasurement.createTime
+                      updateTime = requisition.updateTime
+                      completionDurationSeconds = requisitionCompletionDurationSeconds
+                      completionDurationSecondsSquared =
+                        requisitionCompletionDurationSeconds * requisitionCompletionDurationSeconds
+                    }
                     .toByteString()
 
                 requisitionsProtoRowsList.add(requisitionsTableRow)
@@ -498,9 +500,10 @@ class OperationalMetricsExport(
           states += Measurement.State.SUCCEEDED
           states += Measurement.State.FAILED
           if (latestComputationReadFromPreviousJob != null) {
-            updatedAfter = Timestamps.fromNanos(
-              latestComputationReadFromPreviousJob.get("update_time").longValue
-            )
+            updatedAfter =
+              Timestamps.fromNanos(
+                latestComputationReadFromPreviousJob.get("update_time").longValue
+              )
           }
         }
     }
@@ -525,211 +528,215 @@ class OperationalMetricsExport(
             streamWriterFactory = streamWriterFactory,
           )
           .use { latestComputationReadDataWriter ->
-              val computationParticipantStagesProtoRowsList = mutableListOf<ByteString>()
-              // Previous UpdateTime that was different than latestUpdateTime
-              var prevUpdateTime: Timestamp = Timestamp.getDefaultInstance()
-              var latestUpdateTime: Timestamp? = null
+            val computationParticipantStagesProtoRowsList = mutableListOf<ByteString>()
+            // Previous UpdateTime that was different than latestUpdateTime
+            var prevUpdateTime: Timestamp = Timestamp.getDefaultInstance()
+            var latestUpdateTime: Timestamp? = null
 
-              while (true) {
-                val computationParticipantStagesProtoRowsBuilder: ProtoRows.Builder =
-                  ProtoRows.newBuilder()
-                val computationsList: List<Measurement> =
-                  measurementsClient
-                    .streamMeasurements(streamComputationsRequest)
-                    .catch { e ->
-                      if (e is StatusException) {
-                        logger.warning("Failed to retrieved Computations")
-                        throw e
-                      }
-                    }.toList()
+            while (true) {
+              val computationParticipantStagesProtoRowsBuilder: ProtoRows.Builder =
+                ProtoRows.newBuilder()
+              val computationsList: List<Measurement> =
+                measurementsClient
+                  .streamMeasurements(streamComputationsRequest)
+                  .catch { e ->
+                    if (e is StatusException) {
+                      logger.warning("Failed to retrieved Computations")
+                      throw e
+                    }
+                  }
+                  .toList()
 
-                if (computationsList.isEmpty()) {
-                  break
+              if (computationsList.isEmpty()) {
+                break
+              }
+
+              logger.info("Computations read from the Kingdom Internal Server")
+
+              if (latestUpdateTime == null) {
+                latestUpdateTime = computationsList[0].updateTime
+              }
+
+              for (measurement in computationsList) {
+                if (Timestamps.compare(latestUpdateTime, measurement.updateTime) != 0) {
+                  computationParticipantStagesProtoRowsBuilder.addAllSerializedRows(
+                    computationParticipantStagesProtoRowsList
+                  )
+                  computationParticipantStagesProtoRowsList.clear()
+                  prevUpdateTime = latestUpdateTime!!
+                  latestUpdateTime = measurement.updateTime
                 }
 
-                logger.info("Computations read from the Kingdom Internal Server")
-
-                if (latestUpdateTime == null) {
-                  latestUpdateTime = computationsList[0].updateTime
-                }
-
-                for (measurement in computationsList) {
-                  if (Timestamps.compare(latestUpdateTime, measurement.updateTime) != 0) {
-                    computationParticipantStagesProtoRowsBuilder.addAllSerializedRows(
-                      computationParticipantStagesProtoRowsList
+                if (measurement.externalComputationId != 0L) {
+                  val measurementType =
+                    getMeasurementType(
+                      measurement.details.measurementSpec,
+                      measurement.details.apiVersion,
                     )
-                    computationParticipantStagesProtoRowsList.clear()
-                    prevUpdateTime = latestUpdateTime!!
-                    latestUpdateTime = measurement.updateTime
+
+                  val measurementConsumerId =
+                    externalIdToApiId(measurement.externalMeasurementConsumerId)
+                  val measurementId = externalIdToApiId(measurement.externalMeasurementId)
+                  val computationId = externalIdToApiId(measurement.externalComputationId)
+
+                  val baseComputationParticipantStagesTableRow =
+                    computationParticipantStagesTableRow {
+                      this.measurementConsumerId = measurementConsumerId
+                      this.measurementId = measurementId
+                      this.computationId = computationId
+                      this.measurementType = measurementType
+                    }
+
+                  // Map of ExternalDuchyId to log entries.
+                  val logEntriesMap: Map<String, MutableList<DuchyMeasurementLogEntry>> = buildMap {
+                    for (logEntry in measurement.logEntriesList) {
+                      val logEntries = getOrPut(logEntry.externalDuchyId) { mutableListOf() }
+                      logEntries.add(logEntry)
+                    }
                   }
 
-                  if (measurement.externalComputationId != 0L) {
-                    val measurementType =
-                      getMeasurementType(
-                        measurement.details.measurementSpec,
-                        measurement.details.apiVersion,
-                      )
+                  for (computationParticipant in measurement.computationParticipantsList) {
+                    val sortedStageLogEntries =
+                      logEntriesMap[computationParticipant.externalDuchyId]?.sortedBy {
+                        it.details.stageAttempt.stage
+                      } ?: emptyList()
 
-                    val measurementConsumerId =
-                      externalIdToApiId(measurement.externalMeasurementConsumerId)
-                    val measurementId = externalIdToApiId(measurement.externalMeasurementId)
-                    val computationId = externalIdToApiId(measurement.externalComputationId)
+                    if (sortedStageLogEntries.isEmpty()) {
+                      continue
+                    }
 
-                    val baseComputationParticipantStagesTableRow =
-                      computationParticipantStagesTableRow {
-                        this.measurementConsumerId = measurementConsumerId
-                        this.measurementId = measurementId
-                        this.computationId = computationId
-                        this.measurementType = measurementType
-                      }
-
-                    // Map of ExternalDuchyId to log entries.
-                    val logEntriesMap: Map<String, MutableList<DuchyMeasurementLogEntry>> =
-                      buildMap {
-                        for (logEntry in measurement.logEntriesList) {
-                          val logEntries = getOrPut(logEntry.externalDuchyId) { mutableListOf() }
-                          logEntries.add(logEntry)
-                        }
-                      }
-
-                    for (computationParticipant in measurement.computationParticipantsList) {
-                      val sortedStageLogEntries =
-                        logEntriesMap[computationParticipant.externalDuchyId]?.sortedBy {
-                          it.details.stageAttempt.stage
-                        } ?: emptyList()
-
-                      if (sortedStageLogEntries.isEmpty()) {
-                        continue
-                      }
-
-                      sortedStageLogEntries.zipWithNext { logEntry, nextLogEntry ->
-                        if (logEntry.details.stageAttempt.stageName.isNotBlank()) {
-                          computationParticipantStagesProtoRowsList.add(
-                            baseComputationParticipantStagesTableRow
-                              .copy {
-                                duchyId = computationParticipant.externalDuchyId
-                                result = ComputationParticipantStagesTableRow.Result.SUCCEEDED
-                                stageName = logEntry.details.stageAttempt.stageName
-                                stageStartTime = logEntry.details.stageAttempt.stageStartTime
-                                completionDurationSeconds =
-                                  Duration.between(
-                                      logEntry.details.stageAttempt.stageStartTime.toInstant(),
-                                      nextLogEntry.details.stageAttempt.stageStartTime.toInstant(),
-                                    )
-                                    .seconds
-                                completionDurationSecondsSquared =
-                                  completionDurationSeconds * completionDurationSeconds
-                              }
-                              .toByteString()
-                          )
-                        }
-                      }
-
-                      val logEntry = sortedStageLogEntries.last()
-                      if (logEntry.details.stageAttempt.stageName.isBlank()) {
-                        continue
-                      }
-
-                      val computationParticipantStagesProtoRow: ByteString? =
-                        when (measurement.state) {
-                          Measurement.State.SUCCEEDED ->
-                            baseComputationParticipantStagesTableRow
-                              .copy {
-                                duchyId = computationParticipant.externalDuchyId
-                                result = ComputationParticipantStagesTableRow.Result.SUCCEEDED
-                                stageName = logEntry.details.stageAttempt.stageName
-                                stageStartTime = logEntry.details.stageAttempt.stageStartTime
-                                completionDurationSeconds =
-                                  Duration.between(
-                                    logEntry.details.stageAttempt.stageStartTime.toInstant(),
-                                    measurement.updateTime.toInstant(),
-                                  )
-                                    .seconds
-                                completionDurationSecondsSquared =
-                                  completionDurationSeconds * completionDurationSeconds
-                              }
-                              .toByteString()
-                          Measurement.State.FAILED ->
-                            baseComputationParticipantStagesTableRow
-                              .copy {
-                                duchyId = computationParticipant.externalDuchyId
-                                result = ComputationParticipantStagesTableRow.Result.FAILED
-                                stageName = logEntry.details.stageAttempt.stageName
-                                stageStartTime = logEntry.details.stageAttempt.stageStartTime
-                                completionDurationSeconds =
-                                  Duration.between(
-                                    logEntry.details.stageAttempt.stageStartTime.toInstant(),
-                                    measurement.updateTime.toInstant(),
-                                  )
-                                    .seconds
-                                completionDurationSecondsSquared =
-                                  completionDurationSeconds * completionDurationSeconds
-                              }
-                              .toByteString()
-                          else -> null
-                        }
-
-                      if (computationParticipantStagesProtoRow != null) {
+                    sortedStageLogEntries.zipWithNext { logEntry, nextLogEntry ->
+                      if (logEntry.details.stageAttempt.stageName.isNotBlank()) {
                         computationParticipantStagesProtoRowsList.add(
-                          computationParticipantStagesProtoRow
+                          baseComputationParticipantStagesTableRow
+                            .copy {
+                              duchyId = computationParticipant.externalDuchyId
+                              result = ComputationParticipantStagesTableRow.Result.SUCCEEDED
+                              stageName = logEntry.details.stageAttempt.stageName
+                              stageStartTime = logEntry.details.stageAttempt.stageStartTime
+                              completionDurationSeconds =
+                                Duration.between(
+                                    logEntry.details.stageAttempt.stageStartTime.toInstant(),
+                                    nextLogEntry.details.stageAttempt.stageStartTime.toInstant(),
+                                  )
+                                  .seconds
+                              completionDurationSecondsSquared =
+                                completionDurationSeconds * completionDurationSeconds
+                            }
+                            .toByteString()
                         )
                       }
                     }
-                  }
 
-                  if (computationParticipantStagesProtoRowsBuilder.serializedRowsCount > 0) {
-                    computationParticipantStagesDataWriter.appendRows(
-                      computationParticipantStagesProtoRowsBuilder.build()
-                    )
-                    logger.info("Computation Participant Stage Metrics written to BigQuery")
-
-                    val latestComputationReadTableRow = latestComputationReadTableRow {
-                      updateTime = Timestamps.toNanos(prevUpdateTime)
+                    val logEntry = sortedStageLogEntries.last()
+                    if (logEntry.details.stageAttempt.stageName.isBlank()) {
+                      continue
                     }
 
-                    latestComputationReadDataWriter.appendRows(
-                      ProtoRows.newBuilder()
-                        .addSerializedRows(latestComputationReadTableRow.toByteString())
-                        .build()
-                    )
-                  }
-                }
-
-                if (computationsList.size == batchSize) {
-                  val lastComputation = computationsList[computationsList.lastIndex]
-                  streamComputationsRequest =
-                    streamComputationsRequest.copy {
-                      filter =
-                        filter.copy {
-                          after =
-                            StreamMeasurementsRequestKt.FilterKt.after {
-                              updateTime = latestUpdateTime!!
-                              computation = computationKey {
-                                externalComputationId =
-                                  lastComputation.externalComputationId
-                              }
+                    val computationParticipantStagesProtoRow: ByteString? =
+                      when (measurement.state) {
+                        Measurement.State.SUCCEEDED ->
+                          baseComputationParticipantStagesTableRow
+                            .copy {
+                              duchyId = computationParticipant.externalDuchyId
+                              result = ComputationParticipantStagesTableRow.Result.SUCCEEDED
+                              stageName = logEntry.details.stageAttempt.stageName
+                              stageStartTime = logEntry.details.stageAttempt.stageStartTime
+                              completionDurationSeconds =
+                                Duration.between(
+                                    logEntry.details.stageAttempt.stageStartTime.toInstant(),
+                                    measurement.updateTime.toInstant(),
+                                  )
+                                  .seconds
+                              completionDurationSecondsSquared =
+                                completionDurationSeconds * completionDurationSeconds
                             }
-                        }
+                            .toByteString()
+                        Measurement.State.FAILED ->
+                          baseComputationParticipantStagesTableRow
+                            .copy {
+                              duchyId = computationParticipant.externalDuchyId
+                              result = ComputationParticipantStagesTableRow.Result.FAILED
+                              stageName = logEntry.details.stageAttempt.stageName
+                              stageStartTime = logEntry.details.stageAttempt.stageStartTime
+                              completionDurationSeconds =
+                                Duration.between(
+                                    logEntry.details.stageAttempt.stageStartTime.toInstant(),
+                                    measurement.updateTime.toInstant(),
+                                  )
+                                  .seconds
+                              completionDurationSecondsSquared =
+                                completionDurationSeconds * completionDurationSeconds
+                            }
+                            .toByteString()
+                        else -> null
+                      }
+
+                    if (computationParticipantStagesProtoRow != null) {
+                      computationParticipantStagesProtoRowsList.add(
+                        computationParticipantStagesProtoRow
+                      )
                     }
-                } else break
-              }
-
-              if (computationParticipantStagesProtoRowsList.isNotEmpty()) {
-                val computationParticipantStagesProtoRowsBuilder: ProtoRows.Builder = ProtoRows.newBuilder()
-                computationParticipantStagesProtoRowsBuilder.addAllSerializedRows(computationParticipantStagesProtoRowsList)
-                computationParticipantStagesDataWriter.appendRows(computationParticipantStagesProtoRowsBuilder.build())
-                logger.info("Computation Participant Stage Metrics written to BigQuery")
-
-                val latestComputationReadTableRow = latestMeasurementReadTableRow {
-                  updateTime = Timestamps.toNanos(latestUpdateTime)
+                  }
                 }
 
-                latestComputationReadDataWriter.appendRows(
-                  ProtoRows.newBuilder()
-                    .addSerializedRows(latestComputationReadTableRow.toByteString())
-                    .build()
-                )
+                if (computationParticipantStagesProtoRowsBuilder.serializedRowsCount > 0) {
+                  computationParticipantStagesDataWriter.appendRows(
+                    computationParticipantStagesProtoRowsBuilder.build()
+                  )
+                  logger.info("Computation Participant Stage Metrics written to BigQuery")
+
+                  val latestComputationReadTableRow = latestComputationReadTableRow {
+                    updateTime = Timestamps.toNanos(prevUpdateTime)
+                  }
+
+                  latestComputationReadDataWriter.appendRows(
+                    ProtoRows.newBuilder()
+                      .addSerializedRows(latestComputationReadTableRow.toByteString())
+                      .build()
+                  )
+                }
               }
+
+              if (computationsList.size == batchSize) {
+                val lastComputation = computationsList[computationsList.lastIndex]
+                streamComputationsRequest =
+                  streamComputationsRequest.copy {
+                    filter =
+                      filter.copy {
+                        after =
+                          StreamMeasurementsRequestKt.FilterKt.after {
+                            updateTime = latestUpdateTime!!
+                            computation = computationKey {
+                              externalComputationId = lastComputation.externalComputationId
+                            }
+                          }
+                      }
+                  }
+              } else break
+            }
+
+            if (computationParticipantStagesProtoRowsList.isNotEmpty()) {
+              val computationParticipantStagesProtoRowsBuilder: ProtoRows.Builder =
+                ProtoRows.newBuilder()
+              computationParticipantStagesProtoRowsBuilder.addAllSerializedRows(
+                computationParticipantStagesProtoRowsList
+              )
+              computationParticipantStagesDataWriter.appendRows(
+                computationParticipantStagesProtoRowsBuilder.build()
+              )
+              logger.info("Computation Participant Stage Metrics written to BigQuery")
+
+              val latestComputationReadTableRow = latestMeasurementReadTableRow {
+                updateTime = Timestamps.toNanos(latestUpdateTime)
+              }
+
+              latestComputationReadDataWriter.appendRows(
+                ProtoRows.newBuilder()
+                  .addSerializedRows(latestComputationReadTableRow.toByteString())
+                  .build()
+              )
+            }
           }
       }
   }

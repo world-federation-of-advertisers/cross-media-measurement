@@ -95,7 +95,6 @@ import org.wfanet.measurement.internal.kingdom.bigquerytables.latestMeasurementR
 import org.wfanet.measurement.internal.kingdom.bigquerytables.latestRequisitionReadTableRow
 import org.wfanet.measurement.internal.kingdom.bigquerytables.measurementsTableRow
 import org.wfanet.measurement.internal.kingdom.bigquerytables.requisitionsTableRow
-import org.wfanet.measurement.internal.kingdom.computationKey
 import org.wfanet.measurement.internal.kingdom.computationParticipant
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.duchyMeasurementLogEntry
@@ -103,7 +102,6 @@ import org.wfanet.measurement.internal.kingdom.duchyMeasurementLogEntryDetails
 import org.wfanet.measurement.internal.kingdom.duchyMeasurementLogEntryStageAttempt
 import org.wfanet.measurement.internal.kingdom.measurement
 import org.wfanet.measurement.internal.kingdom.measurementDetails
-import org.wfanet.measurement.internal.kingdom.measurementKey
 import org.wfanet.measurement.internal.kingdom.measurementLogEntry
 import org.wfanet.measurement.internal.kingdom.measurementLogEntryDetails
 import org.wfanet.measurement.internal.kingdom.measurementLogEntryError
@@ -263,9 +261,9 @@ class OperationalMetricsExportTest {
             updateTime = DIRECT_MEASUREMENT.updateTime
             completionDurationSeconds =
               Duration.between(
-                DIRECT_MEASUREMENT.createTime.toInstant(),
-                DIRECT_MEASUREMENT.updateTime.toInstant(),
-              )
+                  DIRECT_MEASUREMENT.createTime.toInstant(),
+                  DIRECT_MEASUREMENT.updateTime.toInstant(),
+                )
                 .seconds
             completionDurationSecondsSquared = completionDurationSeconds * completionDurationSeconds
           }
@@ -330,7 +328,8 @@ class OperationalMetricsExportTest {
       val secondProtoRows: ProtoRows = lastValue
       assertThat(secondProtoRows.serializedRowsList).hasSize(1)
 
-      val requisition2TableRow = RequisitionsTableRow.parseFrom(secondProtoRows.serializedRowsList[0])
+      val requisition2TableRow =
+        RequisitionsTableRow.parseFrom(secondProtoRows.serializedRowsList[0])
       assertThat(requisition2TableRow)
         .isEqualTo(
           requisitionsTableRow {
@@ -479,9 +478,7 @@ class OperationalMetricsExportTest {
         LatestRequisitionReadTableRow.parseFrom(firstProtoRows.serializedRowsList.first())
       assertThat(firstLatestRequisitionReadTableRow)
         .isEqualTo(
-          latestRequisitionReadTableRow {
-            updateTime = Timestamps.toNanos(REQUISITION.updateTime)
-          }
+          latestRequisitionReadTableRow { updateTime = Timestamps.toNanos(REQUISITION.updateTime) }
         )
 
       val secondProtoRows: ProtoRows = lastValue
@@ -649,12 +646,7 @@ class OperationalMetricsExportTest {
         whenever(tableResult.iterateAll())
           .thenReturn(
             listOf(
-              FieldValueList.of(
-                mutableListOf(
-                  updateTimeFieldValue,
-                ),
-                LATEST_MEASUREMENT_FIELD_LIST,
-              )
+              FieldValueList.of(mutableListOf(updateTimeFieldValue), LATEST_MEASUREMENT_FIELD_LIST)
             )
           )
           .thenReturn(emptyList())
@@ -721,12 +713,7 @@ class OperationalMetricsExportTest {
       whenever(tableResult.iterateAll())
         .thenReturn(
           listOf(
-            FieldValueList.of(
-              mutableListOf(
-                updateTimeFieldValue,
-              ),
-              LATEST_MEASUREMENT_FIELD_LIST,
-            )
+            FieldValueList.of(mutableListOf(updateTimeFieldValue), LATEST_MEASUREMENT_FIELD_LIST)
           )
         )
         .thenReturn(emptyList())
@@ -795,12 +782,7 @@ class OperationalMetricsExportTest {
           .thenReturn(emptyList())
           .thenReturn(
             listOf(
-              FieldValueList.of(
-                mutableListOf(
-                  updateTimeFieldValue,
-                ),
-                LATEST_REQUISITION_FIELD_LIST,
-              )
+              FieldValueList.of(mutableListOf(updateTimeFieldValue), LATEST_REQUISITION_FIELD_LIST)
             )
           )
           .thenReturn(emptyList())
@@ -863,12 +845,7 @@ class OperationalMetricsExportTest {
         .thenReturn(emptyList())
         .thenReturn(
           listOf(
-            FieldValueList.of(
-              mutableListOf(
-                updateTimeFieldValue,
-              ),
-              LATEST_REQUISITION_FIELD_LIST,
-            )
+            FieldValueList.of(mutableListOf(updateTimeFieldValue), LATEST_REQUISITION_FIELD_LIST)
           )
         )
         .thenReturn(emptyList())
@@ -937,10 +914,7 @@ class OperationalMetricsExportTest {
           .thenReturn(emptyList())
           .thenReturn(
             listOf(
-              FieldValueList.of(
-                mutableListOf(updateTimeFieldValue),
-                LATEST_COMPUTATION_FIELD_LIST,
-              )
+              FieldValueList.of(mutableListOf(updateTimeFieldValue), LATEST_COMPUTATION_FIELD_LIST)
             )
           )
           .thenReturn(emptyList())
@@ -1009,10 +983,7 @@ class OperationalMetricsExportTest {
         .thenReturn(emptyList())
         .thenReturn(
           listOf(
-            FieldValueList.of(
-              mutableListOf(updateTimeFieldValue),
-              LATEST_COMPUTATION_FIELD_LIST,
-            )
+            FieldValueList.of(mutableListOf(updateTimeFieldValue), LATEST_COMPUTATION_FIELD_LIST)
           )
         )
         .thenReturn(emptyList())
@@ -1602,24 +1573,12 @@ class OperationalMetricsExportTest {
     }
 
     private val LATEST_MEASUREMENT_FIELD_LIST: FieldList =
-      FieldList.of(
-        listOf(
-          Field.of("update_time", LegacySQLTypeName.INTEGER),
-        )
-      )
+      FieldList.of(listOf(Field.of("update_time", LegacySQLTypeName.INTEGER)))
 
     private val LATEST_REQUISITION_FIELD_LIST: FieldList =
-      FieldList.of(
-        listOf(
-          Field.of("update_time", LegacySQLTypeName.INTEGER),
-      )
-      )
+      FieldList.of(listOf(Field.of("update_time", LegacySQLTypeName.INTEGER)))
 
     private val LATEST_COMPUTATION_FIELD_LIST: FieldList =
-      FieldList.of(
-        listOf(
-          Field.of("update_time", LegacySQLTypeName.INTEGER),
-        )
-      )
+      FieldList.of(listOf(Field.of("update_time", LegacySQLTypeName.INTEGER)))
   }
 }
