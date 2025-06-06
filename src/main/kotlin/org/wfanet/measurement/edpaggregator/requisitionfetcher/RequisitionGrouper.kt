@@ -72,7 +72,9 @@ abstract class RequisitionGrouper(
    * @return A list of [GroupedRequisitions] containing the categorized [Requisition] objects.
    */
   fun groupRequisitions(requisitions: List<Requisition>): List<GroupedRequisitions> {
+    println("~~~~~~~~~~~~~~~ AA: ${requisitions}")
     val mappedRequisitions = requisitions.mapNotNull { mapRequisition(it) }
+    println("~~~~~~~~~~~~~~~ AAA")
     return combineGroupedRequisitions(mappedRequisitions)
   }
 
@@ -83,7 +85,7 @@ abstract class RequisitionGrouper(
 
   /* Maps a single [Requisition] to a single [GroupedRequisition]. */
   private fun mapRequisition(requisition: Requisition): GroupedRequisitions? {
-
+    println("~~~~~~~~~~~~~~~~~~` map requi1")
     val measurementSpec: MeasurementSpec? =
       try {
         requisition.measurementSpec.unpack()
@@ -100,6 +102,7 @@ abstract class RequisitionGrouper(
         }
         return null
       }
+    println("~~~~~~~~~~~~~~~~~~` map requi2")
     if (measurementSpec == null) {
       logger.info("Measurement Spec is null for ${requisition.name}")
       runBlocking {
@@ -113,6 +116,7 @@ abstract class RequisitionGrouper(
       }
       return null
     }
+    println("~~~~~~~~~~~~~~~~~~` map requi3: ${requisition}")
     val requisitionSpec: RequisitionSpec? =
       try {
         decryptRequisitionSpec(requisition.encryptedRequisitionSpec, privateEncryptionKey).unpack()
@@ -141,6 +145,7 @@ abstract class RequisitionGrouper(
         }
         return null
       }
+    println("~~~~~~~~~~~~~~~~~~` map requi4")
     if (requisitionSpec == null) {
       logger.info("Requisition Spec is null for ${requisition.name}")
       runBlocking {
@@ -154,6 +159,7 @@ abstract class RequisitionGrouper(
       }
       return null
     }
+    println("~~~~~~~~~~~~~~~~~~` map requi5")
     val eventGroupMap = mutableMapOf<String, String>()
     val collectionIntervalsMap = mutableMapOf<String, Interval>()
     for (eventGroupEntry in requisitionSpec!!.events.eventGroupsList) {
@@ -172,6 +178,7 @@ abstract class RequisitionGrouper(
         }
         return null
       }
+      println("~~~~~~~~~~~~~~~~~~` map requi6")
       val eventGroupReferenceId = eventGroup!!.eventGroupReferenceId
       eventGroupMap[eventGroupName] = eventGroupReferenceId
       if (eventGroupName in collectionIntervalsMap) {
@@ -191,6 +198,7 @@ abstract class RequisitionGrouper(
       }
       collectionIntervalsMap[eventGroupReferenceId] = eventGroupEntry.value.collectionInterval
     }
+    println("~~~~~~~~~~~~~~~~~~` map requi7")
     return groupedRequisitions {
       id = UUID.randomUUID().toString()
       modelLine = measurementSpec!!.modelLine

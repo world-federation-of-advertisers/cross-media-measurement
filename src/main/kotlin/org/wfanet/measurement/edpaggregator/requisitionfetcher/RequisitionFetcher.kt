@@ -61,7 +61,7 @@ class RequisitionFetcher(
   @OptIn(ExperimentalCoroutinesApi::class) // For `flattenConcat`.
   suspend fun fetchAndStoreRequisitions() {
     logger.info("Executing requisitionFetchingWorkflow for $dataProviderName...")
-
+    println("~~~~~~~~~~~~~~~ A")
     var requisitionsCount = 0
 
     // TODO(world-federation-of-advertisers/cross-media-measurement#2095): Update logic once we have
@@ -87,10 +87,10 @@ class RequisitionFetcher(
           ResourceList(response.requisitionsList, response.nextPageToken)
         }
         .flattenConcat()
-
+    println("~~~~~~~~~~~~~~~ B")
     val groupedRequisition = requisitionGrouper.groupRequisitions(requisitions.toList())
     val storedRequisitions: Int = storeRequisitions(groupedRequisition)
-
+    println("~~~~~~~~~~~~~~~ C")
     logger.fine {
       "$storedRequisitions unfulfilled grouped requisitions have been persisted to storage for $dataProviderName"
     }
