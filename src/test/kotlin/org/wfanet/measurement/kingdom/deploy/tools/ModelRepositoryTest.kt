@@ -34,16 +34,15 @@ import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
 import org.mockito.kotlin.verify
 import org.wfanet.measurement.api.v2alpha.CreateModelSuiteRequest
-import org.wfanet.measurement.api.v2alpha.GetModelProviderRequest
 import org.wfanet.measurement.api.v2alpha.CreatePopulationRequest
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
+import org.wfanet.measurement.api.v2alpha.GetModelProviderRequest
 import org.wfanet.measurement.api.v2alpha.GetModelSuiteRequest
+import org.wfanet.measurement.api.v2alpha.GetPopulationRequest
 import org.wfanet.measurement.api.v2alpha.ListModelProvidersPageTokenKt.previousPageEnd as modelProviderPreviousPageEnd
 import org.wfanet.measurement.api.v2alpha.ListModelProvidersRequest
 import org.wfanet.measurement.api.v2alpha.ListModelProvidersResponse
 import org.wfanet.measurement.api.v2alpha.ListModelSuitesPageTokenKt.previousPageEnd as modelSuitePreviousPageEnd
-import org.wfanet.measurement.api.v2alpha.GetPopulationRequest
-import org.wfanet.measurement.api.v2alpha.ListModelSuitesPageTokenKt.previousPageEnd
 import org.wfanet.measurement.api.v2alpha.ListModelSuitesRequest
 import org.wfanet.measurement.api.v2alpha.ListModelSuitesResponse
 import org.wfanet.measurement.api.v2alpha.ListPopulationsPageTokenKt
@@ -136,7 +135,11 @@ class ModelRepositoryTest {
     )
 
   private val services: List<ServerServiceDefinition> =
-    listOf(modelProvidersServiceMock.bindService(), modelSuitesServiceMock.bindService(), populationsServiceMock.bindService())
+    listOf(
+      modelProvidersServiceMock.bindService(),
+      modelSuitesServiceMock.bindService(),
+      populationsServiceMock.bindService(),
+    )
 
   private val server: Server =
     NettyServerBuilder.forPort(0)
@@ -448,23 +451,23 @@ class ModelRepositoryTest {
       description = DESCRIPTION
       createTime = CREATE_TIME
     }
-      private val LIST_MODEL_SUITES_PAGE_TOKEN = listModelSuitesPageToken {
-          pageSize = PAGE_SIZE
-          externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
-          lastModelSuite = modelSuitePreviousPageEnd {
-              createTime = CREATE_TIME
-              externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID - 1
-          }
+    private val LIST_MODEL_SUITES_PAGE_TOKEN = listModelSuitesPageToken {
+      pageSize = PAGE_SIZE
+      externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
+      lastModelSuite = modelSuitePreviousPageEnd {
+        createTime = CREATE_TIME
+        externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID - 1
       }
+    }
 
-      private val LIST_MODEL_SUITES_PAGE_TOKEN_2 = listModelSuitesPageToken {
-          pageSize = PAGE_SIZE
-          externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
-          lastModelSuite = modelSuitePreviousPageEnd {
-              createTime = CREATE_TIME
-              externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID_2
-          }
+    private val LIST_MODEL_SUITES_PAGE_TOKEN_2 = listModelSuitesPageToken {
+      pageSize = PAGE_SIZE
+      externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
+      lastModelSuite = modelSuitePreviousPageEnd {
+        createTime = CREATE_TIME
+        externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID_2
       }
+    }
 
     private const val POPULATION_NAME = "$DATA_PROVIDER_NAME/populations/AAAAAAAAAHs"
     private const val POPULATION_NAME_2 = "$DATA_PROVIDER_NAME/populations/AAAAAAAAAJs"
@@ -487,25 +490,25 @@ class ModelRepositoryTest {
       populationBlob = populationBlob { modelBlobUri = MODEL_BLOB_URI }
     }
 
-      private val LIST_POPULATIONS_PAGE_TOKEN = listPopulationsPageToken {
-          pageSize = PAGE_SIZE
-          externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
-          lastPopulation =
-              ListPopulationsPageTokenKt.previousPageEnd {
-                  createTime = CREATE_TIME
-                  externalPopulationId = EXTERNAL_POPULATION_ID - 1
-              }
-      }
+    private val LIST_POPULATIONS_PAGE_TOKEN = listPopulationsPageToken {
+      pageSize = PAGE_SIZE
+      externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
+      lastPopulation =
+        ListPopulationsPageTokenKt.previousPageEnd {
+          createTime = CREATE_TIME
+          externalPopulationId = EXTERNAL_POPULATION_ID - 1
+        }
+    }
 
-      private val LIST_POPULATIONS_PAGE_TOKEN_2 = listPopulationsPageToken {
-          pageSize = PAGE_SIZE
-          externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
-          lastPopulation =
-              ListPopulationsPageTokenKt.previousPageEnd {
-                  createTime = CREATE_TIME
-                  externalPopulationId = EXTERNAL_POPULATION_ID_2
-              }
-      }
+    private val LIST_POPULATIONS_PAGE_TOKEN_2 = listPopulationsPageToken {
+      pageSize = PAGE_SIZE
+      externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
+      lastPopulation =
+        ListPopulationsPageTokenKt.previousPageEnd {
+          createTime = CREATE_TIME
+          externalPopulationId = EXTERNAL_POPULATION_ID_2
+        }
+    }
 
     private const val PAGE_SIZE = 50
   }
