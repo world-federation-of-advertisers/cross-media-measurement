@@ -145,8 +145,8 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
           }
           details = dataProviderDetails {
             apiVersion = "v2alpha"
-            publicKey = ByteString.copyFromUtf8("This is a  public key.")
-            publicKeySignature = ByteString.copyFromUtf8("This is a  public key signature.")
+            publicKey = ByteString.copyFromUtf8("This is a public key.")
+            publicKeySignature = ByteString.copyFromUtf8("This is a public key signature.")
           }
         }
       )
