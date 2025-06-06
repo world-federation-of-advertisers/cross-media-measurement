@@ -138,7 +138,6 @@ abstract class RequisitionGrouper(
   }
 
   companion object {
-    @JvmStatic
-    protected val logger: Logger = Logger.getLogger(this::class.java.name)
+    private val logger: Logger = Logger.getLogger(this::class.java.name)
   }
 }

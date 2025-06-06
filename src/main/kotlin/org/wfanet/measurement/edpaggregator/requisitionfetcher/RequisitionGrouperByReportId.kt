@@ -18,6 +18,7 @@ package org.wfanet.measurement.edpaggregator.requisitionfetcher
 
 import com.google.type.Interval
 import com.google.type.interval
+import java.util.logging.Logger
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.Requisition
@@ -43,6 +44,10 @@ class RequisitionGrouperByReportId(
   throttler: Throttler,
 ) : RequisitionGrouper(requisitionValidator, eventGroupsClient, requisitionsClient, throttler) {
 
+  /**
+   * Combines Grouped Requisitions by ReportId and then unions their collection intervals per event
+   * group.
+   */
   override fun combineGroupedRequisitions(
     groupedRequisitions: List<GroupedRequisitions>
   ): List<GroupedRequisitions> {
@@ -57,37 +62,46 @@ class RequisitionGrouperByReportId(
             .unpack()
         measurementSpec.reportingMetadata.report
       }
-    val combinedByReportId =
-      groupedByReport.toList().mapNotNull { (reportId: String, groups: List<GroupedRequisitions>) ->
-        if (!requisitionValidator.validateModelLines(groups, reportId = reportId)) {
-          null
-        } else {
-          val entries =
-            groups
-              .flatMap { it.eventGroupMapList }
-              .groupBy { it.eventGroup }
-              .map { (eventGroupName: String, eventGroupMapEntries: List<EventGroupMapEntry>) ->
-                val eventGroupReferenceId =
-                  eventGroupMapEntries.first().details.eventGroupReferenceId
-                val collectionIntervals: List<Interval> =
-                  eventGroupMapEntries.flatMap { it.details.collectionIntervalsList }
-                val combinedCollectionIntervals = unionIntervals(collectionIntervals)
-                eventGroupMapEntry {
-                  this.eventGroup = eventGroupName
-                  details = eventGroupDetails {
-                    this.eventGroupReferenceId = eventGroupReferenceId
-                    this.collectionIntervals += combinedCollectionIntervals
-                  }
+    val combinedByReportId: List<GroupedRequisitions> = combineByReportId(groupedByReport)
+    return combinedByReportId
+  }
+
+  /**
+   * Combines Grouped Requisitions by ReportId and then unions their collection intervals per event
+   * group.
+   */
+  private fun combineByReportId(
+    groupedByReport: Map<String, List<GroupedRequisitions>>
+  ): List<GroupedRequisitions> {
+    return groupedByReport.toList().mapNotNull {
+      (reportId: String, groups: List<GroupedRequisitions>) ->
+      if (!requisitionValidator.validateModelLines(groups, reportId = reportId)) {
+        null
+      } else {
+        val entries =
+          groups
+            .flatMap { it.eventGroupMapList }
+            .groupBy { it.eventGroup }
+            .map { (eventGroupName: String, eventGroupMapEntries: List<EventGroupMapEntry>) ->
+              val eventGroupReferenceId = eventGroupMapEntries.first().details.eventGroupReferenceId
+              val collectionIntervals: List<Interval> =
+                eventGroupMapEntries.flatMap { it.details.collectionIntervalsList }
+              val combinedCollectionIntervals = unionIntervals(collectionIntervals)
+              eventGroupMapEntry {
+                this.eventGroup = eventGroupName
+                details = eventGroupDetails {
+                  this.eventGroupReferenceId = eventGroupReferenceId
+                  this.collectionIntervals += combinedCollectionIntervals
                 }
               }
-          groupedRequisitions {
-            this.modelLine = modelLine
-            this.eventGroupMap += entries
-            this.requisitions += groups.flatMap { it.requisitionsList }
-          }
+            }
+        groupedRequisitions {
+          this.modelLine = modelLine
+          this.eventGroupMap += entries
+          this.requisitions += groups.flatMap { it.requisitionsList }
         }
       }
-    return combinedByReportId
+    }
   }
 
   private fun unionIntervals(intervals: List<Interval>): List<Interval> {
@@ -109,5 +123,9 @@ class RequisitionGrouperByReportId(
     }
     result.add(current)
     return result
+  }
+
+  companion object {
+    private val logger: Logger = Logger.getLogger(this::class.java.name)
   }
 }
