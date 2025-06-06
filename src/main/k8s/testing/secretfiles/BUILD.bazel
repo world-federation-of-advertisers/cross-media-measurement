@@ -9,6 +9,7 @@ package(
         "//src/main/k8s:__subpackages__",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/eventgroups/testing:__subpackages__",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/requisitionfetcher/testing:__subpackages__",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/requisitionfetcher/testing:__subpackages__",
         "//src/main/kotlin/org/wfanet/measurement/integration:__subpackages__",
         "//src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/datawatcher/testing:__subpackages__",
         "//src/main/kotlin/org/wfanet/measurement/testing:__subpackages__",

@@ -66,3 +66,22 @@ kt_jvm_proto_library(
         ":results_fulfiller_params_proto",
     ],
 )
+
+proto_library(
+    name = "grouped_requisitions_proto",
+    srcs = ["grouped_requisitions.proto"],
+    strip_import_prefix = _IMPORT_PREFIX,
+    deps = [
+        "@com_google_googleapis//google/api:field_behavior_proto",
+        "@com_google_googleapis//google/api:resource_proto",
+        "@com_google_googleapis//google/type:interval_proto",
+        "@com_google_protobuf//:any_proto",
+    ],
+)
+
+kt_jvm_proto_library(
+    name = "grouped_requisitions_kt_jvm_proto",
+    deps = [
+        ":grouped_requisitions_proto",
+    ],
+)
