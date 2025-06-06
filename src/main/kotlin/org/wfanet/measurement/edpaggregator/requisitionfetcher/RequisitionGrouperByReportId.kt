@@ -23,7 +23,6 @@ import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.Requisition
-import org.wfanet.measurement.api.v2alpha.Requisition.Refusal
 import org.wfanet.measurement.api.v2alpha.RequisitionKt.refusal
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.unpack
@@ -34,6 +33,7 @@ import org.wfanet.measurement.dataprovider.RequisitionRefusalException
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt.eventGroupMapEntry
 import org.wfanet.measurement.edpaggregator.v1alpha.groupedRequisitions
+import java.util.UUID
 
 /**
  * Groups requisitions by Report ID. Assumes that the collection intervals for a report are not
@@ -52,7 +52,6 @@ class RequisitionGrouperByReportId(
   override fun combineGroupedRequisitions(
     groupedRequisitions: List<GroupedRequisitions>
   ): List<GroupedRequisitions> {
-    println("~~~~~~~~~~~~~~~~ AAAAA1")
     val groupedByReport: Map<String, List<GroupedRequisitions>> =
       groupedRequisitions.groupBy {
         val measurementSpec: MeasurementSpec =
@@ -64,7 +63,6 @@ class RequisitionGrouperByReportId(
             .unpack()
         measurementSpec.reportingMetadata.report
       }
-    println("~~~~~~~~~~~~~~~~ AAAAA2")
     val combinedByReportId =
       groupedByReport.toList().mapNotNull { (reportId: String, groups: List<GroupedRequisitions>) ->
         val sortedGroups: List<GroupedRequisitions> =
@@ -129,7 +127,10 @@ class RequisitionGrouperByReportId(
         if (foundInvalidModelLine || !ableToCombineCollectionIntervalMap) {
           null
         } else {
+          val groupedRequisitionId = UUID.randomUUID().toString()
+          println("~~~~~~~~~~~~~~~~~~~groupedRequisitionId: ${groupedRequisitionId} ")
           groupedRequisitions {
+            this.id = groupedRequisitionId
             this.modelLine = modelLine
             this.eventGroupMap +=
               combinedEventGroupMap.toList().map {
@@ -143,6 +144,7 @@ class RequisitionGrouperByReportId(
           }
         }
       }
+    println("~~~~~~~~~~~~~~~~~~~combinedByReportId: ${combinedByReportId} ")
     return combinedByReportId
   }
 

@@ -360,7 +360,7 @@ abstract class AbstractRequisitionGrouperTest {
     }
 
     @JvmStatic
-    protected val REQUISITION = requisition {
+    public val REQUISITION = requisition {
       name = "${EDP_NAME}/requisitions/foo"
       measurement = MEASUREMENT_NAME
       state = Requisition.State.UNFULFILLED
