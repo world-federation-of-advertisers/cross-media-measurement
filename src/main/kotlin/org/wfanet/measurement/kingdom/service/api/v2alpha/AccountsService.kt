@@ -19,6 +19,8 @@ import io.grpc.Status
 import io.grpc.StatusException
 import java.io.IOException
 import java.security.GeneralSecurityException
+import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.EmptyCoroutineContext
 import org.wfanet.measurement.api.AccountConstants
 import org.wfanet.measurement.api.accountFromCurrentContext
 import org.wfanet.measurement.api.v2alpha.Account
@@ -61,7 +63,8 @@ private const val SELF_ISSUED_ISSUER = "https://self-issued.me"
 class AccountsService(
   private val internalAccountsStub: AccountsCoroutineStub,
   private val redirectUri: String,
-) : AccountsCoroutineImplBase() {
+  coroutineContext: CoroutineContext = EmptyCoroutineContext,
+) : AccountsCoroutineImplBase(coroutineContext) {
 
   override suspend fun createAccount(request: CreateAccountRequest): Account {
     val account = accountFromCurrentContext

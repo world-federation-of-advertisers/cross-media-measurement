@@ -19,6 +19,8 @@ package org.wfanet.measurement.kingdom.deploy.common.server
 import io.grpc.ServerServiceDefinition
 import java.io.File
 import kotlin.properties.Delegates
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.asCoroutineDispatcher
 import org.wfanet.measurement.api.v2alpha.AkidPrincipalLookup
 import org.wfanet.measurement.api.v2alpha.ContextKeys
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig.NoiseMechanism
@@ -27,6 +29,7 @@ import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.grpc.CommonServer
 import org.wfanet.measurement.common.grpc.PrincipalRateLimitingServerInterceptor
+import org.wfanet.measurement.common.grpc.ServiceFlags
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withDefaultDeadline
 import org.wfanet.measurement.common.grpc.withInterceptors
@@ -105,6 +108,7 @@ private val KEY_ID_FORMAT = HexFormat {
 private fun run(
   @CommandLine.Mixin kingdomApiServerFlags: KingdomApiServerFlags,
   @CommandLine.Mixin commonServerFlags: CommonServer.Flags,
+  @CommandLine.Mixin serviceFlags: ServiceFlags,
   @CommandLine.Mixin llv2ProtocolConfigFlags: Llv2ProtocolConfigFlags,
   @CommandLine.Mixin roLlv2ProtocolConfigFlags: RoLlv2ProtocolConfigFlags,
   @CommandLine.Mixin hmssProtocolConfigFlags: HmssProtocolConfigFlags,
@@ -155,28 +159,28 @@ private fun run(
         ?.toHexString(KEY_ID_FORMAT)
     }
 
-  // TODO: do we need something similar to .withDuchyIdentities() for EDP and MC?
+  val serviceDispatcher: CoroutineDispatcher = serviceFlags.executor.asCoroutineDispatcher()
   val services: List<ServerServiceDefinition> =
     listOf(
-      AccountsService(internalAccountsCoroutineStub, v2alphaFlags.redirectUri)
+      AccountsService(internalAccountsCoroutineStub, v2alphaFlags.redirectUri, serviceDispatcher)
         .withInterceptors(accountInterceptor, rateLimitingInterceptor, akidInterceptor),
-      ApiKeysService(InternalApiKeysCoroutineStub(channel))
+      ApiKeysService(InternalApiKeysCoroutineStub(channel), serviceDispatcher)
         .withInterceptors(accountInterceptor, rateLimitingInterceptor, akidInterceptor),
-      CertificatesService(InternalCertificatesCoroutineStub(channel))
+      CertificatesService(InternalCertificatesCoroutineStub(channel), serviceDispatcher)
         .withInterceptors(
           apiKeyPrincipalInterceptor,
           akidPrincipalInterceptor,
           rateLimitingInterceptor,
           akidInterceptor,
         ),
-      DataProvidersService(internalDataProvidersStub)
+      DataProvidersService(internalDataProvidersStub, serviceDispatcher)
         .withInterceptors(
           apiKeyPrincipalInterceptor,
           akidPrincipalInterceptor,
           rateLimitingInterceptor,
           akidInterceptor,
         ),
-      EventGroupsService(InternalEventGroupsCoroutineStub(channel))
+      EventGroupsService(InternalEventGroupsCoroutineStub(channel), serviceDispatcher)
         .withInterceptors(
           apiKeyPrincipalInterceptor,
           akidPrincipalInterceptor,
@@ -184,7 +188,8 @@ private fun run(
           akidInterceptor,
         ),
       EventGroupMetadataDescriptorsService(
-          InternalEventGroupMetadataDescriptorsCoroutineStub(channel)
+          InternalEventGroupMetadataDescriptorsCoroutineStub(channel),
+          serviceDispatcher,
         )
         .withInterceptors(
           apiKeyPrincipalInterceptor,
@@ -199,6 +204,7 @@ private fun run(
           reachOnlyLlV2Enabled = v2alphaFlags.reachOnlyLlV2Enabled,
           hmssEnabled = v2alphaFlags.hmssEnabled,
           hmssEnabledMeasurementConsumers = v2alphaFlags.hmssEnabledMeasurementConsumers,
+          coroutineContext = serviceDispatcher,
         )
         .withInterceptors(
           apiKeyPrincipalInterceptor,
@@ -206,7 +212,10 @@ private fun run(
           rateLimitingInterceptor,
           akidInterceptor,
         ),
-      MeasurementConsumersService(InternalMeasurementConsumersCoroutineStub(channel))
+      MeasurementConsumersService(
+          InternalMeasurementConsumersCoroutineStub(channel),
+          serviceDispatcher,
+        )
         .withInterceptors(
           accountInterceptor,
           apiKeyPrincipalInterceptor,
@@ -214,14 +223,14 @@ private fun run(
           rateLimitingInterceptor,
           akidInterceptor,
         ),
-      PublicKeysService(InternalPublicKeysCoroutineStub(channel))
+      PublicKeysService(InternalPublicKeysCoroutineStub(channel), serviceDispatcher)
         .withInterceptors(
           apiKeyPrincipalInterceptor,
           akidPrincipalInterceptor,
           rateLimitingInterceptor,
           akidInterceptor,
         ),
-      RequisitionsService(InternalRequisitionsCoroutineStub(channel))
+      RequisitionsService(InternalRequisitionsCoroutineStub(channel), serviceDispatcher)
         .withInterceptors(
           apiKeyPrincipalInterceptor,
           akidPrincipalInterceptor,
@@ -231,36 +240,39 @@ private fun run(
       ExchangesService(
           internalRecurringExchangesCoroutineStub,
           InternalExchangesCoroutineStub(channel),
+          serviceDispatcher,
         )
         .withInterceptors(akidPrincipalInterceptor, rateLimitingInterceptor, akidInterceptor),
       ExchangeStepsService(
           internalRecurringExchangesCoroutineStub,
           internalExchangeStepsCoroutineStub,
+          serviceDispatcher,
         )
         .withInterceptors(akidPrincipalInterceptor, rateLimitingInterceptor, akidInterceptor),
       ExchangeStepAttemptsService(
           InternalExchangeStepAttemptsCoroutineStub(channel),
           internalExchangeStepsCoroutineStub,
+          serviceDispatcher,
         )
         .withInterceptors(akidPrincipalInterceptor, rateLimitingInterceptor, akidInterceptor),
-      ModelLinesService(InternalModelLinesCoroutineStub(channel))
+      ModelLinesService(InternalModelLinesCoroutineStub(channel), serviceDispatcher)
         .withInterceptors(
           apiKeyPrincipalInterceptor,
           akidPrincipalInterceptor,
           rateLimitingInterceptor,
           akidInterceptor,
         ),
-      ModelShardsService(InternalModelShardsCoroutineStub(channel))
+      ModelShardsService(InternalModelShardsCoroutineStub(channel), serviceDispatcher)
         .withInterceptors(akidPrincipalInterceptor, rateLimitingInterceptor, akidInterceptor),
-      ModelSuitesService(InternalModelSuitesCoroutineStub(channel))
+      ModelSuitesService(InternalModelSuitesCoroutineStub(channel), serviceDispatcher)
         .withInterceptors(akidPrincipalInterceptor, rateLimitingInterceptor, akidInterceptor),
-      ModelReleasesService(InternalModelReleasesCoroutineStub(channel))
+      ModelReleasesService(InternalModelReleasesCoroutineStub(channel), serviceDispatcher)
         .withInterceptors(akidPrincipalInterceptor, rateLimitingInterceptor, akidInterceptor),
-      ModelOutagesService(InternalModelOutagesCoroutineStub(channel))
+      ModelOutagesService(InternalModelOutagesCoroutineStub(channel), serviceDispatcher)
         .withInterceptors(akidPrincipalInterceptor, rateLimitingInterceptor, akidInterceptor),
-      ModelRolloutsService(InternalModelRolloutsCoroutineStub(channel))
+      ModelRolloutsService(InternalModelRolloutsCoroutineStub(channel), serviceDispatcher)
         .withInterceptors(akidPrincipalInterceptor, rateLimitingInterceptor, akidInterceptor),
-      PopulationsService(InternalPopulationsCoroutineStub(channel))
+      PopulationsService(InternalPopulationsCoroutineStub(channel), serviceDispatcher)
         .withInterceptors(akidPrincipalInterceptor, rateLimitingInterceptor, akidInterceptor),
     )
   CommonServer.fromFlags(commonServerFlags, SERVER_NAME, services).start().blockUntilShutdown()

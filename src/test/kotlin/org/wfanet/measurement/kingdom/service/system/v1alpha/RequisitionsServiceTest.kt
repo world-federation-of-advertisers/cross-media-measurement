@@ -108,7 +108,7 @@ class RequisitionsServiceTest {
   private val service =
     RequisitionsService(
       InternalRequisitionsCoroutineStub(grpcTestServerRule.channel),
-      duchyIdProvider,
+      duchyIdentityProvider = duchyIdProvider,
     )
 
   @Test

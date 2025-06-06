@@ -17,6 +17,8 @@
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 
 import io.grpc.Status
+import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.EmptyCoroutineContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.common.grpc.failGrpc
@@ -41,7 +43,8 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.DeleteModelS
 class SpannerModelShardsService(
   private val idGenerator: IdGenerator,
   private val client: AsyncDatabaseClient,
-) : ModelShardsCoroutineImplBase() {
+  coroutineContext: CoroutineContext = EmptyCoroutineContext,
+) : ModelShardsCoroutineImplBase(coroutineContext) {
 
   override suspend fun createModelShard(request: ModelShard): ModelShard {
     grpcRequire(request.externalDataProviderId != 0L) {

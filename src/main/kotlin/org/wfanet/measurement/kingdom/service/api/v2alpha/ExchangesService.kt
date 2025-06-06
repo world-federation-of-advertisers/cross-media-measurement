@@ -17,6 +17,8 @@ package org.wfanet.measurement.kingdom.service.api.v2alpha
 import io.grpc.Status
 import io.grpc.StatusException
 import java.time.LocalDate
+import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.EmptyCoroutineContext
 import org.wfanet.measurement.api.v2alpha.AccountPrincipal
 import org.wfanet.measurement.api.v2alpha.DataProviderPrincipal
 import org.wfanet.measurement.api.v2alpha.DuchyPrincipal
@@ -43,7 +45,8 @@ import org.wfanet.measurement.internal.kingdom.getRecurringExchangeRequest as in
 class ExchangesService(
   private val internalRecurringExchanges: RecurringExchangesCoroutineStub,
   private val internalExchanges: ExchangesCoroutineStub,
-) : ExchangesCoroutineImplBase() {
+  coroutineContext: CoroutineContext = EmptyCoroutineContext,
+) : ExchangesCoroutineImplBase(coroutineContext) {
   override suspend fun getExchange(request: GetExchangeRequest): Exchange {
     fun permissionDeniedStatus() =
       Status.PERMISSION_DENIED.withDescription(

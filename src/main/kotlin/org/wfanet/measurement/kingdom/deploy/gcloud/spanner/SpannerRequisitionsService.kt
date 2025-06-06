@@ -15,6 +15,8 @@
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 
 import io.grpc.Status
+import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.EmptyCoroutineContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.common.grpc.failGrpc
@@ -45,7 +47,8 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.RefuseRequis
 class SpannerRequisitionsService(
   private val idGenerator: IdGenerator,
   private val client: AsyncDatabaseClient,
-) : RequisitionsCoroutineImplBase() {
+  coroutineContext: CoroutineContext = EmptyCoroutineContext,
+) : RequisitionsCoroutineImplBase(coroutineContext) {
 
   override suspend fun getRequisition(request: GetRequisitionRequest): Requisition {
     val externalDataProviderId = ExternalId(request.externalDataProviderId)

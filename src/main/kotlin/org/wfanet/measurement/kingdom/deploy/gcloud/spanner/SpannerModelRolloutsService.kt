@@ -18,6 +18,8 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 
 import io.grpc.Status
 import java.time.Clock
+import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.EmptyCoroutineContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.common.grpc.failGrpc
@@ -42,7 +44,8 @@ class SpannerModelRolloutsService(
   private val clock: Clock,
   private val idGenerator: IdGenerator,
   private val client: AsyncDatabaseClient,
-) : ModelRolloutsCoroutineImplBase() {
+  coroutineContext: CoroutineContext = EmptyCoroutineContext,
+) : ModelRolloutsCoroutineImplBase(coroutineContext) {
 
   override suspend fun createModelRollout(request: ModelRollout): ModelRollout {
     grpcRequire(request.hasRolloutPeriodStartTime()) {
