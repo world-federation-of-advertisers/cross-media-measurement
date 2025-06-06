@@ -15,14 +15,14 @@
 name: Deploy Kingdom
 
 on:
-  push:
+  workflow_dispatch:
 
 jobs:
   terraform:
     uses: ./.github/workflows/terraform-cmms.yml
     secrets: inherit
     with:
-      image-tag: bigquery-update-time-testing
+      image-tag: bigquery-update-time-testing-2
       environment: dev
       apply: true
   update-kingdom:
@@ -30,6 +30,6 @@ jobs:
     uses: ./.github/workflows/configure-kingdom.yml
     secrets: inherit
     with:
-      image-tag: bigquery-update-time-testing
+      image-tag: bigquery-update-time-testing-2
       environment: dev
       apply: true
