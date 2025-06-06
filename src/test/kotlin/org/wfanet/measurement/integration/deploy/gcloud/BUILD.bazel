@@ -194,7 +194,6 @@ java_test(
     runtime_deps = [":gcloud_in_process_access_cli_integration_test"],
 )
 
-<<<<<<< HEAD
 kt_jvm_test(
     name = "InProcessEdpAggregatorTest",
     srcs = ["InProcessEdpAggregatorTest.kt"],
