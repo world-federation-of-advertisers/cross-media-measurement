@@ -16,9 +16,20 @@
 
 package org.wfanet.measurement.integration.common
 
+import org.wfanet.measurement.api.v2alpha.ListPopulationsPageTokenKt.previousPageEnd as populationPreviousPageEnd
+import org.wfanet.measurement.internal.kingdom.DataProvider as InternalDataProvider
+import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt as InternalDataProvidersGrpc
+import org.wfanet.measurement.internal.kingdom.ModelLinesGrpcKt as InternalModelLinesGrpc
+import org.wfanet.measurement.internal.kingdom.ModelProvider as InternalModelProvider
+import org.wfanet.measurement.internal.kingdom.ModelProvidersGrpcKt as InternalModelProvidersGrpc
+import org.wfanet.measurement.internal.kingdom.ModelReleasesGrpcKt as InternalModelReleasesGrpc
+import org.wfanet.measurement.internal.kingdom.ModelRolloutsGrpcKt as InternalModelRolloutsGrpc
+import org.wfanet.measurement.internal.kingdom.ModelSuitesGrpcKt as InternalModelSuitesGrpc
+import org.wfanet.measurement.internal.kingdom.PopulationsGrpcKt as InternalPopulationsGrpc
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
 import com.google.protobuf.timestamp
+import com.google.protobuf.util.Timestamps
 import io.grpc.ManagedChannel
 import io.netty.handler.ssl.ClientAuth
 import java.io.File
@@ -34,8 +45,10 @@ import org.wfanet.measurement.api.v2alpha.AkidPrincipalLookup
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.ListModelSuitesPageTokenKt.previousPageEnd
 import org.wfanet.measurement.api.v2alpha.ListModelSuitesResponse
-import org.wfanet.measurement.api.v2alpha.ListPopulationsPageTokenKt.previousPageEnd as populationPreviousPageEnd
 import org.wfanet.measurement.api.v2alpha.ListPopulationsResponse
+import org.wfanet.measurement.api.v2alpha.ModelLine
+import org.wfanet.measurement.api.v2alpha.ModelLinesGrpc
+import org.wfanet.measurement.api.v2alpha.ModelLinesGrpc.ModelLinesBlockingStub
 import org.wfanet.measurement.api.v2alpha.ModelProviderKey
 import org.wfanet.measurement.api.v2alpha.ModelSuite
 import org.wfanet.measurement.api.v2alpha.ModelSuiteKey
@@ -46,6 +59,8 @@ import org.wfanet.measurement.api.v2alpha.PopulationKey
 import org.wfanet.measurement.api.v2alpha.PopulationKt.populationBlob
 import org.wfanet.measurement.api.v2alpha.PopulationsGrpc
 import org.wfanet.measurement.api.v2alpha.PopulationsGrpc.PopulationsBlockingStub
+import org.wfanet.measurement.api.v2alpha.copy
+import org.wfanet.measurement.api.v2alpha.createModelLineRequest
 import org.wfanet.measurement.api.v2alpha.createModelSuiteRequest
 import org.wfanet.measurement.api.v2alpha.createPopulationRequest
 import org.wfanet.measurement.api.v2alpha.eventTemplate
@@ -53,6 +68,7 @@ import org.wfanet.measurement.api.v2alpha.listModelSuitesPageToken
 import org.wfanet.measurement.api.v2alpha.listModelSuitesResponse
 import org.wfanet.measurement.api.v2alpha.listPopulationsPageToken
 import org.wfanet.measurement.api.v2alpha.listPopulationsResponse
+import org.wfanet.measurement.api.v2alpha.modelLine
 import org.wfanet.measurement.api.v2alpha.modelSuite
 import org.wfanet.measurement.api.v2alpha.population
 import org.wfanet.measurement.api.v2alpha.withPrincipalsFromX509AuthorityKeyIdentifiers
@@ -74,12 +90,6 @@ import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.config.AuthorityKeyToPrincipalMapKt
 import org.wfanet.measurement.config.authorityKeyToPrincipalMap
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
-import org.wfanet.measurement.internal.kingdom.DataProvider as InternalDataProvider
-import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt as InternalDataProvidersGrpc
-import org.wfanet.measurement.internal.kingdom.ModelProvider as InternalModelProvider
-import org.wfanet.measurement.internal.kingdom.ModelProvidersGrpcKt as InternalModelProvidersGrpc
-import org.wfanet.measurement.internal.kingdom.ModelSuitesGrpcKt as InternalModelSuitesGrpc
-import org.wfanet.measurement.internal.kingdom.PopulationsGrpcKt as InternalPopulationsGrpc
 import org.wfanet.measurement.internal.kingdom.certificate
 import org.wfanet.measurement.internal.kingdom.certificateDetails
 import org.wfanet.measurement.internal.kingdom.dataProvider
@@ -88,6 +98,9 @@ import org.wfanet.measurement.internal.kingdom.modelProvider
 import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
 import org.wfanet.measurement.kingdom.deploy.common.service.toList
 import org.wfanet.measurement.kingdom.deploy.tools.ModelRepository
+import org.wfanet.measurement.kingdom.service.api.v2alpha.ModelLinesService
+import org.wfanet.measurement.kingdom.service.api.v2alpha.ModelReleasesService
+import org.wfanet.measurement.kingdom.service.api.v2alpha.ModelRolloutsService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.ModelSuitesService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.PopulationsService
 
@@ -109,6 +122,7 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
 
   private lateinit var publicModelSuitesClient: ModelSuitesBlockingStub
   private lateinit var publicPopulationsClient: PopulationsBlockingStub
+  private lateinit var publicModelLinesClient: ModelLinesBlockingStub
 
   private lateinit var server: CommonServer
 
@@ -117,6 +131,8 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
 
   private lateinit var internalModelProvider: InternalModelProvider
   private lateinit var modelProviderName: String
+
+  private lateinit var modelSuite: ModelSuite
 
   @Before
   fun startServer() {
@@ -177,6 +193,11 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
       InternalModelSuitesGrpc.ModelSuitesCoroutineStub(internalChannel)
     val internalPopulationsClient =
       InternalPopulationsGrpc.PopulationsCoroutineStub(internalChannel)
+    val internalModelLinesClient = InternalModelLinesGrpc.ModelLinesCoroutineStub(internalChannel)
+    val internalModelReleasesClient =
+      InternalModelReleasesGrpc.ModelReleasesCoroutineStub(internalChannel)
+    val internalModelRolloutsClient =
+      InternalModelRolloutsGrpc.ModelRolloutsCoroutineStub(internalChannel)
 
     val publicModelSuitesService =
       ModelSuitesService(internalModelSuitesClient)
@@ -184,7 +205,23 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
     val publicPopulationsService =
       PopulationsService(internalPopulationsClient)
         .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup)
-    val services = listOf(publicModelSuitesService, publicPopulationsService)
+    val publicModelLinesService =
+      ModelLinesService(internalModelLinesClient)
+        .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup)
+    val publicModelReleasesService =
+      ModelReleasesService(internalModelReleasesClient)
+        .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup)
+    val publicModelRolloutsService =
+      ModelRolloutsService(internalModelRolloutsClient)
+        .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup)
+    val services =
+      listOf(
+        publicModelSuitesService,
+        publicPopulationsService,
+        publicModelLinesService,
+        publicModelReleasesService,
+        publicModelRolloutsService,
+      )
 
     val serverCerts =
       SigningCerts.fromPemFiles(KINGDOM_TLS_CERT_FILE, KINGDOM_TLS_KEY_FILE, ALL_ROOT_CERT_FILE)
@@ -209,6 +246,9 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
     val publicModelProviderChannel: ManagedChannel =
       buildMutualTlsChannel("localhost:${server.port}", modelProviderCerts)
     publicModelSuitesClient = ModelSuitesGrpc.newBlockingStub(publicModelProviderChannel)
+    publicModelLinesClient = ModelLinesGrpc.newBlockingStub(publicModelProviderChannel)
+
+    modelSuite = createModelSuite()
 
     val dataProviderCerts =
       SigningCerts.fromPemFiles(
@@ -359,6 +399,70 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
       .isEqualTo(listPopulationsResponse { populations += population })
   }
 
+  @Test
+  fun `model-lines create prints ModelLine`() = runBlocking {
+    val startTime = "2099-01-15T10:00:00Z"
+    val endTime = "2099-02-15T10:00:00Z"
+
+    val holdback = createModelLine(modelLineType = ModelLine.Type.HOLDBACK)
+    val population = createPopulation()
+
+    val args =
+      modelProviderArgs +
+        arrayOf(
+          "model-lines",
+          "create",
+          "--parent=${modelSuite.name}",
+          "--display-name=$DISPLAY_NAME",
+          "--description=$DESCRIPTION",
+          "--active-start-time=$startTime",
+          "--active-end-time=$endTime",
+          "--type=PROD",
+          "--holdback-model-line=${holdback.name}",
+          "--population=${population.name}",
+        )
+
+    val output = callCli(args)
+
+    assertThat(parseTextProto(output.reader(), ModelLine.getDefaultInstance()))
+      .comparingExpectedFieldsOnly()
+      .isEqualTo(
+        modelLine {
+          displayName = DISPLAY_NAME
+          description = DESCRIPTION
+          activeStartTime = Timestamps.parse(startTime)
+          activeEndTime = Timestamps.parse(endTime)
+          type = ModelLine.Type.PROD
+          holdbackModelLine = holdback.name
+        }
+      )
+  }
+
+  @Test
+  fun `model-lines set-active-end-time prints ModelLine`() = runBlocking {
+    val modelLine = createModelLine()
+    val endTime = "2099-04-15T10:00:00Z"
+    val args =
+      modelProviderArgs +
+        arrayOf(
+          "model-lines",
+          "set-active-end-time",
+          "--name=${modelLine.name}",
+          "--active-end-time=$endTime",
+        )
+
+    val output = callCli(args)
+
+    assertThat(parseTextProto(output.reader(), ModelLine.getDefaultInstance()))
+      .comparingExpectedFieldsOnly()
+      .isEqualTo(
+        modelLine.copy {
+          activeEndTime = Timestamps.parse(endTime)
+          clearUpdateTime()
+        }
+      )
+  }
+
   private fun callCli(args: Array<String>): String {
     val capturedOutput = CommandLineTesting.capturingOutput(args, ModelRepository::main)
     CommandLineTesting.assertThat(capturedOutput).status().isEqualTo(0)
@@ -385,6 +489,27 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
           description = DESCRIPTION
           populationBlob = populationBlob { modelBlobUri = MODEL_BLOB_URI }
           eventTemplate = eventTemplate { type = EVENT_TEMPLATE_TYPE }
+        }
+      }
+    )
+  }
+
+  private fun createModelLine(
+    modelLineType: ModelLine.Type = ModelLine.Type.PROD,
+    holdbackName: String = "",
+  ): ModelLine {
+    return publicModelLinesClient.createModelLine(
+      createModelLineRequest {
+        parent = modelSuite.name
+        modelLine = modelLine {
+          displayName = DISPLAY_NAME
+          description = DESCRIPTION
+          activeStartTime = Timestamps.parse("2099-01-15T10:00:00Z")
+          activeEndTime = Timestamps.parse("2099-02-15T10:00:00Z")
+          type = modelLineType
+          if (holdbackName.isNotEmpty()) {
+            holdbackModelLine = holdbackName
+          }
         }
       }
     )
