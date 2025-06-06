@@ -83,6 +83,7 @@ abstract class RequisitionGrouper(
 
   /* Maps a single [Requisition] to a single [GroupedRequisition]. */
   private fun mapRequisition(requisition: Requisition): GroupedRequisitions? {
+
     val measurementSpec: MeasurementSpec? =
       try {
         requisition.measurementSpec.unpack()

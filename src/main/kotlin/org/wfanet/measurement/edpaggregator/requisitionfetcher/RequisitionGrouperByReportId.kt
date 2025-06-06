@@ -128,7 +128,6 @@ class RequisitionGrouperByReportId(
           null
         } else {
           val groupedRequisitionId = UUID.randomUUID().toString()
-          println("~~~~~~~~~~~~~~~~~~~groupedRequisitionId: ${groupedRequisitionId} ")
           groupedRequisitions {
             this.id = groupedRequisitionId
             this.modelLine = modelLine
@@ -144,7 +143,6 @@ class RequisitionGrouperByReportId(
           }
         }
       }
-    println("~~~~~~~~~~~~~~~~~~~combinedByReportId: ${combinedByReportId} ")
     return combinedByReportId
   }
 
