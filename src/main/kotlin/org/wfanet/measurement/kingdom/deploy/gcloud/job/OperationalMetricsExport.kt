@@ -32,6 +32,8 @@ import com.google.rpc.Code
 import io.grpc.StatusException
 import java.time.Duration
 import java.util.concurrent.ExecutionException
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.TimeoutException
 import java.util.logging.Logger
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.toList
@@ -676,7 +678,7 @@ class OperationalMetricsExport(
         }
 
         try {
-          val response = streamWriter.append(protoRows).get()
+          val response = streamWriter.append(protoRows).get(30L, TimeUnit.SECONDS)
           if (response.hasError()) {
             logger.warning("Write response error: ${response.error}")
             if (response.error.code != Code.INTERNAL.number) {
@@ -702,6 +704,10 @@ class OperationalMetricsExport(
             }
           }
           throw e
+        } catch (e: TimeoutException) {
+          if (i == RETRY_COUNT) {
+            throw IllegalStateException("Too many retries.")
+          }
         }
       }
     }
