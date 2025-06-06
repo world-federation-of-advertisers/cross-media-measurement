@@ -22,11 +22,6 @@ import com.google.protobuf.util.Timestamps
 import io.grpc.Server
 import io.grpc.ServerServiceDefinition
 import io.grpc.netty.NettyServerBuilder
-import java.nio.file.Path
-import java.nio.file.Paths
-import java.time.Instant
-import java.time.ZoneOffset
-import java.util.concurrent.TimeUnit.SECONDS
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Before
@@ -37,24 +32,21 @@ import org.mockito.kotlin.any
 import org.mockito.kotlin.verify
 import org.wfanet.measurement.api.v2alpha.CreateModelLineRequest
 import org.wfanet.measurement.api.v2alpha.CreateModelSuiteRequest
-import org.wfanet.measurement.api.v2alpha.GetModelProviderRequest
 import org.wfanet.measurement.api.v2alpha.CreatePopulationRequest
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
+import org.wfanet.measurement.api.v2alpha.GetModelProviderRequest
 import org.wfanet.measurement.api.v2alpha.GetModelSuiteRequest
-import org.wfanet.measurement.api.v2alpha.ListModelProvidersPageTokenKt.previousPageEnd as modelProviderPreviousPageEnd
+import org.wfanet.measurement.api.v2alpha.GetPopulationRequest
 import org.wfanet.measurement.api.v2alpha.ListModelProvidersRequest
 import org.wfanet.measurement.api.v2alpha.ListModelProvidersResponse
-import org.wfanet.measurement.api.v2alpha.ListModelSuitesPageTokenKt.previousPageEnd as modelSuitePreviousPageEnd
-import org.wfanet.measurement.api.v2alpha.GetPopulationRequest
-import org.wfanet.measurement.api.v2alpha.ListModelSuitesPageTokenKt.previousPageEnd
 import org.wfanet.measurement.api.v2alpha.ListModelSuitesRequest
 import org.wfanet.measurement.api.v2alpha.ListModelSuitesResponse
 import org.wfanet.measurement.api.v2alpha.ListPopulationsPageTokenKt
 import org.wfanet.measurement.api.v2alpha.ListPopulationsRequest
 import org.wfanet.measurement.api.v2alpha.ListPopulationsResponse
-import org.wfanet.measurement.api.v2alpha.ModelProvider
 import org.wfanet.measurement.api.v2alpha.ModelLine
 import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt
+import org.wfanet.measurement.api.v2alpha.ModelProvider
 import org.wfanet.measurement.api.v2alpha.ModelProviderKey
 import org.wfanet.measurement.api.v2alpha.ModelProvidersGrpcKt.ModelProvidersCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.ModelReleasesGrpcKt
@@ -84,8 +76,8 @@ import org.wfanet.measurement.api.v2alpha.listModelSuitesResponse
 import org.wfanet.measurement.api.v2alpha.listPopulationsPageToken
 import org.wfanet.measurement.api.v2alpha.listPopulationsRequest
 import org.wfanet.measurement.api.v2alpha.listPopulationsResponse
-import org.wfanet.measurement.api.v2alpha.modelProvider
 import org.wfanet.measurement.api.v2alpha.modelLine
+import org.wfanet.measurement.api.v2alpha.modelProvider
 import org.wfanet.measurement.api.v2alpha.modelRelease
 import org.wfanet.measurement.api.v2alpha.modelRollout
 import org.wfanet.measurement.api.v2alpha.modelSuite
@@ -103,6 +95,13 @@ import org.wfanet.measurement.common.testing.captureFirst
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.common.toProtoDate
 import org.wfanet.measurement.common.toProtoTime
+import java.nio.file.Path
+import java.nio.file.Paths
+import java.time.Instant
+import java.time.ZoneOffset
+import java.util.concurrent.TimeUnit.SECONDS
+import org.wfanet.measurement.api.v2alpha.ListModelProvidersPageTokenKt.previousPageEnd as modelProviderPreviousPageEnd
+import org.wfanet.measurement.api.v2alpha.ListModelSuitesPageTokenKt.previousPageEnd as modelSuitePreviousPageEnd
 
 @RunWith(JUnit4::class)
 class ModelRepositoryTest {
@@ -168,7 +167,7 @@ class ModelRepositoryTest {
     )
 
   private val services: List<ServerServiceDefinition> =
-    listOf(modelProvidersServiceMocl.bindService(),
+    listOf(modelProvidersServiceMock.bindService(),
       modelSuitesServiceMock.bindService(),
       populationsServiceMock.bindService(),
       modelLinesServiceMock.bindService(),
@@ -519,14 +518,12 @@ class ModelRepositoryTest {
     private val LIST_MODEL_PROVIDERS_PAGE_TOKEN = listModelProvidersPageToken {
       pageSize = PAGE_SIZE
       lastModelProvider = modelProviderPreviousPageEnd {
-        createTime = CREATE_TIME
         externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID - 1
       }
     }
     private val LIST_MODEL_PROVIDERS_PAGE_TOKEN_2 = listModelProvidersPageToken {
       pageSize = PAGE_SIZE
       lastModelProvider = modelProviderPreviousPageEnd {
-        createTime = CREATE_TIME
         externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID_2
       }
     }
