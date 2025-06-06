@@ -231,8 +231,7 @@ module "result_fulfiller_tee_app" {
   mig_distribution_policy_zones = var.requisition_fulfiller_config.worker.mig_distribution_policy_zones
   terraform_service_account     = var.terraform_service_account
   secrets_to_mount              = local.result_fulfiller_secrets_to_mount
-  network_name                  = google_compute_network.private_network.name
-  subnetwork_name               = google_compute_subnetwork.private_subnetwork.name
+  subnetwork_name               = google_compute_subnetwork.private_subnetwork.self_link
 }
 
 resource "google_storage_bucket_iam_member" "result_fulfiller_storage_viewer" {
@@ -262,17 +261,11 @@ resource "google_cloud_run_service_iam_member" "event_group_sync_invoker" {
   member   = "serviceAccount:${module.data_watcher_function_service_accounts.cloud_function_service_account.email}"
 }
 
-# Network configuration for private VPC with internet and Google API access
-resource "google_compute_network" "private_network" {
-  name                    = var.network_name
-  auto_create_subnetworks = false
-}
-
 resource "google_compute_subnetwork" "private_subnetwork" {
   name                     = var.subnetwork_name
   ip_cidr_range            = var.subnet_cidr_range
   region                   = var.region
-  network                  = google_compute_network.private_network.id
+  network                  = var.network_name
   private_ip_google_access = true
 }
 
@@ -280,7 +273,7 @@ resource "google_compute_subnetwork" "private_subnetwork" {
 resource "google_compute_router" "router" {
   name    = var.router_name
   region  = var.region
-  network = google_compute_network.private_network.id
+  network = var.network_name
 }
 
 # Cloud NAT configuration

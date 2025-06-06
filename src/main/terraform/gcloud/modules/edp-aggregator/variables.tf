@@ -194,12 +194,6 @@ variable "event_group_sync_function_name" {
   nullable    = false
 }
 
-variable "network_name" {
-  description = "The name of the VPC network for edp aggregator components."
-  type        = string
-  default     = "edp-aggregator-network"
-}
-
 variable "subnetwork_name" {
   description = "The name of the subnetwork for edp aggregator components."
   type        = string
@@ -228,4 +222,10 @@ variable "region" {
   description = "The region where resources will be created."
   type        = string
   nullable    = false
+}
+
+variable "network_name" {
+  description = "The name of the VPC network to deploy resources in."
+  type        = string
+  default     = "default"
 }
