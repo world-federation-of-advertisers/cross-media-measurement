@@ -165,6 +165,7 @@ class RequisitionFulfillmentServiceTest {
         RequisitionsCoroutineStub(grpcTestServerRule.channel),
         ComputationsCoroutineStub(grpcTestServerRule.channel),
         requisitionStore,
+        Dispatchers.Default,
       )
   }
 

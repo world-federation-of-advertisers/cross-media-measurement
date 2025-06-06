@@ -18,11 +18,13 @@ package org.wfanet.measurement.access.deploy.gcloud.spanner
 
 import io.grpc.BindableService
 import java.io.File
+import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.access.common.TlsClientPrincipalMapping
 import org.wfanet.measurement.access.service.internal.PermissionMapping
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.grpc.CommonServer
+import org.wfanet.measurement.common.grpc.ServiceFlags
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.config.AuthorityKeyToPrincipalMap
 import org.wfanet.measurement.config.access.PermissionsConfig
@@ -36,6 +38,7 @@ private const val SERVER_NAME = "AccessInternalApiServer"
 @CommandLine.Command(name = SERVER_NAME)
 class InternalApiServer : Runnable {
   @CommandLine.Mixin private lateinit var serverFlags: CommonServer.Flags
+  @CommandLine.Mixin private lateinit var serviceFlags: ServiceFlags
   @CommandLine.Mixin private lateinit var spannerFlags: SpannerFlags
 
   @CommandLine.Option(
@@ -69,7 +72,13 @@ class InternalApiServer : Runnable {
       spannerFlags.usingSpanner { spanner ->
         val databaseClient: AsyncDatabaseClient = spanner.databaseClient
         val services: List<BindableService> =
-          InternalApiServices.build(databaseClient, permissionMapping, tlsClientMapping).toList()
+          InternalApiServices.build(
+              databaseClient,
+              permissionMapping,
+              tlsClientMapping,
+              serviceFlags.executor.asCoroutineDispatcher(),
+            )
+            .toList()
         val server = CommonServer.fromFlags(serverFlags, SERVER_NAME, services)
 
         server.start().blockUntilShutdown()

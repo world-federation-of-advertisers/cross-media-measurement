@@ -15,9 +15,11 @@
 package org.wfanet.measurement.duchy.deploy.gcloud.server
 
 import java.time.Clock
+import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresDatabaseClient
+import org.wfanet.measurement.common.grpc.ServiceFlags
 import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.duchy.deploy.common.server.DuchyDataServer
 import org.wfanet.measurement.duchy.deploy.common.service.PostgresDuchyDataServices
@@ -37,6 +39,7 @@ import picocli.CommandLine
   showDefaultValues = true,
 )
 class GcsPostgresDuchyDataServer : DuchyDataServer() {
+  @CommandLine.Mixin private lateinit var serviceFlags: ServiceFlags
   @CommandLine.Mixin private lateinit var gcsFlags: GcsFromFlags.Flags
   @CommandLine.Mixin private lateinit var gCloudPostgresFlags: GCloudPostgresFlags
 
@@ -55,6 +58,7 @@ class GcsPostgresDuchyDataServer : DuchyDataServer() {
         duchyFlags.duchyName,
         idGenerator,
         client,
+        serviceFlags.executor.asCoroutineDispatcher(),
       )
     )
   }

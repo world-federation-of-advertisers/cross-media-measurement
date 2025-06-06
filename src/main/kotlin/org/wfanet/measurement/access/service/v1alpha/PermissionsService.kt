@@ -17,6 +17,8 @@ package org.wfanet.measurement.access.service.v1alpha
 import io.grpc.Status
 import io.grpc.StatusException
 import java.io.IOException
+import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.EmptyCoroutineContext
 import org.wfanet.measurement.access.service.InvalidFieldValueException
 import org.wfanet.measurement.access.service.PermissionKey
 import org.wfanet.measurement.access.service.PermissionNotFoundException
@@ -44,8 +46,10 @@ import org.wfanet.measurement.internal.access.checkPermissionsRequest as interna
 import org.wfanet.measurement.internal.access.getPermissionRequest as internalGetPermissionRequest
 import org.wfanet.measurement.internal.access.listPermissionsRequest as internalListPermissionsRequest
 
-class PermissionsService(private val internalPermissionStub: InternalPermissionsCoroutineStub) :
-  PermissionsGrpcKt.PermissionsCoroutineImplBase() {
+class PermissionsService(
+  private val internalPermissionStub: InternalPermissionsCoroutineStub,
+  coroutineContext: CoroutineContext = EmptyCoroutineContext,
+) : PermissionsGrpcKt.PermissionsCoroutineImplBase(coroutineContext) {
   override suspend fun getPermission(request: GetPermissionRequest): Permission {
     if (request.name.isEmpty()) {
       throw RequiredFieldNotSetException("name")

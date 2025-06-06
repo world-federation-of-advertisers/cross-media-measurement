@@ -18,6 +18,8 @@ package org.wfanet.measurement.reporting.deploy.v2.postgres
 
 import com.google.protobuf.Empty
 import io.grpc.Status
+import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.EmptyCoroutineContext
 import org.wfanet.measurement.common.db.r2dbc.DatabaseClient
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.identity.IdGenerator
@@ -36,7 +38,8 @@ private const val BATCH_SIZE = 1000
 class PostgresMeasurementsService(
   private val idGenerator: IdGenerator,
   private val client: DatabaseClient,
-) : MeasurementsGrpcKt.MeasurementsCoroutineImplBase() {
+  coroutineContext: CoroutineContext = EmptyCoroutineContext,
+) : MeasurementsGrpcKt.MeasurementsCoroutineImplBase(coroutineContext) {
   override suspend fun batchSetCmmsMeasurementIds(
     request: BatchSetCmmsMeasurementIdsRequest
   ): Empty {

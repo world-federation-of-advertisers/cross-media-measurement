@@ -18,9 +18,12 @@ package org.wfanet.measurement.reporting.deploy.v2.gcloud.server
 
 import java.io.File
 import java.time.Clock
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresDatabaseClient
+import org.wfanet.measurement.common.grpc.ServiceFlags
 import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.config.reporting.ImpressionQualificationFilterConfig
@@ -41,6 +44,7 @@ import picocli.CommandLine
   showDefaultValues = true,
 )
 class GCloudInternalReportingServer : AbstractInternalReportingServer() {
+  @CommandLine.Mixin private lateinit var serviceFlags: ServiceFlags
   @CommandLine.Mixin private lateinit var gCloudPostgresFlags: GCloudPostgresFlags
   @CommandLine.Mixin private lateinit var spannerFlags: SpannerFlags
 
@@ -57,6 +61,7 @@ class GCloudInternalReportingServer : AbstractInternalReportingServer() {
   override fun run() = runBlocking {
     val clock = Clock.systemUTC()
     val idGenerator = RandomIdGenerator(clock)
+    val serviceDispatcher: CoroutineDispatcher = serviceFlags.executor.asCoroutineDispatcher()
 
     val factory = PostgresConnectionFactories.buildConnectionFactory(gCloudPostgresFlags)
     val postgresClient = PostgresDatabaseClient.fromConnectionFactory(factory)
@@ -90,11 +95,12 @@ class GCloudInternalReportingServer : AbstractInternalReportingServer() {
             postgresClient,
             spannerClient,
             impressionQualificationFilterMapping,
+            serviceDispatcher,
           )
         )
       }
     } else {
-      run(DataServices.create(idGenerator, postgresClient, null, null))
+      run(DataServices.create(idGenerator, postgresClient, null, null, serviceDispatcher))
     }
   }
 }

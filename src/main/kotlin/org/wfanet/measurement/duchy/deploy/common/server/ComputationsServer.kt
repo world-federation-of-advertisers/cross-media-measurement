@@ -16,8 +16,11 @@ package org.wfanet.measurement.duchy.deploy.common.server
 
 import io.grpc.ManagedChannel
 import java.time.Duration
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.asCoroutineDispatcher
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.grpc.CommonServer
+import org.wfanet.measurement.common.grpc.ServiceFlags
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withShutdownTimeout
 import org.wfanet.measurement.common.identity.DuchyInfoFlags
@@ -56,6 +59,9 @@ abstract class ComputationsServer : Runnable {
   protected lateinit var flags: Flags
     private set
 
+  protected val serviceDispatcher: CoroutineDispatcher
+    get() = flags.service.executor.asCoroutineDispatcher()
+
   abstract val protocolStageEnumHelper:
     ComputationProtocolStagesEnumHelper<ComputationType, ComputationStage>
   abstract val computationProtocolStageDetails:
@@ -93,13 +99,14 @@ abstract class ComputationsServer : Runnable {
         computationStore = ComputationStore(storageClient),
         requisitionStore = RequisitionStore(storageClient),
         duchyName = flags.duchy.duchyName,
+        coroutineContext = serviceDispatcher,
       )
 
     CommonServer.fromFlags(
         flags.server,
         javaClass.name,
         computationService,
-        ComputationStatsService(computationsDatabase),
+        ComputationStatsService(computationsDatabase, serviceDispatcher),
         continuationTokensService,
       )
       .start()
@@ -127,6 +134,10 @@ abstract class ComputationsServer : Runnable {
 
     @CommandLine.Mixin
     lateinit var duchy: CommonDuchyFlags
+      private set
+
+    @CommandLine.Mixin
+    lateinit var service: ServiceFlags
       private set
 
     @CommandLine.Mixin

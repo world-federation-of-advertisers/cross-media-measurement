@@ -383,7 +383,7 @@ class HeraldTest {
           computationStore,
           requisitionStore,
           DUCHY_ONE,
-          Clock.systemUTC(),
+          clock = Clock.systemUTC(),
         )
       )
       addService(systemComputations)

@@ -17,6 +17,8 @@
 package org.wfanet.measurement.reporting.deploy.v2.postgres
 
 import io.grpc.Status
+import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.EmptyCoroutineContext
 import org.wfanet.measurement.common.db.r2dbc.DatabaseClient
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.identity.IdGenerator
@@ -41,7 +43,8 @@ import org.wfanet.measurement.reporting.service.internal.ReportingSetNotFoundExc
 class PostgresReportSchedulesService(
   private val idGenerator: IdGenerator,
   private val client: DatabaseClient,
-) : ReportSchedulesCoroutineImplBase() {
+  coroutineContext: CoroutineContext = EmptyCoroutineContext,
+) : ReportSchedulesCoroutineImplBase(coroutineContext) {
   override suspend fun createReportSchedule(request: CreateReportScheduleRequest): ReportSchedule {
     grpcRequire(request.externalReportScheduleId.isNotEmpty()) {
       "external_report_schedule_id is not set."

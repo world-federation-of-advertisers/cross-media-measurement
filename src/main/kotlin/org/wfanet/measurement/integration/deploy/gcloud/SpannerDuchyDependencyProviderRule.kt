@@ -15,6 +15,7 @@
 package org.wfanet.measurement.integration.deploy.gcloud
 
 import com.google.cloud.storage.contrib.nio.testing.LocalStorageHelper
+import kotlinx.coroutines.Dispatchers
 import org.junit.runner.Description
 import org.junit.runners.model.Statement
 import org.wfanet.measurement.common.testing.ProviderRule
@@ -52,6 +53,7 @@ class SpannerDuchyDependencyProviderRule(
         logEntryClient,
         duchyId,
         computationsDatabase.databaseClient,
+        Dispatchers.Default,
       )
     return InProcessDuchy.DuchyDependencies(duchyDataServices, storageClient)
   }

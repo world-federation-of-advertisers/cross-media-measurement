@@ -30,7 +30,11 @@ class SpannerRolesServiceTest : RolesServiceTest() {
   val spannerDatabase = SpannerEmulatorDatabaseRule(spannerEmulator, Schemata.ACCESS_CHANGELOG_PATH)
 
   override fun initService(permissionMapping: PermissionMapping, idGenerator: IdGenerator) =
-    SpannerRolesService(spannerDatabase.databaseClient, permissionMapping, idGenerator)
+    SpannerRolesService(
+      spannerDatabase.databaseClient,
+      permissionMapping,
+      idGenerator = idGenerator,
+    )
 
   companion object {
     @get:ClassRule @JvmStatic val spannerEmulator = SpannerEmulatorRule()

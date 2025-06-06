@@ -75,7 +75,7 @@ class ComputationDataClientsTest {
         ComputationStore(storageClient),
         RequisitionStore(storageClient),
         ALSACE,
-        Clock.systemUTC(),
+        clock = Clock.systemUTC(),
       )
     )
   }

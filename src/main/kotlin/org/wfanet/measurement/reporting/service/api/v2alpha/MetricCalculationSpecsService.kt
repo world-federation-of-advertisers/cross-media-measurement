@@ -20,6 +20,8 @@ import com.google.type.DayOfWeek
 import io.grpc.Status
 import io.grpc.StatusException
 import io.grpc.StatusRuntimeException
+import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.EmptyCoroutineContext
 import kotlin.random.Random
 import org.projectnessie.cel.Env
 import org.wfanet.measurement.access.client.v1alpha.Authorization
@@ -69,7 +71,8 @@ class MetricCalculationSpecsService(
   private val authorization: Authorization,
   private val secureRandom: Random,
   private val measurementConsumerConfigs: MeasurementConsumerConfigs,
-) : MetricCalculationSpecsCoroutineImplBase() {
+  coroutineContext: CoroutineContext = EmptyCoroutineContext,
+) : MetricCalculationSpecsCoroutineImplBase(coroutineContext) {
   override suspend fun createMetricCalculationSpec(
     request: CreateMetricCalculationSpecRequest
   ): MetricCalculationSpec {

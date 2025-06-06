@@ -18,6 +18,8 @@ package org.wfanet.measurement.reporting.service.api.v2alpha
 
 import io.grpc.Status
 import io.grpc.StatusException
+import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.EmptyCoroutineContext
 import kotlin.math.min
 import org.projectnessie.cel.Env
 import org.wfanet.measurement.access.client.v1alpha.Authorization
@@ -51,7 +53,8 @@ private const val MAX_PAGE_SIZE = 1000
 class ReportScheduleIterationsService(
   private val internalReportScheduleIterationsStub: ReportScheduleIterationsCoroutineStub,
   private val authorization: Authorization,
-) : ReportScheduleIterationsCoroutineImplBase() {
+  coroutineContext: CoroutineContext = EmptyCoroutineContext,
+) : ReportScheduleIterationsCoroutineImplBase(coroutineContext) {
   override suspend fun getReportScheduleIteration(
     request: GetReportScheduleIterationRequest
   ): ReportScheduleIteration {

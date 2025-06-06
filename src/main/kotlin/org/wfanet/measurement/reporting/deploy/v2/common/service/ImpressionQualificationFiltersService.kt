@@ -15,6 +15,8 @@
 package org.wfanet.measurement.reporting.deploy.v2.common.service
 
 import io.grpc.Status
+import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.EmptyCoroutineContext
 import kotlin.math.abs
 import org.wfanet.measurement.internal.reporting.v2.GetImpressionQualificationFilterRequest
 import org.wfanet.measurement.internal.reporting.v2.ImpressionQualificationFilter
@@ -36,8 +38,9 @@ import org.wfanet.measurement.reporting.service.internal.toImpressionQualificati
  * This implementation is based on a config file.
  */
 class ImpressionQualificationFiltersService(
-  private val impressionQualificationFilterMapping: ImpressionQualificationFilterMapping
-) : ImpressionQualificationFiltersCoroutineImplBase() {
+  private val impressionQualificationFilterMapping: ImpressionQualificationFilterMapping,
+  coroutineContext: CoroutineContext = EmptyCoroutineContext,
+) : ImpressionQualificationFiltersCoroutineImplBase(coroutineContext) {
   override suspend fun getImpressionQualificationFilter(
     request: GetImpressionQualificationFilterRequest
   ): ImpressionQualificationFilter {

@@ -7,6 +7,7 @@ kt_jvm_library(
     srcs = ["AsyncComputationControlServer.kt"],
     runtime_deps = ["@wfa_common_jvm//imports/java/io/grpc/netty"],
     deps = [
+        "//src/main/kotlin/org/wfanet/measurement/common/grpc:service_flags",
         "//src/main/kotlin/org/wfanet/measurement/common/identity",
         "//src/main/kotlin/org/wfanet/measurement/duchy/db/computation",
         "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common:flags",
@@ -41,6 +42,7 @@ kt_jvm_library(
     visibility = ["//src/main/kotlin/org/wfanet/measurement/duchy/deploy:__subpackages__"],
     runtime_deps = ["@wfa_common_jvm//imports/java/io/grpc/netty"],
     deps = [
+        "//src/main/kotlin/org/wfanet/measurement/common/grpc:service_flags",
         "//src/main/kotlin/org/wfanet/measurement/common/identity",
         "//src/main/kotlin/org/wfanet/measurement/duchy/db/computation",
         "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common:flags",
@@ -83,6 +85,7 @@ kt_jvm_library(
     visibility = ["//src/main/kotlin/org/wfanet/measurement/duchy/deploy:__subpackages__"],
     runtime_deps = ["@wfa_common_jvm//imports/java/io/grpc/netty"],
     deps = [
+        "//src/main/kotlin/org/wfanet/measurement/common/grpc:service_flags",
         "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common:flags",
         "//src/main/kotlin/org/wfanet/measurement/duchy/service/internal/computations",
         "//src/main/kotlin/org/wfanet/measurement/duchy/service/internal/computationstats:service",
@@ -100,6 +103,7 @@ kt_jvm_library(
     runtime_deps = ["@wfa_common_jvm//imports/java/io/grpc/netty"],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:akid_principal_lookup",
+        "//src/main/kotlin/org/wfanet/measurement/common/grpc:service_flags",
         "//src/main/kotlin/org/wfanet/measurement/common/identity",
         "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common:flags",
         "//src/main/kotlin/org/wfanet/measurement/duchy/service/api/v2alpha:requisition_fulfillment_service",
@@ -159,6 +163,7 @@ kt_jvm_library(
     name = "forwarded_storage_postgres_duchy_data_server",
     srcs = ["ForwardedStoragePostgresDuchyDataServer.kt"],
     deps = [
+        "//src/main/kotlin/org/wfanet/measurement/common/grpc:service_flags",
         "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/server:duchy_data_server",
         "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/service:postgres_duchy_data_services",
         "@wfa_common_jvm//imports/java/picocli",

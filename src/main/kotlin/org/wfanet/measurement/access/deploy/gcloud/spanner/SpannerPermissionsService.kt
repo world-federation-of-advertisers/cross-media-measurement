@@ -17,6 +17,8 @@
 package org.wfanet.measurement.access.deploy.gcloud.spanner
 
 import io.grpc.Status
+import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.EmptyCoroutineContext
 import kotlin.math.abs
 import org.wfanet.measurement.access.common.TlsClientPrincipalMapping
 import org.wfanet.measurement.access.deploy.gcloud.spanner.db.checkPermissions
@@ -44,7 +46,8 @@ class SpannerPermissionsService(
   private val databaseClient: AsyncDatabaseClient,
   private val permissionMapping: PermissionMapping,
   private val tlsClientMapping: TlsClientPrincipalMapping,
-) : PermissionsGrpcKt.PermissionsCoroutineImplBase() {
+  coroutineContext: CoroutineContext = EmptyCoroutineContext,
+) : PermissionsGrpcKt.PermissionsCoroutineImplBase(coroutineContext) {
   override suspend fun getPermission(request: GetPermissionRequest): Permission {
     if (request.permissionResourceId.isEmpty()) {
       throw RequiredFieldNotSetException("permission_resource_id")

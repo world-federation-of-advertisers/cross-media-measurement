@@ -32,6 +32,8 @@ import java.time.ZoneOffset
 import java.time.ZonedDateTime
 import java.time.temporal.TemporalAdjusters
 import java.time.zone.ZoneRulesException
+import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.EmptyCoroutineContext
 import kotlin.math.min
 import kotlinx.coroutines.flow.asFlow
 import org.projectnessie.cel.Env
@@ -95,7 +97,8 @@ class ReportSchedulesService(
   private val eventGroupsStub: EventGroupsCoroutineStub,
   private val authorization: Authorization,
   private val measurementConsumerConfigs: MeasurementConsumerConfigs,
-) : ReportSchedulesCoroutineImplBase() {
+  coroutineContext: CoroutineContext = EmptyCoroutineContext,
+) : ReportSchedulesCoroutineImplBase(coroutineContext) {
   override suspend fun createReportSchedule(request: CreateReportScheduleRequest): ReportSchedule {
     val parentKey: MeasurementConsumerKey =
       grpcRequireNotNull(MeasurementConsumerKey.fromName(request.parent)) {

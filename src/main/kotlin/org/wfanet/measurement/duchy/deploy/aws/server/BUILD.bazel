@@ -12,6 +12,7 @@ kt_jvm_library(
     name = "s3_postgres_duchy_data_server",
     srcs = ["S3PostgresDuchyDataServer.kt"],
     deps = [
+        "//src/main/kotlin/org/wfanet/measurement/common/grpc:service_flags",
         "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/server:duchy_data_server",
         "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/service:postgres_duchy_data_services",
         "@wfa_common_jvm//imports/java/picocli",

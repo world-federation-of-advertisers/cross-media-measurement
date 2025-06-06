@@ -15,6 +15,7 @@
 package org.wfanet.measurement.duchy.deploy.common.service
 
 import java.time.Clock
+import kotlin.coroutines.CoroutineContext
 import org.wfanet.measurement.common.db.r2dbc.DatabaseClient
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStageDetails
@@ -36,13 +37,13 @@ import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub
 
 object PostgresDuchyDataServices {
-  @JvmStatic
   fun create(
     storageClient: StorageClient,
     computationLogEntriesClient: ComputationLogEntriesCoroutineStub,
     duchyName: String,
     idGenerator: IdGenerator,
     client: DatabaseClient,
+    coroutineContext: CoroutineContext,
   ): DuchyDataServices {
     val computationTypeEnumHelper: ComputationTypeEnumHelper<ComputationType> = ComputationTypes
     val protocolStagesEnumHelper:
@@ -62,13 +63,14 @@ object PostgresDuchyDataServices {
         computationTypeEnumHelper = computationTypeEnumHelper,
         protocolStagesEnumHelper = protocolStagesEnumHelper,
         computationProtocolStageDetailsHelper = computationProtocolStageDetailsHelper,
+        client = client,
+        idGenerator = idGenerator,
+        duchyName = duchyName,
         computationStore = ComputationStore(storageClient),
         requisitionStore = RequisitionStore(storageClient),
         computationLogEntriesClient = computationLogEntriesClient,
-        duchyName = duchyName,
+        coroutineContext = coroutineContext,
         clock = Clock.systemUTC(),
-        client = client,
-        idGenerator = idGenerator,
       ),
       PostgresComputationStatsService(client, idGenerator),
       PostgresContinuationTokensService(client, idGenerator),

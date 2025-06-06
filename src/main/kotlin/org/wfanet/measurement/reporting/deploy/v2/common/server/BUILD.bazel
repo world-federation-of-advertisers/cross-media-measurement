@@ -10,6 +10,7 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/gcloud/server:__subpackages__",
     ],
     deps = [
+        "//src/main/kotlin/org/wfanet/measurement/common/grpc:service_flags",
         "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/common:spanner_flags",
         "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/common/service:services",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/internal:impression_qualification_filter_mapping",
@@ -45,6 +46,7 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/access/client/v1alpha:principal_auth_interceptor",
         "//src/main/kotlin/org/wfanet/measurement/access/client/v1alpha:trusted_principal_auth_interceptor",
         "//src/main/kotlin/org/wfanet/measurement/common/grpc:interceptors",
+        "//src/main/kotlin/org/wfanet/measurement/common/grpc:service_flags",
         "//src/main/kotlin/org/wfanet/measurement/measurementconsumer/stats:variances",
         "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/common:encryption_key_pair_map",
         "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/common:in_process_servers_methods",

@@ -417,7 +417,7 @@ class HonestMajorityShareShuffleMillTest {
           computationStore,
           requisitionStore,
           DUCHY_THREE_ID,
-          Clock.systemUTC(),
+          clock = Clock.systemUTC(),
         )
       )
       addService(mockCertificates)

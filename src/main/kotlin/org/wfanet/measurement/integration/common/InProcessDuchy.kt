@@ -149,6 +149,8 @@ class InProcessDuchy(
       .makeKmsPrivateKeyStore(TinkKeyStore(InMemoryStorageClient()), keyUri)
   }
 
+  private val serviceDispatcher = Dispatchers.Default
+
   private val computationsServer =
     GrpcTestServerRule(logAllRequests = verboseGrpcLogging) {
       addService(duchyDependencies.duchyDataServices.computationsService)
@@ -163,6 +165,7 @@ class InProcessDuchy(
             systemRequisitionsClient,
             computationsClient,
             RequisitionStore(duchyDependencies.storageClient),
+            serviceDispatcher,
           )
           .withMetadataPrincipalIdentities()
       )
@@ -170,9 +173,14 @@ class InProcessDuchy(
   private val asyncComputationControlServer =
     GrpcTestServerRule(logAllRequests = verboseGrpcLogging) {
       addService(
-        AsyncComputationControlService(computationsClient, maxAdvanceAttempts = Int.MAX_VALUE)
+        AsyncComputationControlService(
+          computationsClient,
+          maxAdvanceAttempts = Int.MAX_VALUE,
+          coroutineContext = serviceDispatcher,
+        )
       )
     }
+
   private val computationControlServer =
     GrpcTestServerRule(
       computationControlChannelName(externalDuchyId),
@@ -184,6 +192,7 @@ class InProcessDuchy(
             computationsClient,
             asyncComputationControlClient,
             duchyDependencies.storageClient,
+            serviceDispatcher,
           )
           .withMetadataDuchyIdentities()
       )

@@ -18,6 +18,7 @@ package org.wfanet.measurement.securecomputation.controlplane.v1alpha
 
 import io.grpc.BindableService
 import io.grpc.Channel
+import kotlin.coroutines.CoroutineContext
 import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItemAttemptsGrpcKt as InternalWorkItemAttemptsGrpcKt
 import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItemsGrpcKt as InternalWorkItemsGrpcKt
 
@@ -28,14 +29,14 @@ data class Services(
   fun toList(): List<BindableService> = listOf(workItems, workItemAttempts)
 
   companion object {
-    fun build(internalApiChannel: Channel): Services {
+    fun build(internalApiChannel: Channel, coroutineContext: CoroutineContext): Services {
       val internalWorkItemsStub = InternalWorkItemsGrpcKt.WorkItemsCoroutineStub(internalApiChannel)
       val internalWorkItemAttemptsStub =
         InternalWorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineStub(internalApiChannel)
 
       return Services(
-        WorkItemsService(internalWorkItemsStub),
-        WorkItemAttemptsService(internalWorkItemAttemptsStub),
+        WorkItemsService(internalWorkItemsStub, coroutineContext),
+        WorkItemAttemptsService(internalWorkItemAttemptsStub, coroutineContext),
       )
     }
   }
