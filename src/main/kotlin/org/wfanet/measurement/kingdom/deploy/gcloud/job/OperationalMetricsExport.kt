@@ -545,9 +545,7 @@ class OperationalMetricsExport(
     }
   }
 
-  /**
-   * This is under the assumption that batches are retrieved based on updateTime.
-   */
+  /** This is under the assumption that batches are retrieved based on updateTime. */
   private suspend fun <T> appendData(
     dataWriter: DataWriter,
     firstBatch: List<T>,
