@@ -14,7 +14,6 @@
 
 package org.wfanet.measurement.common.identity
 
-import com.google.protobuf.ByteString
 import io.grpc.BindableService
 import io.grpc.Context
 import io.grpc.Contexts
@@ -71,25 +70,33 @@ class DuchyTlsIdentityInterceptor : ServerInterceptor {
     headers: Metadata,
     next: ServerCallHandler<ReqT, RespT>,
   ): ServerCall.Listener<ReqT> {
-    val authorityKeyIdentifiers: List<ByteString> = authorityKeyIdentifiersFromCurrentContext
-    if (authorityKeyIdentifiers.isEmpty()) {
+    val clientAuthorityKeyIdentifier =
+      AuthorityKeyServerInterceptor.CLIENT_AUTHORITY_KEY_IDENTIFIER_CONTEXT_KEY.get()
+    if (clientAuthorityKeyIdentifier == null) {
       call.close(
-        Status.UNAUTHENTICATED.withDescription("No authorityKeyIdentifiers found"),
+        Status.UNAUTHENTICATED.withDescription(
+          "No authority key identifier (AKID) found in client certificate"
+        ),
         Metadata(),
       )
       return object : ServerCall.Listener<ReqT>() {}
     }
 
-    for (authorityKeyIdentifier in authorityKeyIdentifiers) {
-      val duchyInfo = DuchyInfo.getByRootCertificateSkid(authorityKeyIdentifier) ?: continue
-
-      val context =
-        Context.current().withValue(DUCHY_IDENTITY_CONTEXT_KEY, DuchyIdentity(duchyInfo.duchyId))
-      return Contexts.interceptCall(context, call, headers, next)
+    val duchyInfo = DuchyInfo.getByRootCertificateSkid(clientAuthorityKeyIdentifier)
+    if (duchyInfo == null) {
+      call.close(
+        Status.UNAUTHENTICATED.withDescription("No Duchy identity found for client certificate"),
+        Metadata(),
+      )
+      return object : ServerCall.Listener<ReqT>() {}
     }
 
-    call.close(Status.UNAUTHENTICATED.withDescription("No Duchy identity found"), Metadata())
-    return object : ServerCall.Listener<ReqT>() {}
+    return Contexts.interceptCall(
+      Context.current().withValue(DUCHY_IDENTITY_CONTEXT_KEY, DuchyIdentity(duchyInfo.duchyId)),
+      call,
+      headers,
+      next,
+    )
   }
 }
 

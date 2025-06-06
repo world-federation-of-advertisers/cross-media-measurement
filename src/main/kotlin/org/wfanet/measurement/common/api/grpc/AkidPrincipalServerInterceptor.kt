@@ -23,29 +23,24 @@ import io.grpc.Metadata
 import io.grpc.ServerCall
 import io.grpc.ServerCallHandler
 import io.grpc.ServerInterceptor
-import io.grpc.Status
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
-import kotlinx.coroutines.flow.asFlow
-import kotlinx.coroutines.flow.filterNotNull
-import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.singleOrNull
 import org.wfanet.measurement.common.api.Principal
 import org.wfanet.measurement.common.api.PrincipalLookup
 import org.wfanet.measurement.common.grpc.SuspendableServerInterceptor
 
 /**
- * [ServerInterceptor] which maps the authority key identifiers (AKIDs) from [akidsContextKey] to a
- * single [Principal].
+ * [ServerInterceptor] which maps the authority key identifier (AKID) from [akidContextKey] to a
+ * [Principal].
  *
  * @param principalContextKey [Context.Key] for the [Principal]. If the current RPC context already
  *   has a value for this key, then this interceptor does nothing.
- * @param akidsContextKey [Context.Key] containing AKIDs
+ * @param akidContextKey [Context.Key] containing AKID from client certificate
  * @param akidPrincipalLookup [PrincipalLookup] where the lookup key is an AKID
  */
 class AkidPrincipalServerInterceptor<T : Principal>(
   private val principalContextKey: Context.Key<T>,
-  private val akidsContextKey: Context.Key<List<ByteString>>,
+  private val akidContextKey: Context.Key<ByteString>,
   private val akidPrincipalLookup: PrincipalLookup<T, ByteString>,
   coroutineContext: CoroutineContext = EmptyCoroutineContext,
 ) : SuspendableServerInterceptor(coroutineContext) {
@@ -54,24 +49,18 @@ class AkidPrincipalServerInterceptor<T : Principal>(
     headers: Metadata,
     next: ServerCallHandler<ReqT, RespT>,
   ): ServerCall.Listener<ReqT> {
-    var rpcContext = Context.current()
     if (principalContextKey.get() != null) {
-      return Contexts.interceptCall(rpcContext, call, headers, next)
+      return next.startCall(call, headers)
     }
+    val clientAkid: ByteString = akidContextKey.get() ?: return next.startCall(call, headers)
+    val principal: T =
+      akidPrincipalLookup.getPrincipal(clientAkid) ?: return next.startCall(call, headers)
 
-    val principal: T? =
-      akidsContextKey
-        .get(rpcContext)
-        .asFlow()
-        .map { akidPrincipalLookup.getPrincipal(it) }
-        .filterNotNull()
-        .singleOrNull()
-    if (principal == null) {
-      call.close(Status.UNAUTHENTICATED.withDescription("No single principal found"), headers)
-    } else {
-      rpcContext = rpcContext.withValue(principalContextKey, principal)
-    }
-
-    return Contexts.interceptCall(rpcContext, call, headers, next)
+    return Contexts.interceptCall(
+      Context.current().withValue(principalContextKey, principal),
+      call,
+      headers,
+      next,
+    )
   }
 }

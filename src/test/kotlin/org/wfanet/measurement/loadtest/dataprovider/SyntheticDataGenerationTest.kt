@@ -57,6 +57,171 @@ import org.wfanet.measurement.loadtest.dataprovider.LabeledEvent
 @RunWith(JUnit4::class)
 class SyntheticDataGenerationTest {
   @Test
+  fun `multiple calls to generateEvents return identical results`() {
+    // This test ensures that event generation is deterministic
+    val population = syntheticPopulationSpec {
+      vidRange = vidRange {
+        start = 0L
+        endExclusive = 100L
+      }
+
+      populationFields += "person.gender"
+      populationFields += "person.age_group"
+
+      nonPopulationFields += "banner_ad.viewable"
+      nonPopulationFields += "video_ad.viewed_fraction"
+
+      subPopulations +=
+        SyntheticPopulationSpecKt.subPopulation {
+          vidSubRange = vidRange {
+            start = 0L
+            endExclusive = 50L
+          }
+
+          populationFieldsValues["person.gender"] = fieldValue {
+            enumValue = Person.Gender.MALE_VALUE
+          }
+          populationFieldsValues["person.age_group"] = fieldValue {
+            enumValue = Person.AgeGroup.YEARS_18_TO_34_VALUE
+          }
+        }
+      subPopulations +=
+        SyntheticPopulationSpecKt.subPopulation {
+          vidSubRange = vidRange {
+            start = 50L
+            endExclusive = 100L
+          }
+
+          populationFieldsValues["person.gender"] = fieldValue {
+            enumValue = Person.Gender.FEMALE_VALUE
+          }
+          populationFieldsValues["person.age_group"] = fieldValue {
+            enumValue = Person.AgeGroup.YEARS_18_TO_34_VALUE
+          }
+        }
+    }
+    val eventGroupSpec = syntheticEventGroupSpec {
+      description = "event group 1"
+
+      dateSpecs +=
+        SyntheticEventGroupSpecKt.dateSpec {
+          dateRange =
+            SyntheticEventGroupSpecKt.DateSpecKt.dateRange {
+              start = date {
+                year = 2023
+                month = 6
+                day = 27
+              }
+              endExclusive = date {
+                year = 2023
+                month = 6
+                day = 28
+              }
+            }
+
+          frequencySpecs +=
+            SyntheticEventGroupSpecKt.frequencySpec {
+              frequency = 2
+
+              vidRangeSpecs +=
+                SyntheticEventGroupSpecKt.FrequencySpecKt.vidRangeSpec {
+                  vidRange = vidRange {
+                    start = 0L
+                    endExclusive = 25L
+                  }
+
+                  nonPopulationFieldValues["banner_ad.viewable"] = fieldValue { boolValue = true }
+                  nonPopulationFieldValues["video_ad.viewed_fraction"] = fieldValue {
+                    doubleValue = 0.5
+                  }
+                }
+              vidRangeSpecs +=
+                SyntheticEventGroupSpecKt.FrequencySpecKt.vidRangeSpec {
+                  vidRange = vidRange {
+                    start = 25L
+                    endExclusive = 50L
+                  }
+
+                  nonPopulationFieldValues["banner_ad.viewable"] = fieldValue { boolValue = false }
+                  nonPopulationFieldValues["video_ad.viewed_fraction"] = fieldValue {
+                    doubleValue = 0.7
+                  }
+                }
+            }
+          frequencySpecs +=
+            SyntheticEventGroupSpecKt.frequencySpec {
+              frequency = 1
+
+              vidRangeSpecs +=
+                SyntheticEventGroupSpecKt.FrequencySpecKt.vidRangeSpec {
+                  vidRange = vidRange {
+                    start = 50L
+                    endExclusive = 75L
+                  }
+
+                  nonPopulationFieldValues["banner_ad.viewable"] = fieldValue { boolValue = true }
+                  nonPopulationFieldValues["video_ad.viewed_fraction"] = fieldValue {
+                    doubleValue = 0.8
+                  }
+                }
+            }
+        }
+      dateSpecs +=
+        SyntheticEventGroupSpecKt.dateSpec {
+          dateRange =
+            SyntheticEventGroupSpecKt.DateSpecKt.dateRange {
+              start = date {
+                year = 2023
+                month = 6
+                day = 28
+              }
+              endExclusive = date {
+                year = 2023
+                month = 6
+                day = 29
+              }
+            }
+          frequencySpecs +=
+            SyntheticEventGroupSpecKt.frequencySpec {
+              frequency = 1
+
+              vidRangeSpecs +=
+                SyntheticEventGroupSpecKt.FrequencySpecKt.vidRangeSpec {
+                  vidRange = vidRange {
+                    start = 75L
+                    endExclusive = 100L
+                  }
+
+                  nonPopulationFieldValues["banner_ad.viewable"] = fieldValue { boolValue = true }
+                  nonPopulationFieldValues["video_ad.viewed_fraction"] = fieldValue {
+                    doubleValue = 0.9
+                  }
+                }
+            }
+        }
+    }
+
+    val labeledEvents1: List<LabeledEvent<TestEvent>> = runBlocking {
+      SyntheticDataGeneration.generateEvents(
+          TestEvent.getDefaultInstance(),
+          population,
+          eventGroupSpec,
+        )
+        .toEventsList()
+    }
+
+    val labeledEvents2: List<LabeledEvent<TestEvent>> = runBlocking {
+      SyntheticDataGeneration.generateEvents(
+          TestEvent.getDefaultInstance(),
+          population,
+          eventGroupSpec,
+        )
+        .toEventsList()
+    }
+    assertThat(labeledEvents1).containsExactlyElementsIn(labeledEvents2)
+  }
+
+  @Test
   fun `generateEvents returns a flow of dynamic event messages`() {
     val population = syntheticPopulationSpec {
       vidRange = vidRange {

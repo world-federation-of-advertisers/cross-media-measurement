@@ -26,6 +26,8 @@ from tools.post_process_origin_report import ReportSummaryProcessor
 from src.main.proto.wfa.measurement.reporting.postprocessing.v2alpha import \
   report_post_processor_result_pb2
 
+from google.protobuf import json_format
+
 StatusCode = report_post_processor_result_pb2.ReportPostProcessorStatus.StatusCode
 
 TOLERANCE = 1
