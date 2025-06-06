@@ -16,26 +16,20 @@
 
 package org.wfanet.measurement.edpaggregator.requisitionfetcher
 
-import com.google.protobuf.Timestamp
 import com.google.type.Interval
 import com.google.type.interval
-import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.Requisition
-import org.wfanet.measurement.api.v2alpha.Requisition.Refusal
-import org.wfanet.measurement.api.v2alpha.RequisitionKt.refusal
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.unpack
-import org.wfanet.measurement.common.crypto.PrivateKeyHandle
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.common.toProtoTime
-import org.wfanet.measurement.dataprovider.RequisitionRefusalException
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
+import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions.EventGroupMapEntry
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt.eventGroupDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt.eventGroupMapEntry
-import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions.EventGroupMapEntry
 import org.wfanet.measurement.edpaggregator.v1alpha.groupedRequisitions
 
 /**
@@ -65,34 +59,33 @@ class RequisitionGrouperByReportId(
       }
     val combinedByReportId =
       groupedByReport.toList().mapNotNull { (reportId: String, groups: List<GroupedRequisitions>) ->
-
         if (!requisitionValidator.validateModelLines(groups, reportId = reportId)) {
           null
-        }
-        val entries = groups.flatMap {
-          it.eventGroupMapList
-        }.groupBy {
-          it.eventGroup
-        }.map{ (eventGroupName: String, eventGroupMapEntries: List<EventGroupMapEntry>) ->
-          val eventGroupReferenceId = eventGroupMapEntries.first().details.eventGroupReferenceId
-          val collectionIntervals: List<Interval> = eventGroupMapEntries.flatMap {
-            it.details.collectionIntervalsList
-          }
-          val combinedCollectionIntervals = unionIntervals(collectionIntervals)
-          eventGroupMapEntry {
-            this.eventGroup = eventGroupName
-            details = eventGroupDetails {
-            this.eventGroupReferenceId = eventGroupReferenceId
-            this.collectionIntervals += combinedCollectionIntervals
-}
-          }
-        }
+        } else {
+          val entries =
+            groups
+              .flatMap { it.eventGroupMapList }
+              .groupBy { it.eventGroup }
+              .map { (eventGroupName: String, eventGroupMapEntries: List<EventGroupMapEntry>) ->
+                val eventGroupReferenceId =
+                  eventGroupMapEntries.first().details.eventGroupReferenceId
+                val collectionIntervals: List<Interval> =
+                  eventGroupMapEntries.flatMap { it.details.collectionIntervalsList }
+                val combinedCollectionIntervals = unionIntervals(collectionIntervals)
+                eventGroupMapEntry {
+                  this.eventGroup = eventGroupName
+                  details = eventGroupDetails {
+                    this.eventGroupReferenceId = eventGroupReferenceId
+                    this.collectionIntervals += combinedCollectionIntervals
+                  }
+                }
+              }
           groupedRequisitions {
             this.modelLine = modelLine
             this.eventGroupMap += entries
             this.requisitions += groups.flatMap { it.requisitionsList }
           }
-
+        }
       }
     return combinedByReportId
   }
@@ -117,5 +110,4 @@ class RequisitionGrouperByReportId(
     result.add(current)
     return result
   }
-
 }

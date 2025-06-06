@@ -185,6 +185,9 @@ object TestRequisitionData {
         width = 1.0f
       }
     nonceHashes += Hashing.hashSha256(REQUISITION_SPEC.nonce)
+    reportingMetadata = MeasurementSpecKt.reportingMetadata {
+      report = "some-report"
+    }
   }
 
   val REQUISITION = requisition {

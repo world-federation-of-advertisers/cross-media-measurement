@@ -92,22 +92,27 @@ class GroupedRequisitionsValidator(
     return requisitionSpec
   }
 
-  fun validateModelLines(groupedRequisitions: List<GroupedRequisitions>, reportId: String): Boolean {
+  fun validateModelLines(
+    groupedRequisitions: List<GroupedRequisitions>,
+    reportId: String,
+  ): Boolean {
     val modelLine = groupedRequisitions.first().modelLine
-    val foundInvalidModelLine = groupedRequisitions.firstOrNull { it.modelLine != modelLine } != null
+    val foundInvalidModelLine =
+      groupedRequisitions.firstOrNull { it.modelLine != modelLine } != null
     if (foundInvalidModelLine) {
       logger.info("Report $reportId cannot contain multiple model lines")
       groupedRequisitions.forEach {
-        val requisition =
-          it.requisitionsList.single().requisition.unpack(Requisition::class.java)
-        runBlocking {
-          refuseRequisition(
-            requisition.name,
-            refusal {
-              justification = Requisition.Refusal.Justification.UNFULFILLABLE
-              message = "Report $reportId cannot contain multiple model lines"
-            },
-          )
+        it.requisitionsList.forEach { it ->
+          val requisition = it.requisition.unpack(Requisition::class.java)
+          runBlocking {
+            refuseRequisition(
+              requisition.name,
+              refusal {
+                justification = Requisition.Refusal.Justification.UNFULFILLABLE
+                message = "Report $reportId cannot contain multiple model lines"
+              },
+            )
+          }
         }
       }
       return false

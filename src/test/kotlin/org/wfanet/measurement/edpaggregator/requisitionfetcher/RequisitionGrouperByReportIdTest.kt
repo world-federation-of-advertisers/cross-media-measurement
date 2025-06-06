@@ -163,12 +163,14 @@ class RequisitionGrouperByReportIdTest : AbstractRequisitionGrouperTest() {
             eventGroup = "dataProviders/someDataProvider/eventGroups/name"
             details = eventGroupDetails {
               eventGroupReferenceId = "some-event-group-reference-id"
-              collectionIntervals += listOf(
-                interval {
-                  startTime = TestRequisitionData.TIME_RANGE.start.toProtoTime()
-                  endTime = TestRequisitionData.TIME_RANGE.endExclusive.plusSeconds(3600).toProtoTime()
-                }
-              )
+              collectionIntervals +=
+                listOf(
+                  interval {
+                    startTime = TestRequisitionData.TIME_RANGE.start.toProtoTime()
+                    endTime =
+                      TestRequisitionData.TIME_RANGE.endExclusive.plusSeconds(3600).toProtoTime()
+                  }
+                )
             }
           }
         )
@@ -180,7 +182,7 @@ class RequisitionGrouperByReportIdTest : AbstractRequisitionGrouperTest() {
   }
 
   @Test
-  fun `throws an error for disparate time intervals`() {
+  fun `does not combine disparate time intervals`() {
     val requisition2 =
       TestRequisitionData.REQUISITION.copy {
         val requisitionSpec =
@@ -221,32 +223,15 @@ class RequisitionGrouperByReportIdTest : AbstractRequisitionGrouperTest() {
 
     val groupedRequisitions: List<GroupedRequisitions> =
       requisitionGrouper.groupRequisitions(listOf(TestRequisitionData.REQUISITION, requisition2))
-    assertThat(groupedRequisitions).hasSize(0)
-    val refuseRequests: List<RefuseRequisitionRequest> =
-      verifyAndCapture(
-        requisitionsServiceMock,
-        RequisitionsCoroutineImplBase::refuseRequisition,
-        times(2),
+    assertThat(groupedRequisitions).hasSize(1)
+    assertThat(
+        groupedRequisitions.single().eventGroupMapList.single().details.collectionIntervalsList
       )
-    refuseRequests.forEach { refuseRequest ->
-      assertThat(refuseRequest)
-        .ignoringFieldScope(
-          FieldScopes.allowingFieldDescriptors(
-            Requisition.Refusal.getDescriptor()
-              .findFieldByNumber(Requisition.Refusal.MESSAGE_FIELD_NUMBER)
-          )
-        )
-        .isEqualTo(
-          refuseRequisitionRequest {
-            name = TestRequisitionData.REQUISITION.name
-            refusal = refusal { justification = Requisition.Refusal.Justification.UNFULFILLABLE }
-          }
-        )
-    }
+      .hasSize(2)
   }
 
   @Test
-  fun `throws an error if multiple model ids are used for the same report id`() {
+  fun `skips if multiple model ids are used for the same report id`() {
     val requisition2 =
       TestRequisitionData.REQUISITION.copy {
         val measurementSpec =
