@@ -42,7 +42,7 @@ message GroupedRequisitions {
     // The event group collection intervals. Both
     // `start_time` and `end_time` must be specified. Must include all collection
     // intervals necessary to fulfill requisitions. Sorted by start_time.
-    repeated google.type.Interval collection_interval = 2
+    repeated google.type.Interval collection_intervals = 2
     [(google.api.field_behavior) = REQUIRED];
   }
   // A single entry mapping an Event Group to an the information necessary to fetch events for it.

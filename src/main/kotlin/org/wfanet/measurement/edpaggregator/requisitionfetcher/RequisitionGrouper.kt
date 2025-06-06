@@ -48,7 +48,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.groupedRequisitions
  * @param throttler used to throttle gRPC requests
  */
 abstract class RequisitionGrouper(
-  private val requisitionValidator: RequisitionValidator,
+  private val requisitionValidator: GroupedRequisitionsValidator,
   private val eventGroupsClient: EventGroupsCoroutineStub,
   private val requisitionsClient: RequisitionsCoroutineStub,
   private val throttler: Throttler,
@@ -120,9 +120,9 @@ abstract class RequisitionGrouper(
             .toBuilder()
             .apply {
               val collectionInterval =
-                this.collectionIntervalList + eventGroupEntry.value.collectionInterval
-              this.collectionIntervalList.clear()
-              this.collectionIntervalList +=
+                this.collectionIntervalsList + eventGroupEntry.value.collectionInterval
+              this.collectionIntervalsList.clear()
+              this.collectionIntervalsList +=
                 collectionInterval.sortedBy { it.startTime.toInstant() }
             }
             .build()
@@ -130,7 +130,7 @@ abstract class RequisitionGrouper(
         eventGroupMap[eventGroupName] = eventGroupDetails {
           val eventGroup = runBlocking { getEventGroup(eventGroupName) }
           this.eventGroupReferenceId = eventGroup.eventGroupReferenceId
-          this.collectionInterval += eventGroupEntry.value.collectionInterval
+          this.collectionIntervals += eventGroupEntry.value.collectionInterval
         }
       }
     }

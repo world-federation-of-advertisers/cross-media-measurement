@@ -96,7 +96,7 @@ import org.wfanet.measurement.dataprovider.DataProviderData
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.testing.TestRequisitionData
 
 @RunWith(JUnit4::class)
-class RequisitionValidatorTest {
+class GroupedRequisitionsValidatorTest {
   private val requisitionsServiceMock: RequisitionsGrpcKt.RequisitionsCoroutineImplBase =
     mockService {
       onBlocking { refuseRequisition(any()) }.thenReturn(REQUISITION)
@@ -111,7 +111,7 @@ class RequisitionValidatorTest {
   private val throttler = MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofSeconds(1L))
 
   private val requisitionValidator by lazy {
-    RequisitionValidator(
+    GroupedRequisitionsValidator(
       requisitionsClient = requisitionsStub,
       throttler = throttler,
       privateEncryptionKey = TestRequisitionData.EDP_DATA.privateEncryptionKey,

@@ -40,7 +40,7 @@ import org.wfanet.measurement.consent.client.dataprovider.decryptRequisitionSpec
  * @param privateEncryptionKey The DataProvider's decryption key used for decrypting requisition
  *   data.
  */
-class RequisitionValidator(
+class GroupedRequisitionsValidator(
   private val requisitionsClient: RequisitionsCoroutineStub,
   private val throttler: Throttler,
   private val privateEncryptionKey: PrivateKeyHandle,

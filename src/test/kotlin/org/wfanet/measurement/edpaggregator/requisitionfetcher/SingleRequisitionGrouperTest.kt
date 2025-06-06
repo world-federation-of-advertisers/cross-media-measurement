@@ -72,7 +72,7 @@ class SingleRequisitionGrouperTest : AbstractRequisitionGrouperTest() {
   private val throttler = MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofSeconds(1L))
 
   private val requisitionValidator by lazy {
-    RequisitionValidator(
+    GroupedRequisitionsValidator(
       requisitionsClient = requisitionsStub,
       throttler = throttler,
       privateEncryptionKey = TestRequisitionData.EDP_DATA.privateEncryptionKey,
@@ -110,7 +110,7 @@ class SingleRequisitionGrouperTest : AbstractRequisitionGrouperTest() {
             eventGroup = "dataProviders/someDataProvider/eventGroups/name"
             details = eventGroupDetails {
               eventGroupReferenceId = "some-event-group-reference-id"
-              collectionInterval +=
+              collectionIntervals +=
                 listOf(
                   interval {
                     startTime = TestRequisitionData.TIME_RANGE.start.toProtoTime()

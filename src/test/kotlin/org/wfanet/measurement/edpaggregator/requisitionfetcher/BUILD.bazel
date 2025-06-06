@@ -66,12 +66,12 @@ kt_jvm_test(
 )
 
 kt_jvm_test(
-    name = "RequisitionValidatorTest",
-    srcs = ["RequisitionValidatorTest.kt"],
-    test_class = "org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionValidatorTest",
+    name = "GroupedRequisitionsValidatorTest",
+    srcs = ["GroupedRequisitionsValidatorTest.kt"],
+    test_class = "org.wfanet.measurement.edpaggregator.requisitionfetcher.GroupedRequisitionsValidatorTest",
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha/testing",
-        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/requisitionfetcher:requisition_validator",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/requisitionfetcher:grouped_requisitions_validator",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/requisitionfetcher/testing",
         "//src/main/proto/wfa/measurement/api/v2alpha:protocol_config_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:requisitions_service_kt_jvm_grpc_proto",

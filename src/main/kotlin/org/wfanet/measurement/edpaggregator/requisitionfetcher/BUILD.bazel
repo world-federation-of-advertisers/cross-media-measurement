@@ -7,8 +7,8 @@ package(default_visibility = [
 ])
 
 kt_jvm_library(
-    name = "requisition_validator",
-    srcs = ["RequisitionValidator.kt"],
+    name = "grouped_requisitions_validator",
+    srcs = ["GroupedRequisitionsValidator.kt"],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:packed_messages",
         "//src/main/proto/wfa/measurement/api/v2alpha:measurement_spec_kt_jvm_proto",
@@ -36,7 +36,7 @@ kt_jvm_library(
     name = "requisition_grouper",
     srcs = ["RequisitionGrouper.kt"],
     deps = [
-        "requisition_validator",
+        ":grouped_requisitions_validator",
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:packed_messages",
         "//src/main/proto/wfa/measurement/api/v2alpha:event_groups_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:measurement_spec_kt_jvm_proto",
