@@ -68,8 +68,8 @@ resource "google_compute_instance_template" "confidential_vm_template" {
   }
 
   network_interface {
-    network = "default"
-    access_config { }
+    network    = var.network_name
+    subnetwork = var.subnetwork_name
   }
 
   metadata = merge(
@@ -147,6 +147,9 @@ resource "google_compute_region_instance_group_manager" "mig" {
   distribution_policy_zones = var.mig_distribution_policy_zones
   lifecycle {
     create_before_destroy = true
+    replace_triggered_by = [
+      google_compute_instance_template.confidential_vm_template.id
+    ]
   }
 }
 

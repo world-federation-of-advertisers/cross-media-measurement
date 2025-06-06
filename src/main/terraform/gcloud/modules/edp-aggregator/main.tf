@@ -231,6 +231,7 @@ module "result_fulfiller_tee_app" {
   mig_distribution_policy_zones = var.requisition_fulfiller_config.worker.mig_distribution_policy_zones
   terraform_service_account     = var.terraform_service_account
   secrets_to_mount              = local.result_fulfiller_secrets_to_mount
+  subnetwork_name               = google_compute_subnetwork.private_subnetwork.self_link
 }
 
 resource "google_storage_bucket_iam_member" "result_fulfiller_storage_viewer" {
@@ -258,4 +259,38 @@ resource "google_cloud_run_service_iam_member" "event_group_sync_invoker" {
   service  = var.event_group_sync_function_name
   role     = "roles/run.invoker"
   member   = "serviceAccount:${module.data_watcher_function_service_accounts.cloud_function_service_account.email}"
+}
+
+resource "google_compute_subnetwork" "private_subnetwork" {
+  name                     = var.subnetwork_name
+  ip_cidr_range            = var.subnet_cidr_range
+  region                   = var.region
+  network                  = var.network_name
+  private_ip_google_access = true
+}
+
+# Cloud Router for NAT gateway
+resource "google_compute_router" "router" {
+  name    = var.router_name
+  region  = var.region
+  network = var.network_name
+}
+
+# Cloud NAT configuration
+resource "google_compute_router_nat" "nat_gateway" {
+  name                               = var.nat_name
+  router                             = google_compute_router.router.name
+  region                             = google_compute_router.router.region
+  nat_ip_allocate_option             = "AUTO_ONLY"
+  source_subnetwork_ip_ranges_to_nat = "LIST_OF_SUBNETWORKS"
+
+  subnetwork {
+    name                    = google_compute_subnetwork.private_subnetwork.self_link
+    source_ip_ranges_to_nat = ["ALL_IP_RANGES"]
+  }
+
+  log_config {
+    enable = true
+    filter = "ERRORS_ONLY"
+  }
 }

@@ -193,3 +193,39 @@ variable "event_group_sync_function_name" {
   type        = string
   nullable    = false
 }
+
+variable "subnetwork_name" {
+  description = "The name of the subnetwork for edp aggregator components."
+  type        = string
+  default     = "edp-aggregator-subnet"
+}
+
+variable "subnet_cidr_range" {
+  description = "The IP CIDR range for the private subnetwork."
+  type        = string
+  default     = "10.0.0.0/24"
+}
+
+variable "router_name" {
+  description = "The name for the Cloud Router for the private network."
+  type        = string
+  default     = "nat-router"
+}
+
+variable "nat_name" {
+  description = "The name for the Cloud NAT gateway."
+  type        = string
+  default     = "nat-gateway"
+}
+
+variable "region" {
+  description = "The region where resources will be created."
+  type        = string
+  nullable    = false
+}
+
+variable "network_name" {
+  description = "The name of the VPC network to deploy resources in."
+  type        = string
+  default     = "default"
+}

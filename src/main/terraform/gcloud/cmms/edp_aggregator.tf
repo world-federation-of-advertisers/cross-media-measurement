@@ -132,5 +132,11 @@ module "edp_aggregator" {
   secure_computation_root_ca                = local.secure_computation_root_ca
   kingdom_root_ca                           = local.kingdom_root_ca
   edps_certs                                = local.edps_certs
-
+  
+  # Network configuration
+  subnetwork_name                           = "edp-aggregator-private-net"
+  subnet_cidr_range                         = "10.0.0.0/24"
+  router_name                               = "edp-aggregator-router"
+  nat_name                                  = "edp-aggregator-nat"
+  region                                    = data.google_client_config.default.region
 }
