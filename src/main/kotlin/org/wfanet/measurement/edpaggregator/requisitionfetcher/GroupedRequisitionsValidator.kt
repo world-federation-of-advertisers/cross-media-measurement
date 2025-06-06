@@ -31,6 +31,7 @@ import org.wfanet.measurement.api.v2alpha.unpack
 import org.wfanet.measurement.common.crypto.PrivateKeyHandle
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.consent.client.dataprovider.decryptRequisitionSpec
+import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
 
 /**
  * Validates a requisition. Only refuses requisitions with permanently fatal errors.
@@ -89,6 +90,34 @@ class GroupedRequisitionsValidator(
         null
       }
     return requisitionSpec
+  }
+
+  fun validateModelLines(
+    groupedRequisitions: List<GroupedRequisitions>,
+    reportId: String,
+  ): Boolean {
+    val modelLine = groupedRequisitions.first().modelLine
+    val foundInvalidModelLine =
+      groupedRequisitions.firstOrNull { it.modelLine != modelLine } != null
+    if (foundInvalidModelLine) {
+      logger.info("Report $reportId cannot contain multiple model lines")
+      groupedRequisitions.forEach {
+        it.requisitionsList.forEach { it ->
+          val requisition = it.requisition.unpack(Requisition::class.java)
+          runBlocking {
+            refuseRequisition(
+              requisition.name,
+              refusal {
+                justification = Requisition.Refusal.Justification.UNFULFILLABLE
+                message = "Report $reportId cannot contain multiple model lines"
+              },
+            )
+          }
+        }
+      }
+      return false
+    }
+    return true
   }
 
   private fun refuseRequisition(name: String, refusal: Refusal) = runBlocking {

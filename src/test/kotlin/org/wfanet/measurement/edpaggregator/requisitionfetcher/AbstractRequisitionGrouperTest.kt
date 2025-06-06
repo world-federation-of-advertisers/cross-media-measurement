@@ -17,7 +17,6 @@
 package org.wfanet.measurement.edpaggregator.requisitionfetcher
 
 import com.google.common.truth.Truth.assertThat
-import com.google.common.truth.extensions.proto.FieldScopes
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.Any
 import com.google.protobuf.StringValue
@@ -31,9 +30,6 @@ import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
 import org.mockito.kotlin.stub
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineImplBase
-import org.wfanet.measurement.api.v2alpha.RefuseRequisitionRequest
-import org.wfanet.measurement.api.v2alpha.Requisition.Refusal
-import org.wfanet.measurement.api.v2alpha.RequisitionKt.refusal
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineImplBase
@@ -42,11 +38,9 @@ import org.wfanet.measurement.api.v2alpha.encryptedMessage
 import org.wfanet.measurement.api.v2alpha.eventGroup
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.copy
 import org.wfanet.measurement.api.v2alpha.measurementSpec
-import org.wfanet.measurement.api.v2alpha.refuseRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.signedMessage
 import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
-import org.wfanet.measurement.common.testing.verifyAndCapture
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.testing.TestRequisitionData
 
 @RunWith(JUnit4::class)
@@ -72,7 +66,8 @@ abstract class AbstractRequisitionGrouperTest {
           message = Any.pack(StringValue.newBuilder().setValue("some-invalid-spec").build())
         }
       }
-    val groupedRequisitions = requisitionGrouper.groupRequisitions(listOf(TestRequisitionData.REQUISITION))
+    val groupedRequisitions =
+      requisitionGrouper.groupRequisitions(listOf(TestRequisitionData.REQUISITION))
     assertTrue(groupedRequisitions.isNotEmpty())
   }
 
