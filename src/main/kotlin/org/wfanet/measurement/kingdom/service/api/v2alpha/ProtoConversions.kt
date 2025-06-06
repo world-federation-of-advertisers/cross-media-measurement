@@ -669,7 +669,10 @@ fun ModelLine.toInternal(modelSuiteKey: ModelSuiteKey): InternalModelLine {
     }
     type = publicModelLine.type.toInternalType()
     if (publicModelLine.holdbackModelLine.isNotBlank()) {
-      externalHoldbackModelLineId = apiIdToExternalId(publicModelLine.holdbackModelLine)
+      externalHoldbackModelLineId =
+        ModelLineKey.fromName(publicModelLine.holdbackModelLine)?.let {
+          apiIdToExternalId(it.modelLineId)
+        }!!
     }
   }
 }
