@@ -81,7 +81,7 @@ import org.wfanet.measurement.config.authorityKeyToPrincipalMap
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
 import org.wfanet.measurement.internal.kingdom.DataProvider as InternalDataProvider
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt as InternalDataProvidersGrpc
-import org.wfanet.measurement.internal.kingdom.ListModelProvidersPageTokenKt
+import org.wfanet.measurement.internal.kingdom.ListModelProvidersPageTokenKt as InternalListModelProvidersPageTokenKt
 import org.wfanet.measurement.internal.kingdom.ModelProvider as InternalModelProvider
 import org.wfanet.measurement.internal.kingdom.ModelProvidersGrpcKt as InternalModelProvidersGrpc
 import org.wfanet.measurement.internal.kingdom.ModelSuitesGrpcKt as InternalModelSuitesGrpc
@@ -282,7 +282,7 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
 
     val internalNextPageToken = internalListModelProvidersPageToken {
       after =
-        ListModelProvidersPageTokenKt.after {
+        InternalListModelProvidersPageTokenKt.after {
           externalModelProviderId = internalModelProvider2.externalModelProviderId
         }
     }
