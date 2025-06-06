@@ -65,8 +65,7 @@ abstract class SyntheticGeneratorEventQuery(
           timeRange,
         )
         .toList()
-        .map { it.impressions }
-        .flatMap { it.toList() }
+        .flatMap { it.impressions.toList() }
         .filter { EventFilters.matches(it.message, program) }
         .asSequence()
     }
