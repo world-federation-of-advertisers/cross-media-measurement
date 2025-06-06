@@ -124,7 +124,8 @@ resource "google_bigquery_table" "measurements" {
   {
     "name": "update_time_nanoseconds",
     "type": "INTEGER",
-    "mode": "NULLABLE"
+    "mode": "NULLABLE",
+    "description": "For tracking purposes"
   }
 ]
 EOF
@@ -209,7 +210,8 @@ resource "google_bigquery_table" "requisitions" {
   {
     "name": "update_time_nanoseconds",
     "type": "INTEGER",
-    "mode": "NULLABLE"
+    "mode": "NULLABLE",
+    "description": "For tracking purposes"
   }
 ]
 EOF
@@ -289,7 +291,8 @@ resource "google_bigquery_table" "computation_participant_stages" {
   {
     "name": "computation_update_time_nanoseconds",
     "type": "INTEGER",
-    "mode": "NULLABLE"
+    "mode": "NULLABLE",
+    "description": "For tracking purposes"
   }
 ]
 EOF

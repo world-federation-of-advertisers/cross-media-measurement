@@ -545,6 +545,9 @@ class OperationalMetricsExport(
     }
   }
 
+  /**
+   * This is under the assumption that batches are retrieved based on updateTime.
+   */
   private suspend fun <T> appendData(
     dataWriter: DataWriter,
     firstBatch: List<T>,
@@ -554,6 +557,7 @@ class OperationalMetricsExport(
     successfulBatchReadMessage: String,
     successfulAppendMessage: String,
   ) {
+    // This list keeps track of items with the same updateTime that haven't been appended yet.
     val protoRowsList = mutableListOf<ByteString>()
     var latestUpdateTime: Timestamp? = null
 
@@ -571,6 +575,8 @@ class OperationalMetricsExport(
       }
 
       for (item in batch) {
+        // Only when it is guaranteed that no more items with the same updateTime exist will the
+        // items with the same updateTime be setup for appending.
         if (Timestamps.compare(latestUpdateTime, retrieveUpdateTime(item)) != 0) {
           protoRowsBuilder.addAllSerializedRows(protoRowsList)
           protoRowsList.clear()
@@ -594,6 +600,8 @@ class OperationalMetricsExport(
       }
     } while (batch.isNotEmpty())
 
+    // The check above only works when there are more items to process. If there are no more items
+    // to process, then the elements in this list can be appended.
     if (protoRowsList.isNotEmpty()) {
       val protoRowsBuilder: ProtoRows.Builder = ProtoRows.newBuilder()
       protoRowsBuilder.addAllSerializedRows(protoRowsList)
