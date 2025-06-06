@@ -27,6 +27,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.times
+import org.wfanet.measurement.api.v2alpha.GetEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.RefuseRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.Requisition.Refusal
@@ -43,25 +44,71 @@ import org.wfanet.measurement.api.v2alpha.measurementSpec
 import org.wfanet.measurement.api.v2alpha.refuseRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.requisitionSpec
 import org.wfanet.measurement.api.v2alpha.signedMessage
+import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
+import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.common.testing.verifyAndCapture
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.consent.client.measurementconsumer.encryptRequisitionSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.signMeasurementSpec
+import org.wfanet.measurement.edpaggregator.requisitionfetcher.testing.TestRequisitionData
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt.eventGroupMapEntry
 
 @RunWith(JUnit4::class)
 class RequisitionGrouperByReportIdTest : AbstractRequisitionGrouperTest() {
 
-  override val requisitionGrouper: RequisitionGrouper =
-    RequisitionGrouperByReportId(
-      privateEncryptionKey = EDP_DATA.privateEncryptionKey,
+  override val requisitionsServiceMock: RequisitionsGrpcKt.RequisitionsCoroutineImplBase by lazy {
+    mockService {
+      onBlocking { refuseRequisition(any()) }.thenReturn(TestRequisitionData.REQUISITION)
+    }
+  }
+
+  override val eventGroupsServiceMock: EventGroupsCoroutineImplBase by lazy {
+    mockService {
+      onBlocking { getEventGroup(any()) }
+        .thenAnswer { invocation ->
+          val request = invocation.getArgument<GetEventGroupRequest>(0)
+          eventGroup {
+            name = request.name
+            eventGroupReferenceId = "some-event-group-reference-id"
+          }
+        }
+    }
+  }
+
+  override val grpcTestServerRule = GrpcTestServerRule {
+    addService(requisitionsServiceMock)
+    addService(eventGroupsServiceMock)
+  }
+
+  private val throttler = MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofSeconds(1L))
+
+  private val requisitionValidator by lazy {
+    RequisitionValidator(
+      requisitionsClient = requisitionsStub,
+      throttler = throttler,
+      privateEncryptionKey = TestRequisitionData.EDP_DATA.privateEncryptionKey,
+    )
+  }
+
+  override val requisitionGrouper: RequisitionGrouper by lazy {
+    SingleRequisitionGrouper(
+      requisitionValidator = requisitionValidator,
       eventGroupsClient = eventGroupsStub,
       requisitionsClient = requisitionsStub,
-      throttler = MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofSeconds(1L)),
+      throttler = throttler,
     )
+  }
+
+  private val requisitionsStub: RequisitionsGrpcKt.RequisitionsCoroutineStub by lazy {
+    RequisitionsGrpcKt.RequisitionsCoroutineStub(grpcTestServerRule.channel)
+  }
+
+  private val eventGroupsStub: EventGroupsCoroutineStub by lazy {
+    EventGroupsCoroutineStub(grpcTestServerRule.channel)
+  }
 
   @Test
   fun `able to combine two GroupedRequisitions to a single GroupedRequisitions`() {

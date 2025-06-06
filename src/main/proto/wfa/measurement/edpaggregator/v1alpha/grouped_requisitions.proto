@@ -33,35 +33,49 @@ message GroupedRequisitions {
     (google.api.resource_reference).type = "halo.wfanet.org/ModelLine",
     (google.api.field_behavior) = REQUIRED
   ];
-  // A single entry mapping an Event Group to an Event Group Reference Id.
+  // Necessary details to fetch events for an [EventGroup]
+  message EventGroupDetails {
+    // The event group reference id.
+    string event_group_reference_id = 1
+    [(google.api.field_behavior) = REQUIRED];
+
+    // The event group collection intervals. Both
+    // `start_time` and `end_time` must be specified. Must include all collection
+    // intervals necessary to fulfill requisitions. Sorted by start_time.
+    repeated google.type.Interval collection_intervals = 2
+    [(google.api.field_behavior) = REQUIRED];
+  }
+  // A single entry mapping an Event Group to an the information necessary to fetch events for it.
   message EventGroupMapEntry {
     // The event group in the cmms
     string event_group = 1 [
       (google.api.resource_reference).type = "halo.wfanet.org/EventGroup",
       (google.api.field_behavior) = REQUIRED
     ];
-    // The event group reference id.
-    string event_group_reference_id = 2
-        [(google.api.field_behavior) = REQUIRED];
+    // The event group details
+    EventGroupDetails details = 2;
   }
-  // A map of event group resource name to event group reference id. Required
-  // for all event groups present in requisitions.
+  // A list of event group map entries for all event groups in requistions.
   repeated EventGroupMapEntry event_group_map = 2
       [(google.api.field_behavior) = REQUIRED];
-  // A map of event group reference id to collection intervals. Both
-  // `start_time` and `end_time` must be specified. Must include all collection
-  // intervals necessary to fulfill requisitions.
-  map<string, google.type.Interval> collection_intervals = 3
-      [(google.api.field_behavior) = REQUIRED];
+  // A single entry mapping an Event Group to a collection interval.
+  message EventGroupCollectionMapEntry {
+    // The event group in the cmms
+    string event_group = 1 [
+      (google.api.resource_reference).type = "halo.wfanet.org/EventGroup",
+      (google.api.field_behavior) = REQUIRED
+    ];
+
+  }
   // The requisition entry to be processed
   message RequisitionEntry {
     // The requisitions to process together. Expected to be of type
     // halo.wfanet.org/Requisition.
-    google.protobuf.Any requisition = 4
+    google.protobuf.Any requisition = 1
         [(google.api.field_behavior) = REQUIRED];
   }
   // The list of requisition entries to process together.
-  repeated RequisitionEntry requisitions = 4 [
+  repeated RequisitionEntry requisitions = 3 [
     (google.api.field_behavior) = REQUIRED,
     (google.api.field_behavior) = UNORDERED_LIST
   ];
