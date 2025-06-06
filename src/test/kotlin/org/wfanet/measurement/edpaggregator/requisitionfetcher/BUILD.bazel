@@ -22,16 +22,11 @@ kt_jvm_test(
 kt_jvm_library(
     name = "AbstractRequisitionGrouperTest",
     srcs = ["AbstractRequisitionGrouperTest.kt"],
-    data = [
-        "//src/main/k8s/testing/secretfiles:all_configs",
-        "//src/main/k8s/testing/secretfiles:all_der_files",
-        "//src/main/k8s/testing/secretfiles:all_tink_keysets",
-        "//src/main/k8s/testing/secretfiles:edp_trusted_certs.pem",
-    ],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha/testing",
         "//src/main/kotlin/org/wfanet/measurement/dataprovider:requisition_fulfiller",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/requisitionfetcher:requisition_grouper",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/requisitionfetcher/testing",
         "//src/main/proto/wfa/measurement/api/v2alpha:event_groups_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:protocol_config_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:requisitions_service_kt_jvm_grpc_proto",
@@ -40,6 +35,7 @@ kt_jvm_library(
         "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/java/com/google/common/truth/extensions/proto",
         "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/testing",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/tink",
@@ -66,5 +62,29 @@ kt_jvm_test(
         "@wfa_common_jvm//imports/java/org/junit",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/testing",
+    ],
+)
+
+kt_jvm_test(
+    name = "RequisitionValidatorTest",
+    srcs = ["RequisitionValidatorTest.kt"],
+    test_class = "org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionValidatorTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha/testing",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/requisitionfetcher:requisition_validator",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/requisitionfetcher/testing",
+        "//src/main/proto/wfa/measurement/api/v2alpha:protocol_config_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:requisitions_service_kt_jvm_grpc_proto",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/com/google/common/truth/extensions/proto",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/testing",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/tink",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc/testing",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/testing",
+        "@wfa_consent_signaling_client//src/main/kotlin/org/wfanet/measurement/consent/client/dataprovider",
     ],
 )

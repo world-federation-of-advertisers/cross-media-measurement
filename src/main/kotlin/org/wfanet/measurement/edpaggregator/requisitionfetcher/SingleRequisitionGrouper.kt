@@ -28,11 +28,11 @@ import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
  * cases.
  */
 class SingleRequisitionGrouper(
-  privateEncryptionKey: PrivateKeyHandle,
+  requisitionValidator: RequisitionValidator,
   eventGroupsClient: EventGroupsCoroutineStub,
   requisitionsClient: RequisitionsCoroutineStub,
   throttler: Throttler,
-) : RequisitionGrouper(privateEncryptionKey, eventGroupsClient, requisitionsClient, throttler) {
+) : RequisitionGrouper(requisitionValidator, eventGroupsClient, requisitionsClient, throttler) {
 
   override fun combineGroupedRequisitions(
     groupedRequisitions: List<GroupedRequisitions>
