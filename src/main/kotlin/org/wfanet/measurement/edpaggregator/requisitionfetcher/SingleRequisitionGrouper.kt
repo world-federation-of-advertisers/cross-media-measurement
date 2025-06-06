@@ -28,7 +28,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
  * cases.
  */
 class SingleRequisitionGrouper(
-  requisitionValidator: RequisitionValidator,
+  requisitionValidator: GroupedRequisitionsValidator,
   eventGroupsClient: EventGroupsCoroutineStub,
   requisitionsClient: RequisitionsCoroutineStub,
   throttler: Throttler,
