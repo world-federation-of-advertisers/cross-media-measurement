@@ -159,6 +159,7 @@ class RequisitionFetcherFunctionTest {
   fun `test RequisitionFetcherFunction as local process`() {
     val url = "http://localhost:${functionProcess.port}"
     logger.info("Testing Cloud Function at: $url")
+
     val client = HttpClient.newHttpClient()
     val getRequest = HttpRequest.newBuilder().uri(URI.create(url)).GET().build()
     val getResponse = client.send(getRequest, BodyHandlers.ofString())
