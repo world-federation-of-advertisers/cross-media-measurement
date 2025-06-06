@@ -86,7 +86,7 @@ class RequisitionGrouperByReportIdTest : AbstractRequisitionGrouperTest() {
   private val throttler = MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofSeconds(1L))
 
   private val requisitionValidator by lazy {
-    RequisitionValidator(
+    GroupedRequisitionsValidator(
       requisitionsClient = requisitionsStub,
       throttler = throttler,
       privateEncryptionKey = TestRequisitionData.EDP_DATA.privateEncryptionKey,
@@ -232,13 +232,13 @@ class RequisitionGrouperByReportIdTest : AbstractRequisitionGrouperTest() {
   @Test
   fun `throws an error if multiple model ids are used for the same report id`() {
     val requisition2 =
-      REQUISITION.copy {
-        val measurementSpec = MEASUREMENT_SPEC.copy { modelLine = "some-other-model-line" }
-        this.measurementSpec = signMeasurementSpec(measurementSpec, MC_SIGNING_KEY)
+      TestRequisitionData.REQUISITION.copy {
+        val measurementSpec = TestRequisitionData.MEASUREMENT_SPEC.copy { modelLine = "some-other-model-line" }
+        this.measurementSpec = signMeasurementSpec(measurementSpec, TestRequisitionData.MC_SIGNING_KEY)
       }
 
     val groupedRequisitions: List<GroupedRequisitions> =
-      requisitionGrouper.groupRequisitions(listOf(REQUISITION, requisition2))
+      requisitionGrouper.groupRequisitions(listOf(TestRequisitionData.REQUISITION, requisition2))
     assertThat(groupedRequisitions).hasSize(0)
     val refuseRequests: List<RefuseRequisitionRequest> =
       verifyAndCapture(
