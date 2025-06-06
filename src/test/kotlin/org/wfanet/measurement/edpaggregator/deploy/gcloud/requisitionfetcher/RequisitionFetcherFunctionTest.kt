@@ -124,19 +124,26 @@ class RequisitionFetcherFunctionTest {
   fun `test RequisitionFetcherFunction as local process`() {
     val url = "http://localhost:${functionProcess.port}"
     logger.info("Testing Cloud Function at: $url")
-
+    println("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ 1")
     val client = HttpClient.newHttpClient()
+    println("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ 11")
     val getRequest = HttpRequest.newBuilder().uri(URI.create(url)).GET().build()
+    println("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ 111")
     val getResponse = client.send(getRequest, BodyHandlers.ofString())
+    println("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ 1111")
     logger.info("Response status: ${getResponse.statusCode()}")
     logger.info("Response body: ${getResponse.body()}")
     // Verify the function worked
     assertThat(getResponse.statusCode()).isEqualTo(200)
-
+    println("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ 2")
     val storedRequisitionPath = Paths.get(STORAGE_PATH_PREFIX, REQUISITION.name)
+    println("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ 3")
     val requisitionFile = tempFolder.root.toPath().resolve(storedRequisitionPath).toFile()
+    println("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ 4")
     assertThat(requisitionFile.exists()).isTrue()
+    println("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ 5")
     assertThat(requisitionFile.readByteString()).isEqualTo(PACKED_REQUISITION.toByteString())
+    println("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ 6")
   }
 
   companion object {
@@ -166,22 +173,6 @@ class RequisitionFetcherFunctionTest {
     private val SECRETS_DIR: Path =
       getRuntimePath(
         Paths.get("wfa_measurement_system", "src", "main", "k8s", "testing", "secretfiles")
-      )!!
-    private val CONFIG_DIR: Path =
-      getRuntimePath(
-        Paths.get(
-          "wfa_measurement_system",
-          "src",
-          "main",
-          "kotlin",
-          "org",
-          "wfanet",
-          "measurement",
-          "edpaggregator",
-          "deploy",
-          "gcloud",
-          "requisitionfetcher",
-        )
       )!!
     private val serverCerts =
       SigningCerts.fromPemFiles(
