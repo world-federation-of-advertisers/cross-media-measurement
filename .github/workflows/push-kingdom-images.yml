@@ -15,7 +15,7 @@
 name: Build and push kingdom container images
 
 on:
-  workflow_dispatch:
+  push:
 
 jobs:
   push-images:
@@ -39,7 +39,7 @@ jobs:
 
       - name: Write ~/.bazelrc
         env:
-          IMAGE_TAG: bigquery-offset-testing-2
+          IMAGE_TAG: bigquery-update-time-testing
         run: |
           cat << EOF > ~/.bazelrc
           common --config=ci
