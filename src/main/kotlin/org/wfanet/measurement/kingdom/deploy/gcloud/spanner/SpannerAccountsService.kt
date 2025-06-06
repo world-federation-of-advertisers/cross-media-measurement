@@ -15,6 +15,8 @@
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 
 import io.grpc.Status
+import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.EmptyCoroutineContext
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
@@ -50,7 +52,8 @@ private const val VALID_SECONDS = 3600L
 class SpannerAccountsService(
   private val idGenerator: IdGenerator,
   private val client: AsyncDatabaseClient,
-) : AccountsCoroutineImplBase() {
+  coroutineContext: CoroutineContext = EmptyCoroutineContext,
+) : AccountsCoroutineImplBase(coroutineContext) {
   override suspend fun createAccount(request: Account): Account {
     try {
       val externalCreatorAccountId: ExternalId? =

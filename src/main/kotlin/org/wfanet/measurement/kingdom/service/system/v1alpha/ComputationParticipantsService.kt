@@ -16,6 +16,8 @@ package org.wfanet.measurement.kingdom.service.system.v1alpha
 
 import io.grpc.Status
 import io.grpc.StatusException
+import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.EmptyCoroutineContext
 import org.wfanet.measurement.api.v2alpha.DuchyCertificateKey
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
@@ -50,8 +52,9 @@ import org.wfanet.measurement.system.v1alpha.SetParticipantRequisitionParamsRequ
 
 class ComputationParticipantsService(
   private val internalComputationParticipantsClient: InternalComputationParticipantsCoroutineStub,
+  coroutineContext: CoroutineContext = EmptyCoroutineContext,
   private val duchyIdentityProvider: () -> DuchyIdentity = ::duchyIdentityFromContext,
-) : ComputationParticipantsCoroutineImplBase() {
+) : ComputationParticipantsCoroutineImplBase(coroutineContext) {
   override suspend fun getComputationParticipant(
     request: GetComputationParticipantRequest
   ): ComputationParticipant {

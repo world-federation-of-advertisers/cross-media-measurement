@@ -18,6 +18,8 @@ import com.google.protobuf.InvalidProtocolBufferException
 import com.google.protobuf.kotlin.unpack
 import io.grpc.Status
 import io.grpc.StatusException
+import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.EmptyCoroutineContext
 import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.api.v2alpha.CertificateKey
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
@@ -35,8 +37,10 @@ import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.internal.kingdom.PublicKeysGrpcKt.PublicKeysCoroutineStub
 import org.wfanet.measurement.internal.kingdom.updatePublicKeyRequest
 
-class PublicKeysService(private val internalPublicKeysStub: PublicKeysCoroutineStub) :
-  PublicKeysCoroutineImplBase() {
+class PublicKeysService(
+  private val internalPublicKeysStub: PublicKeysCoroutineStub,
+  coroutineContext: CoroutineContext = EmptyCoroutineContext,
+) : PublicKeysCoroutineImplBase(coroutineContext) {
 
   private enum class Permission {
     UPDATE;
