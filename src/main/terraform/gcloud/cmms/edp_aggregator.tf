@@ -134,7 +134,7 @@ module "edp_aggregator" {
   edps_certs                                = local.edps_certs
   
   # Network configuration
-  subnetwork_name                           = "edp-aggregator-subnet"
+  subnetwork_name                           = "edp-aggregator-private-net"
   subnet_cidr_range                         = "10.0.0.0/24"
   router_name                               = "edp-aggregator-router"
   nat_name                                  = "edp-aggregator-nat"
