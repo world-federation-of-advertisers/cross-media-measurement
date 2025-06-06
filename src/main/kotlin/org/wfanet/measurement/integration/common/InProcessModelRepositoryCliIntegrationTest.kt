@@ -16,16 +16,6 @@
 
 package org.wfanet.measurement.integration.common
 
-import org.wfanet.measurement.api.v2alpha.ListPopulationsPageTokenKt.previousPageEnd as populationPreviousPageEnd
-import org.wfanet.measurement.internal.kingdom.DataProvider as InternalDataProvider
-import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt as InternalDataProvidersGrpc
-import org.wfanet.measurement.internal.kingdom.ModelLinesGrpcKt as InternalModelLinesGrpc
-import org.wfanet.measurement.internal.kingdom.ModelProvider as InternalModelProvider
-import org.wfanet.measurement.internal.kingdom.ModelProvidersGrpcKt as InternalModelProvidersGrpc
-import org.wfanet.measurement.internal.kingdom.ModelReleasesGrpcKt as InternalModelReleasesGrpc
-import org.wfanet.measurement.internal.kingdom.ModelRolloutsGrpcKt as InternalModelRolloutsGrpc
-import org.wfanet.measurement.internal.kingdom.ModelSuitesGrpcKt as InternalModelSuitesGrpc
-import org.wfanet.measurement.internal.kingdom.PopulationsGrpcKt as InternalPopulationsGrpc
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
 import com.google.protobuf.timestamp
@@ -45,6 +35,7 @@ import org.wfanet.measurement.api.v2alpha.AkidPrincipalLookup
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.ListModelSuitesPageTokenKt.previousPageEnd
 import org.wfanet.measurement.api.v2alpha.ListModelSuitesResponse
+import org.wfanet.measurement.api.v2alpha.ListPopulationsPageTokenKt.previousPageEnd as populationPreviousPageEnd
 import org.wfanet.measurement.api.v2alpha.ListPopulationsResponse
 import org.wfanet.measurement.api.v2alpha.ModelLine
 import org.wfanet.measurement.api.v2alpha.ModelLinesGrpc
@@ -90,6 +81,15 @@ import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.config.AuthorityKeyToPrincipalMapKt
 import org.wfanet.measurement.config.authorityKeyToPrincipalMap
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
+import org.wfanet.measurement.internal.kingdom.DataProvider as InternalDataProvider
+import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt as InternalDataProvidersGrpc
+import org.wfanet.measurement.internal.kingdom.ModelLinesGrpcKt as InternalModelLinesGrpc
+import org.wfanet.measurement.internal.kingdom.ModelProvider as InternalModelProvider
+import org.wfanet.measurement.internal.kingdom.ModelProvidersGrpcKt as InternalModelProvidersGrpc
+import org.wfanet.measurement.internal.kingdom.ModelReleasesGrpcKt as InternalModelReleasesGrpc
+import org.wfanet.measurement.internal.kingdom.ModelRolloutsGrpcKt as InternalModelRolloutsGrpc
+import org.wfanet.measurement.internal.kingdom.ModelSuitesGrpcKt as InternalModelSuitesGrpc
+import org.wfanet.measurement.internal.kingdom.PopulationsGrpcKt as InternalPopulationsGrpc
 import org.wfanet.measurement.internal.kingdom.certificate
 import org.wfanet.measurement.internal.kingdom.certificateDetails
 import org.wfanet.measurement.internal.kingdom.dataProvider
@@ -401,9 +401,6 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
 
   @Test
   fun `model-lines create prints ModelLine`() = runBlocking {
-    val startTime = "2099-01-15T10:00:00Z"
-    val endTime = "2099-02-15T10:00:00Z"
-
     val holdback = createModelLine(modelLineType = ModelLine.Type.HOLDBACK)
     val population = createPopulation()
 
@@ -415,8 +412,8 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
           "--parent=${modelSuite.name}",
           "--display-name=$DISPLAY_NAME",
           "--description=$DESCRIPTION",
-          "--active-start-time=$startTime",
-          "--active-end-time=$endTime",
+          "--active-start-time=$START_TIME",
+          "--active-end-time=$END_TIME",
           "--type=PROD",
           "--holdback-model-line=${holdback.name}",
           "--population=${population.name}",
@@ -430,8 +427,8 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
         modelLine {
           displayName = DISPLAY_NAME
           description = DESCRIPTION
-          activeStartTime = Timestamps.parse(startTime)
-          activeEndTime = Timestamps.parse(endTime)
+          activeStartTime = Timestamps.parse(START_TIME)
+          activeEndTime = Timestamps.parse(END_TIME)
           type = ModelLine.Type.PROD
           holdbackModelLine = holdback.name
         }
@@ -441,14 +438,14 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
   @Test
   fun `model-lines set-active-end-time prints ModelLine`() = runBlocking {
     val modelLine = createModelLine()
-    val endTime = "2099-04-15T10:00:00Z"
+    val newEndTime = "2099-04-15T10:00:00Z"
     val args =
       modelProviderArgs +
         arrayOf(
           "model-lines",
           "set-active-end-time",
           "--name=${modelLine.name}",
-          "--active-end-time=$endTime",
+          "--active-end-time=$newEndTime",
         )
 
     val output = callCli(args)
@@ -457,7 +454,7 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
       .comparingExpectedFieldsOnly()
       .isEqualTo(
         modelLine.copy {
-          activeEndTime = Timestamps.parse(endTime)
+          activeEndTime = Timestamps.parse(newEndTime)
           clearUpdateTime()
         }
       )
@@ -504,8 +501,8 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
         modelLine = modelLine {
           displayName = DISPLAY_NAME
           description = DESCRIPTION
-          activeStartTime = Timestamps.parse("2099-01-15T10:00:00Z")
-          activeEndTime = Timestamps.parse("2099-02-15T10:00:00Z")
+          activeStartTime = Timestamps.parse(START_TIME)
+          activeEndTime = Timestamps.parse(END_TIME)
           type = modelLineType
           if (holdbackName.isNotEmpty()) {
             holdbackModelLine = holdbackName
@@ -560,6 +557,9 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
 
     private const val FIXED_GENERATED_EXTERNAL_ID = 6789L
     private const val PAGE_SIZE = 50
+
+    private const val START_TIME = "2099-01-15T10:00:00Z"
+    private const val END_TIME = "2099-02-15T10:00:00Z"
 
     init {
       DuchyInfo.setForTest(emptySet())
