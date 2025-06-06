@@ -92,7 +92,7 @@ object TestRequisitionData {
 
   private const val DUCHY_ONE_ID = "worker1"
 
-  private val MC_SIGNING_KEY = loadSigningKey("${MC_ID}_cs_cert.der", "${MC_ID}_cs_private.der")
+  val MC_SIGNING_KEY = loadSigningKey("${MC_ID}_cs_cert.der", "${MC_ID}_cs_private.der")
   private val DUCHY_ONE_SIGNING_KEY =
     loadSigningKey("${DUCHY_ONE_ID}_cs_cert.der", "${DUCHY_ONE_ID}_cs_private.der")
 
@@ -131,12 +131,12 @@ object TestRequisitionData {
 
   private val MC_PUBLIC_KEY =
     loadPublicKey(SECRET_FILES_PATH.resolve("mc_enc_public.tink").toFile()).toEncryptionPublicKey()
-  private val DATA_PROVIDER_PUBLIC_KEY =
+  val DATA_PROVIDER_PUBLIC_KEY =
     loadPublicKey(SECRET_FILES_PATH.resolve("${EDP_DISPLAY_NAME}_enc_public.tink").toFile())
       .toEncryptionPublicKey()
 
-  private const val EVENT_GROUP_NAME = "$EDP_NAME/eventGroups/name"
-  private val REQUISITION_SPEC = requisitionSpec {
+  const val EVENT_GROUP_NAME = "$EDP_NAME/eventGroups/name"
+  val REQUISITION_SPEC = requisitionSpec {
     events =
       RequisitionSpecKt.events {
         eventGroups +=
@@ -171,7 +171,7 @@ object TestRequisitionData {
     epsilon = 1.0
     delta = 1E-12
   }
-  private val MEASUREMENT_SPEC = measurementSpec {
+  val MEASUREMENT_SPEC = measurementSpec {
     measurementPublicKey = MC_PUBLIC_KEY.pack()
     reachAndFrequency =
       MeasurementSpecKt.reachAndFrequency {
