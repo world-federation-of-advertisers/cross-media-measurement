@@ -4,7 +4,6 @@ load("//src/main/proto/wfa/measurement/internal/kingdom:all_protos.bzl", "KINGDO
 package(
     default_visibility = [
         "//src/main/kotlin/org/wfanet/measurement/gcloud:deployment",
-        "//src/main/kotlin/org/wfanet/measurement/integration/common:__pkg__",
         "//src/main/kotlin/org/wfanet/measurement/integration/deploy/gcloud:__pkg__",
         "//src/test/kotlin/org/wfanet/measurement/e2e:__subpackages__",
     ],
