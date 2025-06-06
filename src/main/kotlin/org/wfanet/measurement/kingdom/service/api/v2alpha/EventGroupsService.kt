@@ -420,6 +420,7 @@ class EventGroupsService(private val internalEventGroupsStub: InternalEventGroup
     pageToken: ListEventGroupsPageToken?,
   ): StreamEventGroupsRequest {
     return streamEventGroupsRequest {
+      allowStaleReads = true
       this.filter =
         InternalStreamEventGroupsRequests.filter {
           if (parentKey is DataProviderKey) {
