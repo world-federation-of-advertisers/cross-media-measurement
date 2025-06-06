@@ -33,10 +33,13 @@ import org.junit.Test
 import org.junit.rules.TestRule
 import org.wfanet.measurement.api.v2alpha.AkidPrincipalLookup
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
-import org.wfanet.measurement.api.v2alpha.ListModelSuitesPageTokenKt.previousPageEnd
+import org.wfanet.measurement.api.v2alpha.ListModelProvidersPageTokenKt
+import org.wfanet.measurement.api.v2alpha.ListModelProvidersResponse
+import org.wfanet.measurement.api.v2alpha.ListModelSuitesPageTokenKt
 import org.wfanet.measurement.api.v2alpha.ListModelSuitesResponse
-import org.wfanet.measurement.api.v2alpha.ListPopulationsPageTokenKt.previousPageEnd as populationPreviousPageEnd
+import org.wfanet.measurement.api.v2alpha.ListPopulationsPageTokenKt
 import org.wfanet.measurement.api.v2alpha.ListPopulationsResponse
+import org.wfanet.measurement.api.v2alpha.ModelProvider
 import org.wfanet.measurement.api.v2alpha.ModelLine
 import org.wfanet.measurement.api.v2alpha.ModelLinesGrpc
 import org.wfanet.measurement.api.v2alpha.ModelLinesGrpc.ModelLinesBlockingStub
@@ -55,6 +58,8 @@ import org.wfanet.measurement.api.v2alpha.createModelLineRequest
 import org.wfanet.measurement.api.v2alpha.createModelSuiteRequest
 import org.wfanet.measurement.api.v2alpha.createPopulationRequest
 import org.wfanet.measurement.api.v2alpha.eventTemplate
+import org.wfanet.measurement.api.v2alpha.listModelProvidersPageToken
+import org.wfanet.measurement.api.v2alpha.listModelProvidersResponse
 import org.wfanet.measurement.api.v2alpha.listModelSuitesPageToken
 import org.wfanet.measurement.api.v2alpha.listModelSuitesResponse
 import org.wfanet.measurement.api.v2alpha.listPopulationsPageToken
@@ -83,6 +88,7 @@ import org.wfanet.measurement.config.authorityKeyToPrincipalMap
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
 import org.wfanet.measurement.internal.kingdom.DataProvider as InternalDataProvider
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt as InternalDataProvidersGrpc
+import org.wfanet.measurement.internal.kingdom.ListModelProvidersPageTokenKt
 import org.wfanet.measurement.internal.kingdom.ModelLinesGrpcKt as InternalModelLinesGrpc
 import org.wfanet.measurement.internal.kingdom.ModelProvider as InternalModelProvider
 import org.wfanet.measurement.internal.kingdom.ModelProvidersGrpcKt as InternalModelProvidersGrpc
@@ -94,15 +100,18 @@ import org.wfanet.measurement.internal.kingdom.certificate
 import org.wfanet.measurement.internal.kingdom.certificateDetails
 import org.wfanet.measurement.internal.kingdom.dataProvider
 import org.wfanet.measurement.internal.kingdom.dataProviderDetails
+import org.wfanet.measurement.internal.kingdom.listModelProvidersPageToken as internalListModelProvidersPageToken
 import org.wfanet.measurement.internal.kingdom.modelProvider
 import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
 import org.wfanet.measurement.kingdom.deploy.common.service.toList
 import org.wfanet.measurement.kingdom.deploy.tools.ModelRepository
+import org.wfanet.measurement.kingdom.service.api.v2alpha.ModelProvidersService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.ModelLinesService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.ModelReleasesService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.ModelRolloutsService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.ModelSuitesService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.PopulationsService
+import org.wfanet.measurement.kingdom.service.api.v2alpha.toModelProvider
 
 abstract class InProcessModelRepositoryCliIntegrationTest(
   kingdomDataServicesRule: ProviderRule<DataServices>,
@@ -131,6 +140,7 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
 
   private lateinit var internalModelProvider: InternalModelProvider
   private lateinit var modelProviderName: String
+  private lateinit var internalModelProvider2: InternalModelProvider
 
   private lateinit var modelSuite: ModelSuite
 
@@ -142,6 +152,11 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
     internalModelProvider = runBlocking {
       internalModelProvidersService.createModelProvider(
         modelProvider { externalModelProviderId = FIXED_GENERATED_EXTERNAL_ID }
+      )
+    }
+    internalModelProvider2 = runBlocking {
+      internalModelProvidersService.createModelProvider(
+        modelProvider { externalModelProviderId = FIXED_GENERATED_EXTERNAL_ID + 1L }
       )
     }
     val modelProviderApiId = externalIdToApiId(internalModelProvider.externalModelProviderId)
@@ -189,6 +204,8 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
           }
       )
 
+    val internalModelProvidersClient =
+      InternalModelProvidersGrpc.ModelProvidersCoroutineStub(internalChannel)
     val internalModelSuitesClient =
       InternalModelSuitesGrpc.ModelSuitesCoroutineStub(internalChannel)
     val internalPopulationsClient =
@@ -199,6 +216,9 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
     val internalModelRolloutsClient =
       InternalModelRolloutsGrpc.ModelRolloutsCoroutineStub(internalChannel)
 
+    val publicModelProvidersService =
+      ModelProvidersService(internalModelProvidersClient)
+        .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup)
     val publicModelSuitesService =
       ModelSuitesService(internalModelSuitesClient)
         .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup)
@@ -216,6 +236,7 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
         .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup)
     val services =
       listOf(
+        publicModelProvidersService,
         publicModelSuitesService,
         publicPopulationsService,
         publicModelLinesService,
@@ -246,14 +267,11 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
     val publicModelProviderChannel: ManagedChannel =
       buildMutualTlsChannel("localhost:${server.port}", modelProviderCerts)
     publicModelSuitesClient = ModelSuitesGrpc.newBlockingStub(publicModelProviderChannel)
-<<<<<<< HEAD
     publicModelLinesClient = ModelLinesGrpc.newBlockingStub(publicModelProviderChannel)
 
     modelSuite = createModelSuite()
-=======
     publicModelSuitesClient = ModelSuitesGrpc.newBlockingStub(publicModelProviderChannel)
     publicPopulationsClient = PopulationsGrpc.newBlockingStub(publicModelProviderChannel)
->>>>>>> ed275316f (feat: implement population cli, and fix errors in PopulationsService and StreamPopulation)
 
     val dataProviderCerts =
       SigningCerts.fromPemFiles(
@@ -270,6 +288,52 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
   @After
   fun shutdownServer() {
     server.close()
+  }
+
+  @Test
+  fun `model-providers get prints ModelProvider`() = runBlocking {
+    val modelProvider = internalModelProvider.toModelProvider()
+
+    val args = modelProviderArgs + arrayOf("model-providers", "get", modelProvider.name)
+    val output = callCli(args)
+
+    assertThat(parseTextProto(output.reader(), ModelProvider.getDefaultInstance()))
+      .isEqualTo(modelProvider)
+  }
+
+  @Test
+  fun `model-providers list prints ModelProviders`() = runBlocking {
+    val pageToken = listModelProvidersPageToken {
+      pageSize = 1
+      lastModelProvider = modelProviderPreviousPageEnd {
+        externalModelProviderId = internalModelProvider.externalModelProviderId
+      }
+    }
+
+    val args =
+      modelProviderArgs +
+        arrayOf(
+          "model-providers",
+          "list",
+          "--page-size=1",
+          "--page-token=${pageToken.toByteArray().base64UrlEncode()}",
+        )
+    val output = callCli(args)
+
+    val internalNextPageToken = internalListModelProvidersPageToken {
+      after =
+        ListModelProvidersPageTokenKt.after {
+          externalModelProviderId = internalModelProvider2.externalModelProviderId
+        }
+    }
+
+    assertThat(parseTextProto(output.reader(), ListModelProvidersResponse.getDefaultInstance()))
+      .isEqualTo(
+        listModelProvidersResponse {
+          modelProviders += internalModelProvider2.toModelProvider()
+          nextPageToken = internalNextPageToken.toByteString().base64UrlEncode()
+        }
+      )
   }
 
   @Test
