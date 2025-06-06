@@ -73,9 +73,7 @@ abstract class RequisitionGrouper(
    */
   fun groupRequisitions(requisitions: List<Requisition>): List<GroupedRequisitions> {
     val mappedRequisitions = requisitions.mapNotNull { mapRequisition(it) }
-    val test =  combineGroupedRequisitions(mappedRequisitions)
-    println("~~~~~~~~~~~~~~~~~~~~~~` combined group req: ${test}")
-    return test
+    return combineGroupedRequisitions(mappedRequisitions)
   }
 
   /** Function to be implemented to combine [GroupedRequisition]s for optimal execution. */
@@ -192,7 +190,6 @@ abstract class RequisitionGrouper(
       }
       collectionIntervalsMap[eventGroupReferenceId] = eventGroupEntry.value.collectionInterval
     }
-    println("~~~~~~~~~~~~~~~~~~~~~~~~~~ SETTING GR ID")
     return groupedRequisitions {
       id = UUID.randomUUID().toString()
       modelLine = measurementSpec!!.modelLine

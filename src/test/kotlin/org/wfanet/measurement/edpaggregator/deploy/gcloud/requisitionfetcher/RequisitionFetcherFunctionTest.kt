@@ -66,6 +66,7 @@ import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.consent.client.measurementconsumer.signRequisitionSpec
 import org.wfanet.measurement.gcloud.testing.FunctionsFrameworkInvokerProcess
+import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
 
 /** Test class for the RequisitionFetcherFunction. */
 class RequisitionFetcherFunctionTest {
@@ -165,10 +166,18 @@ class RequisitionFetcherFunctionTest {
     logger.info("Response body: ${getResponse.body()}")
     // Verify the function worked
     assertThat(getResponse.statusCode()).isEqualTo(200)
-    val storedRequisitionPath = Paths.get(STORAGE_PATH_PREFIX, REQUISITION.name)
+    val storageDir = tempFolder.root.toPath().resolve(STORAGE_PATH_PREFIX).toFile()
+
+    val fileName: String? = storageDir
+      .takeIf { it.exists() && it.isDirectory }
+      ?.listFiles()
+      ?.singleOrNull()
+      ?.name
+    val storedRequisitionPath = Paths.get(STORAGE_PATH_PREFIX, fileName)
     val requisitionFile = tempFolder.root.toPath().resolve(storedRequisitionPath).toFile()
     assertThat(requisitionFile.exists()).isTrue()
-    assertThat(requisitionFile.readByteString()).isEqualTo(PACKED_REQUISITION.toByteString())
+    val storedAny = Any.parseFrom(requisitionFile.readBytes())
+    assertThat(storedAny.typeUrl).isEqualTo(GROUPED_REQUISITION_PROTO_TYPE)
   }
 
   companion object {
@@ -296,5 +305,6 @@ class RequisitionFetcherFunctionTest {
         trustedCertCollectionFile = SECRETS_DIR.resolve("edp7_root.pem").toFile(),
       )
     private val logger: Logger = Logger.getLogger(this::class.java.name)
+    private val GROUPED_REQUISITION_PROTO_TYPE = Any.pack(GroupedRequisitions.getDefaultInstance()).typeUrl
   }
 }
