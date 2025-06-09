@@ -37,10 +37,12 @@ import org.wfanet.measurement.common.parseTextProto
  *   This value must be set and must not end with a slash.
  * - GOOGLE_PROJECT_ID: (optional) GCP project ID to use for Cloud Storage.
  *
- * @param configBlobKey the path/key of the blob under the storage prefix
- * @return the contents of the blob as a UTF-8 string
- * @throws IllegalStateException if EDPS_CONFIG_STORAGE_BUCKET is not set
- * @throws IllegalStateException if the specified blob is not found
+ * @param configBlobKey The name of the config blob to load.
+ * @param defaultInstance A default instance of the protobuf message type to parse into.
+ * @param typeRegistry Optional registry for handling `Any` fields during parsing.
+ * @return A protobuf message of type [T] populated from the parsed config.
+ * @throws IllegalArgumentException if required environment variables are not set.
+ * @throws IllegalStateException if the config blob is not found.
  */
 suspend fun <T: Message> getConfig(
   configBlobKey: String,
