@@ -38,7 +38,7 @@ jobs:
 
       - name: Dump list of images to sign
         run: >
-          bazel build //src/main/docker:dump_images_to_sign
+          bazel build //src/main/docker:images_to_sign
 
       - name: Debug inspect images list
         run: |
