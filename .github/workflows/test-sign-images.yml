@@ -1,0 +1,50 @@
+name: Test sign images with KMS
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test-cosign:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: 'google-github-actions/auth@v2'
+        with:
+          credentials_json: '${{ secrets.SIGNED_BUILDS_GCP_SA_CREDENTIALS_JSON }}'
+
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@v3.8.1
+        with:
+          cosign-release: 'v2.5.0'
+
+      - name: Log in to GitHub Container Registry
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" \
+            | docker login ghcr.io \
+                -u $ \
+                --password-stdin
+
+      - name: Pull docker hello-world image
+        run: docker pull hello-world
+
+      - name: Tag image
+        run: |
+          docker tag hello-world ghcr.io/${{ github.repository }}/test-signed-image:v1
+
+      - name: Push to GHCR
+        run: |
+          docker push ghcr.io/${{ github.repository }}/test-signed-image:v1
+
+      - name: Cosign sign
+        run: >
+          cosign sign 
+          --key gcpkms://projects/halo-cmm-poc/locations/global/keyRings/key-ring-signed-builds/cryptoKeys/key-signed-builds/cryptoKeyVersions/1
+          ghcr.io/${{ github.repository }}/test-signed-image:v1
+
+      - name: Cosign verify
+        run: >
+          cosign verify 
+          --key gcpkms://projects/halo-cmm-poc/locations/global/keyRings/key-ring-signed-builds/cryptoKeys/key-signed-builds/cryptoKeyVersions/1
+          ghcr.io/${{ github.repository }}/test-signed-image:v1
