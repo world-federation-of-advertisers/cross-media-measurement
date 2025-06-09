@@ -47,6 +47,7 @@ jobs:
             image_tag="$GITHUB_SHA"
           fi
           echo "image-tag=${image_tag}" >> "$GITHUB_OUTPUT"
+
   push-images:
     uses: ./.github/workflows/push-images.yml
     if: inputs.existing-image-tag == ''
@@ -62,3 +63,20 @@ jobs:
     secrets: inherit
     with:
       package-version: ${{ needs.get-image-tag.outputs.image-tag }}
+
+  sign-images-with-dev-key:
+    uses: ./.github/workflows/sign-images.yml
+    needs: [push-images]
+    secrets: inherit
+    with:
+      image-tag: ${{ needs.get-image-tag.outputs.image-tag }}
+      kms-key-resource-name: ${{ vars.IMAGE_SIGNING_DEV_KEY_RESOURCE_NAME}}
+
+  sign-images-with-release-key:
+    uses: ./.github/workflows/sign-images.yml
+    needs: [get-image-tag, push-images]
+    if: ${{ github.event_name == 'release' }}
+    secrets: inherit
+    with:
+      image-tag: ${{ needs.get-image-tag.outputs.image-tag }}
+      kms-key-resource-name: ${{ vars.IMAGE_SIGNING_RELEASE_KEY_RESOURCE_NAME}}
