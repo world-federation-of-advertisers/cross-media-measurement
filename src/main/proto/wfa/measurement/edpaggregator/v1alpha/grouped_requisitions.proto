@@ -58,15 +58,6 @@ message GroupedRequisitions {
   // A list of event group map entries for all event groups in requistions.
   repeated EventGroupMapEntry event_group_map = 2
       [(google.api.field_behavior) = REQUIRED];
-  // A single entry mapping an Event Group to a collection interval.
-  message EventGroupCollectionMapEntry {
-    // The event group in the cmms
-    string event_group = 1 [
-      (google.api.resource_reference).type = "halo.wfanet.org/EventGroup",
-      (google.api.field_behavior) = REQUIRED
-    ];
-
-  }
   // The requisition entry to be processed
   message RequisitionEntry {
     // The requisitions to process together. Expected to be of type

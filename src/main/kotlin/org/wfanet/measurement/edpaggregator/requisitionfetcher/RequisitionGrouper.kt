@@ -19,7 +19,6 @@ package org.wfanet.measurement.edpaggregator.requisitionfetcher
 import com.google.protobuf.Any
 import io.grpc.StatusException
 import java.util.logging.Logger
-import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
@@ -42,13 +41,13 @@ import org.wfanet.measurement.edpaggregator.v1alpha.groupedRequisitions
  * This class provides functionality to categorize a collection of [Requisition] objects into
  * groups, facilitating efficient execution.
  *
- * @param requisitionValidator: The [RequisitionValidator] to use to validate the requistiion.
+ * @param requisitionValidator: The [RequisitionValidator] to use to validate the requisition.
  * @param eventGroupsClient The gRPC client used to interact with event groups.
  * @param requisitionsClient The gRPC client used to interact with requisitions.
  * @param throttler used to throttle gRPC requests
  */
 abstract class RequisitionGrouper(
-  private val requisitionValidator: GroupedRequisitionsValidator,
+  private val requisitionValidator: RequisitionsValidator,
   private val eventGroupsClient: EventGroupsCoroutineStub,
   private val requisitionsClient: RequisitionsCoroutineStub,
   private val throttler: Throttler,
@@ -63,7 +62,7 @@ abstract class RequisitionGrouper(
    * @param requisitions A list of [Requisition] objects to be grouped.
    * @return A list of [GroupedRequisitions] containing the categorized [Requisition] objects.
    */
-  fun groupRequisitions(requisitions: List<Requisition>): List<GroupedRequisitions> {
+  suspend fun groupRequisitions(requisitions: List<Requisition>): List<GroupedRequisitions> {
     val mappedRequisitions = requisitions.mapNotNull { mapRequisition(it) }
     return combineGroupedRequisitions(mappedRequisitions)
   }
@@ -74,7 +73,7 @@ abstract class RequisitionGrouper(
   ): List<GroupedRequisitions>
 
   /* Maps a single [Requisition] to a single [GroupedRequisition]. */
-  private fun mapRequisition(requisition: Requisition): GroupedRequisitions? {
+  private suspend fun mapRequisition(requisition: Requisition): GroupedRequisitions? {
 
     val measurementSpec: MeasurementSpec =
       requisitionValidator.validateMeasurementSpec(requisition) ?: return null
@@ -84,7 +83,9 @@ abstract class RequisitionGrouper(
       try {
         getEventGroupMapEntries(requisitionSpec)
       } catch (e: StatusException) {
-        logger.severe("Exception getting event group map: ${e.message}")
+        logger.severe(
+          "Exception getting event group map for requisition ${requisition.name}: ${e.message}"
+        )
         // For now, we skip this requisition. However, we could refuse it in the future.
         return null
       }
@@ -107,7 +108,7 @@ abstract class RequisitionGrouper(
     }
   }
 
-  private fun getEventGroupMapEntries(
+  private suspend fun getEventGroupMapEntries(
     requisitionSpec: RequisitionSpec
   ): Map<String, EventGroupDetails> {
     val eventGroupMap = mutableMapOf<String, EventGroupDetails>()
@@ -119,16 +120,16 @@ abstract class RequisitionGrouper(
             .getValue(eventGroupName)
             .toBuilder()
             .apply {
-              val collectionInterval =
+              val newCollectionIntervalList =
                 this.collectionIntervalsList + eventGroupEntry.value.collectionInterval
               this.collectionIntervalsList.clear()
               this.collectionIntervalsList +=
-                collectionInterval.sortedBy { it.startTime.toInstant() }
+                newCollectionIntervalList.sortedBy { it.startTime.toInstant() }
             }
             .build()
       } else {
         eventGroupMap[eventGroupName] = eventGroupDetails {
-          val eventGroup = runBlocking { getEventGroup(eventGroupName) }
+          val eventGroup = getEventGroup(eventGroupName)
           this.eventGroupReferenceId = eventGroup.eventGroupReferenceId
           this.collectionIntervals += eventGroupEntry.value.collectionInterval
         }

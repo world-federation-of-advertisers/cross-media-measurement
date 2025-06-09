@@ -19,31 +19,25 @@ package org.wfanet.measurement.edpaggregator.requisitionfetcher
 import com.google.protobuf.InvalidProtocolBufferException
 import java.security.GeneralSecurityException
 import java.util.logging.Logger
-import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.Requisition.Refusal
 import org.wfanet.measurement.api.v2alpha.RequisitionKt.refusal
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec
-import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
-import org.wfanet.measurement.api.v2alpha.refuseRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.unpack
 import org.wfanet.measurement.common.crypto.PrivateKeyHandle
-import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.consent.client.dataprovider.decryptRequisitionSpec
 
 /**
  * Validates a requisition. Only refuses requisitions with permanently fatal errors.
  *
- * @param requisitionsClient The gRPC client used to interact with requisitions.
  * @param throttler used to throttle gRPC requests.
  * @param privateEncryptionKey The DataProvider's decryption key used for decrypting requisition
  *   data.
  */
-class GroupedRequisitionsValidator(
-  private val requisitionsClient: RequisitionsCoroutineStub,
-  private val throttler: Throttler,
+class RequisitionsValidator(
   private val privateEncryptionKey: PrivateKeyHandle,
+  private val fatalRequisitionErrorPredicate: (requisition: Requisition, Refusal) -> Unit,
 ) {
   fun validateMeasurementSpec(requisition: Requisition): MeasurementSpec? {
     val measurementSpec: MeasurementSpec? =
@@ -51,8 +45,8 @@ class GroupedRequisitionsValidator(
         requisition.measurementSpec.unpack()
       } catch (e: InvalidProtocolBufferException) {
         logger.info("Unable to parse measurement spec for ${requisition.name}: ${e.message}")
-        refuseRequisition(
-          requisition.name,
+        fatalRequisitionErrorPredicate(
+          requisition,
           refusal {
             justification = Refusal.Justification.SPEC_INVALID
             message = "Unable to parse MeasurementSpec"
@@ -69,8 +63,8 @@ class GroupedRequisitionsValidator(
         decryptRequisitionSpec(requisition.encryptedRequisitionSpec, privateEncryptionKey).unpack()
       } catch (e: GeneralSecurityException) {
         logger.info("RequisitionSpec decryption failed for ${requisition.name}: ${e.message}")
-        refuseRequisition(
-          requisition.name,
+        fatalRequisitionErrorPredicate(
+          requisition,
           refusal {
             justification = Refusal.Justification.CONSENT_SIGNAL_INVALID
             message = "Unable to decrypt RequisitionSpec"
@@ -79,8 +73,8 @@ class GroupedRequisitionsValidator(
         null
       } catch (e: InvalidProtocolBufferException) {
         logger.info("Unable to parse requisition spec for ${requisition.name}: ${e.message}")
-        refuseRequisition(
-          requisition.name,
+        fatalRequisitionErrorPredicate(
+          requisition,
           refusal {
             justification = Refusal.Justification.SPEC_INVALID
             message = "Unable to parse RequisitionSpec"
@@ -89,17 +83,6 @@ class GroupedRequisitionsValidator(
         null
       }
     return requisitionSpec
-  }
-
-  private fun refuseRequisition(name: String, refusal: Refusal) = runBlocking {
-    throttler.onReady {
-      requisitionsClient.refuseRequisition(
-        refuseRequisitionRequest {
-          this.name = name
-          this.refusal = refusal
-        }
-      )
-    }
   }
 
   companion object {

@@ -17,13 +17,13 @@
 package org.wfanet.measurement.edpaggregator.requisitionfetcher
 
 import com.google.common.truth.Truth.assertThat
-import com.google.common.truth.extensions.proto.FieldScopes
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.Any
 import com.google.protobuf.StringValue
 import com.google.protobuf.kotlin.toByteStringUtf8
 import io.grpc.Status
 import kotlin.test.assertTrue
+import kotlinx.coroutines.runBlocking
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -31,9 +31,6 @@ import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
 import org.mockito.kotlin.stub
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineImplBase
-import org.wfanet.measurement.api.v2alpha.RefuseRequisitionRequest
-import org.wfanet.measurement.api.v2alpha.Requisition.Refusal
-import org.wfanet.measurement.api.v2alpha.RequisitionKt.refusal
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineImplBase
@@ -42,11 +39,9 @@ import org.wfanet.measurement.api.v2alpha.encryptedMessage
 import org.wfanet.measurement.api.v2alpha.eventGroup
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.copy
 import org.wfanet.measurement.api.v2alpha.measurementSpec
-import org.wfanet.measurement.api.v2alpha.refuseRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.signedMessage
 import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
-import org.wfanet.measurement.common.testing.verifyAndCapture
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.testing.TestRequisitionData
 
 @RunWith(JUnit4::class)
@@ -66,13 +61,9 @@ abstract class AbstractRequisitionGrouperTest {
       onBlocking { getEventGroup(any()) }
         .thenReturn(eventGroup { eventGroupReferenceId = "some-event-group-reference-id" })
     }
-    val requisition =
-      TestRequisitionData.REQUISITION.copy {
-        measurementSpec = signedMessage {
-          message = Any.pack(StringValue.newBuilder().setValue("some-invalid-spec").build())
-        }
-      }
-    val groupedRequisitions = requisitionGrouper.groupRequisitions(listOf(TestRequisitionData.REQUISITION))
+    val groupedRequisitions = runBlocking {
+      requisitionGrouper.groupRequisitions(listOf(TestRequisitionData.REQUISITION))
+    }
     assertTrue(groupedRequisitions.isNotEmpty())
   }
 
@@ -82,7 +73,9 @@ abstract class AbstractRequisitionGrouperTest {
     eventGroupsServiceMock.stub {
       onBlocking { getEventGroup(any()) }.thenThrow(Status.NOT_FOUND.asRuntimeException())
     }
-    val requisitions = requisitionGrouper.groupRequisitions(listOf(TestRequisitionData.REQUISITION))
+    val requisitions = runBlocking {
+      requisitionGrouper.groupRequisitions(listOf(TestRequisitionData.REQUISITION))
+    }
     assertThat(requisitions).hasSize(0)
   }
 
@@ -99,7 +92,9 @@ abstract class AbstractRequisitionGrouperTest {
           message = Any.pack(StringValue.newBuilder().setValue("some-invalid-spec").build())
         }
       }
-    val groupedRequisitions = requisitionGrouper.groupRequisitions(listOf(requisition))
+    val groupedRequisitions = runBlocking {
+      requisitionGrouper.groupRequisitions(listOf(requisition))
+    }
     assertThat(groupedRequisitions).hasSize(0)
   }
 
@@ -117,7 +112,11 @@ abstract class AbstractRequisitionGrouperTest {
           typeUrl = ProtoReflection.getTypeUrl(RequisitionSpec.getDescriptor())
         }
       }
-    val groupedRequisitions = requisitionGrouper.groupRequisitions(listOf(requisition))
+    val groupedRequisitions = runBlocking {
+      requisitionGrouper.groupRequisitions(listOf(requisition))
+    }
     assertThat(groupedRequisitions).hasSize(0)
   }
+
+  companion object {}
 }

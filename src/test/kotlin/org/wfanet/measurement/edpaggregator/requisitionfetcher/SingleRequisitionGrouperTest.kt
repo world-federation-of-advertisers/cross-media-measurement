@@ -20,11 +20,11 @@ import com.google.common.truth.Truth.assertThat
 import com.google.type.interval
 import java.time.Clock
 import java.time.Duration
+import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
-import org.mockito.kotlin.times
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.GetEventGroupRequest
@@ -33,6 +33,7 @@ import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.eventGroup
+import org.wfanet.measurement.api.v2alpha.refuseRequisitionRequest
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
@@ -72,10 +73,9 @@ class SingleRequisitionGrouperTest : AbstractRequisitionGrouperTest() {
   private val throttler = MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofSeconds(1L))
 
   private val requisitionValidator by lazy {
-    GroupedRequisitionsValidator(
-      requisitionsClient = requisitionsStub,
-      throttler = throttler,
+    RequisitionsValidator(
       privateEncryptionKey = TestRequisitionData.EDP_DATA.privateEncryptionKey,
+      fatalRequisitionErrorPredicate = ::refuseRequisition,
     )
   }
 
@@ -96,12 +96,25 @@ class SingleRequisitionGrouperTest : AbstractRequisitionGrouperTest() {
     EventGroupsCoroutineStub(grpcTestServerRule.channel)
   }
 
+  private fun refuseRequisition(requisition: Requisition, refusal: Requisition.Refusal) =
+    runBlocking {
+      throttler.onReady {
+        requisitionsStub.refuseRequisition(
+          refuseRequisitionRequest {
+            this.name = requisition.name
+            this.refusal = refusal
+          }
+        )
+      }
+    }
+
   @Test
-  fun `able to map Requisition to GroupedRequisisions`() {
-    val groupedRequisitions: List<GroupedRequisitions> =
+  fun `able to map Requisition to GroupedRequisitions`() {
+    val groupedRequisitions: List<GroupedRequisitions> = runBlocking {
       requisitionGrouper.groupRequisitions(
         listOf(TestRequisitionData.REQUISITION, TestRequisitionData.REQUISITION)
       )
+    }
     assertThat(groupedRequisitions).hasSize(2)
     groupedRequisitions.forEach { groupedRequisition: GroupedRequisitions ->
       assertThat(groupedRequisition.eventGroupMapList.single())

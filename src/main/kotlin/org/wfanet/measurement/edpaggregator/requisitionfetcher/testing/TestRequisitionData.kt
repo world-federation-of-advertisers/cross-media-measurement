@@ -78,29 +78,12 @@ object TestRequisitionData {
   private const val MEASUREMENT_CONSUMER_CERTIFICATE_NAME =
     "$MEASUREMENT_CONSUMER_NAME/certificates/AAAAAAAAAcg"
 
-  private val CONSENT_SIGNALING_ELGAMAL_PUBLIC_KEY = elGamalPublicKey {
-    ellipticCurveId = 415
-    generator =
-      HexString("036B17D1F2E12C4247F8BCE6E563A440F277037D812DEB33A0F4A13945D898C296").bytes
-    element = HexString("0277BF406C5AA4376413E480E0AB8B0EFCA999D362204E6D1686E0BE567811604D").bytes
-  }
-
   private val LAST_EVENT_DATE = LocalDate.now()
   private val FIRST_EVENT_DATE = LAST_EVENT_DATE.minusDays(1)
 
   val TIME_RANGE = OpenEndTimeRange.fromClosedDateRange(FIRST_EVENT_DATE..LAST_EVENT_DATE)
 
-  private const val DUCHY_ONE_ID = "worker1"
-
   private val MC_SIGNING_KEY = loadSigningKey("${MC_ID}_cs_cert.der", "${MC_ID}_cs_private.der")
-  private val DUCHY_ONE_SIGNING_KEY =
-    loadSigningKey("${DUCHY_ONE_ID}_cs_cert.der", "${DUCHY_ONE_ID}_cs_private.der")
-
-  private val DUCHY_ONE_NAME = DuchyKey(DUCHY_ONE_ID).toName()
-  private val DUCHY_ONE_CERTIFICATE = certificate {
-    name = DuchyCertificateKey(DUCHY_ONE_ID, externalIdToApiId(6L)).toName()
-    x509Der = DUCHY_ONE_SIGNING_KEY.certificate.encoded.toByteString()
-  }
 
   private val EDP_SIGNING_KEY =
     loadSigningKey("${EDP_DISPLAY_NAME}_cs_cert.der", "${EDP_DISPLAY_NAME}_cs_private.der")
@@ -199,16 +182,6 @@ object TestRequisitionData {
     }
     dataProviderCertificate = DATA_PROVIDER_CERTIFICATE.name
     dataProviderPublicKey = DATA_PROVIDER_PUBLIC_KEY.pack()
-    duchies += duchyEntry {
-      key = DUCHY_ONE_NAME
-      value = value {
-        duchyCertificate = DUCHY_ONE_CERTIFICATE.name
-        liquidLegionsV2 = liquidLegionsV2 {
-          elGamalPublicKey =
-            signElgamalPublicKey(CONSENT_SIGNALING_ELGAMAL_PUBLIC_KEY, DUCHY_ONE_SIGNING_KEY)
-        }
-      }
-    }
   }
 
   private fun loadSigningKey(
