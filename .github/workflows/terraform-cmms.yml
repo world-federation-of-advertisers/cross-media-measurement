@@ -50,6 +50,8 @@ jobs:
       GCLOUD_MODULE_PATH: src/main/terraform/gcloud/cmms
       GCLOUD_REGION: ${{ vars.GCLOUD_REGION }}
       GCLOUD_ZONE: ${{ vars.GCLOUD_ZONE }}
+      DATA_WATCHER_CONFIG_CONTENT: ${{ vars.DATA_WATCHER_CONFIG_CONTENT }}
+      REQUISITION_FETCHER_CONFIG_CONTENT: ${{ vars.REQUISITION_FETCHER_CONFIG_CONTENT }}
 
     steps:
     - uses: actions/checkout@v4
@@ -61,6 +63,12 @@ jobs:
       with:
         workload_identity_provider: ${{ vars.WORKLOAD_IDENTITY_PROVIDER }}
         service_account: ${{ vars.TF_SERVICE_ACCOUNT }}
+
+    - name: Write data-watcher config to file
+      run: |
+        mkdir -p /tmp/configs
+        echo "$DATA_WATCHER_CONFIG_CONTENT" > /tmp/configs/data-watcher-config.textproto
+        echo "$REQUISITION_FETCHER_CONFIG_CONTENT" > /tmp/configs/requisition-fetcher-config.textproto
 
     - name: terraform init
       env:
@@ -96,6 +104,8 @@ jobs:
         -var="terraform_service_account=$TERRAFORM_SERVICE_ACCOUNT"
         -var="postgres_instance_name=$POSTGRES_INSTANCE"
         -var="postgres_password=$POSTGRES_PASSWORD"
+        -var="data_watcher_config_file_path=/tmp/configs/data-watcher-config.textproto"
+        -var="requisition_fetcher_config_file_path=/tmp/configs/requisition-fetcher-config.textproto"
         -out=tfplan
 
     - name: terraform apply

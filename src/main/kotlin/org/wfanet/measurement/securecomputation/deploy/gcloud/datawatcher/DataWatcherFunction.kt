@@ -29,7 +29,6 @@ import java.util.logging.Logger
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.edpaggregator.getConfig
-import org.wfanet.measurement.common.getJarResourceFile
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withShutdownTimeout
 import org.wfanet.measurement.common.parseTextProto
@@ -74,7 +73,6 @@ class DataWatcherFunction : CloudEventsFunction {
         System.getenv("CONTROL_PLANE_CHANNEL_SHUTDOWN_DURATION_SECONDS")?.toLong()
           ?: DEFAULT_CHANNEL_SHUTDOWN_DURATION_SECONDS
       )
-    private val configBlobKey = "data-watcher-config.textproto"
 
     private fun checkNotEmpty(envVar: String): String {
       val value = System.getenv(envVar)
@@ -87,21 +85,6 @@ class DataWatcherFunction : CloudEventsFunction {
       val value = System.getenv(envVar) ?: throw IllegalStateException("Missing env var: $envVar")
       Paths.get(value)
       return value
-    }
-
-    suspend fun retrieveDataWatcherConfig(): DataWatcherConfig {
-      val dataWatcherConfigContent = getConfig("DATA_WATCHER_CONFIG_FILE_SYSTEM_PATH", configBlobKey)
-      val registry = TypeRegistry.newBuilder()
-        .add(ResultsFulfillerParams.getDescriptor())
-        .build()
-
-      runBlocking { parseTextProto(
-        textProto = StringReader(dataWatcherConfigContent),
-        messageInstance = DataWatcherConfig.getDefaultInstance(),
-        typeRegistry = registry
-      )
-      }
-      return parseTextProto(StringReader(dataWatcherConfigContent), DataWatcherConfig.getDefaultInstance())
     }
 
     private fun getClientCerts(): SigningCerts {
@@ -140,8 +123,12 @@ class DataWatcherFunction : CloudEventsFunction {
 
     private val workItemsStub by lazy { WorkItemsCoroutineStub(publicChannel) }
 
+    val TYPE_REGISTRY = TypeRegistry.newBuilder()
+      .add(ResultsFulfillerParams.getDescriptor())
+      .build()
+    private val CONFIG_BLOB_KEY = "data-watcher-config.textproto"
     private val dataWatcherConfig by lazy {
-      runBlocking { retrieveDataWatcherConfig() }
+      runBlocking { getConfig(CONFIG_BLOB_KEY, DataWatcherConfig.getDefaultInstance(), TYPE_REGISTRY) }
     }
     private val dataWatcher by lazy {
       DataWatcher(

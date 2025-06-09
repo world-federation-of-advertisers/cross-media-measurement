@@ -116,7 +116,7 @@ class InvokeDataWatcherFunctionTest() {
             "CERT_FILE_PATH" to SECRETS_DIR.resolve("edp7_tls.pem").toString(),
             "PRIVATE_KEY_FILE_PATH" to SECRETS_DIR.resolve("edp7_tls.key").toString(),
             "CERT_COLLECTION_FILE_PATH" to SECRETS_DIR.resolve("kingdom_root.pem").toString(),
-            "DATA_WATCHER_CONFIG_FILE_SYSTEM_PATH" to DATA_WATCHER_CONFIG_FILE_SYSTEM_PATH.toString()
+            "EDPS_CONFIG_STORAGE_BUCKET" to DATA_WATCHER_CONFIG_FILE_SYSTEM_PATH,
           ) + additionalFlags
         )
       logger.info("Started DataWatcher process on port $port")
@@ -188,7 +188,7 @@ class InvokeDataWatcherFunctionTest() {
         )!!
         .toFile()
     private val DATA_WATCHER_CONFIG_FILE_SYSTEM_PATH =
-      getRuntimePath(
+      "file://" + getRuntimePath(
         Paths.get("wfa_measurement_system", "src", "main", "kotlin", "org", "wfanet", "measurement", "securecomputation", "deploy", "gcloud", "datawatcher", "testing")
       )!!
     private const val BUCKET = "test-bucket"

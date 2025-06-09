@@ -107,3 +107,15 @@ variable "terraform_service_account" {
   type        = string
   nullable    = false
 }
+
+variable "data_watcher_config_file_path" {
+  description = "Path to the data watcher config file."
+  type        = string
+  nullable    = false
+}
+
+variable "requisition_fetcher_config_file_path" {
+  description = "Path to the requisition fetcher config file."
+  type        = string
+  nullable    = false
+}

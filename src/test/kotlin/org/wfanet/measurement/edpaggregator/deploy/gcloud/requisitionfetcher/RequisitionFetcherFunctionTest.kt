@@ -91,7 +91,7 @@ class RequisitionFetcherFunctionTest {
             "KINGDOM_CERT_HOST" to "localhost",
             "PAGE_SIZE" to "10",
             "STORAGE_PATH_PREFIX" to STORAGE_PATH_PREFIX,
-            "REQUISITION_FETCHER_CONFIG_FILE_SYSTEM_PATH" to REQUISITION_CONFIG_FILE_SYSTEM_PATH.toString()
+            "EDPS_CONFIG_STORAGE_BUCKET" to REQUISITION_CONFIG_FILE_SYSTEM_PATH
           )
         )
       logger.info("Started RequisitionFetcher process on port $port")
@@ -153,7 +153,7 @@ class RequisitionFetcherFunctionTest {
         Paths.get("wfa_measurement_system", "src", "main", "k8s", "testing", "secretfiles")
       )!!
     private val REQUISITION_CONFIG_FILE_SYSTEM_PATH =
-      getRuntimePath(
+      "file://" + getRuntimePath(
         Paths.get("wfa_measurement_system", "src", "main", "kotlin", "org", "wfanet", "measurement", "edpaggregator", "deploy", "gcloud", "requisitionfetcher", "testing")
       )!!
     private val serverCerts =
