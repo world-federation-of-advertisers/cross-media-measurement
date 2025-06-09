@@ -97,8 +97,9 @@ to the executable.
 
 Command-Line interface (CLI) tool to manager Model Repository artifacts
 
-The examples assume that you have built the relevant target, which outputs to bazel-bin by default. For brevity, the
-examples do not include the full path to the executable.
+The examples assume that you have built the relevant target, which outputs to
+bazel-bin by default. For brevity, the examples do not include the full path to
+the executable.
 
 Run the help subcommand for usage information.
 
@@ -106,20 +107,22 @@ Run the help subcommand for usage information.
 
 Arguments:
 
-`--tls-cert-file`: TLS client certificate. The issuer of this certificate must be
-trusted by the Kingdom server, i.e. the issuer certificate must be in that
+`--tls-cert-file`: TLS client certificate. The issuer of this certificate must
+be trusted by the Kingdom server, i.e. the issuer certificate must be in that
 server's trusted certificate collection file.
 
 `--tls-key-file`: TLS client key.
 
-`--kingdom-public-api-cert-host`: In the event that the host you specify to the `--kingdom-public-api-target`
-option doesn't match what is in the Subject Alternative Name (SAN) extension of
-the server's certificate, this option specifies a host that does match using
-the `--kingdom-public-api-cert-host` option.
+`--kingdom-public-api-cert-host`: In the event that the host you specify to the
+`--kingdom-public-api-target` option doesn't match what is in the Subject
+Alternative Name (SAN) extension of the server's certificate, this option
+specifies a host that does match using the `--kingdom-public-api-cert-host`
+option.
 
 `--kingdom-public-api-target`: specify the public API target.
 
-To access ModelProvider, ModelSuite, ModelLine subcommands, authenticate use ModelProvider certificates:
+To access ModelProvider, ModelSuite, ModelLine subcommands, authenticate use
+ModelProvider certificates:
 
 ```shell
 ModelRepository \
@@ -217,7 +220,7 @@ ModelRepository \
       model-lines create --parent=modelProviders/AAAAAAAAAHs/modelSuites/AAAAAAAAAHs \
       --display-name=name --description=description \
       --active-start-time=2035-09-04T09:04:00Z --active-end-time=2035-09-12T11:05:00Z \
-      --type=DEV 
+      --type=DEV \
       --holdback-model-line=modelProviders/AAAAAAAAAHs/modelSuites/AAAAAAAAAHs/modelLines/AAAAAAAAAHs \
       --population=dataProviders/AAAAAAAAAHs/populations/AAAAAAAAAHs
     ```
