@@ -4,12 +4,45 @@ on:
   # wip - on pull request only to test the workflow without merging
   pull_request:
   workflow_dispatch:
+    inputs:
+      image-tag:
+        description: "Tag of container images"
+        type: string
+        required: true
+        default: "test-signed-build-v1"
 
 jobs:
   test-cosign:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
+
+      - name: Write auth.bazelrc
+        env:
+          BUILDBUDDY_API_KEY: ${{ secrets.BUILDBUDDY_API_KEY }}
+        run: |
+          cat << EOF > auth.bazelrc
+          build --remote_header=x-buildbuddy-api-key=$BUILDBUDDY_API_KEY
+          EOF
+
+      - name: Write ~/.bazelrc
+        env:
+          IMAGE_TAG: ${{ inputs.image-tag }}
+        run: |
+          cat << EOF > ~/.bazelrc
+          common --config=ci
+          build --define container_registry=$CONTAINER_REGISTRY
+          build --define image_repo_prefix=$GITHUB_REPOSITORY_OWNER
+          build --define image_tag=$IMAGE_TAG
+          EOF
+
+      - name: Dump list of images to sign
+        run: >
+          bazel build //src/main/docker:dump_images_to_sign
+
+      - name: Debug inspect images list
+        run: |
+          cat bazel-bin/src/main/docker/images_to_sign.txt
 
       - name: Authenticate to Google Cloud
         uses: 'google-github-actions/auth@v2'
@@ -21,6 +54,7 @@ jobs:
         with:
           cosign-release: 'v2.5.0'
 
+      #TODO: wip - replace with docker/login-action@v3
       - name: Log in to GitHub Container Registry
         run: |
           echo "${{ secrets.GITHUB_TOKEN }}" \

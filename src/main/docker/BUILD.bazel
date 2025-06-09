@@ -4,7 +4,8 @@ load(
     "container_push_all",
 )
 load("//build:variables.bzl", "IMAGE_REPOSITORY_SETTINGS")
-load(":images.bzl", "ALL_EKS_IMAGES", "ALL_GKE_IMAGES", "ALL_IMAGES", "ALL_LOCAL_IMAGES", "ALL_REPORTING_GKE_IMAGES", "ALL_TEE_APP_GKE_IMAGES")
+load(":images.bzl", "ALL_EKS_IMAGES", "ALL_GKE_IMAGES", "ALL_IMAGES", "ALL_LOCAL_IMAGES", "ALL_REPORTING_GKE_IMAGES", "ALL_TEE_APP_GKE_IMAGES", "TEST_SIGNED_BUILD_IMAGES")
+load("@bazel_skylib//rules:write_file.bzl", "write_file")
 
 package(
     default_testonly = True,  #TODO: delete when InMemoryKeyStore and FakeHybridCipher are not used.
@@ -133,4 +134,14 @@ container_push_all(
         "manual",
         "no-remote",
     ],
+)
+
+write_file(
+  name="dump_images_to_sign",
+  out="images_to_sign.txt",
+  content = ["{registry}/{name}:{tag}".format(
+        name = image_spec.repository,
+        registry = IMAGE_REPOSITORY_SETTINGS.container_registry,
+        tag = IMAGE_REPOSITORY_SETTINGS.image_tag,
+    ) for image_spec in TEST_SIGNED_BUILD_IMAGES],
 )

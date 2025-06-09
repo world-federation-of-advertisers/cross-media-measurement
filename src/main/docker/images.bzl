@@ -331,6 +331,14 @@ SECURE_COMPUTATION_TEE_APP_IMAGES = [
     #TODO(@marcopremier) add images here when PR is ready
 ]
 
+TEST_SIGNED_BUILD_IMAGES = [
+    struct(
+        name = "duchy_honest_majority_share_shuffle_mill_job_image",
+        image = "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/job/mill/shareshuffle:gcs_honest_majority_share_shuffle_mill_job_image",
+        repository = _PREFIX + "/duchy/honest-majority-share-shuffle-mill",
+    ),
+]
+
 ALL_SECURE_COMPUTATION_GKE_IMAGES = SECURE_COMPUTATION_COMMON_IMAGES + SECURE_COMPUTATION_GKE_IMAGES
 
 ALL_GKE_IMAGES = COMMON_IMAGES + GKE_IMAGES + REPORTING_V2_COMMON_IMAGES + REPORTING_V2_GKE_IMAGES + ALL_SECURE_COMPUTATION_GKE_IMAGES
