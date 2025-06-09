@@ -14,6 +14,10 @@ on:
 jobs:
   test-cosign:
     runs-on: ubuntu-22.04
+    env:
+      CONTAINER_REGISTRY: ghcr.io
+      # wip - on pull request only to test the workflow without merging
+      IMAGE_TAG: "test-signed-build-v1"
     steps:
       - uses: actions/checkout@v4
 
@@ -26,8 +30,9 @@ jobs:
           EOF
 
       - name: Write ~/.bazelrc
-        env:
-          IMAGE_TAG: ${{ inputs.image-tag }}
+        # wip - on pull request only to test the workflow without merging
+        #env:
+          #IMAGE_TAG: ${{ inputs.image-tag }}
         run: |
           cat << EOF > ~/.bazelrc
           common --config=ci
