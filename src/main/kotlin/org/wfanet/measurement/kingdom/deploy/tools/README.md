@@ -48,56 +48,57 @@ This assumes that you have built the `CreateResource` target, which outputs to
 `bazel-bin` by default. For brevity, the examples to not include the full path
 to the executable.
 
-*   Creating a `DataProvider` in the `dev` environment
+* Creating a `DataProvider` in the `dev` environment
 
-    Assuming you have a serialized `EncryptionPublicKey` message containing
-    [`edp1_enc_public.tink`](../../../../../../../k8s/testing/secretfiles/edp1_enc_public.tink)
-    at `/tmp/edp1_enc_public.binpb`, and a signature of that using
-    [`edp1_cs_private.der`](../../../../../../../k8s/testing/secretfiles/edp1_cs_private.der)
-    at `/tmp/edp1_enc_public.sig`.
+  Assuming you have a serialized `EncryptionPublicKey` message containing
+  [`edp1_enc_public.tink`](../../../../../../../k8s/testing/secretfiles/edp1_enc_public.tink)
+  at `/tmp/edp1_enc_public.binpb`, and a signature of that using
+  [`edp1_cs_private.der`](../../../../../../../k8s/testing/secretfiles/edp1_cs_private.der)
+  at `/tmp/edp1_enc_public.sig`.
 
-    ```shell
-    CreateResource \
-      --tls-cert-file=src/main/k8s/testing/secretfiles/kingdom_tls.pem \
-      --tls-key-file=src/main/k8s/testing/secretfiles/kingdom_tls.key \
-      --cert-collection-file=src/main/k8s/testing/secretfiles/kingdom_root.pem \
-      --internal-api-target=localhost:8443 --internal-api-cert-host=localhost \
-      data-provider \
-      --certificate-der-file=src/main/k8s/testing/secretfiles/edp1_cs_cert.der \
-      --encryption-public-key-file=/tmp/edp1_enc_public.binpb \
-      --encryption-public-key-signature-file=/tmp/edp1_enc_public.sig \
-      --encryption-public-key-signature-algorithm=ECDSA_WITH_SHA256
-    ```
+  ```shell
+  CreateResource \
+    --tls-cert-file=src/main/k8s/testing/secretfiles/kingdom_tls.pem \
+    --tls-key-file=src/main/k8s/testing/secretfiles/kingdom_tls.key \
+    --cert-collection-file=src/main/k8s/testing/secretfiles/kingdom_root.pem \
+    --internal-api-target=localhost:8443 --internal-api-cert-host=localhost \
+    data-provider \
+    --certificate-der-file=src/main/k8s/testing/secretfiles/edp1_cs_cert.der \
+    --encryption-public-key-file=/tmp/edp1_enc_public.binpb \
+    --encryption-public-key-signature-file=/tmp/edp1_enc_public.sig \
+    --encryption-public-key-signature-algorithm=ECDSA_WITH_SHA256
+  ```
 
-*   Creating a `ModelProvider` in the `dev` environment
+* Creating a `ModelProvider` in the `dev` environment
 
-    ```shell
-    CreateResource \
-      --tls-cert-file=src/main/k8s/testing/secretfiles/kingdom_tls.pem \
-      --tls-key-file=src/main/k8s/testing/secretfiles/kingdom_tls.key \
-      --cert-collection-file=src/main/k8s/testing/secretfiles/kingdom_root.pem \
-      --internal-api-target=localhost:8443 --internal-api-cert-host=localhost \
-      model-provider
-    ```
+  ```shell
+  CreateResource \
+    --tls-cert-file=src/main/k8s/testing/secretfiles/kingdom_tls.pem \
+    --tls-key-file=src/main/k8s/testing/secretfiles/kingdom_tls.key \
+    --cert-collection-file=src/main/k8s/testing/secretfiles/kingdom_root.pem \
+    --internal-api-target=localhost:8443 --internal-api-cert-host=localhost \
+    model-provider
+  ```
 
-*   Creating the initial `Certificate` for the `worker1` `Duchy` in the `dev`
-    environment
+* Creating the initial `Certificate` for the `worker1` `Duchy` in the `dev`
+  environment
 
-    ```shell
-    CreateResource \
-      --tls-cert-file=src/main/k8s/testing/secretfiles/kingdom_tls.pem \
-      --tls-key-file=src/main/k8s/testing/secretfiles/kingdom_tls.key \
-      --cert-collection-file=src/main/k8s/testing/secretfiles/kingdom_root.pem \
-      --internal-api-target=localhost:8443 --internal-api-cert-host=localhost \
-      duchy-certificate --duchy-id=worker1 \
-      --cert-file=src/main/k8s/testing/secretfiles/worker1_cs_cert.der
-    ```
-    
+  ```shell
+  CreateResource \
+    --tls-cert-file=src/main/k8s/testing/secretfiles/kingdom_tls.pem \
+    --tls-key-file=src/main/k8s/testing/secretfiles/kingdom_tls.key \
+    --cert-collection-file=src/main/k8s/testing/secretfiles/kingdom_root.pem \
+    --internal-api-target=localhost:8443 --internal-api-cert-host=localhost \
+    duchy-certificate --duchy-id=worker1 \
+    --cert-file=src/main/k8s/testing/secretfiles/worker1_cs_cert.der
+  ```
+
 ## `ModelRepository`
 
 Command-Line interface (CLI) tool to manager Model Repository artifacts
 
-The examples assume that you have built the relevant target, which outputs to bazel-bin by default. For brevity, the examples do not include the full path to the executable.
+The examples assume that you have built the relevant target, which outputs to bazel-bin by default. For brevity, the
+examples do not include the full path to the executable.
 
 Run the help subcommand for usage information.
 
@@ -119,8 +120,9 @@ the `--kingdom-public-api-cert-host` option.
 `--kingdom-public-api-target`: specify the public API target.
 
 To access ModelProvider, ModelSuite, ModelLine subcommands, authenticate use ModelProvider certificates:
+
  ```shell
-  Access \
+  ModelRepository \
   --tls-cert-file=secretfiles/mp1_tls.pem \
   --tls-key-file=secretfiles/mp1_tls.key \
   --cert-collection-file=secretfiles/kingdom_root.pem \
@@ -129,8 +131,9 @@ To access ModelProvider, ModelSuite, ModelLine subcommands, authenticate use Mod
   ```
 
 To access Population subcommands, authenticate use DataProvider certificates:
+
 ```shell
-  Access \
+  ModelRepository \
   --tls-cert-file=secretfiles/edp1_tls.pem \
   --tls-key-file=secretfiles/edp1_tls.key \
   --cert-collection-file=secretfiles/kingdom_root.pem \
@@ -142,24 +145,129 @@ To access Population subcommands, authenticate use DataProvider certificates:
 
 ### `model-providers`
 
-*   Get a ModelProvider
+* Get a ModelProvider
 
-    ```shell
-    Modelrepository \
-      --tls-cert-file=src/main/k8s/testing/secretfiles/mp1_tls.pem \
-      --tls-key-file=src/main/k8s/testing/secretfiles/mp1_tls.key \
-      --cert-collection-file=src/main/k8s/testing/secretfiles/kingdom_root.pem \
-      --kingdom-public-api-target=v2alpha.kingdom.dev.halo-cmm.org:8443 \
-      model-providers get modelProviders/AAAAAAHs
-    ```
+  ```shell
+  Modelrepository \
+    --tls-cert-file=src/main/k8s/testing/secretfiles/mp1_tls.pem \
+    --tls-key-file=src/main/k8s/testing/secretfiles/mp1_tls.key \
+    --cert-collection-file=src/main/k8s/testing/secretfiles/kingdom_root.pem \
+    --kingdom-public-api-target=v2alpha.kingdom.dev.halo-cmm.org:8443 \
+    model-providers get modelProviders/AAAAAAHs
+  ```
 
-*   List ModelProviders
+* List ModelProviders
 
-    ```shell
-    Modelrepository \
-      --tls-cert-file=src/main/k8s/testing/secretfiles/mp1_tls.pem \
-      --tls-key-file=src/main/k8s/testing/secretfiles/mp1_tls.key \
-      --cert-collection-file=src/main/k8s/testing/secretfiles/kingdom_root.pem \
-      --kingdom-public-api-target=v2alpha.kingdom.dev.halo-cmm.org:8443 \
-      model-providers list --page-size=50 --page-token=pageTokenFromLastListResponse
-    ```
+  ```shell
+  Modelrepository \
+    --tls-cert-file=src/main/k8s/testing/secretfiles/mp1_tls.pem \
+    --tls-key-file=src/main/k8s/testing/secretfiles/mp1_tls.key \
+    --cert-collection-file=src/main/k8s/testing/secretfiles/kingdom_root.pem \
+    --kingdom-public-api-target=v2alpha.kingdom.dev.halo-cmm.org:8443 \
+    model-providers list --page-size=50 --page-token=pageTokenFromPreviousListResponse
+  ```
+
+### `model-suites`
+
+* Get a ModelSuite
+
+  ```shell
+  Modelrepository \
+    --tls-cert-file=src/main/k8s/testing/secretfiles/mp1_tls.pem \
+    --tls-key-file=src/main/k8s/testing/secretfiles/mp1_tls.key \
+    --cert-collection-file=src/main/k8s/testing/secretfiles/kingdom_root.pem \
+    --kingdom-public-api-target=v2alpha.kingdom.dev.halo-cmm.org:8443 \
+    model-suites get modelProviders/AAAAAAAAAHs/modelSuites/AAAAAAAAAHs
+  ```
+
+* List ModelSuites
+
+  ```shell
+  Modelrepository \
+    --tls-cert-file=src/main/k8s/testing/secretfiles/mp1_tls.pem \
+    --tls-key-file=src/main/k8s/testing/secretfiles/mp1_tls.key \
+    --cert-collection-file=src/main/k8s/testing/secretfiles/kingdom_root.pem \
+    --kingdom-public-api-target=v2alpha.kingdom.dev.halo-cmm.org:8443 \
+    model-suites list --parent=modelProviders/AAAAAAAAAHs --page-size=50 \
+    --page-token=pageTokenFromPreviousListResponse
+  ```
+
+* Create ModelSuite
+
+  ```shell
+  Modelrepository \
+    --tls-cert-file=src/main/k8s/testing/secretfiles/mp1_tls.pem \
+    --tls-key-file=src/main/k8s/testing/secretfiles/mp1_tls.key \
+    --cert-collection-file=src/main/k8s/testing/secretfiles/kingdom_root.pem \
+    --kingdom-public-api-target=v2alpha.kingdom.dev.halo-cmm.org:8443 \
+    model-suites create --parent=modelProviders/AAAAAAAAAHs --display-name=name \
+    --description=testing
+  ```
+
+### `model-lines`
+
+* Create ModelLine
+
+  ```shell
+  Modelrepository \
+    --tls-cert-file=src/main/k8s/testing/secretfiles/mp1_tls.pem \
+    --tls-key-file=src/main/k8s/testing/secretfiles/mp1_tls.key \
+    --cert-collection-file=src/main/k8s/testing/secretfiles/kingdom_root.pem \
+    --kingdom-public-api-target=v2alpha.kingdom.dev.halo-cmm.org:8443 \
+    model-lines create --parent=modelProviders/AAAAAAAAAHs/modelSuites/AAAAAAAAAHs \
+    --display-name=name --description=description \
+    --active-start-time=2035-09-04T09:04:00Z --active-end-time=2035-09-12T11:05:00Z \
+    --type=DEV 
+    --holdback-model-line=modelProviders/AAAAAAAAAHs/modelSuites/AAAAAAAAAHs/modelLines/AAAAAAAAAHs \
+    --population=dataProviders/AAAAAAAAAHs/populations/AAAAAAAAAHs
+  ```
+
+* Set ModelLine's active end time
+
+  ```shell
+  Modelrepository \
+    --tls-cert-file=src/main/k8s/testing/secretfiles/mp1_tls.pem \
+    --tls-key-file=src/main/k8s/testing/secretfiles/mp1_tls.key \
+    --cert-collection-file=src/main/k8s/testing/secretfiles/kingdom_root.pem \
+    --kingdom-public-api-target=v2alpha.kingdom.dev.halo-cmm.org:8443 \
+    model-lines set-active-end-time \
+    --name=modelProviders/AAAAAAAAAHs/modelSuites/AAAAAAAAAHs/modelLines/AAAAAAAAAHs \
+    --active-end-time=2035-05-29T09:04:00Z
+  ```
+
+### `populations`
+
+* Get Population
+
+  ```shell
+  Modelrepository \
+    --tls-cert-file=src/main/k8s/testing/secretfiles/mp1_tls.pem \
+    --tls-key-file=src/main/k8s/testing/secretfiles/mp1_tls.key \
+    --cert-collection-file=src/main/k8s/testing/secretfiles/kingdom_root.pem \
+    --kingdom-public-api-target=v2alpha.kingdom.dev.halo-cmm.org:8443 \
+    populations get dataProviders/AAAAAAAAAHs/populations/AAAAAAAAAHs
+  ```
+
+* List Populations
+
+  ```shell
+  Modelrepository \
+    --tls-cert-file=src/main/k8s/testing/secretfiles/mp1_tls.pem \
+    --tls-key-file=src/main/k8s/testing/secretfiles/mp1_tls.key \
+    --cert-collection-file=src/main/k8s/testing/secretfiles/kingdom_root.pem \
+    --kingdom-public-api-target=v2alpha.kingdom.dev.halo-cmm.org:8443 \
+    populations list --parent=dataProviders/AAAAAAAAAHs --page-size=50 \
+    --page-token=pageTokenFromPreviousListResponse
+  ```
+
+* Create Population
+
+  ```shell
+  Modelrepository \
+    --tls-cert-file=src/main/k8s/testing/secretfiles/mp1_tls.pem \
+    --tls-key-file=src/main/k8s/testing/secretfiles/mp1_tls.key \
+    --cert-collection-file=src/main/k8s/testing/secretfiles/kingdom_root.pem \
+    --kingdom-public-api-target=v2alpha.kingdom.dev.halo-cmm.org:8443 \
+    populations create --parent=modelProviders/AAAAAAAAAHs --description=testing \
+    --model-blob-uri=uri --event-template-type=template
+  ```
