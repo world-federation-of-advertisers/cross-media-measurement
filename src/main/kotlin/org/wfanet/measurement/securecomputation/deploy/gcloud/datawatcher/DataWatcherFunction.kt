@@ -22,7 +22,6 @@ import com.google.protobuf.TypeRegistry
 import com.google.protobuf.util.JsonFormat
 import io.cloudevents.CloudEvent
 import java.io.File
-import java.io.StringReader
 import java.nio.file.Paths
 import java.time.Duration
 import java.util.logging.Logger
@@ -31,7 +30,6 @@ import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.edpaggregator.getConfig
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withShutdownTimeout
-import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.config.securecomputation.DataWatcherConfig
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
 import org.wfanet.measurement.securecomputation.datawatcher.DataWatcher
