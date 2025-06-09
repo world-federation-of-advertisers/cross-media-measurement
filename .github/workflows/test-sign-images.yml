@@ -1,6 +1,8 @@
 name: Test sign images with KMS
 
 on:
+  # wip - on pull request only to test the workflow without merging
+  pull_request:
   workflow_dispatch:
 
 jobs:
