@@ -17,8 +17,6 @@
 package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
 import com.google.common.truth.Truth.assertThat
-import com.google.crypto.tink.aead.AeadConfig
-import com.google.crypto.tink.streamingaead.StreamingAeadConfig
 import com.google.protobuf.TypeRegistry
 import com.google.protobuf.kotlin.unpack
 import com.google.type.interval
@@ -29,9 +27,8 @@ import kotlin.random.Random
 import kotlinx.coroutines.flow.count
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
-import org.junit.Rule
+import org.junit.Assert.assertThrows
 import org.junit.Test
-import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
@@ -55,13 +52,6 @@ import org.wfanet.measurement.edpaggregator.v1alpha.labeledImpression
 
 @RunWith(JUnit4::class)
 class RequisitionSpecsTest {
-
-  @get:Rule val tempFolder = TemporaryFolder()
-
-  init {
-    AeadConfig.register()
-    StreamingAeadConfig.register()
-  }
 
   @Test
   fun `getSampledVids filters per cel filter`() = runBlocking {
@@ -208,6 +198,48 @@ class RequisitionSpecsTest {
       )
 
     assertThat(result.count()).isEqualTo(1)
+  }
+
+  fun `throws exception for invalid vid interval`() = runBlocking {
+    // Set up test environment
+    val testEventDescriptor = TestEvent.getDescriptor()
+
+    // Create TypeRegistry with the test event descriptor
+    val typeRegistry = TypeRegistry.newBuilder().add(testEventDescriptor).build()
+
+    // Create sampling interval
+    val vidSamplingInterval = vidSamplingInterval {
+      start = 0.5f
+      width = 0.6f
+    }
+    val labeledImpression = labeledImpression {
+      vid = 1
+      eventTime = FIRST_EVENT_DATE.atTime(1, 1, 1).toInstant(ZoneOffset.UTC).toProtoTime()
+      event =
+        testEvent {
+            this.person = person {
+              gender = Person.Gender.FEMALE
+              ageGroup = Person.AgeGroup.YEARS_18_TO_34
+            }
+          }
+          .pack()
+    }
+    val impressions = flowOf(labeledImpression)
+    val eventReader: EventReader =
+      mock<EventReader> {
+        onBlocking { getLabeledImpressions(any(), any()) }.thenReturn(impressions)
+      }
+
+    assertThrows(IllegalArgumentException::class.java) {
+      runBlocking {
+        RequisitionSpecs.getSampledVids(
+          REQUISITION_SPEC,
+          vidSamplingInterval,
+          typeRegistry,
+          eventReader,
+        )
+      }
+    }
   }
 
   companion object {
