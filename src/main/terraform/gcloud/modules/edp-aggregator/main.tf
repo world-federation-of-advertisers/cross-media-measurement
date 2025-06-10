@@ -253,9 +253,3 @@ resource "google_storage_bucket_iam_binding" "aggregator_storage_admin" {
     "serviceAccount:${module.event_group_sync_function_service_account.cloud_function_service_account.email}",
   ]
 }
-
-resource "google_cloud_run_service_iam_member" "event_group_sync_invoker" {
-  service  = var.event_group_sync_function_name
-  role     = "roles/run.invoker"
-  member   = "serviceAccount:${module.data_watcher_function_service_accounts.cloud_function_service_account.email}"
-}
