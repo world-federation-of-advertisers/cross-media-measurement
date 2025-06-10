@@ -23,6 +23,7 @@ import com.google.crypto.tink.streamingaead.StreamingAeadConfig
 import com.google.protobuf.ByteString
 import com.google.protobuf.Timestamp
 import java.nio.file.Files
+import java.nio.file.Path
 import java.time.LocalDate
 import java.time.ZoneId
 import kotlinx.coroutines.flow.flow
@@ -57,8 +58,6 @@ class EventReaderTest {
   private lateinit var kmsClient: KmsClient
   private lateinit var kekUri: String
   private lateinit var serializedEncryptionKey: ByteString
-  private lateinit var impressionsTmpPath: java.io.File
-  private lateinit var dekTmpPath: java.io.File
 
   init {
     AeadConfig.register()
@@ -80,13 +79,6 @@ class EventReaderTest {
         kekUri,
         tinkKeyTemplateType = "AES128_GCM_HKDF_1MB"
       )
-
-    // Create temporary directories for storage
-    impressionsTmpPath = Files.createTempDirectory(null).toFile()
-    Files.createDirectories(impressionsTmpPath.resolve(IMPRESSIONS_BUCKET).toPath())
-
-    dekTmpPath = Files.createTempDirectory(null).toFile()
-    Files.createDirectories(dekTmpPath.resolve(IMPRESSIONS_DEK_BUCKET).toPath())
   }
 
   @Test
