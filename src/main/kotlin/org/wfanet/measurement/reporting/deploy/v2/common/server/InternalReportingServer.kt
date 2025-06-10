@@ -52,6 +52,16 @@ abstract class AbstractInternalReportingServer : Runnable {
   )
   var basicReportsEnabled: Boolean = false
 
+  @CommandLine.Option(
+    names = ["--disable-metrics-reuse"],
+    description =
+    [
+      "Whether Metrics Reuse is disabled."
+    ],
+    required = false,
+  )
+  var disableMetricsReuse: Boolean = false
+
   protected suspend fun run(services: Services) {
     val server = CommonServer.fromFlags(serverFlags, this::class.simpleName!!, services.toList())
 
@@ -124,11 +134,12 @@ class InternalReportingServer : AbstractInternalReportingServer() {
             postgresClient,
             spannerClient,
             impressionQualificationFilterMapping,
+            disableMetricsReuse,
           )
         )
       }
     } else {
-      run(DataServices.create(idGenerator, postgresClient, null, null))
+      run(DataServices.create(idGenerator, postgresClient, null, null, disableMetricsReuse))
     }
   }
 }

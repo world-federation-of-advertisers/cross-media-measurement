@@ -52,6 +52,7 @@ class InternalReportingServicesProviderRule(
               postgresDatabaseProvider.createDatabase(),
               spannerDatabase.databaseClient,
               impressionQualificationFilterMapping,
+              false,
             )
           base.evaluate()
         }

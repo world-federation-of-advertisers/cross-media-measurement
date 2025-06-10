@@ -63,6 +63,7 @@ object DataServices {
     postgresClient: DatabaseClient,
     spannerClient: AsyncDatabaseClient?,
     impressionQualificationFilterMapping: ImpressionQualificationFilterMapping?,
+    disableMetricsReuse: Boolean,
   ): Services {
     val basicReportsService: BasicReportsGrpcKt.BasicReportsCoroutineImplBase? =
       if (spannerClient != null && impressionQualificationFilterMapping != null) {
@@ -87,7 +88,7 @@ object DataServices {
       measurementsService = PostgresMeasurementsService(idGenerator, postgresClient),
       metricsService = PostgresMetricsService(idGenerator, postgresClient),
       reportingSetsService = PostgresReportingSetsService(idGenerator, postgresClient),
-      reportsService = PostgresReportsService(idGenerator, postgresClient),
+      reportsService = PostgresReportsService(idGenerator, postgresClient, disableMetricsReuse),
       reportSchedulesService = PostgresReportSchedulesService(idGenerator, postgresClient),
       reportScheduleIterationsService =
         PostgresReportScheduleIterationsService(idGenerator, postgresClient),

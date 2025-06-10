@@ -90,11 +90,12 @@ class GCloudInternalReportingServer : AbstractInternalReportingServer() {
             postgresClient,
             spannerClient,
             impressionQualificationFilterMapping,
+            disableMetricsReuse,
           )
         )
       }
     } else {
-      run(DataServices.create(idGenerator, postgresClient, null, null))
+      run(DataServices.create(idGenerator, postgresClient, null, null, disableMetricsReuse))
     }
   }
 }
