@@ -114,11 +114,11 @@ class GetModelProvider : Runnable {
   private lateinit var modelProviderName: String
 
   override fun run() {
-    val modelProvider = runBlocking {
+    val modelProvider =
       parentCommand.modelProvidersClient.getModelProvider(
         getModelProviderRequest { name = modelProviderName }
       )
-    }
+
     println(modelProvider)
   }
 }
@@ -130,14 +130,13 @@ class ListModelProviders : Runnable {
   @Mixin private lateinit var pageParams: PageParams
 
   override fun run() {
-    val response: ListModelProvidersResponse = runBlocking {
+    val response: ListModelProvidersResponse =
       parentCommand.modelProvidersClient.listModelProviders(
         listModelProvidersRequest {
           pageSize = pageParams.pageSize
           pageToken = pageParams.pageToken
         }
       )
-    }
 
     println(response)
   }
