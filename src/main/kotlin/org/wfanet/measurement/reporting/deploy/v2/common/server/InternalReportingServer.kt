@@ -19,6 +19,7 @@ package org.wfanet.measurement.reporting.deploy.v2.common.server
 import io.grpc.BindableService
 import java.io.File
 import java.time.Clock
+import kotlin.properties.Delegates
 import kotlin.reflect.full.declaredMemberProperties
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.runInterruptible
@@ -52,12 +53,15 @@ abstract class AbstractInternalReportingServer : Runnable {
   )
   var basicReportsEnabled: Boolean = false
 
-  @CommandLine.Option(
+
+  //TODO(@tristanvuong2021): Delete flag when testing is finished.
+  @set:CommandLine.Option(
     names = ["--disable-metrics-reuse"],
     description = ["Whether Metrics Reuse is disabled."],
-    required = false,
+    required = true,
   )
-  var disableMetricsReuse: Boolean = false
+  var disableMetricsReuse by Delegates.notNull<Boolean>()
+    private set
 
   protected suspend fun run(services: Services) {
     val server = CommonServer.fromFlags(serverFlags, this::class.simpleName!!, services.toList())
