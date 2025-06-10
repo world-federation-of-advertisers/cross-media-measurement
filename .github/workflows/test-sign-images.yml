@@ -80,12 +80,14 @@ jobs:
 
       - name: Cosign sign
         run: >
-          cosign sign 
+          cosign sign
+          --tlog-upload=false
           --key gcpkms://projects/halo-cmm-poc/locations/global/keyRings/key-ring-signed-builds/cryptoKeys/key-signed-builds/cryptoKeyVersions/1
           ghcr.io/${{ github.repository }}/test-signed-image:v1
 
       - name: Cosign verify
         run: >
           cosign verify 
+          --insecure-ignore-tlog=true
           --key gcpkms://projects/halo-cmm-poc/locations/global/keyRings/key-ring-signed-builds/cryptoKeys/key-signed-builds/cryptoKeyVersions/1
           ghcr.io/${{ github.repository }}/test-signed-image:v1
