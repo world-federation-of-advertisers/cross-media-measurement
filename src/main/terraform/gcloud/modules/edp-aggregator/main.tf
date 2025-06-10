@@ -254,6 +254,11 @@ resource "google_storage_bucket_iam_binding" "aggregator_storage_admin" {
   ]
 }
 
+resource "google_cloudfunctions2_function" "event_group_sync" {
+  name        = var.event_group_sync_function_name
+  location    = var.event_group_sync_function_location
+ }
+
 resource "google_cloud_run_service_iam_member" "event_group_sync_invoker" {
   service  = var.event_group_sync_function_name
   role     = "roles/run.invoker"
