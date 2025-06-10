@@ -21,11 +21,10 @@ import com.google.crypto.tink.KmsClient
 import com.google.crypto.tink.aead.AeadConfig
 import com.google.crypto.tink.streamingaead.StreamingAeadConfig
 import com.google.protobuf.ByteString
-import com.google.protobuf.Timestamp
 import java.nio.file.Files
-import java.nio.file.Path
 import java.time.LocalDate
 import java.time.ZoneId
+import kotlin.test.assertFailsWith
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
@@ -154,6 +153,54 @@ class EventReaderTest {
     for (i in 0 until impressionCount) {
       assertThat(result[i].vid).isEqualTo(i.toLong())
     }
+  }
+
+  @Test
+  fun `getLabeledImpressionsFlow throws exception if impressions blob not found`() {
+    // Create impressions storage client
+    val impressionsTmpPath = Files.createTempDirectory(null).toFile()
+    val impressionsBucketDir = impressionsTmpPath.resolve(IMPRESSIONS_BUCKET)
+    Files.createDirectories(impressionsBucketDir.toPath())
+
+    // Create the impressions DEK store
+    val dekTmpPath = Files.createTempDirectory(null).toFile()
+    val deksBucketDir = dekTmpPath.resolve(IMPRESSIONS_DEK_BUCKET)
+    Files.createDirectories(deksBucketDir.toPath())
+    val impressionsDekStorageClient = FileSystemStorageClient(deksBucketDir)
+
+    val encryptedDek =
+      EncryptedDek.newBuilder().setKekUri(kekUri).setEncryptedDek(serializedEncryptionKey).build()
+
+    val blobDetails =
+      blobDetails {
+        blobUri = "$IMPRESSIONS_FILE_URI/$DS"
+        this.encryptedDek = encryptedDek
+      }
+
+    runBlocking {
+      impressionsDekStorageClient.writeBlob(
+        "ds/$DS/event-group-id/$EVENT_GROUP_NAME/metadata",
+        blobDetails.toByteString()
+      )
+    }
+
+    // Create EventReader
+    val eventReader = EventReader(
+      kmsClient,
+      StorageConfig(rootDirectory = impressionsTmpPath),
+      StorageConfig(rootDirectory = dekTmpPath),
+      IMPRESSIONS_DEK_FILE_URI_PREFIX
+    )
+    // Get labeled impressions
+    assertFailsWith<ImpressionReadException> {
+      runBlocking {
+        eventReader.getLabeledImpressions(
+          DS,
+          EVENT_GROUP_NAME
+        ).toList()
+      }
+    }
+
   }
 
   companion object {
