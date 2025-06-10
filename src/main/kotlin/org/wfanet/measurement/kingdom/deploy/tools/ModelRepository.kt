@@ -187,9 +187,9 @@ class GetModelSuite : Runnable {
   private lateinit var modelSuiteName: String
 
   override fun run() {
-    val modelSuite = runBlocking {
+    val modelSuite =
       parentCommand.modelSuitesClient.getModelSuite(getModelSuiteRequest { name = modelSuiteName })
-    }
+
     println(modelSuite)
   }
 }
@@ -220,7 +220,7 @@ class CreateModelSuite : Runnable {
   private lateinit var modelSuiteDescription: String
 
   override fun run() {
-    val modelSuite = runBlocking {
+    val modelSuite =
       parentCommand.modelSuitesClient.createModelSuite(
         createModelSuiteRequest {
           parent = parentModelProvider
@@ -230,7 +230,6 @@ class CreateModelSuite : Runnable {
           }
         }
       )
-    }
 
     println(modelSuite)
   }
@@ -250,7 +249,7 @@ class ListModelSuites : Runnable {
   @Mixin private lateinit var pageParams: PageParams
 
   override fun run() {
-    val response: ListModelSuitesResponse = runBlocking {
+    val response: ListModelSuitesResponse =
       parentCommand.modelSuitesClient.listModelSuites(
         listModelSuitesRequest {
           parent = parentModelProvider
@@ -258,7 +257,6 @@ class ListModelSuites : Runnable {
           pageToken = pageParams.pageToken
         }
       )
-    }
 
     println(response)
   }
@@ -311,7 +309,7 @@ class CreatePopulation : Runnable {
   private lateinit var eventTemplateType: String
 
   override fun run() {
-    val population = runBlocking {
+    val population =
       parentCommand.populationsClient.createPopulation(
         createPopulationRequest {
           parent = parentDataProvider
@@ -322,7 +320,6 @@ class CreatePopulation : Runnable {
           }
         }
       )
-    }
 
     println(population)
   }
@@ -336,9 +333,9 @@ class GetPopulation : Runnable {
   private lateinit var populationName: String
 
   override fun run() {
-    val population = runBlocking {
+    val population =
       parentCommand.populationsClient.getPopulation(getPopulationRequest { name = populationName })
-    }
+
     println(population)
   }
 }
@@ -357,7 +354,7 @@ class ListPopulations : Runnable {
   @Mixin private lateinit var pageParams: PageParams
 
   override fun run() {
-    val response = runBlocking {
+    val response =
       parentCommand.populationsClient.listPopulations(
         listPopulationsRequest {
           parent = parentDataProvider
@@ -365,7 +362,7 @@ class ListPopulations : Runnable {
           pageToken = pageParams.pageToken
         }
       )
-    }
+
     println(response)
   }
 }
