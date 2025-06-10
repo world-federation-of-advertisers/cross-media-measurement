@@ -150,55 +150,7 @@ class CreateReport(
     val reportingMetricMap:
       Map<MetricCalculationSpecReportingMetricKey, MetricReader.ReportingMetric> =
       if (!disableMetricsReuse) {
-        // Find all combinations of (ReportingSetId, MetricCalculationSpecId, TimeInterval) in the
-        // Report.
-        val reportingMetricKeys: Set<MetricReader.ReportingMetricKey> =
-          report.reportingMetricEntriesMap
-            .flatMap { entry ->
-              val reportingSetId = reportingSetIdsByExternalId.getValue(entry.key)
-
-              entry.value.metricCalculationSpecReportingMetricsList.flatMap {
-                metricCalculationSpecReportingMetric ->
-                val metricCalculationSpecId =
-                  metricCalculationSpecsByExternalId
-                    .getValue(metricCalculationSpecReportingMetric.externalMetricCalculationSpecId)
-                    .metricCalculationSpecId
-
-                metricCalculationSpecReportingMetric.reportingMetricsList.map { reportingMetric ->
-                  MetricReader.ReportingMetricKey(
-                    reportingSetId,
-                    metricCalculationSpecId,
-                    reportingMetric.details.timeInterval,
-                  )
-                }
-              }
-            }
-            .toSet()
-
-        // Retrieve existing metrics and select the most recently created Metric for each
-        // `MetricCalculationSpecReportingMetricKey`.
-        buildMap {
-          MetricReader(transactionContext)
-            .readReportingMetricsByReportingMetricKey(measurementConsumerId, reportingMetricKeys)
-            .collect {
-              val key =
-                MetricCalculationSpecReportingMetricKey(
-                  it.reportingMetricKey.reportingSetId,
-                  it.reportingMetricKey.timeInterval,
-                  it.reportingMetricKey.metricCalculationSpecId,
-                  it.metricSpec,
-                  it.metricDetails,
-                )
-              val oldValue: MetricReader.ReportingMetric? = get(key)
-              if (
-                it.state != Metric.State.FAILED &&
-                  it.state != Metric.State.INVALID &&
-                  (oldValue == null || it.createTime.isAfter(oldValue.createTime))
-              ) {
-                put(key, it)
-              }
-            }
-        }
+        buildReusableMetricsMap(report, measurementConsumerId, reportingSetIdsByExternalId, metricCalculationSpecsByExternalId)
       } else {
         emptyMap()
       }
@@ -312,6 +264,58 @@ class CreateReport(
       reportingMetricEntries.putAll(
         reportingMetricEntriesAndStatement.updatedReportingMetricEntries
       )
+    }
+  }
+
+  private suspend fun TransactionScope.buildReusableMetricsMap(report: Report, measurementConsumerId: InternalId, reportingSetIdsByExternalId: Map<String, InternalId>, metricCalculationSpecsByExternalId: Map<String, MetricCalculationSpecReader.Result>): Map<MetricCalculationSpecReportingMetricKey, MetricReader.ReportingMetric> {
+    // Find all combinations of (ReportingSetId, MetricCalculationSpecId, TimeInterval) in the
+    // Report.
+    val reportingMetricKeys: Set<MetricReader.ReportingMetricKey> =
+      report.reportingMetricEntriesMap
+        .flatMap { entry ->
+          val reportingSetId = reportingSetIdsByExternalId.getValue(entry.key)
+
+          entry.value.metricCalculationSpecReportingMetricsList.flatMap {
+              metricCalculationSpecReportingMetric ->
+            val metricCalculationSpecId =
+              metricCalculationSpecsByExternalId
+                .getValue(metricCalculationSpecReportingMetric.externalMetricCalculationSpecId)
+                .metricCalculationSpecId
+
+            metricCalculationSpecReportingMetric.reportingMetricsList.map { reportingMetric ->
+              MetricReader.ReportingMetricKey(
+                reportingSetId,
+                metricCalculationSpecId,
+                reportingMetric.details.timeInterval,
+              )
+            }
+          }
+        }
+        .toSet()
+
+    // Retrieve existing metrics and select the most recently created Metric for each
+    // `MetricCalculationSpecReportingMetricKey`.
+   return buildMap {
+      MetricReader(transactionContext)
+        .readReportingMetricsByReportingMetricKey(measurementConsumerId, reportingMetricKeys)
+        .collect {
+          val key =
+            MetricCalculationSpecReportingMetricKey(
+              it.reportingMetricKey.reportingSetId,
+              it.reportingMetricKey.timeInterval,
+              it.reportingMetricKey.metricCalculationSpecId,
+              it.metricSpec,
+              it.metricDetails,
+            )
+          val oldValue: MetricReader.ReportingMetric? = get(key)
+          if (
+            it.state != Metric.State.FAILED &&
+            it.state != Metric.State.INVALID &&
+            (oldValue == null || it.createTime.isAfter(oldValue.createTime))
+          ) {
+            put(key, it)
+          }
+        }
     }
   }
 

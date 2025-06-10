@@ -1095,7 +1095,7 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
   @Test
   fun `createReport doesn't reuses existing metrics from the other report when flag true`() =
     runBlocking {
-      val services = newServices(idGenerator, true)
+      val services = newServices(idGenerator, disableMetricsReuse = true)
       service = services.reportsService
       metricsService = services.metricsService
       reportingSetsService = services.reportingSetsService
