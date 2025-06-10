@@ -70,4 +70,25 @@ message GroupedRequisitions {
     (google.api.field_behavior) = REQUIRED,
     (google.api.field_behavior) = UNORDERED_LIST
   ];
+
+  // The validation status of the grouped requisitions
+  message ValidationStatus {
+    // Enum of possible validation statuses
+    enum Status {
+      // Default value, indicating status was not explicitly set or is unknown.
+      VALIDATION_UNSPECIFIED = 0;
+
+      // This group has a terminal problem and cannot be processed.
+      SPEC_INVALID = 2;
+
+      // Unable to build the event group mapping for this group.
+      EVENT_GROUP_MAP_UNAVAILABLE = 3;
+    }
+    // The current status
+    Status status = 1;
+    // Human-readable string adding more context to the status.
+    string message = 2;
+  }
+  // The current validation status
+  ValidationStatus status = 4;
 }

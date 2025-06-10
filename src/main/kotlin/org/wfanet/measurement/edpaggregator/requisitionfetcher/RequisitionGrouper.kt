@@ -34,6 +34,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt.eventG
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt.eventGroupMapEntry
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt.requisitionEntry
 import org.wfanet.measurement.edpaggregator.v1alpha.groupedRequisitions
+import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt
 
 /**
  * An interface to group a list of requisitions.
@@ -73,12 +74,24 @@ abstract class RequisitionGrouper(
   ): List<GroupedRequisitions>
 
   /* Maps a single [Requisition] to a single [GroupedRequisition]. */
-  private suspend fun mapRequisition(requisition: Requisition): GroupedRequisitions? {
+  private suspend fun mapRequisition(requisition: Requisition): GroupedRequisitions {
 
     val measurementSpec: MeasurementSpec =
-      requisitionValidator.validateMeasurementSpec(requisition) ?: return null
+      requisitionValidator.validateMeasurementSpec(requisition) ?: return groupedRequisitions {
+        this.requisitions += requisitionEntry { this.requisition = Any.pack(requisition) }
+        this.status = GroupedRequisitionsKt.validationStatus {
+          message = "Invalid Measurement Spec"
+          this.status = GroupedRequisitions.ValidationStatus.Status.SPEC_INVALID
+        }
+      }
     val requisitionSpec: RequisitionSpec =
-      requisitionValidator.validateRequisitionSpec(requisition) ?: return null
+      requisitionValidator.validateRequisitionSpec(requisition) ?: return groupedRequisitions {
+        this.requisitions += requisitionEntry { this.requisition = Any.pack(requisition) }
+        this.status = GroupedRequisitionsKt.validationStatus {
+          message = "Invalid Requisition Spec"
+          this.status = GroupedRequisitions.ValidationStatus.Status.SPEC_INVALID
+        }
+      }
     val eventGroupMapEntries =
       try {
         getEventGroupMapEntries(requisitionSpec)
@@ -86,8 +99,13 @@ abstract class RequisitionGrouper(
         logger.severe(
           "Exception getting event group map for requisition ${requisition.name}: ${e.message}"
         )
-        // For now, we skip this requisition. However, we could refuse it in the future.
-        return null
+        return groupedRequisitions {
+          this.requisitions += requisitionEntry { this.requisition = Any.pack(requisition) }
+          this.status = GroupedRequisitionsKt.validationStatus {
+            message = "Unable to get event group map"
+            status = GroupedRequisitions.ValidationStatus.Status.EVENT_GROUP_MAP_UNAVAILABLE
+          }
+        }
       }
     return groupedRequisitions {
       modelLine = measurementSpec.modelLine
