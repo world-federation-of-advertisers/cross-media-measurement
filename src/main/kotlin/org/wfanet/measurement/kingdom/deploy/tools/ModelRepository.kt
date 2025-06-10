@@ -19,6 +19,7 @@ package org.wfanet.measurement.kingdom.deploy.tools
 import com.google.protobuf.util.Timestamps
 import io.grpc.ManagedChannel
 import java.time.Duration
+import java.time.Instant
 import java.time.ZoneOffset
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.ListModelSuitesResponse
@@ -56,6 +57,7 @@ import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withShutdownTimeout
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.common.toProtoDate
+import org.wfanet.measurement.common.toProtoTime
 import picocli.CommandLine
 import picocli.CommandLine.Command
 import picocli.CommandLine.Mixin
@@ -351,6 +353,7 @@ class CreateModelLine : Runnable {
     names = ["--display-name"],
     description = ["Human-readable nickname for the ModelLine"],
     required = false,
+    defaultValue = "",
   )
   private lateinit var modelLineDisplayName: String
 
@@ -364,20 +367,20 @@ class CreateModelLine : Runnable {
 
   @Option(
     names = ["--active-start-time"],
-    description = ["TThe start of the time range when this ModelLine is active"],
+    description = ["The start of the time range when this ModelLine is active"],
     required = true,
   )
-  private lateinit var startTime: String
+  private lateinit var startTime: Instant
 
   @Option(
     names = ["--active-end-time"],
     description = ["The end (exclusive) of the time range when the ModelLine is active"],
     required = false,
   )
-  private lateinit var endTime: String
+  private lateinit var endTime: Instant
 
   @Option(names = ["--type"], description = ["Type of the ModelLine"], required = true)
-  private lateinit var typeString: String
+  private lateinit var modelLineType: ModelLine.Type
 
   @Option(
     names = ["--holdback-model-line"],
@@ -399,21 +402,23 @@ class CreateModelLine : Runnable {
   private lateinit var populationName: String
 
   override fun run() {
-    val modelLine = runBlocking {
+    val modelLine =
       parentCommand.modelLinesClient.createModelLine(
         createModelLineRequest {
           parent = parentModelSuite
           modelLine = modelLine {
             displayName = modelLineDisplayName
             description = modelLineDescription
-            activeStartTime = Timestamps.parse(startTime)
-            activeEndTime = Timestamps.parse(endTime)
-            type = ModelLine.Type.valueOf(typeString.uppercase())
+            activeStartTime = startTime.toProtoTime()
+            if (endTime != null) {
+              activeEndTime = endTime!!.toProtoTime()
+            }
+            type = modelLineType
             holdbackModelLine = holdbackModelLineName
           }
         }
       )
-    }
+
     println(modelLine)
 
     val modelRelease =
