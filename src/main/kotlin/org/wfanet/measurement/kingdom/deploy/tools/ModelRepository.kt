@@ -457,14 +457,14 @@ class SetModelLineActiveEndTime : Runnable {
   private lateinit var endTime: String
 
   override fun run() {
-    val result = runBlocking {
+    val result =
       parentCommand.modelLinesClient.setModelLineActiveEndTime(
         setModelLineActiveEndTimeRequest {
           name = modelLineName
           activeEndTime = Timestamps.parse(endTime)
         }
       )
-    }
+
     println(result)
   }
 }
