@@ -25,6 +25,7 @@ import java.io.File
 import java.nio.file.Paths
 import kotlinx.coroutines.runBlocking
 import org.junit.After
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.ClassRule
 import org.junit.Rule
@@ -32,11 +33,10 @@ import org.junit.Test
 import org.junit.rules.TestRule
 import org.wfanet.measurement.api.v2alpha.AkidPrincipalLookup
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
-import org.wfanet.measurement.api.v2alpha.ListModelProvidersPageTokenKt.previousPageEnd as modelProviderPreviousPageEnd
 import org.wfanet.measurement.api.v2alpha.ListModelProvidersResponse
-import org.wfanet.measurement.api.v2alpha.ListModelSuitesPageTokenKt.previousPageEnd as modelSuitePreviousPageEnd
+import org.wfanet.measurement.api.v2alpha.ListModelSuitesPageTokenKt
 import org.wfanet.measurement.api.v2alpha.ListModelSuitesResponse
-import org.wfanet.measurement.api.v2alpha.ListPopulationsPageTokenKt.previousPageEnd as populationPreviousPageEnd
+import org.wfanet.measurement.api.v2alpha.ListPopulationsPageTokenKt
 import org.wfanet.measurement.api.v2alpha.ListPopulationsResponse
 import org.wfanet.measurement.api.v2alpha.ModelProvider
 import org.wfanet.measurement.api.v2alpha.ModelProviderKey
@@ -52,8 +52,6 @@ import org.wfanet.measurement.api.v2alpha.PopulationsGrpc.PopulationsBlockingStu
 import org.wfanet.measurement.api.v2alpha.createModelSuiteRequest
 import org.wfanet.measurement.api.v2alpha.createPopulationRequest
 import org.wfanet.measurement.api.v2alpha.eventTemplate
-import org.wfanet.measurement.api.v2alpha.listModelProvidersPageToken
-import org.wfanet.measurement.api.v2alpha.listModelProvidersResponse
 import org.wfanet.measurement.api.v2alpha.listModelSuitesPageToken
 import org.wfanet.measurement.api.v2alpha.listModelSuitesResponse
 import org.wfanet.measurement.api.v2alpha.listPopulationsPageToken
@@ -81,7 +79,6 @@ import org.wfanet.measurement.config.authorityKeyToPrincipalMap
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
 import org.wfanet.measurement.internal.kingdom.DataProvider as InternalDataProvider
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt as InternalDataProvidersGrpc
-import org.wfanet.measurement.internal.kingdom.ListModelProvidersPageTokenKt as InternalListModelProvidersPageTokenKt
 import org.wfanet.measurement.internal.kingdom.ModelProvider as InternalModelProvider
 import org.wfanet.measurement.internal.kingdom.ModelProvidersGrpcKt as InternalModelProvidersGrpc
 import org.wfanet.measurement.internal.kingdom.ModelSuitesGrpcKt as InternalModelSuitesGrpc
@@ -90,8 +87,6 @@ import org.wfanet.measurement.internal.kingdom.certificate
 import org.wfanet.measurement.internal.kingdom.certificateDetails
 import org.wfanet.measurement.internal.kingdom.dataProvider
 import org.wfanet.measurement.internal.kingdom.dataProviderDetails
-import org.wfanet.measurement.internal.kingdom.listModelProvidersPageToken as internalListModelProvidersPageToken
-import org.wfanet.measurement.internal.kingdom.modelProvider
 import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
 import org.wfanet.measurement.kingdom.deploy.common.service.toList
 import org.wfanet.measurement.kingdom.deploy.tools.ModelRepository
@@ -134,14 +129,10 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
     val internalModelProvidersService =
       InternalModelProvidersGrpc.ModelProvidersCoroutineStub(internalChannel)
     internalModelProvider = runBlocking {
-      internalModelProvidersService.createModelProvider(
-        modelProvider { externalModelProviderId = FIXED_GENERATED_EXTERNAL_ID }
-      )
+      internalModelProvidersService.createModelProvider(InternalModelProvider.getDefaultInstance())
     }
     internalModelProvider2 = runBlocking {
-      internalModelProvidersService.createModelProvider(
-        modelProvider { externalModelProviderId = FIXED_GENERATED_EXTERNAL_ID + 1L }
-      )
+      internalModelProvidersService.createModelProvider(InternalModelProvider.getDefaultInstance())
     }
     val modelProviderApiId = externalIdToApiId(internalModelProvider.externalModelProviderId)
     modelProviderName = ModelProviderKey(modelProviderApiId).toName()
@@ -251,7 +242,7 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
   }
 
   @Test
-  fun `model-providers get prints ModelProvider`() = runBlocking {
+  fun `model-providers get prints ModelProvider`() {
     val modelProvider = internalModelProvider.toModelProvider()
 
     val args = modelProviderArgs + arrayOf("model-providers", "get", modelProvider.name)
@@ -262,42 +253,34 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
   }
 
   @Test
-  fun `model-providers list prints ModelProviders`() = runBlocking {
-    val pageToken = listModelProvidersPageToken {
-      pageSize = 1
-      lastModelProvider = modelProviderPreviousPageEnd {
-        externalModelProviderId = internalModelProvider.externalModelProviderId
-      }
-    }
+  fun `model-providers list prints ModelProviders`() {
+    var args = modelProviderArgs + arrayOf("model-providers", "list", "--page-size=1")
+    var output = callCli(args)
 
-    val args =
+    var response: ListModelProvidersResponse =
+      parseTextProto(output.reader(), ListModelProvidersResponse.getDefaultInstance())
+
+    assertThat(response.modelProvidersList).hasSize(1)
+    assertTrue(response.nextPageToken.isNotEmpty())
+
+    args =
       modelProviderArgs +
         arrayOf(
           "model-providers",
           "list",
           "--page-size=1",
-          "--page-token=${pageToken.toByteArray().base64UrlEncode()}",
+          "--page-token=${response.nextPageToken}",
         )
-    val output = callCli(args)
+    output = callCli(args)
 
-    val internalNextPageToken = internalListModelProvidersPageToken {
-      after =
-        InternalListModelProvidersPageTokenKt.after {
-          externalModelProviderId = internalModelProvider2.externalModelProviderId
-        }
-    }
+    response = parseTextProto(output.reader(), ListModelProvidersResponse.getDefaultInstance())
 
-    assertThat(parseTextProto(output.reader(), ListModelProvidersResponse.getDefaultInstance()))
-      .isEqualTo(
-        listModelProvidersResponse {
-          modelProviders += internalModelProvider2.toModelProvider()
-          nextPageToken = internalNextPageToken.toByteString().base64UrlEncode()
-        }
-      )
+    assertThat(response.modelProvidersList).hasSize(1)
+    assertTrue(response.nextPageToken.isEmpty())
   }
 
   @Test
-  fun `model-suites get prints ModelSuite`() = runBlocking {
+  fun `model-suites get prints ModelSuite`() {
     val modelSuite = createModelSuite()
 
     val args = modelProviderArgs + arrayOf("model-suites", "get", modelSuite.name)
@@ -308,7 +291,7 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
   }
 
   @Test
-  fun `model-suites create prints ModelSuite`() = runBlocking {
+  fun `model-suites create prints ModelSuite`() {
     val args =
       modelProviderArgs +
         arrayOf(
@@ -331,19 +314,20 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
   }
 
   @Test
-  fun `model-suites list prints ModelSuites`() = runBlocking {
+  fun `model-suites list prints ModelSuites`() {
     val modelSuite = createModelSuite()
     val modelSuite2 = createModelSuite()
 
     val pageToken = listModelSuitesPageToken {
       pageSize = PAGE_SIZE
       externalModelProviderId = internalModelProvider.externalModelProviderId
-      lastModelSuite = modelSuitePreviousPageEnd {
-        externalModelProviderId = internalModelProvider.externalModelProviderId
-        externalModelSuiteId =
-          apiIdToExternalId(ModelSuiteKey.fromName(modelSuite.name)!!.modelSuiteId)
-        createTime = modelSuite.createTime
-      }
+      lastModelSuite =
+        ListModelSuitesPageTokenKt.previousPageEnd {
+          externalModelProviderId = internalModelProvider.externalModelProviderId
+          externalModelSuiteId =
+            apiIdToExternalId(ModelSuiteKey.fromName(modelSuite.name)!!.modelSuiteId)
+          createTime = modelSuite.createTime
+        }
     }
 
     val args =
@@ -362,7 +346,7 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
   }
 
   @Test
-  fun `populations get prints Population`() = runBlocking {
+  fun `populations get prints Population`() {
     val population = createPopulation()
 
     val args = dataProviderArgs + arrayOf("populations", "get", population.name)
@@ -373,7 +357,7 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
   }
 
   @Test
-  fun `populations create prints Population`() = runBlocking {
+  fun `populations create prints Population`() {
     val args =
       dataProviderArgs +
         arrayOf(
@@ -398,19 +382,20 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
   }
 
   @Test
-  fun `populations list prints Populations`() = runBlocking {
+  fun `populations list prints Populations`() {
     val population = createPopulation()
     val population2 = createPopulation()
 
     val pageToken = listPopulationsPageToken {
       pageSize = PAGE_SIZE
       externalDataProviderId = internalDataProvider.externalDataProviderId
-      lastPopulation = populationPreviousPageEnd {
-        externalDataProviderId = internalDataProvider.externalDataProviderId
-        externalPopulationId =
-          apiIdToExternalId(PopulationKey.fromName(population2.name)!!.populationId)
-        createTime = population2.createTime
-      }
+      lastPopulation =
+        ListPopulationsPageTokenKt.previousPageEnd {
+          externalDataProviderId = internalDataProvider.externalDataProviderId
+          externalPopulationId =
+            apiIdToExternalId(PopulationKey.fromName(population2.name)!!.populationId)
+          createTime = population2.createTime
+        }
     }
 
     val args =
@@ -502,7 +487,6 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
     private const val EVENT_TEMPLATE_TYPE = "event_template_type"
     private const val MODEL_BLOB_URI = "model_blob_uri"
 
-    private const val FIXED_GENERATED_EXTERNAL_ID = 6789L
     private const val PAGE_SIZE = 50
 
     init {
