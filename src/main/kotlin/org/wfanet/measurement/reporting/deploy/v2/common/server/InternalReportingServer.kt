@@ -56,7 +56,7 @@ abstract class AbstractInternalReportingServer : Runnable {
   // TODO(@tristanvuong2021): Delete flag when testing is finished.
   @set:CommandLine.Option(
     names = ["--disable-metrics-reuse"],
-    description = ["Whether Metrics Reuse is disabled."],
+    description = ["Whether Metrics Reuse is disabled. Will be removed when testing is finished."],
     required = true,
   )
   var disableMetricsReuse by Delegates.notNull<Boolean>()
