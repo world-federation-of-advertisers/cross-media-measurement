@@ -28,9 +28,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec
 import org.wfanet.measurement.common.toInstant
 
-/**
- * Utility functions for working with VIDs (Virtual IDs) in the EDP Aggregator.
- */
+/** Utility functions for working with VIDs (Virtual IDs) in the EDP Aggregator. */
 object RequisitionSpecs {
 
   /**
@@ -62,29 +60,25 @@ object RequisitionSpecs {
         "$vidSamplingIntervalWidth"
     }
 
-
     // Return a Flow that processes event groups and extracts valid VIDs
-    return requisitionSpec.events.eventGroupsList
-      .asFlow()
-      .flatMapConcat { eventGroup ->
-        val collectionInterval = eventGroup.value.collectionInterval
-        val startDate = LocalDate.ofInstant(collectionInterval.startTime.toInstant(), zoneId)
-        val endDate = LocalDate.ofInstant(collectionInterval.endTime.toInstant(), zoneId)
-        val dates = startDate.datesUntil(endDate.plusDays(1)).asSequence().asFlow()
+    return requisitionSpec.events.eventGroupsList.asFlow().flatMapConcat { eventGroup ->
+      val collectionInterval = eventGroup.value.collectionInterval
+      val startDate = LocalDate.ofInstant(collectionInterval.startTime.toInstant(), zoneId)
+      val endDate = LocalDate.ofInstant(collectionInterval.endTime.toInstant(), zoneId)
+      val dates = startDate.datesUntil(endDate.plusDays(1)).asSequence().asFlow()
 
-        // Iterates through all dates up to the end date in the collection interval(inclusive)
-        val impressions = dates.flatMapConcat { date ->
-          eventReader.getLabeledImpressionsFlow(date.toString(), eventGroup.key)
-        }
+      // Iterates through all dates up to the end date in the collection interval(inclusive)
+      val impressions =
+        dates.flatMapConcat { date -> eventReader.getLabeledImpressions(date, eventGroup.key) }
 
-        VidFilter.filterAndExtractVids(
-            impressions,
-            vidSamplingIntervalStart,
-            vidSamplingIntervalWidth,
-            eventGroup.value.filter,
-            collectionInterval,
-            typeRegistry
-          )
-      }
+      VidFilter.filterAndExtractVids(
+        impressions,
+        vidSamplingIntervalStart,
+        vidSamplingIntervalWidth,
+        eventGroup.value.filter,
+        collectionInterval,
+        typeRegistry,
+      )
+    }
   }
 }

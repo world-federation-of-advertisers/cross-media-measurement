@@ -21,6 +21,7 @@ import com.google.crypto.tink.KmsClient
 import com.google.crypto.tink.aead.AeadConfig
 import com.google.crypto.tink.streamingaead.StreamingAeadConfig
 import com.google.protobuf.ByteString
+import com.google.protobuf.Timestamp
 import java.nio.file.Files
 import java.time.LocalDate
 import java.time.ZoneId
@@ -28,6 +29,8 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
+import org.wfanet.measurement.edpaggregator.EncryptedStorage
+import org.wfanet.measurement.edpaggregator.testing.TestEncryptedStorage
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
@@ -66,15 +69,16 @@ class EventReaderTest {
   fun setUp() {
     // Set up KMS
     kekUri = FakeKmsClient.KEY_URI_PREFIX
-    kmsClient = EncryptedMesosStorage.createKmsClient(FakeKmsClient.KEY_URI_PREFIX)
+    kmsClient = TestEncryptedStorage.buildFakeKmsClient(FakeKmsClient.KEY_URI_PREFIX, keyTemplate="AES128_GCM")
 
 
 
     // Set up encryption key
     serializedEncryptionKey =
-      EncryptedMesosStorage.generateSerializedEnryptionKey(
+      EncryptedStorage.getSerializedEncryptionKey(
         kmsClient,
-        kekUri
+        kekUri,
+        tinkKeyTemplateType = "AES128_GCM_HKDF_1MB"
       )
 
     // Create temporary directories for storage
@@ -94,7 +98,7 @@ class EventReaderTest {
     val impressionsStorageClient = FileSystemStorageClient(impressionsBucketDir)
 
     // Setup encrypted mesos client
-    val mesosRecordIoStorageClient =  EncryptedMesosStorage.createEncryptedMesosStorage(
+    val mesosRecordIoStorageClient =  EncryptedStorage.buildEncryptedMesosStorageClient(
       impressionsStorageClient,
       kmsClient,
       kekUri,
@@ -148,8 +152,8 @@ class EventReaderTest {
     )
 
     // Get labeled impressions
-    val result = eventReader.getLabeledImpressionsFlow(
-      DS.toString(),
+    val result = eventReader.getLabeledImpressions(
+      DS,
       EVENT_GROUP_NAME
     ).toList()
 

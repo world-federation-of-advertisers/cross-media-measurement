@@ -17,15 +17,15 @@
 package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
 import com.google.crypto.tink.KmsClient
+import java.time.LocalDate
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.common.flatten
+import org.wfanet.measurement.edpaggregator.EncryptedStorage
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
-import org.wfanet.measurement.storage.MesosRecordIoStorageClient
 import org.wfanet.measurement.storage.SelectedStorageClient
-import org.wfanet.measurement.common.crypto.tink.withEnvelopeEncryption
 
 /**
  * Reads labeled impressions from storage.
@@ -39,7 +39,7 @@ class EventReader(
   private val kmsClient: KmsClient,
   private val impressionsStorageConfig: StorageConfig,
   private val impressionDekStorageConfig: StorageConfig,
-  private val labeledImpressionsDekPrefix: String
+  private val labeledImpressionsDekPrefix: String,
 ) {
   /**
    * Retrieves a flow of labeled impressions for a given ds and event group ID.
@@ -48,10 +48,7 @@ class EventReader(
    * @param eventGroupId The ID of the event group
    * @return A flow of labeled impressions
    */
-  suspend fun getLabeledImpressionsFlow(
-    ds: String,
-    eventGroupId: String
-  ): Flow<LabeledImpression> {
+  suspend fun getLabeledImpressions(ds: LocalDate, eventGroupId: String): Flow<LabeledImpression> {
     val blobDetails = getBlobDetails(ds, eventGroupId)
     return getLabeledImpressions(blobDetails)
   }
@@ -63,21 +60,22 @@ class EventReader(
    * @param eventGroupId The ID of the event group
    * @return The blob details with the DEK
    */
-  private suspend fun getBlobDetails(
-    ds: String,
-    eventGroupId: String
-  ): BlobDetails {
+  private suspend fun getBlobDetails(ds: LocalDate, eventGroupId: String): BlobDetails {
     val dekBlobKey = "ds/$ds/event-group-id/$eventGroupId/metadata"
     val dekBlobUri = "$labeledImpressionsDekPrefix/$dekBlobKey"
 
     val storageClientUri = SelectedStorageClient.parseBlobUri(dekBlobUri)
-    val impressionsDekStorageClient = SelectedStorageClient(
-      storageClientUri,
-      impressionDekStorageConfig.rootDirectory,
-      impressionDekStorageConfig.projectId,
-    )
+    val impressionsDekStorageClient =
+      SelectedStorageClient(
+        storageClientUri,
+        impressionDekStorageConfig.rootDirectory,
+        impressionDekStorageConfig.projectId,
+      )
     // Get EncryptedDek message from storage using the blobKey made up of the ds and eventGroupId
-    return BlobDetails.parseFrom(impressionsDekStorageClient.getBlob(dekBlobKey)!!.read().flatten())
+    val blob =
+      impressionsDekStorageClient.getBlob(dekBlobKey)
+        ?: throw ImpressionReadException(dekBlobKey, ImpressionReadException.Code.BLOB_NOT_FOUND)
+    return BlobDetails.parseFrom(blob.read().flatten())
   }
 
   /**
@@ -92,26 +90,34 @@ class EventReader(
 
     // Create and configure storage client with encryption
     val encryptedDek = blobDetails.encryptedDek
-    val encryptedImpressionsClient = SelectedStorageClient(
-      storageClientUri,
-      impressionsStorageConfig.rootDirectory,
-      impressionsStorageConfig.projectId,
-    )
-    val impressionsAeadStorageClient = encryptedImpressionsClient.withEnvelopeEncryption(
-      kmsClient,
-      encryptedDek.kekUri,
-      encryptedDek.encryptedDek
-    )
+    val selectedStorageClient =
+      SelectedStorageClient(
+        storageClientUri,
+        impressionsStorageConfig.rootDirectory,
+        impressionsStorageConfig.projectId,
+      )
 
-    // Access blob storage
-    val impressionsMesosStorage = MesosRecordIoStorageClient(impressionsAeadStorageClient)
-    val impressionBlob = impressionsMesosStorage.getBlob(storageClientUri.key)
-      ?: throw IllegalStateException("Could not retrieve impression blob from ${storageClientUri.key}")
+    val impressionsMesosStorage =
+      EncryptedStorage.buildEncryptedMesosStorageClient(
+        selectedStorageClient,
+        kekUri = encryptedDek.kekUri,
+        kmsClient = kmsClient,
+        serializedEncryptionKey = encryptedDek.encryptedDek,
+      )
+    val impressionBlob =
+      impressionsMesosStorage.getBlob(storageClientUri.key)
+        ?: throw ImpressionReadException(
+          storageClientUri.key,
+          ImpressionReadException.Code.BLOB_NOT_FOUND,
+        )
 
     // Parse raw data into LabeledImpression objects
     return impressionBlob.read().map { impressionByteString ->
       LabeledImpression.parseFrom(impressionByteString)
-        ?: throw IllegalStateException("Failed to parse LabeledImpression from bytes")
+        ?: throw ImpressionReadException(
+          storageClientUri.key,
+          ImpressionReadException.Code.INVALID_FORMAT,
+        )
     }
   }
 }

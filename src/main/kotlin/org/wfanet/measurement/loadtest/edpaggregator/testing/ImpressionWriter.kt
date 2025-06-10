@@ -22,12 +22,11 @@ import java.io.File
 import java.time.LocalDate
 import java.util.logging.Logger
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.crypto.tink.withEnvelopeEncryption
 import org.wfanet.measurement.common.toProtoTime
-import org.wfanet.measurement.edpaggregator.requisitionfetcher.EncryptedDekUtils
+import org.wfanet.measurement.edpaggregator.EncryptedStorage
 import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
 import org.wfanet.measurement.edpaggregator.v1alpha.blobDetails
@@ -75,7 +74,7 @@ class ImpressionsWriter(
     events: Flow<DateShardedLabeledImpression<T>>
   ) {
     val serializedEncryptionKey =
-      EncryptedDekUtils.getSerializedEncryptionKey(kmsClient, kekUri, "AES128_GCM_HKDF_1MB")
+      EncryptedStorage.getSerializedEncryptionKey(kmsClient, kekUri, "AES128_GCM_HKDF_1MB")
     val encryptedDek =
       EncryptedDek.newBuilder().setKekUri(kekUri).setEncryptedDek(serializedEncryptionKey).build()
 
