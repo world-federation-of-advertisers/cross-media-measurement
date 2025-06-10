@@ -22,6 +22,11 @@ import com.google.protobuf.util.Timestamps
 import io.grpc.Server
 import io.grpc.ServerServiceDefinition
 import io.grpc.netty.NettyServerBuilder
+import java.nio.file.Path
+import java.nio.file.Paths
+import java.time.Instant
+import java.time.ZoneOffset
+import java.util.concurrent.TimeUnit.SECONDS
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Before
@@ -86,11 +91,6 @@ import org.wfanet.measurement.common.testing.captureFirst
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.common.toProtoDate
 import org.wfanet.measurement.common.toProtoTime
-import java.nio.file.Path
-import java.nio.file.Paths
-import java.time.Instant
-import java.time.ZoneOffset
-import java.util.concurrent.TimeUnit.SECONDS
 
 @RunWith(JUnit4::class)
 class ModelRepositoryTest {
