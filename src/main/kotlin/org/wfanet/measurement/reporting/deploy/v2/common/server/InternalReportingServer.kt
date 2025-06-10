@@ -54,10 +54,7 @@ abstract class AbstractInternalReportingServer : Runnable {
 
   @CommandLine.Option(
     names = ["--disable-metrics-reuse"],
-    description =
-    [
-      "Whether Metrics Reuse is disabled."
-    ],
+    description = ["Whether Metrics Reuse is disabled."],
     required = false,
   )
   var disableMetricsReuse: Boolean = false

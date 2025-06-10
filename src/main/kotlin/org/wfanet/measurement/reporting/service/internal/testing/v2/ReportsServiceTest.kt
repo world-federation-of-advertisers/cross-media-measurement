@@ -106,7 +106,10 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
   private lateinit var measurementsService: MeasurementsCoroutineImplBase
 
   /** Constructs the services being tested. */
-  protected abstract fun newServices(idGenerator: IdGenerator, disableMetricsReuse: Boolean = false): Services<T>
+  protected abstract fun newServices(
+    idGenerator: IdGenerator,
+    disableMetricsReuse: Boolean = false,
+  ): Services<T>
 
   @Before
   fun initService() {
@@ -1214,7 +1217,7 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
           val reportingSet = createdReportingSetsByExternalId.getValue(entry.key)
 
           entry.value.metricCalculationSpecReportingMetricsList.flatMap {
-              metricCalculationSpecReportingMetrics ->
+            metricCalculationSpecReportingMetrics ->
             val metricCalculationSpecFilter =
               createdMetricCalculationSpecsByExternalId
                 .getValue(metricCalculationSpecReportingMetrics.externalMetricCalculationSpecId)
@@ -1251,7 +1254,7 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
 
       for (entry in secondReport.reportingMetricEntriesMap.entries) {
         for (metricCalculationSpecReportingMetrics in
-        entry.value.metricCalculationSpecReportingMetricsList) {
+          entry.value.metricCalculationSpecReportingMetricsList) {
           for (reportingMetric in metricCalculationSpecReportingMetrics.reportingMetricsList) {
             assertThat(reportingMetric.createMetricRequestId).isNotEmpty()
             assertThat(reportingMetric.externalMetricId).isEmpty()

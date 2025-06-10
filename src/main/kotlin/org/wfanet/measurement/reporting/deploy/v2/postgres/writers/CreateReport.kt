@@ -59,7 +59,10 @@ import org.wfanet.measurement.reporting.service.internal.ReportingSetNotFoundExc
  * * [ReportScheduleNotFoundException] ReportSchedule not found
  * * [ReportAlreadyExistsException] Report already exists
  */
-class CreateReport(private val request: CreateReportRequest, private val disableMetricsReuse: Boolean) : PostgresWriter<Report>() {
+class CreateReport(
+  private val request: CreateReportRequest,
+  private val disableMetricsReuse: Boolean,
+) : PostgresWriter<Report>() {
   private data class ReportingMetricEntriesAndStatement(
     val metricCalculationSpecReportingMetricsStatement: BoundStatement,
     val updatedReportingMetricEntries: Map<String, Report.ReportingMetricCalculationSpec>,
@@ -154,7 +157,8 @@ class CreateReport(private val request: CreateReportRequest, private val disable
             .flatMap { entry ->
               val reportingSetId = reportingSetIdsByExternalId.getValue(entry.key)
 
-              entry.value.metricCalculationSpecReportingMetricsList.flatMap { metricCalculationSpecReportingMetric ->
+              entry.value.metricCalculationSpecReportingMetricsList.flatMap {
+                metricCalculationSpecReportingMetric ->
                 val metricCalculationSpecId =
                   metricCalculationSpecsByExternalId
                     .getValue(metricCalculationSpecReportingMetric.externalMetricCalculationSpecId)
@@ -188,8 +192,8 @@ class CreateReport(private val request: CreateReportRequest, private val disable
               val oldValue: MetricReader.ReportingMetric? = get(key)
               if (
                 it.state != Metric.State.FAILED &&
-                it.state != Metric.State.INVALID &&
-                (oldValue == null || it.createTime.isAfter(oldValue.createTime))
+                  it.state != Metric.State.INVALID &&
+                  (oldValue == null || it.createTime.isAfter(oldValue.createTime))
               ) {
                 put(key, it)
               }
