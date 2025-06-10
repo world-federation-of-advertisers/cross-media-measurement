@@ -22,11 +22,6 @@ import com.google.protobuf.util.Timestamps
 import io.grpc.Server
 import io.grpc.ServerServiceDefinition
 import io.grpc.netty.NettyServerBuilder
-import java.nio.file.Path
-import java.nio.file.Paths
-import java.time.Instant
-import java.time.ZoneOffset
-import java.util.concurrent.TimeUnit.SECONDS
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Before
@@ -91,6 +86,11 @@ import org.wfanet.measurement.common.testing.captureFirst
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.common.toProtoDate
 import org.wfanet.measurement.common.toProtoTime
+import java.nio.file.Path
+import java.nio.file.Paths
+import java.time.Instant
+import java.time.ZoneOffset
+import java.util.concurrent.TimeUnit.SECONDS
 
 @RunWith(JUnit4::class)
 class ModelRepositoryTest {
@@ -133,7 +133,7 @@ class ModelRepositoryTest {
   private val modelLinesServiceMock: ModelLinesGrpcKt.ModelLinesCoroutineImplBase = mockService {
     onBlocking { createModelLine(any()) }.thenReturn(MODEL_LINE)
     onBlocking { setModelLineActiveEndTime(any()) }
-      .thenReturn(MODEL_LINE.copy { activeEndTime = Timestamps.parse(ACTIVE_END_TIME_STRING_2) })
+      .thenReturn(MODEL_LINE.copy { activeEndTime = Timestamps.parse(ACTIVE_END_TIME_2) })
   }
 
   private val serverCerts =
@@ -345,9 +345,9 @@ class ModelRepositoryTest {
           "--parent=$MODEL_SUITE_NAME",
           "--display-name=$DISPLAY_NAME",
           "--description=$DESCRIPTION",
-          "--active-start-time=$ACTIVE_START_TIME_STRING",
-          "--active-end-time=$ACTIVE_END_TIME_STRING",
-          "--type=$MODEL_LINE_TYPE_STRING",
+          "--active-start-time=$ACTIVE_START_TIME",
+          "--active-end-time=$ACTIVE_END_TIME",
+          "--type=$MODEL_LINE_TYPE_DEV",
           "--holdback-model-line=$HOLDBACK_MODEL_LINE_NAME",
           "--population=$POPULATION_NAME",
         )
@@ -378,7 +378,7 @@ class ModelRepositoryTest {
           "model-lines",
           "set-active-end-time",
           "--name=$MODEL_LINE_NAME",
-          "--active-end-time=$ACTIVE_END_TIME_STRING_2",
+          "--active-end-time=$ACTIVE_END_TIME_2",
         )
 
     val output = callCli(args)
@@ -391,11 +391,11 @@ class ModelRepositoryTest {
       .isEqualTo(
         setModelLineActiveEndTimeRequest {
           name = MODEL_LINE_NAME
-          activeEndTime = Timestamps.parse(ACTIVE_END_TIME_STRING_2)
+          activeEndTime = Timestamps.parse(ACTIVE_END_TIME_2)
         }
       )
     assertThat(parseTextProto(output.reader(), ModelLine.getDefaultInstance()))
-      .isEqualTo(MODEL_LINE.copy { activeEndTime = Timestamps.parse(ACTIVE_END_TIME_STRING_2) })
+      .isEqualTo(MODEL_LINE.copy { activeEndTime = Timestamps.parse(ACTIVE_END_TIME_2) })
   }
 
   private val commonArgs: Array<String>
@@ -479,15 +479,15 @@ class ModelRepositoryTest {
       name = MODEL_LINE_NAME
       displayName = DISPLAY_NAME
       description = DESCRIPTION
-      activeStartTime = Timestamps.parse(ACTIVE_START_TIME_STRING)
-      activeEndTime = Timestamps.parse(ACTIVE_END_TIME_STRING)
+      activeStartTime = Timestamps.parse(ACTIVE_START_TIME)
+      activeEndTime = Timestamps.parse(ACTIVE_END_TIME)
       type = ModelLine.Type.DEV
       holdbackModelLine = HOLDBACK_MODEL_LINE_NAME
     }
-    private const val ACTIVE_START_TIME_STRING = "2025-01-15T10:00:00Z"
-    private const val ACTIVE_END_TIME_STRING = "2025-02-15T10:00:00Z"
-    private const val ACTIVE_END_TIME_STRING_2 = "2025-03-15T10:00:00Z"
-    private const val MODEL_LINE_TYPE_STRING = "DEV"
+    private const val ACTIVE_START_TIME = "2025-01-15T10:00:00Z"
+    private const val ACTIVE_END_TIME = "2025-02-15T10:00:00Z"
+    private const val ACTIVE_END_TIME_2 = "2025-03-15T10:00:00Z"
+    private const val MODEL_LINE_TYPE_DEV = "DEV"
     private const val HOLDBACK_MODEL_LINE_NAME = "$MODEL_SUITE_NAME/modelLines/BBBBBBBBBHs"
 
     private const val MODEL_RELEASE_NAME = "$MODEL_SUITE_NAME/modelReleases/AAAAAAAAAHs"
