@@ -66,11 +66,15 @@ import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.MappedEventGroup
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.eventGroup
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.mappedEventGroup
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionFetcher
+import org.wfanet.measurement.edpaggregator.resultsfulfiller.ResultsFulfillerTestApp
+import org.wfanet.measurement.gcloud.pubsub.Subscriber
 import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorClient
 import org.wfanet.measurement.loadtest.dataprovider.SyntheticDataGeneration
 import org.wfanet.measurement.loadtest.edpaggregator.testing.ImpressionsWriter
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
 import org.wfanet.measurement.loadtest.resourcesetup.Resources.Resource
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineStub
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
 import org.wfanet.measurement.securecomputation.datawatcher.DataWatcher
 import org.wfanet.measurement.securecomputation.datawatcher.testing.DataWatcherSubscribingStorageClient
@@ -127,7 +131,20 @@ class InProcessEdpAggregatorComponents(
     kmsClient
   }
 
-  // TODO(@stevenewarejones): Add Results Fulfiller App when ready
+  private val resultFulfillerApp by lazy {
+    val subscriber = Subscriber(PROJECT_ID, pubSubClient)
+    ResultsFulfillerTestApp(
+      parser = WorkItem.parser(),
+      subscriptionId = SUBSCRIPTION_ID,
+      workItemsClient = workItemsClient,
+      workItemAttemptsClient =
+        WorkItemAttemptsCoroutineStub(secureComputationPublicApi.publicApiChannel),
+      queueSubscriber = subscriber,
+      cmmsChannel = publicApiChannel,
+      fileSystemRootDirectory = storagePath.toFile(),
+      kmsClient = kmsClient,
+    )
+  }
 
   val ruleChain: TestRule by lazy {
     chainRulesSequentially(internalServicesRule, secureComputationPublicApi)
@@ -201,8 +218,7 @@ class InProcessEdpAggregatorComponents(
     logger.info("Received mappedEventGroups: $mappedEventGroups")
     backgroundScope.launch {
       runBlocking { writeImpressionData(mappedEventGroups) }
-
-      // TODO(@stevenwarejones): Run Results Fulfiller App
+      resultFulfillerApp.run()
     }
   }
 
