@@ -6,7 +6,6 @@ def _dump_images_impl(ctx):
     tag = ctx.expand_make_variables("tag", IMAGE_REPOSITORY_SETTINGS.image_tag, {})
     lines = []
     for image_spec in TEST_SIGNED_BUILD_IMAGES:
-        lines.append(image_spec.repository)
         repository = ctx.expand_make_variables("repository", image_spec.repository, {})
         lines.append("%s/%s:%s" % (registry, repository, tag))
     ctx.actions.write(
