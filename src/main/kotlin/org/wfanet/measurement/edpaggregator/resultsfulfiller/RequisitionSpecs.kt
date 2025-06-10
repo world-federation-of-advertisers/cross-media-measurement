@@ -65,7 +65,7 @@ object RequisitionSpecs {
       val collectionInterval = eventGroup.value.collectionInterval
       val startDate = LocalDate.ofInstant(collectionInterval.startTime.toInstant(), zoneId)
       val endDate = LocalDate.ofInstant(collectionInterval.endTime.toInstant(), zoneId)
-      val dates = startDate.datesUntil(endDate.plusDays(1)).asSequence().asFlow()
+      val dates = startDate.datesUntil(endDate).asSequence().asFlow()
 
       // Iterates through all dates up to the end date in the collection interval(inclusive)
       val impressions =

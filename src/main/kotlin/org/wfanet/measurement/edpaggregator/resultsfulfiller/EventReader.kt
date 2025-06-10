@@ -85,7 +85,6 @@ class EventReader(
    * @return A flow of labeled impressions
    */
   private suspend fun getLabeledImpressions(blobDetails: BlobDetails): Flow<LabeledImpression> {
-    // Get blob URI from encrypted DEK
     val storageClientUri = SelectedStorageClient.parseBlobUri(blobDetails.blobUri)
 
     // Create and configure storage client with encryption
@@ -97,7 +96,7 @@ class EventReader(
         impressionsStorageConfig.projectId,
       )
 
-    val impressionsMesosStorage =
+    val impressionsStorage =
       EncryptedStorage.buildEncryptedMesosStorageClient(
         selectedStorageClient,
         kekUri = encryptedDek.kekUri,
@@ -105,7 +104,7 @@ class EventReader(
         serializedEncryptionKey = encryptedDek.encryptedDek,
       )
     val impressionBlob =
-      impressionsMesosStorage.getBlob(storageClientUri.key)
+      impressionsStorage.getBlob(storageClientUri.key)
         ?: throw ImpressionReadException(
           storageClientUri.key,
           ImpressionReadException.Code.BLOB_NOT_FOUND,
