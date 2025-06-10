@@ -108,5 +108,13 @@ jobs:
         run: |
           for image_ref in $(cat bazel-bin/src/main/docker/images_to_sign.txt); do
             echo "Signing image: ${image_ref}"
-            #cosign sign --tlog-upload=false --key gcpkms://projects/halo-cmm-poc/locations/global/keyRings/key-ring-signed-builds/cryptoKeys/key-signed-builds/cryptoKeyVersions/1 ${image_ref}
+            cosign sign --tlog-upload=false --key gcpkms://projects/halo-cmm-poc/locations/global/keyRings/key-ring-signed-builds/cryptoKeys/key-signed-builds/cryptoKeyVersions/1 ${image_ref}
           done
+
+      - name: Cosign verify list of images
+        run: |
+          for image_ref in $(cat bazel-bin/src/main/docker/images_to_sign.txt); do
+          echo "Verifying image: ${image_ref}"
+            cosign verify --insecure-ignore-tlog=true --key gcpkms://projects/halo-cmm-poc/locations/global/keyRings/key-ring-signed-builds/cryptoKeys/key-signed-builds/cryptoKeyVersions/1 ${image_ref}
+          done
+            
