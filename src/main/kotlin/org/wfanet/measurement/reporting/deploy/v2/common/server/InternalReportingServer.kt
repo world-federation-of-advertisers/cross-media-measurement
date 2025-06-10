@@ -53,8 +53,7 @@ abstract class AbstractInternalReportingServer : Runnable {
   )
   var basicReportsEnabled: Boolean = false
 
-
-  //TODO(@tristanvuong2021): Delete flag when testing is finished.
+  // TODO(@tristanvuong2021): Delete flag when testing is finished.
   @set:CommandLine.Option(
     names = ["--disable-metrics-reuse"],
     description = ["Whether Metrics Reuse is disabled."],
