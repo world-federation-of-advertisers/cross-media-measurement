@@ -31,7 +31,7 @@ import org.wfanet.measurement.common.parseTextProto
  * by environment variables.
  *
  * Environment variables consumed:
- * - EDPS_CONFIG_STORAGE_BUCKET: URI prefix where config blobs live.
+ * - EDPA_CONFIG_STORAGE_BUCKET: URI prefix where config blobs live.
  *     • gs://my-bucket/base-path for Google Cloud Storage
  *     • file:///absolute/local/path for local-filesystem testing
  *   This value must be set and must not end with a slash.
@@ -49,8 +49,8 @@ suspend fun <T: Message> getConfig(
   defaultInstance: T,
   typeRegistry: TypeRegistry? = null
 ): T {
-  val storageUriPrefix = checkNotNull(System.getenv("EDPS_CONFIG_STORAGE_BUCKET")) {
-    "Environment variable EDPS_CONFIG_STORAGE_BUCKET must be set."
+  val storageUriPrefix = checkNotNull(System.getenv("EDPA_CONFIG_STORAGE_BUCKET")) {
+    "Environment variable EDPA_CONFIG_STORAGE_BUCKET must be set."
   }.removeSuffix("/")
   val projectId = System.getenv("GOOGLE_PROJECT_ID")
 

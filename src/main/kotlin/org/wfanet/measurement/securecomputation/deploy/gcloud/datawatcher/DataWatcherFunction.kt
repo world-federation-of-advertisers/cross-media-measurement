@@ -121,10 +121,10 @@ class DataWatcherFunction : CloudEventsFunction {
 
     private val workItemsStub by lazy { WorkItemsCoroutineStub(publicChannel) }
 
-    val TYPE_REGISTRY = TypeRegistry.newBuilder()
+    private const val TYPE_REGISTRY = TypeRegistry.newBuilder()
       .add(ResultsFulfillerParams.getDescriptor())
       .build()
-    private val CONFIG_BLOB_KEY = "data-watcher-config.textproto"
+    private const val CONFIG_BLOB_KEY = "data-watcher-config.textproto"
     private val dataWatcherConfig by lazy {
       runBlocking { getConfig(CONFIG_BLOB_KEY, DataWatcherConfig.getDefaultInstance(), TYPE_REGISTRY) }
     }

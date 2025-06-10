@@ -95,7 +95,7 @@ class RequisitionFetcherFunction : HttpFunction {
       }
     }
 
-    private val CONFIG_BLOB_KEY = "requisition-fetcher-config.textproto"
+    private const val CONFIG_BLOB_KEY = "requisition-fetcher-config.textproto"
     private val requisitionFetcherConfig by lazy {
       runBlocking { getConfig(CONFIG_BLOB_KEY, RequisitionFetcherConfig.getDefaultInstance()) }
     }

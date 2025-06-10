@@ -91,7 +91,7 @@ class RequisitionFetcherFunctionTest {
             "KINGDOM_CERT_HOST" to "localhost",
             "PAGE_SIZE" to "10",
             "STORAGE_PATH_PREFIX" to STORAGE_PATH_PREFIX,
-            "EDPS_CONFIG_STORAGE_BUCKET" to REQUISITION_CONFIG_FILE_SYSTEM_PATH
+            "EDPA_CONFIG_STORAGE_BUCKET" to REQUISITION_CONFIG_FILE_SYSTEM_PATH
           )
         )
       logger.info("Started RequisitionFetcher process on port $port")

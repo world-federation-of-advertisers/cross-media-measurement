@@ -116,7 +116,7 @@ class InvokeDataWatcherFunctionTest() {
             "CERT_FILE_PATH" to SECRETS_DIR.resolve("edp7_tls.pem").toString(),
             "PRIVATE_KEY_FILE_PATH" to SECRETS_DIR.resolve("edp7_tls.key").toString(),
             "CERT_COLLECTION_FILE_PATH" to SECRETS_DIR.resolve("kingdom_root.pem").toString(),
-            "EDPS_CONFIG_STORAGE_BUCKET" to DATA_WATCHER_CONFIG_FILE_SYSTEM_PATH,
+            "EDPA_CONFIG_STORAGE_BUCKET" to DATA_WATCHER_CONFIG_FILE_SYSTEM_PATH,
           ) + additionalFlags
         )
       logger.info("Started DataWatcher process on port $port")
