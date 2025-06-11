@@ -70,13 +70,13 @@ class VidFilterTest {
     // Call the filterAndExtractVids method
     val result =
       VidFilter.filterAndExtractVids(
-        listOf(labeledImpression).asFlow(),
-        0.0f,
-        1.0f,
-        filter,
-        collectionInterval,
-        typeRegistry,
-      )
+          listOf(labeledImpression).asFlow(),
+          0.0f,
+          1.0f,
+          filter,
+          collectionInterval,
+          typeRegistry,
+        )
         .toList()
 
     // Verify the result
@@ -111,13 +111,13 @@ class VidFilterTest {
     // Call the filterAndExtractVids method
     val result =
       VidFilter.filterAndExtractVids(
-        listOf(labeledImpression).asFlow(),
-        0.0f,
-        1.0f,
-        filter,
-        collectionInterval,
-        typeRegistry,
-      )
+          listOf(labeledImpression).asFlow(),
+          0.0f,
+          1.0f,
+          filter,
+          collectionInterval,
+          typeRegistry,
+        )
         .toList()
 
     // Verify the result

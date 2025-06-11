@@ -71,11 +71,11 @@ class RequisitionSpecsTest {
       eventTime = FIRST_EVENT_DATE.atTime(1, 1, 1).toInstant(ZoneOffset.UTC).toProtoTime()
       event =
         testEvent {
-          this.person = person {
-            gender = Person.Gender.FEMALE
-            ageGroup = Person.AgeGroup.YEARS_18_TO_34
+            this.person = person {
+              gender = Person.Gender.FEMALE
+              ageGroup = Person.AgeGroup.YEARS_18_TO_34
+            }
           }
-        }
           .pack()
     }
     val impressions =
@@ -127,11 +127,11 @@ class RequisitionSpecsTest {
       eventTime = FIRST_EVENT_DATE.atTime(1, 1, 1).toInstant(ZoneOffset.UTC).toProtoTime()
       event =
         testEvent {
-          this.person = person {
-            gender = Person.Gender.FEMALE
-            ageGroup = Person.AgeGroup.YEARS_18_TO_34
+            this.person = person {
+              gender = Person.Gender.FEMALE
+              ageGroup = Person.AgeGroup.YEARS_18_TO_34
+            }
           }
-        }
           .pack()
     }
     val impressions = flowOf(labeledImpression, labeledImpression.copy { this.vid = 10 })
@@ -169,11 +169,11 @@ class RequisitionSpecsTest {
       eventTime = FIRST_EVENT_DATE.atTime(1, 1, 1).toInstant(ZoneOffset.UTC).toProtoTime()
       event =
         testEvent {
-          this.person = person {
-            gender = Person.Gender.FEMALE
-            ageGroup = Person.AgeGroup.YEARS_18_TO_34
+            this.person = person {
+              gender = Person.Gender.FEMALE
+              ageGroup = Person.AgeGroup.YEARS_18_TO_34
+            }
           }
-        }
           .pack()
     }
     val impressions =
@@ -217,11 +217,11 @@ class RequisitionSpecsTest {
       eventTime = FIRST_EVENT_DATE.atTime(1, 1, 1).toInstant(ZoneOffset.UTC).toProtoTime()
       event =
         testEvent {
-          this.person = person {
-            gender = Person.Gender.FEMALE
-            ageGroup = Person.AgeGroup.YEARS_18_TO_34
+            this.person = person {
+              gender = Person.Gender.FEMALE
+              ageGroup = Person.AgeGroup.YEARS_18_TO_34
+            }
           }
-        }
           .pack()
     }
     val impressions = flowOf(labeledImpression)
