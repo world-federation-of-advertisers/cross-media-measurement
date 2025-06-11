@@ -105,7 +105,6 @@ class RequisitionGrouperByReportId(
   }
 
   private fun unionIntervals(intervals: List<Interval>): List<Interval> {
-    if (intervals.isEmpty()) return emptyList()
     val sorted = intervals.sortedBy { it.startTime.toInstant() }
     val result = mutableListOf<Interval>()
     var current = sorted.first()
