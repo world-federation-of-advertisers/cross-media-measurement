@@ -1,0 +1,75 @@
+// Copyright 2025 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.edpaggregator.v1alpha;
+
+import "google/protobuf/any.proto";
+import "google/api/field_behavior.proto";
+import "google/type/interval.proto";
+import "google/api/resource.proto";
+
+option java_package = "org.wfanet.measurement.edpaggregator.v1alpha";
+option java_multiple_files = true;
+option java_outer_classname = "GroupedRequisitionsProto";
+
+// Message representing a group of requisitions to be processed together based
+// upon with [RequisitionGrouper] was used.
+message GroupedRequisitions {
+  // The model line for the requisitions
+  string model_line = 1 [
+    (google.api.resource_reference).type = "halo.wfanet.org/ModelLine",
+    (google.api.field_behavior) = REQUIRED
+  ];
+  // Necessary details to fetch events for an [EventGroup]
+  message EventGroupDetails {
+    // The event group reference id.
+    string event_group_reference_id = 1
+        [(google.api.field_behavior) = REQUIRED];
+
+    // The event group collection intervals. Both
+    // `start_time` and `end_time` must be specified. Must include all
+    // collection intervals necessary to fulfill requisitions. Sorted by
+    // start_time.
+    repeated google.type.Interval collection_intervals = 2
+        [(google.api.field_behavior) = REQUIRED];
+  }
+  // A single entry mapping an Event Group to an the information necessary to
+  // fetch events for it.
+  message EventGroupMapEntry {
+    // The event group in the cmms
+    string event_group = 1 [
+      (google.api.resource_reference).type = "halo.wfanet.org/EventGroup",
+      (google.api.field_behavior) = REQUIRED
+    ];
+    // The event group details
+    EventGroupDetails details = 2;
+  }
+  // A list of event group map entries for all event groups in requistions.
+  repeated EventGroupMapEntry event_group_map = 2
+      [(google.api.field_behavior) = REQUIRED];
+  // The requisition entry to be processed
+  message RequisitionEntry {
+    // The requisitions to process together. Expected to be of type
+    // halo.wfanet.org/Requisition.
+    google.protobuf.Any requisition = 1
+        [(google.api.field_behavior) = REQUIRED];
+  }
+  // The list of requisition entries to process together.
+  repeated RequisitionEntry requisitions = 3 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.field_behavior) = UNORDERED_LIST
+  ];
+}
