@@ -204,7 +204,11 @@ class ResultsFulfiller(
       ?.flatten()
       ?: throw ImpressionReadException(storageClientUri.key, ImpressionReadException.Code.BLOB_NOT_FOUND)
 
-    val requisition = Any.parseFrom(requisitionBytes).unpack(Requisition::class.java)
+    val requisition = try {
+      Any.parseFrom(requisitionBytes).unpack(Requisition::class.java)
+    } catch (e: Exception) {
+      throw ImpressionReadException(storageClientUri.key, ImpressionReadException.Code.INVALID_FORMAT)
+    }
     return listOf(requisition).asFlow()
   }
 
