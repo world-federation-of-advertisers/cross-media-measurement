@@ -45,6 +45,7 @@ object EncryptedStorage {
       )
     )
   }
+
   /** Builds a envelope encryption storage client wrapped by Mesos Record IO Storage Client. */
   fun buildEncryptedMesosStorageClient(
     storageClient: StorageClient,
