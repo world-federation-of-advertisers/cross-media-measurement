@@ -14,8 +14,11 @@
 
 package org.wfanet.measurement.kingdom.deploy.common.server
 
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.asCoroutineDispatcher
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.grpc.CommonServer
+import org.wfanet.measurement.common.grpc.ServiceFlags
 import org.wfanet.measurement.common.identity.DuchyInfoFlags
 import org.wfanet.measurement.internal.kingdom.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineStub as InternalComputationParticipantsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.MeasurementLogEntriesGrpcKt.MeasurementLogEntriesCoroutineStub as InternalMeasurementLogEntriesCoroutineStub
@@ -39,14 +42,22 @@ private fun run(
   @CommandLine.Mixin kingdomApiServerFlags: KingdomApiServerFlags,
   @CommandLine.Mixin duchyInfoFlags: DuchyInfoFlags,
   @CommandLine.Mixin commonServerFlags: CommonServer.Flags,
+  @CommandLine.Mixin serviceFlags: ServiceFlags,
 ) {
+  val serviceDispatcher: CoroutineDispatcher = serviceFlags.executor.asCoroutineDispatcher()
   runKingdomApiServer(kingdomApiServerFlags, SERVER_NAME, duchyInfoFlags, commonServerFlags) {
     channel ->
     listOf(
-      ComputationsService(InternalMeasurementsCoroutineStub(channel)),
-      ComputationParticipantsService(InternalComputationParticipantsCoroutineStub(channel)),
-      ComputationLogEntriesService(InternalMeasurementLogEntriesCoroutineStub(channel)),
-      RequisitionsService(InternalRequisitionsCoroutineStub(channel)),
+      ComputationsService(InternalMeasurementsCoroutineStub(channel), serviceDispatcher),
+      ComputationParticipantsService(
+        InternalComputationParticipantsCoroutineStub(channel),
+        serviceDispatcher,
+      ),
+      ComputationLogEntriesService(
+        InternalMeasurementLogEntriesCoroutineStub(channel),
+        serviceDispatcher,
+      ),
+      RequisitionsService(InternalRequisitionsCoroutineStub(channel), serviceDispatcher),
     )
   }
 }

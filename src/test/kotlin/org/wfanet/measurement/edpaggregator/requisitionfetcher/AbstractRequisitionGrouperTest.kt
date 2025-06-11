@@ -23,6 +23,7 @@ import com.google.protobuf.StringValue
 import com.google.protobuf.kotlin.toByteStringUtf8
 import io.grpc.Status
 import kotlin.test.assertTrue
+import kotlinx.coroutines.runBlocking
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -60,14 +61,9 @@ abstract class AbstractRequisitionGrouperTest {
       onBlocking { getEventGroup(any()) }
         .thenReturn(eventGroup { eventGroupReferenceId = "some-event-group-reference-id" })
     }
-    val requisition =
-      TestRequisitionData.REQUISITION.copy {
-        measurementSpec = signedMessage {
-          message = Any.pack(StringValue.newBuilder().setValue("some-invalid-spec").build())
-        }
-      }
-    val groupedRequisitions =
+    val groupedRequisitions = runBlocking {
       requisitionGrouper.groupRequisitions(listOf(TestRequisitionData.REQUISITION))
+    }
     assertTrue(groupedRequisitions.isNotEmpty())
   }
 
@@ -77,7 +73,9 @@ abstract class AbstractRequisitionGrouperTest {
     eventGroupsServiceMock.stub {
       onBlocking { getEventGroup(any()) }.thenThrow(Status.NOT_FOUND.asRuntimeException())
     }
-    val requisitions = requisitionGrouper.groupRequisitions(listOf(TestRequisitionData.REQUISITION))
+    val requisitions = runBlocking {
+      requisitionGrouper.groupRequisitions(listOf(TestRequisitionData.REQUISITION))
+    }
     assertThat(requisitions).hasSize(0)
   }
 
@@ -94,7 +92,9 @@ abstract class AbstractRequisitionGrouperTest {
           message = Any.pack(StringValue.newBuilder().setValue("some-invalid-spec").build())
         }
       }
-    val groupedRequisitions = requisitionGrouper.groupRequisitions(listOf(requisition))
+    val groupedRequisitions = runBlocking {
+      requisitionGrouper.groupRequisitions(listOf(requisition))
+    }
     assertThat(groupedRequisitions).hasSize(0)
   }
 
@@ -112,7 +112,11 @@ abstract class AbstractRequisitionGrouperTest {
           typeUrl = ProtoReflection.getTypeUrl(RequisitionSpec.getDescriptor())
         }
       }
-    val groupedRequisitions = requisitionGrouper.groupRequisitions(listOf(requisition))
+    val groupedRequisitions = runBlocking {
+      requisitionGrouper.groupRequisitions(listOf(requisition))
+    }
     assertThat(groupedRequisitions).hasSize(0)
   }
+
+  companion object {}
 }

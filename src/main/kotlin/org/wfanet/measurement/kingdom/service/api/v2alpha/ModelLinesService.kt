@@ -19,6 +19,8 @@ package org.wfanet.measurement.kingdom.service.api.v2alpha
 import com.google.protobuf.util.Timestamps
 import io.grpc.Status
 import io.grpc.StatusException
+import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.EmptyCoroutineContext
 import kotlin.math.min
 import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.v2alpha.CreateModelLineRequest
@@ -65,8 +67,10 @@ import org.wfanet.measurement.internal.kingdom.streamModelLinesRequest
 private const val DEFAULT_PAGE_SIZE = 50
 private const val MAX_PAGE_SIZE = 1000
 
-class ModelLinesService(private val internalClient: ModelLinesCoroutineStub) :
-  ModelLinesCoroutineService() {
+class ModelLinesService(
+  private val internalClient: ModelLinesCoroutineStub,
+  coroutineContext: CoroutineContext = EmptyCoroutineContext,
+) : ModelLinesCoroutineService(coroutineContext) {
 
   override suspend fun createModelLine(request: CreateModelLineRequest): ModelLine {
     val parentKey =

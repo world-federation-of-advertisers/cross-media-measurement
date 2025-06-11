@@ -44,6 +44,10 @@ class DataWatcherSubscribingStorageClient(
     return storageClient.getBlob(blobKey)
   }
 
+  override suspend fun listBlobs(prefix: String?): Flow<StorageClient.Blob> {
+    return storageClient.listBlobs(prefix)
+  }
+
   fun subscribe(watcher: DataWatcher) {
     subscribingWatchers.add(watcher)
   }

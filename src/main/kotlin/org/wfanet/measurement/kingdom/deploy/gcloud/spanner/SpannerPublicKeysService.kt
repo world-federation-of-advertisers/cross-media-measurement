@@ -15,6 +15,8 @@
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 
 import io.grpc.Status
+import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.EmptyCoroutineContext
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
@@ -31,7 +33,8 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.UpdatePublic
 class SpannerPublicKeysService(
   private val idGenerator: IdGenerator,
   private val client: AsyncDatabaseClient,
-) : PublicKeysGrpcKt.PublicKeysCoroutineImplBase() {
+  coroutineContext: CoroutineContext = EmptyCoroutineContext,
+) : PublicKeysGrpcKt.PublicKeysCoroutineImplBase(coroutineContext) {
 
   override suspend fun updatePublicKey(request: UpdatePublicKeyRequest): UpdatePublicKeyResponse {
     grpcRequire(

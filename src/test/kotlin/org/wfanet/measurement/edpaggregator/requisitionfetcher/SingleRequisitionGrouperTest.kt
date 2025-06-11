@@ -20,11 +20,12 @@ import com.google.common.truth.Truth.assertThat
 import com.google.type.interval
 import java.time.Clock
 import java.time.Duration
+import kotlinx.coroutines.runBlocking
+import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
-import org.mockito.kotlin.times
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.GetEventGroupRequest
@@ -46,9 +47,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt.eventG
 class SingleRequisitionGrouperTest : AbstractRequisitionGrouperTest() {
 
   override val requisitionsServiceMock: RequisitionsGrpcKt.RequisitionsCoroutineImplBase by lazy {
-    mockService {
-      onBlocking { refuseRequisition(any()) }.thenReturn(TestRequisitionData.REQUISITION)
-    }
+    mockService {}
   }
 
   override val eventGroupsServiceMock: EventGroupsCoroutineImplBase by lazy {
@@ -72,10 +71,9 @@ class SingleRequisitionGrouperTest : AbstractRequisitionGrouperTest() {
   private val throttler = MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofSeconds(1L))
 
   private val requisitionValidator by lazy {
-    GroupedRequisitionsValidator(
-      requisitionsClient = requisitionsStub,
-      throttler = throttler,
+    RequisitionsValidator(
       privateEncryptionKey = TestRequisitionData.EDP_DATA.privateEncryptionKey,
+      fatalRequisitionErrorPredicate = ::incrementCounter,
     )
   }
 
@@ -88,6 +86,17 @@ class SingleRequisitionGrouperTest : AbstractRequisitionGrouperTest() {
     )
   }
 
+  private var errorCounter = 0
+
+  @Before
+  fun setUp() {
+    errorCounter = 0
+  }
+
+  private fun incrementCounter(requisition: Requisition, refusal: Requisition.Refusal) {
+    errorCounter++
+  }
+
   private val requisitionsStub: RequisitionsGrpcKt.RequisitionsCoroutineStub by lazy {
     RequisitionsGrpcKt.RequisitionsCoroutineStub(grpcTestServerRule.channel)
   }
@@ -97,11 +106,12 @@ class SingleRequisitionGrouperTest : AbstractRequisitionGrouperTest() {
   }
 
   @Test
-  fun `able to map Requisition to GroupedRequisisions`() {
-    val groupedRequisitions: List<GroupedRequisitions> =
+  fun `able to map Requisition to GroupedRequisitions`() {
+    val groupedRequisitions: List<GroupedRequisitions> = runBlocking {
       requisitionGrouper.groupRequisitions(
         listOf(TestRequisitionData.REQUISITION, TestRequisitionData.REQUISITION)
       )
+    }
     assertThat(groupedRequisitions).hasSize(2)
     groupedRequisitions.forEach { groupedRequisition: GroupedRequisitions ->
       assertThat(groupedRequisition.eventGroupMapList.single())
@@ -126,6 +136,7 @@ class SingleRequisitionGrouperTest : AbstractRequisitionGrouperTest() {
             .single()
         )
         .isEqualTo(TestRequisitionData.REQUISITION)
+      assertThat(errorCounter).isEqualTo(0)
     }
   }
 }

@@ -23,24 +23,18 @@ import java.nio.file.Paths
 import java.time.LocalDate
 import kotlin.random.Random
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
-import org.wfanet.measurement.api.v2alpha.DuchyCertificateKey
-import org.wfanet.measurement.api.v2alpha.DuchyKey
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt
 import org.wfanet.measurement.api.v2alpha.Requisition
-import org.wfanet.measurement.api.v2alpha.RequisitionKt.DuchyEntryKt.liquidLegionsV2
 import org.wfanet.measurement.api.v2alpha.RequisitionKt.DuchyEntryKt.value
-import org.wfanet.measurement.api.v2alpha.RequisitionKt.duchyEntry
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt
 import org.wfanet.measurement.api.v2alpha.certificate
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
-import org.wfanet.measurement.api.v2alpha.elGamalPublicKey
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
 import org.wfanet.measurement.api.v2alpha.measurementSpec
 import org.wfanet.measurement.api.v2alpha.protocolConfig
 import org.wfanet.measurement.api.v2alpha.requisition
 import org.wfanet.measurement.api.v2alpha.requisitionSpec
-import org.wfanet.measurement.common.HexString
 import org.wfanet.measurement.common.OpenEndTimeRange
 import org.wfanet.measurement.common.crypto.Hashing
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
@@ -53,7 +47,6 @@ import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
-import org.wfanet.measurement.consent.client.duchy.signElgamalPublicKey
 import org.wfanet.measurement.consent.client.measurementconsumer.encryptRequisitionSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.signMeasurementSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.signRequisitionSpec
@@ -78,29 +71,12 @@ object TestRequisitionData {
   private const val MEASUREMENT_CONSUMER_CERTIFICATE_NAME =
     "$MEASUREMENT_CONSUMER_NAME/certificates/AAAAAAAAAcg"
 
-  private val CONSENT_SIGNALING_ELGAMAL_PUBLIC_KEY = elGamalPublicKey {
-    ellipticCurveId = 415
-    generator =
-      HexString("036B17D1F2E12C4247F8BCE6E563A440F277037D812DEB33A0F4A13945D898C296").bytes
-    element = HexString("0277BF406C5AA4376413E480E0AB8B0EFCA999D362204E6D1686E0BE567811604D").bytes
-  }
-
   private val LAST_EVENT_DATE = LocalDate.now()
   private val FIRST_EVENT_DATE = LAST_EVENT_DATE.minusDays(1)
 
   val TIME_RANGE = OpenEndTimeRange.fromClosedDateRange(FIRST_EVENT_DATE..LAST_EVENT_DATE)
 
-  private const val DUCHY_ONE_ID = "worker1"
-
   val MC_SIGNING_KEY = loadSigningKey("${MC_ID}_cs_cert.der", "${MC_ID}_cs_private.der")
-  private val DUCHY_ONE_SIGNING_KEY =
-    loadSigningKey("${DUCHY_ONE_ID}_cs_cert.der", "${DUCHY_ONE_ID}_cs_private.der")
-
-  private val DUCHY_ONE_NAME = DuchyKey(DUCHY_ONE_ID).toName()
-  private val DUCHY_ONE_CERTIFICATE = certificate {
-    name = DuchyCertificateKey(DUCHY_ONE_ID, externalIdToApiId(6L)).toName()
-    x509Der = DUCHY_ONE_SIGNING_KEY.certificate.encoded.toByteString()
-  }
 
   private val EDP_SIGNING_KEY =
     loadSigningKey("${EDP_DISPLAY_NAME}_cs_cert.der", "${EDP_DISPLAY_NAME}_cs_private.der")
@@ -185,9 +161,7 @@ object TestRequisitionData {
         width = 1.0f
       }
     nonceHashes += Hashing.hashSha256(REQUISITION_SPEC.nonce)
-    reportingMetadata = MeasurementSpecKt.reportingMetadata {
-      report = "some-report"
-    }
+    reportingMetadata = MeasurementSpecKt.reportingMetadata { report = "some-report" }
   }
 
   val REQUISITION = requisition {
@@ -202,16 +176,6 @@ object TestRequisitionData {
     }
     dataProviderCertificate = DATA_PROVIDER_CERTIFICATE.name
     dataProviderPublicKey = DATA_PROVIDER_PUBLIC_KEY.pack()
-    duchies += duchyEntry {
-      key = DUCHY_ONE_NAME
-      value = value {
-        duchyCertificate = DUCHY_ONE_CERTIFICATE.name
-        liquidLegionsV2 = liquidLegionsV2 {
-          elGamalPublicKey =
-            signElgamalPublicKey(CONSENT_SIGNALING_ELGAMAL_PUBLIC_KEY, DUCHY_ONE_SIGNING_KEY)
-        }
-      }
-    }
   }
 
   private fun loadSigningKey(

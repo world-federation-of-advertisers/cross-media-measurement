@@ -19,7 +19,6 @@ package org.wfanet.measurement.edpaggregator.requisitionfetcher
 import java.util.logging.Logger
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
-import org.wfanet.measurement.common.crypto.PrivateKeyHandle
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
 
@@ -28,7 +27,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
  * cases.
  */
 class SingleRequisitionGrouper(
-  requisitionValidator: GroupedRequisitionsValidator,
+  requisitionValidator: RequisitionsValidator,
   eventGroupsClient: EventGroupsCoroutineStub,
   requisitionsClient: RequisitionsCoroutineStub,
   throttler: Throttler,
