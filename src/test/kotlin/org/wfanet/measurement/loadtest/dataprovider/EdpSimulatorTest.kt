@@ -198,10 +198,9 @@ private val NOISE_MECHANISM = ProtocolConfig.NoiseMechanism.DISCRETE_GAUSSIAN
 
 private val MEASUREMENT_CONSUMER_CERTIFICATE_DER =
   SECRET_FILES_PATH.resolve("mc_cs_cert.der").toFile().readByteString()
-private const val MEASUREMENT_CONSUMER_NAME = "measurementConsumers/AAAAAAAAAHs"
 private const val MEASUREMENT_NAME = "$MC_NAME/measurements/BBBBBBBBBHs"
 private const val MEASUREMENT_CONSUMER_CERTIFICATE_NAME =
-  "$MEASUREMENT_CONSUMER_NAME/certificates/AAAAAAAAAcg"
+  "$MC_NAME/certificates/AAAAAAAAAcg"
 private val MEASUREMENT_CONSUMER_CERTIFICATE = certificate {
   name = MEASUREMENT_CONSUMER_CERTIFICATE_NAME
   x509Der = MEASUREMENT_CONSUMER_CERTIFICATE_DER
@@ -370,7 +369,7 @@ class EdpSimulatorTest {
     val edpSimulator =
       EdpSimulator(
         EDP_DATA,
-        MEASUREMENT_CONSUMER_NAME,
+        MC_NAME,
         measurementConsumersStub,
         certificatesStub,
         dataProvidersStub,
@@ -420,30 +419,15 @@ class EdpSimulatorTest {
           listEventGroupsResponse {
             eventGroups += eventGroup {
               name = EVENT_GROUP_NAME
-              measurementConsumer = MEASUREMENT_CONSUMER_NAME
+              measurementConsumer = MC_NAME
               eventGroupReferenceId =
                 "${TestIdentifiers.SIMULATOR_EVENT_GROUP_REFERENCE_ID_PREFIX}-${EDP_DATA.displayName}"
             }
           }
         )
     }
-    val edpSimulator =
-      EdpSimulator(
-        EDP_DATA,
-        MEASUREMENT_CONSUMER_NAME,
-        measurementConsumersStub,
-        certificatesStub,
-        dataProvidersStub,
-        eventGroupsStub,
-        eventGroupMetadataDescriptorsStub,
-        requisitionsStub,
-        requisitionFulfillmentStubMap,
-        InMemoryEventQuery(emptyList()),
-        dummyThrottler,
-        privacyBudgetManager,
-        TRUSTED_CERTIFICATES,
-        HMSS_VID_INDEX_MAP,
-      )
+
+    val edpSimulator = createEdpSimulatorWithInMemoryEventQuery()
 
     runBlocking { edpSimulator.ensureEventGroup(TEST_EVENT_TEMPLATES, SYNTHETIC_DATA_SPEC) }
 
@@ -478,23 +462,8 @@ class EdpSimulatorTest {
           }
         }
     }
-    val edpSimulator =
-      EdpSimulator(
-        EDP_DATA,
-        MEASUREMENT_CONSUMER_NAME,
-        measurementConsumersStub,
-        certificatesStub,
-        dataProvidersStub,
-        eventGroupsStub,
-        eventGroupMetadataDescriptorsStub,
-        requisitionsStub,
-        requisitionFulfillmentStubMap,
-        InMemoryEventQuery(emptyList()),
-        dummyThrottler,
-        privacyBudgetManager,
-        TRUSTED_CERTIFICATES,
-        HMSS_VID_INDEX_MAP,
-      )
+
+    val edpSimulator = createEdpSimulatorWithInMemoryEventQuery()
 
     runBlocking { edpSimulator.ensureEventGroup(TEST_EVENT_TEMPLATES, SYNTHETIC_DATA_SPEC) }
 
@@ -509,23 +478,8 @@ class EdpSimulatorTest {
 
   @Test
   fun `ensureEventGroups creates multiple EventGroups`() {
-    val edpSimulator =
-      EdpSimulator(
-        EDP_DATA,
-        MEASUREMENT_CONSUMER_NAME,
-        measurementConsumersStub,
-        certificatesStub,
-        dataProvidersStub,
-        eventGroupsStub,
-        eventGroupMetadataDescriptorsStub,
-        requisitionsStub,
-        requisitionFulfillmentStubMap,
-        InMemoryEventQuery(emptyList()),
-        dummyThrottler,
-        privacyBudgetManager,
-        TRUSTED_CERTIFICATES,
-        HMSS_VID_INDEX_MAP,
-      )
+    val edpSimulator = createEdpSimulatorWithInMemoryEventQuery()
+
     val metadataByReferenceIdSuffix =
       mapOf(
         "-foo" to SyntheticGenerationSpecs.SYNTHETIC_DATA_SPECS_SMALL[0],
@@ -572,23 +526,8 @@ class EdpSimulatorTest {
 
   @Test
   fun `ensureEventGroups throws IllegalArgumentException when metadata message types mismatch`() {
-    val edpSimulator =
-      EdpSimulator(
-        EDP_DATA,
-        MEASUREMENT_CONSUMER_NAME,
-        measurementConsumersStub,
-        certificatesStub,
-        dataProvidersStub,
-        eventGroupsStub,
-        eventGroupMetadataDescriptorsStub,
-        requisitionsStub,
-        requisitionFulfillmentStubMap,
-        InMemoryEventQuery(emptyList()),
-        dummyThrottler,
-        privacyBudgetManager,
-        TRUSTED_CERTIFICATES,
-        HMSS_VID_INDEX_MAP,
-      )
+    val edpSimulator = createEdpSimulatorWithInMemoryEventQuery()
+
     val metadataByReferenceIdSuffix = mapOf("-foo" to SYNTHETIC_DATA_SPEC, "-bar" to TEST_METADATA)
 
     val exception =
@@ -674,23 +613,8 @@ class EdpSimulatorTest {
         .thenReturn(listRequisitionsResponse { requisitions += requisition })
     }
 
-    val edpSimulator =
-      EdpSimulator(
-        EDP_DATA,
-        MC_NAME,
-        measurementConsumersStub,
-        certificatesStub,
-        dataProvidersStub,
-        eventGroupsStub,
-        eventGroupMetadataDescriptorsStub,
-        requisitionsStub,
-        requisitionFulfillmentStubMap,
-        InMemoryEventQuery(emptyList()),
-        dummyThrottler,
-        privacyBudgetManager,
-        TRUSTED_CERTIFICATES,
-        HMSS_VID_INDEX_MAP,
-      )
+    val edpSimulator = createEdpSimulatorWithInMemoryEventQuery()
+
     runBlocking { edpSimulator.executeRequisitionFulfillingWorkflow() }
 
     val refuseRequest: RefuseRequisitionRequest =
@@ -728,23 +652,8 @@ class EdpSimulatorTest {
         .thenReturn(listRequisitionsResponse { requisitions += requisition })
     }
 
-    val edpSimulator =
-      EdpSimulator(
-        EDP_DATA,
-        MC_NAME,
-        measurementConsumersStub,
-        certificatesStub,
-        dataProvidersStub,
-        eventGroupsStub,
-        eventGroupMetadataDescriptorsStub,
-        requisitionsStub,
-        requisitionFulfillmentStubMap,
-        InMemoryEventQuery(emptyList()),
-        dummyThrottler,
-        privacyBudgetManager,
-        TRUSTED_CERTIFICATES,
-        HMSS_VID_INDEX_MAP,
-      )
+    val edpSimulator = createEdpSimulatorWithInMemoryEventQuery()
+
     runBlocking { edpSimulator.executeRequisitionFulfillingWorkflow() }
 
     val refuseRequest: RefuseRequisitionRequest =
@@ -954,23 +863,7 @@ class EdpSimulatorTest {
 
       val allEvents = matchingEvents + nonMatchingEvents
 
-      val edpSimulator =
-        EdpSimulator(
-          EDP_DATA,
-          MC_NAME,
-          measurementConsumersStub,
-          certificatesStub,
-          dataProvidersStub,
-          eventGroupsStub,
-          eventGroupMetadataDescriptorsStub,
-          requisitionsStub,
-          requisitionFulfillmentStubMap,
-          InMemoryEventQuery(allEvents),
-          dummyThrottler,
-          privacyBudgetManager,
-          TRUSTED_CERTIFICATES,
-          HMSS_VID_INDEX_MAP,
-        )
+      val edpSimulator = createEdpSimulatorWithInMemoryEventQuery(allEvents)
       runBlocking {
         edpSimulator.ensureEventGroup(TEST_EVENT_TEMPLATES, TEST_METADATA)
         edpSimulator.executeRequisitionFulfillingWorkflow()
@@ -1083,23 +976,8 @@ class EdpSimulatorTest {
 
       val allEvents = matchingEvents + nonMatchingEvents
 
-      val edpSimulator =
-        EdpSimulator(
-          EDP_DATA,
-          MC_NAME,
-          measurementConsumersStub,
-          certificatesStub,
-          dataProvidersStub,
-          eventGroupsStub,
-          eventGroupMetadataDescriptorsStub,
-          requisitionsStub,
-          requisitionFulfillmentStubMap,
-          InMemoryEventQuery(allEvents),
-          dummyThrottler,
-          privacyBudgetManager,
-          TRUSTED_CERTIFICATES,
-          HMSS_VID_INDEX_MAP,
-        )
+      val edpSimulator = createEdpSimulatorWithInMemoryEventQuery(allEvents)
+
       runBlocking {
         edpSimulator.ensureEventGroup(TEST_EVENT_TEMPLATES, TEST_METADATA)
         edpSimulator.executeRequisitionFulfillingWorkflow()
@@ -1232,23 +1110,7 @@ class EdpSimulatorTest {
 
       val allEvents = matchingEvents + nonMatchingEvents
 
-      val edpSimulator =
-        EdpSimulator(
-          EDP_DATA,
-          MC_NAME,
-          measurementConsumersStub,
-          certificatesStub,
-          dataProvidersStub,
-          eventGroupsStub,
-          eventGroupMetadataDescriptorsStub,
-          requisitionsStub,
-          requisitionFulfillmentStubMap,
-          InMemoryEventQuery(allEvents),
-          dummyThrottler,
-          privacyBudgetManager,
-          TRUSTED_CERTIFICATES,
-          HMSS_VID_INDEX_MAP,
-        )
+      val edpSimulator = createEdpSimulatorWithInMemoryEventQuery(allEvents)
       runBlocking {
         edpSimulator.ensureEventGroup(TEST_EVENT_TEMPLATES, TEST_METADATA)
         edpSimulator.executeRequisitionFulfillingWorkflow()
@@ -1396,24 +1258,7 @@ class EdpSimulatorTest {
 
   @Test
   fun `refuses requisition when DuchyEntry verification fails`() {
-    val eventQueryMock = mock<EventQuery<TestEvent>>()
-    val simulator =
-      EdpSimulator(
-        EDP_DATA,
-        MC_NAME,
-        measurementConsumersStub,
-        certificatesStub,
-        dataProvidersStub,
-        eventGroupsStub,
-        eventGroupMetadataDescriptorsStub,
-        requisitionsStub,
-        requisitionFulfillmentStubMap,
-        eventQueryMock,
-        dummyThrottler,
-        privacyBudgetManager,
-        TRUSTED_CERTIFICATES,
-        HMSS_VID_INDEX_MAP,
-      )
+    val edpSimulator = createEdpSimulatorWithEventQueryMock()
     val requisition =
       REQUISITION.copy {
         duchies[0] =
@@ -1433,7 +1278,7 @@ class EdpSimulatorTest {
         .thenReturn(listRequisitionsResponse { requisitions += requisition })
     }
 
-    runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
+    runBlocking { edpSimulator.executeRequisitionFulfillingWorkflow() }
 
     val refuseRequest: RefuseRequisitionRequest =
       verifyAndCapture(requisitionsServiceMock, RequisitionsCoroutineImplBase::refuseRequisition)
@@ -1456,29 +1301,12 @@ class EdpSimulatorTest {
 
   @Test
   fun `refuses Requisition when EventGroup not found`() {
-    val eventQueryMock = mock<EventQuery<TestEvent>>()
-    val simulator =
-      EdpSimulator(
-        EDP_DATA,
-        MC_NAME,
-        measurementConsumersStub,
-        certificatesStub,
-        dataProvidersStub,
-        eventGroupsStub,
-        eventGroupMetadataDescriptorsStub,
-        requisitionsStub,
-        requisitionFulfillmentStubMap,
-        eventQueryMock,
-        dummyThrottler,
-        privacyBudgetManager,
-        TRUSTED_CERTIFICATES,
-        HMSS_VID_INDEX_MAP,
-      )
+    val edpSimulator = createEdpSimulatorWithEventQueryMock()
     eventGroupsServiceMock.stub {
       onBlocking { getEventGroup(any()) }.thenThrow(Status.NOT_FOUND.asRuntimeException())
     }
 
-    runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
+    runBlocking { edpSimulator.executeRequisitionFulfillingWorkflow() }
 
     val refuseRequest: RefuseRequisitionRequest =
       verifyAndCapture(requisitionsServiceMock, RequisitionsCoroutineImplBase::refuseRequisition)
@@ -1527,26 +1355,9 @@ class EdpSimulatorTest {
       onBlocking { listRequisitions(any()) }
         .thenReturn(listRequisitionsResponse { requisitions += requisitionGeometric })
     }
-    val eventQueryMock = mock<EventQuery<TestEvent>>()
-    val simulator =
-      EdpSimulator(
-        EDP_DATA,
-        MC_NAME,
-        measurementConsumersStub,
-        certificatesStub,
-        dataProvidersStub,
-        eventGroupsStub,
-        eventGroupMetadataDescriptorsStub,
-        requisitionsStub,
-        requisitionFulfillmentStubMap,
-        eventQueryMock,
-        dummyThrottler,
-        privacyBudgetManager,
-        TRUSTED_CERTIFICATES,
-        HMSS_VID_INDEX_MAP,
-      )
+    val edpSimulator = createEdpSimulatorWithEventQueryMock()
 
-    runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
+    runBlocking { edpSimulator.executeRequisitionFulfillingWorkflow() }
 
     val refuseRequest: RefuseRequisitionRequest =
       verifyAndCapture(requisitionsServiceMock, RequisitionsCoroutineImplBase::refuseRequisition)
@@ -1595,27 +1406,9 @@ class EdpSimulatorTest {
       onBlocking { listRequisitions(any()) }
         .thenReturn(listRequisitionsResponse { requisitions += requisition })
     }
-    val eventQueryMock = mock<EventQuery<TestEvent>>()
-    val simulator =
-      EdpSimulator(
-        EDP_DATA,
-        MC_NAME,
-        measurementConsumersStub,
-        certificatesStub,
-        dataProvidersStub,
-        eventGroupsStub,
-        eventGroupMetadataDescriptorsStub,
-        requisitionsStub,
-        requisitionFulfillmentStubMap,
-        eventQueryMock,
-        dummyThrottler,
-        privacyBudgetManager,
-        TRUSTED_CERTIFICATES,
-        HMSS_VID_INDEX_MAP,
-        random = Random(RANDOM_SEED),
-      )
+    val edpSimulator = createEdpSimulatorWithEventQueryMock()
 
-    runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
+    runBlocking { edpSimulator.executeRequisitionFulfillingWorkflow() }
 
     val refuseRequest: RefuseRequisitionRequest =
       verifyAndCapture(requisitionsServiceMock, RequisitionsCoroutineImplBase::refuseRequisition)
@@ -1663,26 +1456,9 @@ class EdpSimulatorTest {
       onBlocking { listRequisitions(any()) }
         .thenReturn(listRequisitionsResponse { requisitions += requisition })
     }
-    val eventQueryMock = mock<EventQuery<TestEvent>>()
-    val simulator =
-      EdpSimulator(
-        EDP_DATA,
-        MC_NAME,
-        measurementConsumersStub,
-        certificatesStub,
-        dataProvidersStub,
-        eventGroupsStub,
-        eventGroupMetadataDescriptorsStub,
-        requisitionsStub,
-        requisitionFulfillmentStubMap,
-        eventQueryMock,
-        dummyThrottler,
-        privacyBudgetManager,
-        TRUSTED_CERTIFICATES,
-        HMSS_VID_INDEX_MAP,
-      )
+    val edpSimulator = createEdpSimulatorWithEventQueryMock()
 
-    runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
+    runBlocking { edpSimulator.executeRequisitionFulfillingWorkflow() }
 
     val refuseRequest: RefuseRequisitionRequest =
       verifyAndCapture(requisitionsServiceMock, RequisitionsCoroutineImplBase::refuseRequisition)
@@ -1729,26 +1505,9 @@ class EdpSimulatorTest {
       onBlocking { listRequisitions(any()) }
         .thenReturn(listRequisitionsResponse { requisitions += requisition })
     }
-    val eventQueryMock = mock<EventQuery<TestEvent>>()
-    val simulator =
-      EdpSimulator(
-        EDP_DATA,
-        MC_NAME,
-        measurementConsumersStub,
-        certificatesStub,
-        dataProvidersStub,
-        eventGroupsStub,
-        eventGroupMetadataDescriptorsStub,
-        requisitionsStub,
-        requisitionFulfillmentStubMap,
-        eventQueryMock,
-        dummyThrottler,
-        privacyBudgetManager,
-        TRUSTED_CERTIFICATES,
-        HMSS_VID_INDEX_MAP,
-      )
+    val edpSimulator = createEdpSimulatorWithEventQueryMock()
 
-    runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
+    runBlocking { edpSimulator.executeRequisitionFulfillingWorkflow() }
 
     val refuseRequest: RefuseRequisitionRequest =
       verifyAndCapture(requisitionsServiceMock, RequisitionsCoroutineImplBase::refuseRequisition)
@@ -1795,26 +1554,9 @@ class EdpSimulatorTest {
       onBlocking { listRequisitions(any()) }
         .thenReturn(listRequisitionsResponse { requisitions += requisition })
     }
-    val eventQueryMock = mock<EventQuery<TestEvent>>()
-    val simulator =
-      EdpSimulator(
-        EDP_DATA,
-        MC_NAME,
-        measurementConsumersStub,
-        certificatesStub,
-        dataProvidersStub,
-        eventGroupsStub,
-        eventGroupMetadataDescriptorsStub,
-        requisitionsStub,
-        requisitionFulfillmentStubMap,
-        eventQueryMock,
-        dummyThrottler,
-        privacyBudgetManager,
-        TRUSTED_CERTIFICATES,
-        HMSS_VID_INDEX_MAP,
-      )
+    val edpSimulator = createEdpSimulatorWithEventQueryMock()
 
-    runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
+    runBlocking { edpSimulator.executeRequisitionFulfillingWorkflow() }
 
     val refuseRequest: RefuseRequisitionRequest =
       verifyAndCapture(requisitionsServiceMock, RequisitionsCoroutineImplBase::refuseRequisition)
@@ -1861,26 +1603,9 @@ class EdpSimulatorTest {
       onBlocking { listRequisitions(any()) }
         .thenReturn(listRequisitionsResponse { requisitions += requisition })
     }
-    val eventQueryMock = mock<EventQuery<TestEvent>>()
-    val simulator =
-      EdpSimulator(
-        EDP_DATA,
-        MC_NAME,
-        measurementConsumersStub,
-        certificatesStub,
-        dataProvidersStub,
-        eventGroupsStub,
-        eventGroupMetadataDescriptorsStub,
-        requisitionsStub,
-        requisitionFulfillmentStubMap,
-        eventQueryMock,
-        dummyThrottler,
-        privacyBudgetManager,
-        TRUSTED_CERTIFICATES,
-        HMSS_VID_INDEX_MAP,
-      )
+    val edpSimulator = createEdpSimulatorWithEventQueryMock()
 
-    runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
+    runBlocking { edpSimulator.executeRequisitionFulfillingWorkflow() }
 
     val refuseRequest: RefuseRequisitionRequest =
       verifyAndCapture(requisitionsServiceMock, RequisitionsCoroutineImplBase::refuseRequisition)
@@ -1927,26 +1652,9 @@ class EdpSimulatorTest {
       onBlocking { listRequisitions(any()) }
         .thenReturn(listRequisitionsResponse { requisitions += requisition })
     }
-    val eventQueryMock = mock<EventQuery<TestEvent>>()
-    val simulator =
-      EdpSimulator(
-        EDP_DATA,
-        MC_NAME,
-        measurementConsumersStub,
-        certificatesStub,
-        dataProvidersStub,
-        eventGroupsStub,
-        eventGroupMetadataDescriptorsStub,
-        requisitionsStub,
-        requisitionFulfillmentStubMap,
-        eventQueryMock,
-        dummyThrottler,
-        privacyBudgetManager,
-        TRUSTED_CERTIFICATES,
-        HMSS_VID_INDEX_MAP,
-      )
+    val edpSimulator = createEdpSimulatorWithEventQueryMock()
 
-    runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
+    runBlocking { edpSimulator.executeRequisitionFulfillingWorkflow() }
 
     val refuseRequest: RefuseRequisitionRequest =
       verifyAndCapture(requisitionsServiceMock, RequisitionsCoroutineImplBase::refuseRequisition)
@@ -1991,26 +1699,9 @@ class EdpSimulatorTest {
       onBlocking { listRequisitions(any()) }
         .thenReturn(listRequisitionsResponse { requisitions += requisition })
     }
-    val simulator =
-      EdpSimulator(
-        EDP_DATA,
-        MC_NAME,
-        measurementConsumersStub,
-        certificatesStub,
-        dataProvidersStub,
-        eventGroupsStub,
-        eventGroupMetadataDescriptorsStub,
-        requisitionsStub,
-        requisitionFulfillmentStubMap,
-        syntheticGeneratorEventQuery,
-        dummyThrottler,
-        privacyBudgetManager,
-        TRUSTED_CERTIFICATES,
-        HMSS_VID_INDEX_MAP,
-        random = Random(RANDOM_SEED),
-      )
+    val edpSimulator = createEdpSimulatorWithSyntheticGeneratorEventQuery()
 
-    runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
+    runBlocking { edpSimulator.executeRequisitionFulfillingWorkflow() }
 
     val refuseRequest: RefuseRequisitionRequest =
       verifyAndCapture(requisitionsServiceMock, RequisitionsCoroutineImplBase::refuseRequisition)
@@ -2048,26 +1739,9 @@ class EdpSimulatorTest {
       onBlocking { listRequisitions(any()) }
         .thenReturn(listRequisitionsResponse { requisitions += requisition })
     }
-    val simulator =
-      EdpSimulator(
-        EDP_DATA,
-        MC_NAME,
-        measurementConsumersStub,
-        certificatesStub,
-        dataProvidersStub,
-        eventGroupsStub,
-        eventGroupMetadataDescriptorsStub,
-        requisitionsStub,
-        requisitionFulfillmentStubMap,
-        syntheticGeneratorEventQuery,
-        dummyThrottler,
-        privacyBudgetManager,
-        TRUSTED_CERTIFICATES,
-        HMSS_VID_INDEX_MAP,
-        random = Random(RANDOM_SEED),
-      )
+    val edpSimulator = createEdpSimulatorWithSyntheticGeneratorEventQuery()
 
-    runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
+    runBlocking { edpSimulator.executeRequisitionFulfillingWorkflow() }
 
     val request: FulfillDirectRequisitionRequest =
       verifyAndCapture(
@@ -2152,26 +1826,9 @@ class EdpSimulatorTest {
       onBlocking { listRequisitions(any()) }
         .thenReturn(listRequisitionsResponse { requisitions += requisition })
     }
-    val simulator =
-      EdpSimulator(
-        EDP_DATA,
-        MC_NAME,
-        measurementConsumersStub,
-        certificatesStub,
-        dataProvidersStub,
-        eventGroupsStub,
-        eventGroupMetadataDescriptorsStub,
-        requisitionsStub,
-        requisitionFulfillmentStubMap,
-        syntheticGeneratorEventQuery,
-        dummyThrottler,
-        privacyBudgetManager,
-        TRUSTED_CERTIFICATES,
-        HMSS_VID_INDEX_MAP,
-        random = Random(RANDOM_SEED),
-      )
+    val edpSimulator = createEdpSimulatorWithSyntheticGeneratorEventQuery()
 
-    runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
+    runBlocking { edpSimulator.executeRequisitionFulfillingWorkflow() }
 
     val request: FulfillDirectRequisitionRequest =
       verifyAndCapture(
@@ -2223,26 +1880,9 @@ class EdpSimulatorTest {
       onBlocking { listRequisitions(any()) }
         .thenReturn(listRequisitionsResponse { requisitions += requisition })
     }
-    val simulator =
-      EdpSimulator(
-        EDP_DATA,
-        MC_NAME,
-        measurementConsumersStub,
-        certificatesStub,
-        dataProvidersStub,
-        eventGroupsStub,
-        eventGroupMetadataDescriptorsStub,
-        requisitionsStub,
-        requisitionFulfillmentStubMap,
-        syntheticGeneratorEventQuery,
-        dummyThrottler,
-        privacyBudgetManager,
-        TRUSTED_CERTIFICATES,
-        HMSS_VID_INDEX_MAP,
-        random = Random(RANDOM_SEED),
-      )
+    val edpSimulator = createEdpSimulatorWithSyntheticGeneratorEventQuery()
 
-    runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
+    runBlocking { edpSimulator.executeRequisitionFulfillingWorkflow() }
 
     val request: FulfillDirectRequisitionRequest =
       verifyAndCapture(
@@ -2294,26 +1934,9 @@ class EdpSimulatorTest {
       onBlocking { listRequisitions(any()) }
         .thenReturn(listRequisitionsResponse { requisitions += requisition })
     }
-    val simulator =
-      EdpSimulator(
-        EDP_DATA,
-        MC_NAME,
-        measurementConsumersStub,
-        certificatesStub,
-        dataProvidersStub,
-        eventGroupsStub,
-        eventGroupMetadataDescriptorsStub,
-        requisitionsStub,
-        requisitionFulfillmentStubMap,
-        syntheticGeneratorEventQuery,
-        dummyThrottler,
-        privacyBudgetManager,
-        TRUSTED_CERTIFICATES,
-        HMSS_VID_INDEX_MAP,
-        random = Random(RANDOM_SEED),
-      )
+    val edpSimulator = createEdpSimulatorWithSyntheticGeneratorEventQuery()
 
-    runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
+    runBlocking { edpSimulator.executeRequisitionFulfillingWorkflow() }
 
     val refuseRequest: RefuseRequisitionRequest =
       verifyAndCapture(requisitionsServiceMock, RequisitionsCoroutineImplBase::refuseRequisition)
@@ -2352,26 +1975,9 @@ class EdpSimulatorTest {
       onBlocking { listRequisitions(any()) }
         .thenReturn(listRequisitionsResponse { requisitions += requisition })
     }
-    val simulator =
-      EdpSimulator(
-        EDP_DATA,
-        MC_NAME,
-        measurementConsumersStub,
-        certificatesStub,
-        dataProvidersStub,
-        eventGroupsStub,
-        eventGroupMetadataDescriptorsStub,
-        requisitionsStub,
-        requisitionFulfillmentStubMap,
-        syntheticGeneratorEventQuery,
-        dummyThrottler,
-        privacyBudgetManager,
-        TRUSTED_CERTIFICATES,
-        HMSS_VID_INDEX_MAP,
-        random = Random(RANDOM_SEED),
-      )
+    val edpSimulator = createEdpSimulatorWithSyntheticGeneratorEventQuery()
 
-    runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
+    runBlocking { edpSimulator.executeRequisitionFulfillingWorkflow() }
 
     val refuseRequest: RefuseRequisitionRequest =
       verifyAndCapture(requisitionsServiceMock, RequisitionsCoroutineImplBase::refuseRequisition)
@@ -2417,26 +2023,9 @@ class EdpSimulatorTest {
       onBlocking { listRequisitions(any()) }
         .thenReturn(listRequisitionsResponse { requisitions += requisition })
     }
-    val simulator =
-      EdpSimulator(
-        EDP_DATA,
-        MC_NAME,
-        measurementConsumersStub,
-        certificatesStub,
-        dataProvidersStub,
-        eventGroupsStub,
-        eventGroupMetadataDescriptorsStub,
-        requisitionsStub,
-        requisitionFulfillmentStubMap,
-        syntheticGeneratorEventQuery,
-        dummyThrottler,
-        privacyBudgetManager,
-        TRUSTED_CERTIFICATES,
-        HMSS_VID_INDEX_MAP,
-        random = Random(RANDOM_SEED),
-      )
+    val edpSimulator = createEdpSimulatorWithSyntheticGeneratorEventQuery()
 
-    runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
+    runBlocking { edpSimulator.executeRequisitionFulfillingWorkflow() }
 
     val request: FulfillDirectRequisitionRequest =
       verifyAndCapture(
@@ -2482,26 +2071,9 @@ class EdpSimulatorTest {
       onBlocking { listRequisitions(any()) }
         .thenReturn(listRequisitionsResponse { requisitions += requisition })
     }
-    val simulator =
-      EdpSimulator(
-        EDP_DATA,
-        MC_NAME,
-        measurementConsumersStub,
-        certificatesStub,
-        dataProvidersStub,
-        eventGroupsStub,
-        eventGroupMetadataDescriptorsStub,
-        requisitionsStub,
-        requisitionFulfillmentStubMap,
-        syntheticGeneratorEventQuery,
-        dummyThrottler,
-        privacyBudgetManager,
-        TRUSTED_CERTIFICATES,
-        HMSS_VID_INDEX_MAP,
-        random = Random(RANDOM_SEED),
-      )
+    val edpSimulator = createEdpSimulatorWithSyntheticGeneratorEventQuery()
 
-    runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
+    runBlocking { edpSimulator.executeRequisitionFulfillingWorkflow() }
 
     val request: FulfillDirectRequisitionRequest =
       verifyAndCapture(
@@ -2548,26 +2120,9 @@ class EdpSimulatorTest {
       onBlocking { listRequisitions(any()) }
         .thenReturn(listRequisitionsResponse { requisitions += requisition })
     }
-    val simulator =
-      EdpSimulator(
-        EDP_DATA,
-        MC_NAME,
-        measurementConsumersStub,
-        certificatesStub,
-        dataProvidersStub,
-        eventGroupsStub,
-        eventGroupMetadataDescriptorsStub,
-        requisitionsStub,
-        requisitionFulfillmentStubMap,
-        syntheticGeneratorEventQuery,
-        dummyThrottler,
-        privacyBudgetManager,
-        TRUSTED_CERTIFICATES,
-        HMSS_VID_INDEX_MAP,
-        random = Random(RANDOM_SEED),
-      )
+    val edpSimulator = createEdpSimulatorWithSyntheticGeneratorEventQuery()
 
-    runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
+    runBlocking { edpSimulator.executeRequisitionFulfillingWorkflow() }
 
     val refuseRequest: RefuseRequisitionRequest =
       verifyAndCapture(requisitionsServiceMock, RequisitionsCoroutineImplBase::refuseRequisition)
@@ -2611,26 +2166,9 @@ class EdpSimulatorTest {
       onBlocking { listRequisitions(any()) }
         .thenReturn(listRequisitionsResponse { requisitions += requisition })
     }
-    val simulator =
-      EdpSimulator(
-        EDP_DATA,
-        MC_NAME,
-        measurementConsumersStub,
-        certificatesStub,
-        dataProvidersStub,
-        eventGroupsStub,
-        eventGroupMetadataDescriptorsStub,
-        requisitionsStub,
-        requisitionFulfillmentStubMap,
-        syntheticGeneratorEventQuery,
-        dummyThrottler,
-        privacyBudgetManager,
-        TRUSTED_CERTIFICATES,
-        HMSS_VID_INDEX_MAP,
-        random = Random(RANDOM_SEED),
-      )
+    val edpSimulator = createEdpSimulatorWithSyntheticGeneratorEventQuery()
 
-    runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
+    runBlocking { edpSimulator.executeRequisitionFulfillingWorkflow() }
 
     val refuseRequest: RefuseRequisitionRequest =
       verifyAndCapture(requisitionsServiceMock, RequisitionsCoroutineImplBase::refuseRequisition)
@@ -2675,26 +2213,9 @@ class EdpSimulatorTest {
       onBlocking { listRequisitions(any()) }
         .thenReturn(listRequisitionsResponse { requisitions += requisition })
     }
-    val simulator =
-      EdpSimulator(
-        EDP_DATA,
-        MC_NAME,
-        measurementConsumersStub,
-        certificatesStub,
-        dataProvidersStub,
-        eventGroupsStub,
-        eventGroupMetadataDescriptorsStub,
-        requisitionsStub,
-        requisitionFulfillmentStubMap,
-        syntheticGeneratorEventQuery,
-        dummyThrottler,
-        privacyBudgetManager,
-        TRUSTED_CERTIFICATES,
-        HMSS_VID_INDEX_MAP,
-        random = Random(RANDOM_SEED),
-      )
+    val edpSimulator = createEdpSimulatorWithSyntheticGeneratorEventQuery()
 
-    runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
+    runBlocking { edpSimulator.executeRequisitionFulfillingWorkflow() }
 
     val request: FulfillDirectRequisitionRequest =
       verifyAndCapture(
@@ -2742,26 +2263,9 @@ class EdpSimulatorTest {
       onBlocking { listRequisitions(any()) }
         .thenReturn(listRequisitionsResponse { requisitions += requisition })
     }
-    val simulator =
-      EdpSimulator(
-        EDP_DATA,
-        MC_NAME,
-        measurementConsumersStub,
-        certificatesStub,
-        dataProvidersStub,
-        eventGroupsStub,
-        eventGroupMetadataDescriptorsStub,
-        requisitionsStub,
-        requisitionFulfillmentStubMap,
-        syntheticGeneratorEventQuery,
-        dummyThrottler,
-        privacyBudgetManager,
-        TRUSTED_CERTIFICATES,
-        HMSS_VID_INDEX_MAP,
-        random = Random(RANDOM_SEED),
-      )
+    val edpSimulator = createEdpSimulatorWithSyntheticGeneratorEventQuery()
 
-    runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
+    runBlocking { edpSimulator.executeRequisitionFulfillingWorkflow() }
 
     val request: FulfillDirectRequisitionRequest =
       verifyAndCapture(
@@ -2804,26 +2308,9 @@ class EdpSimulatorTest {
       onBlocking { listRequisitions(any()) }
         .thenReturn(listRequisitionsResponse { requisitions += requisition })
     }
-    val simulator =
-      EdpSimulator(
-        EDP_DATA,
-        MC_NAME,
-        measurementConsumersStub,
-        certificatesStub,
-        dataProvidersStub,
-        eventGroupsStub,
-        eventGroupMetadataDescriptorsStub,
-        requisitionsStub,
-        requisitionFulfillmentStubMap,
-        syntheticGeneratorEventQuery,
-        dummyThrottler,
-        privacyBudgetManager,
-        TRUSTED_CERTIFICATES,
-        HMSS_VID_INDEX_MAP,
-        random = Random(RANDOM_SEED),
-      )
+    val edpSimulator = createEdpSimulatorWithSyntheticGeneratorEventQuery()
 
-    runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
+    runBlocking { edpSimulator.executeRequisitionFulfillingWorkflow() }
 
     val refuseRequest: RefuseRequisitionRequest =
       verifyAndCapture(requisitionsServiceMock, RequisitionsCoroutineImplBase::refuseRequisition)
@@ -2863,26 +2350,9 @@ class EdpSimulatorTest {
       onBlocking { listRequisitions(any()) }
         .thenReturn(listRequisitionsResponse { requisitions += requisition })
     }
-    val simulator =
-      EdpSimulator(
-        EDP_DATA,
-        MC_NAME,
-        measurementConsumersStub,
-        certificatesStub,
-        dataProvidersStub,
-        eventGroupsStub,
-        eventGroupMetadataDescriptorsStub,
-        requisitionsStub,
-        requisitionFulfillmentStubMap,
-        syntheticGeneratorEventQuery,
-        dummyThrottler,
-        privacyBudgetManager,
-        TRUSTED_CERTIFICATES,
-        HMSS_VID_INDEX_MAP,
-        random = Random(RANDOM_SEED),
-      )
+    val edpSimulator = createEdpSimulatorWithSyntheticGeneratorEventQuery()
 
-    runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
+    runBlocking { edpSimulator.executeRequisitionFulfillingWorkflow() }
 
     val refuseRequest: RefuseRequisitionRequest =
       verifyAndCapture(requisitionsServiceMock, RequisitionsCoroutineImplBase::refuseRequisition)
@@ -2917,6 +2387,65 @@ class EdpSimulatorTest {
       _fullfillRequisitionInvocations.add(FulfillRequisitionInvocation(requests.toList()))
       return FulfillRequisitionResponse.getDefaultInstance()
     }
+  }
+
+  private fun createEdpSimulatorWithInMemoryEventQuery(labeledTestEvents: List<LabeledTestEvent> = emptyList()): EdpSimulator {
+    return EdpSimulator(
+      EDP_DATA,
+      MC_NAME,
+      measurementConsumersStub,
+      certificatesStub,
+      dataProvidersStub,
+      eventGroupsStub,
+      eventGroupMetadataDescriptorsStub,
+      requisitionsStub,
+      requisitionFulfillmentStubMap,
+      InMemoryEventQuery(labeledTestEvents),
+      dummyThrottler,
+      privacyBudgetManager,
+      TRUSTED_CERTIFICATES,
+      HMSS_VID_INDEX_MAP,
+    )
+  }
+
+  private fun createEdpSimulatorWithEventQueryMock(): EdpSimulator {
+    val eventQueryMock = mock<EventQuery<TestEvent>>()
+    return EdpSimulator(
+        EDP_DATA,
+        MC_NAME,
+        measurementConsumersStub,
+        certificatesStub,
+        dataProvidersStub,
+        eventGroupsStub,
+        eventGroupMetadataDescriptorsStub,
+        requisitionsStub,
+        requisitionFulfillmentStubMap,
+        eventQueryMock,
+        dummyThrottler,
+        privacyBudgetManager,
+        TRUSTED_CERTIFICATES,
+        HMSS_VID_INDEX_MAP,
+      )
+  }
+
+  private fun createEdpSimulatorWithSyntheticGeneratorEventQuery(): EdpSimulator {
+    return EdpSimulator(
+      EDP_DATA,
+      MC_NAME,
+      measurementConsumersStub,
+      certificatesStub,
+      dataProvidersStub,
+      eventGroupsStub,
+      eventGroupMetadataDescriptorsStub,
+      requisitionsStub,
+      requisitionFulfillmentStubMap,
+      syntheticGeneratorEventQuery,
+      dummyThrottler,
+      privacyBudgetManager,
+      TRUSTED_CERTIFICATES,
+      HMSS_VID_INDEX_MAP,
+      random = Random(RANDOM_SEED),
+    )
   }
 
   companion object {

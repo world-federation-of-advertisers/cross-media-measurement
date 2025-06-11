@@ -507,6 +507,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
                 reach = MetricSpecKt.reachParams { privacyParams = DP_PARAMS }
                 vidSamplingInterval = VID_SAMPLING_INTERVAL
               }
+              modelLine = getModelLineName()
             }
             metricCalculationSpecId = "fed"
           }
@@ -627,6 +628,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
                 reach = MetricSpecKt.reachParams { privacyParams = DP_PARAMS }
                 vidSamplingInterval = VID_SAMPLING_INTERVAL
               }
+              modelLine = getModelLineName()
             }
             metricCalculationSpecId = "fed"
           }
@@ -750,6 +752,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
                 reach = MetricSpecKt.reachParams { privacyParams = DP_PARAMS }
                 vidSamplingInterval = VID_SAMPLING_INTERVAL
               }
+              modelLine = getModelLineName()
             }
             metricCalculationSpecId = "fed"
           }
@@ -856,6 +859,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
                 reach = MetricSpecKt.reachParams { privacyParams = DP_PARAMS }
                 vidSamplingInterval = VID_SAMPLING_INTERVAL
               }
+              modelLine = getModelLineName()
             }
             metricCalculationSpecId = "fed"
           }
@@ -928,6 +932,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
                 reach = MetricSpecKt.reachParams { privacyParams = DP_PARAMS }
                 vidSamplingInterval = VID_SAMPLING_INTERVAL
               }
+              modelLine = getModelLineName()
             }
             metricCalculationSpecId = "fed"
           }
@@ -1008,6 +1013,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
                 reach = MetricSpecKt.reachParams { privacyParams = DP_PARAMS }
                 vidSamplingInterval = VID_SAMPLING_INTERVAL
               }
+              modelLine = getModelLineName()
             }
             metricCalculationSpecId = "fed"
           }
@@ -1124,6 +1130,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
                 reach = MetricSpecKt.reachParams { privacyParams = DP_PARAMS }
                 vidSamplingInterval = VID_SAMPLING_INTERVAL
               }
+              modelLine = getModelLineName()
             }
             metricCalculationSpecId = "fed"
           }
@@ -1201,6 +1208,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
                   count = 1
                   increment = MetricCalculationSpec.TrailingWindow.Increment.DAY
                 }
+              modelLine = getModelLineName()
             }
             metricCalculationSpecId = "fed"
           }
@@ -1295,6 +1303,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
                   count = 1
                   increment = MetricCalculationSpec.TrailingWindow.Increment.WEEK
                 }
+              modelLine = getModelLineName()
             }
             metricCalculationSpecId = "fed"
           }
@@ -1404,6 +1413,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
                   predicates += grouping2Predicate1
                   predicates += grouping2Predicate2
                 }
+              modelLine = getModelLineName()
             }
             metricCalculationSpecId = "fed"
           }
@@ -1477,6 +1487,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
                 reach = MetricSpecKt.reachParams { privacyParams = DP_PARAMS }
                 vidSamplingInterval = VID_SAMPLING_INTERVAL
               }
+              modelLine = getModelLineName()
             }
             metricCalculationSpecId = "fed"
           }
@@ -2516,6 +2527,14 @@ abstract class InProcessLifeOfAReportIntegrationTest(
           }
         )
     }
+  }
+
+  /**
+   * TODO(@tristanvuong2021): use enumerateValidModelLines when
+   *   replaceDataAvailabilityIntervals is implemented
+   */
+  private fun getModelLineName(): String {
+    return inProcessCmmsComponents.modelLineResourceName
   }
 
   private suspend fun pollForCompletedReport(reportName: String): Report {

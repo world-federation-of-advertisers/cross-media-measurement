@@ -244,12 +244,12 @@ class InProcessKingdom(
   }
 
   /** Provides access to ModelSuite creation. */
-  private val internalModelSuitesClient by lazy {
+  val internalModelSuitesClient by lazy {
     InternalModelSuitesCoroutineStub(internalApiChannel)
   }
 
   /** Provides access to ModelLine creation. */
-  private val internalModelLinesClient by lazy {
+  val internalModelLinesClient by lazy {
     InternalModelLinesCoroutineStub(internalApiChannel)
   }
 
