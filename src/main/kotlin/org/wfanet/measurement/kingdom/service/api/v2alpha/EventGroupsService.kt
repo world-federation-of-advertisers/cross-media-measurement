@@ -22,6 +22,8 @@ import com.google.protobuf.kotlin.unpack
 import com.google.protobuf.util.Timestamps
 import io.grpc.Status
 import io.grpc.StatusException
+import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.EmptyCoroutineContext
 import kotlin.math.min
 import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.Version
@@ -87,8 +89,10 @@ import org.wfanet.measurement.internal.kingdom.getEventGroupRequest as internalG
 import org.wfanet.measurement.internal.kingdom.streamEventGroupsRequest
 import org.wfanet.measurement.internal.kingdom.updateEventGroupRequest
 
-class EventGroupsService(private val internalEventGroupsStub: InternalEventGroupsCoroutineStub) :
-  EventGroupsCoroutineImplBase() {
+class EventGroupsService(
+  private val internalEventGroupsStub: InternalEventGroupsCoroutineStub,
+  coroutineContext: CoroutineContext = EmptyCoroutineContext,
+) : EventGroupsCoroutineImplBase(coroutineContext) {
 
   private enum class Permission {
     GET,

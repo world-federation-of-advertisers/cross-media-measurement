@@ -19,6 +19,8 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 import com.google.protobuf.util.Timestamps
 import io.grpc.Status
 import java.time.Clock
+import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.EmptyCoroutineContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.toList
@@ -53,7 +55,8 @@ class SpannerModelLinesService(
   private val clock: Clock,
   private val idGenerator: IdGenerator,
   private val client: AsyncDatabaseClient,
-) : ModelLinesCoroutineImplBase() {
+  coroutineContext: CoroutineContext = EmptyCoroutineContext,
+) : ModelLinesCoroutineImplBase(coroutineContext) {
 
   override suspend fun createModelLine(request: ModelLine): ModelLine {
     val now = clock.instant()

@@ -28,6 +28,8 @@ service Populations {
 
   rpc GetPopulation(GetPopulationRequest) returns (Population);
 
+  // Streams `Population`s ordered by (`create_time` descending,
+  // `external_data_provider_id` ascending, `external_population_id` ascending).
   rpc StreamPopulations(StreamPopulationsRequest) returns (stream Population);
 }
 

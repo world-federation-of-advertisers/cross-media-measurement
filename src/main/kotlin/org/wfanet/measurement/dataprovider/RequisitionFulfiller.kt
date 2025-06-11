@@ -172,6 +172,7 @@ abstract class RequisitionFulfiller(
     requisitionName: String,
     justification: Requisition.Refusal.Justification,
     message: String,
+    etag: String,
   ): Requisition {
     try {
       return requisitionsStub.refuseRequisition(
@@ -181,9 +182,12 @@ abstract class RequisitionFulfiller(
             this.justification = justification
             this.message = message
           }
+          this.etag = etag
         }
       )
     } catch (e: StatusException) {
+      // TODO(world-federation-of-advertisers/cross-media-measurement#2374): Handle ABORT exception
+      // by calling GetRequisition.
       throw Exception("Error refusing requisition $requisitionName", e)
     }
   }
@@ -237,6 +241,8 @@ abstract class RequisitionFulfiller(
         }
       )
     } catch (e: StatusException) {
+      // TODO(world-federation-of-advertisers/cross-media-measurement#2374): Handle ABORT exception
+      // by calling GetRequisition.
       throw Exception("Error fulfilling direct requisition ${requisition.name}", e)
     }
   }
