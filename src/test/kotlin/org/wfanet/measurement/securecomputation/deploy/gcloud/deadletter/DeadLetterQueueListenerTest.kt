@@ -26,11 +26,11 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
 import org.junit.Test
 import org.mockito.kotlin.*
+import org.wfanet.measurement.internal.securecomputation.controlplane.FailWorkItemRequest
 import org.wfanet.measurement.queue.QueueSubscriber
-import org.wfanet.measurement.securecomputation.controlplane.v1alpha.FailWorkItemRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
-import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
+import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.SpannerWorkItemsService
 import org.wfanet.measurement.securecomputation.service.Errors
 import org.wfanet.measurement.securecomputation.service.WorkItemKey
 
@@ -42,11 +42,11 @@ class DeadLetterQueueListenerTest {
 
   @Test
   fun `run method verifies subscription`() = runBlocking {
-    // Create mocks
+    // Create mockWorkItemsSers
     val mockParser = WorkItem.parser()
     val messageChannel = Channel<QueueSubscriber.QueueMessage<WorkItem>>()
     val subscribeCalled = CompletableDeferred<Unit>()
-    
+
     val mockQueueSubscriber = mock<QueueSubscriber> {
       on { subscribe(eq(subscriptionId), any<Parser<WorkItem>>()) } doAnswer {
         subscribeCalled.complete(Unit)
@@ -59,7 +59,7 @@ class DeadLetterQueueListenerTest {
       subscriptionId = subscriptionId,
       queueSubscriber = mockQueueSubscriber,
       parser = mockParser,
-      workItemsStub = mock()
+      failWorkItemFunction = mock()
     )
 
     // Start the listener in a separate coroutine that we'll cancel shortly
@@ -94,7 +94,7 @@ class DeadLetterQueueListenerTest {
       subscriptionId = subscriptionId,
       queueSubscriber = mockQueueSubscriber,
       parser = mockParser,
-      workItemsStub = mock()
+      failWorkItemFunction = mock()
     )
 
     // Set up a completion flag to check if the method completes
@@ -140,7 +140,7 @@ class DeadLetterQueueListenerTest {
       subscriptionId = subscriptionId,
       queueSubscriber = mockQueueSubscriber,
       parser = WorkItem.parser(),
-      workItemsStub = mock()
+      failWorkItemFunction = mock()
     )
 
     // Set up a completion flag to catch the exception
@@ -179,7 +179,7 @@ class DeadLetterQueueListenerTest {
       subscriptionId = subscriptionId,
       queueSubscriber = mockQueueSubscriber,
       parser = WorkItem.parser(),
-      workItemsStub = mock()
+      failWorkItemFunction = mock()
     )
 
     // Call close on the listener
@@ -209,14 +209,14 @@ class DeadLetterQueueListenerTest {
       on { subscribe(subscriptionId, WorkItem.parser()) } doReturn messageChannel
     }
 
-    // Create a mock WorkItemsStub that throws an exception for error item and succeeds for success item
-    val mockWorkItemsStub = mock<WorkItemsCoroutineStub>().apply {
-      // Configure stub to throw error for the first item
-      whenever(failWorkItem(argThat { getName() == WorkItemKey("error-item").toName() }, any())).thenThrow(
+    // Create a mock WorkItemsService that throws an exception for error item and succeeds for success item
+    val mockSpannerWorkItemsService = mock<SpannerWorkItemsService>().apply {
+      // Configure service to throw error for the first item
+      whenever(failWorkItem(argThat { workItemResourceId == "error-item" })).thenThrow(
         RuntimeException("Simulated processing error")
       )
 
-      // Configure stub to succeed for the second item
+      // Configure service to succeed for the second item
       // No specific configuration needed for success case as default mock behavior is to do nothing
     }
 
@@ -225,7 +225,7 @@ class DeadLetterQueueListenerTest {
       subscriptionId = subscriptionId,
       queueSubscriber = mockQueueSubscriber,
       parser = WorkItem.parser(),
-      workItemsStub = mockWorkItemsStub
+      failWorkItemFunction = mockSpannerWorkItemsService::failWorkItem
     )
 
     // Set up signal to track processing of both messages
@@ -294,15 +294,15 @@ class DeadLetterQueueListenerTest {
       on { subscribe(subscriptionId, WorkItem.parser()) } doReturn messageChannel
     }
 
-    // Create a mock WorkItemsStub
-    val mockWorkItemsStub = mock<WorkItemsCoroutineStub>()
+    // Create a mock WorkItemsService
+    val mockSpannerWorkItemsService = mock<SpannerWorkItemsService>()
 
     // Create the listener
     val listener = DeadLetterQueueListener(
       subscriptionId = subscriptionId,
       queueSubscriber = mockQueueSubscriber,
       parser = WorkItem.parser(),
-      workItemsStub = mockWorkItemsStub
+      failWorkItemFunction = mockSpannerWorkItemsService::failWorkItem
     )
 
     // Capture the arguments to the failWorkItem call
@@ -317,11 +317,10 @@ class DeadLetterQueueListenerTest {
     messageChannel.send(mockQueueMessage)
 
     // Wait for the message to be processed
-    verify(mockWorkItemsStub, times(1)).failWorkItem(requestCaptor.capture(), any())
+    verify(mockSpannerWorkItemsService, times(1)).failWorkItem(requestCaptor.capture())
 
-    // Verify that the ID was properly formatted into a resource name
-    val expectedResourceName = WorkItemKey(workItemId).toName()
-    assertEquals(expectedResourceName, requestCaptor.firstValue.getName())
+    // Verify that the work item resource ID was passed correctly
+    assertEquals(workItemId, requestCaptor.firstValue.workItemResourceId)
 
     // Clean up
     messageChannel.close()
@@ -348,15 +347,15 @@ class DeadLetterQueueListenerTest {
       on { subscribe(subscriptionId, WorkItem.parser()) } doReturn messageChannel
     }
 
-    // Create a mock WorkItemsStub
-    val mockWorkItemsStub = mock<WorkItemsCoroutineStub>()
+    // Create a mock WorkItemsService
+    val mockSpannerWorkItemsService = mock<SpannerWorkItemsService>()
 
     // Create the listener
     val listener = DeadLetterQueueListener(
       subscriptionId = subscriptionId,
       queueSubscriber = mockQueueSubscriber,
       parser = WorkItem.parser(),
-      workItemsStub = mockWorkItemsStub
+      failWorkItemFunction = mockSpannerWorkItemsService::failWorkItem
     )
 
     // Capture the arguments to the failWorkItem call
@@ -371,11 +370,10 @@ class DeadLetterQueueListenerTest {
     messageChannel.send(mockQueueMessage)
 
     // Wait for the message to be processed
-    verify(mockWorkItemsStub, times(1)).failWorkItem(requestCaptor.capture(), any())
+    verify(mockSpannerWorkItemsService, times(1)).failWorkItem(requestCaptor.capture())
 
-    // Verify that the ID was properly formatted into a resource name
-    val expectedResourceName = WorkItemKey(workItemIdOnly).toName()
-    assertEquals(expectedResourceName, requestCaptor.firstValue.getName())
+    // Verify that the work item resource ID was passed correctly
+    assertEquals(workItemIdOnly, requestCaptor.firstValue.workItemResourceId)
 
     // Clean up
     messageChannel.close()
@@ -400,15 +398,15 @@ class DeadLetterQueueListenerTest {
       on { subscribe(subscriptionId, WorkItem.parser()) } doReturn messageChannel
     }
 
-    // Create a mock WorkItemsStub
-    val mockWorkItemsStub = mock<WorkItemsCoroutineStub>()
+    // Create a mock WorkItemsService
+    val mockSpannerWorkItemsService = mock<SpannerWorkItemsService>()
 
     // Create the listener
     val listener = DeadLetterQueueListener(
       subscriptionId = subscriptionId,
       queueSubscriber = mockQueueSubscriber,
       parser = WorkItem.parser(),
-      workItemsStub = mockWorkItemsStub
+      failWorkItemFunction = mockSpannerWorkItemsService::failWorkItem
     )
 
     // Capture the arguments to the failWorkItem call
@@ -423,14 +421,13 @@ class DeadLetterQueueListenerTest {
     messageChannel.send(mockQueueMessage)
 
     // Wait for the message to be processed
-    verify(mockWorkItemsStub, times(1)).failWorkItem(requestCaptor.capture(), any())
+    verify(mockSpannerWorkItemsService, times(1)).failWorkItem(requestCaptor.capture())
 
     // Verify the message is acknowledged
     verify(mockQueueMessage, times(1)).ack()
 
-    // Verify that the ID was properly formatted into a resource name
-    val expectedResourceName = WorkItemKey(workItemId).toName()
-    assertEquals(expectedResourceName, requestCaptor.firstValue.getName())
+    // Verify that the work item resource ID was passed correctly
+    assertEquals(workItemId, requestCaptor.firstValue.workItemResourceId)
 
     // Close the channel and cancel the job
     messageChannel.close()
@@ -455,15 +452,15 @@ class DeadLetterQueueListenerTest {
       on { subscribe(subscriptionId, WorkItem.parser()) } doReturn messageChannel
     }
 
-    // Create a mock WorkItemsStub
-    val mockWorkItemsStub = mock<WorkItemsCoroutineStub>()
+    // Create a mock WorkItemsService
+    val mockSpannerWorkItemsService = mock<SpannerWorkItemsService>()
 
     // Create the listener
     val listener = DeadLetterQueueListener(
       subscriptionId = subscriptionId,
       queueSubscriber = mockQueueSubscriber,
       parser = WorkItem.parser(),
-      workItemsStub = mockWorkItemsStub
+      failWorkItemFunction = mockSpannerWorkItemsService::failWorkItem
     )
 
     // Start the listener
@@ -478,7 +475,7 @@ class DeadLetterQueueListenerTest {
     verify(mockQueueMessage, times(1)).ack()
 
     // Verify that the failWorkItem method was not called
-    verify(mockWorkItemsStub, never()).failWorkItem(any(), any())
+    verify(mockSpannerWorkItemsService, never()).failWorkItem(any())
 
     // Close the channel and cancel the job
     messageChannel.close()
@@ -503,11 +500,11 @@ class DeadLetterQueueListenerTest {
       on { subscribe(subscriptionId, WorkItem.parser()) } doReturn messageChannel
     }
 
-    // Create a mock WorkItemsStub that throws a NOT_FOUND StatusRuntimeException
+    // Create a mock WorkItemsService that throws a NOT_FOUND StatusRuntimeException
     val statusException = StatusRuntimeException(Status.NOT_FOUND.withDescription("Work item not found"))
 
-    val mockWorkItemsStub = mock<WorkItemsCoroutineStub> {
-      onBlocking { failWorkItem(any(), any()) } doThrow statusException
+    val mockSpannerWorkItemsService = mock<SpannerWorkItemsService> {
+      onBlocking { failWorkItem(any()) } doThrow statusException
     }
 
     // Create the listener
@@ -515,7 +512,7 @@ class DeadLetterQueueListenerTest {
       subscriptionId = subscriptionId,
       queueSubscriber = mockQueueSubscriber,
       parser = WorkItem.parser(),
-      workItemsStub = mockWorkItemsStub
+      failWorkItemFunction = mockSpannerWorkItemsService::failWorkItem
     )
 
     // Start the listener
@@ -564,9 +561,9 @@ class DeadLetterQueueListenerTest {
       errorInfoProto
     )
 
-    // Create a mock WorkItemsStub that throws the status exception
-    val mockWorkItemsStub = mock<WorkItemsCoroutineStub> {
-      onBlocking { failWorkItem(any(), any()) } doThrow statusException
+    // Create a mock WorkItemsService that throws the status exception
+    val mockSpannerWorkItemsService = mock<SpannerWorkItemsService> {
+      onBlocking { failWorkItem(any()) } doThrow statusException
     }
 
     // Create the listener
@@ -574,7 +571,7 @@ class DeadLetterQueueListenerTest {
       subscriptionId = subscriptionId,
       queueSubscriber = mockQueueSubscriber,
       parser = WorkItem.parser(),
-      workItemsStub = mockWorkItemsStub
+      failWorkItemFunction = mockSpannerWorkItemsService::failWorkItem
     )
 
     // Start the listener
@@ -616,9 +613,9 @@ class DeadLetterQueueListenerTest {
       Status.INTERNAL.withDescription("Internal error")
     )
 
-    // Create a mock WorkItemsStub that throws the status exception
-    val mockWorkItemsStub = mock<WorkItemsCoroutineStub> {
-      onBlocking { failWorkItem(any(), any()) } doThrow statusException
+    // Create a mock WorkItemsService that throws the status exception
+    val mockSpannerWorkItemsService = mock<SpannerWorkItemsService> {
+      onBlocking { failWorkItem(any()) } doThrow statusException
     }
 
     // Create the listener
@@ -626,7 +623,7 @@ class DeadLetterQueueListenerTest {
       subscriptionId = subscriptionId,
       queueSubscriber = mockQueueSubscriber,
       parser = WorkItem.parser(),
-      workItemsStub = mockWorkItemsStub
+      failWorkItemFunction = mockSpannerWorkItemsService::failWorkItem
     )
 
     // Start the listener
@@ -664,9 +661,9 @@ class DeadLetterQueueListenerTest {
       on { subscribe(subscriptionId, WorkItem.parser()) } doReturn messageChannel
     }
 
-    // Create a mock WorkItemsStub that throws a general exception
-    val mockWorkItemsStub = mock<WorkItemsCoroutineStub> {
-      onBlocking { failWorkItem(any(), any()) } doThrow RuntimeException("Unexpected error")
+    // Create a mock WorkItemsService that throws a general exception
+    val mockSpannerWorkItemsService = mock<SpannerWorkItemsService> {
+      onBlocking { failWorkItem(any()) } doThrow RuntimeException("Unexpected error")
     }
 
     // Create the listener
@@ -674,7 +671,7 @@ class DeadLetterQueueListenerTest {
       subscriptionId = subscriptionId,
       queueSubscriber = mockQueueSubscriber,
       parser = WorkItem.parser(),
-      workItemsStub = mockWorkItemsStub
+      failWorkItemFunction = mockSpannerWorkItemsService::failWorkItem
     )
 
     // Start the listener

@@ -24,12 +24,11 @@ import java.util.logging.Logger
 import kotlinx.coroutines.channels.ReceiveChannel
 import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.queue.QueueSubscriber
+import org.wfanet.measurement.internal.securecomputation.controlplane.FailWorkItemRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
-import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
-import org.wfanet.measurement.securecomputation.controlplane.v1alpha.failWorkItemRequest
 import org.wfanet.measurement.securecomputation.service.Errors
 import org.wfanet.measurement.securecomputation.service.WorkItemKey
-import org.wfanet.measurement.securecomputation.service.WorkItemNotFoundException
+import org.wfanet.measurement.securecomputation.service.internal.WorkItemNotFoundException
 
 /**
  * Service that listens to a dead letter queue and marks failed work items as FAILED in the database.
@@ -41,13 +40,13 @@ import org.wfanet.measurement.securecomputation.service.WorkItemNotFoundExceptio
  * @param subscriptionId The subscription ID for the dead letter queue.
  * @param queueSubscriber A client that manages connections and interactions with the queue.
  * @param parser Parser used to parse serialized queue messages into WorkItem instances.
- * @param workItemsStub Client for the WorkItems API.
+ * @param failWorkItemFunction Function to call to fail a work item.
  */
 class DeadLetterQueueListener(
   private val subscriptionId: String,
   private val queueSubscriber: QueueSubscriber,
   private val parser: Parser<WorkItem>,
-  private val workItemsStub: WorkItemsCoroutineStub
+  private val failWorkItemFunction: suspend (FailWorkItemRequest) -> Unit
 ) : AutoCloseable {
 
   /** Starts the listener by subscribing to the dead letter queue. */
@@ -121,23 +120,25 @@ class DeadLetterQueueListener(
   }
 
   /**
-   * Calls the WorkItems API to mark a work item as failed.
+   * Calls the failWorkItemFunction to mark a work item as failed.
    *
    * @param workItemId The ID of the work item to mark as failed.
-   * @throws StatusRuntimeException If the API call fails.
+   * @throws StatusRuntimeException If the operation fails.
    * @throws WorkItemNotFoundException If the work item does not exist.
    */
   private suspend fun markWorkItemAsFailed(workItemId: String) {
-    val resourceName = WorkItemKey(workItemId).toName()
+    val resourceId = WorkItemKey.fromName(workItemId)?.workItemId ?: workItemId
 
     try {
-      workItemsStub.failWorkItem(
-        failWorkItemRequest { name = resourceName }
+      failWorkItemFunction(
+        FailWorkItemRequest.newBuilder()
+          .setWorkItemResourceId(resourceId)
+          .build()
       )
     } catch (e: StatusRuntimeException) {
       when {
         e.status.code == Status.Code.NOT_FOUND -> {
-          throw WorkItemNotFoundException(resourceName, e)
+          throw WorkItemNotFoundException(workItemId, e)
         }
         else -> throw e
       }
