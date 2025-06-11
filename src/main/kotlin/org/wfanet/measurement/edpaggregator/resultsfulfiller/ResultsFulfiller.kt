@@ -23,15 +23,10 @@ import com.google.protobuf.TypeRegistry
 import com.google.protobuf.kotlin.unpack
 import java.security.GeneralSecurityException
 import java.security.SecureRandom
-import java.time.Instant
-import java.time.LocalDate
-import java.time.ZoneOffset
-import com.google.protobuf.Timestamp
 import java.time.ZoneId
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.asFlow
-import kotlinx.coroutines.flow.flatMapConcat
-import kotlinx.coroutines.runBlocking
+import org.wfanet.measurement.dataprovider.RequisitionRefusalException
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
@@ -66,7 +61,7 @@ class ResultsFulfiller(
   private val impressionDekStorageConfig: StorageConfig,
   private val requisitionsStorageConfig: StorageConfig,
   private val random: SecureRandom = SecureRandom(),
-  private val zoneId: ZoneId = ZoneId.of("America/New_York"),
+  private val zoneId: ZoneId,
 ) {
   suspend fun fulfillRequisitions() {
     val requisitions = getRequisitions()
@@ -160,7 +155,10 @@ class ResultsFulfiller(
     return if (options.contains(preference)) {
       preference
     } else {
-      throw Exception("No valid noise mechanism option for reach or frequency measurements.")
+      throw RequisitionRefusalException.Default(
+        Requisition.Refusal.Justification.SPEC_INVALID,
+        "No valid noise mechanism option for reach or frequency measurements.",
+      )
     }
   }
 
@@ -201,13 +199,13 @@ class ResultsFulfiller(
     val requisitionsStorageClient = SelectedStorageClient(storageClientUri, requisitionsStorageConfig.rootDirectory, requisitionsStorageConfig.projectId)
 
     // TODO(@jojijac0b): Refactor once grouped requisitions are supported
-    val requisitionBytes: ByteString = requisitionsStorageClient.getBlob(storageClientUri.key)!!.read().flatten()
+    val requisitionBytes: ByteString = requisitionsStorageClient.getBlob(storageClientUri.key)
+      ?.read()
+      ?.flatten()
+      ?: throw ImpressionReadException(storageClientUri.key, ImpressionReadException.Code.BLOB_NOT_FOUND)
+
     val requisition = Any.parseFrom(requisitionBytes).unpack(Requisition::class.java)
     return listOf(requisition).asFlow()
   }
 
-  private fun Timestamp.toLocalDate(): LocalDate =
-    Instant.ofEpochSecond(seconds, nanos.toLong())
-      .atZone(ZoneOffset.UTC)
-      .toLocalDate()
 }
