@@ -17,6 +17,8 @@ package org.wfanet.measurement.kingdom.service.api.v2alpha
 import io.grpc.Status
 import io.grpc.StatusException
 import java.time.LocalDate
+import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.EmptyCoroutineContext
 import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.v2alpha.AccountPrincipal
 import org.wfanet.measurement.api.v2alpha.CanonicalExchangeStepAttemptKey
@@ -69,7 +71,8 @@ private const val MAX_PAGE_SIZE = 100
 class ExchangeStepsService(
   private val internalRecurringExchanges: InternalRecurringExchangesCoroutineStub,
   private val internalExchangeSteps: InternalExchangeStepsCoroutineStub,
-) : ExchangeStepsCoroutineImplBase() {
+  coroutineContext: CoroutineContext = EmptyCoroutineContext,
+) : ExchangeStepsCoroutineImplBase(coroutineContext) {
   private enum class Permission {
     LIST,
     CLAIM_READY;

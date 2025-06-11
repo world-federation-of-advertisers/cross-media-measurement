@@ -20,6 +20,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.singleOrNull
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
+import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
 import org.wfanet.measurement.gcloud.spanner.bind
 import org.wfanet.measurement.gcloud.spanner.statement
 import org.wfanet.measurement.gcloud.spanner.toInt64
@@ -30,8 +31,10 @@ import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.measurementLogEntryDetails
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DuchyNotFoundException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ETags
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementStateIllegalException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.RequisitionEtagMismatchException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.RequisitionNotFoundByComputationException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.RequisitionNotFoundByDataProviderException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.RequisitionStateIllegalException
@@ -60,6 +63,13 @@ class FulfillRequisition(private val request: FulfillRequisitionRequest) :
   override suspend fun TransactionScope.runTransaction(): Requisition {
     val readResult: RequisitionReader.Result = readRequisition()
     val (measurementConsumerId, measurementId, requisitionId, requisition) = readResult
+
+    if (request.etag.isNotEmpty()) {
+      val currentEtag = ETags.computeETag(requisition.updateTime.toGcloudTimestamp())
+      if (request.etag != currentEtag) {
+        throw RequisitionEtagMismatchException(request.etag, currentEtag)
+      }
+    }
 
     val state = requisition.state
     if (state != Requisition.State.UNFULFILLED) {
@@ -133,7 +143,10 @@ class FulfillRequisition(private val request: FulfillRequisitionRequest) :
   }
 
   override fun ResultScope<Requisition>.buildResult(): Requisition {
-    return checkNotNull(transactionResult).copy { updateTime = commitTimestamp.toProto() }
+    return checkNotNull(transactionResult).copy {
+      updateTime = commitTimestamp.toProto()
+      etag = ETags.computeETag(commitTimestamp)
+    }
   }
 
   private suspend fun TransactionScope.readRequisition(): RequisitionReader.Result {
