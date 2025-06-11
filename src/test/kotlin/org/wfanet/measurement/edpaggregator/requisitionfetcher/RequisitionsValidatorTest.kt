@@ -16,7 +16,7 @@
 
 package org.wfanet.measurement.edpaggregator.requisitionfetcher
 
-import com.google.common.truth.extensions.proto.FieldScopes
+import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.Any
 import com.google.protobuf.StringValue
@@ -25,12 +25,10 @@ import com.google.protobuf.kotlin.toByteStringUtf8
 import com.google.type.interval
 import java.nio.file.Path
 import java.nio.file.Paths
-import java.time.Clock
-import java.time.Duration
 import java.time.LocalDate
 import kotlin.random.Random
 import kotlin.test.assertNotNull
-import kotlinx.coroutines.runBlocking
+import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -42,7 +40,6 @@ import org.wfanet.measurement.api.v2alpha.DuchyKey
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reachAndFrequency
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.vidSamplingInterval
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt
-import org.wfanet.measurement.api.v2alpha.RefuseRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.Requisition.Refusal
 import org.wfanet.measurement.api.v2alpha.RequisitionKt.DuchyEntryKt.liquidLegionsV2
@@ -55,7 +52,6 @@ import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventFilter
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventGroupEntry
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineImplBase
-import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.certificate
 import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
@@ -65,7 +61,6 @@ import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.copy
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
 import org.wfanet.measurement.api.v2alpha.measurementSpec
 import org.wfanet.measurement.api.v2alpha.protocolConfig
-import org.wfanet.measurement.api.v2alpha.refuseRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.requisition
 import org.wfanet.measurement.api.v2alpha.requisitionSpec
 import org.wfanet.measurement.api.v2alpha.signedMessage
@@ -84,8 +79,6 @@ import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.pack
-import org.wfanet.measurement.common.testing.verifyAndCapture
-import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
 import org.wfanet.measurement.consent.client.duchy.signElgamalPublicKey
@@ -104,40 +97,34 @@ class RequisitionsValidatorTest {
 
   @get:Rule val grpcTestServerRule = GrpcTestServerRule { addService(requisitionsServiceMock) }
 
-  private val requisitionsStub: RequisitionsGrpcKt.RequisitionsCoroutineStub by lazy {
-    RequisitionsGrpcKt.RequisitionsCoroutineStub(grpcTestServerRule.channel)
-  }
-
-  private val throttler = MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofSeconds(1L))
-
   private val requisitionValidator by lazy {
     RequisitionsValidator(
       privateEncryptionKey = TestRequisitionData.EDP_DATA.privateEncryptionKey,
-      fatalRequisitionErrorPredicate = ::refuseRequisition,
+      fatalRequisitionErrorPredicate = ::receiveError,
     )
   }
 
-  private fun refuseRequisition(requisition: Requisition, refusal: Requisition.Refusal) =
-    runBlocking {
-      throttler.onReady {
-        requisitionsStub.refuseRequisition(
-          refuseRequisitionRequest {
-            this.name = requisition.name
-            this.refusal = refusal
-          }
-        )
-      }
-    }
+  private var errors: MutableList<Pair<String, Requisition.Refusal>> = mutableListOf()
+
+  @Before
+  fun setUp() {
+    errors = mutableListOf()
+  }
+
+  private fun receiveError(requisition: Requisition, refusal: Requisition.Refusal) {
+    errors.add(Pair(requisition.name, refusal))
+  }
 
   @Test
   fun `validates valid Requisition`() {
 
     assertNotNull(requisitionValidator.validateRequisitionSpec(TestRequisitionData.REQUISITION))
     assertNotNull(requisitionValidator.validateMeasurementSpec(TestRequisitionData.REQUISITION))
+    assertThat(errors).hasSize(0)
   }
 
   @Test
-  fun `refuses Requisition when Measurement Spec cannot be parsed`() {
+  fun `calls fatalRequisitionErrorPredicate when Measurement Spec cannot be parsed`() {
 
     val requisition =
       REQUISITION.copy {
@@ -147,24 +134,13 @@ class RequisitionsValidatorTest {
       }
     assertThat(requisitionValidator.validateMeasurementSpec(requisition)).isEqualTo(null)
 
-    val refuseRequest: RefuseRequisitionRequest =
-      verifyAndCapture(requisitionsServiceMock, RequisitionsCoroutineImplBase::refuseRequisition)
-    assertThat(refuseRequest)
-      .ignoringFieldScope(
-        FieldScopes.allowingFieldDescriptors(
-          Refusal.getDescriptor().findFieldByNumber(Refusal.MESSAGE_FIELD_NUMBER)
-        )
-      )
-      .isEqualTo(
-        refuseRequisitionRequest {
-          name = REQUISITION.name
-          refusal = refusal { justification = Refusal.Justification.SPEC_INVALID }
-        }
-      )
+    assertThat(errors.single().first).isEqualTo(REQUISITION.name)
+    assertThat(errors.single().second.justification)
+      .isEqualTo(Requisition.Refusal.Justification.SPEC_INVALID)
   }
 
   @Test
-  fun `refuses Requisition when Requisition Spec cannot be parsed`() {
+  fun `calls fatalRequisitionErrorPredicate when Requisition Spec cannot be parsed`() {
     val requisition =
       REQUISITION.copy {
         encryptedRequisitionSpec = encryptedMessage {
@@ -173,21 +149,9 @@ class RequisitionsValidatorTest {
         }
       }
     assertThat(requisitionValidator.validateRequisitionSpec(requisition)).isEqualTo(null)
-
-    val refuseRequest: RefuseRequisitionRequest =
-      verifyAndCapture(requisitionsServiceMock, RequisitionsCoroutineImplBase::refuseRequisition)
-    assertThat(refuseRequest)
-      .ignoringFieldScope(
-        FieldScopes.allowingFieldDescriptors(
-          Refusal.getDescriptor().findFieldByNumber(Refusal.MESSAGE_FIELD_NUMBER)
-        )
-      )
-      .isEqualTo(
-        refuseRequisitionRequest {
-          name = REQUISITION.name
-          refusal = refusal { justification = Refusal.Justification.CONSENT_SIGNAL_INVALID }
-        }
-      )
+    assertThat(errors.single().first).isEqualTo(REQUISITION.name)
+    assertThat(errors.single().second.justification)
+      .isEqualTo(Requisition.Refusal.Justification.CONSENT_SIGNAL_INVALID)
   }
 
   companion object {
