@@ -134,7 +134,6 @@ message ListModelProvidersPageToken {
   int32 page_size = 1;
   message PreviousPageEnd {
     fixed64 external_model_provider_id = 1;
-    google.protobuf.Timestamp create_time = 2;
   }
   PreviousPageEnd last_model_provider = 2;
 }
