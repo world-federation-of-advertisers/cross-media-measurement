@@ -254,12 +254,26 @@ class InProcessCmmsComponents(
     val internalModelProvider = resourceSetup.createInternalModelProvider()
     _modelProviderResourceName =
       ModelProviderKey(externalIdToApiId(internalModelProvider.externalModelProviderId)).toName()
-    val internalModelSuite = resourceSetup.createInternalModelSuite(internalModelProvider.externalModelProviderId)
+    val internalModelSuite =
+      resourceSetup.createInternalModelSuite(internalModelProvider.externalModelProviderId)
     modelSuiteResourceName =
-      ModelSuiteKey(externalIdToApiId(internalModelSuite.externalModelProviderId), externalIdToApiId(internalModelSuite.externalModelSuiteId)).toName()
-    val internalModelLine = resourceSetup.createInternalModelLine(internalModelSuite.externalModelProviderId, internalModelSuite.externalModelSuiteId)
+      ModelSuiteKey(
+          externalIdToApiId(internalModelSuite.externalModelProviderId),
+          externalIdToApiId(internalModelSuite.externalModelSuiteId),
+        )
+        .toName()
+    val internalModelLine =
+      resourceSetup.createInternalModelLine(
+        internalModelSuite.externalModelProviderId,
+        internalModelSuite.externalModelSuiteId,
+      )
     modelLineResourceName =
-      ModelLineKey(externalIdToApiId(internalModelLine.externalModelProviderId), externalIdToApiId(internalModelLine.externalModelSuiteId), externalIdToApiId(internalModelLine.externalModelLineId)).toName()
+      ModelLineKey(
+          externalIdToApiId(internalModelLine.externalModelProviderId),
+          externalIdToApiId(internalModelLine.externalModelSuiteId),
+          externalIdToApiId(internalModelLine.externalModelLineId),
+        )
+        .toName()
 
     val population = resourceSetup.createInternalPopulation(internalDataProvider)
     populationKey = PopulationKey.fromName(population.toPopulation().name)!!

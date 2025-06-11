@@ -244,14 +244,10 @@ class InProcessKingdom(
   }
 
   /** Provides access to ModelSuite creation. */
-  val internalModelSuitesClient by lazy {
-    InternalModelSuitesCoroutineStub(internalApiChannel)
-  }
+  val internalModelSuitesClient by lazy { InternalModelSuitesCoroutineStub(internalApiChannel) }
 
   /** Provides access to ModelLine creation. */
-  val internalModelLinesClient by lazy {
-    InternalModelLinesCoroutineStub(internalApiChannel)
-  }
+  val internalModelLinesClient by lazy { InternalModelLinesCoroutineStub(internalApiChannel) }
 
   /** Provides access to Population creation. */
   val internalPopulationsClient by lazy { InternalPopulationsCoroutineStub(internalApiChannel) }

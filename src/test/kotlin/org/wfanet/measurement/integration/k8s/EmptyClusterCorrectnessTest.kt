@@ -426,9 +426,12 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
                   MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub(publicChannel),
                   runId,
                   outputDir = outputDir,
-                  internalModelProvidersClient = ModelProvidersGrpcKt.ModelProvidersCoroutineStub(internalChannel),
-                  internalModelSuitesClient = ModelSuitesGrpcKt.ModelSuitesCoroutineStub(internalChannel),
-                  internalModelLinesClient = ModelLinesGrpcKt.ModelLinesCoroutineStub(internalChannel),
+                  internalModelProvidersClient =
+                    ModelProvidersGrpcKt.ModelProvidersCoroutineStub(internalChannel),
+                  internalModelSuitesClient =
+                    ModelSuitesGrpcKt.ModelSuitesCoroutineStub(internalChannel),
+                  internalModelLinesClient =
+                    ModelLinesGrpcKt.ModelLinesCoroutineStub(internalChannel),
                   requiredDuchies = listOf("aggregator", "worker1", "worker2"),
                 )
               withContext(Dispatchers.IO) {

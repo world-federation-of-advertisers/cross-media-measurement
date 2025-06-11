@@ -2530,8 +2530,8 @@ abstract class InProcessLifeOfAReportIntegrationTest(
   }
 
   /**
-   * TODO(@tristanvuong2021): use enumerateValidModelLines when
-   *   replaceDataAvailabilityIntervals is implemented
+   * TODO(@tristanvuong2021): use enumerateValidModelLines when replaceDataAvailabilityIntervals is
+   *   implemented
    */
   private fun getModelLineName(): String {
     return inProcessCmmsComponents.modelLineResourceName
