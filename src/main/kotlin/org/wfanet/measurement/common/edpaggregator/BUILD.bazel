@@ -8,8 +8,8 @@ package(default_visibility = [
 ])
 
 kt_jvm_library(
-    name = "cloud_function_config_utils",
-    srcs = ["CloudFunctionConfigUtils.kt"],
+    name = "cloud_function_config",
+    srcs = ["CloudFunctionConfig.kt"],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/common:env_vars",
         "@wfa_common_jvm//imports/java/com/google/protobuf",

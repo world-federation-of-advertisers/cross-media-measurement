@@ -52,6 +52,7 @@ jobs:
       GCLOUD_ZONE: ${{ vars.GCLOUD_ZONE }}
       DATA_WATCHER_CONFIG_CONTENT: ${{ vars.DATA_WATCHER_CONFIG_CONTENT }}
       REQUISITION_FETCHER_CONFIG_CONTENT: ${{ vars.REQUISITION_FETCHER_CONFIG_CONTENT }}
+      CONFIG_DIR: ${{ runner.temp }}/configs
 
     steps:
     - uses: actions/checkout@v4
@@ -66,9 +67,9 @@ jobs:
 
     - name: Write data-watcher config to file
       run: |
-        mkdir -p /tmp/configs
-        echo "$DATA_WATCHER_CONFIG_CONTENT" > /tmp/configs/data-watcher-config.textproto
-        echo "$REQUISITION_FETCHER_CONFIG_CONTENT" > /tmp/configs/requisition-fetcher-config.textproto
+        mkdir -p "$CONFIG_DIR"
+        echo "$DATA_WATCHER_CONFIG_CONTENT" > "$CONFIG_DIR/data-watcher-config.textproto"
+        echo "$REQUISITION_FETCHER_CONFIG_CONTENT" > "$CONFIG_DIR/requisition-fetcher-config.textproto"
 
     - name: terraform init
       env:
@@ -91,6 +92,7 @@ jobs:
         TERRAFORM_SERVICE_ACCOUNT: ${{ vars.TF_SERVICE_ACCOUNT }}
         POSTGRES_INSTANCE: ${{ vars.POSTGRES_INSTANCE }}
         POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+        CONFIG_DIR: ${{ env.CONFIG_DIR }}
       working-directory: ${{ env.GCLOUD_MODULE_PATH }}
       run: >
         terraform plan
@@ -104,8 +106,8 @@ jobs:
         -var="terraform_service_account=$TERRAFORM_SERVICE_ACCOUNT"
         -var="postgres_instance_name=$POSTGRES_INSTANCE"
         -var="postgres_password=$POSTGRES_PASSWORD"
-        -var="data_watcher_config_file_path=/tmp/configs/data-watcher-config.textproto"
-        -var="requisition_fetcher_config_file_path=/tmp/configs/requisition-fetcher-config.textproto"
+        -var="data_watcher_config_file_path=$CONFIG_DIR/data-watcher-config.textproto"
+        -var="requisition_fetcher_config_file_path=$CONFIG_DIR/requisition-fetcher-config.textproto"
         -out=tfplan
 
     - name: terraform apply

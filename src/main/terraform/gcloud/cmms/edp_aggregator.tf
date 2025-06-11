@@ -35,16 +35,16 @@ locals {
     }
   }
 
-  configs_to_upload = [
-    {
-      local_path  = var.data_watcher_config_file_path
-      destination = "data-watcher-config.textproto"
-    },
-    {
-      local_path  = var.requisition_fetcher_config_file_path
-      destination = "requisition-fetcher-config.textproto"
-    },
-  ]
+  data_watcher_config = {
+    local_path  = var.data_watcher_config_file_path
+    destination = "data-watcher-config.textproto"
+  }
+
+  requisition_fetcher_config = {
+    local_path  = var.requisition_fetcher_config_file_path
+    destination = "requisition-fetcher-config.textproto"
+  }
+
 }
 
 module "edp_aggregator" {
@@ -62,7 +62,8 @@ module "edp_aggregator" {
   data_watcher_trigger_service_account_name = "edpa-data-watcher-trigger"
   terraform_service_account                 = var.terraform_service_account
   requisition_fetcher_service_account_name  = "edpa-requisition-fetcher"
-  configs_to_upload                         = local.configs_to_upload
+  data_watcher_config                       = local.data_watcher_config
+  requisition_fetcher_config                = local.requisition_fetcher_config
   data_watcher_private_key_id               = "edpa-datawatcher-tls-key"
   data_watcher_private_key_path             = "${path.root}/../../../k8s/testing/secretfiles/data_watcher_tls.key"
   data_watcher_cert_id                      = "edpa-datawatcher-tls-pem"

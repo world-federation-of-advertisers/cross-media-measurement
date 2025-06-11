@@ -72,12 +72,20 @@ variable "config_files_bucket_name" {
   nullable    = false
 }
 
-variable "configs_to_upload" {
-  description = "List of maps with local file path and destination object path"
-  type = list(object({
+variable "data_watcher_config" {
+  description = "An object containing the local path of the data watcher config file and its destination path in Cloud Storage."
+  object({
     local_path  = string
     destination = string
-  }))
+  })
+}
+
+variable "requisition_fetcher_config" {
+  description = "An object containing the local path of the requisition fetcher config file and its destination path in Cloud Storage."
+  object({
+    local_path  = string
+    destination = string
+  })
 }
 
 variable "edp_aggregator_buckets_location" {
