@@ -38,7 +38,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.groupedRequisitions
  * disparate.
  */
 class RequisitionGrouperByReportId(
-  private val requisitionValidator: GroupedRequisitionsValidator,
+  private val requisitionValidator: RequisitionsValidator,
   eventGroupsClient: EventGroupsCoroutineStub,
   requisitionsClient: RequisitionsCoroutineStub,
   throttler: Throttler,

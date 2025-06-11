@@ -17,12 +17,13 @@
 package org.wfanet.measurement.edpaggregator.requisitionfetcher
 
 import com.google.common.truth.Truth.assertThat
-import com.google.common.truth.extensions.proto.FieldScopes
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.type.interval
 import java.time.Clock
 import java.time.Duration
 import java.time.temporal.ChronoUnit
+import kotlinx.coroutines.runBlocking
+import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
@@ -31,10 +32,8 @@ import org.mockito.kotlin.times
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.GetEventGroupRequest
-import org.wfanet.measurement.api.v2alpha.RefuseRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.RequisitionKt.DuchyEntryKt.value
-import org.wfanet.measurement.api.v2alpha.RequisitionKt.refusal
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineImplBase
@@ -44,12 +43,10 @@ import org.wfanet.measurement.api.v2alpha.eventGroup
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.copy
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
 import org.wfanet.measurement.api.v2alpha.measurementSpec
-import org.wfanet.measurement.api.v2alpha.refuseRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.signedMessage
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.pack
-import org.wfanet.measurement.common.testing.verifyAndCapture
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.consent.client.measurementconsumer.encryptRequisitionSpec
@@ -63,9 +60,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt.eventG
 class RequisitionGrouperByReportIdTest : AbstractRequisitionGrouperTest() {
 
   override val requisitionsServiceMock: RequisitionsGrpcKt.RequisitionsCoroutineImplBase by lazy {
-    mockService {
-      onBlocking { refuseRequisition(any()) }.thenReturn(TestRequisitionData.REQUISITION)
-    }
+    mockService {}
   }
 
   override val eventGroupsServiceMock: EventGroupsCoroutineImplBase by lazy {
@@ -89,11 +84,21 @@ class RequisitionGrouperByReportIdTest : AbstractRequisitionGrouperTest() {
   private val throttler = MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofSeconds(1L))
 
   private val requisitionValidator by lazy {
-    GroupedRequisitionsValidator(
-      requisitionsClient = requisitionsStub,
-      throttler = throttler,
+    RequisitionsValidator(
+      fatalRequisitionErrorPredicate = ::incrementCounter,
       privateEncryptionKey = TestRequisitionData.EDP_DATA.privateEncryptionKey,
     )
+  }
+
+  private var errorCounter = 0
+
+  @Before
+  fun setUp() {
+    errorCounter = 0
+  }
+
+  private fun incrementCounter(requisition: Requisition, refusal: Requisition.Refusal) {
+    errorCounter++
   }
 
   override val requisitionGrouper: RequisitionGrouper by lazy {
@@ -153,8 +158,9 @@ class RequisitionGrouperByReportIdTest : AbstractRequisitionGrouperTest() {
           )
       }
 
-    val groupedRequisitions: List<GroupedRequisitions> =
+    val groupedRequisitions: List<GroupedRequisitions> = runBlocking {
       requisitionGrouper.groupRequisitions(listOf(TestRequisitionData.REQUISITION, requisition2))
+    }
     assertThat(groupedRequisitions).hasSize(1)
     groupedRequisitions.forEach { groupedRequisition: GroupedRequisitions ->
       assertThat(groupedRequisition.eventGroupMapList.single())
@@ -179,6 +185,7 @@ class RequisitionGrouperByReportIdTest : AbstractRequisitionGrouperTest() {
         )
         .isEqualTo(listOf(TestRequisitionData.REQUISITION, requisition2))
     }
+    assertThat(errorCounter).isEqualTo(0)
   }
 
   @Test
@@ -221,13 +228,15 @@ class RequisitionGrouperByReportIdTest : AbstractRequisitionGrouperTest() {
           )
       }
 
-    val groupedRequisitions: List<GroupedRequisitions> =
+    val groupedRequisitions: List<GroupedRequisitions> = runBlocking {
       requisitionGrouper.groupRequisitions(listOf(TestRequisitionData.REQUISITION, requisition2))
+    }
     assertThat(groupedRequisitions).hasSize(1)
     assertThat(
         groupedRequisitions.single().eventGroupMapList.single().details.collectionIntervalsList
       )
       .hasSize(2)
+    assertThat(errorCounter).isEqualTo(0)
   }
 
   @Test
@@ -240,29 +249,10 @@ class RequisitionGrouperByReportIdTest : AbstractRequisitionGrouperTest() {
           signMeasurementSpec(measurementSpec, TestRequisitionData.MC_SIGNING_KEY)
       }
 
-    val groupedRequisitions: List<GroupedRequisitions> =
+    val groupedRequisitions: List<GroupedRequisitions> = runBlocking {
       requisitionGrouper.groupRequisitions(listOf(TestRequisitionData.REQUISITION, requisition2))
-    assertThat(groupedRequisitions).hasSize(0)
-    val refuseRequests: List<RefuseRequisitionRequest> =
-      verifyAndCapture(
-        requisitionsServiceMock,
-        RequisitionsCoroutineImplBase::refuseRequisition,
-        times(2),
-      )
-    refuseRequests.forEach { refuseRequest ->
-      assertThat(refuseRequest)
-        .ignoringFieldScope(
-          FieldScopes.allowingFieldDescriptors(
-            Requisition.Refusal.getDescriptor()
-              .findFieldByNumber(Requisition.Refusal.MESSAGE_FIELD_NUMBER)
-          )
-        )
-        .isEqualTo(
-          refuseRequisitionRequest {
-            name = TestRequisitionData.REQUISITION.name
-            refusal = refusal { justification = Requisition.Refusal.Justification.UNFULFILLABLE }
-          }
-        )
     }
+    assertThat(groupedRequisitions).hasSize(0)
+    assertThat(errorCounter).isEqualTo(2)
   }
 }
