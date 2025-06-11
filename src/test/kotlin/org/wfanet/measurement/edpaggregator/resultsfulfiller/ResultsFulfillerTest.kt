@@ -32,6 +32,8 @@ import java.nio.file.Path
 import java.nio.file.Paths
 import java.security.SecureRandom
 import java.time.LocalDate
+import java.time.ZoneId
+import java.time.ZoneOffset
 import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.runBlocking
@@ -172,21 +174,33 @@ class ResultsFulfillerTest {
     // Create the impressions metadata store
     val metadataTmpPath = Files.createTempDirectory(null).toFile()
     Files.createDirectories(metadataTmpPath.resolve(IMPRESSIONS_METADATA_BUCKET).toPath())
-    val impressionsMetadataStorageClient =
-      SelectedStorageClient(IMPRESSIONS_METADATA_FILE_URI, metadataTmpPath)
 
-    val encryptedDek =
-      EncryptedDek.newBuilder().setKekUri(kekUri).setEncryptedDek(serializedEncryptionKey).build()
-    val blobDetails =
-      BlobDetails.newBuilder()
-        .setBlobUri(IMPRESSIONS_FILE_URI)
-        .setEncryptedDek(encryptedDek)
-        .build()
+    val dates = generateSequence(FIRST_EVENT_DATE) { date ->
+      if (date < LAST_EVENT_DATE) date.plusDays(1) else null
+    }
 
-    impressionsMetadataStorageClient.writeBlob(
-      IMPRESSION_METADATA_BLOB_KEY,
-      blobDetails.toByteString()
-    )
+    for (date in dates) {
+      val impressionMetadataBlobKey =
+        "ds/$date/event-group-id/$EVENT_GROUP_NAME/metadata"
+      val impressionsMetadataFileUri =
+        "file:///$IMPRESSIONS_METADATA_BUCKET/$impressionMetadataBlobKey"
+
+      val impressionsMetadataStorageClient =
+        SelectedStorageClient(impressionsMetadataFileUri, metadataTmpPath)
+
+      val encryptedDek =
+        EncryptedDek.newBuilder().setKekUri(kekUri).setEncryptedDek(serializedEncryptionKey).build()
+      val blobDetails =
+        BlobDetails.newBuilder()
+          .setBlobUri(IMPRESSIONS_FILE_URI)
+          .setEncryptedDek(encryptedDek)
+          .build()
+
+      impressionsMetadataStorageClient.writeBlob(
+        impressionMetadataBlobKey,
+        blobDetails.toByteString()
+      )
+    }
 
     val typeRegistry = TypeRegistry.newBuilder().add(TestEvent.getDescriptor()).build()
 
@@ -205,7 +219,8 @@ class ResultsFulfillerTest {
       StorageConfig(rootDirectory = impressionsTmpPath),
       StorageConfig(rootDirectory = metadataTmpPath),
       StorageConfig(rootDirectory = requisitionsTmpPath),
-      RANDOM
+      RANDOM,
+      ZoneOffset.UTC
     )
 
     resultsFulfiller.fulfillRequisitions()
@@ -299,7 +314,7 @@ class ResultsFulfillerTest {
 
   companion object {
     private val RANDOM = SecureRandom.getInstance("SHA1PRNG")
-    private val LAST_EVENT_DATE = LocalDate.now()
+    private val LAST_EVENT_DATE = LocalDate.now(ZoneId.of("America/New_York")).minusDays(1)
     private val FIRST_EVENT_DATE = LAST_EVENT_DATE.minusDays(1)
     private val TIME_RANGE = OpenEndTimeRange.fromClosedDateRange(FIRST_EVENT_DATE..LAST_EVENT_DATE)
     private const val REACH_TOLERANCE = 1.0
@@ -440,11 +455,6 @@ class ResultsFulfillerTest {
     private const val IMPRESSIONS_FILE_URI = "file:///$IMPRESSIONS_BUCKET/$IMPRESSIONS_BLOB_KEY"
 
     private const val IMPRESSIONS_METADATA_BUCKET = "impression-metadata-bucket"
-    private val IMPRESSION_METADATA_BLOB_KEY =
-      "ds/${TIME_RANGE.start}/event-group-id/$EVENT_GROUP_NAME/metadata"
-
-    private val IMPRESSIONS_METADATA_FILE_URI =
-      "file:///$IMPRESSIONS_METADATA_BUCKET/$IMPRESSION_METADATA_BLOB_KEY"
 
     private const val IMPRESSIONS_METADATA_FILE_URI_PREFIX = "file:///$IMPRESSIONS_METADATA_BUCKET"
   }

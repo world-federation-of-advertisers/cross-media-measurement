@@ -27,9 +27,11 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
 import com.google.protobuf.Timestamp
+import java.time.ZoneId
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.flatMapConcat
+import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
@@ -45,6 +47,7 @@ import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.consent.client.dataprovider.decryptRequisitionSpec
 import org.wfanet.measurement.edpaggregator.StorageConfig
+import org.wfanet.measurement.edpaggregator.resultsfulfiller.RequisitionSpecs.getSampledVids
 import org.wfanet.measurement.eventdataprovider.noiser.DirectNoiseMechanism
 import org.wfanet.measurement.storage.SelectedStorageClient
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.compute.protocols.direct.DirectMeasurementResultFactory
@@ -63,6 +66,7 @@ class ResultsFulfiller(
   private val impressionDekStorageConfig: StorageConfig,
   private val requisitionsStorageConfig: StorageConfig,
   private val random: SecureRandom = SecureRandom(),
+  private val zoneId: ZoneId = ZoneId.of("America/New_York"),
 ) {
   suspend fun fulfillRequisitions() {
     val requisitions = getRequisitions()
@@ -78,7 +82,6 @@ class ResultsFulfiller(
         }
       val requisitionSpec: RequisitionSpec = signedRequisitionSpec.unpack()
       val measurementSpec: MeasurementSpec = requisition.measurementSpec.message.unpack()
-
       val eventReader = EventReader(
         kmsClient,
         impressionsStorageConfig,
@@ -86,57 +89,13 @@ class ResultsFulfiller(
         labeledImpressionDekPrefix
       )
 
-      val sampledVids: Flow<Long> = requisitionSpec.events.eventGroupsList
-        .asFlow()
-        .flatMapConcat { eventGroup ->
-          val start = eventGroup.value.collectionInterval.startTime
-          val end   = eventGroup.value.collectionInterval.endTime
-          val startDate = Instant.ofEpochSecond(start.seconds, start.nanos.toLong())
-            .atZone(ZoneOffset.UTC)
-            .toLocalDate()
-          val endDate = Instant.ofEpochSecond(end.seconds, end.nanos.toLong())
-            .atZone(ZoneOffset.UTC)
-            .toLocalDate()
-
-          val labeledImpressions = generateSequence(startDate) { date ->
-            if (date.isBefore(endDate)) date.plusDays(1) else null
-          }
-          .asFlow()
-          .flatMapConcat { ds ->
-            eventReader.getLabeledImpressions(ds, eventGroup.key)
-          }
-
-          VidFilter.filterAndExtractVids(
-            labeledImpressions,
-            measurementSpec.vidSamplingInterval.start,
-            measurementSpec.vidSamplingInterval.width,
-            eventGroup.value.filter,
-            eventGroup.value.collectionInterval,
-            typeRegistry,
-          )
-//          flow {
-//            val interval = eventGroup.value.collectionInterval
-//            val startDate = interval.startTime.toLocalDate()
-//            val endDate = interval.endTime.toLocalDate()
-//            for (date in startDate.datesUntil(endDate.plusDays(1))) {
-//              val labeledImpressions = eventReader.getLabeledImpressions(
-//                date,
-//                eventGroup.key,
-//              )
-//              emitAll(
-//                VidFilter.filterAndExtractVids(
-//                  labeledImpressions,
-//                  measurementSpec.vidSamplingInterval.start,
-//                  measurementSpec.vidSamplingInterval.width,
-//                  eventGroup.value.filter,
-//                  eventGroup.value.collectionInterval,
-//                  typeRegistry,
-//                )
-//              )
-//            }
-          }
-//        }
-
+      val sampledVids: Flow<Long> = getSampledVids(
+        requisitionSpec,
+        measurementSpec.vidSamplingInterval,
+        typeRegistry,
+        eventReader,
+        zoneId
+      )
 
       val measurementEncryptionPublicKey: EncryptionPublicKey =
         if (measurementSpec.hasMeasurementPublicKey()) {
@@ -145,7 +104,6 @@ class ResultsFulfiller(
           @Suppress("DEPRECATION") // Handle legacy resources.
           EncryptionPublicKey.parseFrom(measurementSpec.serializedMeasurementPublicKey)
         }
-
       val protocols: List<ProtocolConfig.Protocol> = requisition.protocolConfig.protocolsList
 
       if (protocols.any { it.hasDirect() }) {

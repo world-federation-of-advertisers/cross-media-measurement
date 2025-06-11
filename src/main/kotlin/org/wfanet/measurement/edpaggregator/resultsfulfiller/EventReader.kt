@@ -95,7 +95,6 @@ class EventReader(
         impressionsStorageConfig.rootDirectory,
         impressionsStorageConfig.projectId,
       )
-
     val impressionsStorage =
       EncryptedStorage.buildEncryptedMesosStorageClient(
         selectedStorageClient,
@@ -109,7 +108,6 @@ class EventReader(
           storageClientUri.key,
           ImpressionReadException.Code.BLOB_NOT_FOUND,
         )
-
     // Parse raw data into LabeledImpression objects
     return impressionBlob.read().map { impressionByteString ->
       LabeledImpression.parseFrom(impressionByteString)
