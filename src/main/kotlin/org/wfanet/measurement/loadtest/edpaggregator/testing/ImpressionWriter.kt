@@ -74,7 +74,7 @@ class ImpressionsWriter(
     events: Flow<DateShardedLabeledImpression<T>>
   ) {
     val serializedEncryptionKey =
-      EncryptedStorage.getSerializedEncryptionKey(kmsClient, kekUri, "AES128_GCM_HKDF_1MB")
+      EncryptedStorage.generateSerializedEncryptionKey(kmsClient, kekUri, "AES128_GCM_HKDF_1MB")
     val encryptedDek =
       EncryptedDek.newBuilder().setKekUri(kekUri).setEncryptedDek(serializedEncryptionKey).build()
 

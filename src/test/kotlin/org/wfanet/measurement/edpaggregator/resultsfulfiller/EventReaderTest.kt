@@ -73,7 +73,7 @@ class EventReaderTest {
 
     // Set up encryption key
     serializedEncryptionKey =
-      EncryptedStorage.getSerializedEncryptionKey(
+      EncryptedStorage.generateSerializedEncryptionKey(
         kmsClient,
         kekUri,
         tinkKeyTemplateType = "AES128_GCM_HKDF_1MB"

@@ -28,10 +28,12 @@ import org.wfanet.measurement.storage.StorageClient
 
 /** Useful functions for interacting with encrypted storage. */
 object EncryptedStorage {
-  fun getSerializedEncryptionKey(
+  /** Generates a serialized encrypted keyset using a [KmsClient]. */
+  fun generateSerializedEncryptionKey(
     kmsClient: KmsClient,
     kekUri: String,
     tinkKeyTemplateType: String,
+    associatedData: ByteArray = byteArrayOf(),
   ): ByteString {
     val aeadKeyTemplate = KeyTemplates.get(tinkKeyTemplateType)
     val keyEncryptionHandle = KeysetHandle.generateNew(aeadKeyTemplate)
@@ -39,11 +41,11 @@ object EncryptedStorage {
       TinkProtoKeysetFormat.serializeEncryptedKeyset(
         keyEncryptionHandle,
         kmsClient.getAead(kekUri),
-        byteArrayOf(),
+        associatedData,
       )
     )
   }
-
+  /** Builds a envelope encryption storage client wrapped by Mesos Record IO Storage Client. */
   fun buildEncryptedMesosStorageClient(
     storageClient: StorageClient,
     kmsClient: KmsClient,
@@ -56,6 +58,7 @@ object EncryptedStorage {
     return MesosRecordIoStorageClient(aeadStorageClient)
   }
 
+  /** Writes a data encryption key to storage. */
   suspend fun writeDek(
     storageClient: StorageClient,
     kekUri: String,

@@ -14,6 +14,7 @@
 
 package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
+/** A exception generated with a results fulfiller is unable to read impression. */
 class ImpressionReadException(val blobKey: String, val code: Code, message: String? = null) :
   Exception(message) {
   enum class Code {
