@@ -98,15 +98,13 @@ class RequisitionsValidator(
       groupedRequisitions.forEach {
         it.requisitionsList.forEach { it ->
           val requisition = it.requisition.unpack(Requisition::class.java)
-          runBlocking {
-            fatalRequisitionErrorPredicate(
-              requisition,
-              refusal {
-                justification = Requisition.Refusal.Justification.UNFULFILLABLE
-                message = "Report $reportId cannot contain multiple model lines"
-              },
-            )
-          }
+          fatalRequisitionErrorPredicate(
+            requisition,
+            refusal {
+              justification = Requisition.Refusal.Justification.UNFULFILLABLE
+              message = "Report $reportId cannot contain multiple model lines"
+            },
+          )
         }
       }
       return false
