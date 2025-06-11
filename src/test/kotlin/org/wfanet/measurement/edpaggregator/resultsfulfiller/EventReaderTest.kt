@@ -29,21 +29,21 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
-import org.wfanet.measurement.edpaggregator.EncryptedStorage
-import org.wfanet.measurement.edpaggregator.testing.TestEncryptedStorage
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.testEvent
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.person
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.testEvent
 import org.wfanet.measurement.common.OpenEndTimeRange
 import org.wfanet.measurement.common.crypto.tink.testing.FakeKmsClient
 import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.common.toProtoTime
+import org.wfanet.measurement.edpaggregator.EncryptedStorage
 import org.wfanet.measurement.edpaggregator.StorageConfig
+import org.wfanet.measurement.edpaggregator.testing.TestEncryptedStorage
 import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
 import org.wfanet.measurement.edpaggregator.v1alpha.blobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.labeledImpression
@@ -67,16 +67,18 @@ class EventReaderTest {
   fun setUp() {
     // Set up KMS
     kekUri = FakeKmsClient.KEY_URI_PREFIX
-    kmsClient = TestEncryptedStorage.buildFakeKmsClient(FakeKmsClient.KEY_URI_PREFIX, keyTemplate="AES128_GCM")
-
-
+    kmsClient =
+      TestEncryptedStorage.buildFakeKmsClient(
+        FakeKmsClient.KEY_URI_PREFIX,
+        keyTemplate = "AES128_GCM",
+      )
 
     // Set up encryption key
     serializedEncryptionKey =
       EncryptedStorage.generateSerializedEncryptionKey(
         kmsClient,
         kekUri,
-        tinkKeyTemplateType = "AES128_GCM_HKDF_1MB"
+        tinkKeyTemplateType = "AES128_GCM_HKDF_1MB",
       )
   }
 
@@ -89,23 +91,24 @@ class EventReaderTest {
     val impressionsStorageClient = FileSystemStorageClient(impressionsBucketDir)
 
     // Setup encrypted mesos client
-    val mesosRecordIoStorageClient =  EncryptedStorage.buildEncryptedMesosStorageClient(
-      impressionsStorageClient,
-      kmsClient,
-      kekUri,
-      serializedEncryptionKey,
-    )
+    val mesosRecordIoStorageClient =
+      EncryptedStorage.buildEncryptedMesosStorageClient(
+        impressionsStorageClient,
+        kmsClient,
+        kekUri,
+        serializedEncryptionKey,
+      )
 
     // Create test impressions
     val impressionCount = 1000
-    val impressions = List(impressionCount) { index ->
-      labeledImpression {
-        eventTime = TIME_RANGE.start.toProtoTime()
-        vid = index.toLong()
-        event = TEST_EVENT.pack()
-
+    val impressions =
+      List(impressionCount) { index ->
+        labeledImpression {
+          eventTime = TIME_RANGE.start.toProtoTime()
+          vid = index.toLong()
+          event = TEST_EVENT.pack()
+        }
       }
-    }
 
     val impressionsFlow = flow {
       impressions.forEach { impression -> emit(impression.toByteString()) }
@@ -123,30 +126,27 @@ class EventReaderTest {
     val encryptedDek =
       EncryptedDek.newBuilder().setKekUri(kekUri).setEncryptedDek(serializedEncryptionKey).build()
 
-    val blobDetails =
-      blobDetails {
-        blobUri = "$IMPRESSIONS_FILE_URI/$DS"
-        this.encryptedDek = encryptedDek
-      }
+    val blobDetails = blobDetails {
+      blobUri = "$IMPRESSIONS_FILE_URI/$DS"
+      this.encryptedDek = encryptedDek
+    }
 
     impressionsDekStorageClient.writeBlob(
       "ds/$DS/event-group-id/$EVENT_GROUP_NAME/metadata",
-      blobDetails.toByteString()
+      blobDetails.toByteString(),
     )
 
     // Create EventReader
-    val eventReader = EventReader(
-      kmsClient,
-      StorageConfig(rootDirectory = impressionsTmpPath),
-      StorageConfig(rootDirectory = dekTmpPath),
-      IMPRESSIONS_DEK_FILE_URI_PREFIX
-    )
+    val eventReader =
+      EventReader(
+        kmsClient,
+        StorageConfig(rootDirectory = impressionsTmpPath),
+        StorageConfig(rootDirectory = dekTmpPath),
+        IMPRESSIONS_DEK_FILE_URI_PREFIX,
+      )
 
     // Get labeled impressions
-    val result = eventReader.getLabeledImpressions(
-      DS,
-      EVENT_GROUP_NAME
-    ).toList()
+    val result = eventReader.getLabeledImpressions(DS, EVENT_GROUP_NAME).toList()
 
     // Verify the result
     assertThat(result).hasSize(impressionCount)
@@ -171,40 +171,34 @@ class EventReaderTest {
     val encryptedDek =
       EncryptedDek.newBuilder().setKekUri(kekUri).setEncryptedDek(serializedEncryptionKey).build()
 
-    val blobDetails =
-      blobDetails {
-        blobUri = "$IMPRESSIONS_FILE_URI/$DS"
-        this.encryptedDek = encryptedDek
-      }
+    val blobDetails = blobDetails {
+      blobUri = "$IMPRESSIONS_FILE_URI/$DS"
+      this.encryptedDek = encryptedDek
+    }
 
     runBlocking {
       impressionsDekStorageClient.writeBlob(
         "ds/$DS/event-group-id/$EVENT_GROUP_NAME/metadata",
-        blobDetails.toByteString()
+        blobDetails.toByteString(),
       )
     }
 
     // Create EventReader
-    val eventReader = EventReader(
-      kmsClient,
-      StorageConfig(rootDirectory = impressionsTmpPath),
-      StorageConfig(rootDirectory = dekTmpPath),
-      IMPRESSIONS_DEK_FILE_URI_PREFIX
-    )
+    val eventReader =
+      EventReader(
+        kmsClient,
+        StorageConfig(rootDirectory = impressionsTmpPath),
+        StorageConfig(rootDirectory = dekTmpPath),
+        IMPRESSIONS_DEK_FILE_URI_PREFIX,
+      )
     // Get labeled impressions
     assertFailsWith<ImpressionReadException> {
-      runBlocking {
-        eventReader.getLabeledImpressions(
-          DS,
-          EVENT_GROUP_NAME
-        ).toList()
-      }
+      runBlocking { eventReader.getLabeledImpressions(DS, EVENT_GROUP_NAME).toList() }
     }
-
   }
 
   companion object {
-    private val ZONE_ID =  ZoneId.of("America/New_York")
+    private val ZONE_ID = ZoneId.of("America/New_York")
     private val LAST_EVENT_DATE = LocalDate.now()
     private val FIRST_EVENT_DATE = LAST_EVENT_DATE.minusDays(1)
     private val TIME_RANGE = OpenEndTimeRange.fromClosedDateRange(FIRST_EVENT_DATE..LAST_EVENT_DATE)
