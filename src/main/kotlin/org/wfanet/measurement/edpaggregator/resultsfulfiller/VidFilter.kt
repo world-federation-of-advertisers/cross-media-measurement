@@ -46,7 +46,7 @@ object VidFilter {
     eventFilter: EventFilter,
     collectionInterval: Interval,
     typeRegistry: TypeRegistry,
-    ): Flow<Long> {
+  ): Flow<Long> {
     return labeledImpressions
       .filter { labeledImpression ->
         isValidImpression(
@@ -80,13 +80,11 @@ object VidFilter {
     collectionInterval: Interval,
     typeRegistry: TypeRegistry,
   ): Boolean {
-    require(vidSamplingIntervalWidth > 0 && vidSamplingIntervalWidth <= 1.0) {
-      "Invalid vidSamplingIntervalWidth $vidSamplingIntervalWidth"
-    }
     require(
       vidSamplingIntervalStart < 1 &&
         vidSamplingIntervalStart >= 0 &&
-        vidSamplingIntervalWidth > 0
+        vidSamplingIntervalWidth > 0 &&
+        vidSamplingIntervalStart + vidSamplingIntervalWidth <= 1.0
     ) {
       "Invalid vidSamplingInterval: start = $vidSamplingIntervalStart, width = " +
         "$vidSamplingIntervalWidth"
@@ -103,11 +101,12 @@ object VidFilter {
 
     val sampler = VidSampler(Hashing.farmHashFingerprint64())
     // Check if VID is in sampling bucket
-    val isInSamplingInterval = sampler.vidIsInSamplingBucket(
-      labeledImpression.vid,
-      vidSamplingIntervalStart,
-      vidSamplingIntervalWidth
-    )
+    val isInSamplingInterval =
+      sampler.vidIsInSamplingBucket(
+        labeledImpression.vid,
+        vidSamplingIntervalStart,
+        vidSamplingIntervalWidth,
+      )
 
     if (!isInSamplingInterval) {
       return false
@@ -124,7 +123,6 @@ object VidFilter {
 
     return passesFilter
   }
-
 
   /**
    * Compiles a CEL program from an event filter and event message descriptor.

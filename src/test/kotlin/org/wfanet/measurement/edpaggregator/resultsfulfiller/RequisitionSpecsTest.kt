@@ -17,21 +17,22 @@
 package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
 import com.google.common.truth.Truth.assertThat
-import com.google.crypto.tink.aead.AeadConfig
-import com.google.crypto.tink.streamingaead.StreamingAeadConfig
-import com.google.protobuf.Timestamp
 import com.google.protobuf.TypeRegistry
+import com.google.protobuf.kotlin.unpack
 import com.google.type.interval
-import java.nio.file.Files
 import java.time.LocalDate
+import java.time.ZoneId
+import java.time.ZoneOffset
+import kotlin.random.Random
 import kotlinx.coroutines.flow.count
-import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
-import org.junit.Rule
+import org.junit.Assert.assertThrows
 import org.junit.Test
-import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.mockito.kotlin.any
+import org.mockito.kotlin.mock
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.vidSamplingInterval
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventFilter
@@ -43,322 +44,232 @@ import org.wfanet.measurement.api.v2alpha.event_templates.testing.person
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.testEvent
 import org.wfanet.measurement.api.v2alpha.requisitionSpec
 import org.wfanet.measurement.common.OpenEndTimeRange
-import org.wfanet.measurement.common.crypto.tink.testing.FakeKmsClient
 import org.wfanet.measurement.common.pack
+import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.common.toProtoTime
-import org.wfanet.measurement.edpaggregator.StorageConfig
-import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
 import org.wfanet.measurement.edpaggregator.v1alpha.copy
-import org.wfanet.measurement.storage.SelectedStorageClient
+import org.wfanet.measurement.edpaggregator.v1alpha.labeledImpression
 
 @RunWith(JUnit4::class)
 class RequisitionSpecsTest {
 
-  @get:Rule val tempFolder = TemporaryFolder()
-
-  init {
-    AeadConfig.register()
-    StreamingAeadConfig.register()
-  }
-
   @Test
-  fun `getSampledVids filters impressions correctly`() = runBlocking {
+  fun `getSampledVids filters per cel filter`() = runBlocking {
     // Set up test environment
     val testEventDescriptor = TestEvent.getDescriptor()
 
     // Create TypeRegistry with the test event descriptor
-    val typeRegistry = TypeRegistry.newBuilder()
-      .add(testEventDescriptor)
-      .build()
-
-    // Create collection interval
-    val collectionInterval = interval {
-      startTime = TIME_RANGE.start.toProtoTime()
-      endTime = TIME_RANGE.endExclusive.toProtoTime()
-    }
-
-    // Create event group entry with filter
-    val eventGroup = eventGroupEntry {
-      key = EVENT_GROUP_NAME
-      value = RequisitionSpecKt.EventGroupEntryKt.value {
-        this.collectionInterval = collectionInterval
-        filter = eventFilter { expression = "person.gender == 1" } // MALE is 1
-      }
-    }
-
-    // Create requisition spec with event group
-    val requisitionSpec = requisitionSpec {
-      events = events {
-        eventGroups += eventGroup
-      }
-    }
+    val typeRegistry = TypeRegistry.newBuilder().add(testEventDescriptor).build()
 
     // Create sampling interval
     val vidSamplingInterval = vidSamplingInterval {
       start = 0.0f
       width = 1.0f
     }
-
-    // Create impressions storage client
-    val impressionsTmpPath = Files.createTempDirectory(null).toFile()
-    Files.createDirectories(impressionsTmpPath.resolve(IMPRESSIONS_BUCKET).toPath())
-    val impressionsStorageClient = SelectedStorageClient(IMPRESSIONS_FILE_URI, impressionsTmpPath)
-
-    // Set up KMS
-    val kekUri = FakeKmsClient.KEY_URI_PREFIX
-    val kmsClient = EncryptedMesosStorage.createKmsClient(FakeKmsClient.KEY_URI_PREFIX)
-
-    // Set up streaming encryption key
-    val serializedEncryptionKey = EncryptedMesosStorage.generateSerializedEnryptionKey(kmsClient, kekUri)
-
-    val mesosRecordIoStorageClient =
-      EncryptedMesosStorage.createEncryptedMesosStorage(
-        impressionsStorageClient,
-        kmsClient,
-        kekUri,
-        serializedEncryptionKey
-      )
-
-    val validImpressionCount = 130
-    val invalidImpressionCount = 70
-
-    val impressions =
-      MutableList(validImpressionCount) {
-        LABELED_IMPRESSION_1.copy {
-          vid = (it + 1).toLong()
-          eventTime = TIME_RANGE.start.toProtoTime()
+    val labeledImpression = labeledImpression {
+      vid = 1
+      eventTime = FIRST_EVENT_DATE.atTime(1, 1, 1).toInstant(ZoneOffset.UTC).toProtoTime()
+      event =
+        testEvent {
+          this.person = person {
+            gender = Person.Gender.FEMALE
+            ageGroup = Person.AgeGroup.YEARS_18_TO_34
+          }
         }
-      }
-
-    val invalidImpressions =
-      List(invalidImpressionCount) {
-        LABELED_IMPRESSION_2.copy {
-          vid = (it + validImpressionCount + 1).toLong()
-          eventTime = TIME_RANGE.start.toProtoTime()
-        }
-      }
-
-    impressions.addAll(invalidImpressions)
-
-    val impressionsFlow = flow {
-      impressions.forEach { impression -> emit(impression.toByteString()) }
+          .pack()
     }
+    val impressions =
+      flowOf(
+        labeledImpression,
+        labeledImpression.copy {
+          this.event =
+            this.event
+              .unpack(TestEvent::class.java)
+              .toBuilder()
+              .apply {
+                this.person = this.person.toBuilder().apply { gender = Person.Gender.MALE }.build()
+              }
+              .build()
+              .pack()
+        },
+      )
+    val eventReader: EventReader =
+      mock<EventReader> {
+        onBlocking { getLabeledImpressions(any(), any()) }.thenReturn(impressions)
+      }
 
-    // Write impressions to storage
-    mesosRecordIoStorageClient.writeBlob(IMPRESSIONS_BLOB_KEY, impressionsFlow)
-
-    // Create the impressions DEK store
-    val dekTmpPath = Files.createTempDirectory(null).toFile()
-    Files.createDirectories(dekTmpPath.resolve(IMPRESSIONS_DEK_BUCKET).toPath())
-    val impressionsDekStorageClient =
-      SelectedStorageClient(IMPRESSIONS_DEK_FILE_URI, dekTmpPath)
-
-    val blobDetails =
-      EncryptedMesosStorage.encryptAndCreateBlobDetails(
-        kekUri,
-        serializedEncryptionKey,
-        IMPRESSIONS_FILE_URI
+    val result =
+      RequisitionSpecs.getSampledVids(
+        REQUISITION_SPEC,
+        vidSamplingInterval,
+        typeRegistry,
+        eventReader,
       )
 
-    impressionsDekStorageClient.writeBlob(
-      IMPRESSION_DEK_BLOB_KEY,
-      blobDetails.toByteString()
-    )
-
-    // Create EventReader
-    val eventReader = EventReader(
-      kmsClient,
-      StorageConfig(rootDirectory = impressionsTmpPath),
-      StorageConfig(rootDirectory = dekTmpPath),
-      IMPRESSIONS_DEK_FILE_URI_PREFIX
-    )
-
-    val result = RequisitionSpecs.getSampledVids(
-      requisitionSpec,
-      vidSamplingInterval,
-      typeRegistry,
-      eventReader
-    )
-
-    assertThat(result.count()).isEqualTo(validImpressionCount)
+    assertThat(result.count()).isEqualTo(1)
   }
 
   @Test
-  fun `getSampledVids supports wrapping intervals`() = runBlocking {
+  fun `getSampledVids filters by vid interval`() = runBlocking {
     // Set up test environment
     val testEventDescriptor = TestEvent.getDescriptor()
 
     // Create TypeRegistry with the test event descriptor
-    val typeRegistry = TypeRegistry.newBuilder()
-      .add(testEventDescriptor)
-      .build()
+    val typeRegistry = TypeRegistry.newBuilder().add(testEventDescriptor).build()
 
-    // Create collection interval
-    val collectionInterval = interval {
-      startTime = TIME_RANGE.start.toProtoTime()
-      endTime = TIME_RANGE.endExclusive.toProtoTime()
+    // Create sampling interval
+    val vidSamplingInterval = vidSamplingInterval {
+      start = 0.0f
+      width = 0.5f
     }
-
-    // Create event group entry with filter
-    val eventGroup = eventGroupEntry {
-      key = EVENT_GROUP_NAME
-      value = RequisitionSpecKt.EventGroupEntryKt.value {
-        this.collectionInterval = collectionInterval
-        filter = eventFilter { expression = "person.gender == 1" } // MALE is 1
+    val labeledImpression = labeledImpression {
+      vid = 1
+      eventTime = FIRST_EVENT_DATE.atTime(1, 1, 1).toInstant(ZoneOffset.UTC).toProtoTime()
+      event =
+        testEvent {
+          this.person = person {
+            gender = Person.Gender.FEMALE
+            ageGroup = Person.AgeGroup.YEARS_18_TO_34
+          }
+        }
+          .pack()
+    }
+    val impressions = flowOf(labeledImpression, labeledImpression.copy { this.vid = 10 })
+    val eventReader: EventReader =
+      mock<EventReader> {
+        onBlocking { getLabeledImpressions(any(), any()) }.thenReturn(impressions)
       }
-    }
 
-    // Create requisition spec with event group
-    val requisitionSpec = requisitionSpec {
-      events = events {
-        eventGroups += eventGroup
-      }
-    }
-
-    // Create wrapping sampling interval (start = 0.5, width = 0.8)
-    val wrappingVidSamplingInterval = vidSamplingInterval {
-      start = 0.5f
-      width = 0.8f
-    }
-
-    // Create impressions storage client
-    val impressionsTmpPath = Files.createTempDirectory(null).toFile()
-    Files.createDirectories(impressionsTmpPath.resolve(IMPRESSIONS_BUCKET).toPath())
-    val impressionsStorageClient = SelectedStorageClient(IMPRESSIONS_FILE_URI, impressionsTmpPath)
-
-    // Set up KMS
-    val kekUri = FakeKmsClient.KEY_URI_PREFIX
-    val kmsClient = EncryptedMesosStorage.createKmsClient(FakeKmsClient.KEY_URI_PREFIX)
-
-    // Set up streaming encryption key
-    val serializedEncryptionKey = EncryptedMesosStorage.generateSerializedEnryptionKey(kmsClient, kekUri)
-
-    val mesosRecordIoStorageClient =
-      EncryptedMesosStorage.createEncryptedMesosStorage(
-        impressionsStorageClient,
-        kmsClient,
-        kekUri,
-        serializedEncryptionKey
+    val result =
+      RequisitionSpecs.getSampledVids(
+        REQUISITION_SPEC,
+        vidSamplingInterval,
+        typeRegistry,
+        eventReader,
       )
 
-    val validImpressionCount = 130
-    val invalidImpressionCount = 70
+    assertThat(result.count()).isEqualTo(1)
+  }
 
+  @Test
+  fun `getSampledVids filters by collection interval`() = runBlocking {
+    // Set up test environment
+    val testEventDescriptor = TestEvent.getDescriptor()
+
+    // Create TypeRegistry with the test event descriptor
+    val typeRegistry = TypeRegistry.newBuilder().add(testEventDescriptor).build()
+
+    // Create sampling interval
+    val vidSamplingInterval = vidSamplingInterval {
+      start = 0.0f
+      width = 1.0f
+    }
+    val labeledImpression = labeledImpression {
+      vid = 1
+      eventTime = FIRST_EVENT_DATE.atTime(1, 1, 1).toInstant(ZoneOffset.UTC).toProtoTime()
+      event =
+        testEvent {
+          this.person = person {
+            gender = Person.Gender.FEMALE
+            ageGroup = Person.AgeGroup.YEARS_18_TO_34
+          }
+        }
+          .pack()
+    }
     val impressions =
-      MutableList(validImpressionCount) {
-        LABELED_IMPRESSION_1.copy {
-          vid = (it + 1).toLong()
-          eventTime = TIME_RANGE.start.toProtoTime()
-        }
+      flowOf(
+        labeledImpression,
+        labeledImpression.copy {
+          eventTime =
+            FIRST_EVENT_DATE.minusDays(1).atStartOfDay().toInstant(ZoneOffset.UTC).toProtoTime()
+        },
+      )
+    val eventReader: EventReader =
+      mock<EventReader> {
+        onBlocking { getLabeledImpressions(any(), any()) }.thenReturn(impressions)
       }
 
-    val invalidImpressions =
-      List(invalidImpressionCount) {
-        LABELED_IMPRESSION_2.copy {
-          vid = (it + validImpressionCount + 1).toLong()
-          eventTime = TIME_RANGE.start.toProtoTime()
-        }
-      }
-
-    impressions.addAll(invalidImpressions)
-
-    val impressionsFlow = flow {
-      impressions.forEach { impression -> emit(impression.toByteString()) }
-    }
-
-    // Write impressions to storage
-    mesosRecordIoStorageClient.writeBlob(IMPRESSIONS_BLOB_KEY, impressionsFlow)
-
-    // Create the impressions DEK store
-    val dekTmpPath = Files.createTempDirectory(null).toFile()
-    Files.createDirectories(dekTmpPath.resolve(IMPRESSIONS_DEK_BUCKET).toPath())
-    val impressionsDekStorageClient =
-      SelectedStorageClient(IMPRESSIONS_DEK_FILE_URI, dekTmpPath)
-
-    val blobDetails =
-      EncryptedMesosStorage.encryptAndCreateBlobDetails(
-        kekUri,
-        serializedEncryptionKey,
-        IMPRESSIONS_FILE_URI
+    val result =
+      RequisitionSpecs.getSampledVids(
+        REQUISITION_SPEC,
+        vidSamplingInterval,
+        typeRegistry,
+        eventReader,
       )
 
-    impressionsDekStorageClient.writeBlob(
-      IMPRESSION_DEK_BLOB_KEY,
-      blobDetails.toByteString()
-    )
+    assertThat(result.count()).isEqualTo(1)
+  }
 
-    // Create EventReader
-    val eventReader = EventReader(
-      kmsClient,
-      StorageConfig(rootDirectory = impressionsTmpPath),
-      StorageConfig(rootDirectory = dekTmpPath),
-      IMPRESSIONS_DEK_FILE_URI_PREFIX
-    )
+  fun `throws exception for invalid vid interval`() = runBlocking {
+    // Set up test environment
+    val testEventDescriptor = TestEvent.getDescriptor()
 
-    // This should not throw an exception for wrapping interval
-    val result = RequisitionSpecs.getSampledVids(
-      requisitionSpec,
-      wrappingVidSamplingInterval,
-      typeRegistry,
-      eventReader
-    )
+    // Create TypeRegistry with the test event descriptor
+    val typeRegistry = TypeRegistry.newBuilder().add(testEventDescriptor).build()
 
-    // The original VidSampler already supports wrapping intervals
-    // We're just verifying that our validation changes allow using wrapping intervals
-    assertThat(result.count()).isAtLeast(0)
+    // Create sampling interval
+    val vidSamplingInterval = vidSamplingInterval {
+      start = 0.5f
+      width = 0.6f
+    }
+    val labeledImpression = labeledImpression {
+      vid = 1
+      eventTime = FIRST_EVENT_DATE.atTime(1, 1, 1).toInstant(ZoneOffset.UTC).toProtoTime()
+      event =
+        testEvent {
+          this.person = person {
+            gender = Person.Gender.FEMALE
+            ageGroup = Person.AgeGroup.YEARS_18_TO_34
+          }
+        }
+          .pack()
+    }
+    val impressions = flowOf(labeledImpression)
+    val eventReader: EventReader =
+      mock<EventReader> {
+        onBlocking { getLabeledImpressions(any(), any()) }.thenReturn(impressions)
+      }
+
+    assertThrows(IllegalArgumentException::class.java) {
+      runBlocking {
+        RequisitionSpecs.getSampledVids(
+          REQUISITION_SPEC,
+          vidSamplingInterval,
+          typeRegistry,
+          eventReader,
+        )
+      }
+    }
   }
 
   companion object {
-    private val LAST_EVENT_DATE = LocalDate.now()
-    private val FIRST_EVENT_DATE = LAST_EVENT_DATE.minusDays(1)
+    private val ZONE_ID = ZoneId.of("UTC")
+    private val FIRST_EVENT_DATE = LocalDate.now(ZONE_ID)
+    private val LAST_EVENT_DATE = FIRST_EVENT_DATE.plusDays(0) // Subtracts 1 day
     private val TIME_RANGE = OpenEndTimeRange.fromClosedDateRange(FIRST_EVENT_DATE..LAST_EVENT_DATE)
-
-    private val PERSON_1 = person {
-      ageGroup = Person.AgeGroup.YEARS_18_TO_34
-      gender = Person.Gender.MALE
-      socialGradeGroup = Person.SocialGradeGroup.A_B_C1
-    }
-
-    private val PERSON_2 = person {
-      ageGroup = Person.AgeGroup.YEARS_18_TO_34
-      gender = Person.Gender.FEMALE
-      socialGradeGroup = Person.SocialGradeGroup.A_B_C1
-    }
-
-    private val TEST_EVENT_1 = testEvent { person = PERSON_1 }
-
-    private val TEST_EVENT_2 = testEvent { person = PERSON_2 }
-
-
-    private val LABELED_IMPRESSION_1 =
-      LabeledImpression.newBuilder()
-        .setEventTime(Timestamp.getDefaultInstance())
-        .setVid(10L)
-        .setEvent(
-          TEST_EVENT_1.pack()
-        )
-        .build()
-
-    private val LABELED_IMPRESSION_2 =
-      LabeledImpression.newBuilder()
-        .setEventTime(Timestamp.getDefaultInstance())
-        .setVid(10L)
-        .setEvent(
-          TEST_EVENT_2.pack()
-        )
-        .build()
-
     private const val EVENT_GROUP_NAME = "dataProviders/someDataProvider/eventGroups/name"
-
-    private const val IMPRESSIONS_BUCKET = "impression-bucket"
-    private const val IMPRESSIONS_BLOB_KEY = "impressions"
-    private const val IMPRESSIONS_FILE_URI = "file:///$IMPRESSIONS_BUCKET/$IMPRESSIONS_BLOB_KEY"
-
-    private const val IMPRESSIONS_DEK_BUCKET = "impression-dek-bucket"
-    private val IMPRESSION_DEK_BLOB_KEY =
-      "ds/${TIME_RANGE.start}/event-group-id/$EVENT_GROUP_NAME/metadata"
-    private val IMPRESSIONS_DEK_FILE_URI =
-      "file:///$IMPRESSIONS_DEK_BUCKET/$IMPRESSION_DEK_BLOB_KEY"
-    private const val IMPRESSIONS_DEK_FILE_URI_PREFIX = "file:///$IMPRESSIONS_DEK_BUCKET"
+    private val REQUISITION_SPEC = requisitionSpec {
+      events =
+        RequisitionSpecKt.events {
+          eventGroups +=
+            RequisitionSpecKt.eventGroupEntry {
+              key = EVENT_GROUP_NAME
+              value =
+                RequisitionSpecKt.EventGroupEntryKt.value {
+                  collectionInterval = interval {
+                    startTime = TIME_RANGE.start.toProtoTime()
+                    endTime = TIME_RANGE.endExclusive.toProtoTime()
+                  }
+                  filter =
+                    RequisitionSpecKt.eventFilter {
+                      expression =
+                        "person.age_group == ${Person.AgeGroup.YEARS_18_TO_34_VALUE} && " +
+                          "person.gender == ${Person.Gender.FEMALE_VALUE}"
+                    }
+                }
+            }
+        }
+      nonce = Random.nextLong()
+    }
   }
 }

@@ -21,9 +21,10 @@ import com.google.crypto.tink.KmsClient
 import com.google.crypto.tink.aead.AeadConfig
 import com.google.crypto.tink.streamingaead.StreamingAeadConfig
 import com.google.protobuf.ByteString
-import com.google.type.interval
 import java.nio.file.Files
 import java.time.LocalDate
+import java.time.ZoneId
+import kotlin.test.assertFailsWith
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
@@ -34,17 +35,19 @@ import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.testEvent
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.person
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.testEvent
 import org.wfanet.measurement.common.OpenEndTimeRange
 import org.wfanet.measurement.common.crypto.tink.testing.FakeKmsClient
 import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.common.toProtoTime
+import org.wfanet.measurement.edpaggregator.EncryptedStorage
 import org.wfanet.measurement.edpaggregator.StorageConfig
-import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
+import org.wfanet.measurement.edpaggregator.testing.TestEncryptedStorage
 import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
-import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
-import org.wfanet.measurement.storage.SelectedStorageClient
+import org.wfanet.measurement.edpaggregator.v1alpha.blobDetails
+import org.wfanet.measurement.edpaggregator.v1alpha.labeledImpression
+import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 
 @RunWith(JUnit4::class)
 class EventReaderTest {
@@ -54,8 +57,6 @@ class EventReaderTest {
   private lateinit var kmsClient: KmsClient
   private lateinit var kekUri: String
   private lateinit var serializedEncryptionKey: ByteString
-  private lateinit var impressionsTmpPath: java.io.File
-  private lateinit var dekTmpPath: java.io.File
 
   init {
     AeadConfig.register()
@@ -66,92 +67,86 @@ class EventReaderTest {
   fun setUp() {
     // Set up KMS
     kekUri = FakeKmsClient.KEY_URI_PREFIX
-    kmsClient = EncryptedMesosStorage.createKmsClient(FakeKmsClient.KEY_URI_PREFIX)
-
-
+    kmsClient =
+      TestEncryptedStorage.buildFakeKmsClient(
+        FakeKmsClient.KEY_URI_PREFIX,
+        keyTemplate = "AES128_GCM",
+      )
 
     // Set up encryption key
     serializedEncryptionKey =
-      EncryptedMesosStorage.generateSerializedEnryptionKey(
+      EncryptedStorage.generateSerializedEncryptionKey(
         kmsClient,
-        kekUri
+        kekUri,
+        tinkKeyTemplateType = "AES128_GCM_HKDF_1MB",
       )
-
-    // Create temporary directories for storage
-    impressionsTmpPath = Files.createTempDirectory(null).toFile()
-    Files.createDirectories(impressionsTmpPath.resolve(IMPRESSIONS_BUCKET).toPath())
-
-    dekTmpPath = Files.createTempDirectory(null).toFile()
-    Files.createDirectories(dekTmpPath.resolve(IMPRESSIONS_DEK_BUCKET).toPath())
   }
 
   @Test
   fun `getLabeledImpressionsFlow returns labeled impressions`() = runBlocking {
     // Create impressions storage client
-    val impressionsStorageClient = SelectedStorageClient(IMPRESSIONS_FILE_URI, impressionsTmpPath)
+    val impressionsTmpPath = Files.createTempDirectory(null).toFile()
+    val impressionsBucketDir = impressionsTmpPath.resolve(IMPRESSIONS_BUCKET)
+    Files.createDirectories(impressionsBucketDir.toPath())
+    val impressionsStorageClient = FileSystemStorageClient(impressionsBucketDir)
 
     // Setup encrypted mesos client
-    val mesosRecordIoStorageClient =  EncryptedMesosStorage.createEncryptedMesosStorage(
-      impressionsStorageClient,
-      kmsClient,
-      kekUri,
-      serializedEncryptionKey,
-    )
+    val mesosRecordIoStorageClient =
+      EncryptedStorage.buildEncryptedMesosStorageClient(
+        impressionsStorageClient,
+        kmsClient,
+        kekUri,
+        serializedEncryptionKey,
+      )
 
     // Create test impressions
     val impressionCount = 1000
-    val impressions = List(impressionCount) { index ->
-      LabeledImpression.newBuilder()
-        .setEventTime(TIME_RANGE.start.toProtoTime())
-        .setVid(index.toLong())
-        .setEvent(TEST_EVENT.pack())
-        .build()
-    }
+    val impressions =
+      List(impressionCount) { index ->
+        labeledImpression {
+          eventTime = TIME_RANGE.start.toProtoTime()
+          vid = index.toLong()
+          event = TEST_EVENT.pack()
+        }
+      }
 
     val impressionsFlow = flow {
       impressions.forEach { impression -> emit(impression.toByteString()) }
     }
 
     // Write impressions to storage
-    mesosRecordIoStorageClient.writeBlob(IMPRESSIONS_BLOB_KEY, impressionsFlow)
+    mesosRecordIoStorageClient.writeBlob(DS.toString(), impressionsFlow)
 
     // Create the impressions DEK store
-    val impressionsDekStorageClient =
-      SelectedStorageClient(IMPRESSIONS_DEK_FILE_URI, dekTmpPath)
+    val dekTmpPath = Files.createTempDirectory(null).toFile()
+    val deksBucketDir = dekTmpPath.resolve(IMPRESSIONS_DEK_BUCKET)
+    Files.createDirectories(deksBucketDir.toPath())
+    val impressionsDekStorageClient = FileSystemStorageClient(deksBucketDir)
 
     val encryptedDek =
       EncryptedDek.newBuilder().setKekUri(kekUri).setEncryptedDek(serializedEncryptionKey).build()
 
-    val blobDetails =
-      BlobDetails.newBuilder()
-        .setBlobUri(IMPRESSIONS_FILE_URI)
-        .setEncryptedDek(encryptedDek)
-        .build()
-
-    impressionsDekStorageClient.writeBlob(
-      IMPRESSION_DEK_BLOB_KEY,
-      blobDetails.toByteString()
-    )
-
-    // Create collection interval
-    val collectionInterval = interval {
-      startTime = TIME_RANGE.start.toProtoTime()
-      endTime = TIME_RANGE.endExclusive.toProtoTime()
+    val blobDetails = blobDetails {
+      blobUri = "$IMPRESSIONS_FILE_URI/$DS"
+      this.encryptedDek = encryptedDek
     }
 
-    // Create EventReader
-    val eventReader = EventReader(
-      kmsClient,
-      StorageConfig(rootDirectory = impressionsTmpPath),
-      StorageConfig(rootDirectory = dekTmpPath),
-      IMPRESSIONS_DEK_FILE_URI_PREFIX
+    impressionsDekStorageClient.writeBlob(
+      "ds/$DS/event-group-id/$EVENT_GROUP_NAME/metadata",
+      blobDetails.toByteString(),
     )
 
+    // Create EventReader
+    val eventReader =
+      EventReader(
+        kmsClient,
+        StorageConfig(rootDirectory = impressionsTmpPath),
+        StorageConfig(rootDirectory = dekTmpPath),
+        IMPRESSIONS_DEK_FILE_URI_PREFIX,
+      )
+
     // Get labeled impressions
-    val result = eventReader.getLabeledImpressionsFlow(
-      collectionInterval,
-      EVENT_GROUP_NAME
-    ).toList()
+    val result = eventReader.getLabeledImpressions(DS, EVENT_GROUP_NAME).toList()
 
     // Verify the result
     assertThat(result).hasSize(impressionCount)
@@ -160,10 +155,55 @@ class EventReaderTest {
     }
   }
 
+  @Test
+  fun `getLabeledImpressionsFlow throws exception if impressions blob not found`() {
+    // Create impressions storage client
+    val impressionsTmpPath = Files.createTempDirectory(null).toFile()
+    val impressionsBucketDir = impressionsTmpPath.resolve(IMPRESSIONS_BUCKET)
+    Files.createDirectories(impressionsBucketDir.toPath())
+
+    // Create the impressions DEK store
+    val dekTmpPath = Files.createTempDirectory(null).toFile()
+    val deksBucketDir = dekTmpPath.resolve(IMPRESSIONS_DEK_BUCKET)
+    Files.createDirectories(deksBucketDir.toPath())
+    val impressionsDekStorageClient = FileSystemStorageClient(deksBucketDir)
+
+    val encryptedDek =
+      EncryptedDek.newBuilder().setKekUri(kekUri).setEncryptedDek(serializedEncryptionKey).build()
+
+    val blobDetails = blobDetails {
+      blobUri = "$IMPRESSIONS_FILE_URI/$DS"
+      this.encryptedDek = encryptedDek
+    }
+
+    runBlocking {
+      impressionsDekStorageClient.writeBlob(
+        "ds/$DS/event-group-id/$EVENT_GROUP_NAME/metadata",
+        blobDetails.toByteString(),
+      )
+    }
+
+    // Create EventReader
+    val eventReader =
+      EventReader(
+        kmsClient,
+        StorageConfig(rootDirectory = impressionsTmpPath),
+        StorageConfig(rootDirectory = dekTmpPath),
+        IMPRESSIONS_DEK_FILE_URI_PREFIX,
+      )
+    // Get labeled impressions
+    assertFailsWith<ImpressionReadException> {
+      runBlocking { eventReader.getLabeledImpressions(DS, EVENT_GROUP_NAME).toList() }
+    }
+  }
+
   companion object {
+    private val ZONE_ID = ZoneId.of("America/New_York")
     private val LAST_EVENT_DATE = LocalDate.now()
     private val FIRST_EVENT_DATE = LAST_EVENT_DATE.minusDays(1)
     private val TIME_RANGE = OpenEndTimeRange.fromClosedDateRange(FIRST_EVENT_DATE..LAST_EVENT_DATE)
+
+    private val DS = LocalDate.ofInstant(TIME_RANGE.start, ZONE_ID)
 
     private val PERSON = person {
       ageGroup = Person.AgeGroup.YEARS_18_TO_34
@@ -176,14 +216,9 @@ class EventReaderTest {
     private const val EVENT_GROUP_NAME = "dataProviders/someDataProvider/eventGroups/name"
 
     private const val IMPRESSIONS_BUCKET = "impression-bucket"
-    private const val IMPRESSIONS_BLOB_KEY = "impressions"
-    private const val IMPRESSIONS_FILE_URI = "file:///$IMPRESSIONS_BUCKET/$IMPRESSIONS_BLOB_KEY"
+    private const val IMPRESSIONS_FILE_URI = "file:///$IMPRESSIONS_BUCKET"
 
     private const val IMPRESSIONS_DEK_BUCKET = "impression-dek-bucket"
-    private val IMPRESSION_DEK_BLOB_KEY =
-      "ds/${TIME_RANGE.start}/event-group-id/$EVENT_GROUP_NAME/metadata"
-    private val IMPRESSIONS_DEK_FILE_URI =
-      "file:///$IMPRESSIONS_DEK_BUCKET/$IMPRESSION_DEK_BLOB_KEY"
     private const val IMPRESSIONS_DEK_FILE_URI_PREFIX = "file:///$IMPRESSIONS_DEK_BUCKET"
   }
 }

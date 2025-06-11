@@ -47,9 +47,7 @@ class VidFilterTest {
     val testEventDescriptor = TestEvent.getDescriptor()
 
     // Create TypeRegistry with the test event descriptor
-    val typeRegistry = TypeRegistry.newBuilder()
-      .add(testEventDescriptor)
-      .build()
+    val typeRegistry = TypeRegistry.newBuilder().add(testEventDescriptor).build()
 
     // Create collection interval
     val collectionInterval = interval {
@@ -63,20 +61,23 @@ class VidFilterTest {
     val virtualId = 42L
 
     // Create labeled impression with event time within collection interval
-    val labeledImpression = LABELED_IMPRESSION_1.copy {
-      eventTime = TIME_RANGE.start.toProtoTime()
-      vid = virtualId
-    }
+    val labeledImpression =
+      LABELED_IMPRESSION_1.copy {
+        eventTime = TIME_RANGE.start.toProtoTime()
+        vid = virtualId
+      }
 
     // Call the filterAndExtractVids method
-    val result = VidFilter.filterAndExtractVids(
-      listOf(labeledImpression).asFlow(),
-      0.0f,
-      1.0f,
-      filter,
-      collectionInterval,
-      typeRegistry
-    ).toList()
+    val result =
+      VidFilter.filterAndExtractVids(
+        listOf(labeledImpression).asFlow(),
+        0.0f,
+        1.0f,
+        filter,
+        collectionInterval,
+        typeRegistry,
+      )
+        .toList()
 
     // Verify the result
     assertThat(result).hasSize(1)
@@ -89,9 +90,7 @@ class VidFilterTest {
     val testEventDescriptor = TestEvent.getDescriptor()
 
     // Create TypeRegistry with the test event descriptor
-    val typeRegistry = TypeRegistry.newBuilder()
-      .add(testEventDescriptor)
-      .build()
+    val typeRegistry = TypeRegistry.newBuilder().add(testEventDescriptor).build()
 
     // Create collection interval
     val collectionInterval = interval {
@@ -103,20 +102,23 @@ class VidFilterTest {
     val filter = eventFilter { expression = "person.gender == 2" } // FEMALE is 2
 
     // Create labeled impression with MALE gender (1)
-    val labeledImpression = LABELED_IMPRESSION_1.copy {
-      eventTime = TIME_RANGE.start.toProtoTime()
-      vid = 42L
-    }
+    val labeledImpression =
+      LABELED_IMPRESSION_1.copy {
+        eventTime = TIME_RANGE.start.toProtoTime()
+        vid = 42L
+      }
 
     // Call the filterAndExtractVids method
-    val result = VidFilter.filterAndExtractVids(
-      listOf(labeledImpression).asFlow(),
-      0.0f,
-      1.0f,
-      filter,
-      collectionInterval,
-      typeRegistry
-    ).toList()
+    val result =
+      VidFilter.filterAndExtractVids(
+        listOf(labeledImpression).asFlow(),
+        0.0f,
+        1.0f,
+        filter,
+        collectionInterval,
+        typeRegistry,
+      )
+        .toList()
 
     // Verify the result
     assertThat(result).isEmpty()
@@ -139,9 +141,7 @@ class VidFilterTest {
       LabeledImpression.newBuilder()
         .setEventTime(Timestamp.getDefaultInstance())
         .setVid(10L)
-        .setEvent(
-          TEST_EVENT_1.pack()
-        )
+        .setEvent(TEST_EVENT_1.pack())
         .build()
   }
 }

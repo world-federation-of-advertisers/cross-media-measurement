@@ -1,8 +1,9 @@
 load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
 
-package(
-    default_visibility = ["//src/test/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:__subpackages__"],
-)
+package(default_visibility = [
+    "//src/main/kotlin/org/wfanet/measurement/edpaggregator:__subpackages__",
+    "//src/test/kotlin/org/wfanet/measurement/edpaggregator:__subpackages__",
+])
 
 kt_jvm_library(
     name = "results_fulfiller",
@@ -23,6 +24,12 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
+    name = "impression_read_exception",
+    srcs = ["ImpressionReadException.kt"],
+    deps = [],
+)
+
+kt_jvm_library(
     name = "vid_filter",
     srcs = ["VidFilter.kt"],
     deps = [
@@ -37,6 +44,8 @@ kt_jvm_library(
     name = "event_reader",
     srcs = ["EventReader.kt"],
     deps = [
+        ":impression_read_exception",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator:encrypted_storage",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator:storage_config",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:blob_details_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:labeled_impression_kt_jvm_proto",

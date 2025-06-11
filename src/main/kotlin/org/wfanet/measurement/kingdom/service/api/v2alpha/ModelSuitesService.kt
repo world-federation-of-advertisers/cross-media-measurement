@@ -18,6 +18,8 @@ package org.wfanet.measurement.kingdom.service.api.v2alpha
 
 import io.grpc.Status
 import io.grpc.StatusException
+import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.EmptyCoroutineContext
 import kotlin.math.min
 import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.v2alpha.CreateModelSuiteRequest
@@ -54,8 +56,10 @@ import org.wfanet.measurement.internal.kingdom.streamModelSuitesRequest
 private const val DEFAULT_PAGE_SIZE = 50
 private const val MAX_PAGE_SIZE = 1000
 
-class ModelSuitesService(private val internalClient: ModelSuitesCoroutineStub) :
-  ModelSuitesCoroutineService() {
+class ModelSuitesService(
+  private val internalClient: ModelSuitesCoroutineStub,
+  coroutineContext: CoroutineContext = EmptyCoroutineContext,
+) : ModelSuitesCoroutineService(coroutineContext) {
 
   override suspend fun createModelSuite(request: CreateModelSuiteRequest): ModelSuite {
     val parentKey =

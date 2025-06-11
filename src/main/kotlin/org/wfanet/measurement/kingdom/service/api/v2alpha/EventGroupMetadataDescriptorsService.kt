@@ -17,6 +17,8 @@ package org.wfanet.measurement.kingdom.service.api.v2alpha
 import com.google.protobuf.Descriptors.DescriptorValidationException
 import io.grpc.Status
 import io.grpc.StatusException
+import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.EmptyCoroutineContext
 import kotlin.math.min
 import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.Version
@@ -69,8 +71,9 @@ private const val WILDCARD = ResourceKey.WILDCARD_ID
 private val API_VERSION = Version.V2_ALPHA
 
 class EventGroupMetadataDescriptorsService(
-  private val internalEventGroupMetadataDescriptorsStub: EventGroupMetadataDescriptorsCoroutineStub
-) : EventGroupMetadataDescriptorsCoroutineImplBase() {
+  private val internalEventGroupMetadataDescriptorsStub: EventGroupMetadataDescriptorsCoroutineStub,
+  coroutineContext: CoroutineContext = EmptyCoroutineContext,
+) : EventGroupMetadataDescriptorsCoroutineImplBase(coroutineContext) {
 
   override suspend fun getEventGroupMetadataDescriptor(
     request: GetEventGroupMetadataDescriptorRequest

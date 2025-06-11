@@ -16,6 +16,8 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 
 import com.google.protobuf.Empty
 import io.grpc.Status
+import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.EmptyCoroutineContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.singleOrNull
@@ -44,7 +46,8 @@ private const val MAX_BATCH_DELETE = 1000
 class SpannerExchangesService(
   private val idGenerator: IdGenerator,
   private val client: AsyncDatabaseClient,
-) : ExchangesCoroutineImplBase() {
+  coroutineContext: CoroutineContext = EmptyCoroutineContext,
+) : ExchangesCoroutineImplBase(coroutineContext) {
   override suspend fun createExchange(request: CreateExchangeRequest): Exchange {
     return CreateExchange(request.exchange).execute(client, idGenerator)
   }

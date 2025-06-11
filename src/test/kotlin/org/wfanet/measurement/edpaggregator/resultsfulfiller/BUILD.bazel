@@ -1,4 +1,4 @@
-load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library", "kt_jvm_test")
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_test")
 
 package(
     default_testonly = True,
@@ -46,14 +46,16 @@ kt_jvm_test(
     srcs = ["RequisitionSpecsTest.kt"],
     test_class = "org.wfanet.measurement.edpaggregator.resultsfulfiller.RequisitionSpecsTest",
     deps = [
-        ":encrypted_mesos_storage",
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha/testing",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator:encrypted_storage",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator:storage_config",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:requisition_specs",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/testing:test_encrypted_storage",
         "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:test_event_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/java/org/junit",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//imports/kotlin/org/mockito/kotlin",
     ],
 )
 
@@ -76,22 +78,14 @@ kt_jvm_test(
     srcs = ["EventReaderTest.kt"],
     test_class = "org.wfanet.measurement.edpaggregator.resultsfulfiller.EventReaderTest",
     deps = [
-        ":encrypted_mesos_storage",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator:encrypted_storage",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:event_reader",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/testing:test_encrypted_storage",
         "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:test_event_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/tink/testing",
-    ],
-)
-
-kt_jvm_library(
-    name = "encrypted_mesos_storage",
-    srcs = ["EncryptedMesosStorage.kt"],
-    deps = [
-        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:blob_details_kt_jvm_proto",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/tink/testing",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:mesos_recordio_storage_client",
     ],
 )

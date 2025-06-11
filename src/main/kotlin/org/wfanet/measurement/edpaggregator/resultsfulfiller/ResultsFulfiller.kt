@@ -23,6 +23,10 @@ import com.google.protobuf.TypeRegistry
 import com.google.protobuf.kotlin.unpack
 import java.security.GeneralSecurityException
 import java.security.SecureRandom
+import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneOffset
+import com.google.protobuf.Timestamp
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.flatMapConcat
@@ -82,13 +86,26 @@ class ResultsFulfiller(
         labeledImpressionDekPrefix
       )
 
-      val sampledVids = requisitionSpec.events.eventGroupsList
+      val sampledVids: Flow<Long> = requisitionSpec.events.eventGroupsList
         .asFlow()
         .flatMapConcat { eventGroup ->
-          val labeledImpressions = eventReader.getLabeledImpressionsFlow(
-            eventGroup.value.collectionInterval,
-            eventGroup.key,
-          )
+          val start = eventGroup.value.collectionInterval.startTime
+          val end   = eventGroup.value.collectionInterval.endTime
+          val startDate = Instant.ofEpochSecond(start.seconds, start.nanos.toLong())
+            .atZone(ZoneOffset.UTC)
+            .toLocalDate()
+          val endDate = Instant.ofEpochSecond(end.seconds, end.nanos.toLong())
+            .atZone(ZoneOffset.UTC)
+            .toLocalDate()
+
+          val labeledImpressions = generateSequence(startDate) { date ->
+            if (date.isBefore(endDate)) date.plusDays(1) else null
+          }
+          .asFlow()
+          .flatMapConcat { ds ->
+            eventReader.getLabeledImpressions(ds, eventGroup.key)
+          }
+
           VidFilter.filterAndExtractVids(
             labeledImpressions,
             measurementSpec.vidSamplingInterval.start,
@@ -97,8 +114,28 @@ class ResultsFulfiller(
             eventGroup.value.collectionInterval,
             typeRegistry,
           )
-        }
-
+//          flow {
+//            val interval = eventGroup.value.collectionInterval
+//            val startDate = interval.startTime.toLocalDate()
+//            val endDate = interval.endTime.toLocalDate()
+//            for (date in startDate.datesUntil(endDate.plusDays(1))) {
+//              val labeledImpressions = eventReader.getLabeledImpressions(
+//                date,
+//                eventGroup.key,
+//              )
+//              emitAll(
+//                VidFilter.filterAndExtractVids(
+//                  labeledImpressions,
+//                  measurementSpec.vidSamplingInterval.start,
+//                  measurementSpec.vidSamplingInterval.width,
+//                  eventGroup.value.filter,
+//                  eventGroup.value.collectionInterval,
+//                  typeRegistry,
+//                )
+//              )
+//            }
+          }
+//        }
 
 
       val measurementEncryptionPublicKey: EncryptionPublicKey =
@@ -210,4 +247,9 @@ class ResultsFulfiller(
     val requisition = Any.parseFrom(requisitionBytes).unpack(Requisition::class.java)
     return listOf(requisition).asFlow()
   }
+
+  private fun Timestamp.toLocalDate(): LocalDate =
+    Instant.ofEpochSecond(seconds, nanos.toLong())
+      .atZone(ZoneOffset.UTC)
+      .toLocalDate()
 }
