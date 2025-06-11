@@ -28,7 +28,6 @@ option java_outer_classname = "GroupedRequisitionsProto";
 // Message representing a group of requisitions to be processed together based
 // upon with [RequisitionGrouper] was used.
 message GroupedRequisitions {
-
   // The model line for the requisitions
   string model_line = 1 [
     (google.api.resource_reference).type = "halo.wfanet.org/ModelLine",
@@ -61,7 +60,6 @@ message GroupedRequisitions {
   // A list of event group map entries for all event groups in requistions.
   repeated EventGroupMapEntry event_group_map = 2
       [(google.api.field_behavior) = REQUIRED];
-
   // The requisition entry to be processed
   message RequisitionEntry {
     // The requisitions to process together. Expected to be of type
