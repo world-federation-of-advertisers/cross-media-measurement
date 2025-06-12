@@ -160,7 +160,7 @@ variable "config_files_bucket_name" {
 
 variable "data_watcher_config" {
   description = "An object containing the local path of the data watcher config file and its destination path in Cloud Storage."
-  object({
+  type = object({
     local_path  = string
     destination = string
   })
@@ -168,7 +168,7 @@ variable "data_watcher_config" {
 
 variable "requisition_fetcher_config" {
   description = "An object containing the local path of the requisition fetcher config file and its destination path in Cloud Storage."
-  object({
+  type = object({
     local_path  = string
     destination = string
   })
