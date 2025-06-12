@@ -151,13 +151,16 @@ module "config_files_bucket" {
   location = var.edp_aggregator_buckets_location
 }
 
-resource "google_storage_bucket_object" "uploaded_objects" {
-  for_each = {
-    for file in var.configs_to_upload : file.destination => file
-  }
-  name   = each.value.destination
+resource "google_storage_bucket_object" "uploaded_data_watcher_config" {
+  name   = var.data_watcher_config.destination
   bucket = module.config_files_bucket.storage_bucket.name
-  source = each.value.local_path
+  source = var.data_watcher_config.local_path
+}
+
+resource "google_storage_bucket_object" "uploaded_requisition_fetcher_config" {
+  name   = var.requisition_fetcher_config.destination
+  bucket = module.config_files_bucket.storage_bucket.name
+  source = var.requisition_fetcher_config.local_path
 }
 
 module "secrets" {
