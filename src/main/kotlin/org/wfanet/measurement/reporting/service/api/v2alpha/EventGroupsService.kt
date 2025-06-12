@@ -25,6 +25,8 @@ import io.grpc.Status
 import io.grpc.StatusException
 import java.security.GeneralSecurityException
 import java.util.concurrent.TimeUnit
+import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.EmptyCoroutineContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.transformWhile
 import org.projectnessie.cel.common.types.Err
@@ -68,8 +70,9 @@ class EventGroupsService(
   private val celEnvProvider: CelEnvProvider,
   private val measurementConsumerConfigs: MeasurementConsumerConfigs,
   private val encryptionKeyPairStore: EncryptionKeyPairStore,
+  coroutineContext: CoroutineContext = EmptyCoroutineContext,
   private val ticker: Ticker = Deadline.getSystemTicker(),
-) : EventGroupsCoroutineImplBase() {
+) : EventGroupsCoroutineImplBase(coroutineContext) {
   override suspend fun listEventGroups(request: ListEventGroupsRequest): ListEventGroupsResponse {
     val parentKey =
       grpcRequireNotNull(MeasurementConsumerKey.fromName(request.parent)) {
