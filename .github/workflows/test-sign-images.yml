@@ -11,6 +11,9 @@ on:
         required: true
         default: "test-signed-build-v1"
 
+permissions:
+  id-token: write
+
 jobs:
   test-cosign:
     runs-on: ubuntu-22.04
