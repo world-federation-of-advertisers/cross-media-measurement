@@ -16,6 +16,8 @@ package org.wfanet.measurement.kingdom.service.api.v2alpha
 
 import io.grpc.Status
 import io.grpc.StatusException
+import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.EmptyCoroutineContext
 import org.wfanet.measurement.api.accountFromCurrentContext
 import org.wfanet.measurement.api.v2alpha.ApiKey
 import org.wfanet.measurement.api.v2alpha.ApiKeyKey
@@ -34,8 +36,10 @@ import org.wfanet.measurement.internal.kingdom.ApiKeysGrpcKt.ApiKeysCoroutineStu
 import org.wfanet.measurement.internal.kingdom.apiKey as internalApiKey
 import org.wfanet.measurement.internal.kingdom.deleteApiKeyRequest
 
-class ApiKeysService(private val internalApiKeysStub: ApiKeysCoroutineStub) :
-  ApiKeysCoroutineImplBase() {
+class ApiKeysService(
+  private val internalApiKeysStub: ApiKeysCoroutineStub,
+  coroutineContext: CoroutineContext = EmptyCoroutineContext,
+) : ApiKeysCoroutineImplBase(coroutineContext) {
 
   override suspend fun createApiKey(request: CreateApiKeyRequest): ApiKey {
     val account = accountFromCurrentContext

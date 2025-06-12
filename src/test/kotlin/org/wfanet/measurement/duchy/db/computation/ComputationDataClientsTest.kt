@@ -94,6 +94,10 @@ class ComputationDataClientsTest {
       ): StorageClient.Blob {
         throw NotImplementedError("Unused by test")
       }
+
+      override suspend fun listBlobs(prefix: String?): Flow<StorageClient.Blob> {
+        throw NotImplementedError("Unused by test")
+      }
     }
 
   @Test

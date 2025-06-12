@@ -1,0 +1,36 @@
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
+
+package(
+    default_testonly = True,
+    default_visibility = [
+        "//src/main/kotlin/org/wfanet/measurement/integration:__subpackages__",
+        "//src/main/kotlin/org/wfanet/measurement/loadtest:__subpackages__",
+        "//src/test/kotlin/org/wfanet/measurement/integration:__subpackages__",
+        "//src/test/kotlin/org/wfanet/measurement/loadtest:__subpackages__",
+    ],
+)
+
+kt_jvm_library(
+    name = "impression_writer",
+    srcs = [
+        "ImpressionWriter.kt",
+    ],
+    deps = [
+        "//imports/java/com/google/crypto/tink/integration/gcpkms",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator:encrypted_storage",
+        "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:labeled_event",
+        "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:synthetic_data_generation",
+        "//src/main/proto/wfa/measurement/api/v2alpha:event_group_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:test_event_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:blob_details_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:encrypted_dek_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:labeled_impression_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/picocli",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/testing",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/tink",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/tink/testing",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:mesos_recordio_storage_client",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:selected_storage_client",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage/filesystem:client",
+    ],
+)

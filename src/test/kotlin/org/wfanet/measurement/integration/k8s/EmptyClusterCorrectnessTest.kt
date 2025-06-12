@@ -65,8 +65,8 @@ import org.wfanet.measurement.integration.common.createEntityContent
 import org.wfanet.measurement.integration.common.loadEncryptionPrivateKey
 import org.wfanet.measurement.integration.common.loadTestCertDerFile
 import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt
+import org.wfanet.measurement.loadtest.measurementconsumer.EventQueryMeasurementConsumerSimulator
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
-import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerSimulator
 import org.wfanet.measurement.loadtest.measurementconsumer.MetadataSyntheticGeneratorEventQuery
 import org.wfanet.measurement.loadtest.reporting.ReportingUserSimulator
 import org.wfanet.measurement.loadtest.resourcesetup.DuchyCert
@@ -177,8 +177,8 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
     private val tempDir: TemporaryFolder by tempDir
     override val runId: String by runId
 
-    private lateinit var _testHarness: MeasurementConsumerSimulator
-    override val testHarness: MeasurementConsumerSimulator
+    private lateinit var _testHarness: EventQueryMeasurementConsumerSimulator
+    override val testHarness: EventQueryMeasurementConsumerSimulator
       get() = _testHarness
 
     private lateinit var _reportingTestHarness: ReportingUserSimulator
@@ -245,7 +245,7 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
 
     private suspend fun createTestHarness(
       measurementConsumerData: MeasurementConsumerData
-    ): MeasurementConsumerSimulator {
+    ): EventQueryMeasurementConsumerSimulator {
       val kingdomPublicPod: V1Pod = getPod(KINGDOM_PUBLIC_DEPLOYMENT_NAME)
 
       val publicApiForwarder = PortForwarder(kingdomPublicPod, SERVER_PORT)
@@ -258,7 +258,7 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
           .also { channels.add(it) }
       val eventGroupsClient = EventGroupsGrpcKt.EventGroupsCoroutineStub(publicApiChannel)
 
-      return MeasurementConsumerSimulator(
+      return EventQueryMeasurementConsumerSimulator(
         measurementConsumerData,
         OUTPUT_DP_PARAMS,
         DataProvidersGrpcKt.DataProvidersCoroutineStub(publicApiChannel),

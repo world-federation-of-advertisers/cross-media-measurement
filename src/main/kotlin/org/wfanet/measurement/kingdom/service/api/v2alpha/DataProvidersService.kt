@@ -18,6 +18,8 @@ import com.google.protobuf.any
 import com.google.protobuf.util.Timestamps
 import io.grpc.Status
 import io.grpc.StatusException
+import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.EmptyCoroutineContext
 import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.api.v2alpha.DataProvider
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
@@ -57,8 +59,10 @@ import org.wfanet.measurement.internal.kingdom.replaceDataAvailabilityIntervalRe
 import org.wfanet.measurement.internal.kingdom.replaceDataProviderCapabilitiesRequest
 import org.wfanet.measurement.internal.kingdom.replaceDataProviderRequiredDuchiesRequest
 
-class DataProvidersService(private val internalClient: DataProvidersCoroutineStub) :
-  DataProvidersCoroutineService() {
+class DataProvidersService(
+  private val internalClient: DataProvidersCoroutineStub,
+  coroutineContext: CoroutineContext = EmptyCoroutineContext,
+) : DataProvidersCoroutineService(coroutineContext) {
 
   override suspend fun getDataProvider(request: GetDataProviderRequest): DataProvider {
     val key: DataProviderKey =

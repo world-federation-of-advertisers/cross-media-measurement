@@ -13,25 +13,98 @@
 # limitations under the License.
 
 locals {
-  queue_worker_configs = {
-    requisition_fulfiller = {
-      queue = {
-        subscription_name     = "requisition-fulfiller-subscription"
-        topic_name            = "requisition-fulfiller-queue"
-        ack_deadline_seconds  = 600
+
+  edp_display_names = ["edp7"]
+
+  edpa_tee_app_tls_key = {
+    secret_id         = "edpa-tee-app-tls-key",
+    secret_local_path = abspath("${path.root}/../../../k8s/testing/secretfiles/edpa_tee_app_tls.key"),
+    is_binary_format  = false
+  }
+
+  edpa_tee_app_tls_pem = {
+    secret_id         = "edpa-tee-app-tls-pem"
+    secret_local_path = abspath("${path.root}/../../../k8s/testing/secretfiles/edpa_tee_app_tls.pem"),
+    is_binary_format  = false
+  }
+
+  data_watcher_tls_key = {
+    secret_id         = "edpa-data-watcher-tls-key"
+    secret_local_path = abspath("${path.root}/../../../k8s/testing/secretfiles/edpa_tee_app_tls.key"),
+    is_binary_format  = false
+  }
+
+  data_watcher_tls_pem = {
+    secret_id         = "edpa-data-watcher-tls-pem"
+    secret_local_path = abspath("${path.root}/../../../k8s/testing/secretfiles/data_watcher_tls.pem"),
+    is_binary_format  = false
+  }
+
+  secure_computation_root_ca = {
+    secret_id         = "securecomputation-root-ca"
+    secret_local_path = abspath("${path.root}/../../../k8s/testing/secretfiles/secure_computation_root.pem"),
+    is_binary_format  = false
+  }
+
+  kingdom_root_ca = {
+    secret_id         = "kingdom-root-ca"
+    secret_local_path = abspath("${path.root}/../../../k8s/testing/secretfiles/kingdom_root.pem"),
+    is_binary_format  = false
+  }
+
+  edps_certs = {
+    for edp in local.edp_display_names : edp => {
+      cert_der = {
+        secret_id         = "${edp}-cert-der"
+        secret_local_path = abspath("${path.root}/../../../k8s/testing/secretfiles/${edp}_cs_cert.der")
+        is_binary_format  = true
       }
-      worker = {
-        instance_template_name      = "requisition-fulfiller-template"
-        base_instance_name          = "secure-computation"
-        managed_instance_group_name = "requisition-fulfiller-mig"
-        mig_service_account_name    = "requisition-fulfiller-sa"
-        single_instance_assignment  = 1
-        min_replicas                = 1
-        max_replicas                = 10
-        app_args                    = []
-        machine_type                = "n2d-standard-2"
-        docker_image                = "" # @TODO(MarcoPremier): set this value once TEE APP is merged
+      private_der = {
+        secret_id         = "${edp}-private-der"
+        secret_local_path = abspath("${path.root}/../../../k8s/testing/secretfiles/${edp}_cs_private.der")
+        is_binary_format  = true
       }
+      enc_private = {
+        secret_id         = "${edp}-enc-private"
+        secret_local_path = abspath("${path.root}/../../../k8s/testing/secretfiles/${edp}_enc_private.tink")
+        is_binary_format  = true
+      }
+      tls_key = {
+        secret_id         = "${edp}-tls-key"
+        secret_local_path = abspath("${path.root}/../../../k8s/testing/secretfiles/${edp}_tls.key")
+        is_binary_format  = false
+      }
+      tls_pem = {
+        secret_id         = "${edp}-tls-pem"
+        secret_local_path = abspath("${path.root}/../../../k8s/testing/secretfiles/${edp}_tls.pem")
+        is_binary_format  = false
+      }
+    }
+  }
+
+  requisition_fulfiller_config = {
+    queue = {
+    subscription_name     = "results-fulfiller-subscription"
+    topic_name            = "results-fulfiller-queue"
+      ack_deadline_seconds  = 600
+    }
+    worker = {
+      instance_template_name        = "requisition-fulfiller-template"
+      base_instance_name            = "secure-computation"
+      managed_instance_group_name   = "results-fulfiller-mig"
+      mig_service_account_name      = "results-fulfiller-sa"
+      single_instance_assignment    = 1
+      min_replicas                  = 1
+      max_replicas                  = 10
+      app_args = [
+        "--kingdom-public-api-target=${var.kingdom_public_api_target}",
+        "--secure-computation-public-api-target=${var.secure_computation_public_api_target}",
+        "--subscription-id=requisition-fulfiller-subscription",
+        "--google-pub-sub-project-id=${data.google_client_config.default.project}"
+      ]
+      machine_type                  = "n2d-standard-2"
+      docker_image                  = "ghcr.io/world-federation-of-advertisers/edp-aggregator/results_fulfiller:${var.image_tag}"
+      mig_distribution_policy_zones = ["us-central1-a"]
     }
   }
 
@@ -50,10 +123,10 @@ locals {
 module "edp_aggregator" {
   source = "../modules/edp-aggregator"
 
-  key_ring_name                             = "edpa-secure-computation-cloud-test-key-ring-10"
+  key_ring_name                             = "securecomputation-key-ring"
   key_ring_location                         = local.key_ring_location
   kms_key_name                              = "edpa-secure-computation-kek"
-  queue_worker_configs                      = local.queue_worker_configs
+  requisition_fulfiller_config              = local.requisition_fulfiller_config
   pubsub_iam_service_account_member         = module.secure_computation.secure_computation_internal_iam_service_account_member
   edp_aggregator_bucket_name                = var.secure_computation_storage_bucket_name
   config_files_bucket_name                  = var.edpa_config_files_bucket_name
@@ -64,11 +137,14 @@ module "edp_aggregator" {
   requisition_fetcher_service_account_name  = "edpa-requisition-fetcher"
   data_watcher_config                       = local.data_watcher_config
   requisition_fetcher_config                = local.requisition_fetcher_config
-  data_watcher_private_key_id               = "edpa-datawatcher-tls-key"
-  data_watcher_private_key_path             = "${path.root}/../../../k8s/testing/secretfiles/data_watcher_tls.key"
-  data_watcher_cert_id                      = "edpa-datawatcher-tls-pem"
-  data_watcher_cert_path                    = "${path.root}/../../../k8s/testing/secretfiles/data_watcher_tls.pem"
-  secure_computation_root_ca_id             = "secure-computation-root-ca"
-  secure_computation_root_ca_path           = "${path.root}/../../../k8s/testing/secretfiles/secure_computation_root.pem"
-
+  event_group_sync_service_account_name     = "edpa-event-group-sync"
+  event_group_sync_function_name            = "event-group-sync"
+  event_group_sync_function_location        = data.google_client_config.default.region
+  edpa_tee_app_tls_key                      = local.edpa_tee_app_tls_key
+  edpa_tee_app_tls_pem                      = local.edpa_tee_app_tls_pem
+  data_watcher_tls_key                      = local.data_watcher_tls_key
+  data_watcher_tls_pem                      = local.data_watcher_tls_pem
+  secure_computation_root_ca                = local.secure_computation_root_ca
+  kingdom_root_ca                           = local.kingdom_root_ca
+  edps_certs                                = local.edps_certs
 }

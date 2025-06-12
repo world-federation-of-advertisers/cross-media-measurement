@@ -119,3 +119,18 @@ variable "requisition_fetcher_config_file_path" {
   type        = string
   nullable    = false
 }
+
+variable "kingdom_public_api_target" {
+  description = "Kingdom public api target"
+  type        = string
+}
+
+variable "secure_computation_public_api_target" {
+  description = "Secure Computation public api target"
+  type        = string
+}
+
+variable "image_tag" {
+  description = "Tag of container images"
+  type        = string
+}

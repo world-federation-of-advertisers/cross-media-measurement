@@ -15,6 +15,8 @@
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 
 import io.grpc.Status
+import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.EmptyCoroutineContext
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
@@ -35,7 +37,8 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.DeleteApiKey
 class SpannerApiKeysService(
   private val idGenerator: IdGenerator,
   private val client: AsyncDatabaseClient,
-) : ApiKeysGrpcKt.ApiKeysCoroutineImplBase() {
+  coroutineContext: CoroutineContext = EmptyCoroutineContext,
+) : ApiKeysGrpcKt.ApiKeysCoroutineImplBase(coroutineContext) {
   override suspend fun createApiKey(request: ApiKey): ApiKey {
     try {
       return CreateApiKey(request).execute(client, idGenerator)

@@ -15,6 +15,8 @@
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 
 import io.grpc.Status
+import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.EmptyCoroutineContext
 import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
@@ -45,7 +47,8 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.ReplaceDataP
 class SpannerDataProvidersService(
   private val idGenerator: IdGenerator,
   private val client: AsyncDatabaseClient,
-) : DataProvidersCoroutineImplBase() {
+  coroutineContext: CoroutineContext = EmptyCoroutineContext,
+) : DataProvidersCoroutineImplBase(coroutineContext) {
   override suspend fun createDataProvider(request: DataProvider): DataProvider {
     grpcRequireNotNull(Version.fromStringOrNull(request.details.apiVersion)) {
       "details.api_version is invalid or unspecified"
