@@ -39,13 +39,32 @@ import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.consent.client.dataprovider.decryptRequisitionSpec
 import org.wfanet.measurement.edpaggregator.StorageConfig
-import org.wfanet.measurement.edpaggregator.resultsfulfiller.RequisitionSpecs.getSampledVids
+import org.wfanet.measurement.edpaggregator.resultsfulfiller.RequisitionSpecs
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.compute.protocols.direct.DirectMeasurementResultFactory
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.fulfillers.DirectMeasurementFulfiller
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
 import org.wfanet.measurement.storage.SelectedStorageClient
 
-/** TODO(2347) - Support additional differential privacy and k-anonymization. */
+/**
+ * A class responsible for fulfilling results.
+ *
+ * TODO(2347) - Support additional differential privacy and k-anonymization.
+ *
+ * @param privateEncryptionKey Handle to the private encryption key.
+ * @param requisitionsStub Stub for requisitions gRPC coroutine.
+ * @param dataProviderCertificateKey Data provider certificate key.
+ * @param dataProviderSigningKeyHandle Handle to the data provider signing key.
+ * @param typeRegistry Type registry instance.
+ * @param requisitionsBlobUri URI for requisitions blob storage.
+ * @param labeledImpressionDekPrefix Prefix for labeled impression DEK.
+ * @param kmsClient Client for Key Management Service (KMS).
+ * @param impressionsStorageConfig Configuration for impressions storage.
+ * @param impressionDekStorageConfig Configuration for impression DEK storage.
+ * @param requisitionsStorageConfig Configuration for requisitions storage.
+ * @param random Secure random number generator. Defaults to a new instance of [SecureRandom].
+ * @param zoneId Zone ID instance.
+ * @param noiserSelector Selector for noise addition.
+ */
 class ResultsFulfiller(
   private val privateEncryptionKey: PrivateKeyHandle,
   private val requisitionsStub: RequisitionsGrpcKt.RequisitionsCoroutineStub,
@@ -53,14 +72,11 @@ class ResultsFulfiller(
   private val dataProviderSigningKeyHandle: SigningKeyHandle,
   private val typeRegistry: TypeRegistry,
   private val requisitionsBlobUri: String,
-  private val labeledImpressionDekPrefix: String,
-  private val kmsClient: KmsClient,
-  private val impressionsStorageConfig: StorageConfig,
-  private val impressionDekStorageConfig: StorageConfig,
   private val requisitionsStorageConfig: StorageConfig,
   private val random: SecureRandom = SecureRandom(),
   private val zoneId: ZoneId,
   private val noiserSelector: NoiserSelector,
+  private val eventReader: EventReader,
 ) {
   suspend fun fulfillRequisitions() {
     val requisitions =
@@ -74,16 +90,9 @@ class ResultsFulfiller(
         }
       val requisitionSpec: RequisitionSpec = signedRequisitionSpec.unpack()
       val measurementSpec: MeasurementSpec = requisition.measurementSpec.message.unpack()
-      val eventReader =
-        EventReader(
-          kmsClient,
-          impressionsStorageConfig,
-          impressionDekStorageConfig,
-          labeledImpressionDekPrefix,
-        )
 
       val sampledVids: Flow<Long> =
-        getSampledVids(
+        RequisitionSpecs.getSampledVids(
           requisitionSpec,
           measurementSpec.vidSamplingInterval,
           typeRegistry,
@@ -114,14 +123,8 @@ class ResultsFulfiller(
   /**
    * Retrieves a list of requisitions from the configured blob storage.
    *
-   * This method performs the following operations:
-   * 1. Parses the requisitions blob URI to create a storage client
-   * 2. Fetches the requisition blob from storage
-   * 3. Reads and concatenates all data from the blob
-   * 4. Parses the UTF-8 encoded string data into a Requisition object using TextFormat
-   *
-   * @return A Flow containing the single requisition retrieved from blob storage
-   * @throws NullPointerException If the requisition blob cannot be found at the specified URI
+   * @return A [GroupredRequisitions] retrieved from blob storage
+   * @throws ImpressionReadException If the requisition blob cannot be found at the specified URI
    */
   private suspend fun getRequisitions(): GroupedRequisitions {
     val storageClientUri = SelectedStorageClient.parseBlobUri(requisitionsBlobUri)

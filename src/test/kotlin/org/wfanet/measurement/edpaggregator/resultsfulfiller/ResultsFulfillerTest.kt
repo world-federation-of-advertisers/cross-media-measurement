@@ -252,6 +252,14 @@ class ResultsFulfillerTest {
     // result value
     RANDOM.setSeed(byteArrayOf(1, 1, 1, 1, 1, 1, 1, 1))
 
+    val eventReader =
+      EventReader(
+        kmsClient,
+        StorageConfig(rootDirectory = impressionsTmpPath),
+        StorageConfig(rootDirectory = metadataTmpPath),
+        IMPRESSIONS_METADATA_FILE_URI_PREFIX,
+      )
+
     val resultsFulfiller =
       ResultsFulfiller(
         PRIVATE_ENCRYPTION_KEY,
@@ -260,14 +268,11 @@ class ResultsFulfillerTest {
         EDP_RESULT_SIGNING_KEY,
         typeRegistry,
         REQUISITIONS_FILE_URI,
-        IMPRESSIONS_METADATA_FILE_URI_PREFIX,
-        kmsClient,
-        StorageConfig(rootDirectory = impressionsTmpPath),
-        StorageConfig(rootDirectory = metadataTmpPath),
         StorageConfig(rootDirectory = requisitionsTmpPath),
         RANDOM,
         ZoneOffset.UTC,
         ContinuousGaussianNoiseSelector(),
+        eventReader,
       )
 
     resultsFulfiller.fulfillRequisitions()
