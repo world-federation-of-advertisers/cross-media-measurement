@@ -21,7 +21,10 @@ import com.google.cloud.functions.HttpRequest
 import com.google.cloud.functions.HttpResponse
 import com.google.cloud.storage.StorageOptions
 import java.io.File
+import java.time.Clock
+import java.time.Duration
 import kotlinx.coroutines.runBlocking
+import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.common.EnvVars
 import org.wfanet.measurement.common.crypto.SigningCerts
@@ -30,8 +33,11 @@ import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.config.edpaggregator.RequisitionFetcherConfig
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionFetcher
+import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionGrouperByReportId
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
+import org.wfanet.measurement.common.crypto.tink.loadPrivateKey
+import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 
 class RequisitionFetcherFunction : HttpFunction {
 
@@ -70,12 +76,21 @@ class RequisitionFetcherFunction : HttpFunction {
         buildMutualTlsChannel(kingdomTarget, signingCerts, kingdomCertHost)
       }
       val requisitionsStub = RequisitionsCoroutineStub(publicChannel)
+      val eventGroupsStub = EventGroupsCoroutineStub(publicChannel)
+      val edpPrivateKey = checkNotNull(File(dataProviderConfig.edpPrivateKeyPath))
+      val requisitionGrouper = RequisitionGrouperByReportId(
+        loadPrivateKey(edpPrivateKey),
+        eventGroupsStub,
+        requisitionsStub,
+        MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofSeconds(1L))
+      )
       val requisitionFetcher =
         RequisitionFetcher(
           requisitionsStub,
           requisitionsStorageClient,
           dataProviderConfig.dataProvider,
           dataProviderConfig.storagePathPrefix,
+          requisitionGrouper,
           pageSize,
         )
       runBlocking { requisitionFetcher.fetchAndStoreRequisitions() }
