@@ -27,7 +27,9 @@ class ContinuousGaussianNoiseSelector : NoiserSelector {
    * Selects the most preferred [DirectNoiseMechanism] for reach and frequency measurements from the
    * overlap of a list of options of [NoiseMechanism].
    */
-  override fun selectReachAndFrequencyNoiseMechanism(options: List<NoiseMechanism>): DirectNoiseMechanism {
+  override fun selectReachAndFrequencyNoiseMechanism(
+    options: List<NoiseMechanism>
+  ): DirectNoiseMechanism {
     return if (options.contains(NoiseMechanism.CONTINUOUS_GAUSSIAN)) {
       DirectNoiseMechanism.CONTINUOUS_GAUSSIAN
     } else {
