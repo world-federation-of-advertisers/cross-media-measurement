@@ -377,7 +377,7 @@ class CreateModelLine : Runnable {
     description = ["The end (exclusive) of the time range when the ModelLine is active"],
     required = false,
   )
-  private lateinit var endTime: Instant
+  private var endTime: Instant? = null
 
   @Option(names = ["--type"], description = ["Type of the ModelLine"], required = true)
   private lateinit var modelLineType: ModelLine.Type

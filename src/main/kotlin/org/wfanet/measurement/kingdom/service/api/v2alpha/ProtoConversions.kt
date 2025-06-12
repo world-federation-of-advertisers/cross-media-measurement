@@ -668,8 +668,10 @@ fun ModelLine.toInternal(modelSuiteKey: ModelSuiteKey): InternalModelLine {
       activeEndTime = publicModelLine.activeEndTime
     }
     type = publicModelLine.type.toInternalType()
-    val modelLineKey = ModelLineKey.fromName(publicModelLine.holdbackModelLine)
-    if (modelLineKey != null) {
+    if (publicModelLine.holdbackModelLine.isNotBlank()) {
+      val modelLineKey =
+        ModelLineKey.fromName(publicModelLine.holdbackModelLine)
+          ?: throw IllegalArgumentException("holdbackModelLine is invalid")
       externalHoldbackModelLineId = apiIdToExternalId(modelLineKey.modelLineId)
     }
   }
