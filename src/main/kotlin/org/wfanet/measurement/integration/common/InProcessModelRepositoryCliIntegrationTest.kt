@@ -16,6 +16,7 @@
 
 package org.wfanet.measurement.integration.common
 
+import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
 import com.google.protobuf.timestamp
@@ -25,7 +26,6 @@ import java.io.File
 import java.nio.file.Paths
 import kotlinx.coroutines.runBlocking
 import org.junit.After
-import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.ClassRule
 import org.junit.Rule
@@ -40,6 +40,8 @@ import org.wfanet.measurement.api.v2alpha.ListPopulationsPageTokenKt
 import org.wfanet.measurement.api.v2alpha.ListPopulationsResponse
 import org.wfanet.measurement.api.v2alpha.ModelProvider
 import org.wfanet.measurement.api.v2alpha.ModelProviderKey
+import org.wfanet.measurement.api.v2alpha.ModelProvidersGrpc
+import org.wfanet.measurement.api.v2alpha.ModelProvidersGrpc.ModelProvidersBlockingStub
 import org.wfanet.measurement.api.v2alpha.ModelSuite
 import org.wfanet.measurement.api.v2alpha.ModelSuiteKey
 import org.wfanet.measurement.api.v2alpha.ModelSuitesGrpc
@@ -52,6 +54,7 @@ import org.wfanet.measurement.api.v2alpha.PopulationsGrpc.PopulationsBlockingStu
 import org.wfanet.measurement.api.v2alpha.createModelSuiteRequest
 import org.wfanet.measurement.api.v2alpha.createPopulationRequest
 import org.wfanet.measurement.api.v2alpha.eventTemplate
+import org.wfanet.measurement.api.v2alpha.listModelProvidersRequest
 import org.wfanet.measurement.api.v2alpha.listModelSuitesPageToken
 import org.wfanet.measurement.api.v2alpha.listModelSuitesResponse
 import org.wfanet.measurement.api.v2alpha.listPopulationsPageToken
@@ -111,6 +114,7 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
   @get:Rule
   val ruleChain: TestRule = chainRulesSequentially(kingdomDataServicesRule, internalApiServer)
 
+  private lateinit var publicModelProvidersClient: ModelProvidersBlockingStub
   private lateinit var publicModelSuitesClient: ModelSuitesBlockingStub
   private lateinit var publicPopulationsClient: PopulationsBlockingStub
 
@@ -220,6 +224,7 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
 
     val publicModelProviderChannel: ManagedChannel =
       buildMutualTlsChannel("localhost:${server.port}", modelProviderCerts)
+    publicModelProvidersClient = ModelProvidersGrpc.newBlockingStub(publicModelProviderChannel)
     publicModelSuitesClient = ModelSuitesGrpc.newBlockingStub(publicModelProviderChannel)
     publicModelSuitesClient = ModelSuitesGrpc.newBlockingStub(publicModelProviderChannel)
     publicPopulationsClient = PopulationsGrpc.newBlockingStub(publicModelProviderChannel)
@@ -254,16 +259,25 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
 
   @Test
   fun `model-providers list prints ModelProviders`() {
-    var args = modelProviderArgs + arrayOf("model-providers", "list", "--page-size=1")
-    var output = callCli(args)
+    val args = modelProviderArgs + arrayOf("model-providers", "list", "--page-size=1")
+    val output = callCli(args)
 
-    var response: ListModelProvidersResponse =
+    val response: ListModelProvidersResponse =
       parseTextProto(output.reader(), ListModelProvidersResponse.getDefaultInstance())
 
     assertThat(response.modelProvidersList).hasSize(1)
-    assertTrue(response.nextPageToken.isNotEmpty())
+    assertThat(response.nextPageToken).isNotEmpty()
+  }
 
-    args =
+  @Test
+  fun `model-providers list with page token prints ModelProviders`() {
+    var response: ListModelProvidersResponse =
+      publicModelProvidersClient.listModelProviders(listModelProvidersRequest { pageSize = 1 })
+
+    assertThat(response.modelProvidersList).hasSize(1)
+    assertThat(response.nextPageToken).isNotEmpty()
+
+    val args =
       modelProviderArgs +
         arrayOf(
           "model-providers",
@@ -271,12 +285,12 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
           "--page-size=1",
           "--page-token=${response.nextPageToken}",
         )
-    output = callCli(args)
+    val output = callCli(args)
 
     response = parseTextProto(output.reader(), ListModelProvidersResponse.getDefaultInstance())
 
     assertThat(response.modelProvidersList).hasSize(1)
-    assertTrue(response.nextPageToken.isEmpty())
+    assertThat(response.nextPageToken).isEmpty()
   }
 
   @Test
