@@ -81,14 +81,14 @@ jobs:
         run: >
           cosign sign
           --tlog-upload=false
-          --key gcpkms://projects/halo-cmm-poc/locations/global/keyRings/key-ring-signed-builds/cryptoKeys/key-signed-builds/cryptoKeyVersions/1
+          --key gcpkms://projects/halo-cmm-dev/locations/global/keyRings/test-image-signing/cryptoKeys/test-image-signing/cryptoKeyVersions/1
           ghcr.io/${{ github.repository }}/test-signed-image:v1
 
       - name: Cosign verify hello-world image
         run: >
           cosign verify 
           --insecure-ignore-tlog=true
-          --key gcpkms://projects/halo-cmm-poc/locations/global/keyRings/key-ring-signed-builds/cryptoKeys/key-signed-builds/cryptoKeyVersions/1
+          --key gcpkms://projects/halo-cmm-dev/locations/global/keyRings/test-image-signing/cryptoKeys/test-image-signing/cryptoKeyVersions/1
           ghcr.io/${{ github.repository }}/test-signed-image:v1
 
       #------ Test using bazel and the HMSS mill image under the name TEST_SIGNED_BUILD_IMAGES -----
