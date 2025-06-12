@@ -60,7 +60,6 @@ jobs:
       GCLOUD_ZONE: ${{ vars.GCLOUD_ZONE }}
       DATA_WATCHER_CONFIG_CONTENT: ${{ vars.DATA_WATCHER_CONFIG_CONTENT }}
       REQUISITION_FETCHER_CONFIG_CONTENT: ${{ vars.REQUISITION_FETCHER_CONFIG_CONTENT }}
-      CONFIG_DIR: ${{ runner.temp }}/configs
 
     steps:
     - uses: actions/checkout@v4
@@ -74,6 +73,8 @@ jobs:
         service_account: ${{ vars.TF_SERVICE_ACCOUNT }}
 
     - name: Write data-watcher config to file
+      env:
+        CONFIG_DIR: ${{ runner.temp }}/configs
       run: |
         mkdir -p "$CONFIG_DIR"
         echo "$DATA_WATCHER_CONFIG_CONTENT" > "$CONFIG_DIR/data-watcher-config.textproto"
@@ -100,7 +101,7 @@ jobs:
         TERRAFORM_SERVICE_ACCOUNT: ${{ vars.TF_SERVICE_ACCOUNT }}
         POSTGRES_INSTANCE: ${{ vars.POSTGRES_INSTANCE }}
         POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
-        CONFIG_DIR: ${{ env.CONFIG_DIR }}
+        CONFIG_DIR: ${{ runner.temp }}/configs
         KINGDOM_PUBLIC_API_TARGET: ${{ vars.KINGDOM_PUBLIC_API_TARGET }}
         SECURE_COMPUTATION_PUBLIC_API_TARGET: ${{ vars.SECURE_COMPUTATION_PUBLIC_API_TARGET }}
         IMAGE_TAG: ${{ inputs.image-tag }}
