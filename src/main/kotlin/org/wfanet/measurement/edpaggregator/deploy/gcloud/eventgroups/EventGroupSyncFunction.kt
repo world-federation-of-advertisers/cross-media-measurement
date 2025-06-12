@@ -30,7 +30,6 @@ import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.common.EnvVars
 import org.wfanet.measurement.common.crypto.SigningCerts
-import org.wfanet.measurement.common.getJarResourceFile
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withShutdownTimeout
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
@@ -53,24 +52,13 @@ class EventGroupSyncFunction() : HttpFunction {
       EventGroupSyncConfig.newBuilder()
         .apply { JsonFormat.parser().merge(requestBody, this) }
         .build()
+
     val signingCerts =
       SigningCerts.fromPemFiles(
-        certificateFile =
-          checkNotNull(
-            CLASS_LOADER.getJarResourceFile(eventGroupSyncConfig.cmmsConnection.certJarResourcePath)
-          ),
-        privateKeyFile =
-          checkNotNull(
-            CLASS_LOADER.getJarResourceFile(
-              eventGroupSyncConfig.cmmsConnection.privateKeyJarResourcePath
-            )
-          ),
+        certificateFile = checkNotNull(File(eventGroupSyncConfig.cmmsConnection.certFilePath)),
+        privateKeyFile = checkNotNull(File(eventGroupSyncConfig.cmmsConnection.privateKeyFilePath)),
         trustedCertCollectionFile =
-          checkNotNull(
-            CLASS_LOADER.getJarResourceFile(
-              eventGroupSyncConfig.cmmsConnection.certCollectionJarResourcePath
-            )
-          ),
+          checkNotNull(File(eventGroupSyncConfig.cmmsConnection.certCollectionFilePath)),
       )
     val publicChannel =
       buildMutualTlsChannel(kingdomTarget, signingCerts, kingdomCertHost)
@@ -123,10 +111,9 @@ class EventGroupSyncFunction() : HttpFunction {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
     private const val KINGDOM_SHUTDOWN_DURATION_SECONDS: Long = 3L
     private const val THROTTLER_DURATION_MILLIS = 1000L
-    private val CLASS_LOADER: ClassLoader = Thread.currentThread().contextClassLoader
 
     private val kingdomTarget = EnvVars.checkNotNullOrEmpty("KINGDOM_TARGET")
-    private val kingdomCertHost = EnvVars.checkNotNullOrEmpty("KINGDOM_CERT_HOST")
+    private val kingdomCertHost: String? = System.getenv("KINGDOM_CERT_HOST")
     private val throttlerDuration =
       Duration.ofMillis(System.getenv("THROTTLER_MILLIS")?.toLong() ?: THROTTLER_DURATION_MILLIS)
     private val channelShutdownDuration =

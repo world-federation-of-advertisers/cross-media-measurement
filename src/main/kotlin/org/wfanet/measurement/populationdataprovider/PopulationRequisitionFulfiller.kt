@@ -49,6 +49,7 @@ import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.common.toLocalDate
 import org.wfanet.measurement.dataprovider.DataProviderData
 import org.wfanet.measurement.dataprovider.RequisitionFulfiller
+import org.wfanet.measurement.dataprovider.RequisitionRefusalException
 import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters
 
 /**
@@ -120,7 +121,7 @@ class PopulationRequisitionFulfiller(
             logger.log(Level.WARNING, e) {
               "Consent signaling verification failed for ${requisition.name}"
             }
-            throw RequisitionRefusalException(
+            throw RequisitionRefusalException.Default(
               Requisition.Refusal.Justification.CONSENT_SIGNAL_INVALID,
               e.message.orEmpty(),
             )
@@ -143,11 +144,11 @@ class PopulationRequisitionFulfiller(
           typeRegistry,
         )
       } catch (e: RequisitionRefusalException) {
-        if (e !is TestRequisitionRefusalException) {
+        if (e !is RequisitionRefusalException.Test) {
           logger.log(Level.WARNING, e) { "Refusing Requisition ${requisition.name}" }
         }
 
-        refuseRequisition(requisition.name, e.justification, e.message)
+        refuseRequisition(requisition.name, e.justification, e.message!!, requisition.etag)
       }
     }
   }

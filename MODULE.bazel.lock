@@ -321,14 +321,14 @@
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/common-cpp/0.11.0/MODULE.bazel": "22f7e06ac78cd614d2143fcd0e7028eb595d9902dbfa94f777531439c616f13f",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/common-cpp/0.13.0/MODULE.bazel": "ad9f152e8f710943b2d9aa4ea19e06b47911abd8a5fb63d9e69e66636475794d",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/common-cpp/0.13.0/source.json": "910ffe09948e90417f98e00fd88819dbaa54efda4175e05e528481acc81c5d71",
-    "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/common-jvm/0.103.0/MODULE.bazel": "c4d0eef967ef7ce3389b948be41b6cfe97236c73d91c1231d64b5d58aee6dfea",
-    "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/common-jvm/0.103.0/source.json": "baa83feef55e911427913879f80389b5d4b45dd69c40cd4ac20e610d50d440dc",
+    "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/common-jvm/0.107.0/MODULE.bazel": "53ac05668ccdeb9dc190e7ba0e21997c2e4732cf1973e0318550d3b8f6b8a31b",
+    "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/common-jvm/0.107.0/source.json": "2bd9242c4783880f4a59eb2483bce530f2ffbba696acaf23eb24c0ff32b3bb48",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/common-jvm/0.82.1/MODULE.bazel": "e5d9aee83831d55952c193f6f05b3952d3f3cd61d8d4e3bfedf3549e25edf308",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/consent-signaling-client/0.22.0/MODULE.bazel": "6437a69ac68ec8e3589d595a5ed79d3f6404510124e455838ce9cf51b8b27d52",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/consent-signaling-client/0.22.0/source.json": "844344f41ae9b780cfb0452438388465d3cf7c7b5accedb1fcc4900ace5111ca",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/cross-media-measurement-api/0.62.0/MODULE.bazel": "ff213234cf605ff0cf7dc5d55b0e1d0aab7df065f32759e6e64d2d1315110b18",
-    "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/cross-media-measurement-api/0.76.0/MODULE.bazel": "747462363b4bf421d75e3ceedb59fb84846ccfe2a1cbad3cf24e636f89295f60",
-    "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/cross-media-measurement-api/0.76.0/source.json": "6677880dc43ba2a54711ee0aeaddbbfde2877c3a11ad18a3e745d3613894f5c6",
+    "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/cross-media-measurement-api/0.79.0/MODULE.bazel": "d08bd9e54af65b1a95758b46881ab0015be79141402aaf25be714ff93c542152",
+    "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/cross-media-measurement-api/0.79.0/source.json": "10d6a27fbceb078d468aaa7629f40d13904d2155c3efebe7027d33c22c313d0a",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/gazelle/0.27.0/MODULE.bazel": "not found",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/gazelle/0.30.0/MODULE.bazel": "not found",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/gazelle/0.32.0/MODULE.bazel": "not found",
@@ -1164,7 +1164,7 @@
     "@@cross-media-measurement-api~//build:non_module_deps.bzl%non_module_deps": {
       "general": {
         "bzlTransitiveDigest": "R+oKPToJy5pjlpXuN6LkhlOZ0PtXjtvDLGNadJgQnf8=",
-        "usagesDigest": "mwIUP9sUuxfBOi/SobUCv0xt1It0kvu/rCak/W29E7w=",
+        "usagesDigest": "X7LW2UCjqpY9pJVifqoVsG1YpQVAwyXTKisAf4g2Dp4=",
         "recordedFileInputs": {},
         "recordedDirentsInputs": {},
         "envVariables": {},
@@ -2291,7 +2291,7 @@
     "@@rules_oci~//oci:extensions.bzl%oci": {
       "general": {
         "bzlTransitiveDigest": "Pwl3buD1so+kkqQIhc0set/YV3qQif9bq1U9dF30htA=",
-        "usagesDigest": "QJjhi7c9FFmJrjkITj56bPzqw32O69riIsN85ySNhX8=",
+        "usagesDigest": "P/ZYSPI7F6TmyaTqkpAyo9T8qeceAdp35IFLMVv1jzM=",
         "recordedFileInputs": {},
         "recordedDirentsInputs": {},
         "envVariables": {},
@@ -2825,7 +2825,7 @@
         "recordedFileInputs": {
           "@@rules_python~//tools/publish/requirements_linux.txt": "d576e0d8542df61396a9b38deeaa183c24135ed5e8e73bb9622f298f2671811e",
           "@@rules_fuzzing~//fuzzing/requirements.txt": "ab04664be026b632a0d2a2446c4f65982b7654f5b6851d2f9d399a19b7242a5b",
-          "@@//requirements.txt": "2bf42c854a42effadb6421d2b90c99ec31e668f466a3e6f0c47e08ad5a73d431",
+          "@@//requirements.txt": "c68b05f0038c32caaa02067352b7efe9c21d3225744d40ed0cd1a385c1a88f48",
           "@@rules_python~//tools/publish/requirements_windows.txt": "d18538a3982beab378fd5687f4db33162ee1ece69801f9a451661b1b64286b76",
           "@@protobuf~//python/requirements.txt": "983be60d3cec4b319dcab6d48aeb3f5b2f7c3350f26b3a9e97486c37967c73c5",
           "@@rules_python~//tools/publish/requirements_darwin.txt": "095d4a4f3d639dce831cd493367631cd51b53665292ab20194bac2c0c6458fa8"
@@ -2856,6 +2856,36 @@
               "requirement": "black"
             }
           },
+          "pip_311_cachetools": {
+            "bzlFile": "@@rules_python~//python/private/pypi:whl_library.bzl",
+            "ruleClassName": "whl_library",
+            "attributes": {
+              "dep_template": "@pip//{name}:{target}",
+              "python_interpreter_target": "@@rules_python~~python~python_3_11_host//:python",
+              "repo": "pip_311",
+              "requirement": "cachetools~=6.0.0"
+            }
+          },
+          "pip_311_certifi": {
+            "bzlFile": "@@rules_python~//python/private/pypi:whl_library.bzl",
+            "ruleClassName": "whl_library",
+            "attributes": {
+              "dep_template": "@pip//{name}:{target}",
+              "python_interpreter_target": "@@rules_python~~python~python_3_11_host//:python",
+              "repo": "pip_311",
+              "requirement": "certifi~=2025.4.26"
+            }
+          },
+          "pip_311_charset_normalizer": {
+            "bzlFile": "@@rules_python~//python/private/pypi:whl_library.bzl",
+            "ruleClassName": "whl_library",
+            "attributes": {
+              "dep_template": "@pip//{name}:{target}",
+              "python_interpreter_target": "@@rules_python~~python~python_3_11_host//:python",
+              "repo": "pip_311",
+              "requirement": "charset-normalizer~=3.4.2"
+            }
+          },
           "pip_311_dateutil": {
             "bzlFile": "@@rules_python~//python/private/pypi:whl_library.bzl",
             "ruleClassName": "whl_library",
@@ -2874,6 +2904,66 @@
               "python_interpreter_target": "@@rules_python~~python~python_3_11_host//:python",
               "repo": "pip_311",
               "requirement": "et-xmlfile~=1.1.0"
+            }
+          },
+          "pip_311_google_api_core": {
+            "bzlFile": "@@rules_python~//python/private/pypi:whl_library.bzl",
+            "ruleClassName": "whl_library",
+            "attributes": {
+              "dep_template": "@pip//{name}:{target}",
+              "python_interpreter_target": "@@rules_python~~python~python_3_11_host//:python",
+              "repo": "pip_311",
+              "requirement": "google-api-core~=2.24.2"
+            }
+          },
+          "pip_311_google_auth": {
+            "bzlFile": "@@rules_python~//python/private/pypi:whl_library.bzl",
+            "ruleClassName": "whl_library",
+            "attributes": {
+              "dep_template": "@pip//{name}:{target}",
+              "python_interpreter_target": "@@rules_python~~python~python_3_11_host//:python",
+              "repo": "pip_311",
+              "requirement": "google_auth~=2.40.2"
+            }
+          },
+          "pip_311_google_cloud_core": {
+            "bzlFile": "@@rules_python~//python/private/pypi:whl_library.bzl",
+            "ruleClassName": "whl_library",
+            "attributes": {
+              "dep_template": "@pip//{name}:{target}",
+              "python_interpreter_target": "@@rules_python~~python~python_3_11_host//:python",
+              "repo": "pip_311",
+              "requirement": "google-cloud-core~=2.4.3"
+            }
+          },
+          "pip_311_google_cloud_storage": {
+            "bzlFile": "@@rules_python~//python/private/pypi:whl_library.bzl",
+            "ruleClassName": "whl_library",
+            "attributes": {
+              "dep_template": "@pip//{name}:{target}",
+              "python_interpreter_target": "@@rules_python~~python~python_3_11_host//:python",
+              "repo": "pip_311",
+              "requirement": "google-cloud-storage~=3.1.0"
+            }
+          },
+          "pip_311_google_crc32c": {
+            "bzlFile": "@@rules_python~//python/private/pypi:whl_library.bzl",
+            "ruleClassName": "whl_library",
+            "attributes": {
+              "dep_template": "@pip//{name}:{target}",
+              "python_interpreter_target": "@@rules_python~~python~python_3_11_host//:python",
+              "repo": "pip_311",
+              "requirement": "google-crc32c~=1.7.1"
+            }
+          },
+          "pip_311_google_resumable_media": {
+            "bzlFile": "@@rules_python~//python/private/pypi:whl_library.bzl",
+            "ruleClassName": "whl_library",
+            "attributes": {
+              "dep_template": "@pip//{name}:{target}",
+              "python_interpreter_target": "@@rules_python~~python~python_3_11_host//:python",
+              "repo": "pip_311",
+              "requirement": "google_resumable_media~=2.7.2"
             }
           },
           "pip_311_googleapis_common_protos": {
@@ -2904,6 +2994,16 @@
               "python_interpreter_target": "@@rules_python~~python~python_3_11_host//:python",
               "repo": "pip_311",
               "requirement": "highspy~=1.7.2"
+            }
+          },
+          "pip_311_idna": {
+            "bzlFile": "@@rules_python~//python/private/pypi:whl_library.bzl",
+            "ruleClassName": "whl_library",
+            "attributes": {
+              "dep_template": "@pip//{name}:{target}",
+              "python_interpreter_target": "@@rules_python~~python~python_3_11_host//:python",
+              "repo": "pip_311",
+              "requirement": "idna~=3.10"
             }
           },
           "pip_311_lxml": {
@@ -2956,6 +3056,16 @@
               "requirement": "pandas~=2.2.2"
             }
           },
+          "pip_311_proto_plus": {
+            "bzlFile": "@@rules_python~//python/private/pypi:whl_library.bzl",
+            "ruleClassName": "whl_library",
+            "attributes": {
+              "dep_template": "@pip//{name}:{target}",
+              "python_interpreter_target": "@@rules_python~~python~python_3_11_host//:python",
+              "repo": "pip_311",
+              "requirement": "proto-plus~=1.26.1"
+            }
+          },
           "pip_311_protobuf": {
             "bzlFile": "@@rules_python~//python/private/pypi:whl_library.bzl",
             "ruleClassName": "whl_library",
@@ -2964,6 +3074,26 @@
               "python_interpreter_target": "@@rules_python~~python~python_3_11_host//:python",
               "repo": "pip_311",
               "requirement": "protobuf~=5.29.3"
+            }
+          },
+          "pip_311_pyasn1": {
+            "bzlFile": "@@rules_python~//python/private/pypi:whl_library.bzl",
+            "ruleClassName": "whl_library",
+            "attributes": {
+              "dep_template": "@pip//{name}:{target}",
+              "python_interpreter_target": "@@rules_python~~python~python_3_11_host//:python",
+              "repo": "pip_311",
+              "requirement": "pyasn1~=0.6.1"
+            }
+          },
+          "pip_311_pyasn1_modules": {
+            "bzlFile": "@@rules_python~//python/private/pypi:whl_library.bzl",
+            "ruleClassName": "whl_library",
+            "attributes": {
+              "dep_template": "@pip//{name}:{target}",
+              "python_interpreter_target": "@@rules_python~~python~python_3_11_host//:python",
+              "repo": "pip_311",
+              "requirement": "pyasn1-modules~=0.4.2"
             }
           },
           "pip_311_pytest": {
@@ -3016,6 +3146,26 @@
               "requirement": "qpsolvers~=4.3.3"
             }
           },
+          "pip_311_requests": {
+            "bzlFile": "@@rules_python~//python/private/pypi:whl_library.bzl",
+            "ruleClassName": "whl_library",
+            "attributes": {
+              "dep_template": "@pip//{name}:{target}",
+              "python_interpreter_target": "@@rules_python~~python~python_3_11_host//:python",
+              "repo": "pip_311",
+              "requirement": "requests~=2.32.3"
+            }
+          },
+          "pip_311_rsa": {
+            "bzlFile": "@@rules_python~//python/private/pypi:whl_library.bzl",
+            "ruleClassName": "whl_library",
+            "attributes": {
+              "dep_template": "@pip//{name}:{target}",
+              "python_interpreter_target": "@@rules_python~~python~python_3_11_host//:python",
+              "repo": "pip_311",
+              "requirement": "rsa~=4.9.1"
+            }
+          },
           "pip_311_scipy": {
             "bzlFile": "@@rules_python~//python/private/pypi:whl_library.bzl",
             "ruleClassName": "whl_library",
@@ -3044,6 +3194,16 @@
               "python_interpreter_target": "@@rules_python~~python~python_3_11_host//:python",
               "repo": "pip_311",
               "requirement": "tzdata~=2024.1"
+            }
+          },
+          "pip_311_urllib3": {
+            "bzlFile": "@@rules_python~//python/private/pypi:whl_library.bzl",
+            "ruleClassName": "whl_library",
+            "attributes": {
+              "dep_template": "@pip//{name}:{target}",
+              "python_interpreter_target": "@@rules_python~~python~python_3_11_host//:python",
+              "repo": "pip_311",
+              "requirement": "urllib3~=2.4.0"
             }
           },
           "pip_deps_310_numpy": {
@@ -5656,48 +5816,80 @@
               "whl_map": {
                 "absl_py": "{\"pip_311_absl_py\":[{\"version\":\"3.11\"}]}",
                 "black": "{\"pip_311_black\":[{\"version\":\"3.11\"}]}",
+                "cachetools": "{\"pip_311_cachetools\":[{\"version\":\"3.11\"}]}",
+                "certifi": "{\"pip_311_certifi\":[{\"version\":\"3.11\"}]}",
+                "charset_normalizer": "{\"pip_311_charset_normalizer\":[{\"version\":\"3.11\"}]}",
                 "dateutil": "{\"pip_311_dateutil\":[{\"version\":\"3.11\"}]}",
                 "et_xmlfile": "{\"pip_311_et_xmlfile\":[{\"version\":\"3.11\"}]}",
+                "google_api_core": "{\"pip_311_google_api_core\":[{\"version\":\"3.11\"}]}",
+                "google_auth": "{\"pip_311_google_auth\":[{\"version\":\"3.11\"}]}",
+                "google_cloud_core": "{\"pip_311_google_cloud_core\":[{\"version\":\"3.11\"}]}",
+                "google_cloud_storage": "{\"pip_311_google_cloud_storage\":[{\"version\":\"3.11\"}]}",
+                "google_crc32c": "{\"pip_311_google_crc32c\":[{\"version\":\"3.11\"}]}",
+                "google_resumable_media": "{\"pip_311_google_resumable_media\":[{\"version\":\"3.11\"}]}",
                 "googleapis_common_protos": "{\"pip_311_googleapis_common_protos\":[{\"version\":\"3.11\"}]}",
                 "highs": "{\"pip_311_highs\":[{\"version\":\"3.11\"}]}",
                 "highspy": "{\"pip_311_highspy\":[{\"version\":\"3.11\"}]}",
+                "idna": "{\"pip_311_idna\":[{\"version\":\"3.11\"}]}",
                 "lxml": "{\"pip_311_lxml\":[{\"version\":\"3.11\"}]}",
                 "numpy": "{\"pip_311_numpy\":[{\"version\":\"3.11\"}]}",
                 "openpyxl": "{\"pip_311_openpyxl\":[{\"version\":\"3.11\"}]}",
                 "osqp": "{\"pip_311_osqp\":[{\"version\":\"3.11\"}]}",
                 "pandas": "{\"pip_311_pandas\":[{\"version\":\"3.11\"}]}",
+                "proto_plus": "{\"pip_311_proto_plus\":[{\"version\":\"3.11\"}]}",
                 "protobuf": "{\"pip_311_protobuf\":[{\"version\":\"3.11\"}]}",
+                "pyasn1": "{\"pip_311_pyasn1\":[{\"version\":\"3.11\"}]}",
+                "pyasn1_modules": "{\"pip_311_pyasn1_modules\":[{\"version\":\"3.11\"}]}",
                 "pytest": "{\"pip_311_pytest\":[{\"version\":\"3.11\"}]}",
                 "python_dateutil": "{\"pip_311_python_dateutil\":[{\"version\":\"3.11\"}]}",
                 "pytz": "{\"pip_311_pytz\":[{\"version\":\"3.11\"}]}",
                 "qdldl": "{\"pip_311_qdldl\":[{\"version\":\"3.11\"}]}",
                 "qpsolvers": "{\"pip_311_qpsolvers\":[{\"version\":\"3.11\"}]}",
+                "requests": "{\"pip_311_requests\":[{\"version\":\"3.11\"}]}",
+                "rsa": "{\"pip_311_rsa\":[{\"version\":\"3.11\"}]}",
                 "scipy": "{\"pip_311_scipy\":[{\"version\":\"3.11\"}]}",
                 "six": "{\"pip_311_six\":[{\"version\":\"3.11\"}]}",
-                "tzdata": "{\"pip_311_tzdata\":[{\"version\":\"3.11\"}]}"
+                "tzdata": "{\"pip_311_tzdata\":[{\"version\":\"3.11\"}]}",
+                "urllib3": "{\"pip_311_urllib3\":[{\"version\":\"3.11\"}]}"
               },
               "packages": [
                 "absl_py",
                 "black",
+                "cachetools",
+                "certifi",
+                "charset_normalizer",
                 "dateutil",
                 "et_xmlfile",
+                "google_api_core",
+                "google_auth",
+                "google_cloud_core",
+                "google_cloud_storage",
+                "google_crc32c",
+                "google_resumable_media",
                 "googleapis_common_protos",
                 "highs",
                 "highspy",
+                "idna",
                 "lxml",
                 "numpy",
                 "openpyxl",
                 "osqp",
                 "pandas",
+                "proto_plus",
                 "protobuf",
+                "pyasn1",
+                "pyasn1_modules",
                 "pytest",
                 "python_dateutil",
                 "pytz",
                 "qdldl",
                 "qpsolvers",
+                "requests",
+                "rsa",
                 "scipy",
                 "six",
-                "tzdata"
+                "tzdata",
+                "urllib3"
               ],
               "groups": {}
             }

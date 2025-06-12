@@ -15,6 +15,8 @@
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 
 import io.grpc.Status
+import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.EmptyCoroutineContext
 import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.ExternalId
@@ -31,7 +33,8 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateRecurr
 class SpannerRecurringExchangesService(
   private val idGenerator: IdGenerator,
   private val client: AsyncDatabaseClient,
-) : RecurringExchangesCoroutineImplBase() {
+  coroutineContext: CoroutineContext = EmptyCoroutineContext,
+) : RecurringExchangesCoroutineImplBase(coroutineContext) {
   override suspend fun createRecurringExchange(
     request: CreateRecurringExchangeRequest
   ): RecurringExchange {

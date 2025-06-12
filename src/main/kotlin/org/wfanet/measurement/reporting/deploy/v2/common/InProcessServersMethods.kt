@@ -19,7 +19,7 @@ package org.wfanet.measurement.reporting.deploy.v2.common
 import io.grpc.Server
 import io.grpc.ServerServiceDefinition
 import io.grpc.inprocess.InProcessServerBuilder
-import java.util.concurrent.ExecutorService
+import java.util.concurrent.TimeUnit
 import org.wfanet.measurement.common.grpc.CommonServer
 import org.wfanet.measurement.common.grpc.ErrorLoggingServerInterceptor
 import org.wfanet.measurement.common.grpc.LoggingServerInterceptor
@@ -29,23 +29,39 @@ object InProcessServersMethods {
     serverName: String,
     commonServerFlags: CommonServer.Flags,
     service: ServerServiceDefinition,
-    executorService: ExecutorService? = null,
   ): Server {
-    return InProcessServerBuilder.forName(serverName)
-      .apply {
-        if (executorService != null) {
-          executor(executorService)
-        } else {
+    val server: Server =
+      InProcessServerBuilder.forName(serverName)
+        .apply {
           directExecutor()
+          addService(service)
+          if (commonServerFlags.debugVerboseGrpcLogging) {
+            intercept(LoggingServerInterceptor)
+          } else {
+            intercept(ErrorLoggingServerInterceptor)
+          }
         }
-        addService(service)
-        if (commonServerFlags.debugVerboseGrpcLogging) {
-          intercept(LoggingServerInterceptor)
-        } else {
-          intercept(ErrorLoggingServerInterceptor)
+        .build()
+
+    Runtime.getRuntime()
+      .addShutdownHook(
+        object : Thread() {
+          override fun run() {
+            server.shutdown()
+            try {
+              // Wait for in-flight RPCs to complete.
+              server.awaitTermination(
+                commonServerFlags.shutdownGracePeriodSeconds.toLong(),
+                TimeUnit.SECONDS,
+              )
+            } catch (e: InterruptedException) {
+              currentThread().interrupt()
+            }
+            server.shutdownNow()
+          }
         }
-      }
-      .build()
-      .start()
+      )
+
+    return server.start()
   }
 }
