@@ -16,8 +16,8 @@
 
 package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
-import com.google.protobuf.Any
 import com.google.crypto.tink.KmsClient
+import com.google.protobuf.Any
 import com.google.protobuf.ByteString
 import com.google.protobuf.TypeRegistry
 import com.google.protobuf.kotlin.unpack
@@ -25,13 +25,10 @@ import java.security.GeneralSecurityException
 import java.security.SecureRandom
 import java.time.ZoneId
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.asFlow
-import org.wfanet.measurement.dataprovider.RequisitionRefusalException
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
-import org.wfanet.measurement.api.v2alpha.ProtocolConfig.NoiseMechanism
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt
@@ -43,11 +40,12 @@ import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.consent.client.dataprovider.decryptRequisitionSpec
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.RequisitionSpecs.getSampledVids
-import org.wfanet.measurement.eventdataprovider.noiser.DirectNoiseMechanism
-import org.wfanet.measurement.storage.SelectedStorageClient
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.compute.protocols.direct.DirectMeasurementResultFactory
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.fulfillers.DirectMeasurementFulfiller
+import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
+import org.wfanet.measurement.storage.SelectedStorageClient
 
+/** TODO(2347) - Support additional differential privacy and k-anonymization. */
 class ResultsFulfiller(
   private val privateEncryptionKey: PrivateKeyHandle,
   private val requisitionsStub: RequisitionsGrpcKt.RequisitionsCoroutineStub,
@@ -62,122 +60,54 @@ class ResultsFulfiller(
   private val requisitionsStorageConfig: StorageConfig,
   private val random: SecureRandom = SecureRandom(),
   private val zoneId: ZoneId,
+  private val noiserSelector: NoiserSelector,
 ) {
   suspend fun fulfillRequisitions() {
-    val requisitions = getRequisitions()
-    requisitions.collect { requisition ->
+    val requisitions =
+      getRequisitions().requisitionsList.map { it.requisition.unpack(Requisition::class.java) }
+    for (requisition in requisitions) {
       val signedRequisitionSpec: SignedMessage =
         try {
-          decryptRequisitionSpec(
-            requisition.encryptedRequisitionSpec,
-            privateEncryptionKey,
-          )
+          decryptRequisitionSpec(requisition.encryptedRequisitionSpec, privateEncryptionKey)
         } catch (e: GeneralSecurityException) {
           throw Exception("RequisitionSpec decryption failed", e)
         }
       val requisitionSpec: RequisitionSpec = signedRequisitionSpec.unpack()
       val measurementSpec: MeasurementSpec = requisition.measurementSpec.message.unpack()
-      val eventReader = EventReader(
-        kmsClient,
-        impressionsStorageConfig,
-        impressionDekStorageConfig,
-        labeledImpressionDekPrefix
-      )
+      val eventReader =
+        EventReader(
+          kmsClient,
+          impressionsStorageConfig,
+          impressionDekStorageConfig,
+          labeledImpressionDekPrefix,
+        )
 
-      val sampledVids: Flow<Long> = getSampledVids(
-        requisitionSpec,
-        measurementSpec.vidSamplingInterval,
-        typeRegistry,
-        eventReader,
-        zoneId
-      )
+      val sampledVids: Flow<Long> =
+        getSampledVids(
+          requisitionSpec,
+          measurementSpec.vidSamplingInterval,
+          typeRegistry,
+          eventReader,
+          zoneId,
+        )
 
-      val measurementEncryptionPublicKey: EncryptionPublicKey =
-        if (measurementSpec.hasMeasurementPublicKey()) {
-          measurementSpec.measurementPublicKey.unpack()
-        } else {
-          @Suppress("DEPRECATION") // Handle legacy resources.
-          EncryptionPublicKey.parseFrom(measurementSpec.serializedMeasurementPublicKey)
-        }
       val protocols: List<ProtocolConfig.Protocol> = requisition.protocolConfig.protocolsList
 
-      if (protocols.any { it.hasDirect() }) {
-        val directProtocolConfig =
-          requisition.protocolConfig.protocolsList.first { it.hasDirect() }.direct
-        val directNoiseMechanismOptions =
-          directProtocolConfig.noiseMechanismsList
-            .mapNotNull { protocolConfigNoiseMechanism ->
-              protocolConfigNoiseMechanism.toDirectNoiseMechanism()
-            }
-            .toSet()
-        val result = DirectMeasurementResultFactory.buildMeasurementResult(
-          directProtocolConfig,
-          selectReachAndFrequencyNoiseMechanism(directNoiseMechanismOptions),
-          measurementSpec,
-          sampledVids,
-          random,
-        )
-        val fulfiller = DirectMeasurementFulfiller(
-          requisition.name,
-          requisition.dataProviderCertificate,
-          result,
-          requisitionSpec.nonce,
-          measurementEncryptionPublicKey,
-          sampledVids,
-          directProtocolConfig,
-          selectReachAndFrequencyNoiseMechanism(directNoiseMechanismOptions),
-          dataProviderSigningKeyHandle,
-          dataProviderCertificateKey,
-          requisitionsStub,
-        )
-        fulfiller.fulfillRequisition()
-      } else if (protocols.any { it.hasLiquidLegionsV2() }) {
-        TODO("Not yet implemented")
-      } else if (protocols.any { it.hasReachOnlyLiquidLegionsV2() }) {
-        TODO("Not yet implemented")
-      } else if (protocols.any { it.hasHonestMajorityShareShuffle() }) {
-        TODO("Not yet implemented")
-      } else {
-        throw Exception("Protocol not supported")
-      }
-    }
-  }
-
-  /**
-   * Selects the most preferred [DirectNoiseMechanism] for reach and frequency measurements from the
-   * overlap of a list of preferred [DirectNoiseMechanism] and a set of [DirectNoiseMechanism]
-   * [options].
-   */
-  private fun selectReachAndFrequencyNoiseMechanism(
-    options: Set<DirectNoiseMechanism>
-  ): DirectNoiseMechanism {
-    val preference = DirectNoiseMechanism.CONTINUOUS_GAUSSIAN
-    return if (options.contains(preference)) {
-      preference
-    } else {
-      throw RequisitionRefusalException.Default(
-        Requisition.Refusal.Justification.SPEC_INVALID,
-        "No valid noise mechanism option for reach or frequency measurements.",
-      )
-    }
-  }
-
-  /**
-   * Converts a [NoiseMechanism] to a nullable [DirectNoiseMechanism].
-   *
-   * @return [DirectNoiseMechanism] when there is a matched, otherwise null.
-   */
-  private fun NoiseMechanism.toDirectNoiseMechanism(): DirectNoiseMechanism? {
-    return when (this) {
-      NoiseMechanism.NONE -> DirectNoiseMechanism.NONE
-      NoiseMechanism.CONTINUOUS_LAPLACE -> DirectNoiseMechanism.CONTINUOUS_LAPLACE
-      NoiseMechanism.CONTINUOUS_GAUSSIAN -> DirectNoiseMechanism.CONTINUOUS_GAUSSIAN
-      NoiseMechanism.NOISE_MECHANISM_UNSPECIFIED,
-      NoiseMechanism.GEOMETRIC,
-      NoiseMechanism.DISCRETE_GAUSSIAN,
-      NoiseMechanism.UNRECOGNIZED -> {
-        null
-      }
+      val fulfiller =
+        if (protocols.any { it.hasDirect() }) {
+          buildDirectMeasurementFulfiller(
+            requisition,
+            measurementSpec,
+            requisitionSpec,
+            random,
+            sampledVids,
+          )
+        } else if (protocols.any { it.hasHonestMajorityShareShuffle() }) {
+          TODO("Not yet implemented")
+        } else {
+          throw Exception("Protocol not supported")
+        }
+      fulfiller.fulfillRequisition()
     }
   }
 
@@ -193,23 +123,66 @@ class ResultsFulfiller(
    * @return A Flow containing the single requisition retrieved from blob storage
    * @throws NullPointerException If the requisition blob cannot be found at the specified URI
    */
-  private suspend fun getRequisitions(): Flow<Requisition> {
-    // Create storage client based on blob URI
+  private suspend fun getRequisitions(): GroupedRequisitions {
     val storageClientUri = SelectedStorageClient.parseBlobUri(requisitionsBlobUri)
-    val requisitionsStorageClient = SelectedStorageClient(storageClientUri, requisitionsStorageConfig.rootDirectory, requisitionsStorageConfig.projectId)
+    val requisitionsStorageClient =
+      SelectedStorageClient(
+        storageClientUri,
+        requisitionsStorageConfig.rootDirectory,
+        requisitionsStorageConfig.projectId,
+      )
 
-    // TODO(@jojijac0b): Refactor once grouped requisitions are supported
-    val requisitionBytes: ByteString = requisitionsStorageClient.getBlob(storageClientUri.key)
-      ?.read()
-      ?.flatten()
-      ?: throw ImpressionReadException(storageClientUri.key, ImpressionReadException.Code.BLOB_NOT_FOUND)
+    val requisitionBytes: ByteString =
+      requisitionsStorageClient.getBlob(storageClientUri.key)?.read()?.flatten()
+        ?: throw ImpressionReadException(
+          storageClientUri.key,
+          ImpressionReadException.Code.BLOB_NOT_FOUND,
+        )
 
-    val requisition = try {
-      Any.parseFrom(requisitionBytes).unpack(Requisition::class.java)
+    return try {
+      Any.parseFrom(requisitionBytes).unpack(GroupedRequisitions::class.java)
     } catch (e: Exception) {
-      throw ImpressionReadException(storageClientUri.key, ImpressionReadException.Code.INVALID_FORMAT)
+      throw ImpressionReadException(
+        storageClientUri.key,
+        ImpressionReadException.Code.INVALID_FORMAT,
+      )
     }
-    return listOf(requisition).asFlow()
   }
 
+  /** Builds a [DirectMeasurementFulfiller]. */
+  private suspend fun buildDirectMeasurementFulfiller(
+    requisition: Requisition,
+    measurementSpec: MeasurementSpec,
+    requisitionSpec: RequisitionSpec,
+    random: SecureRandom,
+    sampledVids: Flow<Long>,
+  ): DirectMeasurementFulfiller {
+    val measurementEncryptionPublicKey: EncryptionPublicKey =
+      measurementSpec.measurementPublicKey.unpack()
+    val directProtocolConfig =
+      requisition.protocolConfig.protocolsList.first { it.hasDirect() }.direct
+    val noiseMechanism =
+      noiserSelector.selectReachAndFrequencyNoiseMechanism(directProtocolConfig.noiseMechanismsList)
+    val result =
+      DirectMeasurementResultFactory.buildMeasurementResult(
+        directProtocolConfig,
+        noiseMechanism,
+        measurementSpec,
+        sampledVids,
+        random,
+      )
+    return DirectMeasurementFulfiller(
+      requisition.name,
+      requisition.dataProviderCertificate,
+      result,
+      requisitionSpec.nonce,
+      measurementEncryptionPublicKey,
+      sampledVids,
+      directProtocolConfig,
+      noiseMechanism,
+      dataProviderSigningKeyHandle,
+      dataProviderCertificateKey,
+      requisitionsStub,
+    )
+  }
 }

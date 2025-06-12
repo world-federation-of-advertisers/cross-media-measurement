@@ -10,6 +10,7 @@ kt_jvm_library(
     srcs = ["ResultsFulfiller.kt"],
     deps = [
         ":event_reader",
+        ":noiser_selector",
         ":requisition_specs",
         ":vid_filter",
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:packed_messages",
@@ -21,7 +22,38 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/noiser",
         "//src/main/proto/wfa/measurement/api/v2alpha:measurement_spec_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:requisitions_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:grouped_requisitions_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:labeled_impression_kt_jvm_proto",
         "@wfa_consent_signaling_client//src/main/kotlin/org/wfanet/measurement/consent/client/dataprovider",
+    ],
+)
+
+kt_jvm_library(
+    name = "noiser_selector",
+    srcs = ["NoiserSelector.kt"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/noiser",
+        "//src/main/proto/wfa/measurement/api/v2alpha:protocol_config_kt_jvm_proto",
+    ],
+)
+
+kt_jvm_library(
+    name = "continuous_gaussian_noiser_selector",
+    srcs = ["ContinuousGaussianNoiseSelector.kt"],
+    deps = [
+        ":noiser_selector",
+        "//src/main/kotlin/org/wfanet/measurement/dataprovider:requisition_refusal_exception",
+        "//src/main/proto/wfa/measurement/api/v2alpha:requisitions_service_kt_jvm_grpc_proto",
+    ],
+)
+
+kt_jvm_library(
+    name = "no_noiser_selector",
+    srcs = ["NoNoiserSelector.kt"],
+    deps = [
+        ":noiser_selector",
+        "//src/main/kotlin/org/wfanet/measurement/dataprovider:requisition_refusal_exception",
+        "//src/main/proto/wfa/measurement/api/v2alpha:requisitions_service_kt_jvm_grpc_proto",
     ],
 )
 
