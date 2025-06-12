@@ -18,15 +18,20 @@ package org.wfanet.measurement.securecomputation.deploy.gcloud.spanner
 
 import io.grpc.BindableService
 import java.io.File
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.grpc.CommonServer
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.config.securecomputation.QueuesConfig
 import org.wfanet.measurement.gcloud.pubsub.DefaultGooglePubSubClient
+import org.wfanet.measurement.gcloud.pubsub.Subscriber
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.SpannerFlags
 import org.wfanet.measurement.gcloud.spanner.usingSpanner
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
+import org.wfanet.measurement.securecomputation.deploy.gcloud.deadletter.DeadLetterQueueListener
 import org.wfanet.measurement.securecomputation.deploy.gcloud.publisher.GoogleWorkItemPublisher
 import org.wfanet.measurement.securecomputation.service.internal.QueueMapping
 import picocli.CommandLine
@@ -50,6 +55,13 @@ class InternalApiServer : Runnable {
   )
   private lateinit var googleProjectId: String
 
+  @CommandLine.Option(
+    names = ["--dead-letter-subscription-id"],
+    description = ["PubSub subscription ID for the dead letter queue"],
+    required = false,
+  )
+  private var deadLetterSubscriptionId: String? = null
+
   override fun run() {
     val queuesConfig = parseTextProto(queuesConfigFile, QueuesConfig.getDefaultInstance())
     val queueMapping = QueueMapping(queuesConfig)
@@ -59,11 +71,32 @@ class InternalApiServer : Runnable {
         val databaseClient: AsyncDatabaseClient = spanner.databaseClient
         val googlePubSubClient = DefaultGooglePubSubClient()
         val workItemPublisher = GoogleWorkItemPublisher(googleProjectId, googlePubSubClient)
-        val services: List<BindableService> =
-          InternalApiServices(workItemPublisher, databaseClient, queueMapping).build().toList()
+        
+        val internalApiServices = InternalApiServices(workItemPublisher, databaseClient, queueMapping)
+        val services: List<BindableService> = internalApiServices.build().toList()
         val server = CommonServer.fromFlags(serverFlags, SERVER_NAME, services)
 
-        server.start().blockUntilShutdown()
+        val serverJob = async { server.start().blockUntilShutdown() }
+        
+        val deadLetterListenerJob = deadLetterSubscriptionId?.let { subscriptionId ->
+          val subscriber = Subscriber(googleProjectId, googlePubSubClient)
+          val deadLetterListener = internalApiServices.createDeadLetterQueueListener(
+            subscriptionId = subscriptionId,
+            queueSubscriber = subscriber,
+            parser = WorkItem.parser()
+          )
+          async { 
+            deadLetterListener.use { listener ->
+              listener.run()
+            }
+          }
+        }
+
+        if (deadLetterListenerJob != null) {
+          awaitAll(serverJob, deadLetterListenerJob)
+        } else {
+          serverJob.await()
+        }
       }
     }
   }

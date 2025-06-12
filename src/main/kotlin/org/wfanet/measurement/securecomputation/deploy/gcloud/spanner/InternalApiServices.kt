@@ -16,8 +16,13 @@
 
 package org.wfanet.measurement.securecomputation.deploy.gcloud.spanner
 
+import com.google.protobuf.Parser
 import org.wfanet.measurement.common.IdGenerator
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
+import org.wfanet.measurement.internal.securecomputation.controlplane.FailWorkItemRequest
+import org.wfanet.measurement.queue.QueueSubscriber
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
+import org.wfanet.measurement.securecomputation.deploy.gcloud.deadletter.DeadLetterQueueListener
 import org.wfanet.measurement.securecomputation.service.internal.QueueMapping
 import org.wfanet.measurement.securecomputation.service.internal.Services
 import org.wfanet.measurement.securecomputation.service.internal.WorkItemPublisher
@@ -32,6 +37,20 @@ class InternalApiServices(
     return Services(
       SpannerWorkItemsService(databaseClient, queueMapping, idGenerator, workItemPublisher),
       SpannerWorkItemAttemptsService(databaseClient, queueMapping, idGenerator),
+    )
+  }
+
+  fun createDeadLetterQueueListener(
+    subscriptionId: String,
+    queueSubscriber: QueueSubscriber,
+    parser: Parser<WorkItem> = WorkItem.parser()
+  ): DeadLetterQueueListener {
+    val spannerWorkItemsService = SpannerWorkItemsService(databaseClient, queueMapping, idGenerator, workItemPublisher)
+    return DeadLetterQueueListener(
+      subscriptionId = subscriptionId,
+      queueSubscriber = queueSubscriber,
+      parser = parser,
+      failWorkItemFunction = spannerWorkItemsService::failWorkItem
     )
   }
 }
