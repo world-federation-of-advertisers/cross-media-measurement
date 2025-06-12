@@ -147,6 +147,22 @@ class Solver:
             variable_index_by_set_id[measured_set],
             variable_index_by_set_id[subset])
 
+  def _add_ordered_sets(self, set_measurement_spec: SetMeasurementsSpec,
+      variable_index_by_set_id: dict[int, int]):
+    logging.infor("Adding ordered sets constraints.")
+    for ordered_pair in set_measurement_spec.get_ordered_sets():
+      if len(ordered_pair) != 2:
+        raise ValueError("The order pair list must have exactly two sub-lists.")
+      if len(ordered_pair[0]) == 0 or len(ordered_pair[1]) == 0:
+        raise ValueError("The sub-lists must not be empty.")
+
+      variables = np.zeros(self.num_variables)
+      for id in ordered_pair[0]:
+        variables[variable_index_by_set_id[id]] = -1
+      for id in ordered_pair[1]:
+        variables[variable_index_by_set_id[id]] = 1
+      self._add_gt_term(variables)
+
   def _add_covers(self, set_measurement_spec: SetMeasurementsSpec,
       variable_index_by_set_id: dict[int, int]):
     logging.info("Adding cover set constraints.")
