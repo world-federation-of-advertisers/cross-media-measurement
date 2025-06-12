@@ -188,9 +188,23 @@ class InvokeDataWatcherFunctionTest() {
         )!!
         .toFile()
     private val DATA_WATCHER_CONFIG_FILE_SYSTEM_PATH =
-      "file://" + getRuntimePath(
-        Paths.get("wfa_measurement_system", "src", "main", "kotlin", "org", "wfanet", "measurement", "securecomputation", "deploy", "gcloud", "datawatcher", "testing")
-      )!!
+      "file://" +
+        getRuntimePath(
+          Paths.get(
+            "wfa_measurement_system",
+            "src",
+            "main",
+            "kotlin",
+            "org",
+            "wfanet",
+            "measurement",
+            "securecomputation",
+            "deploy",
+            "gcloud",
+            "datawatcher",
+            "testing",
+          )
+        )!!
     private const val BUCKET = "test-bucket"
     private val serverCerts =
       SigningCerts.fromPemFiles(

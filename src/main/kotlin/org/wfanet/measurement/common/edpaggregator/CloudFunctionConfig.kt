@@ -12,19 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-
 package org.wfanet.measurement.common.edpaggregator
 
-import org.wfanet.measurement.storage.SelectedStorageClient
+import com.google.protobuf.Message
+import com.google.protobuf.TypeRegistry
 import java.io.File
+import java.io.StringReader
 import java.net.URI
 import java.nio.file.Paths
 import org.wfanet.measurement.common.flatten
-import org.wfanet.measurement.storage.StorageClient
-import com.google.protobuf.Message
-import com.google.protobuf.TypeRegistry
-import java.io.StringReader
 import org.wfanet.measurement.common.parseTextProto
+import org.wfanet.measurement.storage.SelectedStorageClient
+import org.wfanet.measurement.storage.StorageClient
 
 /** Function to get Cloud Functions' configurations from Storage */
 object CloudFunctionConfig {
@@ -33,14 +32,13 @@ object CloudFunctionConfig {
   private const val GOOGLE_PROJECT_ID_ENV = "GOOGLE_PROJECT_ID"
 
   /**
-   * Loads a UTF-8-encoded configuration proto from the storage backend specified
-   * by environment variables.
+   * Loads a UTF-8-encoded configuration proto from the storage backend specified by environment
+   * variables.
    *
    * Environment variables consumed:
-   * - EDPA_CONFIG_STORAGE_BUCKET: URI prefix where config blobs live.
-   *     • gs://my-bucket/base-path for Google Cloud Storage
-   *     • file:///absolute/local/path for local-filesystem testing
-   *   This value must be set and must not end with a slash.
+   * - EDPA_CONFIG_STORAGE_BUCKET: URI prefix where config blobs live. • gs://my-bucket/base-path
+   *   for Google Cloud Storage • file:///absolute/local/path for local-filesystem testing This
+   *   value must be set and must not end with a slash.
    * - GOOGLE_PROJECT_ID: (optional) GCP project ID to use for Cloud Storage.
    *
    * @param configBlobKey The name of the config blob to load.
@@ -53,32 +51,31 @@ object CloudFunctionConfig {
   suspend fun <T : Message> getConfig(
     configBlobKey: String,
     defaultInstance: T,
-    typeRegistry: TypeRegistry? = null
+    typeRegistry: TypeRegistry? = null,
   ): T {
-    val storageUriPrefix = checkNotNull(System.getenv(CONFIG_STORAGE_BUCKET_ENV)) {
-      "Environment variable EDPA_CONFIG_STORAGE_BUCKET must be set."
-    }.removeSuffix("/")
+    val storageUriPrefix =
+      checkNotNull(System.getenv(CONFIG_STORAGE_BUCKET_ENV)) {
+          "Environment variable EDPA_CONFIG_STORAGE_BUCKET must be set."
+        }
+        .removeSuffix("/")
     val projectId = System.getenv(GOOGLE_PROJECT_ID_ENV)
 
-    val (blobUri, rootDirectory) = if (storageUriPrefix.startsWith("file:///")) {
-      val path = Paths.get(URI(storageUriPrefix))
-      val parentPath = requireNotNull(path.parent?.toString()) {
-        "Parent path must not be null for $path"
+    val (blobUri, rootDirectory) =
+      if (storageUriPrefix.startsWith("file:///")) {
+        val path = Paths.get(URI(storageUriPrefix))
+        val parentPath =
+          requireNotNull(path.parent?.toString()) { "Parent path must not be null for $path" }
+        val root = if (parentPath.endsWith("/")) parentPath else "$parentPath/"
+        "file:///${path.fileName}/$configBlobKey" to File(root)
+      } else {
+        "$storageUriPrefix/$configBlobKey" to null
       }
-      val root = if (parentPath.endsWith("/")) parentPath else "$parentPath/"
-      "file:///${path.fileName}/$configBlobKey" to File(root)
-    } else {
-      "$storageUriPrefix/$configBlobKey" to null
-    }
     val storageClient: StorageClient =
-      SelectedStorageClient(
-        url = blobUri,
-        rootDirectory = rootDirectory,
-        projectId = projectId
-      )
-    val blob: StorageClient.Blob = checkNotNull(storageClient.getBlob(configBlobKey)) {
-      "Configuration blob '$configBlobKey' not found at '$storageUriPrefix'"
-    }
+      SelectedStorageClient(url = blobUri, rootDirectory = rootDirectory, projectId = projectId)
+    val blob: StorageClient.Blob =
+      checkNotNull(storageClient.getBlob(configBlobKey)) {
+        "Configuration blob '$configBlobKey' not found at '$storageUriPrefix'"
+      }
 
     val bytes = blob.read().flatten()
     val content = bytes.toStringUtf8()
@@ -88,5 +85,4 @@ object CloudFunctionConfig {
       parseTextProto(StringReader(content), defaultInstance)
     }
   }
-
 }

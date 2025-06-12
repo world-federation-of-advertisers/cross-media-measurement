@@ -31,9 +31,9 @@ import org.wfanet.measurement.common.edpaggregator.CloudFunctionConfig.getConfig
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withShutdownTimeout
 import org.wfanet.measurement.config.securecomputation.DataWatcherConfig
+import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
 import org.wfanet.measurement.securecomputation.datawatcher.DataWatcher
-import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
 
 /*
  * Cloud Function receives a CloudEvent. If the cloud event path matches config, it calls the
@@ -121,12 +121,15 @@ class DataWatcherFunction : CloudEventsFunction {
 
     private val workItemsStub by lazy { WorkItemsCoroutineStub(publicChannel) }
 
-
     private const val CONFIG_BLOB_KEY = "data-watcher-config.textproto"
     private val dataWatcherConfig by lazy {
-      runBlocking { getConfig(CONFIG_BLOB_KEY, DataWatcherConfig.getDefaultInstance(), TypeRegistry.newBuilder()
-        .add(ResultsFulfillerParams.getDescriptor())
-        .build()) }
+      runBlocking {
+        getConfig(
+          CONFIG_BLOB_KEY,
+          DataWatcherConfig.getDefaultInstance(),
+          TypeRegistry.newBuilder().add(ResultsFulfillerParams.getDescriptor()).build(),
+        )
+      }
     }
     private val dataWatcher by lazy {
       DataWatcher(
