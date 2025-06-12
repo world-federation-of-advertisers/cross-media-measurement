@@ -95,6 +95,8 @@ import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
 import org.wfanet.measurement.edpaggregator.v1alpha.copy
+import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
+import org.wfanet.measurement.edpaggregator.v1alpha.groupedRequisitions
 import org.wfanet.measurement.integration.common.loadEncryptionPrivateKey
 import org.wfanet.measurement.loadtest.config.VidSampling
 import org.wfanet.measurement.storage.MesosRecordIoStorageClient
@@ -121,10 +123,18 @@ class ResultsFulfillerTest {
     Files.createDirectories(requisitionsTmpPath.resolve(REQUISITIONS_BUCKET).toPath())
     val requisitionsStorageClient = SelectedStorageClient(REQUISITIONS_FILE_URI, requisitionsTmpPath)
 
-    // Add requisitions to storage
+    // Create GroupedRequisitions with the requisition
+    val groupedRequisitions = groupedRequisitions {
+      modelLine = "modelLines/test-model-line"
+      requisitions += GroupedRequisitions.RequisitionEntry.newBuilder()
+        .setRequisition(REQUISITION.pack())
+        .build()
+    }
+
+    // Add grouped requisitions to storage
     requisitionsStorageClient.writeBlob(
       REQUISITIONS_BLOB_KEY,
-      REQUISITION.pack().toByteString()
+      groupedRequisitions.toByteString()
     )
 
     // Create impressions storage client

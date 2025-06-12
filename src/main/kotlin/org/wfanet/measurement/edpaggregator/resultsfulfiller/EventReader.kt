@@ -19,104 +19,76 @@ package org.wfanet.measurement.edpaggregator.resultsfulfiller
 import com.google.crypto.tink.KmsClient
 import java.time.LocalDate
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.map
-import org.wfanet.measurement.common.flatten
-import org.wfanet.measurement.edpaggregator.EncryptedStorage
 import org.wfanet.measurement.edpaggregator.StorageConfig
-import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
-import org.wfanet.measurement.storage.SelectedStorageClient
 
 /**
- * Reads labeled impressions from storage.
+ * Reads labeled impressions from storage with caching support.
+ *
+ * This class uses EventGroupCache to provide efficient access to labeled impressions
+ * while avoiding repeated downloads of the same data from storage.
  *
  * @param kmsClient The KMS client for encryption operations
  * @param impressionsStorageConfig Configuration for impressions storage
  * @param impressionDekStorageConfig Configuration for impression DEK storage
  * @param labeledImpressionsDekPrefix Prefix for labeled impressions DEK
+ * @param cacheMaxMemoryMB Maximum memory for cache in MB (default: 200GB)
+ * @param cacheExpireAfterMinutes Cache expiration time in minutes (default: 60)
  */
 class EventReader(
-  private val kmsClient: KmsClient,
-  private val impressionsStorageConfig: StorageConfig,
-  private val impressionDekStorageConfig: StorageConfig,
-  private val labeledImpressionsDekPrefix: String,
+  kmsClient: KmsClient,
+  impressionsStorageConfig: StorageConfig,
+  impressionDekStorageConfig: StorageConfig,
+  labeledImpressionsDekPrefix: String,
+  cacheMaxMemoryMB: Long = 200_000,
+  cacheExpireAfterMinutes: Long = 60,
 ) {
+  private val eventGroupCache = EventGroupCache(
+    kmsClient = kmsClient,
+    impressionsStorageConfig = impressionsStorageConfig,
+    impressionDekStorageConfig = impressionDekStorageConfig,
+    labeledImpressionsDekPrefix = labeledImpressionsDekPrefix,
+    cacheMaxMemoryMB = cacheMaxMemoryMB,
+    cacheExpireAfterMinutes = cacheExpireAfterMinutes,
+  )
   /**
    * Retrieves a flow of labeled impressions for a given ds and event group ID.
+   * 
+   * This method uses the EventGroupCache to avoid repeated storage reads.
+   * First call for a given (ds, eventGroupId) will fetch from storage and cache.
+   * Subsequent calls will return cached data until expiration.
    *
    * @param ds The ds for the labeled impressions
    * @param eventGroupId The ID of the event group
    * @return A flow of labeled impressions
    */
   suspend fun getLabeledImpressions(ds: LocalDate, eventGroupId: String): Flow<LabeledImpression> {
-    val blobDetails = getBlobDetails(ds, eventGroupId)
-    return getLabeledImpressions(blobDetails)
+    return eventGroupCache.getLabeledImpressions(ds, eventGroupId)
   }
 
   /**
-   * Retrieves blob details for a given ds and event group ID.
-   *
-   * @param ds The ds of the encrypted dek
+   * Gets cache statistics for monitoring cache performance.
+   * 
+   * @return Map containing cache statistics like hit rate, memory usage, etc.
+   */
+  fun getCacheStats(): Map<String, Any> {
+    return eventGroupCache.getCacheStats()
+  }
+
+  /**
+   * Invalidates all cached entries, forcing fresh reads from storage on next access.
+   */
+  fun invalidateCache() {
+    eventGroupCache.invalidateAll()
+  }
+
+  /**
+   * Invalidates cached entries for a specific event group.
+   * 
+   * @param ds The date for the labeled impressions
    * @param eventGroupId The ID of the event group
-   * @return The blob details with the DEK
    */
-  private suspend fun getBlobDetails(ds: LocalDate, eventGroupId: String): BlobDetails {
-    val dekBlobKey = "ds/$ds/event-group-id/$eventGroupId/metadata"
-    val dekBlobUri = "$labeledImpressionsDekPrefix/$dekBlobKey"
-
-    val storageClientUri = SelectedStorageClient.parseBlobUri(dekBlobUri)
-    val impressionsDekStorageClient =
-      SelectedStorageClient(
-        storageClientUri,
-        impressionDekStorageConfig.rootDirectory,
-        impressionDekStorageConfig.projectId,
-      )
-    // Get EncryptedDek message from storage using the blobKey made up of the ds and eventGroupId
-    val blob =
-      impressionsDekStorageClient.getBlob(dekBlobKey)
-        ?: throw ImpressionReadException(dekBlobKey, ImpressionReadException.Code.BLOB_NOT_FOUND)
-    return BlobDetails.parseFrom(blob.read().flatten())
-  }
-
-  /**
-   * Retrieves labeled impressions from blob details.
-   *
-   * @param blobDetails The blob details with the DEK
-   * @return A flow of labeled impressions
-   */
-  private suspend fun getLabeledImpressions(blobDetails: BlobDetails): Flow<LabeledImpression> {
-    val storageClientUri = SelectedStorageClient.parseBlobUri(blobDetails.blobUri)
-
-    // Create and configure storage client with encryption
-    val encryptedDek = blobDetails.encryptedDek
-    val selectedStorageClient =
-      SelectedStorageClient(
-        storageClientUri,
-        impressionsStorageConfig.rootDirectory,
-        impressionsStorageConfig.projectId,
-      )
-
-    val impressionsStorage =
-      EncryptedStorage.buildEncryptedMesosStorageClient(
-        selectedStorageClient,
-        kekUri = encryptedDek.kekUri,
-        kmsClient = kmsClient,
-        serializedEncryptionKey = encryptedDek.encryptedDek,
-      )
-    val impressionBlob =
-      impressionsStorage.getBlob(storageClientUri.key)
-        ?: throw ImpressionReadException(
-          storageClientUri.key,
-          ImpressionReadException.Code.BLOB_NOT_FOUND,
-        )
-
-    // Parse raw data into LabeledImpression objects
-    return impressionBlob.read().map { impressionByteString ->
-      LabeledImpression.parseFrom(impressionByteString)
-        ?: throw ImpressionReadException(
-          storageClientUri.key,
-          ImpressionReadException.Code.INVALID_FORMAT,
-        )
-    }
+  fun invalidateCache(ds: LocalDate, eventGroupId: String) {
+    eventGroupCache.invalidate(ds, eventGroupId)
   }
 }

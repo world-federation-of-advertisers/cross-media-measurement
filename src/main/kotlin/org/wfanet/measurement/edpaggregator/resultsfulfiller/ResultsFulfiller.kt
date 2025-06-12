@@ -47,6 +47,7 @@ import org.wfanet.measurement.eventdataprovider.noiser.DirectNoiseMechanism
 import org.wfanet.measurement.storage.SelectedStorageClient
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.compute.protocols.direct.DirectMeasurementResultFactory
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.fulfillers.DirectMeasurementFulfiller
+import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
 
 class ResultsFulfiller(
   private val privateEncryptionKey: PrivateKeyHandle,
@@ -188,9 +189,10 @@ class ResultsFulfiller(
    * 1. Parses the requisitions blob URI to create a storage client
    * 2. Fetches the requisition blob from storage
    * 3. Reads and concatenates all data from the blob
-   * 4. Parses the UTF-8 encoded string data into a Requisition object using TextFormat
+   * 4. Parses the data into a GroupedRequisitions object
+   * 5. Extracts individual requisitions from the GroupedRequisitions
    *
-   * @return A Flow containing the single requisition retrieved from blob storage
+   * @return A Flow containing requisitions retrieved from blob storage
    * @throws NullPointerException If the requisition blob cannot be found at the specified URI
    */
   private suspend fun getRequisitions(): Flow<Requisition> {
@@ -198,18 +200,23 @@ class ResultsFulfiller(
     val storageClientUri = SelectedStorageClient.parseBlobUri(requisitionsBlobUri)
     val requisitionsStorageClient = SelectedStorageClient(storageClientUri, requisitionsStorageConfig.rootDirectory, requisitionsStorageConfig.projectId)
 
-    // TODO(@jojijac0b): Refactor once grouped requisitions are supported
     val requisitionBytes: ByteString = requisitionsStorageClient.getBlob(storageClientUri.key)
       ?.read()
       ?.flatten()
       ?: throw ImpressionReadException(storageClientUri.key, ImpressionReadException.Code.BLOB_NOT_FOUND)
 
-    val requisition = try {
-      Any.parseFrom(requisitionBytes).unpack(Requisition::class.java)
+    val groupedRequisitions = try {
+      GroupedRequisitions.parseFrom(requisitionBytes)
     } catch (e: Exception) {
       throw ImpressionReadException(storageClientUri.key, ImpressionReadException.Code.INVALID_FORMAT)
     }
-    return listOf(requisition).asFlow()
+    
+    // Extract requisitions from GroupedRequisitions
+    return groupedRequisitions.requisitionsList
+      .map { requisitionEntry ->
+        requisitionEntry.requisition.unpack(Requisition::class.java)
+      }
+      .asFlow()
   }
 
 }

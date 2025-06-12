@@ -21,6 +21,7 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/noiser",
         "//src/main/proto/wfa/measurement/api/v2alpha:measurement_spec_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:requisitions_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:grouped_requisitions_kt_jvm_proto",
         "@wfa_consent_signaling_client//src/main/kotlin/org/wfanet/measurement/consent/client/dataprovider",
     ],
 )
@@ -43,18 +44,30 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
-    name = "event_reader",
-    srcs = ["EventReader.kt"],
+    name = "event_group_cache",
+    srcs = ["EventGroupCache.kt"],
     deps = [
         ":impression_read_exception",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator:encrypted_storage",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator:storage_config",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:blob_details_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:labeled_impression_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/common:guava",
         "@wfa_common_jvm//imports/java/com/google/crypto/tink",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/tink",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:mesos_recordio_storage_client",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:selected_storage_client",
+    ],
+)
+
+kt_jvm_library(
+    name = "event_reader",
+    srcs = ["EventReader.kt"],
+    deps = [
+        ":event_group_cache",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator:storage_config",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:labeled_impression_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/crypto/tink",
     ],
 )
 
