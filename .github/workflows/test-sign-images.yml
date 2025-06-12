@@ -51,11 +51,6 @@ jobs:
           workload_identity_provider: ${{ vars.BAZEL_BUILD_WORKLOAD_IDENTITY_PROVIDER }}
           service_account: ${{ secrets.IMAGE_SIGNING_SERVICE_ACCOUNT }}
 
-      - name: Install Cosign
-        uses: sigstore/cosign-installer@v3.8.1
-        with:
-          cosign-release: 'v2.5.0'
-
       #TODO: wip - replace with docker/login-action@v3
       - name: Log in to GitHub Container Registry
         run: |
@@ -64,42 +59,7 @@ jobs:
                 -u $ \
                 --password-stdin
 
-      #------ Test using docker hello-world image -----
-
-      - name: Pull docker hello-world image
-        run: docker pull hello-world
-
-      - name: Tag hello-world image
-        run: |
-          docker tag hello-world ghcr.io/${{ github.repository }}/test-signed-image:v1
-
-      - name: Push hello-world image to GHCR
-        run: |
-          docker push ghcr.io/${{ github.repository }}/test-signed-image:v1
-
-      - name: Cosign sign hello-world image
-        run: >
-          cosign sign
-          --tlog-upload=false
-          --key gcpkms://projects/halo-cmm-dev/locations/global/keyRings/test-image-signing/cryptoKeys/test-image-signing/cryptoKeyVersions/1
-          ghcr.io/${{ github.repository }}/test-signed-image:v1
-
-      - name: Cosign verify hello-world image
-        run: >
-          cosign verify 
-          --insecure-ignore-tlog=true
-          --key gcpkms://projects/halo-cmm-dev/locations/global/keyRings/test-image-signing/cryptoKeys/test-image-signing/cryptoKeyVersions/1
-          ghcr.io/${{ github.repository }}/test-signed-image:v1
-
       #------ Test using bazel and the HMSS mill image under the name TEST_SIGNED_BUILD_IMAGES -----
-
-      - name: Dump list of images to sign
-        run: >
-          bazel build //src/main/docker:images_to_sign
-
-      - name: Debug inspect images list
-        run: |
-          cat bazel-bin/src/main/docker/images_to_sign.txt
 
       - name: Build images
         run: >
@@ -109,16 +69,10 @@ jobs:
         run: |
           bazelisk run //src/main/docker:push_test_signed_image
 
-      - name: Cosign sign list of images
-        run: |
-          for image_ref in $(cat bazel-bin/src/main/docker/images_to_sign.txt); do
-            echo "Signing image: ${image_ref}"
-            cosign sign --tlog-upload=false --key gcpkms://projects/halo-cmm-dev/locations/global/keyRings/test-image-signing/cryptoKeys/test-image-signing/cryptoKeyVersions/1 ${image_ref}
-          done
+      - name: Build image signing script
+        run: >
+          bazelisk build //src/main/docker:sign_all_images
 
-      - name: Cosign verify list of images
+      - name: Sign images
         run: |
-          for image_ref in $(cat bazel-bin/src/main/docker/images_to_sign.txt); do
-          echo "Verifying image: ${image_ref}"
-            cosign verify --insecure-ignore-tlog=true --key gcpkms://projects/halo-cmm-dev/locations/global/keyRings/test-image-signing/cryptoKeys/test-image-signing/cryptoKeyVersions/1 ${image_ref}
-          done
+          bazelisk run //src/main/docker:sign_all_images -- projects/halo-cmm-dev/locations/global/keyRings/test-image-signing/cryptoKeys/test-image-signing/cryptoKeyVersions/1
