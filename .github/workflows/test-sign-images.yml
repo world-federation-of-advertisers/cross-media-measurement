@@ -42,9 +42,10 @@ jobs:
           EOF
 
       - name: Authenticate to Google Cloud
-        uses: 'google-github-actions/auth@v2'
+        uses: google-github-actions/auth@v2
         with:
-          credentials_json: '${{ secrets.SIGNED_BUILDS_GCP_SA_CREDENTIALS_JSON }}'
+          workload_identity_provider: ${{ vars.WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.IMAGE_SIGNING_SERVICE_ACCOUNT }}
 
       - name: Install Cosign
         uses: sigstore/cosign-installer@v3.8.1
@@ -108,13 +109,12 @@ jobs:
         run: |
           for image_ref in $(cat bazel-bin/src/main/docker/images_to_sign.txt); do
             echo "Signing image: ${image_ref}"
-            cosign sign --tlog-upload=false --key gcpkms://projects/halo-cmm-poc/locations/global/keyRings/key-ring-signed-builds/cryptoKeys/key-signed-builds/cryptoKeyVersions/1 ${image_ref}
+            cosign sign --tlog-upload=false --key gcpkms://projects/halo-cmm-dev/locations/global/keyRings/test-image-signing/cryptoKeys/test-image-signing/cryptoKeyVersions/1 ${image_ref}
           done
 
       - name: Cosign verify list of images
         run: |
           for image_ref in $(cat bazel-bin/src/main/docker/images_to_sign.txt); do
           echo "Verifying image: ${image_ref}"
-            cosign verify --insecure-ignore-tlog=true --key gcpkms://projects/halo-cmm-poc/locations/global/keyRings/key-ring-signed-builds/cryptoKeys/key-signed-builds/cryptoKeyVersions/1 ${image_ref}
+            cosign verify --insecure-ignore-tlog=true --key gcpkms://projects/halo-cmm-dev/locations/global/keyRings/test-image-signing/cryptoKeys/test-image-signing/cryptoKeyVersions/1 ${image_ref}
           done
-            
