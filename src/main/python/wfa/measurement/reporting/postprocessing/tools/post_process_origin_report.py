@@ -12,23 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import json
 import sys
-from typing import FrozenSet
-
 from absl import app
 from absl import flags
 from absl import logging
-
 from noiseninja.noised_measurements import Measurement
-
 from report.report import MetricReport
 from report.report import Report
-
-from src.main.proto.wfa.measurement.reporting.postprocessing.v2alpha import \
-  report_summary_pb2
 from src.main.proto.wfa.measurement.reporting.postprocessing.v2alpha import \
   report_post_processor_result_pb2
+from src.main.proto.wfa.measurement.reporting.postprocessing.v2alpha import \
+  report_summary_pb2
+from typing import FrozenSet
 
 ReportPostProcessorStatus = report_post_processor_result_pb2.ReportPostProcessorStatus
 ReportPostProcessorResult = report_post_processor_result_pb2.ReportPostProcessorResult
@@ -134,7 +129,8 @@ class ReportSummaryProcessor:
     corrected_report, report_post_processor_result = \
       report.get_corrected_report()
 
-    report_post_processor_result.pre_correction_report_summary.CopyFrom(self._report_summary)
+    report_post_processor_result.pre_correction_report_summary.CopyFrom(
+        self._report_summary)
 
     logging.info(
         "Generating the mapping between between measurement name and its "
@@ -264,6 +260,25 @@ class ReportSummaryProcessor:
                 measurement_result.impression_count.value,
                 measurement_result.impression_count.standard_deviation,
                 measurement_result.metric)
+
+    # Goes through the measurements, if cumulative measurements for
+    # edp_combination exists, but there is no corresponding whole campaign
+    # measurement, we use the last week of the cumulative ones as the whole
+    # campaign measurement.
+    for measurement_policy in self._cumulative_measurements.keys():
+      for edp_combination in self._cumulative_measurements[
+        measurement_policy].keys():
+        if edp_combination not in self._whole_campaign_measurements[
+          measurement_policy].keys():
+          self._whole_campaign_measurements[measurement_policy][
+            edp_combination] = Measurement(
+              self._cumulative_measurements[measurement_policy][
+                edp_combination][-1].value,
+              self._cumulative_measurements[measurement_policy][
+                edp_combination][-1].sigma,
+              "derived_reach/" + measurement_policy + "/" + "_".join(
+                  sorted(edp_combination))
+          )
 
     logging.info("Finished processing primitive measurements.")
 
