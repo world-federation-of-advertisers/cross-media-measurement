@@ -107,6 +107,8 @@ import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
 import org.wfanet.measurement.edpaggregator.v1alpha.copy
+import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
+import org.wfanet.measurement.edpaggregator.v1alpha.groupedRequisitions
 import org.wfanet.measurement.integration.common.loadEncryptionPrivateKey
 import org.wfanet.measurement.loadtest.config.VidSampling
 import org.wfanet.measurement.storage.MesosRecordIoStorageClient
