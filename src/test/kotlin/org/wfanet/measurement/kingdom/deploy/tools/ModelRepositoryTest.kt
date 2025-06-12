@@ -421,14 +421,12 @@ class ModelRepositoryTest {
     private val LIST_MODEL_PROVIDERS_PAGE_TOKEN = listModelProvidersPageToken {
       pageSize = PAGE_SIZE
       lastModelProvider = modelProviderPreviousPageEnd {
-        createTime = CREATE_TIME
         externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID - 1
       }
     }
     private val LIST_MODEL_PROVIDERS_PAGE_TOKEN_2 = listModelProvidersPageToken {
       pageSize = PAGE_SIZE
       lastModelProvider = modelProviderPreviousPageEnd {
-        createTime = CREATE_TIME
         externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID_2
       }
     }
