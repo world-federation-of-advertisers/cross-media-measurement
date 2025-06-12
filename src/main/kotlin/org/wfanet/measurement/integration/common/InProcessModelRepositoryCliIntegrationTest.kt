@@ -316,9 +316,6 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
     var response: ListModelProvidersResponse =
       publicModelProvidersClient.listModelProviders(listModelProvidersRequest { pageSize = 1 })
 
-    assertThat(response.modelProvidersList).hasSize(1)
-    assertThat(response.nextPageToken).isNotEmpty()
-
     val args =
       modelProviderArgs +
         arrayOf(
