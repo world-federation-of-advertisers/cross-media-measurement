@@ -19,6 +19,7 @@ package org.wfanet.measurement.reporting.deploy.v2.common.server
 import io.grpc.BindableService
 import java.io.File
 import java.time.Clock
+import kotlin.properties.Delegates
 import kotlin.reflect.full.declaredMemberProperties
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.asCoroutineDispatcher
@@ -54,6 +55,15 @@ abstract class AbstractInternalReportingServer : Runnable {
     required = false,
   )
   var basicReportsEnabled: Boolean = false
+
+  // TODO(@tristanvuong2021): Delete flag when there is a better alternative.
+  @set:CommandLine.Option(
+    names = ["--disable-metrics-reuse"],
+    description = ["Whether Metrics Reuse is disabled. Will be removed when testing is finished."],
+    required = true,
+  )
+  var disableMetricsReuse by Delegates.notNull<Boolean>()
+    private set
 
   protected suspend fun run(services: Services) {
     val server = CommonServer.fromFlags(serverFlags, this::class.simpleName!!, services.toList())
@@ -129,12 +139,22 @@ class InternalReportingServer : AbstractInternalReportingServer() {
             postgresClient,
             spannerClient,
             impressionQualificationFilterMapping,
+            disableMetricsReuse,
             serviceDispatcher,
           )
         )
       }
     } else {
-      run(DataServices.create(idGenerator, postgresClient, null, null, serviceDispatcher))
+      run(
+        DataServices.create(
+          idGenerator,
+          postgresClient,
+          null,
+          null,
+          disableMetricsReuse,
+          serviceDispatcher,
+        )
+      )
     }
   }
 }

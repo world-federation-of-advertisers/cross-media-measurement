@@ -34,6 +34,7 @@ import java.security.cert.CertPathValidatorException
 import java.security.cert.X509Certificate
 import java.time.Duration
 import java.util.concurrent.TimeUnit
+import java.util.logging.Level
 import java.util.logging.Logger
 import kotlin.coroutines.ContinuationInterceptor
 import kotlin.coroutines.CoroutineContext
@@ -1828,6 +1829,7 @@ class MetricsService(
           try {
             result = buildMetricResult(source, variances)
           } catch (e: Exception) {
+            logger.log(Level.SEVERE, "buildMetricResult exception:", e)
             state = Metric.State.FAILED
             when (e) {
               is MeasurementVarianceNotComputableException -> {
