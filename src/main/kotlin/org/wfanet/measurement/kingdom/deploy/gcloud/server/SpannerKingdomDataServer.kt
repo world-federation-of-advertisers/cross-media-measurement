@@ -15,6 +15,7 @@
 package org.wfanet.measurement.kingdom.deploy.gcloud.server
 
 import java.time.Clock
+import java.time.Duration
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.identity.RandomIdGenerator
@@ -34,13 +35,30 @@ import picocli.CommandLine
 class SpannerKingdomDataServer : KingdomDataServer() {
   @CommandLine.Mixin private lateinit var spannerFlags: SpannerFlags
 
+  @CommandLine.Option(
+    names = ["--max-event-group-read-staleness"],
+    description = ["Maximum staleness allowed for stale reads of EventGroups"],
+    required = false,
+    defaultValue = "30s",
+  )
+  protected lateinit var maxEventGroupReadStaleness: Duration
+    private set
+
   override fun run() = runBlocking {
     spannerFlags.usingSpanner { spanner ->
       val clock = Clock.systemUTC()
       val idGenerator = RandomIdGenerator(clock)
       val client = spanner.databaseClient
 
-      run(SpannerDataServices(clock, idGenerator, client, knownEventGroupMetadataTypes))
+      run(
+        SpannerDataServices(
+          clock,
+          idGenerator,
+          client,
+          knownEventGroupMetadataTypes,
+          maxEventGroupReadStaleness,
+        )
+      )
     }
   }
 }

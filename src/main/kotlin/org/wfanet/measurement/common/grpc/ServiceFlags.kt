@@ -17,9 +17,12 @@
 package org.wfanet.measurement.common.grpc
 
 import java.util.concurrent.Executor
+import java.util.concurrent.Executors
 import java.util.concurrent.LinkedBlockingQueue
+import java.util.concurrent.ThreadFactory
 import java.util.concurrent.ThreadPoolExecutor
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
 import org.wfanet.measurement.common.Instrumentation
 import picocli.CommandLine
 
@@ -38,8 +41,26 @@ class ServiceFlags {
 
   /** Executor for gRPC services. */
   val executor: Executor by lazy {
-    ThreadPoolExecutor(1, threadPoolSize, 60L, TimeUnit.SECONDS, LinkedBlockingQueue()).also {
-      Instrumentation.instrumentThreadPool(THREAD_POOL_NAME, it)
+    ThreadPoolExecutor(
+        1,
+        threadPoolSize,
+        60L,
+        TimeUnit.SECONDS,
+        LinkedBlockingQueue(),
+        NamedThreadFactory(Executors.defaultThreadFactory(), THREAD_POOL_NAME),
+      )
+      .also { Instrumentation.instrumentThreadPool(THREAD_POOL_NAME, it) }
+  }
+
+  private class NamedThreadFactory(
+    private val delegate: ThreadFactory,
+    private val prefix: String,
+  ) : ThreadFactory {
+    private val count = AtomicInteger()
+
+    override fun newThread(task: Runnable): Thread {
+      val number = count.incrementAndGet()
+      return delegate.newThread(task).apply { name = "$prefix-$number" }
     }
   }
 

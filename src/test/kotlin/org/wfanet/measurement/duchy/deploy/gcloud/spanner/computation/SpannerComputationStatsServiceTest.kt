@@ -120,7 +120,7 @@ class SpannerComputationStatsServiceTest : ComputationStatsServiceTest<Computati
       ComputationStore(storageClient),
       RequisitionStore(storageClient),
       ALSACE,
-      Clock.systemUTC(),
+      clock = Clock.systemUTC(),
     )
   }
 
