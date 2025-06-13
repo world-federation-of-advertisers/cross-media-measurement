@@ -222,7 +222,7 @@ def ordered_sets_to_sorted_list(ordered_sets: list[OrderedSets]):
   ordered_sets_list = []
   for ordered_pair in ordered_sets:
     ordered_sets_list.append(
-        [ordered_pair.larger_set, ordered_pair.smaller_set])
+        [list(ordered_pair.larger_set), list(ordered_pair.smaller_set)])
   return get_sorted_list(ordered_sets_list)
 
 

@@ -741,7 +741,7 @@ class Report:
           ) for edp in edps
       ]
 
-    return OrderedSets(greater_set, smaller_set)
+    return OrderedSets(set(greater_set), set(smaller_set))
 
   def _add_overlap_relations_to_spec(self, spec: SetMeasurementsSpec):
     # Overlap constraints within a metric.
@@ -931,7 +931,7 @@ class Report:
           ) for edp in edps
       ]
 
-    return OrderedSets(greater_set, smaller_set)
+    return OrderedSets(set(greater_set), set(smaller_set))
 
   def _get_ordered_sets_for_whole_campaign_measurements_across_metric(self,
       parent_metric_report: MetricReport, child_metric_report: MetricReport,
@@ -983,7 +983,7 @@ class Report:
           for edp in edps
       ]
 
-    return OrderedSets(greater_set, smaller_set)
+    return OrderedSets(set(greater_set), set(smaller_set))
 
   def _add_metric_relations_to_spec(self, spec: SetMeasurementsSpec):
     # metric1>=metric#2
