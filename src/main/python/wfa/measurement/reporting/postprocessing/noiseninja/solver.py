@@ -151,12 +151,20 @@ class Solver:
   def _add_ordered_sets(self, set_measurement_spec: SetMeasurementsSpec,
       variable_index_by_set_id: dict[int, int]):
     logging.infor("Adding ordered sets constraints.")
-    for ordered_pair in set_measurement_spec.get_ordered_sets():
-      if len(ordered_pair.larger_set) == 0 or len(ordered_pair.smaller_set) == 0:
-        raise ValueError("The sub-sets must not be empty.")
+    ordered_sets: list[OrderedSets] = set_measurement_spec.get_ordered_sets()
+    for i in range(len(ordered_sets)):
+      if len(ordered_sets[i].larger_set) == 0 or len(
+          ordered_sets[i].smaller_set) == 0:
+        raise ValueError(
+            f'The {i}-th ordered set {ordered_sets[i]} has empty larger set or '
+            f'empty smaller set.'
+        )
 
       if len(ordered_pair.larger_set) != len(ordered_pair.smaller_set):
-        raise ValueError("The sub-sets must have the same length.")
+        raise ValueError(
+            f'The {i}-th ordered set {ordered_sets[i]} has sets of different '
+            f'length.'
+        )
 
       variables = np.zeros(self.num_variables)
       for id in ordered_pair.larger_set:

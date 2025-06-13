@@ -757,8 +757,10 @@ class Report:
         )
         if len(edps) != len(edp_combination):
           logging.info(
-              f'Expecting measurements for each EDP in {edp_combination},'
-              f'however, there are measurements for only these EDPs {edps}'
+              f'Skipping the overlap check for the cumulative measurements of '
+              f'{edp_combination} in {metric}. Expecting measurements for each '
+              f'EDP in {edp_combination}, however, there are only measurements '
+              f'for EDPs in {edps}.'
           )
           continue
 
@@ -1018,8 +1020,10 @@ class Report:
           )
           if len(edps) != len(edp_combination):
             logging.info(
-                f'Expecting measurements for each EDP in {edp_combination},'
-                f'however, there are measurements for only these EDPs {edps}'
+                f'Skipping the overlap check for the cumulative measurements of '
+                f'{edp_combination} across {parent_metric}/{child_metric}. '
+                f'Expecting measurements for each EDP in {edp_combination}, '
+                f'however, there are only measurements for EDPs in {edps}.'
             )
             continue
 
@@ -1055,8 +1059,10 @@ class Report:
           )
           if len(edps) != len(edp_combination):
             logging.info(
-                f'Expecting measurements for each EDP in {edp_combination},'
-                f'however, there are measurements for only these EDPs {edps}'
+                f'Skipping the overlap check for the whole campaign measurement'
+                f' of {edp_combination} across {parent_metric}/{child_metric}. '
+                f'Expecting measurements for each EDP in {edp_combination}, '
+                f'however, there are only measurements for EDPs in {edps}.'
             )
             continue
 
