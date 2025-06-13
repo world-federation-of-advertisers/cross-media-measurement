@@ -130,6 +130,14 @@ message ListExchangeStepsPageToken {
   PreviousPageEnd last_exchange_step = 6;
 }
 
+message ListModelProvidersPageToken {
+  int32 page_size = 1;
+  message PreviousPageEnd {
+    fixed64 external_model_provider_id = 1;
+  }
+  PreviousPageEnd last_model_provider = 2;
+}
+
 message ListModelSuitesPageToken {
   int32 page_size = 1;
   fixed64 external_model_provider_id = 2;

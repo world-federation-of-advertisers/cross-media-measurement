@@ -15,8 +15,11 @@
 package org.wfanet.measurement.duchy.deploy.common.server
 
 import io.grpc.Channel
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.asCoroutineDispatcher
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.grpc.CommonServer
+import org.wfanet.measurement.common.grpc.ServiceFlags
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withDefaultDeadline
 import org.wfanet.measurement.common.identity.DuchyInfo
@@ -66,6 +69,7 @@ abstract class ComputationControlServer : Runnable {
         )
         .withDefaultDeadline(flags.computationsServiceFlags.defaultDeadlineDuration)
 
+    val serviceDispatcher: CoroutineDispatcher = flags.service.executor.asCoroutineDispatcher()
     CommonServer.fromFlags(
         flags.server,
         javaClass.name,
@@ -74,6 +78,7 @@ abstract class ComputationControlServer : Runnable {
             ComputationsCoroutineStub(computationsServiceChannel),
             AsyncComputationControlCoroutineStub(asyncControlServiceChannel),
             storageClient,
+            serviceDispatcher,
           )
           .withDuchyIdentities(),
       )
@@ -84,6 +89,10 @@ abstract class ComputationControlServer : Runnable {
   protected class Flags {
     @CommandLine.Mixin
     lateinit var server: CommonServer.Flags
+      private set
+
+    @CommandLine.Mixin
+    lateinit var service: ServiceFlags
       private set
 
     @CommandLine.Mixin

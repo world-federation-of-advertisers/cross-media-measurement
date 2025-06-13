@@ -15,6 +15,7 @@
 import unittest
 
 from noiseninja.noised_measurements import Measurement
+from noiseninja.noised_measurements import OrderedSets
 from noiseninja.noised_measurements import SetMeasurementsSpec
 
 from report.report import MetricReport
@@ -22,6 +23,7 @@ from report.report import Report
 from report.report import get_covers
 from report.report import is_cover
 from report.report import is_union_reach_consistent
+from report.testing.validate_report import are_overlap_constraints_consistent
 
 from src.main.proto.wfa.measurement.reporting.postprocessing.v2alpha import \
   report_post_processor_result_pb2
@@ -170,7 +172,7 @@ SAMPLE_REPORT = Report(
                 frozenset({EDP_ONE}): Measurement(1, 0, "measurement_59"),
                 frozenset({EDP_TWO}): Measurement(1, 1, "measurement_60"),
                 frozenset({EDP_THREE}): Measurement(1, 1, "measurement_61"),
-                frozenset({EDP_ONE, EDP_THREE}):
+                frozenset({EDP_ONE, EDP_TWO, EDP_THREE}):
                   Measurement(1, 1, "measurement_62"),
             },
             k_reach={
@@ -204,6 +206,24 @@ SAMPLE_REPORT = Report(
     metric_subsets_by_parent={"ami": ["mrc", "custom"]},
     cumulative_inconsistency_allowed_edp_combinations={},
 )
+
+
+def get_sorted_list(lst):
+  sorted_list = []
+  for item in lst:
+    if isinstance(item, list):
+      sorted_list.append(tuple(sorted(get_sorted_list(item))))
+    else:
+      sorted_list.append(item)
+  return sorted(sorted_list)
+
+
+def ordered_sets_to_sorted_list(ordered_sets: list[OrderedSets]):
+  ordered_sets_list = []
+  for ordered_pair in ordered_sets:
+    ordered_sets_list.append(
+        [list(ordered_pair.larger_set), list(ordered_pair.smaller_set)])
+  return get_sorted_list(ordered_sets_list)
 
 
 class TestReport(unittest.TestCase):
@@ -738,6 +758,7 @@ class TestReport(unittest.TestCase):
         ],
         name_to_index["measurement_62"]: [
             [name_to_index["measurement_59"],
+             name_to_index["measurement_60"],
              name_to_index["measurement_61"]]
         ],
     }
@@ -789,6 +810,7 @@ class TestReport(unittest.TestCase):
                                           name_to_index["measurement_54"],
                                           name_to_index["measurement_56"]],
         name_to_index["measurement_62"]: [name_to_index["measurement_59"],
+                                          name_to_index["measurement_60"],
                                           name_to_index["measurement_61"]],
     }
 
@@ -824,7 +846,6 @@ class TestReport(unittest.TestCase):
         name_to_index["measurement_71"]: [name_to_index["measurement_59"]],
         name_to_index["measurement_72"]: [name_to_index["measurement_60"]],
         name_to_index["measurement_73"]: [name_to_index["measurement_61"]],
-        name_to_index["measurement_74"]: [name_to_index["measurement_62"]],
     }
 
     spec = SetMeasurementsSpec()
@@ -873,6 +894,67 @@ class TestReport(unittest.TestCase):
       self.assertEqual(sorted(expected_subsets_by_set[key]),
                        sorted(spec._subsets_by_set[key]))
 
+  def test_add_overlap_relationships(self):
+    report = SAMPLE_REPORT
+    name_to_index = report._measurement_name_to_index
+    expected_ordered_sets = [
+        [
+            [
+                name_to_index["measurement_08"],
+                name_to_index["measurement_01"],
+                name_to_index["measurement_03"],
+                name_to_index["measurement_05"]
+            ],
+            [
+                name_to_index["measurement_07"],
+                name_to_index["measurement_02"],
+                name_to_index["measurement_04"],
+                name_to_index["measurement_06"]
+            ]
+        ],
+        [
+            [
+                name_to_index["measurement_34"],
+                name_to_index["measurement_27"],
+                name_to_index["measurement_29"],
+                name_to_index["measurement_31"]
+            ],
+            [
+                name_to_index["measurement_33"],
+                name_to_index["measurement_28"],
+                name_to_index["measurement_30"],
+                name_to_index["measurement_32"]
+            ]
+        ],
+        [
+            [
+                name_to_index["measurement_58"],
+                name_to_index["measurement_51"],
+                name_to_index["measurement_53"],
+                name_to_index["measurement_55"]
+            ],
+            [
+                name_to_index["measurement_57"],
+                name_to_index["measurement_52"],
+                name_to_index["measurement_54"],
+                name_to_index["measurement_56"]
+            ]
+        ]
+    ]
+
+    spec = SetMeasurementsSpec()
+    report._add_overlap_relations_to_spec(spec)
+
+    self.assertEqual(len(spec._covers_by_set), 0)
+    self.assertEqual(len(spec._equal_sets), 0)
+    self.assertEqual(len(spec._weighted_sum_upperbound_sets), 0)
+    self.assertEqual(len(spec._subsets_by_set), 0)
+    self.assertEqual(len(expected_ordered_sets), len(spec._ordered_sets))
+    self.assertEqual(
+        get_sorted_list(expected_ordered_sets),
+        ordered_sets_to_sorted_list(spec._ordered_sets)
+    )
+
   def test_add_metric_relationships(self):
     report = SAMPLE_REPORT
     name_to_index = report._measurement_name_to_index
@@ -902,6 +984,7 @@ class TestReport(unittest.TestCase):
                                           name_to_index["measurement_60"]],
         name_to_index["measurement_11"]: [name_to_index["measurement_37"],
                                           name_to_index["measurement_61"]],
+        name_to_index["measurement_13"]: [name_to_index["measurement_62"]],
         # AMI impression >= MRC, CUSTOM impression.
         name_to_index["measurement_22"]: [name_to_index["measurement_47"],
                                           name_to_index["measurement_71"]],
@@ -910,6 +993,79 @@ class TestReport(unittest.TestCase):
         name_to_index["measurement_24"]: [name_to_index["measurement_49"],
                                           name_to_index["measurement_73"]],
     }
+
+    expected_ordered_sets = [
+        [
+            [
+                name_to_index["measurement_33"],
+                name_to_index["measurement_01"],
+                name_to_index["measurement_03"],
+                name_to_index["measurement_05"]
+            ],
+            [
+                name_to_index["measurement_07"],
+                name_to_index["measurement_27"],
+                name_to_index["measurement_29"],
+                name_to_index["measurement_31"]
+            ]
+        ],
+        [
+            [
+                name_to_index["measurement_34"],
+                name_to_index["measurement_02"],
+                name_to_index["measurement_04"],
+                name_to_index["measurement_06"]
+            ],
+            [
+                name_to_index["measurement_08"],
+                name_to_index["measurement_28"],
+                name_to_index["measurement_30"],
+                name_to_index["measurement_32"]
+            ]
+        ],
+        [
+            [
+                name_to_index["measurement_57"],
+                name_to_index["measurement_01"],
+                name_to_index["measurement_03"],
+                name_to_index["measurement_05"]
+            ],
+            [
+                name_to_index["measurement_07"],
+                name_to_index["measurement_51"],
+                name_to_index["measurement_53"],
+                name_to_index["measurement_55"]
+            ]
+        ],
+        [
+            [
+                name_to_index["measurement_58"],
+                name_to_index["measurement_02"],
+                name_to_index["measurement_04"],
+                name_to_index["measurement_06"]
+            ],
+            [
+                name_to_index["measurement_08"],
+                name_to_index["measurement_52"],
+                name_to_index["measurement_54"],
+                name_to_index["measurement_56"]
+            ]
+        ],
+        [
+            [
+                name_to_index["measurement_62"],
+                name_to_index["measurement_09"],
+                name_to_index["measurement_10"],
+                name_to_index["measurement_11"]
+            ],
+            [
+                name_to_index["measurement_13"],
+                name_to_index["measurement_59"],
+                name_to_index["measurement_60"],
+                name_to_index["measurement_61"]
+            ]
+        ]
+    ]
 
     spec = SetMeasurementsSpec()
     report._add_metric_relations_to_spec(spec)
@@ -922,6 +1078,11 @@ class TestReport(unittest.TestCase):
     for key in spec._subsets_by_set.keys():
       self.assertEqual(sorted(expected_subsets_by_set[key]),
                        sorted(spec._subsets_by_set[key]))
+    self.assertEqual(len(expected_ordered_sets), len(spec._ordered_sets))
+    self.assertEqual(
+        get_sorted_list(expected_ordered_sets),
+        ordered_sets_to_sorted_list(spec._ordered_sets)
+    )
 
   def test_add_cumulative_whole_campaign_relationships(self):
     report = SAMPLE_REPORT
@@ -941,6 +1102,7 @@ class TestReport(unittest.TestCase):
         [name_to_index["measurement_52"], [name_to_index["measurement_59"]]],
         [name_to_index["measurement_54"], [name_to_index["measurement_60"]]],
         [name_to_index["measurement_56"], [name_to_index["measurement_61"]]],
+        [name_to_index["measurement_58"], [name_to_index["measurement_62"]]],
     ]
 
     spec = SetMeasurementsSpec()
@@ -1397,13 +1559,89 @@ class TestReport(unittest.TestCase):
     self.assertLess(
         report_post_processor_result.status.primal_inequality_residual,
         NOISE_CORRECTION_TOLERANCE)
+    self.assertTrue(
+        are_overlap_constraints_consistent(report, NOISE_CORRECTION_TOLERANCE))
+    self.assertTrue(
+        are_overlap_constraints_consistent(corrected,
+                                           NOISE_CORRECTION_TOLERANCE))
     self._assertReportsAlmostEqual(expected, corrected, corrected.to_array())
 
-  def test_can_correct_time_series_for_three_edps(self):
-    ami = "ami"
+  def test_can_correct_overlap_constraints(self):
+    # The overlap for the cumulative and whole campaign measurements are:
+    # ami: ([0, -4], -9) and mrc: ([1, 3], 1).
+    # Overlap violations:
+    # Within ami: 0 <= -4
+    # Between ami/mrc: 0 >= 1, -4 >= 3, -9 >= 1.
     report = Report(
         metric_reports={
-            ami: MetricReport(
+            "ami": MetricReport(
+                reach_time_series={
+                    frozenset({EDP_ONE}): [
+                        Measurement(0.00, 1, "measurement_01"),
+                        Measurement(33.0, 1, "measurement_02"),
+                    ],
+                    frozenset({EDP_TWO}): [
+                        Measurement(0.00, 1, "measurement_03"),
+                        Measurement(23.0, 1, "measurement_04"),
+                    ],
+                    frozenset({EDP_ONE, EDP_TWO}): [
+                        Measurement(0.00, 1, "measurement_05"),
+                        Measurement(60.0, 1, "measurement_06"),
+                    ],
+                },
+                reach_whole_campaign={
+                    frozenset({EDP_ONE}):
+                      Measurement(30.0, 1, "measurement_07"),
+                    frozenset({EDP_TWO}):
+                      Measurement(30.0, 1, "measurement_08"),
+                    frozenset({EDP_ONE, EDP_TWO}):
+                      Measurement(69.0, 1, "measurement_09"),
+                },
+                k_reach={},
+                impression={},
+            ),
+            "mrc": MetricReport(
+                reach_time_series={
+                    frozenset({EDP_ONE}): [
+                        Measurement(1.00, 1, "measurement_10"),
+                        Measurement(33.0, 1, "measurement_11"),
+                    ],
+                    frozenset({EDP_TWO}): [
+                        Measurement(0.00, 1, "measurement_12"),
+                        Measurement(23.0, 1, "measurement_13"),
+                    ],
+                    frozenset({EDP_ONE, EDP_TWO}): [
+                        Measurement(0.00, 1, "measurement_14"),
+                        Measurement(53.0, 1, "measurement_15"),
+                    ],
+                },
+                reach_whole_campaign={
+                    frozenset({EDP_ONE}):
+                      Measurement(40.0, 1, "measurement_16"),
+                    frozenset({EDP_TWO}):
+                      Measurement(30.0, 1, "measurement_17"),
+                    frozenset({EDP_ONE, EDP_TWO}):
+                      Measurement(69.0, 1, "measurement_18"),
+                },
+                k_reach={},
+                impression={},
+            )
+        },
+        metric_subsets_by_parent={"ami": ["mrc"]},
+        cumulative_inconsistency_allowed_edp_combinations={},
+    )
+
+    corrected, _ = report.get_corrected_report()
+    self.assertFalse(
+        are_overlap_constraints_consistent(report, NOISE_CORRECTION_TOLERANCE))
+    self.assertTrue(
+        are_overlap_constraints_consistent(corrected,
+                                           NOISE_CORRECTION_TOLERANCE))
+
+  def test_can_correct_time_series_for_three_edps(self):
+    report = Report(
+        metric_reports={
+            "ami": MetricReport(
                 reach_time_series={
                     # 1 way comb
                     frozenset({EDP_ONE}): [
@@ -1468,7 +1706,7 @@ class TestReport(unittest.TestCase):
 
     expected = Report(
         metric_reports={
-            ami: MetricReport(
+            "ami": MetricReport(
                 reach_time_series={
                     # 1 way comb
                     frozenset({EDP_ONE}): [
@@ -1526,6 +1764,11 @@ class TestReport(unittest.TestCase):
     self.assertLess(
         report_post_processor_result.status.primal_inequality_residual,
         NOISE_CORRECTION_TOLERANCE)
+    self.assertFalse(
+        are_overlap_constraints_consistent(report, NOISE_CORRECTION_TOLERANCE))
+    self.assertTrue(
+        are_overlap_constraints_consistent(corrected,
+                                           NOISE_CORRECTION_TOLERANCE))
     self._assertReportsAlmostEqual(expected, corrected, corrected.to_array())
 
   def test_correct_report_with_both_time_series_and_whole_campaign_measurements_three_edps(
@@ -1681,6 +1924,11 @@ class TestReport(unittest.TestCase):
     self.assertLess(
         report_post_processor_result.status.primal_inequality_residual,
         NOISE_CORRECTION_TOLERANCE)
+    self.assertFalse(
+        are_overlap_constraints_consistent(report, NOISE_CORRECTION_TOLERANCE))
+    self.assertTrue(
+        are_overlap_constraints_consistent(corrected,
+                                           NOISE_CORRECTION_TOLERANCE))
     self._assertReportsAlmostEqual(expected, corrected, corrected.to_array())
 
   def test_correct_report_with_whole_campaign_has_more_edp_combinations(self):
@@ -1800,6 +2048,11 @@ class TestReport(unittest.TestCase):
     self.assertLess(
         report_post_processor_result.status.primal_inequality_residual,
         NOISE_CORRECTION_TOLERANCE)
+    self.assertTrue(
+        are_overlap_constraints_consistent(report, NOISE_CORRECTION_TOLERANCE))
+    self.assertTrue(
+        are_overlap_constraints_consistent(corrected,
+                                           NOISE_CORRECTION_TOLERANCE))
     self._assertReportsAlmostEqual(expected, corrected, corrected.to_array())
 
   def test_allows_incorrect_time_series(self):
@@ -1868,6 +2121,11 @@ class TestReport(unittest.TestCase):
     self.assertLess(
         report_post_processor_result.status.primal_inequality_residual,
         NOISE_CORRECTION_TOLERANCE)
+    self.assertTrue(
+        are_overlap_constraints_consistent(report, NOISE_CORRECTION_TOLERANCE))
+    self.assertTrue(
+        are_overlap_constraints_consistent(corrected,
+                                           NOISE_CORRECTION_TOLERANCE))
     self._assertReportsAlmostEqual(expected, corrected, corrected.to_array())
 
   def test_can_correct_related_metrics(self):
@@ -1947,6 +2205,11 @@ class TestReport(unittest.TestCase):
     self.assertLess(
         report_post_processor_result.status.primal_inequality_residual,
         NOISE_CORRECTION_TOLERANCE)
+    self.assertTrue(
+        are_overlap_constraints_consistent(report, NOISE_CORRECTION_TOLERANCE))
+    self.assertTrue(
+        are_overlap_constraints_consistent(corrected,
+                                           NOISE_CORRECTION_TOLERANCE))
     self._assertReportsAlmostEqual(expected, corrected, corrected.to_array())
 
   def test_correct_report_with_one_consistent_zero_variance_edp_return_consistent_status(
@@ -2031,6 +2294,11 @@ class TestReport(unittest.TestCase):
         .IndependenceCheckStatus
         .INDEPENDENCE_CHECK_STATUS_UNSPECIFIED
     )
+    self.assertTrue(
+        are_overlap_constraints_consistent(report, NOISE_CORRECTION_TOLERANCE))
+    self.assertTrue(
+        are_overlap_constraints_consistent(corrected,
+                                           NOISE_CORRECTION_TOLERANCE))
     self._assertReportsAlmostEqual(report, corrected, corrected.to_array())
 
   def test_correct_report_with_many_consistent_zero_variance_edp_edps_return_consistent_status(
@@ -2116,6 +2384,11 @@ class TestReport(unittest.TestCase):
         report_post_processor_result.post_correction_quality.union_status,
         ReportQuality.IndependenceCheckStatus.OUTSIDE_CONFIDENCE_RANGE
     )
+    self.assertTrue(
+        are_overlap_constraints_consistent(report, NOISE_CORRECTION_TOLERANCE))
+    self.assertTrue(
+        are_overlap_constraints_consistent(corrected,
+                                           NOISE_CORRECTION_TOLERANCE))
 
   def test_correct_report_with_not_consistent_zero_variance_edp_return_not_consistent_status(
       self):
@@ -2288,6 +2561,11 @@ class TestReport(unittest.TestCase):
         report_post_processor_result.post_correction_quality.union_status,
         ReportQuality.IndependenceCheckStatus.WITHIN_CONFIDENCE_RANGE
     )
+    self.assertTrue(
+        are_overlap_constraints_consistent(report, NOISE_CORRECTION_TOLERANCE))
+    self.assertTrue(
+        are_overlap_constraints_consistent(corrected,
+                                           NOISE_CORRECTION_TOLERANCE))
 
   def test_correct_report_with_invalid_union_statistics(self):
     # The union differences are around 47000, and fall outside the confidence
@@ -2370,6 +2648,11 @@ class TestReport(unittest.TestCase):
         report_post_processor_result.post_correction_quality.union_status,
         ReportQuality.IndependenceCheckStatus.OUTSIDE_CONFIDENCE_RANGE
     )
+    self.assertTrue(
+        are_overlap_constraints_consistent(report, NOISE_CORRECTION_TOLERANCE))
+    self.assertTrue(
+        are_overlap_constraints_consistent(corrected,
+                                           NOISE_CORRECTION_TOLERANCE))
 
   def test_get_corrected_report_multiple_filter_single_edp(self):
     report = Report(
@@ -2536,6 +2819,11 @@ class TestReport(unittest.TestCase):
     self.assertLess(
         report_post_processor_result.status.primal_inequality_residual,
         NOISE_CORRECTION_TOLERANCE)
+    self.assertTrue(
+        are_overlap_constraints_consistent(report, NOISE_CORRECTION_TOLERANCE))
+    self.assertTrue(
+        are_overlap_constraints_consistent(corrected,
+                                           NOISE_CORRECTION_TOLERANCE))
     self._assertReportsAlmostEqual(expected, corrected, corrected.to_array())
 
   def test_get_corrected_report_single_metric_multiple_edps(self):
@@ -2652,6 +2940,11 @@ class TestReport(unittest.TestCase):
     self.assertLess(
         report_post_processor_result.status.primal_inequality_residual,
         NOISE_CORRECTION_TOLERANCE)
+    self.assertTrue(
+        are_overlap_constraints_consistent(report, NOISE_CORRECTION_TOLERANCE))
+    self.assertTrue(
+        are_overlap_constraints_consistent(corrected,
+                                           NOISE_CORRECTION_TOLERANCE))
     self._assertReportsAlmostEqual(expected, corrected, corrected.to_array())
 
   def test_get_corrected_reach_only_report_single_metric_multiple_edps(self):
@@ -2741,6 +3034,11 @@ class TestReport(unittest.TestCase):
     self.assertLess(
         report_post_processor_result.status.primal_inequality_residual,
         NOISE_CORRECTION_TOLERANCE)
+    self.assertTrue(
+        are_overlap_constraints_consistent(report, NOISE_CORRECTION_TOLERANCE))
+    self.assertTrue(
+        are_overlap_constraints_consistent(corrected,
+                                           NOISE_CORRECTION_TOLERANCE))
     self._assertReportsAlmostEqual(expected, corrected, corrected.to_array())
 
   def test_get_corrected_report_when_cumulative_reaches_are_consistent(self):
@@ -2907,6 +3205,11 @@ class TestReport(unittest.TestCase):
     self.assertLess(
         report_post_processor_result.status.primal_inequality_residual,
         NOISE_CORRECTION_TOLERANCE)
+    self.assertTrue(
+        are_overlap_constraints_consistent(report, NOISE_CORRECTION_TOLERANCE))
+    self.assertTrue(
+        are_overlap_constraints_consistent(corrected,
+                                           NOISE_CORRECTION_TOLERANCE))
     self._assertReportsAlmostEqual(expected, corrected, corrected.to_array())
 
   def test_get_corrected_report_without_cumulative_reaches(self):
@@ -3184,7 +3487,6 @@ class TestReport(unittest.TestCase):
           actual.get_metric_report(metric),
           msg,
       )
-
 
 if __name__ == "__main__":
   unittest.main()
