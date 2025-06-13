@@ -21,6 +21,7 @@ from qpsolvers import Problem
 from qpsolvers import Solution
 from qpsolvers import solve_problem
 
+from noiseninja.noised_measurements import OrderedSets
 from noiseninja.noised_measurements import SetMeasurementsSpec
 from src.main.proto.wfa.measurement.reporting.postprocessing.v2alpha import \
   report_post_processor_result_pb2
@@ -151,15 +152,16 @@ class Solver:
       variable_index_by_set_id: dict[int, int]):
     logging.infor("Adding ordered sets constraints.")
     for ordered_pair in set_measurement_spec.get_ordered_sets():
-      if len(ordered_pair) != 2:
-        raise ValueError("The order pair list must have exactly two sub-lists.")
-      if len(ordered_pair[0]) == 0 or len(ordered_pair[1]) == 0:
-        raise ValueError("The sub-lists must not be empty.")
+      if len(ordered_pair.larger_set) == 0 or len(ordered_pair.smaller_set) == 0:
+        raise ValueError("The sub-sets must not be empty.")
+
+      if len(ordered_pair.larger_set) != len(ordered_pair.smaller_set):
+        raise ValueError("The sub-sets must have the same length.")
 
       variables = np.zeros(self.num_variables)
-      for id in ordered_pair[0]:
+      for id in ordered_pair.larger_set:
         variables[variable_index_by_set_id[id]] = -1
-      for id in ordered_pair[1]:
+      for id in ordered_pair.smaller_set:
         variables[variable_index_by_set_id[id]] = 1
       self._add_gt_term(variables)
 

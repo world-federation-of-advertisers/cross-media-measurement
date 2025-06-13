@@ -15,6 +15,7 @@
 import unittest
 
 from noiseninja.noised_measurements import Measurement
+from noiseninja.noised_measurements import OrderedSets
 from noiseninja.noised_measurements import SetMeasurementsSpec
 
 from report.report import MetricReport
@@ -22,6 +23,7 @@ from report.report import Report
 from report.report import get_covers
 from report.report import is_cover
 from report.report import is_union_reach_consistent
+from report.testing.validate_report import are_overlap_constraints_consistent
 
 from src.main.proto.wfa.measurement.reporting.postprocessing.v2alpha import \
   report_post_processor_result_pb2
@@ -214,6 +216,14 @@ def get_sorted_list(lst):
     else:
       sorted_list.append(item)
   return sorted(sorted_list)
+
+
+def ordered_sets_to_sorted_list(ordered_sets: list[OrderedSets]):
+  ordered_sets_list = []
+  for ordered_pair in ordered_sets:
+    ordered_sets_list.append(
+        [ordered_pair.larger_set, ordered_pair.smaller_set])
+  return get_sorted_list(ordered_sets_list)
 
 
 class TestReport(unittest.TestCase):
@@ -884,6 +894,67 @@ class TestReport(unittest.TestCase):
       self.assertEqual(sorted(expected_subsets_by_set[key]),
                        sorted(spec._subsets_by_set[key]))
 
+  def test_add_overlap_relationships(self):
+    report = SAMPLE_REPORT
+    name_to_index = report._measurement_name_to_index
+    expected_ordered_sets = [
+        [
+            [
+                name_to_index["measurement_08"],
+                name_to_index["measurement_01"],
+                name_to_index["measurement_03"],
+                name_to_index["measurement_05"]
+            ],
+            [
+                name_to_index["measurement_07"],
+                name_to_index["measurement_02"],
+                name_to_index["measurement_04"],
+                name_to_index["measurement_06"]
+            ]
+        ],
+        [
+            [
+                name_to_index["measurement_34"],
+                name_to_index["measurement_27"],
+                name_to_index["measurement_29"],
+                name_to_index["measurement_31"]
+            ],
+            [
+                name_to_index["measurement_33"],
+                name_to_index["measurement_28"],
+                name_to_index["measurement_30"],
+                name_to_index["measurement_32"]
+            ]
+        ],
+        [
+            [
+                name_to_index["measurement_58"],
+                name_to_index["measurement_51"],
+                name_to_index["measurement_53"],
+                name_to_index["measurement_55"]
+            ],
+            [
+                name_to_index["measurement_57"],
+                name_to_index["measurement_52"],
+                name_to_index["measurement_54"],
+                name_to_index["measurement_56"]
+            ]
+        ]
+    ]
+
+    spec = SetMeasurementsSpec()
+    report._add_overlap_relations_to_spec(spec)
+
+    self.assertEqual(len(spec._covers_by_set), 0)
+    self.assertEqual(len(spec._equal_sets), 0)
+    self.assertEqual(len(spec._weighted_sum_upperbound_sets), 0)
+    self.assertEqual(len(spec._subsets_by_set), 0)
+    self.assertEqual(len(expected_ordered_sets), len(spec._ordered_sets))
+    self.assertEqual(
+        get_sorted_list(expected_ordered_sets),
+        ordered_sets_to_sorted_list(spec._ordered_sets)
+    )
+
   def test_add_metric_relationships(self):
     report = SAMPLE_REPORT
     name_to_index = report._measurement_name_to_index
@@ -925,7 +996,6 @@ class TestReport(unittest.TestCase):
 
     expected_ordered_sets = [
         [
-
             [
                 name_to_index["measurement_33"],
                 name_to_index["measurement_01"],
@@ -1011,7 +1081,7 @@ class TestReport(unittest.TestCase):
     self.assertEqual(len(expected_ordered_sets), len(spec._ordered_sets))
     self.assertEqual(
         get_sorted_list(expected_ordered_sets),
-        get_sorted_list(spec._ordered_sets)
+        ordered_sets_to_sorted_list(spec._ordered_sets)
     )
 
   def test_add_cumulative_whole_campaign_relationships(self):
@@ -1490,10 +1560,10 @@ class TestReport(unittest.TestCase):
         report_post_processor_result.status.primal_inequality_residual,
         NOISE_CORRECTION_TOLERANCE)
     self.assertTrue(
-        report._are_overlap_constraints_consistent(NOISE_CORRECTION_TOLERANCE))
+        are_overlap_constraints_consistent(report, NOISE_CORRECTION_TOLERANCE))
     self.assertTrue(
-        expected._are_overlap_constraints_consistent(
-            NOISE_CORRECTION_TOLERANCE))
+        are_overlap_constraints_consistent(corrected,
+                                           NOISE_CORRECTION_TOLERANCE))
     self._assertReportsAlmostEqual(expected, corrected, corrected.to_array())
 
   def test_can_correct_overlap_constraints(self):
@@ -1563,10 +1633,10 @@ class TestReport(unittest.TestCase):
 
     corrected, _ = report.get_corrected_report()
     self.assertFalse(
-        report._are_overlap_constraints_consistent(NOISE_CORRECTION_TOLERANCE))
+        are_overlap_constraints_consistent(report, NOISE_CORRECTION_TOLERANCE))
     self.assertTrue(
-        corrected._are_overlap_constraints_consistent(
-            NOISE_CORRECTION_TOLERANCE))
+        are_overlap_constraints_consistent(corrected,
+                                           NOISE_CORRECTION_TOLERANCE))
 
   def test_can_correct_time_series_for_three_edps(self):
     report = Report(
@@ -1695,10 +1765,10 @@ class TestReport(unittest.TestCase):
         report_post_processor_result.status.primal_inequality_residual,
         NOISE_CORRECTION_TOLERANCE)
     self.assertFalse(
-        report._are_overlap_constraints_consistent(NOISE_CORRECTION_TOLERANCE))
+        are_overlap_constraints_consistent(report, NOISE_CORRECTION_TOLERANCE))
     self.assertTrue(
-        expected._are_overlap_constraints_consistent(
-            NOISE_CORRECTION_TOLERANCE))
+        are_overlap_constraints_consistent(corrected,
+                                           NOISE_CORRECTION_TOLERANCE))
     self._assertReportsAlmostEqual(expected, corrected, corrected.to_array())
 
   def test_correct_report_with_both_time_series_and_whole_campaign_measurements_three_edps(
@@ -1855,10 +1925,10 @@ class TestReport(unittest.TestCase):
         report_post_processor_result.status.primal_inequality_residual,
         NOISE_CORRECTION_TOLERANCE)
     self.assertFalse(
-        report._are_overlap_constraints_consistent(NOISE_CORRECTION_TOLERANCE))
+        are_overlap_constraints_consistent(report, NOISE_CORRECTION_TOLERANCE))
     self.assertTrue(
-        expected._are_overlap_constraints_consistent(
-            NOISE_CORRECTION_TOLERANCE))
+        are_overlap_constraints_consistent(corrected,
+                                           NOISE_CORRECTION_TOLERANCE))
     self._assertReportsAlmostEqual(expected, corrected, corrected.to_array())
 
   def test_correct_report_with_whole_campaign_has_more_edp_combinations(self):
@@ -1979,10 +2049,10 @@ class TestReport(unittest.TestCase):
         report_post_processor_result.status.primal_inequality_residual,
         NOISE_CORRECTION_TOLERANCE)
     self.assertTrue(
-        report._are_overlap_constraints_consistent(NOISE_CORRECTION_TOLERANCE))
+        are_overlap_constraints_consistent(report, NOISE_CORRECTION_TOLERANCE))
     self.assertTrue(
-        expected._are_overlap_constraints_consistent(
-            NOISE_CORRECTION_TOLERANCE))
+        are_overlap_constraints_consistent(corrected,
+                                           NOISE_CORRECTION_TOLERANCE))
     self._assertReportsAlmostEqual(expected, corrected, corrected.to_array())
 
   def test_allows_incorrect_time_series(self):
@@ -2052,10 +2122,10 @@ class TestReport(unittest.TestCase):
         report_post_processor_result.status.primal_inequality_residual,
         NOISE_CORRECTION_TOLERANCE)
     self.assertTrue(
-        report._are_overlap_constraints_consistent(NOISE_CORRECTION_TOLERANCE))
+        are_overlap_constraints_consistent(report, NOISE_CORRECTION_TOLERANCE))
     self.assertTrue(
-        expected._are_overlap_constraints_consistent(
-            NOISE_CORRECTION_TOLERANCE))
+        are_overlap_constraints_consistent(corrected,
+                                           NOISE_CORRECTION_TOLERANCE))
     self._assertReportsAlmostEqual(expected, corrected, corrected.to_array())
 
   def test_can_correct_related_metrics(self):
@@ -2136,10 +2206,10 @@ class TestReport(unittest.TestCase):
         report_post_processor_result.status.primal_inequality_residual,
         NOISE_CORRECTION_TOLERANCE)
     self.assertTrue(
-        report._are_overlap_constraints_consistent(NOISE_CORRECTION_TOLERANCE))
+        are_overlap_constraints_consistent(report, NOISE_CORRECTION_TOLERANCE))
     self.assertTrue(
-        corrected._are_overlap_constraints_consistent(
-            NOISE_CORRECTION_TOLERANCE))
+        are_overlap_constraints_consistent(corrected,
+                                           NOISE_CORRECTION_TOLERANCE))
     self._assertReportsAlmostEqual(expected, corrected, corrected.to_array())
 
   def test_correct_report_with_one_consistent_zero_variance_edp_return_consistent_status(
@@ -2225,10 +2295,10 @@ class TestReport(unittest.TestCase):
         .INDEPENDENCE_CHECK_STATUS_UNSPECIFIED
     )
     self.assertTrue(
-        report._are_overlap_constraints_consistent(NOISE_CORRECTION_TOLERANCE))
+        are_overlap_constraints_consistent(report, NOISE_CORRECTION_TOLERANCE))
     self.assertTrue(
-        corrected._are_overlap_constraints_consistent(
-            NOISE_CORRECTION_TOLERANCE))
+        are_overlap_constraints_consistent(corrected,
+                                           NOISE_CORRECTION_TOLERANCE))
     self._assertReportsAlmostEqual(report, corrected, corrected.to_array())
 
   def test_correct_report_with_many_consistent_zero_variance_edp_edps_return_consistent_status(
@@ -2315,10 +2385,10 @@ class TestReport(unittest.TestCase):
         ReportQuality.IndependenceCheckStatus.OUTSIDE_CONFIDENCE_RANGE
     )
     self.assertTrue(
-        report._are_overlap_constraints_consistent(NOISE_CORRECTION_TOLERANCE))
+        are_overlap_constraints_consistent(report, NOISE_CORRECTION_TOLERANCE))
     self.assertTrue(
-        corrected._are_overlap_constraints_consistent(
-            NOISE_CORRECTION_TOLERANCE))
+        are_overlap_constraints_consistent(corrected,
+                                           NOISE_CORRECTION_TOLERANCE))
 
   def test_correct_report_with_not_consistent_zero_variance_edp_return_not_consistent_status(
       self):
@@ -2492,10 +2562,10 @@ class TestReport(unittest.TestCase):
         ReportQuality.IndependenceCheckStatus.WITHIN_CONFIDENCE_RANGE
     )
     self.assertTrue(
-        report._are_overlap_constraints_consistent(NOISE_CORRECTION_TOLERANCE))
+        are_overlap_constraints_consistent(report, NOISE_CORRECTION_TOLERANCE))
     self.assertTrue(
-        corrected._are_overlap_constraints_consistent(
-            NOISE_CORRECTION_TOLERANCE))
+        are_overlap_constraints_consistent(corrected,
+                                           NOISE_CORRECTION_TOLERANCE))
 
   def test_correct_report_with_invalid_union_statistics(self):
     # The union differences are around 47000, and fall outside the confidence
@@ -2579,10 +2649,10 @@ class TestReport(unittest.TestCase):
         ReportQuality.IndependenceCheckStatus.OUTSIDE_CONFIDENCE_RANGE
     )
     self.assertTrue(
-        report._are_overlap_constraints_consistent(NOISE_CORRECTION_TOLERANCE))
+        are_overlap_constraints_consistent(report, NOISE_CORRECTION_TOLERANCE))
     self.assertTrue(
-        corrected._are_overlap_constraints_consistent(
-            NOISE_CORRECTION_TOLERANCE))
+        are_overlap_constraints_consistent(corrected,
+                                           NOISE_CORRECTION_TOLERANCE))
 
   def test_get_corrected_report_multiple_filter_single_edp(self):
     report = Report(
@@ -2750,10 +2820,10 @@ class TestReport(unittest.TestCase):
         report_post_processor_result.status.primal_inequality_residual,
         NOISE_CORRECTION_TOLERANCE)
     self.assertTrue(
-        report._are_overlap_constraints_consistent(NOISE_CORRECTION_TOLERANCE))
+        are_overlap_constraints_consistent(report, NOISE_CORRECTION_TOLERANCE))
     self.assertTrue(
-        corrected._are_overlap_constraints_consistent(
-            NOISE_CORRECTION_TOLERANCE))
+        are_overlap_constraints_consistent(corrected,
+                                           NOISE_CORRECTION_TOLERANCE))
     self._assertReportsAlmostEqual(expected, corrected, corrected.to_array())
 
   def test_get_corrected_report_single_metric_multiple_edps(self):
@@ -2871,10 +2941,10 @@ class TestReport(unittest.TestCase):
         report_post_processor_result.status.primal_inequality_residual,
         NOISE_CORRECTION_TOLERANCE)
     self.assertTrue(
-        report._are_overlap_constraints_consistent(NOISE_CORRECTION_TOLERANCE))
+        are_overlap_constraints_consistent(report, NOISE_CORRECTION_TOLERANCE))
     self.assertTrue(
-        corrected._are_overlap_constraints_consistent(
-            NOISE_CORRECTION_TOLERANCE))
+        are_overlap_constraints_consistent(corrected,
+                                           NOISE_CORRECTION_TOLERANCE))
     self._assertReportsAlmostEqual(expected, corrected, corrected.to_array())
 
   def test_get_corrected_reach_only_report_single_metric_multiple_edps(self):
@@ -2965,10 +3035,10 @@ class TestReport(unittest.TestCase):
         report_post_processor_result.status.primal_inequality_residual,
         NOISE_CORRECTION_TOLERANCE)
     self.assertTrue(
-        report._are_overlap_constraints_consistent(NOISE_CORRECTION_TOLERANCE))
+        are_overlap_constraints_consistent(report, NOISE_CORRECTION_TOLERANCE))
     self.assertTrue(
-        corrected._are_overlap_constraints_consistent(
-            NOISE_CORRECTION_TOLERANCE))
+        are_overlap_constraints_consistent(corrected,
+                                           NOISE_CORRECTION_TOLERANCE))
     self._assertReportsAlmostEqual(expected, corrected, corrected.to_array())
 
   def test_get_corrected_report_when_cumulative_reaches_are_consistent(self):
@@ -3136,10 +3206,10 @@ class TestReport(unittest.TestCase):
         report_post_processor_result.status.primal_inequality_residual,
         NOISE_CORRECTION_TOLERANCE)
     self.assertTrue(
-        report._are_overlap_constraints_consistent(NOISE_CORRECTION_TOLERANCE))
+        are_overlap_constraints_consistent(report, NOISE_CORRECTION_TOLERANCE))
     self.assertTrue(
-        corrected._are_overlap_constraints_consistent(
-            NOISE_CORRECTION_TOLERANCE))
+        are_overlap_constraints_consistent(corrected,
+                                           NOISE_CORRECTION_TOLERANCE))
     self._assertReportsAlmostEqual(expected, corrected, corrected.to_array())
 
   def _assertMeasurementAlmostEquals(

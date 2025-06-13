@@ -31,6 +31,23 @@ class Measurement:
                                                       self.name)
 
 
+class OrderedSets:
+  """Represents an ordered pair of sets.
+
+    The sum of the measurements in larger set is greater or equal to that of
+    the smaller set
+  """
+  larger_set: set[int]
+  smaller_set: set[int]
+
+  def __init__(self, larger_set: set[int], smaller_set: set[int]):
+    self.larger_set = larger_set
+    self.smaller_set = smaller_set
+
+  def __repr__(self):
+    return f'Larger and smaller sets: {self.larger_set} {self.smaller_set}'
+
+
 class SetMeasurementsSpec:
   """Stores information about relationships between sets and measurements.
 
@@ -68,9 +85,8 @@ class SetMeasurementsSpec:
   def add_subset_relation(self, parent_set_id: int, child_set_id: int):
     self._subsets_by_set[parent_set_id].append(child_set_id)
 
-  def add_ordered_sets_relation(self, greater_set: list[int],
-      smaller_set: list[int]):
-    self._ordered_sets.append([greater_set, smaller_set])
+  def add_ordered_sets_relation(self, ordered_set: OrderedSets):
+    self._ordered_sets.append(ordered_set)
 
   def add_cover(self, parent: int, children: list[int]):
     self._covers_by_set[parent].append(children)
