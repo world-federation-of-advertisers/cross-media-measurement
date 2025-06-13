@@ -17,9 +17,11 @@ package org.wfanet.measurement.kingdom.deploy.common.server
 import com.google.protobuf.DescriptorProtos
 import com.google.protobuf.Descriptors
 import java.io.File
+import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.runInterruptible
 import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.grpc.CommonServer
+import org.wfanet.measurement.common.grpc.ServiceFlags
 import org.wfanet.measurement.common.identity.DuchyInfo
 import org.wfanet.measurement.common.identity.DuchyInfoFlags
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
@@ -36,6 +38,8 @@ import picocli.CommandLine
 
 abstract class KingdomDataServer : Runnable {
   @CommandLine.Mixin private lateinit var serverFlags: CommonServer.Flags
+
+  @CommandLine.Mixin private lateinit var serviceFlags: ServiceFlags
 
   @CommandLine.Mixin private lateinit var duchyInfoFlags: DuchyInfoFlags
 
@@ -76,7 +80,8 @@ abstract class KingdomDataServer : Runnable {
     RoLlv2ProtocolConfig.initializeFromFlags(roLlv2ProtocolConfigFlags)
     HmssProtocolConfig.initializeFromFlags(hmssProtocolConfigFlags)
 
-    val services = dataServices.buildDataServices().toList()
+    val services =
+      dataServices.buildDataServices(serviceFlags.executor.asCoroutineDispatcher()).toList()
     val server = CommonServer.fromFlags(serverFlags, this::class.simpleName!!, services)
 
     runInterruptible { server.start().blockUntilShutdown() }

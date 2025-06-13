@@ -974,6 +974,7 @@ class EventGroupsServiceTest {
           filter =
             StreamEventGroupsRequestKt.filter { externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID }
           limit = request.pageSize + 1
+          allowStaleReads = true
         }
       )
   }
@@ -1019,6 +1020,7 @@ class EventGroupsServiceTest {
               descending = true
             }
           limit = request.pageSize + 1
+          allowStaleReads = true
         }
       )
   }
@@ -1066,6 +1068,7 @@ class EventGroupsServiceTest {
               metadataSearchQuery = request.filter.metadataSearchQuery
             }
           limit = request.pageSize + 1
+          allowStaleReads = true
         }
       )
     val nextPageToken = ListEventGroupsPageToken.parseFrom(response.nextPageToken.base64UrlDecode())
@@ -1150,6 +1153,7 @@ class EventGroupsServiceTest {
               // available for at least one release.
               eventGroupKeyAfter = after.eventGroupKey
             }
+          allowStaleReads = true
         }
       )
 

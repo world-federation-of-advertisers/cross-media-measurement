@@ -15,6 +15,8 @@
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 
 import io.grpc.Status
+import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.EmptyCoroutineContext
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
@@ -43,7 +45,8 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.SetParticipa
 class SpannerComputationParticipantsService(
   private val idGenerator: IdGenerator,
   private val client: AsyncDatabaseClient,
-) : ComputationParticipantsCoroutineImplBase() {
+  coroutineContext: CoroutineContext = EmptyCoroutineContext,
+) : ComputationParticipantsCoroutineImplBase(coroutineContext) {
   override suspend fun getComputationParticipant(
     request: GetComputationParticipantRequest
   ): ComputationParticipant {

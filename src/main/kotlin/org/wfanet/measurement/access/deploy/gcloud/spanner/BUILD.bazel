@@ -83,6 +83,7 @@ kt_jvm_library(
         ":internal_api_services",
         "//src/main/kotlin/org/wfanet/measurement/access/common:tls_client_principal_mapping",
         "//src/main/kotlin/org/wfanet/measurement/access/service/internal:permission_mapping",
+        "//src/main/kotlin/org/wfanet/measurement/common/grpc:service_flags",
         "@wfa_common_jvm//imports/java/picocli",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",

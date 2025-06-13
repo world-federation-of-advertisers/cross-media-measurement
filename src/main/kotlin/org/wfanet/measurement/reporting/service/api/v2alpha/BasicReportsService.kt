@@ -20,6 +20,8 @@ import com.google.longrunning.Operation
 import com.google.protobuf.InvalidProtocolBufferException
 import io.grpc.Status
 import io.grpc.StatusException
+import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.EmptyCoroutineContext
 import org.wfanet.measurement.access.client.v1alpha.Authorization
 import org.wfanet.measurement.access.client.v1alpha.check
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
@@ -50,7 +52,8 @@ import org.wfanet.measurement.reporting.v2alpha.listBasicReportsResponse
 class BasicReportsService(
   private val internalBasicReportsStub: BasicReportsCoroutineStub,
   private val authorization: Authorization,
-) : BasicReportsCoroutineImplBase() {
+  coroutineContext: CoroutineContext = EmptyCoroutineContext,
+) : BasicReportsCoroutineImplBase(coroutineContext) {
 
   override suspend fun createBasicReport(request: CreateBasicReportRequest): Operation {
     // TODO(@tristanvuong2021): Will be implemented for phase 2

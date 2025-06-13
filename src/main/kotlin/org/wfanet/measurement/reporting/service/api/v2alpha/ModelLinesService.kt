@@ -19,6 +19,8 @@ package org.wfanet.measurement.reporting.service.api.v2alpha
 import com.google.protobuf.util.Timestamps
 import io.grpc.Status
 import io.grpc.StatusException
+import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.EmptyCoroutineContext
 import org.wfanet.measurement.access.client.v1alpha.Authorization
 import org.wfanet.measurement.access.client.v1alpha.check
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
@@ -34,7 +36,8 @@ class ModelLinesService(
   private val kingdomModelLinesStub: ModelLinesCoroutineStub,
   private val authorization: Authorization,
   private val apiAuthenticationKey: String,
-) : ModelLinesGrpcKt.ModelLinesCoroutineImplBase() {
+  coroutineContext: CoroutineContext = EmptyCoroutineContext,
+) : ModelLinesGrpcKt.ModelLinesCoroutineImplBase(coroutineContext) {
   override suspend fun enumerateValidModelLines(
     request: EnumerateValidModelLinesRequest
   ): EnumerateValidModelLinesResponse {

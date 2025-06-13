@@ -69,7 +69,6 @@ import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.apiIdToExternalId
-import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.testing.captureFirst
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.common.toProtoTime
@@ -1111,7 +1110,7 @@ class ModelLinesServiceTest {
                 modelLine =
                   MODEL_LINE.copy {
                     type = Type.DEV
-                    holdbackModelLine = externalIdToApiId(EXTERNAL_MODEL_LINE_ID_2)
+                    holdbackModelLine = MODEL_LINE_NAME_2
                   }
               }
             )

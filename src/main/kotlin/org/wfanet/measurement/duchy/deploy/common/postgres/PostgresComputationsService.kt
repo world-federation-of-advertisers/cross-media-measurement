@@ -20,6 +20,8 @@ import java.time.Clock
 import java.time.Duration
 import java.util.logging.Level
 import java.util.logging.Logger
+import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.EmptyCoroutineContext
 import org.wfanet.measurement.common.db.r2dbc.DatabaseClient
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
@@ -121,9 +123,10 @@ class PostgresComputationsService(
   private val computationStore: ComputationStore,
   private val requisitionStore: RequisitionStore,
   private val computationLogEntriesClient: ComputationLogEntriesCoroutineStub,
+  coroutineContext: CoroutineContext = EmptyCoroutineContext,
   private val clock: Clock = Clock.systemUTC(),
   private val defaultLockDuration: Duration = Duration.ofMinutes(5),
-) : ComputationsCoroutineImplBase() {
+) : ComputationsCoroutineImplBase(coroutineContext) {
 
   private val computationReader = ComputationReader(protocolStagesEnumHelper)
   private val computationBlobReferenceReader = ComputationBlobReferenceReader()

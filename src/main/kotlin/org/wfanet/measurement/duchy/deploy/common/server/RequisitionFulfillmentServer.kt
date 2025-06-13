@@ -15,10 +15,12 @@
 package org.wfanet.measurement.duchy.deploy.common.server
 
 import java.io.File
+import kotlinx.coroutines.asCoroutineDispatcher
 import org.wfanet.measurement.api.v2alpha.AkidPrincipalLookup
 import org.wfanet.measurement.api.v2alpha.withPrincipalsFromX509AuthorityKeyIdentifiers
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.grpc.CommonServer
+import org.wfanet.measurement.common.grpc.ServiceFlags
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withDefaultDeadline
 import org.wfanet.measurement.common.identity.withDuchyId
@@ -70,6 +72,7 @@ abstract class RequisitionFulfillmentServer : Runnable {
           systemRequisitionsClient,
           computationsClient,
           RequisitionStore(storageClient),
+          flags.service.executor.asCoroutineDispatcher(),
         )
         .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup)
 
@@ -79,6 +82,10 @@ abstract class RequisitionFulfillmentServer : Runnable {
   protected class Flags {
     @CommandLine.Mixin
     lateinit var duchy: CommonDuchyFlags
+      private set
+
+    @CommandLine.Mixin
+    lateinit var service: ServiceFlags
       private set
 
     @CommandLine.Mixin

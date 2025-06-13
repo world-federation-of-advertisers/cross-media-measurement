@@ -16,6 +16,8 @@ package org.wfanet.measurement.kingdom.deploy.common.service
 
 import com.google.protobuf.Descriptors
 import io.grpc.BindableService
+import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.EmptyCoroutineContext
 import kotlin.reflect.full.declaredMemberProperties
 import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt.AccountsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ApiKeysGrpcKt
@@ -43,8 +45,14 @@ import org.wfanet.measurement.internal.kingdom.RecurringExchangesGrpcKt.Recurrin
 import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCoroutineImplBase
 
 interface DataServices {
-  /** Builds a list of all the Kingdom's internal data-layer services. */
-  fun buildDataServices(): KingdomDataServices
+  /**
+   * Builds a list of all the Kingdom's internal data-layer services.
+   *
+   * @param coroutineContext Context for all service implementations
+   */
+  fun buildDataServices(
+    coroutineContext: CoroutineContext = EmptyCoroutineContext
+  ): KingdomDataServices
 
   /**
    * Known types for EventGroup metadata.

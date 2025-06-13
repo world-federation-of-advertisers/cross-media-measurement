@@ -14,7 +14,12 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 
+import com.google.cloud.spanner.TimestampBound
 import io.grpc.Status
+import java.time.Duration
+import java.util.concurrent.TimeUnit
+import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.EmptyCoroutineContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.common.grpc.grpcRequire
@@ -28,7 +33,6 @@ import org.wfanet.measurement.internal.kingdom.EventGroupsGrpcKt.EventGroupsCoro
 import org.wfanet.measurement.internal.kingdom.GetEventGroupRequest
 import org.wfanet.measurement.internal.kingdom.StreamEventGroupsRequest
 import org.wfanet.measurement.internal.kingdom.UpdateEventGroupRequest
-import org.wfanet.measurement.internal.kingdom.eventGroup
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.CertificateIsInvalidException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.EventGroupInvalidArgsException
@@ -47,7 +51,11 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.UpdateEventG
 class SpannerEventGroupsService(
   private val idGenerator: IdGenerator,
   private val client: AsyncDatabaseClient,
-) : EventGroupsCoroutineImplBase() {
+  maxReadStaleness: Duration,
+  coroutineContext: CoroutineContext = EmptyCoroutineContext,
+) : EventGroupsCoroutineImplBase(coroutineContext) {
+  private val staleReadTimestampBound =
+    TimestampBound.ofMaxStaleness(maxReadStaleness.toMillis(), TimeUnit.MILLISECONDS)
 
   override suspend fun createEventGroup(request: CreateEventGroupRequest): EventGroup {
     try {
@@ -173,8 +181,14 @@ class SpannerEventGroupsService(
   }
 
   override fun streamEventGroups(request: StreamEventGroupsRequest): Flow<EventGroup> {
+    val timestampBound =
+      if (request.allowStaleReads) {
+        staleReadTimestampBound
+      } else {
+        TimestampBound.strong()
+      }
     return StreamEventGroups(request.filter, request.orderBy, request.limit)
-      .execute(client.singleUse())
+      .execute(client.singleUse(timestampBound))
       .map { it.eventGroup }
   }
 }

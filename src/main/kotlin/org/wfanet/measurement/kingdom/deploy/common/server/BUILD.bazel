@@ -7,6 +7,7 @@ kt_jvm_library(
     srcs = ["KingdomDataServer.kt"],
     visibility = ["//src/main/kotlin/org/wfanet/measurement/kingdom/deploy:__subpackages__"],
     deps = [
+        "//src/main/kotlin/org/wfanet/measurement/common/grpc:service_flags",
         "//src/main/kotlin/org/wfanet/measurement/common/identity",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common:duchy_ids",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common:hmss_protocol_config",
@@ -46,6 +47,7 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:akid_principal_lookup",
         "//src/main/kotlin/org/wfanet/measurement/common/grpc:interceptors",
         "//src/main/kotlin/org/wfanet/measurement/common/grpc:principal_rate_limiting_server_interceptor",
+        "//src/main/kotlin/org/wfanet/measurement/common/grpc:service_flags",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:accounts_service",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:api_key_authentication_server_interceptor",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:api_keys_service",
@@ -97,6 +99,7 @@ kt_jvm_library(
     runtime_deps = ["@wfa_common_jvm//imports/java/io/grpc/netty"],
     deps = [
         ":utils",
+        "//src/main/kotlin/org/wfanet/measurement/common/grpc:service_flags",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/service/system/v1alpha:computation_log_entries_service",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/service/system/v1alpha:computation_participants_service",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/service/system/v1alpha:computations_service",
