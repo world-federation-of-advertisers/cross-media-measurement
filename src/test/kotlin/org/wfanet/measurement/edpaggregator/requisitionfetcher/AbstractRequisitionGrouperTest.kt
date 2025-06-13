@@ -118,5 +118,4 @@ abstract class AbstractRequisitionGrouperTest {
     assertThat(groupedRequisitions).hasSize(0)
   }
 
-  companion object {}
 }
