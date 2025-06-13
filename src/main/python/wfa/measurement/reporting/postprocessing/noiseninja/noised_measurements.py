@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from collections import defaultdict
-
+from dataclasses import dataclass
 
 class Measurement:
   """Represents a measurement with a mean value and a standard deviation"""
@@ -30,7 +30,7 @@ class Measurement:
     return 'Measurement({:.2f}, {:.2f}, {})\n'.format(self.value, self.sigma,
                                                       self.name)
 
-
+@dataclass
 class OrderedSets:
   """Represents an ordered pair of sets.
 
@@ -39,13 +39,6 @@ class OrderedSets:
   """
   larger_set: set[int]
   smaller_set: set[int]
-
-  def __init__(self, larger_set: set[int], smaller_set: set[int]):
-    self.larger_set = larger_set
-    self.smaller_set = smaller_set
-
-  def __repr__(self):
-    return f'Larger and smaller sets: {self.larger_set} {self.smaller_set}'
 
 
 class SetMeasurementsSpec:
