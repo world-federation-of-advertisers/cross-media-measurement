@@ -465,7 +465,7 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
   }
 
   @Test
-  fun `model-lines create prints ModelLine`() = runBlocking {
+  fun `model-lines create prints ModelLine`() {
     val holdback = createModelLine(modelLineType = ModelLine.Type.HOLDBACK)
     val population = createPopulation()
 
@@ -501,7 +501,7 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
   }
 
   @Test
-  fun `model-lines set-active-end-time prints ModelLine`() = runBlocking {
+  fun `model-lines set-active-end-time prints ModelLine`() {
     val modelLine = createModelLine()
     val newEndTime = "2099-04-15T10:00:00Z"
     val args =
