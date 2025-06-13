@@ -63,7 +63,7 @@ class GcsSpannerComputationsServer : ComputationsServer() {
             ),
           computationIdGenerator = IdGenerator.Default,
         ),
-        SpannerContinuationTokensService(databaseClient),
+        SpannerContinuationTokensService(databaseClient, serviceDispatcher),
         storageClient,
       )
     }

@@ -25,9 +25,8 @@ import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.common.EnvVars
 import org.wfanet.measurement.common.crypto.SigningCerts
-import org.wfanet.measurement.common.getJarResourceFile
+import org.wfanet.measurement.common.edpaggregator.CloudFunctionConfig.getConfig
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
-import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.config.edpaggregator.RequisitionFetcherConfig
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionFetcher
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
@@ -36,6 +35,7 @@ import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 class RequisitionFetcherFunction : HttpFunction {
 
   override fun service(request: HttpRequest, response: HttpResponse) {
+
     for (dataProviderConfig in requisitionFetcherConfig.configsList) {
 
       val fileSystemPath = System.getenv("REQUISITION_FILE_SYSTEM_PATH")
@@ -94,14 +94,10 @@ class RequisitionFetcherFunction : HttpFunction {
         null
       }
     }
-    private val CLASS_LOADER: ClassLoader = Thread.currentThread().contextClassLoader
-    private val requisitionFetcherConfigResourcePath =
-      EnvVars.checkIsPath("REQUISITION_FETCHER_CONFIG_RESOURCE_PATH")
-    private val config by lazy {
-      checkNotNull(CLASS_LOADER.getJarResourceFile(requisitionFetcherConfigResourcePath))
-    }
-    private val requisitionFetcherConfig: RequisitionFetcherConfig by lazy {
-      runBlocking { parseTextProto(config, RequisitionFetcherConfig.getDefaultInstance()) }
+
+    private const val CONFIG_BLOB_KEY = "requisition-fetcher-config.textproto"
+    private val requisitionFetcherConfig by lazy {
+      runBlocking { getConfig(CONFIG_BLOB_KEY, RequisitionFetcherConfig.getDefaultInstance()) }
     }
   }
 }

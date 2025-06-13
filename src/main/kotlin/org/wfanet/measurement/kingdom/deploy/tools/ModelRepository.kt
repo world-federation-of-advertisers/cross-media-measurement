@@ -16,15 +16,28 @@
 
 package org.wfanet.measurement.kingdom.deploy.tools
 
+import com.google.protobuf.util.Timestamps
 import io.grpc.ManagedChannel
 import java.time.Duration
+import java.time.Instant
+import java.time.ZoneOffset
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.ListModelSuitesResponse
+import org.wfanet.measurement.api.v2alpha.ModelLine
+import org.wfanet.measurement.api.v2alpha.ModelLinesGrpc
+import org.wfanet.measurement.api.v2alpha.ModelLinesGrpc.ModelLinesBlockingStub
+import org.wfanet.measurement.api.v2alpha.ModelReleasesGrpc
+import org.wfanet.measurement.api.v2alpha.ModelReleasesGrpc.ModelReleasesBlockingStub
+import org.wfanet.measurement.api.v2alpha.ModelRolloutsGrpc
+import org.wfanet.measurement.api.v2alpha.ModelRolloutsGrpc.ModelRolloutsBlockingStub
 import org.wfanet.measurement.api.v2alpha.ModelSuitesGrpc
 import org.wfanet.measurement.api.v2alpha.ModelSuitesGrpc.ModelSuitesBlockingStub
 import org.wfanet.measurement.api.v2alpha.PopulationKt.populationBlob
 import org.wfanet.measurement.api.v2alpha.PopulationsGrpc
 import org.wfanet.measurement.api.v2alpha.PopulationsGrpc.PopulationsBlockingStub
+import org.wfanet.measurement.api.v2alpha.createModelLineRequest
+import org.wfanet.measurement.api.v2alpha.createModelReleaseRequest
+import org.wfanet.measurement.api.v2alpha.createModelRolloutRequest
 import org.wfanet.measurement.api.v2alpha.createModelSuiteRequest
 import org.wfanet.measurement.api.v2alpha.createPopulationRequest
 import org.wfanet.measurement.api.v2alpha.eventTemplate
@@ -32,12 +45,19 @@ import org.wfanet.measurement.api.v2alpha.getModelSuiteRequest
 import org.wfanet.measurement.api.v2alpha.getPopulationRequest
 import org.wfanet.measurement.api.v2alpha.listModelSuitesRequest
 import org.wfanet.measurement.api.v2alpha.listPopulationsRequest
+import org.wfanet.measurement.api.v2alpha.modelLine
+import org.wfanet.measurement.api.v2alpha.modelRelease
+import org.wfanet.measurement.api.v2alpha.modelRollout
 import org.wfanet.measurement.api.v2alpha.modelSuite
 import org.wfanet.measurement.api.v2alpha.population
+import org.wfanet.measurement.api.v2alpha.setModelLineActiveEndTimeRequest
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.grpc.TlsFlags
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withShutdownTimeout
+import org.wfanet.measurement.common.toInstant
+import org.wfanet.measurement.common.toProtoDate
+import org.wfanet.measurement.common.toProtoTime
 import picocli.CommandLine
 import picocli.CommandLine.Command
 import picocli.CommandLine.Mixin
@@ -50,7 +70,8 @@ private val CHANNEL_SHUTDOWN_TIMEOUT = Duration.ofSeconds(30)
 @Command(
   name = "model-repository",
   description = ["Manages all Model Repository artifacts"],
-  subcommands = [CommandLine.HelpCommand::class, ModelSuites::class, Populations::class],
+  subcommands =
+    [CommandLine.HelpCommand::class, ModelSuites::class, Populations::class, ModelLines::class],
 )
 class ModelRepository private constructor() : Runnable {
   @Mixin private lateinit var tlsFlags: TlsFlags
@@ -61,7 +82,6 @@ class ModelRepository private constructor() : Runnable {
     required = true,
   )
   private lateinit var target: String
-    private set
 
   @Option(
     names = ["--kingdom-public-api-cert-host"],
@@ -294,6 +314,158 @@ class ListPopulations : Runnable {
       )
     }
     println(response)
+  }
+}
+
+@Command(
+  name = "model-lines",
+  subcommands =
+    [CommandLine.HelpCommand::class, CreateModelLine::class, SetModelLineActiveEndTime::class],
+)
+private class ModelLines {
+  @ParentCommand private lateinit var parentCommand: ModelRepository
+
+  val modelLinesClient: ModelLinesBlockingStub by lazy {
+    ModelLinesGrpc.newBlockingStub(parentCommand.channel)
+  }
+
+  val modelReleasesClient: ModelReleasesBlockingStub by lazy {
+    ModelReleasesGrpc.newBlockingStub(parentCommand.channel)
+  }
+
+  val modelRolloutsClient: ModelRolloutsBlockingStub by lazy {
+    ModelRolloutsGrpc.newBlockingStub(parentCommand.channel)
+  }
+}
+
+@Command(name = "create", description = ["Create a ModelLine, a ModelRelease, and a ModelRollout)"])
+class CreateModelLine : Runnable {
+  @ParentCommand private lateinit var parentCommand: ModelLines
+
+  @Option(
+    names = ["--parent"],
+    description = ["API resource name of the parent ModelSuite"],
+    required = true,
+  )
+  private lateinit var parentModelSuite: String
+
+  @Option(
+    names = ["--display-name"],
+    description = ["Human-readable nickname for the ModelLine"],
+    required = false,
+    defaultValue = "",
+  )
+  private lateinit var modelLineDisplayName: String
+
+  @Option(
+    names = ["--description"],
+    description = ["Human-readable description of usage of the ModelLine"],
+    required = false,
+    defaultValue = "",
+  )
+  private lateinit var modelLineDescription: String
+
+  @Option(
+    names = ["--active-start-time"],
+    description = ["The start of the time range when this ModelLine is active"],
+    required = true,
+  )
+  private lateinit var startTime: Instant
+
+  @Option(
+    names = ["--active-end-time"],
+    description = ["The end (exclusive) of the time range when the ModelLine is active"],
+    required = false,
+  )
+  private var endTime: Instant? = null
+
+  @Option(names = ["--type"], description = ["Type of the ModelLine"], required = true)
+  private lateinit var modelLineType: ModelLine.Type
+
+  @Option(
+    names = ["--holdback-model-line"],
+    description =
+      [
+        "API resource name of the holdback ModelLine that is used to generate reports " +
+          "when this ModelLine presents outages. Only PROD ModelLine can have this set."
+      ],
+    required = false,
+    defaultValue = "",
+  )
+  private lateinit var holdbackModelLineName: String
+
+  @Option(
+    names = ["--population"],
+    description = ["API resource name of the Population referenced by ModelRelease"],
+    required = true,
+  )
+  private lateinit var populationName: String
+
+  override fun run() {
+    val modelLine =
+      parentCommand.modelLinesClient.createModelLine(
+        createModelLineRequest {
+          parent = parentModelSuite
+          modelLine = modelLine {
+            displayName = modelLineDisplayName
+            description = modelLineDescription
+            activeStartTime = startTime.toProtoTime()
+            if (endTime != null) {
+              activeEndTime = endTime!!.toProtoTime()
+            }
+            type = modelLineType
+            holdbackModelLine = holdbackModelLineName
+          }
+        }
+      )
+
+    println(modelLine)
+
+    val modelRelease =
+      parentCommand.modelReleasesClient.createModelRelease(
+        createModelReleaseRequest {
+          parent = parentModelSuite
+          modelRelease = modelRelease { population = populationName }
+        }
+      )
+
+    parentCommand.modelRolloutsClient.createModelRollout(
+      createModelRolloutRequest {
+        parent = modelLine.name
+        modelRollout = modelRollout {
+          this.modelRelease = modelRelease.name
+          instantRolloutDate =
+            modelLine.activeStartTime.toInstant().atZone(ZoneOffset.UTC).toLocalDate().toProtoDate()
+        }
+      }
+    )
+  }
+}
+
+@Command(name = "set-active-end-time", description = ["Set the active end time of a ModelLine"])
+class SetModelLineActiveEndTime : Runnable {
+  @ParentCommand private lateinit var parentCommand: ModelLines
+
+  @Option(names = ["--name"], description = ["API resource name of the ModelLine"], required = true)
+  private lateinit var modelLineName: String
+
+  @Option(
+    names = ["--active-end-time"],
+    description = ["Timestamp of when the ModelLine becomes inactive in RFC3339 format"],
+    required = false,
+  )
+  private lateinit var endTime: String
+
+  override fun run() {
+    val result =
+      parentCommand.modelLinesClient.setModelLineActiveEndTime(
+        setModelLineActiveEndTimeRequest {
+          name = modelLineName
+          activeEndTime = Timestamps.parse(endTime)
+        }
+      )
+
+    println(result)
   }
 }
 

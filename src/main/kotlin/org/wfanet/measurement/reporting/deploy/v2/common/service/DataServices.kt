@@ -16,6 +16,7 @@
 
 package org.wfanet.measurement.reporting.deploy.v2.common.service
 
+import kotlin.coroutines.CoroutineContext
 import org.wfanet.measurement.common.db.r2dbc.DatabaseClient
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
@@ -63,6 +64,7 @@ object DataServices {
     postgresClient: DatabaseClient,
     spannerClient: AsyncDatabaseClient?,
     impressionQualificationFilterMapping: ImpressionQualificationFilterMapping?,
+    coroutineContext: CoroutineContext,
   ): Services {
     val basicReportsService: BasicReportsGrpcKt.BasicReportsCoroutineImplBase? =
       if (spannerClient != null && impressionQualificationFilterMapping != null) {
@@ -70,29 +72,38 @@ object DataServices {
           spannerClient,
           postgresClient,
           impressionQualificationFilterMapping,
+          coroutineContext,
         )
       } else null
 
     val impressionQualificationFiltersService:
       ImpressionQualificationFiltersGrpcKt.ImpressionQualificationFiltersCoroutineImplBase? =
       if (impressionQualificationFilterMapping != null) {
-        ImpressionQualificationFiltersService(impressionQualificationFilterMapping)
-      } else null
+        ImpressionQualificationFiltersService(
+          impressionQualificationFilterMapping,
+          coroutineContext,
+        )
+      } else {
+        null
+      }
 
     return Services(
       basicReportsService = basicReportsService,
       impressionQualificationFiltersService = impressionQualificationFiltersService,
       measurementConsumersService =
-        PostgresMeasurementConsumersService(idGenerator, postgresClient),
-      measurementsService = PostgresMeasurementsService(idGenerator, postgresClient),
-      metricsService = PostgresMetricsService(idGenerator, postgresClient),
-      reportingSetsService = PostgresReportingSetsService(idGenerator, postgresClient),
-      reportsService = PostgresReportsService(idGenerator, postgresClient),
-      reportSchedulesService = PostgresReportSchedulesService(idGenerator, postgresClient),
+        PostgresMeasurementConsumersService(idGenerator, postgresClient, coroutineContext),
+      measurementsService =
+        PostgresMeasurementsService(idGenerator, postgresClient, coroutineContext),
+      metricsService = PostgresMetricsService(idGenerator, postgresClient, coroutineContext),
+      reportingSetsService =
+        PostgresReportingSetsService(idGenerator, postgresClient, coroutineContext),
+      reportsService = PostgresReportsService(idGenerator, postgresClient, coroutineContext),
+      reportSchedulesService =
+        PostgresReportSchedulesService(idGenerator, postgresClient, coroutineContext),
       reportScheduleIterationsService =
-        PostgresReportScheduleIterationsService(idGenerator, postgresClient),
+        PostgresReportScheduleIterationsService(idGenerator, postgresClient, coroutineContext),
       metricCalculationSpecsService =
-        PostgresMetricCalculationSpecsService(idGenerator, postgresClient),
+        PostgresMetricCalculationSpecsService(idGenerator, postgresClient, coroutineContext),
     )
   }
 }

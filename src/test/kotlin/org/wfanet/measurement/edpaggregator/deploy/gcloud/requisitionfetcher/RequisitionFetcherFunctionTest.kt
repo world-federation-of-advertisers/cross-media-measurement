@@ -86,26 +86,12 @@ class RequisitionFetcherFunctionTest {
       val port =
         functionProcess.start(
           mapOf(
-            "REQUISITION_FETCHER_CONFIG_RESOURCE_PATH" to
-              Paths.get(
-                  "main",
-                  "kotlin",
-                  "org",
-                  "wfanet",
-                  "measurement",
-                  "edpaggregator",
-                  "deploy",
-                  "gcloud",
-                  "requisitionfetcher",
-                  "testing",
-                  "requisition_fetcher_config.textproto",
-                )
-                .toString(),
             "REQUISITION_FILE_SYSTEM_PATH" to tempFolder.root.path,
             "KINGDOM_TARGET" to "localhost:${grpcServer.port}",
             "KINGDOM_CERT_HOST" to "localhost",
             "PAGE_SIZE" to "10",
             "STORAGE_PATH_PREFIX" to STORAGE_PATH_PREFIX,
+            "EDPA_CONFIG_STORAGE_BUCKET" to REQUISITION_CONFIG_FILE_SYSTEM_PATH,
           )
         )
       logger.info("Started RequisitionFetcher process on port $port")
@@ -124,7 +110,6 @@ class RequisitionFetcherFunctionTest {
   fun `test RequisitionFetcherFunction as local process`() {
     val url = "http://localhost:${functionProcess.port}"
     logger.info("Testing Cloud Function at: $url")
-
     val client = HttpClient.newHttpClient()
     val getRequest = HttpRequest.newBuilder().uri(URI.create(url)).GET().build()
     val getResponse = client.send(getRequest, BodyHandlers.ofString())
@@ -162,27 +147,29 @@ class RequisitionFetcherFunctionTest {
     private const val REQUISITION_NAME = "$DATA_PROVIDER_NAME/requisitions/foo"
     private val REQUISITION = requisition { name = REQUISITION_NAME }
     private val PACKED_REQUISITION = Any.pack(REQUISITION)
-    private val STORAGE_PATH_PREFIX = "edp1"
+    private val STORAGE_PATH_PREFIX = "edp7"
     private val SECRETS_DIR: Path =
       getRuntimePath(
         Paths.get("wfa_measurement_system", "src", "main", "k8s", "testing", "secretfiles")
       )!!
-    private val CONFIG_DIR: Path =
-      getRuntimePath(
-        Paths.get(
-          "wfa_measurement_system",
-          "src",
-          "main",
-          "kotlin",
-          "org",
-          "wfanet",
-          "measurement",
-          "edpaggregator",
-          "deploy",
-          "gcloud",
-          "requisitionfetcher",
-        )
-      )!!
+    private val REQUISITION_CONFIG_FILE_SYSTEM_PATH =
+      "file://" +
+        getRuntimePath(
+          Paths.get(
+            "wfa_measurement_system",
+            "src",
+            "main",
+            "kotlin",
+            "org",
+            "wfanet",
+            "measurement",
+            "edpaggregator",
+            "deploy",
+            "gcloud",
+            "requisitionfetcher",
+            "testing",
+          )
+        )!!
     private val serverCerts =
       SigningCerts.fromPemFiles(
         certificateFile = SECRETS_DIR.resolve("kingdom_tls.pem").toFile(),
