@@ -22,6 +22,11 @@ import com.google.protobuf.util.Timestamps
 import io.grpc.Server
 import io.grpc.ServerServiceDefinition
 import io.grpc.netty.NettyServerBuilder
+import java.nio.file.Path
+import java.nio.file.Paths
+import java.time.Instant
+import java.time.ZoneOffset
+import java.util.concurrent.TimeUnit.SECONDS
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Before
@@ -37,8 +42,10 @@ import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.GetModelProviderRequest
 import org.wfanet.measurement.api.v2alpha.GetModelSuiteRequest
 import org.wfanet.measurement.api.v2alpha.GetPopulationRequest
+import org.wfanet.measurement.api.v2alpha.ListModelProvidersPageTokenKt
 import org.wfanet.measurement.api.v2alpha.ListModelProvidersRequest
 import org.wfanet.measurement.api.v2alpha.ListModelProvidersResponse
+import org.wfanet.measurement.api.v2alpha.ListModelSuitesPageTokenKt
 import org.wfanet.measurement.api.v2alpha.ListModelSuitesRequest
 import org.wfanet.measurement.api.v2alpha.ListModelSuitesResponse
 import org.wfanet.measurement.api.v2alpha.ListPopulationsPageTokenKt
@@ -95,13 +102,6 @@ import org.wfanet.measurement.common.testing.captureFirst
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.common.toProtoDate
 import org.wfanet.measurement.common.toProtoTime
-import java.nio.file.Path
-import java.nio.file.Paths
-import java.time.Instant
-import java.time.ZoneOffset
-import java.util.concurrent.TimeUnit.SECONDS
-import org.wfanet.measurement.api.v2alpha.ListModelProvidersPageTokenKt.previousPageEnd as modelProviderPreviousPageEnd
-import org.wfanet.measurement.api.v2alpha.ListModelSuitesPageTokenKt.previousPageEnd as modelSuitePreviousPageEnd
 
 @RunWith(JUnit4::class)
 class ModelRepositoryTest {
@@ -167,7 +167,8 @@ class ModelRepositoryTest {
     )
 
   private val services: List<ServerServiceDefinition> =
-    listOf(modelProvidersServiceMock.bindService(),
+    listOf(
+      modelProvidersServiceMock.bindService(),
       modelSuitesServiceMock.bindService(),
       populationsServiceMock.bindService(),
       modelLinesServiceMock.bindService(),
@@ -517,15 +518,17 @@ class ModelRepositoryTest {
     }
     private val LIST_MODEL_PROVIDERS_PAGE_TOKEN = listModelProvidersPageToken {
       pageSize = PAGE_SIZE
-      lastModelProvider = modelProviderPreviousPageEnd {
-        externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID - 1
-      }
+      lastModelProvider =
+        ListModelProvidersPageTokenKt.previousPageEnd {
+          externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID - 1
+        }
     }
     private val LIST_MODEL_PROVIDERS_PAGE_TOKEN_2 = listModelProvidersPageToken {
       pageSize = PAGE_SIZE
-      lastModelProvider = modelProviderPreviousPageEnd {
-        externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID_2
-      }
+      lastModelProvider =
+        ListModelProvidersPageTokenKt.previousPageEnd {
+          externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID_2
+        }
     }
 
     private const val MODEL_SUITE_NAME = "$MODEL_PROVIDER_NAME/modelSuites/AAAAAAAAAHs"
@@ -546,23 +549,25 @@ class ModelRepositoryTest {
       description = DESCRIPTION
       createTime = CREATE_TIME
     }
-      private val LIST_MODEL_SUITES_PAGE_TOKEN = listModelSuitesPageToken {
-          pageSize = PAGE_SIZE
-          externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
-          lastModelSuite = modelSuitePreviousPageEnd {
-              createTime = CREATE_TIME
-              externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID - 1
-          }
-      }
+    private val LIST_MODEL_SUITES_PAGE_TOKEN = listModelSuitesPageToken {
+      pageSize = PAGE_SIZE
+      externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
+      lastModelSuite =
+        ListModelSuitesPageTokenKt.previousPageEnd {
+          createTime = CREATE_TIME
+          externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID - 1
+        }
+    }
 
-      private val LIST_MODEL_SUITES_PAGE_TOKEN_2 = listModelSuitesPageToken {
-          pageSize = PAGE_SIZE
-          externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
-          lastModelSuite = modelSuitePreviousPageEnd {
-              createTime = CREATE_TIME
-              externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID_2
-          }
-      }
+    private val LIST_MODEL_SUITES_PAGE_TOKEN_2 = listModelSuitesPageToken {
+      pageSize = PAGE_SIZE
+      externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
+      lastModelSuite =
+        ListModelSuitesPageTokenKt.previousPageEnd {
+          createTime = CREATE_TIME
+          externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID_2
+        }
+    }
 
     private const val POPULATION_NAME = "$DATA_PROVIDER_NAME/populations/AAAAAAAAAHs"
     private const val POPULATION_NAME_2 = "$DATA_PROVIDER_NAME/populations/AAAAAAAAAJs"
