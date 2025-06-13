@@ -14,9 +14,12 @@
 
 from typing import FrozenSet
 
+from absl import logging
+
 from report.report import Report
-from report.report import get_edps_from_edp_combination
 from report.report import fuzzy_less_equal
+from report.report import get_edps_from_edp_combination
+
 
 def are_overlap_constraints_consistent(report: Report, tolerance: float = 0.0):
   is_consistent: bool = True
@@ -57,6 +60,12 @@ def are_overlap_constraints_consistent(report: Report, tolerance: float = 0.0):
 
         if not fuzzy_less_equal(smaller_sum, larger_sum, 2 * (
             1 + len(edps)) * tolerance):
+          logging.info(
+              f'Overlap constraint check for {metric} cumulative measurements '
+              f'is not satisfied for {edp_combination}. At the {period}-th '
+              f'period, the smaller sum {smaller_sum} is larger than the larger'
+              f' sum {larger_sum}.'
+          )
           is_consistent = False
 
   # Verifies overlap constraints for measurements across metrics.
@@ -97,6 +106,12 @@ def are_overlap_constraints_consistent(report: Report, tolerance: float = 0.0):
             ).value
           if not fuzzy_less_equal(smaller_sum, larger_sum, 2 * (
               1 + len(edps)) * tolerance):
+            logging.info(
+                f'Overlap constraint check for cumulative measurements across '
+                f'metric {parent_metric}/{child_metric} is not satisfied for '
+                f'{edp_combination}. At the {period}-th period, the smaller sum'
+                f' {smaller_sum} is larger than the larger sum {larger_sum}.'
+            )
             is_consistent = False
 
       # Verifies whole campaign measurements.
@@ -131,6 +146,12 @@ def are_overlap_constraints_consistent(report: Report, tolerance: float = 0.0):
 
         if not fuzzy_less_equal(smaller_sum, larger_sum, 2 * (
             1 + len(edps)) * tolerance):
+          logging.info(
+              f'Overlap constraint check for whole campaign measurements across'
+              f' metric {parent_metric}/{child_metric} is not satisfied for '
+              f'{edp_combination}. The smaller sum {smaller_sum} is larger than'
+              f' the larger sum {larger_sum}.'
+          )
           is_consistent = False
 
   return is_consistent
