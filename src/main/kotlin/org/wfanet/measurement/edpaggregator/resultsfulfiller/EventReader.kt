@@ -16,6 +16,7 @@
 
 package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
+import java.util.logging.Logger
 import com.google.crypto.tink.KmsClient
 import java.time.LocalDate
 import kotlinx.coroutines.flow.Flow
@@ -45,11 +46,11 @@ class EventReader(
    * Retrieves a flow of labeled impressions for a given ds and event group ID.
    *
    * @param ds The ds for the labeled impressions
-   * @param eventGroupId The ID of the event group
+   * @param eventGroupReferenceId The event group reference ID of the event group
    * @return A flow of labeled impressions
    */
-  suspend fun getLabeledImpressions(ds: LocalDate, eventGroupId: String): Flow<LabeledImpression> {
-    val blobDetails = getBlobDetails(ds, eventGroupId)
+  suspend fun getLabeledImpressions(ds: LocalDate, eventGroupReferenceId: String): Flow<LabeledImpression> {
+    val blobDetails = getBlobDetails(ds, eventGroupReferenceId)
     return getLabeledImpressions(blobDetails)
   }
 
@@ -72,6 +73,7 @@ class EventReader(
         impressionDekStorageConfig.projectId,
       )
     // Get EncryptedDek message from storage using the blobKey made up of the ds and eventGroupId
+    logger.info("Reading blob $dekBlobKey")
     val blob =
       impressionsDekStorageClient.getBlob(dekBlobKey)
         ?: throw ImpressionReadException(dekBlobKey, ImpressionReadException.Code.BLOB_NOT_FOUND)
@@ -118,5 +120,9 @@ class EventReader(
           ImpressionReadException.Code.INVALID_FORMAT,
         )
     }
+  }
+
+  companion object {
+    private val logger: Logger = Logger.getLogger(this::class.java.name)
   }
 }

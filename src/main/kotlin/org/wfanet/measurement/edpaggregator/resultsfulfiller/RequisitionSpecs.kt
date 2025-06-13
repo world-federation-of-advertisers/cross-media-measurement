@@ -43,6 +43,7 @@ object RequisitionSpecs {
   @OptIn(ExperimentalCoroutinesApi::class) // For flatMapConcat
   suspend fun getSampledVids(
     requisitionSpec: RequisitionSpec,
+    eventGroupMap: Map<String, String>,
     vidSamplingInterval: MeasurementSpec.VidSamplingInterval,
     typeRegistry: TypeRegistry,
     eventReader: EventReader,
@@ -69,7 +70,7 @@ object RequisitionSpecs {
 
       // Iterates through all dates up to the end date in the collection interval(inclusive)
       val impressions =
-        dates.flatMapConcat { date -> eventReader.getLabeledImpressions(date, eventGroup.key) }
+        dates.flatMapConcat { date -> eventReader.getLabeledImpressions(date, eventGroupMap.getValue(eventGroup.key)) }
 
       VidFilter.filterAndExtractVids(
         impressions,

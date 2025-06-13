@@ -74,8 +74,12 @@ class ResultsFulfiller(
   private val eventReader: EventReader,
 ) {
   suspend fun fulfillRequisitions() {
+    val groupedRequisitions = getRequisitions()
     val requisitions =
-      getRequisitions().requisitionsList.map { it.requisition.unpack(Requisition::class.java) }
+      groupedRequisitions.requisitionsList.map { it.requisition.unpack(Requisition::class.java) }
+    val eventGroupMap = groupedRequisitions.eventGroupMapList.map{
+      Pair(it.eventGroup, it.details.eventGroupReferenceId)
+    }.toMap()
     for (requisition in requisitions) {
       val signedRequisitionSpec: SignedMessage =
         try {
@@ -89,6 +93,7 @@ class ResultsFulfiller(
       val sampledVids: Flow<Long> =
         RequisitionSpecs.getSampledVids(
           requisitionSpec,
+          eventGroupMap,
           measurementSpec.vidSamplingInterval,
           typeRegistry,
           eventReader,
