@@ -1,0 +1,19 @@
+set -euo pipefail
+if [ "$#" -ne 1 ]; then
+  echo "Error: missing argument" >&2
+  echo "Usage: $0 <GCP_KMS_KEY_FOR_SIGNING> (e.g. projects/MYPROJECT/locations/global/keyRings/MYKEYRING/cryptoKeys/MYKEY/cryptoKeyVersions/MYVERSION" >&2
+  exit 1
+fi
+
+kms_key=$1
+
+# install cosign
+COSIGN_VERSION="2.5.0"
+wget -nv -O cosign "https://github.com/sigstore/cosign/releases/download/v${COSIGN_VERSION}/cosign-linux-amd64"
+chmod +x cosign
+
+# sign images
+for image_ref in $(cat {{images_file}}); do
+  echo "Signing image: ${image_ref}"
+  ./cosign sign --tlog-upload=false --key gcpkms://${kms_key} ${image_ref}
+done

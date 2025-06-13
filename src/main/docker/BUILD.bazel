@@ -5,6 +5,7 @@ load(
 )
 load("//build:variables.bzl", "IMAGE_REPOSITORY_SETTINGS")
 load(":images.bzl", "ALL_EKS_IMAGES", "ALL_GKE_IMAGES", "ALL_IMAGES", "ALL_LOCAL_IMAGES", "ALL_REPORTING_GKE_IMAGES", "ALL_TEE_APP_GKE_IMAGES")
+load(":signed_images.bzl", "sign_images")
 
 package(
     default_testonly = True,  #TODO: delete when InMemoryKeyStore and FakeHybridCipher are not used.
@@ -133,4 +134,8 @@ container_push_all(
         "manual",
         "no-remote",
     ],
+)
+
+sign_images(
+    name = "sign_all_images"
 )
