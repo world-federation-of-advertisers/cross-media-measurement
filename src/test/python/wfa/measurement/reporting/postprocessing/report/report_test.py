@@ -3212,6 +3212,207 @@ class TestReport(unittest.TestCase):
                                            NOISE_CORRECTION_TOLERANCE))
     self._assertReportsAlmostEqual(expected, corrected, corrected.to_array())
 
+  def test_get_corrected_report_without_cumulative_reaches(self):
+    # AMI reaches are consistent.
+    ami_time_series = [
+        2931765,
+        3049283,
+        3081004,
+    ]
+    # MRC reaches are consistent.
+    mrc_time_series = [
+        2043370,
+        2130897,
+        2181590,
+    ]
+
+    # Total reach is the sum of k reaches, and is different from the
+    # corresponding last cumulative reach.
+    AMI_TOTAL_REACH = 3072651
+    MRC_TOTAL_REACH = 2169768
+
+    ami_k_reach = [2020883, 491853, 328201, 200862, 30852]
+    mrc_k_reach = [1580273, 389637, 138795, 27131, 33932]
+
+    ami_impression = 5262888
+    mrc_impression = 3343141
+
+    report = Report(
+        metric_reports={
+            "ami": MetricReport(
+                reach_time_series={},
+                reach_whole_campaign={
+                    frozenset({EDP_ONE}): Measurement(AMI_TOTAL_REACH, 10000,
+                                                      "measurement_3")
+                },
+                k_reach={
+                    frozenset({EDP_ONE}): {
+                        1: Measurement(ami_k_reach[0], 10000, "measurement_4"),
+                        2: Measurement(ami_k_reach[1], 10000, "measurement_5"),
+                        3: Measurement(ami_k_reach[2], 10000, "measurement_6"),
+                        4: Measurement(ami_k_reach[3], 10000, "measurement_7"),
+                        5: Measurement(ami_k_reach[4], 10000, "measurement_8"),
+                    }
+                },
+                impression={
+                    frozenset({EDP_ONE}): Measurement(ami_impression, 10000,
+                                                      "measurement_9")
+                },
+            ),
+            "mrc": MetricReport(
+                reach_time_series={},
+                reach_whole_campaign={
+                    frozenset({EDP_ONE}): Measurement(MRC_TOTAL_REACH, 10000,
+                                                      "measurement_13")
+                },
+                k_reach={
+                    frozenset({EDP_ONE}): {
+                        1: Measurement(mrc_k_reach[0], 10000, "measurement_14"),
+                        2: Measurement(mrc_k_reach[1], 10000, "measurement_15"),
+                        3: Measurement(mrc_k_reach[2], 10000, "measurement_16"),
+                        4: Measurement(mrc_k_reach[3], 10000, "measurement_17"),
+                        5: Measurement(mrc_k_reach[4], 10000, "measurement_18"),
+                    }
+                },
+                impression={
+                    frozenset({EDP_ONE}): Measurement(mrc_impression, 10000,
+                                                      "measurement_19")
+                },
+            )
+        },
+        metric_subsets_by_parent={"ami": ["mrc"]},
+        cumulative_inconsistency_allowed_edp_combinations={},
+    )
+
+    corrected, report_post_processor_result = report.get_corrected_report()
+
+    # The corrected report should be consistent:
+    # a) The whole campaign reach is equal to the sum of the k reaches.
+    # b) The impression is greater than or equal to the weighted sum of the k
+    # reaches (where the weights are the corresponding frequency).
+    # c) The impression of mrc is less than or equal to that of ami.
+    expected = Report(
+        metric_reports={
+            "ami": MetricReport(
+                reach_time_series={},
+                reach_whole_campaign={
+                    frozenset({EDP_ONE}): Measurement(3072650.69, 10000,
+                                                      "measurement_3")
+                },
+                k_reach={
+                    frozenset({EDP_ONE}): {
+                        1: Measurement(2020882.79, 10000, "measurement_4"),
+                        2: Measurement(491852.95, 10000, "measurement_5"),
+                        3: Measurement(328200.96, 10000, "measurement_6"),
+                        4: Measurement(200861.98, 10000, "measurement_7"),
+                        5: Measurement(30851.99, 10000, "measurement_8"),
+                    }
+                },
+                impression={
+                    frozenset({EDP_ONE}): Measurement(5262887.47, 10000,
+                                                      "measurement_9")
+                },
+            ),
+            "mrc": MetricReport(
+                reach_time_series={},
+                reach_whole_campaign={
+                    frozenset({EDP_ONE}): Measurement(2169767.78, 10000,
+                                                      "measurement_13")
+                },
+                k_reach={
+                    frozenset({EDP_ONE}): {
+                        1: Measurement(1580272.84, 10000, "measurement_14"),
+                        2: Measurement(389636.96, 10000, "measurement_15"),
+                        3: Measurement(138794.98, 10000, "measurement_16"),
+                        4: Measurement(27130.99, 10000, "measurement_17"),
+                        5: Measurement(33931.99, 10000, "measurement_18"),
+                    }
+                },
+                impression={
+                    frozenset({EDP_ONE}): Measurement(3343140.67, 10000,
+                                                      "measurement_19")
+                },
+            )
+        },
+        metric_subsets_by_parent={"ami": ["mrc"]},
+        cumulative_inconsistency_allowed_edp_combinations={},
+    )
+
+    self.assertEqual(report_post_processor_result.status.status_code,
+                     StatusCode.SOLUTION_FOUND_WITH_HIGHS)
+    self.assertLess(
+        report_post_processor_result.status.primal_equality_residual,
+        NOISE_CORRECTION_TOLERANCE)
+    self.assertLess(
+        report_post_processor_result.status.primal_inequality_residual,
+        NOISE_CORRECTION_TOLERANCE)
+    self._assertReportsAlmostEqual(expected, corrected, corrected.to_array())
+
+  def test_get_corrected_report_without_reaches(self):
+    report = Report(
+        metric_reports={
+            "ami": MetricReport(
+                reach_time_series={},
+                reach_whole_campaign={},
+                k_reach={},
+                impression={
+                    frozenset({EDP_ONE}): Measurement(5262888, 10000,
+                                                      "measurement_9")
+                },
+            ),
+            "mrc": MetricReport(
+                reach_time_series={},
+                reach_whole_campaign={},
+                k_reach={},
+                impression={
+                    frozenset({EDP_ONE}): Measurement(6343141, 10000,
+                                                      "measurement_19")
+                },
+            )
+        },
+        metric_subsets_by_parent={"ami": ["mrc"]},
+        cumulative_inconsistency_allowed_edp_combinations={},
+    )
+
+    corrected, report_post_processor_result = report.get_corrected_report()
+
+    # The corrected report should be consistent: c) The impression of mrc is
+    # less than or equal to that of ami.
+    expected = Report(
+        metric_reports={
+            "ami": MetricReport(
+                reach_time_series={},
+                reach_whole_campaign={},
+                k_reach={},
+                impression={
+                    frozenset({EDP_ONE}): Measurement(5803013.91, 10000,
+                                                      "measurement_9")
+                },
+            ),
+            "mrc": MetricReport(
+                reach_time_series={},
+                reach_whole_campaign={},
+                k_reach={},
+                impression={
+                    frozenset({EDP_ONE}): Measurement(5803013.91, 10000,
+                                                      "measurement_19")
+                },
+            )
+        },
+        metric_subsets_by_parent={"ami": ["mrc"]},
+        cumulative_inconsistency_allowed_edp_combinations={},
+    )
+
+    self.assertEqual(report_post_processor_result.status.status_code,
+                     StatusCode.SOLUTION_FOUND_WITH_HIGHS)
+    self.assertLess(
+        report_post_processor_result.status.primal_equality_residual,
+        NOISE_CORRECTION_TOLERANCE)
+    self.assertLess(
+        report_post_processor_result.status.primal_inequality_residual,
+        NOISE_CORRECTION_TOLERANCE)
+    self._assertReportsAlmostEqual(expected, corrected, corrected.to_array())
+
   def _assertMeasurementAlmostEquals(
       self, expected: Measurement, actual: Measurement, msg
   ):
