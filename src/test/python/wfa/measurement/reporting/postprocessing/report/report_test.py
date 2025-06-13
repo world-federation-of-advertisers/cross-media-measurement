@@ -3287,38 +3287,5 @@ class TestReport(unittest.TestCase):
           msg,
       )
 
-  def _validate_report(self, report: Report, tolerance: float) -> bool:
-    # Validates subset relationships for cumulative measurements.
-    for metric in report._metric_reports:
-      metric_report = report._metric_reports[metric]
-      for subset_relationship in \
-          metric_report.get_cumulative_subset_relationships():
-        parent_edp_combination = subset_relationship[0]
-        child_edp_combination = subset_relationship[1]
-        for period in range(0, report._num_periods):
-          self.assertLessEqual(
-              metric_report.get_cumulative_measurement(
-                  child_edp_combination, period
-              ).value,
-              metric_report.get_cumulative_measurement(
-                  parent_edp_combination, period
-              ).value
-          )
-
-      # Validates subset relationships for whole campaign measurements.
-      for subset_relationship in \
-          metric_report.get_whole_campaign_subset_relationships():
-        parent_edp_combination = subset_relationship[0]
-        child_edp_combination = subset_relationship[1]
-        self.assertLessEqual(
-            metric_report.get_whole_campaign_measurement(
-                child_edp_combination
-            ).value,
-            metric_report.get_whole_campaign_measurement(
-                parent_edp_combination
-            ).value
-        )
-
-
 if __name__ == "__main__":
   unittest.main()
