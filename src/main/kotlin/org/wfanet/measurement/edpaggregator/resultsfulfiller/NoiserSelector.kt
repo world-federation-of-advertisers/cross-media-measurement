@@ -25,5 +25,5 @@ interface NoiserSelector {
    * Selects the most preferred [DirectNoiseMechanism] for reach and frequency measurements from the
    * overlap of a list of options of [NoiseMechanism].
    */
-  fun selectReachAndFrequencyNoiseMechanism(options: List<NoiseMechanism>): DirectNoiseMechanism
+  fun selectNoiseMechanism(options: List<NoiseMechanism>): DirectNoiseMechanism
 }

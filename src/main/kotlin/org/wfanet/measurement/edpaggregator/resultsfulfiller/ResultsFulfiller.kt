@@ -160,7 +160,7 @@ class ResultsFulfiller(
     val directProtocolConfig =
       requisition.protocolConfig.protocolsList.first { it.hasDirect() }.direct
     val noiseMechanism =
-      noiserSelector.selectReachAndFrequencyNoiseMechanism(directProtocolConfig.noiseMechanismsList)
+      noiserSelector.selectNoiseMechanism(directProtocolConfig.noiseMechanismsList)
     val result =
       DirectMeasurementResultFactory.buildMeasurementResult(
         directProtocolConfig,
