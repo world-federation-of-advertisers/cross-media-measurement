@@ -16,6 +16,7 @@
 
 package org.wfanet.measurement.integration.common
 
+import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
 import com.google.protobuf.timestamp
@@ -33,14 +34,18 @@ import org.junit.Test
 import org.junit.rules.TestRule
 import org.wfanet.measurement.api.v2alpha.AkidPrincipalLookup
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
-import org.wfanet.measurement.api.v2alpha.ListModelSuitesPageTokenKt.previousPageEnd
+import org.wfanet.measurement.api.v2alpha.ListModelProvidersResponse
+import org.wfanet.measurement.api.v2alpha.ListModelSuitesPageTokenKt
 import org.wfanet.measurement.api.v2alpha.ListModelSuitesResponse
-import org.wfanet.measurement.api.v2alpha.ListPopulationsPageTokenKt.previousPageEnd as populationPreviousPageEnd
+import org.wfanet.measurement.api.v2alpha.ListPopulationsPageTokenKt
 import org.wfanet.measurement.api.v2alpha.ListPopulationsResponse
 import org.wfanet.measurement.api.v2alpha.ModelLine
 import org.wfanet.measurement.api.v2alpha.ModelLinesGrpc
 import org.wfanet.measurement.api.v2alpha.ModelLinesGrpc.ModelLinesBlockingStub
+import org.wfanet.measurement.api.v2alpha.ModelProvider
 import org.wfanet.measurement.api.v2alpha.ModelProviderKey
+import org.wfanet.measurement.api.v2alpha.ModelProvidersGrpc
+import org.wfanet.measurement.api.v2alpha.ModelProvidersGrpc.ModelProvidersBlockingStub
 import org.wfanet.measurement.api.v2alpha.ModelSuite
 import org.wfanet.measurement.api.v2alpha.ModelSuiteKey
 import org.wfanet.measurement.api.v2alpha.ModelSuitesGrpc
@@ -55,6 +60,7 @@ import org.wfanet.measurement.api.v2alpha.createModelLineRequest
 import org.wfanet.measurement.api.v2alpha.createModelSuiteRequest
 import org.wfanet.measurement.api.v2alpha.createPopulationRequest
 import org.wfanet.measurement.api.v2alpha.eventTemplate
+import org.wfanet.measurement.api.v2alpha.listModelProvidersRequest
 import org.wfanet.measurement.api.v2alpha.listModelSuitesPageToken
 import org.wfanet.measurement.api.v2alpha.listModelSuitesResponse
 import org.wfanet.measurement.api.v2alpha.listPopulationsPageToken
@@ -94,15 +100,16 @@ import org.wfanet.measurement.internal.kingdom.certificate
 import org.wfanet.measurement.internal.kingdom.certificateDetails
 import org.wfanet.measurement.internal.kingdom.dataProvider
 import org.wfanet.measurement.internal.kingdom.dataProviderDetails
-import org.wfanet.measurement.internal.kingdom.modelProvider
 import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
 import org.wfanet.measurement.kingdom.deploy.common.service.toList
 import org.wfanet.measurement.kingdom.deploy.tools.ModelRepository
 import org.wfanet.measurement.kingdom.service.api.v2alpha.ModelLinesService
+import org.wfanet.measurement.kingdom.service.api.v2alpha.ModelProvidersService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.ModelReleasesService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.ModelRolloutsService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.ModelSuitesService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.PopulationsService
+import org.wfanet.measurement.kingdom.service.api.v2alpha.toModelProvider
 
 abstract class InProcessModelRepositoryCliIntegrationTest(
   kingdomDataServicesRule: ProviderRule<DataServices>,
@@ -120,6 +127,7 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
   @get:Rule
   val ruleChain: TestRule = chainRulesSequentially(kingdomDataServicesRule, internalApiServer)
 
+  private lateinit var publicModelProvidersClient: ModelProvidersBlockingStub
   private lateinit var publicModelSuitesClient: ModelSuitesBlockingStub
   private lateinit var publicPopulationsClient: PopulationsBlockingStub
   private lateinit var publicModelLinesClient: ModelLinesBlockingStub
@@ -131,6 +139,7 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
 
   private lateinit var internalModelProvider: InternalModelProvider
   private lateinit var modelProviderName: String
+  private lateinit var internalModelProvider2: InternalModelProvider
 
   private lateinit var modelSuite: ModelSuite
 
@@ -140,9 +149,10 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
     val internalModelProvidersService =
       InternalModelProvidersGrpc.ModelProvidersCoroutineStub(internalChannel)
     internalModelProvider = runBlocking {
-      internalModelProvidersService.createModelProvider(
-        modelProvider { externalModelProviderId = FIXED_GENERATED_EXTERNAL_ID }
-      )
+      internalModelProvidersService.createModelProvider(InternalModelProvider.getDefaultInstance())
+    }
+    internalModelProvider2 = runBlocking {
+      internalModelProvidersService.createModelProvider(InternalModelProvider.getDefaultInstance())
     }
     val modelProviderApiId = externalIdToApiId(internalModelProvider.externalModelProviderId)
     modelProviderName = ModelProviderKey(modelProviderApiId).toName()
@@ -189,6 +199,8 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
           }
       )
 
+    val internalModelProvidersClient =
+      InternalModelProvidersGrpc.ModelProvidersCoroutineStub(internalChannel)
     val internalModelSuitesClient =
       InternalModelSuitesGrpc.ModelSuitesCoroutineStub(internalChannel)
     val internalPopulationsClient =
@@ -199,6 +211,9 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
     val internalModelRolloutsClient =
       InternalModelRolloutsGrpc.ModelRolloutsCoroutineStub(internalChannel)
 
+    val publicModelProvidersService =
+      ModelProvidersService(internalModelProvidersClient)
+        .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup)
     val publicModelSuitesService =
       ModelSuitesService(internalModelSuitesClient)
         .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup)
@@ -216,6 +231,7 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
         .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup)
     val services =
       listOf(
+        publicModelProvidersService,
         publicModelSuitesService,
         publicPopulationsService,
         publicModelLinesService,
@@ -245,10 +261,13 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
 
     val publicModelProviderChannel: ManagedChannel =
       buildMutualTlsChannel("localhost:${server.port}", modelProviderCerts)
+    publicModelProvidersClient = ModelProvidersGrpc.newBlockingStub(publicModelProviderChannel)
     publicModelSuitesClient = ModelSuitesGrpc.newBlockingStub(publicModelProviderChannel)
     publicModelLinesClient = ModelLinesGrpc.newBlockingStub(publicModelProviderChannel)
 
     modelSuite = createModelSuite()
+    publicModelSuitesClient = ModelSuitesGrpc.newBlockingStub(publicModelProviderChannel)
+    publicPopulationsClient = PopulationsGrpc.newBlockingStub(publicModelProviderChannel)
 
     val dataProviderCerts =
       SigningCerts.fromPemFiles(
@@ -268,7 +287,51 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
   }
 
   @Test
-  fun `model-suites get prints ModelSuite`() = runBlocking {
+  fun `model-providers get prints ModelProvider`() {
+    val modelProvider = internalModelProvider.toModelProvider()
+
+    val args = modelProviderArgs + arrayOf("model-providers", "get", modelProvider.name)
+    val output = callCli(args)
+
+    assertThat(parseTextProto(output.reader(), ModelProvider.getDefaultInstance()))
+      .isEqualTo(modelProvider)
+  }
+
+  @Test
+  fun `model-providers list prints ModelProviders`() {
+    val args = modelProviderArgs + arrayOf("model-providers", "list", "--page-size=1")
+    val output = callCli(args)
+
+    val response: ListModelProvidersResponse =
+      parseTextProto(output.reader(), ListModelProvidersResponse.getDefaultInstance())
+
+    assertThat(response.modelProvidersList).hasSize(1)
+    assertThat(response.nextPageToken).isNotEmpty()
+  }
+
+  @Test
+  fun `model-providers list with page token prints ModelProviders`() {
+    var response: ListModelProvidersResponse =
+      publicModelProvidersClient.listModelProviders(listModelProvidersRequest { pageSize = 1 })
+
+    val args =
+      modelProviderArgs +
+        arrayOf(
+          "model-providers",
+          "list",
+          "--page-size=1",
+          "--page-token=${response.nextPageToken}",
+        )
+    val output = callCli(args)
+
+    response = parseTextProto(output.reader(), ListModelProvidersResponse.getDefaultInstance())
+
+    assertThat(response.modelProvidersList).hasSize(1)
+    assertThat(response.nextPageToken).isEmpty()
+  }
+
+  @Test
+  fun `model-suites get prints ModelSuite`() {
     val modelSuite = createModelSuite()
 
     val args = modelProviderArgs + arrayOf("model-suites", "get", modelSuite.name)
@@ -279,7 +342,7 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
   }
 
   @Test
-  fun `model-suites create prints ModelSuite`() = runBlocking {
+  fun `model-suites create prints ModelSuite`() {
     val args =
       modelProviderArgs +
         arrayOf(
@@ -302,19 +365,20 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
   }
 
   @Test
-  fun `model-suites list prints ModelSuites`() = runBlocking {
+  fun `model-suites list prints ModelSuites`() {
     val modelSuite = createModelSuite()
     val modelSuite2 = createModelSuite()
 
     val pageToken = listModelSuitesPageToken {
       pageSize = PAGE_SIZE
       externalModelProviderId = internalModelProvider.externalModelProviderId
-      lastModelSuite = previousPageEnd {
-        externalModelProviderId = internalModelProvider.externalModelProviderId
-        externalModelSuiteId =
-          apiIdToExternalId(ModelSuiteKey.fromName(modelSuite.name)!!.modelSuiteId)
-        createTime = modelSuite.createTime
-      }
+      lastModelSuite =
+        ListModelSuitesPageTokenKt.previousPageEnd {
+          externalModelProviderId = internalModelProvider.externalModelProviderId
+          externalModelSuiteId =
+            apiIdToExternalId(ModelSuiteKey.fromName(modelSuite.name)!!.modelSuiteId)
+          createTime = modelSuite.createTime
+        }
     }
 
     val args =
@@ -333,7 +397,7 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
   }
 
   @Test
-  fun `populations get prints Population`() = runBlocking {
+  fun `populations get prints Population`() {
     val population = createPopulation()
 
     val args = dataProviderArgs + arrayOf("populations", "get", population.name)
@@ -344,7 +408,7 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
   }
 
   @Test
-  fun `populations create prints Population`() = runBlocking {
+  fun `populations create prints Population`() {
     val args =
       dataProviderArgs +
         arrayOf(
@@ -369,19 +433,20 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
   }
 
   @Test
-  fun `populations list prints Populations`() = runBlocking {
+  fun `populations list prints Populations`() {
     val population = createPopulation()
     val population2 = createPopulation()
 
     val pageToken = listPopulationsPageToken {
       pageSize = PAGE_SIZE
       externalDataProviderId = internalDataProvider.externalDataProviderId
-      lastPopulation = populationPreviousPageEnd {
-        externalDataProviderId = internalDataProvider.externalDataProviderId
-        externalPopulationId =
-          apiIdToExternalId(PopulationKey.fromName(population2.name)!!.populationId)
-        createTime = population2.createTime
-      }
+      lastPopulation =
+        ListPopulationsPageTokenKt.previousPageEnd {
+          externalDataProviderId = internalDataProvider.externalDataProviderId
+          externalPopulationId =
+            apiIdToExternalId(PopulationKey.fromName(population2.name)!!.populationId)
+          createTime = population2.createTime
+        }
     }
 
     val args =
@@ -400,7 +465,7 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
   }
 
   @Test
-  fun `model-lines create prints ModelLine`() = runBlocking {
+  fun `model-lines create prints ModelLine`() {
     val holdback = createModelLine(modelLineType = ModelLine.Type.HOLDBACK)
     val population = createPopulation()
 
@@ -436,7 +501,7 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
   }
 
   @Test
-  fun `model-lines set-active-end-time prints ModelLine`() = runBlocking {
+  fun `model-lines set-active-end-time prints ModelLine`() {
     val modelLine = createModelLine()
     val newEndTime = "2099-04-15T10:00:00Z"
     val args =
@@ -555,7 +620,6 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
     private const val EVENT_TEMPLATE_TYPE = "event_template_type"
     private const val MODEL_BLOB_URI = "model_blob_uri"
 
-    private const val FIXED_GENERATED_EXTERNAL_ID = 6789L
     private const val PAGE_SIZE = 50
 
     private const val START_TIME = "2099-01-15T10:00:00Z"

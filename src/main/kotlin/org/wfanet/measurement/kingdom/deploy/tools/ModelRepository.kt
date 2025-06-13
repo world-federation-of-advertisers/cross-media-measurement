@@ -21,11 +21,13 @@ import io.grpc.ManagedChannel
 import java.time.Duration
 import java.time.Instant
 import java.time.ZoneOffset
-import kotlinx.coroutines.runBlocking
+import org.wfanet.measurement.api.v2alpha.ListModelProvidersResponse
 import org.wfanet.measurement.api.v2alpha.ListModelSuitesResponse
 import org.wfanet.measurement.api.v2alpha.ModelLine
 import org.wfanet.measurement.api.v2alpha.ModelLinesGrpc
 import org.wfanet.measurement.api.v2alpha.ModelLinesGrpc.ModelLinesBlockingStub
+import org.wfanet.measurement.api.v2alpha.ModelProvidersGrpc
+import org.wfanet.measurement.api.v2alpha.ModelProvidersGrpc.ModelProvidersBlockingStub
 import org.wfanet.measurement.api.v2alpha.ModelReleasesGrpc
 import org.wfanet.measurement.api.v2alpha.ModelReleasesGrpc.ModelReleasesBlockingStub
 import org.wfanet.measurement.api.v2alpha.ModelRolloutsGrpc
@@ -41,8 +43,10 @@ import org.wfanet.measurement.api.v2alpha.createModelRolloutRequest
 import org.wfanet.measurement.api.v2alpha.createModelSuiteRequest
 import org.wfanet.measurement.api.v2alpha.createPopulationRequest
 import org.wfanet.measurement.api.v2alpha.eventTemplate
+import org.wfanet.measurement.api.v2alpha.getModelProviderRequest
 import org.wfanet.measurement.api.v2alpha.getModelSuiteRequest
 import org.wfanet.measurement.api.v2alpha.getPopulationRequest
+import org.wfanet.measurement.api.v2alpha.listModelProvidersRequest
 import org.wfanet.measurement.api.v2alpha.listModelSuitesRequest
 import org.wfanet.measurement.api.v2alpha.listPopulationsRequest
 import org.wfanet.measurement.api.v2alpha.modelLine
@@ -71,7 +75,13 @@ private val CHANNEL_SHUTDOWN_TIMEOUT = Duration.ofSeconds(30)
   name = "model-repository",
   description = ["Manages all Model Repository artifacts"],
   subcommands =
-    [CommandLine.HelpCommand::class, ModelSuites::class, Populations::class, ModelLines::class],
+    [
+      CommandLine.HelpCommand::class,
+      ModelProviders::class,
+      ModelSuites::class,
+      Populations::class,
+      ModelLines::class,
+    ],
 )
 class ModelRepository private constructor() : Runnable {
   @Mixin private lateinit var tlsFlags: TlsFlags
@@ -109,6 +119,54 @@ class ModelRepository private constructor() : Runnable {
 }
 
 @Command(
+  name = "model-providers",
+  subcommands = [CommandLine.HelpCommand::class, GetModelProvider::class, ListModelProviders::class],
+)
+private class ModelProviders {
+  @ParentCommand private lateinit var parentCommand: ModelRepository
+
+  val modelProvidersClient: ModelProvidersBlockingStub by lazy {
+    ModelProvidersGrpc.newBlockingStub(parentCommand.channel)
+  }
+}
+
+@Command(name = "get", description = ["Get a ModelProvider"])
+class GetModelProvider : Runnable {
+  @ParentCommand private lateinit var parentCommand: ModelProviders
+
+  @Parameters(index = "0", description = ["API resource name of the ModelProvider"], arity = "1")
+  private lateinit var modelProviderName: String
+
+  override fun run() {
+    val modelProvider =
+      parentCommand.modelProvidersClient.getModelProvider(
+        getModelProviderRequest { name = modelProviderName }
+      )
+
+    println(modelProvider)
+  }
+}
+
+@Command(name = "list", description = ["List ModelProviders"])
+class ListModelProviders : Runnable {
+  @ParentCommand private lateinit var parentCommand: ModelProviders
+
+  @Mixin private lateinit var pageParams: PageParams
+
+  override fun run() {
+    val response: ListModelProvidersResponse =
+      parentCommand.modelProvidersClient.listModelProviders(
+        listModelProvidersRequest {
+          pageSize = pageParams.pageSize
+          pageToken = pageParams.pageToken
+        }
+      )
+
+    println(response)
+  }
+}
+
+@Command(
   name = "model-suites",
   subcommands =
     [
@@ -134,9 +192,9 @@ class GetModelSuite : Runnable {
   private lateinit var modelSuiteName: String
 
   override fun run() {
-    val modelSuite = runBlocking {
+    val modelSuite =
       parentCommand.modelSuitesClient.getModelSuite(getModelSuiteRequest { name = modelSuiteName })
-    }
+
     println(modelSuite)
   }
 }
@@ -167,7 +225,7 @@ class CreateModelSuite : Runnable {
   private lateinit var modelSuiteDescription: String
 
   override fun run() {
-    val modelSuite = runBlocking {
+    val modelSuite =
       parentCommand.modelSuitesClient.createModelSuite(
         createModelSuiteRequest {
           parent = parentModelProvider
@@ -177,7 +235,6 @@ class CreateModelSuite : Runnable {
           }
         }
       )
-    }
 
     println(modelSuite)
   }
@@ -197,7 +254,7 @@ class ListModelSuites : Runnable {
   @Mixin private lateinit var pageParams: PageParams
 
   override fun run() {
-    val response: ListModelSuitesResponse = runBlocking {
+    val response: ListModelSuitesResponse =
       parentCommand.modelSuitesClient.listModelSuites(
         listModelSuitesRequest {
           parent = parentModelProvider
@@ -205,7 +262,6 @@ class ListModelSuites : Runnable {
           pageToken = pageParams.pageToken
         }
       )
-    }
 
     println(response)
   }
@@ -258,7 +314,7 @@ class CreatePopulation : Runnable {
   private lateinit var eventTemplateType: String
 
   override fun run() {
-    val population = runBlocking {
+    val population =
       parentCommand.populationsClient.createPopulation(
         createPopulationRequest {
           parent = parentDataProvider
@@ -269,7 +325,6 @@ class CreatePopulation : Runnable {
           }
         }
       )
-    }
 
     println(population)
   }
@@ -283,9 +338,9 @@ class GetPopulation : Runnable {
   private lateinit var populationName: String
 
   override fun run() {
-    val population = runBlocking {
+    val population =
       parentCommand.populationsClient.getPopulation(getPopulationRequest { name = populationName })
-    }
+
     println(population)
   }
 }
@@ -304,7 +359,7 @@ class ListPopulations : Runnable {
   @Mixin private lateinit var pageParams: PageParams
 
   override fun run() {
-    val response = runBlocking {
+    val response =
       parentCommand.populationsClient.listPopulations(
         listPopulationsRequest {
           parent = parentDataProvider
@@ -312,7 +367,7 @@ class ListPopulations : Runnable {
           pageToken = pageParams.pageToken
         }
       )
-    }
+
     println(response)
   }
 }
