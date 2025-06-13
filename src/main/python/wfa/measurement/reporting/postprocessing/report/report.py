@@ -26,6 +26,7 @@ from absl import logging
 from qpsolvers import Solution
 
 from noiseninja.noised_measurements import Measurement
+from noiseninja.noised_measurements import OrderedSets
 from noiseninja.noised_measurements import SetMeasurementsSpec
 from noiseninja.solver import Solver
 from src.main.proto.wfa.measurement.reporting.postprocessing.v2alpha import \
@@ -218,6 +219,14 @@ def is_union_reach_consistent(
 
   return abs(expected_union_measurement - union_measurement.value) <= \
     STANDARD_DEVIATION_TEST_THRESHOLD * standard_deviation
+
+
+def get_edps_from_edp_combination(edp_combination: FrozenSet[str],
+    all_edp_combinations: FrozenSet[str]) -> list[FrozenSet[str]]:
+  edps: list[FrozenSet[str]] = all_edp_combinations.intersection(
+      [frozenset({edp}) for edp in edp_combination]
+  )
+  return edps
 
 
 class MetricReport:
@@ -638,40 +647,129 @@ class Report:
   def _add_subset_relations_to_spec(self, spec: SetMeasurementsSpec):
     # Adds relations for cumulative measurements.
     for metric in self._metric_reports:
-      for subset_relationship in self._metric_reports[
-        metric
-      ].get_cumulative_subset_relationships():
+      metric_report = self._metric_reports[metric]
+      for subset_relationship in \
+          metric_report.get_cumulative_subset_relationships():
         parent_edp_combination = subset_relationship[0]
         child_edp_combination = subset_relationship[1]
         for period in range(0, self._num_periods):
           spec.add_subset_relation(
               child_set_id=self._get_measurement_index(
-                  self._metric_reports[
-                    metric].get_cumulative_measurement(
-                      child_edp_combination, period)),
+                  metric_report.get_cumulative_measurement(
+                      child_edp_combination, period
+                  )
+              ),
               parent_set_id=self._get_measurement_index(
-                  self._metric_reports[
-                    metric].get_cumulative_measurement(
-                      parent_edp_combination, period)),
+                  metric_report.get_cumulative_measurement(
+                      parent_edp_combination, period
+                  )
+              ),
           )
 
       # Adds relations for whole campaign measurements.
-      for subset_relationship in self._metric_reports[
-        metric
-      ].get_whole_campaign_subset_relationships():
+      for subset_relationship in \
+          metric_report.get_whole_campaign_subset_relationships():
         parent_edp_combination = subset_relationship[0]
         child_edp_combination = subset_relationship[1]
         spec.add_subset_relation(
             child_set_id=self._get_measurement_index(
-                self._metric_reports[
-                  metric].get_whole_campaign_measurement(
-                    child_edp_combination)),
+                metric_report.get_whole_campaign_measurement(
+                    child_edp_combination
+                )
+            ),
             parent_set_id=self._get_measurement_index(
-                self._metric_reports[
-                  metric].get_whole_campaign_measurement(
-                    parent_edp_combination)),
+                metric_report.get_whole_campaign_measurement(
+                    parent_edp_combination
+                )
+            ),
         )
     logging.info("Finished adding subset relations to spec.")
+
+
+  def _get_ordered_sets_for_cumulative_measurements_within_metric(self,
+      metric_report: MetricReport, edp_combination: FrozenSet[str],
+      edps: list[FrozenSet[str]], period: int) -> OrderedSets:
+    """Gets ordered sets for cumulative measurements within the same metric.
+
+    Let X_{1, i}, X_{2, i}, ..., X_{k, i} be cumulative measurements at
+    period i and X_{1, i + 1}, X_{2, i + 1}, ..., X_{k, i + 1} be
+    cumulative measurements at period (i+1). As X_{j, i} is a subset of
+    X_{j, i+1} for j in [1, k], we have:
+    |X_{1, i}| + ... + |X_{k, i}| - |X_{1, i} U ... U X_{k, i}| <=
+    |X_{1, i + 1}| + ... + |X_{k, i + 1}| -
+    |X_{1, i + 1} U ... U X_{k, i + 1}|.
+    This produces an ordered pair
+    (X_{1, i}, ..., X_{k, i}, {X_{1, i + 1} U ... U X_{1, i + 1}}) and
+    (X_{1, i + 1}, ..., X_{k, i + 1}, {X_{1, i} U ... U X_{k, i}}).
+
+    Args:
+        metric_report: Containing the measurements for a specific metric.
+        edp_combination: The set of EDPs used in the measurements.
+        edps: A list of all single EDP obtained from the above edp combination.
+        period: The time period of the cumulative measurements.
+
+    Returns:
+        An OrderedSets instance containing a larger set and a smaller set.
+    """
+    smaller_set: set[int] = \
+      [
+          self._get_measurement_index(
+              metric_report.get_cumulative_measurement(
+                  edp_combination, period + 1
+              )
+          )
+      ] + [
+          self._get_measurement_index(
+              metric_report.get_cumulative_measurement(
+                  edp, period
+              )
+          ) for edp in edps
+      ]
+
+    greater_set: set[int] = \
+      [
+          self._get_measurement_index(
+              metric_report.get_cumulative_measurement(
+                  edp_combination, period
+              )
+          )
+      ] + [
+          self._get_measurement_index(
+              metric_report.get_cumulative_measurement(
+                  edp, period + 1
+              )
+          ) for edp in edps
+      ]
+
+    return OrderedSets(set(greater_set), set(smaller_set))
+
+  def _add_overlap_relations_to_spec(self, spec: SetMeasurementsSpec):
+    # Overlap constraints within a metric.
+    for metric in self._metric_reports:
+      metric_report = self._metric_reports[metric]
+      cumulative_edp_combinations = \
+        metric_report.get_cumulative_edp_combinations()
+      for edp_combination in cumulative_edp_combinations:
+        if len(edp_combination) <= 1:
+          continue
+        edps: list[FrozenSet[str]] = get_edps_from_edp_combination(
+            edp_combination, cumulative_edp_combinations
+        )
+        if len(edps) != len(edp_combination):
+          logging.info(
+              f'Skipping the overlap check for the cumulative measurements of '
+              f'{edp_combination} in {metric}. Expecting measurements for each '
+              f'EDP in {edp_combination}, however, there are only measurements '
+              f'for EDPs in {edps}.'
+          )
+          continue
+
+        for period in range(0, self._num_periods - 1):
+          ordered_sets = \
+            self._get_ordered_sets_for_cumulative_measurements_within_metric(
+                metric_report, edp_combination, edps, period
+            )
+          spec.add_ordered_sets_relation(ordered_sets)
 
   def _add_cumulative_whole_campaign_relations_to_spec(self,
       spec: SetMeasurementsSpec):
@@ -750,9 +848,9 @@ class Report:
       for edp_combination in common_edp_combinations:
         spec.add_subset_relation(
             child_set_id=self._get_measurement_index(
-              metric_report.get_whole_campaign_measurement(edp_combination)),
+                metric_report.get_whole_campaign_measurement(edp_combination)),
             parent_set_id=self._get_measurement_index(
-              metric_report.get_impression_measurement(edp_combination)),
+                metric_report.get_impression_measurement(edp_combination)),
         )
 
   def _add_k_reach_impression_relations_to_spec(self,
@@ -777,6 +875,116 @@ class Report:
                 metric_report.get_impression_measurement(edp_combination))
         )
 
+  def _get_ordered_sets_for_cumulative_measurements_across_metric(self,
+      parent_metric_report: MetricReport, child_metric_report: MetricReport,
+      edp_combination: FrozenSet[str], edps: list[FrozenSet[str]],
+      period: int) -> OrderedSets:
+    """Gets ordered sets for cumulative measurements across metric.
+
+    Let X_{1, i}, ..., X_{k, i} be the child cumulative measurements and
+    Y_{1, i}, ..., Y_{k, i} be the parent cumulative measurements at the i-th
+    period. As X_{j, i} is a subset of Y_{j, i} for j in [1, k], we have:
+    |X_{1, i}| + ... + |X_{k, i}| - |X_{1, i} U ... U X_{k, i}| <=
+    |Y_{1, i}| + ... + |Y_{k, i}| - |Y_{1, i} U ... U Y_{k, i}|.
+    This produces an ordered pair:
+    (X_{1, i}, ..., X_{k, i}, {Y_{1, i} U ... U Y_{k, i}) and
+    (Y_{1, i}, ..., Y_{k, i}, {X_{1, i} U ... U X_{k, i}).
+
+    Args:
+        parent_metric_report: Containing the measurements for parent metric.
+        child_metric_report: Containing the measurements for child metric.
+        edp_combination: The set of EDPs used in the measurements.
+        edps: A list of all single EDP obtained from the above edp combination.
+        period: The time period of the cumulative measurements.
+
+    Returns:
+        An OrderedSets instance containing a larger set and a smaller set.
+    """
+
+    smaller_set: set[int] = \
+      [
+          self._get_measurement_index(
+              parent_metric_report.get_cumulative_measurement(
+                  edp_combination, period
+              )
+          )
+      ] + [
+          self._get_measurement_index(
+              child_metric_report.get_cumulative_measurement(
+                  edp, period
+              )
+          ) for edp in edps
+      ]
+
+    greater_set: set[int] = \
+      [
+          self._get_measurement_index(
+              child_metric_report.get_cumulative_measurement(
+                  edp_combination, period
+              )
+          )
+      ] + [
+          self._get_measurement_index(
+              parent_metric_report.get_cumulative_measurement(
+                  edp, period
+              )
+          ) for edp in edps
+      ]
+
+    return OrderedSets(set(greater_set), set(smaller_set))
+
+  def _get_ordered_sets_for_whole_campaign_measurements_across_metric(self,
+      parent_metric_report: MetricReport, child_metric_report: MetricReport,
+      edp_combination: FrozenSet[str],
+      edps: list[FrozenSet[str]]) -> OrderedSets:
+    """Gets ordered sets for whole campaign measurements across metric.
+
+    Let X_1, ..., X_k be the child total campaign measurements and Y_1, ..., Y_k
+    be the parent total campaign measurements at the i-th period. As X_j is a
+    subset of Y_j for j in [1, k], we have:
+    |X_1| + ... + |X_k| - |X_1 U ... U X_k| <=
+    |Y_1| + ... + |Y_k| - |Y_1 U ... U Y_k|.
+    This produces an ordered pair:
+    (X_1, ..., X_k, {Y_1 U ... U Y_k}) and (Y_1, ..., Y_k, {X_1 U ... U X_k}).
+
+    Args:
+        parent_metric_report: Containing the measurements for parent metric.
+        child_metric_report: Containing the measurements for child metric.
+        edp_combination: The set of EDPs used in the measurements.
+        edps: A list of all single EDP obtained from the above edp combination.
+
+    Returns:
+        An OrderedSets instance containing a larger set and a smaller set.
+    """
+    smaller_set: list[int] = \
+      [
+          self._get_measurement_index(
+              parent_metric_report.get_whole_campaign_measurement(
+                  edp_combination
+              )
+          )
+      ] + [
+          self._get_measurement_index(
+              child_metric_report.get_whole_campaign_measurement(edp)
+          ) for edp in edps
+      ]
+
+    greater_set: list[int] = \
+      [
+          self._get_measurement_index(
+              child_metric_report.get_whole_campaign_measurement(
+                  edp_combination
+              )
+          )
+      ] + [
+          self._get_measurement_index(
+              parent_metric_report.get_whole_campaign_measurement(edp)
+          )
+          for edp in edps
+      ]
+
+    return OrderedSets(set(greater_set), set(smaller_set))
+
   def _add_metric_relations_to_spec(self, spec: SetMeasurementsSpec):
     # metric1>=metric#2
     for parent_metric in self._metric_subsets_by_parent:
@@ -789,10 +997,10 @@ class Report:
         parent_metric_report = self._metric_reports[parent_metric]
         child_metric_report = self._metric_reports[child_metric]
 
-        # Handles cumulative measurements of common edp combinations.
         common_cumulative_edp_combinations = \
           parent_metric_report.get_cumulative_edp_combinations().intersection(
               child_metric_report.get_cumulative_edp_combinations())
+        # Handles subset relations for cumulative measurements.
         for edp_combination in common_cumulative_edp_combinations:
           for period in range(0, self._num_periods):
             spec.add_subset_relation(
@@ -803,11 +1011,34 @@ class Report:
                     parent_metric_report.get_cumulative_measurement(
                         edp_combination, period)),
             )
+        # Handles overlap relations for cumulative measurements.
+        for edp_combination in common_cumulative_edp_combinations:
+          if len(edp_combination) <= 1:
+            continue
+          edps: list[FrozenSet[str]] = get_edps_from_edp_combination(
+              edp_combination, common_cumulative_edp_combinations
+          )
+          if len(edps) != len(edp_combination):
+            logging.info(
+                f'Skipping the overlap check for the cumulative measurements of '
+                f'{edp_combination} across {parent_metric}/{child_metric}. '
+                f'Expecting measurements for each EDP in {edp_combination}, '
+                f'however, there are only measurements for EDPs in {edps}.'
+            )
+            continue
 
-        # Handles whole campaign measurements of common edp combinations.
+          for period in range(0, self._num_periods):
+            ordered_sets = \
+              self._get_ordered_sets_for_cumulative_measurements_across_metric(
+                  parent_metric_report, child_metric_report, edp_combination,
+                  edps, period
+              )
+            spec.add_ordered_sets_relation(ordered_sets)
+
         common_whole_campaign_edp_combinations = \
           parent_metric_report.get_whole_campaign_edp_combinations().intersection(
               child_metric_report.get_whole_campaign_edp_combinations())
+        # Handles subset relations for whole campaign  measurements.
         for edp_combination in common_whole_campaign_edp_combinations:
           spec.add_subset_relation(
               child_set_id=self._get_measurement_index(
@@ -817,6 +1048,29 @@ class Report:
                   parent_metric_report.get_whole_campaign_measurement(
                       edp_combination)),
           )
+
+        # Handles overlap relations for whole campaign measurements.
+        for edp_combination in common_whole_campaign_edp_combinations:
+          if len(edp_combination) <= 1:
+            continue
+
+          edps: list[FrozenSet[str]] = get_edps_from_edp_combination(
+              edp_combination, common_whole_campaign_edp_combinations
+          )
+          if len(edps) != len(edp_combination):
+            logging.info(
+                f'Skipping the overlap check for the whole campaign measurement'
+                f' of {edp_combination} across {parent_metric}/{child_metric}. '
+                f'Expecting measurements for each EDP in {edp_combination}, '
+                f'however, there are only measurements for EDPs in {edps}.'
+            )
+            continue
+
+          ordered_sets = \
+            self._get_ordered_sets_for_whole_campaign_measurements_across_metric(
+                parent_metric_report, child_metric_report, edp_combination, edps
+            )
+          spec.add_ordered_sets_relation(ordered_sets)
 
         # Handles impression measurements of common edp combinations.
         common_impression_edp_combinations = \
@@ -869,8 +1123,7 @@ class Report:
     # subset <= union.
     self._add_subset_relations_to_spec(spec)
 
-    # metric1>=metric#2.
-    self._add_metric_relations_to_spec(spec)
+    self._add_overlap_relations_to_spec(spec)
 
     # period1 <= period2.
     self._add_cumulative_relations_to_spec(spec)
@@ -885,6 +1138,10 @@ class Report:
 
     # Last cumulative measurement <= whole campaign measurement.
     self._add_cumulative_whole_campaign_relations_to_spec(spec)
+
+    # metric#1>=metric#2.
+    self._add_metric_relations_to_spec(spec)
+
     logging.info("Finished adding set relations to spec.")
 
   def _add_measurements_to_spec(self, spec: SetMeasurementsSpec):
@@ -1189,7 +1446,7 @@ class Report:
     """Verifies if the observed union measurements for the edp_combination meet
     the independence check.
     """
-    single_edps = [frozenset({element}) for element in edp_combination]
+    edps = [frozenset({element}) for element in edp_combination]
 
     for metric in self._metric_reports.keys():
       metric_report = self._metric_reports[metric]
@@ -1199,7 +1456,7 @@ class Report:
           edp_combination)
       component_measurements = [
           metric_report.get_whole_campaign_measurement(single_edp)
-          for single_edp in single_edps
+          for single_edp in edps
       ]
 
       if not is_union_reach_consistent(union_measurement,
@@ -1213,7 +1470,7 @@ class Report:
             edp_combination, period)
         component_measurements = [
             metric_report.get_cumulative_measurement(single_edp, period)
-            for single_edp in single_edps
+            for single_edp in edps
         ]
 
         if not is_union_reach_consistent(union_measurement,
