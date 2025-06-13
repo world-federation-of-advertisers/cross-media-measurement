@@ -1,0 +1,91 @@
+// Copyright 2025 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.edpaggregator.eventgroups.v1alpha;
+
+import "google/api/field_behavior.proto";
+import "google/type/interval.proto";
+import "google/protobuf/timestamp.proto";
+import "google/api/resource.proto";
+
+option java_package = "org.wfanet.measurement.edpaggregator.eventgroups.v1alpha";
+option java_multiple_files = true;
+option java_outer_classname = "EventGroupProto";
+
+// The Data Providers Event Group information
+message EventGroup {
+  // Event Group metadata
+  message Metadata {
+    // Metadata specific to ad impressions.
+    message AdMetadata {
+      // Metadata that pertains to a campaign.
+      message CampaignMetadata {
+        // The name of the brand for which the campaign is being run.
+        string brand = 1 [(google.api.field_behavior) = REQUIRED];
+        // The name of the campaign.
+        string campaign = 2 [(google.api.field_behavior) = REQUIRED];
+      }
+      // Metadata the pertains to a campaign that is entailed by the EventGroup.
+      CampaignMetadata campaign_metadata = 1
+          [(google.api.field_behavior) = REQUIRED];
+    }
+
+    // Selector for the specific metadata structure used to describe the events
+    // entailed by an EventGroup.
+    // Required.
+    oneof selector {
+      // Metadata for an ad
+      AdMetadata ad_metadata = 2;
+    }
+  }
+
+  // MediaType for Events, Event Groups, Event Templates, and associated
+  // artifacts.
+  enum MediaType {
+    // Default value. Unused.
+    MEDIA_TYPE_UNSPECIFIED = 0;
+    // Interpret a set of artifacts as Video
+    VIDEO = 1;
+    // Interpret a set of artifacts as Display
+    DISPLAY = 2;
+    // Interpret as set of artifacts as Other
+    OTHER = 3;
+  }
+
+  // ID referencing the campaign in an external system, provided by the
+  // `DataProvider`. This value should be used to help the `DataProvider`
+  // synchronize their metadata with the EventGroupsService. See
+  // `Metadata` which provides a set of identifiers with better
+  // defined semantics.
+  string event_group_reference_id = 1 [(google.api.field_behavior) = REQUIRED];
+
+  // Metadata that describes the events entailed by the EventGroup.
+  Metadata event_group_metadata = 2 [(google.api.field_behavior) = REQUIRED];
+
+  // The start and end dates of the campaign. May contain future dates.
+  google.type.Interval data_availability_interval = 3
+      [(google.api.field_behavior) = REQUIRED];
+
+  // Resource name of the `MeasurementConsumer` from the CMMS public API
+  string measurement_consumer = 4 [
+    (google.api.resource_reference).type =
+        "halo.wfanet.org/MeasurementConsumer",
+    (google.api.field_behavior) = REQUIRED
+  ];
+
+  // The MediaTypes of the events entailed by this `EventGroup`
+  repeated MediaType media_types = 5 [(google.api.field_behavior) = REQUIRED];
+}

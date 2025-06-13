@@ -16,22 +16,29 @@
 
 package org.wfanet.measurement.securecomputation.deploy.gcloud.spanner
 
+import kotlin.coroutines.CoroutineContext
 import org.wfanet.measurement.common.IdGenerator
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.securecomputation.service.internal.QueueMapping
 import org.wfanet.measurement.securecomputation.service.internal.Services
 import org.wfanet.measurement.securecomputation.service.internal.WorkItemPublisher
 
-object InternalApiServices {
-  fun build(
-    workItemPublisher: WorkItemPublisher,
-    databaseClient: AsyncDatabaseClient,
-    queueMapping: QueueMapping,
-    idGenerator: IdGenerator = IdGenerator.Default,
-  ): Services {
+class InternalApiServices(
+  private val workItemPublisher: WorkItemPublisher,
+  private val databaseClient: AsyncDatabaseClient,
+  private val queueMapping: QueueMapping,
+  private val idGenerator: IdGenerator = IdGenerator.Default,
+) {
+  fun build(coroutineContext: CoroutineContext): Services {
     return Services(
-      SpannerWorkItemsService(databaseClient, queueMapping, idGenerator, workItemPublisher),
-      SpannerWorkItemAttemptsService(databaseClient, queueMapping, idGenerator),
+      SpannerWorkItemsService(
+        databaseClient,
+        queueMapping,
+        idGenerator,
+        workItemPublisher,
+        coroutineContext,
+      ),
+      SpannerWorkItemAttemptsService(databaseClient, queueMapping, idGenerator, coroutineContext),
     )
   }
 }

@@ -69,6 +69,7 @@ import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
 import org.wfanet.measurement.duchy.db.computation.ComputationDataClients
 import org.wfanet.measurement.duchy.db.computation.testing.FakeComputationsDatabase
 import org.wfanet.measurement.duchy.mill.Certificate
+import org.wfanet.measurement.duchy.mill.MillBase
 import org.wfanet.measurement.duchy.mill.liquidlegionsv2.crypto.LiquidLegionsV2Encryption
 import org.wfanet.measurement.duchy.service.internal.computations.ComputationsService
 import org.wfanet.measurement.duchy.service.internal.computations.newEmptyOutputBlobMetadata
@@ -468,32 +469,33 @@ class ReachFrequencyLiquidLegionsV2MillTest {
 
   private val tempDirectory = TemporaryFolder()
 
-  private val grpcTestServerRule = GrpcTestServerRule {
-    val storageClient = FileSystemStorageClient(tempDirectory.root)
-    computationStore = ComputationStore(storageClient)
-    requisitionStore = RequisitionStore(storageClient)
-    computationDataClients =
-      ComputationDataClients.forTesting(
-        ComputationsCoroutineStub(channel),
-        computationStore,
-        requisitionStore,
+  private val grpcTestServerRule =
+    GrpcTestServerRule(defaultServiceConfig = MillBase.SERVICE_CONFIG) {
+      val storageClient = FileSystemStorageClient(tempDirectory.root)
+      computationStore = ComputationStore(storageClient)
+      requisitionStore = RequisitionStore(storageClient)
+      computationDataClients =
+        ComputationDataClients.forTesting(
+          ComputationsCoroutineStub(channel),
+          computationStore,
+          requisitionStore,
+        )
+      addService(mockLiquidLegionsComputationControl)
+      addService(mockSystemComputations)
+      addService(mockComputationLogEntries)
+      addService(mockComputationParticipants)
+      addService(mockComputationStats)
+      addService(
+        ComputationsService(
+          fakeComputationDb,
+          systemComputationLogEntriesStub,
+          computationStore,
+          requisitionStore,
+          DUCHY_THREE_NAME,
+          clock = Clock.systemUTC(),
+        )
       )
-    addService(mockLiquidLegionsComputationControl)
-    addService(mockSystemComputations)
-    addService(mockComputationLogEntries)
-    addService(mockComputationParticipants)
-    addService(mockComputationStats)
-    addService(
-      ComputationsService(
-        fakeComputationDb,
-        systemComputationLogEntriesStub,
-        computationStore,
-        requisitionStore,
-        DUCHY_THREE_NAME,
-        Clock.systemUTC(),
-      )
-    )
-  }
+    }
 
   @get:Rule val ruleChain = chainRulesSequentially(tempDirectory, grpcTestServerRule)
 

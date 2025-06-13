@@ -15,19 +15,36 @@
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries
 
 import com.google.cloud.spanner.Statement
+import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
 import org.wfanet.measurement.gcloud.spanner.appendClause
 import org.wfanet.measurement.gcloud.spanner.bind
 import org.wfanet.measurement.gcloud.spanner.toInt64
+import org.wfanet.measurement.gcloud.spanner.toInt64Array
 import org.wfanet.measurement.internal.kingdom.EventGroup
+import org.wfanet.measurement.internal.kingdom.EventGroupKey
 import org.wfanet.measurement.internal.kingdom.StreamEventGroupsRequest
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.EventGroupReader
 
-class StreamEventGroups(requestFilter: StreamEventGroupsRequest.Filter, limit: Int = 0) :
-  SimpleSpannerQuery<EventGroupReader.Result>() {
+class StreamEventGroups(
+  requestFilter: StreamEventGroupsRequest.Filter,
+  private val orderBy: StreamEventGroupsRequest.OrderBy,
+  limit: Int = 0,
+) : SimpleSpannerQuery<EventGroupReader.Result>() {
   override val reader =
     EventGroupReader().fillStatementBuilder {
       appendWhereClause(requestFilter)
-      appendClause("ORDER BY ExternalDataProviderId ASC, ExternalEventGroupId ASC")
+      val sortOrder = if (orderBy.descending) "DESC" else "ASC"
+      @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf accessors cannot return null.
+      when (orderBy.field) {
+        StreamEventGroupsRequest.OrderBy.Field.FIELD_NOT_SPECIFIED ->
+          appendClause("ORDER BY ExternalDataProviderId ASC, ExternalEventGroupId ASC")
+        StreamEventGroupsRequest.OrderBy.Field.DATA_AVAILABILITY_START_TIME -> {
+          appendClause(
+            "ORDER BY DataAvailabilityStartTime $sortOrder, ExternalDataProviderId ASC, ExternalEventGroupId ASC"
+          )
+        }
+        StreamEventGroupsRequest.OrderBy.Field.UNRECOGNIZED -> error("Unrecognized field")
+      }
       if (limit > 0) {
         appendClause("LIMIT @$LIMIT")
         bind(LIMIT to limit.toLong())
@@ -35,42 +52,102 @@ class StreamEventGroups(requestFilter: StreamEventGroupsRequest.Filter, limit: I
     }
 
   private fun Statement.Builder.appendWhereClause(filter: StreamEventGroupsRequest.Filter) {
-    val conjuncts = mutableListOf<String>()
-    if (filter.externalDataProviderId != 0L) {
-      conjuncts.add("ExternalDataProviderId = @$EXTERNAL_DATA_PROVIDER_ID")
-      bind(EXTERNAL_DATA_PROVIDER_ID).to(filter.externalDataProviderId)
-    }
-    if (filter.externalMeasurementConsumerId != 0L) {
-      conjuncts.add("ExternalMeasurementConsumerId = @$EXTERNAL_MEASUREMENT_CONSUMER_ID")
-      bind(EXTERNAL_MEASUREMENT_CONSUMER_ID).to(filter.externalMeasurementConsumerId)
-    }
-    if (filter.externalMeasurementConsumerIdsList.isNotEmpty()) {
-      conjuncts.add("ExternalMeasurementConsumerId IN UNNEST(@$EXTERNAL_MEASUREMENT_CONSUMER_IDS)")
-      bind(EXTERNAL_MEASUREMENT_CONSUMER_IDS)
-        .toInt64Array(filter.externalMeasurementConsumerIdsList.map { it.toLong() })
-    }
-    if (filter.externalDataProviderIdsList.isNotEmpty()) {
-      conjuncts.add("ExternalDataProviderId IN UNNEST(@$EXTERNAL_DATA_PROVIDER_IDS)")
-      bind(EXTERNAL_DATA_PROVIDER_IDS)
-        .toInt64Array(filter.externalDataProviderIdsList.map { it.toLong() })
-    }
+    val conjuncts = buildList {
+      if (filter.externalDataProviderId != 0L) {
+        add("ExternalDataProviderId = @$EXTERNAL_DATA_PROVIDER_ID")
+        bind(EXTERNAL_DATA_PROVIDER_ID).to(filter.externalDataProviderId)
+      }
+      if (filter.externalMeasurementConsumerId != 0L) {
+        add("ExternalMeasurementConsumerId = @$EXTERNAL_MEASUREMENT_CONSUMER_ID")
+        bind(EXTERNAL_MEASUREMENT_CONSUMER_ID).to(filter.externalMeasurementConsumerId)
+      }
+      if (filter.externalMeasurementConsumerIdInList.isNotEmpty()) {
+        add("ExternalMeasurementConsumerId IN UNNEST(@$EXTERNAL_MEASUREMENT_CONSUMER_IDS)")
+        bind(EXTERNAL_MEASUREMENT_CONSUMER_IDS)
+          .toInt64Array(filter.externalMeasurementConsumerIdInList)
+      }
+      if (filter.externalDataProviderIdInList.isNotEmpty()) {
+        add("ExternalDataProviderId IN UNNEST(@$EXTERNAL_DATA_PROVIDER_IDS)")
+        bind(EXTERNAL_DATA_PROVIDER_IDS).toInt64Array(filter.externalDataProviderIdInList)
+      }
+      if (!filter.showDeleted) {
+        add("State != @$DELETED_STATE")
+        bind(DELETED_STATE).toInt64(EventGroup.State.DELETED)
+      }
+      if (filter.mediaTypesIntersectList.isNotEmpty()) {
+        add(
+          """
+          EXISTS(
+            SELECT MediaType
+            FROM UNNEST(EventGroups.MediaTypes) AS MediaType
+            WHERE MediaType IN UNNEST(@$MEDIA_TYPES)
+          )
+          """
+            .trimIndent()
+        )
+        bind(MEDIA_TYPES).toInt64Array(filter.mediaTypesIntersectList)
+      }
+      if (filter.hasDataAvailabilityStartTimeOnOrAfter()) {
+        add("DataAvailabilityStartTime >= @$DATA_AVAILABILITY_START_TIME")
+        bind(DATA_AVAILABILITY_START_TIME)
+          .to(filter.dataAvailabilityStartTimeOnOrAfter.toGcloudTimestamp())
+      }
+      if (filter.hasDataAvailabilityEndTimeOnOrBefore()) {
+        add("DataAvailabilityEndTime <= @$DATA_AVAILABILITY_END_TIME")
+        bind(DATA_AVAILABILITY_END_TIME)
+          .to(filter.dataAvailabilityEndTimeOnOrBefore.toGcloudTimestamp())
+      }
+      if (filter.metadataSearchQuery.isNotEmpty()) {
+        add("SEARCH(Metadata_Tokens, @$METADATA_SEARCH_QUERY)")
+        bind(METADATA_SEARCH_QUERY).to(filter.metadataSearchQuery)
+      }
 
-    if (!filter.showDeleted) {
-      conjuncts.add("State != @$DELETED_STATE")
-      bind(DELETED_STATE).toInt64(EventGroup.State.DELETED)
-    }
+      // TODO(@SanjayVas): Stop reading the deprecated field once the replacement has been available
+      // for at least one release.
+      if (filter.hasAfter() || filter.hasEventGroupKeyAfter()) {
+        val afterEventGroupKey: EventGroupKey =
+          if (filter.hasAfter()) filter.after.eventGroupKey else filter.eventGroupKeyAfter
+        val tieBreaker =
+          """
+          (
+            ExternalDataProviderId > @${After.EXTERNAL_DATA_PROVIDER_ID}
+            OR (
+              ExternalDataProviderId = @${After.EXTERNAL_DATA_PROVIDER_ID}
+              AND ExternalEventGroupId > @${After.EXTERNAL_EVENT_GROUP_ID}
+            )
+          )
+          """
+            .trimIndent()
 
-    if (filter.hasAfter()) {
-      conjuncts.add(
-        """
-          ((ExternalDataProviderId > @$EXTERNAL_DATA_PROVIDER_ID_AFTER)
-          OR (ExternalDataProviderId = @$EXTERNAL_DATA_PROVIDER_ID_AFTER
-          AND ExternalEventGroupId > @$EXTERNAL_EVENT_GROUP_ID_AFTER))
-        """
-          .trimIndent()
-      )
-      bind(EXTERNAL_DATA_PROVIDER_ID_AFTER).to(filter.after.externalDataProviderId)
-      bind(EXTERNAL_EVENT_GROUP_ID_AFTER).to(filter.after.externalEventGroupId)
+        @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf accessors cannot return null.
+        when (orderBy.field) {
+          StreamEventGroupsRequest.OrderBy.Field.FIELD_NOT_SPECIFIED -> {
+            add(tieBreaker)
+            Unit
+          }
+          StreamEventGroupsRequest.OrderBy.Field.DATA_AVAILABILITY_START_TIME -> {
+            val operator = if (orderBy.descending) "<" else ">"
+            add(
+              """
+              (
+                DataAvailabilityStartTime $operator @${After.DATA_AVAILABILITY_START_TIME}
+                OR (
+                  DataAvailabilityStartTime = @${After.DATA_AVAILABILITY_START_TIME}
+                  AND $tieBreaker
+                )
+              )
+              """
+                .trimIndent()
+            )
+            bind(After.DATA_AVAILABILITY_START_TIME).to(filter.after.dataAvailabilityStartTime)
+            Unit
+          }
+          StreamEventGroupsRequest.OrderBy.Field.UNRECOGNIZED -> error("Unrecognized field")
+        }
+
+        bind(After.EXTERNAL_DATA_PROVIDER_ID).to(afterEventGroupKey.externalDataProviderId)
+        bind(After.EXTERNAL_EVENT_GROUP_ID).to(afterEventGroupKey.externalEventGroupId)
+      }
     }
 
     if (conjuncts.isEmpty()) {
@@ -81,14 +158,22 @@ class StreamEventGroups(requestFilter: StreamEventGroupsRequest.Filter, limit: I
     append(conjuncts.joinToString(" AND "))
   }
 
+  private object After {
+    const val EXTERNAL_EVENT_GROUP_ID = "after_externalEventGroupId"
+    const val EXTERNAL_DATA_PROVIDER_ID = "after_externalDataProviderId"
+    const val DATA_AVAILABILITY_START_TIME = "after_dataAvailabilityStartTime"
+  }
+
   companion object {
     const val LIMIT = "limit"
     const val EXTERNAL_DATA_PROVIDER_ID = "externalDataProviderId"
     const val EXTERNAL_MEASUREMENT_CONSUMER_ID = "externalMeasurementConsumerId"
     const val EXTERNAL_MEASUREMENT_CONSUMER_IDS = "externalMeasurementConsumerIds"
     const val EXTERNAL_DATA_PROVIDER_IDS = "externalDataProviderIds"
-    const val EXTERNAL_EVENT_GROUP_ID_AFTER = "externalEventGroupIdAfter"
-    const val EXTERNAL_DATA_PROVIDER_ID_AFTER = "externalDataProviderIdAfter"
     const val DELETED_STATE = "deletedState"
+    const val MEDIA_TYPES = "mediaTypes"
+    const val DATA_AVAILABILITY_START_TIME = "dataAvailabilityStartTime"
+    const val DATA_AVAILABILITY_END_TIME = "dataAvailabilityEndTime"
+    const val METADATA_SEARCH_QUERY = "metadataSearchQuery"
   }
 }

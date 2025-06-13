@@ -20,6 +20,8 @@ import com.google.cloud.spanner.ErrorCode
 import com.google.cloud.spanner.Options
 import com.google.cloud.spanner.SpannerException
 import io.grpc.Status
+import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.EmptyCoroutineContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collectIndexed
 import kotlinx.coroutines.flow.map
@@ -59,10 +61,10 @@ class SpannerWorkItemsService(
   private val queueMapping: QueueMapping,
   private val idGenerator: IdGenerator,
   private val workItemPublisher: WorkItemPublisher,
-) : WorkItemsCoroutineImplBase() {
+  coroutineContext: CoroutineContext = EmptyCoroutineContext,
+) : WorkItemsCoroutineImplBase(coroutineContext) {
 
   override suspend fun createWorkItem(request: CreateWorkItemRequest): WorkItem {
-
     if (request.workItem.queueResourceId.isEmpty()) {
       throw RequiredFieldNotSetException("queue_resource_id")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
@@ -120,10 +122,7 @@ class SpannerWorkItemsService(
       }
 
     try {
-      workItemPublisher.publishMessage(
-        request.workItem.queueResourceId,
-        request.workItem.workItemParams,
-      )
+      workItemPublisher.publishMessage(request.workItem.queueResourceId, request.workItem)
     } catch (e: Exception) {
       throw Status.INTERNAL.withCause(e).asRuntimeException()
     }

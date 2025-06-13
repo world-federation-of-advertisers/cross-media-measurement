@@ -4,19 +4,34 @@ import com.google.crypto.tink.KmsClient
 import com.google.protobuf.Any
 import com.google.protobuf.Parser
 import com.google.protobuf.TypeRegistry
+import io.grpc.Channel
 import java.io.File
+import java.nio.file.Paths
+import java.security.SecureRandom
+import java.security.cert.X509Certificate
+import java.time.Duration
+import java.time.ZoneOffset
 import kotlinx.coroutines.CompletableDeferred
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
+import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
-import org.wfanet.measurement.common.crypto.tink.TinkPrivateKeyHandle
+import org.wfanet.measurement.common.crypto.readCertificate
+import org.wfanet.measurement.common.crypto.readPrivateKey
+import org.wfanet.measurement.common.crypto.tink.loadPrivateKey
+import org.wfanet.measurement.common.getRuntimePath
+import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
+import org.wfanet.measurement.common.grpc.withShutdownTimeout
+import org.wfanet.measurement.common.identity.withPrincipalName
+import org.wfanet.measurement.common.readByteString
+import org.wfanet.measurement.edpaggregator.StorageConfig
+import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
+import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams.StorageParams
 import org.wfanet.measurement.queue.QueueSubscriber
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem.WorkItemParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAttemptsGrpcKt
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt
-import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
-import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams.Storage
 import org.wfanet.measurement.securecomputation.teesdk.BaseTeeApplication
 import org.wfanet.measurement.storage.StorageClient
 
@@ -27,22 +42,23 @@ enum class StorageConfigType {
 }
 
 abstract class ResultsFulfillerApp(
-        subscriptionId: String,
-        queueSubscriber: QueueSubscriber,
-        parser: Parser<WorkItem>,
-        workItemsClient: WorkItemsGrpcKt.WorkItemsCoroutineStub,
-        workItemAttemptsClient: WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineStub,
-        private val requisitionsStub: RequisitionsCoroutineStub,
-        private val dataProviderCertificateKey: DataProviderCertificateKey,
-        private val dataProviderSigningKeyHandle: SigningKeyHandle,
-        private val dataProviderPrivateEncryptionKey: TinkPrivateKeyHandle,
+  subscriptionId: String,
+  queueSubscriber: QueueSubscriber,
+  parser: Parser<WorkItem>,
+  workItemsClient: WorkItemsGrpcKt.WorkItemsCoroutineStub,
+  workItemAttemptsClient: WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineStub,
+  private val trustedCertCollection: File? = null,
+  private val cmmsTarget: String? = null,
+  private val cmmsCertHost: String? = null,
+  private val cmmsChannel: Channel? = null,
+  private val channelShutdownTimeout: Duration = Duration.ofSeconds(3),
 ) :
   BaseTeeApplication(
     subscriptionId = subscriptionId,
     queueSubscriber = queueSubscriber,
     parser = parser,
     workItemsStub = workItemsClient,
-    workItemAttemptsStub = workItemAttemptsClient
+    workItemAttemptsStub = workItemAttemptsClient,
   ) {
 
   val messageProcessed = CompletableDeferred<WorkItemParams>()
@@ -50,14 +66,17 @@ abstract class ResultsFulfillerApp(
   abstract fun createStorageClient(
     blobUri: String,
     rootDirectory: File? = null,
-    projectId: String? = null
+    projectId: String? = null,
   ): StorageClient
 
   abstract fun getKmsClient(): KmsClient
 
   abstract fun getTypeRegistry(): TypeRegistry
 
-  abstract fun getStorageConfig(configType: StorageConfigType, storageDetails: Storage): StorageConfig
+  abstract fun getStorageConfig(
+    configType: StorageConfigType,
+    storageParams: StorageParams,
+  ): StorageConfig
 
   override suspend fun runWork(message: Any) {
     val workItemParams = message.unpack(WorkItemParams::class.java)
@@ -66,27 +85,89 @@ abstract class ResultsFulfillerApp(
     val typeRegistry = getTypeRegistry()
     val requisitionsBlobUri = workItemParams.dataPathParams.dataPath
 
-    val storageDetails = fulfillerParams.storage
+    val storageParams = fulfillerParams.storageParams
 
-    val requisitionsStorageConfig = getStorageConfig(StorageConfigType.REQUISITION, storageDetails)
-    val impressionsMetadataStorageConfig = getStorageConfig(StorageConfigType.IMPRESSION_METADATA, storageDetails)
-    val impressionsStorageConfig = getStorageConfig(StorageConfigType.IMPRESSION, storageDetails)
+    val requisitionsStorageConfig = getStorageConfig(StorageConfigType.REQUISITION, storageParams)
+    val impressionsMetadataStorageConfig =
+      getStorageConfig(StorageConfigType.IMPRESSION_METADATA, storageParams)
+    val impressionsStorageConfig = getStorageConfig(StorageConfigType.IMPRESSION, storageParams)
+    val principalName = fulfillerParams.dataProvider
+    val requisitionsStub =
+      if (cmmsChannel != null) {
+        RequisitionsCoroutineStub(cmmsChannel).withPrincipalName(principalName)
+      } else {
+        val publicChannel by lazy {
+          val signingCerts =
+            SigningCerts.fromPemFiles(
+              certificateFile =
+                checkNotNull(
+                    getRuntimePath(Paths.get(fulfillerParams.cmmsConnection.clientCertResourcePath))
+                  )
+                  .toFile(),
+              privateKeyFile =
+                checkNotNull(
+                    getRuntimePath(
+                      Paths.get(fulfillerParams.cmmsConnection.clientPrivateKeyResourcePath)
+                    )
+                  )
+                  .toFile(),
+              trustedCertCollectionFile = checkNotNull(trustedCertCollection),
+            )
+          buildMutualTlsChannel(checkNotNull(cmmsTarget), signingCerts, cmmsCertHost)
+            .withShutdownTimeout(channelShutdownTimeout)
+        }
+        RequisitionsCoroutineStub(publicChannel).withPrincipalName(principalName)
+      }
+    val dataProviderCertificateKey =
+      checkNotNull(
+        DataProviderCertificateKey.fromName(fulfillerParams.consentParams.edpCertificateName)
+      )
+    val consentCertificateFile =
+      checkNotNull(
+          getRuntimePath(Paths.get(fulfillerParams.consentParams.resultCsCertDerResourcePath))
+        )
+        .toFile()
+    val consentPrivateKeyFile =
+      checkNotNull(
+          getRuntimePath(Paths.get(fulfillerParams.consentParams.resultCsPrivateKeyDerResourcePath))
+        )
+        .toFile()
+    val encryptionPrivateKeyFile =
+      checkNotNull(
+          getRuntimePath(Paths.get(fulfillerParams.consentParams.privateEncryptionKeyResourcePath))
+        )
+        .toFile()
+    val consentCertificate: X509Certificate =
+      consentCertificateFile.inputStream().use { input -> readCertificate(input) }
+    val consentPrivateEncryptionKey =
+      readPrivateKey(consentPrivateKeyFile.readByteString(), consentCertificate.publicKey.algorithm)
+    val dataProviderResultSigningKeyHandle =
+      SigningKeyHandle(consentCertificate, consentPrivateEncryptionKey)
 
     val kmsClient = getKmsClient()
+    val eventReader =
+      EventReader(
+        kmsClient = kmsClient,
+        impressionDekStorageConfig = impressionsMetadataStorageConfig,
+        impressionsStorageConfig = impressionsStorageConfig,
+        labeledImpressionsDekPrefix =
+          fulfillerParams.storageParams.labeledImpressionsBlobDetailsUriPrefix,
+      )
 
     ResultsFulfiller(
-      dataProviderPrivateEncryptionKey,
-      requisitionsStub,
-      dataProviderCertificateKey,
-      dataProviderSigningKeyHandle,
-      typeRegistry,
-      requisitionsBlobUri,
-      fulfillerParams.storage.labeledImpressionsBlobUriPrefix,
-      kmsClient,
-      impressionsStorageConfig,
-      impressionsMetadataStorageConfig,
-      requisitionsStorageConfig,
-    ).fulfillRequisitions()
+        loadPrivateKey(encryptionPrivateKeyFile),
+        requisitionsStub,
+        dataProviderCertificateKey,
+        dataProviderResultSigningKeyHandle,
+        typeRegistry,
+        requisitionsBlobUri = requisitionsBlobUri,
+        requisitionsStorageConfig = requisitionsStorageConfig,
+        random = SecureRandom(),
+        zoneId = ZoneOffset.UTC,
+        noiserSelector = NoNoiserSelector(),
+        eventReader = eventReader,
+      )
+      .fulfillRequisitions()
 
     messageProcessed.complete(workItemParams)
   }

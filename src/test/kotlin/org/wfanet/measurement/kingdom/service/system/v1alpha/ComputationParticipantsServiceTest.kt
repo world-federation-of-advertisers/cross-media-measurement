@@ -190,7 +190,7 @@ class ComputationParticipantsServiceTest {
   private val service =
     ComputationParticipantsService(
       InternalComputationParticipantsCoroutineStub(grpcTestServerRule.channel),
-      duchyIdProvider,
+      duchyIdentityProvider = duchyIdProvider,
     )
 
   @Test

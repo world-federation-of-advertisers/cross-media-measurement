@@ -18,6 +18,8 @@ package org.wfanet.measurement.reporting.service.api.v2alpha
 
 import io.grpc.Status
 import io.grpc.StatusException
+import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.EmptyCoroutineContext
 import kotlin.math.min
 import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.access.client.v1alpha.Authorization
@@ -62,7 +64,8 @@ private const val MAX_PAGE_SIZE = 1000
 class ReportingSetsService(
   private val internalReportingSetsStub: ReportingSetsCoroutineStub,
   private val authorization: Authorization,
-) : ReportingSetsCoroutineImplBase() {
+  coroutineContext: CoroutineContext = EmptyCoroutineContext,
+) : ReportingSetsCoroutineImplBase(coroutineContext) {
 
   data class PrimitiveReportingSetBasis(
     val externalReportingSetId: String,
@@ -183,7 +186,9 @@ class ReportingSetsService(
     }
 
     validateOperand(parentKey, setExpression.lhs)
-    validateOperand(parentKey, setExpression.rhs)
+    if (setExpression.hasRhs()) {
+      validateOperand(parentKey, setExpression.rhs)
+    }
   }
 
   /**
@@ -616,7 +621,9 @@ private fun ReportingSet.SetExpression.toInternal(): InternalReportingSet.SetExp
     operation = source.operation.toInternal()
 
     lhs = source.lhs.toInternal()
-    rhs = source.rhs.toInternal()
+    if (source.hasRhs()) {
+      rhs = source.rhs.toInternal()
+    }
   }
 }
 

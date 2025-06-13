@@ -71,6 +71,7 @@ class InProcessCmmsComponents(
     SyntheticGenerationSpecs.SYNTHETIC_POPULATION_SPEC_SMALL,
   private val syntheticEventGroupSpecs: List<SyntheticEventGroupSpec> =
     SyntheticGenerationSpecs.SYNTHETIC_DATA_SPECS_SMALL,
+  private val useEdpSimulators: Boolean,
 ) : TestRule {
   private val kingdomDataServices: DataServices
     get() = kingdomDataServicesRule.value
@@ -167,9 +168,9 @@ class InProcessCmmsComponents(
   val typeRegistry: TypeRegistry
     get() = _typeRegistry
 
-  private lateinit var mcResourceName: String
+  lateinit var mcResourceName: String
   private lateinit var apiAuthenticationKey: String
-  private lateinit var edpDisplayNameToResourceMap: Map<String, Resources.Resource>
+  lateinit var edpDisplayNameToResourceMap: Map<String, Resources.Resource>
   private lateinit var duchyCertMap: Map<String, String>
   private lateinit var eventGroups: List<EventGroup>
   private lateinit var populationDataProviderResource: Resources.Resource
@@ -277,6 +278,24 @@ class InProcessCmmsComponents(
     )
   }
 
+  /**
+   * Retrieves the data provider display name associated with a given data provider name.
+   *
+   * This function searches the `edpDisplayNameToResourceMap` for an entry where the `name` property
+   * of the entry's value exactly matches the provided [dataProviderName]. If such an entry is
+   * found, its key (which represents the data provider display name) is returned. If no match is
+   * found, null is returned.
+   *
+   * @param dataProviderName The exact name of the data provider name to search for.
+   * @return The corresponding data provider display name if an exact match for the
+   *   [dataProviderName] is found in the map's values; otherwise, null.
+   */
+  fun getDataProviderDisplayNameFromDataProviderName(dataProviderName: String): String? {
+    return edpDisplayNameToResourceMap.entries
+      .find { entry -> dataProviderName.equals(entry.value.name) }
+      ?.key ?: null
+  }
+
   fun getDataProviderResourceNames(): List<String> {
     return edpDisplayNameToResourceMap.values.map { it.name }
   }
@@ -284,17 +303,18 @@ class InProcessCmmsComponents(
   fun startDaemons() = runBlocking {
     // Create all resources
     createAllResources()
-    eventGroups = edpSimulators.map { it.ensureEventGroup() }
-
     // Start daemons. Mills and EDP simulators can only be started after resources have been
     // created.
+    if (useEdpSimulators) {
+      eventGroups = edpSimulators.map { it.ensureEventGroup() }
+      edpSimulators.forEach { it.start() }
+      edpSimulators.forEach { it.waitUntilHealthy() }
+    }
+
     duchies.forEach {
       it.startHerald()
       it.startMill(duchyCertMap)
     }
-    edpSimulators.forEach { it.start() }
-    edpSimulators.forEach { it.waitUntilHealthy() }
-
     populationRequisitionFulfiller.start()
   }
 
@@ -312,7 +332,9 @@ class InProcessCmmsComponents(
   }
 
   fun stopDaemons() {
-    stopEdpSimulators()
+    if (useEdpSimulators) {
+      stopEdpSimulators()
+    }
     stopDuchyDaemons()
     stopPopulationRequisitionFulfillerDaemon()
   }

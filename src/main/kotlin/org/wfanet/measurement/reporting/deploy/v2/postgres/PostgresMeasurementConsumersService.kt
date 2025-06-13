@@ -17,6 +17,8 @@
 package org.wfanet.measurement.reporting.deploy.v2.postgres
 
 import io.grpc.Status
+import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.EmptyCoroutineContext
 import org.wfanet.measurement.common.db.r2dbc.DatabaseClient
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.internal.reporting.v2.MeasurementConsumer
@@ -27,7 +29,8 @@ import org.wfanet.measurement.reporting.service.internal.MeasurementConsumerAlre
 class PostgresMeasurementConsumersService(
   private val idGenerator: IdGenerator,
   private val client: DatabaseClient,
-) : MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase() {
+  coroutineContext: CoroutineContext = EmptyCoroutineContext,
+) : MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase(coroutineContext) {
   override suspend fun createMeasurementConsumer(
     request: MeasurementConsumer
   ): MeasurementConsumer {

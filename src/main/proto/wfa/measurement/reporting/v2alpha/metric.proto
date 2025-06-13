@@ -42,12 +42,18 @@ message MetricSpec {
   }
 
   // Specifies a range of VIDs to be sampled.
+  //
+  // The interval is within range of [0.0, 1.0].
+  // When --allow-sampling-interval-wrapping feature flag is enabled, if start +
+  // width > 1.0, it will wrap around 1. E.g., start=0.8, width=0.5 stands for
+  // intervals [0.0, 0.3] and [0.8, 1.0]. Otherwise, the start + width cannot be
+  // larger than 1.
   message VidSamplingInterval {
     // The start of the sampling interval in [0, 1)
     float start = 1 [(google.api.field_behavior) = OPTIONAL];
     // The width of the sampling interval.
     //
-    // start + width cannot be larger than 1.
+    // Must be less than or equal to 1.
     float width = 2 [(google.api.field_behavior) = REQUIRED];
   }
 
@@ -433,6 +439,11 @@ message Metric {
     (google.api.field_behavior) = IMMUTABLE
   ];
 
+  // TODO(@tristanvuong2021): WIll be required in a future release. See
+  // https://github.com/world-federation-of-advertisers/cross-media-measurement/issues/2345
+  string model_line = 11
+      [(google.api.resource_reference).type = "halo.wfanet.org/ModelLine"];
+
   // Metric state.
   State state = 6 [(google.api.field_behavior) = OUTPUT_ONLY];
 
@@ -442,4 +453,26 @@ message Metric {
 
   // The result of calculating the metric.
   MetricResult result = 8 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Information about a failure.
+  message Failure {
+    // Reason for a `Failure`.
+    enum Reason {
+      // Default value used if the reason is omitted.
+      REASON_UNSPECIFIED = 0;
+      // An associated `Measurement` has `state` `FAILED` or `CANCELLED`.
+      MEASUREMENT_STATE_INVALID = 1;
+      // An associated `Measurement` has invalid `results`.
+      MEASUREMENT_RESULT_INVALID = 2;
+    }
+    // Reason for this `Failure`.
+    Reason reason = 1 [(google.api.field_behavior) = REQUIRED];
+
+    // Human-readable message. This should not contain any sensitive
+    // information.
+    string message = 2 [(google.api.field_behavior) = OPTIONAL];
+  }
+  // Information about the failure of this `Metric`. Set when the `state`
+  // is set to `FAILED`.
+  Failure failure = 10 [(google.api.field_behavior) = OUTPUT_ONLY];
 }

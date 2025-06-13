@@ -27,3 +27,24 @@ kt_jvm_library(
         "@wfa_common_jvm//imports/java/io/grpc:api",
     ],
 )
+
+kt_jvm_library(
+    name = "service_flags",
+    srcs = ["ServiceFlags.kt"],
+    deps = [
+        "@wfa_common_jvm//imports/java/picocli",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+    ],
+)
+
+kt_jvm_library(
+    name = "principal_rate_limiting_server_interceptor",
+    srcs = ["PrincipalRateLimitingServerInterceptor.kt"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/common/ratelimit:rate_limiter",
+        "//src/main/kotlin/org/wfanet/measurement/common/ratelimit:token_bucket",
+        "//src/main/proto/wfa/measurement/config:rate_limit_config_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/io/grpc:api",
+        "@wfa_common_jvm//imports/java/io/grpc:context",
+    ],
+)

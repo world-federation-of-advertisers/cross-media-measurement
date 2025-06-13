@@ -19,6 +19,8 @@ package org.wfanet.measurement.kingdom.service.api.v2alpha
 import com.google.protobuf.Empty
 import io.grpc.Status
 import io.grpc.StatusException
+import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.EmptyCoroutineContext
 import kotlin.math.min
 import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.v2alpha.CreateModelShardRequest
@@ -56,8 +58,10 @@ import org.wfanet.measurement.internal.kingdom.streamModelShardsRequest
 private const val DEFAULT_PAGE_SIZE = 50
 private const val MAX_PAGE_SIZE = 1000
 
-class ModelShardsService(private val internalClient: ModelShardsCoroutineStub) :
-  ModelShardsCoroutineService() {
+class ModelShardsService(
+  private val internalClient: ModelShardsCoroutineStub,
+  coroutineContext: CoroutineContext = EmptyCoroutineContext,
+) : ModelShardsCoroutineService(coroutineContext) {
 
   override suspend fun createModelShard(request: CreateModelShardRequest): ModelShard {
     val parentKey =

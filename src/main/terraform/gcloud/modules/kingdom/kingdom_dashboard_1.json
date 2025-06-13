@@ -252,7 +252,7 @@
         "height": 16,
         "width": 36,
         "widget": {
-          "title": "ListRequisitions Error Rate %",
+          "title": "ListMeasurements Error Rate %",
           "id": "",
           "xyChart": {
             "chartOptions": {

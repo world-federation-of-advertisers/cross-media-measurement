@@ -20,6 +20,8 @@ import com.google.protobuf.any
 import com.google.protobuf.kotlin.unpack
 import io.grpc.Status
 import io.grpc.StatusException
+import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.EmptyCoroutineContext
 import kotlin.math.min
 import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.Version
@@ -31,10 +33,12 @@ import org.wfanet.measurement.api.v2alpha.ElGamalPublicKey
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.FulfillDirectRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.FulfillDirectRequisitionResponse
+import org.wfanet.measurement.api.v2alpha.GetRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.ListRequisitionsPageToken
 import org.wfanet.measurement.api.v2alpha.ListRequisitionsPageTokenKt.previousPageEnd
 import org.wfanet.measurement.api.v2alpha.ListRequisitionsRequest
 import org.wfanet.measurement.api.v2alpha.ListRequisitionsResponse
+import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerCertificateKey
 import org.wfanet.measurement.api.v2alpha.MeasurementKey
 import org.wfanet.measurement.api.v2alpha.MeasurementPrincipal
@@ -80,6 +84,7 @@ import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCo
 import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequest
 import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequestKt
 import org.wfanet.measurement.internal.kingdom.fulfillRequisitionRequest
+import org.wfanet.measurement.internal.kingdom.getRequisitionRequest
 import org.wfanet.measurement.internal.kingdom.refuseRequisitionRequest
 import org.wfanet.measurement.internal.kingdom.requisitionRefusal as internalRequisitionRefusal
 import org.wfanet.measurement.internal.kingdom.streamRequisitionsRequest
@@ -87,11 +92,14 @@ import org.wfanet.measurement.internal.kingdom.streamRequisitionsRequest
 private const val DEFAULT_PAGE_SIZE = 10
 private const val MAX_PAGE_SIZE = 500
 
-class RequisitionsService(private val internalRequisitionStub: RequisitionsCoroutineStub) :
-  RequisitionsCoroutineImplBase() {
+class RequisitionsService(
+  private val internalRequisitionStub: RequisitionsCoroutineStub,
+  coroutineContext: CoroutineContext = EmptyCoroutineContext,
+) : RequisitionsCoroutineImplBase(coroutineContext) {
 
   private enum class Permission {
     LIST,
+    GET,
     REFUSE,
     FULFILL;
 
@@ -107,10 +115,27 @@ class RequisitionsService(private val internalRequisitionStub: RequisitionsCorou
   ): ListRequisitionsResponse {
     fun permissionDeniedStatus() = Permission.LIST.deniedStatus("${request.parent}/requisitions")
 
+    if (request.parent.isEmpty()) {
+      throw Status.INVALID_ARGUMENT.withDescription("parent not set").asRuntimeException()
+    }
     val parentKey: RequisitionParentKey =
       DataProviderKey.fromName(request.parent)
         ?: MeasurementKey.fromName(request.parent)
-        ?: throw Status.INVALID_ARGUMENT.withDescription("parent is invalid").asRuntimeException()
+        ?: throw Status.INVALID_ARGUMENT.withDescription("parent invalid").asRuntimeException()
+
+    if (request.filter.measurementStatesList.isNotEmpty()) {
+      if (
+        // Avoid breaking known existing callers where the measurement state filter is redundant.
+        !(request.filter.statesList == listOf(State.UNFULFILLED) &&
+          request.filter.measurementStatesList ==
+            listOf(Measurement.State.AWAITING_REQUISITION_FULFILLMENT))
+      ) {
+        throw Status.INVALID_ARGUMENT.withDescription(
+            "filter.measurement_states is no longer supported"
+          )
+          .asRuntimeException()
+      }
+    }
 
     val principal: MeasurementPrincipal = principalFromCurrentContext
     when (parentKey) {
@@ -168,6 +193,38 @@ class RequisitionsService(private val internalRequisitionStub: RequisitionsCorou
     }
   }
 
+  override suspend fun getRequisition(request: GetRequisitionRequest): Requisition {
+    val key: CanonicalRequisitionKey =
+      grpcRequireNotNull(CanonicalRequisitionKey.fromName(request.name)) {
+        "Resource name unspecified or invalid"
+      }
+
+    val authenticatedPrincipal = principalFromCurrentContext
+    if (key.parentKey != authenticatedPrincipal.resourceKey) {
+      throw Permission.GET.deniedStatus(request.name).asRuntimeException()
+    }
+
+    val getRequest = getRequisitionRequest {
+      externalDataProviderId = apiIdToExternalId(key.dataProviderId)
+      externalRequisitionId = apiIdToExternalId(key.requisitionId)
+    }
+
+    val result =
+      try {
+        internalRequisitionStub.getRequisition(getRequest)
+      } catch (e: StatusException) {
+        throw when (e.status.code) {
+          Status.Code.INVALID_ARGUMENT -> Status.INVALID_ARGUMENT
+          Status.Code.NOT_FOUND -> Status.NOT_FOUND
+          Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
+          Status.Code.UNAVAILABLE -> Status.UNAVAILABLE
+          else -> Status.UNKNOWN
+        }.toExternalStatusRuntimeException(e)
+      }
+
+    return result.toRequisition()
+  }
+
   override suspend fun refuseRequisition(request: RefuseRequisitionRequest): Requisition {
     val key: CanonicalRequisitionKey =
       grpcRequireNotNull(CanonicalRequisitionKey.fromName(request.name)) {
@@ -189,6 +246,7 @@ class RequisitionsService(private val internalRequisitionStub: RequisitionsCorou
         justification = request.refusal.justification.toInternal()
         message = request.refusal.message
       }
+      etag = request.etag
     }
 
     val result =
@@ -260,6 +318,8 @@ class RequisitionsService(private val internalRequisitionStub: RequisitionsCorou
         }
         apiVersion = Version.V2_ALPHA.string
       }
+
+      etag = request.etag
     }
     try {
       internalRequisitionStub.fulfillRequisition(fulfillRequest)
@@ -376,6 +436,7 @@ private fun InternalRequisition.toRequisition(): Requisition {
     }
     measurementState = this@toRequisition.parentMeasurement.state.toState()
     updateTime = this@toRequisition.updateTime
+    etag = this@toRequisition.etag
   }
 }
 
@@ -549,15 +610,12 @@ private fun buildInternalStreamRequisitionsRequest(
           states += requestStates.map { it.toInternal() }
         }
 
-        measurementStates += filter.measurementStatesList.flatMap { it.toInternalState() }
-
         if (pageToken != null) {
           if (
             pageToken.externalDataProviderId != externalDataProviderId ||
               pageToken.externalMeasurementConsumerId != externalMeasurementConsumerId ||
               pageToken.externalMeasurementId != externalMeasurementId ||
-              pageToken.statesList != filter.statesList ||
-              pageToken.measurementStatesList != filter.measurementStatesList
+              pageToken.statesList != filter.statesList
           ) {
             throw Status.INVALID_ARGUMENT.withDescription(
                 "Arguments other than page_size must remain the same for subsequent page requests"
@@ -593,7 +651,6 @@ private fun buildNextPageToken(
       externalMeasurementId = internalFilter.externalMeasurementId
     }
     states += filter.statesList
-    measurementStates += filter.measurementStatesList
     lastRequisition = previousPageEnd {
       updateTime = internalRequisitions[internalRequisitions.lastIndex - 1].updateTime
       externalDataProviderId =

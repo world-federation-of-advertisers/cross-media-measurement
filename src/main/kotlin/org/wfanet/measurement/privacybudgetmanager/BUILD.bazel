@@ -1,0 +1,19 @@
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
+
+package(default_visibility = [
+    "//src/main/kotlin/org/wfanet/measurement:__subpackages__",
+    "//src/test/kotlin/org/wfanet/measurement:__subpackages__",
+])
+
+kt_jvm_library(
+    name = "privacy_budget_manager",
+    srcs = glob(["*.kt"]),
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/eventfiltration:event_filters",
+        "//src/main/proto/wfa/measurement/privacybudgetmanager:privacy_landscape_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/privacybudgetmanager:privacy_landscape_mapping_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/privacybudgetmanager:query_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+    ],
+)

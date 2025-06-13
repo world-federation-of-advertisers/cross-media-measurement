@@ -368,27 +368,29 @@ class HeraldTest {
 
   private var continuationTokensService: ContinuationTokensCoroutineImplBase = mockService()
 
-  val grpcTestServerRule = GrpcTestServerRule {
-    storageClient = InMemoryStorageClient()
-    computationStore = ComputationStore(storageClient)
-    requisitionStore = RequisitionStore(storageClient)
-    privateKeyStore =
-      TinkKeyStorageProvider(kmsClient).makeKmsPrivateKeyStore(TinkKeyStore(storageClient), KEK_URI)
-    addService(
-      ComputationsService(
-        fakeComputationDatabase,
-        computationLogEntriesCoroutineStub,
-        computationStore,
-        requisitionStore,
-        DUCHY_ONE,
-        Clock.systemUTC(),
+  val grpcTestServerRule =
+    GrpcTestServerRule(defaultServiceConfig = Herald.SERVICE_CONFIG) {
+      storageClient = InMemoryStorageClient()
+      computationStore = ComputationStore(storageClient)
+      requisitionStore = RequisitionStore(storageClient)
+      privateKeyStore =
+        TinkKeyStorageProvider(kmsClient)
+          .makeKmsPrivateKeyStore(TinkKeyStore(storageClient), KEK_URI)
+      addService(
+        ComputationsService(
+          fakeComputationDatabase,
+          computationLogEntriesCoroutineStub,
+          computationStore,
+          requisitionStore,
+          DUCHY_ONE,
+          clock = Clock.systemUTC(),
+        )
       )
-    )
-    addService(systemComputations)
-    addService(systemComputationParticipants)
-    addService(computationLogEntries)
-    addService(continuationTokensService)
-  }
+      addService(systemComputations)
+      addService(systemComputationParticipants)
+      addService(computationLogEntries)
+      addService(continuationTokensService)
+    }
 
   private val internalComputationsStub: InternalComputationsCoroutineStub by lazy {
     InternalComputationsCoroutineStub(grpcTestServerRule.channel)

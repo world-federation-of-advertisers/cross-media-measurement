@@ -23,6 +23,7 @@ import com.google.crypto.tink.KeysetHandle
 import com.google.crypto.tink.TinkProtoKeysetFormat
 import com.google.crypto.tink.aead.AeadConfig
 import com.google.crypto.tink.streamingaead.StreamingAeadConfig
+import com.google.protobuf.Any
 import com.google.protobuf.ByteString
 import com.google.protobuf.Timestamp
 import com.google.protobuf.TypeRegistry
@@ -30,8 +31,13 @@ import com.google.type.interval
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
+import java.security.SecureRandom
+import java.time.Clock
+import java.time.Duration
 import java.time.LocalDate
-import kotlin.random.Random
+import java.time.ZoneId
+import java.time.ZoneOffset
+import kotlin.test.assertTrue
 import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.runBlocking
@@ -42,7 +48,10 @@ import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
+import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineImplBase
+import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.FulfillDirectRequisitionRequest
+import org.wfanet.measurement.api.v2alpha.GetEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reachAndFrequency
@@ -57,6 +66,7 @@ import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.events
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
+import org.wfanet.measurement.api.v2alpha.eventGroup
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.person
@@ -82,12 +92,17 @@ import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.common.testing.verifyAndCapture
+import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
 import org.wfanet.measurement.consent.client.measurementconsumer.decryptResult
 import org.wfanet.measurement.consent.client.measurementconsumer.encryptRequisitionSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.signMeasurementSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.signRequisitionSpec
+import org.wfanet.measurement.dataprovider.MeasurementResults
+import org.wfanet.measurement.edpaggregator.StorageConfig
+import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionsValidator
+import org.wfanet.measurement.edpaggregator.requisitionfetcher.SingleRequisitionGrouper
 import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
@@ -102,24 +117,58 @@ class ResultsFulfillerTest {
   private val requisitionsServiceMock: RequisitionsCoroutineImplBase = mockService {
     onBlocking { fulfillDirectRequisition(any()) }.thenReturn(fulfillDirectRequisitionResponse {})
   }
+  private val eventGroupsServiceMock: EventGroupsCoroutineImplBase by lazy {
+    mockService {
+      onBlocking { getEventGroup(any()) }
+        .thenAnswer { invocation ->
+          val request = invocation.getArgument<GetEventGroupRequest>(0)
+          eventGroup {
+            name = request.name
+            eventGroupReferenceId = "some-event-group-reference-id"
+          }
+        }
+    }
+  }
 
   @get:Rule
-  val grpcTestServerRule = GrpcTestServerRule { addService(requisitionsServiceMock) }
+  val grpcTestServerRule = GrpcTestServerRule {
+    addService(requisitionsServiceMock)
+    addService(eventGroupsServiceMock)
+  }
   private val requisitionsStub: RequisitionsCoroutineStub by lazy {
     RequisitionsCoroutineStub(grpcTestServerRule.channel)
   }
+  private val eventGroupsStub: EventGroupsCoroutineStub by lazy {
+    EventGroupsCoroutineStub(grpcTestServerRule.channel)
+  }
+
+  private val throttler = MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofSeconds(1L))
 
   @Test
   fun `runWork processes requisition successfully`() = runBlocking {
     // Create requisitions storage client
     val requisitionsTmpPath = Files.createTempDirectory(null).toFile()
     Files.createDirectories(requisitionsTmpPath.resolve(REQUISITIONS_BUCKET).toPath())
-    val requisitionsStorageClient = SelectedStorageClient(REQUISITIONS_FILE_URI, requisitionsTmpPath)
-
+    val requisitionsStorageClient =
+      SelectedStorageClient(REQUISITIONS_FILE_URI, requisitionsTmpPath)
+    val requisitionValidator =
+      RequisitionsValidator(
+        fatalRequisitionErrorPredicate =
+          fun(requisition: Requisition, refusal: Requisition.Refusal) {},
+        privateEncryptionKey = PRIVATE_ENCRYPTION_KEY,
+      )
+    val groupedRequisitions =
+      SingleRequisitionGrouper(
+          requisitionsClient = requisitionsStub,
+          eventGroupsClient = eventGroupsStub,
+          requisitionValidator = requisitionValidator,
+          throttler = throttler,
+        )
+        .groupRequisitions(listOf(REQUISITION))
     // Add requisitions to storage
     requisitionsStorageClient.writeBlob(
       REQUISITIONS_BLOB_KEY,
-      REQUISITION.toByteString()
+      Any.pack(groupedRequisitions.single()).toByteString(),
     )
 
     // Create impressions storage client
@@ -169,37 +218,62 @@ class ResultsFulfillerTest {
     // Create the impressions metadata store
     val metadataTmpPath = Files.createTempDirectory(null).toFile()
     Files.createDirectories(metadataTmpPath.resolve(IMPRESSIONS_METADATA_BUCKET).toPath())
-    val impressionsMetadataStorageClient =
-      SelectedStorageClient(IMPRESSIONS_METADATA_FILE_URI, metadataTmpPath)
 
-    val encryptedDek =
-      EncryptedDek.newBuilder().setKekUri(kekUri).setEncryptedDek(serializedEncryptionKey).build()
-    val blobDetails =
-      BlobDetails.newBuilder()
-        .setBlobUri(IMPRESSIONS_FILE_URI)
-        .setEncryptedDek(encryptedDek)
-        .build()
+    val dates =
+      generateSequence(FIRST_EVENT_DATE) { date ->
+        if (date < LAST_EVENT_DATE) date.plusDays(1) else null
+      }
 
-    impressionsMetadataStorageClient.writeBlob(
-      IMPRESSION_METADATA_BLOB_KEY,
-      blobDetails.toByteString()
-    )
+    for (date in dates) {
+      val impressionMetadataBlobKey = "ds/$date/event-group-id/$EVENT_GROUP_NAME/metadata"
+      val impressionsMetadataFileUri =
+        "file:///$IMPRESSIONS_METADATA_BUCKET/$impressionMetadataBlobKey"
+
+      val impressionsMetadataStorageClient =
+        SelectedStorageClient(impressionsMetadataFileUri, metadataTmpPath)
+
+      val encryptedDek =
+        EncryptedDek.newBuilder().setKekUri(kekUri).setEncryptedDek(serializedEncryptionKey).build()
+      val blobDetails =
+        BlobDetails.newBuilder()
+          .setBlobUri(IMPRESSIONS_FILE_URI)
+          .setEncryptedDek(encryptedDek)
+          .build()
+
+      impressionsMetadataStorageClient.writeBlob(
+        impressionMetadataBlobKey,
+        blobDetails.toByteString(),
+      )
+    }
 
     val typeRegistry = TypeRegistry.newBuilder().add(TestEvent.getDescriptor()).build()
 
-    val resultsFulfiller = ResultsFulfiller(
-      PRIVATE_ENCRYPTION_KEY,
-      requisitionsStub,
-      DATA_PROVIDER_CERTIFICATE_KEY,
-      EDP_RESULT_SIGNING_KEY,
-      typeRegistry,
-      REQUISITIONS_FILE_URI,
-      IMPRESSIONS_METADATA_FILE_URI_PREFIX,
-      kmsClient,
-      StorageConfig(rootDirectory = impressionsTmpPath),
-      StorageConfig(rootDirectory = metadataTmpPath),
-      StorageConfig(rootDirectory = requisitionsTmpPath)
-    )
+    // Setting RANDOM to always return 1 to cancel out noise and properly test with a consistent
+    // result value
+    RANDOM.setSeed(byteArrayOf(1, 1, 1, 1, 1, 1, 1, 1))
+
+    val eventReader =
+      EventReader(
+        kmsClient,
+        StorageConfig(rootDirectory = impressionsTmpPath),
+        StorageConfig(rootDirectory = metadataTmpPath),
+        IMPRESSIONS_METADATA_FILE_URI_PREFIX,
+      )
+
+    val resultsFulfiller =
+      ResultsFulfiller(
+        PRIVATE_ENCRYPTION_KEY,
+        requisitionsStub,
+        DATA_PROVIDER_CERTIFICATE_KEY,
+        EDP_RESULT_SIGNING_KEY,
+        typeRegistry,
+        REQUISITIONS_FILE_URI,
+        StorageConfig(rootDirectory = requisitionsTmpPath),
+        RANDOM,
+        ZoneOffset.UTC,
+        ContinuousGaussianNoiseSelector(),
+        eventReader,
+      )
 
     resultsFulfiller.fulfillRequisitions()
 
@@ -211,15 +285,14 @@ class ResultsFulfillerTest {
     val result: Measurement.Result = decryptResult(request.encryptedResult, MC_PRIVATE_KEY).unpack()
     val expectedReach: Long = computeExpectedReach(impressions, MEASUREMENT_SPEC)
     val expectedFrequencyDistribution: Map<Long, Double> =
-      computeExpectedFrequencyDistribution(
-        impressions,
-        MEASUREMENT_SPEC,
-      )
+      computeExpectedFrequencyDistribution(impressions, MEASUREMENT_SPEC)
 
-    assertThat(result.reach.noiseMechanism == NOISE_MECHANISM)
-    assertThat(result.reach.hasDeterministicCountDistinct())
-    assertThat(result.frequency.noiseMechanism == NOISE_MECHANISM)
-    assertThat(result.frequency.hasDeterministicDistribution())
+    assertThat(result.reach.noiseMechanism)
+      .isEqualTo(ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN)
+    assertTrue(result.reach.hasDeterministicCountDistinct())
+    assertThat(result.frequency.noiseMechanism)
+      .isEqualTo(ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN)
+    assertTrue(result.frequency.hasDeterministicDistribution())
 
     assertThat(result)
       .reachValue()
@@ -237,9 +310,7 @@ class ResultsFulfillerTest {
     measurementSpec: MeasurementSpec,
   ): Long {
     val sampledVids = sampleVids(impressionsList.map { it.vid }, measurementSpec)
-    val sampledReach = runBlocking {
-      MeasurementResults.computeReach(sampledVids.asFlow())
-    }
+    val sampledReach = runBlocking { MeasurementResults.computeReach(sampledVids.asFlow()) }
     return (sampledReach / measurementSpec.vidSamplingInterval.width).toLong()
   }
 
@@ -248,12 +319,13 @@ class ResultsFulfillerTest {
     measurementSpec: MeasurementSpec,
   ): Map<Long, Double> {
     val sampledVids = sampleVids(impressionsList.map { it.vid }, measurementSpec)
-    val (_, frequencyMap) = runBlocking {
+    val (_, frequencyMap) =
+      runBlocking {
         MeasurementResults.computeReachAndFrequency(
           sampledVids.asFlow(),
           measurementSpec.reachAndFrequency.maximumFrequency,
         )
-    }
+      }
     return frequencyMap.mapKeys { it.key.toLong() }
   }
 
@@ -291,10 +363,11 @@ class ResultsFulfillerTest {
   }
 
   companion object {
-    private val LAST_EVENT_DATE = LocalDate.now()
+    private val RANDOM = SecureRandom.getInstance("SHA1PRNG")
+    private val LAST_EVENT_DATE = LocalDate.now(ZoneId.of("America/New_York")).minusDays(1)
     private val FIRST_EVENT_DATE = LAST_EVENT_DATE.minusDays(1)
     private val TIME_RANGE = OpenEndTimeRange.fromClosedDateRange(FIRST_EVENT_DATE..LAST_EVENT_DATE)
-    private const val REACH_TOLERANCE = 6.0
+    private const val REACH_TOLERANCE = 1.0
     private const val FREQUENCY_DISTRIBUTION_TOLERANCE = 1.0
 
     private val PERSON = person {
@@ -309,9 +382,7 @@ class ResultsFulfillerTest {
       LabeledImpression.newBuilder()
         .setEventTime(Timestamp.getDefaultInstance())
         .setVid(10L)
-        .setEvent(
-          TEST_EVENT.pack()
-        )
+        .setEvent(TEST_EVENT.pack())
         .build()
 
     private const val EDP_ID = "someDataProvider"
@@ -330,7 +401,11 @@ class ResultsFulfillerTest {
     private const val MEASUREMENT_CONSUMER_NAME = "measurementConsumers/AAAAAAAAAHs"
     private const val DATA_PROVIDER_NAME = "dataProviders/AAAAAAAAAHs"
     private const val REQUISITION_NAME = "$DATA_PROVIDER_NAME/requisitions/foo"
-    private val MC_SIGNING_KEY = loadSigningKey("${MEASUREMENT_CONSUMER_ID}_cs_cert.der", "${MEASUREMENT_CONSUMER_ID}_cs_private.der")
+    private val MC_SIGNING_KEY =
+      loadSigningKey(
+        "${MEASUREMENT_CONSUMER_ID}_cs_cert.der",
+        "${MEASUREMENT_CONSUMER_ID}_cs_private.der",
+      )
     private val DATA_PROVIDER_PUBLIC_KEY: EncryptionPublicKey =
       loadPublicKey(SECRET_FILES_PATH.resolve("${EDP_DISPLAY_NAME}_enc_public.tink").toFile())
         .toEncryptionPublicKey()
@@ -354,7 +429,7 @@ class ResultsFulfillerTest {
         }
       }
       measurementPublicKey = MC_PUBLIC_KEY.pack()
-      nonce = Random.Default.nextLong()
+      nonce = SecureRandom.getInstance("SHA1PRNG").nextLong()
     }
     private val ENCRYPTED_REQUISITION_SPEC =
       encryptRequisitionSpec(
@@ -379,8 +454,6 @@ class ResultsFulfillerTest {
       nonceHashes += Hashing.hashSha256(REQUISITION_SPEC.nonce)
     }
 
-    private val NOISE_MECHANISM = ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN
-
     private val REQUISITION: Requisition = requisition {
       name = REQUISITION_NAME
       measurement = "$MEASUREMENT_CONSUMER_NAME/measurements/BBBBBBBBBHs"
@@ -393,7 +466,11 @@ class ResultsFulfillerTest {
           ProtocolConfigKt.protocol {
             direct =
               ProtocolConfigKt.direct {
-                noiseMechanisms += NOISE_MECHANISM
+                noiseMechanisms +=
+                  listOf(
+                    ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN,
+                    ProtocolConfig.NoiseMechanism.NONE,
+                  )
                 deterministicCountDistinct =
                   ProtocolConfig.Direct.DeterministicCountDistinct.getDefaultInstance()
                 deterministicDistribution =
@@ -432,11 +509,6 @@ class ResultsFulfillerTest {
     private const val IMPRESSIONS_FILE_URI = "file:///$IMPRESSIONS_BUCKET/$IMPRESSIONS_BLOB_KEY"
 
     private const val IMPRESSIONS_METADATA_BUCKET = "impression-metadata-bucket"
-    private val IMPRESSION_METADATA_BLOB_KEY =
-      "ds/${TIME_RANGE.start}/event-group-id/$EVENT_GROUP_NAME/metadata"
-
-    private val IMPRESSIONS_METADATA_FILE_URI =
-      "file:///$IMPRESSIONS_METADATA_BUCKET/$IMPRESSION_METADATA_BLOB_KEY"
 
     private const val IMPRESSIONS_METADATA_FILE_URI_PREFIX = "file:///$IMPRESSIONS_METADATA_BUCKET"
   }

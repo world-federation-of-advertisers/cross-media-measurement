@@ -1,0 +1,32 @@
+load("@rules_java//java:defs.bzl", "java_binary")
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
+
+package(default_visibility = [
+    "//src/main/kotlin/org/wfanet/measurement/edpaggregator:__subpackages__",
+    "//src/test/kotlin/org/wfanet/measurement/edpaggregator:__subpackages__",
+])
+
+kt_jvm_library(
+    name = "event_group_sync_function",
+    srcs = ["EventGroupSyncFunction.kt"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/common:env_vars",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/eventgroups:event_group_sync",
+        "//src/main/proto/wfa/measurement/config/edpaggregator:event_group_sync_config_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/eventgroups/v1alpha:event_group_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/eventgroups/v1alpha:event_group_map_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/cloud/functions:functions_framework_api",
+        "@wfa_common_jvm//imports/java/com/google/events",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:mesos_recordio_storage_client",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:selected_storage_client",
+    ],
+)
+
+java_binary(
+    name = "EventGroupSyncFunction",
+    main_class = "org.wfanet.measurement.edpaggregator.deploy.gcloud.eventgroups.EventGroupSyncFunction",
+    runtime_deps = [":event_group_sync_function"],
+)

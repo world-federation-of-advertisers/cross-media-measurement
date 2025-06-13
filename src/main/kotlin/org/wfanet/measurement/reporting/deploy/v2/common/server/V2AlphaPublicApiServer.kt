@@ -20,7 +20,6 @@ import com.google.protobuf.DescriptorProtos
 import com.google.protobuf.Descriptors
 import com.google.protobuf.util.JsonFormat
 import io.grpc.Channel
-import io.grpc.Server
 import io.grpc.ServerServiceDefinition
 import io.grpc.Status
 import io.grpc.StatusException
@@ -28,12 +27,10 @@ import io.grpc.inprocess.InProcessChannelBuilder
 import java.io.File
 import java.security.SecureRandom
 import java.time.Duration
-import java.util.concurrent.ExecutorService
-import java.util.concurrent.LinkedBlockingQueue
-import java.util.concurrent.ThreadPoolExecutor
-import java.util.concurrent.TimeUnit
 import kotlin.random.asKotlinRandom
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.access.client.v1alpha.Authorization
 import org.wfanet.measurement.access.client.v1alpha.PrincipalAuthInterceptor
@@ -47,16 +44,17 @@ import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutine
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub as KingdomMeasurementConsumersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub as KingdomMeasurementsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt.ModelLinesCoroutineStub as KingdomModelLinesCoroutineStub
 import org.wfanet.measurement.api.withAuthenticationKey
 import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.grpc.CommonServer
+import org.wfanet.measurement.common.grpc.ServiceFlags
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withInterceptor
 import org.wfanet.measurement.common.grpc.withShutdownTimeout
 import org.wfanet.measurement.common.grpc.withVerboseLogging
-import org.wfanet.measurement.common.instrumented
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.config.access.OpenIdProvidersConfig
 import org.wfanet.measurement.config.reporting.MeasurementConsumerConfig
@@ -86,6 +84,7 @@ import org.wfanet.measurement.reporting.service.api.v2alpha.EventGroupMetadataDe
 import org.wfanet.measurement.reporting.service.api.v2alpha.EventGroupsService
 import org.wfanet.measurement.reporting.service.api.v2alpha.MetricCalculationSpecsService
 import org.wfanet.measurement.reporting.service.api.v2alpha.MetricsService
+import org.wfanet.measurement.reporting.service.api.v2alpha.ModelLinesService
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportScheduleIterationsService
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportSchedulesService
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportingSetsService
@@ -109,6 +108,7 @@ private object V2AlphaPublicApiServer {
     @CommandLine.Mixin reportingApiServerFlags: ReportingApiServerFlags,
     @CommandLine.Mixin kingdomApiFlags: KingdomApiFlags,
     @CommandLine.Mixin commonServerFlags: CommonServer.Flags,
+    @CommandLine.Mixin serviceFlags: ServiceFlags,
     @CommandLine.Mixin v2AlphaFlags: V2AlphaFlags,
     @CommandLine.Mixin v2AlphaPublicServerFlags: V2AlphaPublicServerFlags,
     @CommandLine.Mixin encryptionKeyPairMap: EncryptionKeyPairMap,
@@ -216,6 +216,8 @@ private object V2AlphaPublicApiServer {
         Dispatchers.Default,
       )
 
+    val serviceDispatcher: CoroutineDispatcher = serviceFlags.executor.asCoroutineDispatcher()
+
     val metricsService =
       MetricsService(
         metricSpecConfig,
@@ -228,6 +230,7 @@ private object V2AlphaPublicApiServer {
         KingdomMeasurementsCoroutineStub(kingdomChannel),
         KingdomCertificatesCoroutineStub(kingdomChannel),
         KingdomMeasurementConsumersCoroutineStub(kingdomChannel),
+        KingdomModelLinesCoroutineStub(kingdomChannel),
         authorization,
         InMemoryEncryptionKeyPairStore(encryptionKeyPairMap.keyPairs),
         SecureRandom().asKotlinRandom(),
@@ -239,27 +242,16 @@ private object V2AlphaPublicApiServer {
           v2AlphaPublicServerFlags.certificateCacheExpirationDuration,
         dataProviderCacheExpirationDuration =
           v2AlphaPublicServerFlags.dataProviderCacheExpirationDuration,
-        Dispatchers.IO,
-        Dispatchers.Default,
+        keyReaderContext = Dispatchers.IO,
+        cacheLoaderContext = Dispatchers.Default,
+        coroutineContext = serviceDispatcher,
       )
 
-    val inProcessExecutorService: ExecutorService =
-      ThreadPoolExecutor(
-          1,
-          commonServerFlags.threadPoolSize,
-          60L,
-          TimeUnit.SECONDS,
-          LinkedBlockingQueue(),
-        )
-        .instrumented(IN_PROCESS_SERVER_NAME)
-
-    val inProcessServer: Server =
-      startInProcessServerWithService(
-        IN_PROCESS_SERVER_NAME,
-        commonServerFlags,
-        metricsService.withInterceptor(TrustedPrincipalAuthInterceptor),
-        inProcessExecutorService,
-      )
+    startInProcessServerWithService(
+      IN_PROCESS_SERVER_NAME,
+      commonServerFlags,
+      metricsService.withInterceptor(TrustedPrincipalAuthInterceptor),
+    )
     val inProcessChannel =
       InProcessChannelBuilder.forName(IN_PROCESS_SERVER_NAME)
         .directExecutor()
@@ -272,12 +264,14 @@ private object V2AlphaPublicApiServer {
             KingdomDataProvidersCoroutineStub(kingdomChannel),
             authorization,
             systemMeasurementConsumerConfig.apiKey,
+            serviceDispatcher,
           )
           .withInterceptor(principalAuthInterceptor),
         EventGroupMetadataDescriptorsService(
             KingdomEventGroupMetadataDescriptorsCoroutineStub(kingdomChannel),
             authorization,
             systemMeasurementConsumerConfig.apiKey,
+            serviceDispatcher,
           )
           .withInterceptor(principalAuthInterceptor),
         EventGroupsService(
@@ -286,10 +280,15 @@ private object V2AlphaPublicApiServer {
             celEnvCacheProvider,
             measurementConsumerConfigs,
             InMemoryEncryptionKeyPairStore(encryptionKeyPairMap.keyPairs),
+            serviceDispatcher,
           )
           .withInterceptor(principalAuthInterceptor),
         metricsService.withInterceptor(principalAuthInterceptor),
-        ReportingSetsService(InternalReportingSetsCoroutineStub(channel), authorization)
+        ReportingSetsService(
+            InternalReportingSetsCoroutineStub(channel),
+            authorization,
+            serviceDispatcher,
+          )
           .withInterceptor(principalAuthInterceptor),
         ReportsService(
             InternalReportsCoroutineStub(channel),
@@ -298,6 +297,8 @@ private object V2AlphaPublicApiServer {
             metricSpecConfig,
             authorization,
             SecureRandom().asKotlinRandom(),
+            reportingApiServerFlags.allowSamplingIntervalWrapping,
+            serviceDispatcher,
           )
           .withInterceptor(principalAuthInterceptor),
         ReportSchedulesService(
@@ -307,30 +308,41 @@ private object V2AlphaPublicApiServer {
             KingdomEventGroupsCoroutineStub(kingdomChannel),
             authorization,
             measurementConsumerConfigs,
+            serviceDispatcher,
           )
           .withInterceptor(principalAuthInterceptor),
         ReportScheduleIterationsService(
             InternalReportScheduleIterationsCoroutineStub(channel),
             authorization,
+            serviceDispatcher,
           )
           .withInterceptor(principalAuthInterceptor),
         MetricCalculationSpecsService(
             InternalMetricCalculationSpecsCoroutineStub(channel),
+            KingdomModelLinesCoroutineStub(kingdomChannel),
             metricSpecConfig,
             authorization,
             SecureRandom().asKotlinRandom(),
+            measurementConsumerConfigs,
+            serviceDispatcher,
           )
           .withInterceptor(principalAuthInterceptor),
-        BasicReportsService(InternalBasicReportsCoroutineStub(channel), authorization)
+        BasicReportsService(
+            InternalBasicReportsCoroutineStub(channel),
+            authorization,
+            serviceDispatcher,
+          )
+          .withInterceptor(principalAuthInterceptor),
+        ModelLinesService(
+            KingdomModelLinesCoroutineStub(kingdomChannel),
+            authorization,
+            systemMeasurementConsumerConfig.apiKey,
+            serviceDispatcher,
+          )
           .withInterceptor(principalAuthInterceptor),
       )
 
     CommonServer.fromFlags(commonServerFlags, SERVER_NAME, services).start().blockUntilShutdown()
-    inProcessChannel.shutdown()
-    inProcessServer.shutdown()
-    inProcessExecutorService.shutdown()
-    inProcessServer.awaitTermination()
-    inProcessExecutorService.awaitTermination(30, TimeUnit.SECONDS)
   }
 
   class V2AlphaPublicServerFlags {

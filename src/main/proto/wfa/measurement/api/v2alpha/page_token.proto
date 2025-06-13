@@ -19,8 +19,10 @@ package wfa.measurement.api.v2alpha;
 import "google/protobuf/timestamp.proto";
 import "google/type/date.proto";
 import "google/type/interval.proto";
+import "wfa/measurement/api/v2alpha/event_groups_service.proto";
 import "wfa/measurement/api/v2alpha/exchange_step.proto";
 import "wfa/measurement/api/v2alpha/measurement.proto";
+import "wfa/measurement/api/v2alpha/media_type.proto";
 import "wfa/measurement/api/v2alpha/model_line.proto";
 import "wfa/measurement/api/v2alpha/requisition.proto";
 
@@ -54,13 +56,19 @@ message ListEventGroupsPageToken {
     fixed64 external_data_provider_id = 2;
     fixed64 external_measurement_consumer_id = 6;
   }
-  repeated fixed64 external_data_provider_ids = 7;
-  repeated fixed64 external_measurement_consumer_ids = 3;
+  repeated fixed64 external_data_provider_id_in = 7;
+  repeated fixed64 external_measurement_consumer_id_in = 3;
   bool show_deleted = 5;
+  repeated MediaType media_types_intersect = 8;
+  google.protobuf.Timestamp data_availability_start_time_on_or_after = 9;
+  google.protobuf.Timestamp data_availability_end_time_on_or_before = 10;
+  string metadata_search_query = 11;
+  ListEventGroupsRequest.OrderBy order_by = 12;
 
   message PreviousPageEnd {
     fixed64 external_data_provider_id = 1;
     fixed64 external_event_group_id = 2;
+    google.protobuf.Timestamp data_availability_start_time = 3;
   }
   PreviousPageEnd last_event_group = 4;
 }
@@ -91,7 +99,7 @@ message ListMeasurementsPageToken {
 }
 
 message ListRequisitionsPageToken {
-  reserved 1;
+  reserved 1, 7;
 
   fixed64 external_measurement_consumer_id = 2;
   fixed64 external_measurement_id = 3;
@@ -103,7 +111,6 @@ message ListRequisitionsPageToken {
     fixed64 external_requisition_id = 2;
   }
   PreviousPageEnd last_requisition = 6;
-  repeated Measurement.State measurement_states = 7;
 }
 
 message ListExchangeStepsPageToken {
@@ -121,6 +128,14 @@ message ListExchangeStepsPageToken {
     int32 step_index = 3;
   }
   PreviousPageEnd last_exchange_step = 6;
+}
+
+message ListModelProvidersPageToken {
+  int32 page_size = 1;
+  message PreviousPageEnd {
+    fixed64 external_model_provider_id = 1;
+  }
+  PreviousPageEnd last_model_provider = 2;
 }
 
 message ListModelSuitesPageToken {

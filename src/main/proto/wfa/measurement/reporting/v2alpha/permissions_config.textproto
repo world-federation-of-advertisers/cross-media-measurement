@@ -81,6 +81,13 @@ permissions {
     protected_resource_types: "halo.wfanet.org/MeasurementConsumer"
   }
 }
+permissions {
+  key: "reporting.metrics.invalidate"
+  value {
+    protected_resource_types: "halo.wfanet.org/MeasurementConsumer"
+    protected_resource_types: "reporting.halo-cmm.org/Metric"
+  }
+}
 
 # metricCalculationSpecs
 permissions {
@@ -177,6 +184,14 @@ permissions {
 }
 permissions {
   key: "reporting.impressionQualificationFilters.list"
+  value {
+    protected_resource_types: "reporting.halo-cmm.org/Root"
+  }
+}
+
+# modelLines
+permissions {
+  key: "reporting.modelLines.list"
   value {
     protected_resource_types: "reporting.halo-cmm.org/Root"
   }

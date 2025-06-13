@@ -1,7 +1,5 @@
 package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
-import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt
-import org.wfanet.measurement.api.v2alpha.fulfillDirectRequisitionResponse
 import com.google.common.truth.Truth.assertThat
 import com.google.crypto.tink.Aead
 import com.google.crypto.tink.KeyTemplates
@@ -11,16 +9,17 @@ import com.google.crypto.tink.aead.AeadConfig
 import com.google.crypto.tink.streamingaead.StreamingAeadConfig
 import com.google.protobuf.Any
 import com.google.protobuf.ByteString
-import com.google.protobuf.Parser
 import com.google.protobuf.Timestamp
-import com.google.protobuf.kotlin.toByteStringUtf8
 import com.google.type.interval
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
+import java.time.Clock
+import java.time.Duration
 import java.time.LocalDate
+import java.time.format.DateTimeFormatter
+import java.util.logging.Logger
 import kotlin.random.Random
-import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.launch
@@ -35,6 +34,9 @@ import org.mockito.kotlin.doReturn
 import org.mockito.kotlin.stub
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
+import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineImplBase
+import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.GetEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reachAndFrequency
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.vidSamplingInterval
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
@@ -44,10 +46,14 @@ import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventFilter
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventGroupEntry
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.events
+import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineImplBase
+import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
+import org.wfanet.measurement.api.v2alpha.eventGroup
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.person
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.testEvent
+import org.wfanet.measurement.api.v2alpha.fulfillDirectRequisitionResponse
 import org.wfanet.measurement.api.v2alpha.measurementSpec
 import org.wfanet.measurement.api.v2alpha.protocolConfig
 import org.wfanet.measurement.api.v2alpha.requisition
@@ -65,16 +71,19 @@ import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.pack
+import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
 import org.wfanet.measurement.consent.client.measurementconsumer.encryptRequisitionSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.signMeasurementSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.signRequisitionSpec
-import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
+import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionsValidator
+import org.wfanet.measurement.edpaggregator.requisitionfetcher.SingleRequisitionGrouper
 import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
-import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParamsKt
+import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParamsKt.storageParams
+import org.wfanet.measurement.edpaggregator.v1alpha.blobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.copy
 import org.wfanet.measurement.edpaggregator.v1alpha.resultsFulfillerParams
 import org.wfanet.measurement.gcloud.pubsub.Publisher
@@ -82,7 +91,6 @@ import org.wfanet.measurement.gcloud.pubsub.Subscriber
 import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorClient
 import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorProvider
 import org.wfanet.measurement.integration.common.loadEncryptionPrivateKey
-import org.wfanet.measurement.queue.QueueSubscriber
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem.WorkItemParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineImplBase
@@ -95,19 +103,44 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItemAttempt
 import org.wfanet.measurement.storage.MesosRecordIoStorageClient
 import org.wfanet.measurement.storage.SelectedStorageClient
-import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParamsKt.storage
 
 class ResultsFulfillerAppTest {
   private lateinit var emulatorClient: GooglePubSubEmulatorClient
 
   private val workItemsServiceMock = mockService<WorkItemsCoroutineImplBase>()
   private val workItemAttemptsServiceMock = mockService<WorkItemAttemptsCoroutineImplBase>()
+  private val requisitionsServiceMock: RequisitionsCoroutineImplBase = mockService {
+    onBlocking { fulfillDirectRequisition(any()) }.thenReturn(fulfillDirectRequisitionResponse {})
+  }
+  private val eventGroupsServiceMock: EventGroupsCoroutineImplBase by lazy {
+    mockService {
+      onBlocking { getEventGroup(any()) }
+        .thenAnswer { invocation ->
+          val request = invocation.getArgument<GetEventGroupRequest>(0)
+          eventGroup {
+            name = request.name
+            eventGroupReferenceId = "some-event-group-reference-id"
+          }
+        }
+    }
+  }
 
   @get:Rule
-  val grpcTestServer = GrpcTestServerRule {
+  val grpcTestServerRule = GrpcTestServerRule {
     addService(workItemsServiceMock)
     addService(workItemAttemptsServiceMock)
+    addService(requisitionsServiceMock)
+    addService(eventGroupsServiceMock)
   }
+
+  private val requisitionsStub: RequisitionsCoroutineStub by lazy {
+    RequisitionsCoroutineStub(grpcTestServerRule.channel)
+  }
+  private val eventGroupsStub: EventGroupsCoroutineStub by lazy {
+    EventGroupsCoroutineStub(grpcTestServerRule.channel)
+  }
+
+  private val throttler = MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofSeconds(1L))
 
   @Before
   fun setupPubSubResources() {
@@ -130,22 +163,12 @@ class ResultsFulfillerAppTest {
     }
   }
 
-  private val requisitionsServiceMock: RequisitionsGrpcKt.RequisitionsCoroutineImplBase = mockService {
-    onBlocking { fulfillDirectRequisition(any()) }.thenReturn(fulfillDirectRequisitionResponse {})
-  }
-
-  @get:Rule
-  val grpcTestServerRule = GrpcTestServerRule { addService(requisitionsServiceMock) }
-  private val requisitionsStub: RequisitionsGrpcKt.RequisitionsCoroutineStub by lazy {
-    RequisitionsGrpcKt.RequisitionsCoroutineStub(grpcTestServerRule.channel)
-  }
-
   @Test
   fun `runWork processes requisition successfully`() = runBlocking {
     val pubSubClient = Subscriber(projectId = PROJECT_ID, googlePubSubClient = emulatorClient)
     val publisher = Publisher<WorkItem>(PROJECT_ID, emulatorClient)
-    val workItemsStub = WorkItemsCoroutineStub(grpcTestServer.channel)
-    val workItemAttemptsStub = WorkItemAttemptsCoroutineStub(grpcTestServer.channel)
+    val workItemsStub = WorkItemsCoroutineStub(grpcTestServerRule.channel)
+    val workItemAttemptsStub = WorkItemAttemptsCoroutineStub(grpcTestServerRule.channel)
 
     val testWorkItemAttempt = workItemAttempt {
       name = "workItems/workItem/workItemAttempts/workItemAttempt"
@@ -163,21 +186,35 @@ class ResultsFulfillerAppTest {
     }
     workItemsServiceMock.stub { onBlocking { failWorkItem(any()) } doReturn workItem }
 
-    // Create requisitions storage client
-    val requisitionsTmpPath = Files.createTempDirectory(null).toFile()
-    Files.createDirectories(requisitionsTmpPath.resolve(REQUISITIONS_BUCKET).toPath())
-    val requisitionsStorageClient = SelectedStorageClient(REQUISITIONS_FILE_URI, requisitionsTmpPath)
+    val tmpPath = Files.createTempDirectory(null).toFile()
 
+    // Create requisitions storage client
+    Files.createDirectories(tmpPath.resolve(REQUISITIONS_BUCKET).toPath())
+    val requisitionsStorageClient = SelectedStorageClient(REQUISITIONS_FILE_URI, tmpPath)
+
+    val requisitionValidator =
+      RequisitionsValidator(
+        fatalRequisitionErrorPredicate =
+          fun(requisition: Requisition, refusal: Requisition.Refusal) {},
+        privateEncryptionKey = PRIVATE_ENCRYPTION_KEY,
+      )
+    val groupedRequisitions =
+      SingleRequisitionGrouper(
+          requisitionsClient = requisitionsStub,
+          eventGroupsClient = eventGroupsStub,
+          requisitionValidator = requisitionValidator,
+          throttler = throttler,
+        )
+        .groupRequisitions(listOf(REQUISITION))
     // Add requisitions to storage
     requisitionsStorageClient.writeBlob(
       REQUISITIONS_BLOB_KEY,
-      REQUISITION.toString().toByteStringUtf8()
+      Any.pack(groupedRequisitions.single()).toByteString(),
     )
 
     // Create impressions storage client
-    val impressionsTmpPath = Files.createTempDirectory(null).toFile()
-    Files.createDirectories(impressionsTmpPath.resolve(IMPRESSIONS_BUCKET).toPath())
-    val impressionsStorageClient = SelectedStorageClient(IMPRESSIONS_FILE_URI, impressionsTmpPath)
+    Files.createDirectories(tmpPath.resolve(IMPRESSIONS_BUCKET).toPath())
+    val impressionsStorageClient = SelectedStorageClient(IMPRESSIONS_FILE_URI, tmpPath)
 
     // Set up KMS
     val kmsClient = FakeKmsClient()
@@ -219,39 +256,33 @@ class ResultsFulfillerAppTest {
     mesosRecordIoStorageClient.writeBlob(IMPRESSIONS_BLOB_KEY, impressionsFlow)
 
     // Create the impressions metadata store
-    val metadataTmpPath = Files.createTempDirectory(null).toFile()
-    Files.createDirectories(metadataTmpPath.resolve(IMPRESSIONS_METADATA_BUCKET).toPath())
+    Files.createDirectories(tmpPath.resolve(IMPRESSIONS_METADATA_BUCKET).toPath())
     val impressionsMetadataStorageClient =
-      SelectedStorageClient(IMPRESSIONS_METADATA_FILE_URI, metadataTmpPath)
+      SelectedStorageClient(IMPRESSIONS_METADATA_FILE_URI, tmpPath)
 
     val encryptedDek =
       EncryptedDek.newBuilder().setKekUri(kekUri).setEncryptedDek(serializedEncryptionKey).build()
-    val blobDetails =
-      BlobDetails.newBuilder()
-        .setBlobUri(IMPRESSIONS_FILE_URI)
-        .setEncryptedDek(encryptedDek)
-        .build()
-
+    val blobDetails = blobDetails {
+      this.blobUri = IMPRESSIONS_FILE_URI
+      this.encryptedDek = encryptedDek
+    }
+    logger.info("Writing Blob $IMPRESSION_METADATA_BLOB_KEY")
     impressionsMetadataStorageClient.writeBlob(
       IMPRESSION_METADATA_BLOB_KEY,
-      blobDetails.toString().toByteStringUtf8()
+      blobDetails.toByteString(),
     )
 
-    val app = ResultsFulfillerTestApp(
-      subscriptionId = SUBSCRIPTION_ID,
-      queueSubscriber = pubSubClient,
-      parser = WorkItem.parser(),
-      workItemsStub,
-      workItemAttemptsStub,
-      requisitionsStub,
-      DATA_PROVIDER_CERTIFICATE_KEY,
-      EDP_RESULT_SIGNING_KEY,
-      PRIVATE_ENCRYPTION_KEY,
-      requisitionsTmpPath,
-      impressionsTmpPath,
-      metadataTmpPath,
-      kmsClient
-    )
+    val app =
+      ResultsFulfillerTestApp(
+        subscriptionId = SUBSCRIPTION_ID,
+        queueSubscriber = pubSubClient,
+        parser = WorkItem.parser(),
+        workItemsStub,
+        workItemAttemptsStub,
+        grpcTestServerRule.channel,
+        tmpPath,
+        kmsClient,
+      )
     val job = launch { app.run() }
 
     publisher.publishMessage(TOPIC_ID, workItem)
@@ -265,15 +296,32 @@ class ResultsFulfillerAppTest {
 
   private fun createWorkItemParams(): WorkItemParams {
     return workItemParams {
-      appParams = resultsFulfillerParams {
-        this.storage = ResultsFulfillerParamsKt.storage {
-          labeledImpressionsBlobUriPrefix = IMPRESSIONS_METADATA_FILE_URI_PREFIX
-        }
-      }.pack()
+      appParams =
+        resultsFulfillerParams {
+            this.storageParams =
+              ResultsFulfillerParamsKt.storageParams {
+                labeledImpressionsBlobDetailsUriPrefix = IMPRESSIONS_METADATA_FILE_URI_PREFIX
+              }
+            this.cmmsConnection =
+              ResultsFulfillerParamsKt.transportLayerSecurityParams {
+                clientCertResourcePath = SECRET_FILES_PATH.resolve("edp1_tls.pem").toString()
+                clientPrivateKeyResourcePath = SECRET_FILES_PATH.resolve("edp1_tls.key").toString()
+              }
+            this.consentParams =
+              ResultsFulfillerParamsKt.consentParams {
+                resultCsCertDerResourcePath =
+                  SECRET_FILES_PATH.resolve("edp1_result_cs_cert.der").toString()
+                resultCsPrivateKeyDerResourcePath =
+                  SECRET_FILES_PATH.resolve("edp1_result_cs_private.der").toString()
+                privateEncryptionKeyResourcePath =
+                  SECRET_FILES_PATH.resolve("edp1_enc_private.tink").toString()
+                edpCertificateName = DATA_PROVIDER_CERTIFICATE_KEY.toName()
+              }
+          }
+          .pack()
 
-      dataPathParams = WorkItemKt.WorkItemParamsKt.dataPathParams {
-        dataPath = REQUISITIONS_FILE_URI
-      }
+      dataPathParams =
+        WorkItemKt.WorkItemParamsKt.dataPathParams { dataPath = REQUISITIONS_FILE_URI }
     }
   }
 
@@ -291,16 +339,15 @@ class ResultsFulfillerAppTest {
   }
 
   companion object {
-
+    private val logger: Logger = Logger.getLogger(this::class.java.name)
     private const val PROJECT_ID = "test-project"
     private const val SUBSCRIPTION_ID = "test-subscription"
     private const val TOPIC_ID = "test-topic"
 
-    @get:ClassRule
-    @JvmStatic val pubSubEmulatorProvider = GooglePubSubEmulatorProvider()
+    @get:ClassRule @JvmStatic val pubSubEmulatorProvider = GooglePubSubEmulatorProvider()
 
     private val LAST_EVENT_DATE = LocalDate.now()
-    private val FIRST_EVENT_DATE = LAST_EVENT_DATE.minusDays(1)
+    private val FIRST_EVENT_DATE = LAST_EVENT_DATE
     private val TIME_RANGE = OpenEndTimeRange.fromClosedDateRange(FIRST_EVENT_DATE..LAST_EVENT_DATE)
     private const val REACH_TOLERANCE = 6.0
     private const val FREQUENCY_DISTRIBUTION_TOLERANCE = 1.0
@@ -317,9 +364,7 @@ class ResultsFulfillerAppTest {
       LabeledImpression.newBuilder()
         .setEventTime(Timestamp.getDefaultInstance())
         .setVid(10L)
-        .setEvent(
-          TEST_EVENT.pack()
-        )
+        .setEvent(TEST_EVENT.pack())
         .build()
 
     private const val EDP_ID = "someDataProvider"
@@ -338,7 +383,11 @@ class ResultsFulfillerAppTest {
     private const val MEASUREMENT_CONSUMER_NAME = "measurementConsumers/AAAAAAAAAHs"
     private const val DATA_PROVIDER_NAME = "dataProviders/AAAAAAAAAHs"
     private const val REQUISITION_NAME = "$DATA_PROVIDER_NAME/requisitions/foo"
-    private val MC_SIGNING_KEY = loadSigningKey("${MEASUREMENT_CONSUMER_ID}_cs_cert.der", "${MEASUREMENT_CONSUMER_ID}_cs_private.der")
+    private val MC_SIGNING_KEY =
+      loadSigningKey(
+        "${MEASUREMENT_CONSUMER_ID}_cs_cert.der",
+        "${MEASUREMENT_CONSUMER_ID}_cs_private.der",
+      )
     private val DATA_PROVIDER_PUBLIC_KEY: EncryptionPublicKey =
       loadPublicKey(SECRET_FILES_PATH.resolve("${EDP_DISPLAY_NAME}_enc_public.tink").toFile())
         .toEncryptionPublicKey()
@@ -387,14 +436,15 @@ class ResultsFulfillerAppTest {
       nonceHashes += Hashing.hashSha256(REQUISITION_SPEC.nonce)
     }
 
-    private val NOISE_MECHANISM = ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN
+    private val NOISE_MECHANISM =
+      listOf(ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN, ProtocolConfig.NoiseMechanism.NONE)
 
     private val REQUISITION = requisition {
       name = REQUISITION_NAME
       measurement = "$MEASUREMENT_CONSUMER_NAME/measurements/BBBBBBBBBHs"
       state = Requisition.State.UNFULFILLED
       measurementConsumerCertificate = "$MEASUREMENT_CONSUMER_NAME/certificates/AAAAAAAAAcg"
-      measurementSpec = signMeasurementSpec(MEASUREMENT_SPEC, MC_SIGNING_KEY)
+      this.measurementSpec = signMeasurementSpec(MEASUREMENT_SPEC, MC_SIGNING_KEY)
       encryptedRequisitionSpec = ENCRYPTED_REQUISITION_SPEC
       protocolConfig = protocolConfig {
         protocols +=
@@ -440,8 +490,10 @@ class ResultsFulfillerAppTest {
     private const val IMPRESSIONS_FILE_URI = "file:///$IMPRESSIONS_BUCKET/$IMPRESSIONS_BLOB_KEY"
 
     private const val IMPRESSIONS_METADATA_BUCKET = "impression-metadata-bucket"
+    private const val EVENT_GROUP_REFERENCE_ID = "some-event-group-reference-id"
+    private val DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd")
     private val IMPRESSION_METADATA_BLOB_KEY =
-      "ds/${TIME_RANGE.start}/event-group-id/$EVENT_GROUP_NAME/metadata"
+      "ds/${FIRST_EVENT_DATE}/event-group-id/$EVENT_GROUP_REFERENCE_ID/metadata"
 
     private val IMPRESSIONS_METADATA_FILE_URI =
       "file:///$IMPRESSIONS_METADATA_BUCKET/$IMPRESSION_METADATA_BLOB_KEY"

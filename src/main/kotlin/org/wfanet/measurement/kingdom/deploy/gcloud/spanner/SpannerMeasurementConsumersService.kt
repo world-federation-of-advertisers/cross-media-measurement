@@ -15,6 +15,8 @@
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 
 import io.grpc.Status
+import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.EmptyCoroutineContext
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
@@ -38,7 +40,8 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.RemoveMeasur
 class SpannerMeasurementConsumersService(
   private val idGenerator: IdGenerator,
   private val client: AsyncDatabaseClient,
-) : MeasurementConsumersCoroutineImplBase() {
+  coroutineContext: CoroutineContext = EmptyCoroutineContext,
+) : MeasurementConsumersCoroutineImplBase(coroutineContext) {
   override suspend fun createMeasurementConsumer(
     request: CreateMeasurementConsumerRequest
   ): MeasurementConsumer {

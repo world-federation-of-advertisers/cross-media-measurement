@@ -109,7 +109,7 @@ class ComputationsServiceTest {
       computationStore,
       requisitionStore,
       DUCHY_NAME,
-      Clock.systemUTC(),
+      clock = Clock.systemUTC(),
     )
   }
 

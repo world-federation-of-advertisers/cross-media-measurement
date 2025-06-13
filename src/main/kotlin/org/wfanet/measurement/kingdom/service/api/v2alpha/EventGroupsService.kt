@@ -22,6 +22,8 @@ import com.google.protobuf.kotlin.unpack
 import com.google.protobuf.util.Timestamps
 import io.grpc.Status
 import io.grpc.StatusException
+import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.EmptyCoroutineContext
 import kotlin.math.min
 import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.Version
@@ -52,6 +54,7 @@ import org.wfanet.measurement.api.v2alpha.eventGroup
 import org.wfanet.measurement.api.v2alpha.eventGroupMetadata
 import org.wfanet.measurement.api.v2alpha.listEventGroupsPageToken
 import org.wfanet.measurement.api.v2alpha.listEventGroupsResponse
+import org.wfanet.measurement.api.v2alpha.orderByOrNull
 import org.wfanet.measurement.api.v2alpha.packedValue
 import org.wfanet.measurement.api.v2alpha.principalFromCurrentContext
 import org.wfanet.measurement.api.v2alpha.signedMessage
@@ -75,6 +78,7 @@ import org.wfanet.measurement.internal.kingdom.GetEventGroupRequest as InternalG
 import org.wfanet.measurement.internal.kingdom.MediaType as InternalMediaType
 import org.wfanet.measurement.internal.kingdom.StreamEventGroupsRequest
 import org.wfanet.measurement.internal.kingdom.StreamEventGroupsRequestKt as InternalStreamEventGroupsRequests
+import org.wfanet.measurement.internal.kingdom.StreamEventGroupsRequestKt
 import org.wfanet.measurement.internal.kingdom.createEventGroupRequest as internalCreateEventGroupRequest
 import org.wfanet.measurement.internal.kingdom.deleteEventGroupRequest
 import org.wfanet.measurement.internal.kingdom.eventGroup as internalEventGroup
@@ -85,8 +89,10 @@ import org.wfanet.measurement.internal.kingdom.getEventGroupRequest as internalG
 import org.wfanet.measurement.internal.kingdom.streamEventGroupsRequest
 import org.wfanet.measurement.internal.kingdom.updateEventGroupRequest
 
-class EventGroupsService(private val internalEventGroupsStub: InternalEventGroupsCoroutineStub) :
-  EventGroupsCoroutineImplBase() {
+class EventGroupsService(
+  private val internalEventGroupsStub: InternalEventGroupsCoroutineStub,
+  coroutineContext: CoroutineContext = EmptyCoroutineContext,
+) : EventGroupsCoroutineImplBase(coroutineContext) {
 
   private enum class Permission {
     GET,
@@ -339,6 +345,7 @@ class EventGroupsService(private val internalEventGroupsStub: InternalEventGroup
       buildInternalStreamEventGroupsRequest(
         request.filter,
         request.showDeleted,
+        request.orderByOrNull,
         parentKey,
         pageSize,
         pageToken,
@@ -375,6 +382,7 @@ class EventGroupsService(private val internalEventGroupsStub: InternalEventGroup
     internalFilter: StreamEventGroupsRequest.Filter,
     results: List<InternalEventGroup>,
   ): ListEventGroupsPageToken {
+    val lastInternalEventGroup: InternalEventGroup = results[results.lastIndex - 1]
     return listEventGroupsPageToken {
       if (internalFilter.externalDataProviderId != 0L) {
         externalDataProviderId = internalFilter.externalDataProviderId
@@ -382,11 +390,22 @@ class EventGroupsService(private val internalEventGroupsStub: InternalEventGroup
       if (internalFilter.externalMeasurementConsumerId != 0L) {
         externalMeasurementConsumerId = internalFilter.externalMeasurementConsumerId
       }
-      externalDataProviderIds += internalFilter.externalDataProviderIdsList
-      externalMeasurementConsumerIds += internalFilter.externalMeasurementConsumerIdsList
+      externalDataProviderIdIn += internalFilter.externalDataProviderIdInList
+      externalMeasurementConsumerIdIn += internalFilter.externalMeasurementConsumerIdInList
+      mediaTypesIntersect += internalFilter.mediaTypesIntersectList.map { it.toMediaType() }
+      if (internalFilter.hasDataAvailabilityStartTimeOnOrAfter()) {
+        dataAvailabilityStartTimeOnOrAfter = internalFilter.dataAvailabilityStartTimeOnOrAfter
+      }
+      if (internalFilter.hasDataAvailabilityEndTimeOnOrBefore()) {
+        dataAvailabilityEndTimeOnOrBefore = internalFilter.dataAvailabilityEndTimeOnOrBefore
+      }
+      metadataSearchQuery = internalFilter.metadataSearchQuery
       lastEventGroup = previousPageEnd {
-        externalDataProviderId = results[results.lastIndex - 1].externalDataProviderId
-        externalEventGroupId = results[results.lastIndex - 1].externalEventGroupId
+        externalDataProviderId = lastInternalEventGroup.externalDataProviderId
+        externalEventGroupId = lastInternalEventGroup.externalEventGroupId
+        if (lastInternalEventGroup.dataAvailabilityInterval.hasStartTime()) {
+          dataAvailabilityStartTime = lastInternalEventGroup.dataAvailabilityInterval.startTime
+        }
       }
     }
   }
@@ -399,11 +418,13 @@ class EventGroupsService(private val internalEventGroupsStub: InternalEventGroup
   private fun buildInternalStreamEventGroupsRequest(
     filter: ListEventGroupsRequest.Filter,
     showDeleted: Boolean,
+    orderBy: ListEventGroupsRequest.OrderBy?,
     parentKey: ResourceKey,
     pageSize: Int,
     pageToken: ListEventGroupsPageToken?,
   ): StreamEventGroupsRequest {
     return streamEventGroupsRequest {
+      allowStaleReads = true
       this.filter =
         InternalStreamEventGroupsRequests.filter {
           if (parentKey is DataProviderKey) {
@@ -412,9 +433,9 @@ class EventGroupsService(private val internalEventGroupsStub: InternalEventGroup
           if (parentKey is MeasurementConsumerKey) {
             externalMeasurementConsumerId = ApiId(parentKey.measurementConsumerId).externalId.value
           }
-          if (filter.measurementConsumersList.isNotEmpty()) {
-            externalMeasurementConsumerIds +=
-              filter.measurementConsumersList.map {
+          if (filter.measurementConsumerInList.isNotEmpty()) {
+            externalMeasurementConsumerIdIn +=
+              filter.measurementConsumerInList.map {
                 val measurementConsumerKey =
                   grpcRequireNotNull(MeasurementConsumerKey.fromName(it)) {
                     "Invalid resource name in filter.measurement_consumers"
@@ -422,9 +443,9 @@ class EventGroupsService(private val internalEventGroupsStub: InternalEventGroup
                 ApiId(measurementConsumerKey.measurementConsumerId).externalId.value
               }
           }
-          if (filter.dataProvidersList.isNotEmpty()) {
-            externalDataProviderIds +=
-              filter.dataProvidersList.map {
+          if (filter.dataProviderInList.isNotEmpty()) {
+            externalDataProviderIdIn +=
+              filter.dataProviderInList.map {
                 val dataProviderKey =
                   grpcRequireNotNull(DataProviderKey.fromName(it)) {
                     "Invalid resource name in filter.data_providers"
@@ -432,26 +453,57 @@ class EventGroupsService(private val internalEventGroupsStub: InternalEventGroup
                 ApiId(dataProviderKey.dataProviderId).externalId.value
               }
           }
+          if (filter.mediaTypesIntersectList.isNotEmpty()) {
+            mediaTypesIntersect += filter.mediaTypesIntersectList.map { it.toInternal() }
+          }
+          if (filter.hasDataAvailabilityStartTimeOnOrAfter()) {
+            dataAvailabilityStartTimeOnOrAfter = filter.dataAvailabilityStartTimeOnOrAfter
+          }
+          if (filter.hasDataAvailabilityEndTimeOnOrBefore()) {
+            dataAvailabilityEndTimeOnOrBefore = filter.dataAvailabilityEndTimeOnOrBefore
+          }
+          metadataSearchQuery = filter.metadataSearchQuery
           this.showDeleted = showDeleted
           if (pageToken != null) {
             if (
               pageToken.externalDataProviderId != externalDataProviderId ||
                 pageToken.externalMeasurementConsumerId != externalMeasurementConsumerId ||
                 pageToken.showDeleted != showDeleted ||
-                pageToken.externalDataProviderIdsList != externalDataProviderIds ||
-                pageToken.externalMeasurementConsumerIdsList != externalMeasurementConsumerIds
+                pageToken.externalDataProviderIdInList != externalDataProviderIdIn ||
+                pageToken.externalMeasurementConsumerIdInList != externalMeasurementConsumerIdIn ||
+                pageToken.mediaTypesIntersectList != mediaTypesIntersect ||
+                pageToken.dataAvailabilityStartTimeOnOrAfter !=
+                  dataAvailabilityStartTimeOnOrAfter ||
+                pageToken.dataAvailabilityEndTimeOnOrBefore != dataAvailabilityEndTimeOnOrBefore ||
+                pageToken.metadataSearchQuery != metadataSearchQuery
             ) {
               throw Status.INVALID_ARGUMENT.withDescription(
                   "Arguments other than page_size must remain the same for subsequent page requests"
                 )
                 .asRuntimeException()
             }
-            after = eventGroupKey {
-              externalDataProviderId = pageToken.lastEventGroup.externalDataProviderId
-              externalEventGroupId = pageToken.lastEventGroup.externalEventGroupId
-            }
+            after =
+              StreamEventGroupsRequestKt.FilterKt.after {
+                eventGroupKey = eventGroupKey {
+                  externalDataProviderId = pageToken.lastEventGroup.externalDataProviderId
+                  externalEventGroupId = pageToken.lastEventGroup.externalEventGroupId
+                }
+                if (pageToken.lastEventGroup.hasDataAvailabilityStartTime()) {
+                  dataAvailabilityStartTime = pageToken.lastEventGroup.dataAvailabilityStartTime
+                }
+              }
+            // TODO(@SanjayVas): Stop writing the deprecated field once the replacement has been
+            // available for at least one release.
+            eventGroupKeyAfter = after.eventGroupKey
           }
         }
+      if (orderBy != null) {
+        this.orderBy =
+          StreamEventGroupsRequestKt.orderBy {
+            field = orderBy.field.toInternal()
+            descending = orderBy.descending
+          }
+      }
       limit = pageSize + 1
     }
   }
@@ -464,22 +516,28 @@ class EventGroupsService(private val internalEventGroupsStub: InternalEventGroup
 
 /** Converts an internal [InternalEventGroup] to a public [EventGroup]. */
 private fun InternalEventGroup.toEventGroup(): EventGroup {
+  val eventGroupKey =
+    EventGroupKey(
+      externalIdToApiId(externalDataProviderId),
+      externalIdToApiId(externalEventGroupId),
+    )
+  val measurementConsumerKey =
+    MeasurementConsumerKey(externalIdToApiId(externalMeasurementConsumerId))
+  val source = this
+
   return eventGroup {
-    name =
-      EventGroupKey(
-          externalIdToApiId(externalDataProviderId),
-          externalIdToApiId(externalEventGroupId),
-        )
-        .toName()
-    measurementConsumer =
-      MeasurementConsumerKey(externalIdToApiId(externalMeasurementConsumerId)).toName()
-    eventGroupReferenceId = providedEventGroupId
-    this.mediaTypes += mediaTypesList.map { it.toMediaType() }
-    if (hasDetails()) {
-      val apiVersion = Version.fromString(details.apiVersion)
-      if (!details.measurementConsumerPublicKey.isEmpty) {
+    name = eventGroupKey.toName()
+    measurementConsumer = measurementConsumerKey.toName()
+    eventGroupReferenceId = source.providedEventGroupId
+    this.mediaTypes += source.mediaTypesList.map { it.toMediaType() }
+    if (source.hasDataAvailabilityInterval()) {
+      dataAvailabilityInterval = source.dataAvailabilityInterval
+    }
+    if (source.hasDetails()) {
+      val apiVersion = Version.fromString(source.details.apiVersion)
+      if (!source.details.measurementConsumerPublicKey.isEmpty) {
         measurementConsumerPublicKey = any {
-          value = details.measurementConsumerPublicKey
+          value = source.details.measurementConsumerPublicKey
           typeUrl =
             when (apiVersion) {
               Version.V2_ALPHA -> ProtoReflection.getTypeUrl(EncryptionPublicKey.getDescriptor())
@@ -490,22 +548,22 @@ private fun InternalEventGroup.toEventGroup(): EventGroup {
         signedMeasurementConsumerPublicKey = signedMessage {
           message = this@eventGroup.measurementConsumerPublicKey
           data = message.value
-          signature = details.measurementConsumerPublicKeySignature
-          signatureAlgorithmOid = details.measurementConsumerPublicKeySignatureAlgorithmOid
+          signature = source.details.measurementConsumerPublicKeySignature
+          signatureAlgorithmOid = source.details.measurementConsumerPublicKeySignatureAlgorithmOid
         }
       }
-      vidModelLines += details.vidModelLinesList
+      vidModelLines += source.details.vidModelLinesList
       eventTemplates.addAll(
-        details.eventTemplatesList.map { event ->
+        source.details.eventTemplatesList.map { event ->
           eventTemplate { type = event.fullyQualifiedType }
         }
       )
-      if (details.hasMetadata()) {
-        eventGroupMetadata = details.metadata.toEventGroupMetadata()
+      if (source.details.hasMetadata()) {
+        eventGroupMetadata = source.details.metadata.toEventGroupMetadata()
       }
-      if (!details.encryptedMetadata.isEmpty) {
+      if (!source.details.encryptedMetadata.isEmpty) {
         encryptedMetadata = encryptedMessage {
-          ciphertext = details.encryptedMetadata
+          ciphertext = source.details.encryptedMetadata
           typeUrl =
             when (apiVersion) {
               Version.V2_ALPHA -> ProtoReflection.getTypeUrl(EventGroup.Metadata.getDescriptor())
@@ -513,13 +571,10 @@ private fun InternalEventGroup.toEventGroup(): EventGroup {
         }
         // TODO(world-federation-of-advertisers/cross-media-measurement#1301): Stop setting this
         // field.
-        serializedEncryptedMetadata = details.encryptedMetadata
-      }
-      if (details.hasDataAvailabilityInterval()) {
-        dataAvailabilityInterval = details.dataAvailabilityInterval
+        serializedEncryptedMetadata = source.details.encryptedMetadata
       }
     }
-    state = this@toEventGroup.state.toV2Alpha()
+    state = source.state.toV2Alpha()
   }
 }
 
@@ -574,6 +629,9 @@ private fun EventGroup.toInternal(
 
     providedEventGroupId = source.eventGroupReferenceId
     mediaTypes += source.mediaTypesList.map { it.toInternal() }
+    if (source.hasDataAvailabilityInterval()) {
+      dataAvailabilityInterval = source.dataAvailabilityInterval
+    }
     details = eventGroupDetails {
       apiVersion = Version.V2_ALPHA.string
       // TODO(world-federation-of-advertisers/cross-media-measurement#1301): Stop reading this
@@ -604,9 +662,6 @@ private fun EventGroup.toInternal(
         // TODO(world-federation-of-advertisers/cross-media-measurement#1301): Stop reading this
         // field.
         encryptedMetadata = source.serializedEncryptedMetadata
-      }
-      if (source.hasDataAvailabilityInterval()) {
-        dataAvailabilityInterval = source.dataAvailabilityInterval
       }
     }
   }
@@ -639,5 +694,16 @@ private fun EventGroupMetadata.toInternal(): EventGroupDetails.EventGroupMetadat
       }
       EventGroupMetadata.SelectorCase.SELECTOR_NOT_SET -> error("metadata not set")
     }
+  }
+}
+
+private fun ListEventGroupsRequest.OrderBy.Field.toInternal():
+  StreamEventGroupsRequest.OrderBy.Field {
+  return when (this) {
+    ListEventGroupsRequest.OrderBy.Field.FIELD_UNSPECIFIED ->
+      StreamEventGroupsRequest.OrderBy.Field.FIELD_NOT_SPECIFIED
+    ListEventGroupsRequest.OrderBy.Field.DATA_AVAILABILITY_START_TIME ->
+      StreamEventGroupsRequest.OrderBy.Field.DATA_AVAILABILITY_START_TIME
+    ListEventGroupsRequest.OrderBy.Field.UNRECOGNIZED -> error("field unrecognized")
   }
 }

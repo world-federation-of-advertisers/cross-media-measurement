@@ -27,6 +27,8 @@ import com.google.type.interval
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneOffset
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
@@ -49,6 +51,7 @@ import org.wfanet.measurement.api.v2alpha.EventGroupMetadataKt
 import org.wfanet.measurement.api.v2alpha.ListEventGroupsPageToken
 import org.wfanet.measurement.api.v2alpha.ListEventGroupsPageTokenKt.previousPageEnd
 import org.wfanet.measurement.api.v2alpha.ListEventGroupsRequest
+import org.wfanet.measurement.api.v2alpha.ListEventGroupsRequestKt
 import org.wfanet.measurement.api.v2alpha.ListEventGroupsRequestKt.filter
 import org.wfanet.measurement.api.v2alpha.ListEventGroupsResponse
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
@@ -180,6 +183,10 @@ private val EVENT_GROUP: EventGroup = eventGroup {
   // TODO(world-federation-of-advertisers/cross-media-measurement#1301): Stop setting this field.
   serializedEncryptedMetadata = ENCRYPTED_METADATA.ciphertext
   state = EventGroup.State.ACTIVE
+  dataAvailabilityInterval = interval {
+    startTime = LocalDate.of(2025, 2, 6).atStartOfDay().toInstant(ZoneOffset.UTC).toProtoTime()
+    endTime = LocalDate.of(2025, 5, 4).atStartOfDay().toInstant(ZoneOffset.UTC).toProtoTime()
+  }
 }
 
 private val DELETED_EVENT_GROUP: EventGroup = eventGroup {
@@ -216,6 +223,7 @@ private val INTERNAL_EVENT_GROUP: InternalEventGroup = internalEventGroup {
     encryptedMetadata = ENCRYPTED_METADATA.ciphertext
   }
   state = InternalEventGroup.State.ACTIVE
+  dataAvailabilityInterval = EVENT_GROUP.dataAvailabilityInterval
 }
 
 private val INTERNAL_DELETED_EVENT_GROUP: InternalEventGroup = internalEventGroup {
@@ -426,12 +434,7 @@ class EventGroupsServiceTest {
     runBlocking {
       whenever(internalEventGroupsMock.createEventGroup(any()))
         .thenReturn(
-          INTERNAL_EVENT_GROUP.copy {
-            details =
-              INTERNAL_EVENT_GROUP.details.copy {
-                this.dataAvailabilityInterval = dataAvailabilityInterval
-              }
-          }
+          INTERNAL_EVENT_GROUP.copy { this.dataAvailabilityInterval = dataAvailabilityInterval }
         )
     }
 
@@ -453,10 +456,7 @@ class EventGroupsServiceTest {
               clearCreateTime()
               clearExternalEventGroupId()
               clearState()
-              details =
-                INTERNAL_EVENT_GROUP.details.copy {
-                  this.dataAvailabilityInterval = dataAvailabilityInterval
-                }
+              this.dataAvailabilityInterval = dataAvailabilityInterval
             }
         }
       )
@@ -474,12 +474,7 @@ class EventGroupsServiceTest {
     runBlocking {
       whenever(internalEventGroupsMock.createEventGroup(any()))
         .thenReturn(
-          INTERNAL_EVENT_GROUP.copy {
-            details =
-              INTERNAL_EVENT_GROUP.details.copy {
-                this.dataAvailabilityInterval = dataAvailabilityInterval
-              }
-          }
+          INTERNAL_EVENT_GROUP.copy { this.dataAvailabilityInterval = dataAvailabilityInterval }
         )
     }
 
@@ -501,10 +496,7 @@ class EventGroupsServiceTest {
               clearCreateTime()
               clearExternalEventGroupId()
               clearState()
-              details =
-                INTERNAL_EVENT_GROUP.details.copy {
-                  this.dataAvailabilityInterval = dataAvailabilityInterval
-                }
+              this.dataAvailabilityInterval = dataAvailabilityInterval
             }
         }
       )
@@ -686,12 +678,7 @@ class EventGroupsServiceTest {
     runBlocking {
       whenever(internalEventGroupsMock.updateEventGroup(any()))
         .thenReturn(
-          INTERNAL_EVENT_GROUP.copy {
-            details =
-              INTERNAL_EVENT_GROUP.details.copy {
-                this.dataAvailabilityInterval = dataAvailabilityInterval
-              }
-          }
+          INTERNAL_EVENT_GROUP.copy { this.dataAvailabilityInterval = dataAvailabilityInterval }
         )
     }
 
@@ -711,10 +698,7 @@ class EventGroupsServiceTest {
             INTERNAL_EVENT_GROUP.copy {
               clearCreateTime()
               clearState()
-              details =
-                INTERNAL_EVENT_GROUP.details.copy {
-                  this.dataAvailabilityInterval = dataAvailabilityInterval
-                }
+              this.dataAvailabilityInterval = dataAvailabilityInterval
             }
         }
       )
@@ -732,12 +716,7 @@ class EventGroupsServiceTest {
     runBlocking {
       whenever(internalEventGroupsMock.updateEventGroup(any()))
         .thenReturn(
-          INTERNAL_EVENT_GROUP.copy {
-            details =
-              INTERNAL_EVENT_GROUP.details.copy {
-                this.dataAvailabilityInterval = dataAvailabilityInterval
-              }
-          }
+          INTERNAL_EVENT_GROUP.copy { this.dataAvailabilityInterval = dataAvailabilityInterval }
         )
     }
 
@@ -757,10 +736,7 @@ class EventGroupsServiceTest {
             INTERNAL_EVENT_GROUP.copy {
               clearCreateTime()
               clearState()
-              details =
-                INTERNAL_EVENT_GROUP.details.copy {
-                  this.dataAvailabilityInterval = dataAvailabilityInterval
-                }
+              this.dataAvailabilityInterval = dataAvailabilityInterval
             }
         }
       )
@@ -998,6 +974,7 @@ class EventGroupsServiceTest {
           filter =
             StreamEventGroupsRequestKt.filter { externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID }
           limit = request.pageSize + 1
+          allowStaleReads = true
         }
       )
   }
@@ -1007,6 +984,11 @@ class EventGroupsServiceTest {
     val request = listEventGroupsRequest {
       parent = MEASUREMENT_CONSUMER_NAME
       pageSize = 100
+      orderBy =
+        ListEventGroupsRequestKt.orderBy {
+          field = ListEventGroupsRequest.OrderBy.Field.DATA_AVAILABILITY_START_TIME
+          descending = true
+        }
     }
 
     val response: ListEventGroupsResponse =
@@ -1032,7 +1014,13 @@ class EventGroupsServiceTest {
             StreamEventGroupsRequestKt.filter {
               externalMeasurementConsumerId = MEASUREMENT_CONSUMER_EXTERNAL_ID
             }
+          orderBy =
+            StreamEventGroupsRequestKt.orderBy {
+              field = StreamEventGroupsRequest.OrderBy.Field.DATA_AVAILABILITY_START_TIME
+              descending = true
+            }
           limit = request.pageSize + 1
+          allowStaleReads = true
         }
       )
   }
@@ -1040,13 +1028,19 @@ class EventGroupsServiceTest {
   @Test
   fun `listEventGroups response includes next page token when there are more items`() {
     val request = listEventGroupsRequest {
-      parent = DATA_PROVIDER_NAME
-      filter = filter { measurementConsumers += MEASUREMENT_CONSUMER_NAME }
+      parent = MEASUREMENT_CONSUMER_NAME
+      filter = filter {
+        dataProviderIn += DATA_PROVIDER_NAME
+        mediaTypesIntersect += MediaType.VIDEO
+        dataAvailabilityStartTimeOnOrAfter = EVENT_GROUP.dataAvailabilityInterval.startTime
+        dataAvailabilityEndTimeOnOrBefore = EVENT_GROUP.dataAvailabilityInterval.endTime
+        metadataSearchQuery = "log"
+      }
       pageSize = 2
     }
 
     val response: ListEventGroupsResponse =
-      withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
         runBlocking { service.listEventGroups(request) }
       }
 
@@ -1066,21 +1060,31 @@ class EventGroupsServiceTest {
         streamEventGroupsRequest {
           filter =
             StreamEventGroupsRequestKt.filter {
-              externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID
-              externalMeasurementConsumerIds += MEASUREMENT_CONSUMER_EXTERNAL_ID
+              externalMeasurementConsumerId = MEASUREMENT_CONSUMER_EXTERNAL_ID
+              externalDataProviderIdIn += DATA_PROVIDER_EXTERNAL_ID
+              mediaTypesIntersect += InternalMediaType.VIDEO
+              dataAvailabilityStartTimeOnOrAfter = request.filter.dataAvailabilityStartTimeOnOrAfter
+              dataAvailabilityEndTimeOnOrBefore = request.filter.dataAvailabilityEndTimeOnOrBefore
+              metadataSearchQuery = request.filter.metadataSearchQuery
             }
           limit = request.pageSize + 1
+          allowStaleReads = true
         }
       )
     val nextPageToken = ListEventGroupsPageToken.parseFrom(response.nextPageToken.base64UrlDecode())
     assertThat(nextPageToken)
       .isEqualTo(
         listEventGroupsPageToken {
-          externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID
-          externalMeasurementConsumerIds += MEASUREMENT_CONSUMER_EXTERNAL_ID
+          externalMeasurementConsumerId = MEASUREMENT_CONSUMER_EXTERNAL_ID
+          externalDataProviderIdIn += DATA_PROVIDER_EXTERNAL_ID
+          mediaTypesIntersect += MediaType.VIDEO
+          dataAvailabilityStartTimeOnOrAfter = request.filter.dataAvailabilityStartTimeOnOrAfter
+          dataAvailabilityEndTimeOnOrBefore = request.filter.dataAvailabilityEndTimeOnOrBefore
+          metadataSearchQuery = request.filter.metadataSearchQuery
           lastEventGroup = previousPageEnd {
             externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID
             externalEventGroupId = EVENT_GROUP_EXTERNAL_ID_2
+            dataAvailabilityStartTime = EVENT_GROUP.dataAvailabilityInterval.startTime
           }
         }
       )
@@ -1093,13 +1097,14 @@ class EventGroupsServiceTest {
       pageSize = 2
       val listEventGroupsPageToken = listEventGroupsPageToken {
         externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID
-        externalMeasurementConsumerIds += MEASUREMENT_CONSUMER_EXTERNAL_ID
+        externalMeasurementConsumerIdIn += MEASUREMENT_CONSUMER_EXTERNAL_ID
         lastEventGroup = previousPageEnd {
           externalEventGroupId = EVENT_GROUP_EXTERNAL_ID
           externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID
+          dataAvailabilityStartTime = EVENT_GROUP.dataAvailabilityInterval.startTime
         }
       }
-      filter = filter { measurementConsumers += MEASUREMENT_CONSUMER_NAME }
+      filter = filter { measurementConsumerIn += MEASUREMENT_CONSUMER_NAME }
       pageToken = listEventGroupsPageToken.toByteArray().base64UrlEncode()
     }
 
@@ -1113,10 +1118,11 @@ class EventGroupsServiceTest {
       eventGroups += EVENT_GROUP.copy { name = EVENT_GROUP_NAME_2 }
       val listEventGroupsPageToken = listEventGroupsPageToken {
         externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID
-        externalMeasurementConsumerIds += MEASUREMENT_CONSUMER_EXTERNAL_ID
+        externalMeasurementConsumerIdIn += MEASUREMENT_CONSUMER_EXTERNAL_ID
         lastEventGroup = previousPageEnd {
           externalEventGroupId = EVENT_GROUP_EXTERNAL_ID_2
           externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID
+          dataAvailabilityStartTime = EVENT_GROUP.dataAvailabilityInterval.startTime
         }
       }
       nextPageToken = listEventGroupsPageToken.toByteArray().base64UrlEncode()
@@ -1134,12 +1140,20 @@ class EventGroupsServiceTest {
           filter =
             StreamEventGroupsRequestKt.filter {
               externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID
-              externalMeasurementConsumerIds += MEASUREMENT_CONSUMER_EXTERNAL_ID
-              after = eventGroupKey {
-                externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID
-                externalEventGroupId = EVENT_GROUP_EXTERNAL_ID
-              }
+              externalMeasurementConsumerIdIn += MEASUREMENT_CONSUMER_EXTERNAL_ID
+              after =
+                StreamEventGroupsRequestKt.FilterKt.after {
+                  eventGroupKey = eventGroupKey {
+                    externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID
+                    externalEventGroupId = EVENT_GROUP_EXTERNAL_ID
+                  }
+                  dataAvailabilityStartTime = EVENT_GROUP.dataAvailabilityInterval.startTime
+                }
+              // TODO(@SanjayVas): Stop writing the deprecated field once the replacement has been
+              // available for at least one release.
+              eventGroupKeyAfter = after.eventGroupKey
             }
+          allowStaleReads = true
         }
       )
 
@@ -1166,7 +1180,7 @@ class EventGroupsServiceTest {
   fun `listEventGroups throws INVALID_ARGUMENT when subsequent request params mismatch page token`() {
     val initialRequest = listEventGroupsRequest {
       parent = MEASUREMENT_CONSUMER_NAME
-      filter = filter { dataProviders += DATA_PROVIDER_NAME }
+      filter = filter { dataProviderIn += DATA_PROVIDER_NAME }
       pageSize = 2
     }
     val initialResponse: ListEventGroupsResponse =
@@ -1196,7 +1210,7 @@ class EventGroupsServiceTest {
   fun `listEventGroups throws UNAUTHENTICATED when no principal is found`() {
     val request = listEventGroupsRequest {
       parent = DATA_PROVIDER_NAME
-      filter = filter { measurementConsumers += MEASUREMENT_CONSUMER_NAME }
+      filter = filter { measurementConsumerIn += MEASUREMENT_CONSUMER_NAME }
     }
 
     val exception =
@@ -1263,7 +1277,7 @@ class EventGroupsServiceTest {
             service.listEventGroups(
               listEventGroupsRequest {
                 parent = DATA_PROVIDER_NAME
-                filter = filter { measurementConsumers += "asdf" }
+                filter = filter { measurementConsumerIn += "asdf" }
               }
             )
           }

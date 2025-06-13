@@ -29,14 +29,15 @@ import java.time.Duration
 import java.util.logging.Logger
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.lastOrNull
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.single
-import kotlinx.coroutines.flow.singleOrNull
 import org.wfanet.measurement.api.v2alpha.CanonicalRequisitionKey
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt
 import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt
 import org.wfanet.measurement.api.v2alpha.ListEventGroupsRequestKt
+import org.wfanet.measurement.api.v2alpha.ListMeasurementsRequestKt.filter
 import org.wfanet.measurement.api.v2alpha.ListMeasurementsResponse
 import org.wfanet.measurement.api.v2alpha.ListRequisitionsResponse
 import org.wfanet.measurement.api.v2alpha.Measurement
@@ -85,6 +86,7 @@ class MeasurementSystemProber(
   private val privateKeyDerFile: File,
   private val measurementLookbackDuration: Duration,
   private val durationBetweenMeasurement: Duration,
+  private val measurementUpdateLookbackDuration: Duration,
   private val measurementConsumersStub:
     MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub,
   private val measurementsStub:
@@ -117,8 +119,14 @@ class MeasurementSystemProber(
     if (lastUpdatedMeasurement != null) {
       updateLastTerminalRequisitionGauge(lastUpdatedMeasurement)
       if (lastUpdatedMeasurement.state in COMPLETED_MEASUREMENT_STATES) {
+        val attributes =
+          Attributes.of(
+            MEASUREMENT_SUCCESS_ATTRIBUTE_KEY,
+            lastUpdatedMeasurement.state == Measurement.State.SUCCEEDED,
+          )
         lastTerminalMeasurementTimeGauge.set(
-          lastUpdatedMeasurement.updateTime.toInstant().toEpochMilli() / MILLISECONDS_PER_SECOND
+          lastUpdatedMeasurement.updateTime.toInstant().toEpochMilli() / MILLISECONDS_PER_SECOND,
+          attributes,
         )
       }
     }
@@ -208,10 +216,10 @@ class MeasurementSystemProber(
       val eventGroup: EventGroup =
         eventGroupsStub
           .withAuthenticationKey(apiAuthenticationKey)
-          .listResources(1) { pageToken: String, remaining: Int ->
+          .listResources(1) { pageToken: String, remaining ->
             val request = listEventGroupsRequest {
               parent = measurementConsumerName
-              filter = ListEventGroupsRequestKt.filter { dataProviders += dataProviderName }
+              filter = ListEventGroupsRequestKt.filter { dataProviderIn += dataProviderName }
               this.pageToken = pageToken
               pageSize = remaining
             }
@@ -250,30 +258,33 @@ class MeasurementSystemProber(
 
   @OptIn(ExperimentalCoroutinesApi::class) // For `flattenConcat`.
   private suspend fun getLastUpdatedMeasurement(): Measurement? {
-    val measurements: Flow<Measurement> =
-      measurementsStub
-        .withAuthenticationKey(apiAuthenticationKey)
-        .listResources(1) { pageToken: String, remaining: Int ->
-          val response: ListMeasurementsResponse =
-            try {
-              listMeasurements(
-                listMeasurementsRequest {
-                  parent = measurementConsumerName
-                  this.pageToken = pageToken
-                  this.pageSize = remaining
+    val measurements: Flow<ResourceList<Measurement, String>> =
+      measurementsStub.withAuthenticationKey(apiAuthenticationKey).listResources(Int.MAX_VALUE) {
+        pageToken: String,
+        remaining ->
+        val response: ListMeasurementsResponse =
+          try {
+            listMeasurements(
+              listMeasurementsRequest {
+                parent = measurementConsumerName
+                this.pageToken = pageToken
+                this.pageSize = remaining
+                filter = filter {
+                  updatedAfter =
+                    clock.instant().minus(measurementUpdateLookbackDuration).toProtoTime()
                 }
-              )
-            } catch (e: StatusException) {
-              throw Exception(
-                "Unable to list measurements for measurement consumer $measurementConsumerName",
-                e,
-              )
-            }
-          ResourceList(response.measurementsList, response.nextPageToken)
-        }
-        .flattenConcat()
+              }
+            )
+          } catch (e: StatusException) {
+            throw Exception(
+              "Unable to list measurements for measurement consumer $measurementConsumerName",
+              e,
+            )
+          }
+        ResourceList(response.measurementsList, response.nextPageToken)
+      }
 
-    return measurements.singleOrNull()
+    return measurements.flattenConcat().lastOrNull()
   }
 
   @OptIn(ExperimentalCoroutinesApi::class) // For `flattenConcat`.
@@ -283,7 +294,12 @@ class MeasurementSystemProber(
       .listResources { pageToken: String ->
         val response: ListRequisitionsResponse =
           try {
-            listRequisitions(listRequisitionsRequest { this.pageToken = pageToken })
+            listRequisitions(
+              listRequisitionsRequest {
+                parent = measurementName
+                this.pageToken = pageToken
+              }
+            )
           } catch (e: StatusException) {
             throw Exception("Unable to list requisitions for measurement $measurementName", e)
           }
@@ -349,18 +365,22 @@ class MeasurementSystemProber(
   private suspend fun updateLastTerminalRequisitionGauge(lastUpdatedMeasurement: Measurement) {
     val requisitions = getRequisitionsForMeasurement(lastUpdatedMeasurement.name)
     requisitions.collect { requisition ->
-      if (requisition.state == Requisition.State.FULFILLED) {
-        val requisitionKey =
-          requireNotNull(CanonicalRequisitionKey.fromName(requisition.name)) {
-            "Requisition name ${requisition.name} is invalid"
-          }
-        val dataProviderName: String = requisitionKey.dataProviderId
-        val attributes = Attributes.of(DATA_PROVIDER_ATTRIBUTE_KEY, dataProviderName)
-        lastTerminalRequisitionTimeGauge.set(
-          requisition.updateTime.toInstant().toEpochMilli() / MILLISECONDS_PER_SECOND,
-          attributes,
+      val requisitionKey =
+        requireNotNull(CanonicalRequisitionKey.fromName(requisition.name)) {
+          "Requisition name ${requisition.name} is invalid"
+        }
+      val dataProviderName: String = requisitionKey.dataProviderId
+      val attributes =
+        Attributes.of(
+          DATA_PROVIDER_ATTRIBUTE_KEY,
+          dataProviderName,
+          REQUISITION_SUCCESS_ATTRIBUTE_KEY,
+          requisition.state == Requisition.State.FULFILLED,
         )
-      }
+      lastTerminalRequisitionTimeGauge.set(
+        requisition.updateTime.toInstant().toEpochMilli() / MILLISECONDS_PER_SECOND,
+        attributes,
+      )
     }
   }
 
@@ -375,5 +395,9 @@ class MeasurementSystemProber(
     private const val PROBER_NAMESPACE = "${Instrumentation.ROOT_NAMESPACE}.prober"
     private val DATA_PROVIDER_ATTRIBUTE_KEY =
       AttributeKey.stringKey("${Instrumentation.ROOT_NAMESPACE}.data_provider")
+    private val REQUISITION_SUCCESS_ATTRIBUTE_KEY =
+      AttributeKey.booleanKey("${Instrumentation.ROOT_NAMESPACE}.requisition.success")
+    private val MEASUREMENT_SUCCESS_ATTRIBUTE_KEY =
+      AttributeKey.booleanKey("${Instrumentation.ROOT_NAMESPACE}.measurement.success")
   }
 }

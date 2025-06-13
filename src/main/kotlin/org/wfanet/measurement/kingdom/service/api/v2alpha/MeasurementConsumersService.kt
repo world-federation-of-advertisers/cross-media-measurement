@@ -19,6 +19,8 @@ import com.google.protobuf.any
 import com.google.protobuf.kotlin.unpack
 import io.grpc.Status
 import io.grpc.StatusException
+import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.EmptyCoroutineContext
 import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.api.accountFromCurrentContext
 import org.wfanet.measurement.api.v2alpha.AccountKey
@@ -57,8 +59,9 @@ import org.wfanet.measurement.internal.kingdom.removeMeasurementConsumerOwnerReq
 private val API_VERSION = Version.V2_ALPHA
 
 class MeasurementConsumersService(
-  private val internalClient: InternalMeasurementConsumersCoroutineStub
-) : MeasurementConsumersCoroutineService() {
+  private val internalClient: InternalMeasurementConsumersCoroutineStub,
+  coroutineContext: CoroutineContext = EmptyCoroutineContext,
+) : MeasurementConsumersCoroutineService(coroutineContext) {
 
   override suspend fun createMeasurementConsumer(
     request: CreateMeasurementConsumerRequest

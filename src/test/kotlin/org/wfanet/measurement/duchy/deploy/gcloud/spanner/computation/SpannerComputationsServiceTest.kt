@@ -20,6 +20,7 @@ import org.junit.Rule
 import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.measurement.common.IdGenerator
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStageDetails
@@ -77,6 +78,7 @@ class SpannerComputationsServiceTest : ComputationsServiceTest<ComputationsServi
             computationProtocolStageDetails,
           ),
         clock = clock,
+        computationIdGenerator = IdGenerator.Default,
       )
     val systemComputationLogEntriesClient =
       ComputationLogEntriesCoroutineStub(grpcTestServerRule.channel)
@@ -101,7 +103,7 @@ class SpannerComputationsServiceTest : ComputationsServiceTest<ComputationsServi
       ComputationStore(storageClient),
       RequisitionStore(storageClient),
       DUCHY_ID,
-      clock,
+      clock = clock,
     )
   }
 

@@ -13,56 +13,6 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
-    name = "akid_principal_lookup",
-    srcs = ["AkidPrincipalLookup.kt"],
-    deps = [
-        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
-        "//src/main/kotlin/org/wfanet/measurement/common/api:akid_config_lookup",
-        "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha:reporting_principal",
-        "//src/main/proto/wfa/measurement/config/reporting:measurement_consumer_config_kt_jvm_proto",
-    ],
-)
-
-kt_jvm_library(
-    name = "context_keys",
-    srcs = ["ContextKeys.kt"],
-    deps = [
-        "//src/main/kotlin/org/wfanet/measurement/common/api:principal",
-        "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha:reporting_principal",
-        "//src/main/proto/wfa/measurement/reporting/v2alpha:report_schedule_kt_jvm_proto",
-        "@wfa_common_jvm//imports/java/io/grpc:api",
-        "@wfa_common_jvm//imports/java/io/grpc:context",
-    ],
-)
-
-kt_jvm_library(
-    name = "reporting_principal",
-    srcs = ["ReportingPrincipal.kt"],
-    deps = [
-        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
-        "//src/main/kotlin/org/wfanet/measurement/common/api:principal",
-        "//src/main/proto/wfa/measurement/config/reporting:measurement_consumer_config_kt_jvm_proto",
-    ],
-)
-
-kt_jvm_library(
-    name = "principal_server_interceptor",
-    srcs = ["PrincipalServerInterceptor.kt"],
-    deps = [
-        "context_keys",
-        ":reporting_principal",
-        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
-        "//src/main/kotlin/org/wfanet/measurement/common/api/grpc:akid_principal_server_interceptor",
-        "//src/main/kotlin/org/wfanet/measurement/common/identity",
-        "@wfa_common_jvm//imports/java/com/google/protobuf",
-        "@wfa_common_jvm//imports/java/io/grpc:api",
-        "@wfa_common_jvm//imports/java/io/grpc:context",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/identity",
-    ],
-)
-
-kt_jvm_library(
     name = "metric_spec_defaults",
     srcs = ["MetricSpecDefaults.kt"],
     deps = [
@@ -87,7 +37,6 @@ kt_jvm_library(
         ":reporting_exceptions",
         "//src/main/kotlin/org/wfanet/measurement/measurementconsumer/stats:measurement_statistics",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha:metric_spec_defaults",
-        "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha:reporting_principal",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha:resource_key",
         "//src/main/proto/wfa/measurement/api/v2alpha:measurement_consumers_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:measurement_kt_jvm_proto",
@@ -159,24 +108,10 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
-    name = "metadata_principal_server_interceptor",
-    srcs = ["MetadataPrincipalServerInterceptor.kt"],
-    deps = [
-        ":context_keys",
-        ":principal_server_interceptor",
-        ":reporting_principal",
-        "//src/main/proto/wfa/measurement/config/reporting:measurement_consumer_config_kt_jvm_proto",
-        "@wfa_common_jvm//imports/java/io/grpc:api",
-        "@wfa_common_jvm//imports/java/io/grpc/stub",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
-    ],
-)
-
-kt_jvm_library(
     name = "metrics_service",
     srcs = ["MetricsService.kt"],
     deps = [
+        ":measurement_consumer_credentials",
         ":reporting_exceptions",
         "//src/main/kotlin/org/wfanet/measurement/access/client/v1alpha:authorization",
         "//src/main/kotlin/org/wfanet/measurement/api:api_key_credentials",
@@ -199,6 +134,8 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/api/v2alpha:measurement_consumers_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:measurement_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:measurements_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:model_lines_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/config/reporting:measurement_consumer_config_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/config/reporting:metric_spec_config_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/internal/reporting/v2:measurements_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/internal/reporting/v2:metrics_service_kt_jvm_grpc_proto",
@@ -231,12 +168,15 @@ kt_jvm_library(
     srcs = ["MetricCalculationSpecsService.kt"],
     deps = [
         ":cel_filtering_methods",
+        ":measurement_consumer_credentials",
         ":proto_conversions",
         ":resource_key",
         "//imports/java/org/projectnessie/cel",
         "//src/main/kotlin/org/wfanet/measurement/access/client/v1alpha:authorization",
         "//src/main/kotlin/org/wfanet/measurement/common/api:resource_ids",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/service/api:errors",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha:metric_spec_defaults",
+        "//src/main/proto/wfa/measurement/api/v2alpha:model_lines_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/internal/reporting/v2:metric_calculation_specs_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/reporting/v2alpha:metric_calculation_specs_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/reporting/v2alpha:page_token_kt_jvm_proto",
@@ -272,7 +212,6 @@ kt_jvm_library(
     srcs = ["ReportsService.kt"],
     deps = [
         ":cel_filtering_methods",
-        ":metadata_principal_server_interceptor",
         ":report_schedule_info_server_interceptor",
         "//imports/java/org/projectnessie/cel",
         "//src/main/kotlin/org/wfanet/measurement/access/client/v1alpha:authorization",
@@ -318,6 +257,7 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api:submit_batch_requests",
         "//src/main/proto/wfa/measurement/api/v2alpha:data_providers_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:event_groups_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/config/reporting:measurement_consumer_config_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/internal/reporting/v2:report_schedules_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/internal/reporting/v2:reporting_sets_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/reporting/v2alpha:page_token_kt_jvm_proto",
@@ -373,9 +313,6 @@ kt_jvm_library(
     srcs = ["BasicReportsService.kt"],
     deps = [
         ":basic_report_proto_conversions",
-        ":metadata_principal_server_interceptor",
-        ":principal_server_interceptor",
-        ":reporting_principal",
         ":resource_key",
         "//src/main/kotlin/org/wfanet/measurement/access/client/v1alpha:authorization",
         "//src/main/kotlin/org/wfanet/measurement/api:api_key_constants",
@@ -424,9 +361,6 @@ kt_jvm_library(
     srcs = ["ImpressionQualificationFiltersService.kt"],
     deps = [
         ":basic_report_proto_conversions",
-        ":metadata_principal_server_interceptor",
-        ":principal_server_interceptor",
-        ":reporting_principal",
         ":resource_key",
         "//src/main/kotlin/org/wfanet/measurement/access/client/v1alpha:authorization",
         "//src/main/kotlin/org/wfanet/measurement/api:api_key_constants",
@@ -437,5 +371,28 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/reporting/v2alpha:impression_qualification_filter_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/reporting/v2alpha:impression_qualification_filters_service_kt_jvm_grpc_proto",
         "@wfa_common_jvm//imports/java/io/grpc:api",
+    ],
+)
+
+kt_jvm_library(
+    name = "model_lines_service",
+    srcs = ["ModelLinesService.kt"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/access/client/v1alpha:authorization",
+        "//src/main/kotlin/org/wfanet/measurement/api:api_key_constants",
+        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/service/api:errors",
+        "//src/main/proto/wfa/measurement/api/v2alpha:model_lines_service_kt_jvm_grpc_proto",
+        "@wfa_common_jvm//imports/java/io/grpc:api",
+    ],
+)
+
+kt_jvm_library(
+    name = "measurement_consumer_credentials",
+    srcs = ["MeasurementConsumerCredentials.kt"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/api:api_key_credentials",
+        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
+        "//src/main/proto/wfa/measurement/config/reporting:measurement_consumer_config_kt_jvm_proto",
     ],
 )

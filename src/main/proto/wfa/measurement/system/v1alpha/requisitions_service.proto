@@ -48,4 +48,10 @@ message FulfillRequisitionRequest {
 
   // Context information related to the fulfillment of the [Requisition][].
   Requisition.FulfillmentContext fulfillment_context = 3;
+
+  // `etag` of the `Requisition`.
+  //
+  // If specified and the value does not match the current `etag`, this method
+  // will result in an ABORTED status.
+  string etag = 4 [(google.api.field_behavior) = OPTIONAL];
 }

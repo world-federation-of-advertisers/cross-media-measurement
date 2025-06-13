@@ -44,6 +44,7 @@ import org.wfanet.measurement.api.v2alpha.CanonicalRequisitionKey
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DuchyKey
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
+import org.wfanet.measurement.api.v2alpha.GetRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.ListRequisitionsPageToken
 import org.wfanet.measurement.api.v2alpha.ListRequisitionsPageTokenKt.previousPageEnd
 import org.wfanet.measurement.api.v2alpha.ListRequisitionsRequestKt.filter
@@ -71,6 +72,7 @@ import org.wfanet.measurement.api.v2alpha.encryptedMessage
 import org.wfanet.measurement.api.v2alpha.encryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.fulfillDirectRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.fulfillDirectRequisitionResponse
+import org.wfanet.measurement.api.v2alpha.getRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.listRequisitionsPageToken
 import org.wfanet.measurement.api.v2alpha.listRequisitionsRequest
 import org.wfanet.measurement.api.v2alpha.listRequisitionsResponse
@@ -85,6 +87,7 @@ import org.wfanet.measurement.api.v2alpha.withDataProviderPrincipal
 import org.wfanet.measurement.api.v2alpha.withMeasurementConsumerPrincipal
 import org.wfanet.measurement.api.v2alpha.withModelProviderPrincipal
 import org.wfanet.measurement.common.ProtoReflection
+import org.wfanet.measurement.common.api.ETags
 import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
@@ -95,6 +98,7 @@ import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.common.testing.captureFirst
 import org.wfanet.measurement.common.testing.verifyProtoArgument
+import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.internal.kingdom.FulfillRequisitionRequestKt.directRequisitionParams
 import org.wfanet.measurement.internal.kingdom.HonestMajorityShareShuffleParams
@@ -127,6 +131,7 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.RequisitionNo
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.RequisitionStateIllegalException
 
 private val UPDATE_TIME: Timestamp = Instant.ofEpochSecond(123).toProtoTime()
+private val ETAG = ETags.computeETag(UPDATE_TIME.toInstant())
 
 private const val DEFAULT_LIMIT = 10
 
@@ -399,61 +404,6 @@ class RequisitionsServiceTest {
   }
 
   @Test
-  fun `listRequisitions requests internal Requisitions filtered by Measurement state`() =
-    runBlocking {
-      whenever(internalRequisitionMock.streamRequisitions(any()))
-        .thenReturn(flowOf(INTERNAL_REQUISITION, INTERNAL_REQUISITION, INTERNAL_REQUISITION))
-      val request = listRequisitionsRequest {
-        parent = DATA_PROVIDER_NAME
-        pageSize = 2
-        filter = filter { measurementStates += Measurement.State.FAILED }
-      }
-
-      val response =
-        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
-          runBlocking { service.listRequisitions(request) }
-        }
-
-      val streamRequisitionRequest: StreamRequisitionsRequest = captureFirst {
-        verify(internalRequisitionMock).streamRequisitions(capture())
-      }
-      assertThat(streamRequisitionRequest)
-        .ignoringRepeatedFieldOrder()
-        .isEqualTo(
-          streamRequisitionsRequest {
-            limit = 3
-            filter =
-              StreamRequisitionsRequestKt.filter {
-                states += VISIBLE_REQUISITION_STATES
-                externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
-                measurementStates += InternalMeasurement.State.FAILED
-              }
-          }
-        )
-      assertThat(response)
-        .ignoringFields(ListRequisitionsResponse.NEXT_PAGE_TOKEN_FIELD_NUMBER)
-        .ignoringRepeatedFieldOrder()
-        .isEqualTo(
-          listRequisitionsResponse {
-            requisitions += REQUISITION
-            requisitions += REQUISITION
-          }
-        )
-      assertThat(ListRequisitionsPageToken.parseFrom(response.nextPageToken.base64UrlDecode()))
-        .isEqualTo(
-          listRequisitionsPageToken {
-            externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
-            measurementStates += Measurement.State.FAILED
-            lastRequisition = previousPageEnd {
-              updateTime = INTERNAL_REQUISITION.updateTime
-              externalRequisitionId = EXTERNAL_REQUISITION_ID
-              externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
-            }
-          }
-        )
-    }
-
-  @Test
   fun `listRequisitions with more results remaining returns response with next page token`() {
     val laterUpdateTime = timestamp { seconds = INTERNAL_REQUISITION.updateTime.seconds + 100 }
     whenever(internalRequisitionMock.streamRequisitions(any()))
@@ -523,36 +473,6 @@ class RequisitionsServiceTest {
       initialRequest.copy {
         pageToken = initialResponse.nextPageToken
         filter = filter.copy { states.clear() }
-      }
-
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
-        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
-          runBlocking { service.listRequisitions(request) }
-        }
-      }
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception).hasMessageThat().contains("page")
-  }
-
-  @Test
-  fun `listRequisitions throws INVALID ARGUMENT when Measurement state filter mismatches on next page`() {
-    whenever(internalRequisitionMock.streamRequisitions(any()))
-      .thenReturn(flowOf(INTERNAL_REQUISITION, INTERNAL_REQUISITION, INTERNAL_REQUISITION))
-      .thenReturn(flowOf(INTERNAL_REQUISITION))
-    val initialRequest = listRequisitionsRequest {
-      parent = DATA_PROVIDER_NAME
-      pageSize = 2
-      filter = filter { measurementStates += Measurement.State.AWAITING_REQUISITION_FULFILLMENT }
-    }
-    val initialResponse =
-      withDataProviderPrincipal(DATA_PROVIDER_NAME) {
-        runBlocking { service.listRequisitions(initialRequest) }
-      }
-    val request =
-      initialRequest.copy {
-        pageToken = initialResponse.nextPageToken
-        filter = filter.copy { measurementStates += Measurement.State.FAILED }
       }
 
     val exception =
@@ -670,6 +590,66 @@ class RequisitionsServiceTest {
       .ignoringFields(ListRequisitionsResponse.NEXT_PAGE_TOKEN_FIELD_NUMBER)
       .ignoringRepeatedFieldOrder()
       .isEqualTo(listRequisitionsResponse { requisitions += HMSS_REQUISITION })
+  }
+
+  @Test
+  fun `getRequisition returns the Requisition`() = runBlocking {
+    whenever(internalRequisitionMock.getRequisition(any())).thenReturn(INTERNAL_REQUISITION)
+
+    val request = getRequisitionRequest { name = REQUISITION_NAME }
+
+    val requisition =
+      withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+        runBlocking { service.getRequisition(request) }
+      }
+
+    assertThat(requisition).isEqualTo(REQUISITION)
+  }
+
+  @Test
+  fun `getRequisition throws UNAUTHENTICATED when no principal is not found`() {
+    val request = getRequisitionRequest { name = REQUISITION_NAME }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> { runBlocking { service.getRequisition(request) } }
+    assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
+  }
+
+  @Test
+  fun `getRequisition throws PERMISSION_DENIED when edp caller doesn't match`() {
+    val request = getRequisitionRequest { name = REQUISITION_NAME }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(DATA_PROVIDER_NAME_2) {
+          runBlocking { service.getRequisition(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+  }
+
+  @Test
+  fun `getRequisition throws PERMISSION_DENIED when principal without authorization is found`() {
+    val request = getRequisitionRequest { name = REQUISITION_NAME }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withModelProviderPrincipal(MODEL_PROVIDER_NAME) {
+          runBlocking { service.getRequisition(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+  }
+
+  @Test
+  fun `getRequisition throws INVALID_ARGUMENT when name is missing`() {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+          runBlocking { service.getRequisition(GetRequisitionRequest.getDefaultInstance()) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
   }
 
   @Test
@@ -1409,6 +1389,7 @@ class RequisitionsServiceTest {
         dataProviderPublicKey = PACKED_DATA_PROVIDER_PUBLIC_KEY.value
         encryptedRequisitionSpec = ENCRYPTED_REQUISITION_SPEC.ciphertext
       }
+      etag = ETAG
     }
 
     private val INTERNAL_HMSS_REQUISITION =
@@ -1517,6 +1498,7 @@ class RequisitionsServiceTest {
       state = State.FULFILLED
       measurementState = Measurement.State.AWAITING_REQUISITION_FULFILLMENT
       updateTime = UPDATE_TIME
+      etag = ETAG
     }
 
     private val HMSS_REQUISITION =

@@ -80,22 +80,6 @@ abstract class RequisitionFulfiller(
     val requisitionSpec: RequisitionSpec,
   )
 
-  protected open class RequisitionRefusalException(
-    val justification: Requisition.Refusal.Justification,
-    message: String,
-    cause: Throwable? = null,
-  ) : Exception(message, cause) {
-    override val message: String
-      get() = super.message!!
-  }
-
-  /** [RequisitionRefusalException] for test EventGroups. */
-  protected class TestRequisitionRefusalException(
-    justification: Requisition.Refusal.Justification,
-    message: String,
-    cause: Throwable? = null,
-  ) : RequisitionRefusalException(justification, message, cause)
-
   protected class InvalidConsentSignalException(message: String? = null, cause: Throwable? = null) :
     GeneralSecurityException(message, cause)
 
@@ -188,6 +172,7 @@ abstract class RequisitionFulfiller(
     requisitionName: String,
     justification: Requisition.Refusal.Justification,
     message: String,
+    etag: String,
   ): Requisition {
     try {
       return requisitionsStub.refuseRequisition(
@@ -197,9 +182,12 @@ abstract class RequisitionFulfiller(
             this.justification = justification
             this.message = message
           }
+          this.etag = etag
         }
       )
     } catch (e: StatusException) {
+      // TODO(world-federation-of-advertisers/cross-media-measurement#2374): Handle ABORT exception
+      // by calling GetRequisition.
       throw Exception("Error refusing requisition $requisitionName", e)
     }
   }
@@ -207,10 +195,7 @@ abstract class RequisitionFulfiller(
   protected suspend fun getRequisitions(): List<Requisition> {
     val request = listRequisitionsRequest {
       parent = dataProviderData.name
-      filter = filter {
-        states += Requisition.State.UNFULFILLED
-        measurementStates += Measurement.State.AWAITING_REQUISITION_FULFILLMENT
-      }
+      filter = filter { states += Requisition.State.UNFULFILLED }
     }
 
     try {
@@ -230,7 +215,7 @@ abstract class RequisitionFulfiller(
     logger.log(Level.INFO, "Direct MeasurementResult:\n$measurementResult")
 
     DataProviderCertificateKey.fromName(requisition.dataProviderCertificate)
-      ?: throw RequisitionRefusalException(
+      ?: throw RequisitionRefusalException.Default(
         Requisition.Refusal.Justification.UNFULFILLABLE,
         "Invalid data provider certificate",
       )
@@ -256,6 +241,8 @@ abstract class RequisitionFulfiller(
         }
       )
     } catch (e: StatusException) {
+      // TODO(world-federation-of-advertisers/cross-media-measurement#2374): Handle ABORT exception
+      // by calling GetRequisition.
       throw Exception("Error fulfilling direct requisition ${requisition.name}", e)
     }
   }

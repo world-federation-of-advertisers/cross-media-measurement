@@ -69,6 +69,7 @@ import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventGroupEntry
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt
+import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.createMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.dataProvider
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
@@ -179,6 +180,7 @@ class MeasurementSystemProberTest {
         privateKeyDerFile,
         MEASUREMENT_LOOKBACK_DURATION,
         DURATION_BETWEEN_MEASUREMENT,
+        MEASUREMENT_UPDATE_LOOKBACK_DURATION,
         measurementConsumersClient,
         measurementsClient,
         dataProvidersClient,
@@ -221,7 +223,7 @@ class MeasurementSystemProberTest {
     }
 
   @Test
-  fun `run creates a new prober measurement when most recent issued prober measurement is finished a long time ago`():
+  fun `run creates a new prober measurement when most recent issued prober measurement succeeded a long time ago`():
     Unit = runBlocking {
     val oldFinishedMeasurement = measurement {
       state = Measurement.State.SUCCEEDED
@@ -261,6 +263,13 @@ class MeasurementSystemProberTest {
         oldFinishedMeasurement.updateTime.toInstant().toEpochMilli() / MILLISECONDS_PER_SECOND
       )
     assertThat(
+        metricNameToPoints
+          .getValue(LAST_TERMINAL_MEASUREMENT_TIME_GAUGE_METRIC_NAME)[0]
+          .attributes
+          .get(MEASUREMENT_SUCCESS_ATTRIBUTE_KEY)
+      )
+      .isEqualTo(true)
+    assertThat(
         metricNameToPoints.getValue(LAST_TERMINAL_REQUISITION_TIME_GAUGE_METRIC_NAME)[0].value
       )
       .isEqualTo(REQUISITION.updateTime.toInstant().toEpochMilli() / MILLISECONDS_PER_SECOND)
@@ -271,6 +280,159 @@ class MeasurementSystemProberTest {
           .get(DATA_PROVIDER_ATTRIBUTE_KEY)
       )
       .isEqualTo(CanonicalRequisitionKey.fromName(REQUISITION.name)!!.dataProviderId)
+    assertThat(
+        metricNameToPoints
+          .getValue(LAST_TERMINAL_REQUISITION_TIME_GAUGE_METRIC_NAME)[0]
+          .attributes
+          .get(REQUISITION_SUCCESS_ATTRIBUTE_KEY)
+      )
+      .isEqualTo(true)
+  }
+
+  @Test
+  fun `run creates a new prober measurement when most recent issued prober measurement was cancelled a long time ago`():
+    Unit = runBlocking {
+    val oldCancelledMeasurement = measurement {
+      state = Measurement.State.CANCELLED
+      updateTime = now.minus(DURATION_BETWEEN_MEASUREMENT).toProtoTime()
+    }
+    whenever(requisitionsMock.listRequisitions(any()))
+      .thenReturn(
+        listRequisitionsResponse {
+          requisitions += REQUISITION.copy { state = Requisition.State.WITHDRAWN }
+        }
+      )
+    whenever(measurementsMock.listMeasurements(any()))
+      .thenReturn(listMeasurementsResponse { measurements += oldCancelledMeasurement })
+
+    prober.run()
+
+    verifyProtoArgument(
+        measurementsMock,
+        MeasurementsGrpcKt.MeasurementsCoroutineImplBase::createMeasurement,
+      )
+      .ignoringFieldDescriptors(MEASUREMENT_SPEC_FIELD, ENCRYPTED_REQUISITION_SPEC_FIELD)
+      .isEqualTo(
+        createMeasurementRequest {
+          parent = MEASUREMENT_CONSUMER_NAME
+          measurement = MEASUREMENT
+        }
+      )
+
+    metricReader.forceFlush()
+    val metricData: List<MetricData> = metricExporter.finishedMetricItems
+    assertThat(metricData).hasSize(2)
+    val metricNameToPoints: Map<String, List<DoublePointData>> =
+      metricData.associateBy({ it.name }, { it.doubleGaugeData.points.map { point -> point } })
+    assertThat(metricNameToPoints.keys)
+      .containsExactly(
+        LAST_TERMINAL_MEASUREMENT_TIME_GAUGE_METRIC_NAME,
+        LAST_TERMINAL_REQUISITION_TIME_GAUGE_METRIC_NAME,
+      )
+    assertThat(
+        metricNameToPoints.getValue(LAST_TERMINAL_MEASUREMENT_TIME_GAUGE_METRIC_NAME)[0].value
+      )
+      .isEqualTo(
+        oldCancelledMeasurement.updateTime.toInstant().toEpochMilli() / MILLISECONDS_PER_SECOND
+      )
+    assertThat(
+        metricNameToPoints
+          .getValue(LAST_TERMINAL_MEASUREMENT_TIME_GAUGE_METRIC_NAME)[0]
+          .attributes
+          .get(MEASUREMENT_SUCCESS_ATTRIBUTE_KEY)
+      )
+      .isEqualTo(false)
+    assertThat(
+        metricNameToPoints.getValue(LAST_TERMINAL_REQUISITION_TIME_GAUGE_METRIC_NAME)[0].value
+      )
+      .isEqualTo(REQUISITION.updateTime.toInstant().toEpochMilli() / MILLISECONDS_PER_SECOND)
+    assertThat(
+        metricNameToPoints
+          .getValue(LAST_TERMINAL_REQUISITION_TIME_GAUGE_METRIC_NAME)[0]
+          .attributes
+          .get(DATA_PROVIDER_ATTRIBUTE_KEY)
+      )
+      .isEqualTo(CanonicalRequisitionKey.fromName(REQUISITION.name)!!.dataProviderId)
+    assertThat(
+        metricNameToPoints
+          .getValue(LAST_TERMINAL_REQUISITION_TIME_GAUGE_METRIC_NAME)[0]
+          .attributes
+          .get(REQUISITION_SUCCESS_ATTRIBUTE_KEY)
+      )
+      .isEqualTo(false)
+  }
+
+  @Test
+  fun `run creates a new prober measurement when most recent issued prober measurement failed a long time ago`():
+    Unit = runBlocking {
+    val oldFailedMeasurement = measurement {
+      state = Measurement.State.FAILED
+      updateTime = now.minus(DURATION_BETWEEN_MEASUREMENT).toProtoTime()
+    }
+    whenever(requisitionsMock.listRequisitions(any()))
+      .thenReturn(
+        listRequisitionsResponse {
+          requisitions += REQUISITION.copy { state = Requisition.State.REFUSED }
+        }
+      )
+    whenever(measurementsMock.listMeasurements(any()))
+      .thenReturn(listMeasurementsResponse { measurements += oldFailedMeasurement })
+
+    prober.run()
+
+    verifyProtoArgument(
+        measurementsMock,
+        MeasurementsGrpcKt.MeasurementsCoroutineImplBase::createMeasurement,
+      )
+      .ignoringFieldDescriptors(MEASUREMENT_SPEC_FIELD, ENCRYPTED_REQUISITION_SPEC_FIELD)
+      .isEqualTo(
+        createMeasurementRequest {
+          parent = MEASUREMENT_CONSUMER_NAME
+          measurement = MEASUREMENT
+        }
+      )
+
+    metricReader.forceFlush()
+    val metricData: List<MetricData> = metricExporter.finishedMetricItems
+    assertThat(metricData).hasSize(2)
+    val metricNameToPoints: Map<String, List<DoublePointData>> =
+      metricData.associateBy({ it.name }, { it.doubleGaugeData.points.map { point -> point } })
+    assertThat(metricNameToPoints.keys)
+      .containsExactly(
+        LAST_TERMINAL_MEASUREMENT_TIME_GAUGE_METRIC_NAME,
+        LAST_TERMINAL_REQUISITION_TIME_GAUGE_METRIC_NAME,
+      )
+    assertThat(
+        metricNameToPoints.getValue(LAST_TERMINAL_MEASUREMENT_TIME_GAUGE_METRIC_NAME)[0].value
+      )
+      .isEqualTo(
+        oldFailedMeasurement.updateTime.toInstant().toEpochMilli() / MILLISECONDS_PER_SECOND
+      )
+    assertThat(
+        metricNameToPoints
+          .getValue(LAST_TERMINAL_MEASUREMENT_TIME_GAUGE_METRIC_NAME)[0]
+          .attributes
+          .get(MEASUREMENT_SUCCESS_ATTRIBUTE_KEY)
+      )
+      .isEqualTo(false)
+    assertThat(
+        metricNameToPoints.getValue(LAST_TERMINAL_REQUISITION_TIME_GAUGE_METRIC_NAME)[0].value
+      )
+      .isEqualTo(REQUISITION.updateTime.toInstant().toEpochMilli() / MILLISECONDS_PER_SECOND)
+    assertThat(
+        metricNameToPoints
+          .getValue(LAST_TERMINAL_REQUISITION_TIME_GAUGE_METRIC_NAME)[0]
+          .attributes
+          .get(DATA_PROVIDER_ATTRIBUTE_KEY)
+      )
+      .isEqualTo(CanonicalRequisitionKey.fromName(REQUISITION.name)!!.dataProviderId)
+    assertThat(
+        metricNameToPoints
+          .getValue(LAST_TERMINAL_REQUISITION_TIME_GAUGE_METRIC_NAME)[0]
+          .attributes
+          .get(REQUISITION_SUCCESS_ATTRIBUTE_KEY)
+      )
+      .isEqualTo(false)
   }
 
   @Test
@@ -302,6 +464,13 @@ class MeasurementSystemProberTest {
         newFinishedMeasurement.updateTime.toInstant().toEpochMilli() / MILLISECONDS_PER_SECOND
       )
     assertThat(
+        metricNameToPoints
+          .getValue(LAST_TERMINAL_MEASUREMENT_TIME_GAUGE_METRIC_NAME)[0]
+          .attributes
+          .get(MEASUREMENT_SUCCESS_ATTRIBUTE_KEY)
+      )
+      .isEqualTo(true)
+    assertThat(
         metricNameToPoints.getValue(LAST_TERMINAL_REQUISITION_TIME_GAUGE_METRIC_NAME)[0].value
       )
       .isEqualTo(REQUISITION.updateTime.toInstant().toEpochMilli() / MILLISECONDS_PER_SECOND)
@@ -312,6 +481,13 @@ class MeasurementSystemProberTest {
           .get(DATA_PROVIDER_ATTRIBUTE_KEY)
       )
       .isEqualTo(CanonicalRequisitionKey.fromName(REQUISITION.name)!!.dataProviderId)
+    assertThat(
+        metricNameToPoints
+          .getValue(LAST_TERMINAL_REQUISITION_TIME_GAUGE_METRIC_NAME)[0]
+          .attributes
+          .get(REQUISITION_SUCCESS_ATTRIBUTE_KEY)
+      )
+      .isEqualTo(true)
   }
 
   @Test
@@ -341,6 +517,13 @@ class MeasurementSystemProberTest {
           .get(DATA_PROVIDER_ATTRIBUTE_KEY)
       )
       .isEqualTo(CanonicalRequisitionKey.fromName(REQUISITION.name)!!.dataProviderId)
+    assertThat(
+        metricNameToPoints
+          .getValue(LAST_TERMINAL_REQUISITION_TIME_GAUGE_METRIC_NAME)[0]
+          .attributes
+          .get(REQUISITION_SUCCESS_ATTRIBUTE_KEY)
+      )
+      .isEqualTo(true)
   }
 
   companion object {
@@ -352,6 +535,7 @@ class MeasurementSystemProberTest {
 
     private val DURATION_BETWEEN_MEASUREMENT = Duration.ofDays(1)
     private val MEASUREMENT_LOOKBACK_DURATION = Duration.ofDays(1)
+    private val MEASUREMENT_UPDATE_LOOKBACK_DURATION = Duration.ofHours(2)
     private const val NONCE = -3060866405677570814L // Hex: D5859E38A0A96502
     private val fixedRandom =
       object : SecureRandom() {
@@ -496,6 +680,10 @@ class MeasurementSystemProberTest {
       "${PROBER_NAMESPACE}.last_terminal_requisition.timestamp"
     private val DATA_PROVIDER_ATTRIBUTE_KEY =
       AttributeKey.stringKey("${Instrumentation.ROOT_NAMESPACE}.data_provider")
+    private val REQUISITION_SUCCESS_ATTRIBUTE_KEY =
+      AttributeKey.booleanKey("${Instrumentation.ROOT_NAMESPACE}.requisition.success")
+    private val MEASUREMENT_SUCCESS_ATTRIBUTE_KEY =
+      AttributeKey.booleanKey("${Instrumentation.ROOT_NAMESPACE}.measurement.success")
     private const val MILLISECONDS_PER_SECOND = 1000.0
   }
 }

@@ -33,6 +33,7 @@ resource "google_spanner_instance" "spanner_instance" {
   config           = var.spanner_instance_config
   display_name     = "Halo CMMS"
   processing_units = 1000
+  edition          = "ENTERPRISE"
 }
 
 module "kingdom_cluster" {

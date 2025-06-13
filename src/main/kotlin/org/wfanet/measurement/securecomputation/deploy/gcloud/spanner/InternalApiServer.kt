@@ -18,9 +18,11 @@ package org.wfanet.measurement.securecomputation.deploy.gcloud.spanner
 
 import io.grpc.BindableService
 import java.io.File
+import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.grpc.CommonServer
+import org.wfanet.measurement.common.grpc.ServiceFlags
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.config.securecomputation.QueuesConfig
 import org.wfanet.measurement.gcloud.pubsub.DefaultGooglePubSubClient
@@ -34,6 +36,7 @@ import picocli.CommandLine
 @CommandLine.Command(name = InternalApiServer.SERVER_NAME)
 class InternalApiServer : Runnable {
   @CommandLine.Mixin private lateinit var serverFlags: CommonServer.Flags
+  @CommandLine.Mixin private lateinit var serviceFlags: ServiceFlags
   @CommandLine.Mixin private lateinit var spannerFlags: SpannerFlags
 
   @CommandLine.Option(
@@ -60,7 +63,9 @@ class InternalApiServer : Runnable {
         val googlePubSubClient = DefaultGooglePubSubClient()
         val workItemPublisher = GoogleWorkItemPublisher(googleProjectId, googlePubSubClient)
         val services: List<BindableService> =
-          InternalApiServices.build(workItemPublisher, databaseClient, queueMapping).toList()
+          InternalApiServices(workItemPublisher, databaseClient, queueMapping)
+            .build(serviceFlags.executor.asCoroutineDispatcher())
+            .toList()
         val server = CommonServer.fromFlags(serverFlags, SERVER_NAME, services)
 
         server.start().blockUntilShutdown()

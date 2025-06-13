@@ -1,0 +1,50 @@
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_test")
+
+kt_jvm_test(
+    name = "privacy_budget_manager_test",
+    srcs = ["PrivacyBudgetManagerTest.kt"],
+    test_class = "org.wfanet.measurement.privacybudgetmanager.PrivacyBudgetManagerTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/privacybudgetmanager:privacy_budget_manager",
+        "//src/main/kotlin/org/wfanet/measurement/privacybudgetmanager/testing",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:test_event_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/privacybudgetmanager:privacy_landscape_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/privacybudgetmanager:privacy_landscape_mapping_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/testing",
+    ],
+)
+
+kt_jvm_test(
+    name = "slice_test",
+    srcs = ["SliceTest.kt"],
+    test_class = "org.wfanet.measurement.privacybudgetmanager.SliceTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/privacybudgetmanager/testing",
+        "//src/main/proto/wfa/measurement/privacybudgetmanager:charges_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/privacybudgetmanager:query_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/testing",
+    ],
+)
+
+kt_jvm_test(
+    name = "landscape_processor_test",
+    srcs = ["LandscapeProcessorTest.kt"],
+    test_class = "org.wfanet.measurement.privacybudgetmanager.LandscapeProcessorTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/privacybudgetmanager:privacy_budget_manager",
+        "//src/main/kotlin/org/wfanet/measurement/privacybudgetmanager/testing",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:test_event_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/privacybudgetmanager:privacy_landscape_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/privacybudgetmanager:privacy_landscape_mapping_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/testing",
+    ],
+)

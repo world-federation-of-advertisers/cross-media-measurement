@@ -33,6 +33,14 @@ class PrefixedStorageClient(private val delegate: StorageClient, private val pre
     return delegate.getBlob(applyPrefix(blobKey))
   }
 
+  override suspend fun listBlobs(prefix: String?): Flow<StorageClient.Blob> {
+    return if (prefix.isNullOrEmpty()) {
+      delegate.listBlobs("${this.prefix}/")
+    } else {
+      delegate.listBlobs("${this.prefix}/$prefix")
+    }
+  }
+
   private fun applyPrefix(blobKey: String): String = "$prefix/$blobKey"
 }
 

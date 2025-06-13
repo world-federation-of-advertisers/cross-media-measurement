@@ -15,6 +15,8 @@
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 
 import io.grpc.Status
+import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.EmptyCoroutineContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.common.grpc.failGrpc
@@ -32,6 +34,8 @@ import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequest
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DuchyNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementStateIllegalException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.RequiredFieldNotSetException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.RequisitionEtagMismatchException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.RequisitionNotFoundByDataProviderException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.RequisitionNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.RequisitionStateIllegalException
@@ -43,7 +47,8 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.RefuseRequis
 class SpannerRequisitionsService(
   private val idGenerator: IdGenerator,
   private val client: AsyncDatabaseClient,
-) : RequisitionsCoroutineImplBase() {
+  coroutineContext: CoroutineContext = EmptyCoroutineContext,
+) : RequisitionsCoroutineImplBase(coroutineContext) {
 
   override suspend fun getRequisition(request: GetRequisitionRequest): Requisition {
     val externalDataProviderId = ExternalId(request.externalDataProviderId)
@@ -65,9 +70,18 @@ class SpannerRequisitionsService(
   override fun streamRequisitions(request: StreamRequisitionsRequest): Flow<Requisition> {
     val requestFilter = request.filter
     if (requestFilter.externalMeasurementId != 0L) {
-      grpcRequire(requestFilter.externalMeasurementConsumerId != 0L) {
-        "external_measurement_consumer_id must be specified if external_measurement_id is specified"
+      if (requestFilter.externalMeasurementConsumerId == 0L) {
+        throw RequiredFieldNotSetException("filter.external_measurement_consumer_id") { fieldName ->
+            "$fieldName is required when filter.external_measurement_id is set"
+          }
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
       }
+    }
+    if (requestFilter.measurementStatesList.isNotEmpty()) {
+      throw Status.INVALID_ARGUMENT.withDescription(
+          "filter.measurement_states is no longer supported"
+        )
+        .asRuntimeException()
     }
 
     return StreamRequisitions(requestFilter, request.limit).execute(client.singleUse()).map {
@@ -117,6 +131,8 @@ class SpannerRequisitionsService(
       )
     } catch (e: DuchyNotFoundException) {
       throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION, "Duchy not found.")
+    } catch (e: RequisitionEtagMismatchException) {
+      throw e.asStatusRuntimeException(Status.Code.ABORTED, "Requisition etags mismatch")
     } catch (e: KingdomInternalException) {
       throw e.asStatusRuntimeException(Status.Code.INTERNAL, "Unexpected internal error.")
     }
@@ -145,6 +161,8 @@ class SpannerRequisitionsService(
         Status.Code.FAILED_PRECONDITION,
         "Requisition state illegal.",
       )
+    } catch (e: RequisitionEtagMismatchException) {
+      throw e.asStatusRuntimeException(Status.Code.ABORTED, "Requisition etags mismatch")
     } catch (e: MeasurementStateIllegalException) {
       throw e.asStatusRuntimeException(
         Status.Code.FAILED_PRECONDITION,

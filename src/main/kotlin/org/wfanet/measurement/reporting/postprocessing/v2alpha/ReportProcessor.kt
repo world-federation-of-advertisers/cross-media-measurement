@@ -14,25 +14,74 @@
 
 package org.wfanet.measurement.reporting.postprocessing.v2alpha
 
+import com.google.cloud.storage.StorageOptions
+import com.google.protobuf.Timestamp
 import java.io.BufferedReader
 import java.io.File
 import java.io.InputStreamReader
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.StandardCopyOption
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 import java.util.logging.Logger
 import kotlin.io.path.name
 import org.wfanet.measurement.common.getJarResourcePath
 import org.wfanet.measurement.common.toJson
+import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
+import org.wfanet.measurement.reporting.postprocessing.v2alpha.ReportPostProcessorLog.ReportPostProcessorIssue
 import org.wfanet.measurement.reporting.v2alpha.Report
 import org.wfanet.measurement.reporting.v2alpha.copy
+import org.wfanet.measurement.storage.StorageClient
+
+/**
+ * Represents the combined output of processing a report, including the updated report and the
+ * associated processing log.
+ *
+ * @property updatedReportJson A string representation of the processed report's outcome.
+ * @property reportPostProcessorLog The [ReportPostProcessorLog] object containing detailed logs and
+ *   metadata generated during the report processing.
+ */
+data class ReportProcessingOutput(
+  val updatedReportJson: String,
+  val reportPostProcessorLog: ReportPostProcessorLog,
+)
+
+class GcsStorageFactory : ReportProcessor.StorageFactory {
+  override fun createStorageClient(projectId: String, bucketName: String): StorageClient {
+    require(projectId.isNotEmpty()) { "projectId cannot be empty." }
+    require(bucketName.isNotEmpty()) { "bucketName cannot be empty." }
+    return GcsStorageClient(
+      StorageOptions.newBuilder().setProjectId(projectId).build().service,
+      bucketName,
+    )
+  }
+}
 
 class ReportProcessorFailureException(message: String) : RuntimeException(message)
 
 /** Corrects the inconsistent measurements in a serialized [Report]. */
 interface ReportProcessor {
+
+  /** A factory interface responsible for creating instances of [StorageClient]. */
+  interface StorageFactory {
+    /**
+     * Creates and returns a [StorageClient] instance configured for the specified project and
+     * bucket.
+     *
+     * @param projectId The project ID that the created [StorageClient] will be associated with.
+     *   Must not be empty.
+     * @param bucketName The bucket name that the created [StorageClient] will operate on. Must not
+     *   be empty.
+     * @return A [StorageClient] instance.
+     */
+    fun createStorageClient(projectId: String, bucketName: String): StorageClient
+  }
+
   /**
-   * Processes a serialized [Report] and outputs a consistent one.
+   * Processes a serialized [Report] and outputs a serialized consistent one.
    *
    * @param report The serialized [Report] in JSON format.
    * @param verbose If true, enables verbose logging from the underlying report processor library.
@@ -40,6 +89,27 @@ interface ReportProcessor {
    * @return The corrected serialized [Report] in JSON format.
    */
   fun processReportJson(report: String, verbose: Boolean = false): String
+
+  /**
+   * Processes a serialized [Report], outputs a consistent one, generates detailed logs of this
+   * processing, and returns both a string representation of the processing result and the generated
+   * log object.
+   *
+   * @param report The JSON [String] containing the report data to be processed.
+   * @param projectId The GCS Project ID.
+   * @param bucketName The GCS bucket name.
+   * @param verbose If true, enables verbose logging from the underlying report processor library.
+   *   Default value is false.
+   * @return A [ReportProcessingOutput] that contains the corrected serialized [Report] in JSON
+   *   format and a [ReportPostProcessorLog] object that encapsulates detailed logs, metrics, or
+   *   errors encountered during the processing of the report.
+   */
+  suspend fun processReportJsonAndLogResult(
+    report: String,
+    projectId: String,
+    bucketName: String,
+    verbose: Boolean = false,
+  ): ReportProcessingOutput
 
   /** The default implementation of [ReportProcessor]. */
   companion object Default : ReportProcessor {
@@ -56,6 +126,44 @@ interface ReportProcessor {
       Files.copy(resourcePath, tempFile.toPath(), StandardCopyOption.REPLACE_EXISTING)
     }
 
+    // Default factory instance.
+    private val gcsStorageFactory = GcsStorageFactory()
+
+    /**
+     * The currently active [StorageFactory] that will be used to create [StorageClient] instances.
+     */
+    var currentStorageFactory: StorageFactory = gcsStorageFactory
+      internal set
+
+    /**
+     * Replaces the [currentStorageFactory] with a specific [StorageFactory] implementation.
+     *
+     * This method is intended for testing purposes only.
+     *
+     * @param testFactory The [StorageFactory] implementation to be used for subsequent
+     *   [StorageClient] creations during a test.
+     */
+    fun setTestStorageFactory(testFactory: StorageFactory) {
+      currentStorageFactory = testFactory
+    }
+
+    /** Resets the storage factory to GCS storage factory. */
+    fun resetToGcsStorageFactory() {
+      currentStorageFactory = gcsStorageFactory
+    }
+
+    /**
+     * Creates a [StorageClient] instance configured for the given project and bucket, using the
+     * [currentStorageFactory].
+     *
+     * @param projectId The GCS Project ID.
+     * @param bucketName The GCS bucket name.
+     * @return A [StorageClient].
+     */
+    private suspend fun getStorageClient(projectId: String, bucketName: String): StorageClient {
+      return currentStorageFactory.createStorageClient(projectId, bucketName)
+    }
+
     /**
      * Corrects the inconsistent measurements in the [report] and returns a corrected report in JSON
      * format.
@@ -64,23 +172,151 @@ interface ReportProcessor {
      * @return a corrected report, serialized as a standard JSON string.
      */
     override fun processReportJson(report: String, verbose: Boolean): String {
-      return processReport(ReportConversion.getReportFromJsonString(report), verbose).toJson()
+      return processReport(ReportConversion.getReportFromJsonString(report), verbose)
+        .updatedReportJson
     }
 
     /**
-     * Corrects the inconsistent measurements in the [report] and returns a corrected report .
+     * Processes a serialized [Report], outputs a consistent one, generates detailed logs of this
+     * processing, and returns both a string representation of the processing result and the
+     * generated log object.
      *
-     * @param report a Report message.
-     * @return a corrected Report.
+     * @param report The JSON [String] containing the report data to be processed.
+     * @param projectId The GCS Project ID.
+     * @param bucketName The GCS bucket name.
+     * @param verbose If true, enables verbose logging from the underlying report processor library.
+     *   Default value is false.
+     * @return A [ReportProcessingOutput] that contains the corrected serialized [Report] in JSON
+     *   format and a [ReportPostProcessorLog] object that encapsulates detailed logs, metrics, or
+     *   errors encountered during the processing of the report.
      */
-    private fun processReport(report: Report, verbose: Boolean = false): Report {
+    override suspend fun processReportJsonAndLogResult(
+      report: String,
+      projectId: String,
+      bucketName: String,
+      verbose: Boolean,
+    ): ReportProcessingOutput {
+      require(projectId.isNotEmpty()) { "projectId cannot be empty." }
+      require(bucketName.isNotEmpty()) { "bucketName cannot be empty." }
+
+      return processReportAndLogResult(
+        ReportConversion.getReportFromJsonString(report),
+        projectId,
+        bucketName,
+        verbose,
+      )
+    }
+
+    /**
+     * Corrects the inconsistent measurements in the [report], writes the report post processor log
+     * to a GCS bucket, and returns a [ReportProcessingOutput] object.
+     *
+     * @param report The input [Report] object that needs to be processed.
+     * @param projectId The GCS project ID.
+     * @param bucketName The GCS bucket name.
+     * @param verbose A boolean flag indicating whether to perform verbose logging.
+     * @return A [ReportProcessingOutput] object which contains an updated [Report] and a
+     *   [ReportPostProcessorLog] object.
+     */
+    private suspend fun processReportAndLogResult(
+      report: Report,
+      projectId: String,
+      bucketName: String,
+      verbose: Boolean = false,
+    ): ReportProcessingOutput {
+      require(projectId.isNotEmpty()) { "projectId cannot be empty." }
+      require(bucketName.isNotEmpty()) { "bucketName cannot be empty." }
+
+      val reportProcessingOutput: ReportProcessingOutput = processReport(report, verbose)
+
+      val storageClient: StorageClient = getStorageClient(projectId, bucketName)
+      val blobKey: String = getBlobKey(report)
+      storageClient.writeBlob(blobKey, reportProcessingOutput.reportPostProcessorLog.toByteString())
+
+      return reportProcessingOutput
+    }
+
+    /**
+     * Processes the given [Report] object and returns a [ReportProcessingOutput] object.
+     *
+     * @param report The input [Report] object that needs to be processed.
+     * @param verbose A boolean flag indicating whether to perform verbose logging.
+     * @return A [ReportProcessingOutput] object which contains an updated [Report] and a
+     *   [ReportPostProcessorLog] object.
+     */
+    private fun processReport(report: Report, verbose: Boolean = false): ReportProcessingOutput {
       val reportSummaries = report.toReportSummaries()
       val correctedMeasurementsMap = mutableMapOf<String, Long>()
+      val resultMap = mutableMapOf<String, ReportPostProcessorResult>()
       for (reportSummary in reportSummaries) {
-        correctedMeasurementsMap.putAll(processReportSummary(reportSummary, verbose))
+        val result: ReportPostProcessorResult = processReportSummary(reportSummary, verbose)
+        if (result.status.statusCode != ReportPostProcessorStatus.StatusCode.SOLUTION_NOT_FOUND) {
+          val updatedMeasurements = mutableMapOf<String, Long>()
+          result.updatedMeasurementsMap.forEach { (key, value) -> updatedMeasurements[key] = value }
+          correctedMeasurementsMap.putAll(updatedMeasurements)
+        }
+        resultMap[reportSummary.demographicGroupsList.joinToString(separator = ",")] = result
       }
-      val updatedReport = updateReport(report, correctedMeasurementsMap)
-      return updatedReport
+
+      val foundIssues = mutableSetOf<ReportPostProcessorIssue>()
+
+      // Iterate over the results only once.
+      for (result in resultMap.values) {
+        // Checks for QP solver solution not found.
+        if (result.status.statusCode == ReportPostProcessorStatus.StatusCode.SOLUTION_NOT_FOUND) {
+          foundIssues.add(ReportPostProcessorIssue.QP_SOLUTION_NOT_FOUND)
+        }
+
+        // Checks for zero variance measurements quality pre-correction inconsistency.
+        if (
+          result.preCorrectionQuality.zeroVarianceMeasurementsStatus ==
+            ReportQuality.ZeroVarianceMeasurementsStatus.INCONSISTENT
+        ) {
+          foundIssues.add(
+            ReportPostProcessorIssue.ZERO_VARIANCE_MEASUREMENTS_INCONSISTENT_PRE_CORRECTION
+          )
+        }
+
+        // Checks for zero variance measurements quality post-correction inconsistency.
+        if (
+          result.postCorrectionQuality.zeroVarianceMeasurementsStatus ==
+            ReportQuality.ZeroVarianceMeasurementsStatus.INCONSISTENT
+        ) {
+          foundIssues.add(
+            ReportPostProcessorIssue.ZERO_VARIANCE_MEASUREMENTS_INCONSISTENT_POST_CORRECTION
+          )
+        }
+
+        // Checks for independence check pre-correction failure.
+        if (
+          result.preCorrectionQuality.unionStatus ==
+            ReportQuality.IndependenceCheckStatus.OUTSIDE_CONFIDENCE_RANGE
+        ) {
+          foundIssues.add(ReportPostProcessorIssue.INDEPENDENCE_CHECK_FAILS_PRE_CORRECTION)
+        }
+
+        // Checks for independence check post-correction failure.
+        if (
+          result.postCorrectionQuality.unionStatus ==
+            ReportQuality.IndependenceCheckStatus.OUTSIDE_CONFIDENCE_RANGE
+        ) {
+          foundIssues.add(ReportPostProcessorIssue.INDEPENDENCE_CHECK_FAILS_POST_CORRECTION)
+        }
+      }
+
+      val updatedReport: Report = updateReport(report, correctedMeasurementsMap)
+
+      val reportPostProcessorLog = reportPostProcessorLog {
+        reportId = report.name
+        createTime = report.createTime
+        results.putAll(resultMap)
+        issues.addAll(issues)
+      }
+
+      return ReportProcessingOutput(
+        updatedReportJson = updatedReport.toJson(),
+        reportPostProcessorLog = reportPostProcessorLog,
+      )
     }
 
     /**
@@ -92,8 +328,8 @@ interface ReportProcessor {
     private fun processReportSummary(
       reportSummary: ReportSummary,
       verbose: Boolean = false,
-    ): Map<String, Long> {
-      logger.info { "Start processing report.." }
+    ): ReportPostProcessorResult {
+      logger.info { "Start processing report summary.." }
 
       // TODO(bazelbuild/bazel#17629): Execute the Python zip directly once this bug is fixed.
       val processBuilder = ProcessBuilder("python3", tempFile.toPath().toString())
@@ -127,20 +363,14 @@ interface ReportProcessor {
         throw ReportProcessorFailureException(processError)
       }
 
-      logger.info { "Finished processing report.." }
-
-      val correctedMeasurementsMap = mutableMapOf<String, Long>()
+      logger.info { "Finished processing report summary.." }
 
       // Extracts the list of updated measurements if a solution is found.
-      if (result.status.statusCode != ReportPostProcessorStatus.StatusCode.SOLUTION_NOT_FOUND) {
-        result.updatedMeasurementsMap.forEach { (key, value) ->
-          correctedMeasurementsMap[key] = value
-        }
-      } else {
+      if (result.status.statusCode == ReportPostProcessorStatus.StatusCode.SOLUTION_NOT_FOUND) {
         logger.info { "No solution found.." }
       }
 
-      return correctedMeasurementsMap
+      return result
     }
 
     /**
@@ -231,6 +461,27 @@ interface ReportProcessor {
           metricCalculationResults += correctedMetricCalculationResults
         }
       return updatedReport
+    }
+
+    /** Get blobKey from the bucket name and the report create time. */
+    private fun getBlobKey(report: Report): String {
+      val createTime: String = timestampToString(report.createTime)
+      val blobKey: String =
+        createTime.substring(0, "yyyyMMdd".length) +
+          "/" +
+          createTime +
+          "_" +
+          report.name.substringAfterLast('/') +
+          ".textproto"
+      return blobKey
+    }
+
+    /** Converts [timestamp] to a string with the format yyyyMMddHHmmss. */
+    private fun timestampToString(timestamp: Timestamp): String {
+      val instant = Instant.ofEpochSecond(timestamp.seconds, timestamp.nanos.toLong())
+      val zonedDateTime = instant.atZone(ZoneId.systemDefault())
+      val formatter = DateTimeFormatter.ofPattern("yyyyMMddHHmmss", Locale.getDefault())
+      return zonedDateTime.format(formatter)
     }
   }
 }

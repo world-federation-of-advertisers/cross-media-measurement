@@ -4,10 +4,15 @@ load("//src/main/docker:macros.bzl", "java_image")
 
 kt_jvm_library(
     name = "services",
-    srcs = glob(["*.kt"]),
+    srcs = [
+        "InternalApiServices.kt",
+        "SpannerWorkItemAttemptsService.kt",
+        "SpannerWorkItemService.kt",
+    ],
     visibility =
         [
             "//src/main/kotlin/org/wfanet/measurement/integration/common:__subpackages__",
+            "//src/main/kotlin/org/wfanet/measurement/integration/deploy/gcloud:__subpackages__",
             "//src/main/kotlin/org/wfanet/measurement/securecomputation/deploy:__subpackages__",
             "//src/test/kotlin/org/wfanet/measurement/securecomputation/deploy:__subpackages__",
         ],
@@ -24,7 +29,6 @@ kt_jvm_library(
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/pubsub:default_google_pub_sub_client",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner",
     ],
 )
@@ -34,6 +38,7 @@ kt_jvm_library(
     srcs = ["InternalApiServer.kt"],
     deps = [
         ":services",
+        "//src/main/kotlin/org/wfanet/measurement/common/grpc:service_flags",
         "//src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/publisher:google_work_item_publisher",
         "//src/main/kotlin/org/wfanet/measurement/securecomputation/service/internal:queue_mapping",
         "//src/main/proto/wfa/measurement/config/securecomputation:queues_config_kt_jvm_proto",
@@ -48,7 +53,7 @@ kt_jvm_library(
 
 java_binary(
     name = "InternalApiServer",
-    main_class = "org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.InternalApiServerKt",
+    main_class = "org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.InternalApiServer",
     runtime_deps = [
         ":internal_api_server",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/logging",

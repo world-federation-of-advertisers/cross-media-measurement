@@ -14,6 +14,8 @@
 
 package org.wfanet.measurement.duchy.service.internal.computationstats
 
+import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.EmptyCoroutineContext
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.duchy.db.computation.ComputationStatMetric
 import org.wfanet.measurement.duchy.db.computation.ComputationsDatabase
@@ -22,8 +24,10 @@ import org.wfanet.measurement.internal.duchy.CreateComputationStatRequest
 import org.wfanet.measurement.internal.duchy.CreateComputationStatResponse
 
 /** Implementation of `wfa.measurement.internal.duchy.ComputationStats` gRPC service. */
-class ComputationStatsService(private val computationsDatabase: ComputationsDatabase) :
-  ComputationStatsCoroutineService() {
+class ComputationStatsService(
+  private val computationsDatabase: ComputationsDatabase,
+  coroutineContext: CoroutineContext = EmptyCoroutineContext,
+) : ComputationStatsCoroutineService(coroutineContext) {
 
   override suspend fun createComputationStat(
     request: CreateComputationStatRequest

@@ -69,8 +69,18 @@ sealed class KingdomInternalException : Exception {
   }
 }
 
-class RequiredFieldNotSetException(val fieldName: String) :
-  KingdomInternalException(ErrorCode.REQUIRED_FIELD_NOT_SET, "Required field $fieldName not set") {
+class RequiredFieldNotSetException(
+  val fieldName: String,
+  provideDescription: (fieldName: String) -> String = { "Required field $fieldName not set" },
+) : KingdomInternalException(ErrorCode.REQUIRED_FIELD_NOT_SET, provideDescription(fieldName)) {
+  override val context: Map<String, String>
+    get() = mapOf("field_name" to fieldName)
+}
+
+class InvalidFieldValueException(
+  val fieldName: String,
+  provideDescription: (fieldName: String) -> String = { "Value of $fieldName is invalid" },
+) : KingdomInternalException(ErrorCode.INVALID_FIELD_VALUE, provideDescription(fieldName)) {
   override val context: Map<String, String>
     get() = mapOf("field_name" to fieldName)
 }
@@ -479,6 +489,15 @@ class RequisitionStateIllegalException(
         "external_requisition_id" to externalRequisitionId.value.toString(),
         "requisition_state" to state.toString(),
       )
+}
+
+class RequisitionEtagMismatchException(
+  val requestedEtag: String,
+  val actualEtag: String,
+  message: String = "Request etag $requestedEtag does not match actual etag $actualEtag",
+) : KingdomInternalException(ErrorCode.REQUISITION_ETAG_MISMATCH, message) {
+  override val context
+    get() = mapOf("request_etag" to requestedEtag, "actual_etag" to actualEtag)
 }
 
 class AccountNotFoundException(

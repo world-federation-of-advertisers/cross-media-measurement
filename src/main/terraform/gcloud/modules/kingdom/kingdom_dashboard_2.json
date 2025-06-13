@@ -450,7 +450,7 @@
         "height": 16,
         "width": 12,
         "widget": {
-          "title": "ListRequisitions Error Rate %",
+          "title": "FulfillDirectRequisition Error Rate %",
           "id": "",
           "scorecard": {
             "breakdowns": [],
@@ -994,7 +994,7 @@
         "height": 16,
         "width": 36,
         "widget": {
-          "title": "FulfillDirectRequisition Error Rate %",
+          "title": "RefuseRequisition Error Rate %",
           "id": "",
           "xyChart": {
             "chartOptions": {

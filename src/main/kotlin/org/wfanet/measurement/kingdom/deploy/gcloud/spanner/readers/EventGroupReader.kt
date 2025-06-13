@@ -14,14 +14,17 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers
 
+import com.google.cloud.Timestamp as CloudTimestamp
 import com.google.cloud.spanner.Statement
 import com.google.cloud.spanner.Struct
+import com.google.type.interval
 import kotlinx.coroutines.flow.singleOrNull
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.appendClause
 import org.wfanet.measurement.gcloud.spanner.bind
+import org.wfanet.measurement.gcloud.spanner.getNullableTimestamp
 import org.wfanet.measurement.internal.kingdom.EventGroup
 import org.wfanet.measurement.internal.kingdom.EventGroupDetails
 import org.wfanet.measurement.internal.kingdom.MediaType
@@ -114,25 +117,55 @@ class EventGroupReader : BaseSpannerReader<EventGroupReader.Result>() {
       InternalId(struct.getLong("DataProviderId")),
     )
 
-  private fun buildEventGroup(struct: Struct): EventGroup = eventGroup {
-    externalEventGroupId = struct.getLong("ExternalEventGroupId")
-    externalDataProviderId = struct.getLong("ExternalDataProviderId")
-    externalMeasurementConsumerId = struct.getLong("ExternalMeasurementConsumerId")
-    if (!struct.isNull("ProvidedEventGroupId")) {
-      providedEventGroupId = struct.getString("ProvidedEventGroupId")
+  private fun buildEventGroup(struct: Struct): EventGroup {
+    val dataAvailabilityStartTime: CloudTimestamp? =
+      struct.getNullableTimestamp("DataAvailabilityStartTime")
+    val dataAvailabilityEndTime: CloudTimestamp? =
+      struct.getNullableTimestamp("DataAvailabilityEndTime")
+
+    return eventGroup {
+      externalEventGroupId = struct.getLong("ExternalEventGroupId")
+      externalDataProviderId = struct.getLong("ExternalDataProviderId")
+      externalMeasurementConsumerId = struct.getLong("ExternalMeasurementConsumerId")
+      if (!struct.isNull("ProvidedEventGroupId")) {
+        providedEventGroupId = struct.getString("ProvidedEventGroupId")
+      }
+      createTime = struct.getTimestamp("CreateTime").toProto()
+      updateTime = struct.getTimestamp("UpdateTime").toProto()
+      mediaTypes += struct.getProtoEnumList("MediaTypes", MediaType::forNumber)
+      if (dataAvailabilityStartTime != null) {
+        dataAvailabilityInterval = interval {
+          startTime = dataAvailabilityStartTime.toProto()
+          if (dataAvailabilityEndTime != null) {
+            endTime = dataAvailabilityEndTime.toProto()
+          }
+        }
+      }
+      if (!struct.isNull("EventGroupDetails")) {
+        details =
+          struct.getProtoMessage("EventGroupDetails", EventGroupDetails.getDefaultInstance())
+      }
+      state = struct.getProtoEnum("State", EventGroup.State::forNumber)
     }
-    createTime = struct.getTimestamp("CreateTime").toProto()
-    updateTime = struct.getTimestamp("UpdateTime").toProto()
-    mediaTypes += struct.getProtoEnumList("MediaTypes", MediaType::forNumber)
-    if (!struct.isNull("EventGroupDetails")) {
-      details = struct.getProtoMessage("EventGroupDetails", EventGroupDetails.getDefaultInstance())
-    }
-    state = struct.getProtoEnum("State", EventGroup.State::forNumber)
   }
 
   companion object {
     private val BASE_SQL =
       """
+      WITH EventGroups AS (
+        SELECT
+          *,
+          Metadata_Tokens,
+          ARRAY(
+            SELECT MediaType
+            FROM EventGroupMediaTypes
+            WHERE
+              EventGroupMediaTypes.DataProviderId = EventGroups.DataProviderId
+              AND EventGroupMediaTypes.EventGroupId = EventGroups.EventGroupId
+          ) AS MediaTypes,
+        FROM
+          EventGroups
+      )
       SELECT
         EventGroups.EventGroupId,
         EventGroups.ExternalEventGroupId,
@@ -141,17 +174,13 @@ class EventGroupReader : BaseSpannerReader<EventGroupReader.Result>() {
         EventGroups.ProvidedEventGroupId,
         EventGroups.CreateTime,
         EventGroups.UpdateTime,
+        EventGroups.DataAvailabilityStartTime,
+        EventGroups.DataAvailabilityEndTime,
         EventGroups.EventGroupDetails,
         MeasurementConsumers.ExternalMeasurementConsumerId,
         DataProviders.ExternalDataProviderId,
         EventGroups.State,
-        ARRAY(
-          SELECT MediaType
-          FROM EventGroupMediaTypes
-          WHERE
-            EventGroupMediaTypes.DataProviderId = EventGroups.DataProviderId
-            AND EventGroupMediaTypes.EventGroupId = EventGroups.EventGroupId
-        ) AS MediaTypes,
+        EventGroups.MediaTypes,
       FROM
         EventGroups
         JOIN DataProviders USING (DataProviderId)

@@ -42,6 +42,22 @@ variable "app_args" {
   default     = []
 }
 
+variable "mig_distribution_policy_zones" {
+  description = "Availability zones for MIG"
+  type        = list(string)
+}
+
+variable "secrets_to_mount" {
+  description = "List of secrets to mount into the VM"
+  type = list(object({
+    secret_id  = string
+    version    = string
+    mount_path = string
+    flag_name  = optional(string)
+  }))
+  default = []
+}
+
 variable "subscription_id" {
   description = "The ID of the Pub/Sub subscription to which the service account will be granted access."
   type        = string
@@ -78,16 +94,15 @@ variable "kms_key_id" {
   nullable    = false
 }
 
-variable "artifacts_registry_repo_name" {
-  description = "The name of Artifact Registry where approved TEE app are stored."
-  type        = string
-  nullable    = false
-}
-
 variable "docker_image" {
   description = "The docker image to be deployed."
   type        = string
   nullable    = false
 }
 
+variable "terraform_service_account" {
+  description = "Service account used by terraform that needs to attach the MIG service account to the VM."
+  type        = string
+  nullable    = false
+}
 

@@ -16,6 +16,8 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 
 import io.grpc.Status
 import java.time.Clock
+import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.EmptyCoroutineContext
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
@@ -34,7 +36,8 @@ class SpannerExchangeStepAttemptsService(
   private val clock: Clock,
   private val idGenerator: IdGenerator,
   private val client: AsyncDatabaseClient,
-) : ExchangeStepAttemptsCoroutineImplBase() {
+  coroutineContext: CoroutineContext = EmptyCoroutineContext,
+) : ExchangeStepAttemptsCoroutineImplBase(coroutineContext) {
 
   override suspend fun getExchangeStepAttempt(
     request: GetExchangeStepAttemptRequest

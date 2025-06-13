@@ -15,6 +15,8 @@
 package org.wfanet.measurement.kingdom.service.system.v1alpha
 
 import io.grpc.Status
+import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.EmptyCoroutineContext
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
@@ -30,8 +32,9 @@ import org.wfanet.measurement.system.v1alpha.CreateComputationLogEntryRequest
 
 class ComputationLogEntriesService(
   private val measurementLogEntriesService: MeasurementLogEntriesCoroutineStub,
+  coroutineContext: CoroutineContext = EmptyCoroutineContext,
   private val duchyIdentityProvider: () -> DuchyIdentity = ::duchyIdentityFromContext,
-) : ComputationLogEntriesCoroutineImplBase() {
+) : ComputationLogEntriesCoroutineImplBase(coroutineContext) {
   override suspend fun createComputationLogEntry(
     request: CreateComputationLogEntryRequest
   ): ComputationLogEntry {
