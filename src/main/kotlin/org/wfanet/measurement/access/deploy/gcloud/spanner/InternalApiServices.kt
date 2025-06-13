@@ -16,6 +16,7 @@
 
 package org.wfanet.measurement.access.deploy.gcloud.spanner
 
+import kotlin.coroutines.CoroutineContext
 import org.wfanet.measurement.access.common.TlsClientPrincipalMapping
 import org.wfanet.measurement.access.service.internal.PermissionMapping
 import org.wfanet.measurement.access.service.internal.Services
@@ -27,13 +28,19 @@ object InternalApiServices {
     databaseClient: AsyncDatabaseClient,
     permissionMapping: PermissionMapping,
     tlsClientMapping: TlsClientPrincipalMapping,
+    coroutineContext: CoroutineContext,
     idGenerator: IdGenerator = IdGenerator.Default,
   ): Services {
     return Services(
-      SpannerPrincipalsService(databaseClient, tlsClientMapping, idGenerator),
-      SpannerPermissionsService(databaseClient, permissionMapping, tlsClientMapping),
-      SpannerRolesService(databaseClient, permissionMapping, idGenerator),
-      SpannerPoliciesService(databaseClient, tlsClientMapping, idGenerator),
+      SpannerPrincipalsService(databaseClient, tlsClientMapping, coroutineContext, idGenerator),
+      SpannerPermissionsService(
+        databaseClient,
+        permissionMapping,
+        tlsClientMapping,
+        coroutineContext,
+      ),
+      SpannerRolesService(databaseClient, permissionMapping, coroutineContext, idGenerator),
+      SpannerPoliciesService(databaseClient, tlsClientMapping, coroutineContext, idGenerator),
     )
   }
 }

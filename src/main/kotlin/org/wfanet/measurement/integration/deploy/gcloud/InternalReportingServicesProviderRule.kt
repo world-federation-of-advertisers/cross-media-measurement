@@ -17,6 +17,7 @@
 package org.wfanet.measurement.integration.deploy.gcloud
 
 import java.time.Clock
+import kotlin.coroutines.EmptyCoroutineContext
 import org.junit.runner.Description
 import org.junit.runners.model.Statement
 import org.wfanet.measurement.common.db.r2dbc.postgres.testing.PostgresDatabaseProviderRule
@@ -53,6 +54,7 @@ class InternalReportingServicesProviderRule(
               spannerDatabase.databaseClient,
               impressionQualificationFilterMapping,
               false,
+              EmptyCoroutineContext,
             )
           base.evaluate()
         }

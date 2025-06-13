@@ -33,10 +33,10 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.mockito.kotlin.any
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DuchyCertificateKey
 import org.wfanet.measurement.api.v2alpha.DuchyKey
+import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reachAndFrequency
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.vidSamplingInterval
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt
@@ -87,13 +87,13 @@ import org.wfanet.measurement.consent.client.measurementconsumer.signMeasurement
 import org.wfanet.measurement.consent.client.measurementconsumer.signRequisitionSpec
 import org.wfanet.measurement.dataprovider.DataProviderData
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.testing.TestRequisitionData
+import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt
+import org.wfanet.measurement.edpaggregator.v1alpha.groupedRequisitions
 
 @RunWith(JUnit4::class)
 class RequisitionsValidatorTest {
   private val requisitionsServiceMock: RequisitionsGrpcKt.RequisitionsCoroutineImplBase =
-    mockService {
-      onBlocking { refuseRequisition(any()) }.thenReturn(REQUISITION)
-    }
+    mockService {}
 
   @get:Rule val grpcTestServerRule = GrpcTestServerRule { addService(requisitionsServiceMock) }
 
@@ -152,6 +152,41 @@ class RequisitionsValidatorTest {
     assertThat(errors.single().first).isEqualTo(REQUISITION.name)
     assertThat(errors.single().second.justification)
       .isEqualTo(Requisition.Refusal.Justification.CONSENT_SIGNAL_INVALID)
+  }
+
+  @Test
+  fun `calls fatalRequisitionErrorPredicate when GroupedRequisitions have different model lines`() {
+    val differentModelLineMeasurementSpec =
+      MEASUREMENT_SPEC.copy {
+        reportingMetadata = MeasurementSpecKt.reportingMetadata { report = "some-other-report" }
+      }
+    val differentModelLineRequisition =
+      REQUISITION.copy {
+        measurementSpec = signMeasurementSpec(differentModelLineMeasurementSpec, MC_SIGNING_KEY)
+      }
+    val groupedRequisitionsList =
+      listOf(
+        groupedRequisitions {
+          modelLine = "some-model-line"
+          this.requisitions +=
+            GroupedRequisitionsKt.requisitionEntry { this.requisition = Any.pack(REQUISITION) }
+        },
+        groupedRequisitions {
+          modelLine = "some-other-model-line"
+          this.requisitions +=
+            GroupedRequisitionsKt.requisitionEntry {
+              this.requisition = Any.pack(differentModelLineRequisition)
+            }
+        },
+      )
+    assertThat(requisitionValidator.validateModelLines(groupedRequisitionsList, "some-report-id"))
+      .isFalse()
+    assertThat(errors).hasSize(2)
+    errors.forEach { error ->
+      assertThat(error.first).isEqualTo(REQUISITION.name)
+      assertThat(error.second.justification)
+        .isEqualTo(Requisition.Refusal.Justification.UNFULFILLABLE)
+    }
   }
 
   companion object {
@@ -280,8 +315,7 @@ class RequisitionsValidatorTest {
       nonceHashes += Hashing.hashSha256(REQUISITION_SPEC.nonce)
     }
 
-    @JvmStatic
-    protected val REQUISITION = requisition {
+    private val REQUISITION = requisition {
       name = "${EDP_NAME}/requisitions/foo"
       measurement = MEASUREMENT_NAME
       state = Requisition.State.UNFULFILLED
