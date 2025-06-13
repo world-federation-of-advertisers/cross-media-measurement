@@ -127,6 +127,7 @@ class RequisitionFetcherFunctionTest {
             "PAGE_SIZE" to "10",
             "STORAGE_PATH_PREFIX" to STORAGE_PATH_PREFIX,
             "EDPA_CONFIG_STORAGE_BUCKET" to REQUISITION_CONFIG_FILE_SYSTEM_PATH,
+            "GRPC_THROTTLER" to "1000"
           )
         )
       logger.info("Started RequisitionFetcher process on port $port")

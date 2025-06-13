@@ -89,7 +89,7 @@ class RequisitionFetcherFunction : HttpFunction {
         requisitionsValidator,
         eventGroupsStub,
         requisitionsStub,
-        MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofSeconds(1L))
+        MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofSeconds(grpcThrottler))
       )
       val requisitionFetcher =
         RequisitionFetcher(
@@ -112,6 +112,9 @@ class RequisitionFetcherFunction : HttpFunction {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
     private val kingdomTarget = EnvVars.checkNotNullOrEmpty("KINGDOM_TARGET")
     private val kingdomCertHost: String? = System.getenv("KINGDOM_CERT_HOST")
+    private val grpcThrottler = EnvVars.checkNotNullOrEmpty("GRPC_THROTTLER").toLongOrNull()
+      ?: error("Invalid GRPC_THROTTLER value: must be a number (milliseconds)")
+
 
     val pageSize = run {
       val envPageSize = System.getenv("PAGE_SIZE")
