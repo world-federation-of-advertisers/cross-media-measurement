@@ -12,6 +12,7 @@ kt_jvm_library(
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
         "//src/main/kotlin/org/wfanet/measurement/common:env_vars",
+        "//src/main/kotlin/org/wfanet/measurement/common/edpaggregator:cloud_function_config",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/requisitionfetcher:requisition_fetcher",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/requisitionfetcher:requisition_grouper_by_report_id",
         "//src/main/proto/wfa/measurement/api/v2alpha:event_groups_service_kt_jvm_grpc_proto",

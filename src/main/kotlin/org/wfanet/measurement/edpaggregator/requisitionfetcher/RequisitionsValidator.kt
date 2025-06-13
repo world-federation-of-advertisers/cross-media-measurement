@@ -45,7 +45,7 @@ class RequisitionsValidator(
       try {
         requisition.measurementSpec.unpack()
       } catch (e: InvalidProtocolBufferException) {
-        logger.info("Unable to parse measurement spec for ${requisition.name}: ${e.message}")
+        logger.severe("Unable to parse measurement spec for ${requisition.name}: ${e.message}")
         fatalRequisitionErrorPredicate(
           requisition,
           refusal {
@@ -63,7 +63,7 @@ class RequisitionsValidator(
       try {
         decryptRequisitionSpec(requisition.encryptedRequisitionSpec, privateEncryptionKey).unpack()
       } catch (e: GeneralSecurityException) {
-        logger.info("RequisitionSpec decryption failed for ${requisition.name}: ${e.message}")
+        logger.severe("RequisitionSpec decryption failed for ${requisition.name}: ${e.message}")
         fatalRequisitionErrorPredicate(
           requisition,
           refusal {
@@ -73,7 +73,7 @@ class RequisitionsValidator(
         )
         null
       } catch (e: InvalidProtocolBufferException) {
-        logger.info("Unable to parse requisition spec for ${requisition.name}: ${e.message}")
+        logger.severe("Unable to parse requisition spec for ${requisition.name}: ${e.message}")
         fatalRequisitionErrorPredicate(
           requisition,
           refusal {
@@ -94,7 +94,7 @@ class RequisitionsValidator(
     val foundInvalidModelLine =
       groupedRequisitions.firstOrNull { it.modelLine != modelLine } != null
     if (foundInvalidModelLine) {
-      logger.info("Report $reportId cannot contain multiple model lines")
+      logger.severe("Report $reportId cannot contain multiple model lines")
       groupedRequisitions.forEach {
         it.requisitionsList.forEach { it ->
           val requisition = it.requisition.unpack(Requisition::class.java)

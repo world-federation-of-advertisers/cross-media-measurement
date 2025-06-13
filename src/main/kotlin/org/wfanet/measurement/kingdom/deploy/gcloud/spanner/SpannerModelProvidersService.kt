@@ -74,16 +74,18 @@ class SpannerModelProvidersService(
     }
 
     return listModelProvidersResponse {
-      if (modelProviderList.size > pageSize) {
-        modelProviders += modelProviderList.subList(0, modelProviderList.lastIndex)
-        nextPageToken = listModelProvidersPageToken {
-          this.after =
-            ListModelProvidersPageTokenKt.after {
-              externalModelProviderId = modelProviderList.last().externalModelProviderId
-            }
+      for ((index, modelProvider) in modelProviderList.withIndex()) {
+        if (index == pageSize) {
+          nextPageToken = listModelProvidersPageToken {
+            this.after =
+              ListModelProvidersPageTokenKt.after {
+                externalModelProviderId =
+                  this@listModelProvidersResponse.modelProviders.last().externalModelProviderId
+              }
+          }
+        } else {
+          this.modelProviders += modelProvider
         }
-      } else {
-        modelProviders += modelProviderList.subList(0, modelProviderList.size)
       }
     }
   }

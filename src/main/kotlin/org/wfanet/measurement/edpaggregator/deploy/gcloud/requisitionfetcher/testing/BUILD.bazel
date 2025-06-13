@@ -7,14 +7,13 @@ package(
 
 filegroup(
     name = "config",
-    srcs = ["requisition_fetcher_config.textproto"],
+    srcs = ["requisition-fetcher-config.textproto"],
 )
 
 java_binary(
     name = "InvokeRequisitionFetcherFunction",
     main_class = "com.google.cloud.functions.invoker.runner.Invoker",
     resources = [
-        ":config",
         "//src/main/k8s/testing/secretfiles:root_certs",
         "//src/main/k8s/testing/secretfiles:secret_files",
     ],

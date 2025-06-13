@@ -492,7 +492,7 @@ class ReachFrequencyLiquidLegionsV2MillTest {
           computationStore,
           requisitionStore,
           DUCHY_THREE_NAME,
-          Clock.systemUTC(),
+          clock = Clock.systemUTC(),
         )
       )
     }

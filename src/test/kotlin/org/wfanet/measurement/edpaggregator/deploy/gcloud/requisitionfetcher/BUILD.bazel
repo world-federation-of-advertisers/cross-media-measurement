@@ -13,6 +13,7 @@ kt_jvm_test(
         "//src/main/k8s/testing/secretfiles:root_certs",
         "//src/main/k8s/testing/secretfiles:secret_files",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/requisitionfetcher/testing:InvokeRequisitionFetcherFunction",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/requisitionfetcher/testing:config",
     ],
     tags = [
         "cpu:2",

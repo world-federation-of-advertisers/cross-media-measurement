@@ -23,14 +23,15 @@ import com.google.cloud.storage.StorageOptions
 import java.io.File
 import java.time.Clock
 import java.time.Duration
+import java.util.logging.Logger
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.common.EnvVars
 import org.wfanet.measurement.common.crypto.SigningCerts
-import org.wfanet.measurement.common.getJarResourceFile
+import org.wfanet.measurement.common.edpaggregator.CloudFunctionConfig.getConfig
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
-import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.config.edpaggregator.RequisitionFetcherConfig
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionFetcher
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionGrouperByReportId
@@ -38,10 +39,12 @@ import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 import org.wfanet.measurement.common.crypto.tink.loadPrivateKey
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
+import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionsValidator
 
 class RequisitionFetcherFunction : HttpFunction {
 
   override fun service(request: HttpRequest, response: HttpResponse) {
+
     for (dataProviderConfig in requisitionFetcherConfig.configsList) {
 
       val fileSystemPath = System.getenv("REQUISITION_FILE_SYSTEM_PATH")
@@ -78,26 +81,35 @@ class RequisitionFetcherFunction : HttpFunction {
       val requisitionsStub = RequisitionsCoroutineStub(publicChannel)
       val eventGroupsStub = EventGroupsCoroutineStub(publicChannel)
       val edpPrivateKey = checkNotNull(File(dataProviderConfig.edpPrivateKeyPath))
-      val requisitionGrouper = RequisitionGrouperByReportId(
+      val requisitionsValidator = RequisitionsValidator(
         loadPrivateKey(edpPrivateKey),
+        ::refuseRequisition
+      )
+      val requisitionGrouper = RequisitionGrouperByReportId(
+        requisitionsValidator,
         eventGroupsStub,
         requisitionsStub,
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofSeconds(1L))
       )
       val requisitionFetcher =
         RequisitionFetcher(
-          requisitionsStub,
-          requisitionsStorageClient,
-          dataProviderConfig.dataProvider,
-          dataProviderConfig.storagePathPrefix,
-          requisitionGrouper,
-          pageSize,
+          requisitionsStub = requisitionsStub,
+          storageClient = requisitionsStorageClient,
+          dataProviderName = dataProviderConfig.dataProvider,
+          storagePathPrefix = dataProviderConfig.storagePathPrefix,
+          requisitionGrouper = requisitionGrouper,
+          responsePageSize = pageSize,
         )
       runBlocking { requisitionFetcher.fetchAndStoreRequisitions() }
     }
   }
 
+  private fun refuseRequisition(requisition: Requisition, refusal: Requisition.Refusal) {
+    logger.info("Requisition ${requisition.name} was refused. $refusal")
+  }
+
   companion object {
+    private val logger: Logger = Logger.getLogger(this::class.java.name)
     private val kingdomTarget = EnvVars.checkNotNullOrEmpty("KINGDOM_TARGET")
     private val kingdomCertHost: String? = System.getenv("KINGDOM_CERT_HOST")
 
@@ -109,14 +121,10 @@ class RequisitionFetcherFunction : HttpFunction {
         null
       }
     }
-    private val CLASS_LOADER: ClassLoader = Thread.currentThread().contextClassLoader
-    private val requisitionFetcherConfigResourcePath =
-      EnvVars.checkIsPath("REQUISITION_FETCHER_CONFIG_RESOURCE_PATH")
-    private val config by lazy {
-      checkNotNull(CLASS_LOADER.getJarResourceFile(requisitionFetcherConfigResourcePath))
-    }
-    private val requisitionFetcherConfig: RequisitionFetcherConfig by lazy {
-      runBlocking { parseTextProto(config, RequisitionFetcherConfig.getDefaultInstance()) }
+
+    private const val CONFIG_BLOB_KEY = "requisition-fetcher-config.textproto"
+    private val requisitionFetcherConfig by lazy {
+      runBlocking { getConfig(CONFIG_BLOB_KEY, RequisitionFetcherConfig.getDefaultInstance()) }
     }
   }
 }

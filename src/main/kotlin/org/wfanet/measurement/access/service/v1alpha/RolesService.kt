@@ -20,6 +20,8 @@ import com.google.protobuf.Empty
 import io.grpc.Status
 import io.grpc.StatusException
 import java.io.IOException
+import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.EmptyCoroutineContext
 import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.access.service.EtagMismatchException
 import org.wfanet.measurement.access.service.InvalidFieldValueException
@@ -47,7 +49,6 @@ import org.wfanet.measurement.common.api.grpc.listResources
 import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.internal.access.ListRolesPageToken as InternalListRolesPageToken
-import org.wfanet.measurement.internal.access.ListRolesPageToken
 import org.wfanet.measurement.internal.access.Role as InternalRole
 import org.wfanet.measurement.internal.access.RolesGrpcKt.RolesCoroutineStub as InternalRolesCoroutineStub
 import org.wfanet.measurement.internal.access.deleteRoleRequest as internalDeleteRoleRequest
@@ -55,8 +56,10 @@ import org.wfanet.measurement.internal.access.getRoleRequest as internalGetRoleR
 import org.wfanet.measurement.internal.access.listRolesRequest as internalListRolesRequest
 import org.wfanet.measurement.internal.access.role as internalRole
 
-class RolesService(private val internalRolesStub: InternalRolesCoroutineStub) :
-  RolesGrpcKt.RolesCoroutineImplBase() {
+class RolesService(
+  private val internalRolesStub: InternalRolesCoroutineStub,
+  coroutineContext: CoroutineContext = EmptyCoroutineContext,
+) : RolesGrpcKt.RolesCoroutineImplBase(coroutineContext) {
   override suspend fun getRole(request: GetRoleRequest): Role {
     if (request.name.isEmpty()) {
       throw RequiredFieldNotSetException("name")
