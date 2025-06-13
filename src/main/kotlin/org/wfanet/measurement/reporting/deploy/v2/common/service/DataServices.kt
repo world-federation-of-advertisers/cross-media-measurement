@@ -98,7 +98,8 @@ object DataServices {
       metricsService = PostgresMetricsService(idGenerator, postgresClient, coroutineContext),
       reportingSetsService =
         PostgresReportingSetsService(idGenerator, postgresClient, coroutineContext),
-      reportsService = PostgresReportsService(idGenerator, postgresClient, disableMetricsReuse, coroutineContext),
+      reportsService =
+        PostgresReportsService(idGenerator, postgresClient, disableMetricsReuse, coroutineContext),
       reportSchedulesService =
         PostgresReportSchedulesService(idGenerator, postgresClient, coroutineContext),
       reportScheduleIterationsService =

@@ -145,7 +145,16 @@ class InternalReportingServer : AbstractInternalReportingServer() {
         )
       }
     } else {
-      run(DataServices.create(idGenerator, postgresClient, null, null, disableMetricsReuse, serviceDispatcher))
+      run(
+        DataServices.create(
+          idGenerator,
+          postgresClient,
+          null,
+          null,
+          disableMetricsReuse,
+          serviceDispatcher,
+        )
+      )
     }
   }
 }
