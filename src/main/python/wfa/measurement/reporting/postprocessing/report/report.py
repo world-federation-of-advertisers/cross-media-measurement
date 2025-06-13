@@ -334,7 +334,8 @@ class MetricReport:
     return len(self._reach_whole_campaign.keys())
 
   def get_number_of_periods(self) -> int:
-    return len(next(iter(self._reach_time_series.values())))
+    return len(next(iter(self._reach_time_series.values()))) \
+      if self._reach_time_series else 0
 
   def get_number_of_frequencies(self) -> int:
     return len(next(iter(self._k_reach.values()))) if self._k_reach else 0
