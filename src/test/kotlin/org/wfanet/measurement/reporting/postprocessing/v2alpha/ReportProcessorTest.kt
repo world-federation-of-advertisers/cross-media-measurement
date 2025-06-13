@@ -171,6 +171,20 @@ class ReportProcessorTest {
   }
 
   @Test
+  fun `run correct report without whole campaign reach successfully`() {
+    val reportFile =
+      TEST_DATA_RUNTIME_DIR.resolve("sample_report_without_whole_campaign_reach.json").toFile()
+    val reportAsJson = reportFile.readText()
+
+    val report = ReportConversion.getReportFromJsonString(reportAsJson)
+    assertThat(report.hasConsistentMeasurements()).isFalse()
+
+    val updatedReportAsJson = ReportProcessor.processReportJson(reportAsJson)
+    val updatedReport = ReportConversion.getReportFromJsonString(updatedReportAsJson)
+    assertThat(updatedReport.hasConsistentMeasurements()).isTrue()
+  }
+
+  @Test
   fun `run correct report without logging with unique reach and incremental reach successfully`() {
     val reportFile =
       TEST_DATA_RUNTIME_DIR.resolve("sample_report_unique_reach_incremental_reach_small.json")
