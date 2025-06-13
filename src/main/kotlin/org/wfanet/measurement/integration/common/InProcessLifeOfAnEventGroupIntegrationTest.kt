@@ -91,6 +91,9 @@ abstract class InProcessLifeOfAnEventGroupIntegrationTest {
         measurementConsumersClient = publicMeasurementConsumersClient,
         runId = "67890",
         requiredDuchies = listOf(),
+        internalModelProvidersClient = kingdom.internalModelProvidersClient,
+        internalModelSuitesClient = kingdom.internalModelSuitesClient,
+        internalModelLinesClient = kingdom.internalModelLinesClient,
       )
     // Create the MC.
     val measurementConsumer =

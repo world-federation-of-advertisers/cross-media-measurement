@@ -124,6 +124,8 @@ abstract class InProcessEventGroupsTest(
             internalAccountsClient = kingdom.internalAccountsClient,
             internalDataProvidersClient = kingdom.internalDataProvidersClient,
             internalModelProvidersClient = kingdom.internalModelProvidersClient,
+            internalModelSuitesClient = kingdom.internalModelSuitesClient,
+            internalModelLinesClient = kingdom.internalModelLinesClient,
             internalPopulationsClient = kingdom.internalPopulationsClient,
             internalCertificatesClient = kingdom.internalCertificatesClient,
             accountsClient = cmmsAccountsStub,

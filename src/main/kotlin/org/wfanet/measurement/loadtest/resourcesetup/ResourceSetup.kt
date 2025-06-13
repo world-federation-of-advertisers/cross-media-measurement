@@ -21,6 +21,7 @@ import io.grpc.Status
 import io.grpc.StatusException
 import java.io.File
 import java.time.Clock
+import java.time.Instant
 import java.util.logging.Logger
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -53,6 +54,7 @@ import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.authorityKeyIdentifier
 import org.wfanet.measurement.common.crypto.tink.SelfIssuedIdTokens.generateIdToken
 import org.wfanet.measurement.common.identity.externalIdToApiId
+import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.config.AuthorityKeyToPrincipalMapKt
 import org.wfanet.measurement.config.authorityKeyToPrincipalMap
 import org.wfanet.measurement.config.reporting.EncryptionKeyPairConfigKt
@@ -65,8 +67,13 @@ import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt
 import org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt
 import org.wfanet.measurement.internal.kingdom.DataProvider as InternalDataProvider
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt
+import org.wfanet.measurement.internal.kingdom.ModelLine as InternalModelLine
+import org.wfanet.measurement.internal.kingdom.ModelLine
+import org.wfanet.measurement.internal.kingdom.ModelLinesGrpcKt
 import org.wfanet.measurement.internal.kingdom.ModelProvider as InternalModelProvider
 import org.wfanet.measurement.internal.kingdom.ModelProvidersGrpcKt
+import org.wfanet.measurement.internal.kingdom.ModelSuite as InternalModelSuite
+import org.wfanet.measurement.internal.kingdom.ModelSuitesGrpcKt
 import org.wfanet.measurement.internal.kingdom.Population as InternalPopulation
 import org.wfanet.measurement.internal.kingdom.PopulationKt
 import org.wfanet.measurement.internal.kingdom.PopulationsGrpcKt
@@ -76,7 +83,9 @@ import org.wfanet.measurement.internal.kingdom.createMeasurementConsumerCreation
 import org.wfanet.measurement.internal.kingdom.dataProvider as internalDataProvider
 import org.wfanet.measurement.internal.kingdom.dataProviderDetails
 import org.wfanet.measurement.internal.kingdom.eventTemplate
+import org.wfanet.measurement.internal.kingdom.modelLine
 import org.wfanet.measurement.internal.kingdom.modelProvider as internalModelProvider
+import org.wfanet.measurement.internal.kingdom.modelSuite
 import org.wfanet.measurement.internal.kingdom.population as internalPopulation
 import org.wfanet.measurement.kingdom.service.api.v2alpha.fillCertificateFromDer
 import org.wfanet.measurement.kingdom.service.api.v2alpha.parseCertificateDer
@@ -109,8 +118,9 @@ class ResourceSetup(
   private val requiredDuchies: List<String>,
   private val bazelConfigName: String = DEFAULT_BAZEL_CONFIG_NAME,
   private val outputDir: File? = null,
-  private val internalModelProvidersClient: ModelProvidersGrpcKt.ModelProvidersCoroutineStub? =
-    null,
+  private val internalModelProvidersClient: ModelProvidersGrpcKt.ModelProvidersCoroutineStub,
+  private val internalModelSuitesClient: ModelSuitesGrpcKt.ModelSuitesCoroutineStub,
+  private val internalModelLinesClient: ModelLinesGrpcKt.ModelLinesCoroutineStub,
   private val internalPopulationsClient: PopulationsGrpcKt.PopulationsCoroutineStub? = null,
 ) {
   data class MeasurementConsumerAndKey(
@@ -328,12 +338,37 @@ class ResourceSetup(
 
   /** Create an internal modelProvider. */
   suspend fun createInternalModelProvider(): InternalModelProvider {
-    require(internalModelProvidersClient != null)
     return try {
       internalModelProvidersClient.createModelProvider(internalModelProvider {})
     } catch (e: StatusException) {
       throw Exception("Error creating ModelProvider", e)
     }
+  }
+
+  suspend fun createInternalModelSuite(externalModelProviderId: Long): InternalModelSuite {
+    return internalModelSuitesClient.createModelSuite(
+      modelSuite {
+        this.externalModelProviderId = externalModelProviderId
+        displayName = "display-name"
+        description = "description"
+      }
+    )
+  }
+
+  suspend fun createInternalModelLine(
+    externalModelProviderId: Long,
+    externalModelSuiteId: Long,
+  ): InternalModelLine {
+    return internalModelLinesClient.createModelLine(
+      modelLine {
+        this.externalModelProviderId = externalModelProviderId
+        this.externalModelSuiteId = externalModelSuiteId
+        displayName = "display-name"
+        description = "description"
+        activeStartTime = Instant.now().plusSeconds(2000L).toProtoTime()
+        type = ModelLine.Type.PROD
+      }
+    )
   }
 
   suspend fun createInternalPopulation(dataProvider: InternalDataProvider): InternalPopulation {
