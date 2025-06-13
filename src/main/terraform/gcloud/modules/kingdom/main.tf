@@ -302,6 +302,12 @@ resource "google_bigquery_table" "latest_measurement_read" {
     "name": "external_measurement_id",
     "type": "INTEGER",
     "mode": "REQUIRED"
+  },
+  {
+    "name": "next_offset",
+    "type": "INTEGER",
+    "mode": "NULLABLE"
+    "defaultValueExpression": "0"
   }
 ]
 EOF
@@ -335,6 +341,12 @@ resource "google_bigquery_table" "latest_requisition_read" {
     "name": "external_requisition_id",
     "type": "INTEGER",
     "mode": "REQUIRED"
+  },
+  {
+    "name": "next_offset",
+    "type": "INTEGER",
+    "mode": "NULLABLE"
+    "defaultValueExpression": "0"
   }
 ]
 EOF
@@ -363,6 +375,12 @@ resource "google_bigquery_table" "latest_computation_read" {
     "name": "external_computation_id",
     "type": "INTEGER",
     "mode": "REQUIRED",
+    "defaultValueExpression": "0"
+  },
+  {
+    "name": "next_offset",
+    "type": "INTEGER",
+    "mode": "NULLABLE"
     "defaultValueExpression": "0"
   }
 ]
