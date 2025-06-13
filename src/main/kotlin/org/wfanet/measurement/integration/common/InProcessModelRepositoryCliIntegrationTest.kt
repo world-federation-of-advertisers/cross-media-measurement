@@ -34,16 +34,15 @@ import org.junit.Test
 import org.junit.rules.TestRule
 import org.wfanet.measurement.api.v2alpha.AkidPrincipalLookup
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
-import org.wfanet.measurement.api.v2alpha.ListModelProvidersPageTokenKt
 import org.wfanet.measurement.api.v2alpha.ListModelProvidersResponse
 import org.wfanet.measurement.api.v2alpha.ListModelSuitesPageTokenKt
 import org.wfanet.measurement.api.v2alpha.ListModelSuitesResponse
 import org.wfanet.measurement.api.v2alpha.ListPopulationsPageTokenKt
 import org.wfanet.measurement.api.v2alpha.ListPopulationsResponse
-import org.wfanet.measurement.api.v2alpha.ModelProvider
 import org.wfanet.measurement.api.v2alpha.ModelLine
 import org.wfanet.measurement.api.v2alpha.ModelLinesGrpc
 import org.wfanet.measurement.api.v2alpha.ModelLinesGrpc.ModelLinesBlockingStub
+import org.wfanet.measurement.api.v2alpha.ModelProvider
 import org.wfanet.measurement.api.v2alpha.ModelProviderKey
 import org.wfanet.measurement.api.v2alpha.ModelProvidersGrpc
 import org.wfanet.measurement.api.v2alpha.ModelProvidersGrpc.ModelProvidersBlockingStub
@@ -90,7 +89,6 @@ import org.wfanet.measurement.config.authorityKeyToPrincipalMap
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
 import org.wfanet.measurement.internal.kingdom.DataProvider as InternalDataProvider
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt as InternalDataProvidersGrpc
-import org.wfanet.measurement.internal.kingdom.ListModelProvidersPageTokenKt
 import org.wfanet.measurement.internal.kingdom.ModelLinesGrpcKt as InternalModelLinesGrpc
 import org.wfanet.measurement.internal.kingdom.ModelProvider as InternalModelProvider
 import org.wfanet.measurement.internal.kingdom.ModelProvidersGrpcKt as InternalModelProvidersGrpc
@@ -105,8 +103,8 @@ import org.wfanet.measurement.internal.kingdom.dataProviderDetails
 import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
 import org.wfanet.measurement.kingdom.deploy.common.service.toList
 import org.wfanet.measurement.kingdom.deploy.tools.ModelRepository
-import org.wfanet.measurement.kingdom.service.api.v2alpha.ModelProvidersService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.ModelLinesService
+import org.wfanet.measurement.kingdom.service.api.v2alpha.ModelProvidersService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.ModelReleasesService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.ModelRolloutsService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.ModelSuitesService
@@ -326,12 +324,6 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
         )
     val output = callCli(args)
 
-    val internalNextPageToken = internalListModelProvidersPageToken {
-      after =
-        ListModelProvidersPageTokenKt.after {
-          externalModelProviderId = internalModelProvider2.externalModelProviderId
-        }
-    }
     response = parseTextProto(output.reader(), ListModelProvidersResponse.getDefaultInstance())
 
     assertThat(response.modelProvidersList).hasSize(1)

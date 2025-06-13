@@ -21,19 +21,17 @@ import io.grpc.ManagedChannel
 import java.time.Duration
 import java.time.Instant
 import java.time.ZoneOffset
-import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.ListModelProvidersResponse
 import org.wfanet.measurement.api.v2alpha.ListModelSuitesResponse
-import org.wfanet.measurement.api.v2alpha.ModelProvidersGrpc
-import org.wfanet.measurement.api.v2alpha.ModelProvidersGrpc.ModelProvidersBlockingStub
 import org.wfanet.measurement.api.v2alpha.ModelLine
 import org.wfanet.measurement.api.v2alpha.ModelLinesGrpc
 import org.wfanet.measurement.api.v2alpha.ModelLinesGrpc.ModelLinesBlockingStub
+import org.wfanet.measurement.api.v2alpha.ModelProvidersGrpc
+import org.wfanet.measurement.api.v2alpha.ModelProvidersGrpc.ModelProvidersBlockingStub
 import org.wfanet.measurement.api.v2alpha.ModelReleasesGrpc
 import org.wfanet.measurement.api.v2alpha.ModelReleasesGrpc.ModelReleasesBlockingStub
 import org.wfanet.measurement.api.v2alpha.ModelRolloutsGrpc
 import org.wfanet.measurement.api.v2alpha.ModelRolloutsGrpc.ModelRolloutsBlockingStub
-import org.wfanet.measurement.api.v2alpha.ModelProvidersGrpcKt.ModelProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ModelSuitesGrpc
 import org.wfanet.measurement.api.v2alpha.ModelSuitesGrpc.ModelSuitesBlockingStub
 import org.wfanet.measurement.api.v2alpha.PopulationKt.populationBlob
@@ -76,7 +74,14 @@ private val CHANNEL_SHUTDOWN_TIMEOUT = Duration.ofSeconds(30)
 @Command(
   name = "model-repository",
   description = ["Manages all Model Repository artifacts"],
-  subcommands = [CommandLine.HelpCommand::class, ModelProviders::class, ModelSuites::class, Populations::class, ModelLines::class],
+  subcommands =
+    [
+      CommandLine.HelpCommand::class,
+      ModelProviders::class,
+      ModelSuites::class,
+      Populations::class,
+      ModelLines::class,
+    ],
 )
 class ModelRepository private constructor() : Runnable {
   @Mixin private lateinit var tlsFlags: TlsFlags
