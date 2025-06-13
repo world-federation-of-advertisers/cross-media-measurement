@@ -19,6 +19,7 @@ import io.grpc.Status
 import io.grpc.StatusException
 import java.util.logging.Level
 import java.util.logging.Logger
+import kotlin.coroutines.CoroutineContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.common.ConsumedFlowItem
@@ -57,21 +58,24 @@ class ComputationControlService(
   private val internalComputationsClient: ComputationsGrpcKt.ComputationsCoroutineStub,
   private val asyncComputationControlClient: AsyncComputationControlCoroutineStub,
   private val computationStore: ComputationStore,
+  coroutineContext: CoroutineContext,
   private val duchyIdentityProvider: () -> DuchyIdentity = ::duchyIdentityFromContext,
-) : ComputationControlCoroutineImplBase() {
+) : ComputationControlCoroutineImplBase(coroutineContext) {
 
   constructor(
     duchyId: String,
     internalComputationsClient: ComputationsGrpcKt.ComputationsCoroutineStub,
     asyncComputationControlClient: AsyncComputationControlCoroutineStub,
     storageClient: StorageClient,
+    coroutineContext: CoroutineContext,
     duchyIdentityProvider: () -> DuchyIdentity = ::duchyIdentityFromContext,
   ) : this(
     duchyId,
     internalComputationsClient,
     asyncComputationControlClient,
     ComputationStore(storageClient),
-    duchyIdentityProvider,
+    coroutineContext,
+    duchyIdentityProvider = duchyIdentityProvider,
   )
 
   override suspend fun advanceComputation(

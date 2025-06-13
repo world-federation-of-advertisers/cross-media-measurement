@@ -16,10 +16,9 @@
 
 package org.wfanet.measurement.securecomputation.deploy.gcloud.spanner
 
+import kotlinx.coroutines.Dispatchers
 import org.junit.ClassRule
 import org.junit.Rule
-import org.junit.runner.RunWith
-import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.IdGenerator
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
@@ -28,7 +27,6 @@ import org.wfanet.measurement.securecomputation.service.internal.QueueMapping
 import org.wfanet.measurement.securecomputation.service.internal.WorkItemPublisher
 import org.wfanet.measurement.securecomputation.service.internal.testing.WorkItemsServiceTest
 
-@RunWith(JUnit4::class)
 class SpannerWorkItemsServiceTest : WorkItemsServiceTest() {
 
   @get:Rule
@@ -40,6 +38,7 @@ class SpannerWorkItemsServiceTest : WorkItemsServiceTest() {
     idGenerator: IdGenerator,
     workItemPublisher: WorkItemPublisher,
   ): Services {
+    val serviceDispatcher = Dispatchers.Default
     return Services(
       SpannerWorkItemsService(
         spannerDatabase.databaseClient,
@@ -47,7 +46,12 @@ class SpannerWorkItemsServiceTest : WorkItemsServiceTest() {
         idGenerator,
         workItemPublisher,
       ),
-      SpannerWorkItemAttemptsService(spannerDatabase.databaseClient, queueMapping, idGenerator),
+      SpannerWorkItemAttemptsService(
+        spannerDatabase.databaseClient,
+        queueMapping,
+        idGenerator,
+        serviceDispatcher,
+      ),
     )
   }
 

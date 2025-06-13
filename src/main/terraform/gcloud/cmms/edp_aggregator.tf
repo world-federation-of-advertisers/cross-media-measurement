@@ -107,6 +107,17 @@ locals {
       mig_distribution_policy_zones = ["us-central1-a"]
     }
   }
+
+  data_watcher_config = {
+    local_path  = var.data_watcher_config_file_path
+    destination = "data-watcher-config.textproto"
+  }
+
+  requisition_fetcher_config = {
+    local_path  = var.requisition_fetcher_config_file_path
+    destination = "requisition-fetcher-config.textproto"
+  }
+
 }
 
 module "edp_aggregator" {
@@ -118,11 +129,14 @@ module "edp_aggregator" {
   requisition_fulfiller_config              = local.requisition_fulfiller_config
   pubsub_iam_service_account_member         = module.secure_computation.secure_computation_internal_iam_service_account_member
   edp_aggregator_bucket_name                = var.secure_computation_storage_bucket_name
-  edp_aggregator_bucket_location            = local.storage_bucket_location
+  config_files_bucket_name                  = var.edpa_config_files_bucket_name
+  edp_aggregator_buckets_location           = local.storage_bucket_location
   data_watcher_service_account_name         = "edpa-data-watcher"
   data_watcher_trigger_service_account_name = "edpa-data-watcher-trigger"
   terraform_service_account                 = var.terraform_service_account
   requisition_fetcher_service_account_name  = "edpa-requisition-fetcher"
+  data_watcher_config                       = local.data_watcher_config
+  requisition_fetcher_config                = local.requisition_fetcher_config
   event_group_sync_service_account_name     = "edpa-event-group-sync"
   event_group_sync_function_name            = "event-group-sync"
   event_group_sync_function_location        = data.google_client_config.default.region
@@ -133,5 +147,4 @@ module "edp_aggregator" {
   secure_computation_root_ca                = local.secure_computation_root_ca
   kingdom_root_ca                           = local.kingdom_root_ca
   edps_certs                                = local.edps_certs
-
 }

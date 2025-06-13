@@ -18,6 +18,8 @@ package org.wfanet.measurement.reporting.deploy.v2.postgres
 
 import io.grpc.Status
 import java.lang.IllegalStateException
+import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.EmptyCoroutineContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
@@ -55,7 +57,8 @@ private const val MAX_BATCH_SIZE = 1000
 class PostgresMetricsService(
   private val idGenerator: IdGenerator,
   private val client: DatabaseClient,
-) : MetricsCoroutineImplBase() {
+  coroutineContext: CoroutineContext = EmptyCoroutineContext,
+) : MetricsCoroutineImplBase(coroutineContext) {
   override suspend fun createMetric(request: CreateMetricRequest): Metric {
     grpcRequire(request.externalMetricId.isNotEmpty()) { "External metric ID is not set." }
     grpcRequire(request.metric.hasTimeInterval()) { "Metric missing time interval." }

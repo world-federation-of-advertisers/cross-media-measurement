@@ -18,12 +18,14 @@ package org.wfanet.measurement.kingdom.deploy.tools
 
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.Timestamp
+import com.google.protobuf.util.Timestamps
 import io.grpc.Server
 import io.grpc.ServerServiceDefinition
 import io.grpc.netty.NettyServerBuilder
 import java.nio.file.Path
 import java.nio.file.Paths
 import java.time.Instant
+import java.time.ZoneOffset
 import java.util.concurrent.TimeUnit.SECONDS
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -33,6 +35,7 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
 import org.mockito.kotlin.verify
+import org.wfanet.measurement.api.v2alpha.CreateModelLineRequest
 import org.wfanet.measurement.api.v2alpha.CreateModelSuiteRequest
 import org.wfanet.measurement.api.v2alpha.CreatePopulationRequest
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
@@ -44,7 +47,11 @@ import org.wfanet.measurement.api.v2alpha.ListModelSuitesResponse
 import org.wfanet.measurement.api.v2alpha.ListPopulationsPageTokenKt
 import org.wfanet.measurement.api.v2alpha.ListPopulationsRequest
 import org.wfanet.measurement.api.v2alpha.ListPopulationsResponse
+import org.wfanet.measurement.api.v2alpha.ModelLine
+import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt
 import org.wfanet.measurement.api.v2alpha.ModelProviderKey
+import org.wfanet.measurement.api.v2alpha.ModelReleasesGrpcKt
+import org.wfanet.measurement.api.v2alpha.ModelRolloutsGrpcKt
 import org.wfanet.measurement.api.v2alpha.ModelSuite
 import org.wfanet.measurement.api.v2alpha.ModelSuiteKey
 import org.wfanet.measurement.api.v2alpha.ModelSuitesGrpcKt.ModelSuitesCoroutineImplBase
@@ -52,6 +59,9 @@ import org.wfanet.measurement.api.v2alpha.Population
 import org.wfanet.measurement.api.v2alpha.PopulationKey
 import org.wfanet.measurement.api.v2alpha.PopulationKt.populationBlob
 import org.wfanet.measurement.api.v2alpha.PopulationsGrpcKt
+import org.wfanet.measurement.api.v2alpha.SetModelLineActiveEndTimeRequest
+import org.wfanet.measurement.api.v2alpha.copy
+import org.wfanet.measurement.api.v2alpha.createModelLineRequest
 import org.wfanet.measurement.api.v2alpha.createModelSuiteRequest
 import org.wfanet.measurement.api.v2alpha.createPopulationRequest
 import org.wfanet.measurement.api.v2alpha.eventTemplate
@@ -63,8 +73,12 @@ import org.wfanet.measurement.api.v2alpha.listModelSuitesResponse
 import org.wfanet.measurement.api.v2alpha.listPopulationsPageToken
 import org.wfanet.measurement.api.v2alpha.listPopulationsRequest
 import org.wfanet.measurement.api.v2alpha.listPopulationsResponse
+import org.wfanet.measurement.api.v2alpha.modelLine
+import org.wfanet.measurement.api.v2alpha.modelRelease
+import org.wfanet.measurement.api.v2alpha.modelRollout
 import org.wfanet.measurement.api.v2alpha.modelSuite
 import org.wfanet.measurement.api.v2alpha.population
+import org.wfanet.measurement.api.v2alpha.setModelLineActiveEndTimeRequest
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.getRuntimePath
@@ -74,6 +88,8 @@ import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.testing.CommandLineTesting
 import org.wfanet.measurement.common.testing.captureFirst
+import org.wfanet.measurement.common.toInstant
+import org.wfanet.measurement.common.toProtoDate
 import org.wfanet.measurement.common.toProtoTime
 
 @RunWith(JUnit4::class)
@@ -91,6 +107,16 @@ class ModelRepositoryTest {
       )
   }
 
+  private val modelReleasesServiceMock: ModelReleasesGrpcKt.ModelReleasesCoroutineImplBase =
+    mockService {
+      onBlocking { createModelRelease(any()) }.thenReturn(MODEL_RELEASE)
+    }
+
+  private val modelRolloutsServiceMock: ModelRolloutsGrpcKt.ModelRolloutsCoroutineImplBase =
+    mockService {
+      onBlocking { createModelRollout(any()) }.thenReturn(MODEL_ROLLOUT)
+    }
+
   private val populationsServiceMock: PopulationsGrpcKt.PopulationsCoroutineImplBase = mockService {
     onBlocking { getPopulation(any()) }.thenReturn(POPULATION)
     onBlocking { createPopulation(any()) }.thenReturn(POPULATION)
@@ -104,6 +130,12 @@ class ModelRepositoryTest {
       )
   }
 
+  private val modelLinesServiceMock: ModelLinesGrpcKt.ModelLinesCoroutineImplBase = mockService {
+    onBlocking { createModelLine(any()) }.thenReturn(MODEL_LINE)
+    onBlocking { setModelLineActiveEndTime(any()) }
+      .thenReturn(MODEL_LINE.copy { activeEndTime = Timestamps.parse(ACTIVE_END_TIME_2) })
+  }
+
   private val serverCerts =
     SigningCerts.fromPemFiles(
       certificateFile = SECRETS_DIR.resolve("kingdom_tls.pem").toFile(),
@@ -112,7 +144,13 @@ class ModelRepositoryTest {
     )
 
   private val services: List<ServerServiceDefinition> =
-    listOf(modelSuitesServiceMock.bindService(), populationsServiceMock.bindService())
+    listOf(
+      modelSuitesServiceMock.bindService(),
+      populationsServiceMock.bindService(),
+      modelLinesServiceMock.bindService(),
+      modelReleasesServiceMock.bindService(),
+      modelRolloutsServiceMock.bindService(),
+    )
 
   private val server: Server =
     NettyServerBuilder.forPort(0)
@@ -297,6 +335,69 @@ class ModelRepositoryTest {
       )
   }
 
+  @Test
+  fun `modelLines create calls CreateModelLine with valid request`() {
+    val args =
+      commonArgs +
+        arrayOf(
+          "model-lines",
+          "create",
+          "--parent=$MODEL_SUITE_NAME",
+          "--display-name=$DISPLAY_NAME",
+          "--description=$DESCRIPTION",
+          "--active-start-time=$ACTIVE_START_TIME",
+          "--active-end-time=$ACTIVE_END_TIME",
+          "--type=$MODEL_LINE_TYPE_DEV",
+          "--holdback-model-line=$HOLDBACK_MODEL_LINE_NAME",
+          "--population=$POPULATION_NAME",
+        )
+
+    val output = callCli(args)
+
+    val request: CreateModelLineRequest = captureFirst {
+      runBlocking { verify(modelLinesServiceMock).createModelLine(capture()) }
+    }
+
+    assertThat(request)
+      .isEqualTo(
+        createModelLineRequest {
+          parent = MODEL_SUITE_NAME
+          modelLine = MODEL_LINE.copy { clearName() }
+        }
+      )
+    assertThat(parseTextProto(output.reader(), ModelLine.getDefaultInstance()))
+      .comparingExpectedFieldsOnly()
+      .isEqualTo(MODEL_LINE)
+  }
+
+  @Test
+  fun `modelLines set-active-end-time calls SetModelLineActiveEndTime with valid request`() {
+    val args =
+      commonArgs +
+        arrayOf(
+          "model-lines",
+          "set-active-end-time",
+          "--name=$MODEL_LINE_NAME",
+          "--active-end-time=$ACTIVE_END_TIME_2",
+        )
+
+    val output = callCli(args)
+
+    val request: SetModelLineActiveEndTimeRequest = captureFirst {
+      runBlocking { verify(modelLinesServiceMock).setModelLineActiveEndTime(capture()) }
+    }
+
+    assertThat(request)
+      .isEqualTo(
+        setModelLineActiveEndTimeRequest {
+          name = MODEL_LINE_NAME
+          activeEndTime = Timestamps.parse(ACTIVE_END_TIME_2)
+        }
+      )
+    assertThat(parseTextProto(output.reader(), ModelLine.getDefaultInstance()))
+      .isEqualTo(MODEL_LINE.copy { activeEndTime = Timestamps.parse(ACTIVE_END_TIME_2) })
+  }
+
   private val commonArgs: Array<String>
     get() =
       arrayOf(
@@ -371,6 +472,39 @@ class ModelRepositoryTest {
       createTime = CREATE_TIME
       eventTemplate = eventTemplate { type = EVENT_TEMPLATE_TYPE }
       populationBlob = populationBlob { modelBlobUri = MODEL_BLOB_URI }
+    }
+
+    private const val MODEL_LINE_NAME = "$MODEL_SUITE_NAME/modelLines/AAAAAAAAAHs"
+    private val MODEL_LINE: ModelLine = modelLine {
+      name = MODEL_LINE_NAME
+      displayName = DISPLAY_NAME
+      description = DESCRIPTION
+      activeStartTime = Timestamps.parse(ACTIVE_START_TIME)
+      activeEndTime = Timestamps.parse(ACTIVE_END_TIME)
+      type = ModelLine.Type.DEV
+      holdbackModelLine = HOLDBACK_MODEL_LINE_NAME
+    }
+    private const val ACTIVE_START_TIME = "2025-01-15T10:00:00Z"
+    private const val ACTIVE_END_TIME = "2025-02-15T10:00:00Z"
+    private const val ACTIVE_END_TIME_2 = "2025-03-15T10:00:00Z"
+    private const val MODEL_LINE_TYPE_DEV = "DEV"
+    private const val HOLDBACK_MODEL_LINE_NAME = "$MODEL_SUITE_NAME/modelLines/BBBBBBBBBHs"
+
+    private const val MODEL_RELEASE_NAME = "$MODEL_SUITE_NAME/modelReleases/AAAAAAAAAHs"
+    private val MODEL_RELEASE = modelRelease {
+      name = MODEL_RELEASE_NAME
+      createTime = CREATE_TIME
+      population = POPULATION_NAME
+    }
+
+    private const val MODEL_ROLLOUT_NAME = "$MODEL_LINE_NAME/modelRollouts/AAAAAAAAAHs"
+    private val MODEL_ROLLOUT = modelRollout {
+      name = MODEL_ROLLOUT_NAME
+      instantRolloutDate =
+        MODEL_LINE.activeStartTime.toInstant().atZone(ZoneOffset.UTC).toLocalDate().toProtoDate()
+      modelRelease = MODEL_RELEASE_NAME
+      createTime = CREATE_TIME
+      updateTime = CREATE_TIME
     }
 
     private const val PAGE_SIZE = 50

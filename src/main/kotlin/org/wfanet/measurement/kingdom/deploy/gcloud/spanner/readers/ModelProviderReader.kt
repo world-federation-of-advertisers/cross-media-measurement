@@ -59,9 +59,10 @@ class ModelProviderReader : SpannerReader<ModelProviderReader.Result>() {
   ): List<Result> {
     return fillStatementBuilder {
         if (after != null) {
-          appendClause("WHERE ExternalModelProviderId > ${after.externalModelProviderId}")
+          appendClause("WHERE ExternalModelProviderId > @externalModelProviderId")
+          bind("externalModelProviderId").to(after.externalModelProviderId)
         }
-        appendClause("ORDER BY ExternalModelProviderId ASC")
+        appendClause("ORDER BY ModelProviders.ExternalModelProviderId ASC")
         appendClause("LIMIT $limit")
       }
       .execute(readContext)
