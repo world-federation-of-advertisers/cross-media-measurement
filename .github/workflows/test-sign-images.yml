@@ -20,8 +20,10 @@ jobs:
     runs-on: ubuntu-22.04
     env:
       CONTAINER_REGISTRY: ghcr.io
-      # wip - on pull request only to test the workflow without merging
+      # wip - here for testing, it's going to be an input
       IMAGE_TAG: "test-signed-build-v1"
+      # wip - here for testing, it's going to be an input
+      GCP_KMS_KEY_FOR_SIGNING: "projects/halo-cmm-dev/locations/global/keyRings/test-image-signing/cryptoKeys/test-image-signing/cryptoKeyVersions/1"
     steps:
       - uses: actions/checkout@v4
 
@@ -51,18 +53,17 @@ jobs:
           workload_identity_provider: ${{ vars.BAZEL_BUILD_WORKLOAD_IDENTITY_PROVIDER }}
           service_account: ${{ secrets.IMAGE_SIGNING_SERVICE_ACCOUNT }}
 
-      #TODO: wip - replace with docker/login-action@v3
-      - name: Log in to GitHub Container Registry
-        run: |
-          echo "${{ secrets.GITHUB_TOKEN }}" \
-            | docker login ghcr.io \
-                -u $ \
-                --password-stdin
+      - name: Authenticate to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.CONTAINER_REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
 
       #------ Test using bazel and the HMSS mill image under the name TEST_SIGNED_BUILD_IMAGES -----
 
       - name: Build images
-        run: >
+        run: |
           bazelisk build //src/main/docker:push_test_signed_image
 
       - name: Push images
@@ -70,9 +71,9 @@ jobs:
           bazelisk run //src/main/docker:push_test_signed_image
 
       - name: Build image signing script
-        run: >
+        run: |
           bazelisk build //src/main/docker:sign_all_images
 
       - name: Sign images
         run: |
-          bazelisk run //src/main/docker:sign_all_images -- projects/halo-cmm-dev/locations/global/keyRings/test-image-signing/cryptoKeys/test-image-signing/cryptoKeyVersions/1
+          bazelisk run //src/main/docker:sign_all_images -- $GCP_KMS_KEY_FOR_SIGNING
