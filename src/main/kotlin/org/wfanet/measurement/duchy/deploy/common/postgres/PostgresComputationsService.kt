@@ -402,6 +402,7 @@ class PostgresComputationsService(
       newCreateComputationLogEntryRequest(
         request.token.globalComputationId,
         request.nextComputationStage,
+        callerInstanceId = token.lockOwner,
       )
     )
 
