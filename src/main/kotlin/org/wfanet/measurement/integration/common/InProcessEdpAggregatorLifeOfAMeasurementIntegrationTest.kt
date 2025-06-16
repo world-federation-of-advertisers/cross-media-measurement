@@ -187,7 +187,7 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
   @Test
   fun `create incremental direct RF measurements and check the result is equal to the expected result`() =
     runBlocking {
-      withTimeout(60000) {
+      withTimeout(5000) {
         delay(1000)
         // Use frontend simulator to create a n incremental direct reach and frequency measurement
         // with two requisitions and verify its result.

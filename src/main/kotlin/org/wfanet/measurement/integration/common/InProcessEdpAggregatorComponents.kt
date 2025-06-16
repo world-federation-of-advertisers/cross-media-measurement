@@ -65,7 +65,6 @@ import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.Met
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.metadata as eventGroupMetadata
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.MappedEventGroup
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.eventGroup
-import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.mappedEventGroup
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionFetcher
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionGrouperByReportId
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionsValidator
@@ -204,7 +203,9 @@ class InProcessEdpAggregatorComponents(
       val requisitionValidator =
         RequisitionsValidator(
           fatalRequisitionErrorPredicate =
-            fun(requisition: Requisition, refusal: Requisition.Refusal) {},
+            fun(requisition: Requisition, refusal: Requisition.Refusal) {
+              logger.severe("Received $refusal for ${requisition.name}")
+            },
           privateEncryptionKey = privateEncryptionKey,
         )
       val requisitionGrouper =

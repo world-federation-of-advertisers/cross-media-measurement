@@ -23,7 +23,9 @@ import com.google.protobuf.kotlin.unpack
 import java.security.GeneralSecurityException
 import java.security.SecureRandom
 import java.time.ZoneId
+import java.util.logging.Logger
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
@@ -77,10 +79,12 @@ class ResultsFulfiller(
     val groupedRequisitions = getRequisitions()
     val requisitions =
       groupedRequisitions.requisitionsList.map { it.requisition.unpack(Requisition::class.java) }
-    val eventGroupMap = groupedRequisitions.eventGroupMapList.map{
-      Pair(it.eventGroup, it.details.eventGroupReferenceId)
-    }.toMap()
+    val eventGroupMap =
+      groupedRequisitions.eventGroupMapList
+        .map { Pair(it.eventGroup, it.details.eventGroupReferenceId) }
+        .toMap()
     for (requisition in requisitions) {
+      logger.info("Processing requisition: ${requisition.name}")
       val signedRequisitionSpec: SignedMessage =
         try {
           decryptRequisitionSpec(requisition.encryptedRequisitionSpec, privateEncryptionKey)
@@ -99,6 +103,15 @@ class ResultsFulfiller(
           eventReader,
           zoneId,
         )
+      /*val loggedVids = RequisitionSpecs.getSampledVids(
+        requisitionSpec,
+        eventGroupMap,
+        measurementSpec.vidSamplingInterval,
+        typeRegistry,
+        eventReader,
+        zoneId,
+      )
+      logger.info("Found ${loggedVids.toList().size} events")*/
 
       val protocols: List<ProtocolConfig.Protocol> = requisition.protocolConfig.protocolsList
 
@@ -187,5 +200,9 @@ class ResultsFulfiller(
       dataProviderCertificateKey,
       requisitionsStub,
     )
+  }
+
+  companion object {
+    private val logger: Logger = Logger.getLogger(this::class.java.name)
   }
 }

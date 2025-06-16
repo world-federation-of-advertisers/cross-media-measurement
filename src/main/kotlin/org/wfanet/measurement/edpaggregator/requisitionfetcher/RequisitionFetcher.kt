@@ -116,7 +116,8 @@ class RequisitionFetcher(
       val blobKey = "$storagePathPrefix/${groupedRequisitionId}"
       // Only stores the requisition if it does not already exist in storage by checking if
       // the blob key(created using the requisition name, ensuring uniqueness) is populated.
-      if (storageClient.getBlob(blobKey) == null) {
+      if (storageClient.getBlob(blobKey) == null && groupedRequisition.requisitionsList.size > 0) {
+        logger.info("Writing $blobKey with ${groupedRequisition.requisitionsList.size} requisitions")
         storageClient.writeBlob(blobKey, Any.pack(groupedRequisition).toByteString())
         storedGroupedRequisitions += 1
       }

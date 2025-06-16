@@ -68,6 +68,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.duration
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.impression
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reachAndFrequency
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.vidSamplingInterval
+import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reportingMetadata
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.PopulationKey
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
@@ -163,6 +164,7 @@ abstract class MeasurementConsumerSimulator(
   private val eventRange: OpenEndTimeRange,
   private val initialResultPollingDelay: Duration,
   private val maximumResultPollingDelay: Duration,
+  private val reportName: String = "some-report-id",
 ) {
   /** Cache of resource name to [Certificate]. */
   private val certificateCache = mutableMapOf<String, Certificate>()
@@ -1166,6 +1168,9 @@ abstract class MeasurementConsumerSimulator(
       reach = MeasurementSpecKt.reach { privacyParams = outputDpParams }
       this.vidSamplingInterval = vidSamplingInterval
       this.nonceHashes += nonceHashes
+      this.reportingMetadata = reportingMetadata {
+        report = reportName
+      }
     }
   }
 
@@ -1183,6 +1188,9 @@ abstract class MeasurementConsumerSimulator(
       }
       this.vidSamplingInterval = vidSamplingInterval
       this.nonceHashes += nonceHashes
+      this.reportingMetadata = reportingMetadata {
+        report = reportName
+      }
     }
   }
 
