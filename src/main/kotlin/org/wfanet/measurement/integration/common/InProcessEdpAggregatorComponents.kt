@@ -271,10 +271,9 @@ class InProcessEdpAggregatorComponents(
           syntheticPopulationSpec,
           syntheticEventGroupMap.getValue(mappedEventGroup.eventGroupReferenceId),
         )
-      // TODO: Change this to event-group-reference ID once the app is updated
       val impressionWriter =
         ImpressionsWriter(
-          "event-group-id/${mappedEventGroup.eventGroupResource}",
+          "event-group-reference-id/${mappedEventGroup.eventGroupReferenceId}",
           kekUri,
           kmsClient,
           IMPRESSIONS_BUCKET,

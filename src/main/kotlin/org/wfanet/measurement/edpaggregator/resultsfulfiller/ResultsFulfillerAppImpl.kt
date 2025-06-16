@@ -27,7 +27,8 @@ class ResultsFulfillerAppImpl(
   dataProviderCertificateKey: DataProviderCertificateKey,
   dataProviderSigningKeyHandle: SigningKeyHandle,
   dataProviderPrivateEncryptionKey: TinkPrivateKeyHandle,
-): ResultsFulfillerApp(
+) :
+  ResultsFulfillerApp(
     subscriptionId,
     queueSubscriber,
     parser,
@@ -37,7 +38,7 @@ class ResultsFulfillerAppImpl(
     dataProviderCertificateKey,
     dataProviderSigningKeyHandle,
     dataProviderPrivateEncryptionKey,
-) {
+  ) {
   override fun createStorageClient(
     blobUri: String,
     rootDirectory: File?,
@@ -53,20 +54,25 @@ class ResultsFulfillerAppImpl(
 
   override fun getTypeRegistry(): TypeRegistry {
     // TODO: add event production event templates
-    val typeRegistry = TypeRegistry.newBuilder()
-//      .add()
-      .build()
+    val typeRegistry =
+      TypeRegistry.newBuilder()
+        //      .add()
+        .build()
     return typeRegistry
   }
 
-  override fun getStorageConfig(configType: StorageConfigType, storageDetails: ResultsFulfillerParams.StorageDetails): StorageConfig {
+  override fun getStorageConfig(
+    configType: StorageConfigType,
+    storageDetails: ResultsFulfillerParams.StorageDetails,
+  ): StorageConfig {
     return StorageConfig(
-      projectId = when (configType) {
-        StorageConfigType.REQUISITION -> storageDetails.requisitionsStorageProjectId
-        StorageConfigType.IMPRESSION -> storageDetails.labeledImpressionStorageProjectId
-        StorageConfigType.IMPRESSION_METADATA ->
-          storageDetails.labeledImpressionMetadataStorageProjectId
-      }
+      projectId =
+        when (configType) {
+          StorageConfigType.REQUISITION -> storageDetails.requisitionsStorageProjectId
+          StorageConfigType.IMPRESSION -> storageDetails.labeledImpressionStorageProjectId
+          StorageConfigType.IMPRESSION_METADATA ->
+            storageDetails.labeledImpressionMetadataStorageProjectId
+        }
     )
   }
 }

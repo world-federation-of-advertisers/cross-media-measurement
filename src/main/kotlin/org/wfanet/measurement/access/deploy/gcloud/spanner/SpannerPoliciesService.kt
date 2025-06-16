@@ -21,6 +21,8 @@ import com.google.cloud.spanner.Options
 import com.google.cloud.spanner.SpannerException
 import com.google.protobuf.Timestamp
 import io.grpc.Status
+import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.EmptyCoroutineContext
 import org.wfanet.measurement.access.common.TlsClientPrincipalMapping
 import org.wfanet.measurement.access.deploy.gcloud.spanner.db.deletePolicyBinding
 import org.wfanet.measurement.access.deploy.gcloud.spanner.db.getPolicyByProtectedResourceName
@@ -61,8 +63,9 @@ import org.wfanet.measurement.internal.access.policy
 class SpannerPoliciesService(
   private val databaseClient: AsyncDatabaseClient,
   private val tlsClientMapping: TlsClientPrincipalMapping,
+  coroutineContext: CoroutineContext = EmptyCoroutineContext,
   private val idGenerator: IdGenerator = IdGenerator.Default,
-) : PoliciesGrpcKt.PoliciesCoroutineImplBase() {
+) : PoliciesGrpcKt.PoliciesCoroutineImplBase(coroutineContext) {
   override suspend fun getPolicy(request: GetPolicyRequest): Policy {
     if (request.policyResourceId.isEmpty()) {
       throw RequiredFieldNotSetException("policy_resource_id")

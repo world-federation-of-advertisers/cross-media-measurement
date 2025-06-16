@@ -152,8 +152,30 @@ variable "edp_aggregator_bucket_name" {
   nullable    = false
 }
 
-variable "edp_aggregator_bucket_location" {
-  description = "Location of the Storage bucket used by the Edp Aggregator."
+variable "config_files_bucket_name" {
+  description = "Name of the Google Cloud Storage bucket used to store configuration."
+  type        = string
+  nullable    = false
+}
+
+variable "data_watcher_config" {
+  description = "An object containing the local path of the data watcher config file and its destination path in Cloud Storage."
+  type = object({
+    local_path  = string
+    destination = string
+  })
+}
+
+variable "requisition_fetcher_config" {
+  description = "An object containing the local path of the requisition fetcher config file and its destination path in Cloud Storage."
+  type = object({
+    local_path  = string
+    destination = string
+  })
+}
+
+variable "edp_aggregator_buckets_location" {
+  description = "Location of the Storage buckets used by the Edp Aggregator."
   type        = string
   nullable    = false
 }
@@ -190,6 +212,12 @@ variable "event_group_sync_service_account_name" {
 
 variable "event_group_sync_function_name" {
   description = "Name of the EventGroupSync cloud function."
+  type        = string
+  nullable    = false
+}
+
+variable "event_group_sync_function_location" {
+  description = "The location of the EventGroupSync cloud function."
   type        = string
   nullable    = false
 }

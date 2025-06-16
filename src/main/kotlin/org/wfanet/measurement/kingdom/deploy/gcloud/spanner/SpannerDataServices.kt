@@ -16,6 +16,8 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 
 import com.google.protobuf.Descriptors
 import java.time.Clock
+import java.time.Duration
+import kotlin.coroutines.CoroutineContext
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
@@ -26,37 +28,39 @@ class SpannerDataServices(
   private val idGenerator: IdGenerator,
   private val client: AsyncDatabaseClient,
   override val knownEventGroupMetadataTypes: Iterable<Descriptors.FileDescriptor> = emptyList(),
+  private val maxEventGroupReadStaleness: Duration = Duration.ofSeconds(1L),
 ) : DataServices {
-  override fun buildDataServices(): KingdomDataServices {
+  override fun buildDataServices(coroutineContext: CoroutineContext): KingdomDataServices {
     return KingdomDataServices(
-      SpannerAccountsService(idGenerator, client),
-      SpannerApiKeysService(idGenerator, client),
-      SpannerCertificatesService(idGenerator, client),
-      SpannerDataProvidersService(idGenerator, client),
-      SpannerModelProvidersService(idGenerator, client),
+      SpannerAccountsService(idGenerator, client, coroutineContext),
+      SpannerApiKeysService(idGenerator, client, coroutineContext),
+      SpannerCertificatesService(idGenerator, client, coroutineContext),
+      SpannerDataProvidersService(idGenerator, client, coroutineContext),
+      SpannerModelProvidersService(idGenerator, client, coroutineContext),
       SpannerEventGroupMetadataDescriptorsService(
         idGenerator,
         client,
         knownEventGroupMetadataTypes,
+        coroutineContext,
       ),
-      SpannerEventGroupsService(idGenerator, client),
-      SpannerMeasurementConsumersService(idGenerator, client),
-      SpannerMeasurementsService(idGenerator, client),
-      SpannerPublicKeysService(idGenerator, client),
-      SpannerRequisitionsService(idGenerator, client),
-      SpannerComputationParticipantsService(idGenerator, client),
-      SpannerMeasurementLogEntriesService(idGenerator, client),
-      SpannerRecurringExchangesService(idGenerator, client),
-      SpannerExchangesService(idGenerator, client),
-      SpannerExchangeStepsService(clock, idGenerator, client),
-      SpannerExchangeStepAttemptsService(clock, idGenerator, client),
-      SpannerModelSuitesService(idGenerator, client),
-      SpannerModelLinesService(clock, idGenerator, client),
-      SpannerModelOutagesService(idGenerator, client),
-      SpannerModelReleasesService(idGenerator, client),
-      SpannerModelShardsService(idGenerator, client),
-      SpannerModelRolloutsService(clock, idGenerator, client),
-      SpannerPopulationsService(idGenerator, client),
+      SpannerEventGroupsService(idGenerator, client, maxEventGroupReadStaleness, coroutineContext),
+      SpannerMeasurementConsumersService(idGenerator, client, coroutineContext),
+      SpannerMeasurementsService(idGenerator, client, coroutineContext),
+      SpannerPublicKeysService(idGenerator, client, coroutineContext),
+      SpannerRequisitionsService(idGenerator, client, coroutineContext),
+      SpannerComputationParticipantsService(idGenerator, client, coroutineContext),
+      SpannerMeasurementLogEntriesService(idGenerator, client, coroutineContext),
+      SpannerRecurringExchangesService(idGenerator, client, coroutineContext),
+      SpannerExchangesService(idGenerator, client, coroutineContext),
+      SpannerExchangeStepsService(clock, idGenerator, client, coroutineContext),
+      SpannerExchangeStepAttemptsService(clock, idGenerator, client, coroutineContext),
+      SpannerModelSuitesService(idGenerator, client, coroutineContext),
+      SpannerModelLinesService(clock, idGenerator, client, coroutineContext),
+      SpannerModelOutagesService(idGenerator, client, coroutineContext),
+      SpannerModelReleasesService(idGenerator, client, coroutineContext),
+      SpannerModelShardsService(idGenerator, client, coroutineContext),
+      SpannerModelRolloutsService(clock, idGenerator, client, coroutineContext),
+      SpannerPopulationsService(idGenerator, client, coroutineContext),
     )
   }
 }
