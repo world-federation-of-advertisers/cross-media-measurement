@@ -17,7 +17,6 @@
 package org.wfanet.measurement.dataprovider
 
 import com.google.protobuf.TypeRegistry
-import java.util.logging.Logger
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.fold
@@ -38,15 +37,13 @@ object MeasurementResults {
     filteredVids: Flow<Long>,
     maxFrequency: Int,
   ): ReachAndFrequency {
-    logger.info("HEREHERHE")
     // Count occurrences of each VID using fold operation on the flow
-    val eventsPerVid: MutableMap<Long, Int> =
+    val eventsPerVid =
       filteredVids.fold(mutableMapOf<Long, Int>()) { acc, vid ->
         acc[vid] = acc.getOrDefault(vid, 0) + 1
         acc
       }
-    logger.info("OUTPUT")
-    logger.info(eventsPerVid.toString())
+
     val reach: Int = eventsPerVid.keys.size
 
     // If the filtered VIDs is empty, set the distribution with all 0s up to maxFrequency.
@@ -117,6 +114,4 @@ object MeasurementResults {
   ): Long {
     return PopulationRequisitionFulfiller.computePopulation(populationInfo, program, typeRegistry)
   }
-
-  private val logger: Logger = Logger.getLogger(this::class.java.name)
 }

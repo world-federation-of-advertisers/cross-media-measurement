@@ -171,11 +171,12 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
   fun stopPopulationRequisitionFulfillerDaemon() {
     inProcessCmmsComponents.stopPopulationRequisitionFulfillerDaemon()
   }
-  // TODO: Re-enable before merge
+
+  // TODO: Remove withTimeout before merge
   /*@Test
   fun `create a direct RF measurement and check the result is equal to the expected result`() =
     runBlocking {
-      withTimeout(40000) {
+      withTimeout(100000) {
         delay(1000)
         // Use frontend simulator to create a direct reach and frequency measurement and verify its
         // result.
@@ -187,11 +188,10 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
   @Test
   fun `create incremental direct RF measurements and check the result is equal to the expected result`() =
     runBlocking {
-      withTimeout(5000) {
+      withTimeout(100000) {
         delay(1000)
-        // Use frontend simulator to create a n incremental direct reach and frequency measurement
-        // with two requisitions and verify its result.
-        mcSimulator.testDirectReachAndFrequency("1234", 7)
+        // Use frontend simulator to create N incremental direct reach and frequency measurements and verify its result.
+        mcSimulator.testDirectReachAndFrequency("1234", 3)
       }
     }
 

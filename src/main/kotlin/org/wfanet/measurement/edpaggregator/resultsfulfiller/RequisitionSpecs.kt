@@ -67,11 +67,8 @@ object RequisitionSpecs {
       logger.info("Reading event group: $eventGroup")
       val collectionInterval = eventGroup.value.collectionInterval
       val startDate = LocalDate.ofInstant(collectionInterval.startTime.toInstant(), zoneId)
-      logger.info(startDate.toString())
       val endDate = LocalDate.ofInstant(collectionInterval.endTime.toInstant(), zoneId)
-      logger.info(endDate.toString())
       val dates = startDate.datesUntil(endDate.plusDays(1)).asSequence()
-      logger.info("Reading dates ${dates.toList().toString()}")
       // Iterates through all dates up to the end date in the collection interval(inclusive)
       val impressions =
         dates.asFlow().flatMapConcat { date -> eventReader.getLabeledImpressions(date, eventGroupMap.getValue(eventGroup.key)) }

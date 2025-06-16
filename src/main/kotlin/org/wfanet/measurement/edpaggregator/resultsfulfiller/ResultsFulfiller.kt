@@ -103,15 +103,6 @@ class ResultsFulfiller(
           eventReader,
           zoneId,
         )
-      /*val loggedVids = RequisitionSpecs.getSampledVids(
-        requisitionSpec,
-        eventGroupMap,
-        measurementSpec.vidSamplingInterval,
-        typeRegistry,
-        eventReader,
-        zoneId,
-      )
-      logger.info("Found ${loggedVids.toList().size} events")*/
 
       val protocols: List<ProtocolConfig.Protocol> = requisition.protocolConfig.protocolsList
 
