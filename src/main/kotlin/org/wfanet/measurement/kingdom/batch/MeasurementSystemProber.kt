@@ -328,16 +328,14 @@ class MeasurementSystemProber(
         events =
           RequisitionSpecKt.events {
             this.eventGroups += eventGroupEntry {
-              eventGroupEntry {
-                key = eventGroup.name
-                value =
-                  EventGroupEntryKt.value {
-                    collectionInterval = interval {
-                      startTime = clock.instant().minus(measurementLookbackDuration).toProtoTime()
-                      endTime = clock.instant().plus(Duration.ofDays(1)).toProtoTime()
-                    }
+              key = eventGroup.name
+              value =
+                EventGroupEntryKt.value {
+                  collectionInterval = interval {
+                    startTime = clock.instant().minus(measurementLookbackDuration).toProtoTime()
+                    endTime = clock.instant().plus(Duration.ofDays(1)).toProtoTime()
                   }
-              }
+                }
             }
           }
         measurementPublicKey = packedMeasurementEncryptionPublicKey
