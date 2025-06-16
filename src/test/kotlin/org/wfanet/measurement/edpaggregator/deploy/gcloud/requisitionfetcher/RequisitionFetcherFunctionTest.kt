@@ -77,6 +77,8 @@ class RequisitionFetcherFunctionTest {
   private val requisitionsServiceMock: RequisitionsCoroutineImplBase = mockService {
     onBlocking { listRequisitions(any()) }
       .thenReturn(listRequisitionsResponse { requisitions += REQUISITION })
+    onBlocking { refuseRequisition(any()) }
+      .thenReturn(any())
   }
 
   private val eventGroupsServiceMock: EventGroupsGrpcKt.EventGroupsCoroutineImplBase = mockService {

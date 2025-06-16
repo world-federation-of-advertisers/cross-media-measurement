@@ -24,6 +24,7 @@ import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.Requisition.Refusal
 import org.wfanet.measurement.api.v2alpha.RequisitionKt.refusal
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec
+import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.unpack
 import org.wfanet.measurement.common.crypto.PrivateKeyHandle
 import org.wfanet.measurement.consent.client.dataprovider.decryptRequisitionSpec

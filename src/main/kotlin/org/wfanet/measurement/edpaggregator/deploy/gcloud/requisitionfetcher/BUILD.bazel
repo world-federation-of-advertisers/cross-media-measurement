@@ -19,6 +19,7 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/config/edpaggregator:requisition_fetcher_config_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/cloud/functions:functions_framework_api",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/gcs",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:client",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage/filesystem:client",
     ],
 )
