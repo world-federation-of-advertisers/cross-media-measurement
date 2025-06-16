@@ -162,7 +162,7 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest(
     inProcessCmmsComponents.stopPopulationRequisitionFulfillerDaemon()
   }
 
-  /*@Test
+  @Test
   fun `create a Llv2 RF measurement and check the result is equal to the expected result`() =
     runBlocking {
       // Use frontend simulator to create a reach and frequency measurement and verify its result.
@@ -180,7 +180,7 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest(
         "1234",
         DataProviderKt.capabilities { honestMajorityShareShuffleSupported = true },
       )
-    }*/
+    }
 
   @Test
   fun `create a direct RF measurement and check the result is equal to the expected result`() =
@@ -190,14 +190,14 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest(
       mcSimulator.testDirectReachAndFrequency("1234", 1)
     }
 
-  /*@Test
+  @Test
   fun `create a direct reach-only measurement and check the result is equal to the expected result`() =
     runBlocking {
       // Use frontend simulator to create a direct reach-only measurement and verify its result.
       mcSimulator.testDirectReachOnly("1234", 1)
-    }*/
+    }
 
-  /*@Test
+  @Test
   fun `create a Llv2 reach-only measurement and check the result is equal to the expected result`() =
     runBlocking {
       // Use frontend simulator to create a reach and frequency measurement and verify its result.
@@ -215,9 +215,9 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest(
         "1234",
         DataProviderKt.capabilities { honestMajorityShareShuffleSupported = true },
       )
-    }*/
+    }
 
-  /*@Test
+  @Test
   fun `create an impression measurement and check the result is equal to the expected result`() =
     runBlocking {
       // Use frontend simulator to create an impression measurement and verify its result.
@@ -229,9 +229,9 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest(
     runBlocking {
       // Use frontend simulator to create a duration measurement and verify its result.
       mcSimulator.testDuration("1234")
-    }*/
+    }
 
-  /*@Test
+  @Test
   fun `create a Llv2 RF measurement of invalid params and check the result contains error info`() =
     runBlocking {
       // Use frontend simulator to create an invalid reach and frequency measurement and verify
@@ -265,11 +265,11 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest(
           width = 1.0f
         },
       )
-    }*/
+    }
 
   // TODO(@renjiez): Add Multi-round test given the same input to verify correctness.
 
-  /*@Test
+  @Test
   fun `create a population measurement`() = runBlocking {
     val modelSuite =
       publicModelSuitesClient.createModelSuite(
@@ -320,7 +320,7 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest(
       DEFAULT_POPULATION_FILTER_EXPRESSION,
       inProcessCmmsComponents.typeRegistry,
     )
-  }*/
+  }
 
   companion object {
     // Epsilon can vary from 0.0001 to 1.0, delta = 1e-15 is a realistic value.

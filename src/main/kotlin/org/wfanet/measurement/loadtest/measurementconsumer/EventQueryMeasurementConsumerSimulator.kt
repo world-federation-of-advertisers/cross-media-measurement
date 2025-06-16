@@ -92,7 +92,7 @@ class EventQueryMeasurementConsumerSimulator(
           }
         }
         .asSequence()
-    logger.info("HHHH: ${eventGroupSpecs.flatMap { eventQuery.getUserVirtualIds(it) }.toList().size}")
+
     return eventGroupSpecs.flatMap { eventQuery.getUserVirtualIds(it) }.asFlow()
   }
 
@@ -115,7 +115,6 @@ class EventQueryMeasurementConsumerSimulator(
             }
         }
         .asSequence()
-    logger.info("HHHH: ${eventGroupSpecs.flatMap { eventQuery.getUserVirtualIds(it) }.toList().size}")
     return eventGroupSpecs.flatMap { eventQuery.getUserVirtualIds(it) }.asFlow()
   }
 

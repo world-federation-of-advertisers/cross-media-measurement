@@ -857,7 +857,7 @@ abstract class MeasurementConsumerSimulator(
 
     val measurementSpec =
       newMeasurementSpec(measurementConsumer.publicKey.message, nonceHashes, vidSamplingInterval)
-    logger.info(measurementSpec.toString())
+
     return createMeasurementInfo(measurementConsumer, measurementSpec, requisitions, runId)
   }
 
@@ -1125,8 +1125,6 @@ abstract class MeasurementConsumerSimulator(
   }
 
   private suspend fun getExpectedReachResult(measurementInfo: MeasurementInfo): Result {
-    val a = getFilteredVids(measurementInfo).toList()
-    logger.info("AAAA: $a")
     val reach = MeasurementResults.computeReach(getFilteredVids(measurementInfo))
     return result { this.reach = reach { value = reach.toLong() } }
   }
@@ -1360,7 +1358,7 @@ abstract class MeasurementConsumerSimulator(
       signRequisitionSpec(requisitionSpec, measurementConsumerData.signingKey)
     val dataProviderEntry =
       dataProvider.toDataProviderEntry(signedRequisitionSpec, Hashing.hashSha256(nonce))
-    logger.info(requisitionSpec.toString())
+
     return RequisitionInfo(dataProviderEntry, requisitionSpec, eventGroups)
   }
 

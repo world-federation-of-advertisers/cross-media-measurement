@@ -14,7 +14,6 @@
 
 package org.wfanet.measurement.loadtest.dataprovider
 
-import java.util.logging.Logger
 import com.google.protobuf.Descriptors
 import com.google.protobuf.Message
 import org.projectnessie.cel.Program
@@ -46,7 +45,6 @@ interface EventQuery<out T : Message> {
    * returned multiple times.
    */
   fun getUserVirtualIds(eventGroupSpec: EventGroupSpec): Sequence<Long> {
-    logger.info("V1111: ${getLabeledEvents(eventGroupSpec).toList().size}")
     return getLabeledEvents(eventGroupSpec).map { it.vid }
   }
 
@@ -54,8 +52,6 @@ interface EventQuery<out T : Message> {
   fun getUserVirtualIdUniverse(): Sequence<Long>
 
   companion object {
-    private val logger: Logger = Logger.getLogger(this::class.java.name)
-
     private val TRUE_EVAL_RESULT = Program.newEvalResult(BoolT.True, null)
 
     fun compileProgram(

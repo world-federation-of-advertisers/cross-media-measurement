@@ -52,7 +52,6 @@ import org.wfanet.measurement.common.OpenEndTimeRange
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.toProtoDuration
-import org.wfanet.measurement.loadtest.dataprovider.LabeledEvent
 
 @RunWith(JUnit4::class)
 class SyntheticDataGenerationTest {

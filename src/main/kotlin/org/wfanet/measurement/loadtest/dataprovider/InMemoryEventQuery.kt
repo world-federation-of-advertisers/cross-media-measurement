@@ -18,7 +18,6 @@ import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.common.OpenEndTimeRange
 import org.wfanet.measurement.common.toRange
 import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters
-import org.wfanet.measurement.loadtest.common.LabeledEvent
 
 typealias LabeledTestEvent = LabeledEvent<TestEvent>
 

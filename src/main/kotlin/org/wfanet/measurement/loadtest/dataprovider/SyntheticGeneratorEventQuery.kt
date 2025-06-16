@@ -16,11 +16,9 @@
 
 package org.wfanet.measurement.loadtest.dataprovider
 
-import java.util.logging.Logger
 import com.google.protobuf.Descriptors
 import com.google.protobuf.DynamicMessage
 import com.google.protobuf.TypeRegistry
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.projectnessie.cel.Program
@@ -59,22 +57,12 @@ abstract class SyntheticGeneratorEventQuery(
     val syntheticDataSpec: SyntheticEventGroupSpec = getSyntheticDataSpec(eventGroupSpec.eventGroup)
     val program: Program =
       EventQuery.compileProgram(eventGroupSpec.spec.filter, eventMessageDescriptor)
-    logger.info("V7777: ${runBlocking {SyntheticDataGeneration.generateEvents(
-      DynamicMessage.getDefaultInstance(eventMessageDescriptor),
-      populationSpec,
-      syntheticDataSpec,
-      )
-      .toList()
-      .flatMap { it.impressions.toList() }
-      .filter { EventFilters.matches(it.message, program) }
-      .asSequence()
-      .toList()
-      }.size}")
     return runBlocking {
       SyntheticDataGeneration.generateEvents(
           DynamicMessage.getDefaultInstance(eventMessageDescriptor),
           populationSpec,
           syntheticDataSpec,
+          timeRange,
         )
         .toList()
         .flatMap { it.impressions.toList() }
@@ -87,9 +75,5 @@ abstract class SyntheticGeneratorEventQuery(
     // TODO(@kungfucraig): Use EDP support library to retrieve the universe.
     val vidRange = populationSpec.vidRange
     return (vidRange.start until vidRange.endExclusive).asSequence()
-  }
-
-  companion object {
-    private val logger: Logger = Logger.getLogger(this::class.java.name)
   }
 }

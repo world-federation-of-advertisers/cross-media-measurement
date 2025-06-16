@@ -32,8 +32,6 @@ import kotlin.math.max
 import kotlin.math.min
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.flow.asFlow
-import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.CartesianSyntheticEventGroupSpecRecipe
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.FieldValue
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
@@ -89,7 +87,6 @@ object SyntheticDataGeneration {
           ChronoUnit.DAYS.between(dateProgression.start, dateProgression.endInclusive) + 1
         logger.info("Writing $numDays days of data")
         for (date in dateProgression) {
-          logger.info("Date: $date")
           val innerFlow: Flow<LabeledEvent<T>> =
             getFlowForDay(
               dateProgression,
@@ -102,14 +99,13 @@ object SyntheticDataGeneration {
               numDays.toInt(),
               timeRange,
             )
-          logger.info("EMIT")
-          emit(DateShardedLabeledImpression(date, innerFlow.toList().asFlow()))
+          emit(DateShardedLabeledImpression(date, innerFlow))
         }
       }
     }
   }
 
-  private suspend fun <T : Message> getFlowForDay(
+  private fun <T : Message> getFlowForDay(
     dateProgression: LocalDateProgression,
     date: LocalDate,
     zoneId: ZoneId,
@@ -120,15 +116,14 @@ object SyntheticDataGeneration {
     numDays: Int,
     timeRange: OpenEndTimeRange,
   ): Flow<LabeledEvent<T>> = flow {
-    logger.info("getflowforday: $date")
     val subPopulations = populationSpec.subPopulationsList
     val dayNumber = ChronoUnit.DAYS.between(dateProgression.start, date)
     logger.info("Generating data for day: $dayNumber date: $date")
     for (frequencySpec: SyntheticEventGroupSpec.FrequencySpec in dateSpec.frequencySpecsList) {
+
       check(!frequencySpec.hasOverlaps()) { "The VID ranges should be non-overlapping." }
 
       for (vidRangeSpec: VidRangeSpec in frequencySpec.vidRangeSpecsList) {
-
         val subPopulation: SubPopulation =
           vidRangeSpec.vidRange.findSubPopulation(subPopulations)
             ?: error("Sub-population not found")
