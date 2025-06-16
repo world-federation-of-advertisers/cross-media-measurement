@@ -109,7 +109,7 @@ locals {
   }
 
   requisition_fetcher_scheduler_config = {
-    schedule     = "*/5 * * * * *"  # Every 5 seconds
+    schedule     = "* * * * *"  # Every minute
     time_zone    = "UTC"
     name_prefix  = "edpa"
     function_url = "https://${data.google_client_config.default.region}-${data.google_client_config.default.project}.cloudfunctions.net/requisition-fetcher"
