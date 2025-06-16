@@ -26,6 +26,7 @@ import java.io.File
 import java.security.SecureRandom
 import java.time.Clock
 import java.time.Duration
+import java.util.logging.Level
 import java.util.logging.Logger
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -130,7 +131,9 @@ class MeasurementSystemProber(
         )
       }
     }
+    logger.info("prober run() lastUpdatedMeasurement: \n $lastUpdatedMeasurement \n")
     if (shouldCreateNewMeasurement(lastUpdatedMeasurement)) {
+      println("should create another one")
       createMeasurement()
     }
   }
@@ -232,11 +235,16 @@ class MeasurementSystemProber(
                   e,
                 )
               }
+            logger.log(Level.INFO, "debug list event groups res:\n $response \n")
             ResourceList(response.eventGroupsList, response.nextPageToken)
           }
-          .map { it.single() }
+          .map {
+            logger.log(Level.INFO, "debug list event groups map it:\n $it \n")
+            it.single()
+          }
           .single()
 
+      logger.log(Level.INFO, "debug list event group final single: \n $eventGroup \n")
       dataProviderNameToEventGroup[dataProviderName] = eventGroup
     }
     return dataProviderNameToEventGroup
@@ -314,21 +322,20 @@ class MeasurementSystemProber(
     measurementConsumerSigningKey: SigningKeyHandle,
     packedMeasurementEncryptionPublicKey: Any,
   ): Measurement.DataProviderEntry {
+    logger.log(Level.INFO, "event group:\n $eventGroup \n")
     return dataProviderEntry {
       val requisitionSpec = requisitionSpec {
         events =
           RequisitionSpecKt.events {
             this.eventGroups += eventGroupEntry {
-              eventGroupEntry {
-                key = eventGroup.name
-                value =
-                  EventGroupEntryKt.value {
-                    collectionInterval = interval {
-                      startTime = clock.instant().minus(measurementLookbackDuration).toProtoTime()
-                      endTime = clock.instant().plus(Duration.ofDays(1)).toProtoTime()
-                    }
+              key = eventGroup.name
+              value =
+                EventGroupEntryKt.value {
+                  collectionInterval = interval {
+                    startTime = clock.instant().minus(measurementLookbackDuration).toProtoTime()
+                    endTime = clock.instant().plus(Duration.ofDays(1)).toProtoTime()
                   }
-              }
+                }
             }
           }
         measurementPublicKey = packedMeasurementEncryptionPublicKey
