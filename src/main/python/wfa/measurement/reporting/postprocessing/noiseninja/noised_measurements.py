@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from collections import defaultdict
-
+from dataclasses import dataclass
 
 class Measurement:
   """Represents a measurement with a mean value and a standard deviation"""
@@ -29,6 +29,16 @@ class Measurement:
   def __repr__(self):
     return 'Measurement({:.2f}, {:.2f}, {})\n'.format(self.value, self.sigma,
                                                       self.name)
+
+@dataclass
+class OrderedSets:
+  """Represents an ordered pair of sets.
+
+    The sum of the measurements in larger set is greater or equal to that of
+    the smaller set
+  """
+  larger_set: set[int]
+  smaller_set: set[int]
 
 
 class SetMeasurementsSpec:
@@ -52,6 +62,7 @@ class SetMeasurementsSpec:
 
   def __init__(self):
     self._equal_sets = []
+    self._ordered_sets = []
     self._weighted_sum_upperbound_sets = defaultdict(list[list[int]])
     self._subsets_by_set = defaultdict(list[int])
     self._covers_by_set = defaultdict(list[list[int]])
@@ -66,6 +77,9 @@ class SetMeasurementsSpec:
 
   def add_subset_relation(self, parent_set_id: int, child_set_id: int):
     self._subsets_by_set[parent_set_id].append(child_set_id)
+
+  def add_ordered_sets_relation(self, ordered_set: OrderedSets):
+    self._ordered_sets.append(ordered_set)
 
   def add_cover(self, parent: int, children: list[int]):
     self._covers_by_set[parent].append(children)
@@ -87,6 +101,9 @@ class SetMeasurementsSpec:
 
   def get_subsets(self, parent_set_id: int) -> list[int]:
     return self._subsets_by_set[parent_set_id]
+
+  def get_ordered_sets(self):
+    return self._ordered_sets
 
   def get_measurements(self, measured_set_id: int) -> list[Measurement]:
     return self._measurements_by_set.get(measured_set_id)
