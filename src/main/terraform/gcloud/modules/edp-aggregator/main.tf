@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+data "google_client_config" "default" {}
+
 locals {
   common_secrets_to_mount = [
     {
@@ -252,4 +254,36 @@ resource "google_storage_bucket_iam_binding" "aggregator_storage_admin" {
     "serviceAccount:${module.requisition_fetcher_function_service_account.cloud_function_service_account.email}",
     "serviceAccount:${module.event_group_sync_function_service_account.cloud_function_service_account.email}",
   ]
+}
+
+resource "google_cloud_scheduler_job" "requisition_fetcher" {
+  name        = "${var.requisition_fetcher_scheduler_config.name_prefix}-requisition-fetcher"
+  description = "Scheduled job to fetch unfulfilled requisitions every 5 seconds"
+  schedule    = var.requisition_fetcher_scheduler_config.schedule
+  time_zone   = var.requisition_fetcher_scheduler_config.time_zone
+
+  http_target {
+    http_method = "POST"
+    uri         = var.requisition_fetcher_scheduler_config.function_url
+    
+    headers = {
+      "Content-Type" = "application/json"
+    }
+
+    oidc_token {
+      service_account_email = google_service_account.requisition_fetcher_scheduler.email
+    }
+  }
+}
+
+resource "google_service_account" "requisition_fetcher_scheduler" {
+  account_id   = "${var.requisition_fetcher_scheduler_config.name_prefix}-req-scheduler"
+  display_name = "Requisition Fetcher Scheduler"
+  description  = "Service account for Cloud Scheduler to trigger requisition fetcher"
+}
+
+resource "google_project_iam_member" "scheduler_function_invoker" {
+  project = data.google_client_config.default.project
+  role    = "roles/cloudfunctions.invoker"
+  member  = "serviceAccount:${google_service_account.requisition_fetcher_scheduler.email}"
 }

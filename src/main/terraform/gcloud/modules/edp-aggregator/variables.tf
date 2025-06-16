@@ -199,3 +199,14 @@ variable "event_group_sync_function_location" {
   type        = string
   nullable    = false
 }
+
+variable "requisition_fetcher_scheduler_config" {
+  description = "Configuration for requisition fetcher scheduler"
+  type = object({
+    schedule     = string
+    time_zone    = string
+    name_prefix  = string
+    function_url = string
+  })
+  nullable = false
+}

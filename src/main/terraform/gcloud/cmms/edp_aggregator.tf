@@ -107,6 +107,13 @@ locals {
       mig_distribution_policy_zones = ["us-central1-a"]
     }
   }
+
+  requisition_fetcher_scheduler_config = {
+    schedule     = "*/5 * * * * *"  # Every 5 seconds
+    time_zone    = "UTC"
+    name_prefix  = "edpa"
+    function_url = "https://${data.google_client_config.default.region}-${data.google_client_config.default.project}.cloudfunctions.net/requisition-fetcher"
+  }
 }
 
 module "edp_aggregator" {
@@ -133,5 +140,6 @@ module "edp_aggregator" {
   secure_computation_root_ca                = local.secure_computation_root_ca
   kingdom_root_ca                           = local.kingdom_root_ca
   edps_certs                                = local.edps_certs
+  requisition_fetcher_scheduler_config      = local.requisition_fetcher_scheduler_config
 
 }
