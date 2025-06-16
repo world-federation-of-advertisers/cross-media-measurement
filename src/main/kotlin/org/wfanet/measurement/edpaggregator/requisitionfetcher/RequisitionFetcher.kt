@@ -90,7 +90,7 @@ class RequisitionFetcher(
         }
         .flattenConcat()
 
-    val groupedRequisition = requisitionGrouper.groupRequisitions(requisitions.toList())
+    val groupedRequisition: List<GroupedRequisitions> = requisitionGrouper.groupRequisitions(requisitions.toList())
     val storedRequisitions: Int = storeRequisitions(groupedRequisition)
 
     logger.info {
@@ -101,11 +101,6 @@ class RequisitionFetcher(
   /**
    * Stores a list of grouped requisitions in persistent storage.
    *
-   * This method iterate through a list of grouped requisitions and stores each one in storage if it
-   * does not already exist. The existence check is performed by verifying if a blob with the
-   * requisition's name (used as a unique key) is already present in the storage. If the blob does
-   * not exist, the requisition is serialized and written to the storage.
-   *
    * @param groupedRequisitions A list of grouped requisitions to be stored.
    * @return The number of grouped requisitions successfully stored.
    */
@@ -114,9 +109,8 @@ class RequisitionFetcher(
     groupedRequisitions.forEach { groupedRequisition: GroupedRequisitions ->
       val groupedRequisitionId = idGenerator.generateId()
       val blobKey = "$storagePathPrefix/${groupedRequisitionId}"
-      // Only stores the requisition if it does not already exist in storage by checking if
-      // the blob key(created using the requisition name, ensuring uniqueness) is populated.
-      if (storageClient.getBlob(blobKey) == null) {
+
+      if (groupedRequisition.requisitionsList.isNotEmpty()) {
         storageClient.writeBlob(blobKey, Any.pack(groupedRequisition).toByteString())
         storedGroupedRequisitions += 1
       }

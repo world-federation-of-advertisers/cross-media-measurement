@@ -35,6 +35,7 @@ import org.mockito.kotlin.whenever
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt
 import org.wfanet.measurement.api.v2alpha.listRequisitionsResponse
+import org.wfanet.measurement.api.v2alpha.requisition
 import org.wfanet.measurement.common.IdGenerator
 import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
@@ -42,6 +43,7 @@ import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
 import org.wfanet.measurement.edpaggregator.v1alpha.groupedRequisitions
+import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt.requisitionEntry
 
 class TestIdGenerator() : IdGenerator {
   var next = AtomicLong(1)
@@ -130,8 +132,47 @@ class RequisitionFetcherTest {
   companion object {
     private const val STORAGE_PATH_PREFIX = "test-requisitions"
     private const val DATA_PROVIDER_NAME = "dataProviders/AAAAAAAAAHs"
+    private val REQUISITION = requisition {
+      name = "requisition-name"
+    }
     private val GROUPED_REQUISITIONS =
       groupedRequisitions {
+        requisitions.add(
+          requisitionEntry {
+            requisition = Any.pack(
+              REQUISITION
+            )
+          }
+        )
       }
   }
 }
+
+
+//private val REQUISITION: Requisition = requisition {
+//      name = REQUISITION_NAME
+//      measurement = "$MEASUREMENT_CONSUMER_NAME/measurements/BBBBBBBBBHs"
+//      state = Requisition.State.UNFULFILLED
+//      measurementConsumerCertificate = "$MEASUREMENT_CONSUMER_NAME/certificates/AAAAAAAAAcg"
+//      measurementSpec = signMeasurementSpec(MEASUREMENT_SPEC, MC_SIGNING_KEY)
+//      encryptedRequisitionSpec = ENCRYPTED_REQUISITION_SPEC
+//      protocolConfig = protocolConfig {
+//        protocols +=
+//          ProtocolConfigKt.protocol {
+//            direct =
+//              ProtocolConfigKt.direct {
+//                noiseMechanisms +=
+//                  listOf(
+//                    ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN,
+//                    ProtocolConfig.NoiseMechanism.NONE,
+//                  )
+//                deterministicCountDistinct =
+//                  ProtocolConfig.Direct.DeterministicCountDistinct.getDefaultInstance()
+//                deterministicDistribution =
+//                  ProtocolConfig.Direct.DeterministicDistribution.getDefaultInstance()
+//              }
+//          }
+//      }
+//      dataProviderCertificate = "$DATA_PROVIDER_NAME/certificates/AAAAAAAAAcg"
+//      dataProviderPublicKey = DATA_PROVIDER_PUBLIC_KEY.pack()
+//    }
