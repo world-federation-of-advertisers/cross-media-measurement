@@ -493,7 +493,7 @@ class ResultsFulfillerAppTest {
     private const val EVENT_GROUP_REFERENCE_ID = "some-event-group-reference-id"
     private val DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd")
     private val IMPRESSION_METADATA_BLOB_KEY =
-      "ds/${FIRST_EVENT_DATE}/event-group-id/$EVENT_GROUP_REFERENCE_ID/metadata"
+      "ds/${FIRST_EVENT_DATE}/event-group-reference-id/$EVENT_GROUP_REFERENCE_ID/metadata"
 
     private val IMPRESSIONS_METADATA_FILE_URI =
       "file:///$IMPRESSIONS_METADATA_BUCKET/$IMPRESSION_METADATA_BLOB_KEY"

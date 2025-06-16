@@ -112,17 +112,6 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
-    name = "measurement_results",
-    srcs = ["MeasurementResults.kt"],
-    deps = [
-        "//imports/java/org/projectnessie/cel",
-        "@wfa_common_jvm//imports/java/com/google/protobuf",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
-    ],
-)
-
-kt_jvm_library(
     name = "requisition_specs",
     srcs = ["RequisitionSpecs.kt"],
     deps = [
