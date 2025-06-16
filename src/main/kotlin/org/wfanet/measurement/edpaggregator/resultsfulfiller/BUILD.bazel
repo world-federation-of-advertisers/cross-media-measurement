@@ -112,6 +112,16 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
+    name = "results_fulfiller_app_impl",
+    srcs = ["ResultsFulfillerAppImpl.kt"],
+    deps = [
+        ":results_fulfiller_app",
+        "//imports/java/com/google/crypto/tink/integration/gcpkms",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:test_event_kt_jvm_proto",
+    ],
+)
+
+kt_jvm_library(
     name = "requisition_specs",
     srcs = ["RequisitionSpecs.kt"],
     deps = [

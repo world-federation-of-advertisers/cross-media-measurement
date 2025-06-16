@@ -5,10 +5,9 @@ import com.google.crypto.tink.integration.gcpkms.GcpKmsClient
 import com.google.protobuf.Parser
 import com.google.protobuf.TypeRegistry
 import java.io.File
-import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
-import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt
-import org.wfanet.measurement.common.crypto.SigningKeyHandle
-import org.wfanet.measurement.common.crypto.tink.TinkPrivateKeyHandle
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
+import org.wfanet.measurement.edpaggregator.StorageConfig
+import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams.StorageParams
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
 import org.wfanet.measurement.queue.QueueSubscriber
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
@@ -23,10 +22,9 @@ class ResultsFulfillerAppImpl(
   parser: Parser<WorkItem>,
   workItemsClient: WorkItemsGrpcKt.WorkItemsCoroutineStub,
   workItemAttemptsClient: WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineStub,
-  requisitionsStub: RequisitionsGrpcKt.RequisitionsCoroutineStub,
-  dataProviderCertificateKey: DataProviderCertificateKey,
-  dataProviderSigningKeyHandle: SigningKeyHandle,
-  dataProviderPrivateEncryptionKey: TinkPrivateKeyHandle,
+  trustedCertCollection: File,
+  cmmsCertHost: String,
+  cmmsTarget: String? = null,
 ) :
   ResultsFulfillerApp(
     subscriptionId,
@@ -34,10 +32,9 @@ class ResultsFulfillerAppImpl(
     parser,
     workItemsClient,
     workItemAttemptsClient,
-    requisitionsStub,
-    dataProviderCertificateKey,
-    dataProviderSigningKeyHandle,
-    dataProviderPrivateEncryptionKey,
+    trustedCertCollection,
+    cmmsTarget,
+    cmmsCertHost
   ) {
   override fun createStorageClient(
     blobUri: String,
@@ -56,22 +53,23 @@ class ResultsFulfillerAppImpl(
     // TODO: add event production event templates
     val typeRegistry =
       TypeRegistry.newBuilder()
-        //      .add()
+        .add(TestEvent.getDescriptor())
+        .add(ResultsFulfillerParams.getDescriptor())
         .build()
     return typeRegistry
   }
 
   override fun getStorageConfig(
     configType: StorageConfigType,
-    storageDetails: ResultsFulfillerParams.StorageDetails,
+    storageParams: StorageParams,
   ): StorageConfig {
     return StorageConfig(
       projectId =
         when (configType) {
-          StorageConfigType.REQUISITION -> storageDetails.requisitionsStorageProjectId
-          StorageConfigType.IMPRESSION -> storageDetails.labeledImpressionStorageProjectId
+          StorageConfigType.REQUISITION -> storageParams.gcsProjectId
+          StorageConfigType.IMPRESSION -> storageParams.gcsProjectId
           StorageConfigType.IMPRESSION_METADATA ->
-            storageDetails.labeledImpressionMetadataStorageProjectId
+            storageParams.gcsProjectId
         }
     )
   }
