@@ -12,6 +12,7 @@ kt_jvm_library(
     name = "results_fulfiller",
     srcs = ["ResultsFulfiller.kt"],
     deps = [
+        ":continuous_gaussian_noiser_selector",
         ":event_reader",
         ":noiser_selector",
         ":requisition_specs",

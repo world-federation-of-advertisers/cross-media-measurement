@@ -46,6 +46,7 @@ import org.junit.runner.Description
 import org.junit.runners.model.Statement
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticPopulationSpec
@@ -66,6 +67,8 @@ import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.MappedEventGroup
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.eventGroup
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.mappedEventGroup
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionFetcher
+import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionGrouperByReportId
+import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionsValidator
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.ResultsFulfillerTestApp
 import org.wfanet.measurement.gcloud.pubsub.Subscriber
 import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorClient
@@ -160,6 +163,8 @@ class InProcessEdpAggregatorComponents(
         }
     )
 
+  private val throttler = MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofSeconds(1L))
+
   fun startDaemons(
     kingdomChannel: Channel,
     measurementConsumerData: MeasurementConsumerData,
@@ -192,14 +197,32 @@ class InProcessEdpAggregatorComponents(
     val subscribingStorageClient = DataWatcherSubscribingStorageClient(storageClient, "file:///")
     subscribingStorageClient.subscribe(dataWatcher)
 
-    requisitionFetcher =
+    val privateEncryptionKey =
+      loadEncryptionPrivateKey("${edpAggregatorShortName}_enc_private.tink")
+
+    requisitionFetcher = run {
+      val requisitionValidator =
+        RequisitionsValidator(
+          fatalRequisitionErrorPredicate =
+            fun(requisition: Requisition, refusal: Requisition.Refusal) {},
+          privateEncryptionKey = privateEncryptionKey,
+        )
+      val requisitionGrouper =
+        RequisitionGrouperByReportId(
+          requisitionValidator = requisitionValidator,
+          eventGroupsClient = eventGroupsClient,
+          requisitionsClient = requisitionsClient,
+          throttler = throttler,
+        )
       RequisitionFetcher(
         requisitionsClient,
         subscribingStorageClient,
         edpResourceName,
         REQUISITION_STORAGE_PREFIX,
-        10,
+        requisitionGrouper = requisitionGrouper,
+        responsePageSize = 10,
       )
+    }
     backgroundScope.launch {
       while (true) {
         requisitionFetcher.fetchAndStoreRequisitions()

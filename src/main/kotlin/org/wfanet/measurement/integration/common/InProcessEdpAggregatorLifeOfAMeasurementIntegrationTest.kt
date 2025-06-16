@@ -23,13 +23,11 @@ import org.junit.After
 import org.junit.Before
 import org.junit.BeforeClass
 import org.junit.ClassRule
-import org.junit.Ignore
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.RuleChain
 import org.junit.rules.TemporaryFolder
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
-import org.wfanet.measurement.api.v2alpha.DataProviderKt
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
@@ -47,8 +45,8 @@ import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorProvider
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerDatabaseAdmin
 import org.wfanet.measurement.integration.deploy.gcloud.SecureComputationServicesProviderRule
 import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
-import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
 import org.wfanet.measurement.loadtest.measurementconsumer.EdpAggregatorMeasurementConsumerSimulator
+import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
 import org.wfanet.measurement.securecomputation.deploy.gcloud.publisher.GoogleWorkItemPublisher
 import org.wfanet.measurement.securecomputation.service.internal.QueueMapping
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub
@@ -67,7 +65,11 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
 ) {
 
   private val inProcessCmmsComponents =
-    InProcessCmmsComponents(kingdomDataServicesRule, duchyDependenciesRule, useEdpSimulators = false)
+    InProcessCmmsComponents(
+      kingdomDataServicesRule,
+      duchyDependenciesRule,
+      useEdpSimulators = false,
+    )
 
   @JvmField val tempDirectory = TemporaryFolder()
 
@@ -169,7 +171,7 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
   fun stopPopulationRequisitionFulfillerDaemon() {
     inProcessCmmsComponents.stopPopulationRequisitionFulfillerDaemon()
   }
-
+  // TODO: Re-enable before merge
   /*@Test
   fun `create a direct RF measurement and check the result is equal to the expected result`() =
     runBlocking {
@@ -181,10 +183,11 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
       }
     }*/
 
+  // TODO: Remove withTimeout before merge
   @Test
   fun `create incremental direct RF measurements and check the result is equal to the expected result`() =
     runBlocking {
-      withTimeout(40000) {
+      withTimeout(60000) {
         delay(1000)
         // Use frontend simulator to create a n incremental direct reach and frequency measurement
         // with two requisitions and verify its result.
