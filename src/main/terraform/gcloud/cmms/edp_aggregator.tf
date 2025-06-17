@@ -99,7 +99,7 @@ locals {
       app_args = [
         "--kingdom-public-api-target=${var.kingdom_public_api_target}",
         "--secure-computation-public-api-target=${var.secure_computation_public_api_target}",
-        "--subscription-id=requisition-fulfiller-subscription",
+        "--subscription-id=results-fulfiller-subscription",
         "--google-pub-sub-project-id=${data.google_client_config.default.project}"
       ]
       machine_type                  = "n2d-standard-2"
