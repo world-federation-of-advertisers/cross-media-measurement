@@ -101,6 +101,7 @@ class RequisitionSpecsTest {
     val result =
       RequisitionSpecs.getSampledVids(
         REQUISITION_SPEC,
+        EVENT_GROUP_MAP,
         vidSamplingInterval,
         typeRegistry,
         eventReader,
@@ -143,6 +144,7 @@ class RequisitionSpecsTest {
     val result =
       RequisitionSpecs.getSampledVids(
         REQUISITION_SPEC,
+        EVENT_GROUP_MAP,
         vidSamplingInterval,
         typeRegistry,
         eventReader,
@@ -192,6 +194,7 @@ class RequisitionSpecsTest {
     val result =
       RequisitionSpecs.getSampledVids(
         REQUISITION_SPEC,
+        EVENT_GROUP_MAP,
         vidSamplingInterval,
         typeRegistry,
         eventReader,
@@ -234,6 +237,7 @@ class RequisitionSpecsTest {
       runBlocking {
         RequisitionSpecs.getSampledVids(
           REQUISITION_SPEC,
+          EVENT_GROUP_MAP,
           vidSamplingInterval,
           typeRegistry,
           eventReader,
@@ -271,5 +275,7 @@ class RequisitionSpecsTest {
         }
       nonce = Random.nextLong()
     }
+    private val EVENT_GROUP_MAP: Map<String, String> =
+      mapOf(EVENT_GROUP_NAME to "some-event-group-reference-id")
   }
 }
