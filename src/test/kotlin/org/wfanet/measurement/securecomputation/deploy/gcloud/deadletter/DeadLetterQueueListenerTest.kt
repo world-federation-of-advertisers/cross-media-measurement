@@ -217,14 +217,9 @@ class DeadLetterQueueListenerTest {
     }
 
     // Create a mock WorkItemsStub that throws an exception for error item and succeeds for success item
-    val mockWorkItemsStub = mock<WorkItemsGrpcKt.WorkItemsCoroutineStub>().apply {
-      // Configure stub to throw error for the first item
-      coEvery { failWorkItem(argThat { workItemResourceId == "error-item" }) } throws
-        RuntimeException("Simulated processing error")
-
-      // Configure stub to succeed for the second item
-      // No specific configuration needed for success case as default mock behavior is to do nothing
-    }
+    val mockWorkItemsStub = mock<WorkItemsGrpcKt.WorkItemsCoroutineStub>()
+    whenever(mockWorkItemsStub.failWorkItem(argThat { workItemResourceId == "error-item" }))
+      .thenThrow(RuntimeException("Simulated processing error"))
 
     // Create the listener
     val listener = DeadLetterQueueListener(
@@ -509,9 +504,8 @@ class DeadLetterQueueListenerTest {
     // Create a mock WorkItemsStub that throws a NOT_FOUND StatusRuntimeException
     val statusException = StatusRuntimeException(Status.NOT_FOUND.withDescription("Work item not found"))
 
-    val mockWorkItemsStub = mock<WorkItemsGrpcKt.WorkItemsCoroutineStub> {
-      coEvery { failWorkItem(any()) } throws statusException
-    }
+    val mockWorkItemsStub = mock<WorkItemsGrpcKt.WorkItemsCoroutineStub>()
+    whenever(mockWorkItemsStub.failWorkItem(any())).thenThrow(statusException)
 
     // Create the listener
     val listener = DeadLetterQueueListener(
@@ -568,9 +562,8 @@ class DeadLetterQueueListenerTest {
     )
 
     // Create a mock WorkItemsStub that throws the status exception
-    val mockWorkItemsStub = mock<WorkItemsGrpcKt.WorkItemsCoroutineStub> {
-      coEvery { failWorkItem(any()) } throws statusException
-    }
+    val mockWorkItemsStub = mock<WorkItemsGrpcKt.WorkItemsCoroutineStub>()
+    whenever(mockWorkItemsStub.failWorkItem(any())).thenThrow(statusException)
 
     // Create the listener
     val listener = DeadLetterQueueListener(
@@ -620,9 +613,8 @@ class DeadLetterQueueListenerTest {
     )
 
     // Create a mock WorkItemsStub that throws the status exception
-    val mockWorkItemsStub = mock<WorkItemsGrpcKt.WorkItemsCoroutineStub> {
-      coEvery { failWorkItem(any()) } throws statusException
-    }
+    val mockWorkItemsStub = mock<WorkItemsGrpcKt.WorkItemsCoroutineStub>()
+    whenever(mockWorkItemsStub.failWorkItem(any())).thenThrow(statusException)
 
     // Create the listener
     val listener = DeadLetterQueueListener(
@@ -668,9 +660,8 @@ class DeadLetterQueueListenerTest {
     }
 
     // Create a mock WorkItemsStub that throws a general exception
-    val mockWorkItemsStub = mock<WorkItemsGrpcKt.WorkItemsCoroutineStub> {
-      coEvery { failWorkItem(any()) } throws RuntimeException("Unexpected error")
-    }
+    val mockWorkItemsStub = mock<WorkItemsGrpcKt.WorkItemsCoroutineStub>()
+    whenever(mockWorkItemsStub.failWorkItem(any())).thenThrow(RuntimeException("Unexpected error"))
 
     // Create the listener
     val listener = DeadLetterQueueListener(
