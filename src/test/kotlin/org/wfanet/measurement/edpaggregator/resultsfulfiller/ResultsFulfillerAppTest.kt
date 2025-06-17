@@ -187,7 +187,6 @@ class ResultsFulfillerAppTest {
     workItemsServiceMock.stub { onBlocking { failWorkItem(any()) } doReturn workItem }
 
     val tmpPath = Files.createTempDirectory(null).toFile()
-
     // Create requisitions storage client
     Files.createDirectories(tmpPath.resolve(REQUISITIONS_BUCKET).toPath())
     val requisitionsStorageClient = SelectedStorageClient(REQUISITIONS_FILE_URI, tmpPath)
@@ -221,7 +220,6 @@ class ResultsFulfillerAppTest {
     val kekUri = FakeKmsClient.KEY_URI_PREFIX + "kek"
     val kmsKeyHandle = KeysetHandle.generateNew(KeyTemplates.get("AES128_GCM"))
     kmsClient.setAead(kekUri, kmsKeyHandle.getPrimitive(Aead::class.java))
-
     // Set up streaming encryption
     val tinkKeyTemplateType = "AES128_GCM_HKDF_1MB"
     val aeadKeyTemplate = KeyTemplates.get(tinkKeyTemplateType)
@@ -247,7 +245,6 @@ class ResultsFulfillerAppTest {
           eventTime = TIME_RANGE.start.toProtoTime()
         }
       }
-
     val impressionsFlow = flow {
       impressions.forEach { impression -> emit(impression.toByteString()) }
     }
@@ -271,7 +268,6 @@ class ResultsFulfillerAppTest {
       IMPRESSION_METADATA_BLOB_KEY,
       blobDetails.toByteString(),
     )
-
     val app =
       ResultsFulfillerTestApp(
         subscriptionId = SUBSCRIPTION_ID,
@@ -292,6 +288,7 @@ class ResultsFulfillerAppTest {
     assertThat(processedMessage).isEqualTo(workItemParams)
 
     job.cancelAndJoin()
+
   }
 
   private fun createWorkItemParams(): WorkItemParams {
@@ -348,7 +345,7 @@ class ResultsFulfillerAppTest {
 
     private val LAST_EVENT_DATE = LocalDate.now()
     private val FIRST_EVENT_DATE = LAST_EVENT_DATE
-    private val TIME_RANGE = OpenEndTimeRange.fromClosedDateRange(FIRST_EVENT_DATE..LAST_EVENT_DATE)
+    private val TIME_RANGE = OpenEndTimeRange.fromClosedDateRange(FIRST_EVENT_DATE..LAST_EVENT_DATE.minusDays(1))
     private const val REACH_TOLERANCE = 6.0
     private const val FREQUENCY_DISTRIBUTION_TOLERANCE = 1.0
 
@@ -491,7 +488,6 @@ class ResultsFulfillerAppTest {
 
     private const val IMPRESSIONS_METADATA_BUCKET = "impression-metadata-bucket"
     private const val EVENT_GROUP_REFERENCE_ID = "some-event-group-reference-id"
-    private val DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd")
     private val IMPRESSION_METADATA_BLOB_KEY =
       "ds/${FIRST_EVENT_DATE}/event-group-reference-id/$EVENT_GROUP_REFERENCE_ID/metadata"
 

@@ -24,6 +24,7 @@ import kotlin.streams.asSequence
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.asFlow
+import kotlinx.coroutines.flow.count
 import kotlinx.coroutines.flow.flatMapConcat
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec
@@ -69,6 +70,7 @@ object RequisitionSpecs {
       val startDate = LocalDate.ofInstant(collectionInterval.startTime.toInstant(), zoneId)
       val endDate = LocalDate.ofInstant(collectionInterval.endTime.toInstant(), zoneId)
       val dates = startDate.datesUntil(endDate.plusDays(1)).asSequence()
+
       // Iterates through all dates up to the end date in the collection interval(inclusive)
       val impressions =
         dates.asFlow().flatMapConcat { date -> eventReader.getLabeledImpressions(date, eventGroupMap.getValue(eventGroup.key)) }

@@ -58,7 +58,8 @@ object VidFilter {
           typeRegistry,
         )
       }
-      .map { labeledImpression -> labeledImpression.vid }
+      .map { labeledImpression ->
+        labeledImpression.vid }
   }
 
   /**
@@ -117,10 +118,8 @@ object VidFilter {
     val eventTemplateDescriptor = typeRegistry.getDescriptorForTypeUrl(eventMessageData.typeUrl)
     val program = compileProgram(eventTemplateDescriptor, eventFilter.expression)
     val eventMessage = DynamicMessage.parseFrom(eventTemplateDescriptor, eventMessageData.value)
-
     // Pass event message through program
     val passesFilter = EventFilters.matches(eventMessage, program)
-
     return passesFilter
   }
 

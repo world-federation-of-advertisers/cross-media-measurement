@@ -24,6 +24,7 @@ import com.google.protobuf.ByteString
 import java.nio.file.Files
 import java.time.LocalDate
 import java.time.ZoneId
+import java.util.concurrent.ExecutionException
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.toList
@@ -192,9 +193,11 @@ class EventReaderTest {
         IMPRESSIONS_DEK_FILE_URI_PREFIX,
       )
     // Get labeled impressions
-    assertFailsWith<ImpressionReadException> {
+    val exception = assertFailsWith<ExecutionException> {
       runBlocking { eventReader.getLabeledImpressions(DS, EVENT_GROUP_REFERENCE_ID).toList() }
     }
+
+    assertThat(exception.cause).isInstanceOf(ImpressionReadException::class.java)
   }
 
   companion object {

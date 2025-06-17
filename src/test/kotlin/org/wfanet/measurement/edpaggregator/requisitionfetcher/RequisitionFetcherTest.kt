@@ -22,6 +22,8 @@ import com.google.protobuf.Any
 import com.google.protobuf.ByteString
 import com.google.protobuf.ExtensionRegistry
 import com.google.protobuf.TypeRegistry
+import java.security.MessageDigest
+import java.util.*
 import java.util.concurrent.atomic.AtomicLong
 import kotlinx.coroutines.runBlocking
 import org.junit.Rule
@@ -35,26 +37,14 @@ import org.mockito.kotlin.whenever
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt
 import org.wfanet.measurement.api.v2alpha.listRequisitionsResponse
-import org.wfanet.measurement.common.IdGenerator
+import org.wfanet.measurement.api.v2alpha.requisition
 import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
 import org.wfanet.measurement.edpaggregator.v1alpha.groupedRequisitions
-
-class TestIdGenerator() : IdGenerator {
-  var next = AtomicLong(1)
-
-  override fun generateId(): Long {
-    return next.getAndIncrement()
-  }
-
-  fun reset(): Unit {
-    next = AtomicLong(1)
-  }
-
-}
+import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt.requisitionEntry
 
 @RunWith(JUnit4::class)
 class RequisitionFetcherTest {
@@ -80,11 +70,9 @@ class RequisitionFetcherTest {
       .thenReturn(listOf(GROUPED_REQUISITIONS))
 
     val storageClient = FileSystemStorageClient(tempFolder.root)
-    val idGenerator = TestIdGenerator()
-    val groupedRequisitionsId = idGenerator.next
-    val blobKey = "$STORAGE_PATH_PREFIX/${groupedRequisitionsId}"
+    val blobKey = "$STORAGE_PATH_PREFIX/${createDeterministicId(GROUPED_REQUISITIONS)}"
     val fetcher =
-      RequisitionFetcher(requisitionsStub, storageClient, DATA_PROVIDER_NAME, STORAGE_PATH_PREFIX, requisitionGrouper, idGenerator)
+      RequisitionFetcher(requisitionsStub, storageClient, DATA_PROVIDER_NAME, STORAGE_PATH_PREFIX, requisitionGrouper, ::createDeterministicId)
     val typeRegistry = TypeRegistry.newBuilder().add(Requisition.getDescriptor()).build()
 
       fetcher.fetchAndStoreRequisitions()
@@ -107,7 +95,6 @@ class RequisitionFetcherTest {
         .thenReturn(groupedRequisitionsList)
 
       val storageClient = FileSystemStorageClient(tempFolder.root)
-      val idGenerator = TestIdGenerator()
       val fetcher =
         RequisitionFetcher(
           requisitionsStub,
@@ -115,14 +102,14 @@ class RequisitionFetcherTest {
           DATA_PROVIDER_NAME,
           STORAGE_PATH_PREFIX,
           requisitionGrouper,
-          idGenerator
+          ::createDeterministicId
         )
 
       val expectedResult = groupedRequisitionsList.map { Any.pack(it) }
       fetcher.fetchAndStoreRequisitions()
-      idGenerator.reset()
       expectedResult.map {
-        assertThat(storageClient.getBlob("$STORAGE_PATH_PREFIX/${idGenerator.next}")).isNotNull()
+        assertThat(storageClient.getBlob("$STORAGE_PATH_PREFIX/${createDeterministicId(
+          GROUPED_REQUISITIONS)}")).isNotNull()
       }
     }
   }
@@ -130,8 +117,23 @@ class RequisitionFetcherTest {
   companion object {
     private const val STORAGE_PATH_PREFIX = "test-requisitions"
     private const val DATA_PROVIDER_NAME = "dataProviders/AAAAAAAAAHs"
+    private val REQUISITION = requisition {
+      name = "requisition-name"
+    }
     private val GROUPED_REQUISITIONS =
       groupedRequisitions {
+        requisitions.add(
+          requisitionEntry {
+            requisition = Any.pack(
+              REQUISITION
+            )
+          }
+        )
       }
+
+    fun createDeterministicId(groupedRequisition: GroupedRequisitions): String {
+      return "hash_value"
+    }
+
   }
 }

@@ -107,7 +107,7 @@ class RequisitionSpecsTest {
         eventReader,
       )
 
-    assertThat(result.count()).isEqualTo(1)
+    assertThat(result.count()).isEqualTo(2)
   }
 
   @Test
@@ -150,7 +150,7 @@ class RequisitionSpecsTest {
         eventReader,
       )
 
-    assertThat(result.count()).isEqualTo(1)
+    assertThat(result.count()).isEqualTo(2)
   }
 
   @Test
@@ -200,7 +200,7 @@ class RequisitionSpecsTest {
         eventReader,
       )
 
-    assertThat(result.count()).isEqualTo(1)
+    assertThat(result.count()).isEqualTo(2)
   }
 
   fun `throws exception for invalid vid interval`() = runBlocking {

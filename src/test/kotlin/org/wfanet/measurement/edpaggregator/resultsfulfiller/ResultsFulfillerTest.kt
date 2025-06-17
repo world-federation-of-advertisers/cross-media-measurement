@@ -107,6 +107,8 @@ import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
 import org.wfanet.measurement.edpaggregator.v1alpha.copy
+import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
+import org.wfanet.measurement.edpaggregator.v1alpha.groupedRequisitions
 import org.wfanet.measurement.integration.common.loadEncryptionPrivateKey
 import org.wfanet.measurement.loadtest.config.VidSampling
 import org.wfanet.measurement.storage.MesosRecordIoStorageClient
@@ -124,7 +126,7 @@ class ResultsFulfillerTest {
           val request = invocation.getArgument<GetEventGroupRequest>(0)
           eventGroup {
             name = request.name
-            eventGroupReferenceId = "some-event-group-reference-id"
+            eventGroupReferenceId = EVENT_GROUP_REFERENCE_ID
           }
         }
     }
@@ -218,14 +220,12 @@ class ResultsFulfillerTest {
     // Create the impressions metadata store
     val metadataTmpPath = Files.createTempDirectory(null).toFile()
     Files.createDirectories(metadataTmpPath.resolve(IMPRESSIONS_METADATA_BUCKET).toPath())
-
-    val dates =
-      generateSequence(FIRST_EVENT_DATE) { date ->
-        if (date < LAST_EVENT_DATE) date.plusDays(1) else null
-      }
+    val dates: List<LocalDate> = generateSequence(FIRST_EVENT_DATE) { date ->
+      if (date < LAST_EVENT_DATE.plusDays(1)) date.plusDays(1) else null
+    }.toList()
 
     for (date in dates) {
-      val impressionMetadataBlobKey = "ds/$date/event-group-id/$EVENT_GROUP_NAME/metadata"
+      val impressionMetadataBlobKey = "ds/$date/event-group-reference-id/$EVENT_GROUP_REFERENCE_ID/metadata"
       val impressionsMetadataFileUri =
         "file:///$IMPRESSIONS_METADATA_BUCKET/$impressionMetadataBlobKey"
 
@@ -364,7 +364,7 @@ class ResultsFulfillerTest {
 
   companion object {
     private val RANDOM = SecureRandom.getInstance("SHA1PRNG")
-    private val LAST_EVENT_DATE = LocalDate.now(ZoneId.of("America/New_York")).minusDays(1)
+    private val LAST_EVENT_DATE = LocalDate.now(ZoneId.of("America/New_York"))
     private val FIRST_EVENT_DATE = LAST_EVENT_DATE.minusDays(1)
     private val TIME_RANGE = OpenEndTimeRange.fromClosedDateRange(FIRST_EVENT_DATE..LAST_EVENT_DATE)
     private const val REACH_TOLERANCE = 1.0
@@ -388,6 +388,7 @@ class ResultsFulfillerTest {
     private const val EDP_ID = "someDataProvider"
     private const val EDP_NAME = "dataProviders/$EDP_ID"
     private const val EVENT_GROUP_NAME = "$EDP_NAME/eventGroups/name"
+    private const val EVENT_GROUP_REFERENCE_ID = "some-event-group-reference-id"
     private const val EDP_DISPLAY_NAME = "edp1"
     private val PRIVATE_ENCRYPTION_KEY =
       loadEncryptionPrivateKey("${EDP_DISPLAY_NAME}_enc_private.tink")
