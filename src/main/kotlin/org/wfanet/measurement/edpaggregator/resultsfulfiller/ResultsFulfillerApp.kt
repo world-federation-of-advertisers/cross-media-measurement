@@ -157,7 +157,7 @@ abstract class ResultsFulfillerApp(
         requisitionsStorageConfig = requisitionsStorageConfig,
         random = SecureRandom(),
         zoneId = ZoneOffset.UTC,
-        noiserSelector = NoNoiserSelector(),
+        noiserSelector = ContinuousGaussianNoiseSelector(),
         eventReader = eventReader,
       )
       .fulfillRequisitions()

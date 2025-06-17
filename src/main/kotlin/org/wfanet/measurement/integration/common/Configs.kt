@@ -263,7 +263,7 @@ fun getDataWatcherResultFulfillerParamsConfig(
     .map { (edpName, params) ->
       listOf(
         watchedPath {
-          sourcePathRegex = "$blobPrefix$edpName/(.*)"
+          sourcePathRegex = "$blobPrefix(.*)"
           this.controlPlaneQueueSink =
             WatchedPathKt.controlPlaneQueueSink {
               queue = FULFILLER_TOPIC_ID

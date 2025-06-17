@@ -108,7 +108,6 @@ class RequisitionFetcher(
     groupedRequisitions.forEach { groupedRequisition: GroupedRequisitions ->
       val groupedRequisitionId = idGenerator(groupedRequisition)
       val blobKey = "$storagePathPrefix/${groupedRequisitionId}"
-
       // TODO(@marcopremier): Add mechanism to check whether requisitions inside grouped requisitions where stored already.
       if (groupedRequisition.requisitionsList.isNotEmpty() && storageClient.getBlob(blobKey) == null) {
         storageClient.writeBlob(blobKey, Any.pack(groupedRequisition).toByteString())
