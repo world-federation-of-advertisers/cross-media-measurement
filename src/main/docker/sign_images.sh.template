@@ -15,5 +15,7 @@ chmod +x cosign
 # sign images
 for image_ref in $(cat {{images_file}}); do
   echo "Signing image: ${image_ref}"
-  ./cosign sign --tlog-upload=false --key gcpkms://${kms_key} ${image_ref}
+  # expects single-arch image
+  docker manifest inspect --verbose ${image_ref} | jq -r .Descriptor.digest
+  #./cosign sign --tlog-upload=false --key gcpkms://${kms_key} ${image_ref}
 done
