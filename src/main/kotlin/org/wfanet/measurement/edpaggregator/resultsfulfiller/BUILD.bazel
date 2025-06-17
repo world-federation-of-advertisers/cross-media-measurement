@@ -98,7 +98,6 @@ kt_jvm_library(
     deps = [
         ":no_noiser_selector",
         ":results_fulfiller",
-        "//src/main/kotlin/org/wfanet/measurement/common/identity:principal_identity",
         "//src/main/kotlin/org/wfanet/measurement/securecomputation/controlplane/v1alpha:work_item_attempts_service",
         "//src/main/kotlin/org/wfanet/measurement/securecomputation/controlplane/v1alpha:work_items_service",
         "//src/main/kotlin/org/wfanet/measurement/securecomputation/teesdk:base_tee_application",

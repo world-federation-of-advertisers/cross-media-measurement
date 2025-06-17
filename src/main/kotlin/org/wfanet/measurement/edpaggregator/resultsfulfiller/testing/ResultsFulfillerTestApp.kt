@@ -1,13 +1,16 @@
-package org.wfanet.measurement.edpaggregator.resultsfulfiller
+package org.wfanet.measurement.edpaggregator.resultsfulfiller.testing
 
-import com.google.crypto.tink.KmsClient
 import com.google.protobuf.Parser
 import com.google.protobuf.TypeRegistry
 import io.grpc.Channel
 import java.io.File
+import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.common.crypto.tink.testing.FakeKmsClient
+import org.wfanet.measurement.common.identity.withPrincipalName
 import org.wfanet.measurement.edpaggregator.StorageConfig
+import org.wfanet.measurement.edpaggregator.resultsfulfiller.ResultsFulfillerApp
+import org.wfanet.measurement.edpaggregator.resultsfulfiller.StorageConfigType
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
 import org.wfanet.measurement.queue.QueueSubscriber
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
@@ -24,7 +27,8 @@ class ResultsFulfillerTestApp(
   workItemAttemptsClient: WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineStub,
   cmmsChannel: Channel,
   private val fileSystemRootDirectory: File,
-  private val kmsClient: FakeKmsClient,
+  override val kmsClient: FakeKmsClient,
+  private val principalName: String,
 ) :
   ResultsFulfillerApp(
     subscriptionId,
@@ -32,7 +36,8 @@ class ResultsFulfillerTestApp(
     parser,
     workItemsClient,
     workItemAttemptsClient,
-    cmmsChannel = cmmsChannel,
+    overrideRequisitionsStub =
+      RequisitionsCoroutineStub(cmmsChannel).withPrincipalName(principalName),
   ) {
   override fun createStorageClient(
     blobUri: String,
@@ -42,13 +47,8 @@ class ResultsFulfillerTestApp(
     return SelectedStorageClient(blobUri, rootDirectory, projectId)
   }
 
-  override fun getKmsClient(): KmsClient {
-    return kmsClient
-  }
-
-  override fun getTypeRegistry(): TypeRegistry {
-    return TypeRegistry.newBuilder().add(TestEvent.getDescriptor()).build()
-  }
+  override val typeRegistry: TypeRegistry
+    get() = TypeRegistry.newBuilder().add(TestEvent.getDescriptor()).build()
 
   override fun getStorageConfig(
     configType: StorageConfigType,
