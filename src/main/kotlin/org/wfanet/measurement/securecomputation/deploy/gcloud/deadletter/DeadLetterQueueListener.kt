@@ -29,8 +29,6 @@ import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItemsG
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 import org.wfanet.measurement.internal.securecomputation.controlplane.failWorkItemRequest
 import org.wfanet.measurement.securecomputation.service.Errors
-import org.wfanet.measurement.securecomputation.service.WorkItemKey
-import org.wfanet.measurement.securecomputation.service.internal.WorkItemNotFoundException
 
 /**
  * Service that listens to a dead letter queue and marks failed work items as FAILED in the database.
@@ -42,7 +40,7 @@ import org.wfanet.measurement.securecomputation.service.internal.WorkItemNotFoun
  * @param subscriptionId The subscription ID for the dead letter queue.
  * @param queueSubscriber A client that manages connections and interactions with the queue.
  * @param parser Parser used to parse serialized queue messages into WorkItem instances.
- * @param failWorkItemFunction Function to call to fail a work item.
+ * @param workItemsStub gRPC stub for calling the WorkItems service to fail work items.
  */
 class DeadLetterQueueListener(
   private val subscriptionId: String,
@@ -78,8 +76,11 @@ class DeadLetterQueueListener(
   }
 
   /**
-   * Processes each message received from the dead letter queue by extracting the work item ID
-   * and calling the WorkItems API to mark it as failed.
+   * Processes a message from the dead letter queue by calling the WorkItems API to mark it as failed.
+   *
+   * Messages with empty work item names are acknowledged and skipped. If the work item is already
+   * in a FAILED state or not found, the message is acknowledged. Other errors result in the message
+   * being nacked for retry.
    *
    * @param queueMessage The message received from the dead letter queue.
    */
@@ -95,16 +96,18 @@ class DeadLetterQueueListener(
     logger.info("Processing dead letter message for work item: ${workItem.name}")
 
     try {
-      markWorkItemAsFailed(workItem.name)
-      logger.info("Successfully marked work item as failed: $workItem.name")
+      workItemsStub.failWorkItem(
+        failWorkItemRequest { workItemResourceId = workItem.name }
+      )
+      logger.info("Successfully marked work item as failed: ${workItem.name}")
       queueMessage.ack()
     } catch (e: Exception) {
       when (e) {
-        is WorkItemNotFoundException -> {
-          logger.warning("Work item not found: ${workItem.name}. Acknowledging message.")
-          queueMessage.ack()
-        }
         is StatusRuntimeException -> {
+          if (e.status.code == Status.Code.NOT_FOUND) {
+            logger.warning("Work item not found: ${workItem.name}. Acknowledging message.")
+            queueMessage.ack()
+          }
           if (isAlreadyFailedError(e)) {
             logger.info("Work item ${workItem.name} is already in FAILED state. Acknowledging message.")
             queueMessage.ack()
@@ -121,46 +124,22 @@ class DeadLetterQueueListener(
     }
   }
 
-  /**
-   * Calls the failWorkItemFunction to mark a work item as failed.
-   *
-   * @param workItemId The ID of the work item to mark as failed.
-   * @throws StatusRuntimeException If the operation fails.
-   * @throws WorkItemNotFoundException If the work item does not exist.
-   */
-  private suspend fun markWorkItemAsFailed(workItemId: String) {
-    val resourceId = WorkItemKey.fromName(workItemId)?.workItemId ?: workItemId
-
-    try {
-      workItemsStub.failWorkItem(
-        failWorkItemRequest { name = "workItems/${workItemId}" }
-      )
-    } catch (e: StatusRuntimeException) {
-      when {
-        e.status.code == Status.Code.NOT_FOUND -> {
-          throw WorkItemNotFoundException(workItemId, e)
-        }
-        else -> throw e
-      }
-    }
-  }
-
-  /**
-   * Checks if a StatusRuntimeException indicates that the work item is already in a FAILED state.
-   */
-  private fun isAlreadyFailedError(e: StatusRuntimeException): Boolean {
-    // Check if this is a failed precondition error due to the item already being in FAILED state
-    return e.status.code == Status.Code.FAILED_PRECONDITION &&
-        e.errorInfo?.reason == Errors.Reason.INVALID_WORK_ITEM_STATE.name &&
-        e.errorInfo?.metadataMap?.get(Errors.Metadata.WORK_ITEM_STATE.key) ==
-        WorkItem.State.FAILED.name
-  }
-
   override fun close() {
     queueSubscriber.close()
   }
 
   companion object {
     private val logger = Logger.getLogger(DeadLetterQueueListener::class.java.name)
+    
+    /**
+     * Checks if a StatusRuntimeException indicates that the work item is already in a FAILED state.
+     */
+    fun isAlreadyFailedError(e: StatusRuntimeException): Boolean {
+      // Check if this is a failed precondition error due to the item already being in FAILED state
+      return e.status.code == Status.Code.FAILED_PRECONDITION &&
+          e.errorInfo?.reason == Errors.Reason.INVALID_WORK_ITEM_STATE.name &&
+          e.errorInfo?.metadataMap?.get(Errors.Metadata.WORK_ITEM_STATE.key) ==
+          WorkItem.State.FAILED.name
+    }
   }
 }
