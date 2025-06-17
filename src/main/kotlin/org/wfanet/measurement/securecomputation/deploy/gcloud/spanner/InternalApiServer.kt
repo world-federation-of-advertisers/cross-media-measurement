@@ -36,6 +36,21 @@ import org.wfanet.measurement.securecomputation.deploy.gcloud.publisher.GoogleWo
 import org.wfanet.measurement.securecomputation.service.internal.QueueMapping
 import picocli.CommandLine
 
+/**
+ * Internal API Server for the Secure Computation system.
+ *
+ * This server provides gRPC services for managing work items and optionally runs a Dead Letter
+ * Queue (DLQ) listener in parallel. The DLQ listener monitors failed messages and marks the
+ * corresponding work items as failed in the database.
+ *
+ * ## Lifecycle:
+ *
+ * 1. Server initialization reads configuration and sets up dependencies
+ * 2. Main gRPC server starts in an async coroutine
+ * 3. If configured, DLQ listener starts in a separate async coroutine
+ * 4. Both components run until shutdown is requested
+ * 5. Graceful shutdown ensures both components clean up properly
+ */
 @CommandLine.Command(name = InternalApiServer.SERVER_NAME)
 class InternalApiServer : Runnable {
   @CommandLine.Mixin private lateinit var serverFlags: CommonServer.Flags
@@ -71,21 +86,25 @@ class InternalApiServer : Runnable {
         val databaseClient: AsyncDatabaseClient = spanner.databaseClient
         val googlePubSubClient = DefaultGooglePubSubClient()
         val workItemPublisher = GoogleWorkItemPublisher(googleProjectId, googlePubSubClient)
-        
+
         val internalApiServices = InternalApiServices(workItemPublisher, databaseClient, queueMapping)
-        val services: List<BindableService> = internalApiServices.build().toList()
-        val server = CommonServer.fromFlags(serverFlags, SERVER_NAME, services)
+        val services = internalApiServices.build()
+        val servicesList: List<BindableService> = services.toList()
+        val server = CommonServer.fromFlags(serverFlags, SERVER_NAME, servicesList)
 
         val serverJob = async { server.start().blockUntilShutdown() }
-        
+
         val deadLetterListenerJob = deadLetterSubscriptionId?.let { subscriptionId ->
           val subscriber = Subscriber(googleProjectId, googlePubSubClient)
-          val deadLetterListener = internalApiServices.createDeadLetterQueueListener(
+          // Get the SpannerWorkItemsService instance from the services
+          val spannerWorkItemsService = services.workItems as SpannerWorkItemsService
+          val deadLetterListener = DeadLetterQueueListenerWithServer.create(
+            spannerWorkItemsService = spannerWorkItemsService,
             subscriptionId = subscriptionId,
             queueSubscriber = subscriber,
             parser = WorkItem.parser()
           )
-          async { 
+          async {
             deadLetterListener.use { listener ->
               listener.run()
             }
