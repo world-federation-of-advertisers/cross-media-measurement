@@ -16,6 +16,9 @@ name: Build and push container images
 
 on:
   workflow_call:
+    push:
+      branches:
+        - marcopremier/push_tee_app_to_gh_registry_2
     inputs:
       image-tag:
         description: "Tag of container images"
