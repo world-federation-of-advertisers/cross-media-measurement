@@ -17,6 +17,7 @@
 package org.wfanet.measurement.securecomputation.deploy.gcloud.deadletter
 
 import com.google.protobuf.Parser
+import io.grpc.ManagedChannel
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import java.util.logging.Level
@@ -24,8 +25,9 @@ import java.util.logging.Logger
 import kotlinx.coroutines.channels.ReceiveChannel
 import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.queue.QueueSubscriber
-import org.wfanet.measurement.internal.securecomputation.controlplane.FailWorkItemRequest
+import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItemsGrpcKt
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
+import org.wfanet.measurement.internal.securecomputation.controlplane.failWorkItemRequest
 import org.wfanet.measurement.securecomputation.service.Errors
 import org.wfanet.measurement.securecomputation.service.WorkItemKey
 import org.wfanet.measurement.securecomputation.service.internal.WorkItemNotFoundException
@@ -46,7 +48,7 @@ class DeadLetterQueueListener(
   private val subscriptionId: String,
   private val queueSubscriber: QueueSubscriber,
   private val parser: Parser<WorkItem>,
-  private val failWorkItemFunction: suspend (FailWorkItemRequest) -> Unit
+  private val workItemsStub: WorkItemsGrpcKt.WorkItemsCoroutineStub
 ) : AutoCloseable {
 
   /** Starts the listener by subscribing to the dead letter queue. */
@@ -130,10 +132,8 @@ class DeadLetterQueueListener(
     val resourceId = WorkItemKey.fromName(workItemId)?.workItemId ?: workItemId
 
     try {
-      failWorkItemFunction(
-        FailWorkItemRequest.newBuilder()
-          .setWorkItemResourceId(resourceId)
-          .build()
+      workItemsStub.failWorkItem(
+        failWorkItemRequest { name = "workItems/${workItemId}" }
       )
     } catch (e: StatusRuntimeException) {
       when {

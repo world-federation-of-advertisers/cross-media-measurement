@@ -16,13 +16,8 @@
 
 package org.wfanet.measurement.securecomputation.controlplane.v1alpha
 
-import com.google.protobuf.Parser
 import io.grpc.BindableService
 import io.grpc.Channel
-import org.wfanet.measurement.queue.QueueSubscriber
-import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
-import org.wfanet.measurement.securecomputation.deploy.gcloud.deadletter.DeadLetterQueueListener
-import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.SpannerWorkItemsService
 import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItemAttemptsGrpcKt as InternalWorkItemAttemptsGrpcKt
 import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItemsGrpcKt as InternalWorkItemsGrpcKt
 

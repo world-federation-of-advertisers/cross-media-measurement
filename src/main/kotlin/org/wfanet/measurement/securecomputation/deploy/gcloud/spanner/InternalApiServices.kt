@@ -17,9 +17,15 @@
 package org.wfanet.measurement.securecomputation.deploy.gcloud.spanner
 
 import com.google.protobuf.Parser
+import io.grpc.ManagedChannel
+import io.grpc.Server
+import io.grpc.inprocess.InProcessChannelBuilder
+import io.grpc.inprocess.InProcessServerBuilder
+import java.util.concurrent.TimeUnit
 import org.wfanet.measurement.common.IdGenerator
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.internal.securecomputation.controlplane.FailWorkItemRequest
+import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItemsGrpcKt
 import org.wfanet.measurement.queue.QueueSubscriber
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 import org.wfanet.measurement.securecomputation.deploy.gcloud.deadletter.DeadLetterQueueListener
@@ -44,13 +50,55 @@ class InternalApiServices(
     subscriptionId: String,
     queueSubscriber: QueueSubscriber,
     parser: Parser<WorkItem> = WorkItem.parser()
-  ): DeadLetterQueueListener {
+  ): DeadLetterQueueListenerWithServer {
     val spannerWorkItemsService = SpannerWorkItemsService(databaseClient, queueMapping, idGenerator, workItemPublisher)
-    return DeadLetterQueueListener(
+    val serviceName = InProcessServerBuilder.generateName()
+    val spannerWorkItemsServer = InProcessServerBuilder.forName(serviceName)
+      .directExecutor()
+      .addService(spannerWorkItemsService)
+      .build()
+      .start()
+    val channel = InProcessChannelBuilder.forName(serviceName)
+      .directExecutor()
+      .build()
+    val deadLetterQueueListener = DeadLetterQueueListener(
       subscriptionId = subscriptionId,
       queueSubscriber = queueSubscriber,
       parser = parser,
-      failWorkItemFunction = spannerWorkItemsService::failWorkItem
+      workItemsStub = WorkItemsGrpcKt.WorkItemsCoroutineStub(channel)
     )
+    return DeadLetterQueueListenerWithServer(
+      deadLetterQueueListener = deadLetterQueueListener,
+      server = spannerWorkItemsServer,
+      channel = channel
+    )
+  }
+
+  class DeadLetterQueueListenerWithServer(
+    private val deadLetterQueueListener: DeadLetterQueueListener,
+    private val server: Server,
+    private val channel: ManagedChannel
+  ) : AutoCloseable {
+    suspend fun run() {
+      deadLetterQueueListener.run()
+    }
+
+    override fun close() {
+      deadLetterQueueListener.close()
+      channel.shutdown()
+      server.shutdown()
+      try {
+        if (!channel.awaitTermination(5, TimeUnit.SECONDS)) {
+          channel.shutdownNow()
+        }
+        if (!server.awaitTermination(5, TimeUnit.SECONDS)) {
+          server.shutdownNow()
+        }
+      } catch (e: InterruptedException) {
+        channel.shutdownNow()
+        server.shutdownNow()
+        Thread.currentThread().interrupt()
+      }
+    }
   }
 }
