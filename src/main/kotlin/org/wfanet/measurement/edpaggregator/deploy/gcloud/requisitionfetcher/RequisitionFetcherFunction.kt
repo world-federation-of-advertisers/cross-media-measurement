@@ -21,9 +21,15 @@ import com.google.cloud.functions.HttpRequest
 import com.google.cloud.functions.HttpResponse
 import com.google.cloud.storage.StorageOptions
 import java.io.File
+import java.security.MessageDigest
 import java.time.Clock
 import java.time.Duration
+import java.util.logging.Level
 import java.util.logging.Logger
+import java.util.Base64
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.Requisition
@@ -44,6 +50,7 @@ import org.wfanet.measurement.common.crypto.tink.loadPrivateKey
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionsValidator
+import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
 
 /**
  * A Google Cloud Function that fetches and stores requisitions for each configured data provider.
@@ -67,6 +74,7 @@ class RequisitionFetcherFunction : HttpFunction {
 
   override fun service(request: HttpRequest, response: HttpResponse) {
 
+    val errors = mutableListOf<String>()
     for (dataProviderConfig in requisitionFetcherConfig.configsList) {
 
       try {
@@ -74,10 +82,23 @@ class RequisitionFetcherFunction : HttpFunction {
         val requisitionFetcher = createRequisitionFetcher(dataProviderConfig)
         runBlocking { requisitionFetcher.fetchAndStoreRequisitions() }
       } catch (e: IllegalArgumentException) {
-        logger.severe("Invalid config for data provider: ${dataProviderConfig.dataProvider}. Reason: ${e.message}")
+        val errorMsg = "Invalid config for data provider: ${dataProviderConfig.dataProvider}"
+        errors.add(errorMsg)
+        logger.log(Level.SEVERE, errorMsg, e)
       } catch (e: Exception) {
-        logger.severe("Failed to fetch and store requisitions for ${dataProviderConfig.dataProvider} Reason: ${e.message}")
+        val errorMsg = "Failed to fetch and store requisitions for ${dataProviderConfig.dataProvider}"
+        errors.add(errorMsg)
+        logger.log(Level.SEVERE, errorMsg, e)
       }
+
+      if (errors.isNotEmpty()) {
+        response.setStatusCode(500)
+        response.writer.write("Completed with errors:\n" + errors.joinToString("\n"))
+      } else {
+        response.setStatusCode(200)
+        response.writer.write("All requisitions fetched successfully")
+      }
+
     }
   }
 
@@ -99,20 +120,9 @@ class RequisitionFetcherFunction : HttpFunction {
     val requisitionsValidator = RequisitionsValidator(
       loadPrivateKey(edpPrivateKey),
     ) { requisition, refusal ->
-      try {
-        runBlocking {
-          logger.info("Refusing ${requisition.name}: $refusal")
-          requisitionsStub.refuseRequisition(
-            refuseRequisitionRequest {
-              name = requisition.name
-              this.refusal = refusal {
-                justification = refusal.justification
-              }
-            }
-          )
-        }
-      } catch (e: Exception) {
-        logger.severe("Error while refusing requisition ${requisition.name}: $e")
+      refusalCoroutineScope.launch {
+        logger.info("Refusing ${requisition.name}: $refusal")
+        refuseRequisition(requisitionsStub, requisition, refusal)
       }
     }
 
@@ -129,6 +139,7 @@ class RequisitionFetcherFunction : HttpFunction {
       dataProviderName = dataProviderConfig.dataProvider,
       storagePathPrefix = dataProviderConfig.storagePathPrefix,
       requisitionGrouper = requisitionGrouper,
+      idGenerator = ::createDeterministicId,
       responsePageSize = pageSize,
     )
   }
@@ -139,8 +150,8 @@ class RequisitionFetcherFunction : HttpFunction {
    * @param dataProviderConfig The configuration object for a `DataProvider`.
    * @return A [StorageClient] instance, either for local file system access or GCS access.
    */
+  // @TODO(@marcopremier): This function may share the logic of `ResultsFulfillerAppImpl.createStorageClient` method.
   private fun createStorageClient(dataProviderConfig: DataProviderRequisitionConfig): StorageClient {
-    val fileSystemPath = System.getenv("REQUISITION_FILE_SYSTEM_PATH")
     return if (!fileSystemPath.isNullOrEmpty()) {
       FileSystemStorageClient(File(EnvVars.checkIsPath("REQUISITION_FILE_SYSTEM_PATH")))
     } else {
@@ -159,74 +170,16 @@ class RequisitionFetcherFunction : HttpFunction {
     }
   }
 
-  /**
-   * Loads [SigningCerts] from PEM-encoded certificate, private key, and trusted certificate collection files
-   * specified in the given [dataProviderConfig].
-   *
-   * @param dataProviderConfig The configuration object.
-   * @return A [SigningCerts] instance loaded from the specified PEM files.
-   * @throws IllegalStateException if any of the required file paths are missing in the configuration.
-   */
-  private fun loadSigningCerts(dataProviderConfig: DataProviderRequisitionConfig): SigningCerts {
-    val cmms = dataProviderConfig.cmmsConnection
-    return SigningCerts.fromPemFiles(
-      certificateFile = checkNotNull(File(cmms.certFilePath)),
-      privateKeyFile = checkNotNull(File(cmms.privateKeyFilePath)),
-      trustedCertCollectionFile = checkNotNull(File(cmms.certCollectionFilePath)),
-    )
-  }
-
-  fun validateConfig(dataProviderConfig: DataProviderRequisitionConfig) {
-    require(dataProviderConfig.dataProvider.isNotBlank()) {
-      "Missing 'data_provider' in config."
-    }
-
-    require(dataProviderConfig.hasRequisitionStorage()) {
-      "Missing 'requisition_storage' in config for data provider: ${dataProviderConfig.dataProvider}."
-    }
-
-    require(
-      dataProviderConfig.requisitionStorage.hasGcs() || dataProviderConfig.requisitionStorage.hasFileSystem()
-    ) {
-      "Invalid 'requisition_storage': must specify either GCS or FileSystem storage for data provider: ${dataProviderConfig.dataProvider}."
-    }
-
-    require(dataProviderConfig.storagePathPrefix.isNotBlank()) {
-      "Missing 'storage_path_prefix' for data provider: ${dataProviderConfig.dataProvider}."
-    }
-
-    require(dataProviderConfig.edpPrivateKeyPath.isNotBlank()) {
-      "Missing 'edp_private_key_path' for data provider: ${dataProviderConfig.dataProvider}."
-    }
-
-    require(dataProviderConfig.hasCmmsConnection()) {
-      "Missing 'cmms_connection' for data provider: ${dataProviderConfig.dataProvider}."
-    }
-
-    val tls = dataProviderConfig.cmmsConnection
-    require(tls.certFilePath.isNotBlank()) {
-      "Missing 'cert_file_path' in cmms_connection for data provider: ${dataProviderConfig.dataProvider}."
-    }
-    require(tls.privateKeyFilePath.isNotBlank()) {
-      "Missing 'private_key_file_path' in cmms_connection for data provider: ${dataProviderConfig.dataProvider}."
-    }
-    require(tls.certCollectionFilePath.isNotBlank()) {
-      "Missing 'cert_collection_file_path' in cmms_connection for data provider: ${dataProviderConfig.dataProvider}."
-    }
-  }
-
-  private fun refuseRequisition(requisitionsStub: RequisitionsCoroutineStub, requisition: Requisition, refusal: Requisition.Refusal) {
+  private suspend fun refuseRequisition(requisitionsStub: RequisitionsCoroutineStub, requisition: Requisition, refusal: Requisition.Refusal) {
     try {
-      runBlocking {
-        logger.info("Requisition ${requisition.name} was refused. $refusal")
-        val request = refuseRequisitionRequest {
-          this.name = requisition.name
-          this.refusal = refusal { justification = refusal.justification }
-        }
-        requisitionsStub.refuseRequisition(request)
+      logger.info("Requisition ${requisition.name} was refused. $refusal")
+      val request = refuseRequisitionRequest {
+        this.name = requisition.name
+        this.refusal = refusal { justification = refusal.justification }
       }
+      requisitionsStub.refuseRequisition(request)
     } catch (e: Exception) {
-      logger.severe("Error while refusing requisition ${requisition.name}: $e")
+      logger.log(Level.SEVERE,"Error while refusing requisition ${requisition.name}", e)
     }
   }
 
@@ -234,6 +187,7 @@ class RequisitionFetcherFunction : HttpFunction {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
     private val kingdomTarget = EnvVars.checkNotNullOrEmpty("KINGDOM_TARGET")
     private val kingdomCertHost: String? = System.getenv("KINGDOM_CERT_HOST")
+    private val fileSystemPath: String? = System.getenv("REQUISITION_FILE_SYSTEM_PATH")
     private val grpcThrottler = EnvVars.checkNotNullOrEmpty("GRPC_THROTTLER").toLongOrNull()
       ?: error("Invalid GRPC_THROTTLER value: must be a number (milliseconds)")
 
@@ -251,5 +205,75 @@ class RequisitionFetcherFunction : HttpFunction {
     private val requisitionFetcherConfig by lazy {
       runBlocking { getConfig(CONFIG_BLOB_KEY, RequisitionFetcherConfig.getDefaultInstance()) }
     }
+
+    private val refusalCoroutineScope = CoroutineScope(Dispatchers.IO)
+
+    fun createDeterministicId(groupedRequisition: GroupedRequisitions): String {
+      val requisitionNames = groupedRequisition.requisitionsList.mapNotNull { entry ->
+        val requisition = entry.requisition.unpack(Requisition::class.java)
+        requisition.name
+      }.sorted()
+
+      val concatenated = requisitionNames.joinToString(separator = "|")
+      val digest = MessageDigest.getInstance("SHA-256").digest(concatenated.toByteArray())
+      return Base64.getUrlEncoder().withoutPadding().encodeToString(digest)
+    }
+
+    /**
+     * Loads [SigningCerts] from PEM-encoded certificate, private key, and trusted certificate collection files
+     * specified in the given [dataProviderConfig].
+     *
+     * @param dataProviderConfig The configuration object.
+     * @return A [SigningCerts] instance loaded from the specified PEM files.
+     * @throws IllegalStateException if any of the required file paths are missing in the configuration.
+     */
+    private fun loadSigningCerts(dataProviderConfig: DataProviderRequisitionConfig): SigningCerts {
+      val cmms = dataProviderConfig.cmmsConnection
+      return SigningCerts.fromPemFiles(
+        certificateFile = checkNotNull(File(cmms.certFilePath)),
+        privateKeyFile = checkNotNull(File(cmms.privateKeyFilePath)),
+        trustedCertCollectionFile = checkNotNull(File(cmms.certCollectionFilePath)),
+      )
+    }
+
+    fun validateConfig(dataProviderConfig: DataProviderRequisitionConfig) {
+      require(dataProviderConfig.dataProvider.isNotBlank()) {
+        "Missing 'data_provider' in config."
+      }
+
+      require(dataProviderConfig.hasRequisitionStorage()) {
+        "Missing 'requisition_storage' in config for data provider: ${dataProviderConfig.dataProvider}."
+      }
+
+      require(
+        dataProviderConfig.requisitionStorage.hasGcs() || dataProviderConfig.requisitionStorage.hasFileSystem()
+      ) {
+        "Invalid 'requisition_storage': must specify either GCS or FileSystem storage for data provider: ${dataProviderConfig.dataProvider}."
+      }
+
+      require(dataProviderConfig.storagePathPrefix.isNotBlank()) {
+        "Missing 'storage_path_prefix' for data provider: ${dataProviderConfig.dataProvider}."
+      }
+
+      require(dataProviderConfig.edpPrivateKeyPath.isNotBlank()) {
+        "Missing 'edp_private_key_path' for data provider: ${dataProviderConfig.dataProvider}."
+      }
+
+      require(dataProviderConfig.hasCmmsConnection()) {
+        "Missing 'cmms_connection' for data provider: ${dataProviderConfig.dataProvider}."
+      }
+
+      val tls = dataProviderConfig.cmmsConnection
+      require(tls.certFilePath.isNotBlank()) {
+        "Missing 'cert_file_path' in cmms_connection for data provider: ${dataProviderConfig.dataProvider}."
+      }
+      require(tls.privateKeyFilePath.isNotBlank()) {
+        "Missing 'private_key_file_path' in cmms_connection for data provider: ${dataProviderConfig.dataProvider}."
+      }
+      require(tls.certCollectionFilePath.isNotBlank()) {
+        "Missing 'cert_collection_file_path' in cmms_connection for data provider: ${dataProviderConfig.dataProvider}."
+      }
+    }
+
   }
 }

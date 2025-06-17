@@ -31,7 +31,6 @@ import org.wfanet.measurement.common.api.grpc.flattenConcat
 import org.wfanet.measurement.common.api.grpc.listResources
 import org.wfanet.measurement.storage.StorageClient
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import org.wfanet.measurement.common.IdGenerator
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
 
 /**
@@ -47,7 +46,7 @@ class RequisitionFetcher(
   private val dataProviderName: String,
   private val storagePathPrefix: String,
   private val requisitionGrouper: RequisitionGrouper,
-  val idGenerator: IdGenerator = IdGenerator.Default,
+  val idGenerator: (GroupedRequisitions) -> String,
   private val responsePageSize: Int? = null,
 ) {
 
@@ -107,10 +106,11 @@ class RequisitionFetcher(
   private suspend fun storeRequisitions(groupedRequisitions: List<GroupedRequisitions>): Int {
     var storedGroupedRequisitions = 0
     groupedRequisitions.forEach { groupedRequisition: GroupedRequisitions ->
-      val groupedRequisitionId = idGenerator.generateId()
+      val groupedRequisitionId = idGenerator(groupedRequisition)
       val blobKey = "$storagePathPrefix/${groupedRequisitionId}"
 
-      if (groupedRequisition.requisitionsList.isNotEmpty()) {
+      // TODO(@marcopremier): Add mechanism to check whether requisitions inside grouped requisitions where stored already.
+      if (groupedRequisition.requisitionsList.isNotEmpty() && storageClient.getBlob(blobKey) == null) {
         storageClient.writeBlob(blobKey, Any.pack(groupedRequisition).toByteString())
         storedGroupedRequisitions += 1
       }
