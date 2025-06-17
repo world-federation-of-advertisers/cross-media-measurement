@@ -15,9 +15,6 @@
 name: "Deploy Cloud Functions"
 
 on:
-  push:
-    branches:
-      - marcopremier/push_tee_app_to_gh_registry_2
   workflow_dispatch:
     inputs:
       environment:
