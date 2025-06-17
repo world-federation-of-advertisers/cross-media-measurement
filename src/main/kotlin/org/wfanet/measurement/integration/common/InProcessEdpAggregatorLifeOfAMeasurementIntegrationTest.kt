@@ -18,7 +18,6 @@ import java.nio.file.Paths
 import java.util.logging.Logger
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.withTimeout
 import org.junit.After
 import org.junit.Before
 import org.junit.BeforeClass
@@ -172,27 +171,21 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
     inProcessCmmsComponents.stopPopulationRequisitionFulfillerDaemon()
   }
 
-  // TODO: Remove withTimeout before merge
-  /*@Test
   fun `create a direct RF measurement and check the result is equal to the expected result`() =
     runBlocking {
-      withTimeout(100000) {
-        delay(1000)
-        // Use frontend simulator to create a direct reach and frequency measurement and verify its
-        // result.
-        mcSimulator.testDirectReachAndFrequency("1234", 1)
-      }
-    }*/
+      delay(1000)
+      // Use frontend simulator to create a direct reach and frequency measurement and verify its
+      // result.
+      mcSimulator.testDirectReachAndFrequency("1234", 1)
+    }
 
-  // TODO: Remove withTimeout before merge
   @Test
   fun `create incremental direct RF measurements and check the result is equal to the expected result`() =
     runBlocking {
-      withTimeout(100000) {
-        delay(1000)
-        // Use frontend simulator to create N incremental direct reach and frequency measurements and verify its result.
-        mcSimulator.testDirectReachAndFrequency("1234", 3)
-      }
+      delay(1000)
+      // Use frontend simulator to create N incremental direct reach and frequency measurements and
+      // verify its result.
+      mcSimulator.testDirectReachAndFrequency("1234", 3)
     }
 
   companion object {

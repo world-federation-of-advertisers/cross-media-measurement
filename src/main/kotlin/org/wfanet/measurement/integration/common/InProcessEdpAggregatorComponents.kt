@@ -26,10 +26,12 @@ import com.google.type.interval
 import io.grpc.Channel
 import java.nio.file.Files
 import java.nio.file.Path
+import java.security.MessageDigest
 import java.time.Clock
 import java.time.Duration
 import java.time.LocalDate
 import java.time.ZoneId
+import java.util.Base64
 import java.util.logging.Level
 import java.util.logging.Logger
 import kotlinx.coroutines.CoroutineExceptionHandler
@@ -68,7 +70,8 @@ import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.eventGroup
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionFetcher
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionGrouperByReportId
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionsValidator
-import org.wfanet.measurement.edpaggregator.resultsfulfiller.ResultsFulfillerTestApp
+import org.wfanet.measurement.edpaggregator.resultsfulfiller.testing.ResultsFulfillerTestApp
+import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
 import org.wfanet.measurement.gcloud.pubsub.Subscriber
 import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorClient
 import org.wfanet.measurement.loadtest.dataprovider.SyntheticDataGeneration
@@ -145,6 +148,7 @@ class InProcessEdpAggregatorComponents(
       cmmsChannel = publicApiChannel,
       fileSystemRootDirectory = storagePath.toFile(),
       kmsClient = kmsClient,
+      principalName = edpResourceName,
     )
   }
 
@@ -222,6 +226,7 @@ class InProcessEdpAggregatorComponents(
         REQUISITION_STORAGE_PREFIX,
         requisitionGrouper = requisitionGrouper,
         responsePageSize = 10,
+        idGenerator = ::createDeterministicId,
       )
     }
     backgroundScope.launch {
@@ -244,6 +249,20 @@ class InProcessEdpAggregatorComponents(
       runBlocking { writeImpressionData(mappedEventGroups) }
       resultFulfillerApp.run()
     }
+  }
+
+  fun createDeterministicId(groupedRequisition: GroupedRequisitions): String {
+    val requisitionNames =
+      groupedRequisition.requisitionsList
+        .mapNotNull { entry ->
+          val requisition = entry.requisition.unpack(Requisition::class.java)
+          requisition.name
+        }
+        .sorted()
+
+    val concatenated = requisitionNames.joinToString(separator = "|")
+    val digest = MessageDigest.getInstance("SHA-256").digest(concatenated.toByteArray())
+    return Base64.getUrlEncoder().withoutPadding().encodeToString(digest)
   }
 
   private fun buildEventGroups(measurementConsumerData: MeasurementConsumerData): List<EventGroup> {
