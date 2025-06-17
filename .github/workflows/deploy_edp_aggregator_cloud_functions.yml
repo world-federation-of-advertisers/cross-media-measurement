@@ -52,6 +52,7 @@ jobs:
       EDPA_EDP_1_TLS_PEM_SECRET: ${{ vars.EDPA_EDP_1_TLS_PEM_SECRET }}
       KINGOM_ROOT_SECRET: ${{ vars.KINGOM_ROOT_SECRET }}
       EDPA_CONFIG_STORAGE_BUCKET: ${{ vars.EDPA_CONFIG_FILES_BUCKET }}
+      REQUISITION_FETCHER_GRPC_THROTTLER: ${{ vars.REQUISITION_FETCHER_GRPC_THROTTLER }}
 
     steps:
 
@@ -76,7 +77,7 @@ jobs:
           trigger_bucket: ${{ env.SECURE_COMPUTATION_BUCKET }}
           run_service_account: ${{ env.DATA_WATCHER_SERVICE_ACCOUNT }}
           trigger_service_account: ${{ env.DATA_WATCHER_TRIGGER_SERVICE_ACCOUNT }}
-          extra_env_vars: "CERT_FILE_PATH=/secrets/cert/data_watcher_tls.pem,PRIVATE_KEY_FILE_PATH=/secrets/key/data_watcher_tls.key,CERT_COLLECTION_FILE_PATH=/secrets/ca/secure_computation_root.pem,CONTROL_PLANE_TARGET=${{ env.SECURE_COMPUTATION_PUBLIC_API_TARGET }},CONTROL_PLANE_CERT_HOST=data-watcher.secure-computation.${{ inputs.environment }}.halo-cmm.org,EDPA_CONFIG_STORAGE_BUCKET=${{ env.EDPA_CONFIG_STORAGE_BUCKET }},GOOGLE_PROJECT_ID=${{ env.GCLOUD_PROJECT }}""
+          extra_env_vars: "CERT_FILE_PATH=/secrets/cert/data_watcher_tls.pem,PRIVATE_KEY_FILE_PATH=/secrets/key/data_watcher_tls.key,CERT_COLLECTION_FILE_PATH=/secrets/ca/secure_computation_root.pem,CONTROL_PLANE_TARGET=${{ env.SECURE_COMPUTATION_PUBLIC_API_TARGET }},CONTROL_PLANE_CERT_HOST=data-watcher.secure-computation.${{ inputs.environment }}.halo-cmm.org,EDPA_CONFIG_STORAGE_BUCKET=${{ env.EDPA_CONFIG_STORAGE_BUCKET }},GOOGLE_PROJECT_ID=${{ env.GCLOUD_PROJECT }}"
           secret_mappings: "/secrets/key/data_watcher_tls.key=${{ env.DATA_WATCHER_TLS_KEY_SECRET }}:latest,/secrets/cert/data_watcher_tls.pem=${{ env.DATA_WATCHER_TLS_PEM_SECRET }}:latest,/secrets/ca/secure_computation_root.pem=${{ env.SECURE_COMPUTATION_ROOT_SECRET }}:latest"
 
       - name: Deploy Requisition Fetcher
@@ -87,7 +88,7 @@ jobs:
           entry_point: org.wfanet.measurement.edpaggregator.deploy.gcloud.requisitionfetcher.RequisitionFetcherFunction
           bazel_target_label: //src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/requisitionfetcher:RequisitionFetcherFunction_deploy.jar
           run_service_account: ${{ env.REQUISITION_FETCHER_SERVICE_ACCOUNT }}
-          extra_env_vars: "KINGDOM_TARGET=${{ env.KINGDOM_PUBLIC_API_TARGET }},EDPA_CONFIG_STORAGE_BUCKET=${{ env.EDPA_CONFIG_STORAGE_BUCKET }},GOOGLE_PROJECT_ID=${{ env.GCLOUD_PROJECT }}"
+          extra_env_vars: "KINGDOM_TARGET=${{ env.KINGDOM_PUBLIC_API_TARGET }},EDPA_CONFIG_STORAGE_BUCKET=${{ env.EDPA_CONFIG_STORAGE_BUCKET }},GOOGLE_PROJECT_ID=${{ env.GCLOUD_PROJECT }},GRPC_THROTTLER=${{ env.REQUISITION_FETCHER_GRPC_THROTTLER }}"
           secret_mappings: "/secrets/key/edp7_tls.key=${{ env.EDPA_EDP_1_TLS_KEY_SECRET }}:latest,/secrets/cert/edp7_tls.pem=${{ env.EDPA_EDP_1_TLS_PEM_SECRET }}:latest,/secrets/ca/kingdom_root.pem=${{ env.KINGOM_ROOT_SECRET }}:latest"
 
       - name: Deploy Event Group Sync
