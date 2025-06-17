@@ -2,14 +2,12 @@ package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
 import com.google.crypto.tink.KmsClient
 import com.google.crypto.tink.integration.gcpkms.GcpKmsClient
+import com.google.protobuf.Descriptors.Descriptor
 import com.google.protobuf.Parser
 import com.google.protobuf.TypeRegistry
 import java.io.File
-import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
-import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt
-import org.wfanet.measurement.common.crypto.SigningKeyHandle
-import org.wfanet.measurement.common.crypto.tink.TinkPrivateKeyHandle
-import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
+import org.wfanet.measurement.edpaggregator.StorageConfig
+import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams.StorageParams
 import org.wfanet.measurement.queue.QueueSubscriber
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAttemptsGrpcKt
@@ -23,10 +21,10 @@ class ResultsFulfillerAppImpl(
   parser: Parser<WorkItem>,
   workItemsClient: WorkItemsGrpcKt.WorkItemsCoroutineStub,
   workItemAttemptsClient: WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineStub,
-  requisitionsStub: RequisitionsGrpcKt.RequisitionsCoroutineStub,
-  dataProviderCertificateKey: DataProviderCertificateKey,
-  dataProviderSigningKeyHandle: SigningKeyHandle,
-  dataProviderPrivateEncryptionKey: TinkPrivateKeyHandle,
+  trustedCertCollection: File,
+  private val eventDescriptors: List<Descriptor>,
+  cmmsCertHost: String,
+  cmmsTarget: String? = null,
 ) :
   ResultsFulfillerApp(
     subscriptionId,
@@ -34,10 +32,9 @@ class ResultsFulfillerAppImpl(
     parser,
     workItemsClient,
     workItemAttemptsClient,
-    requisitionsStub,
-    dataProviderCertificateKey,
-    dataProviderSigningKeyHandle,
-    dataProviderPrivateEncryptionKey,
+    trustedCertCollection = trustedCertCollection,
+    cmmsTarget = cmmsTarget,
+    cmmsCertHost = cmmsCertHost,
   ) {
   override fun createStorageClient(
     blobUri: String,
@@ -47,31 +44,29 @@ class ResultsFulfillerAppImpl(
     return SelectedStorageClient(blobUri, rootDirectory, projectId)
   }
 
-  override fun getKmsClient(): KmsClient {
-    // TODO: add credentials
-    return GcpKmsClient().withDefaultCredentials()
-  }
+  override val kmsClient: KmsClient
+    get() = GcpKmsClient().withDefaultCredentials()
 
-  override fun getTypeRegistry(): TypeRegistry {
-    // TODO: add event production event templates
-    val typeRegistry =
+  override val typeRegistry: TypeRegistry
+    get() =
       TypeRegistry.newBuilder()
-        //      .add()
+        .apply {
+          for (descriptor in eventDescriptors) {
+            add(descriptor)
+          }
+        }
         .build()
-    return typeRegistry
-  }
 
   override fun getStorageConfig(
     configType: StorageConfigType,
-    storageDetails: ResultsFulfillerParams.StorageDetails,
+    storageParams: StorageParams,
   ): StorageConfig {
     return StorageConfig(
       projectId =
         when (configType) {
-          StorageConfigType.REQUISITION -> storageDetails.requisitionsStorageProjectId
-          StorageConfigType.IMPRESSION -> storageDetails.labeledImpressionStorageProjectId
-          StorageConfigType.IMPRESSION_METADATA ->
-            storageDetails.labeledImpressionMetadataStorageProjectId
+          StorageConfigType.REQUISITION -> storageParams.gcsProjectId
+          StorageConfigType.IMPRESSION -> storageParams.gcsProjectId
+          StorageConfigType.IMPRESSION_METADATA -> storageParams.gcsProjectId
         }
     )
   }

@@ -1,0 +1,33 @@
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
+
+package(
+    default_testonly = True,
+    default_visibility = ["//visibility:public"],
+)
+
+kt_jvm_library(
+    name = "results_fulfiller_test_app",
+    srcs = ["ResultsFulfillerTestApp.kt"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/common/identity:principal_identity",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:results_fulfiller_app",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:test_event_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:results_fulfiller_params_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/securecomputation/controlplane/v1alpha:work_item_attempts_service_kt_jvm_grpc_proto",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+        "@wfa_common_jvm//imports/kotlin/org/mockito/kotlin",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/testing",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/tink",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/tink/testing",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc/testing",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/pubsub:google_pub_sub_client",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/pubsub:publisher",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/pubsub:subscriber",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/pubsub/testing:google_pub_sub_emulator_client",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/pubsub/testing:google_pub_sub_emulator_provider",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/queue:queue_subscriber",
+        "@wfa_common_jvm//src/main/proto/wfa/measurement/queue/testing:test_work_kt_jvm_proto",
+    ],
+)

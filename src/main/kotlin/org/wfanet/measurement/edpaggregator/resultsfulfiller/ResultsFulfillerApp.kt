@@ -4,7 +4,6 @@ import com.google.crypto.tink.KmsClient
 import com.google.protobuf.Any
 import com.google.protobuf.Parser
 import com.google.protobuf.TypeRegistry
-import io.grpc.Channel
 import java.io.File
 import java.nio.file.Paths
 import java.security.SecureRandom
@@ -22,7 +21,6 @@ import org.wfanet.measurement.common.crypto.tink.loadPrivateKey
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withShutdownTimeout
-import org.wfanet.measurement.common.identity.withPrincipalName
 import org.wfanet.measurement.common.readByteString
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
@@ -47,10 +45,10 @@ abstract class ResultsFulfillerApp(
   parser: Parser<WorkItem>,
   workItemsClient: WorkItemsGrpcKt.WorkItemsCoroutineStub,
   workItemAttemptsClient: WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineStub,
+  private val overrideRequisitionsStub: RequisitionsCoroutineStub? = null,
   private val trustedCertCollection: File? = null,
   private val cmmsTarget: String? = null,
   private val cmmsCertHost: String? = null,
-  private val cmmsChannel: Channel? = null,
   private val channelShutdownTimeout: Duration = Duration.ofSeconds(3),
 ) :
   BaseTeeApplication(
@@ -61,17 +59,15 @@ abstract class ResultsFulfillerApp(
     workItemAttemptsStub = workItemAttemptsClient,
   ) {
 
-  val messageProcessed = CompletableDeferred<WorkItemParams>()
-
   abstract fun createStorageClient(
     blobUri: String,
     rootDirectory: File? = null,
     projectId: String? = null,
   ): StorageClient
 
-  abstract fun getKmsClient(): KmsClient
+  abstract val kmsClient: KmsClient
 
-  abstract fun getTypeRegistry(): TypeRegistry
+  abstract val typeRegistry: TypeRegistry
 
   abstract fun getStorageConfig(
     configType: StorageConfigType,
@@ -81,8 +77,6 @@ abstract class ResultsFulfillerApp(
   override suspend fun runWork(message: Any) {
     val workItemParams = message.unpack(WorkItemParams::class.java)
     val fulfillerParams = workItemParams.appParams.unpack(ResultsFulfillerParams::class.java)
-
-    val typeRegistry = getTypeRegistry()
     val requisitionsBlobUri = workItemParams.dataPathParams.dataPath
 
     val storageParams = fulfillerParams.storageParams
@@ -91,33 +85,33 @@ abstract class ResultsFulfillerApp(
     val impressionsMetadataStorageConfig =
       getStorageConfig(StorageConfigType.IMPRESSION_METADATA, storageParams)
     val impressionsStorageConfig = getStorageConfig(StorageConfigType.IMPRESSION, storageParams)
-    val principalName = fulfillerParams.dataProvider
     val requisitionsStub =
-      if (cmmsChannel != null) {
-        RequisitionsCoroutineStub(cmmsChannel).withPrincipalName(principalName)
-      } else {
-        val publicChannel by lazy {
-          val signingCerts =
-            SigningCerts.fromPemFiles(
-              certificateFile =
-                checkNotNull(
-                    getRuntimePath(Paths.get(fulfillerParams.cmmsConnection.clientCertResourcePath))
-                  )
-                  .toFile(),
-              privateKeyFile =
-                checkNotNull(
-                    getRuntimePath(
-                      Paths.get(fulfillerParams.cmmsConnection.clientPrivateKeyResourcePath)
+      overrideRequisitionsStub
+        ?: run {
+          val publicChannel by lazy {
+            val signingCerts =
+              SigningCerts.fromPemFiles(
+                certificateFile =
+                  checkNotNull(
+                      getRuntimePath(
+                        Paths.get(fulfillerParams.cmmsConnection.clientCertResourcePath)
+                      )
                     )
-                  )
-                  .toFile(),
-              trustedCertCollectionFile = checkNotNull(trustedCertCollection),
-            )
-          buildMutualTlsChannel(checkNotNull(cmmsTarget), signingCerts, cmmsCertHost)
-            .withShutdownTimeout(channelShutdownTimeout)
+                    .toFile(),
+                privateKeyFile =
+                  checkNotNull(
+                      getRuntimePath(
+                        Paths.get(fulfillerParams.cmmsConnection.clientPrivateKeyResourcePath)
+                      )
+                    )
+                    .toFile(),
+                trustedCertCollectionFile = checkNotNull(trustedCertCollection),
+              )
+            buildMutualTlsChannel(checkNotNull(cmmsTarget), signingCerts, cmmsCertHost)
+              .withShutdownTimeout(channelShutdownTimeout)
+          }
+          RequisitionsCoroutineStub(publicChannel)
         }
-        RequisitionsCoroutineStub(publicChannel).withPrincipalName(principalName)
-      }
     val dataProviderCertificateKey =
       checkNotNull(
         DataProviderCertificateKey.fromName(fulfillerParams.consentParams.edpCertificateName)
@@ -144,7 +138,6 @@ abstract class ResultsFulfillerApp(
     val dataProviderResultSigningKeyHandle =
       SigningKeyHandle(consentCertificate, consentPrivateEncryptionKey)
 
-    val kmsClient = getKmsClient()
     val eventReader =
       EventReader(
         kmsClient = kmsClient,
@@ -168,7 +161,5 @@ abstract class ResultsFulfillerApp(
         eventReader = eventReader,
       )
       .fulfillRequisitions()
-
-    messageProcessed.complete(workItemParams)
   }
 }

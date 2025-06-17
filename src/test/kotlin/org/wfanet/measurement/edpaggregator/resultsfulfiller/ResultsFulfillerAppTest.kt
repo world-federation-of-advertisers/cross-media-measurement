@@ -1,6 +1,5 @@
 package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
-import com.google.common.truth.Truth.assertThat
 import com.google.crypto.tink.Aead
 import com.google.crypto.tink.KeyTemplates
 import com.google.crypto.tink.KeysetHandle
@@ -17,12 +16,11 @@ import java.nio.file.Paths
 import java.time.Clock
 import java.time.Duration
 import java.time.LocalDate
+import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import java.util.logging.Logger
 import kotlin.random.Random
-import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Before
@@ -32,6 +30,8 @@ import org.junit.Test
 import org.mockito.kotlin.any
 import org.mockito.kotlin.doReturn
 import org.mockito.kotlin.stub
+import org.mockito.kotlin.times
+import org.mockito.kotlin.verifyBlocking
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineImplBase
@@ -58,7 +58,6 @@ import org.wfanet.measurement.api.v2alpha.measurementSpec
 import org.wfanet.measurement.api.v2alpha.protocolConfig
 import org.wfanet.measurement.api.v2alpha.requisition
 import org.wfanet.measurement.api.v2alpha.requisitionSpec
-import org.wfanet.measurement.common.OpenEndTimeRange
 import org.wfanet.measurement.common.crypto.Hashing
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.tink.TinkPrivateKeyHandle
@@ -79,6 +78,7 @@ import org.wfanet.measurement.consent.client.measurementconsumer.signMeasurement
 import org.wfanet.measurement.consent.client.measurementconsumer.signRequisitionSpec
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionsValidator
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.SingleRequisitionGrouper
+import org.wfanet.measurement.edpaggregator.resultsfulfiller.testing.ResultsFulfillerTestApp
 import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParamsKt
@@ -177,11 +177,7 @@ class ResultsFulfillerAppTest {
     val workItem = createWorkItem(workItemParams)
     workItemAttemptsServiceMock.stub {
       onBlocking { createWorkItemAttempt(any()) } doReturn testWorkItemAttempt
-    }
-    workItemAttemptsServiceMock.stub {
       onBlocking { completeWorkItemAttempt(any()) } doReturn testWorkItemAttempt
-    }
-    workItemAttemptsServiceMock.stub {
       onBlocking { failWorkItemAttempt(any()) } doReturn testWorkItemAttempt
     }
     workItemsServiceMock.stub { onBlocking { failWorkItem(any()) } doReturn workItem }
@@ -244,7 +240,7 @@ class ResultsFulfillerAppTest {
       List(130) {
         LABELED_IMPRESSION.copy {
           vid = it.toLong()
-          eventTime = TIME_RANGE.start.toProtoTime()
+          eventTime = FIRST_EVENT_DATE.atStartOfDay().toInstant(ZoneOffset.UTC).toProtoTime()
         }
       }
 
@@ -282,22 +278,18 @@ class ResultsFulfillerAppTest {
         grpcTestServerRule.channel,
         tmpPath,
         kmsClient,
+        principalName = EDP_NAME,
       )
-    val job = launch { app.run() }
+    app.runWork(Any.pack(workItemParams))
 
-    publisher.publishMessage(TOPIC_ID, workItem)
-
-    val processedMessage = app.messageProcessed.await()
-
-    assertThat(processedMessage).isEqualTo(workItemParams)
-
-    job.cancelAndJoin()
+    verifyBlocking(requisitionsServiceMock, times(1)) { fulfillDirectRequisition(any()) }
   }
 
   private fun createWorkItemParams(): WorkItemParams {
     return workItemParams {
       appParams =
         resultsFulfillerParams {
+            dataProvider = EDP_NAME
             this.storageParams =
               ResultsFulfillerParamsKt.storageParams {
                 labeledImpressionsBlobDetailsUriPrefix = IMPRESSIONS_METADATA_FILE_URI_PREFIX
@@ -348,7 +340,6 @@ class ResultsFulfillerAppTest {
 
     private val LAST_EVENT_DATE = LocalDate.now()
     private val FIRST_EVENT_DATE = LAST_EVENT_DATE
-    private val TIME_RANGE = OpenEndTimeRange.fromClosedDateRange(FIRST_EVENT_DATE..LAST_EVENT_DATE)
     private const val REACH_TOLERANCE = 6.0
     private const val FREQUENCY_DISTRIBUTION_TOLERANCE = 1.0
 
@@ -403,8 +394,13 @@ class ResultsFulfillerAppTest {
           value =
             RequisitionSpecKt.EventGroupEntryKt.value {
               collectionInterval = interval {
-                startTime = TIME_RANGE.start.toProtoTime()
-                endTime = TIME_RANGE.endExclusive.toProtoTime()
+                startTime = FIRST_EVENT_DATE.atStartOfDay().toInstant(ZoneOffset.UTC).toProtoTime()
+                endTime =
+                  LAST_EVENT_DATE.plusDays(1)
+                    .atStartOfDay()
+                    .minusSeconds(1)
+                    .toInstant(ZoneOffset.UTC)
+                    .toProtoTime()
               }
               filter = eventFilter { expression = "person.gender==1" }
             }

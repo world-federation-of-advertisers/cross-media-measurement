@@ -48,7 +48,7 @@ object RequisitionSpecs {
     vidSamplingInterval: MeasurementSpec.VidSamplingInterval,
     typeRegistry: TypeRegistry,
     eventReader: EventReader,
-    zoneId: ZoneId = ZoneId.of("America/New_York"),
+    zoneId: ZoneId,
   ): Flow<Long> {
     val vidSamplingIntervalStart = vidSamplingInterval.start
     val vidSamplingIntervalWidth = vidSamplingInterval.width
@@ -68,10 +68,15 @@ object RequisitionSpecs {
       val collectionInterval = eventGroup.value.collectionInterval
       val startDate = LocalDate.ofInstant(collectionInterval.startTime.toInstant(), zoneId)
       val endDate = LocalDate.ofInstant(collectionInterval.endTime.toInstant(), zoneId)
+      logger.info(
+        "Fetching Dates: ${startDate.datesUntil(endDate.plusDays(1)).asSequence().toList()}"
+      )
       val dates = startDate.datesUntil(endDate.plusDays(1)).asSequence()
       // Iterates through all dates up to the end date in the collection interval(inclusive)
       val impressions =
-        dates.asFlow().flatMapConcat { date -> eventReader.getLabeledImpressions(date, eventGroupMap.getValue(eventGroup.key)) }
+        dates.asFlow().flatMapConcat { date ->
+          eventReader.getLabeledImpressions(date, eventGroupMap.getValue(eventGroup.key))
+        }
 
       VidFilter.filterAndExtractVids(
         impressions,
