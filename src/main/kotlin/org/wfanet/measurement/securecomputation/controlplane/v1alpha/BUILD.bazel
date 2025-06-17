@@ -49,7 +49,6 @@ kt_jvm_library(
     srcs = ["ResourceConversion.kt"],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/securecomputation/service:resource_key",
-        "//src/main/proto/wfa/measurement/internal/secur
         "//src/main/proto/wfa/measurement/internal/securecomputation/controlplane:work_item_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/securecomputation/controlplane/v1alpha:work_item_attempt_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/securecomputation/controlplane/v1alpha:work_item_kt_jvm_proto",
