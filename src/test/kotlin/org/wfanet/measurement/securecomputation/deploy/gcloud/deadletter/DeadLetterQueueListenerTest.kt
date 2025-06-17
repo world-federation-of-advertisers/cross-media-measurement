@@ -218,7 +218,7 @@ class DeadLetterQueueListenerTest {
 
     // Create a mock WorkItemsStub that throws an exception for error item and succeeds for success item
     val mockWorkItemsStub = mock<WorkItemsGrpcKt.WorkItemsCoroutineStub> {
-      onBlocking { failWorkItem(argThat<FailWorkItemRequest> { workItemResourceId == "error-item" }) } doThrow RuntimeException("Simulated processing error")
+      onBlocking { failWorkItem(argThat<FailWorkItemRequest> { workItemResourceId == "error-item" }, any()) } doThrow RuntimeException("Simulated processing error")
     }
 
     // Create the listener
@@ -317,10 +317,8 @@ class DeadLetterQueueListenerTest {
     // Send a message to the channel
     messageChannel.send(mockQueueMessage)
 
-    // Wait for the message to be processed
-    verify(mockWorkItemsStub, timeout(5000)).failWorkItem(requestCaptor.capture())
-
-    // Verify that the work item resource ID was passed correctly
+    // Wait for the message to be processed and verify that the work item resource ID was passed correctly
+    verify(mockWorkItemsStub, timeout(5000)).failWorkItem(requestCaptor.capture(), any())
     assertEquals(workItemId, requestCaptor.firstValue.workItemResourceId)
 
     // Clean up
@@ -370,10 +368,8 @@ class DeadLetterQueueListenerTest {
     // Send a message to the channel
     messageChannel.send(mockQueueMessage)
 
-    // Wait for the message to be processed
-    verify(mockWorkItemsStub, timeout(5000)).failWorkItem(requestCaptor.capture())
-
-    // Verify that the work item resource ID was passed correctly
+    // Wait for the message to be processed and verify that the work item resource ID was passed correctly
+    verify(mockWorkItemsStub, timeout(5000)).failWorkItem(requestCaptor.capture(), any())
     assertEquals(workItemIdOnly, requestCaptor.firstValue.workItemResourceId)
 
     // Clean up
@@ -421,8 +417,8 @@ class DeadLetterQueueListenerTest {
     // Send a message to the channel
     messageChannel.send(mockQueueMessage)
 
-    // Wait for the message to be processed
-    verify(mockWorkItemsStub, timeout(5000)).failWorkItem(requestCaptor.capture())
+    // Wait for the message to be processed and verify that the work item resource ID was passed correctly
+    verify(mockWorkItemsStub, timeout(5000)).failWorkItem(requestCaptor.capture(), any())
 
     // Verify the message is acknowledged
     verify(mockQueueMessage, timeout(5000)).ack()
@@ -476,7 +472,7 @@ class DeadLetterQueueListenerTest {
     verify(mockQueueMessage, timeout(5000)).ack()
 
     // Verify that the failWorkItem method was not called
-    verify(mockWorkItemsStub, never()).failWorkItem(any())
+    verify(mockWorkItemsStub, never()).failWorkItem(any(), any())
 
     // Close the channel and cancel the job
     messageChannel.close()
@@ -505,7 +501,7 @@ class DeadLetterQueueListenerTest {
     val statusException = StatusRuntimeException(Status.NOT_FOUND.withDescription("Work item not found"))
 
     val mockWorkItemsStub = mock<WorkItemsGrpcKt.WorkItemsCoroutineStub> {
-      onBlocking { failWorkItem(any<FailWorkItemRequest>()) } doThrow statusException
+      onBlocking { failWorkItem(any<FailWorkItemRequest>(), any()) } doThrow statusException
     }
 
     // Create the listener
@@ -564,7 +560,7 @@ class DeadLetterQueueListenerTest {
 
     // Create a mock WorkItemsStub that throws the status exception
     val mockWorkItemsStub = mock<WorkItemsGrpcKt.WorkItemsCoroutineStub> {
-      onBlocking { failWorkItem(any<FailWorkItemRequest>()) } doThrow statusException
+      onBlocking { failWorkItem(any<FailWorkItemRequest>(), any()) } doThrow statusException
     }
 
     // Create the listener
@@ -616,7 +612,7 @@ class DeadLetterQueueListenerTest {
 
     // Create a mock WorkItemsStub that throws the status exception
     val mockWorkItemsStub = mock<WorkItemsGrpcKt.WorkItemsCoroutineStub> {
-      onBlocking { failWorkItem(any<FailWorkItemRequest>()) } doThrow statusException
+      onBlocking { failWorkItem(any<FailWorkItemRequest>(), any()) } doThrow statusException
     }
 
     // Create the listener
@@ -664,7 +660,7 @@ class DeadLetterQueueListenerTest {
 
     // Create a mock WorkItemsStub that throws a general exception
     val mockWorkItemsStub = mock<WorkItemsGrpcKt.WorkItemsCoroutineStub> {
-      onBlocking { failWorkItem(any<FailWorkItemRequest>()) } doThrow RuntimeException("Unexpected error")
+      onBlocking { failWorkItem(any<FailWorkItemRequest>(), any()) } doThrow RuntimeException("Unexpected error")
     }
 
     // Create the listener
