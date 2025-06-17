@@ -17,8 +17,6 @@
 package org.wfanet.measurement.edpaggregator.requisitionfetcher
 
 import com.google.type.Interval
-import com.google.type.interval
-import java.util.logging.Logger
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.Requisition
@@ -124,7 +122,4 @@ class RequisitionGrouperByReportId(
     return result
   }
 
-  companion object {
-    private val logger: Logger = Logger.getLogger(this::class.java.name)
-  }
 }

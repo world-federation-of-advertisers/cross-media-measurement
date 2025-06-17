@@ -22,6 +22,8 @@ import com.google.cloud.spanner.SpannerException
 import com.google.protobuf.Empty
 import com.google.protobuf.Timestamp
 import io.grpc.Status
+import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.EmptyCoroutineContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collectIndexed
 import kotlinx.coroutines.flow.map
@@ -66,8 +68,9 @@ import org.wfanet.measurement.internal.access.role
 class SpannerRolesService(
   private val databaseClient: AsyncDatabaseClient,
   private val permissionMapping: PermissionMapping,
+  coroutineContext: CoroutineContext = EmptyCoroutineContext,
   private val idGenerator: IdGenerator = IdGenerator.Default,
-) : RolesGrpcKt.RolesCoroutineImplBase() {
+) : RolesGrpcKt.RolesCoroutineImplBase(coroutineContext) {
   override suspend fun getRole(request: GetRoleRequest): Role {
     if (request.roleResourceId.isEmpty()) {
       throw RequiredFieldNotSetException("role_resource_id")

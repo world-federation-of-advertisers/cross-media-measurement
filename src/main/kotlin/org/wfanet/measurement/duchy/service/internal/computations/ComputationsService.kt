@@ -21,6 +21,8 @@ import java.time.Clock
 import java.time.Duration
 import java.util.logging.Level
 import java.util.logging.Logger
+import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.EmptyCoroutineContext
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.protoTimestamp
 import org.wfanet.measurement.common.toDuration
@@ -78,9 +80,10 @@ class ComputationsService(
   private val computationStore: ComputationStore,
   private val requisitionStore: RequisitionStore,
   private val duchyName: String,
+  coroutineContext: CoroutineContext = EmptyCoroutineContext,
   private val clock: Clock = Clock.systemUTC(),
   private val defaultLockDuration: Duration = Duration.ofMinutes(5),
-) : ComputationsCoroutineImplBase() {
+) : ComputationsCoroutineImplBase(coroutineContext) {
 
   override suspend fun claimWork(request: ClaimWorkRequest): ClaimWorkResponse {
     grpcRequire(request.owner.isNotEmpty()) { "owner is not specified" }

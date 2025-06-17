@@ -16,6 +16,7 @@ package org.wfanet.measurement.duchy.deploy.gcloud.spanner.continuationtoken
 
 import com.google.protobuf.InvalidProtocolBufferException
 import io.grpc.Status
+import kotlin.coroutines.CoroutineContext
 import kotlinx.coroutines.flow.singleOrNull
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
@@ -26,8 +27,10 @@ import org.wfanet.measurement.internal.duchy.SetContinuationTokenRequest
 import org.wfanet.measurement.internal.duchy.SetContinuationTokenResponse
 import org.wfanet.measurement.internal.duchy.getContinuationTokenResponse
 
-class SpannerContinuationTokensService(private val client: AsyncDatabaseClient) :
-  ContinuationTokensCoroutineImplBase() {
+class SpannerContinuationTokensService(
+  private val client: AsyncDatabaseClient,
+  coroutineContext: CoroutineContext,
+) : ContinuationTokensCoroutineImplBase(coroutineContext) {
   override suspend fun getContinuationToken(
     request: GetContinuationTokenRequest
   ): GetContinuationTokenResponse {

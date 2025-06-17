@@ -57,7 +57,6 @@ import java.time.LocalDate
 import kotlin.random.Random
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt
-import org.wfanet.measurement.api.v2alpha.GetEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.certificate
 import org.wfanet.measurement.api.v2alpha.eventGroup
 import org.wfanet.measurement.common.OpenEndTimeRange
@@ -67,6 +66,10 @@ import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.consent.client.measurementconsumer.signRequisitionSpec
 import org.wfanet.measurement.gcloud.testing.FunctionsFrameworkInvokerProcess
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
+import org.wfanet.measurement.edpaggregator.v1alpha.groupedRequisitions
+import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt.eventGroupDetails
+import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt.eventGroupMapEntry
+import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt.requisitionEntry
 
 /** Test class for the RequisitionFetcherFunction. */
 class RequisitionFetcherFunctionTest {
@@ -84,7 +87,7 @@ class RequisitionFetcherFunctionTest {
       .thenAnswer { invocation ->
         eventGroup {
           name = EVENT_GROUP_NAME
-          eventGroupReferenceId = "some-event-group-reference-id"
+          eventGroupReferenceId = EVENT_GROUP_REFERENCE_ID
         }
       }
   }
@@ -127,6 +130,7 @@ class RequisitionFetcherFunctionTest {
             "PAGE_SIZE" to "10",
             "STORAGE_PATH_PREFIX" to STORAGE_PATH_PREFIX,
             "EDPA_CONFIG_STORAGE_BUCKET" to REQUISITION_CONFIG_FILE_SYSTEM_PATH,
+            "GRPC_THROTTLER" to "1000"
           )
         )
       logger.info("Started RequisitionFetcher process on port $port")
@@ -163,7 +167,7 @@ class RequisitionFetcherFunctionTest {
     val requisitionFile = tempFolder.root.toPath().resolve(storedRequisitionPath).toFile()
     assertThat(requisitionFile.exists()).isTrue()
     val storedAny = Any.parseFrom(requisitionFile.readBytes())
-    assertThat(storedAny.typeUrl).isEqualTo(GROUPED_REQUISITION_PROTO_TYPE)
+    assertThat(requisitionFile.readByteString()).isEqualTo(Any.pack(GROUPED_REQUISITION).toByteString())
   }
 
   companion object {
@@ -211,6 +215,7 @@ class RequisitionFetcherFunctionTest {
       OpenEndTimeRange.fromClosedDateRange(FIRST_EVENT_DATE..LAST_EVENT_DATE)
 
     protected const val EVENT_GROUP_NAME = "${EDP_NAME}/eventGroups/name"
+    protected const val EVENT_GROUP_REFERENCE_ID = "some-event-group-reference-id"
 
     private val MC_PUBLIC_KEY =
       loadPublicKey(SECRET_FILES_PATH.resolve("mc_enc_public.tink").toFile())
@@ -231,20 +236,22 @@ class RequisitionFetcherFunctionTest {
       subjectKeyIdentifier = EDP_SIGNING_KEY.certificate.subjectKeyIdentifier!!
     }
 
+    private val EVENT_GROUP_ENTRY = eventGroupEntry {
+      key = EVENT_GROUP_NAME
+      value =
+        RequisitionSpecKt.EventGroupEntryKt.value {
+          collectionInterval = interval {
+            startTime = TIME_RANGE.start.toProtoTime()
+            endTime = TIME_RANGE.endExclusive.toProtoTime()
+          }
+          filter = eventFilter {}
+        }
+    }
+
     protected val REQUISITION_SPEC = requisitionSpec {
       events =
         RequisitionSpecKt.events {
-          eventGroups += eventGroupEntry {
-            key = EVENT_GROUP_NAME
-            value =
-              RequisitionSpecKt.EventGroupEntryKt.value {
-                collectionInterval = interval {
-                  startTime = TIME_RANGE.start.toProtoTime()
-                  endTime = TIME_RANGE.endExclusive.toProtoTime()
-                }
-                filter = eventFilter {}
-              }
-          }
+          eventGroups += EVENT_GROUP_ENTRY
         }
       measurementPublicKey = MC_PUBLIC_KEY.pack()
       nonce = Random.Default.nextLong()
@@ -278,7 +285,28 @@ class RequisitionFetcherFunctionTest {
       dataProviderCertificate = DATA_PROVIDER_CERTIFICATE.name
       dataProviderPublicKey = DATA_PROVIDER_PUBLIC_KEY.pack()
     }
-    private val PACKED_REQUISITION = Any.pack(REQUISITION)
+
+    private val GROUPED_REQUISITION = groupedRequisitions {
+      eventGroupMap += eventGroupMapEntry {
+        eventGroup = EVENT_GROUP_NAME
+        details = eventGroupDetails {
+          eventGroupReferenceId = EVENT_GROUP_REFERENCE_ID
+          collectionIntervals += interval {
+            startTime = EVENT_GROUP_ENTRY.value.collectionInterval.startTime
+            endTime = EVENT_GROUP_ENTRY.value.collectionInterval.endTime
+          }
+        }
+      }
+
+      requisitions.add(
+        requisitionEntry {
+          requisition = Any.pack(
+            REQUISITION
+          )
+        }
+      )
+    }
+
     private val STORAGE_PATH_PREFIX = "edp7"
     private val SECRETS_DIR: Path =
       getRuntimePath(
@@ -309,6 +337,5 @@ class RequisitionFetcherFunctionTest {
         trustedCertCollectionFile = SECRETS_DIR.resolve("edp7_root.pem").toFile(),
       )
     private val logger: Logger = Logger.getLogger(this::class.java.name)
-    private val GROUPED_REQUISITION_PROTO_TYPE = Any.pack(GroupedRequisitions.getDefaultInstance()).typeUrl
   }
 }
