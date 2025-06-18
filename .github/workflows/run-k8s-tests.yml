@@ -31,10 +31,15 @@ on:
         - qa
         - head
 
+permissions:
+  id-token: write
+
 jobs:
   run-tests:
     runs-on: ubuntu-22.04
     environment: ${{ inputs.environment }}
+    env:
+      GOOGLE_CLOUD_PROJECT: ${{ vars.GCLOUD_PROJECT }}
     steps:
     - uses: actions/checkout@v4
 
