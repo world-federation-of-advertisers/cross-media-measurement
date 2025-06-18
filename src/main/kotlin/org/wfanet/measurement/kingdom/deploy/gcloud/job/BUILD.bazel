@@ -9,7 +9,7 @@ kt_jvm_library(
     deps = [
         ":operational_metrics_export",
         "//imports/java/com/google/cloud/bigquery/storage",
-        "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common/server:utils",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common:flags",
         "//src/main/proto/wfa/measurement/internal/kingdom:measurements_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/internal/kingdom:requisitions_service_kt_jvm_grpc_proto",
         "@wfa_common_jvm//imports/java/com/google/cloud/bigquery",

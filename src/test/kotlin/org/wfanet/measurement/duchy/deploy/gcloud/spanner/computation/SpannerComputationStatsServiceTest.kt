@@ -20,6 +20,7 @@ import org.junit.Rule
 import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.measurement.common.IdGenerator
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.testing.chainRulesSequentially
@@ -85,6 +86,7 @@ class SpannerComputationStatsServiceTest : ComputationStatsServiceTest<Computati
             protocolStageEnumHelper,
             computationProtocolStageDetails,
           ),
+        computationIdGenerator = IdGenerator.Default,
       )
 
     computationsDatabase =
@@ -118,7 +120,7 @@ class SpannerComputationStatsServiceTest : ComputationStatsServiceTest<Computati
       ComputationStore(storageClient),
       RequisitionStore(storageClient),
       ALSACE,
-      Clock.systemUTC(),
+      clock = Clock.systemUTC(),
     )
   }
 

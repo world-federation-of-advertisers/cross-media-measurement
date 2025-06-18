@@ -19,7 +19,6 @@ package org.wfanet.measurement.reporting.deploy.v2.common
 import io.grpc.Server
 import io.grpc.ServerServiceDefinition
 import io.grpc.inprocess.InProcessServerBuilder
-import java.util.concurrent.ExecutorService
 import java.util.concurrent.TimeUnit
 import org.wfanet.measurement.common.grpc.CommonServer
 import org.wfanet.measurement.common.grpc.ErrorLoggingServerInterceptor
@@ -30,16 +29,11 @@ object InProcessServersMethods {
     serverName: String,
     commonServerFlags: CommonServer.Flags,
     service: ServerServiceDefinition,
-    executorService: ExecutorService? = null,
   ): Server {
     val server: Server =
       InProcessServerBuilder.forName(serverName)
         .apply {
-          if (executorService != null) {
-            executor(executorService)
-          } else {
-            directExecutor()
-          }
+          directExecutor()
           addService(service)
           if (commonServerFlags.debugVerboseGrpcLogging) {
             intercept(LoggingServerInterceptor)

@@ -16,6 +16,7 @@
 
 package org.wfanet.measurement.securecomputation.deploy.gcloud.spanner
 
+import kotlin.coroutines.CoroutineContext
 import org.wfanet.measurement.common.IdGenerator
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.securecomputation.service.internal.QueueMapping
@@ -41,10 +42,16 @@ class InternalApiServices(
    *     - WorkItemsService: Manages work item lifecycle (create, get, fail, etc.)
    *     - WorkItemAttemptsService: Tracks work item execution attempts
    */
-  fun build(): Services {
+  fun build(coroutineContext: CoroutineContext): Services {
     return Services(
-        SpannerWorkItemsService(databaseClient, queueMapping, idGenerator, workItemPublisher),
-        SpannerWorkItemAttemptsService(databaseClient, queueMapping, idGenerator),
+      SpannerWorkItemsService(
+        databaseClient,
+        queueMapping,
+        idGenerator,
+        workItemPublisher,
+        coroutineContext,
+      ),
+      SpannerWorkItemAttemptsService(databaseClient, queueMapping, idGenerator, coroutineContext),
     )
   }
 }

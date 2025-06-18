@@ -17,6 +17,7 @@ package org.wfanet.measurement.duchy.service.api.v2alpha
 import com.google.protobuf.ByteString
 import io.grpc.Status
 import io.grpc.StatusException
+import kotlin.coroutines.CoroutineContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.api.Version
@@ -58,7 +59,8 @@ class RequisitionFulfillmentService(
   private val systemRequisitionsClient: RequisitionsCoroutineStub,
   private val computationsClient: ComputationsCoroutineStub,
   private val requisitionStore: RequisitionStore,
-) : RequisitionFulfillmentCoroutineImplBase() {
+  coroutineContext: CoroutineContext,
+) : RequisitionFulfillmentCoroutineImplBase(coroutineContext) {
 
   private enum class Permission {
     FULFILL;
@@ -136,6 +138,7 @@ class RequisitionFulfillmentService(
           computationToken.globalComputationId,
           externalRequisitionKey.externalRequisitionId,
           header.nonce,
+          header.etag,
         )
 
         return FULFILLED_RESPONSE
@@ -252,11 +255,13 @@ class RequisitionFulfillmentService(
     computationId: String,
     requisitionId: String,
     nonce: Long,
+    etag: String,
   ) {
     systemRequisitionsClient.fulfillRequisition(
       systemFulfillRequisitionRequest {
         name = SystemRequisitionKey(computationId, requisitionId).toName()
         this.nonce = nonce
+        this.etag = etag
       }
     )
   }

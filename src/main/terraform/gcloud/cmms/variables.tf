@@ -96,8 +96,41 @@ variable "secure_computation_storage_bucket_name" {
   nullable    = false
 }
 
+variable "edpa_config_files_bucket_name" {
+  description = "Name of Google Cloud Storage bucket for Edp Aggregator cloud functions' configs."
+  type        = string
+  nullable    = false
+}
+
 variable "terraform_service_account" {
   description = "Service account used by terraform that needs to attach the MIG service account to the VM."
   type        = string
   nullable    = false
+}
+
+variable "data_watcher_config_file_path" {
+  description = "Path to the data watcher config file."
+  type        = string
+  nullable    = false
+}
+
+variable "requisition_fetcher_config_file_path" {
+  description = "Path to the requisition fetcher config file."
+  type        = string
+  nullable    = false
+}
+
+variable "kingdom_public_api_target" {
+  description = "Kingdom public api target"
+  type        = string
+}
+
+variable "secure_computation_public_api_target" {
+  description = "Secure Computation public api target"
+  type        = string
+}
+
+variable "image_tag" {
+  description = "Tag of container images"
+  type        = string
 }

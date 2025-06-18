@@ -51,6 +51,7 @@ import org.wfanet.measurement.api.v2alpha.EventGroupMetadataKt
 import org.wfanet.measurement.api.v2alpha.ListEventGroupsPageToken
 import org.wfanet.measurement.api.v2alpha.ListEventGroupsPageTokenKt.previousPageEnd
 import org.wfanet.measurement.api.v2alpha.ListEventGroupsRequest
+import org.wfanet.measurement.api.v2alpha.ListEventGroupsRequestKt
 import org.wfanet.measurement.api.v2alpha.ListEventGroupsRequestKt.filter
 import org.wfanet.measurement.api.v2alpha.ListEventGroupsResponse
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
@@ -973,6 +974,7 @@ class EventGroupsServiceTest {
           filter =
             StreamEventGroupsRequestKt.filter { externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID }
           limit = request.pageSize + 1
+          allowStaleReads = true
         }
       )
   }
@@ -982,6 +984,11 @@ class EventGroupsServiceTest {
     val request = listEventGroupsRequest {
       parent = MEASUREMENT_CONSUMER_NAME
       pageSize = 100
+      orderBy =
+        ListEventGroupsRequestKt.orderBy {
+          field = ListEventGroupsRequest.OrderBy.Field.DATA_AVAILABILITY_START_TIME
+          descending = true
+        }
     }
 
     val response: ListEventGroupsResponse =
@@ -1007,7 +1014,13 @@ class EventGroupsServiceTest {
             StreamEventGroupsRequestKt.filter {
               externalMeasurementConsumerId = MEASUREMENT_CONSUMER_EXTERNAL_ID
             }
+          orderBy =
+            StreamEventGroupsRequestKt.orderBy {
+              field = StreamEventGroupsRequest.OrderBy.Field.DATA_AVAILABILITY_START_TIME
+              descending = true
+            }
           limit = request.pageSize + 1
+          allowStaleReads = true
         }
       )
   }
@@ -1055,6 +1068,7 @@ class EventGroupsServiceTest {
               metadataSearchQuery = request.filter.metadataSearchQuery
             }
           limit = request.pageSize + 1
+          allowStaleReads = true
         }
       )
     val nextPageToken = ListEventGroupsPageToken.parseFrom(response.nextPageToken.base64UrlDecode())
@@ -1139,6 +1153,7 @@ class EventGroupsServiceTest {
               // available for at least one release.
               eventGroupKeyAfter = after.eventGroupKey
             }
+          allowStaleReads = true
         }
       )
 

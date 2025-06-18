@@ -1,0 +1,21 @@
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
+
+package(
+    default_testonly = True,
+    default_visibility = [
+        "//src/test/kotlin/org/wfanet/measurement/edpaggregator/requisitionfetcher:__subpackages__",
+        "//src/test/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:__subpackages__",
+    ],
+)
+
+kt_jvm_library(
+    name = "test_encrypted_storage",
+    srcs = ["TestEncryptedStorage.kt"],
+    deps = [
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:encrypted_dek_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/testing",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/tink",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/tink/testing",
+    ],
+)

@@ -21,9 +21,11 @@ import java.io.File
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.grpc.CommonServer
+import org.wfanet.measurement.common.grpc.ServiceFlags
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.config.securecomputation.QueuesConfig
 import org.wfanet.measurement.gcloud.pubsub.DefaultGooglePubSubClient
@@ -53,6 +55,7 @@ import picocli.CommandLine
 @CommandLine.Command(name = InternalApiServer.SERVER_NAME)
 class InternalApiServer : Runnable {
   @CommandLine.Mixin private lateinit var serverFlags: CommonServer.Flags
+  @CommandLine.Mixin private lateinit var serviceFlags: ServiceFlags
   @CommandLine.Mixin private lateinit var spannerFlags: SpannerFlags
 
   @CommandLine.Option(
@@ -85,10 +88,9 @@ class InternalApiServer : Runnable {
         val databaseClient: AsyncDatabaseClient = spanner.databaseClient
         val googlePubSubClient = DefaultGooglePubSubClient()
         val workItemPublisher = GoogleWorkItemPublisher(googleProjectId, googlePubSubClient)
-
         val internalApiServices =
             InternalApiServices(workItemPublisher, databaseClient, queueMapping)
-        val services = internalApiServices.build()
+        val services = internalApiServices.build(serviceFlags.executor.asCoroutineDispatcher())
         val servicesList: List<BindableService> = services.toList()
         val server = CommonServer.fromFlags(serverFlags, SERVER_NAME, servicesList)
 

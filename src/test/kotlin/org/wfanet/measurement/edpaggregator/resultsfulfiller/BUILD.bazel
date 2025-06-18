@@ -1,0 +1,95 @@
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_test")
+
+package(
+    default_testonly = True,
+)
+
+kt_jvm_test(
+    name = "ResultsFulfillerTest",
+    srcs = ["ResultsFulfillerTest.kt"],
+    data = [
+        "//src/main/k8s/testing/secretfiles:all_configs",
+        "//src/main/k8s/testing/secretfiles:all_der_files",
+        "//src/main/k8s/testing/secretfiles:all_tink_keysets",
+        "//src/main/k8s/testing/secretfiles:edp_trusted_certs.pem",
+    ],
+    test_class = "org.wfanet.measurement.edpaggregator.resultsfulfiller.ResultsFulfillerTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha/testing",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator:storage_config",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/requisitionfetcher:requisitions_validator",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/requisitionfetcher:single_requisition_grouper",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:continuous_gaussian_noiser_selector",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:no_noiser_selector",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:results_fulfiller",
+        "//src/main/kotlin/org/wfanet/measurement/integration/common:configs",
+        "//src/main/kotlin/org/wfanet/measurement/loadtest/common:sample_vids",
+        "//src/main/kotlin/org/wfanet/measurement/loadtest/config:test_identifiers",
+        "//src/main/proto/wfa/measurement/api/v2alpha:protocol_config_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:test_event_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:encrypted_dek_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:labeled_impression_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//imports/kotlin/org/mockito/kotlin",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/tink",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/tink/testing",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc/testing",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/testing",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:selected_storage_client",
+        "@wfa_consent_signaling_client//src/main/kotlin/org/wfanet/measurement/consent/client/duchy",
+        "@wfa_consent_signaling_client//src/main/kotlin/org/wfanet/measurement/consent/client/measurementconsumer",
+    ],
+)
+
+kt_jvm_test(
+    name = "RequisitionSpecsTest",
+    srcs = ["RequisitionSpecsTest.kt"],
+    test_class = "org.wfanet.measurement.edpaggregator.resultsfulfiller.RequisitionSpecsTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha/testing",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator:encrypted_storage",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator:storage_config",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:requisition_specs",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/testing:test_encrypted_storage",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:test_event_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//imports/kotlin/org/mockito/kotlin",
+    ],
+)
+
+kt_jvm_test(
+    name = "VidFilterTest",
+    srcs = ["VidFilterTest.kt"],
+    test_class = "org.wfanet.measurement.edpaggregator.resultsfulfiller.VidFilterTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:vid_filter",
+        "//src/main/proto/wfa/measurement/api/v2alpha:requisition_spec_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:test_event_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+    ],
+)
+
+kt_jvm_test(
+    name = "EventReaderTest",
+    srcs = ["EventReaderTest.kt"],
+    test_class = "org.wfanet.measurement.edpaggregator.resultsfulfiller.EventReaderTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator:encrypted_storage",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:event_reader",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/testing:test_encrypted_storage",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:test_event_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/tink/testing",
+    ],
+)

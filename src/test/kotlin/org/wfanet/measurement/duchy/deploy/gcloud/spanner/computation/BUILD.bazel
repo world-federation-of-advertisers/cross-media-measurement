@@ -1,6 +1,6 @@
 load("@com_google_protobuf//bazel:proto_library.bzl", "proto_library")
 load("@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner/testing:macros.bzl", "spanner_emulator_test")
-load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_proto_library", "kt_jvm_test")
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_proto_library")
 
 proto_library(
     name = "fake_protocol_stage_details_proto",
@@ -10,17 +10,6 @@ proto_library(
 kt_jvm_proto_library(
     name = "fake_protocol_stage_details_kt_jvm_proto",
     deps = [":fake_protocol_stage_details_proto"],
-)
-
-kt_jvm_test(
-    name = "LocalComputationIdGeneratorsTest",
-    srcs = ["LocalComputationIdGeneratorsTest.kt"],
-    test_class = "org.wfanet.measurement.duchy.deploy.gcloud.spanner.computation.LocalComputationIdGeneratorsTest",
-    deps = [
-        "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/spanner/computation",
-        "@wfa_common_jvm//imports/java/org/junit",
-        "@wfa_common_jvm//imports/kotlin/kotlin/test",
-    ],
 )
 
 spanner_emulator_test(

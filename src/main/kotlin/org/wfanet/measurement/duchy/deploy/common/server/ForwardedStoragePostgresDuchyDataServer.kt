@@ -15,10 +15,12 @@
 package org.wfanet.measurement.duchy.deploy.common.server
 
 import java.time.Clock
+import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.db.postgres.PostgresFlags
 import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresDatabaseClient
+import org.wfanet.measurement.common.grpc.ServiceFlags
 import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.duchy.deploy.common.service.PostgresDuchyDataServices
 import org.wfanet.measurement.storage.forwarded.ForwardedStorageFromFlags
@@ -32,6 +34,7 @@ import picocli.CommandLine
   showDefaultValues = true,
 )
 class ForwardedStoragePostgresDuchyDataServer : DuchyDataServer() {
+  @CommandLine.Mixin private lateinit var serviceFlags: ServiceFlags
   @CommandLine.Mixin private lateinit var postgresFlags: PostgresFlags
   @CommandLine.Mixin private lateinit var forwardedStorageFlags: ForwardedStorageFromFlags.Flags
 
@@ -50,6 +53,7 @@ class ForwardedStoragePostgresDuchyDataServer : DuchyDataServer() {
         duchyFlags.duchyName,
         idGenerator,
         client,
+        serviceFlags.executor.asCoroutineDispatcher(),
       )
     )
   }

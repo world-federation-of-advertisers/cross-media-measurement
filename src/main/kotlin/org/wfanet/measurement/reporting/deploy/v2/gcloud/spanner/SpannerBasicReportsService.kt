@@ -20,6 +20,8 @@ import com.google.cloud.spanner.ErrorCode
 import com.google.cloud.spanner.SpannerException
 import com.google.protobuf.Timestamp
 import io.grpc.Status
+import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.EmptyCoroutineContext
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.common.IdGenerator
@@ -65,8 +67,9 @@ class SpannerBasicReportsService(
   private val spannerClient: AsyncDatabaseClient,
   private val postgresClient: DatabaseClient,
   private val impressionQualificationFilterMapping: ImpressionQualificationFilterMapping,
+  coroutineContext: CoroutineContext = EmptyCoroutineContext,
   private val idGenerator: IdGenerator = IdGenerator.Default,
-) : BasicReportsCoroutineImplBase() {
+) : BasicReportsCoroutineImplBase(coroutineContext) {
   override suspend fun getBasicReport(request: GetBasicReportRequest): BasicReport {
     if (request.cmmsMeasurementConsumerId.isEmpty()) {
       throw RequiredFieldNotSetException("cmms_measurement_consumer_id")

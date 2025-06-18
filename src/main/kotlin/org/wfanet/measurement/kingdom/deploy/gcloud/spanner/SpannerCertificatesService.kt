@@ -15,6 +15,8 @@
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 
 import io.grpc.Status
+import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.EmptyCoroutineContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.singleOrNull
@@ -50,7 +52,8 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.RevokeCertif
 class SpannerCertificatesService(
   private val idGenerator: IdGenerator,
   private val client: AsyncDatabaseClient,
-) : CertificatesCoroutineImplBase() {
+  coroutineContext: CoroutineContext = EmptyCoroutineContext,
+) : CertificatesCoroutineImplBase(coroutineContext) {
   override suspend fun createCertificate(request: Certificate): Certificate {
     grpcRequire(request.parentCase != Certificate.ParentCase.PARENT_NOT_SET) {
       "Certificate is missing parent field"
