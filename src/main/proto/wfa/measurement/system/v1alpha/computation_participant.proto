@@ -110,6 +110,9 @@ message ComputationParticipant {
           [(google.api.field_behavior) = REQUIRED];
     }
 
+    // Parameters for TrusTEE protocol.
+    message TrusTee {}
+
     // Protocol. Required.
     oneof protocol {
       // Requisition parameters for the Liquid Legions v2 protocol.
@@ -120,6 +123,9 @@ message ComputationParticipant {
 
       // Requisition parameters for the Honest Majority Share Shuffle protocol.
       HonestMajorityShareShuffle honest_majority_share_shuffle = 6;
+
+      // Requisition parameters for the TrusTEE protocol.
+      TrusTee trus_tee = 7;
     }
   }
   // Parameters needed for `Requisition` to be made available in public API.

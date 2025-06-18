@@ -164,6 +164,9 @@ class ComputationParticipantsService(
         ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE -> {
           honestMajorityShareShuffle = requisitionParams.honestMajorityShareShuffle.toHmssDetails()
         }
+        ProtocolCase.TRUS_TEE -> {
+          failGrpc { "protocol TrusTEE not implemented." }
+        }
         ProtocolCase.PROTOCOL_NOT_SET -> failGrpc { "protocol not set in the requisition_params." }
       }
     }
