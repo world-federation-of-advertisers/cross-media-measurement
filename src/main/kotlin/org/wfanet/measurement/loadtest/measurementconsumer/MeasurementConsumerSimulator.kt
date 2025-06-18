@@ -223,6 +223,7 @@ abstract class MeasurementConsumerSimulator(
       ?: error("REQUISITION_FETCHER_TARGET must be set")
 
     logger.info("~~~~~~~~~~~~~~~~~~ JWT: ${jwt}")
+    logger.info("~~~~~~~~~~~~~~~~~~ requisitionFetcherTarget: ${requisitionFetcherTarget}")
     val client = HttpClient.newHttpClient()
     val request =
       HttpRequest.newBuilder()
