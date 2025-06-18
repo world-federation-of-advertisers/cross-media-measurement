@@ -73,13 +73,16 @@ import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
 class RequisitionFetcherFunction : HttpFunction {
 
   override fun service(request: HttpRequest, response: HttpResponse) {
-
+    logger.info("Received request.")
     val errors = mutableListOf<String>()
     for (dataProviderConfig in requisitionFetcherConfig.configsList) {
 
       try {
+        logger.info("Processing config: ${dataProviderConfig}")
         validateConfig(dataProviderConfig)
+        logger.info("Creating Requisition Fetcher...")
         val requisitionFetcher = createRequisitionFetcher(dataProviderConfig)
+        logger.info("Fetching requisitions...")
         runBlocking { requisitionFetcher.fetchAndStoreRequisitions() }
       } catch (e: IllegalArgumentException) {
         val errorMsg = "Invalid config for data provider: ${dataProviderConfig.dataProvider}"
