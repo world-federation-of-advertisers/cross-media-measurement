@@ -97,7 +97,6 @@ jobs:
           --test_env=GOOGLE_CLOUD_PROJECT \
           --test_env=AUTH_ID_TOKEN \
           --test_env=REQUISITION_FETCHER_TARGET \
-#          //src/test/kotlin/org/wfanet/measurement/integration/k8s:SyntheticGeneratorCorrectnessTest
           //src/test/kotlin/org/wfanet/measurement/integration/k8s:EdpAggregatorCorrectnessTest
 
       - name: Upload Bazel testlogs
