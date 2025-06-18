@@ -228,6 +228,7 @@ abstract class MeasurementConsumerSimulator(
     val request =
       HttpRequest.newBuilder()
         .uri(URI.create(requisitionFetcherTarget))
+        .timeout(Duration.ofSeconds(120))
         .header("Authorization", "Bearer $jwt")
         .GET()
         .build()
