@@ -78,11 +78,8 @@ class RequisitionFetcherFunction : HttpFunction {
     for (dataProviderConfig in requisitionFetcherConfig.configsList) {
 
       try {
-        logger.info("Processing config: ${dataProviderConfig}")
         validateConfig(dataProviderConfig)
-        logger.info("Creating Requisition Fetcher...")
         val requisitionFetcher = createRequisitionFetcher(dataProviderConfig)
-        logger.info("Fetching requisitions...")
         runBlocking { requisitionFetcher.fetchAndStoreRequisitions() }
       } catch (e: IllegalArgumentException) {
         val errorMsg = "Invalid config for data provider: ${dataProviderConfig.dataProvider}"
@@ -128,7 +125,6 @@ class RequisitionFetcherFunction : HttpFunction {
         refuseRequisition(requisitionsStub, requisition, refusal)
       }
     }
-    logger.info("~~~~~~~~~~~~~~~~~ grpcThrottler: $grpcThrottler")
     val requisitionGrouper = RequisitionGrouperByReportId(
       requisitionsValidator,
       eventGroupsStub,

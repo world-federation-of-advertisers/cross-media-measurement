@@ -88,9 +88,7 @@ class RequisitionFetcher(
           ResourceList(response.requisitionsList, response.nextPageToken)
         }
         .flattenConcat()
-    logger.info("Requisitions flow created.")
     val groupedRequisition: List<GroupedRequisitions> = requisitionGrouper.groupRequisitions(requisitions.toList())
-    logger.info("Requisitions are grouped.")
     val storedRequisitions: Int = storeRequisitions(groupedRequisition)
 
     logger.info {
@@ -106,20 +104,17 @@ class RequisitionFetcher(
    */
   private suspend fun storeRequisitions(groupedRequisitions: List<GroupedRequisitions>): Int {
     var storedGroupedRequisitions = 0
-    logger.info("Storing requisitions.")
     groupedRequisitions.forEach { groupedRequisition: GroupedRequisitions ->
       val groupedRequisitionId = idGenerator(groupedRequisition)
       val blobKey = "$storagePathPrefix/${groupedRequisitionId}"
-      logger.info("blobKey: $blobKey.")
+
       // TODO(@marcopremier): Add mechanism to check whether requisitions inside grouped requisitions where stored already.
       if (groupedRequisition.requisitionsList.isNotEmpty() && storageClient.getBlob(blobKey) == null) {
-        logger.info("Writing blob.")
         storageClient.writeBlob(blobKey, Any.pack(groupedRequisition).toByteString())
         storedGroupedRequisitions += 1
       }
     }
 
-    logger.info("Requisitions stored.")
     return storedGroupedRequisitions
   }
 

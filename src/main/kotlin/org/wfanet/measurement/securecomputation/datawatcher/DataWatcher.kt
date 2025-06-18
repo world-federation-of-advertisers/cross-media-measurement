@@ -67,12 +67,13 @@ class DataWatcher(
         }
       } catch (e: Exception) {
         logger.severe("${config.identifier}: Unable to process $path for $config: ${e.message}")
+        e.printStackTrace()
       }
     }
   }
 
   private suspend fun sendToControlPlane(config: WatchedPath, path: String) {
-
+    logger.info("~~~~~~~~~~~~~~~~~~~~ sendToControlPlane1 $config, $path")
     val queueConfig = config.controlPlaneQueueSink
     val workItemId = workItemIdGenerator()
     val workItemParams =
@@ -88,6 +89,8 @@ class DataWatcher(
         this.workItemParams = workItemParams
       }
     }
+    logger.info("~~~~~~~~~~~~~~~~~~~~ sendToControlPlane2: $request")
+
     workItemsStub.createWorkItem(request)
   }
 

@@ -115,6 +115,7 @@ class DataWatcherFunction : CloudEventsFunction {
     }
 
     private val publicChannel by lazy {
+      logger.info("~~~~~~~~~~~~~~~~ creating public channel: ${controlPlaneTarget}, ${controlPlaneCertHost}")
       buildMutualTlsChannel(controlPlaneTarget, getClientCerts(), controlPlaneCertHost)
         .withShutdownTimeout(channelShutdownTimeout)
     }
