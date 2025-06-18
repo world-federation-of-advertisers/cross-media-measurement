@@ -19,7 +19,6 @@ package org.wfanet.measurement.securecomputation.datawatcher
 import com.google.common.truth.Truth.assertThat
 import com.google.gson.Gson
 import com.google.protobuf.Any
-import kotlin.Any as KotlinAny
 import com.google.protobuf.Int32Value
 import com.google.protobuf.Struct
 import com.google.protobuf.Value
@@ -37,14 +36,6 @@ import org.junit.runners.JUnit4
 import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.times
 import org.mockito.kotlin.verifyBlocking
-import com.google.auth.oauth2.GoogleCredentials
-import com.google.auth.oauth2.IdTokenProvider
-import com.google.auth.oauth2.IdToken
-import org.mockito.Mockito
-import org.mockito.Mockito.mockStatic
-import org.mockito.kotlin.doReturn
-import org.mockito.kotlin.mock
-import org.mockito.kotlin.whenever
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.config.securecomputation.WatchedPathKt.controlPlaneQueueSink
