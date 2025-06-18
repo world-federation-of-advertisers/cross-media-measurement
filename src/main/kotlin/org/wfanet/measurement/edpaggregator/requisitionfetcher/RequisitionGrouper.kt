@@ -108,7 +108,9 @@ abstract class RequisitionGrouper(
   }
 
   private suspend fun getEventGroup(name: String): EventGroup {
+    logger.info("~~~~~~~~~~~~~~~~ getEventGroup.... $throttler")
     return throttler.onReady {
+      logger.info("~~~~~~~~~~~~~~~~ getEventGroup2....")
       eventGroupsClient.getEventGroup(getEventGroupRequest { this.name = name })
     }
   }

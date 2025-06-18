@@ -128,7 +128,7 @@ class RequisitionFetcherFunction : HttpFunction {
         refuseRequisition(requisitionsStub, requisition, refusal)
       }
     }
-
+    logger.info("~~~~~~~~~~~~~~~~~ grpcThrottler: $grpcThrottler")
     val requisitionGrouper = RequisitionGrouperByReportId(
       requisitionsValidator,
       eventGroupsStub,
@@ -192,7 +192,7 @@ class RequisitionFetcherFunction : HttpFunction {
     private val kingdomCertHost: String? = System.getenv("KINGDOM_CERT_HOST")
     private val fileSystemPath: String? = System.getenv("REQUISITION_FILE_SYSTEM_PATH")
     private val grpcThrottler = EnvVars.checkNotNullOrEmpty("GRPC_THROTTLER").toLongOrNull()
-      ?: error("Invalid GRPC_THROTTLER value: must be a number (milliseconds)")
+      ?: error("Invalid GRPC_THROTTLER value: must be a number (seconds)")
 
 
     val pageSize = run {
