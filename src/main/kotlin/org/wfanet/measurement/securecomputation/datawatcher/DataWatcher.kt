@@ -43,7 +43,8 @@ class DataWatcher(
   private val workItemsStub: WorkItemsCoroutineStub,
   private val dataWatcherConfigs: List<WatchedPath>,
   private val workItemIdGenerator: () -> String = { "work-item-" + UUID.randomUUID().toString() },
-) {
+  private val jwtToken: String? = null
+  ) {
   suspend fun receivePath(path: String) {
     logger.info("Received Path: $path")
     for (config in dataWatcherConfigs) {
@@ -92,11 +93,12 @@ class DataWatcher(
 
   private suspend fun sendToHttpEndpoint(config: WatchedPath) {
 
-    val credentials = GoogleCredentials.getApplicationDefault() as IdTokenProvider
+    val jwt = jwtToken ?: run {
+      val credentials = GoogleCredentials.getApplicationDefault() as IdTokenProvider
+      val idToken = credentials.idTokenWithAudience(config.httpEndpointSink.endpointUri, listOf())
+      idToken.tokenValue
+    }
 
-    val idToken: IdToken =
-      credentials.idTokenWithAudience(config.httpEndpointSink.endpointUri, listOf())
-    val jwt = idToken.tokenValue
 
     val httpEndpointConfig = config.httpEndpointSink
     val client = HttpClient.newHttpClient()
