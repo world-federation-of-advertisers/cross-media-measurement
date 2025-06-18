@@ -426,7 +426,7 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
       .isEqualTo(
         population {
           description = DESCRIPTION
-          populationBlob = populationBlob { modelBlobUri = MODEL_BLOB_URI }
+          populationBlob = populationBlob { blobUri = MODEL_BLOB_URI }
           eventTemplate = eventTemplate { type = EVENT_TEMPLATE_TYPE }
         }
       )
@@ -549,7 +549,7 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
         parent = dataProviderName
         population = population {
           description = DESCRIPTION
-          populationBlob = populationBlob { modelBlobUri = MODEL_BLOB_URI }
+          populationBlob = populationBlob { blobUri = MODEL_BLOB_URI }
           eventTemplate = eventTemplate { type = EVENT_TEMPLATE_TYPE }
         }
       }

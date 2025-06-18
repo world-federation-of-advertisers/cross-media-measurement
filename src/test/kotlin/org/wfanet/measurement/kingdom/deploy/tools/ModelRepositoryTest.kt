@@ -364,7 +364,7 @@ class ModelRepositoryTest {
           population = population {
             description = DESCRIPTION
             eventTemplate = eventTemplate { type = EVENT_TEMPLATE_TYPE }
-            populationBlob = populationBlob { modelBlobUri = MODEL_BLOB_URI }
+            populationBlob = populationBlob { blobUri = MODEL_BLOB_URI }
           }
         }
       )
@@ -580,14 +580,14 @@ class ModelRepositoryTest {
       description = DESCRIPTION
       createTime = CREATE_TIME
       eventTemplate = eventTemplate { type = EVENT_TEMPLATE_TYPE }
-      populationBlob = populationBlob { modelBlobUri = MODEL_BLOB_URI }
+      populationBlob = populationBlob { blobUri = MODEL_BLOB_URI }
     }
     private val POPULATION_2: Population = population {
       name = POPULATION_NAME_2
       description = DESCRIPTION
       createTime = CREATE_TIME
       eventTemplate = eventTemplate { type = EVENT_TEMPLATE_TYPE }
-      populationBlob = populationBlob { modelBlobUri = MODEL_BLOB_URI }
+      populationBlob = populationBlob { blobUri = MODEL_BLOB_URI }
     }
 
     private const val MODEL_LINE_NAME = "$MODEL_SUITE_NAME/modelLines/AAAAAAAAAHs"

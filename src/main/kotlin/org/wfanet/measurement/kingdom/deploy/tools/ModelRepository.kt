@@ -320,7 +320,7 @@ class CreatePopulation : Runnable {
           parent = parentDataProvider
           population = population {
             description = populationDescription
-            populationBlob = populationBlob { modelBlobUri = modelBlobUriValue }
+            populationBlob = populationBlob { blobUri = modelBlobUriValue }
             eventTemplate = eventTemplate { type = eventTemplateType }
           }
         }
