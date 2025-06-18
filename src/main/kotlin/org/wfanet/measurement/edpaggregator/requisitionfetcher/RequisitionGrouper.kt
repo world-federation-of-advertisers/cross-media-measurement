@@ -86,7 +86,7 @@ abstract class RequisitionGrouper(
     val eventGroupMapEntries =
       try {
         getEventGroupMapEntries(requisitionSpec)
-      } catch (e: StatusException) {
+      } catch (e: Exception) {
         logger.severe(
           "Exception getting event group map for requisition ${requisition.name}: ${e.message}"
         )
@@ -121,7 +121,9 @@ abstract class RequisitionGrouper(
     for (eventGroupEntry in requisitionSpec.events.eventGroupsList) {
       logger.info("~~~~~~~~~~~~~~~~ GETTING EGM entry dentro for....")
       val eventGroupName = eventGroupEntry.key
+      logger.info("~~~~~~~~~~~~~~~~ GETTING EGM entry eventGroupName.... $eventGroupName")
       if (eventGroupName in eventGroupMap) {
+        logger.info("~~~~~~~~~~~~~~~~ GETTING EGM entry dentro if")
         eventGroupMap[eventGroupName] =
           eventGroupMap
             .getValue(eventGroupName)
@@ -135,6 +137,7 @@ abstract class RequisitionGrouper(
             }
             .build()
       } else {
+        logger.info("~~~~~~~~~~~~~~~~ GETTING EGM entry dentro else")
         eventGroupMap[eventGroupName] = eventGroupDetails {
           val eventGroup = getEventGroup(eventGroupName)
           this.eventGroupReferenceId = eventGroup.eventGroupReferenceId
