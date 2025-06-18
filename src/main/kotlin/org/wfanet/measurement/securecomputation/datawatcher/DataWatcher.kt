@@ -22,7 +22,9 @@ import java.net.http.HttpRequest
 import java.net.http.HttpResponse.BodyHandlers
 import java.util.UUID
 import java.util.logging.Logger
-import kotlin.text.matches
+import com.google.auth.oauth2.GoogleCredentials
+import com.google.auth.oauth2.IdTokenProvider
+import com.google.auth.oauth2.IdToken
 import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.common.toJson
 import org.wfanet.measurement.config.securecomputation.WatchedPath
@@ -89,11 +91,19 @@ class DataWatcher(
   }
 
   private suspend fun sendToHttpEndpoint(config: WatchedPath) {
+
+    val credentials = GoogleCredentials.getApplicationDefault() as IdTokenProvider
+
+    val idToken: IdToken =
+      credentials.idTokenWithAudience(config.httpEndpointSink.endpointUri, listOf())
+    val jwt = idToken.tokenValue
+
     val httpEndpointConfig = config.httpEndpointSink
     val client = HttpClient.newHttpClient()
     val request =
       HttpRequest.newBuilder()
         .uri(URI.create(httpEndpointConfig.endpointUri))
+        .header("Authorization", "Bearer $jwt")
         .POST(HttpRequest.BodyPublishers.ofString(httpEndpointConfig.appParams.toJson()))
         .build()
     val response = client.send(request, BodyHandlers.ofString())
