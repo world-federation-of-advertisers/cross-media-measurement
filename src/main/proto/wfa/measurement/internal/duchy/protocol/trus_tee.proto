@@ -36,15 +36,15 @@ message TrusTee {
     // The computation is created by the duchy herald.
     INITIALIZED = 1;
 
-    // The duchy calls setRequisitionParams at the kingdom. The Computation is waiting for
-    // requisitions.
+    // The duchy calls setRequisitionParams at the kingdom. The Computation is
+    // waiting for requisitions.
     WAIT_TO_START = 2;
 
-    // Requisitions has all been fulfilled. The duchy is running the TEE computation by TEE mill.
+    // Requisitions has all been fulfilled. The duchy is running the TEE
+    // computation by TEE mill.
     COMPUTING = 3;
 
     // Computation is either successful or failed.
     COMPLETE = 4;
-
   }
 }
