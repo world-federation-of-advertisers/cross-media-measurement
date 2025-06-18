@@ -32,7 +32,6 @@ import kotlin.math.sqrt
 import kotlin.random.Random
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.time.delay
 import org.projectnessie.cel.Program
@@ -129,6 +128,10 @@ import org.wfanet.measurement.measurementconsumer.stats.ReachMeasurementParams
 import org.wfanet.measurement.measurementconsumer.stats.ReachMeasurementVarianceParams
 import org.wfanet.measurement.measurementconsumer.stats.VariancesImpl
 import org.wfanet.measurement.measurementconsumer.stats.VidSamplingInterval as StatsVidSamplingInterval
+import java.net.URI
+import java.net.http.HttpClient
+import java.net.http.HttpRequest
+import java.net.http.HttpResponse
 import org.wfanet.measurement.populationdataprovider.PopulationInfo
 
 data class MeasurementConsumerData(
@@ -163,6 +166,8 @@ abstract class MeasurementConsumerSimulator(
   private val eventRange: OpenEndTimeRange,
   private val initialResultPollingDelay: Duration,
   private val maximumResultPollingDelay: Duration,
+  private val eventGroupFilter: ((EventGroup) -> Boolean)? = null,
+  private val isEdpAggregatorRunning: Boolean = false
 ) {
   /** Cache of resource name to [Certificate]. */
   private val certificateCache = mutableMapOf<String, Certificate>()
@@ -207,6 +212,29 @@ abstract class MeasurementConsumerSimulator(
     val measurementInfo: MeasurementInfo,
   )
 
+  private fun triggerRequisitionFetcher() {
+
+    val jwt = System.getenv("AUTH_ID_TOKEN")
+      ?: error("AUTH_ID_TOKEN must be set")
+
+    val requisitionFetcherTarget = System.getenv("REQUISITION_FETCHER_TARGET")
+      ?: error("REQUISITION_FETCHER_TARGET must be set")
+
+    logger.info("~~~~~~~~~~~~~~~~~~ JWT: ${jwt}")
+    val client = HttpClient.newHttpClient()
+    val request =
+      HttpRequest.newBuilder()
+        .uri(URI.create(requisitionFetcherTarget))
+        .header("Authorization", "Bearer $jwt")
+        .GET()
+        .build()
+    val response = client.send(request, HttpResponse.BodyHandlers.ofString())
+
+    logger.info("~~~~~~~~~~~~~~~~~~ Response status: ${response.statusCode()}")
+    logger.info("~~~~~~~~~~~~~~~~~~ Response body: ${response.body()}")
+    check(response.statusCode() == 200)
+  }
+
   /** A sequence of operations done in the simulator involving a reach and frequency measurement. */
   suspend fun testReachAndFrequency(
     runId: String,
@@ -227,6 +255,8 @@ abstract class MeasurementConsumerSimulator(
       )
     val measurementName = measurementInfo.measurement.name
     logger.info { "Created reach and frequency Measurement $measurementName" }
+
+
 
     // Get the CMMS computed result and compare it with the expected result.
     val reachAndFrequencyResult: Result = pollForResult {
@@ -335,6 +365,10 @@ abstract class MeasurementConsumerSimulator(
         )
       val measurementName = measurementInfo.measurement.name
       logger.info("Created direct reach and frequency measurement $measurementName.")
+
+      if (isEdpAggregatorRunning) {
+        triggerRequisitionFetcher()
+      }
 
       // Get the CMMS computed result and compare it with the expected result.
       val reachAndFrequencyResult = pollForResult { getReachAndFrequencyResult(measurementName) }
@@ -831,6 +865,7 @@ abstract class MeasurementConsumerSimulator(
 
     val requisitions: List<RequisitionInfo> =
       eventGroups
+        .filter { eventGroupFilter?.invoke(it) ?: true }
         .groupBy { extractDataProviderKey(it.name) }
         .entries
         .filter {

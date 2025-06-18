@@ -38,6 +38,14 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
+    - name: Authenticate to Google Cloud
+      uses: google-github-actions/auth@v2
+      with:
+        workload_identity_provider: ${{ vars.WORKLOAD_IDENTITY_PROVIDER }}
+        service_account: ${{ vars.TF_SERVICE_ACCOUNT }}
+        token_format: 'id_token'
+        id_token_audience: ${{ vars.REQUISITION_FETCHER_TARGET }}
+
     - name: Write auth.bazelrc
       env:
         BUILDBUDDY_API_KEY: ${{ secrets.BUILDBUDDY_API_KEY }}
@@ -72,10 +80,18 @@ jobs:
 
     - name: Run tests
       id: run-tests
+      env:
+        AUTH_ID_TOKEN: ${{ steps.auth.outputs.id_token }}
+        REQUISITION_FETCHER_TARGET: ${{ vars.REQUISITION_FETCHER_TARGET }}
       run: >
-        bazelisk test
+        bazelisk test \
+        --test_env=GOOGLE_APPLICATION_CREDENTIALS \
+        --test_env=GOOGLE_CLOUD_PROJECT \
+        --test_env=AUTH_ID_TOKEN \
+        --test_env=REQUISITION_FETCHER_TARGET \
         //src/test/kotlin/org/wfanet/measurement/integration/k8s:SyntheticGeneratorCorrectnessTest
-        
+    # TODO(@marcopremier): Add Cloud test here, when ready to merge
+
     - name: Upload Bazel testlogs
       continue-on-error: true
       uses: world-federation-of-advertisers/actions/bazel-upload-testlogs@v2

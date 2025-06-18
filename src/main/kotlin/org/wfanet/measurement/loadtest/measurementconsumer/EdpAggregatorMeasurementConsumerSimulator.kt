@@ -77,6 +77,10 @@ class EdpAggregatorMeasurementConsumerSimulator(
     eventRange,
     initialResultPollingDelay,
     maximumResultPollingDelay,
+     {
+      it.eventGroupReferenceId == REQUIRED_EVENT_GROUP_REFERENCE_ID
+     },
+    true
   ) {
 
   override fun Flow<EventGroup>.filterEventGroups(): Flow<EventGroup> {
@@ -144,6 +148,7 @@ class EdpAggregatorMeasurementConsumerSimulator(
   }
 
   companion object {
+    private const val REQUIRED_EVENT_GROUP_REFERENCE_ID = 
     private const val DEFAULT_FILTER_EXPRESSION =
       "person.gender == ${Person.Gender.MALE_VALUE} && " +
         "(video_ad.viewed_fraction > 0.25 || video_ad.viewed_fraction == 0.25)"
