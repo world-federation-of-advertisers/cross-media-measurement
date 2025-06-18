@@ -107,6 +107,7 @@ locals {
 
   requisition_fetcher_secrets_access = concat(
     ["kingdom_root_ca"],
+    ["edp7_enc_private"],
     local.edp_tls_keys
   )
 
