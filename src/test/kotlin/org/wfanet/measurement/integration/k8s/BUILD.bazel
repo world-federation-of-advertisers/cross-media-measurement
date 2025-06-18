@@ -147,6 +147,9 @@ kt_jvm_library(
     name = "edp_aggregator_correctness_test",
     #    testonly = True,
     srcs = ["EdpAggregatorCorrectnessTest.kt"],
+    data = [
+        "//src/main/proto/wfa/measurement/loadtest/dataprovider:specs",
+    ],
     deps = [
         ":abstract_edp_aggregatorcorrectness_test",
         "//src/main/kotlin/org/wfanet/measurement/integration/common:synthetic_generation_specs",
