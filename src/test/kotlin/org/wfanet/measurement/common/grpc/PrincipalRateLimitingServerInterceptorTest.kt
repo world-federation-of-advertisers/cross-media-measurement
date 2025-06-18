@@ -96,12 +96,14 @@ class PrincipalRateLimitingServerInterceptorTest {
 
   @Test
   fun `applies rate limit per principal`() {
+    whenever(createRateLimiterMock.invoke(null)).thenReturn(RateLimiter.Unlimited)
     whenever(createRateLimiterMock.invoke("alice")).thenReturn(RateLimiter.Unlimited)
     whenever(createRateLimiterMock.invoke("bob")).thenReturn(RateLimiter.Blocked)
 
+    repeat(2) { stub.cancelOperation(CancelOperationRequest.getDefaultInstance()) }
+
     principalIdentifier = "alice"
-    stub.cancelOperation(CancelOperationRequest.getDefaultInstance())
-    stub.cancelOperation(CancelOperationRequest.getDefaultInstance())
+    repeat(2) { stub.cancelOperation(CancelOperationRequest.getDefaultInstance()) }
 
     principalIdentifier = "bob"
     val exception =
@@ -110,7 +112,10 @@ class PrincipalRateLimitingServerInterceptorTest {
       }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.UNAVAILABLE)
-    verifyBlocking(serviceMock, times(2)) { cancelOperation(any()) }
+    verifyBlocking(serviceMock, times(4)) { cancelOperation(any()) }
+    verify(createRateLimiterMock, times(1)).invoke(null)
+    verify(createRateLimiterMock, times(1)).invoke("alice")
+    verify(createRateLimiterMock, times(1)).invoke("bob")
   }
 
   @Test

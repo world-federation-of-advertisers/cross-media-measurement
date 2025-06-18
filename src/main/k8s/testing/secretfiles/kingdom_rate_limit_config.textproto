@@ -1,0 +1,13 @@
+# proto-file: wfa/measurement/config/rate_limit_config.proto
+# proto-message: RateLimitConfig
+
+default_rate_limit {
+  maximum_request_count: 20
+  average_request_rate: 5
+}
+per_principal_rate_limit {
+  key: "C2:80:7E:5D:5C:10:08:6D:C7:57:71:09:7F:73:FD:7D:41:CD:E0:23"  # Reporting server.
+  value {
+    maximum_request_count: -1  # Unlimited.
+  }
+}
