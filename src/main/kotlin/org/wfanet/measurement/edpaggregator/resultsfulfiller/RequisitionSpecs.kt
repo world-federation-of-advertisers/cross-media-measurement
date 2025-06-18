@@ -71,6 +71,7 @@ object RequisitionSpecs {
       logger.info(
         "Fetching Dates: ${startDate.datesUntil(endDate.plusDays(1)).asSequence().toList()}"
       )
+      // datesUntil is end exclusive so a day is added.
       val dates = startDate.datesUntil(endDate.plusDays(1)).asSequence()
       // Iterates through all dates up to the end date in the collection interval(inclusive)
       val impressions =
