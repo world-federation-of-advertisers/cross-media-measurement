@@ -77,6 +77,8 @@ class EdpAggregatorMeasurementConsumerSimulator(
     eventRange,
     initialResultPollingDelay,
     maximumResultPollingDelay,
+    eventGroupFilter = EVENT_GROUP_FILTERING_LAMBDA,
+    isEdpAggregatorRunning = true
   ) {
 
   override fun Flow<EventGroup>.filterEventGroups(): Flow<EventGroup> {
@@ -144,6 +146,7 @@ class EdpAggregatorMeasurementConsumerSimulator(
   }
 
   companion object {
+    private const val REQUIRED_EVENT_GROUP_REFERENCE_ID = "edpa-eg-reference-id-1"
     private const val DEFAULT_FILTER_EXPRESSION =
       "person.gender == ${Person.Gender.MALE_VALUE} && " +
         "(video_ad.viewed_fraction > 0.25 || video_ad.viewed_fraction == 0.25)"
@@ -151,5 +154,8 @@ class EdpAggregatorMeasurementConsumerSimulator(
     private val DEFAULT_EVENT_RANGE =
       OpenEndTimeRange.fromClosedDateRange(LocalDate.of(2021, 3, 15)..LocalDate.of(2021, 3, 17))
     private val logger: Logger = Logger.getLogger(this::class.java.name)
+    private val EVENT_GROUP_FILTERING_LAMBDA: (EventGroup) -> Boolean = {
+      it.eventGroupReferenceId == REQUIRED_EVENT_GROUP_REFERENCE_ID
+    }
   }
 }

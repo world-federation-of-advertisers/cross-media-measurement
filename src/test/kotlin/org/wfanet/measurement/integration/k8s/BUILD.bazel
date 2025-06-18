@@ -133,7 +133,6 @@ kt_jvm_library(
     ],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/integration/common:configs",
-        #        "//src/main/kotlin/org/wfanet/measurement/loadtest/edpaggregator:measurement_consumer_simulator",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/measurementconsumer:edp_aggregator_measurement_consumer_simulator",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/reporting:simulator",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
@@ -145,7 +144,6 @@ kt_jvm_library(
 
 kt_jvm_library(
     name = "edp_aggregator_correctness_test",
-    #    testonly = True,
     srcs = ["EdpAggregatorCorrectnessTest.kt"],
     data = [
         "//src/main/proto/wfa/measurement/loadtest/dataprovider:specs",
