@@ -93,13 +93,13 @@ class DeadLetterQueueListener(
       return
     }
 
-    logger.info("Processing dead letter message for work item: ${workItem.name}")
+    logger.fine("Processing dead letter message for work item: ${workItem.name}")
 
     try {
       workItemsStub.failWorkItem(
         failWorkItemRequest { workItemResourceId = workItem.name }
       )
-      logger.info("Successfully marked work item as failed: ${workItem.name}")
+      logger.fine("Successfully marked work item as failed: ${workItem.name}")
       queueMessage.ack()
     } catch (e: Exception) {
       when (e) {
@@ -130,7 +130,7 @@ class DeadLetterQueueListener(
 
   companion object {
     private val logger = Logger.getLogger(DeadLetterQueueListener::class.java.name)
-    
+
     /**
      * Checks if a StatusRuntimeException indicates that the work item is already in a FAILED state.
      */

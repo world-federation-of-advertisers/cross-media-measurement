@@ -18,6 +18,7 @@ package org.wfanet.measurement.securecomputation.deploy.gcloud.spanner
 
 import io.grpc.BindableService
 import java.io.File
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.runBlocking
@@ -31,7 +32,6 @@ import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.SpannerFlags
 import org.wfanet.measurement.gcloud.spanner.usingSpanner
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
-import org.wfanet.measurement.securecomputation.deploy.gcloud.deadletter.DeadLetterQueueListener
 import org.wfanet.measurement.securecomputation.deploy.gcloud.publisher.GoogleWorkItemPublisher
 import org.wfanet.measurement.securecomputation.service.internal.QueueMapping
 import picocli.CommandLine
@@ -44,7 +44,6 @@ import picocli.CommandLine
  * corresponding work items as failed in the database.
  *
  * ## Lifecycle:
- *
  * 1. Server initialization reads configuration and sets up dependencies
  * 2. Main gRPC server starts in an async coroutine
  * 3. If configured, DLQ listener starts in a separate async coroutine
@@ -57,23 +56,23 @@ class InternalApiServer : Runnable {
   @CommandLine.Mixin private lateinit var spannerFlags: SpannerFlags
 
   @CommandLine.Option(
-    names = ["--queue-config"],
-    description = ["Path to file containing a QueueConfig protobuf message in text format"],
-    required = true,
+      names = ["--queue-config"],
+      description = ["Path to file containing a QueueConfig protobuf message in text format"],
+      required = true,
   )
   private lateinit var queuesConfigFile: File
 
   @CommandLine.Option(
-    names = ["--google-project-id"],
-    description = ["Google Project ID that provides the PubSub"],
-    required = true,
+      names = ["--google-project-id"],
+      description = ["Google Project ID that provides the PubSub"],
+      required = true,
   )
   private lateinit var googleProjectId: String
 
   @CommandLine.Option(
-    names = ["--dead-letter-subscription-id"],
-    description = ["PubSub subscription ID for the dead letter queue"],
-    required = false,
+      names = ["--dead-letter-subscription-id"],
+      description = ["PubSub subscription ID for the dead letter queue"],
+      required = false,
   )
   private var deadLetterSubscriptionId: String? = null
 
@@ -87,29 +86,29 @@ class InternalApiServer : Runnable {
         val googlePubSubClient = DefaultGooglePubSubClient()
         val workItemPublisher = GoogleWorkItemPublisher(googleProjectId, googlePubSubClient)
 
-        val internalApiServices = InternalApiServices(workItemPublisher, databaseClient, queueMapping)
+        val internalApiServices =
+            InternalApiServices(workItemPublisher, databaseClient, queueMapping)
         val services = internalApiServices.build()
         val servicesList: List<BindableService> = services.toList()
         val server = CommonServer.fromFlags(serverFlags, SERVER_NAME, servicesList)
 
         val serverJob = async { server.start().blockUntilShutdown() }
 
-        val deadLetterListenerJob = deadLetterSubscriptionId?.let { subscriptionId ->
-          val subscriber = Subscriber(googleProjectId, googlePubSubClient)
-          // Get the SpannerWorkItemsService instance from the services
-          val spannerWorkItemsService = services.workItems as SpannerWorkItemsService
-          val deadLetterListener = DeadLetterQueueListenerWithServer.create(
-            spannerWorkItemsService = spannerWorkItemsService,
-            subscriptionId = subscriptionId,
-            queueSubscriber = subscriber,
-            parser = WorkItem.parser()
-          )
-          async {
-            deadLetterListener.use { listener ->
-              listener.run()
+        val deadLetterListenerJob: Deferred<Unit>? =
+            deadLetterSubscriptionId?.let { subscriptionId ->
+              val subscriber = Subscriber(googleProjectId, googlePubSubClient)
+              // Get the SpannerWorkItemsService instance from the services
+              val spannerWorkItemsService =
+                  services.workItems as? SpannerWorkItemsService
+                      ?: throw RuntimeException("Failed to get work items service")
+              val deadLetterListener =
+                  DeadLetterQueueListenerWithServer.create(
+                      spannerWorkItemsService = spannerWorkItemsService,
+                      subscriptionId = subscriptionId,
+                      queueSubscriber = subscriber,
+                      parser = WorkItem.parser())
+              async { deadLetterListener.use { listener -> listener.run() } }
             }
-          }
-        }
 
         if (deadLetterListenerJob != null) {
           awaitAll(serverJob, deadLetterListenerJob)

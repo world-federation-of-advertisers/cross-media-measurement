@@ -50,8 +50,8 @@ kt_jvm_library(
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/pubsub:subscriber",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/pubsub:default_google_pub_sub_client",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/pubsub:subscriber",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner",
     ],
 )

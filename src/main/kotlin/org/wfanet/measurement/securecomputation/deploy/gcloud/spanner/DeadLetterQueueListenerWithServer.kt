@@ -43,16 +43,16 @@ import org.wfanet.measurement.securecomputation.deploy.gcloud.deadletter.DeadLet
  * without external network calls.
  */
 class DeadLetterQueueListenerWithServer(
-  private val deadLetterQueueListener: DeadLetterQueueListener,
-  private val server: Server,
-  private val channel: ManagedChannel
+    private val deadLetterQueueListener: DeadLetterQueueListener,
+    private val server: Server,
+    private val channel: ManagedChannel
 ) : AutoCloseable {
 
   /**
    * Runs the dead letter queue listener.
    *
-   * This suspending function will process messages from the dead letter queue until cancelled
-   * or an error occurs.
+   * This suspending function will process messages from the dead letter queue until cancelled or an
+   * error occurs.
    */
   suspend fun run() {
     deadLetterQueueListener.run()
@@ -83,7 +83,7 @@ class DeadLetterQueueListenerWithServer(
       Thread.currentThread().interrupt()
     }
   }
-  
+
   companion object {
     /**
      * Creates a new [DeadLetterQueueListenerWithServer] instance with an in-process gRPC server.
@@ -95,37 +95,35 @@ class DeadLetterQueueListenerWithServer(
      * @return A configured DLQ listener with its associated server and channel
      */
     fun create(
-      spannerWorkItemsService: SpannerWorkItemsService,
-      subscriptionId: String,
-      queueSubscriber: QueueSubscriber,
-      parser: Parser<WorkItem> = WorkItem.parser()
+        spannerWorkItemsService: SpannerWorkItemsService,
+        subscriptionId: String,
+        queueSubscriber: QueueSubscriber,
+        parser: Parser<WorkItem> = WorkItem.parser()
     ): DeadLetterQueueListenerWithServer {
       // Set up an in-process gRPC server with the existing WorkItemsService instance
       val serviceName = InProcessServerBuilder.generateName()
-      val spannerWorkItemsServer = InProcessServerBuilder.forName(serviceName)
-        .directExecutor()
-        .addService(spannerWorkItemsService)
-        .build()
-        .start()
-      
+      val spannerWorkItemsServer =
+          InProcessServerBuilder.forName(serviceName)
+              .directExecutor()
+              .addService(spannerWorkItemsService)
+              .build()
+              .start()
+
       // Create the corresponding in-process channel
-      val channel = InProcessChannelBuilder.forName(serviceName)
-        .directExecutor()
-        .build()
-      
+      val channel = InProcessChannelBuilder.forName(serviceName).directExecutor().build()
+
       // Create the DLQ listener with a gRPC stub for the WorkItemsService
-      val deadLetterQueueListener = DeadLetterQueueListener(
-        subscriptionId = subscriptionId,
-        queueSubscriber = queueSubscriber,
-        parser = parser,
-        workItemsStub = WorkItemsGrpcKt.WorkItemsCoroutineStub(channel)
-      )
-      
+      val deadLetterQueueListener =
+          DeadLetterQueueListener(
+              subscriptionId = subscriptionId,
+              queueSubscriber = queueSubscriber,
+              parser = parser,
+              workItemsStub = WorkItemsGrpcKt.WorkItemsCoroutineStub(channel))
+
       return DeadLetterQueueListenerWithServer(
-        deadLetterQueueListener = deadLetterQueueListener,
-        server = spannerWorkItemsServer,
-        channel = channel
-      )
+          deadLetterQueueListener = deadLetterQueueListener,
+          server = spannerWorkItemsServer,
+          channel = channel)
     }
   }
 }
