@@ -20,6 +20,8 @@ import com.google.protobuf.timestamp
 import com.google.type.interval
 import io.grpc.ManagedChannel
 import java.nio.file.Paths
+import java.time.LocalDate
+import java.time.ZoneId
 import java.time.Duration
 import java.util.*
 import org.junit.rules.TestRule
@@ -36,8 +38,8 @@ import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withDefaultDeadline
 import org.wfanet.measurement.common.parseTextProto
-import org.wfanet.measurement.loadtest.edpaggregator.MeasurementConsumerData
-import org.wfanet.measurement.loadtest.edpaggregator.MeasurementConsumerSimulator
+import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
+import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerSimulator
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.eventGroup
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup.MediaType
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.MetadataKt.AdMetadataKt.campaignMetadata
@@ -53,7 +55,10 @@ import org.wfanet.measurement.storage.SelectedStorageClient
 import com.google.cloud.storage.StorageOptions
 import java.util.logging.Logger
 import kotlinx.coroutines.delay
+import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
+import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticPopulationSpec
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
+import org.wfanet.measurement.loadtest.measurementconsumer.EdpAggregatorMeasurementConsumerSimulator
 
 class EdpAggregatorCorrectnessTest: AbstractEdpAggregatorCorrectnessTest(measurementSystem) {
 
@@ -95,8 +100,10 @@ class EdpAggregatorCorrectnessTest: AbstractEdpAggregatorCorrectnessTest(measure
       storageClient.delete(bucket, eventGroupObjectMapKey)
     }
     private suspend fun uploadEventGroups(eventGroup: List<EventGroup>) {
+      println("~~~~~~~~~ Uploading event group")
       val eventGroupsBlobUri =
         SelectedStorageClient.parseBlobUri(eventGroupBlobUri)
+      println("~~~~~~~~~ Uploading event group, uri: $eventGroupsBlobUri")
       MesosRecordIoStorageClient(
         SelectedStorageClient(
           blobUri = eventGroupsBlobUri,
@@ -108,27 +115,65 @@ class EdpAggregatorCorrectnessTest: AbstractEdpAggregatorCorrectnessTest(measure
     }
 
     private fun createEventGroups(): List<EventGroup> {
-      return listOf(
-        eventGroup {
-//          eventGroupReferenceId = "sim-eg-reference-id-1-edp-7"
-          eventGroupReferenceId = "edpa-eg-reference-id-1"
-          measurementConsumer = "measurementConsumers/VCTqwV_vFXw"
-          dataAvailabilityInterval = interval {
-            startTime = timestamp { seconds = 200 }
-            endTime = timestamp { seconds = 300 }
-          }
-          this.eventGroupMetadata = eventGroupMetadata {
-            this.adMetadata = adMetadata {
-              this.campaignMetadata = campaignMetadata {
-                brand = "brand-2"
-                campaign = "campaign-2"
+      println("~~~~~~~~~~~~~~~~~ creating event group")
+        return syntheticEventGroupMap.flatMap { (eventGroupReferenceId, syntheticEventGroupSpec) ->
+          syntheticEventGroupSpec.dateSpecsList.map { dateSpec ->
+            val dateRange = dateSpec.dateRange
+            val startTime =
+              LocalDate.of(dateRange.start.year, dateRange.start.month, dateRange.start.day)
+                .atStartOfDay(ZONE_ID)
+                .toInstant()
+            val endTime =
+              LocalDate.of(
+                  dateRange.endExclusive.year,
+                  dateRange.endExclusive.month,
+                  dateRange.endExclusive.day - 1,
+                )
+                .atTime(23, 59, 59)
+                .atZone(ZONE_ID)
+                .toInstant()
+            eventGroup {
+              this.eventGroupReferenceId = eventGroupReferenceId
+              measurementConsumer = TEST_CONFIG.measurementConsumer
+              dataAvailabilityInterval = interval {
+                this.startTime = timestamp { seconds = startTime.epochSecond }
+                this.endTime = timestamp { seconds = endTime.epochSecond }
               }
+              this.eventGroupMetadata = eventGroupMetadata {
+                this.adMetadata = adMetadata {
+                  this.campaignMetadata = campaignMetadata {
+                    brand = "some-brand"
+                    campaign = "some-brand"
+                  }
+                }
+              }
+              mediaTypes += MediaType.valueOf("VIDEO")
             }
           }
-          mediaTypes += MediaType.valueOf("VIDEO")
         }
-      )
-    }
+      }
+//    private fun createEventGroups(): List<EventGroup> {
+//      return listOf(
+//        eventGroup {
+////          eventGroupReferenceId = "sim-eg-reference-id-1-edp-7"
+//          eventGroupReferenceId = "edpa-eg-reference-id-1"
+//          measurementConsumer = "measurementConsumers/VCTqwV_vFXw"
+//          dataAvailabilityInterval = interval {
+//            startTime = timestamp { seconds = 200 }
+//            endTime = timestamp { seconds = 300 }
+//          }
+//          this.eventGroupMetadata = eventGroupMetadata {
+//            this.adMetadata = adMetadata {
+//              this.campaignMetadata = campaignMetadata {
+//                brand = "brand-2"
+//                campaign = "campaign-2"
+//              }
+//            }
+//          }
+//          mediaTypes += MediaType.valueOf("VIDEO")
+//        }
+//      )
+//    }
 
   }
   private class RunningMeasurementSystem : MeasurementSystem, TestRule {
@@ -172,7 +217,7 @@ class EdpAggregatorCorrectnessTest: AbstractEdpAggregatorCorrectnessTest(measure
           .also { channels.add(it) }
           .withDefaultDeadline(RPC_DEADLINE_DURATION)
 
-      return MeasurementConsumerSimulator(
+      return EdpAggregatorMeasurementConsumerSimulator(
         measurementConsumerData,
         OUTPUT_DP_PARAMS,
         DataProvidersGrpcKt.DataProvidersCoroutineStub(publicApiChannel),
@@ -183,6 +228,8 @@ class EdpAggregatorCorrectnessTest: AbstractEdpAggregatorCorrectnessTest(measure
         MEASUREMENT_CONSUMER_SIGNING_CERTS.trustedCertificates,
         TestEvent.getDefaultInstance(),
         ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN,
+        syntheticPopulationSpec,
+        syntheticEventGroupMap,
       )
       //class EdpAggregatorMeasurementConsumerSimulator(
       //  measurementConsumerData: MeasurementConsumerData,
@@ -229,6 +276,37 @@ class EdpAggregatorCorrectnessTest: AbstractEdpAggregatorCorrectnessTest(measure
       ).toFile()
       parseTextProto(configFile, CorrectnessTestConfig.getDefaultInstance())
     }
+
+    private val TEST_DATA_PATH =
+      Paths.get(
+        "wfa_measurement_system",
+        "src",
+        "main",
+        "proto",
+        "wfa",
+        "measurement",
+        "loadtest",
+        "dataprovider",
+      )
+
+    private val TEST_DATA_RUNTIME_PATH = org.wfanet.measurement.common.getRuntimePath(
+      TEST_DATA_PATH
+    )!!
+
+    val syntheticPopulationSpec: SyntheticPopulationSpec =
+      parseTextProto(
+        TEST_DATA_RUNTIME_PATH.resolve("small_population_spec.textproto").toFile(),
+        SyntheticPopulationSpec.getDefaultInstance(),
+      )
+    val syntheticEventGroupSpec: SyntheticEventGroupSpec =
+      parseTextProto(
+        TEST_DATA_RUNTIME_PATH.resolve("small_data_spec.textproto").toFile(),
+        SyntheticEventGroupSpec.getDefaultInstance(),
+      )
+
+    val syntheticEventGroupMap = mapOf("edpa-eg-reference-id-1" to syntheticEventGroupSpec)
+
+    private val ZONE_ID = ZoneId.of("UTC")
 
     private val uploadEventGroup = UploadEventGroup()
     private val measurementSystem = RunningMeasurementSystem()
