@@ -63,7 +63,9 @@ abstract class RequisitionGrouper(
    * @return A list of [GroupedRequisitions] containing the categorized [Requisition] objects.
    */
   suspend fun groupRequisitions(requisitions: List<Requisition>): List<GroupedRequisitions> {
+    logger.info("~~~~~~~~~~~~~~~~~~~~~ GROUPING REQUISITIONS: ${requisitions.size}")
     val mappedRequisitions = requisitions.mapNotNull { mapRequisition(it) }
+    logger.info("~~~~~~~~~~~~~~~~~~~~~ REQUISITIONS MAPPED")
     return combineGroupedRequisitions(mappedRequisitions)
   }
 
@@ -74,10 +76,13 @@ abstract class RequisitionGrouper(
 
   /* Maps a single [Requisition] to a single [GroupedRequisition]. */
   private suspend fun mapRequisition(requisition: Requisition): GroupedRequisitions? {
+    logger.info("~~~~~~~~~~~~~~~~ MAPPING REQUISITIONS....")
     val measurementSpec: MeasurementSpec =
       requisitionValidator.validateMeasurementSpec(requisition) ?: return null
+    logger.info("~~~~~~~~~~~~~~~~ MAPPING REQUISITIONS1....$measurementSpec")
     val requisitionSpec: RequisitionSpec =
       requisitionValidator.validateRequisitionSpec(requisition) ?: return null
+    logger.info("~~~~~~~~~~~~~~~~ MAPPING REQUISITIONS2.... $requisitionSpec")
     val eventGroupMapEntries =
       try {
         getEventGroupMapEntries(requisitionSpec)
@@ -88,6 +93,7 @@ abstract class RequisitionGrouper(
         // For now, we skip this requisition. However, we could refuse it in the future.
         return null
       }
+    logger.info("~~~~~~~~~~~~~~~~ MAPPING REQUISITIONS3....")
     return groupedRequisitions {
       modelLine = measurementSpec.modelLine
       this.requisitions += requisitionEntry { this.requisition = Any.pack(requisition) }
@@ -110,8 +116,10 @@ abstract class RequisitionGrouper(
   private suspend fun getEventGroupMapEntries(
     requisitionSpec: RequisitionSpec
   ): Map<String, EventGroupDetails> {
+    logger.info("~~~~~~~~~~~~~~~~ GETTING EGM entry....")
     val eventGroupMap = mutableMapOf<String, EventGroupDetails>()
     for (eventGroupEntry in requisitionSpec.events.eventGroupsList) {
+      logger.info("~~~~~~~~~~~~~~~~ GETTING EGM entry dentro for....")
       val eventGroupName = eventGroupEntry.key
       if (eventGroupName in eventGroupMap) {
         eventGroupMap[eventGroupName] =
@@ -134,6 +142,7 @@ abstract class RequisitionGrouper(
         }
       }
     }
+    logger.info("~~~~~~~~~~~~~~~~ GETTING EGM return.... ${eventGroupMap}")
     return eventGroupMap
   }
 

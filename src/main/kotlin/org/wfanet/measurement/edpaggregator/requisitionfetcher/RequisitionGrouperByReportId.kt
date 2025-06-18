@@ -51,6 +51,7 @@ class RequisitionGrouperByReportId(
   override fun combineGroupedRequisitions(
     groupedRequisitions: List<GroupedRequisitions>
   ): List<GroupedRequisitions> {
+    logger.info("~~~~~~~~~~~ COMBINING GROUPED REQ")
     val groupedByReport: Map<String, List<GroupedRequisitions>> =
       groupedRequisitions.groupBy {
         val measurementSpec: MeasurementSpec =
@@ -62,7 +63,9 @@ class RequisitionGrouperByReportId(
             .unpack()
         measurementSpec.reportingMetadata.report
       }
+    logger.info("~~~~~~~~~~~ COMBINING GROUPED REQ2")
     val combinedByReportId: List<GroupedRequisitions> = combineByReportId(groupedByReport)
+    logger.info("~~~~~~~~~~~ COMBINING GROUPED RE3")
     return combinedByReportId
   }
 
