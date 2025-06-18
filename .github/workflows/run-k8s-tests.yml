@@ -15,9 +15,6 @@
 name: Run Kubernetes tests
 
 on:
-  push:
-    branches:
-      - marcopremier/edpa_cloud_test
   workflow_call:
     inputs:
       environment:
@@ -91,7 +88,7 @@ jobs:
         env:
           AUTH_ID_TOKEN: ${{ steps.auth.outputs.id_token }}
           REQUISITION_FETCHER_TARGET: ${{ vars.REQUISITION_FETCHER_TARGET }}
-        run: >
+        run: |
           bazelisk test \
           --test_env=GOOGLE_APPLICATION_CREDENTIALS \
           --test_env=GOOGLE_CLOUD_PROJECT \
