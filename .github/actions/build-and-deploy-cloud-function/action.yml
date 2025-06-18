@@ -88,6 +88,7 @@ runs:
         ARGS=(
           functions deploy "$FUNCTION_NAME"
           --gen2
+          --timeout=350s
           --runtime=java17
           --entry-point="$ENTRY_POINT"
           --memory=512MB
