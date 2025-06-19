@@ -1,0 +1,13 @@
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
+
+package(default_visibility = ["//visibility:public"])
+
+kt_jvm_library(
+    name = "maximum_rate_throttler",
+    srcs = ["MaximumRateThrottler.kt"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/common/ratelimit:token_bucket",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/throttler",
+    ],
+)
