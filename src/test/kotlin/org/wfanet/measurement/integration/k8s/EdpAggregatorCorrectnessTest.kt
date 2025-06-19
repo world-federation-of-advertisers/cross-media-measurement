@@ -248,13 +248,21 @@ class EdpAggregatorCorrectnessTest: AbstractEdpAggregatorCorrectnessTest(measure
     )!!
 
     val syntheticPopulationSpec: SyntheticPopulationSpec =
+//      parseTextProto(
+//        TEST_DATA_RUNTIME_PATH.resolve("small_population_spec.textproto").toFile(),
+//        SyntheticPopulationSpec.getDefaultInstance(),
+//      )
       parseTextProto(
-        TEST_DATA_RUNTIME_PATH.resolve("small_population_spec.textproto").toFile(),
+        TEST_DATA_RUNTIME_PATH.resolve("360m_population_spec.textproto").toFile(),
         SyntheticPopulationSpec.getDefaultInstance(),
       )
     val syntheticEventGroupSpec: SyntheticEventGroupSpec =
+//      parseTextProto(
+//        TEST_DATA_RUNTIME_PATH.resolve("small_data_spec.textproto").toFile(),
+//        SyntheticEventGroupSpec.getDefaultInstance(),
+//      )
       parseTextProto(
-        TEST_DATA_RUNTIME_PATH.resolve("small_data_spec.textproto").toFile(),
+        TEST_DATA_RUNTIME_PATH.resolve("90day_1billion_data_spec.textproto").toFile(),
         SyntheticEventGroupSpec.getDefaultInstance(),
       )
 
