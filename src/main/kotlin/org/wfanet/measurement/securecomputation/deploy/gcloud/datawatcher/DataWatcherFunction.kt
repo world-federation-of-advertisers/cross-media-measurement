@@ -52,6 +52,24 @@ class DataWatcherFunction : CloudEventsFunction {
         .build()
     val blobKey: String = data.getName()
     val bucket: String = data.getBucket()
+
+    data.metadataMap?.forEach { (key, value) ->
+      logger.info("----> $key: $value")
+    }
+    logger.info("----> data.generation, ${data.generation}")
+    logger.info("----> data.temporaryHold, ${data.temporaryHold}")
+    logger.info("----> data.eventBasedHold, ${data.eventBasedHold}")
+    logger.info("----> data.isInitialized, ${data.isInitialized}")
+    logger.info("----> data.metadataCount, ${data.metadataCount}")
+
+    val metageneration: Long = data.getMetageneration()
+    val size: Long = data.size
+    logger.info("~~~~~~~~~~~~~~~~~~~~~ metageneration: ${metageneration}, size: ${size}")
+    if(metageneration != 1L || size == 0L) {
+      logger.info("Skipping processing: metageneration=${metageneration}, size: ${size}")
+      return
+    }
+
     val path = "$scheme://$bucket/$blobKey"
     logger.info("Receiving path $path")
     runBlocking { dataWatcher.receivePath(path) }
