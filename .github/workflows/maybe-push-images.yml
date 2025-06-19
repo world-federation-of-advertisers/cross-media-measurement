@@ -17,7 +17,7 @@ name: Conditionally build and push container images
 on:
   push:
     branches:
-      - marcopremier/edpa_cloud_test
+      - marcopremier/load_test
   workflow_dispatch:
   workflow_call:
     inputs:
