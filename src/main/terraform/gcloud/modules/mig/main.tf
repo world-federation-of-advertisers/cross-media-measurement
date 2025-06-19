@@ -59,7 +59,7 @@ resource "google_compute_instance_template" "confidential_vm_template" {
     on_host_maintenance = "TERMINATE"
   }
 
-  name_prefix = "${var.instance_template_name}-"
+#   name_prefix = "${var.instance_template_name}-"
   lifecycle {
     create_before_destroy = true
   }
