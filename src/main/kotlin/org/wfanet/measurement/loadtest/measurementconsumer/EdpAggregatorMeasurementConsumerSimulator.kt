@@ -151,8 +151,10 @@ class EdpAggregatorMeasurementConsumerSimulator(
       "person.gender == ${Person.Gender.MALE_VALUE} && " +
         "(video_ad.viewed_fraction > 0.25 || video_ad.viewed_fraction == 0.25)"
     /** Default time range for events. */
+//    private val DEFAULT_EVENT_RANGE =
+//      OpenEndTimeRange.fromClosedDateRange(LocalDate.of(2021, 3, 15)..LocalDate.of(2021, 3, 17))
     private val DEFAULT_EVENT_RANGE =
-      OpenEndTimeRange.fromClosedDateRange(LocalDate.of(2021, 3, 15)..LocalDate.of(2021, 3, 17))
+      OpenEndTimeRange.fromClosedDateRange(LocalDate.of(2025, 1, 1)..LocalDate.of(2025, 3, 29))
     private val logger: Logger = Logger.getLogger(this::class.java.name)
     private val EVENT_GROUP_FILTERING_LAMBDA: (EventGroup) -> Boolean = {
       it.eventGroupReferenceId == REQUIRED_EVENT_GROUP_REFERENCE_ID

@@ -155,6 +155,7 @@ class EventGroupCache(
   suspend fun getLabeledImpressions(ds: LocalDate, eventGroupReferenceId: String): Flow<LabeledImpression> {
     val key = EventGroupKey(ds, eventGroupReferenceId)
     // get() will either return cached data or trigger a load from storage
+    logger.info("Fetching impressions for key: $key")
     val impressions = impressionsCache.get(key)
     // Convert the cached list back to a Flow for consistency with the API
     return flow {
