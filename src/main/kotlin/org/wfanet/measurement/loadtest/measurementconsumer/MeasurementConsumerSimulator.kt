@@ -859,6 +859,12 @@ abstract class MeasurementConsumerSimulator(
   ): MeasurementInfo {
     val eventGroups: List<EventGroup> =
       listEventGroups(measurementConsumer.name).filterEventGroups().toList()
+
+    println("~~~~~~~~~ Measurement consumer name: ${measurementConsumer.name}")
+    eventGroups.forEach { eventGroup ->
+      println("~~~~~~~~~~~~ EVENT GROUP: $eventGroup")
+    }
+
     check(eventGroups.isNotEmpty()) { "No event groups found for ${measurementConsumer.name}" }
     val nonceHashes = mutableListOf<ByteString>()
     val keyToDataProviderMap: Map<DataProviderKey, DataProvider> =
@@ -882,6 +888,8 @@ abstract class MeasurementConsumerSimulator(
         }
         .take(maxDataProviders)
         .map { (dataProviderKey, eventGroups) ->
+          println("~~~~~~~~~~~~~~~~~ dataProviderKey: $dataProviderKey")
+          println("~~~~~~~~~~~~~~~~~~ eventGroups: $eventGroups")
           val nonce = Random.Default.nextLong()
           nonceHashes.add(Hashing.hashSha256(nonce))
           val dataProvider = keyToDataProviderMap.getValue(dataProviderKey)
