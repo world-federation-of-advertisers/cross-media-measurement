@@ -52,7 +52,6 @@ import org.wfanet.measurement.common.crypto.tink.loadPrivateKey
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionsValidator
-import org.wfanet.measurement.edpaggregator.resultsfulfiller.ResultsFulfillerApp
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
 
 /**
@@ -193,10 +192,10 @@ class RequisitionFetcherFunction : HttpFunction {
   private fun maybeDecodeBase64(rawBytes: ByteArray): ByteArray {
     val text = String(rawBytes, StandardCharsets.US_ASCII).trim()
     return if (text.matches(Regex("^[A-Za-z0-9+/=\\r\\n]+$"))) {
-      ResultsFulfillerApp.logger.info("~~~~~~~~~~~~~~~~ is base 64!!!")
+      logger.info("~~~~~~~~~~~~~~~~ is base 64!!!")
       Base64.getDecoder().decode(text.replace("\\s+".toRegex(), ""))
     } else {
-      ResultsFulfillerApp.logger.info("~~~~~~~~~~~~~~~~ return file as is")
+      logger.info("~~~~~~~~~~~~~~~~ return file as is")
       rawBytes
     }
   }
