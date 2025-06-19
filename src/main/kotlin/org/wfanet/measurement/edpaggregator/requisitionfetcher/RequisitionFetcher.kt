@@ -20,6 +20,7 @@ import com.google.protobuf.Any
 import io.grpc.StatusException
 import java.util.logging.Logger
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.v2alpha.ListRequisitionsRequestKt
 import org.wfanet.measurement.api.v2alpha.ListRequisitionsResponse
 import org.wfanet.measurement.api.v2alpha.Requisition
@@ -29,6 +30,8 @@ import org.wfanet.measurement.common.api.grpc.ResourceList
 import org.wfanet.measurement.common.api.grpc.flattenConcat
 import org.wfanet.measurement.common.api.grpc.listResources
 import org.wfanet.measurement.storage.StorageClient
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
 
 /**
  * Fetches requisitions from the Kingdom and persists them into GCS.
@@ -42,6 +45,8 @@ class RequisitionFetcher(
   private val storageClient: StorageClient,
   private val dataProviderName: String,
   private val storagePathPrefix: String,
+  private val requisitionGrouper: RequisitionGrouper,
+  val idGenerator: (GroupedRequisitions) -> String,
   private val responsePageSize: Int? = null,
 ) {
 
@@ -54,6 +59,7 @@ class RequisitionFetcher(
    *
    * @throws Exception if there is an error while listing requisitions.
    */
+  @OptIn(ExperimentalCoroutinesApi::class) // For `flattenConcat`.
   suspend fun fetchAndStoreRequisitions() {
     logger.info("Executing requisitionFetchingWorkflow for $dataProviderName...")
 
@@ -83,38 +89,34 @@ class RequisitionFetcher(
         }
         .flattenConcat()
 
-    val storedRequisitions: Int = storeRequisitions(requisitions)
+    val groupedRequisition: List<GroupedRequisitions> = requisitionGrouper.groupRequisitions(requisitions.toList())
+    val storedRequisitions: Int = storeRequisitions(groupedRequisition)
 
-    logger.fine {
-      "$storedRequisitions unfulfilled requisitions have been persisted to storage for $dataProviderName"
+    logger.info {
+      "$storedRequisitions unfulfilled grouped requisitions have been persisted to storage for $dataProviderName"
     }
   }
 
   /**
-   * Stores a flow of requisitions in persistent storage.
+   * Stores a list of grouped requisitions in persistent storage.
    *
-   * This method collects requisitions from a provided flow and stores each one in storage if it
-   * does not already exist. The existence check is performed by verifying if a blob with the
-   * requisition's name (used as a unique key) is already present in the storage. If the blob does
-   * not exist, the requisition is serialized and written to the storage.
-   *
-   * @param requisitions A flow of requisitions to be stored.
-   * @return The number of requisitions successfully stored.
+   * @param groupedRequisitions A list of grouped requisitions to be stored.
+   * @return The number of grouped requisitions successfully stored.
    */
-  private suspend fun storeRequisitions(requisitions: Flow<Requisition>): Int {
-    var storedRequisitions = 0
-    requisitions.collect { requisition ->
-      val blobKey = "$storagePathPrefix/${requisition.name}"
+  private suspend fun storeRequisitions(groupedRequisitions: List<GroupedRequisitions>): Int {
+    var storedGroupedRequisitions = 0
+    groupedRequisitions.forEach { groupedRequisition: GroupedRequisitions ->
+      val groupedRequisitionId = idGenerator(groupedRequisition)
+      val blobKey = "$storagePathPrefix/${groupedRequisitionId}"
 
-      // Only stores the requisition if it does not already exist in storage by checking if
-      // the blob key(created using the requisition name, ensuring uniqueness) is populated.
-      if (storageClient.getBlob(blobKey) == null) {
-        storageClient.writeBlob(blobKey, Any.pack(requisition).toByteString())
-        storedRequisitions += 1
+      // TODO(@marcopremier): Add mechanism to check whether requisitions inside grouped requisitions where stored already.
+      if (groupedRequisition.requisitionsList.isNotEmpty() && storageClient.getBlob(blobKey) == null) {
+        storageClient.writeBlob(blobKey, Any.pack(groupedRequisition).toByteString())
+        storedGroupedRequisitions += 1
       }
     }
 
-    return storedRequisitions
+    return storedGroupedRequisitions
   }
 
   companion object {

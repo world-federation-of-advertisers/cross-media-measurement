@@ -14,9 +14,12 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/common:env_vars",
         "//src/main/kotlin/org/wfanet/measurement/common/edpaggregator:cloud_function_config",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/requisitionfetcher:requisition_fetcher",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/requisitionfetcher:requisition_grouper_by_report_id",
+        "//src/main/proto/wfa/measurement/api/v2alpha:event_groups_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/config/edpaggregator:requisition_fetcher_config_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/cloud/functions:functions_framework_api",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/gcs",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:client",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage/filesystem:client",
     ],
 )
