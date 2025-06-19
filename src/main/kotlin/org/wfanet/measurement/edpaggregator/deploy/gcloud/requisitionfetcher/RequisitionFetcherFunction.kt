@@ -21,6 +21,8 @@ import com.google.cloud.functions.HttpRequest
 import com.google.cloud.functions.HttpResponse
 import com.google.cloud.storage.StorageOptions
 import java.io.File
+import java.nio.charset.StandardCharsets
+import java.nio.file.Files
 import java.security.MessageDigest
 import java.time.Clock
 import java.time.Duration
@@ -50,6 +52,7 @@ import org.wfanet.measurement.common.crypto.tink.loadPrivateKey
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionsValidator
+import org.wfanet.measurement.edpaggregator.resultsfulfiller.ResultsFulfillerApp
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
 
 /**
@@ -117,8 +120,13 @@ class RequisitionFetcherFunction : HttpFunction {
     val eventGroupsStub = EventGroupsCoroutineStub(publicChannel)
     val edpPrivateKey = checkNotNull(File(dataProviderConfig.edpPrivateKeyPath))
 
+    val keysetBytes = maybeDecodeBase64(edpPrivateKey.readBytes())
+    val decodedKeyFile = Files.createTempFile("decoded-keyset", ".bin").toFile().apply {
+      writeBytes(keysetBytes)
+    }
+
     val requisitionsValidator = RequisitionsValidator(
-      loadPrivateKey(edpPrivateKey),
+      loadPrivateKey(decodedKeyFile),
     ) { requisition, refusal ->
       refusalCoroutineScope.launch {
         logger.info("Refusing ${requisition.name}: $refusal")
@@ -179,6 +187,17 @@ class RequisitionFetcherFunction : HttpFunction {
       requisitionsStub.refuseRequisition(request)
     } catch (e: Exception) {
       logger.log(Level.SEVERE,"Error while refusing requisition ${requisition.name}", e)
+    }
+  }
+
+  private fun maybeDecodeBase64(rawBytes: ByteArray): ByteArray {
+    val text = String(rawBytes, StandardCharsets.US_ASCII).trim()
+    return if (text.matches(Regex("^[A-Za-z0-9+/=\\r\\n]+$"))) {
+      ResultsFulfillerApp.logger.info("~~~~~~~~~~~~~~~~ is base 64!!!")
+      Base64.getDecoder().decode(text.replace("\\s+".toRegex(), ""))
+    } else {
+      ResultsFulfillerApp.logger.info("~~~~~~~~~~~~~~~~ return file as is")
+      rawBytes
     }
   }
 
