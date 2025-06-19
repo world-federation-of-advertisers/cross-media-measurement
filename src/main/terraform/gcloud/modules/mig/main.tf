@@ -49,10 +49,10 @@ resource "google_secret_manager_secret_iam_member" "mig_sa_secret_accessor" {
 resource "google_compute_instance_template" "confidential_vm_template" {
   machine_type = var.machine_type
 
-  confidential_instance_config {
-    enable_confidential_compute = true
-    confidential_instance_type  = "SEV_SNP"
-  }
+#   confidential_instance_config {
+#     enable_confidential_compute = true
+#     confidential_instance_type  = "SEV_SNP"
+#   }
 
   scheduling {
     on_host_maintenance = "TERMINATE"
