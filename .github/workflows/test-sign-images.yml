@@ -1,0 +1,79 @@
+name: Test sign images with KMS
+
+on:
+  # wip - on pull request only to test the workflow without merging
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      image-tag:
+        description: "Tag of container images"
+        type: string
+        required: true
+        default: "test-signed-build-v1"
+
+permissions:
+  id-token: write
+  packages: write
+
+jobs:
+  test-cosign:
+    runs-on: ubuntu-22.04
+    env:
+      CONTAINER_REGISTRY: ghcr.io
+      # wip - here for testing, it's going to be an input
+      IMAGE_TAG: "test-signed-build-v1"
+      # wip - here for testing, it's going to be an input
+      GCP_KMS_KEY_FOR_SIGNING: "projects/halo-cmm-dev/locations/global/keyRings/test-image-signing/cryptoKeys/test-image-signing-2/cryptoKeyVersions/1"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Write auth.bazelrc
+        env:
+          BUILDBUDDY_API_KEY: ${{ secrets.BUILDBUDDY_API_KEY }}
+        run: |
+          cat << EOF > auth.bazelrc
+          build --remote_header=x-buildbuddy-api-key=$BUILDBUDDY_API_KEY
+          EOF
+
+      - name: Write ~/.bazelrc
+        # wip - on pull request only to test the workflow without merging
+        #env:
+          #IMAGE_TAG: ${{ inputs.image-tag }}
+        run: |
+          cat << EOF > ~/.bazelrc
+          common --config=ci
+          build --define container_registry=$CONTAINER_REGISTRY
+          build --define image_repo_prefix=$GITHUB_REPOSITORY_OWNER
+          build --define image_tag=$IMAGE_TAG
+          EOF
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.BAZEL_BUILD_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.IMAGE_SIGNING_SERVICE_ACCOUNT }}
+
+      - name: Authenticate to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.CONTAINER_REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+
+      #------ Test using bazel and the HMSS mill image under the name TEST_SIGNED_BUILD_IMAGES -----
+
+      - name: Build images
+        run: |
+          bazelisk build //src/main/docker:push_test_signed_image
+
+      - name: Push images
+        run: |
+          bazelisk run //src/main/docker:push_test_signed_image
+
+      - name: Build image signing script
+        run: |
+          bazelisk build //src/main/docker:sign_all_images
+
+      - name: Sign images
+        run: |
+          bazelisk run //src/main/docker:sign_all_images -- $GCP_KMS_KEY_FOR_SIGNING
