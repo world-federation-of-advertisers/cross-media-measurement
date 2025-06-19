@@ -4,13 +4,17 @@ import com.google.crypto.tink.KmsClient
 import com.google.protobuf.Any
 import com.google.protobuf.Parser
 import com.google.protobuf.TypeRegistry
+import com.google.protobuf.kotlin.toByteString
 import io.grpc.Channel
 import java.io.File
+import java.nio.charset.StandardCharsets
+import java.nio.file.Files
 import java.nio.file.Paths
 import java.security.SecureRandom
 import java.security.cert.X509Certificate
 import java.time.Duration
 import java.time.ZoneOffset
+import java.util.*
 import kotlinx.coroutines.CompletableDeferred
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
@@ -127,6 +131,7 @@ abstract class ResultsFulfillerApp(
           getRuntimePath(Paths.get(fulfillerParams.consentParams.resultCsCertDerResourcePath))
         )
         .toFile()
+
     val consentPrivateKeyFile =
       checkNotNull(
           getRuntimePath(Paths.get(fulfillerParams.consentParams.resultCsPrivateKeyDerResourcePath))
@@ -137,10 +142,19 @@ abstract class ResultsFulfillerApp(
           getRuntimePath(Paths.get(fulfillerParams.consentParams.privateEncryptionKeyResourcePath))
         )
         .toFile()
+
+    val publicDer = maybeDecodeBase64(consentCertificateFile.readBytes())
+    val privateKeyDer = maybeDecodeBase64(consentPrivateKeyFile.readBytes())
+    val keysetBytes = maybeDecodeBase64(encryptionPrivateKeyFile.readBytes())
+
+    val decodedKeyFile = Files.createTempFile("decoded-keyset", ".bin").toFile().apply {
+      writeBytes(keysetBytes)
+    }
+
     val consentCertificate: X509Certificate =
-      consentCertificateFile.inputStream().use { input -> readCertificate(input) }
+      publicDer.inputStream().use { input -> readCertificate(input) }
     val consentPrivateEncryptionKey =
-      readPrivateKey(consentPrivateKeyFile.readByteString(), consentCertificate.publicKey.algorithm)
+      readPrivateKey(privateKeyDer.toByteString(), consentCertificate.publicKey.algorithm)
     val dataProviderResultSigningKeyHandle =
       SigningKeyHandle(consentCertificate, consentPrivateEncryptionKey)
 
@@ -155,7 +169,7 @@ abstract class ResultsFulfillerApp(
       )
 
     ResultsFulfiller(
-        loadPrivateKey(encryptionPrivateKeyFile),
+        loadPrivateKey(decodedKeyFile),
         requisitionsStub,
         dataProviderCertificateKey,
         dataProviderResultSigningKeyHandle,
@@ -171,4 +185,14 @@ abstract class ResultsFulfillerApp(
 
     messageProcessed.complete(workItemParams)
   }
+
+  private fun maybeDecodeBase64(rawBytes: ByteArray): ByteArray {
+    val text = String(rawBytes, StandardCharsets.US_ASCII).trim()
+    return if (text.matches(Regex("^[A-Za-z0-9+/=\\r\\n]+$"))) {
+      Base64.getDecoder().decode(text.replace("\\s+".toRegex(), ""))
+    } else {
+      rawBytes
+    }
+  }
+
 }
