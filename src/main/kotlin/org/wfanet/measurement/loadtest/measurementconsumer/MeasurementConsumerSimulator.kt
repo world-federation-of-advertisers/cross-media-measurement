@@ -894,6 +894,10 @@ abstract class MeasurementConsumerSimulator(
           )
         }
 
+    requisitions.forEach { requisition ->
+      println("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ requisition: $requisition")
+    }
+
     val measurementSpec =
       newMeasurementSpec(measurementConsumer.publicKey.message, nonceHashes, vidSamplingInterval)
 
