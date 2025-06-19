@@ -194,5 +194,4 @@ abstract class ResultsFulfillerApp(
       rawBytes
     }
   }
-
 }
