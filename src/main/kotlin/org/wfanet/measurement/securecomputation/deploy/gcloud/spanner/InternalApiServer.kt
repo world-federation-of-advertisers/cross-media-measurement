@@ -17,7 +17,12 @@
 package org.wfanet.measurement.securecomputation.deploy.gcloud.spanner
 
 import io.grpc.BindableService
+import io.grpc.ManagedChannel
+import io.grpc.Server
+import io.grpc.inprocess.InProcessChannelBuilder
+import io.grpc.inprocess.InProcessServerBuilder
 import java.io.File
+import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -33,7 +38,11 @@ import org.wfanet.measurement.gcloud.pubsub.Subscriber
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.SpannerFlags
 import org.wfanet.measurement.gcloud.spanner.usingSpanner
+import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItemsGrpcKt
+import org.wfanet.measurement.queue.QueueSubscriber
+import org.wfanet.measurement.reporting.deploy.v2.common.InProcessServersMethods
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
+import org.wfanet.measurement.securecomputation.deploy.gcloud.deadletter.DeadLetterQueueListener
 import org.wfanet.measurement.securecomputation.deploy.gcloud.publisher.GoogleWorkItemPublisher
 import org.wfanet.measurement.securecomputation.service.internal.QueueMapping
 import picocli.CommandLine
@@ -92,7 +101,7 @@ class InternalApiServer : Runnable {
             InternalApiServices(workItemPublisher, databaseClient, queueMapping)
         val services = internalApiServices.build(serviceFlags.executor.asCoroutineDispatcher())
         val servicesList: List<BindableService> = services.toList()
-        val server = CommonServer.fromFlags(serverFlags, SERVER_NAME, servicesList)
+        val server = createMainServer(servicesList)
 
         val serverJob = async { server.start().blockUntilShutdown() }
 
@@ -104,12 +113,17 @@ class InternalApiServer : Runnable {
                   services.workItems as? SpannerWorkItemsService
                       ?: throw RuntimeException("Failed to get work items service")
               val deadLetterListener =
-                  DeadLetterQueueListenerWithServer.create(
+                  createDeadLetterQueueListener(
                       spannerWorkItemsService = spannerWorkItemsService,
                       subscriptionId = subscriptionId,
-                      queueSubscriber = subscriber,
-                      parser = WorkItem.parser())
-              async { deadLetterListener.use { listener -> listener.run() } }
+                      queueSubscriber = subscriber)
+              async { 
+                try {
+                  deadLetterListener.run()
+                } finally {
+                  deadLetterListener.close()
+                }
+              }
             }
 
         if (deadLetterListenerJob != null) {
@@ -119,6 +133,49 @@ class InternalApiServer : Runnable {
         }
       }
     }
+  }
+
+  private fun createInProcessServer(spannerWorkItemsService: SpannerWorkItemsService): Pair<Server, ManagedChannel> {
+    val serviceName = InProcessServerBuilder.generateName()
+    val server = InProcessServersMethods.startInProcessServerWithService(
+        serverName = serviceName,
+        commonServerFlags = serverFlags,
+        service = spannerWorkItemsService.bindService()
+    )
+    val channel = InProcessChannelBuilder.forName(serviceName).directExecutor().build()
+    return Pair(server, channel)
+  }
+
+  private fun createDeadLetterQueueListener(
+      spannerWorkItemsService: SpannerWorkItemsService,
+      subscriptionId: String,
+      queueSubscriber: QueueSubscriber
+  ): DeadLetterQueueListener {
+    val (server, channel) = createInProcessServer(spannerWorkItemsService)
+    
+    // Add shutdown hook for channel cleanup
+    Runtime.getRuntime().addShutdownHook(
+      Thread {
+        channel.shutdown()
+        try {
+          channel.awaitTermination(5, TimeUnit.SECONDS)
+        } catch (e: InterruptedException) {
+          Thread.currentThread().interrupt()
+        }
+        channel.shutdownNow()
+      }
+    )
+    
+    return DeadLetterQueueListener(
+        subscriptionId = subscriptionId,
+        queueSubscriber = queueSubscriber,
+        parser = WorkItem.parser(),
+        workItemsStub = WorkItemsGrpcKt.WorkItemsCoroutineStub(channel)
+    )
+  }
+
+  private fun createMainServer(services: List<BindableService>): CommonServer {
+    return CommonServer.fromFlags(serverFlags, SERVER_NAME, services)
   }
 
   companion object {
