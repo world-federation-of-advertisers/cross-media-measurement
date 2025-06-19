@@ -22,15 +22,16 @@ import io.grpc.Server
 import io.grpc.inprocess.InProcessChannelBuilder
 import io.grpc.inprocess.InProcessServerBuilder
 import java.io.File
-import java.util.concurrent.TimeUnit
+import java.time.Duration
 import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
-import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.grpc.CommonServer
 import org.wfanet.measurement.common.grpc.ServiceFlags
+import org.wfanet.measurement.common.grpc.withShutdownTimeout
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.config.securecomputation.QueuesConfig
 import org.wfanet.measurement.gcloud.pubsub.DefaultGooglePubSubClient
@@ -88,6 +89,13 @@ class InternalApiServer : Runnable {
   )
   private var deadLetterSubscriptionId: String? = null
 
+  @CommandLine.Option(
+      names = ["--channel-shutdown-timeout"],
+      defaultValue = "3s",
+      description = ["How long to allow for the gRPC channel to shutdown."],
+  )
+  private lateinit var channelShutdownTimeout: Duration
+
   override fun run() {
     val queuesConfig = parseTextProto(queuesConfigFile, QueuesConfig.getDefaultInstance())
     val queueMapping = QueueMapping(queuesConfig)
@@ -117,7 +125,7 @@ class InternalApiServer : Runnable {
                       spannerWorkItemsService = spannerWorkItemsService,
                       subscriptionId = subscriptionId,
                       queueSubscriber = subscriber)
-              async { 
+              async {
                 try {
                   deadLetterListener.run()
                 } finally {
@@ -135,14 +143,20 @@ class InternalApiServer : Runnable {
     }
   }
 
-  private fun createInProcessServer(spannerWorkItemsService: SpannerWorkItemsService): Pair<Server, ManagedChannel> {
+  private fun createInProcessServer(
+      spannerWorkItemsService: SpannerWorkItemsService
+  ): Pair<Server, ManagedChannel> {
     val serviceName = InProcessServerBuilder.generateName()
-    val server = InProcessServersMethods.startInProcessServerWithService(
-        serverName = serviceName,
-        commonServerFlags = serverFlags,
-        service = spannerWorkItemsService.bindService()
-    )
-    val channel = InProcessChannelBuilder.forName(serviceName).directExecutor().build()
+    val server =
+        InProcessServersMethods.startInProcessServerWithService(
+            serverName = serviceName,
+            commonServerFlags = serverFlags,
+            service = spannerWorkItemsService.bindService())
+    val channel =
+        InProcessChannelBuilder.forName(serviceName)
+            .directExecutor()
+            .build()
+            .withShutdownTimeout(channelShutdownTimeout)
     return Pair(server, channel)
   }
 
@@ -151,27 +165,13 @@ class InternalApiServer : Runnable {
       subscriptionId: String,
       queueSubscriber: QueueSubscriber
   ): DeadLetterQueueListener {
-    val (server, channel) = createInProcessServer(spannerWorkItemsService)
-    
-    // Add shutdown hook for channel cleanup
-    Runtime.getRuntime().addShutdownHook(
-      Thread {
-        channel.shutdown()
-        try {
-          channel.awaitTermination(5, TimeUnit.SECONDS)
-        } catch (e: InterruptedException) {
-          Thread.currentThread().interrupt()
-        }
-        channel.shutdownNow()
-      }
-    )
-    
+    val (_, channel) = createInProcessServer(spannerWorkItemsService)
+
     return DeadLetterQueueListener(
         subscriptionId = subscriptionId,
         queueSubscriber = queueSubscriber,
         parser = WorkItem.parser(),
-        workItemsStub = WorkItemsGrpcKt.WorkItemsCoroutineStub(channel)
-    )
+        workItemsStub = WorkItemsGrpcKt.WorkItemsCoroutineStub(channel))
   }
 
   private fun createMainServer(services: List<BindableService>): CommonServer {
