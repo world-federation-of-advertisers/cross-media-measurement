@@ -98,6 +98,7 @@ class DataWatcherTest() {
   @Test
   fun `sends to webhook sink when path matches`() {
     runBlocking {
+
       val appParams =
         Struct.newBuilder()
           .putFields("some-key", Value.newBuilder().setStringValue("some-value").build())
@@ -113,7 +114,11 @@ class DataWatcherTest() {
       val server = TestServer()
       server.start(localPort)
 
-      val dataWatcher = DataWatcher(workItemsStub, listOf(config))
+      val dataWatcher = DataWatcher(
+        workItemsStub = workItemsStub,
+        dataWatcherConfigs = listOf(config),
+        jwtToken = "fake-token"
+      )
 
       dataWatcher.receivePath("test-schema://test-bucket/path-to-watch/some-data")
       val createWorkItemRequestCaptor = argumentCaptor<CreateWorkItemRequest>()
