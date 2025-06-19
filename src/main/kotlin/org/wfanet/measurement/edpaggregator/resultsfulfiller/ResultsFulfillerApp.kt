@@ -15,6 +15,7 @@ import java.security.cert.X509Certificate
 import java.time.Duration
 import java.time.ZoneOffset
 import java.util.*
+import java.util.logging.Logger
 import kotlinx.coroutines.CompletableDeferred
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
@@ -142,8 +143,16 @@ abstract class ResultsFulfillerApp(
           getRuntimePath(Paths.get(fulfillerParams.consentParams.privateEncryptionKeyResourcePath))
         )
         .toFile()
-
+    logger.info("~~~~~~~~~~~~~~~~~ 111")
+    try {
+      logger.info(consentCertificateFile.readText())
+    }catch (e: Exception){
+      e.printStackTrace()
+    }
+    logger.info("~~~~~~~~~~~~~~~~~ 222")
     val publicDer = maybeDecodeBase64(consentCertificateFile.readBytes())
+    logger.info("~~~~~~~~~~~~~~~~~ 333")
+    logger.info("~~~~~~~~~~~~~~~~~ $publicDer")
     val privateKeyDer = maybeDecodeBase64(consentPrivateKeyFile.readBytes())
     val keysetBytes = maybeDecodeBase64(encryptionPrivateKeyFile.readBytes())
 
@@ -189,9 +198,16 @@ abstract class ResultsFulfillerApp(
   private fun maybeDecodeBase64(rawBytes: ByteArray): ByteArray {
     val text = String(rawBytes, StandardCharsets.US_ASCII).trim()
     return if (text.matches(Regex("^[A-Za-z0-9+/=\\r\\n]+$"))) {
+      logger.info("~~~~~~~~~~~~~~~~ is base 64!!!")
       Base64.getDecoder().decode(text.replace("\\s+".toRegex(), ""))
     } else {
+      logger.info("~~~~~~~~~~~~~~~~ return file as is")
       rawBytes
     }
   }
+
+  companion object {
+    val logger: Logger = Logger.getLogger(this::class.java.name)
+  }
+
 }
