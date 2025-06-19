@@ -102,7 +102,7 @@ locals {
         "--subscription-id=results-fulfiller-subscription",
         "--google-pub-sub-project-id=${data.google_client_config.default.project}"
       ]
-      machine_type                  = "n2d-standard-2"
+      machine_type                  = "n2d-standard-96"
       docker_image                  = "ghcr.io/world-federation-of-advertisers/edp-aggregator/results_fulfiller:${var.image_tag}"
       mig_distribution_policy_zones = ["us-central1-a"]
     }

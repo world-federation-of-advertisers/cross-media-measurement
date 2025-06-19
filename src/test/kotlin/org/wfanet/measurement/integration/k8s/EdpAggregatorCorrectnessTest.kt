@@ -261,7 +261,7 @@ class EdpAggregatorCorrectnessTest: AbstractEdpAggregatorCorrectnessTest(measure
         SyntheticEventGroupSpec.getDefaultInstance(),
       )
 
-    val syntheticEventGroupMap = mapOf("edpa-eg-reference-id-1" to syntheticEventGroupSpec)
+    val syntheticEventGroupMap = mapOf("edpa-eg-reference-id-1-large" to syntheticEventGroupSpec)
 
     private val ZONE_ID = ZoneId.of("UTC")
 
