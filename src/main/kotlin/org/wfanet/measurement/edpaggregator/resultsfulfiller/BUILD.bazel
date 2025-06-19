@@ -177,7 +177,8 @@ java_binary(
 java_image(
     name = "edp_results_fulfiller_image",
     testonly = True,
-    base = DEFAULT_JAVA_DEBUG_IMAGE_BASE,
+    #    base = DEFAULT_JAVA_DEBUG_IMAGE_BASE,
+    base = "@java_debug_root",
     binary = ":EdpResultsFulfiller",
     main_class = "org.wfanet.measurement.edpaggregator.resultsfulfiller.ResultsFulfillerAppRunner",
     visibility = ["//src:docker_image_deployment"],

@@ -47,19 +47,18 @@ resource "google_secret_manager_secret_iam_member" "mig_sa_secret_accessor" {
 }
 
 resource "google_compute_instance_template" "confidential_vm_template" {
-  name_prefix  = "nonconfidential-vm-template-"
   machine_type = var.machine_type
 
-#   confidential_instance_config {
-#     enable_confidential_compute = true
-#     confidential_instance_type  = "SEV_SNP"
-#   }
+  confidential_instance_config {
+    enable_confidential_compute = true
+    confidential_instance_type  = "SEV_SNP"
+  }
 
   scheduling {
     on_host_maintenance = "TERMINATE"
   }
 
-#   name_prefix = "${var.instance_template_name}-"
+  name_prefix = "${var.instance_template_name}-"
   lifecycle {
     create_before_destroy = true
   }
@@ -75,8 +74,9 @@ resource "google_compute_instance_template" "confidential_vm_template" {
 
   metadata = merge(
       {
-        "google-logging-enabled"    = "true"
-        "google-monitoring-enabled" = "true"
+        "tee-container-log-redirect"    = "true"
+        "google-logging-enabled"        = "true"
+        "google-monitoring-enabled"     = "true"
       },
       {
         # 1) at boot, loop over each secret and write it out:
