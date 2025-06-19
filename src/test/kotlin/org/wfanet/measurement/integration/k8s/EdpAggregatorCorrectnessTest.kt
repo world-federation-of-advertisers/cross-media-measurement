@@ -152,29 +152,6 @@ class EdpAggregatorCorrectnessTest: AbstractEdpAggregatorCorrectnessTest(measure
           }
         }
       }
-//    private fun createEventGroups(): List<EventGroup> {
-//      return listOf(
-//        eventGroup {
-////          eventGroupReferenceId = "sim-eg-reference-id-1-edp-7"
-//          eventGroupReferenceId = "edpa-eg-reference-id-1"
-//          measurementConsumer = "measurementConsumers/VCTqwV_vFXw"
-//          dataAvailabilityInterval = interval {
-//            startTime = timestamp { seconds = 200 }
-//            endTime = timestamp { seconds = 300 }
-//          }
-//          this.eventGroupMetadata = eventGroupMetadata {
-//            this.adMetadata = adMetadata {
-//              this.campaignMetadata = campaignMetadata {
-//                brand = "brand-2"
-//                campaign = "campaign-2"
-//              }
-//            }
-//          }
-//          mediaTypes += MediaType.valueOf("VIDEO")
-//        }
-//      )
-//    }
-
   }
   private class RunningMeasurementSystem : MeasurementSystem, TestRule {
     override val runId: String by lazy { UUID.randomUUID().toString() }
@@ -231,26 +208,6 @@ class EdpAggregatorCorrectnessTest: AbstractEdpAggregatorCorrectnessTest(measure
         syntheticPopulationSpec,
         syntheticEventGroupMap,
       )
-      //class EdpAggregatorMeasurementConsumerSimulator(
-      //  measurementConsumerData: MeasurementConsumerData,
-      //  outputDpParams: DifferentialPrivacyParams,
-      //  dataProvidersClient: DataProvidersCoroutineStub,
-      //  eventGroupsClient: EventGroupsCoroutineStub,
-      //  measurementsClient: MeasurementsCoroutineStub,
-      //  measurementConsumersClient: MeasurementConsumersCoroutineStub,
-      //  certificatesClient: CertificatesCoroutineStub,
-      //  trustedCertificates: Map<ByteString, X509Certificate>,
-      //  private val messageInstance: Message,
-      //  expectedDirectNoiseMechanism: NoiseMechanism,
-
-      //  private val syntheticPopulationSpec: SyntheticPopulationSpec,
-      //  private val syntheticEventGroupMap: Map<String, SyntheticEventGroupSpec>,
-      //  filterExpression: String = DEFAULT_FILTER_EXPRESSION,
-      //  eventRange: OpenEndTimeRange = DEFAULT_EVENT_RANGE,
-      //  initialResultPollingDelay: Duration = Duration.ofSeconds(1),
-      //  maximumResultPollingDelay: Duration = Duration.ofMinutes(1),
-      //)
-
 
     }
 
