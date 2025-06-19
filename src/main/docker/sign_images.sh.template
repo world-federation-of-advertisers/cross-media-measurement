@@ -13,9 +13,12 @@ wget -nv -O cosign "https://github.com/sigstore/cosign/releases/download/v${COSI
 chmod +x cosign
 
 # sign images
-for image_ref in $(cat {{images_file}}); do
-  echo "Signing image: ${image_ref}"
+for image_ref_tag in $(cat {{images_file}}); do
+  echo "Getting digest for image: ${image_ref_tag}"
   # expects single-arch image
-  docker manifest inspect --verbose ${image_ref} | jq -r .Descriptor.digest
-  #./cosign sign --tlog-upload=false --key gcpkms://${kms_key} ${image_ref}
+  digest=$(docker manifest inspect --verbose ${image_ref_tag} | jq -r .Descriptor.digest)
+  echo "Digest: ${digest}"
+  image_ref_digest="${image_ref_tag%:*}@${digest}"
+  echo "Signing image: ${image_ref_digest}"
+  ./cosign sign --tlog-upload=false --key gcpkms://${kms_key} ${image_ref_digest}
 done
