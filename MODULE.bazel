@@ -249,6 +249,9 @@ maven.install(
 
         # Bouncy Castle
         "org.bouncycastle:bcpkix-jdk18on:1.79",
+
+        # Roaring Bitmap
+        "org.roaringbitmap:RoaringBitmap:1.3.0",
     ],
     boms = [
         "org.apache.beam:beam-sdks-java-bom:" + APACHE_BEAM_VERSION,
