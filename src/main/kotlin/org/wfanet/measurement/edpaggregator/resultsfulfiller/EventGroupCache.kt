@@ -275,7 +275,6 @@ class EventGroupCache(
     var failedCount = 0
 
     return impressionBlob.read().map { impressionByteString ->
-      logger.info("~~ mapping impression")
       try {
         LabeledImpression.parseFrom(impressionByteString)
       } catch (e: Exception) {
