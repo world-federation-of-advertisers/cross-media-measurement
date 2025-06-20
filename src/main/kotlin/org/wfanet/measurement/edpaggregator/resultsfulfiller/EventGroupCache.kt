@@ -137,7 +137,9 @@ class EventGroupCache(
             return runBlocking {
               val blobDetails = fetchBlobDetails(key.ds, key.eventGroupReferenceId)
               logger.info("~~~~~~~~~~~~~~~~~~~ fetching impressions")
-              fetchLabeledImpressions(blobDetails).toList()
+              val test = fetchLabeledImpressions(blobDetails).toList()
+              logger.info("~~~~~~~~~~~~~~~~~~~ fetching impressions3: $test")
+              test.toList()
             }
           }
         }
@@ -255,12 +257,30 @@ class EventGroupCache(
         )
     logger.info("~~~~~~~ fun fetchLabeledImpressions 2")
 
+//    return impressionBlob.read().map { impressionByteString ->
+//      LabeledImpression.parseFrom(impressionByteString)
+//        ?: throw ImpressionReadException(
+//          storageClientUri.key,
+//          ImpressionReadException.Code.INVALID_FORMAT,
+//        )
+//    }
+    var failedCount = 0
+
     return impressionBlob.read().map { impressionByteString ->
-      LabeledImpression.parseFrom(impressionByteString)
-        ?: throw ImpressionReadException(
+      try {
+        LabeledImpression.parseFrom(impressionByteString)
+      } catch (e: Exception) {
+        failedCount++
+        logger.info("~~~~~~~~~~~~~~~~~~~~~` IMPRESSION FAILED: $failedCount $e")
+        throw ImpressionReadException(
           storageClientUri.key,
           ImpressionReadException.Code.INVALID_FORMAT,
         )
+      }
+    }.also {
+      if (failedCount > 0) {
+        logger.info { "$failedCount impressions failed to parse" }
+      }
     }
   }
 
