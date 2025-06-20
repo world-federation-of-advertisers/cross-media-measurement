@@ -15,9 +15,9 @@
 name: Conditionally build and push container images
 
 on:
-  push:
-    branches:
-      - marcopremier/load_test
+#  push:
+#    branches:
+#      - marcopremier/load_test
   workflow_dispatch:
   workflow_call:
     inputs:

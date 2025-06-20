@@ -230,7 +230,7 @@ class EventGroupCache(
    */
   private suspend fun fetchLabeledImpressions(blobDetails: BlobDetails): Flow<LabeledImpression> {
     val storageClientUri = SelectedStorageClient.parseBlobUri(blobDetails.blobUri)
-
+    logger.info("~~~~~~~ fun fetchLabeledImpressions")
     val encryptedDek = blobDetails.encryptedDek
     val selectedStorageClient =
       SelectedStorageClient(
@@ -253,8 +253,10 @@ class EventGroupCache(
           storageClientUri.key,
           ImpressionReadException.Code.BLOB_NOT_FOUND,
         )
+    logger.info("~~~~~~~ fun fetchLabeledImpressions 2")
 
     return impressionBlob.read().map { impressionByteString ->
+      logger.info("~~~~~~~ PARSING LabeledImpressions")
       LabeledImpression.parseFrom(impressionByteString)
         ?: throw ImpressionReadException(
           storageClientUri.key,
