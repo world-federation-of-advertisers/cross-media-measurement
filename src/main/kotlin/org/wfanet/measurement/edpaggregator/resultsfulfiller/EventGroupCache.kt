@@ -137,9 +137,17 @@ class EventGroupCache(
             return runBlocking {
               val blobDetails = fetchBlobDetails(key.ds, key.eventGroupReferenceId)
               logger.info("~~~~~~~~~~~~~~~~~~~ fetching impressions")
-              val test = fetchLabeledImpressions(blobDetails).toList()
-              logger.info("~~~~~~~~~~~~~~~~~~~ fetching impressions3: $test")
-              test.toList()
+              try {
+                val test = fetchLabeledImpressions(blobDetails).toList()
+                logger.info("~~~~~~~~~~~~~~~~~~~ fetching impressions3: $test")
+                test.toList()
+              } catch (e: Exception) {
+                logger.info("~~~~~~~~~~~~~~~~~~~ fetching impressions3:")
+                e.printStackTrace()
+                throw e
+              }
+
+//              test.toList()
             }
           }
         }
@@ -267,6 +275,7 @@ class EventGroupCache(
     var failedCount = 0
 
     return impressionBlob.read().map { impressionByteString ->
+      logger.info("~~ mapping impression")
       try {
         LabeledImpression.parseFrom(impressionByteString)
       } catch (e: Exception) {
