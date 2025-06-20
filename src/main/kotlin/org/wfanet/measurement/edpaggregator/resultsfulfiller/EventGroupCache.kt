@@ -22,6 +22,7 @@ import com.google.common.cache.LoadingCache
 import com.google.common.cache.Weigher
 import com.google.crypto.tink.KmsClient
 import java.time.LocalDate
+import java.util.*
 import java.util.concurrent.TimeUnit
 import java.util.logging.Logger
 import kotlinx.coroutines.flow.Flow
@@ -135,6 +136,7 @@ class EventGroupCache(
             // It runs in a blocking context because CacheLoader is synchronous
             return runBlocking {
               val blobDetails = fetchBlobDetails(key.ds, key.eventGroupReferenceId)
+              logger.info("~~~~~~~~~~~~~~~~~~~ fetching impressions")
               fetchLabeledImpressions(blobDetails).toList()
             }
           }
@@ -206,7 +208,17 @@ class EventGroupCache(
     val blob =
       impressionsDekStorageClient.getBlob(dekBlobKey)
         ?: throw ImpressionReadException(dekBlobKey, ImpressionReadException.Code.BLOB_NOT_FOUND)
-    return BlobDetails.parseFrom(blob.read().flatten())
+
+    val full = blob.read().flatten()
+    try {
+      logger.info("Read blob size: ${full.size()} bytes")
+      logger.info("~~~~~~~~~~~~~ blob: $full")
+      logger.info("Base64 blob contents: ${Base64.getEncoder().encodeToString(full.toByteArray())}")
+    } catch (e: Exception){
+      logger.severe(e.message)
+    }
+    return BlobDetails.parseFrom(full)
+//    return BlobDetails.parseFrom(blob.read().flatten())
   }
 
   /**
