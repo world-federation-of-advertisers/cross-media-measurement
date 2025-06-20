@@ -26,6 +26,7 @@ import java.util.*
 import java.util.concurrent.TimeUnit
 import java.util.logging.Logger
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.count
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.toList
@@ -138,11 +139,14 @@ class EventGroupCache(
               val blobDetails = fetchBlobDetails(key.ds, key.eventGroupReferenceId)
               logger.info("~~~~~~~~~~~~~~~~~~~ fetching impressions")
               try {
-                val test = fetchLabeledImpressions(blobDetails).toList()
+                val temp = fetchLabeledImpressions(blobDetails)
+                val count = temp.count()
+                logger.info("~~~~~~~~~~~~~~~~~~~ fetching impressions count: $count")
+                val test = temp.toList()
                 logger.info("~~~~~~~~~~~~~~~~~~~ fetching impressions3: $test")
                 test.toList()
               } catch (e: Exception) {
-                logger.info("~~~~~~~~~~~~~~~~~~~ fetching impressions3:")
+                logger.info("~~~~~~~~~~~~~~~~~~~ fetching impressions4:")
                 e.printStackTrace()
                 throw e
               }
@@ -273,6 +277,7 @@ class EventGroupCache(
 //        )
 //    }
     var failedCount = 0
+
 
     return impressionBlob.read().map { impressionByteString ->
       try {
