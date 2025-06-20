@@ -256,7 +256,6 @@ class EventGroupCache(
     logger.info("~~~~~~~ fun fetchLabeledImpressions 2")
 
     return impressionBlob.read().map { impressionByteString ->
-      logger.info("~~~~~~~ PARSING LabeledImpressions")
       LabeledImpression.parseFrom(impressionByteString)
         ?: throw ImpressionReadException(
           storageClientUri.key,
