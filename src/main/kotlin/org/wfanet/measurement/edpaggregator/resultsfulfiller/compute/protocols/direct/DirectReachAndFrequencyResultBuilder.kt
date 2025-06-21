@@ -19,6 +19,7 @@ package org.wfanet.measurement.edpaggregator.resultsfulfiller.compute.protocols.
 import java.security.SecureRandom
 import java.util.logging.Logger
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.count
 import org.wfanet.measurement.api.v2alpha.DeterministicCountDistinct
 import org.wfanet.measurement.api.v2alpha.DeterministicDistribution
 import org.wfanet.measurement.api.v2alpha.DifferentialPrivacyParams
@@ -78,9 +79,12 @@ class DirectReachAndFrequencyResultBuilder(
       )
     }
 
+    logger.info("~~~~~~~~~~~~~~ Computing reach and frequency, ${maxFrequency}")
+
     var (sampledReachValue, frequencyMap) =
       MeasurementResults.computeReachAndFrequency(sampledVids, maxFrequency)
 
+    logger.info("~~~~~~~~~~~~~~ Computing reach and frequency, DONE")
     if (directNoiseMechanism != DirectNoiseMechanism.NONE) {
       logger.info("Adding $directNoiseMechanism publisher noise to direct reach and frequency...")
       val noiser = Noiser(directNoiseMechanism, random)
@@ -92,16 +96,16 @@ class DirectReachAndFrequencyResultBuilder(
       sampledReachValue = sampledNoisedReachValue
       frequencyMap = noisedFrequencyMap
     }
-
+    logger.info("~~~~~~~~~~~~~~ Computing reach and frequency, 3")
     val scaledReachValue = (sampledReachValue / samplingRate).toLong()
-
+    logger.info("~~~~~~~~~~~~~~ Computing reach and frequency, 4")
     val protocolConfigNoiseMechanism =
       when (directNoiseMechanism) {
         DirectNoiseMechanism.NONE -> NoiseMechanism.NONE
         DirectNoiseMechanism.CONTINUOUS_LAPLACE -> NoiseMechanism.CONTINUOUS_LAPLACE
         DirectNoiseMechanism.CONTINUOUS_GAUSSIAN -> NoiseMechanism.CONTINUOUS_GAUSSIAN
       }
-
+    logger.info("~~~~~~~~~~~~~~ Computing reach and frequency, 5")
     return MeasurementKt.result {
       reach = reach {
         value = scaledReachValue

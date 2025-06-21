@@ -17,6 +17,7 @@
 package org.wfanet.measurement.edpaggregator.resultsfulfiller.noise
 
 import java.security.SecureRandom
+import java.util.logging.Logger
 import kotlin.math.max
 import kotlin.math.roundToInt
 import org.wfanet.measurement.api.v2alpha.DifferentialPrivacyParams
@@ -86,7 +87,7 @@ class Noiser(private val noiseMechanism: DirectNoiseMechanism, private val rando
     reachValue: Int,
   ): Map<Int, Double> {
     val noiser: AbstractNoiser = getNoiser(privacyParams)
-
+    logger.info("~~~~~~~~~~~~~~~~~~~ dentro noiser")
     // Add noise to the histogram and cap negative values to zeros.
     val frequencyHistogram: Map<Int, Int> =
       frequencyMap.mapValues { (_, percentage) ->
@@ -95,7 +96,9 @@ class Noiser(private val noiseMechanism: DirectNoiseMechanism, private val rando
           (percentage * reachValue).roundToInt() + (noiser.sample()).roundToInt()
         max(0, noisedCount)
       }
+    logger.info("~~~~~~~~~~~~~~~~~~~ dentro noiser2")
     val normalizationTerm: Double = frequencyHistogram.values.sum().toDouble()
+    logger.info("~~~~~~~~~~~~~~~~~~~ dentro noiser3")
     // Normalize to get the distribution
     return if (normalizationTerm != 0.0) {
       frequencyHistogram.mapValues { (_, count) -> count / normalizationTerm }
@@ -105,6 +108,7 @@ class Noiser(private val noiseMechanism: DirectNoiseMechanism, private val rando
   }
 
   companion object {
+    private val logger: Logger = Logger.getLogger(this::class.java.name)
     // The supported noise mechanisms in order of preference.
     private val SUPPORTED_NOISE_MECHANISMS = setOf(DirectNoiseMechanism.CONTINUOUS_GAUSSIAN)
   }

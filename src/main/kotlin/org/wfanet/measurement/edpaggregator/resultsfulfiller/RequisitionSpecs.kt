@@ -73,7 +73,10 @@ object RequisitionSpecs {
 
       // Iterates through all dates up to the end date in the collection interval(inclusive)
       val impressions =
-        dates.asFlow().flatMapConcat { date -> eventReader.getLabeledImpressions(date, eventGroupMap.getValue(eventGroup.key)) }
+        dates.asFlow().flatMapConcat { date ->
+          println("~~~~~~~~~~~~~~~~~~~~~~~~ reading impression for DATE: $date")
+          eventReader.getLabeledImpressions(date, eventGroupMap.getValue(eventGroup.key))
+        }
 
       VidFilter.filterAndExtractVids(
         impressions,

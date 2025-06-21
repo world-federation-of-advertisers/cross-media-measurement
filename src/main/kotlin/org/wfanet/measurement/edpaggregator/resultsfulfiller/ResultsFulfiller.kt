@@ -92,7 +92,8 @@ class ResultsFulfiller(
         }
       val requisitionSpec: RequisitionSpec = signedRequisitionSpec.unpack()
       val measurementSpec: MeasurementSpec = requisition.measurementSpec.message.unpack()
-
+      logger.info("~~~~~~~~~~~~~~~~~~~~~~~~~~ getting SAMPLE VIDS")
+      logger.info("measurementSpec: $measurementSpec")
       val sampledVids: Flow<Long> =
         RequisitionSpecs.getSampledVids(
           requisitionSpec,
@@ -102,7 +103,7 @@ class ResultsFulfiller(
           eventReader,
           zoneId,
         )
-
+      logger.info("~~~~~~~~~~~~~~~~~~~~~~~~~~ GOT SAMPLE VIDS")
       val protocols: List<ProtocolConfig.Protocol> = requisition.protocolConfig.protocolsList
 
       val fulfiller =
@@ -169,6 +170,7 @@ class ResultsFulfiller(
       requisition.protocolConfig.protocolsList.first { it.hasDirect() }.direct
     val noiseMechanism =
       noiserSelector.selectNoiseMechanism(directProtocolConfig.noiseMechanismsList)
+    logger.info("~~~~~~~~~~~~~~~~~~~~~~~~~~~~ building result!!")
     val result =
       DirectMeasurementResultFactory.buildMeasurementResult(
         directProtocolConfig,
@@ -177,6 +179,7 @@ class ResultsFulfiller(
         sampledVids,
         random,
       )
+    logger.info("~~~~~~~~~~~~~~~~~~~~~~~~result built, returning")
     return DirectMeasurementFulfiller(
       requisition.name,
       requisition.dataProviderCertificate,
