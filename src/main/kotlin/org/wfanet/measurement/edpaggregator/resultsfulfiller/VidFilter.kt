@@ -21,9 +21,11 @@ import com.google.protobuf.Descriptors
 import com.google.protobuf.DynamicMessage
 import com.google.protobuf.TypeRegistry
 import com.google.type.Interval
+import java.util.logging.Logger
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onEach
 import org.projectnessie.cel.Program
 import org.projectnessie.cel.common.types.BoolT
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec.EventFilter
@@ -47,6 +49,8 @@ object VidFilter {
     collectionInterval: Interval,
     typeRegistry: TypeRegistry,
   ): Flow<Long> {
+    val logger: Logger = Logger.getLogger(this::class.java.name)
+    var counter = 0L
     return labeledImpressions
       .filter { labeledImpression ->
         isValidImpression(
@@ -60,6 +64,12 @@ object VidFilter {
       }
       .map { labeledImpression ->
         labeledImpression.vid }
+      .onEach { vid ->
+        counter++
+        if (counter % 500_000L == 0L) {
+          logger.info("~~~~~~~~~~~~~ Processed $counter impressions so far")
+        }
+      }
   }
 
   /**
