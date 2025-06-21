@@ -137,14 +137,19 @@ class EventGroupCache(
             // It runs in a blocking context because CacheLoader is synchronous
             return runBlocking {
               val blobDetails = fetchBlobDetails(key.ds, key.eventGroupReferenceId)
-              logger.info("~~~~~~~~~~~~~~~~~~~ fetching impressions")
+              logger.info("~~~~~~~~~~~~~~~~~~~ fetching impressions1")
               try {
                 val temp = fetchLabeledImpressions(blobDetails)
-                val count = temp.count()
-                logger.info("~~~~~~~~~~~~~~~~~~~ fetching impressions count: $count")
+                logger.info("~~~~~~~~~~~~~~~~~~~ fetching impressions2")
+//                val count = temp.count()
+//                logger.info("~~~~~~~~~~~~~~~~~~~ fetching impressions count: $count")
                 val test = temp.toList()
+                logger.info("~~~~~~~~~~~~~~~~~~~ fetching impressions3")
+                val count = test.size
+                logger.info("~~~~~~~~~~~~~~~~~~~ fetching impressions4: $count")
                 logger.info("~~~~~~~~~~~~~~~~~~~ fetching impressions3: $test")
-                test.toList()
+//                test.toList()
+                test
               } catch (e: Exception) {
                 logger.info("~~~~~~~~~~~~~~~~~~~ fetching impressions4:")
                 e.printStackTrace()
