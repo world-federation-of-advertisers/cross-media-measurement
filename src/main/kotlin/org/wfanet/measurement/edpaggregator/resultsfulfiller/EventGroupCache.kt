@@ -73,7 +73,7 @@ class EventGroupCache(
   private val impressionsStorageConfig: StorageConfig,
   private val impressionDekStorageConfig: StorageConfig,
   private val labeledImpressionsDekPrefix: String,
-  private val cacheMaxMemoryMB: Long = 200_000, // 200GB default for 280GB machines
+  private val cacheMaxMemoryMB: Long = 180_000, // 200GB default for 280GB machines
   private val cacheExpireAfterMinutes: Long = 60,
 ) {
   /** Cache key for event group lookups */
@@ -147,7 +147,7 @@ class EventGroupCache(
                 logger.info("~~~~~~~~~~~~~~~~~~~ fetching impressions3")
                 val count = test.size
                 logger.info("~~~~~~~~~~~~~~~~~~~ fetching impressions4: $count")
-                logger.info("~~~~~~~~~~~~~~~~~~~ fetching impressions3: $test")
+//                logger.info("~~~~~~~~~~~~~~~~~~~ fetching impressions3: $test")
 //                test.toList()
                 test
               } catch (e: Exception) {
