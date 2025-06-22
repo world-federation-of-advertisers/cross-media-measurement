@@ -18,8 +18,10 @@ package org.wfanet.measurement.dataprovider
 
 import com.google.protobuf.TypeRegistry
 import java.util.logging.Logger
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.asFlow
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.fold
 import kotlinx.coroutines.runBlocking
 import org.projectnessie.cel.Program
@@ -43,7 +45,7 @@ object MeasurementResults {
     // Count occurrences of each VID using fold operation on the flow
     var counter = 0
     val eventsPerVid =
-      filteredVids.fold(mutableMapOf<Long, Int>()) { acc, vid ->
+      filteredVids.flowOn(Dispatchers.Default).fold(mutableMapOf<Long, Int>()) { acc, vid ->
         counter++
         if (counter % 500_000 == 0) {
           println("~~~~~~~Processed $counter VIDs...")

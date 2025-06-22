@@ -139,24 +139,19 @@ class EventGroupCache(
               val blobDetails = fetchBlobDetails(key.ds, key.eventGroupReferenceId)
               logger.info("~~~~~~~~~~~~~~~~~~~ fetching impressions1")
               try {
-                val temp = fetchLabeledImpressions(blobDetails)
+                val labeledImpressions = fetchLabeledImpressions(blobDetails)
                 logger.info("~~~~~~~~~~~~~~~~~~~ fetching impressions2")
-//                val count = temp.count()
-//                logger.info("~~~~~~~~~~~~~~~~~~~ fetching impressions count: $count")
-                val test = temp.toList()
+                val labeledImpressionsList = labeledImpressions.toList()
                 logger.info("~~~~~~~~~~~~~~~~~~~ fetching impressions3")
-                val count = test.size
+                val count = labeledImpressionsList.size
                 logger.info("~~~~~~~~~~~~~~~~~~~ fetching impressions4: $count")
-//                logger.info("~~~~~~~~~~~~~~~~~~~ fetching impressions3: $test")
-//                test.toList()
-                test
+                labeledImpressionsList
               } catch (e: Exception) {
-                logger.info("~~~~~~~~~~~~~~~~~~~ fetching impressions4:")
+                logger.info("~~~~~~~~~~~~~~~~~~~ fetching impressions error: $e")
                 e.printStackTrace()
                 throw e
               }
 
-//              test.toList()
             }
           }
         }
