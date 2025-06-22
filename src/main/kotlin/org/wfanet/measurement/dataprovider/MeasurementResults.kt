@@ -17,6 +17,8 @@
 package org.wfanet.measurement.dataprovider
 
 import com.google.protobuf.TypeRegistry
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
 import java.util.logging.Logger
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -49,53 +51,34 @@ object MeasurementResults {
     logger.info("~~~~~ DENTRO computeReachAndFrequency")
     // Count occurrences of each VID using fold operation on the flow
     var counter = 0
+    val dtf = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")
     val eventsPerVid =
-      filteredVids
-        .chunked(50_000)
-        .flatMapMerge(concurrency = 48) { chunk ->
-          flow {
-            val result = chunk.groupingBy { it }.eachCount()
-            emit(result)
-          }.flowOn(Dispatchers.Default)
+      filteredVids.flowOn(Dispatchers.Default).fold(mutableMapOf<Long, Int>()) { acc, vid ->
+        counter++
+        if (counter % 500_000 == 0) {
+          logger.info("~~~~~~~Processed $counter VIDs...")
+          logger.info("TIME: ${LocalDateTime.now().format(dtf)}")
         }
-        .fold(mutableMapOf<Long, Int>()) { acc, partial ->
-          counter++
-          if (counter % 500_000 == 0) {
-            println("~~~~~~~Processed $counter VIDs...")
-          }
-          for ((vid, count) in partial) {
-            acc[vid] = acc.getOrDefault(vid, 0) + count
-          }
-          acc
-        }
-//      filteredVids.flowOn(Dispatchers.Default).fold(mutableMapOf<Long, Int>()) { acc, vid ->
-//        counter++
-//        if (counter % 500_000 == 0) {
-//          println("~~~~~~~Processed $counter VIDs...")
-//        }
-//        acc[vid] = acc.getOrDefault(vid, 0) + 1
-//        acc
-//      }
+        acc[vid] = acc.getOrDefault(vid, 0) + 1
+        acc
+      }
 
-    logger.info("~~~~~ DENTRO computeReachAndFrequency2")
     val reach: Int = eventsPerVid.keys.size
-    logger.info("~~~~~ DENTRO computeReachAndFrequency3, reach: $reach")
 
     // If the filtered VIDs is empty, set the distribution with all 0s up to maxFrequency.
     if (reach == 0) {
       return ReachAndFrequency(reach, (1..maxFrequency).associateWith { 0.0 })
     }
-    logger.info("~~~~~ DENTRO computeReachAndFrequency4")
+
     // Build frequency histogram as a 0-based array.
     val frequencyArray = IntArray(maxFrequency)
     for (count in eventsPerVid.values) {
       val bucket = count.coerceAtMost(maxFrequency)
       frequencyArray[bucket - 1]++
     }
-    logger.info("~~~~~ DENTRO computeReachAndFrequency5")
+
     val frequencyDistribution: Map<Int, Double> =
       frequencyArray.withIndex().associateBy({ it.index + 1 }, { it.value.toDouble() / reach })
-    logger.info("~~~~~ DENTRO computeReachAndFrequency6")
     return ReachAndFrequency(reach, frequencyDistribution)
   }
 

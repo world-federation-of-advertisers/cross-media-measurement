@@ -27,6 +27,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.flatMapMerge
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
@@ -53,45 +54,21 @@ object VidFilter {
     collectionInterval: Interval,
     typeRegistry: TypeRegistry,
   ): Flow<Long> {
-    val logger: Logger = Logger.getLogger(this::class.java.name)
-    var counter = 0L
     return labeledImpressions
-      .flatMapMerge(concurrency = 48) { labeledImpression ->
-        flow {
-          if (
-            isValidImpression(
-              labeledImpression,
-              vidSamplingIntervalStart,
-              vidSamplingIntervalWidth,
-              eventFilter,
-              collectionInterval,
-              typeRegistry
-            )
-          ) {
-            emit(labeledImpression.vid)
-          }
+      .flatMapMerge(concurrency = 96) { labeledImpression ->
+        flowOf(labeledImpression)
+          .filter { isValidImpression(
+            it,
+            vidSamplingIntervalStart,
+            vidSamplingIntervalWidth,
+            eventFilter,
+            collectionInterval,
+            typeRegistry) }
+          .map { it.vid }
+          .flowOn(Dispatchers.Default)
         }
         .flowOn(Dispatchers.Default)
       }
-//      .filter { labeledImpression ->
-//        isValidImpression(
-//          labeledImpression,
-//          vidSamplingIntervalStart,
-//          vidSamplingIntervalWidth,
-//          eventFilter,
-//          collectionInterval,
-//          typeRegistry,
-//        )
-//      }
-//      .map { labeledImpression ->
-//        labeledImpression.vid }
-      .onEach { vid ->
-        counter++
-        if (counter % 500_000L == 0L) {
-          logger.info("~~~~~~~~~~~~~ Processed $counter impressions so far")
-        }
-      }
-  }
 
   /**
    * Determines if an impression is valid based on various criteria.

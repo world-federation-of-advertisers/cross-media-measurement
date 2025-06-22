@@ -19,6 +19,7 @@ package org.wfanet.measurement.edpaggregator.resultsfulfiller
 import com.google.protobuf.TypeRegistry
 import java.time.LocalDate
 import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import java.util.logging.Logger
 import kotlin.streams.asSequence
 import kotlinx.coroutines.Dispatchers
@@ -30,6 +31,7 @@ import kotlinx.coroutines.flow.flatMapConcat
 import kotlinx.coroutines.flow.flatMapMerge
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.onEach
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec
 import org.wfanet.measurement.common.toInstant
@@ -67,6 +69,7 @@ object RequisitionSpecs {
         "$vidSamplingIntervalWidth"
     }
 
+
     // Return a Flow that processes event groups and extracts valid VIDs
     return requisitionSpec.events.eventGroupsList.asFlow().flatMapConcat { eventGroup ->
       logger.info("Reading event group: $eventGroup")
@@ -77,9 +80,9 @@ object RequisitionSpecs {
 
       // Iterates through all dates up to the end date in the collection interval(inclusive)
       val impressions =
-        dates.asFlow()//.flatMapConcat { date ->
-          .flatMapMerge(concurrency = 2) { date ->
-            println("~~~~~~~~~~~~~~~~~~~~~~~~ reading impression for DATE: $date")
+        dates.asFlow().flatMapConcat { date ->
+//          .flatMapMerge(concurrency = 3) { date ->
+//            println("~~~~~~~~~~~~~~~~~~~~~~~~ reading impression for DATE: $date")
             eventReader.getLabeledImpressions(date, eventGroupMap.getValue(eventGroup.key)).flowOn(Dispatchers.IO)
           }
 

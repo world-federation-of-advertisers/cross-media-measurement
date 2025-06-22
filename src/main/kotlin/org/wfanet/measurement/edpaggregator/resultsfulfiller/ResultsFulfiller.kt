@@ -92,7 +92,6 @@ class ResultsFulfiller(
         }
       val requisitionSpec: RequisitionSpec = signedRequisitionSpec.unpack()
       val measurementSpec: MeasurementSpec = requisition.measurementSpec.message.unpack()
-      logger.info("~~~~~~~~~~~~~~~~~~~~~~~~~~ getting SAMPLE VIDS")
       logger.info("measurementSpec: $measurementSpec")
       val sampledVids: Flow<Long> =
         RequisitionSpecs.getSampledVids(
@@ -103,7 +102,7 @@ class ResultsFulfiller(
           eventReader,
           zoneId,
         )
-      logger.info("~~~~~~~~~~~~~~~~~~~~~~~~~~ GOT SAMPLE VIDS")
+
       val protocols: List<ProtocolConfig.Protocol> = requisition.protocolConfig.protocolsList
 
       val fulfiller =
