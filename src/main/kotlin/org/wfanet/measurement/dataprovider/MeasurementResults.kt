@@ -21,9 +21,14 @@ import java.util.logging.Logger
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.asFlow
+import kotlinx.coroutines.flow.chunked
+import kotlinx.coroutines.flow.flatMapMerge
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.fold
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
 import org.projectnessie.cel.Program
 import org.wfanet.measurement.populationdataprovider.PopulationInfo
 import org.wfanet.measurement.populationdataprovider.PopulationRequisitionFulfiller
@@ -45,14 +50,32 @@ object MeasurementResults {
     // Count occurrences of each VID using fold operation on the flow
     var counter = 0
     val eventsPerVid =
-      filteredVids.flowOn(Dispatchers.Default).fold(mutableMapOf<Long, Int>()) { acc, vid ->
-        counter++
-        if (counter % 500_000 == 0) {
-          println("~~~~~~~Processed $counter VIDs...")
+      filteredVids
+        .chunked(50_000)
+        .flatMapMerge(concurrency = 48) { chunk ->
+          flow {
+            val result = chunk.groupingBy { it }.eachCount()
+            emit(result)
+          }.flowOn(Dispatchers.Default)
         }
-        acc[vid] = acc.getOrDefault(vid, 0) + 1
-        acc
-      }
+        .fold(mutableMapOf<Long, Int>()) { acc, partial ->
+          counter++
+          if (counter % 500_000 == 0) {
+            println("~~~~~~~Processed $counter VIDs...")
+          }
+          for ((vid, count) in partial) {
+            acc[vid] = acc.getOrDefault(vid, 0) + count
+          }
+          acc
+        }
+//      filteredVids.flowOn(Dispatchers.Default).fold(mutableMapOf<Long, Int>()) { acc, vid ->
+//        counter++
+//        if (counter % 500_000 == 0) {
+//          println("~~~~~~~Processed $counter VIDs...")
+//        }
+//        acc[vid] = acc.getOrDefault(vid, 0) + 1
+//        acc
+//      }
 
     logger.info("~~~~~ DENTRO computeReachAndFrequency2")
     val reach: Int = eventsPerVid.keys.size

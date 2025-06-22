@@ -126,7 +126,7 @@ class EventGroupCache(
         Weigher<EventGroupKey, List<LabeledImpression>> { _, impressions ->
           // Calculate weight based on number of impressions
           // Each impression is estimated at ESTIMATED_IMPRESSION_SIZE_BYTES
-          impressions.size * ESTIMATED_IMPRESSION_SIZE_BYTES
+          impressions.size // * ESTIMATED_IMPRESSION_SIZE_BYTES
         }
       )
       .expireAfterWrite(cacheExpireAfterMinutes, TimeUnit.MINUTES)
