@@ -24,6 +24,7 @@ import com.google.type.Interval
 import java.util.logging.Logger
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.flatMapMerge
 import kotlinx.coroutines.flow.flow
@@ -55,20 +56,49 @@ object VidFilter {
     typeRegistry: TypeRegistry,
   ): Flow<Long> {
     return labeledImpressions
-      .flatMapMerge(concurrency = 96) { labeledImpression ->
-        flowOf(labeledImpression)
-          .filter { isValidImpression(
-            it,
-            vidSamplingIntervalStart,
-            vidSamplingIntervalWidth,
-            eventFilter,
-            collectionInterval,
-            typeRegistry) }
-          .map { it.vid }
-          .flowOn(Dispatchers.Default)
-        }
-        .flowOn(Dispatchers.Default)
+      .chunked(10_000)
+      .flatMapMerge(concurrency = 96) { chunk: List<LabeledImpression> ->
+        flow {
+          for (labeledImpression in chunk) {
+            if (
+              isValidImpression(
+                labeledImpression,
+                vidSamplingIntervalStart,
+                vidSamplingIntervalWidth,
+                eventFilter,
+                collectionInterval,
+                typeRegistry
+              )
+            ) {
+              emit(labeledImpression.vid)
+            }
+          }
+        }.flowOn(Dispatchers.Default)
+//        .filter { isValidImpression(
+//            it,
+//            vidSamplingIntervalStart,
+//            vidSamplingIntervalWidth,
+//            eventFilter,
+//            collectionInterval,
+//            typeRegistry) }
+//          .map { it.vid }
+//          .flowOn(Dispatchers.Default)
+//        }
+//        .flowOn(Dispatchers.Default)
       }
+  }
+
+  fun <T> Flow<T>.chunked(size: Int): Flow<List<T>> = channelFlow {
+    val buffer = mutableListOf<T>()
+    collect { element ->
+      buffer += element
+      if (buffer.size >= size) {
+        send(ArrayList(buffer))
+        buffer.clear()
+      }
+    }
+    if (buffer.isNotEmpty()) send(buffer)
+  }
 
   /**
    * Determines if an impression is valid based on various criteria.
