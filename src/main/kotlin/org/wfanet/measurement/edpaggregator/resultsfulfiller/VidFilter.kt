@@ -28,7 +28,6 @@ import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.flatMapMerge
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
-import kotlinx.coroutines.flow.internal.NopCollector.emit
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
 import org.projectnessie.cel.Program
