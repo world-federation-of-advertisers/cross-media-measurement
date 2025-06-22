@@ -68,8 +68,7 @@ object RequisitionSpecs {
     }
 
     // Return a Flow that processes event groups and extracts valid VIDs
-    return requisitionSpec.events.eventGroupsList.asFlow() //.flatMapConcat { eventGroup ->
-      .flatMapMerge(concurrency = 8) { eventGroup ->
+    return requisitionSpec.events.eventGroupsList.asFlow().flatMapConcat { eventGroup ->
       logger.info("Reading event group: $eventGroup")
       val collectionInterval = eventGroup.value.collectionInterval
       val startDate = LocalDate.ofInstant(collectionInterval.startTime.toInstant(), zoneId)
@@ -79,7 +78,7 @@ object RequisitionSpecs {
       // Iterates through all dates up to the end date in the collection interval(inclusive)
       val impressions =
         dates.asFlow()//.flatMapConcat { date ->
-          .flatMapMerge(concurrency = 8) { date ->
+          .flatMapMerge(concurrency = 2) { date ->
             println("~~~~~~~~~~~~~~~~~~~~~~~~ reading impression for DATE: $date")
             eventReader.getLabeledImpressions(date, eventGroupMap.getValue(eventGroup.key)).flowOn(Dispatchers.IO)
           }

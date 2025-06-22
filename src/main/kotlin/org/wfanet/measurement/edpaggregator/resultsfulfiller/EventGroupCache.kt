@@ -120,7 +120,8 @@ class EventGroupCache(
    */
   private val impressionsCache: LoadingCache<EventGroupKey, List<LabeledImpression>> =
     CacheBuilder.newBuilder()
-      .maximumWeight((cacheMaxMemoryMB * 1024 * 1024 * MEMORY_SAFETY_FACTOR).toLong())
+//      .maximumWeight((cacheMaxMemoryMB * 1024 * 1024 * MEMORY_SAFETY_FACTOR).toLong())
+      .maximumWeight((Runtime.getRuntime().maxMemory() * MEMORY_SAFETY_FACTOR).toLong())
       .weigher(
         Weigher<EventGroupKey, List<LabeledImpression>> { _, impressions ->
           // Calculate weight based on number of impressions
@@ -137,7 +138,8 @@ class EventGroupCache(
             // It runs in a blocking context because CacheLoader is synchronous
             return runBlocking {
               val blobDetails = fetchBlobDetails(key.ds, key.eventGroupReferenceId)
-              logger.info("~~~~~~~~~~~~~~~~~~~ fetching impressions1")
+              val maxMemory = Runtime.getRuntime().maxMemory()
+              logger.info("~~~~~~~~~~~~~~~~~~~ fetching impressions1: $maxMemory")
               try {
                 val labeledImpressions = fetchLabeledImpressions(blobDetails)
                 logger.info("~~~~~~~~~~~~~~~~~~~ fetching impressions2")

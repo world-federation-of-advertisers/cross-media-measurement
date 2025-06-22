@@ -25,7 +25,10 @@ import java.util.logging.Logger
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.flatMapMerge
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.internal.NopCollector.emit
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
 import org.projectnessie.cel.Program
@@ -54,18 +57,35 @@ object VidFilter {
     val logger: Logger = Logger.getLogger(this::class.java.name)
     var counter = 0L
     return labeledImpressions
-      .filter { labeledImpression ->
-        isValidImpression(
-          labeledImpression,
-          vidSamplingIntervalStart,
-          vidSamplingIntervalWidth,
-          eventFilter,
-          collectionInterval,
-          typeRegistry,
-        )
+      .flatMapMerge(concurrency = 48) { labeledImpression ->
+        flow {
+          if (
+            isValidImpression(
+              labeledImpression,
+              vidSamplingIntervalStart,
+              vidSamplingIntervalWidth,
+              eventFilter,
+              collectionInterval,
+              typeRegistry
+            )
+          ) {
+            emit(labeledImpression.vid)
+          }
+        }
+        .flowOn(Dispatchers.Default)
       }
-      .map { labeledImpression ->
-        labeledImpression.vid }
+//      .filter { labeledImpression ->
+//        isValidImpression(
+//          labeledImpression,
+//          vidSamplingIntervalStart,
+//          vidSamplingIntervalWidth,
+//          eventFilter,
+//          collectionInterval,
+//          typeRegistry,
+//        )
+//      }
+//      .map { labeledImpression ->
+//        labeledImpression.vid }
       .onEach { vid ->
         counter++
         if (counter % 500_000L == 0L) {
