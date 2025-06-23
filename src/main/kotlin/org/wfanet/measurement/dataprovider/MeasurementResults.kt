@@ -48,17 +48,20 @@ object MeasurementResults {
     maxFrequency: Int,
   ): ReachAndFrequency {
     val logger: Logger = Logger.getLogger(this::class.java.name)
-    // Count occurrences of each VID using fold operation on the flow
+    // Count occurrences of each VID using optimized grouping
     var counter = 0
-    val eventsPerVid =
-      filteredVids.flowOn(Dispatchers.Default).fold(mutableMapOf<Long, Int>()) { acc, vid ->
-        acc[vid] = acc.getOrDefault(vid, 0) + 1
+    val eventsPerVid = filteredVids
+      .flowOn(Dispatchers.Default)
+      .map { vid ->
         counter++
         if (counter % 500_000 == 0) {
           logger.info("Processed $counter VIDs. Currently on ${Thread.currentThread().name} thread.")
         }
-        acc
+        vid
       }
+      .toList()
+      .groupingBy { it }
+      .eachCount()
 
     val reach: Int = eventsPerVid.keys.size
 
