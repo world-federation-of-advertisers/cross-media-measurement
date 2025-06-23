@@ -39,6 +39,10 @@ import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
  * @param requisitionsStub used to pull [Requisition]s from the kingdom
  * @param storageClient client used to store [Requisition]s
  * @param dataProviderName of the EDP for which [Requisition]s will be retrieved
+ * @param storagePathPrefix the blob key prefix to use when storing a [Requisition]
+ * @param requisitionGrouper the instance of [RequisitionGrouper] to use to group requisitions
+ * @param groupedRequisitionsIdGenerator deterministic ID generator
+ * @param responsePageSize
  */
 class RequisitionFetcher(
   private val requisitionsStub: RequisitionsCoroutineStub,
@@ -46,7 +50,7 @@ class RequisitionFetcher(
   private val dataProviderName: String,
   private val storagePathPrefix: String,
   private val requisitionGrouper: RequisitionGrouper,
-  val idGenerator: (GroupedRequisitions) -> String,
+  val groupedRequisitionsIdGenerator: (GroupedRequisitions) -> String,
   private val responsePageSize: Int? = null,
 ) {
 
@@ -106,7 +110,7 @@ class RequisitionFetcher(
   private suspend fun storeRequisitions(groupedRequisitions: List<GroupedRequisitions>): Int {
     var storedGroupedRequisitions = 0
     groupedRequisitions.forEach { groupedRequisition: GroupedRequisitions ->
-      val groupedRequisitionId = idGenerator(groupedRequisition)
+      val groupedRequisitionId = groupedRequisitionsIdGenerator(groupedRequisition)
       val blobKey = "$storagePathPrefix/${groupedRequisitionId}"
 
       // TODO(@marcopremier): Add mechanism to check whether requisitions inside grouped requisitions where stored already.

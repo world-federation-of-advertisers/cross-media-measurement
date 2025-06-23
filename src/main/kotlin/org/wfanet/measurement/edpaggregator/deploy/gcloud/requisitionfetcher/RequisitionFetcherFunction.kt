@@ -130,7 +130,7 @@ class RequisitionFetcherFunction : HttpFunction {
       requisitionsValidator,
       eventGroupsStub,
       requisitionsStub,
-      MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofSeconds(grpcThrottler))
+      MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofSeconds(grpcRequestIntervalSeconds))
     )
 
     return RequisitionFetcher(
@@ -139,7 +139,7 @@ class RequisitionFetcherFunction : HttpFunction {
       dataProviderName = dataProviderConfig.dataProvider,
       storagePathPrefix = dataProviderConfig.storagePathPrefix,
       requisitionGrouper = requisitionGrouper,
-      idGenerator = ::createDeterministicId,
+      groupedRequisitionsIdGenerator = ::createDeterministicId,
       responsePageSize = pageSize,
     )
   }
@@ -188,7 +188,7 @@ class RequisitionFetcherFunction : HttpFunction {
     private val kingdomTarget = EnvVars.checkNotNullOrEmpty("KINGDOM_TARGET")
     private val kingdomCertHost: String? = System.getenv("KINGDOM_CERT_HOST")
     private val fileSystemPath: String? = System.getenv("REQUISITION_FILE_SYSTEM_PATH")
-    private val grpcThrottler = EnvVars.checkNotNullOrEmpty("GRPC_THROTTLER").toLongOrNull()
+    private val grpcRequestIntervalSeconds = EnvVars.checkNotNullOrEmpty("GRPC_REQUEST_INTERVAL_SECONDS").toLongOrNull()
       ?: error("Invalid GRPC_THROTTLER value: must be a number (milliseconds)")
 
 
