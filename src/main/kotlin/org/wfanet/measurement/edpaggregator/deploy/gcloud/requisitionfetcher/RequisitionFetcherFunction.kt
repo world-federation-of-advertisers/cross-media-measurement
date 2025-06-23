@@ -119,18 +119,14 @@ class RequisitionFetcherFunction : HttpFunction {
 
     val requisitionsValidator = RequisitionsValidator(
       loadPrivateKey(edpPrivateKey),
-    ) { requisition, refusal ->
-      refusalCoroutineScope.launch {
-        logger.info("Refusing ${requisition.name}: $refusal")
-        refuseRequisition(requisitionsStub, requisition, refusal)
-      }
-    }
+    )
 
     val requisitionGrouper = RequisitionGrouperByReportId(
       requisitionsValidator,
       eventGroupsStub,
       requisitionsStub,
-      MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofSeconds(grpcRequestIntervalSeconds))
+      MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofSeconds(grpcRequestIntervalSeconds)),
+      requisitionsStub
     )
 
     return RequisitionFetcher(

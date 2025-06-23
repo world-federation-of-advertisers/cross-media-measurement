@@ -31,7 +31,8 @@ class SingleRequisitionGrouper(
   eventGroupsClient: EventGroupsCoroutineStub,
   requisitionsClient: RequisitionsCoroutineStub,
   throttler: Throttler,
-) : RequisitionGrouper(requisitionValidator, eventGroupsClient, requisitionsClient, throttler) {
+  requisitionsStub: RequisitionsCoroutineStub,
+) : RequisitionGrouper(requisitionValidator, eventGroupsClient, requisitionsClient, throttler, requisitionsStub) {
 
   override fun combineGroupedRequisitions(
     groupedRequisitions: List<GroupedRequisitions>

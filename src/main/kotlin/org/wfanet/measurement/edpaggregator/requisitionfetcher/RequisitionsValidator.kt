@@ -29,6 +29,8 @@ import org.wfanet.measurement.common.crypto.PrivateKeyHandle
 import org.wfanet.measurement.consent.client.dataprovider.decryptRequisitionSpec
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
 
+data class InvalidRequisitionException(val requisitions: List<Requisition>, val refusal: Refusal) : Exception()
+
 /**
  * Validates a requisition. Only refuses requisitions with permanently fatal errors.
  *
@@ -36,82 +38,72 @@ import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
  * @param privateEncryptionKey The DataProvider's decryption key used for decrypting requisition
  *   data.
  */
-// TODO(@marcopremier): Update constructor not to use callback but simply throwing an exception
-// if the requisition is not valid
 class RequisitionsValidator(
   private val privateEncryptionKey: PrivateKeyHandle,
-  private val fatalRequisitionErrorPredicate: (requisition: Requisition, Refusal) -> Unit,
 ) {
-  fun validateMeasurementSpec(requisition: Requisition): MeasurementSpec? {
-    val measurementSpec: MeasurementSpec? =
-      try {
-        requisition.measurementSpec.unpack()
-      } catch (e: InvalidProtocolBufferException) {
-        logger.severe("Unable to parse measurement spec for ${requisition.name}: ${e.message}")
-        fatalRequisitionErrorPredicate(
-          requisition,
-          refusal {
-            justification = Refusal.Justification.SPEC_INVALID
-            message = "Unable to parse MeasurementSpec"
-          },
-        )
-        null
-      }
-    return measurementSpec
+  fun validateMeasurementSpec(requisition: Requisition): MeasurementSpec {
+    return try {
+      requisition.measurementSpec.unpack()
+    } catch (e: InvalidProtocolBufferException) {
+      logger.severe("Unable to parse measurement spec for ${requisition.name}: ${e.message}")
+      throw InvalidRequisitionException(
+        listOf(requisition),
+        refusal {
+          justification = Refusal.Justification.SPEC_INVALID
+          message = "Unable to parse MeasurementSpec"
+        }
+      )
+    }
   }
 
-  fun validateRequisitionSpec(requisition: Requisition): RequisitionSpec? {
-    val requisitionSpec: RequisitionSpec? =
-      try {
-        decryptRequisitionSpec(requisition.encryptedRequisitionSpec, privateEncryptionKey).unpack()
-      } catch (e: GeneralSecurityException) {
-        logger.severe("RequisitionSpec decryption failed for ${requisition.name}: ${e.message}")
-        fatalRequisitionErrorPredicate(
-          requisition,
-          refusal {
-            justification = Refusal.Justification.CONSENT_SIGNAL_INVALID
-            message = "Unable to decrypt RequisitionSpec"
-          },
-        )
-        null
-      } catch (e: InvalidProtocolBufferException) {
-        logger.severe("Unable to parse requisition spec for ${requisition.name}: ${e.message}")
-        fatalRequisitionErrorPredicate(
-          requisition,
-          refusal {
-            justification = Refusal.Justification.SPEC_INVALID
-            message = "Unable to parse RequisitionSpec"
-          },
-        )
-        null
-      }
-    return requisitionSpec
+  fun validateRequisitionSpec(requisition: Requisition): RequisitionSpec {
+    return try {
+      decryptRequisitionSpec(requisition.encryptedRequisitionSpec, privateEncryptionKey).unpack()
+    } catch (e: GeneralSecurityException) {
+      logger.severe("RequisitionSpec decryption failed for ${requisition.name}: ${e.message}")
+      throw InvalidRequisitionException(
+        listOf(requisition),
+        refusal {
+          justification = Refusal.Justification.CONSENT_SIGNAL_INVALID
+          message = "Unable to decrypt RequisitionSpec"
+        }
+      )
+    } catch (e: InvalidProtocolBufferException) {
+      logger.severe("Unable to parse requisition spec for ${requisition.name}: ${e.message}")
+      throw InvalidRequisitionException(
+        listOf(requisition),
+        refusal {
+          justification = Refusal.Justification.SPEC_INVALID
+          message = "Unable to parse RequisitionSpec"
+        }
+      )
+    }
   }
 
   fun validateModelLines(
     groupedRequisitions: List<GroupedRequisitions>,
     reportId: String,
-  ): Boolean {
+  ) {
     val modelLine = groupedRequisitions.first().modelLine
     val foundInvalidModelLine =
       groupedRequisitions.firstOrNull { it.modelLine != modelLine } != null
     if (foundInvalidModelLine) {
       logger.severe("Report $reportId cannot contain multiple model lines")
+      val invalidRequisitions = mutableListOf<Requisition>()
       groupedRequisitions.forEach {
         it.requisitionsList.forEach { it ->
           val requisition = it.requisition.unpack(Requisition::class.java)
-          fatalRequisitionErrorPredicate(
-            requisition,
-            refusal {
-              justification = Requisition.Refusal.Justification.UNFULFILLABLE
-              message = "Report $reportId cannot contain multiple model lines"
-            },
-          )
+          invalidRequisitions.add(requisition)
         }
       }
-      return false
+      throw InvalidRequisitionException(
+        invalidRequisitions.toList(),
+        refusal {
+          justification = Requisition.Refusal.Justification.UNFULFILLABLE
+          message = "Report $reportId cannot contain multiple model lines"
+        }
+      )
     }
-    return true
   }
 
   companion object {

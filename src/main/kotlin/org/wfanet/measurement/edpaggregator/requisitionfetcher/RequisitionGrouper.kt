@@ -18,14 +18,20 @@ package org.wfanet.measurement.edpaggregator.requisitionfetcher
 
 import com.google.protobuf.Any
 import io.grpc.StatusException
+import java.util.logging.Level
 import java.util.logging.Logger
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.Requisition
+import org.wfanet.measurement.api.v2alpha.RequisitionKt
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.getEventGroupRequest
+import org.wfanet.measurement.api.v2alpha.refuseRequisitionRequest
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
@@ -51,6 +57,8 @@ abstract class RequisitionGrouper(
   private val eventGroupsClient: EventGroupsCoroutineStub,
   private val requisitionsClient: RequisitionsCoroutineStub,
   private val throttler: Throttler,
+  private val requisitionsStub: RequisitionsCoroutineStub,
+  private val refusalCoroutineScope: CoroutineScope = CoroutineScope(Dispatchers.IO)
 ) {
 
   /**
@@ -76,9 +84,23 @@ abstract class RequisitionGrouper(
   private suspend fun mapRequisition(requisition: Requisition): GroupedRequisitions? {
 
     val measurementSpec: MeasurementSpec =
-      requisitionValidator.validateMeasurementSpec(requisition) ?: return null
+      try {
+        requisitionValidator.validateMeasurementSpec(requisition)
+      } catch (e: InvalidRequisitionException) {
+        e.requisitions.forEach {
+          refuseRequisition(it, e.refusal)
+        }
+        return null
+      }
     val requisitionSpec: RequisitionSpec =
-      requisitionValidator.validateRequisitionSpec(requisition) ?: return null
+      try {
+        requisitionValidator.validateRequisitionSpec(requisition)
+      } catch (e: InvalidRequisitionException){
+        e.requisitions.forEach {
+          refuseRequisition(it, e.refusal)
+        }
+        return null
+      }
     val eventGroupMapEntries =
       try {
         getEventGroupMapEntries(requisitionSpec)
@@ -99,6 +121,21 @@ abstract class RequisitionGrouper(
             details = it.value
           }
         }
+    }
+  }
+
+  protected fun refuseRequisition(requisition: Requisition, refusal: Requisition.Refusal) {
+    try {
+      refusalCoroutineScope.launch {
+        logger.info("Requisition ${requisition.name} was refused. $refusal")
+        val request = refuseRequisitionRequest {
+          this.name = requisition.name
+          this.refusal = RequisitionKt.refusal { justification = refusal.justification }
+        }
+        requisitionsStub.refuseRequisition(request)
+      }
+    } catch (e: Exception) {
+      logger.log(Level.SEVERE,"Error while refusing requisition ${requisition.name}", e)
     }
   }
 

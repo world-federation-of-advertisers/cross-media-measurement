@@ -41,7 +41,8 @@ class RequisitionGrouperByReportId(
   eventGroupsClient: EventGroupsCoroutineStub,
   requisitionsClient: RequisitionsCoroutineStub,
   throttler: Throttler,
-) : RequisitionGrouper(requisitionValidator, eventGroupsClient, requisitionsClient, throttler) {
+  requisitionsStub: RequisitionsCoroutineStub,
+) : RequisitionGrouper(requisitionValidator, eventGroupsClient, requisitionsClient, throttler, requisitionsStub) {
 
   /**
    * Combines Grouped Requisitions by ReportId and then unions their collection intervals per event
@@ -72,11 +73,11 @@ class RequisitionGrouperByReportId(
   private fun combineByReportId(
     groupedByReport: Map<String, List<GroupedRequisitions>>
   ): List<GroupedRequisitions> {
+
     return groupedByReport.toList().mapNotNull {
       (reportId: String, groups: List<GroupedRequisitions>) ->
-      if (!requisitionValidator.validateModelLines(groups, reportId = reportId)) {
-        null
-      } else {
+      try {
+        requisitionValidator.validateModelLines(groups, reportId = reportId)
         val entries =
           groups
             .flatMap { it.eventGroupMapList }
@@ -99,6 +100,11 @@ class RequisitionGrouperByReportId(
           this.eventGroupMap += entries
           this.requisitions += groups.flatMap { it.requisitionsList }
         }
+      } catch (e: InvalidRequisitionException) {
+        e.requisitions.forEach {
+          refuseRequisition(it, e.refusal)
+        }
+        null
       }
     }
   }
