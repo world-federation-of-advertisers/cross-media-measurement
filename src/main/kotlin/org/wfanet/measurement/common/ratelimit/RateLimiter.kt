@@ -16,34 +16,38 @@
 
 package org.wfanet.measurement.common.ratelimit
 
+import kotlin.time.Duration
+import kotlinx.coroutines.delay
+
 /** Rate limiter. */
 interface RateLimiter {
-  interface Permit : AutoCloseable {
-    /** Releases the [Permit]. */
-    fun release()
-
-    override fun close() = release()
-
-    object NoOp : Permit {
-      override fun release() = Unit
-    }
-  }
-
   /**
-   * Attempts to acquire a permit for execution.
+   * Attempts to acquire permits for execution without suspending.
    *
-   * @return the [Permit], or `null` if none was acquired
+   * @return whether permits were acquired
    */
-  fun tryAcquire(cost: Int = 1): Permit?
+  fun tryAcquire(permitCount: Int = 1): Boolean
+
+  /** Suspends until the requested number of permits for execution are acquired. */
+  suspend fun acquire(permitCount: Int = 1)
 
   companion object {
     val Unlimited =
       object : RateLimiter {
-        override fun tryAcquire(cost: Int) = Permit.NoOp
+        override fun tryAcquire(permitCount: Int) = true
+
+        override suspend fun acquire(permitCount: Int) {}
       }
     val Blocked =
       object : RateLimiter {
-        override fun tryAcquire(cost: Int) = null
+        override fun tryAcquire(permitCount: Int) = false
+
+        override suspend fun acquire(permitCount: Int) = delay(Duration.INFINITE)
       }
   }
+}
+
+suspend inline fun <T> RateLimiter.withPermits(permitCount: Int = 1, action: () -> T): T {
+  acquire(permitCount)
+  return action()
 }
