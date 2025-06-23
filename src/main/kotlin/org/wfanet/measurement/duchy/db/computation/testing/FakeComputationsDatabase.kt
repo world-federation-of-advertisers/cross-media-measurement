@@ -352,6 +352,7 @@ private constructor(
                   ComputationType.REACH_ONLY_LIQUID_LEGIONS_SKETCH_AGGREGATION_V2
                 ComputationStage.StageCase.HONEST_MAJORITY_SHARE_SHUFFLE ->
                   ComputationType.HONEST_MAJORITY_SHARE_SHUFFLE
+                ComputationStage.StageCase.TRUS_TEE -> ComputationType.TRUS_TEE
                 ComputationStage.StageCase.STAGE_NOT_SET ->
                   error("Computation type for $it is unknown")
               },
