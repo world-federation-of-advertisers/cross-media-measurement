@@ -6,6 +6,7 @@ py_test(
     srcs = ["report_test.py"],
     deps = [
         "//src/main/python/wfa/measurement/reporting/postprocessing/report",
+        "//src/main/python/wfa/measurement/reporting/postprocessing/report/testing:validate_report",
         requirement("protobuf"),
     ],
 )
