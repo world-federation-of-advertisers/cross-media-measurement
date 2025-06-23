@@ -139,12 +139,12 @@ class EventGroupCache(
             return runBlocking {
               val blobDetails = fetchBlobDetails(key.ds, key.eventGroupReferenceId)
               val maxMemory = Runtime.getRuntime().maxMemory()
-              logger.info("~~~~~~~~~~~~~~~~~~~ fetching impressions1: $maxMemory")
+              logger.info("Fetching impressions, available memory: $maxMemory")
               try {
                 val labeledImpressions = fetchLabeledImpressions(blobDetails)
                 val labeledImpressionsList = labeledImpressions.toList()
                 val count = labeledImpressionsList.size
-                logger.info("~~~~~~~~~~~~~~~~~~~ Impressions fetcher, count: $count")
+                logger.info("Impressions fetched, count: $count")
                 labeledImpressionsList
               } catch (e: Exception) {
                 e.printStackTrace()

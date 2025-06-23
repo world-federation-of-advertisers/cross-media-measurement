@@ -48,18 +48,15 @@ object MeasurementResults {
     maxFrequency: Int,
   ): ReachAndFrequency {
     val logger: Logger = Logger.getLogger(this::class.java.name)
-    logger.info("~~~~~ DENTRO computeReachAndFrequency")
     // Count occurrences of each VID using fold operation on the flow
     var counter = 0
-    val dtf = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")
     val eventsPerVid =
       filteredVids.flowOn(Dispatchers.Default).fold(mutableMapOf<Long, Int>()) { acc, vid ->
+        acc[vid] = acc.getOrDefault(vid, 0) + 1
         counter++
         if (counter % 500_000 == 0) {
-          logger.info("~~~~~~~Processed $counter VIDs...")
-          logger.info("TIME: ${LocalDateTime.now().format(dtf)}")
+          logger.info("Processed $counter VIDs. Currently on ${Thread.currentThread().name} thread.")
         }
-        acc[vid] = acc.getOrDefault(vid, 0) + 1
         acc
       }
 
@@ -69,16 +66,17 @@ object MeasurementResults {
     if (reach == 0) {
       return ReachAndFrequency(reach, (1..maxFrequency).associateWith { 0.0 })
     }
-
+    logger.info("Building frequency histograms....")
     // Build frequency histogram as a 0-based array.
     val frequencyArray = IntArray(maxFrequency)
     for (count in eventsPerVid.values) {
       val bucket = count.coerceAtMost(maxFrequency)
       frequencyArray[bucket - 1]++
     }
-
+    logger.info("Building frequency distribution...")
     val frequencyDistribution: Map<Int, Double> =
       frequencyArray.withIndex().associateBy({ it.index + 1 }, { it.value.toDouble() / reach })
+    logger.info("Returning reach and frequency")
     return ReachAndFrequency(reach, frequencyDistribution)
   }
 

@@ -82,6 +82,7 @@ class ResultsFulfiller(
       groupedRequisitions.eventGroupMapList
         .map { Pair(it.eventGroup, it.details.eventGroupReferenceId) }
         .toMap()
+
     for (requisition in requisitions) {
       logger.info("Processing requisition: ${requisition.name}")
       val signedRequisitionSpec: SignedMessage =
@@ -169,7 +170,7 @@ class ResultsFulfiller(
       requisition.protocolConfig.protocolsList.first { it.hasDirect() }.direct
     val noiseMechanism =
       noiserSelector.selectNoiseMechanism(directProtocolConfig.noiseMechanismsList)
-    logger.info("~~~~~~~~~~~~~~~~~~~~~~~~~~~~ building result!!")
+
     val result =
       DirectMeasurementResultFactory.buildMeasurementResult(
         directProtocolConfig,
@@ -178,7 +179,7 @@ class ResultsFulfiller(
         sampledVids,
         random,
       )
-    logger.info("~~~~~~~~~~~~~~~~~~~~~~~~result built, returning")
+
     return DirectMeasurementFulfiller(
       requisition.name,
       requisition.dataProviderCertificate,

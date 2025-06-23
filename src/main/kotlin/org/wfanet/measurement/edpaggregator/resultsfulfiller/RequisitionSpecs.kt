@@ -78,11 +78,10 @@ object RequisitionSpecs {
       val endDate = LocalDate.ofInstant(collectionInterval.endTime.toInstant(), zoneId)
       val dates = startDate.datesUntil(endDate.plusDays(1)).asSequence()
 
+      logger.info("Dates to process: $dates")
       // Iterates through all dates up to the end date in the collection interval(inclusive)
       val impressions =
         dates.asFlow().flatMapConcat { date ->
-//          .flatMapMerge(concurrency = 3) { date ->
-//            println("~~~~~~~~~~~~~~~~~~~~~~~~ reading impression for DATE: $date")
             eventReader.getLabeledImpressions(date, eventGroupMap.getValue(eventGroup.key)).flowOn(Dispatchers.IO)
           }
 

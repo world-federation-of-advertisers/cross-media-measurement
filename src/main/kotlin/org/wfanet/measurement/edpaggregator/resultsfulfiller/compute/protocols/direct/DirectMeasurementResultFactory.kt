@@ -49,7 +49,6 @@ object DirectMeasurementResultFactory {
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf enum fields cannot be null.
     return when (measurementSpec.measurementTypeCase) {
       MeasurementSpec.MeasurementTypeCase.REACH_AND_FREQUENCY -> {
-        logger.info("~~~~~~~~~~~~~~~~~~~~~~ CASE REACH AND FREQUENCY")
         val reachAndFrequencyResultBuilder =
           DirectReachAndFrequencyResultBuilder(
             directProtocolConfig,
