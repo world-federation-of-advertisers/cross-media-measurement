@@ -87,8 +87,8 @@ import org.wfanet.measurement.integration.common.loadEncryptionPrivateKey
 import org.wfanet.measurement.integration.common.loadTestCertDerFile
 import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt
 import org.wfanet.measurement.internal.reporting.v2.BasicReportsGrpcKt as InternalBasicReportsGrpcKt
+import org.wfanet.measurement.loadtest.measurementconsumer.EventQueryMeasurementConsumerSimulator
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
-import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerSimulator
 import org.wfanet.measurement.loadtest.measurementconsumer.MetadataSyntheticGeneratorEventQuery
 import org.wfanet.measurement.loadtest.reporting.ReportingUserSimulator
 import org.wfanet.measurement.loadtest.resourcesetup.DuchyCert
@@ -217,8 +217,8 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
     private val tempDir: TemporaryFolder by tempDir
     override val runId: String by runId
 
-    private lateinit var _testHarness: MeasurementConsumerSimulator
-    override val testHarness: MeasurementConsumerSimulator
+    private lateinit var _testHarness: EventQueryMeasurementConsumerSimulator
+    override val testHarness: EventQueryMeasurementConsumerSimulator
       get() = _testHarness
 
     private lateinit var _reportingTestHarness: ReportingUserSimulator
@@ -297,7 +297,9 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
       return ClusterData(measurementConsumerData = measurementConsumerData, principal = principal)
     }
 
-    private suspend fun createTestHarness(clusterData: ClusterData): MeasurementConsumerSimulator {
+    private suspend fun createTestHarness(
+      measurementConsumerData: MeasurementConsumerData
+    ): EventQueryMeasurementConsumerSimulator {
       val kingdomPublicPod: V1Pod = getPod(KINGDOM_PUBLIC_DEPLOYMENT_NAME)
 
       val publicApiForwarder = PortForwarder(kingdomPublicPod, SERVER_PORT)
@@ -308,11 +310,10 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
       val publicApiChannel: Channel =
         buildMutualTlsChannel(publicApiAddress.toTarget(), MEASUREMENT_CONSUMER_SIGNING_CERTS)
           .also { channels.add(it) }
-          .withDefaultDeadline(DEFAULT_RPC_DEADLINE)
       val eventGroupsClient = EventGroupsGrpcKt.EventGroupsCoroutineStub(publicApiChannel)
 
-      return MeasurementConsumerSimulator(
-        clusterData.measurementConsumerData,
+      return EventQueryMeasurementConsumerSimulator(
+        measurementConsumerData,
         OUTPUT_DP_PARAMS,
         DataProvidersGrpcKt.DataProvidersCoroutineStub(publicApiChannel),
         eventGroupsClient,
@@ -338,9 +339,9 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
       val publicApiAddress: InetSocketAddress =
         withContext(Dispatchers.IO) { publicApiForwarder.start() }
       val publicApiChannel: Channel =
-        buildMutualTlsChannel(publicApiAddress.toTarget(), REPORTING_SIGNING_CERTS)
-          .also { channels.add(it) }
-          .withDefaultDeadline(DEFAULT_RPC_DEADLINE)
+        buildMutualTlsChannel(publicApiAddress.toTarget(), REPORTING_SIGNING_CERTS).also {
+          channels.add(it)
+        }
 
       val reportingGatewayPod: V1Pod = getPod(REPORTING_GATEWAY_DEPLOYMENT_NAME)
       val gatewayForwarder = PortForwarder(reportingGatewayPod, SERVER_PORT)
@@ -683,7 +684,6 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
     }
 
     private const val SERVER_PORT: Int = 8443
-    private val DEFAULT_RPC_DEADLINE = Duration.ofSeconds(30)
     private const val KINGDOM_INTERNAL_DEPLOYMENT_NAME = "gcp-kingdom-data-server-deployment"
     private const val KINGDOM_PUBLIC_DEPLOYMENT_NAME = "v2alpha-public-api-server-deployment"
     private const val REPORTING_PUBLIC_DEPLOYMENT_NAME =

@@ -44,6 +44,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementConsumerCertificateKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub as PublicKingdomMeasurementConsumersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub as PublicKingdomMeasurementsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt.ModelLinesCoroutineStub as PublicKingdomModelLinesCoroutineStub
 import org.wfanet.measurement.api.withAuthenticationKey
 import org.wfanet.measurement.common.crypto.tink.loadPrivateKey
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
@@ -108,6 +109,8 @@ class InProcessReportingServer(
     PublicKingdomEventGroupMetadataDescriptorsCoroutineStub(kingdomPublicApiChannel)
   private val publicKingdomEventGroupsClient =
     PublicKingdomEventGroupsCoroutineStub(kingdomPublicApiChannel)
+  private val publicKingdomModelLinesClient =
+    PublicKingdomModelLinesCoroutineStub(kingdomPublicApiChannel)
 
   private val internalApiChannel
     get() = internalReportingServer.channel
@@ -235,9 +238,11 @@ class InProcessReportingServer(
               .withTrustedPrincipalAuthentication(),
             MetricCalculationSpecsService(
                 internalMetricCalculationSpecsClient,
+                publicKingdomModelLinesClient,
                 METRIC_SPEC_CONFIG,
                 authorization,
                 SecureRandom().asKotlinRandom(),
+                measurementConsumerConfigs,
               )
               .withTrustedPrincipalAuthentication(),
             MetricsService(
@@ -251,6 +256,7 @@ class InProcessReportingServer(
                 publicKingdomMeasurementsClient,
                 publicKingdomCertificatesClient,
                 publicKingdomMeasurementConsumersClient,
+                publicKingdomModelLinesClient,
                 authorization,
                 encryptionKeyPairStore,
                 SecureRandom().asKotlinRandom(),

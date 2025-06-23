@@ -75,7 +75,7 @@ class ComputationDataClientsTest {
         ComputationStore(storageClient),
         RequisitionStore(storageClient),
         ALSACE,
-        Clock.systemUTC(),
+        clock = Clock.systemUTC(),
       )
     )
   }
@@ -92,6 +92,10 @@ class ComputationDataClientsTest {
         blobKey: String,
         content: Flow<ByteString>,
       ): StorageClient.Blob {
+        throw NotImplementedError("Unused by test")
+      }
+
+      override suspend fun listBlobs(prefix: String?): Flow<StorageClient.Blob> {
         throw NotImplementedError("Unused by test")
       }
     }

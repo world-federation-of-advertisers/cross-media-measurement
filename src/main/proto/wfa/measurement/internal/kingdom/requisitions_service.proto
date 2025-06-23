@@ -101,6 +101,12 @@ message FulfillRequisitionRequest {
     ComputedRequisitionParams computed_params = 3;
     DirectRequisitionParams direct_params = 4;
   }
+
+  // `etag` of the `Requisition`.
+  //
+  // If specified and the value does not match the current `etag`, this method
+  // will result in an ABORTED status.
+  string etag = 6;
 }
 
 message RefuseRequisitionRequest {
@@ -108,4 +114,10 @@ message RefuseRequisitionRequest {
   fixed64 external_requisition_id = 2;
 
   RequisitionRefusal refusal = 3;
+
+  // `etag` of the `Requisition`.
+  //
+  // If specified and the value does not match the current `etag`, this method
+  // will result in an ABORTED status.
+  string etag = 4;
 }

@@ -14,6 +14,7 @@
 
 package org.wfanet.measurement.duchy.deploy.gcloud.spanner.common
 
+import com.google.cloud.spanner.Options
 import com.google.cloud.spanner.Statement
 import com.google.cloud.spanner.Struct
 import kotlinx.coroutines.flow.Flow
@@ -38,6 +39,8 @@ interface SqlBasedQuery<out Result> {
     execute(databaseClient.singleUse())
 
   /** Runs this query using a read context, returning a [Flow] of the [Result]s. */
-  fun execute(readContext: AsyncDatabaseClient.ReadContext): Flow<Result> =
-    readContext.executeQuery(sql).map { asResult(it) }
+  fun execute(readContext: AsyncDatabaseClient.ReadContext): Flow<Result> {
+    val className: String = this::class.simpleName ?: "Anonymous"
+    return readContext.executeQuery(sql, Options.tag("reader=$className")).map { asResult(it) }
+  }
 }

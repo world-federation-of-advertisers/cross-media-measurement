@@ -15,6 +15,7 @@
 package org.wfanet.measurement.duchy.deploy.aws.server
 
 import java.time.Clock
+import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.aws.postgres.PostgresConnectionFactories
 import org.wfanet.measurement.aws.postgres.PostgresFlags as AwsPostgresFlags
@@ -22,6 +23,7 @@ import org.wfanet.measurement.aws.s3.S3Flags
 import org.wfanet.measurement.aws.s3.S3StorageClient
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresDatabaseClient
+import org.wfanet.measurement.common.grpc.ServiceFlags
 import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.duchy.deploy.common.server.DuchyDataServer
 import org.wfanet.measurement.duchy.deploy.common.service.PostgresDuchyDataServices
@@ -35,8 +37,8 @@ import picocli.CommandLine
   showDefaultValues = true,
 )
 class S3PostgresDuchyDataServer : DuchyDataServer() {
+  @CommandLine.Mixin private lateinit var serviceFlags: ServiceFlags
   @CommandLine.Mixin private lateinit var postgresFlags: AwsPostgresFlags
-
   @CommandLine.Mixin private lateinit var s3Flags: S3Flags
 
   override fun run() = runBlocking {
@@ -54,6 +56,7 @@ class S3PostgresDuchyDataServer : DuchyDataServer() {
         duchyFlags.duchyName,
         idGenerator,
         databaseClient,
+        serviceFlags.executor.asCoroutineDispatcher(),
       )
     )
   }

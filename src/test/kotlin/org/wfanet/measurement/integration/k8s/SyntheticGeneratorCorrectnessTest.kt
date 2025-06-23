@@ -53,8 +53,8 @@ import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.integration.common.SyntheticGenerationSpecs
 import org.wfanet.measurement.internal.reporting.v2.BasicReportsGrpcKt as InternalBasicReportsGrpcKt
 import org.wfanet.measurement.loadtest.dataprovider.SyntheticGeneratorEventQuery
+import org.wfanet.measurement.loadtest.measurementconsumer.EventQueryMeasurementConsumerSimulator
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
-import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerSimulator
 import org.wfanet.measurement.loadtest.measurementconsumer.MetadataSyntheticGeneratorEventQuery
 import org.wfanet.measurement.loadtest.reporting.ReportingUserSimulator
 import org.wfanet.measurement.reporting.v2alpha.MetricCalculationSpecsGrpcKt
@@ -72,10 +72,10 @@ class SyntheticGeneratorCorrectnessTest : AbstractCorrectnessTest(measurementSys
   private class RunningMeasurementSystem : MeasurementSystem, TestRule {
     override val runId: String by lazy { UUID.randomUUID().toString() }
 
-    private lateinit var _testHarness: MeasurementConsumerSimulator
+    private lateinit var _testHarness: EventQueryMeasurementConsumerSimulator
     private lateinit var _reportingTestHarness: ReportingUserSimulator
 
-    override val testHarness: MeasurementConsumerSimulator
+    override val testHarness: EventQueryMeasurementConsumerSimulator
       get() = _testHarness
 
     override val reportingTestHarness: ReportingUserSimulator
@@ -97,7 +97,7 @@ class SyntheticGeneratorCorrectnessTest : AbstractCorrectnessTest(measurementSys
       }
     }
 
-    private fun createTestHarness(): MeasurementConsumerSimulator {
+    private fun createTestHarness(): EventQueryMeasurementConsumerSimulator {
       val measurementConsumerData =
         MeasurementConsumerData(
           TEST_CONFIG.measurementConsumer,
@@ -113,14 +113,13 @@ class SyntheticGeneratorCorrectnessTest : AbstractCorrectnessTest(measurementSys
             TEST_CONFIG.kingdomPublicApiCertHost.ifEmpty { null },
           )
           .also { channels.add(it) }
-          .withDefaultDeadline(RPC_DEADLINE_DURATION)
 
       val eventQuery: SyntheticGeneratorEventQuery =
         MetadataSyntheticGeneratorEventQuery(
           SyntheticGenerationSpecs.SYNTHETIC_POPULATION_SPEC_LARGE,
           MC_ENCRYPTION_PRIVATE_KEY,
         )
-      return MeasurementConsumerSimulator(
+      return EventQueryMeasurementConsumerSimulator(
         measurementConsumerData,
         OUTPUT_DP_PARAMS,
         DataProvidersGrpcKt.DataProvidersCoroutineStub(publicApiChannel),
@@ -142,7 +141,6 @@ class SyntheticGeneratorCorrectnessTest : AbstractCorrectnessTest(measurementSys
             TEST_CONFIG.reportingPublicApiCertHost,
           )
           .also { channels.add(it) }
-          .withDefaultDeadline(RPC_DEADLINE_DURATION)
 
       val internalApiChannel =
         buildMutualTlsChannel(
@@ -235,7 +233,6 @@ class SyntheticGeneratorCorrectnessTest : AbstractCorrectnessTest(measurementSys
   }
 
   companion object {
-    private val RPC_DEADLINE_DURATION = Duration.ofSeconds(30)
     private val CONFIG_PATH =
       Paths.get("src", "test", "kotlin", "org", "wfanet", "measurement", "integration", "k8s")
     private const val TEST_CONFIG_NAME = "correctness_test_config.textproto"

@@ -14,6 +14,8 @@
 
 package org.wfanet.measurement.kingdom.service.system.v1alpha
 
+import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.EmptyCoroutineContext
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.DuchyIdentity
@@ -30,8 +32,9 @@ import org.wfanet.measurement.system.v1alpha.RequisitionsGrpcKt.RequisitionsCoro
 
 class RequisitionsService(
   private val internalRequisitionsClient: InternalRequisitionsCoroutineStub,
+  coroutineContext: CoroutineContext = EmptyCoroutineContext,
   private val duchyIdentityProvider: () -> DuchyIdentity = ::duchyIdentityFromContext,
-) : RequisitionsCoroutineImplBase() {
+) : RequisitionsCoroutineImplBase(coroutineContext) {
 
   override suspend fun fulfillRequisition(request: FulfillRequisitionRequest): Requisition {
     val requisitionKey =
@@ -56,6 +59,7 @@ class RequisitionsService(
             externalComputationId = apiIdToExternalId(requisitionKey.computationId)
             externalFulfillingDuchyId = duchyIdentityProvider().id
           }
+          etag = request.etag
         }
       )
     return internalResponse.toSystemRequisition()

@@ -52,8 +52,7 @@ class AccountAuthenticationServerInterceptor(
   ): ServerCall.Listener<ReqT> {
     var context = Context.current()
     val idToken =
-      headers.get(AccountConstants.ID_TOKEN_METADATA_KEY)
-        ?: return Contexts.interceptCall(context, call, headers, next)
+      headers.get(AccountConstants.ID_TOKEN_METADATA_KEY) ?: return next.startCall(call, headers)
     context = context.withValue(AccountConstants.CONTEXT_ID_TOKEN_KEY, idToken)
 
     try {

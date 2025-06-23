@@ -16,6 +16,8 @@ package org.wfanet.measurement.integration.common
 
 import io.grpc.Channel
 import java.util.logging.Logger
+import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.EmptyCoroutineContext
 import org.junit.rules.TestRule
 import org.junit.runner.Description
 import org.junit.runners.model.Statement
@@ -28,17 +30,15 @@ import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.InternalAp
 class InProcessSecureComputationPublicApi(
   internalServicesProvider: () -> InternalApiServices,
   val verboseGrpcLogging: Boolean = true,
+  private val serviceContext: CoroutineContext = EmptyCoroutineContext,
 ) : TestRule {
 
   private val internalServices: InternalApiServices by lazy { internalServicesProvider() }
 
   private val internalApiServer =
-    GrpcTestServerRule(
-      logAllRequests = verboseGrpcLogging,
-      defaultServiceConfig = DEFAULT_SERVICE_CONFIG_MAP,
-    ) {
+    GrpcTestServerRule(logAllRequests = verboseGrpcLogging) {
       logger.info("Building Control Plane's internal API services")
-      internalServices.build().toList().forEach {
+      internalServices.build(serviceContext).toList().forEach {
         logger.info("Adding service $it")
         addService(it)
       }
@@ -47,7 +47,7 @@ class InProcessSecureComputationPublicApi(
   private val publicApiServer =
     GrpcTestServerRule(logAllRequests = verboseGrpcLogging) {
       logger.info("Building Control Plane's public API services")
-      Services.build(internalApiChannel).toList().forEach {
+      Services.build(internalApiChannel, serviceContext).toList().forEach {
         logger.info("Adding service $it")
         addService(it)
       }

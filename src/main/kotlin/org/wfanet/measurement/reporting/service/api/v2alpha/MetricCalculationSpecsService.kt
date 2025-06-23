@@ -19,17 +19,25 @@ package org.wfanet.measurement.reporting.service.api.v2alpha
 import com.google.type.DayOfWeek
 import io.grpc.Status
 import io.grpc.StatusException
+import io.grpc.StatusRuntimeException
+import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.EmptyCoroutineContext
 import kotlin.random.Random
 import org.projectnessie.cel.Env
 import org.wfanet.measurement.access.client.v1alpha.Authorization
 import org.wfanet.measurement.access.client.v1alpha.check
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
+import org.wfanet.measurement.api.v2alpha.ModelLineKey
+import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt.ModelLinesCoroutineStub
+import org.wfanet.measurement.api.v2alpha.getModelLineRequest
+import org.wfanet.measurement.api.withAuthenticationKey
 import org.wfanet.measurement.common.api.ResourceIds
 import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
+import org.wfanet.measurement.config.reporting.MeasurementConsumerConfigs
 import org.wfanet.measurement.config.reporting.MetricSpecConfig
 import org.wfanet.measurement.internal.reporting.v2.ListMetricCalculationSpecsRequest as InternalListMetricCalculationSpecsRequest
 import org.wfanet.measurement.internal.reporting.v2.ListMetricCalculationSpecsResponse as InternalListMetricCalculationSpecsResponse
@@ -41,6 +49,7 @@ import org.wfanet.measurement.internal.reporting.v2.createMetricCalculationSpecR
 import org.wfanet.measurement.internal.reporting.v2.getMetricCalculationSpecRequest
 import org.wfanet.measurement.internal.reporting.v2.listMetricCalculationSpecsRequest
 import org.wfanet.measurement.internal.reporting.v2.metricCalculationSpec as internalMetricCalculationSpec
+import org.wfanet.measurement.reporting.service.api.InvalidFieldValueException
 import org.wfanet.measurement.reporting.v2alpha.CreateMetricCalculationSpecRequest
 import org.wfanet.measurement.reporting.v2alpha.GetMetricCalculationSpecRequest
 import org.wfanet.measurement.reporting.v2alpha.ListMetricCalculationSpecsPageToken
@@ -57,10 +66,13 @@ import org.wfanet.measurement.reporting.v2alpha.metricCalculationSpec
 
 class MetricCalculationSpecsService(
   private val internalMetricCalculationSpecsStub: MetricCalculationSpecsCoroutineStub,
+  private val kingdomModelLinesStub: ModelLinesCoroutineStub,
   private val metricSpecConfig: MetricSpecConfig,
   private val authorization: Authorization,
   private val secureRandom: Random,
-) : MetricCalculationSpecsCoroutineImplBase() {
+  private val measurementConsumerConfigs: MeasurementConsumerConfigs,
+  coroutineContext: CoroutineContext = EmptyCoroutineContext,
+) : MetricCalculationSpecsCoroutineImplBase(coroutineContext) {
   override suspend fun createMetricCalculationSpec(
     request: CreateMetricCalculationSpecRequest
   ): MetricCalculationSpec {
@@ -94,9 +106,19 @@ class MetricCalculationSpecsService(
 
     authorization.check(request.parent, Permission.CREATE)
 
+    val measurementConsumerConfig =
+      measurementConsumerConfigs.configsMap[parentKey.toName()]
+        ?: throw Status.INTERNAL.withDescription("Config not found for ${parentKey.toName()}")
+          .asRuntimeException()
+    val measurementConsumerCredentials =
+      MeasurementConsumerCredentials.fromConfig(parentKey, measurementConsumerConfig)
+
     val internalCreateMetricCalculationSpecRequest = createMetricCalculationSpecRequest {
       metricCalculationSpec =
-        request.metricCalculationSpec.toInternal(parentKey.measurementConsumerId)
+        request.metricCalculationSpec.toInternal(
+          parentKey.measurementConsumerId,
+          measurementConsumerCredentials,
+        )
       externalMetricCalculationSpecId = request.metricCalculationSpecId
     }
 
@@ -214,8 +236,9 @@ class MetricCalculationSpecsService(
   }
 
   /** Converts a public [MetricCalculationSpec] to an internal [InternalMetricCalculationSpec]. */
-  private fun MetricCalculationSpec.toInternal(
-    cmmsMeasurementConsumerId: String
+  private suspend fun MetricCalculationSpec.toInternal(
+    cmmsMeasurementConsumerId: String,
+    measurementConsumerCredentials: MeasurementConsumerCredentials,
   ): InternalMetricCalculationSpec {
     val source = this
 
@@ -239,8 +262,30 @@ class MetricCalculationSpecsService(
         }
       }
 
+    if (source.modelLine.isNotEmpty()) {
+      ModelLineKey.fromName(source.modelLine)
+        ?: throw InvalidFieldValueException("request.metric_calculation_spec.model_line")
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+
+      try {
+        kingdomModelLinesStub
+          .withAuthenticationKey(
+            measurementConsumerCredentials.callCredentials.apiAuthenticationKey
+          )
+          .getModelLine(getModelLineRequest { name = source.modelLine })
+      } catch (e: StatusException) {
+        throw when (e.status.code) {
+          Status.Code.NOT_FOUND ->
+            InvalidFieldValueException("request.metric_calculation_spec.model_line")
+              .asStatusRuntimeException(Status.Code.NOT_FOUND)
+          else -> StatusRuntimeException(Status.INTERNAL)
+        }
+      }
+    }
+
     return internalMetricCalculationSpec {
       this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
+      cmmsModelLine = source.modelLine
       details =
         InternalMetricCalculationSpecKt.details {
           displayName = source.displayName
@@ -436,6 +481,7 @@ class MetricCalculationSpecsService(
           trailingWindow = source.details.trailingWindow.toPublic()
         }
         tags.putAll(source.details.tagsMap)
+        modelLine = source.cmmsModelLine
       }
     }
 

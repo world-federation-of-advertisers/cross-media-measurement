@@ -1101,7 +1101,7 @@
         "height": 16,
         "width": 24,
         "widget": {
-          "title": "SetParticipantRequisitionParams Latency [P95]",
+          "title": "ConfirmComputationParticipant Latency [P95]",
           "id": "",
           "xyChart": {
             "chartOptions": {
@@ -1219,7 +1219,7 @@
         "height": 16,
         "width": 12,
         "widget": {
-          "title": "SetParticipantRequisitionParams Error Rate %",
+          "title": "ConfirmComputationParticipant Error Rate %",
           "id": "",
           "scorecard": {
             "breakdowns": [],
@@ -1259,7 +1259,7 @@
         "height": 16,
         "width": 36,
         "widget": {
-          "title": "SetParticipantRequisitionParams Error Rate %",
+          "title": "ConfirmComputationParticipant Error Rate %",
           "id": "",
           "xyChart": {
             "chartOptions": {

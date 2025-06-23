@@ -60,6 +60,8 @@ abstract class SpannerWriter<T, R> {
   // To ensure the transaction is only executed once:
   private val executed = AtomicBoolean(false)
 
+  protected val writerName = this::class.simpleName ?: "Anonymous"
+
   private suspend fun runTransaction(
     runner: AsyncDatabaseClient.TransactionRunner,
     idGenerator: IdGenerator,
@@ -81,10 +83,9 @@ abstract class SpannerWriter<T, R> {
    * @return the output of [buildResult]
    */
   suspend fun execute(databaseClient: AsyncDatabaseClient, idGenerator: IdGenerator): R {
-    val className: String = this::class.simpleName ?: "Anonymous"
-    logger.fine("Running $className transaction")
+    logger.fine("Running $writerName transaction")
     check(executed.compareAndSet(false, true)) { "Cannot execute SpannerWriter multiple times" }
-    val runner = databaseClient.readWriteTransaction(Options.tag("writer=$className"))
+    val runner = databaseClient.readWriteTransaction(Options.tag("writer=$writerName"))
     val transactionResult: T? = runTransaction(runner, idGenerator)
     val resultScope = ResultScope(transactionResult, runner.getCommitTimestamp())
     return resultScope.buildResult()

@@ -16,6 +16,8 @@ package org.wfanet.measurement.kingdom.service.api.v2alpha
 
 import io.grpc.Status
 import io.grpc.StatusException
+import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.EmptyCoroutineContext
 import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.v2alpha.Certificate
 import org.wfanet.measurement.api.v2alpha.Certificate.RevocationState
@@ -66,8 +68,10 @@ import org.wfanet.measurement.internal.kingdom.releaseCertificateHoldRequest
 import org.wfanet.measurement.internal.kingdom.revokeCertificateRequest
 import org.wfanet.measurement.internal.kingdom.streamCertificatesRequest
 
-class CertificatesService(private val internalCertificatesStub: CertificatesCoroutineStub) :
-  CertificatesCoroutineImplBase() {
+class CertificatesService(
+  private val internalCertificatesStub: CertificatesCoroutineStub,
+  coroutineContext: CoroutineContext = EmptyCoroutineContext,
+) : CertificatesCoroutineImplBase(coroutineContext) {
 
   private enum class Permission {
     GET,

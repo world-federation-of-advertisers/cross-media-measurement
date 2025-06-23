@@ -19,6 +19,8 @@ package org.wfanet.measurement.kingdom.service.api.v2alpha
 import com.google.protobuf.util.Timestamps
 import io.grpc.Status
 import io.grpc.StatusException
+import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.EmptyCoroutineContext
 import kotlin.math.min
 import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.v2alpha.CreateModelLineRequest
@@ -26,6 +28,7 @@ import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.DataProviderPrincipal
 import org.wfanet.measurement.api.v2alpha.EnumerateValidModelLinesRequest
 import org.wfanet.measurement.api.v2alpha.EnumerateValidModelLinesResponse
+import org.wfanet.measurement.api.v2alpha.GetModelLineRequest
 import org.wfanet.measurement.api.v2alpha.ListModelLinesPageToken
 import org.wfanet.measurement.api.v2alpha.ListModelLinesPageTokenKt.previousPageEnd
 import org.wfanet.measurement.api.v2alpha.ListModelLinesRequest
@@ -56,6 +59,7 @@ import org.wfanet.measurement.internal.kingdom.StreamModelLinesRequest
 import org.wfanet.measurement.internal.kingdom.StreamModelLinesRequestKt.afterFilter
 import org.wfanet.measurement.internal.kingdom.StreamModelLinesRequestKt.filter
 import org.wfanet.measurement.internal.kingdom.enumerateValidModelLinesRequest
+import org.wfanet.measurement.internal.kingdom.getModelLineRequest
 import org.wfanet.measurement.internal.kingdom.setActiveEndTimeRequest as internalSetActiveEndTimeRequest
 import org.wfanet.measurement.internal.kingdom.setModelLineHoldbackModelLineRequest
 import org.wfanet.measurement.internal.kingdom.streamModelLinesRequest
@@ -63,8 +67,10 @@ import org.wfanet.measurement.internal.kingdom.streamModelLinesRequest
 private const val DEFAULT_PAGE_SIZE = 50
 private const val MAX_PAGE_SIZE = 1000
 
-class ModelLinesService(private val internalClient: ModelLinesCoroutineStub) :
-  ModelLinesCoroutineService() {
+class ModelLinesService(
+  private val internalClient: ModelLinesCoroutineStub,
+  coroutineContext: CoroutineContext = EmptyCoroutineContext,
+) : ModelLinesCoroutineService(coroutineContext) {
 
   override suspend fun createModelLine(request: CreateModelLineRequest): ModelLine {
     val parentKey =
@@ -91,6 +97,43 @@ class ModelLinesService(private val internalClient: ModelLinesCoroutineStub) :
         Status.Code.NOT_FOUND -> Status.NOT_FOUND
         Status.Code.INVALID_ARGUMENT -> Status.INVALID_ARGUMENT
         else -> Status.UNKNOWN
+      }.toExternalStatusRuntimeException(e)
+    }
+  }
+
+  override suspend fun getModelLine(request: GetModelLineRequest): ModelLine {
+    val modelLineKey =
+      grpcRequireNotNull(ModelLineKey.fromName(request.name)) {
+        "name is either unspecified or invalid"
+      }
+
+    when (val principal: MeasurementPrincipal = principalFromCurrentContext) {
+      is ModelProviderPrincipal -> {
+        if (principal.resourceKey.modelProviderId != modelLineKey.modelProviderId) {
+          failGrpc(Status.PERMISSION_DENIED) { "Cannot list ModelLines for another ModelProvider" }
+        }
+      }
+      is DataProviderPrincipal,
+      is MeasurementConsumerPrincipal -> {}
+      else -> {
+        failGrpc(Status.PERMISSION_DENIED) { "Caller does not have permission to list ModelLines" }
+      }
+    }
+
+    return try {
+      internalClient
+        .getModelLine(
+          getModelLineRequest {
+            externalModelProviderId = apiIdToExternalId(modelLineKey.modelProviderId)
+            externalModelSuiteId = apiIdToExternalId(modelLineKey.modelSuiteId)
+            externalModelLineId = apiIdToExternalId(modelLineKey.modelLineId)
+          }
+        )
+        .toModelLine()
+    } catch (e: StatusException) {
+      throw when (e.status.code) {
+        Status.Code.NOT_FOUND -> Status.NOT_FOUND
+        else -> Status.INTERNAL
       }.toExternalStatusRuntimeException(e)
     }
   }

@@ -14,6 +14,7 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
+import com.google.cloud.spanner.Options
 import com.google.cloud.spanner.Statement
 import com.google.cloud.spanner.Struct
 import com.google.common.base.Optional
@@ -155,7 +156,13 @@ class ClaimReadyExchangeStep(
         bind("step_index").to(stepIndex)
       }
 
-    val row: Struct = transactionContext.executeQuery(statement).single()
+    val row: Struct =
+      transactionContext
+        .executeQuery(
+          statement,
+          Options.tag("writer=$writerName,action=findExchangeStepAttemptIndex"),
+        )
+        .single()
 
     return row.getLong("MaxAttemptIndex") + 1L
   }

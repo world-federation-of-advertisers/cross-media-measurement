@@ -39,8 +39,8 @@ import org.wfanet.measurement.common.testing.ProviderRule
 import org.wfanet.measurement.eventdataprovider.noiser.DpParams
 import org.wfanet.measurement.kingdom.deploy.common.RoLlv2ProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
+import org.wfanet.measurement.loadtest.measurementconsumer.EventQueryMeasurementConsumerSimulator
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
-import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerSimulator
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerSimulator.MeasurementInfo
 import org.wfanet.measurement.loadtest.measurementconsumer.MetadataSyntheticGeneratorEventQuery
 import org.wfanet.measurement.measurementconsumer.stats.HonestMajorityShareShuffleMethodology
@@ -78,9 +78,10 @@ abstract class InProcessReachMeasurementAccuracyTest(
       SYNTHETIC_POPULATION_SPEC,
       SYNTHETIC_EVENT_GROUP_SPECS,
       accessServicesFactory,
+      useEdpSimulators = true,
     )
 
-  private lateinit var mcSimulator: MeasurementConsumerSimulator
+  private lateinit var mcSimulator: EventQueryMeasurementConsumerSimulator
 
   private val publicMeasurementsClient by lazy {
     MeasurementsGrpcKt.MeasurementsCoroutineStub(inProcessCmmsComponents.kingdom.publicApiChannel)
@@ -117,7 +118,7 @@ abstract class InProcessReachMeasurementAccuracyTest(
         InProcessCmmsComponents.MC_ENCRYPTION_PRIVATE_KEY,
       )
     mcSimulator =
-      MeasurementConsumerSimulator(
+      EventQueryMeasurementConsumerSimulator(
         MeasurementConsumerData(
           measurementConsumerData.name,
           InProcessCmmsComponents.MC_ENTITY_CONTENT.signingKey,

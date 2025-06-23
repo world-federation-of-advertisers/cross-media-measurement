@@ -77,6 +77,10 @@ fun Status.toExternalStatusRuntimeException(
         put("fieldName", errorInfo.metadataMap.getValue("field_name"))
         Unit
       }
+      ErrorCode.INVALID_FIELD_VALUE -> {
+        put("fieldName", errorInfo.metadataMap.getValue("field_name"))
+        Unit
+      }
       ErrorCode.MEASUREMENT_NOT_FOUND -> {
         val measurementName =
           MeasurementKey(
@@ -271,6 +275,11 @@ fun Status.toExternalStatusRuntimeException(
         put("state", requisitionState)
         errorMessage =
           "Requisition with id: $requisitionApiId is in illegal state: $requisitionState"
+      }
+      ErrorCode.REQUISITION_ETAG_MISMATCH -> {
+        put("requestEtag", checkNotNull(errorInfo.metadataMap["request_etag"]))
+        put("actualEtag", checkNotNull(errorInfo.metadataMap["actual_etag"]))
+        Unit
       }
       ErrorCode.ACCOUNT_NOT_FOUND -> {
         val accountName =

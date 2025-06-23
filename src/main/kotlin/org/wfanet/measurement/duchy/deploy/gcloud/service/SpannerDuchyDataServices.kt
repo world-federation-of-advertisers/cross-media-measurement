@@ -14,6 +14,8 @@
 
 package org.wfanet.measurement.duchy.deploy.gcloud.service
 
+import kotlin.coroutines.CoroutineContext
+import org.wfanet.measurement.common.IdGenerator
 import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStageDetails
 import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStageDetailsHelper
 import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStages
@@ -49,12 +51,12 @@ private typealias ComputationsDb =
   >
 
 object SpannerDuchyDataServices {
-  @JvmStatic
   fun create(
     storageClient: StorageClient,
     computationLogEntriesClient: ComputationLogEntriesCoroutineStub,
     duchyName: String,
     databaseClient: AsyncDatabaseClient,
+    coroutineContext: CoroutineContext,
   ): DuchyDataServices {
 
     val computationTypeEnumHelper: ComputationTypeEnumHelper<ComputationTypeEnum.ComputationType> =
@@ -82,6 +84,7 @@ object SpannerDuchyDataServices {
             protocolStagesEnumHelper,
             computationProtocolStageDetailsHelper,
           ),
+        computationIdGenerator = IdGenerator.Default,
       )
     val computationsDatabase =
       newComputationsDatabase(computationReader, computationDb, protocolStagesEnumHelper)
@@ -92,9 +95,10 @@ object SpannerDuchyDataServices {
         computationStore = ComputationStore(storageClient),
         requisitionStore = RequisitionStore(storageClient),
         duchyName = duchyName,
+        coroutineContext = coroutineContext,
       ),
-      ComputationStatsService(computationsDatabase),
-      SpannerContinuationTokensService(databaseClient),
+      ComputationStatsService(computationsDatabase, coroutineContext),
+      SpannerContinuationTokensService(databaseClient, coroutineContext),
     )
   }
 

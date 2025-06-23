@@ -34,6 +34,8 @@ import java.time.temporal.ChronoUnit
 import java.time.temporal.Temporal
 import java.time.temporal.TemporalAdjusters
 import java.time.zone.ZoneRulesException
+import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.EmptyCoroutineContext
 import kotlin.math.min
 import kotlin.random.Random
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -110,7 +112,8 @@ class ReportsService(
   private val authorization: Authorization,
   private val secureRandom: Random,
   private val allowSamplingIntervalWrapping: Boolean = false,
-) : ReportsCoroutineImplBase() {
+  coroutineContext: CoroutineContext = EmptyCoroutineContext,
+) : ReportsCoroutineImplBase(coroutineContext) {
   private data class CreateReportInfo(
     val parent: String,
     val requestId: String,
@@ -409,15 +412,18 @@ class ReportsService(
         entry.value.metricCalculationSpecReportingMetricsList.asFlow().flatMapMerge {
           metricCalculationSpecReportingMetrics ->
           metricCalculationSpecReportingMetrics.reportingMetricsList.asFlow().map {
+            val metricCalculationSpec =
+              externalIdToMetricCalculationSpecMap.getValue(
+                metricCalculationSpecReportingMetrics.externalMetricCalculationSpecId
+              )
             it.toCreateMetricRequest(
               parentKey,
               entry.key,
-              externalIdToMetricCalculationSpecMap
-                .getValue(metricCalculationSpecReportingMetrics.externalMetricCalculationSpecId)
-                .details
-                .filter,
-              ReportKey(internalReport.cmmsMeasurementConsumerId, internalReport.externalReportId)
-                .toName(),
+              filter = metricCalculationSpec.details.filter,
+              modelLineName = metricCalculationSpec.cmmsModelLine,
+              containingReportResourceName =
+                ReportKey(internalReport.cmmsMeasurementConsumerId, internalReport.externalReportId)
+                  .toName(),
             )
           }
         }

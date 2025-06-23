@@ -17,6 +17,8 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 import com.google.protobuf.DescriptorProtos
 import com.google.protobuf.Descriptors
 import io.grpc.Status
+import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.EmptyCoroutineContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.common.ProtoReflection
@@ -42,7 +44,8 @@ class SpannerEventGroupMetadataDescriptorsService(
   private val idGenerator: IdGenerator,
   private val client: AsyncDatabaseClient,
   knownMetadataTypes: Iterable<Descriptors.FileDescriptor>,
-) : EventGroupMetadataDescriptorsCoroutineImplBase() {
+  coroutineContext: CoroutineContext = EmptyCoroutineContext,
+) : EventGroupMetadataDescriptorsCoroutineImplBase(coroutineContext) {
   private val allKnownMetadataTypes: Set<Descriptors.FileDescriptor> =
     knownMetadataTypes.asSequence().plus(ProtoReflection.WELL_KNOWN_TYPES).toSet()
 

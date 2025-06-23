@@ -14,11 +14,8 @@
 
 package org.wfanet.measurement.integration.common
 
-import com.google.gson.Gson
-import com.google.gson.reflect.TypeToken
 import com.google.protobuf.ByteString
 import com.google.protobuf.Message
-import io.grpc.serviceconfig.ServiceConfig
 import java.nio.file.Path
 import java.nio.file.Paths
 import java.security.cert.X509Certificate
@@ -39,7 +36,6 @@ import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.readByteString
 import org.wfanet.measurement.common.toInstant
-import org.wfanet.measurement.common.toJson
 import org.wfanet.measurement.config.access.PermissionsConfig
 import org.wfanet.measurement.config.reporting.ImpressionQualificationFilterConfig
 import org.wfanet.measurement.config.securecomputation.QueuesConfig
@@ -59,7 +55,7 @@ import org.wfanet.measurement.reporting.service.internal.ImpressionQualification
 
 private const val REPO_NAME = "wfa_measurement_system"
 
-private val SECRET_FILES_PATH: Path =
+val SECRET_FILES_PATH: Path =
   checkNotNull(getRuntimePath(Paths.get(REPO_NAME, "src", "main", "k8s", "testing", "secretfiles")))
 
 val AGGREGATOR_PROTOCOLS_SETUP_CONFIG: ProtocolsSetupConfig =
@@ -202,22 +198,6 @@ fun createEntityContent(displayName: String) =
       loadEncryptionPublicKey("${displayName}_enc_public.tink").toEncryptionPublicKey(),
     signingKey = loadSigningKey("${displayName}_cs_cert.der", "${displayName}_cs_private.der"),
   )
-
-/**
- * Default grpc service config map to apply to all services.
- *
- * Timeout is set as 30 seconds.
- */
-val DEFAULT_SERVICE_CONFIG_MAP: Map<String, *>?
-  get() {
-    val configPath = Paths.get("wfa_measurement_system", "src", "main", "k8s", "testing", "data")
-    val configFile =
-      getRuntimePath(configPath.resolve("default_service_config.textproto"))!!.toFile()
-    val defaultServiceConfig = parseTextProto(configFile, ServiceConfig.getDefaultInstance())
-    val serviceConfigJson = defaultServiceConfig.toJson()
-    val mapType = object : TypeToken<Map<String, *>>() {}.type
-    return Gson().fromJson(serviceConfigJson, mapType)
-  }
 
 /** Used to configure Secure Computation Control Plane */
 const val PROJECT_ID = "some-project-id"

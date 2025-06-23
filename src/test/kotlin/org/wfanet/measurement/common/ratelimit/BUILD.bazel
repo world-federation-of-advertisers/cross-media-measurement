@@ -1,0 +1,15 @@
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_test")
+
+package(default_testonly = True)
+
+kt_jvm_test(
+    name = "TokenBucketTest",
+    srcs = ["TokenBucketTest.kt"],
+    test_class = "org.wfanet.measurement.common.ratelimit.TokenBucketTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/common/ratelimit:token_bucket",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+    ],
+)

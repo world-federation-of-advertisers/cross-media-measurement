@@ -16,6 +16,8 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 
 import com.google.protobuf.Empty
 import io.grpc.Status
+import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.EmptyCoroutineContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.common.grpc.grpcRequire
@@ -66,7 +68,8 @@ private const val MAX_BATCH_CANCEL = 1000
 class SpannerMeasurementsService(
   private val idGenerator: IdGenerator,
   private val client: AsyncDatabaseClient,
-) : MeasurementsCoroutineImplBase() {
+  coroutineContext: CoroutineContext = EmptyCoroutineContext,
+) : MeasurementsCoroutineImplBase(coroutineContext) {
 
   override suspend fun createMeasurement(request: CreateMeasurementRequest): Measurement {
     validateCreateMeasurementRequest(request)

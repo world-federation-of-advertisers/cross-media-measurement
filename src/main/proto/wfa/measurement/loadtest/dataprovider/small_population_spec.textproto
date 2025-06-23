@@ -1,0 +1,302 @@
+# proto-file: wfa/measurement/api/v2alpha/event_group_metadata/testing/simulator_synthetic_data_spec.proto
+# proto-message: SyntheticPopulationSpec
+
+# Synthetic Population.
+
+vid_range {
+  start: 1
+  end_exclusive: 100000  # 100K
+}
+event_message_type_url: "type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.TestEvent"
+population_fields: "person.gender"
+population_fields: "person.age_group"
+population_fields: "person.social_grade_group"
+non_population_fields: "video_ad.viewed_fraction"
+sub_populations {
+  vid_sub_range {
+    start: 1
+    end_exclusive: 10000
+  }
+  population_fields_values {
+    key: "person.age_group"
+    value {
+      enum_value: 1
+    }
+  }
+  population_fields_values {
+    key: "person.gender"
+    value {
+      enum_value: 1
+    }
+  }
+  population_fields_values {
+    key: "person.social_grade_group"
+    value {
+      enum_value: 1
+    }
+  }
+}
+sub_populations {
+  vid_sub_range {
+    start: 10000
+    end_exclusive: 20000
+  }
+  population_fields_values {
+    key: "person.age_group"
+    value {
+      enum_value: 1
+    }
+  }
+  population_fields_values {
+    key: "person.gender"
+    value {
+      enum_value: 1
+    }
+  }
+  population_fields_values {
+    key: "person.social_grade_group"
+    value {
+      enum_value: 2
+    }
+  }
+}
+sub_populations {
+  vid_sub_range {
+    start: 20000
+    end_exclusive: 30000
+  }
+  population_fields_values {
+    key: "person.age_group"
+    value {
+      enum_value: 2
+    }
+  }
+  population_fields_values {
+    key: "person.gender"
+    value {
+      enum_value: 1
+    }
+  }
+  population_fields_values {
+    key: "person.social_grade_group"
+    value {
+      enum_value: 1
+    }
+  }
+}
+sub_populations {
+  vid_sub_range {
+    start: 30000
+    end_exclusive: 40000
+  }
+  population_fields_values {
+    key: "person.age_group"
+    value {
+      enum_value: 2
+    }
+  }
+  population_fields_values {
+    key: "person.gender"
+    value {
+      enum_value: 1
+    }
+  }
+  population_fields_values {
+    key: "person.social_grade_group"
+    value {
+      enum_value: 2
+    }
+  }
+}
+sub_populations {
+  vid_sub_range {
+    start: 40000
+    end_exclusive: 50000
+  }
+  population_fields_values {
+    key: "person.age_group"
+    value {
+      enum_value: 3
+    }
+  }
+  population_fields_values {
+    key: "person.gender"
+    value {
+      enum_value: 1
+    }
+  }
+  population_fields_values {
+    key: "person.social_grade_group"
+    value {
+      enum_value: 1
+    }
+  }
+}
+sub_populations {
+  vid_sub_range {
+    start: 50000
+    end_exclusive: 60000
+  }
+  population_fields_values {
+    key: "person.age_group"
+    value {
+      enum_value: 3
+    }
+  }
+  population_fields_values {
+    key: "person.gender"
+    value {
+      enum_value: 1
+    }
+  }
+  population_fields_values {
+    key: "person.social_grade_group"
+    value {
+      enum_value: 2
+    }
+  }
+}
+sub_populations {
+  vid_sub_range {
+    start: 60000
+    end_exclusive: 70000
+  }
+  population_fields_values {
+    key: "person.age_group"
+    value {
+      enum_value: 1
+    }
+  }
+  population_fields_values {
+    key: "person.gender"
+    value {
+      enum_value: 2
+    }
+  }
+  population_fields_values {
+    key: "person.social_grade_group"
+    value {
+      enum_value: 1
+    }
+  }
+}
+sub_populations {
+  vid_sub_range {
+    start: 70000
+    end_exclusive: 80000
+  }
+  population_fields_values {
+    key: "person.age_group"
+    value {
+      enum_value: 1
+    }
+  }
+  population_fields_values {
+    key: "person.gender"
+    value {
+      enum_value: 2
+    }
+  }
+  population_fields_values {
+    key: "person.social_grade_group"
+    value {
+      enum_value: 2
+    }
+  }
+}
+sub_populations {
+  vid_sub_range {
+    start: 80000
+    end_exclusive: 85000
+  }
+  population_fields_values {
+    key: "person.age_group"
+    value {
+      enum_value: 2
+    }
+  }
+  population_fields_values {
+    key: "person.gender"
+    value {
+      enum_value: 2
+    }
+  }
+  population_fields_values {
+    key: "person.social_grade_group"
+    value {
+      enum_value: 1
+    }
+  }
+}
+sub_populations {
+  vid_sub_range {
+    start: 85000
+    end_exclusive: 90000
+  }
+  population_fields_values {
+    key: "person.age_group"
+    value {
+      enum_value: 2
+    }
+  }
+  population_fields_values {
+    key: "person.gender"
+    value {
+      enum_value: 2
+    }
+  }
+  population_fields_values {
+    key: "person.social_grade_group"
+    value {
+      enum_value: 2
+    }
+  }
+}
+sub_populations {
+  vid_sub_range {
+    start: 90000
+    end_exclusive: 95000
+  }
+  population_fields_values {
+    key: "person.age_group"
+    value {
+      enum_value: 3
+    }
+  }
+  population_fields_values {
+    key: "person.gender"
+    value {
+      enum_value: 2
+    }
+  }
+  population_fields_values {
+    key: "person.social_grade_group"
+    value {
+      enum_value: 1
+    }
+  }
+}
+sub_populations {
+  vid_sub_range {
+    start: 95000
+    end_exclusive: 100000
+  }
+  population_fields_values {
+    key: "person.age_group"
+    value {
+      enum_value: 3
+    }
+  }
+  population_fields_values {
+    key: "person.gender"
+    value {
+      enum_value: 2
+    }
+  }
+  population_fields_values {
+    key: "person.social_grade_group"
+    value {
+      enum_value: 2
+    }
+  }
+}

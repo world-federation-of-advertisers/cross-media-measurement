@@ -64,7 +64,9 @@ abstract class InProcessMeasurementSystemProberIntegrationTest(
       kingdomDataServicesRule = kingdomDataServicesRule,
       duchyDependenciesRule = duchyDependenciesRule,
       accessServicesFactory = accessServicesFactory,
+      useEdpSimulators = true,
     )
+
   private val publicMeasurementsClient by lazy {
     MeasurementsCoroutineStub(inProcessCmmsComponents.kingdom.publicApiChannel)
   }
