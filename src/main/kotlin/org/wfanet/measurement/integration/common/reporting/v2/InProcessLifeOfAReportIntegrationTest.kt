@@ -27,6 +27,7 @@ import com.google.type.interval
 import com.google.type.timeZone
 import java.io.File
 import java.nio.file.Paths
+import java.time.Instant
 import java.time.LocalDate
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.async
@@ -64,6 +65,8 @@ import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementKt
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.ModelLineKey
+import org.wfanet.measurement.api.v2alpha.ModelProviderKey
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt
 import org.wfanet.measurement.api.v2alpha.batchGetEventGroupMetadataDescriptorsRequest
 import org.wfanet.measurement.api.v2alpha.eventGroup as cmmsEventGroup
@@ -78,9 +81,12 @@ import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.crypto.readCertificateCollection
 import org.wfanet.measurement.common.crypto.subjectKeyIdentifier
 import org.wfanet.measurement.common.getRuntimePath
+import org.wfanet.measurement.common.identity.apiIdToExternalId
+import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.testing.ProviderRule
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.common.toInterval
+import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.config.reporting.EncryptionKeyPairConfigKt.keyPair
 import org.wfanet.measurement.config.reporting.EncryptionKeyPairConfigKt.principalKeyPairs
 import org.wfanet.measurement.config.reporting.encryptionKeyPairConfig
@@ -94,6 +100,9 @@ import org.wfanet.measurement.integration.common.InProcessCmmsComponents
 import org.wfanet.measurement.integration.common.InProcessDuchy
 import org.wfanet.measurement.integration.common.PERMISSIONS_CONFIG
 import org.wfanet.measurement.integration.common.SyntheticGenerationSpecs
+import org.wfanet.measurement.internal.kingdom.ModelLine
+import org.wfanet.measurement.internal.kingdom.modelLine
+import org.wfanet.measurement.internal.kingdom.modelSuite
 import org.wfanet.measurement.internal.reporting.v2.EventTemplateFieldKt as InternalEventTemplateFieldKt
 import org.wfanet.measurement.internal.reporting.v2.ImpressionQualificationFilterSpec as InternalImpressionQualificationFilterSpec
 import org.wfanet.measurement.internal.reporting.v2.ListImpressionQualificationFiltersPageTokenKt
@@ -110,15 +119,6 @@ import org.wfanet.measurement.internal.reporting.v2.metricFrequencySpec as inter
 import org.wfanet.measurement.internal.reporting.v2.reportingImpressionQualificationFilter as internalReportingImpressionQualificationFilter
 import org.wfanet.measurement.internal.reporting.v2.reportingInterval as internalReportingInterval
 import org.wfanet.measurement.internal.reporting.v2.resultGroup as internalResultGroup
-import java.time.Instant
-import org.wfanet.measurement.api.v2alpha.ModelLineKey
-import org.wfanet.measurement.api.v2alpha.ModelProviderKey
-import org.wfanet.measurement.common.identity.apiIdToExternalId
-import org.wfanet.measurement.common.identity.externalIdToApiId
-import org.wfanet.measurement.common.toProtoTime
-import org.wfanet.measurement.internal.kingdom.ModelLine
-import org.wfanet.measurement.internal.kingdom.modelLine
-import org.wfanet.measurement.internal.kingdom.modelSuite
 import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
 import org.wfanet.measurement.loadtest.dataprovider.EventQuery
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
@@ -505,24 +505,30 @@ abstract class InProcessLifeOfAReportIntegrationTest(
             }
           )
 
-      val modelSuite = inProcessCmmsComponents.kingdom.internalModelSuitesClient.createModelSuite(
-        modelSuite {
-          this.externalModelProviderId = apiIdToExternalId(ModelProviderKey.fromName(inProcessCmmsComponents.modelProviderResourceName)!!.modelProviderId)
-          displayName = "display-name"
-          description = "description"
-        }
-      )
+      val modelSuite =
+        inProcessCmmsComponents.kingdom.internalModelSuitesClient.createModelSuite(
+          modelSuite {
+            this.externalModelProviderId =
+              apiIdToExternalId(
+                ModelProviderKey.fromName(inProcessCmmsComponents.modelProviderResourceName)!!
+                  .modelProviderId
+              )
+            displayName = "display-name"
+            description = "description"
+          }
+        )
 
-      val modelLine = inProcessCmmsComponents.kingdom.internalModelLinesClient.createModelLine(
-        modelLine {
-          externalModelProviderId = modelSuite.externalModelProviderId
-          externalModelSuiteId = modelSuite.externalModelSuiteId
-          displayName = "display-name"
-          description = "description"
-          activeStartTime = Instant.now().plusSeconds(2000L).toProtoTime()
-          type = ModelLine.Type.PROD
-        }
-      )
+      val modelLine =
+        inProcessCmmsComponents.kingdom.internalModelLinesClient.createModelLine(
+          modelLine {
+            externalModelProviderId = modelSuite.externalModelProviderId
+            externalModelSuiteId = modelSuite.externalModelSuiteId
+            displayName = "display-name"
+            description = "description"
+            activeStartTime = Instant.now().plusSeconds(2000L).toProtoTime()
+            type = ModelLine.Type.PROD
+          }
+        )
 
       val createdMetricCalculationSpec =
         publicMetricCalculationSpecsClient
@@ -536,10 +542,13 @@ abstract class InProcessLifeOfAReportIntegrationTest(
                   reach = MetricSpecKt.reachParams { privacyParams = DP_PARAMS }
                   vidSamplingInterval = VID_SAMPLING_INTERVAL
                 }
-                this.modelLine = ModelLineKey(
-                  externalIdToApiId(modelLine.externalModelProviderId),
-                  externalIdToApiId(modelLine.externalModelSuiteId),
-                  externalIdToApiId(modelLine.externalModelLineId)).toName()
+                this.modelLine =
+                  ModelLineKey(
+                      externalIdToApiId(modelLine.externalModelProviderId),
+                      externalIdToApiId(modelLine.externalModelSuiteId),
+                      externalIdToApiId(modelLine.externalModelLineId),
+                    )
+                    .toName()
               }
               metricCalculationSpecId = "fed"
             }
