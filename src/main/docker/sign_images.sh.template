@@ -21,4 +21,6 @@ for image_ref_tag in $(cat {{images_file}}); do
   image_ref_digest="${image_ref_tag%:*}@${digest}"
   echo "Signing image: ${image_ref_digest}"
   ./cosign sign --tlog-upload=false --key gcpkms://${kms_key} ${image_ref_digest}
+  echo "Verifying image: ${image_ref_digest}"
+  ./cosign verify --insecure-ignore-tlog=true --key gcpkms://${kms_key} ${image_ref_digest}
 done
