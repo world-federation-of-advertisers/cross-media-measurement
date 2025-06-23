@@ -24,7 +24,6 @@ import java.util.UUID
 import java.util.logging.Logger
 import com.google.auth.oauth2.GoogleCredentials
 import com.google.auth.oauth2.IdTokenProvider
-import com.google.auth.oauth2.IdToken
 import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.common.toJson
 import org.wfanet.measurement.config.securecomputation.WatchedPath
@@ -43,7 +42,12 @@ class DataWatcher(
   private val workItemsStub: WorkItemsCoroutineStub,
   private val dataWatcherConfigs: List<WatchedPath>,
   private val workItemIdGenerator: () -> String = { "work-item-" + UUID.randomUUID().toString() },
-  private val jwtToken: String? = null
+  private val idTokenProvider: IdTokenProvider = GoogleCredentials.getApplicationDefault().let {
+      require(it is IdTokenProvider) {
+        "Application default credentials must implement IdTokenProvider"
+      }
+      it as IdTokenProvider
+    }
   ) {
   suspend fun receivePath(path: String) {
     logger.info("Received Path: $path")
@@ -91,14 +95,10 @@ class DataWatcher(
     workItemsStub.createWorkItem(request)
   }
 
-  private suspend fun sendToHttpEndpoint(config: WatchedPath) {
+  private fun sendToHttpEndpoint(config: WatchedPath) {
 
-    val jwt = jwtToken ?: run {
-      val credentials = GoogleCredentials.getApplicationDefault() as IdTokenProvider
-      val idToken = credentials.idTokenWithAudience(config.httpEndpointSink.endpointUri, listOf())
-      idToken.tokenValue
-    }
-
+    val idToken = idTokenProvider.idTokenWithAudience(config.httpEndpointSink.endpointUri, listOf())
+    val jwt = idToken.tokenValue
 
     val httpEndpointConfig = config.httpEndpointSink
     val client = HttpClient.newHttpClient()

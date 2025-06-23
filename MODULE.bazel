@@ -234,8 +234,8 @@ maven.install(
         # TODO(googleapis/java-cloud-bom#5279): Remove when managed by BOM.
         "com.google.apis:google-api-services-storage:v1-rev20240706-2.0.0",
         "com.google.cloud.functions.invoker:java-function-invoker:1.4.0",
-        "com.google.auth:google-auth-library-oauth2-http:1.35.0",
         "com.google.auth:google-auth-library-credentials:1.35.0",
+        "com.google.auth:google-auth-library-oauth2-http",
 
         # AWS
         "software.amazon.awssdk:acmpca",
@@ -255,6 +255,7 @@ maven.install(
     boms = [
         "org.apache.beam:beam-sdks-java-bom:" + APACHE_BEAM_VERSION,
         "org.projectnessie.cel:cel-bom:0.5.0",
+        "com.google.auth:google-auth-library-bom:1.35.0",
     ],
     fail_if_repin_required = True,
     fetch_sources = True,  # For IDE integration.
