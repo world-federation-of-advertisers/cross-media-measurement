@@ -65,9 +65,7 @@ import org.wfanet.measurement.integration.common.createEntityContent
 import org.wfanet.measurement.integration.common.loadEncryptionPrivateKey
 import org.wfanet.measurement.integration.common.loadTestCertDerFile
 import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt
-import org.wfanet.measurement.internal.kingdom.ModelLinesGrpcKt
 import org.wfanet.measurement.internal.kingdom.ModelProvidersGrpcKt
-import org.wfanet.measurement.internal.kingdom.ModelSuitesGrpcKt
 import org.wfanet.measurement.loadtest.measurementconsumer.EventQueryMeasurementConsumerSimulator
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
 import org.wfanet.measurement.loadtest.measurementconsumer.MetadataSyntheticGeneratorEventQuery
@@ -425,13 +423,8 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
                     .CertificatesCoroutineStub(internalChannel),
                   MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub(publicChannel),
                   runId,
+                  internalModelProvidersClient = ModelProvidersGrpcKt.ModelProvidersCoroutineStub(internalChannel),
                   outputDir = outputDir,
-                  internalModelProvidersClient =
-                    ModelProvidersGrpcKt.ModelProvidersCoroutineStub(internalChannel),
-                  internalModelSuitesClient =
-                    ModelSuitesGrpcKt.ModelSuitesCoroutineStub(internalChannel),
-                  internalModelLinesClient =
-                    ModelLinesGrpcKt.ModelLinesCoroutineStub(internalChannel),
                   requiredDuchies = listOf("aggregator", "worker1", "worker2"),
                 )
               withContext(Dispatchers.IO) {

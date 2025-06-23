@@ -30,9 +30,6 @@ import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
 import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt.AccountsCoroutineStub as InternalAccountsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt.CertificatesCoroutineStub as InternalCertificatesCoroutineStub
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineStub as InternalDataProvidersCoroutineStub
-import org.wfanet.measurement.internal.kingdom.ModelLinesGrpcKt.ModelLinesCoroutineStub as InternalModelLinesCoroutineStub
-import org.wfanet.measurement.internal.kingdom.ModelProvidersGrpcKt.ModelProvidersCoroutineStub as InternalModelProvidersCoroutineStub
-import org.wfanet.measurement.internal.kingdom.ModelSuitesGrpcKt.ModelSuitesCoroutineStub as InternalModelSuitesCoroutineStub
 import picocli.CommandLine
 
 @CommandLine.Command(
@@ -66,9 +63,6 @@ private fun run(@CommandLine.Mixin flags: ResourceSetupFlags) {
   val internalCertificatesStub = InternalCertificatesCoroutineStub(kingdomInternalApiChannel)
   val accountsStub = AccountsCoroutineStub(v2alphaPublicApiChannel)
   val apiKeysStub = ApiKeysCoroutineStub(v2alphaPublicApiChannel)
-  val internalModelProviderStub = InternalModelProvidersCoroutineStub(kingdomInternalApiChannel)
-  val internalModelSuitesStub = InternalModelSuitesCoroutineStub(kingdomInternalApiChannel)
-  val internalModelLinesStub = InternalModelLinesCoroutineStub(kingdomInternalApiChannel)
 
   // Makes sure the three maps contain the same set of EDPs.
   require(
@@ -108,9 +102,6 @@ private fun run(@CommandLine.Mixin flags: ResourceSetupFlags) {
         flags.requiredDuchies,
         flags.bazelConfigName,
         flags.outputDir,
-        internalModelProviderStub,
-        internalModelSuitesStub,
-        internalModelLinesStub,
       )
       .process(dataProviderContents, measurementConsumerContent, duchyCerts)
   }

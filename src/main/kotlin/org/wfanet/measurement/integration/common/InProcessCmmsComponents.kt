@@ -30,9 +30,7 @@ import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt
-import org.wfanet.measurement.api.v2alpha.ModelLineKey
 import org.wfanet.measurement.api.v2alpha.ModelProviderKey
-import org.wfanet.measurement.api.v2alpha.ModelSuiteKey
 import org.wfanet.measurement.api.v2alpha.PopulationKey
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticPopulationSpec
@@ -180,8 +178,6 @@ class InProcessCmmsComponents(
   private lateinit var populationInfo: PopulationInfo
   private lateinit var _typeRegistry: TypeRegistry
   private lateinit var _modelProviderResourceName: String
-  lateinit var modelSuiteResourceName: String
-  lateinit var modelLineResourceName: String
 
   private suspend fun createAllResources() {
     val resourceSetup =
@@ -189,8 +185,6 @@ class InProcessCmmsComponents(
         internalAccountsClient = kingdom.internalAccountsClient,
         internalDataProvidersClient = kingdom.internalDataProvidersClient,
         internalModelProvidersClient = kingdom.internalModelProvidersClient,
-        internalModelSuitesClient = kingdom.internalModelSuitesClient,
-        internalModelLinesClient = kingdom.internalModelLinesClient,
         internalPopulationsClient = kingdom.internalPopulationsClient,
         accountsClient = publicAccountsClient,
         apiKeysClient = publicApiKeysClient,
@@ -254,26 +248,6 @@ class InProcessCmmsComponents(
     val internalModelProvider = resourceSetup.createInternalModelProvider()
     _modelProviderResourceName =
       ModelProviderKey(externalIdToApiId(internalModelProvider.externalModelProviderId)).toName()
-    val internalModelSuite =
-      resourceSetup.createInternalModelSuite(internalModelProvider.externalModelProviderId)
-    modelSuiteResourceName =
-      ModelSuiteKey(
-          externalIdToApiId(internalModelSuite.externalModelProviderId),
-          externalIdToApiId(internalModelSuite.externalModelSuiteId),
-        )
-        .toName()
-    val internalModelLine =
-      resourceSetup.createInternalModelLine(
-        internalModelSuite.externalModelProviderId,
-        internalModelSuite.externalModelSuiteId,
-      )
-    modelLineResourceName =
-      ModelLineKey(
-          externalIdToApiId(internalModelLine.externalModelProviderId),
-          externalIdToApiId(internalModelLine.externalModelSuiteId),
-          externalIdToApiId(internalModelLine.externalModelLineId),
-        )
-        .toName()
 
     val population = resourceSetup.createInternalPopulation(internalDataProvider)
     populationKey = PopulationKey.fromName(population.toPopulation().name)!!

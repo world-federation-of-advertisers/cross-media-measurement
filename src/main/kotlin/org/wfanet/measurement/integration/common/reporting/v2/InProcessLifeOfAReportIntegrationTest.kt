@@ -110,6 +110,15 @@ import org.wfanet.measurement.internal.reporting.v2.metricFrequencySpec as inter
 import org.wfanet.measurement.internal.reporting.v2.reportingImpressionQualificationFilter as internalReportingImpressionQualificationFilter
 import org.wfanet.measurement.internal.reporting.v2.reportingInterval as internalReportingInterval
 import org.wfanet.measurement.internal.reporting.v2.resultGroup as internalResultGroup
+import java.time.Instant
+import org.wfanet.measurement.api.v2alpha.ModelLineKey
+import org.wfanet.measurement.api.v2alpha.ModelProviderKey
+import org.wfanet.measurement.common.identity.apiIdToExternalId
+import org.wfanet.measurement.common.identity.externalIdToApiId
+import org.wfanet.measurement.common.toProtoTime
+import org.wfanet.measurement.internal.kingdom.ModelLine
+import org.wfanet.measurement.internal.kingdom.modelLine
+import org.wfanet.measurement.internal.kingdom.modelSuite
 import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
 import org.wfanet.measurement.loadtest.dataprovider.EventQuery
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
@@ -438,6 +447,157 @@ abstract class InProcessLifeOfAReportIntegrationTest(
   }
 
   @Test
+  fun `report with metric calculation spec with model line has the expected result`() =
+    runBlocking {
+      val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
+      val eventGroups: List<EventGroup> = listEventGroups()
+
+      val llv2EventGroups: List<EventGroup> =
+        eventGroups.filter {
+          inProcessCmmsComponents.getDataProviderDisplayNameFromDataProviderName(
+            it.cmmsDataProvider
+          )!! in ALL_EDP_WITHOUT_HMSS_CAPABILITIES_DISPLAY_NAMES
+        }
+
+      val hmssEventGroups: List<EventGroup> =
+        eventGroups.filter {
+          inProcessCmmsComponents.getDataProviderDisplayNameFromDataProviderName(
+            it.cmmsDataProvider
+          )!! in ALL_EDP_WITH_HMSS_CAPABILITIES_DISPLAY_NAMES
+        }
+
+      val eventGroupEntries: List<Pair<EventGroup, String>> =
+        listOf(
+          llv2EventGroups[0] to "person.age_group == ${Person.AgeGroup.YEARS_18_TO_34_VALUE}",
+          hmssEventGroups[0] to "person.age_group == ${Person.AgeGroup.YEARS_55_PLUS_VALUE}",
+        )
+
+      val createdPrimitiveReportingSets: List<ReportingSet> =
+        createPrimitiveReportingSets(eventGroupEntries, measurementConsumerData.name)
+
+      val compositeReportingSet = reportingSet {
+        displayName = "composite"
+        composite =
+          ReportingSetKt.composite {
+            expression =
+              ReportingSetKt.setExpression {
+                operation = ReportingSet.SetExpression.Operation.UNION
+                lhs =
+                  ReportingSetKt.SetExpressionKt.operand {
+                    reportingSet = createdPrimitiveReportingSets[0].name
+                  }
+                rhs =
+                  ReportingSetKt.SetExpressionKt.operand {
+                    reportingSet = createdPrimitiveReportingSets[1].name
+                  }
+              }
+          }
+      }
+
+      val createdCompositeReportingSet =
+        publicReportingSetsClient
+          .withCallCredentials(credentials)
+          .createReportingSet(
+            createReportingSetRequest {
+              parent = measurementConsumerData.name
+              reportingSet = compositeReportingSet
+              reportingSetId = "def"
+            }
+          )
+
+      val modelSuite = inProcessCmmsComponents.kingdom.internalModelSuitesClient.createModelSuite(
+        modelSuite {
+          this.externalModelProviderId = apiIdToExternalId(ModelProviderKey.fromName(inProcessCmmsComponents.modelProviderResourceName)!!.modelProviderId)
+          displayName = "display-name"
+          description = "description"
+        }
+      )
+
+      val modelLine = inProcessCmmsComponents.kingdom.internalModelLinesClient.createModelLine(
+        modelLine {
+          externalModelProviderId = modelSuite.externalModelProviderId
+          externalModelSuiteId = modelSuite.externalModelSuiteId
+          displayName = "display-name"
+          description = "description"
+          activeStartTime = Instant.now().plusSeconds(2000L).toProtoTime()
+          type = ModelLine.Type.PROD
+        }
+      )
+
+      val createdMetricCalculationSpec =
+        publicMetricCalculationSpecsClient
+          .withCallCredentials(credentials)
+          .createMetricCalculationSpec(
+            createMetricCalculationSpecRequest {
+              parent = measurementConsumerData.name
+              metricCalculationSpec = metricCalculationSpec {
+                displayName = "union reach"
+                metricSpecs += metricSpec {
+                  reach = MetricSpecKt.reachParams { privacyParams = DP_PARAMS }
+                  vidSamplingInterval = VID_SAMPLING_INTERVAL
+                }
+                this.modelLine = ModelLineKey(
+                  externalIdToApiId(modelLine.externalModelProviderId),
+                  externalIdToApiId(modelLine.externalModelSuiteId),
+                  externalIdToApiId(modelLine.externalModelLineId)).toName()
+              }
+              metricCalculationSpecId = "fed"
+            }
+          )
+
+      val report = report {
+        reportingMetricEntries +=
+          ReportKt.reportingMetricEntry {
+            key = createdCompositeReportingSet.name
+            value =
+              ReportKt.reportingMetricCalculationSpec {
+                metricCalculationSpecs += createdMetricCalculationSpec.name
+              }
+          }
+        timeIntervals = timeIntervals { timeIntervals += EVENT_RANGE.toInterval() }
+      }
+
+      val createdReport =
+        publicReportsClient
+          .withCallCredentials(credentials)
+          .createReport(
+            createReportRequest {
+              parent = measurementConsumerData.name
+              this.report = report
+              reportId = "report"
+            }
+          )
+
+      val retrievedReport = pollForCompletedReport(createdReport.name)
+      assertThat(retrievedReport.state).isEqualTo(Report.State.SUCCEEDED)
+
+      val eventGroupSpecs: Iterable<EventQuery.EventGroupSpec> =
+        eventGroupEntries.map { (eventGroup, filter) ->
+          buildEventGroupSpec(eventGroup, filter, EVENT_RANGE.toInterval())
+        }
+      val expectedResult = calculateExpectedReachMeasurementResult(eventGroupSpecs)
+
+      val reachResult =
+        retrievedReport.metricCalculationResultsList
+          .single()
+          .resultAttributesList
+          .single()
+          .metricResult
+          .reach
+      val actualResult =
+        MeasurementKt.result { reach = MeasurementKt.ResultKt.reach { value = reachResult.value } }
+      val tolerance = computeErrorMargin(reachResult.univariateStatistics.standardDeviation)
+
+      assertThat(actualResult).reachValue().isWithin(tolerance).of(expectedResult.reach.value)
+
+      val measurements: List<Measurement> = listMeasurements()
+      assertThat(measurements).hasSize(1)
+      assertThat(measurements[0].protocolConfig.protocolsList).hasSize(1)
+      assertThat(measurements[0].protocolConfig.protocolsList[0].hasReachOnlyLiquidLegionsV2())
+        .isTrue()
+    }
+
+  @Test
   fun `report with LLv2 union reach across 2 edps has the expected result`() = runBlocking {
     val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
     val eventGroups: List<EventGroup> = listEventGroups()
@@ -507,7 +667,6 @@ abstract class InProcessLifeOfAReportIntegrationTest(
                 reach = MetricSpecKt.reachParams { privacyParams = DP_PARAMS }
                 vidSamplingInterval = VID_SAMPLING_INTERVAL
               }
-              modelLine = getModelLineName()
             }
             metricCalculationSpecId = "fed"
           }
@@ -628,7 +787,6 @@ abstract class InProcessLifeOfAReportIntegrationTest(
                 reach = MetricSpecKt.reachParams { privacyParams = DP_PARAMS }
                 vidSamplingInterval = VID_SAMPLING_INTERVAL
               }
-              modelLine = getModelLineName()
             }
             metricCalculationSpecId = "fed"
           }
@@ -752,7 +910,6 @@ abstract class InProcessLifeOfAReportIntegrationTest(
                 reach = MetricSpecKt.reachParams { privacyParams = DP_PARAMS }
                 vidSamplingInterval = VID_SAMPLING_INTERVAL
               }
-              modelLine = getModelLineName()
             }
             metricCalculationSpecId = "fed"
           }
@@ -859,7 +1016,6 @@ abstract class InProcessLifeOfAReportIntegrationTest(
                 reach = MetricSpecKt.reachParams { privacyParams = DP_PARAMS }
                 vidSamplingInterval = VID_SAMPLING_INTERVAL
               }
-              modelLine = getModelLineName()
             }
             metricCalculationSpecId = "fed"
           }
@@ -932,7 +1088,6 @@ abstract class InProcessLifeOfAReportIntegrationTest(
                 reach = MetricSpecKt.reachParams { privacyParams = DP_PARAMS }
                 vidSamplingInterval = VID_SAMPLING_INTERVAL
               }
-              modelLine = getModelLineName()
             }
             metricCalculationSpecId = "fed"
           }
@@ -1013,7 +1168,6 @@ abstract class InProcessLifeOfAReportIntegrationTest(
                 reach = MetricSpecKt.reachParams { privacyParams = DP_PARAMS }
                 vidSamplingInterval = VID_SAMPLING_INTERVAL
               }
-              modelLine = getModelLineName()
             }
             metricCalculationSpecId = "fed"
           }
@@ -1130,7 +1284,6 @@ abstract class InProcessLifeOfAReportIntegrationTest(
                 reach = MetricSpecKt.reachParams { privacyParams = DP_PARAMS }
                 vidSamplingInterval = VID_SAMPLING_INTERVAL
               }
-              modelLine = getModelLineName()
             }
             metricCalculationSpecId = "fed"
           }
@@ -1208,7 +1361,6 @@ abstract class InProcessLifeOfAReportIntegrationTest(
                   count = 1
                   increment = MetricCalculationSpec.TrailingWindow.Increment.DAY
                 }
-              modelLine = getModelLineName()
             }
             metricCalculationSpecId = "fed"
           }
@@ -1303,7 +1455,6 @@ abstract class InProcessLifeOfAReportIntegrationTest(
                   count = 1
                   increment = MetricCalculationSpec.TrailingWindow.Increment.WEEK
                 }
-              modelLine = getModelLineName()
             }
             metricCalculationSpecId = "fed"
           }
@@ -1413,7 +1564,6 @@ abstract class InProcessLifeOfAReportIntegrationTest(
                   predicates += grouping2Predicate1
                   predicates += grouping2Predicate2
                 }
-              modelLine = getModelLineName()
             }
             metricCalculationSpecId = "fed"
           }
@@ -1487,7 +1637,6 @@ abstract class InProcessLifeOfAReportIntegrationTest(
                 reach = MetricSpecKt.reachParams { privacyParams = DP_PARAMS }
                 vidSamplingInterval = VID_SAMPLING_INTERVAL
               }
-              modelLine = getModelLineName()
             }
             metricCalculationSpecId = "fed"
           }
@@ -2527,14 +2676,6 @@ abstract class InProcessLifeOfAReportIntegrationTest(
           }
         )
     }
-  }
-
-  /**
-   * TODO(@tristanvuong2021): use enumerateValidModelLines when replaceDataAvailabilityIntervals is
-   *   implemented
-   */
-  private fun getModelLineName(): String {
-    return inProcessCmmsComponents.modelLineResourceName
   }
 
   private suspend fun pollForCompletedReport(reportName: String): Report {
