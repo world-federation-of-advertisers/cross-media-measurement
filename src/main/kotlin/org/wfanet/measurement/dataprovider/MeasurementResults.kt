@@ -20,6 +20,7 @@ import com.google.protobuf.TypeRegistry
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.util.logging.Logger
+import java.util.stream.Collectors
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.asFlow
@@ -29,6 +30,7 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.fold
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import org.projectnessie.cel.Program
@@ -48,20 +50,19 @@ object MeasurementResults {
     maxFrequency: Int,
   ): ReachAndFrequency {
     val logger: Logger = Logger.getLogger(this::class.java.name)
-    // Count occurrences of each VID using optimized grouping
-    var counter = 0
-    val eventsPerVid = filteredVids
+    // Count occurrences of each VID using parallel stream processing
+    val vidsList = filteredVids
       .flowOn(Dispatchers.Default)
-      .map { vid ->
-        counter++
-        if (counter % 500_000 == 0) {
-          logger.info("Processed $counter VIDs. Currently on ${Thread.currentThread().name} thread.")
-        }
-        vid
-      }
       .toList()
-      .groupingBy { it }
-      .eachCount()
+    
+    val eventsPerVid: Map<Long, Int> = vidsList
+      .parallelStream()
+      .collect(
+        Collectors.groupingByConcurrent(
+          { it }, // classifier function
+          Collectors.summingInt { 1 } // downstream collector to count occurrences as Int
+        )
+      )
 
     val reach: Int = eventsPerVid.keys.size
 
