@@ -29,7 +29,7 @@ import org.wfanet.measurement.common.ratelimit.TokenBucket
 import org.wfanet.measurement.config.RateLimitConfig
 
 /**
- * Server interceptor that applies a per-principal, per-method rate limit.
+ * Server interceptor that applies a per-principal rate limit.
  *
  * The principal can be any value from the current gRPC [Context] which has a unique string
  * identifier.
@@ -47,6 +47,13 @@ class PrincipalRateLimitingServerInterceptor(
 ) : ServerInterceptor {
   private val rateLimiterByPrincipal = ConcurrentHashMap<String, RateLimiter>()
 
+  /**
+   * [RateLimiter] for unauthenticated requests, i.e. those without a principal.
+   *
+   * All unauthenticated requests are treated as if they come from the same principal.
+   */
+  private val unauthenticatedRateLimiter: RateLimiter by lazy { createRateLimiter(null) }
+
   override fun <ReqT : Any, RespT : Any> interceptCall(
     call: ServerCall<ReqT, RespT>,
     headers: Metadata,
@@ -55,7 +62,7 @@ class PrincipalRateLimitingServerInterceptor(
     val principalIdentifier = getPrincipalIdentifier(Context.current())
     val rateLimiter: RateLimiter =
       if (principalIdentifier == null) {
-        createRateLimiter(null)
+        unauthenticatedRateLimiter
       } else {
         rateLimiterByPrincipal.getOrPut(principalIdentifier) {
           createRateLimiter(principalIdentifier)

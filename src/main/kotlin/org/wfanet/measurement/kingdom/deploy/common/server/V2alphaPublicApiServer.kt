@@ -299,6 +299,9 @@ private class V2alphaFlags {
   lateinit var redirectUri: String
     private set
 
+  var rateLimitConfig: RateLimitConfig = DEFAULT_RATE_LIMIT_CONFIG
+    private set
+
   @CommandLine.Option(
     names = ["--rate-limit-config-file"],
     description =
@@ -309,14 +312,13 @@ private class V2alphaFlags {
       ],
     required = false,
   )
-  private lateinit var rateLimitConfigFile: File
-
-  val rateLimitConfig: RateLimitConfig by lazy {
-    if (::rateLimitConfigFile.isInitialized) {
-      parseTextProto(rateLimitConfigFile, RateLimitConfig.getDefaultInstance())
-    } else {
-      DEFAULT_RATE_LIMIT_CONFIG
+  private fun setRateLimitConfig(value: File) {
+    val config = parseTextProto(value, RateLimitConfig.getDefaultInstance())
+    if (!config.hasDefaultRateLimit()) {
+      throw CommandLine.ParameterException(spec.commandLine(), "Default rate limit must be set")
     }
+
+    rateLimitConfig = config
   }
 
   lateinit var directNoiseMechanisms: List<NoiseMechanism>
