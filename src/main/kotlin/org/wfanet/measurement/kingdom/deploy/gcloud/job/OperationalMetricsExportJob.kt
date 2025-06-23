@@ -19,16 +19,17 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.job
 import com.google.cloud.bigquery.BigQuery
 import com.google.cloud.bigquery.BigQueryOptions
 import com.google.cloud.bigquery.storage.v1.BigQueryWriteClient
+import kotlin.properties.Delegates
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.SigningCerts
-import org.wfanet.measurement.common.grpc.CommonServer
+import org.wfanet.measurement.common.grpc.TlsFlags
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withDefaultDeadline
 import org.wfanet.measurement.common.grpc.withVerboseLogging
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt
 import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt
-import org.wfanet.measurement.kingdom.deploy.common.server.KingdomApiServerFlags
+import org.wfanet.measurement.kingdom.deploy.common.InternalApiFlags
 import picocli.CommandLine
 
 @CommandLine.Command(
@@ -41,25 +42,21 @@ import picocli.CommandLine
   showDefaultValues = true,
 )
 private fun run(
-  @CommandLine.Mixin kingdomApiServerFlags: KingdomApiServerFlags,
-  @CommandLine.Mixin commonServerFlags: CommonServer.Flags,
+  @CommandLine.Mixin internalApiFlags: InternalApiFlags,
+  @CommandLine.Mixin tlsFlags: TlsFlags,
   @CommandLine.Mixin operationalMetricsFlags: OperationalMetricsFlags,
 ) {
   val clientCerts =
     SigningCerts.fromPemFiles(
-      certificateFile = commonServerFlags.tlsFlags.certFile,
-      privateKeyFile = commonServerFlags.tlsFlags.privateKeyFile,
-      trustedCertCollectionFile = commonServerFlags.tlsFlags.certCollectionFile,
+      certificateFile = tlsFlags.certFile,
+      privateKeyFile = tlsFlags.privateKeyFile,
+      trustedCertCollectionFile = tlsFlags.certCollectionFile,
     )
 
   val channel =
-    buildMutualTlsChannel(
-        kingdomApiServerFlags.internalApiFlags.target,
-        clientCerts,
-        kingdomApiServerFlags.internalApiFlags.certHost,
-      )
-      .withVerboseLogging(kingdomApiServerFlags.debugVerboseGrpcClientLogging)
-      .withDefaultDeadline(kingdomApiServerFlags.internalApiFlags.defaultDeadlineDuration)
+    buildMutualTlsChannel(internalApiFlags.target, clientCerts, internalApiFlags.certHost)
+      .withVerboseLogging(operationalMetricsFlags.debugVerboseGrpcClientLogging)
+      .withDefaultDeadline(internalApiFlags.defaultDeadlineDuration)
 
   val measurementsClient = MeasurementsGrpcKt.MeasurementsCoroutineStub(channel)
   val requisitionsClient = RequisitionsGrpcKt.RequisitionsCoroutineStub(channel)
@@ -104,6 +101,14 @@ private fun run(
 fun main(args: Array<String>) = commandLineMain(::run, args)
 
 class OperationalMetricsFlags {
+  @set:CommandLine.Option(
+    names = ["--debug-verbose-grpc-client-logging"],
+    description = ["Enables full gRPC request and response logging for outgoing gRPCs"],
+    defaultValue = "false",
+  )
+  var debugVerboseGrpcClientLogging by Delegates.notNull<Boolean>()
+    private set
+
   @CommandLine.Option(
     names = ["--bigquery-project"],
     description = ["BigQuery Project ID"],
