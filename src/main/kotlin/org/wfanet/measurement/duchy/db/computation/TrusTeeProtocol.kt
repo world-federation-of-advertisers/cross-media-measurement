@@ -86,15 +86,13 @@ object TrusTeeProtocol {
         }
       }
 
-      // Not used for TrusTEE protocol.
       override fun detailsFor(
         stage: Stage,
         computationDetails: TrusTee.ComputationDetails,
-      ): ComputationStageDetails = error("TrusTee protocol does not have stage details")
+      ): ComputationStageDetails = ComputationStageDetails.getDefaultInstance()
 
-      // Not used for TrusTEE protocol.
       override fun parseDetails(bytes: ByteArray): ComputationStageDetails =
-        error("TrusTee protocol does not have stage details")
+        ComputationStageDetails.getDefaultInstance()
     }
   }
 

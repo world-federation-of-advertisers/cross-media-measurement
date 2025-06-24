@@ -18,9 +18,6 @@ import java.util.logging.Level
 import java.util.logging.Logger
 import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
-import org.wfanet.measurement.common.crypto.PrivateKeyStore
-import org.wfanet.measurement.common.crypto.tink.TinkKeyId
-import org.wfanet.measurement.common.crypto.tink.TinkPrivateKeyHandle
 import org.wfanet.measurement.duchy.db.computation.advanceComputationStage
 import org.wfanet.measurement.duchy.toProtocolStage
 import org.wfanet.measurement.duchy.utils.key
@@ -64,7 +61,6 @@ object TrusTeeStarter {
     systemComputation: Computation,
     protocolSetupConfig: TrusTeeSetupConfig,
     blobStorageBucket: String,
-    privateKeyStore: PrivateKeyStore<TinkKeyId, TinkPrivateKeyHandle>? = null,
   ) {
     require(systemComputation.name.isNotEmpty()) { "Resource name not specified" }
     val globalId: String = systemComputation.key.computationId
@@ -86,12 +82,9 @@ object TrusTeeStarter {
 
     computationStorageClient.createComputation(
       createComputationRequest {
-        computationType = ComputationTypeEnum.ComputationType.HONEST_MAJORITY_SHARE_SHUFFLE
+        computationType = ComputationTypeEnum.ComputationType.TRUS_TEE
         globalComputationId = globalId
-        computationStage =
-          org.wfanet.measurement.internal.duchy.protocol.HonestMajorityShareShuffle.Stage
-            .INITIALIZED
-            .toProtocolStage()
+        computationStage = Stage.INITIALIZED.toProtocolStage()
         computationDetails = initialComputationDetails
         this.requisitions += requisitions
       }
@@ -112,7 +105,7 @@ object TrusTeeStarter {
       Stage.WAIT_TO_START -> {
         computationStorageClient.advanceComputationStage(
           computationToken = token,
-          stage = Stage.INITIALIZED.toProtocolStage(),
+          stage = Stage.COMPUTING.toProtocolStage(),
         )
         logger.log(Level.INFO) { "[id=${token.globalComputationId}] Computation starts." }
       }
@@ -136,9 +129,7 @@ object TrusTeeStarter {
   }
 
   private fun Computation.toTrusTeeParameters(): TrusTee.ComputationDetails.Parameters {
-    require(mpcProtocolConfig.hasHonestMajorityShareShuffle()) {
-      "Missing honestMajorityShareShuffle in the duchy protocol config."
-    }
+    require(mpcProtocolConfig.hasTrusTee()) { "Missing TrusTee in the duchy protocol config." }
 
     val apiVersion = Version.fromString(publicApiVersion)
     require(apiVersion == Version.V2_ALPHA) { "Unsupported API version $apiVersion" }
