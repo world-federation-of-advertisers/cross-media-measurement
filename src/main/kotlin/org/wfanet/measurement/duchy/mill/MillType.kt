@@ -34,6 +34,7 @@ val ComputationType.millType: MillType
       ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2,
       ComputationType.REACH_ONLY_LIQUID_LEGIONS_SKETCH_AGGREGATION_V2 -> MillType.LIQUID_LEGIONS_V2
       ComputationType.HONEST_MAJORITY_SHARE_SHUFFLE -> MillType.HONEST_MAJORITY_SHARE_SHUFFLE
+      ComputationType.TRUS_TEE -> error("Unsupported protocol: TRUS_TEE")
       ComputationType.UNSPECIFIED,
       ComputationType.UNRECOGNIZED -> error("Not a real computation type")
     }
@@ -46,6 +47,7 @@ val ComputationType.prioritizedStages: List<ComputationStage>
         REACH_ONLY_LIQUID_LEGIONS_V2_PRIORITIZED_STAGES
       ComputationType.HONEST_MAJORITY_SHARE_SHUFFLE ->
         HONEST_MAJORITY_SHARE_SHUFFLE_PRIORITIZED_STAGES
+      ComputationType.TRUS_TEE -> error("Unsupported protocol: TRUS_TEE")
       ComputationType.UNSPECIFIED,
       ComputationType.UNRECOGNIZED -> error("Not a real computation type")
     }

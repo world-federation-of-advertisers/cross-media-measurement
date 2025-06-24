@@ -31,6 +31,7 @@ object ComputationTypes : ComputationTypeEnumHelper<ComputationType> {
 }
 
 fun ComputationStage.toComputationType() =
+  @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf enum fields cannot be null.
   when (stageCase) {
     ComputationStage.StageCase.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2 ->
       ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2
@@ -38,5 +39,6 @@ fun ComputationStage.toComputationType() =
       ComputationType.REACH_ONLY_LIQUID_LEGIONS_SKETCH_AGGREGATION_V2
     ComputationStage.StageCase.HONEST_MAJORITY_SHARE_SHUFFLE ->
       ComputationType.HONEST_MAJORITY_SHARE_SHUFFLE
-    else -> ComputationType.UNRECOGNIZED
+    ComputationStage.StageCase.TRUS_TEE -> ComputationType.TRUS_TEE
+    ComputationStage.StageCase.STAGE_NOT_SET -> ComputationType.UNRECOGNIZED
   }

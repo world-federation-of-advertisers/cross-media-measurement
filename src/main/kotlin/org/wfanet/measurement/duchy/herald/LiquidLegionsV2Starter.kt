@@ -328,6 +328,7 @@ object LiquidLegionsV2Starter {
         token.computationDetails.reachOnlyLiquidLegionsV2.hasLocalElgamalKey()
       }
       ComputationDetails.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE,
+      ComputationDetails.ProtocolCase.TRUS_TEE,
       ComputationDetails.ProtocolCase.PROTOCOL_NOT_SET -> {
         error("Invalid Protocol type in ComputationDetails.")
       }
@@ -357,6 +358,7 @@ object LiquidLegionsV2Starter {
     return when (this) {
       SystemNoiseMechanism.GEOMETRIC -> NoiseMechanism.GEOMETRIC
       SystemNoiseMechanism.DISCRETE_GAUSSIAN -> NoiseMechanism.DISCRETE_GAUSSIAN
+      SystemNoiseMechanism.CONTINUOUS_GAUSSIAN -> NoiseMechanism.CONTINUOUS_GAUSSIAN
       SystemNoiseMechanism.UNRECOGNIZED,
       SystemNoiseMechanism.NOISE_MECHANISM_UNSPECIFIED -> error("Invalid system NoiseMechanism")
     }
