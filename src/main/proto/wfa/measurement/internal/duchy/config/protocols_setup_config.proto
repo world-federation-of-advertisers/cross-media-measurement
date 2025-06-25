@@ -30,6 +30,9 @@ message ProtocolsSetupConfig {
 
   // HonestMajorityShareShuffle specific configuration
   HonestMajorityShareShuffleSetupConfig honest_majority_share_shuffle = 3;
+
+  // TrusTee specific configuration
+  TrusTeeSetupConfig trus_tee = 4;
 }
 
 // Role in Computations assigned to Duchies.
@@ -41,6 +44,7 @@ enum RoleInComputation {
   //
   // Both LiquidLegionsV2 protocols and HonestMajorityShareShuffle protocol have
   // the aggregator to compute the result.
+  // TrusTEE protocol always uses aggregator role.
   AGGREGATOR = 1;
 
   // A non-aggregator duchy for the computation of LLv2.
@@ -87,4 +91,9 @@ message HonestMajorityShareShuffleSetupConfig {
 
   // The external id of the aggregator duchy.
   string aggregator_duchy_id = 4;
+}
+
+message TrusTeeSetupConfig {
+  // Role of duchy in Computations.
+  RoleInComputation role = 1;
 }
