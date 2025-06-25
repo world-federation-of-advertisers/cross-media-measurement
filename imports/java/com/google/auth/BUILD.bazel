@@ -6,6 +6,6 @@ alias(
 )
 
 alias(
-    name = "google_credentials",
+    name = "credentials",
     actual = "@maven//:com_google_auth_google_auth_library_credentials",
 )
