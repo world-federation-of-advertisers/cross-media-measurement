@@ -76,7 +76,6 @@ abstract class InProcessReachMeasurementAccuracyTest(
       duchyDependenciesRule,
       SYNTHETIC_POPULATION_SPEC,
       SYNTHETIC_EVENT_GROUP_SPECS,
-      useEdpSimulators = true,
     )
 
   private lateinit var mcSimulator: EventQueryMeasurementConsumerSimulator

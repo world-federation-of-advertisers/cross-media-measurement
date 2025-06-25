@@ -71,7 +71,7 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest(
 
   @get:Rule
   val inProcessCmmsComponents =
-    InProcessCmmsComponents(kingdomDataServicesRule, duchyDependenciesRule, useEdpSimulators = true)
+    InProcessCmmsComponents(kingdomDataServicesRule, duchyDependenciesRule)
 
   private lateinit var mcSimulator: EventQueryMeasurementConsumerSimulator
 

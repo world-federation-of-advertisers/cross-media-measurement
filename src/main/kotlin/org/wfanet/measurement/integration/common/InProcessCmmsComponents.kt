@@ -71,7 +71,6 @@ class InProcessCmmsComponents(
     SyntheticGenerationSpecs.SYNTHETIC_POPULATION_SPEC_SMALL,
   private val syntheticEventGroupSpecs: List<SyntheticEventGroupSpec> =
     SyntheticGenerationSpecs.SYNTHETIC_DATA_SPECS_SMALL,
-  private val useEdpSimulators: Boolean,
 ) : TestRule {
   private val kingdomDataServices: DataServices
     get() = kingdomDataServicesRule.value
@@ -292,8 +291,8 @@ class InProcessCmmsComponents(
    */
   fun getDataProviderDisplayNameFromDataProviderName(dataProviderName: String): String? {
     return edpDisplayNameToResourceMap.entries
-      .find { entry -> dataProviderName.equals(entry.value.name) }
-      ?.key ?: null
+      .find { entry -> dataProviderName == entry.value.name }
+      ?.key
   }
 
   fun getDataProviderResourceNames(): List<String> {
@@ -305,12 +304,9 @@ class InProcessCmmsComponents(
     createAllResources()
     // Start daemons. Mills and EDP simulators can only be started after resources have been
     // created.
-    if (useEdpSimulators) {
-      eventGroups = edpSimulators.map { it.ensureEventGroup() }
-      edpSimulators.forEach { it.start() }
-      edpSimulators.forEach { it.waitUntilHealthy() }
-    }
-
+    eventGroups = edpSimulators.map { it.ensureEventGroup() }
+    edpSimulators.forEach { it.start() }
+    edpSimulators.forEach { it.waitUntilHealthy() }
     duchies.forEach {
       it.startHerald()
       it.startMill(duchyCertMap)
@@ -332,9 +328,7 @@ class InProcessCmmsComponents(
   }
 
   fun stopDaemons() {
-    if (useEdpSimulators) {
-      stopEdpSimulators()
-    }
+    stopEdpSimulators()
     stopDuchyDaemons()
     stopPopulationRequisitionFulfillerDaemon()
   }
