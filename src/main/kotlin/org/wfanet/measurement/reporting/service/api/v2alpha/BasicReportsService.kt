@@ -85,8 +85,42 @@ class BasicReportsService(
 
     authorization.check(listOf(request.parent, measurementConsumerKey.toName()), Permission.CREATE)
 
+    if (request.basicReport.campaignGroup.isEmpty()) {
+      throw RequiredFieldNotSetException("basic_report.campaign_group")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+
+    val campaignGroupKey =
+      ReportingSetKey.fromName(request.basicReport.campaignGroup)
+        ?: throw InvalidFieldValueException("basic_report.campaign_group")
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+
     // Required for creating Report
-    val campaignGroup: ReportingSet = validateCreateBasicReportRequest(request)
+    val campaignGroup: ReportingSet =
+      try {
+        internalReportingSetsStub
+          .batchGetReportingSets(
+            batchGetReportingSetsRequest {
+              cmmsMeasurementConsumerId = campaignGroupKey.cmmsMeasurementConsumerId
+              externalReportingSetIds += campaignGroupKey.reportingSetId
+            }
+          )
+          .reportingSetsList
+          .first()
+          .toReportingSet()
+      } catch (e: StatusException) {
+        throw when (e.status.code) {
+          Status.Code.NOT_FOUND ->
+            throw InvalidFieldValueException("basic_report.campaign_group") { "Not found" }
+              .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+          Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
+          Status.Code.INTERNAL -> Status.INTERNAL
+          Status.Code.CANCELLED -> Status.CANCELLED
+          else -> Status.UNKNOWN
+        }.asRuntimeException()
+      }
+
+    validateCreateBasicReportRequest(request, campaignGroup)
 
     // Validates that IQFs exist, but also constructs a List required for creating Report
     val impressionQualificationFilterSpecsLists: List<List<ImpressionQualificationFilterSpec>> =
@@ -236,12 +270,12 @@ class BasicReportsService(
    * Validates a [CreateBasicReportRequest].
    *
    * @param request
-   * @return CampaignGroup [ReportingSet]
    * @throws [StatusRuntimeException] when validation fails
    */
-  private suspend fun validateCreateBasicReportRequest(
-    request: CreateBasicReportRequest
-  ): ReportingSet {
+  private fun validateCreateBasicReportRequest(
+    request: CreateBasicReportRequest,
+    campaignGroup: ReportingSet,
+  ) {
     if (request.basicReportId.isEmpty()) {
       throw RequiredFieldNotSetException("basic_report_id")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
@@ -260,40 +294,6 @@ class BasicReportsService(
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
       }
     }
-
-    if (request.basicReport.campaignGroup.isEmpty()) {
-      throw RequiredFieldNotSetException("basic_report.campaign_group")
-        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-    }
-
-    val campaignGroupKey =
-      ReportingSetKey.fromName(request.basicReport.campaignGroup)
-        ?: throw InvalidFieldValueException("basic_report.campaign_group")
-          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-
-    val campaignGroup: ReportingSet =
-      try {
-        internalReportingSetsStub
-          .batchGetReportingSets(
-            batchGetReportingSetsRequest {
-              cmmsMeasurementConsumerId = campaignGroupKey.cmmsMeasurementConsumerId
-              externalReportingSetIds += campaignGroupKey.reportingSetId
-            }
-          )
-          .reportingSetsList
-          .first()
-          .toReportingSet()
-      } catch (e: StatusException) {
-        throw when (e.status.code) {
-          Status.Code.NOT_FOUND ->
-            throw InvalidFieldValueException("basic_report.campaign_group") { "Not found" }
-              .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-          Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
-          Status.Code.INTERNAL -> Status.INTERNAL
-          Status.Code.CANCELLED -> Status.CANCELLED
-          else -> Status.UNKNOWN
-        }.asRuntimeException()
-      }
 
     if (campaignGroup.campaignGroup != campaignGroup.name) {
       throw InvalidFieldValueException("basic_report.campaign_group") { "Not a Campaign Group" }
@@ -597,8 +597,6 @@ class BasicReportsService(
         }
       }
     }
-
-    return campaignGroup
   }
 
   private fun ListBasicReportsRequest.toInternal(): InternalListBasicReportsRequest {
