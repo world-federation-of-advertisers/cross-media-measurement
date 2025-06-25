@@ -51,12 +51,27 @@ import com.google.auth.oauth2.IdToken
 import org.mockito.kotlin.any
 import org.mockito.kotlin.whenever
 
+
+class TestIdTokenProvider : IdTokenProvider {
+  override fun idTokenWithAudience(
+    targetAudience: String,
+    options: MutableList<IdTokenProvider.Option>?
+  ): IdToken {
+    val idToken =  IdToken.create(JWT_TOKEN)
+    return idToken
+  }
+
+  companion object {
+    private const val JWT_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiYWRtaW4iOnRydWUsImlhdCI6MTUxNjIzOTAyMiwiZXhwIjoxNTE2MjQyNjIyfQ.KMUFsIDTnFmyG3nMiGM6H9FNFUROf3wh7SmqJp-QV30"
+  }
+  
+}
+
 @RunWith(JUnit4::class)
 class DataWatcherTest() {
 
   private val workItemsServiceMock: WorkItemsCoroutineImplBase = mockService {}
-  val mockIdTokenProvider: IdTokenProvider = mock<IdTokenProvider>()
-  val mockIdToken = mock<IdToken>()
+  val mockIdTokenProvider: IdTokenProvider = TestIdTokenProvider()
 
   @get:Rule val grpcTestServerRule = GrpcTestServerRule { addService(workItemsServiceMock) }
 
@@ -77,10 +92,6 @@ class DataWatcherTest() {
           this.appParams = Any.pack(appParams)
         }
       }
-
-      whenever(mockIdToken.tokenValue).thenReturn("fake-jwt-token")
-      whenever(mockIdTokenProvider.idTokenWithAudience(config.httpEndpointSink.endpointUri, listOf()))
-        .thenReturn(mockIdToken)
 
       val dataWatcher =
         DataWatcher(workItemsStub, listOf(config), workItemIdGenerator = { "some-work-item-id" }, idTokenProvider = mockIdTokenProvider)
@@ -125,10 +136,6 @@ class DataWatcherTest() {
       val server = TestServer()
       server.start(localPort)
 
-      whenever(mockIdToken.tokenValue).thenReturn("fake-jwt-token")
-      whenever(mockIdTokenProvider.idTokenWithAudience(config.httpEndpointSink.endpointUri, listOf()))
-        .thenReturn(mockIdToken)
-
       val dataWatcher = DataWatcher(
         workItemsStub = workItemsStub,
         dataWatcherConfigs = listOf(config),
@@ -159,10 +166,6 @@ class DataWatcherTest() {
           appParams = Any.pack(Int32Value.newBuilder().setValue(5).build())
         }
       }
-
-      whenever(mockIdToken.tokenValue).thenReturn("fake-jwt-token")
-      whenever(mockIdTokenProvider.idTokenWithAudience(config.httpEndpointSink.endpointUri, listOf()))
-        .thenReturn(mockIdToken)
 
       val dataWatcher = DataWatcher(workItemsStub, listOf(config), idTokenProvider = mockIdTokenProvider)
       dataWatcher.receivePath("test-schema://test-bucket/some-other-path/some-data")
