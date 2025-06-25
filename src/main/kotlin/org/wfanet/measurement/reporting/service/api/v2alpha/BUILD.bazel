@@ -313,6 +313,7 @@ kt_jvm_library(
     srcs = ["BasicReportsService.kt"],
     deps = [
         ":basic_report_proto_conversions",
+        ":proto_conversions",
         ":resource_key",
         "//src/main/kotlin/org/wfanet/measurement/access/client/v1alpha:authorization",
         "//src/main/kotlin/org/wfanet/measurement/api:api_key_constants",
@@ -320,8 +321,11 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api:errors",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/internal:errors",
         "//src/main/proto/wfa/measurement/internal/reporting/v2:basic_reports_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/internal/reporting/v2:impression_qualification_filters_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/internal/reporting/v2:reporting_sets_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/reporting/v2alpha:basic_report_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/reporting/v2alpha:basic_reports_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/reporting/v2alpha:reporting_sets_service_kt_jvm_grpc_proto",
         "@wfa_common_jvm//imports/java/io/grpc:api",
     ],
 )
