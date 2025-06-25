@@ -258,7 +258,12 @@ private fun run(
         )
         .withInterceptors(akidPrincipalInterceptor, rateLimitingInterceptor, akidInterceptor),
       ModelProvidersService(InternalModelProviderCoroutineStub(channel), serviceDispatcher)
-        .withInterceptors(akidPrincipalInterceptor, rateLimitingInterceptor, akidInterceptor),
+        .withInterceptors(
+          apiKeyPrincipalInterceptor,
+          akidPrincipalInterceptor,
+          rateLimitingInterceptor,
+          akidInterceptor,
+        ),
       ModelLinesService(InternalModelLinesCoroutineStub(channel), serviceDispatcher)
         .withInterceptors(
           apiKeyPrincipalInterceptor,
