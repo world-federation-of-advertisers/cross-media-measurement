@@ -18,6 +18,8 @@ package org.wfanet.measurement.edpaggregator.requisitionfetcher
 
 import com.google.protobuf.Any
 import io.grpc.StatusException
+import java.time.Clock
+import java.time.Duration
 import java.util.logging.Level
 import java.util.logging.Logger
 import kotlinx.coroutines.CoroutineScope
@@ -32,6 +34,7 @@ import org.wfanet.measurement.api.v2alpha.RequisitionSpec
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.getEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.refuseRequisitionRequest
+import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
@@ -57,8 +60,6 @@ abstract class RequisitionGrouper(
   private val eventGroupsClient: EventGroupsCoroutineStub,
   private val requisitionsClient: RequisitionsCoroutineStub,
   private val throttler: Throttler,
-  private val requisitionsStub: RequisitionsCoroutineStub,
-  private val refusalCoroutineScope: CoroutineScope = CoroutineScope(Dispatchers.IO)
 ) {
 
   /**
@@ -76,7 +77,7 @@ abstract class RequisitionGrouper(
   }
 
   /** Function to be implemented to combine [GroupedRequisition]s for optimal execution. */
-  protected abstract fun combineGroupedRequisitions(
+  protected suspend abstract fun combineGroupedRequisitions(
     groupedRequisitions: List<GroupedRequisitions>
   ): List<GroupedRequisitions>
 
@@ -124,15 +125,21 @@ abstract class RequisitionGrouper(
     }
   }
 
-  protected fun refuseRequisition(requisition: Requisition, refusal: Requisition.Refusal) {
+  protected suspend fun refuseRequisition(requisition: Requisition,
+                                          refusal: Requisition.Refusal,
+                                          throttler: MinimumIntervalThrottler = MinimumIntervalThrottler(
+                                            Clock.systemUTC(), Duration.ofSeconds(1)
+                                          )
+                                          )
+  {
     try {
-      refusalCoroutineScope.launch {
+      throttler.onReady {
         logger.info("Requisition ${requisition.name} was refused. $refusal")
         val request = refuseRequisitionRequest {
           this.name = requisition.name
           this.refusal = RequisitionKt.refusal { justification = refusal.justification }
         }
-        requisitionsStub.refuseRequisition(request)
+        requisitionsClient.refuseRequisition(request)
       }
     } catch (e: Exception) {
       logger.log(Level.SEVERE,"Error while refusing requisition ${requisition.name}", e)

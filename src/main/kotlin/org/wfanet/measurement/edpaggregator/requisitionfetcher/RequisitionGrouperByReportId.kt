@@ -41,14 +41,13 @@ class RequisitionGrouperByReportId(
   eventGroupsClient: EventGroupsCoroutineStub,
   requisitionsClient: RequisitionsCoroutineStub,
   throttler: Throttler,
-  requisitionsStub: RequisitionsCoroutineStub,
-) : RequisitionGrouper(requisitionValidator, eventGroupsClient, requisitionsClient, throttler, requisitionsStub) {
+) : RequisitionGrouper(requisitionValidator, eventGroupsClient, requisitionsClient, throttler) {
 
   /**
    * Combines Grouped Requisitions by ReportId and then unions their collection intervals per event
    * group.
    */
-  override fun combineGroupedRequisitions(
+  override suspend fun combineGroupedRequisitions(
     groupedRequisitions: List<GroupedRequisitions>
   ): List<GroupedRequisitions> {
     val groupedByReport: Map<String, List<GroupedRequisitions>> =
@@ -70,7 +69,7 @@ class RequisitionGrouperByReportId(
    * Combines Grouped Requisitions by ReportId and then unions their collection intervals per event
    * group.
    */
-  private fun combineByReportId(
+  private suspend fun combineByReportId(
     groupedByReport: Map<String, List<GroupedRequisitions>>
   ): List<GroupedRequisitions> {
 

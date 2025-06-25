@@ -29,7 +29,11 @@ import org.wfanet.measurement.common.crypto.PrivateKeyHandle
 import org.wfanet.measurement.consent.client.dataprovider.decryptRequisitionSpec
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
 
-data class InvalidRequisitionException(val requisitions: List<Requisition>, val refusal: Refusal) : Exception()
+class InvalidRequisitionException(
+  val requisitions: List<Requisition>,
+  val refusal: Refusal,
+  cause: Throwable? = null
+) : Exception("Invalid requisition: ${refusal.justification}: ${refusal.message}", cause)
 
 /**
  * Validates a requisition. Only refuses requisitions with permanently fatal errors.
@@ -51,7 +55,8 @@ class RequisitionsValidator(
         refusal {
           justification = Refusal.Justification.SPEC_INVALID
           message = "Unable to parse MeasurementSpec"
-        }
+        },
+        e
       )
     }
   }
@@ -66,7 +71,8 @@ class RequisitionsValidator(
         refusal {
           justification = Refusal.Justification.CONSENT_SIGNAL_INVALID
           message = "Unable to decrypt RequisitionSpec"
-        }
+        },
+        e
       )
     } catch (e: InvalidProtocolBufferException) {
       logger.severe("Unable to parse requisition spec for ${requisition.name}: ${e.message}")
@@ -75,7 +81,8 @@ class RequisitionsValidator(
         refusal {
           justification = Refusal.Justification.SPEC_INVALID
           message = "Unable to parse RequisitionSpec"
-        }
+        },
+        e
       )
     }
   }
