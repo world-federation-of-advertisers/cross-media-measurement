@@ -203,11 +203,21 @@ class ReportSummaryProcessor:
     logging.info(
         "Processing primitive measurements (cumulative and union)."
     )
+
+    seen_measurement_policies = []
     for entry in self._report_summary.measurement_details:
+      measurement_policy = entry.measurement_policy
+      if measurement_policy not in seen_measurement_policies:
+        seen_measurement_policies.append(measurement_policy)
+        self._cumulative_measurements[measurement_policy] = {}
+        self._whole_campaign_measurements[measurement_policy] = {}
+        self._k_reach[measurement_policy] = {}
+        self._impression[measurement_policy] = {}
+
       if entry.set_operation == "cumulative":
         logging.debug(
-            f"Processing {entry.measurement_policy} cumulative measurements "
-            f"for the EDP combination {entry.data_providers}."
+            f"Processing {measurement_policy} cumulative measurements for the "
+            f"EDP combination {entry.data_providers}."
         )
         if not all(
             result.HasField('reach') for result in entry.measurement_results):
@@ -218,19 +228,13 @@ class ReportSummaryProcessor:
                         result.metric)
             for result in entry.measurement_results
         ]
-        if entry.measurement_policy not in self._cumulative_measurements:
-          self._cumulative_measurements[entry.measurement_policy] = {}
-        self._cumulative_measurements[entry.measurement_policy][
+        self._cumulative_measurements[measurement_policy][
           frozenset(entry.data_providers)] = measurements
       elif (entry.set_operation == "union") and (entry.is_cumulative == False):
         logging.debug(
-            f"Processing {entry.measurement_policy} total campaign measurements"
-            f" for the EDP combination {entry.data_providers}."
+            f"Processing {measurement_policy} total campaign measurements for "
+            f"the EDP combination {entry.data_providers}."
         )
-        if entry.measurement_policy not in self._whole_campaign_measurements:
-          self._whole_campaign_measurements[entry.measurement_policy] = {}
-          self._k_reach[entry.measurement_policy] = {}
-          self._impression[entry.measurement_policy] = {}
         if not all(result.HasField('reach') or result.HasField(
             'reach_and_frequency') or result.HasField(
             'impression_count') for result in entry.measurement_results):
@@ -240,7 +244,7 @@ class ReportSummaryProcessor:
           )
         for measurement_result in entry.measurement_results:
           if measurement_result.HasField('reach_and_frequency'):
-            self._whole_campaign_measurements[entry.measurement_policy][
+            self._whole_campaign_measurements[measurement_policy][
               frozenset(entry.data_providers)] = Measurement(
                 measurement_result.reach_and_frequency.reach.value,
                 measurement_result.reach_and_frequency.reach.standard_deviation,
@@ -248,19 +252,19 @@ class ReportSummaryProcessor:
             self._k_reach[entry.measurement_policy][
               frozenset(entry.data_providers)] = {}
             for bin in measurement_result.reach_and_frequency.frequency.bins:
-              self._k_reach[entry.measurement_policy][
+              self._k_reach[measurement_policy][
                 frozenset(entry.data_providers)][int(bin.label)] = Measurement(
                   bin.value,
                   bin.standard_deviation,
                   measurement_result.metric + "-frequency-" + bin.label)
           elif measurement_result.HasField('reach'):
-            self._whole_campaign_measurements[entry.measurement_policy][
+            self._whole_campaign_measurements[measurement_policy][
               frozenset(entry.data_providers)] = Measurement(
                 measurement_result.reach.value,
                 measurement_result.reach.standard_deviation,
                 measurement_result.metric)
           elif measurement_result.HasField('impression_count'):
-            self._impression[entry.measurement_policy][
+            self._impression[measurement_policy][
               frozenset(entry.data_providers)] = Measurement(
                 measurement_result.impression_count.value,
                 measurement_result.impression_count.standard_deviation,
