@@ -21,8 +21,10 @@ import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.timestamp
 import com.google.rpc.errorInfo
 import com.google.type.DayOfWeek
+import com.google.type.copy
 import com.google.type.date
 import com.google.type.dateTime
+import com.google.type.timeZone
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import java.time.Clock
@@ -60,13 +62,13 @@ import org.wfanet.measurement.config.reporting.impressionQualificationFilterConf
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
 import org.wfanet.measurement.internal.reporting.v2.BasicReportsGrpcKt.BasicReportsCoroutineStub as InternalBasicReportsCoroutineStub
-import org.wfanet.measurement.internal.reporting.v2.ImpressionQualificationFiltersGrpcKt.ImpressionQualificationFiltersCoroutineStub as InternalImpressionQualificationFiltersCoroutineStub
-import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt.ReportingSetsCoroutineStub as InternalReportingSetsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.EventTemplateFieldKt as InternalEventTemplateFieldKt
 import org.wfanet.measurement.internal.reporting.v2.ImpressionQualificationFilterSpec as InternalImpressionQualificationFilterSpec
+import org.wfanet.measurement.internal.reporting.v2.ImpressionQualificationFiltersGrpcKt.ImpressionQualificationFiltersCoroutineStub as InternalImpressionQualificationFiltersCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsPageTokenKt
 import org.wfanet.measurement.internal.reporting.v2.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetKt
+import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt.ReportingSetsCoroutineStub as InternalReportingSetsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.ResultGroupKt as InternalResultGroupKt
 import org.wfanet.measurement.internal.reporting.v2.basicReport as internalBasicReport
 import org.wfanet.measurement.internal.reporting.v2.basicReportDetails
@@ -84,14 +86,12 @@ import org.wfanet.measurement.internal.reporting.v2.reportingImpressionQualifica
 import org.wfanet.measurement.internal.reporting.v2.reportingInterval as internalReportingInterval
 import org.wfanet.measurement.internal.reporting.v2.reportingSet as internalReportingSet
 import org.wfanet.measurement.internal.reporting.v2.resultGroup as internalResultGroup
+import org.wfanet.measurement.reporting.deploy.v2.common.service.ImpressionQualificationFiltersService
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.SpannerBasicReportsService
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.testing.Schemata
 import org.wfanet.measurement.reporting.deploy.v2.postgres.PostgresMeasurementConsumersService
 import org.wfanet.measurement.reporting.deploy.v2.postgres.PostgresReportingSetsService
 import org.wfanet.measurement.reporting.deploy.v2.postgres.testing.Schemata as PostgresSchemata
-import com.google.type.copy
-import com.google.type.timeZone
-import org.wfanet.measurement.reporting.deploy.v2.common.service.ImpressionQualificationFiltersService
 import org.wfanet.measurement.reporting.service.api.Errors
 import org.wfanet.measurement.reporting.service.internal.ImpressionQualificationFilterMapping
 import org.wfanet.measurement.reporting.v2alpha.BasicReport
@@ -155,7 +155,8 @@ class BasicReportsServiceTest {
 
   private lateinit var authorization: Authorization
   private lateinit var measurementConsumersService: MeasurementConsumersCoroutineStub
-  private lateinit var internalImpressionQualificationFiltersService: InternalImpressionQualificationFiltersCoroutineStub
+  private lateinit var internalImpressionQualificationFiltersService:
+    InternalImpressionQualificationFiltersCoroutineStub
   private lateinit var reportingSetsService: InternalReportingSetsCoroutineStub
   private lateinit var internalBasicReportsService: InternalBasicReportsCoroutineStub
 
@@ -164,18 +165,20 @@ class BasicReportsServiceTest {
   @Before
   fun initService() {
     measurementConsumersService = MeasurementConsumersCoroutineStub(grpcTestServerRule.channel)
-    internalImpressionQualificationFiltersService = InternalImpressionQualificationFiltersCoroutineStub(grpcTestServerRule.channel)
+    internalImpressionQualificationFiltersService =
+      InternalImpressionQualificationFiltersCoroutineStub(grpcTestServerRule.channel)
     reportingSetsService = InternalReportingSetsCoroutineStub(grpcTestServerRule.channel)
     internalBasicReportsService = InternalBasicReportsCoroutineStub(grpcTestServerRule.channel)
     authorization =
       Authorization(PermissionsGrpcKt.PermissionsCoroutineStub(grpcTestServerRule.channel))
 
-    service = BasicReportsService(
-      internalBasicReportsService,
-      internalImpressionQualificationFiltersService,
-      reportingSetsService,
-      authorization,
-    )
+    service =
+      BasicReportsService(
+        internalBasicReportsService,
+        internalImpressionQualificationFiltersService,
+        reportingSetsService,
+        authorization,
+      )
   }
 
   @Test
@@ -201,16 +204,13 @@ class BasicReportsServiceTest {
     )
 
     val request = createBasicReportRequest {
-      basicReport = BASIC_REPORT.copy {
-        campaignGroup = campaignGroupKey.toName()
-      }
+      basicReport = BASIC_REPORT.copy { campaignGroup = campaignGroupKey.toName() }
       basicReportId = "a1234"
     }
-    val exception = assertFailsWith<StatusRuntimeException> {
-      withPrincipalAndScopes(PRINCIPAL, SCOPES) {
-        service.createBasicReport(request)
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
       }
-    }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     assertThat(exception.errorInfo)
@@ -247,16 +247,13 @@ class BasicReportsServiceTest {
 
     val request = createBasicReportRequest {
       parent = "1234"
-      basicReport = BASIC_REPORT.copy {
-        campaignGroup = campaignGroupKey.toName()
-      }
+      basicReport = BASIC_REPORT.copy { campaignGroup = campaignGroupKey.toName() }
       basicReportId = "a1234"
     }
-        val exception = assertFailsWith<StatusRuntimeException> {
-      withPrincipalAndScopes(PRINCIPAL, SCOPES) {
-        service.createBasicReport(request)
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
       }
-    }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     assertThat(exception.errorInfo)
@@ -294,9 +291,7 @@ class BasicReportsServiceTest {
 
       val request = createBasicReportRequest {
         parent = measurementConsumerKey.toName()
-        basicReport = BASIC_REPORT.copy {
-          campaignGroup = campaignGroupKey.toName()
-        }
+        basicReport = BASIC_REPORT.copy { campaignGroup = campaignGroupKey.toName() }
         basicReportId = "a1234"
       }
       val exception =
@@ -334,15 +329,12 @@ class BasicReportsServiceTest {
 
     val request = createBasicReportRequest {
       parent = measurementConsumerKey.toName()
-      basicReport = BASIC_REPORT.copy {
-        campaignGroup = campaignGroupKey.toName()
-      }
+      basicReport = BASIC_REPORT.copy { campaignGroup = campaignGroupKey.toName() }
     }
-        val exception = assertFailsWith<StatusRuntimeException> {
-      withPrincipalAndScopes(PRINCIPAL, SCOPES) {
-        service.createBasicReport(request)
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
       }
-    }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     assertThat(exception.errorInfo)
@@ -379,16 +371,13 @@ class BasicReportsServiceTest {
 
     val request = createBasicReportRequest {
       parent = measurementConsumerKey.toName()
-      basicReport = BASIC_REPORT.copy {
-        campaignGroup = campaignGroupKey.toName()
-      }
+      basicReport = BASIC_REPORT.copy { campaignGroup = campaignGroupKey.toName() }
       basicReportId = "1234"
     }
-        val exception = assertFailsWith<StatusRuntimeException> {
-      withPrincipalAndScopes(PRINCIPAL, SCOPES) {
-        service.createBasicReport(request)
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
       }
-    }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     assertThat(exception.errorInfo)
@@ -425,17 +414,14 @@ class BasicReportsServiceTest {
 
     val request = createBasicReportRequest {
       parent = measurementConsumerKey.toName()
-      basicReport = BASIC_REPORT.copy {
-        campaignGroup = campaignGroupKey.toName()
-      }
+      basicReport = BASIC_REPORT.copy { campaignGroup = campaignGroupKey.toName() }
       basicReportId = "a1234"
       requestId = "1234"
     }
-        val exception = assertFailsWith<StatusRuntimeException> {
-      withPrincipalAndScopes(PRINCIPAL, SCOPES) {
-        service.createBasicReport(request)
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
       }
-    }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     assertThat(exception.errorInfo)
@@ -475,11 +461,10 @@ class BasicReportsServiceTest {
       basicReport = BASIC_REPORT
       basicReportId = "a1234"
     }
-        val exception = assertFailsWith<StatusRuntimeException> {
-      withPrincipalAndScopes(PRINCIPAL, SCOPES) {
-        service.createBasicReport(request)
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
       }
-    }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     assertThat(exception.errorInfo)
@@ -504,16 +489,13 @@ class BasicReportsServiceTest {
 
     val request = createBasicReportRequest {
       parent = measurementConsumerKey.toName()
-      basicReport = BASIC_REPORT.copy {
-        campaignGroup = "1234"
-      }
+      basicReport = BASIC_REPORT.copy { campaignGroup = "1234" }
       basicReportId = "a1234"
     }
-        val exception = assertFailsWith<StatusRuntimeException> {
-      withPrincipalAndScopes(PRINCIPAL, SCOPES) {
-        service.createBasicReport(request)
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
       }
-    }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     assertThat(exception.errorInfo)
@@ -539,16 +521,13 @@ class BasicReportsServiceTest {
 
     val request = createBasicReportRequest {
       parent = measurementConsumerKey.toName()
-      basicReport = BASIC_REPORT.copy {
-        campaignGroup = campaignGroupKey.toName()
-      }
+      basicReport = BASIC_REPORT.copy { campaignGroup = campaignGroupKey.toName() }
       basicReportId = "a1234"
     }
-        val exception = assertFailsWith<StatusRuntimeException> {
-      withPrincipalAndScopes(PRINCIPAL, SCOPES) {
-        service.createBasicReport(request)
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
       }
-    }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     assertThat(exception.errorInfo)
@@ -586,16 +565,13 @@ class BasicReportsServiceTest {
 
       val request = createBasicReportRequest {
         parent = measurementConsumerKey.toName()
-        basicReport = BASIC_REPORT.copy {
-          campaignGroup = campaignGroupKey.toName()
-        }
+        basicReport = BASIC_REPORT.copy { campaignGroup = campaignGroupKey.toName() }
         basicReportId = "a1234"
       }
-          val exception = assertFailsWith<StatusRuntimeException> {
-      withPrincipalAndScopes(PRINCIPAL, SCOPES) {
-        service.createBasicReport(request)
-      }
-    }
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+        }
 
       assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
       assertThat(exception.errorInfo)
@@ -609,52 +585,51 @@ class BasicReportsServiceTest {
     }
 
   @Test
-  fun `createBasicReport throws INVALID_ARGUMENT when reportingInterval missing`() =
-    runBlocking {
-      val measurementConsumerKey = MeasurementConsumerKey("1234")
-      val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
+  fun `createBasicReport throws INVALID_ARGUMENT when reportingInterval missing`() = runBlocking {
+    val measurementConsumerKey = MeasurementConsumerKey("1234")
+    val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
 
-      measurementConsumersService.createMeasurementConsumer(
-        measurementConsumer {
-          cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
-        }
-      )
+    measurementConsumersService.createMeasurementConsumer(
+      measurementConsumer {
+        cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+      }
+    )
 
-      reportingSetsService.createReportingSet(
-        createReportingSetRequest {
-          reportingSet =
-            INTERNAL_CAMPAIGN_GROUP.copy {
-              cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
-              externalCampaignGroupId = campaignGroupKey.reportingSetId
-            }
-          externalReportingSetId = campaignGroupKey.reportingSetId
-        }
-      )
+    reportingSetsService.createReportingSet(
+      createReportingSetRequest {
+        reportingSet =
+          INTERNAL_CAMPAIGN_GROUP.copy {
+            cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+            externalCampaignGroupId = campaignGroupKey.reportingSetId
+          }
+        externalReportingSetId = campaignGroupKey.reportingSetId
+      }
+    )
 
-      val request = createBasicReportRequest {
-        parent = measurementConsumerKey.toName()
-        basicReport = BASIC_REPORT.copy {
+    val request = createBasicReportRequest {
+      parent = measurementConsumerKey.toName()
+      basicReport =
+        BASIC_REPORT.copy {
           campaignGroup = campaignGroupKey.toName()
           clearReportingInterval()
         }
-        basicReportId = "a1234"
-      }
-          val exception = assertFailsWith<StatusRuntimeException> {
-      withPrincipalAndScopes(PRINCIPAL, SCOPES) {
-        service.createBasicReport(request)
-      }
+      basicReportId = "a1234"
     }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+      }
 
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception.errorInfo)
-        .isEqualTo(
-          errorInfo {
-            domain = Errors.DOMAIN
-            reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
-            metadata[Errors.Metadata.FIELD_NAME.key] = "basic_report.reporting_interval"
-          }
-        )
-    }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "basic_report.reporting_interval"
+        }
+      )
+  }
 
   @Test
   fun `createBasicReport throws INVALID_ARGUMENT when reportingInterval reportStart missing`() =
@@ -681,17 +656,17 @@ class BasicReportsServiceTest {
 
       val request = createBasicReportRequest {
         parent = measurementConsumerKey.toName()
-        basicReport = BASIC_REPORT.copy {
-          campaignGroup = campaignGroupKey.toName()
-          reportingInterval = this.reportingInterval.copy { clearReportStart() }
-        }
+        basicReport =
+          BASIC_REPORT.copy {
+            campaignGroup = campaignGroupKey.toName()
+            reportingInterval = this.reportingInterval.copy { clearReportStart() }
+          }
         basicReportId = "a1234"
       }
-          val exception = assertFailsWith<StatusRuntimeException> {
-      withPrincipalAndScopes(PRINCIPAL, SCOPES) {
-        service.createBasicReport(request)
-      }
-    }
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+        }
 
       assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
       assertThat(exception.errorInfo)
@@ -699,7 +674,8 @@ class BasicReportsServiceTest {
           errorInfo {
             domain = Errors.DOMAIN
             reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
-            metadata[Errors.Metadata.FIELD_NAME.key] = "basic_report.reporting_interval.report_start"
+            metadata[Errors.Metadata.FIELD_NAME.key] =
+              "basic_report.reporting_interval.report_start"
           }
         )
     }
@@ -729,17 +705,17 @@ class BasicReportsServiceTest {
 
       val request = createBasicReportRequest {
         parent = measurementConsumerKey.toName()
-        basicReport = BASIC_REPORT.copy {
-          campaignGroup = campaignGroupKey.toName()
-          reportingInterval = this.reportingInterval.copy { clearReportEnd() }
-        }
+        basicReport =
+          BASIC_REPORT.copy {
+            campaignGroup = campaignGroupKey.toName()
+            reportingInterval = this.reportingInterval.copy { clearReportEnd() }
+          }
         basicReportId = "a1234"
       }
-          val exception = assertFailsWith<StatusRuntimeException> {
-      withPrincipalAndScopes(PRINCIPAL, SCOPES) {
-        service.createBasicReport(request)
-      }
-    }
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+        }
 
       assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
       assertThat(exception.errorInfo)
@@ -753,148 +729,148 @@ class BasicReportsServiceTest {
     }
 
   @Test
-  fun `createBasicReport throws INVALID_ARGUMENT when reportStart year missing`() =
-    runBlocking {
-      val measurementConsumerKey = MeasurementConsumerKey("1234")
-      val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
+  fun `createBasicReport throws INVALID_ARGUMENT when reportStart year missing`() = runBlocking {
+    val measurementConsumerKey = MeasurementConsumerKey("1234")
+    val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
 
-      measurementConsumersService.createMeasurementConsumer(
-        measurementConsumer {
-          cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
-        }
-      )
-
-      reportingSetsService.createReportingSet(
-        createReportingSetRequest {
-          reportingSet =
-            INTERNAL_CAMPAIGN_GROUP.copy {
-              cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
-              externalCampaignGroupId = campaignGroupKey.reportingSetId
-            }
-          externalReportingSetId = campaignGroupKey.reportingSetId
-        }
-      )
-
-      val request = createBasicReportRequest {
-        parent = measurementConsumerKey.toName()
-        basicReport = BASIC_REPORT.copy {
-          campaignGroup = campaignGroupKey.toName()
-          reportingInterval = this.reportingInterval.copy { reportStart = this.reportStart.copy { clearYear() } }
-        }
-        basicReportId = "a1234"
+    measurementConsumersService.createMeasurementConsumer(
+      measurementConsumer {
+        cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
       }
-          val exception = assertFailsWith<StatusRuntimeException> {
-      withPrincipalAndScopes(PRINCIPAL, SCOPES) {
-        service.createBasicReport(request)
-      }
-    }
+    )
 
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception.errorInfo)
-        .isEqualTo(
-          errorInfo {
-            domain = Errors.DOMAIN
-            reason = Errors.Reason.INVALID_FIELD_VALUE.name
-            metadata[Errors.Metadata.FIELD_NAME.key] = "basic_report.reporting_interval.report_start"
+    reportingSetsService.createReportingSet(
+      createReportingSetRequest {
+        reportingSet =
+          INTERNAL_CAMPAIGN_GROUP.copy {
+            cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+            externalCampaignGroupId = campaignGroupKey.reportingSetId
           }
-        )
+        externalReportingSetId = campaignGroupKey.reportingSetId
+      }
+    )
+
+    val request = createBasicReportRequest {
+      parent = measurementConsumerKey.toName()
+      basicReport =
+        BASIC_REPORT.copy {
+          campaignGroup = campaignGroupKey.toName()
+          reportingInterval =
+            this.reportingInterval.copy { reportStart = this.reportStart.copy { clearYear() } }
+        }
+      basicReportId = "a1234"
     }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.INVALID_FIELD_VALUE.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "basic_report.reporting_interval.report_start"
+        }
+      )
+  }
 
   @Test
-  fun `createBasicReport throws INVALID_ARGUMENT when reportStart month missing`() =
-    runBlocking {
-      val measurementConsumerKey = MeasurementConsumerKey("1234")
-      val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
+  fun `createBasicReport throws INVALID_ARGUMENT when reportStart month missing`() = runBlocking {
+    val measurementConsumerKey = MeasurementConsumerKey("1234")
+    val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
 
-      measurementConsumersService.createMeasurementConsumer(
-        measurementConsumer {
-          cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
-        }
-      )
-
-      reportingSetsService.createReportingSet(
-        createReportingSetRequest {
-          reportingSet =
-            INTERNAL_CAMPAIGN_GROUP.copy {
-              cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
-              externalCampaignGroupId = campaignGroupKey.reportingSetId
-            }
-          externalReportingSetId = campaignGroupKey.reportingSetId
-        }
-      )
-
-      val request = createBasicReportRequest {
-        parent = measurementConsumerKey.toName()
-        basicReport = BASIC_REPORT.copy {
-          campaignGroup = campaignGroupKey.toName()
-          reportingInterval = this.reportingInterval.copy { reportStart = this.reportStart.copy { clearMonth() } }
-        }
-        basicReportId = "a1234"
+    measurementConsumersService.createMeasurementConsumer(
+      measurementConsumer {
+        cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
       }
-          val exception = assertFailsWith<StatusRuntimeException> {
-      withPrincipalAndScopes(PRINCIPAL, SCOPES) {
-        service.createBasicReport(request)
-      }
-    }
+    )
 
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception.errorInfo)
-        .isEqualTo(
-          errorInfo {
-            domain = Errors.DOMAIN
-            reason = Errors.Reason.INVALID_FIELD_VALUE.name
-            metadata[Errors.Metadata.FIELD_NAME.key] = "basic_report.reporting_interval.report_start"
+    reportingSetsService.createReportingSet(
+      createReportingSetRequest {
+        reportingSet =
+          INTERNAL_CAMPAIGN_GROUP.copy {
+            cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+            externalCampaignGroupId = campaignGroupKey.reportingSetId
           }
-        )
+        externalReportingSetId = campaignGroupKey.reportingSetId
+      }
+    )
+
+    val request = createBasicReportRequest {
+      parent = measurementConsumerKey.toName()
+      basicReport =
+        BASIC_REPORT.copy {
+          campaignGroup = campaignGroupKey.toName()
+          reportingInterval =
+            this.reportingInterval.copy { reportStart = this.reportStart.copy { clearMonth() } }
+        }
+      basicReportId = "a1234"
     }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.INVALID_FIELD_VALUE.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "basic_report.reporting_interval.report_start"
+        }
+      )
+  }
 
   @Test
-  fun `createBasicReport throws INVALID_ARGUMENT when reportStart day missing`() =
-    runBlocking {
-      val measurementConsumerKey = MeasurementConsumerKey("1234")
-      val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
+  fun `createBasicReport throws INVALID_ARGUMENT when reportStart day missing`() = runBlocking {
+    val measurementConsumerKey = MeasurementConsumerKey("1234")
+    val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
 
-      measurementConsumersService.createMeasurementConsumer(
-        measurementConsumer {
-          cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
-        }
-      )
-
-      reportingSetsService.createReportingSet(
-        createReportingSetRequest {
-          reportingSet =
-            INTERNAL_CAMPAIGN_GROUP.copy {
-              cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
-              externalCampaignGroupId = campaignGroupKey.reportingSetId
-            }
-          externalReportingSetId = campaignGroupKey.reportingSetId
-        }
-      )
-
-      val request = createBasicReportRequest {
-        parent = measurementConsumerKey.toName()
-        basicReport = BASIC_REPORT.copy {
-          campaignGroup = campaignGroupKey.toName()
-          reportingInterval = this.reportingInterval.copy { reportStart = this.reportStart.copy { clearDay() } }
-        }
-        basicReportId = "a1234"
+    measurementConsumersService.createMeasurementConsumer(
+      measurementConsumer {
+        cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
       }
-          val exception = assertFailsWith<StatusRuntimeException> {
-      withPrincipalAndScopes(PRINCIPAL, SCOPES) {
-        service.createBasicReport(request)
-      }
-    }
+    )
 
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception.errorInfo)
-        .isEqualTo(
-          errorInfo {
-            domain = Errors.DOMAIN
-            reason = Errors.Reason.INVALID_FIELD_VALUE.name
-            metadata[Errors.Metadata.FIELD_NAME.key] = "basic_report.reporting_interval.report_start"
+    reportingSetsService.createReportingSet(
+      createReportingSetRequest {
+        reportingSet =
+          INTERNAL_CAMPAIGN_GROUP.copy {
+            cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+            externalCampaignGroupId = campaignGroupKey.reportingSetId
           }
-        )
+        externalReportingSetId = campaignGroupKey.reportingSetId
+      }
+    )
+
+    val request = createBasicReportRequest {
+      parent = measurementConsumerKey.toName()
+      basicReport =
+        BASIC_REPORT.copy {
+          campaignGroup = campaignGroupKey.toName()
+          reportingInterval =
+            this.reportingInterval.copy { reportStart = this.reportStart.copy { clearDay() } }
+        }
+      basicReportId = "a1234"
     }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.INVALID_FIELD_VALUE.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "basic_report.reporting_interval.report_start"
+        }
+      )
+  }
 
   @Test
   fun `createBasicReport throws INVALID_ARGUMENT when reportStart time zone missing`() =
@@ -921,17 +897,20 @@ class BasicReportsServiceTest {
 
       val request = createBasicReportRequest {
         parent = measurementConsumerKey.toName()
-        basicReport = BASIC_REPORT.copy {
-          campaignGroup = campaignGroupKey.toName()
-          reportingInterval = this.reportingInterval.copy { reportStart = this.reportStart.copy { clearTimeZone() } }
-        }
+        basicReport =
+          BASIC_REPORT.copy {
+            campaignGroup = campaignGroupKey.toName()
+            reportingInterval =
+              this.reportingInterval.copy {
+                reportStart = this.reportStart.copy { clearTimeZone() }
+              }
+          }
         basicReportId = "a1234"
       }
-          val exception = assertFailsWith<StatusRuntimeException> {
-      withPrincipalAndScopes(PRINCIPAL, SCOPES) {
-        service.createBasicReport(request)
-      }
-    }
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+        }
 
       assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
       assertThat(exception.errorInfo)
@@ -939,202 +918,202 @@ class BasicReportsServiceTest {
           errorInfo {
             domain = Errors.DOMAIN
             reason = Errors.Reason.INVALID_FIELD_VALUE.name
-            metadata[Errors.Metadata.FIELD_NAME.key] = "basic_report.reporting_interval.report_start"
+            metadata[Errors.Metadata.FIELD_NAME.key] =
+              "basic_report.reporting_interval.report_start"
           }
         )
     }
 
   @Test
-  fun `createBasicReport throws INVALID_ARGUMENT when reportEnd year missing`() =
-    runBlocking {
-      val measurementConsumerKey = MeasurementConsumerKey("1234")
-      val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
+  fun `createBasicReport throws INVALID_ARGUMENT when reportEnd year missing`() = runBlocking {
+    val measurementConsumerKey = MeasurementConsumerKey("1234")
+    val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
 
-      measurementConsumersService.createMeasurementConsumer(
-        measurementConsumer {
-          cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
-        }
-      )
+    measurementConsumersService.createMeasurementConsumer(
+      measurementConsumer {
+        cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+      }
+    )
 
-      reportingSetsService.createReportingSet(
-        createReportingSetRequest {
-          reportingSet =
-            INTERNAL_CAMPAIGN_GROUP.copy {
-              cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
-              externalCampaignGroupId = campaignGroupKey.reportingSetId
-            }
-          externalReportingSetId = campaignGroupKey.reportingSetId
-        }
-      )
+    reportingSetsService.createReportingSet(
+      createReportingSetRequest {
+        reportingSet =
+          INTERNAL_CAMPAIGN_GROUP.copy {
+            cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+            externalCampaignGroupId = campaignGroupKey.reportingSetId
+          }
+        externalReportingSetId = campaignGroupKey.reportingSetId
+      }
+    )
 
-      val request = createBasicReportRequest {
-        parent = measurementConsumerKey.toName()
-        basicReport = BASIC_REPORT.copy {
+    val request = createBasicReportRequest {
+      parent = measurementConsumerKey.toName()
+      basicReport =
+        BASIC_REPORT.copy {
           campaignGroup = campaignGroupKey.toName()
-          reportingInterval = this.reportingInterval.copy { reportEnd = this.reportEnd.copy { clearYear() } }
+          reportingInterval =
+            this.reportingInterval.copy { reportEnd = this.reportEnd.copy { clearYear() } }
         }
-        basicReportId = "a1234"
-      }
-          val exception = assertFailsWith<StatusRuntimeException> {
-      withPrincipalAndScopes(PRINCIPAL, SCOPES) {
-        service.createBasicReport(request)
-      }
+      basicReportId = "a1234"
     }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+      }
 
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception.errorInfo)
-        .isEqualTo(
-          errorInfo {
-            domain = Errors.DOMAIN
-            reason = Errors.Reason.INVALID_FIELD_VALUE.name
-            metadata[Errors.Metadata.FIELD_NAME.key] = "basic_report.reporting_interval.report_end"
-          }
-        )
-    }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.INVALID_FIELD_VALUE.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "basic_report.reporting_interval.report_end"
+        }
+      )
+  }
 
   @Test
-  fun `createBasicReport throws INVALID_ARGUMENT when reportEnd month missing`() =
-    runBlocking {
-      val measurementConsumerKey = MeasurementConsumerKey("1234")
-      val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
+  fun `createBasicReport throws INVALID_ARGUMENT when reportEnd month missing`() = runBlocking {
+    val measurementConsumerKey = MeasurementConsumerKey("1234")
+    val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
 
-      measurementConsumersService.createMeasurementConsumer(
-        measurementConsumer {
-          cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
-        }
-      )
+    measurementConsumersService.createMeasurementConsumer(
+      measurementConsumer {
+        cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+      }
+    )
 
-      reportingSetsService.createReportingSet(
-        createReportingSetRequest {
-          reportingSet =
-            INTERNAL_CAMPAIGN_GROUP.copy {
-              cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
-              externalCampaignGroupId = campaignGroupKey.reportingSetId
-            }
-          externalReportingSetId = campaignGroupKey.reportingSetId
-        }
-      )
+    reportingSetsService.createReportingSet(
+      createReportingSetRequest {
+        reportingSet =
+          INTERNAL_CAMPAIGN_GROUP.copy {
+            cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+            externalCampaignGroupId = campaignGroupKey.reportingSetId
+          }
+        externalReportingSetId = campaignGroupKey.reportingSetId
+      }
+    )
 
-      val request = createBasicReportRequest {
-        parent = measurementConsumerKey.toName()
-        basicReport = BASIC_REPORT.copy {
+    val request = createBasicReportRequest {
+      parent = measurementConsumerKey.toName()
+      basicReport =
+        BASIC_REPORT.copy {
           campaignGroup = campaignGroupKey.toName()
-          reportingInterval = this.reportingInterval.copy { reportEnd = this.reportEnd.copy { clearMonth() } }
+          reportingInterval =
+            this.reportingInterval.copy { reportEnd = this.reportEnd.copy { clearMonth() } }
         }
-        basicReportId = "a1234"
-      }
-          val exception = assertFailsWith<StatusRuntimeException> {
-      withPrincipalAndScopes(PRINCIPAL, SCOPES) {
-        service.createBasicReport(request)
-      }
+      basicReportId = "a1234"
     }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+      }
 
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception.errorInfo)
-        .isEqualTo(
-          errorInfo {
-            domain = Errors.DOMAIN
-            reason = Errors.Reason.INVALID_FIELD_VALUE.name
-            metadata[Errors.Metadata.FIELD_NAME.key] = "basic_report.reporting_interval.report_end"
-          }
-        )
-    }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.INVALID_FIELD_VALUE.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "basic_report.reporting_interval.report_end"
+        }
+      )
+  }
 
   @Test
-  fun `createBasicReport throws INVALID_ARGUMENT when reportEnd day missing`() =
-    runBlocking {
-      val measurementConsumerKey = MeasurementConsumerKey("1234")
-      val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
+  fun `createBasicReport throws INVALID_ARGUMENT when reportEnd day missing`() = runBlocking {
+    val measurementConsumerKey = MeasurementConsumerKey("1234")
+    val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
 
-      measurementConsumersService.createMeasurementConsumer(
-        measurementConsumer {
-          cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
-        }
-      )
+    measurementConsumersService.createMeasurementConsumer(
+      measurementConsumer {
+        cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+      }
+    )
 
-      reportingSetsService.createReportingSet(
-        createReportingSetRequest {
-          reportingSet =
-            INTERNAL_CAMPAIGN_GROUP.copy {
-              cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
-              externalCampaignGroupId = campaignGroupKey.reportingSetId
-            }
-          externalReportingSetId = campaignGroupKey.reportingSetId
-        }
-      )
+    reportingSetsService.createReportingSet(
+      createReportingSetRequest {
+        reportingSet =
+          INTERNAL_CAMPAIGN_GROUP.copy {
+            cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+            externalCampaignGroupId = campaignGroupKey.reportingSetId
+          }
+        externalReportingSetId = campaignGroupKey.reportingSetId
+      }
+    )
 
-      val request = createBasicReportRequest {
-        parent = measurementConsumerKey.toName()
-        basicReport = BASIC_REPORT.copy {
+    val request = createBasicReportRequest {
+      parent = measurementConsumerKey.toName()
+      basicReport =
+        BASIC_REPORT.copy {
           campaignGroup = campaignGroupKey.toName()
-          reportingInterval = this.reportingInterval.copy { reportEnd = this.reportEnd.copy { clearDay() } }
+          reportingInterval =
+            this.reportingInterval.copy { reportEnd = this.reportEnd.copy { clearDay() } }
         }
-        basicReportId = "a1234"
-      }
-          val exception = assertFailsWith<StatusRuntimeException> {
-      withPrincipalAndScopes(PRINCIPAL, SCOPES) {
-        service.createBasicReport(request)
-      }
+      basicReportId = "a1234"
     }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+      }
 
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception.errorInfo)
-        .isEqualTo(
-          errorInfo {
-            domain = Errors.DOMAIN
-            reason = Errors.Reason.INVALID_FIELD_VALUE.name
-            metadata[Errors.Metadata.FIELD_NAME.key] = "basic_report.reporting_interval.report_end"
-          }
-        )
-    }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.INVALID_FIELD_VALUE.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "basic_report.reporting_interval.report_end"
+        }
+      )
+  }
 
   @Test
-  fun `createBasicReport throws INVALID_ARGUMENT when reporting IQFs missing`() =
-    runBlocking {
-      val measurementConsumerKey = MeasurementConsumerKey("1234")
-      val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
+  fun `createBasicReport throws INVALID_ARGUMENT when reporting IQFs missing`() = runBlocking {
+    val measurementConsumerKey = MeasurementConsumerKey("1234")
+    val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
 
-      measurementConsumersService.createMeasurementConsumer(
-        measurementConsumer {
-          cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
-        }
-      )
+    measurementConsumersService.createMeasurementConsumer(
+      measurementConsumer {
+        cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+      }
+    )
 
-      reportingSetsService.createReportingSet(
-        createReportingSetRequest {
-          reportingSet =
-            INTERNAL_CAMPAIGN_GROUP.copy {
-              cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
-              externalCampaignGroupId = campaignGroupKey.reportingSetId
-            }
-          externalReportingSetId = campaignGroupKey.reportingSetId
-        }
-      )
+    reportingSetsService.createReportingSet(
+      createReportingSetRequest {
+        reportingSet =
+          INTERNAL_CAMPAIGN_GROUP.copy {
+            cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+            externalCampaignGroupId = campaignGroupKey.reportingSetId
+          }
+        externalReportingSetId = campaignGroupKey.reportingSetId
+      }
+    )
 
-      val request = createBasicReportRequest {
-        parent = measurementConsumerKey.toName()
-        basicReport = BASIC_REPORT.copy {
+    val request = createBasicReportRequest {
+      parent = measurementConsumerKey.toName()
+      basicReport =
+        BASIC_REPORT.copy {
           campaignGroup = campaignGroupKey.toName()
           impressionQualificationFilters.clear()
         }
-        basicReportId = "a1234"
-      }
-          val exception = assertFailsWith<StatusRuntimeException> {
-      withPrincipalAndScopes(PRINCIPAL, SCOPES) {
-        service.createBasicReport(request)
-      }
+      basicReportId = "a1234"
     }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+      }
 
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception.errorInfo)
-        .isEqualTo(
-          errorInfo {
-            domain = Errors.DOMAIN
-            reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
-            metadata[Errors.Metadata.FIELD_NAME.key] = "basic_report.impression_qualification_filters"
-          }
-        )
-    }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "basic_report.impression_qualification_filters"
+        }
+      )
+  }
 
   @Test
   fun `createBasicReport throws INVALID_ARGUMENT when reporting IQFs have invalid IQF name`() =
@@ -1161,20 +1140,20 @@ class BasicReportsServiceTest {
 
       val request = createBasicReportRequest {
         parent = measurementConsumerKey.toName()
-        basicReport = BASIC_REPORT.copy {
-          campaignGroup = campaignGroupKey.toName()
-          impressionQualificationFilters.clear()
-          impressionQualificationFilters += reportingImpressionQualificationFilter {
-            impressionQualificationFilter = "1234"
+        basicReport =
+          BASIC_REPORT.copy {
+            campaignGroup = campaignGroupKey.toName()
+            impressionQualificationFilters.clear()
+            impressionQualificationFilters += reportingImpressionQualificationFilter {
+              impressionQualificationFilter = "1234"
+            }
           }
-        }
         basicReportId = "a1234"
       }
-          val exception = assertFailsWith<StatusRuntimeException> {
-      withPrincipalAndScopes(PRINCIPAL, SCOPES) {
-        service.createBasicReport(request)
-      }
-    }
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+        }
 
       assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
       assertThat(exception.errorInfo)
@@ -1182,7 +1161,8 @@ class BasicReportsServiceTest {
           errorInfo {
             domain = Errors.DOMAIN
             reason = Errors.Reason.INVALID_FIELD_VALUE.name
-            metadata[Errors.Metadata.FIELD_NAME.key] = "basic_report.impression_qualification_filters.impression_qualification_filter"
+            metadata[Errors.Metadata.FIELD_NAME.key] =
+              "basic_report.impression_qualification_filters.impression_qualification_filter"
           }
         )
     }
@@ -1212,20 +1192,21 @@ class BasicReportsServiceTest {
 
       val request = createBasicReportRequest {
         parent = measurementConsumerKey.toName()
-        basicReport = BASIC_REPORT.copy {
-          campaignGroup = campaignGroupKey.toName()
-          impressionQualificationFilters.clear()
-          impressionQualificationFilters += reportingImpressionQualificationFilter {
-            custom = ReportingImpressionQualificationFilterKt.customImpressionQualificationFilterSpec {  }
+        basicReport =
+          BASIC_REPORT.copy {
+            campaignGroup = campaignGroupKey.toName()
+            impressionQualificationFilters.clear()
+            impressionQualificationFilters += reportingImpressionQualificationFilter {
+              custom =
+                ReportingImpressionQualificationFilterKt.customImpressionQualificationFilterSpec {}
+            }
           }
-        }
         basicReportId = "a1234"
       }
-          val exception = assertFailsWith<StatusRuntimeException> {
-      withPrincipalAndScopes(PRINCIPAL, SCOPES) {
-        service.createBasicReport(request)
-      }
-    }
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+        }
 
       assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
       assertThat(exception.errorInfo)
@@ -1233,7 +1214,8 @@ class BasicReportsServiceTest {
           errorInfo {
             domain = Errors.DOMAIN
             reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
-            metadata[Errors.Metadata.FIELD_NAME.key] = "basic_report.impression_qualification_filters.custom.filter_spec"
+            metadata[Errors.Metadata.FIELD_NAME.key] =
+              "basic_report.impression_qualification_filters.custom.filter_spec"
           }
         )
     }
@@ -1263,39 +1245,40 @@ class BasicReportsServiceTest {
 
       val request = createBasicReportRequest {
         parent = measurementConsumerKey.toName()
-        basicReport = BASIC_REPORT.copy {
-          campaignGroup = campaignGroupKey.toName()
-          impressionQualificationFilters.clear()
-          impressionQualificationFilters += reportingImpressionQualificationFilter {
-            custom = ReportingImpressionQualificationFilterKt.customImpressionQualificationFilterSpec {
-              filterSpec += impressionQualificationFilterSpec {
-                mediaType = MediaType.VIDEO
-                filters += eventFilter {
-                  terms += eventTemplateField {
-                    path = "common.age_group"
-                    value = EventTemplateFieldKt.fieldValue { enumValue = "18_TO_35" }
+        basicReport =
+          BASIC_REPORT.copy {
+            campaignGroup = campaignGroupKey.toName()
+            impressionQualificationFilters.clear()
+            impressionQualificationFilters += reportingImpressionQualificationFilter {
+              custom =
+                ReportingImpressionQualificationFilterKt.customImpressionQualificationFilterSpec {
+                  filterSpec += impressionQualificationFilterSpec {
+                    mediaType = MediaType.VIDEO
+                    filters += eventFilter {
+                      terms += eventTemplateField {
+                        path = "common.age_group"
+                        value = EventTemplateFieldKt.fieldValue { enumValue = "18_TO_35" }
+                      }
+                    }
+                  }
+                  filterSpec += impressionQualificationFilterSpec {
+                    mediaType = MediaType.VIDEO
+                    filters += eventFilter {
+                      terms += eventTemplateField {
+                        path = "common.age_group"
+                        value = EventTemplateFieldKt.fieldValue { enumValue = "18_TO_35" }
+                      }
+                    }
                   }
                 }
-              }
-              filterSpec += impressionQualificationFilterSpec {
-                mediaType = MediaType.VIDEO
-                filters += eventFilter {
-                  terms += eventTemplateField {
-                    path = "common.age_group"
-                    value = EventTemplateFieldKt.fieldValue { enumValue = "18_TO_35" }
-                  }
-                }
-              }
             }
           }
-        }
         basicReportId = "a1234"
       }
-          val exception = assertFailsWith<StatusRuntimeException> {
-      withPrincipalAndScopes(PRINCIPAL, SCOPES) {
-        service.createBasicReport(request)
-      }
-    }
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+        }
 
       assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
       assertThat(exception.errorInfo)
@@ -1303,7 +1286,8 @@ class BasicReportsServiceTest {
           errorInfo {
             domain = Errors.DOMAIN
             reason = Errors.Reason.INVALID_FIELD_VALUE.name
-            metadata[Errors.Metadata.FIELD_NAME.key] = "basic_report.impression_qualification_filters.custom.filter_spec"
+            metadata[Errors.Metadata.FIELD_NAME.key] =
+              "basic_report.impression_qualification_filters.custom.filter_spec"
           }
         )
     }
@@ -1333,24 +1317,23 @@ class BasicReportsServiceTest {
 
       val request = createBasicReportRequest {
         parent = measurementConsumerKey.toName()
-        basicReport = BASIC_REPORT.copy {
-          campaignGroup = campaignGroupKey.toName()
-          impressionQualificationFilters.clear()
-          impressionQualificationFilters += reportingImpressionQualificationFilter {
-            custom = ReportingImpressionQualificationFilterKt.customImpressionQualificationFilterSpec {
-              filterSpec += impressionQualificationFilterSpec {
-                mediaType = MediaType.VIDEO
-              }
+        basicReport =
+          BASIC_REPORT.copy {
+            campaignGroup = campaignGroupKey.toName()
+            impressionQualificationFilters.clear()
+            impressionQualificationFilters += reportingImpressionQualificationFilter {
+              custom =
+                ReportingImpressionQualificationFilterKt.customImpressionQualificationFilterSpec {
+                  filterSpec += impressionQualificationFilterSpec { mediaType = MediaType.VIDEO }
+                }
             }
           }
-        }
         basicReportId = "a1234"
       }
-          val exception = assertFailsWith<StatusRuntimeException> {
-      withPrincipalAndScopes(PRINCIPAL, SCOPES) {
-        service.createBasicReport(request)
-      }
-    }
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+        }
 
       assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
       assertThat(exception.errorInfo)
@@ -1358,7 +1341,8 @@ class BasicReportsServiceTest {
           errorInfo {
             domain = Errors.DOMAIN
             reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
-            metadata[Errors.Metadata.FIELD_NAME.key] = "basic_report.impression_qualification_filters.custom.filter_spec.filters"
+            metadata[Errors.Metadata.FIELD_NAME.key] =
+              "basic_report.impression_qualification_filters.custom.filter_spec.filters"
           }
         )
     }
@@ -1388,26 +1372,26 @@ class BasicReportsServiceTest {
 
       val request = createBasicReportRequest {
         parent = measurementConsumerKey.toName()
-        basicReport = BASIC_REPORT.copy {
-          campaignGroup = campaignGroupKey.toName()
-          impressionQualificationFilters.clear()
-          impressionQualificationFilters += reportingImpressionQualificationFilter {
-            custom = ReportingImpressionQualificationFilterKt.customImpressionQualificationFilterSpec {
-              filterSpec += impressionQualificationFilterSpec {
-                mediaType = MediaType.VIDEO
-                filters += eventFilter {
+        basicReport =
+          BASIC_REPORT.copy {
+            campaignGroup = campaignGroupKey.toName()
+            impressionQualificationFilters.clear()
+            impressionQualificationFilters += reportingImpressionQualificationFilter {
+              custom =
+                ReportingImpressionQualificationFilterKt.customImpressionQualificationFilterSpec {
+                  filterSpec += impressionQualificationFilterSpec {
+                    mediaType = MediaType.VIDEO
+                    filters += eventFilter {}
+                  }
                 }
-              }
             }
           }
-        }
         basicReportId = "a1234"
       }
-          val exception = assertFailsWith<StatusRuntimeException> {
-      withPrincipalAndScopes(PRINCIPAL, SCOPES) {
-        service.createBasicReport(request)
-      }
-    }
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+        }
 
       assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
       assertThat(exception.errorInfo)
@@ -1415,7 +1399,8 @@ class BasicReportsServiceTest {
           errorInfo {
             domain = Errors.DOMAIN
             reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
-            metadata[Errors.Metadata.FIELD_NAME.key] = "basic_report.impression_qualification_filters.custom.filter_spec.filters.terms"
+            metadata[Errors.Metadata.FIELD_NAME.key] =
+              "basic_report.impression_qualification_filters.custom.filter_spec.filters.terms"
           }
         )
     }
@@ -1445,29 +1430,30 @@ class BasicReportsServiceTest {
 
       val request = createBasicReportRequest {
         parent = measurementConsumerKey.toName()
-        basicReport = BASIC_REPORT.copy {
-          campaignGroup = campaignGroupKey.toName()
-          impressionQualificationFilters.clear()
-          impressionQualificationFilters += reportingImpressionQualificationFilter {
-            custom = ReportingImpressionQualificationFilterKt.customImpressionQualificationFilterSpec {
-              filterSpec += impressionQualificationFilterSpec {
-                mediaType = MediaType.VIDEO
-                filters += eventFilter {
-                  terms += eventTemplateField {
-                    value = EventTemplateFieldKt.fieldValue { enumValue = "18_TO_35" }
+        basicReport =
+          BASIC_REPORT.copy {
+            campaignGroup = campaignGroupKey.toName()
+            impressionQualificationFilters.clear()
+            impressionQualificationFilters += reportingImpressionQualificationFilter {
+              custom =
+                ReportingImpressionQualificationFilterKt.customImpressionQualificationFilterSpec {
+                  filterSpec += impressionQualificationFilterSpec {
+                    mediaType = MediaType.VIDEO
+                    filters += eventFilter {
+                      terms += eventTemplateField {
+                        value = EventTemplateFieldKt.fieldValue { enumValue = "18_TO_35" }
+                      }
+                    }
                   }
                 }
-              }
             }
           }
-        }
         basicReportId = "a1234"
       }
-          val exception = assertFailsWith<StatusRuntimeException> {
-      withPrincipalAndScopes(PRINCIPAL, SCOPES) {
-        service.createBasicReport(request)
-      }
-    }
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+        }
 
       assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
       assertThat(exception.errorInfo)
@@ -1475,7 +1461,8 @@ class BasicReportsServiceTest {
           errorInfo {
             domain = Errors.DOMAIN
             reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
-            metadata[Errors.Metadata.FIELD_NAME.key] = "basic_report.impression_qualification_filters.custom.filter_spec.filters.terms.path"
+            metadata[Errors.Metadata.FIELD_NAME.key] =
+              "basic_report.impression_qualification_filters.custom.filter_spec.filters.terms.path"
           }
         )
     }
@@ -1505,29 +1492,28 @@ class BasicReportsServiceTest {
 
       val request = createBasicReportRequest {
         parent = measurementConsumerKey.toName()
-        basicReport = BASIC_REPORT.copy {
-          campaignGroup = campaignGroupKey.toName()
-          impressionQualificationFilters.clear()
-          impressionQualificationFilters += reportingImpressionQualificationFilter {
-            custom = ReportingImpressionQualificationFilterKt.customImpressionQualificationFilterSpec {
-              filterSpec += impressionQualificationFilterSpec {
-                mediaType = MediaType.VIDEO
-                filters += eventFilter {
-                  terms += eventTemplateField {
-                    path = "common.age_group"
+        basicReport =
+          BASIC_REPORT.copy {
+            campaignGroup = campaignGroupKey.toName()
+            impressionQualificationFilters.clear()
+            impressionQualificationFilters += reportingImpressionQualificationFilter {
+              custom =
+                ReportingImpressionQualificationFilterKt.customImpressionQualificationFilterSpec {
+                  filterSpec += impressionQualificationFilterSpec {
+                    mediaType = MediaType.VIDEO
+                    filters += eventFilter {
+                      terms += eventTemplateField { path = "common.age_group" }
+                    }
                   }
                 }
-              }
             }
           }
-        }
         basicReportId = "a1234"
       }
-          val exception = assertFailsWith<StatusRuntimeException> {
-      withPrincipalAndScopes(PRINCIPAL, SCOPES) {
-        service.createBasicReport(request)
-      }
-    }
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+        }
 
       assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
       assertThat(exception.errorInfo)
@@ -1535,7 +1521,8 @@ class BasicReportsServiceTest {
           errorInfo {
             domain = Errors.DOMAIN
             reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
-            metadata[Errors.Metadata.FIELD_NAME.key] = "basic_report.impression_qualification_filters.custom.filter_spec.filters.terms.value"
+            metadata[Errors.Metadata.FIELD_NAME.key] =
+              "basic_report.impression_qualification_filters.custom.filter_spec.filters.terms.value"
           }
         )
     }
@@ -1565,18 +1552,18 @@ class BasicReportsServiceTest {
 
       val request = createBasicReportRequest {
         parent = measurementConsumerKey.toName()
-        basicReport = BASIC_REPORT.copy {
-          campaignGroup = campaignGroupKey.toName()
-          impressionQualificationFilters.clear()
-          impressionQualificationFilters += reportingImpressionQualificationFilter {}
-        }
+        basicReport =
+          BASIC_REPORT.copy {
+            campaignGroup = campaignGroupKey.toName()
+            impressionQualificationFilters.clear()
+            impressionQualificationFilters += reportingImpressionQualificationFilter {}
+          }
         basicReportId = "a1234"
       }
-          val exception = assertFailsWith<StatusRuntimeException> {
-      withPrincipalAndScopes(PRINCIPAL, SCOPES) {
-        service.createBasicReport(request)
-      }
-    }
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+        }
 
       assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
       assertThat(exception.errorInfo)
@@ -1584,58 +1571,58 @@ class BasicReportsServiceTest {
           errorInfo {
             domain = Errors.DOMAIN
             reason = Errors.Reason.INVALID_FIELD_VALUE.name
-            metadata[Errors.Metadata.FIELD_NAME.key] = "basic_report.impression_qualification_filters.selector"
+            metadata[Errors.Metadata.FIELD_NAME.key] =
+              "basic_report.impression_qualification_filters.selector"
           }
         )
     }
 
   @Test
-  fun `createBasicReport throws INVALID_ARGUMENT when result group specs missing`() =
-    runBlocking {
-      val measurementConsumerKey = MeasurementConsumerKey("1234")
-      val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
+  fun `createBasicReport throws INVALID_ARGUMENT when result group specs missing`() = runBlocking {
+    val measurementConsumerKey = MeasurementConsumerKey("1234")
+    val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
 
-      measurementConsumersService.createMeasurementConsumer(
-        measurementConsumer {
-          cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
-        }
-      )
+    measurementConsumersService.createMeasurementConsumer(
+      measurementConsumer {
+        cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+      }
+    )
 
-      reportingSetsService.createReportingSet(
-        createReportingSetRequest {
-          reportingSet =
-            INTERNAL_CAMPAIGN_GROUP.copy {
-              cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
-              externalCampaignGroupId = campaignGroupKey.reportingSetId
-            }
-          externalReportingSetId = campaignGroupKey.reportingSetId
-        }
-      )
+    reportingSetsService.createReportingSet(
+      createReportingSetRequest {
+        reportingSet =
+          INTERNAL_CAMPAIGN_GROUP.copy {
+            cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+            externalCampaignGroupId = campaignGroupKey.reportingSetId
+          }
+        externalReportingSetId = campaignGroupKey.reportingSetId
+      }
+    )
 
-      val request = createBasicReportRequest {
-        parent = measurementConsumerKey.toName()
-        basicReport = BASIC_REPORT.copy {
+    val request = createBasicReportRequest {
+      parent = measurementConsumerKey.toName()
+      basicReport =
+        BASIC_REPORT.copy {
           campaignGroup = campaignGroupKey.toName()
           resultGroupSpecs.clear()
         }
-        basicReportId = "a1234"
-      }
-          val exception = assertFailsWith<StatusRuntimeException> {
-      withPrincipalAndScopes(PRINCIPAL, SCOPES) {
-        service.createBasicReport(request)
-      }
+      basicReportId = "a1234"
     }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+      }
 
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception.errorInfo)
-        .isEqualTo(
-          errorInfo {
-            domain = Errors.DOMAIN
-            reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
-            metadata[Errors.Metadata.FIELD_NAME.key] = "basic_report.result_group_specs"
-          }
-        )
-    }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "basic_report.result_group_specs"
+        }
+      )
+  }
 
   @Test
   fun `createBasicReport throws INVALID_ARGUMENT when result group specs reporting unit missing`() =
@@ -1662,17 +1649,17 @@ class BasicReportsServiceTest {
 
       val request = createBasicReportRequest {
         parent = measurementConsumerKey.toName()
-        basicReport = BASIC_REPORT.copy {
-          campaignGroup = campaignGroupKey.toName()
-          resultGroupSpecs[0] = resultGroupSpecs[0].copy { clearReportingUnit() }
-        }
+        basicReport =
+          BASIC_REPORT.copy {
+            campaignGroup = campaignGroupKey.toName()
+            resultGroupSpecs[0] = resultGroupSpecs[0].copy { clearReportingUnit() }
+          }
         basicReportId = "a1234"
       }
-          val exception = assertFailsWith<StatusRuntimeException> {
-      withPrincipalAndScopes(PRINCIPAL, SCOPES) {
-        service.createBasicReport(request)
-      }
-    }
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+        }
 
       assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
       assertThat(exception.errorInfo)
@@ -1680,7 +1667,8 @@ class BasicReportsServiceTest {
           errorInfo {
             domain = Errors.DOMAIN
             reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
-            metadata[Errors.Metadata.FIELD_NAME.key] = "basic_report.result_group_specs.reporting_unit"
+            metadata[Errors.Metadata.FIELD_NAME.key] =
+              "basic_report.result_group_specs.reporting_unit"
           }
         )
     }
@@ -1710,17 +1698,17 @@ class BasicReportsServiceTest {
 
       val request = createBasicReportRequest {
         parent = measurementConsumerKey.toName()
-        basicReport = BASIC_REPORT.copy {
-          campaignGroup = campaignGroupKey.toName()
-          resultGroupSpecs[0] = resultGroupSpecs[0].copy { reportingUnit = reportingUnit {} }
-        }
+        basicReport =
+          BASIC_REPORT.copy {
+            campaignGroup = campaignGroupKey.toName()
+            resultGroupSpecs[0] = resultGroupSpecs[0].copy { reportingUnit = reportingUnit {} }
+          }
         basicReportId = "a1234"
       }
-          val exception = assertFailsWith<StatusRuntimeException> {
-      withPrincipalAndScopes(PRINCIPAL, SCOPES) {
-        service.createBasicReport(request)
-      }
-    }
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+        }
 
       assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
       assertThat(exception.errorInfo)
@@ -1728,7 +1716,8 @@ class BasicReportsServiceTest {
           errorInfo {
             domain = Errors.DOMAIN
             reason = Errors.Reason.INVALID_FIELD_VALUE.name
-            metadata[Errors.Metadata.FIELD_NAME.key] = "basic_report.result_group_specs.reporting_unit.components"
+            metadata[Errors.Metadata.FIELD_NAME.key] =
+              "basic_report.result_group_specs.reporting_unit.components"
           }
         )
     }
@@ -1758,19 +1747,18 @@ class BasicReportsServiceTest {
 
       val request = createBasicReportRequest {
         parent = measurementConsumerKey.toName()
-        basicReport = BASIC_REPORT.copy {
-          campaignGroup = campaignGroupKey.toName()
-          resultGroupSpecs[0] = resultGroupSpecs[0].copy { reportingUnit = reportingUnit {
-            components += "1234"
-          } }
-        }
+        basicReport =
+          BASIC_REPORT.copy {
+            campaignGroup = campaignGroupKey.toName()
+            resultGroupSpecs[0] =
+              resultGroupSpecs[0].copy { reportingUnit = reportingUnit { components += "1234" } }
+          }
         basicReportId = "a1234"
       }
-          val exception = assertFailsWith<StatusRuntimeException> {
-      withPrincipalAndScopes(PRINCIPAL, SCOPES) {
-        service.createBasicReport(request)
-      }
-    }
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+        }
 
       assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
       assertThat(exception.errorInfo)
@@ -1778,7 +1766,8 @@ class BasicReportsServiceTest {
           errorInfo {
             domain = Errors.DOMAIN
             reason = Errors.Reason.INVALID_FIELD_VALUE.name
-            metadata[Errors.Metadata.FIELD_NAME.key] = "basic_report.result_group_specs.reporting_unit.components"
+            metadata[Errors.Metadata.FIELD_NAME.key] =
+              "basic_report.result_group_specs.reporting_unit.components"
           }
         )
     }
@@ -1808,19 +1797,20 @@ class BasicReportsServiceTest {
 
       val request = createBasicReportRequest {
         parent = measurementConsumerKey.toName()
-        basicReport = BASIC_REPORT.copy {
-          campaignGroup = campaignGroupKey.toName()
-          resultGroupSpecs[0] = resultGroupSpecs[0].copy { reportingUnit = reportingUnit {
-            components += DataProviderKey("4321").toName()
-          } }
-        }
+        basicReport =
+          BASIC_REPORT.copy {
+            campaignGroup = campaignGroupKey.toName()
+            resultGroupSpecs[0] =
+              resultGroupSpecs[0].copy {
+                reportingUnit = reportingUnit { components += DataProviderKey("4321").toName() }
+              }
+          }
         basicReportId = "a1234"
       }
-          val exception = assertFailsWith<StatusRuntimeException> {
-      withPrincipalAndScopes(PRINCIPAL, SCOPES) {
-        service.createBasicReport(request)
-      }
-    }
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+        }
 
       assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
       assertThat(exception.errorInfo)
@@ -1828,58 +1818,59 @@ class BasicReportsServiceTest {
           errorInfo {
             domain = Errors.DOMAIN
             reason = Errors.Reason.INVALID_FIELD_VALUE.name
-            metadata[Errors.Metadata.FIELD_NAME.key] = "basic_report.result_group_specs.reporting_unit.components"
+            metadata[Errors.Metadata.FIELD_NAME.key] =
+              "basic_report.result_group_specs.reporting_unit.components"
           }
         )
     }
 
   @Test
-  fun `createBasicReport throws INVALID_ARGUMENT when dimension spec missing`() =
-    runBlocking {
-      val measurementConsumerKey = MeasurementConsumerKey("1234")
-      val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
+  fun `createBasicReport throws INVALID_ARGUMENT when dimension spec missing`() = runBlocking {
+    val measurementConsumerKey = MeasurementConsumerKey("1234")
+    val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
 
-      measurementConsumersService.createMeasurementConsumer(
-        measurementConsumer {
-          cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
-        }
-      )
+    measurementConsumersService.createMeasurementConsumer(
+      measurementConsumer {
+        cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+      }
+    )
 
-      reportingSetsService.createReportingSet(
-        createReportingSetRequest {
-          reportingSet =
-            INTERNAL_CAMPAIGN_GROUP.copy {
-              cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
-              externalCampaignGroupId = campaignGroupKey.reportingSetId
-            }
-          externalReportingSetId = campaignGroupKey.reportingSetId
-        }
-      )
+    reportingSetsService.createReportingSet(
+      createReportingSetRequest {
+        reportingSet =
+          INTERNAL_CAMPAIGN_GROUP.copy {
+            cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+            externalCampaignGroupId = campaignGroupKey.reportingSetId
+          }
+        externalReportingSetId = campaignGroupKey.reportingSetId
+      }
+    )
 
-      val request = createBasicReportRequest {
-        parent = measurementConsumerKey.toName()
-        basicReport = BASIC_REPORT.copy {
+    val request = createBasicReportRequest {
+      parent = measurementConsumerKey.toName()
+      basicReport =
+        BASIC_REPORT.copy {
           campaignGroup = campaignGroupKey.toName()
           resultGroupSpecs[0] = resultGroupSpecs[0].copy { clearDimensionSpec() }
         }
-        basicReportId = "a1234"
-      }
-          val exception = assertFailsWith<StatusRuntimeException> {
-      withPrincipalAndScopes(PRINCIPAL, SCOPES) {
-        service.createBasicReport(request)
-      }
+      basicReportId = "a1234"
     }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+      }
 
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception.errorInfo)
-        .isEqualTo(
-          errorInfo {
-            domain = Errors.DOMAIN
-            reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
-            metadata[Errors.Metadata.FIELD_NAME.key] = "basic_report.result_group_specs.dimension_spec"
-          }
-        )
-    }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+          metadata[Errors.Metadata.FIELD_NAME.key] =
+            "basic_report.result_group_specs.dimension_spec"
+        }
+      )
+  }
 
   @Test
   fun `createBasicReport throws INVALID_ARGUMENT when dimension spec template fields missing`() =
@@ -1906,21 +1897,23 @@ class BasicReportsServiceTest {
 
       val request = createBasicReportRequest {
         parent = measurementConsumerKey.toName()
-        basicReport = BASIC_REPORT.copy {
-          campaignGroup = campaignGroupKey.toName()
-          resultGroupSpecs[0] = resultGroupSpecs[0].copy {
-            dimensionSpec = BASIC_REPORT.resultGroupSpecsList[0].dimensionSpec.copy {
-              grouping = DimensionSpecKt.grouping { }
-            }
+        basicReport =
+          BASIC_REPORT.copy {
+            campaignGroup = campaignGroupKey.toName()
+            resultGroupSpecs[0] =
+              resultGroupSpecs[0].copy {
+                dimensionSpec =
+                  BASIC_REPORT.resultGroupSpecsList[0].dimensionSpec.copy {
+                    grouping = DimensionSpecKt.grouping {}
+                  }
+              }
           }
-        }
         basicReportId = "a1234"
       }
-          val exception = assertFailsWith<StatusRuntimeException> {
-      withPrincipalAndScopes(PRINCIPAL, SCOPES) {
-        service.createBasicReport(request)
-      }
-    }
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+        }
 
       assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
       assertThat(exception.errorInfo)
@@ -1928,7 +1921,8 @@ class BasicReportsServiceTest {
           errorInfo {
             domain = Errors.DOMAIN
             reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
-            metadata[Errors.Metadata.FIELD_NAME.key] = "basic_report.result_group_specs.dimension_spec.grouping.event_template_fields"
+            metadata[Errors.Metadata.FIELD_NAME.key] =
+              "basic_report.result_group_specs.dimension_spec.grouping.event_template_fields"
           }
         )
     }
@@ -1958,21 +1952,23 @@ class BasicReportsServiceTest {
 
       val request = createBasicReportRequest {
         parent = measurementConsumerKey.toName()
-        basicReport = BASIC_REPORT.copy {
-          campaignGroup = campaignGroupKey.toName()
-          resultGroupSpecs[0] = resultGroupSpecs[0].copy {
-            dimensionSpec = BASIC_REPORT.resultGroupSpecsList[0].dimensionSpec.copy {
-              filters += eventFilter {  }
-            }
+        basicReport =
+          BASIC_REPORT.copy {
+            campaignGroup = campaignGroupKey.toName()
+            resultGroupSpecs[0] =
+              resultGroupSpecs[0].copy {
+                dimensionSpec =
+                  BASIC_REPORT.resultGroupSpecsList[0].dimensionSpec.copy {
+                    filters += eventFilter {}
+                  }
+              }
           }
-        }
         basicReportId = "a1234"
       }
-          val exception = assertFailsWith<StatusRuntimeException> {
-      withPrincipalAndScopes(PRINCIPAL, SCOPES) {
-        service.createBasicReport(request)
-      }
-    }
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+        }
 
       assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
       assertThat(exception.errorInfo)
@@ -1980,7 +1976,8 @@ class BasicReportsServiceTest {
           errorInfo {
             domain = Errors.DOMAIN
             reason = Errors.Reason.INVALID_FIELD_VALUE.name
-            metadata[Errors.Metadata.FIELD_NAME.key] = "basic_report.result_group_specs.dimension_spec.filters.terms"
+            metadata[Errors.Metadata.FIELD_NAME.key] =
+              "basic_report.result_group_specs.dimension_spec.filters.terms"
           }
         )
     }
@@ -2010,30 +2007,32 @@ class BasicReportsServiceTest {
 
       val request = createBasicReportRequest {
         parent = measurementConsumerKey.toName()
-        basicReport = BASIC_REPORT.copy {
-          campaignGroup = campaignGroupKey.toName()
-          resultGroupSpecs[0] = resultGroupSpecs[0].copy {
-            dimensionSpec = BASIC_REPORT.resultGroupSpecsList[0].dimensionSpec.copy {
-              filters += eventFilter {
-                terms += eventTemplateField {
-                  path = "common.age_group"
-                  value = EventTemplateFieldKt.fieldValue { enumValue = "18_TO_35" }
-                }
-                terms += eventTemplateField {
-                  path = "common.age_group"
-                  value = EventTemplateFieldKt.fieldValue { enumValue = "35_TO_54" }
-                }
+        basicReport =
+          BASIC_REPORT.copy {
+            campaignGroup = campaignGroupKey.toName()
+            resultGroupSpecs[0] =
+              resultGroupSpecs[0].copy {
+                dimensionSpec =
+                  BASIC_REPORT.resultGroupSpecsList[0].dimensionSpec.copy {
+                    filters += eventFilter {
+                      terms += eventTemplateField {
+                        path = "common.age_group"
+                        value = EventTemplateFieldKt.fieldValue { enumValue = "18_TO_35" }
+                      }
+                      terms += eventTemplateField {
+                        path = "common.age_group"
+                        value = EventTemplateFieldKt.fieldValue { enumValue = "35_TO_54" }
+                      }
+                    }
+                  }
               }
-            }
           }
-        }
         basicReportId = "a1234"
       }
-          val exception = assertFailsWith<StatusRuntimeException> {
-      withPrincipalAndScopes(PRINCIPAL, SCOPES) {
-        service.createBasicReport(request)
-      }
-    }
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+        }
 
       assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
       assertThat(exception.errorInfo)
@@ -2041,7 +2040,8 @@ class BasicReportsServiceTest {
           errorInfo {
             domain = Errors.DOMAIN
             reason = Errors.Reason.INVALID_FIELD_VALUE.name
-            metadata[Errors.Metadata.FIELD_NAME.key] = "basic_report.result_group_specs.dimension_spec.filters.terms"
+            metadata[Errors.Metadata.FIELD_NAME.key] =
+              "basic_report.result_group_specs.dimension_spec.filters.terms"
           }
         )
     }
@@ -2071,25 +2071,27 @@ class BasicReportsServiceTest {
 
       val request = createBasicReportRequest {
         parent = measurementConsumerKey.toName()
-        basicReport = BASIC_REPORT.copy {
-          campaignGroup = campaignGroupKey.toName()
-          resultGroupSpecs[0] = resultGroupSpecs[0].copy {
-            dimensionSpec = BASIC_REPORT.resultGroupSpecsList[0].dimensionSpec.copy {
-              filters += eventFilter {
-                terms += eventTemplateField {
-                  value = EventTemplateFieldKt.fieldValue { enumValue = "18_TO_35" }
-                }
+        basicReport =
+          BASIC_REPORT.copy {
+            campaignGroup = campaignGroupKey.toName()
+            resultGroupSpecs[0] =
+              resultGroupSpecs[0].copy {
+                dimensionSpec =
+                  BASIC_REPORT.resultGroupSpecsList[0].dimensionSpec.copy {
+                    filters += eventFilter {
+                      terms += eventTemplateField {
+                        value = EventTemplateFieldKt.fieldValue { enumValue = "18_TO_35" }
+                      }
+                    }
+                  }
               }
-            }
           }
-        }
         basicReportId = "a1234"
       }
-          val exception = assertFailsWith<StatusRuntimeException> {
-      withPrincipalAndScopes(PRINCIPAL, SCOPES) {
-        service.createBasicReport(request)
-      }
-    }
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+        }
 
       assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
       assertThat(exception.errorInfo)
@@ -2097,7 +2099,8 @@ class BasicReportsServiceTest {
           errorInfo {
             domain = Errors.DOMAIN
             reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
-            metadata[Errors.Metadata.FIELD_NAME.key] = "basic_report.result_group_specs.dimension_spec.filters.terms.path"
+            metadata[Errors.Metadata.FIELD_NAME.key] =
+              "basic_report.result_group_specs.dimension_spec.filters.terms.path"
           }
         )
     }
@@ -2127,25 +2130,25 @@ class BasicReportsServiceTest {
 
       val request = createBasicReportRequest {
         parent = measurementConsumerKey.toName()
-        basicReport = BASIC_REPORT.copy {
-          campaignGroup = campaignGroupKey.toName()
-          resultGroupSpecs[0] = resultGroupSpecs[0].copy {
-            dimensionSpec = BASIC_REPORT.resultGroupSpecsList[0].dimensionSpec.copy {
-              filters += eventFilter {
-                terms += eventTemplateField {
-                  path = "common.age_group"
-                }
+        basicReport =
+          BASIC_REPORT.copy {
+            campaignGroup = campaignGroupKey.toName()
+            resultGroupSpecs[0] =
+              resultGroupSpecs[0].copy {
+                dimensionSpec =
+                  BASIC_REPORT.resultGroupSpecsList[0].dimensionSpec.copy {
+                    filters += eventFilter {
+                      terms += eventTemplateField { path = "common.age_group" }
+                    }
+                  }
               }
-            }
           }
-        }
         basicReportId = "a1234"
       }
-          val exception = assertFailsWith<StatusRuntimeException> {
-      withPrincipalAndScopes(PRINCIPAL, SCOPES) {
-        service.createBasicReport(request)
-      }
-    }
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+        }
 
       assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
       assertThat(exception.errorInfo)
@@ -2153,7 +2156,8 @@ class BasicReportsServiceTest {
           errorInfo {
             domain = Errors.DOMAIN
             reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
-            metadata[Errors.Metadata.FIELD_NAME.key] = "basic_report.result_group_specs.dimension_spec.filters.terms.value"
+            metadata[Errors.Metadata.FIELD_NAME.key] =
+              "basic_report.result_group_specs.dimension_spec.filters.terms.value"
           }
         )
     }
@@ -2183,19 +2187,17 @@ class BasicReportsServiceTest {
 
       val request = createBasicReportRequest {
         parent = measurementConsumerKey.toName()
-        basicReport = BASIC_REPORT.copy {
-          campaignGroup = campaignGroupKey.toName()
-          resultGroupSpecs[0] = resultGroupSpecs[0].copy {
-            clearResultGroupMetricSpec()
+        basicReport =
+          BASIC_REPORT.copy {
+            campaignGroup = campaignGroupKey.toName()
+            resultGroupSpecs[0] = resultGroupSpecs[0].copy { clearResultGroupMetricSpec() }
           }
-        }
         basicReportId = "a1234"
       }
-          val exception = assertFailsWith<StatusRuntimeException> {
-      withPrincipalAndScopes(PRINCIPAL, SCOPES) {
-        service.createBasicReport(request)
-      }
-    }
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+        }
 
       assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
       assertThat(exception.errorInfo)
@@ -2203,112 +2205,113 @@ class BasicReportsServiceTest {
           errorInfo {
             domain = Errors.DOMAIN
             reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
-            metadata[Errors.Metadata.FIELD_NAME.key] = "basic_report.result_group_specs.result_group_metric_spec"
+            metadata[Errors.Metadata.FIELD_NAME.key] =
+              "basic_report.result_group_specs.result_group_metric_spec"
           }
         )
     }
 
   @Test
-  fun `createBasicReport throws INVALID_ARGUMENT when component intersection set`() =
-    runBlocking {
-      val measurementConsumerKey = MeasurementConsumerKey("1234")
-      val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
+  fun `createBasicReport throws INVALID_ARGUMENT when component intersection set`() = runBlocking {
+    val measurementConsumerKey = MeasurementConsumerKey("1234")
+    val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
 
-      measurementConsumersService.createMeasurementConsumer(
-        measurementConsumer {
-          cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
-        }
-      )
+    measurementConsumersService.createMeasurementConsumer(
+      measurementConsumer {
+        cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+      }
+    )
 
-      reportingSetsService.createReportingSet(
-        createReportingSetRequest {
-          reportingSet =
-            INTERNAL_CAMPAIGN_GROUP.copy {
-              cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
-              externalCampaignGroupId = campaignGroupKey.reportingSetId
-            }
-          externalReportingSetId = campaignGroupKey.reportingSetId
-        }
-      )
+    reportingSetsService.createReportingSet(
+      createReportingSetRequest {
+        reportingSet =
+          INTERNAL_CAMPAIGN_GROUP.copy {
+            cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+            externalCampaignGroupId = campaignGroupKey.reportingSetId
+          }
+        externalReportingSetId = campaignGroupKey.reportingSetId
+      }
+    )
 
-      val request = createBasicReportRequest {
-        parent = measurementConsumerKey.toName()
-        basicReport = BASIC_REPORT.copy {
+    val request = createBasicReportRequest {
+      parent = measurementConsumerKey.toName()
+      basicReport =
+        BASIC_REPORT.copy {
           campaignGroup = campaignGroupKey.toName()
-          resultGroupSpecs[0] = resultGroupSpecs[0].copy {
-            resultGroupMetricSpec = resultGroupMetricSpec {
-              componentIntersection = ResultGroupMetricSpecKt.componentIntersectionMetricSetSpec {  }
+          resultGroupSpecs[0] =
+            resultGroupSpecs[0].copy {
+              resultGroupMetricSpec = resultGroupMetricSpec {
+                componentIntersection =
+                  ResultGroupMetricSpecKt.componentIntersectionMetricSetSpec {}
+              }
             }
-          }
         }
-        basicReportId = "a1234"
-      }
-          val exception = assertFailsWith<StatusRuntimeException> {
-      withPrincipalAndScopes(PRINCIPAL, SCOPES) {
-        service.createBasicReport(request)
-      }
+      basicReportId = "a1234"
     }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+      }
 
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception.errorInfo)
-        .isEqualTo(
-          errorInfo {
-            domain = Errors.DOMAIN
-            reason = Errors.Reason.INVALID_FIELD_VALUE.name
-            metadata[Errors.Metadata.FIELD_NAME.key] = "basic_report.result_group_specs.result_group_metric_spec.component_intersection"
-          }
-        )
-    }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.INVALID_FIELD_VALUE.name
+          metadata[Errors.Metadata.FIELD_NAME.key] =
+            "basic_report.result_group_specs.result_group_metric_spec.component_intersection"
+        }
+      )
+  }
 
   @Test
-  fun `createBasicReport throws INVALID_ARGUMENT when metric frequency not set`() =
-    runBlocking {
-      val measurementConsumerKey = MeasurementConsumerKey("1234")
-      val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
+  fun `createBasicReport throws INVALID_ARGUMENT when metric frequency not set`() = runBlocking {
+    val measurementConsumerKey = MeasurementConsumerKey("1234")
+    val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
 
-      measurementConsumersService.createMeasurementConsumer(
-        measurementConsumer {
-          cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
-        }
-      )
+    measurementConsumersService.createMeasurementConsumer(
+      measurementConsumer {
+        cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+      }
+    )
 
-      reportingSetsService.createReportingSet(
-        createReportingSetRequest {
-          reportingSet =
-            INTERNAL_CAMPAIGN_GROUP.copy {
-              cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
-              externalCampaignGroupId = campaignGroupKey.reportingSetId
-            }
-          externalReportingSetId = campaignGroupKey.reportingSetId
-        }
-      )
+    reportingSetsService.createReportingSet(
+      createReportingSetRequest {
+        reportingSet =
+          INTERNAL_CAMPAIGN_GROUP.copy {
+            cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+            externalCampaignGroupId = campaignGroupKey.reportingSetId
+          }
+        externalReportingSetId = campaignGroupKey.reportingSetId
+      }
+    )
 
-      val request = createBasicReportRequest {
-        parent = measurementConsumerKey.toName()
-        basicReport = BASIC_REPORT.copy {
+    val request = createBasicReportRequest {
+      parent = measurementConsumerKey.toName()
+      basicReport =
+        BASIC_REPORT.copy {
           campaignGroup = campaignGroupKey.toName()
-          resultGroupSpecs[0] = resultGroupSpecs[0].copy {
-            clearMetricFrequency()
-          }
+          resultGroupSpecs[0] = resultGroupSpecs[0].copy { clearMetricFrequency() }
         }
-        basicReportId = "a1234"
-      }
-          val exception = assertFailsWith<StatusRuntimeException> {
-      withPrincipalAndScopes(PRINCIPAL, SCOPES) {
-        service.createBasicReport(request)
-      }
+      basicReportId = "a1234"
     }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+      }
 
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception.errorInfo)
-        .isEqualTo(
-          errorInfo {
-            domain = Errors.DOMAIN
-            reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
-            metadata[Errors.Metadata.FIELD_NAME.key] = "basic_report.result_group_specs.metric_frequency"
-          }
-        )
-    }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+          metadata[Errors.Metadata.FIELD_NAME.key] =
+            "basic_report.result_group_specs.metric_frequency"
+        }
+      )
+  }
 
   @Test
   fun `createBasicReport throws INVALID_ARGUMENT when reporting unit non cumulative with total`() =
@@ -2335,24 +2338,26 @@ class BasicReportsServiceTest {
 
       val request = createBasicReportRequest {
         parent = measurementConsumerKey.toName()
-        basicReport = BASIC_REPORT.copy {
-          campaignGroup = campaignGroupKey.toName()
-          resultGroupSpecs[0] = resultGroupSpecs[0].copy {
-            metricFrequency = metricFrequencySpec { total = true }
-            resultGroupMetricSpec = resultGroupMetricSpec {
-              reportingUnit = ResultGroupMetricSpecKt.reportingUnitMetricSetSpec {
-                nonCumulative = ResultGroupMetricSpecKt.basicMetricSetSpec { }
+        basicReport =
+          BASIC_REPORT.copy {
+            campaignGroup = campaignGroupKey.toName()
+            resultGroupSpecs[0] =
+              resultGroupSpecs[0].copy {
+                metricFrequency = metricFrequencySpec { total = true }
+                resultGroupMetricSpec = resultGroupMetricSpec {
+                  reportingUnit =
+                    ResultGroupMetricSpecKt.reportingUnitMetricSetSpec {
+                      nonCumulative = ResultGroupMetricSpecKt.basicMetricSetSpec {}
+                    }
+                }
               }
-            }
           }
-        }
         basicReportId = "a1234"
       }
-          val exception = assertFailsWith<StatusRuntimeException> {
-      withPrincipalAndScopes(PRINCIPAL, SCOPES) {
-        service.createBasicReport(request)
-      }
-    }
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+        }
 
       assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
       assertThat(exception.errorInfo)
@@ -2360,7 +2365,8 @@ class BasicReportsServiceTest {
           errorInfo {
             domain = Errors.DOMAIN
             reason = Errors.Reason.INVALID_FIELD_VALUE.name
-            metadata[Errors.Metadata.FIELD_NAME.key] = "basic_report.result_group_specs.result_group_metric_spec.reporting_unit.non_cumulative"
+            metadata[Errors.Metadata.FIELD_NAME.key] =
+              "basic_report.result_group_specs.result_group_metric_spec.reporting_unit.non_cumulative"
           }
         )
     }
@@ -2390,24 +2396,26 @@ class BasicReportsServiceTest {
 
       val request = createBasicReportRequest {
         parent = measurementConsumerKey.toName()
-        basicReport = BASIC_REPORT.copy {
-          campaignGroup = campaignGroupKey.toName()
-          resultGroupSpecs[0] = resultGroupSpecs[0].copy {
-            metricFrequency = metricFrequencySpec { total = true }
-            resultGroupMetricSpec = resultGroupMetricSpec {
-              component = ResultGroupMetricSpecKt.componentMetricSetSpec {
-                nonCumulative = ResultGroupMetricSpecKt.basicMetricSetSpec { }
+        basicReport =
+          BASIC_REPORT.copy {
+            campaignGroup = campaignGroupKey.toName()
+            resultGroupSpecs[0] =
+              resultGroupSpecs[0].copy {
+                metricFrequency = metricFrequencySpec { total = true }
+                resultGroupMetricSpec = resultGroupMetricSpec {
+                  component =
+                    ResultGroupMetricSpecKt.componentMetricSetSpec {
+                      nonCumulative = ResultGroupMetricSpecKt.basicMetricSetSpec {}
+                    }
+                }
               }
-            }
           }
-        }
         basicReportId = "a1234"
       }
-          val exception = assertFailsWith<StatusRuntimeException> {
-      withPrincipalAndScopes(PRINCIPAL, SCOPES) {
-        service.createBasicReport(request)
-      }
-    }
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+        }
 
       assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
       assertThat(exception.errorInfo)
@@ -2415,7 +2423,8 @@ class BasicReportsServiceTest {
           errorInfo {
             domain = Errors.DOMAIN
             reason = Errors.Reason.INVALID_FIELD_VALUE.name
-            metadata[Errors.Metadata.FIELD_NAME.key] = "basic_report.result_group_specs.result_group_metric_spec.component.non_cumulative"
+            metadata[Errors.Metadata.FIELD_NAME.key] =
+              "basic_report.result_group_specs.result_group_metric_spec.component.non_cumulative"
           }
         )
     }
@@ -2445,27 +2454,30 @@ class BasicReportsServiceTest {
 
       val request = createBasicReportRequest {
         parent = measurementConsumerKey.toName()
-        basicReport = BASIC_REPORT.copy {
-          campaignGroup = campaignGroupKey.toName()
-          resultGroupSpecs[0] = resultGroupSpecs[0].copy {
-            metricFrequency = metricFrequencySpec { weekly = DayOfWeek.MONDAY }
-            resultGroupMetricSpec = resultGroupMetricSpec {
-              reportingUnit = ResultGroupMetricSpecKt.reportingUnitMetricSetSpec {
-                nonCumulative = ResultGroupMetricSpecKt.basicMetricSetSpec {
-                  kPlusReach = 0
-                  percentKPlusReach = true
+        basicReport =
+          BASIC_REPORT.copy {
+            campaignGroup = campaignGroupKey.toName()
+            resultGroupSpecs[0] =
+              resultGroupSpecs[0].copy {
+                metricFrequency = metricFrequencySpec { weekly = DayOfWeek.MONDAY }
+                resultGroupMetricSpec = resultGroupMetricSpec {
+                  reportingUnit =
+                    ResultGroupMetricSpecKt.reportingUnitMetricSetSpec {
+                      nonCumulative =
+                        ResultGroupMetricSpecKt.basicMetricSetSpec {
+                          kPlusReach = 0
+                          percentKPlusReach = true
+                        }
+                    }
                 }
               }
-            }
           }
-        }
         basicReportId = "a1234"
       }
-          val exception = assertFailsWith<StatusRuntimeException> {
-      withPrincipalAndScopes(PRINCIPAL, SCOPES) {
-        service.createBasicReport(request)
-      }
-    }
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+        }
 
       assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
       assertThat(exception.errorInfo)
@@ -2473,7 +2485,8 @@ class BasicReportsServiceTest {
           errorInfo {
             domain = Errors.DOMAIN
             reason = Errors.Reason.INVALID_FIELD_VALUE.name
-            metadata[Errors.Metadata.FIELD_NAME.key] = "basic_report.result_group_specs.result_group_metric_spec.reporting_unit.non_cumulative.k_plus_reach"
+            metadata[Errors.Metadata.FIELD_NAME.key] =
+              "basic_report.result_group_specs.result_group_metric_spec.reporting_unit.non_cumulative.k_plus_reach"
           }
         )
     }
@@ -2503,27 +2516,30 @@ class BasicReportsServiceTest {
 
       val request = createBasicReportRequest {
         parent = measurementConsumerKey.toName()
-        basicReport = BASIC_REPORT.copy {
-          campaignGroup = campaignGroupKey.toName()
-          resultGroupSpecs[0] = resultGroupSpecs[0].copy {
-            metricFrequency = metricFrequencySpec { weekly = DayOfWeek.MONDAY }
-            resultGroupMetricSpec = resultGroupMetricSpec {
-              reportingUnit = ResultGroupMetricSpecKt.reportingUnitMetricSetSpec {
-                cumulative = ResultGroupMetricSpecKt.basicMetricSetSpec {
-                  kPlusReach = 0
-                  percentKPlusReach = true
+        basicReport =
+          BASIC_REPORT.copy {
+            campaignGroup = campaignGroupKey.toName()
+            resultGroupSpecs[0] =
+              resultGroupSpecs[0].copy {
+                metricFrequency = metricFrequencySpec { weekly = DayOfWeek.MONDAY }
+                resultGroupMetricSpec = resultGroupMetricSpec {
+                  reportingUnit =
+                    ResultGroupMetricSpecKt.reportingUnitMetricSetSpec {
+                      cumulative =
+                        ResultGroupMetricSpecKt.basicMetricSetSpec {
+                          kPlusReach = 0
+                          percentKPlusReach = true
+                        }
+                    }
                 }
               }
-            }
           }
-        }
         basicReportId = "a1234"
       }
-          val exception = assertFailsWith<StatusRuntimeException> {
-      withPrincipalAndScopes(PRINCIPAL, SCOPES) {
-        service.createBasicReport(request)
-      }
-    }
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+        }
 
       assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
       assertThat(exception.errorInfo)
@@ -2531,7 +2547,8 @@ class BasicReportsServiceTest {
           errorInfo {
             domain = Errors.DOMAIN
             reason = Errors.Reason.INVALID_FIELD_VALUE.name
-            metadata[Errors.Metadata.FIELD_NAME.key] = "basic_report.result_group_specs.result_group_metric_spec.reporting_unit.cumulative.k_plus_reach"
+            metadata[Errors.Metadata.FIELD_NAME.key] =
+              "basic_report.result_group_specs.result_group_metric_spec.reporting_unit.cumulative.k_plus_reach"
           }
         )
     }
@@ -2561,24 +2578,26 @@ class BasicReportsServiceTest {
 
       val request = createBasicReportRequest {
         parent = measurementConsumerKey.toName()
-        basicReport = BASIC_REPORT.copy {
-          campaignGroup = campaignGroupKey.toName()
-          resultGroupSpecs[0] = resultGroupSpecs[0].copy {
-            metricFrequency = metricFrequencySpec { weekly = DayOfWeek.MONDAY }
-            resultGroupMetricSpec = resultGroupMetricSpec {
-              reportingUnit = ResultGroupMetricSpecKt.reportingUnitMetricSetSpec {
-                stackedIncrementalReach = true
+        basicReport =
+          BASIC_REPORT.copy {
+            campaignGroup = campaignGroupKey.toName()
+            resultGroupSpecs[0] =
+              resultGroupSpecs[0].copy {
+                metricFrequency = metricFrequencySpec { weekly = DayOfWeek.MONDAY }
+                resultGroupMetricSpec = resultGroupMetricSpec {
+                  reportingUnit =
+                    ResultGroupMetricSpecKt.reportingUnitMetricSetSpec {
+                      stackedIncrementalReach = true
+                    }
+                }
               }
-            }
           }
-        }
         basicReportId = "a1234"
       }
-          val exception = assertFailsWith<StatusRuntimeException> {
-      withPrincipalAndScopes(PRINCIPAL, SCOPES) {
-        service.createBasicReport(request)
-      }
-    }
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+        }
 
       assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
       assertThat(exception.errorInfo)
@@ -2586,7 +2605,8 @@ class BasicReportsServiceTest {
           errorInfo {
             domain = Errors.DOMAIN
             reason = Errors.Reason.INVALID_FIELD_VALUE.name
-            metadata[Errors.Metadata.FIELD_NAME.key] = "basic_report.result_group_specs.result_group_metric_spec.reporting_unit.stacked_incremental_reach"
+            metadata[Errors.Metadata.FIELD_NAME.key] =
+              "basic_report.result_group_specs.result_group_metric_spec.reporting_unit.stacked_incremental_reach"
           }
         )
     }
@@ -2616,27 +2636,30 @@ class BasicReportsServiceTest {
 
       val request = createBasicReportRequest {
         parent = measurementConsumerKey.toName()
-        basicReport = BASIC_REPORT.copy {
-          campaignGroup = campaignGroupKey.toName()
-          resultGroupSpecs[0] = resultGroupSpecs[0].copy {
-            metricFrequency = metricFrequencySpec { weekly = DayOfWeek.MONDAY }
-            resultGroupMetricSpec = resultGroupMetricSpec {
-              component = ResultGroupMetricSpecKt.componentMetricSetSpec {
-                nonCumulative = ResultGroupMetricSpecKt.basicMetricSetSpec {
-                  kPlusReach = 0
-                  percentKPlusReach = true
+        basicReport =
+          BASIC_REPORT.copy {
+            campaignGroup = campaignGroupKey.toName()
+            resultGroupSpecs[0] =
+              resultGroupSpecs[0].copy {
+                metricFrequency = metricFrequencySpec { weekly = DayOfWeek.MONDAY }
+                resultGroupMetricSpec = resultGroupMetricSpec {
+                  component =
+                    ResultGroupMetricSpecKt.componentMetricSetSpec {
+                      nonCumulative =
+                        ResultGroupMetricSpecKt.basicMetricSetSpec {
+                          kPlusReach = 0
+                          percentKPlusReach = true
+                        }
+                    }
                 }
               }
-            }
           }
-        }
         basicReportId = "a1234"
       }
-          val exception = assertFailsWith<StatusRuntimeException> {
-      withPrincipalAndScopes(PRINCIPAL, SCOPES) {
-        service.createBasicReport(request)
-      }
-    }
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+        }
 
       assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
       assertThat(exception.errorInfo)
@@ -2644,7 +2667,8 @@ class BasicReportsServiceTest {
           errorInfo {
             domain = Errors.DOMAIN
             reason = Errors.Reason.INVALID_FIELD_VALUE.name
-            metadata[Errors.Metadata.FIELD_NAME.key] = "basic_report.result_group_specs.result_group_metric_spec.component.non_cumulative.k_plus_reach"
+            metadata[Errors.Metadata.FIELD_NAME.key] =
+              "basic_report.result_group_specs.result_group_metric_spec.component.non_cumulative.k_plus_reach"
           }
         )
     }
@@ -2674,27 +2698,30 @@ class BasicReportsServiceTest {
 
       val request = createBasicReportRequest {
         parent = measurementConsumerKey.toName()
-        basicReport = BASIC_REPORT.copy {
-          campaignGroup = campaignGroupKey.toName()
-          resultGroupSpecs[0] = resultGroupSpecs[0].copy {
-            metricFrequency = metricFrequencySpec { weekly = DayOfWeek.MONDAY }
-            resultGroupMetricSpec = resultGroupMetricSpec {
-              component = ResultGroupMetricSpecKt.componentMetricSetSpec {
-                cumulative = ResultGroupMetricSpecKt.basicMetricSetSpec {
-                  kPlusReach = 0
-                  percentKPlusReach = true
+        basicReport =
+          BASIC_REPORT.copy {
+            campaignGroup = campaignGroupKey.toName()
+            resultGroupSpecs[0] =
+              resultGroupSpecs[0].copy {
+                metricFrequency = metricFrequencySpec { weekly = DayOfWeek.MONDAY }
+                resultGroupMetricSpec = resultGroupMetricSpec {
+                  component =
+                    ResultGroupMetricSpecKt.componentMetricSetSpec {
+                      cumulative =
+                        ResultGroupMetricSpecKt.basicMetricSetSpec {
+                          kPlusReach = 0
+                          percentKPlusReach = true
+                        }
+                    }
                 }
               }
-            }
           }
-        }
         basicReportId = "a1234"
       }
-          val exception = assertFailsWith<StatusRuntimeException> {
-      withPrincipalAndScopes(PRINCIPAL, SCOPES) {
-        service.createBasicReport(request)
-      }
-    }
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+        }
 
       assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
       assertThat(exception.errorInfo)
@@ -2702,7 +2729,8 @@ class BasicReportsServiceTest {
           errorInfo {
             domain = Errors.DOMAIN
             reason = Errors.Reason.INVALID_FIELD_VALUE.name
-            metadata[Errors.Metadata.FIELD_NAME.key] = "basic_report.result_group_specs.result_group_metric_spec.component.cumulative.k_plus_reach"
+            metadata[Errors.Metadata.FIELD_NAME.key] =
+              "basic_report.result_group_specs.result_group_metric_spec.component.cumulative.k_plus_reach"
           }
         )
     }
@@ -2732,20 +2760,20 @@ class BasicReportsServiceTest {
 
       val request = createBasicReportRequest {
         parent = measurementConsumerKey.toName()
-        basicReport = BASIC_REPORT.copy {
-          campaignGroup = campaignGroupKey.toName()
-          impressionQualificationFilters.clear()
-          impressionQualificationFilters += reportingImpressionQualificationFilter {
-            impressionQualificationFilter = ImpressionQualificationFilterKey("junk").toName()
+        basicReport =
+          BASIC_REPORT.copy {
+            campaignGroup = campaignGroupKey.toName()
+            impressionQualificationFilters.clear()
+            impressionQualificationFilters += reportingImpressionQualificationFilter {
+              impressionQualificationFilter = ImpressionQualificationFilterKey("junk").toName()
+            }
           }
-        }
         basicReportId = "a1234"
       }
-          val exception = assertFailsWith<StatusRuntimeException> {
-      withPrincipalAndScopes(PRINCIPAL, SCOPES) {
-        service.createBasicReport(request)
-      }
-    }
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+        }
 
       assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
       assertThat(exception.errorInfo)
@@ -2753,7 +2781,8 @@ class BasicReportsServiceTest {
           errorInfo {
             domain = Errors.DOMAIN
             reason = Errors.Reason.INVALID_FIELD_VALUE.name
-            metadata[Errors.Metadata.FIELD_NAME.key] = "basic_report.impression_qualification_filters.impression_qualification_filter"
+            metadata[Errors.Metadata.FIELD_NAME.key] =
+              "basic_report.impression_qualification_filters.impression_qualification_filter"
           }
         )
     }
@@ -4647,7 +4676,11 @@ class BasicReportsServiceTest {
     private const val MAX_PAGE_SIZE = 25
 
     private val ALL_PERMISSIONS =
-      setOf(BasicReportsService.Permission.GET, BasicReportsService.Permission.LIST, BasicReportsService.Permission.CREATE)
+      setOf(
+        BasicReportsService.Permission.GET,
+        BasicReportsService.Permission.LIST,
+        BasicReportsService.Permission.CREATE,
+      )
     private val SCOPES = ALL_PERMISSIONS
     private val PRINCIPAL = principal { name = "principals/mc-user" }
 
@@ -4741,71 +4774,72 @@ class BasicReportsServiceTest {
         }
       }
       impressionQualificationFilters += reportingImpressionQualificationFilter {
-        impressionQualificationFilter = ImpressionQualificationFilterKey(AMI_IQF.externalImpressionQualificationFilterId).toName()
+        impressionQualificationFilter =
+          ImpressionQualificationFilterKey(AMI_IQF.externalImpressionQualificationFilterId).toName()
       }
       resultGroupSpecs += resultGroupSpec {
         title = "title"
-        reportingUnit = reportingUnit {
-          components += DATA_PROVIDER_KEY.toName()
-        }
+        reportingUnit = reportingUnit { components += DATA_PROVIDER_KEY.toName() }
         metricFrequency = metricFrequencySpec { weekly = DayOfWeek.MONDAY }
         dimensionSpec = dimensionSpec {
-          grouping = DimensionSpecKt.grouping {
-            eventTemplateFields += "common.gender"
-          }
+          grouping = DimensionSpecKt.grouping { eventTemplateFields += "common.gender" }
           filters += eventFilter {
             terms += eventTemplateField {
               path = "common.age_group"
-              value = EventTemplateFieldKt.fieldValue {
-                enumValue = "18_TO_35"
-              }
+              value = EventTemplateFieldKt.fieldValue { enumValue = "18_TO_35" }
             }
           }
         }
         resultGroupMetricSpec = resultGroupMetricSpec {
-          populationSize =   true
-          reportingUnit = ResultGroupMetricSpecKt.reportingUnitMetricSetSpec {
-            nonCumulative = ResultGroupMetricSpecKt.basicMetricSetSpec {
-              reach = true
-              percentReach = true
-              kPlusReach = 5
-              percentKPlusReach = true
-              averageFrequency = true
-              impressions = true
-              grps = true
+          populationSize = true
+          reportingUnit =
+            ResultGroupMetricSpecKt.reportingUnitMetricSetSpec {
+              nonCumulative =
+                ResultGroupMetricSpecKt.basicMetricSetSpec {
+                  reach = true
+                  percentReach = true
+                  kPlusReach = 5
+                  percentKPlusReach = true
+                  averageFrequency = true
+                  impressions = true
+                  grps = true
+                }
+              cumulative =
+                ResultGroupMetricSpecKt.basicMetricSetSpec {
+                  reach = true
+                  percentReach = true
+                  kPlusReach = 5
+                  percentKPlusReach = true
+                  averageFrequency = true
+                  impressions = true
+                  grps = true
+                }
+              stackedIncrementalReach = false
             }
-            cumulative = ResultGroupMetricSpecKt.basicMetricSetSpec {
-              reach = true
-              percentReach = true
-              kPlusReach = 5
-              percentKPlusReach = true
-              averageFrequency = true
-              impressions = true
-              grps = true
+          component =
+            ResultGroupMetricSpecKt.componentMetricSetSpec {
+              nonCumulative =
+                ResultGroupMetricSpecKt.basicMetricSetSpec {
+                  reach = true
+                  percentReach = true
+                  kPlusReach = 5
+                  percentKPlusReach = true
+                  averageFrequency = true
+                  impressions = true
+                  grps = true
+                }
+              cumulative =
+                ResultGroupMetricSpecKt.basicMetricSetSpec {
+                  reach = true
+                  percentReach = true
+                  kPlusReach = 5
+                  percentKPlusReach = true
+                  averageFrequency = true
+                  impressions = true
+                  grps = true
+                }
+              uniqueReach = true
             }
-            stackedIncrementalReach = false
-          }
-          component = ResultGroupMetricSpecKt.componentMetricSetSpec {
-            nonCumulative = ResultGroupMetricSpecKt.basicMetricSetSpec {
-              reach = true
-              percentReach = true
-              kPlusReach = 5
-              percentKPlusReach = true
-              averageFrequency = true
-              impressions = true
-              grps = true
-            }
-            cumulative = ResultGroupMetricSpecKt.basicMetricSetSpec {
-              reach = true
-              percentReach = true
-              kPlusReach = 5
-              percentKPlusReach = true
-              averageFrequency = true
-              impressions = true
-              grps = true
-            }
-            uniqueReach = true
-          }
         }
       }
     }
