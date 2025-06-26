@@ -33,6 +33,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.mockito.Mockito.mock
 import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.times
 import org.mockito.kotlin.verifyBlocking
@@ -45,11 +46,31 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.CreateWorkI
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem.WorkItemParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineImplBase
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
+import com.google.auth.oauth2.IdTokenProvider
+import com.google.auth.oauth2.IdToken
+import org.mockito.kotlin.any
+import org.mockito.kotlin.whenever
+
+
+class TestIdTokenProvider : IdTokenProvider {
+  override fun idTokenWithAudience(
+    targetAudience: String,
+    options: MutableList<IdTokenProvider.Option>?
+  ): IdToken {
+    val idToken =  IdToken.create(JWT_TOKEN)
+    return idToken
+  }
+
+  companion object {
+    private const val JWT_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiYWRtaW4iOnRydWUsImlhdCI6MTUxNjIzOTAyMiwiZXhwIjoxNTE2MjQyNjIyfQ.KMUFsIDTnFmyG3nMiGM6H9FNFUROf3wh7SmqJp-QV30"
+  }
+}
 
 @RunWith(JUnit4::class)
 class DataWatcherTest() {
 
   private val workItemsServiceMock: WorkItemsCoroutineImplBase = mockService {}
+  val mockIdTokenProvider: IdTokenProvider = TestIdTokenProvider()
 
   @get:Rule val grpcTestServerRule = GrpcTestServerRule { addService(workItemsServiceMock) }
 
@@ -72,7 +93,7 @@ class DataWatcherTest() {
       }
 
       val dataWatcher =
-        DataWatcher(workItemsStub, listOf(config), workItemIdGenerator = { "some-work-item-id" })
+        DataWatcher(workItemsStub, listOf(config), workItemIdGenerator = { "some-work-item-id" }, idTokenProvider = mockIdTokenProvider)
 
       dataWatcher.receivePath("test-schema://test-bucket/path-to-watch/some-data")
       val createWorkItemRequestCaptor = argumentCaptor<CreateWorkItemRequest>()
@@ -98,6 +119,7 @@ class DataWatcherTest() {
   @Test
   fun `sends to webhook sink when path matches`() {
     runBlocking {
+
       val appParams =
         Struct.newBuilder()
           .putFields("some-key", Value.newBuilder().setStringValue("some-value").build())
@@ -113,7 +135,11 @@ class DataWatcherTest() {
       val server = TestServer()
       server.start(localPort)
 
-      val dataWatcher = DataWatcher(workItemsStub, listOf(config))
+      val dataWatcher = DataWatcher(
+        workItemsStub = workItemsStub,
+        dataWatcherConfigs = listOf(config),
+        idTokenProvider = mockIdTokenProvider
+      )
 
       dataWatcher.receivePath("test-schema://test-bucket/path-to-watch/some-data")
       val createWorkItemRequestCaptor = argumentCaptor<CreateWorkItemRequest>()
@@ -140,7 +166,7 @@ class DataWatcherTest() {
         }
       }
 
-      val dataWatcher = DataWatcher(workItemsStub, listOf(config))
+      val dataWatcher = DataWatcher(workItemsStub, listOf(config), idTokenProvider = mockIdTokenProvider)
       dataWatcher.receivePath("test-schema://test-bucket/some-other-path/some-data")
 
       val createWorkItemRequestCaptor = argumentCaptor<CreateWorkItemRequest>()
