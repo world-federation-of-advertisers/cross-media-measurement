@@ -320,6 +320,7 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/common/api:resource_ids",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api:errors",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/internal:errors",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/service/internal:internal_exception",
         "//src/main/proto/wfa/measurement/internal/reporting/v2:basic_reports_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/internal/reporting/v2:impression_qualification_filters_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/internal/reporting/v2:reporting_sets_service_kt_jvm_grpc_proto",

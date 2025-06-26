@@ -509,7 +509,7 @@ class BasicReportsServiceTest {
   }
 
   @Test
-  fun `createBasicReport throws INVALID_ARGUMENT when campaignGroup not found`() = runBlocking {
+  fun `createBasicReport throws FAILED_PRECONDITION when campaignGroup not found`() = runBlocking {
     val measurementConsumerKey = MeasurementConsumerKey("1234")
     val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
 
@@ -529,13 +529,13 @@ class BasicReportsServiceTest {
         withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
       }
 
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
     assertThat(exception.errorInfo)
       .isEqualTo(
         errorInfo {
           domain = Errors.DOMAIN
-          reason = Errors.Reason.INVALID_FIELD_VALUE.name
-          metadata[Errors.Metadata.FIELD_NAME.key] = "basic_report.campaign_group"
+          reason = Errors.Reason.CAMPAIGN_GROUP_NOT_FOUND.name
+          metadata[Errors.Metadata.CAMPAIGN_GROUP.key] = campaignGroupKey.toName()
         }
       )
   }

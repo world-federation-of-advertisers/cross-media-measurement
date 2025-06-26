@@ -50,9 +50,13 @@ import org.wfanet.measurement.reporting.service.api.BasicReportNotFoundException
 import org.wfanet.measurement.reporting.service.api.InvalidFieldValueException
 import org.wfanet.measurement.reporting.service.api.RequiredFieldNotSetException
 import org.wfanet.measurement.reporting.service.internal.Errors as InternalErrors
+import org.wfanet.measurement.internal.reporting.ErrorCode
+import org.wfanet.measurement.reporting.service.api.CampaignGroupNotFoundException
+import org.wfanet.measurement.reporting.service.internal.ReportingInternalException
 import org.wfanet.measurement.reporting.v2alpha.BasicReport
 import org.wfanet.measurement.reporting.v2alpha.BasicReportsGrpcKt.BasicReportsCoroutineImplBase
 import org.wfanet.measurement.reporting.v2alpha.CreateBasicReportRequest
+import org.wfanet.measurement.reporting.v2alpha.DimensionSpec
 import org.wfanet.measurement.reporting.v2alpha.EventTemplateField
 import org.wfanet.measurement.reporting.v2alpha.GetBasicReportRequest
 import org.wfanet.measurement.reporting.v2alpha.ImpressionQualificationFilterSpec
@@ -60,7 +64,13 @@ import org.wfanet.measurement.reporting.v2alpha.ListBasicReportsRequest
 import org.wfanet.measurement.reporting.v2alpha.ListBasicReportsResponse
 import org.wfanet.measurement.reporting.v2alpha.MediaType
 import org.wfanet.measurement.reporting.v2alpha.MetricFrequencySpec
+import org.wfanet.measurement.reporting.v2alpha.ReportingImpressionQualificationFilter
+import org.wfanet.measurement.reporting.v2alpha.ReportingImpressionQualificationFilter.CustomImpressionQualificationFilterSpec
+import org.wfanet.measurement.reporting.v2alpha.ReportingInterval
 import org.wfanet.measurement.reporting.v2alpha.ReportingSet
+import org.wfanet.measurement.reporting.v2alpha.ReportingUnit
+import org.wfanet.measurement.reporting.v2alpha.ResultGroupMetricSpec
+import org.wfanet.measurement.reporting.v2alpha.ResultGroupSpec
 import org.wfanet.measurement.reporting.v2alpha.listBasicReportsResponse
 
 class BasicReportsService(
@@ -109,15 +119,32 @@ class BasicReportsService(
           .first()
           .toReportingSet()
       } catch (e: StatusException) {
-        throw when (e.status.code) {
-          Status.Code.NOT_FOUND ->
-            throw InvalidFieldValueException("basic_report.campaign_group") { "Not found" }
-              .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-          Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
-          Status.Code.INTERNAL -> Status.INTERNAL
-          Status.Code.CANCELLED -> Status.CANCELLED
-          else -> Status.UNKNOWN
-        }.asRuntimeException()
+        throw when (ReportingInternalException.getErrorCode(e)) {
+          ErrorCode.REPORTING_SET_NOT_FOUND ->
+            throw CampaignGroupNotFoundException(request.basicReport.campaignGroup)
+              .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+          ErrorCode.MEASUREMENT_CONSUMER_NOT_FOUND,
+          ErrorCode.REPORTING_SET_ALREADY_EXISTS,
+          ErrorCode.CAMPAIGN_GROUP_INVALID,
+          ErrorCode.UNKNOWN_ERROR,
+          ErrorCode.MEASUREMENT_ALREADY_EXISTS,
+          ErrorCode.MEASUREMENT_NOT_FOUND,
+          ErrorCode.MEASUREMENT_CALCULATION_TIME_INTERVAL_NOT_FOUND,
+          ErrorCode.REPORT_NOT_FOUND,
+          ErrorCode.MEASUREMENT_STATE_INVALID,
+          ErrorCode.MEASUREMENT_CONSUMER_ALREADY_EXISTS,
+          ErrorCode.METRIC_ALREADY_EXISTS,
+          ErrorCode.REPORT_ALREADY_EXISTS,
+          ErrorCode.REPORT_SCHEDULE_ALREADY_EXISTS,
+          ErrorCode.REPORT_SCHEDULE_NOT_FOUND,
+          ErrorCode.REPORT_SCHEDULE_STATE_INVALID,
+          ErrorCode.REPORT_SCHEDULE_ITERATION_NOT_FOUND,
+          ErrorCode.REPORT_SCHEDULE_ITERATION_STATE_INVALID,
+          ErrorCode.METRIC_CALCULATION_SPEC_NOT_FOUND,
+          ErrorCode.METRIC_CALCULATION_SPEC_ALREADY_EXISTS,
+          ErrorCode.UNRECOGNIZED,
+          null -> Status.INTERNAL.withCause(e).asRuntimeException()
+        }
       }
 
     validateCreateBasicReportRequest(request, campaignGroup)
@@ -300,119 +327,19 @@ class BasicReportsService(
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
-    if (!request.basicReport.hasReportingInterval()) {
+    if (request.basicReport.hasReportingInterval()) {
+      request.basicReport.reportingInterval.validate()
+    } else {
       throw RequiredFieldNotSetException("basic_report.reporting_interval")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
-    if (!request.basicReport.reportingInterval.hasReportStart()) {
-      throw RequiredFieldNotSetException("basic_report.reporting_interval.report_start")
-        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-    }
+    request.basicReport.impressionQualificationFiltersList.validate()
+    request.basicReport.resultGroupSpecsList.validate(campaignGroup)
+  }
 
-    if (!request.basicReport.reportingInterval.hasReportEnd()) {
-      throw RequiredFieldNotSetException("basic_report.reporting_interval.report_end")
-        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-    }
-
-    if (
-      request.basicReport.reportingInterval.reportStart.year == 0 ||
-        request.basicReport.reportingInterval.reportStart.month == 0 ||
-        request.basicReport.reportingInterval.reportStart.day == 0 ||
-        !(request.basicReport.reportingInterval.reportStart.hasTimeZone() ||
-          request.basicReport.reportingInterval.reportStart.hasUtcOffset())
-    ) {
-      throw InvalidFieldValueException("basic_report.reporting_interval.report_start")
-        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-    }
-
-    if (
-      request.basicReport.reportingInterval.reportEnd.year == 0 ||
-        request.basicReport.reportingInterval.reportEnd.month == 0 ||
-        request.basicReport.reportingInterval.reportEnd.day == 0
-    ) {
-      throw InvalidFieldValueException("basic_report.reporting_interval.report_end")
-        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-    }
-
-    if (request.basicReport.impressionQualificationFiltersList.isEmpty()) {
-      throw RequiredFieldNotSetException("basic_report.impression_qualification_filters")
-        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-    }
-
-    for (impressionQualificationFilter in request.basicReport.impressionQualificationFiltersList) {
-      if (impressionQualificationFilter.hasImpressionQualificationFilter()) {
-        ImpressionQualificationFilterKey.fromName(
-          impressionQualificationFilter.impressionQualificationFilter
-        )
-          ?: throw InvalidFieldValueException(
-              "basic_report.impression_qualification_filters.impression_qualification_filter"
-            )
-            .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-      } else if (impressionQualificationFilter.hasCustom()) {
-        if (impressionQualificationFilter.custom.filterSpecList.isEmpty()) {
-          throw RequiredFieldNotSetException(
-              "basic_report.impression_qualification_filters.custom.filter_spec"
-            )
-            .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-        }
-
-        // No more than 1 filter_spec per MediaType
-        buildSet<MediaType> {
-          for (filterSpec in impressionQualificationFilter.custom.filterSpecList) {
-            if (this.contains(filterSpec.mediaType)) {
-              throw InvalidFieldValueException(
-                  "basic_report.impression_qualification_filters.custom.filter_spec"
-                ) {
-                  "More than 1 filter_spec for a MediaType"
-                }
-                .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-            }
-            add(filterSpec.mediaType)
-
-            if (filterSpec.filtersList.isEmpty()) {
-              throw RequiredFieldNotSetException(
-                  "basic_report.impression_qualification_filters.custom.filter_spec.filters"
-                )
-                .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-            }
-
-            for (eventFilter in filterSpec.filtersList) {
-              if (eventFilter.termsList.size != 1) {
-                throw RequiredFieldNotSetException(
-                    "basic_report.impression_qualification_filters.custom.filter_spec.filters.terms"
-                  )
-                  .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-              }
-
-              for (eventTemplateField in eventFilter.termsList) {
-                if (eventTemplateField.path.isEmpty()) {
-                  throw RequiredFieldNotSetException(
-                      "basic_report.impression_qualification_filters.custom.filter_spec.filters.terms.path"
-                    )
-                    .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-                }
-
-                if (
-                  eventTemplateField.value.selectorCase ==
-                    EventTemplateField.FieldValue.SelectorCase.SELECTOR_NOT_SET
-                ) {
-                  throw RequiredFieldNotSetException(
-                      "basic_report.impression_qualification_filters.custom.filter_spec.filters.terms.value"
-                    )
-                    .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-                }
-              }
-            }
-          }
-        }
-      } else {
-        throw InvalidFieldValueException("basic_report.impression_qualification_filters.selector")
-          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-      }
-    }
-
-    if (request.basicReport.resultGroupSpecsList.isEmpty()) {
+  private fun List<ResultGroupSpec>.validate(campaignGroup: ReportingSet) {
+    if (this.isEmpty()) {
       throw RequiredFieldNotSetException("basic_report.result_group_specs")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
@@ -424,177 +351,283 @@ class BasicReportsService(
       }
     }
 
-    for (resultGroupSpec in request.basicReport.resultGroupSpecsList) {
-      if (!resultGroupSpec.hasReportingUnit()) {
-        throw RequiredFieldNotSetException("basic_report.result_group_specs.reporting_unit")
-          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-      }
-
-      if (resultGroupSpec.reportingUnit.componentsList.isEmpty()) {
-        throw InvalidFieldValueException(
-            "basic_report.result_group_specs.reporting_unit.components"
-          )
-          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-      }
-
-      for (component in resultGroupSpec.reportingUnit.componentsList) {
-        DataProviderKey.fromName(component)
-          ?: throw InvalidFieldValueException(
-              "basic_report.result_group_specs.reporting_unit.components"
-            )
-            .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-
-        if (!dataProviderNameSet.contains(component)) {
-          throw InvalidFieldValueException(
-              "basic_report.result_group_specs.reporting_unit.components"
-            ) {
-              "reporting_unit component does not have any cmms_event_groups in campaign_group"
-            }
-            .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-        }
-      }
-
-      if (!resultGroupSpec.hasDimensionSpec()) {
-        throw RequiredFieldNotSetException("basic_report.result_group_specs.dimension_spec")
-          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-      }
-
-      if (
-        resultGroupSpec.dimensionSpec.hasGrouping() &&
-          resultGroupSpec.dimensionSpec.grouping.eventTemplateFieldsList.isEmpty()
-      ) {
-        throw RequiredFieldNotSetException(
-            "basic_report.result_group_specs.dimension_spec.grouping.event_template_fields"
-          )
-          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-      }
-
-      for (eventFilter in resultGroupSpec.dimensionSpec.filtersList) {
-        if (eventFilter.termsList.size != 1) {
-          throw InvalidFieldValueException(
-              "basic_report.result_group_specs.dimension_spec.filters.terms"
-            )
-            .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-        }
-
-        for (eventTemplateField in eventFilter.termsList) {
-          if (eventTemplateField.path.isEmpty()) {
-            throw RequiredFieldNotSetException(
-                "basic_report.result_group_specs.dimension_spec.filters.terms.path"
-              )
-              .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-          }
-
-          if (
-            eventTemplateField.value.selectorCase ==
-              EventTemplateField.FieldValue.SelectorCase.SELECTOR_NOT_SET
-          ) {
-            throw RequiredFieldNotSetException(
-                "basic_report.result_group_specs.dimension_spec.filters.terms.value"
-              )
-              .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-          }
-        }
-      }
-
-      if (!resultGroupSpec.hasResultGroupMetricSpec()) {
-        throw RequiredFieldNotSetException(
-            "basic_report.result_group_specs.result_group_metric_spec"
-          )
-          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-      }
-
-      if (resultGroupSpec.resultGroupMetricSpec.hasComponentIntersection()) {
-        throw InvalidFieldValueException(
-            "basic_report.result_group_specs.result_group_metric_spec.component_intersection"
-          ) {
-            "Not supported at this time"
-          }
-          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-      }
-
+    for (resultGroupSpec in this) {
       if (
         resultGroupSpec.metricFrequency.selectorCase ==
-          MetricFrequencySpec.SelectorCase.SELECTOR_NOT_SET
+        MetricFrequencySpec.SelectorCase.SELECTOR_NOT_SET
       ) {
         throw RequiredFieldNotSetException("basic_report.result_group_specs.metric_frequency")
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
       }
 
-      if (resultGroupSpec.metricFrequency.selectorCase == MetricFrequencySpec.SelectorCase.TOTAL) {
-        if (resultGroupSpec.resultGroupMetricSpec.reportingUnit.hasNonCumulative()) {
-          throw InvalidFieldValueException(
-              "basic_report.result_group_specs.result_group_metric_spec.reporting_unit.non_cumulative"
-            ) {
-              "non_cumulative cannot be specified when metric_frequency is total"
-            }
-            .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-        }
-
-        if (resultGroupSpec.resultGroupMetricSpec.component.hasNonCumulative()) {
-          throw InvalidFieldValueException(
-              "basic_report.result_group_specs.result_group_metric_spec.component.non_cumulative"
-            ) {
-              "non_cumulative cannot be specified when metric_frequency is total"
-            }
-            .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-        }
-      }
-
-      if (resultGroupSpec.resultGroupMetricSpec.reportingUnit.nonCumulative.percentKPlusReach) {
-        if (resultGroupSpec.resultGroupMetricSpec.reportingUnit.nonCumulative.kPlusReach <= 0) {
-          throw InvalidFieldValueException(
-              "basic_report.result_group_specs.result_group_metric_spec.reporting_unit.non_cumulative.k_plus_reach"
-            ) {
-              "percent_k_plus_reach requires k_plus_reach to be positive"
-            }
-            .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-        }
-      }
-
-      if (resultGroupSpec.resultGroupMetricSpec.reportingUnit.cumulative.percentKPlusReach) {
-        if (resultGroupSpec.resultGroupMetricSpec.reportingUnit.cumulative.kPlusReach <= 0) {
-          throw InvalidFieldValueException(
-              "basic_report.result_group_specs.result_group_metric_spec.reporting_unit.cumulative.k_plus_reach"
-            ) {
-              "percent_k_plus_reach requires k_plus_reach to be positive"
-            }
-            .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-        }
-      }
-
-      if (
-        resultGroupSpec.resultGroupMetricSpec.reportingUnit.stackedIncrementalReach &&
-          resultGroupSpec.metricFrequency.selectorCase != MetricFrequencySpec.SelectorCase.TOTAL
-      ) {
-        throw InvalidFieldValueException(
-            "basic_report.result_group_specs.result_group_metric_spec.reporting_unit.stacked_incremental_reach"
-          ) {
-            "stacked_incremental_reach requires metric_frequency to be total"
-          }
+      if (resultGroupSpec.hasReportingUnit()) {
+        resultGroupSpec.reportingUnit.validate(dataProviderNameSet)
+      } else {
+        throw RequiredFieldNotSetException("basic_report.result_group_specs.reporting_unit")
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
       }
 
-      if (resultGroupSpec.resultGroupMetricSpec.component.nonCumulative.percentKPlusReach) {
-        if (resultGroupSpec.resultGroupMetricSpec.component.nonCumulative.kPlusReach <= 0) {
-          throw InvalidFieldValueException(
-              "basic_report.result_group_specs.result_group_metric_spec.component.non_cumulative.k_plus_reach"
-            ) {
-              "percent_k_plus_reach requires k_plus_reach to be positive"
-            }
+      if (resultGroupSpec.hasDimensionSpec()) {
+        resultGroupSpec.dimensionSpec.validate()
+      } else {
+        throw RequiredFieldNotSetException("basic_report.result_group_specs.dimension_spec")
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      }
+
+      if (resultGroupSpec.hasResultGroupMetricSpec()) {
+        resultGroupSpec.resultGroupMetricSpec.validate(resultGroupSpec.metricFrequency.selectorCase)
+      } else {
+        throw RequiredFieldNotSetException(
+          "basic_report.result_group_specs.result_group_metric_spec"
+        )
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      }
+    }
+  }
+
+  private fun ReportingUnit.validate(dataProviderNameSet: Set<String>) {
+    if (this.componentsList.isEmpty()) {
+      throw InvalidFieldValueException(
+        "basic_report.result_group_specs.reporting_unit.components"
+      )
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+
+    for (component in this.componentsList) {
+      DataProviderKey.fromName(component)
+        ?: throw InvalidFieldValueException(
+          "basic_report.result_group_specs.reporting_unit.components"
+        ) { "$component is not a valid data provider name" }
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+
+      if (!dataProviderNameSet.contains(component)) {
+        throw InvalidFieldValueException(
+          "basic_report.result_group_specs.reporting_unit.components"
+        ) {
+          "reporting_unit component does not have any cmms_event_groups in campaign_group"
+        }
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      }
+    }
+  }
+
+  private fun DimensionSpec.validate() {
+    if (
+      this.hasGrouping() &&
+      this.grouping.eventTemplateFieldsList.isEmpty()
+    ) {
+      throw RequiredFieldNotSetException(
+        "basic_report.result_group_specs.dimension_spec.grouping.event_template_fields"
+      )
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+
+    for (eventFilter in this.filtersList) {
+      if (eventFilter.termsList.size != 1) {
+        throw InvalidFieldValueException(
+          "basic_report.result_group_specs.dimension_spec.filters.terms"
+        )
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      }
+
+      //TODO(@tristanvuong2021): Need to verify against eventTemplate descriptor
+      for (eventTemplateField in eventFilter.termsList) {
+        if (eventTemplateField.path.isEmpty()) {
+          throw RequiredFieldNotSetException(
+            "basic_report.result_group_specs.dimension_spec.filters.terms.path"
+          )
+            .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+        }
+
+        if (
+          eventTemplateField.value.selectorCase ==
+          EventTemplateField.FieldValue.SelectorCase.SELECTOR_NOT_SET
+        ) {
+          throw RequiredFieldNotSetException(
+            "basic_report.result_group_specs.dimension_spec.filters.terms.value"
+          )
             .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
         }
       }
+    }
+  }
 
-      if (resultGroupSpec.resultGroupMetricSpec.component.cumulative.percentKPlusReach) {
-        if (resultGroupSpec.resultGroupMetricSpec.component.cumulative.kPlusReach <= 0) {
+  private fun ResultGroupMetricSpec.validate(metricFrequencySelectorCase: MetricFrequencySpec.SelectorCase) {
+    if (this.hasComponentIntersection()) {
+      throw InvalidFieldValueException(
+        "basic_report.result_group_specs.result_group_metric_spec.component_intersection"
+      ) {
+        "Not supported at this time"
+      }
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+
+    if (metricFrequencySelectorCase == MetricFrequencySpec.SelectorCase.TOTAL) {
+      if (this.reportingUnit.hasNonCumulative()) {
+        throw InvalidFieldValueException(
+          "basic_report.result_group_specs.result_group_metric_spec.reporting_unit.non_cumulative"
+        ) {
+          "non_cumulative cannot be specified when metric_frequency is total"
+        }
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      }
+
+      if (this.component.hasNonCumulative()) {
+        throw InvalidFieldValueException(
+          "basic_report.result_group_specs.result_group_metric_spec.component.non_cumulative"
+        ) {
+          "non_cumulative cannot be specified when metric_frequency is total"
+        }
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      }
+    }
+
+    this.reportingUnit.cumulative.validate("basic_report.result_group_specs.result_group_metric_spec.reporting_unit.cumulative.k_plus_reach")
+    this.reportingUnit.nonCumulative.validate("basic_report.result_group_specs.result_group_metric_spec.reporting_unit.non_cumulative.k_plus_reach")
+    this.component.nonCumulative.validate("basic_report.result_group_specs.result_group_metric_spec.component.non_cumulative.k_plus_reach")
+    this.component.cumulative.validate("basic_report.result_group_specs.result_group_metric_spec.component.cumulative.k_plus_reach")
+
+    if (
+      this.reportingUnit.stackedIncrementalReach &&
+      metricFrequencySelectorCase != MetricFrequencySpec.SelectorCase.TOTAL
+    ) {
+      throw InvalidFieldValueException(
+        "basic_report.result_group_specs.result_group_metric_spec.reporting_unit.stacked_incremental_reach"
+      ) {
+        "stacked_incremental_reach requires metric_frequency to be total"
+      }
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+  }
+
+  private fun ReportingInterval.validate() {
+    if (!this.hasReportStart()) {
+      throw RequiredFieldNotSetException("basic_report.reporting_interval.report_start")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+
+    if (!this.hasReportEnd()) {
+      throw RequiredFieldNotSetException("basic_report.reporting_interval.report_end")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+
+    if (
+      this.reportStart.year == 0 ||
+      this.reportStart.month == 0 ||
+      this.reportStart.day == 0 ||
+      !(this.reportStart.hasTimeZone() ||
+        this.reportStart.hasUtcOffset())
+    ) {
+      throw InvalidFieldValueException("basic_report.reporting_interval.report_start") {
+        "year, month, and day are all required. Either time_zone or utc_offset must be set"
+      }
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+
+    if (
+      this.reportEnd.year == 0 ||
+      this.reportEnd.month == 0 ||
+      this.reportEnd.day == 0
+    ) {
+      throw InvalidFieldValueException("basic_report.reporting_interval.report_end") {
+        "year, month, and day are all required"
+      }
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+  }
+
+  private fun List<ReportingImpressionQualificationFilter>.validate() {
+    if (this.isEmpty()) {
+      throw RequiredFieldNotSetException("basic_report.impression_qualification_filters")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+
+    for (impressionQualificationFilter in this) {
+      if (impressionQualificationFilter.hasImpressionQualificationFilter()) {
+        ImpressionQualificationFilterKey.fromName(
+          impressionQualificationFilter.impressionQualificationFilter
+        )
+          ?: throw InvalidFieldValueException(
+            "basic_report.impression_qualification_filters.impression_qualification_filter"
+          )
+            .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      } else if (impressionQualificationFilter.hasCustom()) {
+        impressionQualificationFilter.custom.validate()
+      } else {
+        throw InvalidFieldValueException("basic_report.impression_qualification_filters.selector")
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      }
+    }
+  }
+
+  private fun CustomImpressionQualificationFilterSpec.validate() {
+    val source = this
+    if (source.filterSpecList.isEmpty()) {
+      throw RequiredFieldNotSetException(
+        "basic_report.impression_qualification_filters.custom.filter_spec"
+      )
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+
+    // No more than 1 filter_spec per MediaType
+    buildSet<MediaType> {
+      for (filterSpec in source.filterSpecList) {
+        if (this.contains(filterSpec.mediaType)) {
           throw InvalidFieldValueException(
-              "basic_report.result_group_specs.result_group_metric_spec.component.cumulative.k_plus_reach"
-            ) {
-              "percent_k_plus_reach requires k_plus_reach to be positive"
-            }
+            "basic_report.impression_qualification_filters.custom.filter_spec"
+          ) {
+            "More than 1 filter_spec for MediaType ${filterSpec.mediaType}. Only 1 filter_spec per MediaType allowed"
+          }
             .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
         }
+        add(filterSpec.mediaType)
+
+        if (filterSpec.filtersList.isEmpty()) {
+          throw RequiredFieldNotSetException(
+            "basic_report.impression_qualification_filters.custom.filter_spec.filters"
+          )
+            .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+        }
+
+        for (eventFilter in filterSpec.filtersList) {
+          if (eventFilter.termsList.size != 1) {
+            throw RequiredFieldNotSetException(
+              "basic_report.impression_qualification_filters.custom.filter_spec.filters.terms"
+            )
+              .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+          }
+
+          //TODO(@tristanvuong2021): Need to verify against eventTemplate descriptor
+          for (eventTemplateField in eventFilter.termsList) {
+            if (eventTemplateField.path.isEmpty()) {
+              throw RequiredFieldNotSetException(
+                "basic_report.impression_qualification_filters.custom.filter_spec.filters.terms.path"
+              )
+                .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+            }
+
+            if (
+              eventTemplateField.value.selectorCase ==
+              EventTemplateField.FieldValue.SelectorCase.SELECTOR_NOT_SET
+            ) {
+              throw RequiredFieldNotSetException(
+                "basic_report.impression_qualification_filters.custom.filter_spec.filters.terms.value"
+              )
+                .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+            }
+          }
+        }
+      }
+    }
+  }
+
+  private fun ResultGroupMetricSpec.BasicMetricSetSpec.validate(kPlusReachFieldName: String) {
+    if (this.percentKPlusReach) {
+      if (this.kPlusReach <= 0) {
+        throw InvalidFieldValueException(kPlusReachFieldName) {
+          "percent_k_plus_reach requires k_plus_reach to be positive"
+        }
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
       }
     }
   }
