@@ -12,12 +12,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+data "google_project" "project" {}
+
 module "secure_computation_internal" {
   source = "../workload-identity-user"
 
   k8s_service_account_name        = "internal-secure-computation-server"
   iam_service_account_name        = var.internal_iam_service_account_name
   iam_service_account_description = "Secure Computation internal API server."
+}
+
+resource "google_project_iam_member" "secure_computation_internal_metric_writer" {
+  project = data.google_project.project.name
+  role    = "roles/monitoring.metricWriter"
+  member  = module.secure_computation_internal.iam_service_account.member
 }
 
 resource "google_spanner_database" "secure_computation" {
