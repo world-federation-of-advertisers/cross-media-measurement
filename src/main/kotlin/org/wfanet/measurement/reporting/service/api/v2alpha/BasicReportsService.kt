@@ -32,6 +32,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.common.api.ResourceIds
 import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
+import org.wfanet.measurement.internal.reporting.ErrorCode
 import org.wfanet.measurement.internal.reporting.v2.BasicReport as InternalBasicReport
 import org.wfanet.measurement.internal.reporting.v2.BasicReportsGrpcKt.BasicReportsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.ImpressionQualificationFiltersGrpcKt.ImpressionQualificationFiltersCoroutineStub
@@ -47,11 +48,10 @@ import org.wfanet.measurement.internal.reporting.v2.listBasicReportsPageToken
 import org.wfanet.measurement.internal.reporting.v2.listBasicReportsRequest as internalListBasicReportsRequest
 import org.wfanet.measurement.reporting.service.api.ArgumentChangedInRequestForNextPageException
 import org.wfanet.measurement.reporting.service.api.BasicReportNotFoundException
+import org.wfanet.measurement.reporting.service.api.CampaignGroupNotFoundException
 import org.wfanet.measurement.reporting.service.api.InvalidFieldValueException
 import org.wfanet.measurement.reporting.service.api.RequiredFieldNotSetException
 import org.wfanet.measurement.reporting.service.internal.Errors as InternalErrors
-import org.wfanet.measurement.internal.reporting.ErrorCode
-import org.wfanet.measurement.reporting.service.api.CampaignGroupNotFoundException
 import org.wfanet.measurement.reporting.service.internal.ReportingInternalException
 import org.wfanet.measurement.reporting.v2alpha.BasicReport
 import org.wfanet.measurement.reporting.v2alpha.BasicReportsGrpcKt.BasicReportsCoroutineImplBase
@@ -354,7 +354,7 @@ class BasicReportsService(
     for (resultGroupSpec in this) {
       if (
         resultGroupSpec.metricFrequency.selectorCase ==
-        MetricFrequencySpec.SelectorCase.SELECTOR_NOT_SET
+          MetricFrequencySpec.SelectorCase.SELECTOR_NOT_SET
       ) {
         throw RequiredFieldNotSetException("basic_report.result_group_specs.metric_frequency")
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
@@ -378,8 +378,8 @@ class BasicReportsService(
         resultGroupSpec.resultGroupMetricSpec.validate(resultGroupSpec.metricFrequency.selectorCase)
       } else {
         throw RequiredFieldNotSetException(
-          "basic_report.result_group_specs.result_group_metric_spec"
-        )
+            "basic_report.result_group_specs.result_group_metric_spec"
+          )
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
       }
     }
@@ -387,115 +387,122 @@ class BasicReportsService(
 
   private fun ReportingUnit.validate(dataProviderNameSet: Set<String>) {
     if (this.componentsList.isEmpty()) {
-      throw InvalidFieldValueException(
-        "basic_report.result_group_specs.reporting_unit.components"
-      )
+      throw InvalidFieldValueException("basic_report.result_group_specs.reporting_unit.components")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
     for (component in this.componentsList) {
       DataProviderKey.fromName(component)
         ?: throw InvalidFieldValueException(
-          "basic_report.result_group_specs.reporting_unit.components"
-        ) { "$component is not a valid data provider name" }
+            "basic_report.result_group_specs.reporting_unit.components"
+          ) {
+            "$component is not a valid data provider name"
+          }
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
 
       if (!dataProviderNameSet.contains(component)) {
         throw InvalidFieldValueException(
-          "basic_report.result_group_specs.reporting_unit.components"
-        ) {
-          "reporting_unit component does not have any cmms_event_groups in campaign_group"
-        }
+            "basic_report.result_group_specs.reporting_unit.components"
+          ) {
+            "reporting_unit component does not have any cmms_event_groups in campaign_group"
+          }
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
       }
     }
   }
 
   private fun DimensionSpec.validate() {
-    if (
-      this.hasGrouping() &&
-      this.grouping.eventTemplateFieldsList.isEmpty()
-    ) {
+    if (this.hasGrouping() && this.grouping.eventTemplateFieldsList.isEmpty()) {
       throw RequiredFieldNotSetException(
-        "basic_report.result_group_specs.dimension_spec.grouping.event_template_fields"
-      )
+          "basic_report.result_group_specs.dimension_spec.grouping.event_template_fields"
+        )
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
     for (eventFilter in this.filtersList) {
       if (eventFilter.termsList.size != 1) {
         throw InvalidFieldValueException(
-          "basic_report.result_group_specs.dimension_spec.filters.terms"
-        )
+            "basic_report.result_group_specs.dimension_spec.filters.terms"
+          )
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
       }
 
-      //TODO(@tristanvuong2021): Need to verify against eventTemplate descriptor
+      // TODO(@tristanvuong2021): Need to verify against eventTemplate descriptor
       for (eventTemplateField in eventFilter.termsList) {
         if (eventTemplateField.path.isEmpty()) {
           throw RequiredFieldNotSetException(
-            "basic_report.result_group_specs.dimension_spec.filters.terms.path"
-          )
+              "basic_report.result_group_specs.dimension_spec.filters.terms.path"
+            )
             .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
         }
 
         if (
           eventTemplateField.value.selectorCase ==
-          EventTemplateField.FieldValue.SelectorCase.SELECTOR_NOT_SET
+            EventTemplateField.FieldValue.SelectorCase.SELECTOR_NOT_SET
         ) {
           throw RequiredFieldNotSetException(
-            "basic_report.result_group_specs.dimension_spec.filters.terms.value"
-          )
+              "basic_report.result_group_specs.dimension_spec.filters.terms.value"
+            )
             .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
         }
       }
     }
   }
 
-  private fun ResultGroupMetricSpec.validate(metricFrequencySelectorCase: MetricFrequencySpec.SelectorCase) {
+  private fun ResultGroupMetricSpec.validate(
+    metricFrequencySelectorCase: MetricFrequencySpec.SelectorCase
+  ) {
     if (this.hasComponentIntersection()) {
       throw InvalidFieldValueException(
-        "basic_report.result_group_specs.result_group_metric_spec.component_intersection"
-      ) {
-        "Not supported at this time"
-      }
+          "basic_report.result_group_specs.result_group_metric_spec.component_intersection"
+        ) {
+          "Not supported at this time"
+        }
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
     if (metricFrequencySelectorCase == MetricFrequencySpec.SelectorCase.TOTAL) {
       if (this.reportingUnit.hasNonCumulative()) {
         throw InvalidFieldValueException(
-          "basic_report.result_group_specs.result_group_metric_spec.reporting_unit.non_cumulative"
-        ) {
-          "non_cumulative cannot be specified when metric_frequency is total"
-        }
+            "basic_report.result_group_specs.result_group_metric_spec.reporting_unit.non_cumulative"
+          ) {
+            "non_cumulative cannot be specified when metric_frequency is total"
+          }
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
       }
 
       if (this.component.hasNonCumulative()) {
         throw InvalidFieldValueException(
-          "basic_report.result_group_specs.result_group_metric_spec.component.non_cumulative"
-        ) {
-          "non_cumulative cannot be specified when metric_frequency is total"
-        }
+            "basic_report.result_group_specs.result_group_metric_spec.component.non_cumulative"
+          ) {
+            "non_cumulative cannot be specified when metric_frequency is total"
+          }
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
       }
     }
 
-    this.reportingUnit.cumulative.validate("basic_report.result_group_specs.result_group_metric_spec.reporting_unit.cumulative.k_plus_reach")
-    this.reportingUnit.nonCumulative.validate("basic_report.result_group_specs.result_group_metric_spec.reporting_unit.non_cumulative.k_plus_reach")
-    this.component.nonCumulative.validate("basic_report.result_group_specs.result_group_metric_spec.component.non_cumulative.k_plus_reach")
-    this.component.cumulative.validate("basic_report.result_group_specs.result_group_metric_spec.component.cumulative.k_plus_reach")
+    this.reportingUnit.cumulative.validate(
+      "basic_report.result_group_specs.result_group_metric_spec.reporting_unit.cumulative.k_plus_reach"
+    )
+    this.reportingUnit.nonCumulative.validate(
+      "basic_report.result_group_specs.result_group_metric_spec.reporting_unit.non_cumulative.k_plus_reach"
+    )
+    this.component.nonCumulative.validate(
+      "basic_report.result_group_specs.result_group_metric_spec.component.non_cumulative.k_plus_reach"
+    )
+    this.component.cumulative.validate(
+      "basic_report.result_group_specs.result_group_metric_spec.component.cumulative.k_plus_reach"
+    )
 
     if (
       this.reportingUnit.stackedIncrementalReach &&
-      metricFrequencySelectorCase != MetricFrequencySpec.SelectorCase.TOTAL
+        metricFrequencySelectorCase != MetricFrequencySpec.SelectorCase.TOTAL
     ) {
       throw InvalidFieldValueException(
-        "basic_report.result_group_specs.result_group_metric_spec.reporting_unit.stacked_incremental_reach"
-      ) {
-        "stacked_incremental_reach requires metric_frequency to be total"
-      }
+          "basic_report.result_group_specs.result_group_metric_spec.reporting_unit.stacked_incremental_reach"
+        ) {
+          "stacked_incremental_reach requires metric_frequency to be total"
+        }
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
   }
@@ -513,25 +520,20 @@ class BasicReportsService(
 
     if (
       this.reportStart.year == 0 ||
-      this.reportStart.month == 0 ||
-      this.reportStart.day == 0 ||
-      !(this.reportStart.hasTimeZone() ||
-        this.reportStart.hasUtcOffset())
+        this.reportStart.month == 0 ||
+        this.reportStart.day == 0 ||
+        !(this.reportStart.hasTimeZone() || this.reportStart.hasUtcOffset())
     ) {
       throw InvalidFieldValueException("basic_report.reporting_interval.report_start") {
-        "year, month, and day are all required. Either time_zone or utc_offset must be set"
-      }
+          "year, month, and day are all required. Either time_zone or utc_offset must be set"
+        }
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
-    if (
-      this.reportEnd.year == 0 ||
-      this.reportEnd.month == 0 ||
-      this.reportEnd.day == 0
-    ) {
+    if (this.reportEnd.year == 0 || this.reportEnd.month == 0 || this.reportEnd.day == 0) {
       throw InvalidFieldValueException("basic_report.reporting_interval.report_end") {
-        "year, month, and day are all required"
-      }
+          "year, month, and day are all required"
+        }
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
   }
@@ -548,8 +550,8 @@ class BasicReportsService(
           impressionQualificationFilter.impressionQualificationFilter
         )
           ?: throw InvalidFieldValueException(
-            "basic_report.impression_qualification_filters.impression_qualification_filter"
-          )
+              "basic_report.impression_qualification_filters.impression_qualification_filter"
+            )
             .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
       } else if (impressionQualificationFilter.hasCustom()) {
         impressionQualificationFilter.custom.validate()
@@ -564,8 +566,8 @@ class BasicReportsService(
     val source = this
     if (source.filterSpecList.isEmpty()) {
       throw RequiredFieldNotSetException(
-        "basic_report.impression_qualification_filters.custom.filter_spec"
-      )
+          "basic_report.impression_qualification_filters.custom.filter_spec"
+        )
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
@@ -574,45 +576,45 @@ class BasicReportsService(
       for (filterSpec in source.filterSpecList) {
         if (this.contains(filterSpec.mediaType)) {
           throw InvalidFieldValueException(
-            "basic_report.impression_qualification_filters.custom.filter_spec"
-          ) {
-            "More than 1 filter_spec for MediaType ${filterSpec.mediaType}. Only 1 filter_spec per MediaType allowed"
-          }
+              "basic_report.impression_qualification_filters.custom.filter_spec"
+            ) {
+              "More than 1 filter_spec for MediaType ${filterSpec.mediaType}. Only 1 filter_spec per MediaType allowed"
+            }
             .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
         }
         add(filterSpec.mediaType)
 
         if (filterSpec.filtersList.isEmpty()) {
           throw RequiredFieldNotSetException(
-            "basic_report.impression_qualification_filters.custom.filter_spec.filters"
-          )
+              "basic_report.impression_qualification_filters.custom.filter_spec.filters"
+            )
             .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
         }
 
         for (eventFilter in filterSpec.filtersList) {
           if (eventFilter.termsList.size != 1) {
             throw RequiredFieldNotSetException(
-              "basic_report.impression_qualification_filters.custom.filter_spec.filters.terms"
-            )
+                "basic_report.impression_qualification_filters.custom.filter_spec.filters.terms"
+              )
               .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
           }
 
-          //TODO(@tristanvuong2021): Need to verify against eventTemplate descriptor
+          // TODO(@tristanvuong2021): Need to verify against eventTemplate descriptor
           for (eventTemplateField in eventFilter.termsList) {
             if (eventTemplateField.path.isEmpty()) {
               throw RequiredFieldNotSetException(
-                "basic_report.impression_qualification_filters.custom.filter_spec.filters.terms.path"
-              )
+                  "basic_report.impression_qualification_filters.custom.filter_spec.filters.terms.path"
+                )
                 .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
             }
 
             if (
               eventTemplateField.value.selectorCase ==
-              EventTemplateField.FieldValue.SelectorCase.SELECTOR_NOT_SET
+                EventTemplateField.FieldValue.SelectorCase.SELECTOR_NOT_SET
             ) {
               throw RequiredFieldNotSetException(
-                "basic_report.impression_qualification_filters.custom.filter_spec.filters.terms.value"
-              )
+                  "basic_report.impression_qualification_filters.custom.filter_spec.filters.terms.value"
+                )
                 .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
             }
           }
@@ -625,8 +627,8 @@ class BasicReportsService(
     if (this.percentKPlusReach) {
       if (this.kPlusReach <= 0) {
         throw InvalidFieldValueException(kPlusReachFieldName) {
-          "percent_k_plus_reach requires k_plus_reach to be positive"
-        }
+            "percent_k_plus_reach requires k_plus_reach to be positive"
+          }
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
       }
     }
