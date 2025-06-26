@@ -21,6 +21,7 @@ import java.time.format.DateTimeFormatter
 import org.wfanet.measurement.common.grpc.TlsFlags
 import org.wfanet.measurement.loadtest.KingdomInternalApiFlags
 import org.wfanet.measurement.loadtest.KingdomPublicApiFlags
+import org.wfanet.measurement.reporting.deploy.v2.common.ReportingApiServerFlags
 import picocli.CommandLine
 
 class ResourceSetupFlags {
@@ -133,5 +134,17 @@ class ResourceSetupFlags {
     required = false,
   )
   var requiredDuchies: List<String> = emptyList()
+    private set
+
+  @CommandLine.Option(
+    names = ["--open-id-providers-config-file"],
+    description = ["Open ID Providers config in JSON format."],
+    required = true,
+  )
+  lateinit var openIdProvidersConfigJson: File
+    private set
+
+  @CommandLine.Mixin
+  lateinit var reportingApiServerFlags: ReportingApiServerFlags
     private set
 }

@@ -16,6 +16,9 @@
 
 package org.wfanet.measurement.integration.k8s
 
+import com.google.crypto.tink.InsecureSecretKeyAccess
+import com.google.crypto.tink.TinkProtoKeysetFormat
+import com.google.protobuf.util.JsonFormat
 import io.grpc.Channel
 import io.grpc.ManagedChannel
 import io.kubernetes.client.common.KubernetesObject
@@ -27,7 +30,9 @@ import java.io.File
 import java.net.InetSocketAddress
 import java.nio.charset.StandardCharsets
 import java.nio.file.Paths
+import java.security.KeyPair
 import java.security.Security
+import java.security.cert.X509Certificate
 import java.time.Duration
 import java.util.UUID
 import java.util.logging.Logger
@@ -35,6 +40,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.time.withTimeout
 import kotlinx.coroutines.withContext
+import okhttp3.OkHttpClient
+import okhttp3.tls.HandshakeCertificates
+import okhttp3.tls.HeldCertificate
+import okhttp3.tls.decodeCertificatePem
 import org.jetbrains.annotations.Blocking
 import org.junit.ClassRule
 import org.junit.rules.TemporaryFolder
@@ -43,6 +52,12 @@ import org.junit.runner.Description
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.junit.runners.model.Statement
+import org.wfanet.measurement.access.v1alpha.PoliciesGrpcKt
+import org.wfanet.measurement.access.v1alpha.Principal
+import org.wfanet.measurement.access.v1alpha.PrincipalKt
+import org.wfanet.measurement.access.v1alpha.PrincipalsGrpcKt
+import org.wfanet.measurement.access.v1alpha.RolesGrpcKt
+import org.wfanet.measurement.access.v1alpha.principal
 import org.wfanet.measurement.api.v2alpha.ApiKeysGrpcKt
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt
@@ -51,26 +66,32 @@ import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.common.crypto.jceProvider
+import org.wfanet.measurement.common.crypto.readPrivateKey
 import org.wfanet.measurement.common.crypto.tink.TinkPrivateKeyHandle
+import org.wfanet.measurement.common.grpc.BearerTokenCallCredentials
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
+import org.wfanet.measurement.common.grpc.testing.OpenIdProvider
+import org.wfanet.measurement.common.grpc.withDefaultDeadline
 import org.wfanet.measurement.common.k8s.KubernetesClient
 import org.wfanet.measurement.common.k8s.KubernetesClientImpl
 import org.wfanet.measurement.common.k8s.testing.PortForwarder
 import org.wfanet.measurement.common.k8s.testing.Processes
 import org.wfanet.measurement.common.testing.chainRulesSequentially
+import org.wfanet.measurement.config.access.OpenIdProvidersConfig
 import org.wfanet.measurement.integration.common.ALL_DUCHY_NAMES
+import org.wfanet.measurement.integration.common.EntityContent
 import org.wfanet.measurement.integration.common.MC_DISPLAY_NAME
 import org.wfanet.measurement.integration.common.SyntheticGenerationSpecs
 import org.wfanet.measurement.integration.common.createEntityContent
 import org.wfanet.measurement.integration.common.loadEncryptionPrivateKey
 import org.wfanet.measurement.integration.common.loadTestCertDerFile
 import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt
+import org.wfanet.measurement.internal.reporting.v2.BasicReportsGrpcKt as InternalBasicReportsGrpcKt
 import org.wfanet.measurement.loadtest.measurementconsumer.EventQueryMeasurementConsumerSimulator
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
 import org.wfanet.measurement.loadtest.measurementconsumer.MetadataSyntheticGeneratorEventQuery
 import org.wfanet.measurement.loadtest.reporting.ReportingUserSimulator
 import org.wfanet.measurement.loadtest.resourcesetup.DuchyCert
-import org.wfanet.measurement.loadtest.resourcesetup.EntityContent
 import org.wfanet.measurement.loadtest.resourcesetup.ResourceSetup
 import org.wfanet.measurement.loadtest.resourcesetup.Resources
 import org.wfanet.measurement.reporting.v2alpha.MetricCalculationSpecsGrpcKt
@@ -106,6 +127,11 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
     }
   }
 
+  private data class ClusterData(
+    val measurementConsumerData: MeasurementConsumerData,
+    val principal: Principal,
+  )
+
   private data class ResourceInfo(
     val aggregatorCert: String,
     val worker1Cert: String,
@@ -114,6 +140,9 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
     val measurementConsumerCert: String,
     val apiKey: String,
     val dataProviders: Map<String, Resources.Resource>,
+    val principal: String,
+    val principalIssuer: String,
+    val principalSubject: String,
   ) {
     companion object {
       fun from(resources: Iterable<Resources.Resource>): ResourceInfo {
@@ -124,6 +153,9 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
         var measurementConsumerCert: String? = null
         var apiKey: String? = null
         val dataProviders = mutableMapOf<String, Resources.Resource>()
+        var principal: String? = null
+        var principalIssuer: String? = null
+        var principalSubject: String? = null
 
         for (resource in resources) {
           @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields cannot be null.
@@ -147,6 +179,11 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
                 else -> error("Unhandled Duchy $duchyId")
               }
             }
+            Resources.Resource.ResourceCase.PRINCIPAL -> {
+              principal = resource.name
+              principalIssuer = resource.principal.issuer
+              principalSubject = resource.principal.subject
+            }
             Resources.Resource.ResourceCase.RESOURCE_NOT_SET -> error("Unhandled type")
           }
         }
@@ -159,6 +196,9 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
           measurementConsumerCert = requireNotNull(measurementConsumerCert),
           apiKey = requireNotNull(apiKey),
           dataProviders = dataProviders,
+          principal = requireNotNull(principal),
+          principalIssuer = requireNotNull(principalIssuer),
+          principalSubject = requireNotNull(principalSubject),
         )
       }
     }
@@ -191,9 +231,9 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
           try {
             runBlocking {
               withTimeout(Duration.ofMinutes(5)) {
-                val measurementConsumerData = populateCluster()
-                _testHarness = createTestHarness(measurementConsumerData)
-                _reportingTestHarness = createReportingUserSimulator(measurementConsumerData)
+                val clusterData = populateCluster()
+                _testHarness = createTestHarness(clusterData)
+                _reportingTestHarness = createReportingUserSimulator(clusterData)
               }
             }
             base.evaluate()
@@ -204,7 +244,7 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
       }
     }
 
-    private suspend fun populateCluster(): MeasurementConsumerData {
+    private suspend fun populateCluster(): ClusterData {
       val apiClient = k8sClient.apiClient
       apiClient.httpClient =
         apiClient.httpClient.newBuilder().readTimeout(Duration.ofHours(1L)).build()
@@ -221,6 +261,7 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
       k8sClient.waitForServiceAccount("default", timeout = READY_TIMEOUT)
 
       loadKingdom()
+      loadReporting()
       val resourceSetupOutput =
         runResourceSetup(duchyCerts, edpEntityContents, measurementConsumerContent)
       val resourceInfo = ResourceInfo.from(resourceSetupOutput.resources)
@@ -235,12 +276,25 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
         withContext(Dispatchers.IO) {
           loadEncryptionPrivateKey("${MC_DISPLAY_NAME}_enc_private.tink")
         }
-      return MeasurementConsumerData(
-        resourceInfo.measurementConsumer,
-        measurementConsumerContent.signingKey,
-        encryptionPrivateKey,
-        resourceInfo.apiKey,
-      )
+
+      val measurementConsumerData =
+        MeasurementConsumerData(
+          resourceInfo.measurementConsumer,
+          measurementConsumerContent.signingKey,
+          encryptionPrivateKey,
+          resourceInfo.apiKey,
+        )
+
+      val principal = principal {
+        name = resourceInfo.principal
+        user =
+          PrincipalKt.oAuthUser {
+            issuer = resourceInfo.principalIssuer
+            subject = resourceInfo.principalSubject
+          }
+      }
+
+      return ClusterData(measurementConsumerData = measurementConsumerData, principal = principal)
     }
 
     private suspend fun createTestHarness(
@@ -276,10 +330,9 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
     }
 
     private suspend fun createReportingUserSimulator(
-      measurementConsumerData: MeasurementConsumerData
+      clusterData: ClusterData
     ): ReportingUserSimulator {
       val reportingPublicPod: V1Pod = getPod(REPORTING_PUBLIC_DEPLOYMENT_NAME)
-
       val publicApiForwarder = PortForwarder(reportingPublicPod, SERVER_PORT)
       portForwarders.add(publicApiForwarder)
 
@@ -290,8 +343,72 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
           channels.add(it)
         }
 
+      val reportingGatewayPod: V1Pod = getPod(REPORTING_GATEWAY_DEPLOYMENT_NAME)
+      val gatewayForwarder = PortForwarder(reportingGatewayPod, SERVER_PORT)
+      portForwarders.add(gatewayForwarder)
+
+      val gatewayAddress: InetSocketAddress =
+        withContext(Dispatchers.IO) { gatewayForwarder.start() }
+
+      val secretFiles = getRuntimePath(SECRET_FILES_PATH)
+      val reportingRootCert = secretFiles.resolve("reporting_root.pem").toFile()
+      val cert = secretFiles.resolve("mc_tls.pem").toFile()
+      val key = secretFiles.resolve("mc_tls.key").toFile()
+
+      val clientCertificate: X509Certificate = cert.readText().decodeCertificatePem()
+      val keyAlgorithm = clientCertificate.publicKey.algorithm
+      val certificates =
+        HandshakeCertificates.Builder()
+          .addTrustedCertificate(reportingRootCert.readText().decodeCertificatePem())
+          .heldCertificate(
+            HeldCertificate(
+              KeyPair(clientCertificate.publicKey, readPrivateKey(key, keyAlgorithm)),
+              clientCertificate,
+            )
+          )
+          .build()
+
+      val okHttpReportingClient =
+        OkHttpClient.Builder()
+          .sslSocketFactory(certificates.sslSocketFactory(), certificates.trustManager)
+          .build()
+
+      val reportingInternalPod: V1Pod = getPod(REPORTING_INTERNAL_DEPLOYMENT_NAME)
+      val internalApiForwarder = PortForwarder(reportingInternalPod, SERVER_PORT)
+      portForwarders.add(internalApiForwarder)
+
+      val internalApiAddress: InetSocketAddress =
+        withContext(Dispatchers.IO) { internalApiForwarder.start() }
+      val internalApiChannel: Channel =
+        buildMutualTlsChannel(internalApiAddress.toTarget(), REPORTING_SIGNING_CERTS)
+          .also { channels.add(it) }
+          .withDefaultDeadline(DEFAULT_RPC_DEADLINE)
+
+      val openIdProvidersConfig =
+        OpenIdProvidersConfig.newBuilder()
+          .apply {
+            JsonFormat.parser()
+              .ignoringUnknownFields()
+              .merge(OPEN_ID_PROVIDERS_CONFIG_JSON_FILE.readText(), this)
+          }
+          .build()
+
+      val bearerTokenCallCredentials: BearerTokenCallCredentials =
+        OpenIdProvider(
+            clusterData.principal.user.issuer,
+            TinkProtoKeysetFormat.parseKeyset(
+              OPEN_ID_PROVIDERS_TINK_FILE.readBytes(),
+              InsecureSecretKeyAccess.get(),
+            ),
+          )
+          .generateCredentials(
+            audience = openIdProvidersConfig.audience,
+            subject = clusterData.principal.user.subject,
+            scopes = setOf("reporting.basicReports.get"),
+          )
+
       return ReportingUserSimulator(
-        measurementConsumerName = measurementConsumerData.name,
+        measurementConsumerName = clusterData.measurementConsumerData.name,
         dataProvidersClient = DataProvidersGrpcKt.DataProvidersCoroutineStub(publicApiChannel),
         eventGroupsClient =
           org.wfanet.measurement.reporting.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub(
@@ -301,6 +418,12 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
         metricCalculationSpecsClient =
           MetricCalculationSpecsGrpcKt.MetricCalculationSpecsCoroutineStub(publicApiChannel),
         reportsClient = ReportsGrpcKt.ReportsCoroutineStub(publicApiChannel),
+        okHttpReportingClient = okHttpReportingClient,
+        reportingGatewayHost = gatewayAddress.hostName,
+        reportingGatewayPort = gatewayAddress.port,
+        reportingAccessToken = bearerTokenCallCredentials.token,
+        internalBasicReportsClient =
+          InternalBasicReportsGrpcKt.BasicReportsCoroutineStub(internalApiChannel),
       )
     }
 
@@ -387,6 +510,26 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
       waitUntilDeploymentsComplete(appliedObjects)
     }
 
+    private suspend fun loadReporting() {
+      val appliedObjects: List<KubernetesObject> =
+        withContext(Dispatchers.IO) {
+          val outputDir = tempDir.newFolder("reporting-setup")
+          extractTar(
+            getRuntimePath(LOCAL_K8S_PATH.resolve("reporting_setup.tar")).toFile(),
+            outputDir,
+          )
+          val config: File = outputDir.resolve("config.yaml")
+          kustomize(
+            outputDir.toPath().resolve(LOCAL_K8S_PATH).resolve("reporting_setup").toFile(),
+            config,
+          )
+
+          kubectlApply(config)
+        }
+
+      waitUntilDeploymentsComplete(appliedObjects)
+    }
+
     private suspend fun runResourceSetup(
       duchyCerts: List<DuchyCert>,
       edpEntityContents: List<EntityContent>,
@@ -396,6 +539,7 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
 
       val kingdomInternalPod: V1Pod = getPod(KINGDOM_INTERNAL_DEPLOYMENT_NAME)
       val kingdomPublicPod: V1Pod = getPod(KINGDOM_PUBLIC_DEPLOYMENT_NAME)
+      val accessPublicPod: V1Pod = getPod(ACCESS_PUBLIC_API_DEPLOYMENT_NAME)
 
       val resources =
         PortForwarder(kingdomInternalPod, SERVER_PORT).use { internalForward ->
@@ -409,26 +553,50 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
                 withContext(Dispatchers.IO) { publicForward.start() }
               val publicChannel =
                 buildMutualTlsChannel(publicAddress.toTarget(), KINGDOM_SIGNING_CERTS)
-              val resourceSetup =
-                ResourceSetup(
-                  AccountsGrpcKt.AccountsCoroutineStub(internalChannel),
-                  org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt
-                    .DataProvidersCoroutineStub(internalChannel),
-                  org.wfanet.measurement.api.v2alpha.AccountsGrpcKt.AccountsCoroutineStub(
-                    publicChannel
-                  ),
-                  ApiKeysGrpcKt.ApiKeysCoroutineStub(publicChannel),
-                  org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt
-                    .CertificatesCoroutineStub(internalChannel),
-                  MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub(publicChannel),
-                  runId,
-                  outputDir = outputDir,
-                  requiredDuchies = listOf("aggregator", "worker1", "worker2"),
-                )
-              withContext(Dispatchers.IO) {
-                resourceSetup
-                  .process(edpEntityContents, measurementConsumerContent, duchyCerts)
-                  .also { publicChannel.shutdown() }
+              PortForwarder(accessPublicPod, SERVER_PORT).use { accessPublicForward ->
+                val accessPublicApiAddress: InetSocketAddress =
+                  withContext(Dispatchers.IO) { accessPublicForward.start() }
+                val accessPublicApiChannel =
+                  buildMutualTlsChannel(accessPublicApiAddress.toTarget(), ACCESS_SIGNING_CERTS)
+
+                val openIdProvidersConfig =
+                  OpenIdProvidersConfig.newBuilder()
+                    .apply {
+                      JsonFormat.parser()
+                        .ignoringUnknownFields()
+                        .merge(OPEN_ID_PROVIDERS_CONFIG_JSON_FILE.readText(), this)
+                    }
+                    .build()
+
+                val resourceSetup =
+                  ResourceSetup(
+                    AccountsGrpcKt.AccountsCoroutineStub(internalChannel),
+                    org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt
+                      .DataProvidersCoroutineStub(internalChannel),
+                    org.wfanet.measurement.api.v2alpha.AccountsGrpcKt.AccountsCoroutineStub(
+                      publicChannel
+                    ),
+                    ApiKeysGrpcKt.ApiKeysCoroutineStub(publicChannel),
+                    org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt
+                      .CertificatesCoroutineStub(internalChannel),
+                    MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub(publicChannel),
+                    RolesGrpcKt.RolesCoroutineStub(accessPublicApiChannel),
+                    PrincipalsGrpcKt.PrincipalsCoroutineStub(accessPublicApiChannel),
+                    PoliciesGrpcKt.PoliciesCoroutineStub(accessPublicApiChannel),
+                    runId,
+                    outputDir = outputDir,
+                    requiredDuchies = listOf("aggregator", "worker1", "worker2"),
+                  )
+                withContext(Dispatchers.IO) {
+                  resourceSetup
+                    .process(
+                      edpEntityContents,
+                      measurementConsumerContent,
+                      duchyCerts,
+                      openIdProvidersConfig,
+                    )
+                    .also { publicChannel.shutdown() }
+                }
               }
             }
             .also { internalChannel.shutdown() }
@@ -520,15 +688,21 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
     private const val KINGDOM_PUBLIC_DEPLOYMENT_NAME = "v2alpha-public-api-server-deployment"
     private const val REPORTING_PUBLIC_DEPLOYMENT_NAME =
       "reporting-v2alpha-public-api-server-deployment"
+    private const val REPORTING_INTERNAL_DEPLOYMENT_NAME =
+      "postgres-internal-reporting-server-deployment"
+    private const val REPORTING_GATEWAY_DEPLOYMENT_NAME = "reporting-grpc-gateway-deployment"
+    private const val ACCESS_PUBLIC_API_DEPLOYMENT_NAME = "access-public-api-server-deployment"
     private const val NUM_DATA_PROVIDERS = 6
     private val EDP_DISPLAY_NAMES: List<String> = (1..NUM_DATA_PROVIDERS).map { "edp$it" }
     private val READY_TIMEOUT = Duration.ofMinutes(2L)
 
-    private val LOCAL_K8S_PATH = Paths.get("src", "main", "k8s", "local")
     private val LOCAL_K8S_TESTING_PATH = LOCAL_K8S_PATH.resolve("testing")
     private val CONFIG_FILES_PATH = LOCAL_K8S_TESTING_PATH.resolve("config_files")
     private val MC_CONFIG_PATH = LOCAL_K8S_TESTING_PATH.resolve("mc_config")
     private val IMAGE_PUSHER_PATH = Paths.get("src", "main", "docker", "push_all_local_images.bash")
+
+    private val OPEN_ID_PROVIDERS_CONFIG_JSON_FILE: File =
+      LOCAL_K8S_PATH.resolve("open_id_providers_config.json").toFile()
 
     private val tempDir = TemporaryFolder()
 

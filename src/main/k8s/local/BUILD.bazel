@@ -413,6 +413,23 @@ kustomization_dir(
 )
 
 kustomization_dir(
+    name = "reporting_setup",
+    srcs = [
+        ":emulators",
+        ":postgres_database",
+        ":reporting_v2",
+    ],
+    generate_kustomization = True,
+    tags = ["manual"],
+    deps = [
+        ":config_files",
+        ":db_creds",
+        ":mc_config",
+        "//src/main/k8s/testing/secretfiles:kustomization",
+    ],
+)
+
+kustomization_dir(
     name = "cmms",
     srcs = [
         ":duchies",

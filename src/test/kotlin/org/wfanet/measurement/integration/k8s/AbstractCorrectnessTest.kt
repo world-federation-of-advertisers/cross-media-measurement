@@ -16,6 +16,7 @@
 
 package org.wfanet.measurement.integration.k8s
 
+import java.io.File
 import java.nio.file.Path
 import java.nio.file.Paths
 import kotlinx.coroutines.runBlocking
@@ -72,6 +73,11 @@ abstract class AbstractCorrectnessTest(private val measurementSystem: Measuremen
     reportingTestHarness.testCreateReport("$runId-test-report")
   }
 
+  @Test(timeout = 1 * 60 * 1000)
+  fun `basic report can be retrieved`() = runBlocking {
+    reportingTestHarness.testGetBasicReport("$runId-test-basic-report")
+  }
+
   interface MeasurementSystem {
     val runId: String
     val testHarness: EventQueryMeasurementConsumerSimulator
@@ -115,6 +121,14 @@ abstract class AbstractCorrectnessTest(private val measurementSystem: Measuremen
       SigningCerts.fromPemFiles(cert, key, trustedCerts)
     }
 
+    val ACCESS_SIGNING_CERTS: SigningCerts by lazy {
+      val secretFiles = getRuntimePath(SECRET_FILES_PATH)
+      val trustedCerts = secretFiles.resolve("reporting_root.pem").toFile()
+      val cert = secretFiles.resolve("access_tls.pem").toFile()
+      val key = secretFiles.resolve("access_tls.key").toFile()
+      SigningCerts.fromPemFiles(cert, key, trustedCerts)
+    }
+
     val MC_ENCRYPTION_PRIVATE_KEY: PrivateKeyHandle by lazy {
       loadEncryptionPrivateKey(MC_ENCRYPTION_PRIVATE_KEY_NAME)
     }
@@ -122,6 +136,11 @@ abstract class AbstractCorrectnessTest(private val measurementSystem: Measuremen
     val MC_SIGNING_KEY: SigningKeyHandle by lazy {
       loadSigningKey(MC_CS_CERT_DER_NAME, MC_CS_PRIVATE_KEY_DER_NAME)
     }
+
+    val LOCAL_K8S_PATH = Paths.get("src", "main", "k8s", "local")
+
+    val OPEN_ID_PROVIDERS_TINK_FILE: File =
+      SECRET_FILES_PATH.resolve("open_id_provider.tink").toFile()
 
     fun getRuntimePath(workspaceRelativePath: Path): Path {
       return checkNotNull(
