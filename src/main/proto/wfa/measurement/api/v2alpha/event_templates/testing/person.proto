@@ -40,6 +40,8 @@ message Person {
   Gender gender = 1 [(.wfa.measurement.api.v2alpha.template_field) = {
     display_name: "Gender"
     population_attribute: true
+    reporting_features: FILTERABLE
+    reporting_features: GROUPABLE
   }];
 
   enum AgeGroup {
@@ -51,7 +53,9 @@ message Person {
   AgeGroup age_group = 2 [(.wfa.measurement.api.v2alpha.template_field) = {
     display_name: "Age Group"
     population_attribute: true
-  }];
+    reporting_features: FILTERABLE
+    reporting_features: GROUPABLE
+   }];
 
   enum SocialGradeGroup {
     SOCIAL_GRADE_GROUP_UNSPECIFIED = 0;
@@ -62,5 +66,7 @@ message Person {
       [(.wfa.measurement.api.v2alpha.template_field) = {
         display_name: "Social Grade"
         population_attribute: true
-      }];
+        reporting_features: FILTERABLE
+        reporting_features: GROUPABLE
+       }];
 }
