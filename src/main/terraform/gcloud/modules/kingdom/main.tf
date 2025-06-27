@@ -22,6 +22,12 @@ module "kingdom_internal" {
   iam_service_account_description = "Kingdom internal API server."
 }
 
+resource "google_project_iam_member" "kingdom_internal_metric_writer" {
+  project = data.google_project.project.name
+  role    = "roles/monitoring.metricWriter"
+  member  = module.kingdom_internal.iam_service_account.member
+}
+
 resource "google_spanner_database" "kingdom" {
   instance         = var.spanner_instance.name
   name             = var.spanner_database_name
@@ -416,8 +422,8 @@ resource "google_project_iam_member" "bigquery_job_user" {
 
 
 resource "google_monitoring_dashboard" "dashboards" {
-  for_each        = toset(var.dashboard_json_files)
+  for_each = toset(var.dashboard_json_files)
 
-  dashboard_json  = file("${path.module}/${each.value}")
-  project         = data.google_project.project.project_id
+  dashboard_json = file("${path.module}/${each.value}")
+  project        = data.google_project.project.project_id
 }
