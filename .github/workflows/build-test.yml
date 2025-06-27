@@ -93,10 +93,10 @@ jobs:
         run: bazel mod deps
 
       - name: Build
-        run: >
-          bazel build --worker_quit_after_build
-          //...
-          //src/main/k8s/dev:synthetic_generator_edp_simulators
+        run: |
+          #unset ANDROID_HOME
+          #unset ANDROID_SDK_ROOT
+          bazel build --worker_quit_after_build //... //src/main/k8s/dev:synthetic_generator_edp_simulators
 
       - name: Run tests
         id: run-tests
