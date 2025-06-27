@@ -96,7 +96,7 @@ sealed class ServiceException(
 class BasicReportNotFoundException(name: String, cause: Throwable? = null) :
   ServiceException(
     Errors.Reason.BASIC_REPORT_NOT_FOUND,
-    "Basic Report $name not found",
+    "BasicReport $name not found",
     mapOf(Errors.Metadata.BASIC_REPORT to name),
     cause,
   )
@@ -104,7 +104,7 @@ class BasicReportNotFoundException(name: String, cause: Throwable? = null) :
 class ReportingSetNotFoundException(name: String, cause: Throwable? = null) :
   ServiceException(
     Errors.Reason.REPORTING_SET_NOT_FOUND,
-    "Reporting Set $name not found",
+    "ReportingSet $name not found",
     mapOf(Errors.Metadata.REPORTING_SET to name),
     cause,
   )
@@ -179,7 +179,7 @@ class InvalidMetricStateTransitionException(
 class ImpressionQualificationFilterNotFoundException(name: String, cause: Throwable? = null) :
   ServiceException(
     Errors.Reason.IMPRESSION_QUALIFICATION_FILTER_NOT_FOUND,
-    "Impression Qualification Filter $name not found",
+    "ImpressionQualificationFilter $name not found",
     mapOf(Errors.Metadata.IMPRESSION_QUALIFICATION_FILTER to name),
     cause,
   ) {}
