@@ -25,10 +25,15 @@ bazel_dep(
     version = "0.6.0",
     repo_name = "wfa_rules_kotlin_jvm",
 )
-git_override(
+single_version_override(
     module_name = "rules_kotlin",
-    commit = "0d690d642ab01f738438897e9ff79ce2a414abca",
-    remote = "https://github.com/laureanobrs/rules_kotlin.git",
+    version = "2.1.8",
+)
+git_override(
+    module_name = "bazel_worker_java",
+    commit = "1ef3805a9a6252c15af0e644ec9ab14915256fb5",
+    remote = "https://github.com/bazelbuild/bazel-worker-api.git",
+    strip_prefix = "java"
 )
 bazel_dep(
     name = "rules_swig",
@@ -209,6 +214,18 @@ bazel_dep(
 )
 
 maven = use_extension("@rules_jvm_external//:extensions.bzl", "maven")
+maven.artifact(
+    artifact = "protobuf-java-util",
+    group = "com.google.protobuf",
+    version = "4.29.3",
+    force_version = True,
+)
+maven.artifact(
+    artifact = "protobuf-java",
+    group = "com.google.protobuf",
+    version = "4.29.3",
+    force_version = True,
+)
 maven.artifact(
     artifact = "beam-runners-google-cloud-dataflow-java",
     exclusions = ["org.apache.beam:beam-sdks-java-io-kafka"],
