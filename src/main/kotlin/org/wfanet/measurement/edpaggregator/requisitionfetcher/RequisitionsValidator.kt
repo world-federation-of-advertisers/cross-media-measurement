@@ -32,7 +32,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
 class InvalidRequisitionException(
   val requisitions: List<Requisition>,
   val refusal: Refusal,
-  cause: Throwable? = null
+  cause: Exception? = null
 ) : Exception("Invalid requisition: ${refusal.justification}: ${refusal.message}", cause)
 
 /**
