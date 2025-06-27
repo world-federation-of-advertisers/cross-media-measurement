@@ -17,6 +17,7 @@ syntax = "proto3";
 package wfa.measurement.api.v2alpha.event_templates.testing;
 
 import "wfa/measurement/api/v2alpha/event_annotations.proto";
+import "wfa/measurement/api/v2alpha/media_type.proto";
 
 option java_package = "org.wfanet.measurement.api.v2alpha.event_templates.testing";
 option java_multiple_files = true;
@@ -26,6 +27,7 @@ message Banner {
     name: "banner_ad"
     display_name: "Banner Ad"
     description: "A simple template for events related to a banner ad."
+    media_type: DISPLAY
   };
 
   bool viewable = 1 [(.wfa.measurement.api.v2alpha.template_field) = {
@@ -33,5 +35,6 @@ message Banner {
     description: "Whether the ad was shown for more than 2 seconds with at "
                  "least 50% of the pixels on the screen. If not specified, "
                  "viewability was not determined."
+    reporting_features: IMPRESSION_QUALIFICATION
   }];
 }
