@@ -36,6 +36,8 @@ import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
  * @param privateEncryptionKey The DataProvider's decryption key used for decrypting requisition
  *   data.
  */
+// TODO(@marcopremier): Update constructor not to use callback but simply throwing an exception
+// if the requisition is not valid
 class RequisitionsValidator(
   private val privateEncryptionKey: PrivateKeyHandle,
   private val fatalRequisitionErrorPredicate: (requisition: Requisition, Refusal) -> Unit,
