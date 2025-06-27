@@ -110,3 +110,9 @@ Before adding other reviewers, please:
 ### Code Style
 
 See [Code Style](code-style.md).
+
+### Use of AI Coding Tools
+
+*  Halo contributors are free to use AI coding tools based on their individual preference and prevailing contributing company policies
+*  Copilot can be turned on for individual contributors through the WFA GitHub organization upon request
+*  Use of AI coding tools does not reduce the responsibility for code quality each contributor accepts upon making a PR
