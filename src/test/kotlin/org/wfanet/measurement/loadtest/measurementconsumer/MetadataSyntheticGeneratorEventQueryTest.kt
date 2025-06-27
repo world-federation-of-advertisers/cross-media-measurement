@@ -16,15 +16,12 @@ package org.wfanet.measurement.loadtest.measurementconsumer
 
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.Any
-import com.google.protobuf.Message
 import com.google.type.interval
 import java.nio.file.Path
 import java.nio.file.Paths
 import java.time.LocalDate
 import java.time.ZoneId
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.toList
-import kotlinx.coroutines.runBlocking
+import java.time.ZoneOffset
 import org.jetbrains.annotations.Blocking
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -43,15 +40,13 @@ import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
 import org.wfanet.measurement.consent.client.dataprovider.encryptMetadata
-import org.wfanet.measurement.loadtest.dataprovider.DateShardedLabeledImpression
 import org.wfanet.measurement.loadtest.dataprovider.EventQuery
-import org.wfanet.measurement.loadtest.dataprovider.LabeledEvent
 
 @RunWith(JUnit4::class)
 class MetadataSyntheticGeneratorEventQueryTest {
 
   @Test
-  fun `verifies that data is correctly spread across days`() {
+  fun `getLabeledEvents returns events distributed across date range`() {
     val syntheticPopulationSpec: SyntheticPopulationSpec =
       parseTextProto(
         TEST_DATA_RUNTIME_PATH.resolve("small_population_spec.textproto").toFile(),
@@ -103,9 +98,6 @@ class MetadataSyntheticGeneratorEventQueryTest {
     assertThat(events.toList()).hasSize(8001)
   }
 
-  private fun <T : Message> Flow<DateShardedLabeledImpression<T>>.toEventsList():
-    List<LabeledEvent<T>> = runBlocking { toList().map { it.impressions }.flatMap { it.toList() } }
-
   companion object {
     private val TEST_DATA_PATH =
       Paths.get(
@@ -137,6 +129,6 @@ class MetadataSyntheticGeneratorEventQueryTest {
       loadPublicKey(SECRET_FILES_PATH.resolve("mc_enc_public.tink").toFile())
         .toEncryptionPublicKey()
 
-    private val ZONE_ID = ZoneId.of("UTC")
+    private val ZONE_ID: ZoneId = ZoneOffset.UTC
   }
 }
