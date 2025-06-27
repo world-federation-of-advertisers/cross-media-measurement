@@ -47,9 +47,24 @@ message RequisitionDetails {
       // `DataProvider` used to verify the secret_seed signature.
       string data_provider_certificate = 3;
     }
+    // TrusTEE protocol specific details.
+    message TrusTee {
+      // An encrypted symmetric key which is in the format of AES-256-GCM.
+      bytes encrypted_symetric_key = 1;
+      // The Uri of the key encryption key that will be used to decrypt
+      // `encrypted_symetric_key`.
+      string kms_kek_uri = 2;
+      // Workload Identity Federation provider's resource name.
+      // In format of
+      // "//iam.googleapis.com/projects/<project-id>/locations/global/workloadIdentityPools/<wip_name>/
+      // providers/<provider_name>"
+      string wif_provider_name = 3;
+    }
 
     oneof protocol {
       HonestMajorityShareShuffle honest_majority_share_shuffle = 1;
+
+      TrusTee trus_tee = 2;
     }
   }
   RequisitionProtocol protocol = 5;
