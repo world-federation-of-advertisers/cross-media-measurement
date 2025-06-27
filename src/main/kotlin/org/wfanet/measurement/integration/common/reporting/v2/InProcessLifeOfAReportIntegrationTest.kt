@@ -189,7 +189,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
   reportingDataServicesProviderRule: ProviderRule<Services>,
 ) {
   private val inProcessCmmsComponents: InProcessCmmsComponents =
-    InProcessCmmsComponents(kingdomDataServicesRule, duchyDependenciesRule, useEdpSimulators = true)
+    InProcessCmmsComponents(kingdomDataServicesRule, duchyDependenciesRule)
 
   private val inProcessCmmsComponentsStartup = TestRule { base, _ ->
     object : Statement() {
