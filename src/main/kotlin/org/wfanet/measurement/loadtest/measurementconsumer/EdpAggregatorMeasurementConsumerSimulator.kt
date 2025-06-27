@@ -21,7 +21,6 @@ import java.security.cert.X509Certificate
 import java.time.Duration
 import java.time.LocalDate
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.filter
 import org.projectnessie.cel.Program
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
@@ -81,18 +80,18 @@ class EdpAggregatorMeasurementConsumerSimulator(
   }
 
   /**
-   * Filters a list of vids for a [MeasurementInfo]. Filters by targetDataProviderId, if provided.
-   * Otherwise, filters by collection interval.
+   * Filters a list of vids for a [MeasurementConsumerSimulator.MeasurementInfo]. Filters by
+   * targetDataProviderId, if provided. Otherwise, filters by collection interval.
    */
   private fun getMeasurementFilteredVids(
     measurementInfo: MeasurementInfo,
     targetDataProviderId: String? = null,
-  ): Flow<Long> {
-    val eventGroupSpecs: List<Triple<SyntheticEventGroupSpec, String, Interval>> =
-      measurementInfo.requisitions.flatMap { requisitionInfo ->
+  ): Sequence<Long> {
+    val eventGroupSpecs: Sequence<Triple<SyntheticEventGroupSpec, String, Interval>> =
+      measurementInfo.requisitions.asSequence().flatMap { requisitionInfo ->
         requisitionInfo.eventGroups
           .zip(requisitionInfo.requisitionSpec.events.eventGroupsList)
-          .filter { (eventGroup, eventGroupEntry) ->
+          .filter { (eventGroup, _) ->
             targetDataProviderId == null ||
               targetDataProviderId ==
                 requireNotNull(EventGroupKey.fromName(eventGroup.name)).dataProviderId
@@ -123,17 +122,16 @@ class EdpAggregatorMeasurementConsumerSimulator(
           }
       }
       .map { it.vid }
-      .asFlow()
   }
 
-  override fun getFilteredVids(measurementInfo: MeasurementInfo): Flow<Long> {
+  override fun getFilteredVids(measurementInfo: MeasurementInfo): Sequence<Long> {
     return getMeasurementFilteredVids(measurementInfo, null)
   }
 
   override fun getFilteredVids(
     measurementInfo: MeasurementInfo,
     targetDataProviderId: String,
-  ): Flow<Long> {
+  ): Sequence<Long> {
     return getMeasurementFilteredVids(measurementInfo, targetDataProviderId)
   }
 
