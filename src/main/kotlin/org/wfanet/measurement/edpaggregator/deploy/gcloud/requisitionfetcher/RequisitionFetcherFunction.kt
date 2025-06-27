@@ -29,7 +29,6 @@ import java.util.logging.Logger
 import java.util.Base64
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.Requisition
@@ -126,7 +125,6 @@ class RequisitionFetcherFunction : HttpFunction {
       eventGroupsStub,
       requisitionsStub,
       MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofSeconds(grpcRequestIntervalSeconds)),
-      requisitionsStub
     )
 
     return RequisitionFetcher(
@@ -163,19 +161,6 @@ class RequisitionFetcherFunction : HttpFunction {
           .service,
         gcsConfig.bucketName
       )
-    }
-  }
-
-  private suspend fun refuseRequisition(requisitionsStub: RequisitionsCoroutineStub, requisition: Requisition, refusal: Requisition.Refusal) {
-    try {
-      logger.info("Requisition ${requisition.name} was refused. $refusal")
-      val request = refuseRequisitionRequest {
-        this.name = requisition.name
-        this.refusal = refusal { justification = refusal.justification }
-      }
-      requisitionsStub.refuseRequisition(request)
-    } catch (e: Exception) {
-      logger.log(Level.SEVERE,"Error while refusing requisition ${requisition.name}", e)
     }
   }
 

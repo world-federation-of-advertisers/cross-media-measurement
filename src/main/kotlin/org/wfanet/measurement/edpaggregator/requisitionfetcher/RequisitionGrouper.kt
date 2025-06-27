@@ -126,11 +126,7 @@ abstract class RequisitionGrouper(
   }
 
   protected suspend fun refuseRequisition(requisition: Requisition,
-                                          refusal: Requisition.Refusal,
-                                          throttler: MinimumIntervalThrottler = MinimumIntervalThrottler(
-                                            Clock.systemUTC(), Duration.ofSeconds(1)
-                                          )
-                                          )
+                                          refusal: Requisition.Refusal)
   {
     try {
       throttler.onReady {
