@@ -48,11 +48,11 @@ import org.wfanet.measurement.internal.reporting.v2.listBasicReportsPageToken
 import org.wfanet.measurement.internal.reporting.v2.listBasicReportsRequest as internalListBasicReportsRequest
 import org.wfanet.measurement.reporting.service.api.ArgumentChangedInRequestForNextPageException
 import org.wfanet.measurement.reporting.service.api.BasicReportNotFoundException
+import org.wfanet.measurement.reporting.service.api.ImpressionQualificationFilterNotFoundException
 import org.wfanet.measurement.reporting.service.api.InvalidFieldValueException
+import org.wfanet.measurement.reporting.service.api.ReportingSetNotFoundException
 import org.wfanet.measurement.reporting.service.api.RequiredFieldNotSetException
 import org.wfanet.measurement.reporting.service.internal.Errors as InternalErrors
-import org.wfanet.measurement.reporting.service.api.ImpressionQualificationFilterNotFoundException
-import org.wfanet.measurement.reporting.service.api.ReportingSetNotFoundException
 import org.wfanet.measurement.reporting.service.internal.ReportingInternalException
 import org.wfanet.measurement.reporting.v2alpha.BasicReport
 import org.wfanet.measurement.reporting.v2alpha.BasicReportsGrpcKt.BasicReportsCoroutineImplBase
@@ -176,8 +176,8 @@ class BasicReportsService(
               throw when (InternalErrors.getReason(e)) {
                 InternalErrors.Reason.IMPRESSION_QUALIFICATION_FILTER_NOT_FOUND ->
                   ImpressionQualificationFilterNotFoundException(
-                    impressionQualificationFilter.impressionQualificationFilter
-                  )
+                      impressionQualificationFilter.impressionQualificationFilter
+                    )
                     .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
                 InternalErrors.Reason.BASIC_REPORT_NOT_FOUND,
                 InternalErrors.Reason.MEASUREMENT_CONSUMER_NOT_FOUND,
@@ -522,7 +522,8 @@ class BasicReportsService(
         this.reportStart.day == 0 ||
         !(this.reportStart.hasTimeZone() || this.reportStart.hasUtcOffset())
     ) {
-      throw InvalidFieldValueException("basic_report.reporting_interval.report_start") { fieldName ->
+      throw InvalidFieldValueException("basic_report.reporting_interval.report_start") { fieldName
+          ->
           "$fieldName requires year, month, and day to all be set, as well as either time_zone or utc_offset"
         }
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
