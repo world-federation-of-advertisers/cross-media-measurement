@@ -96,6 +96,7 @@ kt_jvm_library(
     name = "results_fulfiller_app",
     srcs = ["ResultsFulfillerApp.kt"],
     deps = [
+        ":continuous_gaussian_noiser_selector",
         ":no_noiser_selector",
         ":requisition_stub_factory",
         ":results_fulfiller",

@@ -84,4 +84,22 @@ message ResultsFulfillerParams {
   // The connection to the Cmms API
   TransportLayerSecurityParams cmms_connection = 4
       [(google.api.field_behavior) = REQUIRED];
+
+  // The parameters for noise that is applied to the result.
+  message NoiseParams {
+    // The types of noise
+    enum NoiseType {
+      // Default/unset.
+      TYPE_SELECTED = 0;
+      // No noise applied.
+      NO_NOISE = 1;
+      // Continuous gaussian noise applied.
+      CONTINUOUS_GAUSSIAN_NOISE = 2;
+    }
+    // The type of noise applied to the result
+    NoiseType noise_type = 1;
+  }
+
+  // The noise params to be applied.
+  NoiseParams noise_params = 5;
 }

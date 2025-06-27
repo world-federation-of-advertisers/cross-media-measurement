@@ -16,6 +16,8 @@
 
 package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
+import com.google.common.truth.Truth
+import com.google.common.truth.Truth.assertThat
 import com.google.crypto.tink.Aead
 import com.google.crypto.tink.KeyTemplates
 import com.google.crypto.tink.KeysetHandle
@@ -38,6 +40,7 @@ import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import java.util.logging.Logger
 import kotlin.random.Random
+import kotlin.test.assertTrue
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -54,7 +57,9 @@ import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.FulfillDirectRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.GetEventGroupRequest
+import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reachAndFrequency
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.vidSamplingInterval
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
@@ -77,6 +82,7 @@ import org.wfanet.measurement.api.v2alpha.measurementSpec
 import org.wfanet.measurement.api.v2alpha.protocolConfig
 import org.wfanet.measurement.api.v2alpha.requisition
 import org.wfanet.measurement.api.v2alpha.requisitionSpec
+import org.wfanet.measurement.api.v2alpha.unpack
 import org.wfanet.measurement.common.crypto.Hashing
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.tink.TinkPrivateKeyHandle
@@ -89,9 +95,11 @@ import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.pack
+import org.wfanet.measurement.common.testing.verifyAndCapture
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
+import org.wfanet.measurement.consent.client.measurementconsumer.decryptResult
 import org.wfanet.measurement.consent.client.measurementconsumer.encryptRequisitionSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.signMeasurementSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.signRequisitionSpec
@@ -258,9 +266,9 @@ class ResultsFulfillerAppTest {
     val mesosRecordIoStorageClient = MesosRecordIoStorageClient(aeadStorageClient)
 
     val impressions =
-      List(130) {
+      List(100) {
         LABELED_IMPRESSION.copy {
-          vid = it.toLong()
+          vid = (it % 80).toLong()
           eventTime = FIRST_EVENT_DATE.atStartOfDay().toInstant(ZoneOffset.UTC).toProtoTime()
         }
       }
@@ -307,6 +315,22 @@ class ResultsFulfillerAppTest {
     app.runWork(Any.pack(workItemParams))
 
     verifyBlocking(requisitionsServiceMock, times(1)) { fulfillDirectRequisition(any()) }
+    val request: FulfillDirectRequisitionRequest =
+      verifyAndCapture(
+        requisitionsServiceMock,
+        RequisitionsCoroutineImplBase::fulfillDirectRequisition,
+      )
+    val result: Measurement.Result = decryptResult(request.encryptedResult, MC_PRIVATE_KEY).unpack()
+
+    Truth.assertThat(result.reach.noiseMechanism).isEqualTo(ProtocolConfig.NoiseMechanism.NONE)
+    assertTrue(result.reach.hasDeterministicCountDistinct())
+    Truth.assertThat(result.frequency.noiseMechanism).isEqualTo(ProtocolConfig.NoiseMechanism.NONE)
+    assertTrue(result.frequency.hasDeterministicDistribution())
+
+    assertThat(result.reach.value).isEqualTo(80)
+
+    assertThat(result.frequency.relativeFrequencyDistribution)
+      .isEqualTo(mapOf(1L to 0.75, 2L to 0.25))
   }
 
   private fun getStorageConfig(
@@ -338,6 +362,10 @@ class ResultsFulfillerAppTest {
                 privateEncryptionKeyResourcePath =
                   SECRET_FILES_PATH.resolve("edp1_enc_private.tink").toString()
                 edpCertificateName = DATA_PROVIDER_CERTIFICATE_KEY.toName()
+              }
+            this.noiseParams =
+              ResultsFulfillerParamsKt.noiseParams {
+                noiseType = ResultsFulfillerParams.NoiseParams.NoiseType.NO_NOISE
               }
           }
           .pack()
@@ -453,7 +481,7 @@ class ResultsFulfillerAppTest {
       reachAndFrequency = reachAndFrequency {
         reachPrivacyParams = OUTPUT_DP_PARAMS
         frequencyPrivacyParams = OUTPUT_DP_PARAMS
-        maximumFrequency = 10
+        maximumFrequency = 2
       }
       vidSamplingInterval = vidSamplingInterval {
         start = 0.0f

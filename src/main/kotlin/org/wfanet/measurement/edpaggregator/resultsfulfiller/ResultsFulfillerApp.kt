@@ -33,6 +33,7 @@ import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.readByteString
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
+import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams.NoiseParams.NoiseType
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams.StorageParams
 import org.wfanet.measurement.queue.QueueSubscriber
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
@@ -52,14 +53,16 @@ import org.wfanet.measurement.securecomputation.teesdk.BaseTeeApplication
  * @param queueSubscriber The [QueueSubscriber] instance for receiving work items.
  * @param parser The protobuf [Parser] for [WorkItem] messages.
  * @param workItemsClient gRPC client stub for [WorkItemsGrpcKt.WorkItemsCoroutineStub].
- * @param workItemAttemptsClient gRPC client stub for [WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineStub].
+ * @param workItemAttemptsClient gRPC client stub for
+ *   [WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineStub].
  * @param requisitionStubFactory Factory for creating requisition stubs.
  * @param kmsClient The Tink [KmsClient] for key management.
- * @param typeRegistry The protobuf [TypeRegistry] for message unpacking.
- * @param getImpressionsMetadataStorageConfig Lambda to obtain [StorageConfig] for impressions metadata.
+ * @param typeRegistry The protobuf [TypeRegistry] for message unpacking. Should have all necessary
+ *   descriptors registered to unpack a [LabeledImpression.event].
+ * @param getImpressionsMetadataStorageConfig Lambda to obtain [StorageConfig] for impressions
+ *   metadata.
  * @param getImpressionsStorageConfig Lambda to obtain [StorageConfig] for impressions.
  * @param getRequisitionsStorageConfig Lambda to obtain [StorageConfig] for requisitions.
- *
  * @constructor Initializes the application with all required dependencies for result fulfillment.
  */
 class ResultsFulfillerApp(
@@ -91,8 +94,7 @@ class ResultsFulfillerApp(
     val storageParams = fulfillerParams.storageParams
 
     val requisitionsStorageConfig = getRequisitionsStorageConfig(storageParams)
-    val impressionsMetadataStorageConfig =
-      getImpressionsMetadataStorageConfig(storageParams)
+    val impressionsMetadataStorageConfig = getImpressionsMetadataStorageConfig(storageParams)
     val impressionsStorageConfig = getImpressionsStorageConfig(storageParams)
     val requisitionsStub = requisitionStubFactory.buildRequisitionsStub(fulfillerParams)
     val dataProviderCertificateKey =
@@ -129,7 +131,12 @@ class ResultsFulfillerApp(
         labeledImpressionsDekPrefix =
           fulfillerParams.storageParams.labeledImpressionsBlobDetailsUriPrefix,
       )
-
+    val noiseSelector =
+      when (fulfillerParams.noiseParams.noiseType) {
+        NoiseType.NO_NOISE -> NoNoiserSelector()
+        NoiseType.CONTINUOUS_GAUSSIAN_NOISE -> ContinuousGaussianNoiseSelector()
+        else -> throw Exception("Invalid noise type ${fulfillerParams.noiseParams.noiseType}")
+      }
     ResultsFulfiller(
         loadPrivateKey(encryptionPrivateKeyFile),
         requisitionsStub,
@@ -140,7 +147,7 @@ class ResultsFulfillerApp(
         requisitionsStorageConfig = requisitionsStorageConfig,
         random = SecureRandom(),
         zoneId = ZoneOffset.UTC,
-        noiserSelector = NoNoiserSelector(),
+        noiserSelector = noiseSelector,
         eventReader = eventReader,
       )
       .fulfillRequisitions()
