@@ -50,6 +50,9 @@ import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
+import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
+import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticPopulationSpec
+import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.jceProvider
 import org.wfanet.measurement.common.crypto.tink.TinkPrivateKeyHandle
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
@@ -67,7 +70,6 @@ import org.wfanet.measurement.integration.common.loadTestCertDerFile
 import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt
 import org.wfanet.measurement.loadtest.measurementconsumer.EventQueryMeasurementConsumerSimulator
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
-import org.wfanet.measurement.loadtest.measurementconsumer.MetadataSyntheticGeneratorEventQuery
 import org.wfanet.measurement.loadtest.reporting.ReportingUserSimulator
 import org.wfanet.measurement.loadtest.resourcesetup.DuchyCert
 import org.wfanet.measurement.loadtest.resourcesetup.EntityContent
@@ -112,11 +114,25 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
     val worker2Cert: String,
     val measurementConsumer: String,
     val measurementConsumerCert: String,
-    val apiKey: String,
+    val measurementConsumerSigningKey: SigningKeyHandle,
+    val measurementConsumerEncryptionKey: TinkPrivateKeyHandle,
+    val measurementConsumerApiKey: String,
     val dataProviders: Map<String, Resources.Resource>,
   ) {
+    val measurementConsumerData =
+      MeasurementConsumerData(
+        measurementConsumer,
+        measurementConsumerSigningKey,
+        measurementConsumerEncryptionKey,
+        measurementConsumerApiKey,
+      )
+
     companion object {
-      fun from(resources: Iterable<Resources.Resource>): ResourceInfo {
+      fun from(
+        resources: Iterable<Resources.Resource>,
+        measurementConsumerSigningKey: SigningKeyHandle,
+        measurementConsumerEncryptionKey: TinkPrivateKeyHandle,
+      ): ResourceInfo {
         var aggregatorCert: String? = null
         var worker1Cert: String? = null
         var worker2Cert: String? = null
@@ -157,7 +173,9 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
           worker2Cert = requireNotNull(worker2Cert),
           measurementConsumer = requireNotNull(measurementConsumer),
           measurementConsumerCert = requireNotNull(measurementConsumerCert),
-          apiKey = requireNotNull(apiKey),
+          measurementConsumerSigningKey = measurementConsumerSigningKey,
+          measurementConsumerEncryptionKey = measurementConsumerEncryptionKey,
+          measurementConsumerApiKey = requireNotNull(apiKey),
           dataProviders = dataProviders,
         )
       }
@@ -170,6 +188,11 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
     tempDir: Lazy<TemporaryFolder>,
     runId: Lazy<String>,
   ) : TestRule, MeasurementSystem {
+    override val syntheticPopulationSpec: SyntheticPopulationSpec =
+      SyntheticGenerationSpecs.SYNTHETIC_POPULATION_SPEC_SMALL
+    override val syntheticEventGroupSpecs: List<SyntheticEventGroupSpec> =
+      SyntheticGenerationSpecs.SYNTHETIC_DATA_SPECS_SMALL
+
     private val portForwarders = mutableListOf<PortForwarder>()
     private val channels = mutableListOf<ManagedChannel>()
 
@@ -191,9 +214,10 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
           try {
             runBlocking {
               withTimeout(Duration.ofMinutes(5)) {
-                val measurementConsumerData = populateCluster()
-                _testHarness = createTestHarness(measurementConsumerData)
-                _reportingTestHarness = createReportingUserSimulator(measurementConsumerData)
+                val resourceInfo: ResourceInfo = populateCluster()
+                _testHarness = createTestHarness(resourceInfo)
+                _reportingTestHarness =
+                  createReportingUserSimulator(resourceInfo.measurementConsumerData)
               }
             }
             base.evaluate()
@@ -204,7 +228,7 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
       }
     }
 
-    private suspend fun populateCluster(): MeasurementConsumerData {
+    private suspend fun populateCluster(): ResourceInfo {
       val apiClient = k8sClient.apiClient
       apiClient.httpClient =
         apiClient.httpClient.newBuilder().readTimeout(Duration.ofHours(1L)).build()
@@ -223,7 +247,16 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
       loadKingdom()
       val resourceSetupOutput =
         runResourceSetup(duchyCerts, edpEntityContents, measurementConsumerContent)
-      val resourceInfo = ResourceInfo.from(resourceSetupOutput.resources)
+      val encryptionPrivateKey: TinkPrivateKeyHandle =
+        withContext(Dispatchers.IO) {
+          loadEncryptionPrivateKey("${MC_DISPLAY_NAME}_enc_private.tink")
+        }
+      val resourceInfo =
+        ResourceInfo.from(
+          resourceSetupOutput.resources,
+          measurementConsumerContent.signingKey,
+          encryptionPrivateKey,
+        )
       loadFullCmms(
         resourceInfo,
         resourceSetupOutput.akidPrincipalMap,
@@ -231,20 +264,11 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
         resourceSetupOutput.encryptionKeyPairConfig,
       )
 
-      val encryptionPrivateKey: TinkPrivateKeyHandle =
-        withContext(Dispatchers.IO) {
-          loadEncryptionPrivateKey("${MC_DISPLAY_NAME}_enc_private.tink")
-        }
-      return MeasurementConsumerData(
-        resourceInfo.measurementConsumer,
-        measurementConsumerContent.signingKey,
-        encryptionPrivateKey,
-        resourceInfo.apiKey,
-      )
+      return resourceInfo
     }
 
     private suspend fun createTestHarness(
-      measurementConsumerData: MeasurementConsumerData
+      resourceInfo: ResourceInfo
     ): EventQueryMeasurementConsumerSimulator {
       val kingdomPublicPod: V1Pod = getPod(KINGDOM_PUBLIC_DEPLOYMENT_NAME)
 
@@ -259,7 +283,7 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
       val eventGroupsClient = EventGroupsGrpcKt.EventGroupsCoroutineStub(publicApiChannel)
 
       return EventQueryMeasurementConsumerSimulator(
-        measurementConsumerData,
+        resourceInfo.measurementConsumerData,
         OUTPUT_DP_PARAMS,
         DataProvidersGrpcKt.DataProvidersCoroutineStub(publicApiChannel),
         eventGroupsClient,
@@ -267,10 +291,7 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
         MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub(publicApiChannel),
         CertificatesGrpcKt.CertificatesCoroutineStub(publicApiChannel),
         MEASUREMENT_CONSUMER_SIGNING_CERTS.trustedCertificates,
-        MetadataSyntheticGeneratorEventQuery(
-          SyntheticGenerationSpecs.SYNTHETIC_POPULATION_SPEC_SMALL,
-          MC_ENCRYPTION_PRIVATE_KEY,
-        ),
+        buildEventQuery(resourceInfo.dataProviders.keys),
         ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN,
       )
     }
@@ -348,7 +369,7 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
               .replace("{worker1_cert_name}", resourceInfo.worker1Cert)
               .replace("{worker2_cert_name}", resourceInfo.worker2Cert)
               .replace("{mc_name}", resourceInfo.measurementConsumer)
-              .replace("{mc_api_key}", resourceInfo.apiKey)
+              .replace("{mc_api_key}", resourceInfo.measurementConsumerApiKey)
               .replace("{mc_cert_name}", resourceInfo.measurementConsumerCert)
               .let {
                 var config = it

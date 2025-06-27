@@ -20,13 +20,20 @@ import java.nio.file.Path
 import java.nio.file.Paths
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
+import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.DataProviderKt
+import org.wfanet.measurement.api.v2alpha.EventGroup
+import org.wfanet.measurement.api.v2alpha.EventGroupKey
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
+import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
+import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticPopulationSpec
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.common.crypto.PrivateKeyHandle
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.integration.common.loadEncryptionPrivateKey
 import org.wfanet.measurement.integration.common.loadSigningKey
+import org.wfanet.measurement.loadtest.dataprovider.SyntheticGeneratorEventQuery
 import org.wfanet.measurement.loadtest.measurementconsumer.EventQueryMeasurementConsumerSimulator
 import org.wfanet.measurement.loadtest.reporting.ReportingUserSimulator
 
@@ -76,6 +83,53 @@ abstract class AbstractCorrectnessTest(private val measurementSystem: Measuremen
     val runId: String
     val testHarness: EventQueryMeasurementConsumerSimulator
     val reportingTestHarness: ReportingUserSimulator
+
+    /**
+     * Synthetic population spec.
+     *
+     * This must match the spec used by EDP simulators.
+     */
+    val syntheticPopulationSpec: SyntheticPopulationSpec
+
+    /**
+     * Synthetic event group specs.
+     *
+     * These must match the specs used by the EDP simulators, in order.
+     */
+    val syntheticEventGroupSpecs: List<SyntheticEventGroupSpec>
+
+    fun buildEventQuery(dataProviderNames: Iterable<String>) =
+      EventQuery(syntheticPopulationSpec, syntheticEventGroupSpecs, dataProviderNames)
+  }
+
+  /** [SyntheticGeneratorEventQuery] for a [MeasurementSystem] instance with EDP simulators. */
+  class EventQuery(
+    syntheticPopulationSpec: SyntheticPopulationSpec,
+    private val syntheticEventGroupSpecs: List<SyntheticEventGroupSpec>,
+    private val dataProviderKeys: List<DataProviderKey>,
+  ) : SyntheticGeneratorEventQuery(syntheticPopulationSpec, TestEvent.getDescriptor()) {
+    constructor(
+      syntheticPopulationSpec: SyntheticPopulationSpec,
+      syntheticEventGroupSpecs: List<SyntheticEventGroupSpec>,
+      dataProviderNames: Iterable<String>,
+    ) : this(
+      syntheticPopulationSpec,
+      syntheticEventGroupSpecs,
+      dataProviderNames.map { requireNotNull(DataProviderKey.fromName(it)) },
+    )
+
+    private fun specIndex(dataProviderKey: DataProviderKey): Int {
+      val dataProviderIndex = dataProviderKeys.indexOf(dataProviderKey)
+      check(dataProviderIndex >= 0)
+
+      return dataProviderIndex % syntheticEventGroupSpecs.size
+    }
+
+    override fun getSyntheticDataSpec(eventGroup: EventGroup): SyntheticEventGroupSpec {
+      val eventGroupKey = checkNotNull(EventGroupKey.fromName(eventGroup.name))
+      val specIndex: Int = specIndex(eventGroupKey.parentKey)
+      return syntheticEventGroupSpecs[specIndex]
+    }
   }
 
   companion object {

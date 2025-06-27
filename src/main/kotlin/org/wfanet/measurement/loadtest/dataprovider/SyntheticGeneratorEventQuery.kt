@@ -29,7 +29,7 @@ import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters
 
 /** [EventQuery] that uses [SyntheticDataGeneration]. */
 abstract class SyntheticGeneratorEventQuery(
-  private val populationSpec: SyntheticPopulationSpec,
+  val populationSpec: SyntheticPopulationSpec,
   private val eventMessageDescriptor: Descriptors.Descriptor,
 ) : EventQuery<DynamicMessage> {
   init {
@@ -46,7 +46,7 @@ abstract class SyntheticGeneratorEventQuery(
   ) : this(populationSpec, typeRegistry.getDescriptorForTypeUrl(populationSpec.eventMessageTypeUrl))
 
   /** Returns the synthetic data spec for [eventGroup]. */
-  abstract fun getSyntheticDataSpec(eventGroup: EventGroup): SyntheticEventGroupSpec
+  protected abstract fun getSyntheticDataSpec(eventGroup: EventGroup): SyntheticEventGroupSpec
 
   override fun getLabeledEvents(
     eventGroupSpec: EventQuery.EventGroupSpec
