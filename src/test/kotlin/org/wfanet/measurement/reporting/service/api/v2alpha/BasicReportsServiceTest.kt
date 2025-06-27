@@ -534,8 +534,8 @@ class BasicReportsServiceTest {
       .isEqualTo(
         errorInfo {
           domain = Errors.DOMAIN
-          reason = Errors.Reason.CAMPAIGN_GROUP_NOT_FOUND.name
-          metadata[Errors.Metadata.CAMPAIGN_GROUP.key] = campaignGroupKey.toName()
+          reason = Errors.Reason.REPORTING_SET_NOT_FOUND.name
+          metadata[Errors.Metadata.REPORTING_SET.key] = campaignGroupKey.toName()
         }
       )
   }
@@ -2212,7 +2212,7 @@ class BasicReportsServiceTest {
     }
 
   @Test
-  fun `createBasicReport throws INVALID_ARGUMENT when component intersection set`() = runBlocking {
+  fun `createBasicReport throws UNIMPLEMENTED when component intersection set`() = runBlocking {
     val measurementConsumerKey = MeasurementConsumerKey("1234")
     val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
 
@@ -2253,7 +2253,7 @@ class BasicReportsServiceTest {
         withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
       }
 
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.status.code).isEqualTo(Status.Code.UNIMPLEMENTED)
     assertThat(exception.errorInfo)
       .isEqualTo(
         errorInfo {
@@ -2758,6 +2758,8 @@ class BasicReportsServiceTest {
         }
       )
 
+      val badIQF = ImpressionQualificationFilterKey("junk").toName()
+
       val request = createBasicReportRequest {
         parent = measurementConsumerKey.toName()
         basicReport =
@@ -2765,7 +2767,7 @@ class BasicReportsServiceTest {
             campaignGroup = campaignGroupKey.toName()
             impressionQualificationFilters.clear()
             impressionQualificationFilters += reportingImpressionQualificationFilter {
-              impressionQualificationFilter = ImpressionQualificationFilterKey("junk").toName()
+              impressionQualificationFilter = badIQF
             }
           }
         basicReportId = "a1234"
@@ -2775,14 +2777,13 @@ class BasicReportsServiceTest {
           withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
         }
 
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
       assertThat(exception.errorInfo)
         .isEqualTo(
           errorInfo {
             domain = Errors.DOMAIN
-            reason = Errors.Reason.INVALID_FIELD_VALUE.name
-            metadata[Errors.Metadata.FIELD_NAME.key] =
-              "basic_report.impression_qualification_filters.impression_qualification_filter"
+            reason = Errors.Reason.IMPRESSION_QUALIFICATION_FILTER_NOT_FOUND.name
+            metadata[Errors.Metadata.IMPRESSION_QUALIFICATION_FILTER.key] = badIQF
           }
         )
     }

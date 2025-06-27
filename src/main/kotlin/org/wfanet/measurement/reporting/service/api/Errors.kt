@@ -30,7 +30,7 @@ object Errors {
 
   enum class Reason {
     BASIC_REPORT_NOT_FOUND,
-    CAMPAIGN_GROUP_NOT_FOUND,
+    REPORTING_SET_NOT_FOUND,
     METRIC_NOT_FOUND,
     CAMPAIGN_GROUP_INVALID,
     REQUIRED_FIELD_NOT_SET,
@@ -42,7 +42,6 @@ object Errors {
 
   enum class Metadata(val key: String) {
     BASIC_REPORT("basicReport"),
-    CAMPAIGN_GROUP("campaignGroup"),
     METRIC("metric"),
     METRIC_STATE("metricState"),
     NEW_METRIC_STATE("newMetricState"),
@@ -102,11 +101,11 @@ class BasicReportNotFoundException(name: String, cause: Throwable? = null) :
     cause,
   )
 
-class CampaignGroupNotFoundException(name: String, cause: Throwable? = null) :
+class ReportingSetNotFoundException(name: String, cause: Throwable? = null) :
   ServiceException(
-    Errors.Reason.CAMPAIGN_GROUP_NOT_FOUND,
-    "Campaign Group $name not found",
-    mapOf(Errors.Metadata.CAMPAIGN_GROUP to name),
+    Errors.Reason.REPORTING_SET_NOT_FOUND,
+    "Reporting Set $name not found",
+    mapOf(Errors.Metadata.REPORTING_SET to name),
     cause,
   )
 

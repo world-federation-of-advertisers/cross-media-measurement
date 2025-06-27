@@ -48,10 +48,11 @@ import org.wfanet.measurement.internal.reporting.v2.listBasicReportsPageToken
 import org.wfanet.measurement.internal.reporting.v2.listBasicReportsRequest as internalListBasicReportsRequest
 import org.wfanet.measurement.reporting.service.api.ArgumentChangedInRequestForNextPageException
 import org.wfanet.measurement.reporting.service.api.BasicReportNotFoundException
-import org.wfanet.measurement.reporting.service.api.CampaignGroupNotFoundException
 import org.wfanet.measurement.reporting.service.api.InvalidFieldValueException
 import org.wfanet.measurement.reporting.service.api.RequiredFieldNotSetException
 import org.wfanet.measurement.reporting.service.internal.Errors as InternalErrors
+import org.wfanet.measurement.reporting.service.api.ImpressionQualificationFilterNotFoundException
+import org.wfanet.measurement.reporting.service.api.ReportingSetNotFoundException
 import org.wfanet.measurement.reporting.service.internal.ReportingInternalException
 import org.wfanet.measurement.reporting.v2alpha.BasicReport
 import org.wfanet.measurement.reporting.v2alpha.BasicReportsGrpcKt.BasicReportsCoroutineImplBase
@@ -121,7 +122,7 @@ class BasicReportsService(
       } catch (e: StatusException) {
         throw when (ReportingInternalException.getErrorCode(e)) {
           ErrorCode.REPORTING_SET_NOT_FOUND ->
-            throw CampaignGroupNotFoundException(request.basicReport.campaignGroup)
+            throw ReportingSetNotFoundException(request.basicReport.campaignGroup)
               .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
           ErrorCode.MEASUREMENT_CONSUMER_NOT_FOUND,
           ErrorCode.REPORTING_SET_ALREADY_EXISTS,
@@ -174,13 +175,10 @@ class BasicReportsService(
             } catch (e: StatusException) {
               throw when (InternalErrors.getReason(e)) {
                 InternalErrors.Reason.IMPRESSION_QUALIFICATION_FILTER_NOT_FOUND ->
-                  InvalidFieldValueException(
-                      "basic_report.impression_qualification_filters.impression_qualification_filter",
-                      e,
-                    ) {
-                      "ImpressionQualificationFilter ${impressionQualificationFilter.impressionQualificationFilter} not found"
-                    }
-                    .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+                  ImpressionQualificationFilterNotFoundException(
+                    impressionQualificationFilter.impressionQualificationFilter
+                  )
+                    .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
                 InternalErrors.Reason.BASIC_REPORT_NOT_FOUND,
                 InternalErrors.Reason.MEASUREMENT_CONSUMER_NOT_FOUND,
                 InternalErrors.Reason.BASIC_REPORT_ALREADY_EXISTS,
@@ -395,16 +393,16 @@ class BasicReportsService(
       DataProviderKey.fromName(component)
         ?: throw InvalidFieldValueException(
             "basic_report.result_group_specs.reporting_unit.components"
-          ) {
-            "$component is not a valid data provider name"
+          ) { fieldName ->
+            "$component in $fieldName is not a valid data provider name"
           }
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
 
       if (!dataProviderNameSet.contains(component)) {
         throw InvalidFieldValueException(
             "basic_report.result_group_specs.reporting_unit.components"
-          ) {
-            "reporting_unit component does not have any cmms_event_groups in campaign_group"
+          ) { fieldName ->
+            "$component in $fieldName does not have any cmms_event_groups in campaign_group"
           }
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
       }
@@ -455,18 +453,18 @@ class BasicReportsService(
     if (this.hasComponentIntersection()) {
       throw InvalidFieldValueException(
           "basic_report.result_group_specs.result_group_metric_spec.component_intersection"
-        ) {
-          "Not supported at this time"
+        ) { fieldName ->
+          "$fieldName is not supported at this time"
         }
-        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+        .asStatusRuntimeException(Status.Code.UNIMPLEMENTED)
     }
 
     if (metricFrequencySelectorCase == MetricFrequencySpec.SelectorCase.TOTAL) {
       if (this.reportingUnit.hasNonCumulative()) {
         throw InvalidFieldValueException(
             "basic_report.result_group_specs.result_group_metric_spec.reporting_unit.non_cumulative"
-          ) {
-            "non_cumulative cannot be specified when metric_frequency is total"
+          ) { fieldName ->
+            "$fieldName cannot be specified when metric_frequency is total"
           }
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
       }
@@ -474,8 +472,8 @@ class BasicReportsService(
       if (this.component.hasNonCumulative()) {
         throw InvalidFieldValueException(
             "basic_report.result_group_specs.result_group_metric_spec.component.non_cumulative"
-          ) {
-            "non_cumulative cannot be specified when metric_frequency is total"
+          ) { fieldName ->
+            "$fieldName cannot be specified when metric_frequency is total"
           }
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
       }
@@ -500,8 +498,8 @@ class BasicReportsService(
     ) {
       throw InvalidFieldValueException(
           "basic_report.result_group_specs.result_group_metric_spec.reporting_unit.stacked_incremental_reach"
-        ) {
-          "stacked_incremental_reach requires metric_frequency to be total"
+        ) { fieldName ->
+          "$fieldName requires metric_frequency to be total"
         }
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
@@ -524,15 +522,15 @@ class BasicReportsService(
         this.reportStart.day == 0 ||
         !(this.reportStart.hasTimeZone() || this.reportStart.hasUtcOffset())
     ) {
-      throw InvalidFieldValueException("basic_report.reporting_interval.report_start") {
-          "year, month, and day are all required. Either time_zone or utc_offset must be set"
+      throw InvalidFieldValueException("basic_report.reporting_interval.report_start") { fieldName ->
+          "$fieldName requires year, month, and day to all be set, as well as either time_zone or utc_offset"
         }
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
     if (this.reportEnd.year == 0 || this.reportEnd.month == 0 || this.reportEnd.day == 0) {
-      throw InvalidFieldValueException("basic_report.reporting_interval.report_end") {
-          "year, month, and day are all required"
+      throw InvalidFieldValueException("basic_report.reporting_interval.report_end") { fieldName ->
+          "$fieldName requires year, month, and day to be set"
         }
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
@@ -577,8 +575,8 @@ class BasicReportsService(
         if (this.contains(filterSpec.mediaType)) {
           throw InvalidFieldValueException(
               "basic_report.impression_qualification_filters.custom.filter_spec"
-            ) {
-              "More than 1 filter_spec for MediaType ${filterSpec.mediaType}. Only 1 filter_spec per MediaType allowed"
+            ) { fieldName ->
+              "$fieldName cannot have more than 1 filter_spec for MediaType ${filterSpec.mediaType}. Only 1 filter_spec per MediaType allowed"
             }
             .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
         }
@@ -626,8 +624,8 @@ class BasicReportsService(
   private fun ResultGroupMetricSpec.BasicMetricSetSpec.validate(kPlusReachFieldName: String) {
     if (this.percentKPlusReach) {
       if (this.kPlusReach <= 0) {
-        throw InvalidFieldValueException(kPlusReachFieldName) {
-            "percent_k_plus_reach requires k_plus_reach to be positive"
+        throw InvalidFieldValueException(kPlusReachFieldName) { fieldName ->
+            "$fieldName must have a positive value"
           }
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
       }
