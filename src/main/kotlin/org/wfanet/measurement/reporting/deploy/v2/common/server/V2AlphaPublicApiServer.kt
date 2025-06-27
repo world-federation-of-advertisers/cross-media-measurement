@@ -30,7 +30,6 @@ import java.time.Duration
 import kotlin.random.asKotlinRandom
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.IO
 import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.access.client.v1alpha.Authorization
