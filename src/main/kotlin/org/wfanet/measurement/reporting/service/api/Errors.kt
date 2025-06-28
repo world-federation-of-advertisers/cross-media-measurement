@@ -23,6 +23,7 @@ import io.grpc.StatusRuntimeException
 import org.wfanet.measurement.common.grpc.Errors as CommonErrors
 import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.reporting.service.internal.Errors as InternalErrors
+import com.google.rpc.ErrorInfo
 import org.wfanet.measurement.reporting.v2alpha.Metric
 
 object Errors {
@@ -35,6 +36,7 @@ object Errors {
     CAMPAIGN_GROUP_INVALID,
     REQUIRED_FIELD_NOT_SET,
     INVALID_FIELD_VALUE,
+    FIELD_UNIMPLEMENTED,
     INVALID_METRIC_STATE_TRANSITION,
     ARGUMENT_CHANGED_IN_REQUEST_FOR_NEXT_PAGE,
     IMPRESSION_QUALIFICATION_FILTER_NOT_FOUND,
@@ -58,7 +60,7 @@ object Errors {
 }
 
 sealed class ServiceException(
-  private val reason: Errors.Reason,
+  val reason: Errors.Reason,
   message: String,
   private val metadata: Map<Errors.Metadata, String>,
   cause: Throwable?,
@@ -140,6 +142,18 @@ class InvalidFieldValueException(
 ) :
   ServiceException(
     Errors.Reason.INVALID_FIELD_VALUE,
+    buildMessage(fieldName),
+    mapOf(Errors.Metadata.FIELD_NAME to fieldName),
+    cause,
+  )
+
+class FieldUnimplementedException(
+  fieldName: String,
+  cause: Throwable? = null,
+  buildMessage: (fieldName: String) -> String = { "$fieldName is currently unimplemented" },
+) :
+  ServiceException(
+    Errors.Reason.FIELD_UNIMPLEMENTED,
     buildMessage(fieldName),
     mapOf(Errors.Metadata.FIELD_NAME to fieldName),
     cause,

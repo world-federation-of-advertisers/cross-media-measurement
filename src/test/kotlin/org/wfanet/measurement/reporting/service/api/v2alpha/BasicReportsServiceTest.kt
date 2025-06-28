@@ -2258,7 +2258,7 @@ class BasicReportsServiceTest {
       .isEqualTo(
         errorInfo {
           domain = Errors.DOMAIN
-          reason = Errors.Reason.INVALID_FIELD_VALUE.name
+          reason = Errors.Reason.FIELD_UNIMPLEMENTED.name
           metadata[Errors.Metadata.FIELD_NAME.key] =
             "basic_report.result_group_specs.result_group_metric_spec.component_intersection"
         }
