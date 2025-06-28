@@ -16,19 +16,19 @@
 
 package org.wfanet.measurement.reporting.service.api.v2alpha
 
-import kotlin.collections.List
-import kotlin.collections.Set
-import org.wfanet.measurement.api.v2alpha.DataProvider
 import com.google.longrunning.Operation
 import com.google.protobuf.InvalidProtocolBufferException
 import io.grpc.Status
 import io.grpc.StatusException
 import io.grpc.StatusRuntimeException
 import java.util.UUID
+import kotlin.collections.List
+import kotlin.collections.Set
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
 import org.wfanet.measurement.access.client.v1alpha.Authorization
 import org.wfanet.measurement.access.client.v1alpha.check
+import org.wfanet.measurement.api.v2alpha.DataProvider
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.EventGroupKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
@@ -253,10 +253,7 @@ class BasicReportsService(
     }
   }
 
-
-  /**
-   * Get a single [ReportingSet]
-   */
+  /** Get a single [ReportingSet] */
   private suspend fun getReportingSet(name: String): ReportingSet {
     val reportingSetKey = ReportingSetKey.fromName(name)!!
     return try {
@@ -341,10 +338,11 @@ class BasicReportsService(
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
-    validateReportingImpressionQualificationFilters(request.basicReport.impressionQualificationFiltersList)
+    validateReportingImpressionQualificationFilters(
+      request.basicReport.impressionQualificationFiltersList
+    )
     validateResultGroupSpecs(request.basicReport.resultGroupSpecsList, campaignGroup)
   }
-
 
   /**
    * Validates a [List] of [ResultGroupSpec]
@@ -353,7 +351,10 @@ class BasicReportsService(
    * @param campaignGroup [ReportingSet] to validate against
    * @throws [StatusRuntimeException] when validation fails
    */
-  private fun validateResultGroupSpecs(resultGroupSpecs: List<ResultGroupSpec>, campaignGroup: ReportingSet) {
+  private fun validateResultGroupSpecs(
+    resultGroupSpecs: List<ResultGroupSpec>,
+    campaignGroup: ReportingSet,
+  ) {
     if (resultGroupSpecs.isEmpty()) {
       throw RequiredFieldNotSetException("basic_report.result_group_specs")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
@@ -390,7 +391,10 @@ class BasicReportsService(
       }
 
       if (resultGroupSpec.hasResultGroupMetricSpec()) {
-        validateResultGroupMetricSpec(resultGroupSpec.resultGroupMetricSpec, resultGroupSpec.metricFrequency.selectorCase)
+        validateResultGroupMetricSpec(
+          resultGroupSpec.resultGroupMetricSpec,
+          resultGroupSpec.metricFrequency.selectorCase,
+        )
       } else {
         throw RequiredFieldNotSetException(
             "basic_report.result_group_specs.result_group_metric_spec"
@@ -407,7 +411,10 @@ class BasicReportsService(
    * @param dataProviderNameSet [Set] of [DataProvider] names that CampaignGroup is associated with
    * @throws [StatusRuntimeException] when validation fails
    */
-  private fun validateReportingUnit(reportingUnit: ReportingUnit, dataProviderNameSet: Set<String>) {
+  private fun validateReportingUnit(
+    reportingUnit: ReportingUnit,
+    dataProviderNameSet: Set<String>,
+  ) {
     if (reportingUnit.componentsList.isEmpty()) {
       throw InvalidFieldValueException("basic_report.result_group_specs.reporting_unit.components")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
@@ -477,7 +484,6 @@ class BasicReportsService(
     }
   }
 
-
   /**
    * Validates a [ResultGroupMetricSpec]
    *
@@ -487,7 +493,7 @@ class BasicReportsService(
    */
   private fun validateResultGroupMetricSpec(
     resultGroupMetricSpec: ResultGroupMetricSpec,
-    metricFrequencySelectorCase: MetricFrequencySpec.SelectorCase
+    metricFrequencySelectorCase: MetricFrequencySpec.SelectorCase,
   ) {
     if (resultGroupMetricSpec.hasComponentIntersection()) {
       throw InvalidFieldValueException(
@@ -518,17 +524,21 @@ class BasicReportsService(
       }
     }
 
-    validateBasicMetricSetSpec(resultGroupMetricSpec.reportingUnit.cumulative,
-      "basic_report.result_group_specs.result_group_metric_spec.reporting_unit.cumulative.k_plus_reach"
+    validateBasicMetricSetSpec(
+      resultGroupMetricSpec.reportingUnit.cumulative,
+      "basic_report.result_group_specs.result_group_metric_spec.reporting_unit.cumulative.k_plus_reach",
     )
-    validateBasicMetricSetSpec(resultGroupMetricSpec.reportingUnit.nonCumulative,
-      "basic_report.result_group_specs.result_group_metric_spec.reporting_unit.non_cumulative.k_plus_reach"
+    validateBasicMetricSetSpec(
+      resultGroupMetricSpec.reportingUnit.nonCumulative,
+      "basic_report.result_group_specs.result_group_metric_spec.reporting_unit.non_cumulative.k_plus_reach",
     )
-    validateBasicMetricSetSpec(resultGroupMetricSpec.component.nonCumulative,
-      "basic_report.result_group_specs.result_group_metric_spec.component.non_cumulative.k_plus_reach"
+    validateBasicMetricSetSpec(
+      resultGroupMetricSpec.component.nonCumulative,
+      "basic_report.result_group_specs.result_group_metric_spec.component.non_cumulative.k_plus_reach",
     )
-    validateBasicMetricSetSpec(resultGroupMetricSpec.component.cumulative,
-      "basic_report.result_group_specs.result_group_metric_spec.component.cumulative.k_plus_reach"
+    validateBasicMetricSetSpec(
+      resultGroupMetricSpec.component.cumulative,
+      "basic_report.result_group_specs.result_group_metric_spec.component.cumulative.k_plus_reach",
     )
 
     if (
@@ -565,7 +575,8 @@ class BasicReportsService(
       reportingInterval.reportStart.year == 0 ||
         reportingInterval.reportStart.month == 0 ||
         reportingInterval.reportStart.day == 0 ||
-        !(reportingInterval.reportStart.hasTimeZone() || reportingInterval.reportStart.hasUtcOffset())
+        !(reportingInterval.reportStart.hasTimeZone() ||
+          reportingInterval.reportStart.hasUtcOffset())
     ) {
       throw InvalidFieldValueException("basic_report.reporting_interval.report_start") { fieldName
           ->
@@ -574,7 +585,11 @@ class BasicReportsService(
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
-    if (reportingInterval.reportEnd.year == 0 || reportingInterval.reportEnd.month == 0 || reportingInterval.reportEnd.day == 0) {
+    if (
+      reportingInterval.reportEnd.year == 0 ||
+        reportingInterval.reportEnd.month == 0 ||
+        reportingInterval.reportEnd.day == 0
+    ) {
       throw InvalidFieldValueException("basic_report.reporting_interval.report_end") { fieldName ->
           "$fieldName requires year, month, and day to be set"
         }
@@ -582,14 +597,16 @@ class BasicReportsService(
     }
   }
 
-
   /**
    * Validates a [List] of [ReportingImpressionQualificationFilter]
    *
-   * @param reportingImpressionQualificationFilters [List] of [ReportingImpressionQualificationFilter] to validate
+   * @param reportingImpressionQualificationFilters [List] of
+   *   [ReportingImpressionQualificationFilter] to validate
    * @throws [StatusRuntimeException] when validation fails
    */
-  private fun validateReportingImpressionQualificationFilters(reportingImpressionQualificationFilters: List<ReportingImpressionQualificationFilter>) {
+  private fun validateReportingImpressionQualificationFilters(
+    reportingImpressionQualificationFilters: List<ReportingImpressionQualificationFilter>
+  ) {
     if (reportingImpressionQualificationFilters.isEmpty()) {
       throw RequiredFieldNotSetException("basic_report.impression_qualification_filters")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
@@ -616,10 +633,13 @@ class BasicReportsService(
   /**
    * Validates a [CustomImpressionQualificationFilterSpec]
    *
-   * @param customImpressionQualificationFilterSpec [CustomImpressionQualificationFilterSpec] to validate
+   * @param customImpressionQualificationFilterSpec [CustomImpressionQualificationFilterSpec] to
+   *   validate
    * @throws [StatusRuntimeException] when validation fails
    */
-  private fun validateCustomImpressionQualificationFilterSpec(customImpressionQualificationFilterSpec: CustomImpressionQualificationFilterSpec) {
+  private fun validateCustomImpressionQualificationFilterSpec(
+    customImpressionQualificationFilterSpec: CustomImpressionQualificationFilterSpec
+  ) {
     if (customImpressionQualificationFilterSpec.filterSpecList.isEmpty()) {
       throw RequiredFieldNotSetException(
           "basic_report.impression_qualification_filters.custom.filter_spec"
@@ -686,7 +706,10 @@ class BasicReportsService(
    * @param kPlusReachFieldName field name to use in error
    * @throws [StatusRuntimeException] when validation fails
    */
-  private fun validateBasicMetricSetSpec(basicMetricSetSpec: ResultGroupMetricSpec.BasicMetricSetSpec, kPlusReachFieldName: String) {
+  private fun validateBasicMetricSetSpec(
+    basicMetricSetSpec: ResultGroupMetricSpec.BasicMetricSetSpec,
+    kPlusReachFieldName: String,
+  ) {
     if (basicMetricSetSpec.percentKPlusReach) {
       if (basicMetricSetSpec.kPlusReach <= 0) {
         throw InvalidFieldValueException(kPlusReachFieldName) { fieldName ->
