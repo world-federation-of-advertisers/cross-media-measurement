@@ -16,6 +16,9 @@
 
 package org.wfanet.measurement.reporting.service.api.v2alpha
 
+import kotlin.collections.List
+import kotlin.collections.Set
+import org.wfanet.measurement.api.v2alpha.DataProvider
 import com.google.longrunning.Operation
 import com.google.protobuf.InvalidProtocolBufferException
 import io.grpc.Status
@@ -107,47 +110,7 @@ class BasicReportsService(
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
 
     // Required for creating Report
-    val campaignGroup: ReportingSet =
-      try {
-        internalReportingSetsStub
-          .batchGetReportingSets(
-            batchGetReportingSetsRequest {
-              cmmsMeasurementConsumerId = campaignGroupKey.cmmsMeasurementConsumerId
-              externalReportingSetIds += campaignGroupKey.reportingSetId
-            }
-          )
-          .reportingSetsList
-          .first()
-          .toReportingSet()
-      } catch (e: StatusException) {
-        throw when (ReportingInternalException.getErrorCode(e)) {
-          ErrorCode.REPORTING_SET_NOT_FOUND ->
-            throw ReportingSetNotFoundException(request.basicReport.campaignGroup)
-              .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
-          ErrorCode.MEASUREMENT_CONSUMER_NOT_FOUND,
-          ErrorCode.REPORTING_SET_ALREADY_EXISTS,
-          ErrorCode.CAMPAIGN_GROUP_INVALID,
-          ErrorCode.UNKNOWN_ERROR,
-          ErrorCode.MEASUREMENT_ALREADY_EXISTS,
-          ErrorCode.MEASUREMENT_NOT_FOUND,
-          ErrorCode.MEASUREMENT_CALCULATION_TIME_INTERVAL_NOT_FOUND,
-          ErrorCode.REPORT_NOT_FOUND,
-          ErrorCode.MEASUREMENT_STATE_INVALID,
-          ErrorCode.MEASUREMENT_CONSUMER_ALREADY_EXISTS,
-          ErrorCode.METRIC_ALREADY_EXISTS,
-          ErrorCode.REPORT_ALREADY_EXISTS,
-          ErrorCode.REPORT_SCHEDULE_ALREADY_EXISTS,
-          ErrorCode.REPORT_SCHEDULE_NOT_FOUND,
-          ErrorCode.REPORT_SCHEDULE_STATE_INVALID,
-          ErrorCode.REPORT_SCHEDULE_ITERATION_NOT_FOUND,
-          ErrorCode.REPORT_SCHEDULE_ITERATION_STATE_INVALID,
-          ErrorCode.METRIC_CALCULATION_SPEC_NOT_FOUND,
-          ErrorCode.METRIC_CALCULATION_SPEC_ALREADY_EXISTS,
-          ErrorCode.UNRECOGNIZED,
-          null -> Status.INTERNAL.withCause(e).asRuntimeException()
-        }
-      }
-
+    val campaignGroup: ReportingSet = getReportingSet(request.basicReport.campaignGroup)
     validateCreateBasicReportRequest(request, campaignGroup)
 
     // Validates that IQFs exist, but also constructs a List required for creating Report
@@ -276,7 +239,6 @@ class BasicReportsService(
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
-
     if (internalListBasicReportsResponse.basicReportsList.isEmpty()) {
       return ListBasicReportsResponse.getDefaultInstance()
     }
@@ -287,6 +249,53 @@ class BasicReportsService(
       if (internalListBasicReportsResponse.hasNextPageToken()) {
         nextPageToken =
           internalListBasicReportsResponse.nextPageToken.toByteString().base64UrlEncode()
+      }
+    }
+  }
+
+
+  /**
+   * Get a single [ReportingSet]
+   */
+  private suspend fun getReportingSet(name: String): ReportingSet {
+    val reportingSetKey = ReportingSetKey.fromName(name)!!
+    return try {
+      internalReportingSetsStub
+        .batchGetReportingSets(
+          batchGetReportingSetsRequest {
+            cmmsMeasurementConsumerId = reportingSetKey.cmmsMeasurementConsumerId
+            externalReportingSetIds += reportingSetKey.reportingSetId
+          }
+        )
+        .reportingSetsList
+        .first()
+        .toReportingSet()
+    } catch (e: StatusException) {
+      throw when (ReportingInternalException.getErrorCode(e)) {
+        ErrorCode.REPORTING_SET_NOT_FOUND ->
+          throw ReportingSetNotFoundException(name)
+            .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+        ErrorCode.MEASUREMENT_CONSUMER_NOT_FOUND,
+        ErrorCode.REPORTING_SET_ALREADY_EXISTS,
+        ErrorCode.CAMPAIGN_GROUP_INVALID,
+        ErrorCode.UNKNOWN_ERROR,
+        ErrorCode.MEASUREMENT_ALREADY_EXISTS,
+        ErrorCode.MEASUREMENT_NOT_FOUND,
+        ErrorCode.MEASUREMENT_CALCULATION_TIME_INTERVAL_NOT_FOUND,
+        ErrorCode.REPORT_NOT_FOUND,
+        ErrorCode.MEASUREMENT_STATE_INVALID,
+        ErrorCode.MEASUREMENT_CONSUMER_ALREADY_EXISTS,
+        ErrorCode.METRIC_ALREADY_EXISTS,
+        ErrorCode.REPORT_ALREADY_EXISTS,
+        ErrorCode.REPORT_SCHEDULE_ALREADY_EXISTS,
+        ErrorCode.REPORT_SCHEDULE_NOT_FOUND,
+        ErrorCode.REPORT_SCHEDULE_STATE_INVALID,
+        ErrorCode.REPORT_SCHEDULE_ITERATION_NOT_FOUND,
+        ErrorCode.REPORT_SCHEDULE_ITERATION_STATE_INVALID,
+        ErrorCode.METRIC_CALCULATION_SPEC_NOT_FOUND,
+        ErrorCode.METRIC_CALCULATION_SPEC_ALREADY_EXISTS,
+        ErrorCode.UNRECOGNIZED,
+        null -> Status.INTERNAL.withCause(e).asRuntimeException()
       }
     }
   }
@@ -326,18 +335,26 @@ class BasicReportsService(
     }
 
     if (request.basicReport.hasReportingInterval()) {
-      request.basicReport.reportingInterval.validate()
+      validateReportingInterval(request.basicReport.reportingInterval)
     } else {
       throw RequiredFieldNotSetException("basic_report.reporting_interval")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
-    request.basicReport.impressionQualificationFiltersList.validate()
-    request.basicReport.resultGroupSpecsList.validate(campaignGroup)
+    validateReportingImpressionQualificationFilters(request.basicReport.impressionQualificationFiltersList)
+    validateResultGroupSpecs(request.basicReport.resultGroupSpecsList, campaignGroup)
   }
 
-  private fun List<ResultGroupSpec>.validate(campaignGroup: ReportingSet) {
-    if (this.isEmpty()) {
+
+  /**
+   * Validates a [List] of [ResultGroupSpec]
+   *
+   * @param resultGroupSpecs [List] of [ResultGroupSpec] to validate
+   * @param campaignGroup [ReportingSet] to validate against
+   * @throws [StatusRuntimeException] when validation fails
+   */
+  private fun validateResultGroupSpecs(resultGroupSpecs: List<ResultGroupSpec>, campaignGroup: ReportingSet) {
+    if (resultGroupSpecs.isEmpty()) {
       throw RequiredFieldNotSetException("basic_report.result_group_specs")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
@@ -349,7 +366,7 @@ class BasicReportsService(
       }
     }
 
-    for (resultGroupSpec in this) {
+    for (resultGroupSpec in resultGroupSpecs) {
       if (
         resultGroupSpec.metricFrequency.selectorCase ==
           MetricFrequencySpec.SelectorCase.SELECTOR_NOT_SET
@@ -359,21 +376,21 @@ class BasicReportsService(
       }
 
       if (resultGroupSpec.hasReportingUnit()) {
-        resultGroupSpec.reportingUnit.validate(dataProviderNameSet)
+        validateReportingUnit(resultGroupSpec.reportingUnit, dataProviderNameSet)
       } else {
         throw RequiredFieldNotSetException("basic_report.result_group_specs.reporting_unit")
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
       }
 
       if (resultGroupSpec.hasDimensionSpec()) {
-        resultGroupSpec.dimensionSpec.validate()
+        validateDimensionSpec(resultGroupSpec.dimensionSpec)
       } else {
         throw RequiredFieldNotSetException("basic_report.result_group_specs.dimension_spec")
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
       }
 
       if (resultGroupSpec.hasResultGroupMetricSpec()) {
-        resultGroupSpec.resultGroupMetricSpec.validate(resultGroupSpec.metricFrequency.selectorCase)
+        validateResultGroupMetricSpec(resultGroupSpec.resultGroupMetricSpec, resultGroupSpec.metricFrequency.selectorCase)
       } else {
         throw RequiredFieldNotSetException(
             "basic_report.result_group_specs.result_group_metric_spec"
@@ -383,13 +400,20 @@ class BasicReportsService(
     }
   }
 
-  private fun ReportingUnit.validate(dataProviderNameSet: Set<String>) {
-    if (this.componentsList.isEmpty()) {
+  /**
+   * Validates a [ReportingUnit]
+   *
+   * @param reportingUnit [ReportingUnit] to validate
+   * @param dataProviderNameSet [Set] of [DataProvider] names that CampaignGroup is associated with
+   * @throws [StatusRuntimeException] when validation fails
+   */
+  private fun validateReportingUnit(reportingUnit: ReportingUnit, dataProviderNameSet: Set<String>) {
+    if (reportingUnit.componentsList.isEmpty()) {
       throw InvalidFieldValueException("basic_report.result_group_specs.reporting_unit.components")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
-    for (component in this.componentsList) {
+    for (component in reportingUnit.componentsList) {
       DataProviderKey.fromName(component)
         ?: throw InvalidFieldValueException(
             "basic_report.result_group_specs.reporting_unit.components"
@@ -409,15 +433,21 @@ class BasicReportsService(
     }
   }
 
-  private fun DimensionSpec.validate() {
-    if (this.hasGrouping() && this.grouping.eventTemplateFieldsList.isEmpty()) {
+  /**
+   * Validates a [DimensionSpec]
+   *
+   * @param dimensionSpec [DimensionSpec] to validate
+   * @throws [StatusRuntimeException] when validation fails
+   */
+  private fun validateDimensionSpec(dimensionSpec: DimensionSpec) {
+    if (dimensionSpec.hasGrouping() && dimensionSpec.grouping.eventTemplateFieldsList.isEmpty()) {
       throw RequiredFieldNotSetException(
           "basic_report.result_group_specs.dimension_spec.grouping.event_template_fields"
         )
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
-    for (eventFilter in this.filtersList) {
+    for (eventFilter in dimensionSpec.filtersList) {
       if (eventFilter.termsList.size != 1) {
         throw InvalidFieldValueException(
             "basic_report.result_group_specs.dimension_spec.filters.terms"
@@ -447,10 +477,19 @@ class BasicReportsService(
     }
   }
 
-  private fun ResultGroupMetricSpec.validate(
+
+  /**
+   * Validates a [ResultGroupMetricSpec]
+   *
+   * @param resultGroupMetricSpec [ResultGroupMetricSpec] to validate
+   * @param metricFrequencySelectorCase [MetricFrequencySpec.SelectorCase] to validate against
+   * @throws [StatusRuntimeException] when validation fails
+   */
+  private fun validateResultGroupMetricSpec(
+    resultGroupMetricSpec: ResultGroupMetricSpec,
     metricFrequencySelectorCase: MetricFrequencySpec.SelectorCase
   ) {
-    if (this.hasComponentIntersection()) {
+    if (resultGroupMetricSpec.hasComponentIntersection()) {
       throw InvalidFieldValueException(
           "basic_report.result_group_specs.result_group_metric_spec.component_intersection"
         ) { fieldName ->
@@ -460,7 +499,7 @@ class BasicReportsService(
     }
 
     if (metricFrequencySelectorCase == MetricFrequencySpec.SelectorCase.TOTAL) {
-      if (this.reportingUnit.hasNonCumulative()) {
+      if (resultGroupMetricSpec.reportingUnit.hasNonCumulative()) {
         throw InvalidFieldValueException(
             "basic_report.result_group_specs.result_group_metric_spec.reporting_unit.non_cumulative"
           ) { fieldName ->
@@ -469,7 +508,7 @@ class BasicReportsService(
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
       }
 
-      if (this.component.hasNonCumulative()) {
+      if (resultGroupMetricSpec.component.hasNonCumulative()) {
         throw InvalidFieldValueException(
             "basic_report.result_group_specs.result_group_metric_spec.component.non_cumulative"
           ) { fieldName ->
@@ -479,21 +518,21 @@ class BasicReportsService(
       }
     }
 
-    this.reportingUnit.cumulative.validate(
+    validateBasicMetricSetSpec(resultGroupMetricSpec.reportingUnit.cumulative,
       "basic_report.result_group_specs.result_group_metric_spec.reporting_unit.cumulative.k_plus_reach"
     )
-    this.reportingUnit.nonCumulative.validate(
+    validateBasicMetricSetSpec(resultGroupMetricSpec.reportingUnit.nonCumulative,
       "basic_report.result_group_specs.result_group_metric_spec.reporting_unit.non_cumulative.k_plus_reach"
     )
-    this.component.nonCumulative.validate(
+    validateBasicMetricSetSpec(resultGroupMetricSpec.component.nonCumulative,
       "basic_report.result_group_specs.result_group_metric_spec.component.non_cumulative.k_plus_reach"
     )
-    this.component.cumulative.validate(
+    validateBasicMetricSetSpec(resultGroupMetricSpec.component.cumulative,
       "basic_report.result_group_specs.result_group_metric_spec.component.cumulative.k_plus_reach"
     )
 
     if (
-      this.reportingUnit.stackedIncrementalReach &&
+      resultGroupMetricSpec.reportingUnit.stackedIncrementalReach &&
         metricFrequencySelectorCase != MetricFrequencySpec.SelectorCase.TOTAL
     ) {
       throw InvalidFieldValueException(
@@ -505,22 +544,28 @@ class BasicReportsService(
     }
   }
 
-  private fun ReportingInterval.validate() {
-    if (!this.hasReportStart()) {
+  /**
+   * Validates a [ReportingInterval]
+   *
+   * @param reportingInterval [ReportingInterval] to validate
+   * @throws [StatusRuntimeException] when validation fails
+   */
+  private fun validateReportingInterval(reportingInterval: ReportingInterval) {
+    if (!reportingInterval.hasReportStart()) {
       throw RequiredFieldNotSetException("basic_report.reporting_interval.report_start")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
-    if (!this.hasReportEnd()) {
+    if (!reportingInterval.hasReportEnd()) {
       throw RequiredFieldNotSetException("basic_report.reporting_interval.report_end")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
     if (
-      this.reportStart.year == 0 ||
-        this.reportStart.month == 0 ||
-        this.reportStart.day == 0 ||
-        !(this.reportStart.hasTimeZone() || this.reportStart.hasUtcOffset())
+      reportingInterval.reportStart.year == 0 ||
+        reportingInterval.reportStart.month == 0 ||
+        reportingInterval.reportStart.day == 0 ||
+        !(reportingInterval.reportStart.hasTimeZone() || reportingInterval.reportStart.hasUtcOffset())
     ) {
       throw InvalidFieldValueException("basic_report.reporting_interval.report_start") { fieldName
           ->
@@ -529,7 +574,7 @@ class BasicReportsService(
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
-    if (this.reportEnd.year == 0 || this.reportEnd.month == 0 || this.reportEnd.day == 0) {
+    if (reportingInterval.reportEnd.year == 0 || reportingInterval.reportEnd.month == 0 || reportingInterval.reportEnd.day == 0) {
       throw InvalidFieldValueException("basic_report.reporting_interval.report_end") { fieldName ->
           "$fieldName requires year, month, and day to be set"
         }
@@ -537,13 +582,20 @@ class BasicReportsService(
     }
   }
 
-  private fun List<ReportingImpressionQualificationFilter>.validate() {
-    if (this.isEmpty()) {
+
+  /**
+   * Validates a [List] of [ReportingImpressionQualificationFilter]
+   *
+   * @param reportingImpressionQualificationFilters [List] of [ReportingImpressionQualificationFilter] to validate
+   * @throws [StatusRuntimeException] when validation fails
+   */
+  private fun validateReportingImpressionQualificationFilters(reportingImpressionQualificationFilters: List<ReportingImpressionQualificationFilter>) {
+    if (reportingImpressionQualificationFilters.isEmpty()) {
       throw RequiredFieldNotSetException("basic_report.impression_qualification_filters")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
-    for (impressionQualificationFilter in this) {
+    for (impressionQualificationFilter in reportingImpressionQualificationFilters) {
       if (impressionQualificationFilter.hasImpressionQualificationFilter()) {
         ImpressionQualificationFilterKey.fromName(
           impressionQualificationFilter.impressionQualificationFilter
@@ -553,7 +605,7 @@ class BasicReportsService(
             )
             .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
       } else if (impressionQualificationFilter.hasCustom()) {
-        impressionQualificationFilter.custom.validate()
+        validateCustomImpressionQualificationFilterSpec(impressionQualificationFilter.custom)
       } else {
         throw InvalidFieldValueException("basic_report.impression_qualification_filters.selector")
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
@@ -561,9 +613,14 @@ class BasicReportsService(
     }
   }
 
-  private fun CustomImpressionQualificationFilterSpec.validate() {
-    val source = this
-    if (source.filterSpecList.isEmpty()) {
+  /**
+   * Validates a [CustomImpressionQualificationFilterSpec]
+   *
+   * @param customImpressionQualificationFilterSpec [CustomImpressionQualificationFilterSpec] to validate
+   * @throws [StatusRuntimeException] when validation fails
+   */
+  private fun validateCustomImpressionQualificationFilterSpec(customImpressionQualificationFilterSpec: CustomImpressionQualificationFilterSpec) {
+    if (customImpressionQualificationFilterSpec.filterSpecList.isEmpty()) {
       throw RequiredFieldNotSetException(
           "basic_report.impression_qualification_filters.custom.filter_spec"
         )
@@ -572,7 +629,7 @@ class BasicReportsService(
 
     // No more than 1 filter_spec per MediaType
     buildSet<MediaType> {
-      for (filterSpec in source.filterSpecList) {
+      for (filterSpec in customImpressionQualificationFilterSpec.filterSpecList) {
         if (this.contains(filterSpec.mediaType)) {
           throw InvalidFieldValueException(
               "basic_report.impression_qualification_filters.custom.filter_spec"
@@ -622,9 +679,16 @@ class BasicReportsService(
     }
   }
 
-  private fun ResultGroupMetricSpec.BasicMetricSetSpec.validate(kPlusReachFieldName: String) {
-    if (this.percentKPlusReach) {
-      if (this.kPlusReach <= 0) {
+  /**
+   * Validates a [ResultGroupMetricSpec.BasicMetricSetSpec]
+   *
+   * @param basicMetricSetSpec [ResultGroupMetricSpec.BasicMetricSetSpec] to validate
+   * @param kPlusReachFieldName field name to use in error
+   * @throws [StatusRuntimeException] when validation fails
+   */
+  private fun validateBasicMetricSetSpec(basicMetricSetSpec: ResultGroupMetricSpec.BasicMetricSetSpec, kPlusReachFieldName: String) {
+    if (basicMetricSetSpec.percentKPlusReach) {
+      if (basicMetricSetSpec.kPlusReach <= 0) {
         throw InvalidFieldValueException(kPlusReachFieldName) { fieldName ->
             "$fieldName must have a positive value"
           }
