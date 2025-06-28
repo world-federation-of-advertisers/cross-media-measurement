@@ -20,7 +20,6 @@ import com.google.longrunning.Operation
 import com.google.protobuf.InvalidProtocolBufferException
 import io.grpc.Status
 import io.grpc.StatusException
-import io.grpc.StatusRuntimeException
 import kotlin.collections.List
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
@@ -45,13 +44,13 @@ import org.wfanet.measurement.internal.reporting.v2.listBasicReportsPageToken
 import org.wfanet.measurement.internal.reporting.v2.listBasicReportsRequest as internalListBasicReportsRequest
 import org.wfanet.measurement.reporting.service.api.ArgumentChangedInRequestForNextPageException
 import org.wfanet.measurement.reporting.service.api.BasicReportNotFoundException
+import org.wfanet.measurement.reporting.service.api.Errors
 import org.wfanet.measurement.reporting.service.api.ImpressionQualificationFilterNotFoundException
 import org.wfanet.measurement.reporting.service.api.InvalidFieldValueException
 import org.wfanet.measurement.reporting.service.api.ReportingSetNotFoundException
 import org.wfanet.measurement.reporting.service.api.RequiredFieldNotSetException
-import org.wfanet.measurement.reporting.service.internal.Errors as InternalErrors
-import org.wfanet.measurement.reporting.service.api.Errors
 import org.wfanet.measurement.reporting.service.api.ServiceException
+import org.wfanet.measurement.reporting.service.internal.Errors as InternalErrors
 import org.wfanet.measurement.reporting.service.internal.ReportingInternalException
 import org.wfanet.measurement.reporting.v2alpha.BasicReport
 import org.wfanet.measurement.reporting.v2alpha.BasicReportsGrpcKt.BasicReportsCoroutineImplBase
@@ -103,7 +102,8 @@ class BasicReportsService(
     } catch (e: ServiceException) {
       throw when (e.reason) {
         Errors.Reason.REQUIRED_FIELD_NOT_SET,
-        Errors.Reason.INVALID_FIELD_VALUE -> e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+        Errors.Reason.INVALID_FIELD_VALUE ->
+          e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
         Errors.Reason.FIELD_UNIMPLEMENTED -> e.asStatusRuntimeException(Status.Code.UNIMPLEMENTED)
         Errors.Reason.BASIC_REPORT_NOT_FOUND,
         Errors.Reason.REPORTING_SET_NOT_FOUND,
@@ -111,7 +111,8 @@ class BasicReportsService(
         Errors.Reason.CAMPAIGN_GROUP_INVALID,
         Errors.Reason.INVALID_METRIC_STATE_TRANSITION,
         Errors.Reason.ARGUMENT_CHANGED_IN_REQUEST_FOR_NEXT_PAGE,
-        Errors.Reason.IMPRESSION_QUALIFICATION_FILTER_NOT_FOUND -> e.asStatusRuntimeException(Status.Code.INTERNAL) // Shouldn't be reached
+        Errors.Reason.IMPRESSION_QUALIFICATION_FILTER_NOT_FOUND ->
+          e.asStatusRuntimeException(Status.Code.INTERNAL) // Shouldn't be reached
       }
     }
 
@@ -362,6 +363,7 @@ class BasicReportsService(
       }
     }
   }
+
   object Permission {
     private const val TYPE = "reporting.basicReports"
     const val CREATE = "$TYPE.create"

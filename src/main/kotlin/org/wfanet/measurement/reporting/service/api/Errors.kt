@@ -23,7 +23,6 @@ import io.grpc.StatusRuntimeException
 import org.wfanet.measurement.common.grpc.Errors as CommonErrors
 import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.reporting.service.internal.Errors as InternalErrors
-import com.google.rpc.ErrorInfo
 import org.wfanet.measurement.reporting.v2alpha.Metric
 
 object Errors {

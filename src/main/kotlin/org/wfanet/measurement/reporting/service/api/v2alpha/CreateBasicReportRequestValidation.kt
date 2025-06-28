@@ -16,9 +16,9 @@
 
 package org.wfanet.measurement.reporting.service.api.v2alpha
 
+import java.util.UUID
 import kotlin.collections.List
 import kotlin.collections.Set
-import java.util.UUID
 import org.wfanet.measurement.api.v2alpha.DataProvider
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.EventGroupKey
@@ -42,7 +42,8 @@ import org.wfanet.measurement.reporting.v2alpha.ResultGroupSpec
 private val RESOURCE_ID_REGEX = ResourceIds.AIP_122_REGEX
 
 /**
- * Validates a [CreateBasicReportRequest]. Only supports validation that does not requires gRPC calls
+ * Validates a [CreateBasicReportRequest]. Only supports validation that does not requires gRPC
+ * calls
  *
  * @param request
  * @throws [RequiredFieldNotSetException] when validation fails
@@ -92,10 +93,7 @@ fun validateCreateBasicReportRequest(
  * @throws [RequiredFieldNotSetException] when validation fails
  * @throws [InvalidFieldValueException] when validation fails
  */
-fun validateResultGroupSpecs(
-  resultGroupSpecs: List<ResultGroupSpec>,
-  campaignGroup: ReportingSet,
-) {
+fun validateResultGroupSpecs(resultGroupSpecs: List<ResultGroupSpec>, campaignGroup: ReportingSet) {
   if (resultGroupSpecs.isEmpty()) {
     throw RequiredFieldNotSetException("basic_report.result_group_specs")
   }
@@ -110,7 +108,7 @@ fun validateResultGroupSpecs(
   for (resultGroupSpec in resultGroupSpecs) {
     if (
       resultGroupSpec.metricFrequency.selectorCase ==
-      MetricFrequencySpec.SelectorCase.SELECTOR_NOT_SET
+        MetricFrequencySpec.SelectorCase.SELECTOR_NOT_SET
     ) {
       throw RequiredFieldNotSetException("basic_report.result_group_specs.metric_frequency")
     }
@@ -133,9 +131,7 @@ fun validateResultGroupSpecs(
         resultGroupSpec.metricFrequency.selectorCase,
       )
     } else {
-      throw RequiredFieldNotSetException(
-        "basic_report.result_group_specs.result_group_metric_spec"
-      )
+      throw RequiredFieldNotSetException("basic_report.result_group_specs.result_group_metric_spec")
     }
   }
 }
@@ -147,10 +143,7 @@ fun validateResultGroupSpecs(
  * @param dataProviderNameSet [Set] of [DataProvider] names that CampaignGroup is associated with
  * @throws [InvalidFieldValueException] when validation fails
  */
-fun validateReportingUnit(
-  reportingUnit: ReportingUnit,
-  dataProviderNameSet: Set<String>,
-) {
+fun validateReportingUnit(reportingUnit: ReportingUnit, dataProviderNameSet: Set<String>) {
   if (reportingUnit.componentsList.isEmpty()) {
     throw InvalidFieldValueException("basic_report.result_group_specs.reporting_unit.components")
   }
@@ -204,7 +197,7 @@ fun validateDimensionSpec(dimensionSpec: DimensionSpec) {
 
       if (
         eventTemplateField.value.selectorCase ==
-        EventTemplateField.FieldValue.SelectorCase.SELECTOR_NOT_SET
+          EventTemplateField.FieldValue.SelectorCase.SELECTOR_NOT_SET
       ) {
         throw RequiredFieldNotSetException(
           "basic_report.result_group_specs.dimension_spec.filters.terms.value"
@@ -270,7 +263,7 @@ fun validateResultGroupMetricSpec(
 
   if (
     resultGroupMetricSpec.reportingUnit.stackedIncrementalReach &&
-    metricFrequencySelectorCase != MetricFrequencySpec.SelectorCase.TOTAL
+      metricFrequencySelectorCase != MetricFrequencySpec.SelectorCase.TOTAL
   ) {
     throw InvalidFieldValueException(
       "basic_report.result_group_specs.result_group_metric_spec.reporting_unit.stacked_incremental_reach"
@@ -298,21 +291,19 @@ fun validateReportingInterval(reportingInterval: ReportingInterval) {
 
   if (
     reportingInterval.reportStart.year == 0 ||
-    reportingInterval.reportStart.month == 0 ||
-    reportingInterval.reportStart.day == 0 ||
-    !(reportingInterval.reportStart.hasTimeZone() ||
-      reportingInterval.reportStart.hasUtcOffset())
+      reportingInterval.reportStart.month == 0 ||
+      reportingInterval.reportStart.day == 0 ||
+      !(reportingInterval.reportStart.hasTimeZone() || reportingInterval.reportStart.hasUtcOffset())
   ) {
-    throw InvalidFieldValueException("basic_report.reporting_interval.report_start") { fieldName
-      ->
+    throw InvalidFieldValueException("basic_report.reporting_interval.report_start") { fieldName ->
       "$fieldName requires year, month, and day to all be set, as well as either time_zone or utc_offset"
     }
   }
 
   if (
     reportingInterval.reportEnd.year == 0 ||
-    reportingInterval.reportEnd.month == 0 ||
-    reportingInterval.reportEnd.day == 0
+      reportingInterval.reportEnd.month == 0 ||
+      reportingInterval.reportEnd.day == 0
   ) {
     throw InvalidFieldValueException("basic_report.reporting_interval.report_end") { fieldName ->
       "$fieldName requires year, month, and day to be set"
@@ -323,8 +314,8 @@ fun validateReportingInterval(reportingInterval: ReportingInterval) {
 /**
  * Validates a [List] of [ReportingImpressionQualificationFilter]
  *
- * @param reportingImpressionQualificationFilters [List] of
- *   [ReportingImpressionQualificationFilter] to validate
+ * @param reportingImpressionQualificationFilters [List] of [ReportingImpressionQualificationFilter]
+ *   to validate
  * @throws [RequiredFieldNotSetException] when validation fails
  * @throws [InvalidFieldValueException] when validation fails
  */
@@ -403,7 +394,7 @@ fun validateCustomImpressionQualificationFilterSpec(
 
           if (
             eventTemplateField.value.selectorCase ==
-            EventTemplateField.FieldValue.SelectorCase.SELECTOR_NOT_SET
+              EventTemplateField.FieldValue.SelectorCase.SELECTOR_NOT_SET
           ) {
             throw RequiredFieldNotSetException(
               "basic_report.impression_qualification_filters.custom.filter_spec.filters.terms.value"
