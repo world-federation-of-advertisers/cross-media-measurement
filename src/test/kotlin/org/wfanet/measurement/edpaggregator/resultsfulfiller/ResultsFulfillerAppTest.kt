@@ -16,7 +16,6 @@
 
 package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
-import com.google.common.truth.Truth
 import com.google.common.truth.Truth.assertThat
 import com.google.crypto.tink.Aead
 import com.google.crypto.tink.KeyTemplates
@@ -322,9 +321,9 @@ class ResultsFulfillerAppTest {
       )
     val result: Measurement.Result = decryptResult(request.encryptedResult, MC_PRIVATE_KEY).unpack()
 
-    Truth.assertThat(result.reach.noiseMechanism).isEqualTo(ProtocolConfig.NoiseMechanism.NONE)
+    assertThat(result.reach.noiseMechanism).isEqualTo(ProtocolConfig.NoiseMechanism.NONE)
     assertTrue(result.reach.hasDeterministicCountDistinct())
-    Truth.assertThat(result.frequency.noiseMechanism).isEqualTo(ProtocolConfig.NoiseMechanism.NONE)
+    assertThat(result.frequency.noiseMechanism).isEqualTo(ProtocolConfig.NoiseMechanism.NONE)
     assertTrue(result.frequency.hasDeterministicDistribution())
 
     assertThat(result.reach.value).isEqualTo(80)
@@ -365,7 +364,7 @@ class ResultsFulfillerAppTest {
               }
             this.noiseParams =
               ResultsFulfillerParamsKt.noiseParams {
-                noiseType = ResultsFulfillerParams.NoiseParams.NoiseType.NO_NOISE
+                noiseType = ResultsFulfillerParams.NoiseParams.NoiseType.NONE
               }
           }
           .pack()

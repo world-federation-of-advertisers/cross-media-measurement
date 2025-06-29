@@ -133,8 +133,8 @@ class ResultsFulfillerApp(
       )
     val noiseSelector =
       when (fulfillerParams.noiseParams.noiseType) {
-        NoiseType.NO_NOISE -> NoNoiserSelector()
-        NoiseType.CONTINUOUS_GAUSSIAN_NOISE -> ContinuousGaussianNoiseSelector()
+        NoiseType.NONE -> NoNoiserSelector()
+        NoiseType.CONTINUOUS_GAUSSIAN -> ContinuousGaussianNoiseSelector()
         else -> throw Exception("Invalid noise type ${fulfillerParams.noiseParams.noiseType}")
       }
     ResultsFulfiller(

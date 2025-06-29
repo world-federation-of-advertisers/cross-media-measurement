@@ -90,11 +90,11 @@ message ResultsFulfillerParams {
     // The types of noise
     enum NoiseType {
       // Default/unset.
-      TYPE_SELECTED = 0;
+      UNSPECIFIED = 0;
       // No noise applied.
-      NO_NOISE = 1;
+      NONE = 1;
       // Continuous gaussian noise applied.
-      CONTINUOUS_GAUSSIAN_NOISE = 2;
+      CONTINUOUS_GAUSSIAN = 2;
     }
     // The type of noise applied to the result
     NoiseType noise_type = 1;
