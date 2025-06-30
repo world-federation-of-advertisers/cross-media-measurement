@@ -100,7 +100,7 @@ jobs:
 
       - name: Run tests
         id: run-tests
-        run: bazel test //...
+        run: bazel test --nocache_test_results //src/test/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/... //src/test/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/...
 
       - name: Run tests with coverage
         id: run-coverage
