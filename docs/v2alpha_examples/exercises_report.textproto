@@ -1,0 +1,91 @@
+# proto-file: wfa/measurement/reporting/v2alpha/report.proto
+# proto-message: Report
+
+measurement_consumer: "measurementConsumers/VCTqwV_vFXw"
+
+# Slide p6 - incremental reach for A
+reporting_metric_entries {
+  key: "measurementConsumers/VCTqwV_vFXw/reportingSets/incremental_for_A"
+  value {
+    metric_calculation_specs {
+      display_name: "incremental_reach_for_A"
+      metric_spec {
+        type {
+          reach {}
+        }
+      }
+      cumulative: false
+    }
+  }
+}
+# Slide p6 - Skip incremental reach for B and C. It's similar to above.
+
+# Slide p11, p12 - reach and impression count for pub A
+reporting_metric_entries {
+  key: "measurementConsumers/VCTqwV_vFXw/reportingSets/publisher_A"
+  value {
+    metric_calculation_specs {
+      display_name: "cumulative_reach_impression_for_pub_A_age_18+"
+      metric_spec {
+        type {
+          reach {}
+        }
+      }
+      metric_spec {
+        type {
+          impression_count {}
+        }
+      }
+      cumulative: true
+    }
+  }
+}
+
+# Slide p6 - Skip reach and impression count for B and C. It's similar to above.
+
+# Slide p30 - reach efficiency by frequency bands for A
+reporting_metric_entries {
+  key: "measurementConsumers/VCTqwV_vFXw/reportingSets/publisher_A"
+  value {
+    metric_calculation_specs {
+      display_name: "reach_efficiency_by_frequency_bands_for_A"
+      metric_spec {
+        type {
+          frequency_histogram {
+            maximum_frequency_per_user: 10
+          }
+        }
+      }
+      groupings {
+        predicates: "person.gender == MALE"
+        predicates: "person.gender == FEMALE"
+      }
+      groupings {
+        # age 18-34
+        predicates: "person.age == YEARS_18_TO_34"
+        # age 35-54
+        predicates: "person.age == YEARS_35_TO_54"
+        # age 55+
+        predicates: "person.age == YEARS_55_PLUS"
+      }
+      cumulative: true
+    }
+  }
+}
+
+time {
+  time_intervals {
+    time_intervals {
+      start_time: "2021-03-01T00:00:00.01Z"
+      end_time: "2021-03-01T23:59:59.99Z"
+    }
+    time_intervals {
+      start_time: "2021-03-02T00:00:00.01Z"
+      end_time: "2021-03-02T23:59:59.99Z"
+    }
+    time_intervals {
+      start_time: "2021-03-03T00:00:00.01Z"
+      end_time: "2021-03-03T23:59:59.99Z"
+    }
+  }
+}
