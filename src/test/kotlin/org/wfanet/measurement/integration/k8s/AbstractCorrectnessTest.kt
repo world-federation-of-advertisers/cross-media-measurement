@@ -271,7 +271,7 @@ abstract class AbstractCorrectnessTest(private val measurementSystem: Measuremen
           throw e
         }
 
-        if (e.errorInfo!!.reason != Errors.Reason.POLICY_NOT_FOUND_FOR_PROTECTED_RESOURCE.name) {
+        if (e.errorInfo!!.reason == Errors.Reason.POLICY_NOT_FOUND_FOR_PROTECTED_RESOURCE.name) {
           policiesStub.createPolicy(
             createPolicyRequest {
               policyId = "test-mc-policy"
