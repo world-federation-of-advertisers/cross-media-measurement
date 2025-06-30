@@ -39,12 +39,17 @@ import org.wfanet.measurement.api.v2alpha.CreateModelLineRequest
 import org.wfanet.measurement.api.v2alpha.CreateModelSuiteRequest
 import org.wfanet.measurement.api.v2alpha.CreatePopulationRequest
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
+import org.wfanet.measurement.api.v2alpha.GetModelLineRequest
 import org.wfanet.measurement.api.v2alpha.GetModelProviderRequest
 import org.wfanet.measurement.api.v2alpha.GetModelSuiteRequest
 import org.wfanet.measurement.api.v2alpha.GetPopulationRequest
 import org.wfanet.measurement.api.v2alpha.ListModelProvidersPageTokenKt
 import org.wfanet.measurement.api.v2alpha.ListModelProvidersRequest
 import org.wfanet.measurement.api.v2alpha.ListModelProvidersResponse
+import org.wfanet.measurement.api.v2alpha.ListModelLinesPageTokenKt
+import org.wfanet.measurement.api.v2alpha.ListModelLinesRequestKt
+import org.wfanet.measurement.api.v2alpha.ListModelLinesRequest
+import org.wfanet.measurement.api.v2alpha.ListModelLinesResponse
 import org.wfanet.measurement.api.v2alpha.ListModelSuitesPageTokenKt
 import org.wfanet.measurement.api.v2alpha.ListModelSuitesRequest
 import org.wfanet.measurement.api.v2alpha.ListModelSuitesResponse
@@ -52,6 +57,7 @@ import org.wfanet.measurement.api.v2alpha.ListPopulationsPageTokenKt
 import org.wfanet.measurement.api.v2alpha.ListPopulationsRequest
 import org.wfanet.measurement.api.v2alpha.ListPopulationsResponse
 import org.wfanet.measurement.api.v2alpha.ModelLine
+import org.wfanet.measurement.api.v2alpha.ModelLineKey
 import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt
 import org.wfanet.measurement.api.v2alpha.ModelProvider
 import org.wfanet.measurement.api.v2alpha.ModelProviderKey
@@ -71,9 +77,13 @@ import org.wfanet.measurement.api.v2alpha.createModelLineRequest
 import org.wfanet.measurement.api.v2alpha.createModelSuiteRequest
 import org.wfanet.measurement.api.v2alpha.createPopulationRequest
 import org.wfanet.measurement.api.v2alpha.eventTemplate
+import org.wfanet.measurement.api.v2alpha.getModelLineRequest
 import org.wfanet.measurement.api.v2alpha.getModelProviderRequest
 import org.wfanet.measurement.api.v2alpha.getModelSuiteRequest
 import org.wfanet.measurement.api.v2alpha.getPopulationRequest
+import org.wfanet.measurement.api.v2alpha.listModelLinesPageToken
+import org.wfanet.measurement.api.v2alpha.listModelLinesRequest
+import org.wfanet.measurement.api.v2alpha.listModelLinesResponse
 import org.wfanet.measurement.api.v2alpha.listModelProvidersPageToken
 import org.wfanet.measurement.api.v2alpha.listModelProvidersRequest
 import org.wfanet.measurement.api.v2alpha.listModelProvidersResponse
@@ -157,6 +167,15 @@ class ModelRepositoryTest {
     onBlocking { createModelLine(any()) }.thenReturn(MODEL_LINE)
     onBlocking { setModelLineActiveEndTime(any()) }
       .thenReturn(MODEL_LINE.copy { activeEndTime = Timestamps.parse(ACTIVE_END_TIME_2) })
+    onBlocking { getModelLine(any()) }.thenReturn(MODEL_LINE)
+    onBlocking { listModelLines(any()) }
+      .thenReturn(
+        listModelLinesResponse {
+          modelLines += MODEL_LINE
+          modelLines += MODEL_LINE_2
+          nextPageToken = LIST_MODEL_LINES_PAGE_TOKEN_2.toByteString().base64UrlEncode()
+        }
+      )
   }
 
   private val serverCerts =
@@ -434,12 +453,71 @@ class ModelRepositoryTest {
       .isEqualTo(
         createModelLineRequest {
           parent = MODEL_SUITE_NAME
-          modelLine = MODEL_LINE.copy { clearName() }
+          modelLine = MODEL_LINE.copy {
+            clearName()
+            clearCreateTime()
+          }
         }
       )
     assertThat(parseTextProto(output.reader(), ModelLine.getDefaultInstance()))
       .comparingExpectedFieldsOnly()
       .isEqualTo(MODEL_LINE)
+  }
+
+  @Test
+  fun `modelLines get calls GetModelLine with valid request`() {
+    val args = commonArgs + arrayOf("model-lines", "get", MODEL_LINE_NAME)
+
+    val output = callCli(args)
+
+    val request: GetModelLineRequest = captureFirst {
+      runBlocking { verify(modelLinesServiceMock).getModelLine(capture()) }
+    }
+
+    assertThat(request).isEqualTo(getModelLineRequest { name = MODEL_LINE_NAME })
+    assertThat(parseTextProto(output.reader(), ModelLine.getDefaultInstance()))
+      .isEqualTo(MODEL_LINE)
+  }
+
+  @Test
+  fun `modelLines list calls ListModelLines with valid request`() {
+    val args =
+      commonArgs +
+        arrayOf(
+          "model-lines",
+          "list",
+          "--parent=$MODEL_SUITE_NAME",
+          "--page-size=50",
+          "--page-token=${LIST_MODEL_LINES_PAGE_TOKEN.toByteArray().base64UrlEncode()}",
+          "--type=DEV",
+          "--type=PROD",
+        )
+    val output = callCli(args)
+
+    val request: ListModelLinesRequest = captureFirst {
+      runBlocking { verify(modelLinesServiceMock).listModelLines(capture()) }
+    }
+
+    assertThat(request)
+      .isEqualTo(
+        listModelLinesRequest {
+          parent = MODEL_SUITE_NAME
+          pageSize = 50
+          pageToken = LIST_MODEL_LINES_PAGE_TOKEN.toByteArray().base64UrlEncode()
+          filter = ListModelLinesRequestKt.filter {
+            types += ModelLine.Type.DEV
+            types += ModelLine.Type.PROD
+          }
+        }
+      )
+    assertThat(parseTextProto(output.reader(), ListModelLinesResponse.getDefaultInstance()))
+      .isEqualTo(
+        listModelLinesResponse {
+          modelLines += MODEL_LINE
+          modelLines += MODEL_LINE_2
+          nextPageToken = LIST_MODEL_LINES_PAGE_TOKEN_2.toByteString().base64UrlEncode()
+        }
+      )
   }
 
   @Test
@@ -591,6 +669,11 @@ class ModelRepositoryTest {
     }
 
     private const val MODEL_LINE_NAME = "$MODEL_SUITE_NAME/modelLines/AAAAAAAAAHs"
+    private const val MODEL_LINE_NAME_2 = "$MODEL_SUITE_NAME/modelLines/AAAAAAAAAJs"
+    private val EXTERNAL_MODEL_LINE_ID =
+      apiIdToExternalId(ModelLineKey.fromName(MODEL_LINE_NAME)!!.modelLineId)
+    private val EXTERNAL_MODEL_LINE_ID_2 =
+      apiIdToExternalId(ModelLineKey.fromName(MODEL_LINE_NAME_2)!!.modelLineId)
     private val MODEL_LINE: ModelLine = modelLine {
       name = MODEL_LINE_NAME
       displayName = DISPLAY_NAME
@@ -599,6 +682,16 @@ class ModelRepositoryTest {
       activeEndTime = Timestamps.parse(ACTIVE_END_TIME)
       type = ModelLine.Type.DEV
       holdbackModelLine = HOLDBACK_MODEL_LINE_NAME
+      createTime = CREATE_TIME
+    }
+    private val MODEL_LINE_2: ModelLine = modelLine {
+      name = MODEL_LINE_NAME_2
+      displayName = DISPLAY_NAME
+      description = DESCRIPTION
+      activeStartTime = Timestamps.parse(ACTIVE_START_TIME)
+      activeEndTime = Timestamps.parse(ACTIVE_END_TIME)
+      type = ModelLine.Type.PROD
+      createTime = CREATE_TIME
     }
     private const val ACTIVE_START_TIME = "2025-01-15T10:00:00Z"
     private const val ACTIVE_END_TIME = "2025-02-15T10:00:00Z"
@@ -624,6 +717,28 @@ class ModelRepositoryTest {
     }
 
     private const val PAGE_SIZE = 50
+
+    private val LIST_MODEL_LINES_PAGE_TOKEN = listModelLinesPageToken {
+      pageSize = PAGE_SIZE
+      externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
+      externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
+      lastModelLine =
+        ListModelLinesPageTokenKt.previousPageEnd {
+          createTime = CREATE_TIME
+          externalModelLineId = EXTERNAL_MODEL_LINE_ID - 1
+        }
+    }
+
+    private val LIST_MODEL_LINES_PAGE_TOKEN_2 = listModelLinesPageToken {
+      pageSize = PAGE_SIZE
+      externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
+      externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
+      lastModelLine =
+        ListModelLinesPageTokenKt.previousPageEnd {
+          createTime = CREATE_TIME
+          externalModelLineId = EXTERNAL_MODEL_LINE_ID_2
+        }
+    }
 
     private val LIST_POPULATIONS_PAGE_TOKEN = listPopulationsPageToken {
       pageSize = PAGE_SIZE
