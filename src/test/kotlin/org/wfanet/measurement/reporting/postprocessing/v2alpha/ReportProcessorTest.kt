@@ -185,6 +185,40 @@ class ReportProcessorTest {
   }
 
   @Test
+  fun `run correct report without cumulative measurements successfully`() =
+    runBlocking {
+      val reportFile =
+        TEST_DATA_RUNTIME_DIR.resolve("sample_report_without_cumulative_measurements.json").toFile()
+      val reportAsJson = reportFile.readText()
+
+      val report = ReportConversion.getReportFromJsonString(reportAsJson)
+      assertThat(report.hasConsistentMeasurements()).isFalse()
+
+      val reportProcessingOutput: ReportProcessingOutput =
+        ReportProcessor.processReportJsonAndLogResult(reportAsJson, "projectId", "bucketName")
+      val updatedReport =
+        ReportConversion.getReportFromJsonString(reportProcessingOutput.updatedReportJson)
+      assertThat(updatedReport.hasConsistentMeasurements()).isTrue()
+    }
+
+  @Test
+  fun `run correct report with impression and unique reach successfully`() =
+    runBlocking {
+      val reportFile =
+        TEST_DATA_RUNTIME_DIR.resolve("sample_report_with_only_impression_and_unique_reach.json").toFile()
+      val reportAsJson = reportFile.readText()
+
+      val report = ReportConversion.getReportFromJsonString(reportAsJson)
+      // assertThat(report.hasConsistentMeasurements()).isFalse()
+
+      val reportProcessingOutput: ReportProcessingOutput =
+        ReportProcessor.processReportJsonAndLogResult(reportAsJson, "projectId", "bucketName")
+      val updatedReport =
+        ReportConversion.getReportFromJsonString(reportProcessingOutput.updatedReportJson)
+      assertThat(updatedReport.hasConsistentMeasurements()).isTrue()
+    }
+
+  @Test
   fun `run correct reach only report successfully`() {
     val reportFile = TEST_DATA_RUNTIME_DIR.resolve("sample_reach_only_report.json").toFile()
     val reportAsJson = reportFile.readText()

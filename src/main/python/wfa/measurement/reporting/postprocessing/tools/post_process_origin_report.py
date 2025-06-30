@@ -366,8 +366,22 @@ class ReportSummaryProcessor:
                                      key=lambda sublist: len(sublist[0]),
                                      reverse=True)
 
+    # TODO(@ple13): Update the logic that handles difference measurements so
+    # that it supports reports that does not contain union measurements. The
+    # current logic assumes that a report always contains measurements for union
+    # of all EDPs, and measurements for each individual EDP.
     for (superset, subset, measurement_policy,
          difference_measurement) in difference_measurements:
+      # When both cumulative measurements and total campaign measurements are
+      # not in the report, but unique reach or incremental reach measurements
+      # exists, the total reach measurements for superset do not exist. In this
+      # case, the report post-processor just skip this difference measurement.
+      if superset not in self._whole_campaign_measurements[measurement_policy]:
+        logging.info(
+            f'The measurement {difference_measurement.name} cannot be '
+            f'corrected due to missing measurement for {superset}.'
+        )
+        continue
       # Gets the reach of the union of all EDPs. This measurement either
       # exists in the report summary or has been inferred in prior steps.
       superset_measurement = \
