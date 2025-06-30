@@ -19,6 +19,7 @@ package org.wfanet.measurement.edpaggregator.requisitionfetcher
 import com.google.protobuf.Any
 import io.grpc.StatusException
 import java.util.logging.Logger
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.v2alpha.ListRequisitionsRequestKt
@@ -29,9 +30,8 @@ import org.wfanet.measurement.api.v2alpha.listRequisitionsRequest
 import org.wfanet.measurement.common.api.grpc.ResourceList
 import org.wfanet.measurement.common.api.grpc.flattenConcat
 import org.wfanet.measurement.common.api.grpc.listResources
-import org.wfanet.measurement.storage.StorageClient
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
+import org.wfanet.measurement.storage.StorageClient
 
 /**
  * Fetches requisitions from the Kingdom and persists them into GCS.
@@ -93,7 +93,8 @@ class RequisitionFetcher(
         }
         .flattenConcat()
 
-    val groupedRequisition: List<GroupedRequisitions> = requisitionGrouper.groupRequisitions(requisitions.toList())
+    val groupedRequisition: List<GroupedRequisitions> =
+      requisitionGrouper.groupRequisitions(requisitions.toList())
     val storedRequisitions: Int = storeRequisitions(groupedRequisition)
 
     logger.info {
@@ -113,8 +114,11 @@ class RequisitionFetcher(
       val groupedRequisitionId = groupedRequisitionsIdGenerator(groupedRequisition)
       val blobKey = "$storagePathPrefix/${groupedRequisitionId}"
 
-      // TODO(@marcopremier): Add mechanism to check whether requisitions inside grouped requisitions where stored already.
-      if (groupedRequisition.requisitionsList.isNotEmpty() && storageClient.getBlob(blobKey) == null) {
+      // TODO(@marcopremier): Add mechanism to check whether requisitions inside grouped
+      // requisitions where stored already.
+      if (
+        groupedRequisition.requisitionsList.isNotEmpty() && storageClient.getBlob(blobKey) == null
+      ) {
         storageClient.writeBlob(blobKey, Any.pack(groupedRequisition).toByteString())
         storedGroupedRequisitions += 1
       }

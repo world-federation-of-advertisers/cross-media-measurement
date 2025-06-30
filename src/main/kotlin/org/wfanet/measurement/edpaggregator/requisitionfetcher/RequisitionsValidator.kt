@@ -32,7 +32,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
 class InvalidRequisitionException(
   val requisitions: List<Requisition>,
   val refusal: Refusal,
-  cause: Exception? = null
+  cause: Exception? = null,
 ) : Exception("Invalid requisition: ${refusal.justification}: ${refusal.message}", cause)
 
 /**
@@ -42,9 +42,7 @@ class InvalidRequisitionException(
  * @param privateEncryptionKey The DataProvider's decryption key used for decrypting requisition
  *   data.
  */
-class RequisitionsValidator(
-  private val privateEncryptionKey: PrivateKeyHandle,
-) {
+class RequisitionsValidator(private val privateEncryptionKey: PrivateKeyHandle) {
   fun validateMeasurementSpec(requisition: Requisition): MeasurementSpec {
     return try {
       requisition.measurementSpec.unpack()
@@ -56,7 +54,7 @@ class RequisitionsValidator(
           justification = Refusal.Justification.SPEC_INVALID
           message = "Unable to parse MeasurementSpec"
         },
-        e
+        e,
       )
     }
   }
@@ -72,7 +70,7 @@ class RequisitionsValidator(
           justification = Refusal.Justification.CONSENT_SIGNAL_INVALID
           message = "Unable to decrypt RequisitionSpec"
         },
-        e
+        e,
       )
     } catch (e: InvalidProtocolBufferException) {
       logger.severe("Unable to parse requisition spec for ${requisition.name}: ${e.message}")
@@ -82,15 +80,12 @@ class RequisitionsValidator(
           justification = Refusal.Justification.SPEC_INVALID
           message = "Unable to parse RequisitionSpec"
         },
-        e
+        e,
       )
     }
   }
 
-  fun validateModelLines(
-    groupedRequisitions: List<GroupedRequisitions>,
-    reportId: String,
-  ) {
+  fun validateModelLines(groupedRequisitions: List<GroupedRequisitions>, reportId: String) {
     val modelLine = groupedRequisitions.first().modelLine
     val foundInvalidModelLine =
       groupedRequisitions.firstOrNull { it.modelLine != modelLine } != null
@@ -108,7 +103,7 @@ class RequisitionsValidator(
         refusal {
           justification = Requisition.Refusal.Justification.UNFULFILLABLE
           message = "Report $reportId cannot contain multiple model lines"
-        }
+        },
       )
     }
   }

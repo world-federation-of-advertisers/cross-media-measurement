@@ -100,9 +100,7 @@ class RequisitionGrouperByReportId(
           this.requisitions += groups.flatMap { it.requisitionsList }
         }
       } catch (e: InvalidRequisitionException) {
-        e.requisitions.forEach {
-          refuseRequisition(it, e.refusal)
-        }
+        e.requisitions.forEach { refuseRequisition(it, e.refusal) }
         null
       }
     }
@@ -127,5 +125,4 @@ class RequisitionGrouperByReportId(
     result.add(current)
     return result
   }
-
 }

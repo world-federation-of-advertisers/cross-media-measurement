@@ -18,13 +18,8 @@ package org.wfanet.measurement.edpaggregator.requisitionfetcher
 
 import com.google.protobuf.Any
 import io.grpc.StatusException
-import java.time.Clock
-import java.time.Duration
 import java.util.logging.Level
 import java.util.logging.Logger
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
@@ -34,7 +29,6 @@ import org.wfanet.measurement.api.v2alpha.RequisitionSpec
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.getEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.refuseRequisitionRequest
-import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
@@ -88,18 +82,14 @@ abstract class RequisitionGrouper(
       try {
         requisitionValidator.validateMeasurementSpec(requisition)
       } catch (e: InvalidRequisitionException) {
-        e.requisitions.forEach {
-          refuseRequisition(it, e.refusal)
-        }
+        e.requisitions.forEach { refuseRequisition(it, e.refusal) }
         return null
       }
     val requisitionSpec: RequisitionSpec =
       try {
         requisitionValidator.validateRequisitionSpec(requisition)
-      } catch (e: InvalidRequisitionException){
-        e.requisitions.forEach {
-          refuseRequisition(it, e.refusal)
-        }
+      } catch (e: InvalidRequisitionException) {
+        e.requisitions.forEach { refuseRequisition(it, e.refusal) }
         return null
       }
     val eventGroupMapEntries =
@@ -125,9 +115,7 @@ abstract class RequisitionGrouper(
     }
   }
 
-  protected suspend fun refuseRequisition(requisition: Requisition,
-                                          refusal: Requisition.Refusal)
-  {
+  protected suspend fun refuseRequisition(requisition: Requisition, refusal: Requisition.Refusal) {
     try {
       throttler.onReady {
         logger.info("Requisition ${requisition.name} was refused. $refusal")
@@ -138,7 +126,7 @@ abstract class RequisitionGrouper(
         requisitionsClient.refuseRequisition(request)
       }
     } catch (e: Exception) {
-      logger.log(Level.SEVERE,"Error while refusing requisition ${requisition.name}", e)
+      logger.log(Level.SEVERE, "Error while refusing requisition ${requisition.name}", e)
     }
   }
 
