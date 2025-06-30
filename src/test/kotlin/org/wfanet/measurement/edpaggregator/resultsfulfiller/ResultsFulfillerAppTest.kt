@@ -39,6 +39,7 @@ import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import java.util.logging.Logger
 import kotlin.random.Random
+import kotlin.test.assertFails
 import kotlin.test.assertTrue
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.runBlocking
@@ -117,7 +118,6 @@ import org.wfanet.measurement.edpaggregator.v1alpha.copy
 import org.wfanet.measurement.edpaggregator.v1alpha.resultsFulfillerParams
 import org.wfanet.measurement.gcloud.pubsub.Publisher
 import org.wfanet.measurement.gcloud.pubsub.Subscriber
-import kotlin.test.assertFails
 import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorClient
 import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorProvider
 import org.wfanet.measurement.integration.common.loadEncryptionPrivateKey
@@ -344,7 +344,8 @@ class ResultsFulfillerAppTest {
     val testWorkItemAttempt = workItemAttempt {
       name = "workItems/workItem/workItemAttempts/workItemAttempt"
     }
-    val workItemParams = createWorkItemParams(ResultsFulfillerParams.NoiseParams.NoiseType.CONTINUOUS_GAUSSIAN)
+    val workItemParams =
+      createWorkItemParams(ResultsFulfillerParams.NoiseParams.NoiseType.CONTINUOUS_GAUSSIAN)
     val workItem = createWorkItem(workItemParams)
     workItemAttemptsServiceMock.stub {
       onBlocking { createWorkItemAttempt(any()) } doReturn testWorkItemAttempt
@@ -494,7 +495,8 @@ class ResultsFulfillerAppTest {
     val testWorkItemAttempt = workItemAttempt {
       name = "workItems/workItem/workItemAttempts/workItemAttempt"
     }
-    val workItemParams = createWorkItemParams(ResultsFulfillerParams.NoiseParams.NoiseType.UNSPECIFIED)
+    val workItemParams =
+      createWorkItemParams(ResultsFulfillerParams.NoiseParams.NoiseType.UNSPECIFIED)
     val workItem = createWorkItem(workItemParams)
     workItemAttemptsServiceMock.stub {
       onBlocking { createWorkItemAttempt(any()) } doReturn testWorkItemAttempt
