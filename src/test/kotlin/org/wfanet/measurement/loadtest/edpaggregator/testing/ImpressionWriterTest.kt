@@ -23,11 +23,8 @@ import com.google.crypto.tink.KeysetHandle
 import com.google.crypto.tink.aead.AeadConfig
 import com.google.crypto.tink.streamingaead.StreamingAeadConfig
 import com.google.protobuf.ByteString
-import com.google.protobuf.kotlin.unpack
 import java.time.LocalDate
 import java.time.ZoneId
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.junit.Rule
@@ -42,8 +39,8 @@ import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
-import org.wfanet.measurement.loadtest.dataprovider.DateShardedLabeledImpression
 import org.wfanet.measurement.loadtest.dataprovider.LabeledEvent
+import org.wfanet.measurement.loadtest.dataprovider.LabeledEventDateShard
 import org.wfanet.measurement.storage.MesosRecordIoStorageClient
 import org.wfanet.measurement.storage.SelectedStorageClient
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
@@ -54,7 +51,7 @@ class ImpressionWriterTest {
   @Rule @JvmField val tempFolder = TemporaryFolder()
 
   @Test
-  fun `verifies that data is written correctly by ds`() {
+  fun `writeLabeledImpressionData writes labeled impressions by date`() {
     val kekUri = FakeKmsClient.KEY_URI_PREFIX + "key1"
     val kmsClient = run {
       val client = FakeKmsClient()
@@ -74,11 +71,11 @@ class ImpressionWriterTest {
         tempFolder.root,
         "file:///",
       )
-    val events: Flow<DateShardedLabeledImpression<TestEvent>> =
-      flowOf(
-        DateShardedLabeledImpression(
+    val events: Sequence<LabeledEventDateShard<TestEvent>> =
+      sequenceOf(
+        LabeledEventDateShard(
           LocalDate.parse("2020-01-01"),
-          flowOf(
+          sequenceOf(
             LabeledEvent(
               vid = 1,
               message = TestEvent.getDefaultInstance(),
@@ -96,9 +93,9 @@ class ImpressionWriterTest {
             ),
           ),
         ),
-        DateShardedLabeledImpression(
+        LabeledEventDateShard(
           LocalDate.parse("2020-01-02"),
-          flowOf(
+          sequenceOf(
             LabeledEvent(
               vid = 1,
               message = TestEvent.getDefaultInstance(),
