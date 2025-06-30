@@ -48,6 +48,7 @@ import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 import org.wfanet.measurement.common.crypto.tink.loadPrivateKey
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
+import org.wfanet.measurement.common.toDuration
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionsValidator
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
@@ -130,7 +131,7 @@ class RequisitionFetcherFunction : HttpFunction {
       requisitionsValidator,
       eventGroupsStub,
       requisitionsStub,
-      MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(grpcRequestIntervalMillis))
+      MinimumIntervalThrottler(Clock.systemUTC(), grpcRequestInterval.toDuration())
     )
 
     return RequisitionFetcher(
@@ -188,8 +189,8 @@ class RequisitionFetcherFunction : HttpFunction {
     private val kingdomTarget = EnvVars.checkNotNullOrEmpty("KINGDOM_TARGET")
     private val kingdomCertHost: String? = System.getenv("KINGDOM_CERT_HOST")
     private val fileSystemPath: String? = System.getenv("REQUISITION_FILE_SYSTEM_PATH")
-    private const val DEFAULT_GRCP_INTERVAL_MILLIS = 1000L
-    private val grpcRequestIntervalMillis: Long = System.getenv("GRPC_REQUEST_INTERVAL_MILLIS").toLongOrNull() ?: DEFAULT_GRCP_INTERVAL_MILLIS
+    private const val DEFAULT_GRCP_INTERVAL = "1s"
+    private val grpcRequestInterval: String = System.getenv("GRPC_REQUEST_INTERVAL") ?: DEFAULT_GRCP_INTERVAL
 
     val pageSize = run {
       val envPageSize = System.getenv("PAGE_SIZE")
