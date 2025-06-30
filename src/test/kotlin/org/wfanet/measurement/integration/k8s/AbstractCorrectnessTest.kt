@@ -25,14 +25,14 @@ import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.wfanet.measurement.access.service.Errors
 import org.wfanet.measurement.access.service.PermissionKey
-import org.wfanet.measurement.access.v1alpha.Policy
-import org.wfanet.measurement.access.v1alpha.Role
 import org.wfanet.measurement.access.service.RoleKey
 import org.wfanet.measurement.access.v1alpha.PoliciesGrpc
+import org.wfanet.measurement.access.v1alpha.Policy
 import org.wfanet.measurement.access.v1alpha.PolicyKt
 import org.wfanet.measurement.access.v1alpha.Principal
 import org.wfanet.measurement.access.v1alpha.PrincipalKt
 import org.wfanet.measurement.access.v1alpha.PrincipalsGrpc
+import org.wfanet.measurement.access.v1alpha.Role
 import org.wfanet.measurement.access.v1alpha.RolesGrpc
 import org.wfanet.measurement.access.v1alpha.addPolicyBindingMembersRequest
 import org.wfanet.measurement.access.v1alpha.createPolicyRequest
@@ -174,10 +174,9 @@ abstract class AbstractCorrectnessTest(private val measurementSystem: Measuremen
       )
     }
 
-
     /**
-     * Ensures that [Principal] exists with specific field values along with corresponding
-     * [Policy]. Will create [Role], [Policy], and [Principal] as needed.
+     * Ensures that [Principal] exists with specific field values along with corresponding [Policy].
+     * Will create [Role], [Policy], and [Principal] as needed.
      *
      * @return [Principal]
      */
@@ -191,10 +190,11 @@ abstract class AbstractCorrectnessTest(private val measurementSystem: Measuremen
       val mcUserRoleKey = RoleKey("mcUser")
       val mcResourceType = "halo.wfanet.org/MeasurementConsumer"
 
-      val permissions = PERMISSIONS_CONFIG.permissionsMap
-        .filterValues { it.protectedResourceTypesList.contains(mcResourceType) }
-        .keys
-        .map { PermissionKey(it).toName() }
+      val permissions =
+        PERMISSIONS_CONFIG.permissionsMap
+          .filterValues { it.protectedResourceTypesList.contains(mcResourceType) }
+          .keys
+          .map { PermissionKey(it).toName() }
 
       val createRoleRequest = createRoleRequest {
         roleId = mcUserRoleKey.roleId
@@ -208,11 +208,13 @@ abstract class AbstractCorrectnessTest(private val measurementSystem: Measuremen
         }
       }
 
-
       var mcUserRole: Role = Role.getDefaultInstance()
       val roles = rolesStub.listRoles(listRolesRequest { pageSize = 1000 }).rolesList
       for (role in roles) {
-        if (role.resourceTypesList.contains(mcResourceType) && role.permissionsList.containsAll(permissions)) {
+        if (
+          role.resourceTypesList.contains(mcResourceType) &&
+            role.permissionsList.containsAll(permissions)
+        ) {
           mcUserRole = role
         }
       }
@@ -221,28 +223,25 @@ abstract class AbstractCorrectnessTest(private val measurementSystem: Measuremen
       }
 
       val principalsStub = PrincipalsGrpc.newBlockingStub(accessChannel)
-      val oauthUser = PrincipalKt.oAuthUser {
-        this.issuer = issuer
-        subject = "mc-user@example.com"
-      }
+      val oauthUser =
+        PrincipalKt.oAuthUser {
+          this.issuer = issuer
+          subject = "mc-user@example.com"
+        }
 
       val principal: Principal =
         try {
-          principalsStub.lookupPrincipal(lookupPrincipalRequest {
-            user = oauthUser
-          })
+          principalsStub.lookupPrincipal(lookupPrincipalRequest { user = oauthUser })
         } catch (e: StatusRuntimeException) {
           if (e.errorInfo == null) {
             throw e
           }
 
-          if (e.errorInfo!!.reason == Errors.Reason.PRINCIPAL_NOT_FOUND.name) {
+          if (e.errorInfo!!.reason == Errors.Reason.PRINCIPAL_NOT_FOUND_FOR_USER.name) {
             principalsStub.createPrincipal(
               createPrincipalRequest {
                 principalId = "mc-user"
-                this.principal = principal {
-                  user = oauthUser
-                }
+                this.principal = principal { user = oauthUser }
               }
             )
           } else {
@@ -252,20 +251,21 @@ abstract class AbstractCorrectnessTest(private val measurementSystem: Measuremen
 
       val policiesStub = PoliciesGrpc.newBlockingStub(accessChannel)
       try {
-        val policy = policiesStub.lookupPolicy(lookupPolicyRequest {
-          protectedResource = measurementConsumer
-        })
+        val policy =
+          policiesStub.lookupPolicy(lookupPolicyRequest { protectedResource = measurementConsumer })
         for (binding in policy.bindingsList) {
           if (binding.role == mcUserRole.name && binding.membersList.contains(principal.name)) {
             return principal
           }
         }
 
-        policiesStub.addPolicyBindingMembers(addPolicyBindingMembersRequest {
-          name = policy.name
-          role = mcUserRole.name
-          members += principal.name
-        })
+        policiesStub.addPolicyBindingMembers(
+          addPolicyBindingMembersRequest {
+            name = policy.name
+            role = mcUserRole.name
+            members += principal.name
+          }
+        )
       } catch (e: StatusRuntimeException) {
         if (e.errorInfo == null) {
           throw e

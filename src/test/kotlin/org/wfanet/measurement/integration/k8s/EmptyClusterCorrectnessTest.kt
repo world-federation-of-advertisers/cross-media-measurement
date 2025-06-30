@@ -78,8 +78,8 @@ import org.wfanet.measurement.integration.common.createEntityContent
 import org.wfanet.measurement.integration.common.loadEncryptionPrivateKey
 import org.wfanet.measurement.integration.common.loadTestCertDerFile
 import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt
-import org.wfanet.measurement.loadtest.measurementconsumer.EventQueryMeasurementConsumerSimulator
 import org.wfanet.measurement.internal.reporting.v2.BasicReportsGrpcKt as InternalBasicReportsGrpcKt
+import org.wfanet.measurement.loadtest.measurementconsumer.EventQueryMeasurementConsumerSimulator
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
 import org.wfanet.measurement.loadtest.measurementconsumer.MetadataSyntheticGeneratorEventQuery
 import org.wfanet.measurement.loadtest.reporting.ReportingUserSimulator
@@ -299,8 +299,9 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
       val publicApiAddress: InetSocketAddress =
         withContext(Dispatchers.IO) { publicApiForwarder.start() }
       val publicApiChannel: Channel =
-        buildMutualTlsChannel(publicApiAddress.toTarget(), REPORTING_SIGNING_CERTS)
-          .also { channels.add(it) }
+        buildMutualTlsChannel(publicApiAddress.toTarget(), REPORTING_SIGNING_CERTS).also {
+          channels.add(it)
+        }
 
       val reportingGatewayPod: V1Pod = getPod(REPORTING_GATEWAY_DEPLOYMENT_NAME)
       val gatewayForwarder = PortForwarder(reportingGatewayPod, SERVER_PORT)
@@ -339,8 +340,9 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
       val internalApiAddress: InetSocketAddress =
         withContext(Dispatchers.IO) { internalApiForwarder.start() }
       val internalApiChannel: Channel =
-        buildMutualTlsChannel(internalApiAddress.toTarget(), REPORTING_SIGNING_CERTS)
-          .also { channels.add(it) }
+        buildMutualTlsChannel(internalApiAddress.toTarget(), REPORTING_SIGNING_CERTS).also {
+          channels.add(it)
+        }
 
       val accessPublicPod: V1Pod = getPod(ACCESS_PUBLIC_API_DEPLOYMENT_NAME)
       val accessPublicApiForwarder = PortForwarder(accessPublicPod, SERVER_PORT)
@@ -349,8 +351,9 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
       val accessPublicApiAddress: InetSocketAddress =
         withContext(Dispatchers.IO) { accessPublicApiForwarder.start() }
       val accessPublicApiChannel: Channel =
-        buildMutualTlsChannel(accessPublicApiAddress.toTarget(), ACCESS_SIGNING_CERTS)
-          .also { channels.add(it) }
+        buildMutualTlsChannel(accessPublicApiAddress.toTarget(), ACCESS_SIGNING_CERTS).also {
+          channels.add(it)
+        }
 
       val openIdProvidersConfigBuilder = OpenIdProvidersConfig.newBuilder()
       JsonFormat.parser()
