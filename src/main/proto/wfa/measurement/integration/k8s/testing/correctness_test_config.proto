@@ -47,4 +47,25 @@ message CorrectnessTestConfig {
   //
   // If not specified, standard TLS DNS-ID derivation will be used.
   string reporting_public_api_cert_host = 6;
+
+  // gRPC target of Reporting internal API server.
+  string reporting_internal_api_target = 7;
+
+  // Expected hostname (DNS-ID) in the reporting internal API server's TLS
+  // certificate.
+  //
+  // If not specified, standard TLS DNS-ID derivation will be used.
+  string reporting_internal_api_cert_host = 8;
+
+  // http target of Reporting gateway server.
+  string reporting_gateway_target = 9;
+
+  // gRPC target of Access public API server.
+  string access_public_api_target = 10;
+
+  // Expected hostname (DNS-ID) in the access public API server's TLS
+  // certificate.
+  //
+  // If not specified, standard TLS DNS-ID derivation will be used.
+  string access_public_api_cert_host = 11;
 }
