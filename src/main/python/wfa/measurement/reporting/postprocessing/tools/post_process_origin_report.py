@@ -367,7 +367,7 @@ class ReportSummaryProcessor:
                                      reverse=True)
 
     # TODO(@ple13): Update the logic that handles difference measurements so
-    # that it supports reports that does not contain union measurements. The
+    # that it supports reports that do not contain union measurements. The
     # current logic assumes that a report always contains measurements for union
     # of all EDPs, and measurements for each individual EDP.
     for (superset, subset, measurement_policy,
