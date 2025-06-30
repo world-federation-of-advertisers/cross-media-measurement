@@ -21,6 +21,8 @@ import io.grpc.ManagedChannel
 import java.time.Duration
 import java.time.Instant
 import java.time.ZoneOffset
+import org.wfanet.measurement.api.v2alpha.ListModelLinesRequestKt
+import org.wfanet.measurement.api.v2alpha.ListModelLinesResponse
 import org.wfanet.measurement.api.v2alpha.ListModelProvidersResponse
 import org.wfanet.measurement.api.v2alpha.ListModelSuitesResponse
 import org.wfanet.measurement.api.v2alpha.ModelLine
@@ -43,9 +45,11 @@ import org.wfanet.measurement.api.v2alpha.createModelRolloutRequest
 import org.wfanet.measurement.api.v2alpha.createModelSuiteRequest
 import org.wfanet.measurement.api.v2alpha.createPopulationRequest
 import org.wfanet.measurement.api.v2alpha.eventTemplate
+import org.wfanet.measurement.api.v2alpha.getModelLineRequest
 import org.wfanet.measurement.api.v2alpha.getModelProviderRequest
 import org.wfanet.measurement.api.v2alpha.getModelSuiteRequest
 import org.wfanet.measurement.api.v2alpha.getPopulationRequest
+import org.wfanet.measurement.api.v2alpha.listModelLinesRequest
 import org.wfanet.measurement.api.v2alpha.listModelProvidersRequest
 import org.wfanet.measurement.api.v2alpha.listModelSuitesRequest
 import org.wfanet.measurement.api.v2alpha.listPopulationsRequest
@@ -375,7 +379,13 @@ class ListPopulations : Runnable {
 @Command(
   name = "model-lines",
   subcommands =
-    [CommandLine.HelpCommand::class, CreateModelLine::class, SetModelLineActiveEndTime::class],
+    [
+      CommandLine.HelpCommand::class,
+      CreateModelLine::class,
+      GetModelLine::class,
+      ListModelLines::class,
+      SetModelLineActiveEndTime::class,
+    ],
 )
 private class ModelLines {
   @ParentCommand private lateinit var parentCommand: ModelRepository
@@ -494,6 +504,58 @@ class CreateModelLine : Runnable {
         }
       }
     )
+  }
+}
+
+@Command(name = "get", description = ["Get a ModelLine"])
+class GetModelLine : Runnable {
+  @ParentCommand private lateinit var parentCommand: ModelLines
+
+  @Parameters(index = "0", description = ["API resource name of the ModelLine"], arity = "1")
+  private lateinit var modelLineName: String
+
+  override fun run() {
+    val modelLine =
+      parentCommand.modelLinesClient.getModelLine(getModelLineRequest { name = modelLineName })
+
+    println(modelLine)
+  }
+}
+
+@Command(name = "list", description = ["List ModelLines"])
+class ListModelLines : Runnable {
+  @ParentCommand private lateinit var parentCommand: ModelLines
+
+  @Option(
+    names = ["--parent"],
+    description = ["Resource name of the parent ModelSuite"],
+    required = true,
+  )
+  private lateinit var parentModelSuite: String
+
+  @Mixin private lateinit var pageParams: PageParams
+
+  @Option(
+    names = ["--type"],
+    description = ["Type of the ModelLine to filter by. Can be repeated."],
+    required = false,
+  )
+  private lateinit var typeList: List<ModelLine.Type>
+
+  override fun run() {
+    val response: ListModelLinesResponse =
+      parentCommand.modelLinesClient.listModelLines(
+        listModelLinesRequest {
+          parent = parentModelSuite
+          pageSize = pageParams.pageSize
+          pageToken = pageParams.pageToken
+          if (typeList.isNotEmpty()) {
+            filter = ListModelLinesRequestKt.filter { types += typeList }
+          }
+        }
+      )
+
+    println(response)
   }
 }
 
