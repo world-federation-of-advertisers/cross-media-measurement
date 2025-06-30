@@ -29,6 +29,7 @@ import org.wfanet.measurement.api.v2alpha.ApiKeysGrpcKt
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.EventGroup
+import org.wfanet.measurement.api.v2alpha.EventGroupKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt
 import org.wfanet.measurement.api.v2alpha.ModelProviderKey
 import org.wfanet.measurement.api.v2alpha.PopulationKey
@@ -51,6 +52,7 @@ import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.RoLlv2ProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
 import org.wfanet.measurement.kingdom.service.api.v2alpha.toPopulation
+import org.wfanet.measurement.loadtest.dataprovider.SyntheticGeneratorEventQuery
 import org.wfanet.measurement.loadtest.dataprovider.toPopulationSpec
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
 import org.wfanet.measurement.loadtest.measurementconsumer.PopulationData
@@ -83,6 +85,27 @@ class InProcessCmmsComponents(
       verboseGrpcLogging = false,
     )
 
+  val eventQuery: SyntheticGeneratorEventQuery by lazy {
+    val syntheticEventGroupSpecByDataProvider: Map<String, SyntheticEventGroupSpec> = buildMap {
+      edpDisplayNameToResourceMap.entries.forEachIndexed {
+        index: Int,
+        (_, resource: Resources.Resource) ->
+        val specIndex = index % syntheticEventGroupSpecs.size
+        put(resource.name, syntheticEventGroupSpecs[specIndex])
+      }
+    }
+
+    object : SyntheticGeneratorEventQuery(syntheticPopulationSpec, TestEvent.getDescriptor()) {
+      override fun getSyntheticDataSpec(eventGroup: EventGroup): SyntheticEventGroupSpec {
+        val eventGroupKey =
+          checkNotNull(EventGroupKey.fromName(eventGroup.name)) {
+            "Invalid EventGroup name ${eventGroup.name}"
+          }
+        return syntheticEventGroupSpecByDataProvider.getValue(eventGroupKey.parentKey.toName())
+      }
+    }
+  }
+
   private val duchies: List<InProcessDuchy> by lazy {
     ALL_DUCHY_NAMES.map {
       InProcessDuchy(
@@ -97,8 +120,7 @@ class InProcessCmmsComponents(
   }
 
   private val edpSimulators: List<InProcessEdpSimulator> by lazy {
-    edpDisplayNameToResourceMap.entries.mapIndexed { index, (displayName, resource) ->
-      val specIndex = index % syntheticEventGroupSpecs.size
+    edpDisplayNameToResourceMap.entries.map { (displayName, resource) ->
       val certificateKey = DataProviderCertificateKey.fromName(resource.dataProvider.certificate)!!
       InProcessEdpSimulator(
         displayName = displayName,
@@ -112,8 +134,7 @@ class InProcessCmmsComponents(
             duchies[2].externalDuchyId to duchies[2].publicApiChannel,
           ),
         trustedCertificates = TRUSTED_CERTIFICATES,
-        syntheticPopulationSpec = syntheticPopulationSpec,
-        syntheticDataSpec = syntheticEventGroupSpecs[specIndex],
+        eventQuery = eventQuery,
         honestMajorityShareShuffleSupported =
           (displayName in ALL_EDP_WITH_HMSS_CAPABILITIES_DISPLAY_NAMES),
       )
