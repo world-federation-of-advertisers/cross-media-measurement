@@ -43,13 +43,13 @@ import org.wfanet.measurement.api.v2alpha.GetModelLineRequest
 import org.wfanet.measurement.api.v2alpha.GetModelProviderRequest
 import org.wfanet.measurement.api.v2alpha.GetModelSuiteRequest
 import org.wfanet.measurement.api.v2alpha.GetPopulationRequest
+import org.wfanet.measurement.api.v2alpha.ListModelLinesPageTokenKt
+import org.wfanet.measurement.api.v2alpha.ListModelLinesRequest
+import org.wfanet.measurement.api.v2alpha.ListModelLinesRequestKt
+import org.wfanet.measurement.api.v2alpha.ListModelLinesResponse
 import org.wfanet.measurement.api.v2alpha.ListModelProvidersPageTokenKt
 import org.wfanet.measurement.api.v2alpha.ListModelProvidersRequest
 import org.wfanet.measurement.api.v2alpha.ListModelProvidersResponse
-import org.wfanet.measurement.api.v2alpha.ListModelLinesPageTokenKt
-import org.wfanet.measurement.api.v2alpha.ListModelLinesRequestKt
-import org.wfanet.measurement.api.v2alpha.ListModelLinesRequest
-import org.wfanet.measurement.api.v2alpha.ListModelLinesResponse
 import org.wfanet.measurement.api.v2alpha.ListModelSuitesPageTokenKt
 import org.wfanet.measurement.api.v2alpha.ListModelSuitesRequest
 import org.wfanet.measurement.api.v2alpha.ListModelSuitesResponse
@@ -453,10 +453,11 @@ class ModelRepositoryTest {
       .isEqualTo(
         createModelLineRequest {
           parent = MODEL_SUITE_NAME
-          modelLine = MODEL_LINE.copy {
-            clearName()
-            clearCreateTime()
-          }
+          modelLine =
+            MODEL_LINE.copy {
+              clearName()
+              clearCreateTime()
+            }
         }
       )
     assertThat(parseTextProto(output.reader(), ModelLine.getDefaultInstance()))
@@ -504,10 +505,11 @@ class ModelRepositoryTest {
           parent = MODEL_SUITE_NAME
           pageSize = 50
           pageToken = LIST_MODEL_LINES_PAGE_TOKEN.toByteArray().base64UrlEncode()
-          filter = ListModelLinesRequestKt.filter {
-            types += ModelLine.Type.DEV
-            types += ModelLine.Type.PROD
-          }
+          filter =
+            ListModelLinesRequestKt.filter {
+              types += ModelLine.Type.DEV
+              types += ModelLine.Type.PROD
+            }
         }
       )
     assertThat(parseTextProto(output.reader(), ListModelLinesResponse.getDefaultInstance()))
