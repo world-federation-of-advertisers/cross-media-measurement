@@ -121,7 +121,7 @@ class RequisitionFetcherFunction : HttpFunction {
     val requisitionsValidator = RequisitionsValidator(
       loadPrivateKey(edpPrivateKey),
     ) { requisition, refusal ->
-      refusalCoroutineScope.launch {
+      runBlocking {
         logger.info("Refusing ${requisition.name}: $refusal")
         refuseRequisition(requisitionsStub, requisition, refusal)
       }
@@ -205,8 +205,6 @@ class RequisitionFetcherFunction : HttpFunction {
     private val requisitionFetcherConfig by lazy {
       runBlocking { getConfig(CONFIG_BLOB_KEY, RequisitionFetcherConfig.getDefaultInstance()) }
     }
-
-    private val refusalCoroutineScope = CoroutineScope(Dispatchers.IO)
 
     fun createDeterministicId(groupedRequisition: GroupedRequisitions): String {
       val requisitionNames = groupedRequisition.requisitionsList.mapNotNull { entry ->
