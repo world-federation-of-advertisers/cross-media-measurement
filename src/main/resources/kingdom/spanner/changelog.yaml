@@ -93,3 +93,17 @@ databaseChangeLog:
 - include:
     file: drop-event-group-default-state.sql
     relativeToChangeLogFile: true
+- include:
+    file: add-event-groups-copy.sql
+    relativeToChangeLogFile: true
+- changeSet:
+    id: 29
+    author: sanjayvas
+    dbms: cloudspanner
+    changes:
+    - customChange: {
+      "class": "org.wfanet.measurement.kingdom.deploy.gcloud.spanner.tools.CopyEventGroups"
+    }
+- include:
+    file: swap-event-groups.sql
+    relativeToChangeLogFile: true
