@@ -256,7 +256,10 @@ java_test(
         "no-remote-exec",
     ],
     test_class = "org.wfanet.measurement.integration.deploy.gcloud.GCloudEdpAggregatorLifeOfAMeasurementIntegrationTest",
-    runtime_deps = [":gcloud_edp_aggregator_life_of_a_measurement_integration_test"],
+    runtime_deps = [
+        ":gcloud_edp_aggregator_life_of_a_measurement_integration_test",
+        "//imports/java/org/slf4j:simple",
+    ],
 )
 
 java_test(
