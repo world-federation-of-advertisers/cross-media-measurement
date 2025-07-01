@@ -219,14 +219,24 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
       )
     private val TEST_DATA_RUNTIME_PATH = getRuntimePath(TEST_DATA_PATH)!!
 
+//    val syntheticPopulationSpec: SyntheticPopulationSpec =
+//      parseTextProto(
+//        TEST_DATA_RUNTIME_PATH.resolve("small_population_spec.textproto").toFile(),
+//        SyntheticPopulationSpec.getDefaultInstance(),
+//      )
+//    val syntheticEventGroupSpec: SyntheticEventGroupSpec =
+//      parseTextProto(
+//        TEST_DATA_RUNTIME_PATH.resolve("small_data_spec.textproto").toFile(),
+//        SyntheticEventGroupSpec.getDefaultInstance(),
+//      )
     val syntheticPopulationSpec: SyntheticPopulationSpec =
       parseTextProto(
-        TEST_DATA_RUNTIME_PATH.resolve("small_population_spec.textproto").toFile(),
+        TEST_DATA_RUNTIME_PATH.resolve("360m_population_spec.textproto").toFile(),
         SyntheticPopulationSpec.getDefaultInstance(),
       )
     val syntheticEventGroupSpec: SyntheticEventGroupSpec =
       parseTextProto(
-        TEST_DATA_RUNTIME_PATH.resolve("small_data_spec.textproto").toFile(),
+        TEST_DATA_RUNTIME_PATH.resolve("90day_1billion_data_spec.textproto").toFile(),
         SyntheticEventGroupSpec.getDefaultInstance(),
       )
 
