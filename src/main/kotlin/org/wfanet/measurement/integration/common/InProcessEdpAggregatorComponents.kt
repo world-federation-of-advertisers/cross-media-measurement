@@ -26,7 +26,9 @@ import com.google.type.interval
 import io.grpc.Channel
 import java.nio.file.Files
 import java.nio.file.Path
+import java.security.MessageDigest
 import java.time.Clock
+import java.util.Base64
 import java.time.Duration
 import java.time.LocalDate
 import java.time.ZoneId
@@ -68,6 +70,7 @@ import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.eventGroup
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionFetcher
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionGrouperByReportId
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionsValidator
+import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.ResultsFulfillerTestApp
 import org.wfanet.measurement.gcloud.pubsub.Subscriber
 import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorClient
@@ -221,6 +224,7 @@ class InProcessEdpAggregatorComponents(
         edpResourceName,
         REQUISITION_STORAGE_PREFIX,
         requisitionGrouper = requisitionGrouper,
+        idGenerator = ::createDeterministicId,
         responsePageSize = 10,
       )
     }
@@ -331,5 +335,16 @@ class InProcessEdpAggregatorComponents(
     private const val IMPRESSIONS_METADATA_BUCKET = "impression-metadata-bucket"
     private const val REQUISITION_STORAGE_PREFIX = "requisition-storage-prefix"
     private val ZONE_ID = ZoneId.of("UTC")
+
+    fun createDeterministicId(groupedRequisition: GroupedRequisitions): String {
+      val requisitionNames = groupedRequisition.requisitionsList.mapNotNull { entry ->
+        val requisition = entry.requisition.unpack(Requisition::class.java)
+        requisition.name
+      }.sorted()
+
+      val concatenated = requisitionNames.joinToString(separator = "|")
+      val digest = MessageDigest.getInstance("SHA-256").digest(concatenated.toByteArray())
+      return Base64.getUrlEncoder().withoutPadding().encodeToString(digest)
+    }
   }
 }

@@ -51,6 +51,9 @@ kt_jvm_test(
 kt_jvm_library(
     name = "results_fulfiller_test_app",
     srcs = ["ResultsFulfillerTestApp.kt"],
+    visibility = [
+        "//src/main/kotlin/org/wfanet/measurement/integration:__subpackages__",
+    ],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:results_fulfiller_app",
         "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:test_event_kt_jvm_proto",
