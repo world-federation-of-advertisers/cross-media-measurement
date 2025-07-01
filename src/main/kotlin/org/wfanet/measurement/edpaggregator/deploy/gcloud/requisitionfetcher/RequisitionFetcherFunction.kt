@@ -27,9 +27,6 @@ import java.time.Duration
 import java.util.logging.Level
 import java.util.logging.Logger
 import java.util.Base64
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.Requisition
@@ -131,7 +128,7 @@ class RequisitionFetcherFunction : HttpFunction {
       requisitionsValidator,
       eventGroupsStub,
       requisitionsStub,
-      MinimumIntervalThrottler(Clock.systemUTC(), grpcRequestInterval.toDuration())
+      MinimumIntervalThrottler(Clock.systemUTC(), grpcRequestInterval)
     )
 
     return RequisitionFetcher(
@@ -190,7 +187,7 @@ class RequisitionFetcherFunction : HttpFunction {
     private val kingdomCertHost: String? = System.getenv("KINGDOM_CERT_HOST")
     private val fileSystemPath: String? = System.getenv("REQUISITION_FILE_SYSTEM_PATH")
     private const val DEFAULT_GRCP_INTERVAL = "1s"
-    private val grpcRequestInterval: String = System.getenv("GRPC_REQUEST_INTERVAL") ?: DEFAULT_GRCP_INTERVAL
+    private val grpcRequestInterval: Duration = (System.getenv("GRPC_REQUEST_INTERVAL") ?: DEFAULT_GRCP_INTERVAL).toDuration()
 
     val pageSize = run {
       val envPageSize = System.getenv("PAGE_SIZE")
