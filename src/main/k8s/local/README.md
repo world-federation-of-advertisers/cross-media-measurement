@@ -312,7 +312,9 @@ bazel test //src/test/kotlin/org/wfanet/measurement/integration/k8s:SyntheticGen
   --test_output=streamed \
   --define=kingdom_public_api_target=localhost:8443 \
   --define=mc_name=measurementConsumers/Rcn7fKd25C8 \
-  --define=mc_api_key=W9q4zad246g
+  --define=mc_api_key=W9q4zad246g \
+  --define=access_public_api_target=localhost:8443 \
+  --define=principal_name=principals/123
 ```
 
 ## Debugging Tips
