@@ -78,6 +78,7 @@ private val CHANNEL_SHUTDOWN_TIMEOUT = Duration.ofSeconds(30)
 @Command(
   name = "model-repository",
   description = ["Manages all Model Repository artifacts"],
+  mixinStandardHelpOptions = true,
   subcommands =
     [
       CommandLine.HelpCommand::class,
@@ -92,10 +93,9 @@ class ModelRepository private constructor() : Runnable {
 
   @Option(
     names = ["--kingdom-public-api-target"],
-    description = ["gRPC target (authority) of the Kingdom public API server"],
-    required = true,
+    description = ["gRPC target (authority) of the Kingdom public API server. Required."],
   )
-  private lateinit var target: String
+  private var target: String? = null
 
   @Option(
     names = ["--kingdom-public-api-cert-host"],
@@ -109,7 +109,9 @@ class ModelRepository private constructor() : Runnable {
   private var certHost: String? = null
 
   val channel: ManagedChannel by lazy {
-    buildMutualTlsChannel(target, tlsFlags.signingCerts, certHost)
+    val nonNullTarget =
+      requireNotNull(target) { "Missing required option: --kingdom-public-api-target" }
+    buildMutualTlsChannel(nonNullTarget, tlsFlags.signingCerts, certHost)
       .withShutdownTimeout(CHANNEL_SHUTDOWN_TIMEOUT)
   }
 
@@ -134,7 +136,7 @@ private class ModelProviders {
   }
 }
 
-@Command(name = "get", description = ["Get a ModelProvider"])
+@Command(name = "get", description = ["Get a ModelProvider"], mixinStandardHelpOptions = true)
 class GetModelProvider : Runnable {
   @ParentCommand private lateinit var parentCommand: ModelProviders
 
@@ -151,7 +153,7 @@ class GetModelProvider : Runnable {
   }
 }
 
-@Command(name = "list", description = ["List ModelProviders"])
+@Command(name = "list", description = ["List ModelProviders"], mixinStandardHelpOptions = true)
 class ListModelProviders : Runnable {
   @ParentCommand private lateinit var parentCommand: ModelProviders
 
@@ -188,7 +190,7 @@ private class ModelSuites {
   }
 }
 
-@Command(name = "get", description = ["Get a ModelSuite"])
+@Command(name = "get", description = ["Get a ModelSuite"], mixinStandardHelpOptions = true)
 class GetModelSuite : Runnable {
   @ParentCommand private lateinit var parentCommand: ModelSuites
 
@@ -203,7 +205,7 @@ class GetModelSuite : Runnable {
   }
 }
 
-@Command(name = "create", description = ["Create a ModelSuite"])
+@Command(name = "create", description = ["Create a ModelSuite"], mixinStandardHelpOptions = true)
 class CreateModelSuite : Runnable {
   @ParentCommand private lateinit var parentCommand: ModelSuites
 
@@ -244,7 +246,7 @@ class CreateModelSuite : Runnable {
   }
 }
 
-@Command(name = "list", description = ["List ModelSuites"])
+@Command(name = "list", description = ["List ModelSuites"], mixinStandardHelpOptions = true)
 class ListModelSuites : Runnable {
   @ParentCommand private lateinit var parentCommand: ModelSuites
 
@@ -289,7 +291,7 @@ private class Populations {
   }
 }
 
-@Command(name = "create", description = ["Create a Population"])
+@Command(name = "create", description = ["Create a Population"], mixinStandardHelpOptions = true)
 class CreatePopulation : Runnable {
   @ParentCommand private lateinit var parentCommand: Populations
 
@@ -334,7 +336,7 @@ class CreatePopulation : Runnable {
   }
 }
 
-@Command(name = "get", description = ["Get a Population"])
+@Command(name = "get", description = ["Get a Population"], mixinStandardHelpOptions = true)
 class GetPopulation : Runnable {
   @ParentCommand private lateinit var parentCommand: Populations
 
@@ -349,7 +351,7 @@ class GetPopulation : Runnable {
   }
 }
 
-@Command(name = "list", description = ["List Populations"])
+@Command(name = "list", description = ["List Populations"], mixinStandardHelpOptions = true)
 class ListPopulations : Runnable {
   @ParentCommand private lateinit var parentCommand: Populations
 
@@ -403,7 +405,11 @@ private class ModelLines {
   }
 }
 
-@Command(name = "create", description = ["Create a ModelLine, a ModelRelease, and a ModelRollout)"])
+@Command(
+  name = "create",
+  description = ["Create a ModelLine, a ModelRelease, and a ModelRollout)"],
+  mixinStandardHelpOptions = true,
+)
 class CreateModelLine : Runnable {
   @ParentCommand private lateinit var parentCommand: ModelLines
 
@@ -507,7 +513,7 @@ class CreateModelLine : Runnable {
   }
 }
 
-@Command(name = "get", description = ["Get a ModelLine"])
+@Command(name = "get", description = ["Get a ModelLine"], mixinStandardHelpOptions = true)
 class GetModelLine : Runnable {
   @ParentCommand private lateinit var parentCommand: ModelLines
 
@@ -522,7 +528,7 @@ class GetModelLine : Runnable {
   }
 }
 
-@Command(name = "list", description = ["List ModelLines"])
+@Command(name = "list", description = ["List ModelLines"], mixinStandardHelpOptions = true)
 class ListModelLines : Runnable {
   @ParentCommand private lateinit var parentCommand: ModelLines
 
@@ -559,7 +565,11 @@ class ListModelLines : Runnable {
   }
 }
 
-@Command(name = "set-active-end-time", description = ["Set the active end time of a ModelLine"])
+@Command(
+  name = "set-active-end-time",
+  description = ["Set the active end time of a ModelLine"],
+  mixinStandardHelpOptions = true,
+)
 class SetModelLineActiveEndTime : Runnable {
   @ParentCommand private lateinit var parentCommand: ModelLines
 
