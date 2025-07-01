@@ -29,6 +29,7 @@ py_binary(
         requirement("absl-py"),
         requirement("openpyxl"),
         requirement("pandas"),
+        requirement("protobuf"),
     ],
 )
 
