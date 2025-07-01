@@ -146,7 +146,8 @@ class EdpAggregatorMeasurementConsumerSimulator(
   }
 
   companion object {
-    private const val REQUIRED_EVENT_GROUP_REFERENCE_ID = "edpa-eg-reference-id-1-large"
+//    private const val REQUIRED_EVENT_GROUP_REFERENCE_ID = "edpa-eg-reference-id-1-large"
+    private const val REQUIRED_EVENT_GROUP_REFERENCE_ID = "edpa-eg-reference-id-1"
     private const val DEFAULT_FILTER_EXPRESSION =
       "person.gender == ${Person.Gender.MALE_VALUE} && " +
         "(video_ad.viewed_fraction > 0.25 || video_ad.viewed_fraction == 0.25)"

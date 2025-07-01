@@ -215,10 +215,8 @@ abstract class MeasurementConsumerSimulator(
   )
 
   private fun triggerRequisitionFetcher() {
-
     val jwt = System.getenv("AUTH_ID_TOKEN")
       ?: error("AUTH_ID_TOKEN must be set")
-
     val requisitionFetcherTarget = System.getenv("REQUISITION_FETCHER_TARGET")
       ?: error("REQUISITION_FETCHER_TARGET must be set")
 
@@ -371,8 +369,10 @@ abstract class MeasurementConsumerSimulator(
       logger.info("Created direct reach and frequency measurement $measurementName.")
 
       if (isEdpAggregatorRunning) {
-        triggerRequisitionFetcher()
+        println("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ checkpoint1")
+//        triggerRequisitionFetcher()
       }
+      println("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ checkpoint2")
 
       // Get the CMMS computed result and compare it with the expected result.
       val reachAndFrequencyResult = pollForResult { getReachAndFrequencyResult(measurementName) }
@@ -872,9 +872,9 @@ abstract class MeasurementConsumerSimulator(
         .groupBy { extractDataProviderKey(it.name) }
         .entries
         .associate { it.key to getDataProvider(it.key.toName()) }
-
     val requisitions: List<RequisitionInfo> =
       eventGroups
+        .onEach { eventGroup -> println("~~~~~~~~~~~~~~~~ event group: $eventGroup") }
         .filter { eventGroupFilter?.invoke(it) ?: true }
         .groupBy { extractDataProviderKey(it.name) }
         .entries

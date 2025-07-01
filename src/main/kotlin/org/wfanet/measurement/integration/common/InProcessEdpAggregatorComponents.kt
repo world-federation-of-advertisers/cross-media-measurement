@@ -138,6 +138,7 @@ class InProcessEdpAggregatorComponents(
 
   private val resultFulfillerApp by lazy {
     val subscriber = Subscriber(PROJECT_ID, pubSubClient)
+    println("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ CREATE ResultsFulfillerTestApp")
     ResultsFulfillerTestApp(
       parser = WorkItem.parser(),
       subscriptionId = SUBSCRIPTION_ID,
@@ -174,6 +175,7 @@ class InProcessEdpAggregatorComponents(
     edpAggregatorShortName: String,
   ) = runBlocking {
     pubSubClient.createTopic(PROJECT_ID, FULFILLER_TOPIC_ID)
+    println("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ CREATE SUBSCRIPTION")
     pubSubClient.createSubscription(PROJECT_ID, SUBSCRIPTION_ID, FULFILLER_TOPIC_ID)
     edpResourceName = edpDisplayNameToResourceMap.getValue(edpAggregatorShortName).name
     publicApiChannel = kingdomChannel
@@ -314,6 +316,7 @@ class InProcessEdpAggregatorComponents(
   }
 
   fun stopDaemons() {
+    println("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ STOP DAEMON")
     runBlocking {
       pubSubClient.deleteTopic(PROJECT_ID, FULFILLER_TOPIC_ID)
       pubSubClient.deleteSubscription(PROJECT_ID, SUBSCRIPTION_ID)
