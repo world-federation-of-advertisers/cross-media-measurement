@@ -37,7 +37,6 @@ bazel_dep(
 )
 bazel_dep(
     name = "common-jvm",
-    version = "0.110.0",
     repo_name = "wfa_common_jvm",
 )
 bazel_dep(
@@ -86,7 +85,7 @@ bazel_dep(
 )
 bazel_dep(
     name = "cloud-spanner-emulator-bin",
-    version = "1.5.32",
+    version = "1.5.37",
     repo_name = "cloud_spanner_emulator",
 )
 bazel_dep(
@@ -99,7 +98,7 @@ bazel_dep(
 
 bazel_dep(
     name = "platforms",
-    version = "0.0.11",
+    version = "1.0.0",
 )
 bazel_dep(
     name = "bazel_skylib",
@@ -365,4 +364,13 @@ http_archive(
 single_version_override(
     module_name = "boringssl",
     version = BORINGSSL_VERSION,
+)
+
+# DO_NOT_SUBMIT(world-federation-of-advertisers/common-jvm#325): Use version.
+archive_override(
+    module_name = "common-jvm",
+    strip_prefix = "common-jvm-45d9cd2ea121147921cae525df9a34bac5999966",
+    urls = [
+        "https://github.com/world-federation-of-advertisers/common-jvm/archive/45d9cd2ea121147921cae525df9a34bac5999966.tar.gz",
+    ],
 )
