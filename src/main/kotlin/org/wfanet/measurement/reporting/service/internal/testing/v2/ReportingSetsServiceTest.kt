@@ -2125,7 +2125,6 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
       measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
     )
 
-
     val campaignGroup =
       service.createReportingSet(
         createReportingSetRequest {
