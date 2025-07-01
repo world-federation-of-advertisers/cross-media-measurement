@@ -55,7 +55,7 @@ message Person {
     population_attribute: true
     reporting_features: FILTERABLE
     reporting_features: GROUPABLE
-   }];
+  }];
 
   enum SocialGradeGroup {
     SOCIAL_GRADE_GROUP_UNSPECIFIED = 0;
@@ -68,5 +68,5 @@ message Person {
         population_attribute: true
         reporting_features: FILTERABLE
         reporting_features: GROUPABLE
-       }];
+      }];
 }
