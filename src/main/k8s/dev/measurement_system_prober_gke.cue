@@ -5,7 +5,7 @@ _mc_resource_name: string @tag("mc_name")
 _mc_api_key:       string @tag("mc_api_key")
 _edp1:             string @tag("edp1_name")
 _edp2:             string @tag("edp2_name")
-_memory:           string @tag("prboer_memory_request")
+_memory:           string @tag("prober_memory_request")
 
 #KingdomPublicApiTarget: (#Target & {name: "v2alpha-public-api-server"}).target
 
