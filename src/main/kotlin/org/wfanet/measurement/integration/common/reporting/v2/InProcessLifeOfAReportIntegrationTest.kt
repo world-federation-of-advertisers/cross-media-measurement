@@ -2092,7 +2092,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
                   metricFrequencySpec = internalMetricFrequencySpec { weekly = DayOfWeek.MONDAY }
                   dimensionSpecSummary =
                     InternalResultGroupKt.MetricMetadataKt.dimensionSpecSummary {
-                      grouping = internalEventTemplateField {
+                      groupings += internalEventTemplateField {
                         path = "common.gender"
                         value = InternalEventTemplateFieldKt.fieldValue { enumValue = "MALE" }
                       }
@@ -2275,7 +2275,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
                     metricFrequency = metricFrequencySpec { weekly = DayOfWeek.MONDAY }
                     dimensionSpecSummary =
                       ResultGroupKt.MetricMetadataKt.dimensionSpecSummary {
-                        grouping = eventTemplateField {
+                        groupings += eventTemplateField {
                           path = "common.gender"
                           value = EventTemplateFieldKt.fieldValue { enumValue = "MALE" }
                         }
