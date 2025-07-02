@@ -78,7 +78,6 @@ private val CHANNEL_SHUTDOWN_TIMEOUT = Duration.ofSeconds(30)
 @Command(
   name = "model-repository",
   description = ["Manages all Model Repository artifacts"],
-  mixinStandardHelpOptions = true,
   subcommands =
     [
       CommandLine.HelpCommand::class,
@@ -93,9 +92,10 @@ class ModelRepository private constructor() : Runnable {
 
   @Option(
     names = ["--kingdom-public-api-target"],
-    description = ["gRPC target (authority) of the Kingdom public API server. Required."],
+    description = ["gRPC target (authority) of the Kingdom public API server."],
+    required = true,
   )
-  private var target: String? = null
+  private lateinit var target: String
 
   @Option(
     names = ["--kingdom-public-api-cert-host"],
@@ -109,9 +109,7 @@ class ModelRepository private constructor() : Runnable {
   private var certHost: String? = null
 
   val channel: ManagedChannel by lazy {
-    val nonNullTarget =
-      requireNotNull(target) { "Missing required option: --kingdom-public-api-target" }
-    buildMutualTlsChannel(nonNullTarget, tlsFlags.signingCerts, certHost)
+    buildMutualTlsChannel(target, tlsFlags.signingCerts, certHost)
       .withShutdownTimeout(CHANNEL_SHUTDOWN_TIMEOUT)
   }
 
