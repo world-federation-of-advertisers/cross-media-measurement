@@ -31,7 +31,6 @@ import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions.EventGro
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt.eventGroupDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt.eventGroupMapEntry
 import org.wfanet.measurement.edpaggregator.v1alpha.groupedRequisitions
-import java.util.logging.Logger
 
 /**
  * Groups requisitions by Report ID. Assumes that the collection intervals for a report are not
@@ -123,5 +122,4 @@ class RequisitionGrouperByReportId(
     result.add(current)
     return result
   }
-
 }
