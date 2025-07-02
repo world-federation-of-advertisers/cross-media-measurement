@@ -203,27 +203,6 @@ class InProcessEdpAggregatorComponents(
     val subscribingStorageClient = DataWatcherSubscribingStorageClient(storageClient, "file:///")
     subscribingStorageClient.subscribe(dataWatcher)
 
-<<<<<<< HEAD
-    val privateEncryptionKey =
-      loadEncryptionPrivateKey("${edpAggregatorShortName}_enc_private.tink")
-
-    requisitionFetcher = run {
-      val requisitionValidator =
-        RequisitionsValidator(
-          fatalRequisitionErrorPredicate =
-            fun(requisition: Requisition, refusal: Requisition.Refusal) {
-              logger.severe("Received $refusal for ${requisition.name}")
-            },
-          privateEncryptionKey = privateEncryptionKey,
-        )
-      val requisitionGrouper =
-        RequisitionGrouperByReportId(
-          requisitionValidator = requisitionValidator,
-          eventGroupsClient = eventGroupsClient,
-          requisitionsClient = requisitionsClient,
-          throttler = throttler,
-        )
-=======
     val edpPrivateKey = getDataProviderPrivateEncryptionKey(edpAggregatorShortName)
 
     val requisitionsValidator =
@@ -243,7 +222,6 @@ class InProcessEdpAggregatorComponents(
       )
 
     requisitionFetcher =
->>>>>>> jojijacob-results-fulfiller-app
       RequisitionFetcher(
         requisitionsClient,
         subscribingStorageClient,
@@ -252,7 +230,6 @@ class InProcessEdpAggregatorComponents(
         requisitionGrouper,
         ::createDeterministicId,
       )
-    }
     backgroundScope.launch {
       while (true) {
         requisitionFetcher.fetchAndStoreRequisitions()
@@ -275,20 +252,6 @@ class InProcessEdpAggregatorComponents(
     }
   }
 
-<<<<<<< HEAD
-  fun createDeterministicId(groupedRequisition: GroupedRequisitions): String {
-    val requisitionNames =
-      groupedRequisition.requisitionsList
-        .mapNotNull { entry ->
-          val requisition = entry.requisition.unpack(Requisition::class.java)
-          requisition.name
-        }
-        .sorted()
-
-    val concatenated = requisitionNames.joinToString(separator = "|")
-    val digest = MessageDigest.getInstance("SHA-256").digest(concatenated.toByteArray())
-    return Base64.getUrlEncoder().withoutPadding().encodeToString(digest)
-=======
   private suspend fun refuseRequisition(
     requisitionsStub: RequisitionsCoroutineStub,
     requisition: Requisition,
@@ -304,7 +267,6 @@ class InProcessEdpAggregatorComponents(
     } catch (e: Exception) {
       logger.log(Level.SEVERE, "Error while refusing requisition ${requisition.name}", e)
     }
->>>>>>> jojijacob-results-fulfiller-app
   }
 
   private fun buildEventGroups(measurementConsumerData: MeasurementConsumerData): List<EventGroup> {
