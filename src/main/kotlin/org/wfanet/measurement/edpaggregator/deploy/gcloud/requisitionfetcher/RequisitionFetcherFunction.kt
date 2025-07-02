@@ -30,9 +30,7 @@ import java.util.logging.Logger
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.Requisition
-import org.wfanet.measurement.api.v2alpha.RequisitionKt.refusal
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
-import org.wfanet.measurement.api.v2alpha.refuseRequisitionRequest
 import org.wfanet.measurement.common.EnvVars
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.crypto.tink.loadPrivateKey
@@ -117,13 +115,7 @@ class RequisitionFetcherFunction : HttpFunction {
     val eventGroupsStub = EventGroupsCoroutineStub(publicChannel)
     val edpPrivateKey = checkNotNull(File(dataProviderConfig.edpPrivateKeyPath))
 
-    val requisitionsValidator =
-      RequisitionsValidator(loadPrivateKey(edpPrivateKey)) { requisition, refusal ->
-        runBlocking {
-          logger.info("Refusing ${requisition.name}: $refusal")
-          refuseRequisition(requisitionsStub, requisition, refusal)
-        }
-      }
+    val requisitionsValidator = RequisitionsValidator(loadPrivateKey(edpPrivateKey))
 
     val requisitionGrouper =
       RequisitionGrouperByReportId(
@@ -171,23 +163,6 @@ class RequisitionFetcherFunction : HttpFunction {
           .service,
         gcsConfig.bucketName,
       )
-    }
-  }
-
-  private suspend fun refuseRequisition(
-    requisitionsStub: RequisitionsCoroutineStub,
-    requisition: Requisition,
-    refusal: Requisition.Refusal,
-  ) {
-    try {
-      logger.info("Requisition ${requisition.name} was refused. $refusal")
-      val request = refuseRequisitionRequest {
-        this.name = requisition.name
-        this.refusal = refusal { justification = refusal.justification }
-      }
-      requisitionsStub.refuseRequisition(request)
-    } catch (e: Exception) {
-      logger.log(Level.SEVERE, "Error while refusing requisition ${requisition.name}", e)
     }
   }
 
