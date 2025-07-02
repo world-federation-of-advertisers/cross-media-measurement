@@ -570,6 +570,7 @@ cue_dump(
         "secret_name": SECRET_NAME,
         "edp1_name": SIMULATOR_K8S_SETTINGS.edp1_name,
         "edp2_name": SIMULATOR_K8S_SETTINGS.edp2_name,
+        "prober_memory_request": "256Mi",
     },
     tags = ["manual"],
     deps = [

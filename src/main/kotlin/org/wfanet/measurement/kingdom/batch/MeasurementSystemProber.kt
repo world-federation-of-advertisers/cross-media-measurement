@@ -33,6 +33,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.lastOrNull
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.single
+import kotlinx.coroutines.time.delay
 import org.wfanet.measurement.api.v2alpha.CanonicalRequisitionKey
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt
 import org.wfanet.measurement.api.v2alpha.EventGroup
@@ -61,7 +62,6 @@ import org.wfanet.measurement.api.v2alpha.listEventGroupsRequest
 import org.wfanet.measurement.api.v2alpha.listMeasurementsRequest
 import org.wfanet.measurement.api.v2alpha.listRequisitionsRequest
 import org.wfanet.measurement.api.v2alpha.measurement
-import org.wfanet.measurement.api.v2alpha.measurementSpec
 import org.wfanet.measurement.api.v2alpha.requisitionSpec
 import org.wfanet.measurement.api.v2alpha.unpack
 import org.wfanet.measurement.api.withAuthenticationKey
@@ -136,6 +136,7 @@ class MeasurementSystemProber(
       println("should create another one")
       createMeasurement()
     }
+    delay(Duration.ofSeconds(30))
   }
 
   private suspend fun createMeasurement() {

@@ -23,6 +23,7 @@ import ("strings")
 	_edpResourceNames: [...string]
 	_verboseGrpcClientLogging: bool | *false
 	_kingdomPublicApiTarget:   string
+	_proberMemoryRequest:      string | *"192Mi"
 	_secretName:               string
 	let SecretName = _secretName
 
@@ -62,22 +63,25 @@ import ("strings")
 
 	cronJobs: {
 		"measurement-system-prober": {
-			_container: args: [
-				"--measurement-consumer=\(_mcName)",
-				_privateKeyDerFileFlag,
-				"--api-key=\(_apiKey)",
-				_tlsKeyFileFlag,
-				_tlsCertFileFlag,
-				_certCollectionFileFlag,
-				_kingdomPublicApiTargetFlag,
-				_kingdomPublicApiCertHostFlag,
-				"--measurement-lookback-duration=1d",
-				"--duration-between-measurements=1d",
-				"--measurement-update-lookback-duration=2h",
-				for edp in _edpResourceNames {
-					"--data-provider=\(edp)"
-				},
-			]
+			_container: {
+				args: [
+					"--measurement-consumer=\(_mcName)",
+					_privateKeyDerFileFlag,
+					"--api-key=\(_apiKey)",
+					_tlsKeyFileFlag,
+					_tlsCertFileFlag,
+					_certCollectionFileFlag,
+					_kingdomPublicApiTargetFlag,
+					_kingdomPublicApiCertHostFlag,
+					"--measurement-lookback-duration=1d",
+					"--duration-between-measurements=1d",
+					"--measurement-update-lookback-duration=2h",
+					for edp in _edpResourceNames {
+						"--data-provider=\(edp)"
+					},
+				]
+				resources: requests: memory: _proberMemoryRequest
+			}
 			spec: schedule: "* * * * *"
 		}
 	}
