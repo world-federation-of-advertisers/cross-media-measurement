@@ -62,6 +62,7 @@ import org.wfanet.measurement.api.v2alpha.listEventGroupsRequest
 import org.wfanet.measurement.api.v2alpha.listMeasurementsRequest
 import org.wfanet.measurement.api.v2alpha.listRequisitionsRequest
 import org.wfanet.measurement.api.v2alpha.measurement
+import org.wfanet.measurement.api.v2alpha.measurementSpec
 import org.wfanet.measurement.api.v2alpha.requisitionSpec
 import org.wfanet.measurement.api.v2alpha.unpack
 import org.wfanet.measurement.api.withAuthenticationKey
