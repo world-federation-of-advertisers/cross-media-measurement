@@ -16,7 +16,6 @@
 
 package org.wfanet.measurement.edpaggregator.requisitionfetcher
 
-import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.Any
 import com.google.protobuf.StringValue
@@ -27,8 +26,8 @@ import java.nio.file.Path
 import java.nio.file.Paths
 import java.time.LocalDate
 import kotlin.random.Random
+import kotlin.test.assertFailsWith
 import kotlin.test.assertNotNull
-import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -41,23 +40,19 @@ import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reachAndFrequency
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.vidSamplingInterval
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt
 import org.wfanet.measurement.api.v2alpha.Requisition
-import org.wfanet.measurement.api.v2alpha.Requisition.Refusal
 import org.wfanet.measurement.api.v2alpha.RequisitionKt.DuchyEntryKt.liquidLegionsV2
 import org.wfanet.measurement.api.v2alpha.RequisitionKt.DuchyEntryKt.value
 import org.wfanet.measurement.api.v2alpha.RequisitionKt.duchyEntry
-import org.wfanet.measurement.api.v2alpha.RequisitionKt.refusal
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventFilter
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventGroupEntry
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt
-import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.certificate
 import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.elGamalPublicKey
 import org.wfanet.measurement.api.v2alpha.encryptedMessage
-import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.copy
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
 import org.wfanet.measurement.api.v2alpha.measurementSpec
 import org.wfanet.measurement.api.v2alpha.protocolConfig
@@ -100,19 +95,7 @@ class RequisitionsValidatorTest {
   private val requisitionValidator by lazy {
     RequisitionsValidator(
       privateEncryptionKey = TestRequisitionData.EDP_DATA.privateEncryptionKey,
-      fatalRequisitionErrorPredicate = ::receiveError,
     )
-  }
-
-  private var errors: MutableList<Pair<String, Requisition.Refusal>> = mutableListOf()
-
-  @Before
-  fun setUp() {
-    errors = mutableListOf()
-  }
-
-  private fun receiveError(requisition: Requisition, refusal: Requisition.Refusal) {
-    errors.add(Pair(requisition.name, refusal))
   }
 
   @Test
@@ -120,7 +103,6 @@ class RequisitionsValidatorTest {
 
     assertNotNull(requisitionValidator.validateRequisitionSpec(TestRequisitionData.REQUISITION))
     assertNotNull(requisitionValidator.validateMeasurementSpec(TestRequisitionData.REQUISITION))
-    assertThat(errors).hasSize(0)
   }
 
   @Test
@@ -132,11 +114,10 @@ class RequisitionsValidatorTest {
           message = Any.pack(StringValue.newBuilder().setValue("some-invalid-spec").build())
         }
       }
-    assertThat(requisitionValidator.validateMeasurementSpec(requisition)).isEqualTo(null)
+    assertFailsWith<InvalidRequisitionException> {
+      requisitionValidator.validateMeasurementSpec(requisition)
+    }
 
-    assertThat(errors.single().first).isEqualTo(REQUISITION.name)
-    assertThat(errors.single().second.justification)
-      .isEqualTo(Requisition.Refusal.Justification.SPEC_INVALID)
   }
 
   @Test
@@ -148,10 +129,9 @@ class RequisitionsValidatorTest {
           typeUrl = ProtoReflection.getTypeUrl(RequisitionSpec.getDescriptor())
         }
       }
-    assertThat(requisitionValidator.validateRequisitionSpec(requisition)).isEqualTo(null)
-    assertThat(errors.single().first).isEqualTo(REQUISITION.name)
-    assertThat(errors.single().second.justification)
-      .isEqualTo(Requisition.Refusal.Justification.CONSENT_SIGNAL_INVALID)
+    assertFailsWith<InvalidRequisitionException> {
+      requisitionValidator.validateRequisitionSpec(requisition)
+    }
   }
 
   @Test
@@ -179,13 +159,8 @@ class RequisitionsValidatorTest {
             }
         },
       )
-    assertThat(requisitionValidator.validateModelLines(groupedRequisitionsList, "some-report-id"))
-      .isFalse()
-    assertThat(errors).hasSize(2)
-    errors.forEach { error ->
-      assertThat(error.first).isEqualTo(REQUISITION.name)
-      assertThat(error.second.justification)
-        .isEqualTo(Requisition.Refusal.Justification.UNFULFILLABLE)
+    assertFailsWith<InvalidRequisitionException> {
+      requisitionValidator.validateModelLines(groupedRequisitionsList, "some-report-id")
     }
   }
 

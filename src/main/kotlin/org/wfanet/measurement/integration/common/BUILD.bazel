@@ -304,6 +304,7 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/common/identity",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/eventgroups:event_group_sync",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/requisitionfetcher:requisition_fetcher",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/requisitionfetcher:requisition_grouper_by_report_id",
         "//src/main/kotlin/org/wfanet/measurement/gcloud/testing",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:synthetic_data_generation",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:synthetic_generator_event_query",

@@ -27,8 +27,6 @@ import java.time.Duration
 import java.util.Base64
 import java.util.logging.Level
 import java.util.logging.Logger
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.Requisition
@@ -39,6 +37,7 @@ import org.wfanet.measurement.common.crypto.tink.loadPrivateKey
 import org.wfanet.measurement.common.edpaggregator.CloudFunctionConfig.getConfig
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
+import org.wfanet.measurement.common.toDuration
 import org.wfanet.measurement.config.edpaggregator.DataProviderRequisitionConfig
 import org.wfanet.measurement.config.edpaggregator.RequisitionFetcherConfig
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionFetcher
@@ -123,7 +122,7 @@ class RequisitionFetcherFunction : HttpFunction {
         requisitionsValidator,
         eventGroupsStub,
         requisitionsStub,
-        MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofSeconds(grpcRequestIntervalSeconds)),
+        MinimumIntervalThrottler(Clock.systemUTC(), grpcRequestInterval),
       )
 
     return RequisitionFetcher(
@@ -172,9 +171,9 @@ class RequisitionFetcherFunction : HttpFunction {
     private val kingdomTarget = EnvVars.checkNotNullOrEmpty("KINGDOM_TARGET")
     private val kingdomCertHost: String? = System.getenv("KINGDOM_CERT_HOST")
     private val fileSystemPath: String? = System.getenv("REQUISITION_FILE_SYSTEM_PATH")
-    private val grpcRequestIntervalSeconds =
-      EnvVars.checkNotNullOrEmpty("GRPC_REQUEST_INTERVAL_SECONDS").toLongOrNull()
-        ?: error("Invalid GRPC_THROTTLER value: must be a number (milliseconds)")
+    private const val DEFAULT_GRCP_INTERVAL = "1s"
+    private val grpcRequestInterval: Duration =
+      (System.getenv("GRPC_REQUEST_INTERVAL") ?: DEFAULT_GRCP_INTERVAL).toDuration()
 
     val pageSize = run {
       val envPageSize = System.getenv("PAGE_SIZE")
@@ -189,8 +188,6 @@ class RequisitionFetcherFunction : HttpFunction {
     private val requisitionFetcherConfig by lazy {
       runBlocking { getConfig(CONFIG_BLOB_KEY, RequisitionFetcherConfig.getDefaultInstance()) }
     }
-
-    private val refusalCoroutineScope = CoroutineScope(Dispatchers.IO)
 
     fun createDeterministicId(groupedRequisition: GroupedRequisitions): String {
       val requisitionNames =

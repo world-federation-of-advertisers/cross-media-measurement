@@ -80,7 +80,7 @@ message ResultGroup {
     // A summary of the aspects of the DimensionSpec that were applied
     message DimensionSpecSummary {
       // The grouping dimensions and values for the reported metrics
-      EventTemplateField grouping = 1;
+      repeated EventTemplateField groupings = 1;
       // The filters applied to the reported metrics
       repeated EventFilter filters = 2;
     }
