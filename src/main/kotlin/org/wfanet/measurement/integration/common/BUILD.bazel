@@ -310,6 +310,7 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:results_fulfiller_app",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller/testing:test_requisition_stub_factory",
         "//src/main/kotlin/org/wfanet/measurement/gcloud/testing",
+        "//src/main/kotlin/org/wfanet/measurement/integration/deploy/gcloud:secure_computation_services_provider_rule",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:synthetic_data_generation",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:synthetic_generator_event_query",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/edpaggregator/testing:impression_writer",

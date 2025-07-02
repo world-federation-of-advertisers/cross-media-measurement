@@ -1,4 +1,4 @@
-// Copyright 2020 The Cross-Media Measurement Authors
+// Copyright 2025 The Cross-Media Measurement Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,6 +14,7 @@
 
 package org.wfanet.measurement.integration.common
 
+import java.nio.file.Path
 import java.nio.file.Paths
 import java.util.logging.Logger
 import kotlinx.coroutines.delay
@@ -24,7 +25,6 @@ import org.junit.BeforeClass
 import org.junit.ClassRule
 import org.junit.Rule
 import org.junit.Test
-import org.junit.rules.RuleChain
 import org.junit.rules.TemporaryFolder
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
@@ -42,12 +42,9 @@ import org.wfanet.measurement.common.testing.ProviderRule
 import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorClient
 import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorProvider
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerDatabaseAdmin
-import org.wfanet.measurement.integration.deploy.gcloud.SecureComputationServicesProviderRule
 import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
 import org.wfanet.measurement.loadtest.measurementconsumer.EdpAggregatorMeasurementConsumerSimulator
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
-import org.wfanet.measurement.securecomputation.deploy.gcloud.publisher.GoogleWorkItemPublisher
-import org.wfanet.measurement.securecomputation.service.internal.QueueMapping
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub
 
 /**
@@ -60,45 +57,41 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
   kingdomDataServicesRule: ProviderRule<DataServices>,
   duchyDependenciesRule:
     ProviderRule<(String, ComputationLogEntriesCoroutineStub) -> InProcessDuchy.DuchyDependencies>,
-  private val secureComputationDatabaseAdmin: SpannerDatabaseAdmin,
+  secureComputationDatabaseAdmin: SpannerDatabaseAdmin,
 ) {
 
-  private val inProcessCmmsComponents =
+  private val pubSubClient: GooglePubSubEmulatorClient
+    get() =
+      GooglePubSubEmulatorClient(
+        host = pubSubEmulatorProvider.host,
+        port = pubSubEmulatorProvider.port,
+      )
+
+  @get:Rule
+  val inProcessCmmsComponents =
     InProcessCmmsComponents(
       kingdomDataServicesRule,
       duchyDependenciesRule,
       useEdpSimulators = false,
     )
 
-  @JvmField val tempDirectory = TemporaryFolder()
-
-  private val inProcessEdpAggregatorComponents: InProcessEdpAggregatorComponents = run {
+  @JvmField
+  @get:Rule
+  val tempPath: Path = run {
+    val tempDirectory = TemporaryFolder()
     tempDirectory.create()
-    val pubSubClient =
-      GooglePubSubEmulatorClient(
-        host = pubSubEmulatorProvider.host,
-        port = pubSubEmulatorProvider.port,
-      )
+    tempDirectory.root.toPath()
+  }
+
+  @get:Rule
+  val inProcessEdpAggregatorComponents: InProcessEdpAggregatorComponents =
     InProcessEdpAggregatorComponents(
-      internalServicesRule =
-        SecureComputationServicesProviderRule(
-          workItemPublisher = GoogleWorkItemPublisher(PROJECT_ID, pubSubClient),
-          queueMapping = QueueMapping(QUEUES_CONFIG),
-          emulatorDatabaseAdmin = secureComputationDatabaseAdmin,
-        ),
-      storagePath = tempDirectory.root.toPath(),
+      secureComputationDatabaseAdmin = secureComputationDatabaseAdmin,
+      storagePath = tempPath,
       pubSubClient = pubSubClient,
       syntheticEventGroupMap = mapOf("edpa-eg-reference-id-1" to syntheticEventGroupSpec),
       syntheticPopulationSpec = syntheticPopulationSpec,
     )
-  }
-
-  @get:Rule
-  val ruleChain: RuleChain =
-    RuleChain.outerRule(inProcessCmmsComponents)
-      .around(pubSubEmulatorProvider)
-      .around(tempDirectory)
-      .around(inProcessEdpAggregatorComponents)
 
   @Before
   fun setup() {
@@ -114,8 +107,6 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
     )
     initMcSimulator()
   }
-
-  @Before fun createGooglePubSubEmulator() {}
 
   private lateinit var mcSimulator: EdpAggregatorMeasurementConsumerSimulator
 

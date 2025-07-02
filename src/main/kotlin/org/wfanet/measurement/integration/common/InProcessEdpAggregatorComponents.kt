@@ -76,10 +76,11 @@ import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionsValid
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.ResultsFulfillerApp
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.testing.TestRequisitionStubFactory
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
-import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
 import org.wfanet.measurement.gcloud.pubsub.Subscriber
 import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorClient
+import org.wfanet.measurement.gcloud.spanner.testing.SpannerDatabaseAdmin
+import org.wfanet.measurement.integration.deploy.gcloud.SecureComputationServicesProviderRule
 import org.wfanet.measurement.loadtest.dataprovider.LabeledEventDateShard
 import org.wfanet.measurement.loadtest.dataprovider.SyntheticDataGeneration
 import org.wfanet.measurement.loadtest.edpaggregator.testing.ImpressionsWriter
@@ -90,18 +91,27 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAtt
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
 import org.wfanet.measurement.securecomputation.datawatcher.DataWatcher
 import org.wfanet.measurement.securecomputation.datawatcher.testing.DataWatcherSubscribingStorageClient
+import org.wfanet.measurement.securecomputation.deploy.gcloud.publisher.GoogleWorkItemPublisher
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.InternalApiServices
 import org.wfanet.measurement.securecomputation.deploy.gcloud.testing.TestIdTokenProvider
+import org.wfanet.measurement.securecomputation.service.internal.QueueMapping
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 
 class InProcessEdpAggregatorComponents(
-  private val internalServicesRule: ProviderRule<InternalApiServices>,
-  private val pubSubClient: GooglePubSubEmulatorClient,
+  secureComputationDatabaseAdmin: SpannerDatabaseAdmin,
   private val storagePath: Path,
+  private val pubSubClient: GooglePubSubEmulatorClient,
   private val syntheticPopulationSpec: SyntheticPopulationSpec,
   private val syntheticEventGroupMap: Map<String, SyntheticEventGroupSpec>,
 ) : TestRule {
+
+  private val internalServicesRule: ProviderRule<InternalApiServices> =
+    SecureComputationServicesProviderRule(
+      workItemPublisher = GoogleWorkItemPublisher(PROJECT_ID, pubSubClient),
+      queueMapping = QueueMapping(QUEUES_CONFIG),
+      emulatorDatabaseAdmin = secureComputationDatabaseAdmin,
+    )
 
   private val internalServices: InternalApiServices
     get() = internalServicesRule.value
@@ -232,7 +242,7 @@ class InProcessEdpAggregatorComponents(
         requisitionsValidator,
         eventGroupsClient,
         requisitionsClient,
-        MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofSeconds(1L)),
+        throttler,
       )
 
     requisitionFetcher =
@@ -252,12 +262,7 @@ class InProcessEdpAggregatorComponents(
     }
     val eventGroups = buildEventGroups(measurementConsumerData)
     eventGroupSync =
-      EventGroupSync(
-        edpResourceName,
-        eventGroupsClient,
-        eventGroups.asFlow(),
-        MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000L)),
-      )
+      EventGroupSync(edpResourceName, eventGroupsClient, eventGroups.asFlow(), throttler)
     val mappedEventGroups: List<MappedEventGroup> = runBlocking { eventGroupSync.sync().toList() }
     logger.info("Received mappedEventGroups: $mappedEventGroups")
     backgroundScope.launch {

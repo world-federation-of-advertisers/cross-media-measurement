@@ -203,6 +203,10 @@ kt_jvm_test(
         "//src/test/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/datawatcher:InvokeDataWatcherFunction",
         "//src/test/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/datawatcher:config",
     ],
+    tags = [
+        "cpu:2",
+        "no-remote-exec",
+    ],
     test_class = "org.wfanet.measurement.integration.deploy.gcloud.InProcessEdpAggregatorTest",
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/gcloud/testing",
