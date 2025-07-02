@@ -22,9 +22,12 @@ import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.wfanet.measurement.api.v2alpha.DataProviderKt
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
+import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
+import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticPopulationSpec
 import org.wfanet.measurement.common.crypto.PrivateKeyHandle
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
+import org.wfanet.measurement.integration.common.EventQuery
 import org.wfanet.measurement.integration.common.loadEncryptionPrivateKey
 import org.wfanet.measurement.integration.common.loadSigningKey
 import org.wfanet.measurement.loadtest.measurementconsumer.EventQueryMeasurementConsumerSimulator
@@ -76,6 +79,23 @@ abstract class AbstractCorrectnessTest(private val measurementSystem: Measuremen
     val runId: String
     val testHarness: EventQueryMeasurementConsumerSimulator
     val reportingTestHarness: ReportingUserSimulator
+
+    /**
+     * Synthetic population spec.
+     *
+     * This must match the spec used by EDP simulators.
+     */
+    val syntheticPopulationSpec: SyntheticPopulationSpec
+
+    /**
+     * Synthetic event group specs.
+     *
+     * These must match the specs used by the EDP simulators, in order.
+     */
+    val syntheticEventGroupSpecs: List<SyntheticEventGroupSpec>
+
+    fun buildEventQuery(dataProviderNames: Iterable<String>) =
+      EventQuery(syntheticPopulationSpec, syntheticEventGroupSpecs, dataProviderNames)
   }
 
   companion object {

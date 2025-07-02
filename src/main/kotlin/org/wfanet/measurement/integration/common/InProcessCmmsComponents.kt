@@ -51,6 +51,7 @@ import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.RoLlv2ProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
 import org.wfanet.measurement.kingdom.service.api.v2alpha.toPopulation
+import org.wfanet.measurement.loadtest.dataprovider.SyntheticGeneratorEventQuery
 import org.wfanet.measurement.loadtest.dataprovider.toPopulationSpec
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
 import org.wfanet.measurement.loadtest.measurementconsumer.PopulationData
@@ -83,6 +84,14 @@ class InProcessCmmsComponents(
       verboseGrpcLogging = false,
     )
 
+  val eventQuery: SyntheticGeneratorEventQuery by lazy {
+    EventQuery(
+      syntheticPopulationSpec,
+      syntheticEventGroupSpecs,
+      edpDisplayNameToResourceMap.values.map { it.name },
+    )
+  }
+
   private val duchies: List<InProcessDuchy> by lazy {
     ALL_DUCHY_NAMES.map {
       InProcessDuchy(
@@ -97,8 +106,7 @@ class InProcessCmmsComponents(
   }
 
   private val edpSimulators: List<InProcessEdpSimulator> by lazy {
-    edpDisplayNameToResourceMap.entries.mapIndexed { index, (displayName, resource) ->
-      val specIndex = index % syntheticEventGroupSpecs.size
+    edpDisplayNameToResourceMap.entries.map { (displayName, resource) ->
       val certificateKey = DataProviderCertificateKey.fromName(resource.dataProvider.certificate)!!
       InProcessEdpSimulator(
         displayName = displayName,
@@ -112,8 +120,7 @@ class InProcessCmmsComponents(
             duchies[2].externalDuchyId to duchies[2].publicApiChannel,
           ),
         trustedCertificates = TRUSTED_CERTIFICATES,
-        syntheticPopulationSpec = syntheticPopulationSpec,
-        syntheticDataSpec = syntheticEventGroupSpecs[specIndex],
+        eventQuery = eventQuery,
         honestMajorityShareShuffleSupported =
           (displayName in ALL_EDP_WITH_HMSS_CAPABILITIES_DISPLAY_NAMES),
       )
