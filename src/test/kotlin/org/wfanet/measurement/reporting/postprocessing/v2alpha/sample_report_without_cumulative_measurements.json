@@ -1,0 +1,1168 @@
+{
+  "name": "measurementConsumers/ONYdS_z_3xo/reports/e250ee4dd864ce99f1fe1df77944b48",
+  "reportingMetricEntries": [{
+    "key": "measurementConsumers/ONYdS_z_3xo/reportingSets/ee44e751f72477ba09e745157cbe2a9",
+    "value": {
+      "metricCalculationSpecs": ["measurementConsumers/ONYdS_z_3xo/metricCalculationSpecs/bc008ac3dd40eb8107bfbed62bea04"]
+    }
+  }, {
+    "key": "measurementConsumers/ONYdS_z_3xo/reportingSets/f8f9c2fe2e8c46afbfd2215b775b9f0a",
+    "value": {
+      "metricCalculationSpecs": ["measurementConsumers/ONYdS_z_3xo/metricCalculationSpecs/bc008ac3dd40eb8107bfbed62bea04"]
+    }
+  }, {
+    "key": "measurementConsumers/ONYdS_z_3xo/reportingSets/cb46bcee1289453686e219908febeba4",
+    "value": {
+      "metricCalculationSpecs": ["measurementConsumers/ONYdS_z_3xo/metricCalculationSpecs/bc008ac3dd40eb8107bfbed62bea04"]
+    }
+  }, {
+    "key": "measurementConsumers/ONYdS_z_3xo/reportingSets/bf95d1f1c310431d929b771d03238601",
+    "value": {
+      "metricCalculationSpecs": ["measurementConsumers/ONYdS_z_3xo/metricCalculationSpecs/bc008ac3dd40eb8107bfbed62bea04"]
+    }
+  }, {
+    "key": "measurementConsumers/ONYdS_z_3xo/reportingSets/c927f44f76b4e83fd30a341d1c",
+    "value": {
+      "metricCalculationSpecs": ["measurementConsumers/ONYdS_z_3xo/metricCalculationSpecs/bc008ac3dd40eb8107bfbed62bea04"]
+    }
+  }, {
+    "key": "measurementConsumers/ONYdS_z_3xo/reportingSets/e0171287d7144249bf85554d2689114",
+    "value": {
+      "metricCalculationSpecs": ["measurementConsumers/ONYdS_z_3xo/metricCalculationSpecs/bc008ac3dd40eb8107bfbed62bea04"]
+    }
+  }, {
+    "key": "measurementConsumers/ONYdS_z_3xo/reportingSets/e1d64f6ffe543dba905378bfaeb1d5c",
+    "value": {
+      "metricCalculationSpecs": ["measurementConsumers/ONYdS_z_3xo/metricCalculationSpecs/c2633bee164174898bd82706a9815a"]
+    }
+  }, {
+    "key": "measurementConsumers/ONYdS_z_3xo/reportingSets/b31e4e5ab8d6471d8eac8a629ef50187",
+    "value": {
+      "metricCalculationSpecs": ["measurementConsumers/ONYdS_z_3xo/metricCalculationSpecs/c2633bee164174898bd82706a9815a"]
+    }
+  }, {
+    "key": "measurementConsumers/ONYdS_z_3xo/reportingSets/aebfa0568d264740bc0e34dcb691f86c",
+    "value": {
+      "metricCalculationSpecs": ["measurementConsumers/ONYdS_z_3xo/metricCalculationSpecs/c2633bee164174898bd82706a9815a"]
+    }
+  }, {
+    "key": "measurementConsumers/ONYdS_z_3xo/reportingSets/ec81af090410eb3daa0e3a21b1638",
+    "value": {
+      "metricCalculationSpecs": ["measurementConsumers/ONYdS_z_3xo/metricCalculationSpecs/c2633bee164174898bd82706a9815a"]
+    }
+  }, {
+    "key": "measurementConsumers/ONYdS_z_3xo/reportingSets/b573c71b2eb4910a366347b12573475",
+    "value": {
+      "metricCalculationSpecs": ["measurementConsumers/ONYdS_z_3xo/metricCalculationSpecs/c2633bee164174898bd82706a9815a"]
+    }
+  }, {
+    "key": "measurementConsumers/ONYdS_z_3xo/reportingSets/da0db1906b442a88a8a0166d98621ff",
+    "value": {
+      "metricCalculationSpecs": ["measurementConsumers/ONYdS_z_3xo/metricCalculationSpecs/c2633bee164174898bd82706a9815a"]
+    }
+  }, {
+    "key": "measurementConsumers/ONYdS_z_3xo/reportingSets/d38a5087b63f40d68fe17c683bf31e54",
+    "value": {
+      "metricCalculationSpecs": ["measurementConsumers/ONYdS_z_3xo/metricCalculationSpecs/c2633bee164174898bd82706a9815a"]
+    }
+  }, {
+    "key": "measurementConsumers/ONYdS_z_3xo/reportingSets/e81abef1c7ff477fb988746d343d662a",
+    "value": {
+      "metricCalculationSpecs": ["measurementConsumers/ONYdS_z_3xo/metricCalculationSpecs/c2633bee164174898bd82706a9815a"]
+    }
+  }, {
+    "key": "measurementConsumers/ONYdS_z_3xo/reportingSets/db571b92c1143d7b3e55a9614654482",
+    "value": {
+      "metricCalculationSpecs": ["measurementConsumers/ONYdS_z_3xo/metricCalculationSpecs/c2633bee164174898bd82706a9815a"]
+    }
+  }],
+  "state": "SUCCEEDED",
+  "createTime": "2025-06-20T11:18:29.838869Z",
+  "metricCalculationResults": [{
+    "displayName": "METRICS_reach_CUMULATIVE_false",
+    "reportingSet": "measurementConsumers/ONYdS_z_3xo/reportingSets/ee44e751f72477ba09e745157cbe2a9",
+    "resultAttributes": [{
+      "groupingPredicates": [],
+      "metricSpec": {
+        "reach": {
+          "multipleDataProviderParams": {
+            "privacyParams": {
+              "epsilon": 0.02333,
+              "delta": 1.0E-15
+            },
+            "vidSamplingInterval": {
+              "start": 0.2909,
+              "width": 0.3237
+            }
+          },
+          "singleDataProviderParams": {
+            "privacyParams": {
+              "epsilon": 0.00402,
+              "delta": 1.0E-15
+            },
+            "vidSamplingInterval": {
+              "start": 0.0,
+              "width": 1.0
+            }
+          }
+        }
+      },
+      "timeInterval": {
+        "startTime": "2025-05-12T00:00:00Z",
+        "endTime": "2025-05-18T00:00:00Z"
+      },
+      "metricResult": {
+        "reach": {
+          "value": "19003904",
+          "univariateStatistics": {
+            "standardDeviation": 58271.86345052295
+          }
+        },
+        "cmmsMeasurements": ["measurementConsumers/ONYdS_z_3xo/measurements/J1Oor3LwOa4", "measurementConsumers/ONYdS_z_3xo/measurements/alDTEI0PxlI"]
+      },
+      "filter": "(common.sex\u003d\u003d2\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))||(common.sex\u003d\u003d1\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))",
+      "metric": "measurementConsumers/ONYdS_z_3xo/metrics/a29783908-e0ee-4667-9647-6386bdf034b9",
+      "state": "SUCCEEDED"
+    }],
+    "metricCalculationSpec": "measurementConsumers/ONYdS_z_3xo/metricCalculationSpecs/bc008ac3dd40eb8107bfbed62bea04"
+  }, {
+    "displayName": "METRICS_reach_CUMULATIVE_false",
+    "reportingSet": "measurementConsumers/ONYdS_z_3xo/reportingSets/f8f9c2fe2e8c46afbfd2215b775b9f0a",
+    "resultAttributes": [{
+      "groupingPredicates": [],
+      "metricSpec": {
+        "reach": {
+          "multipleDataProviderParams": {
+            "privacyParams": {
+              "epsilon": 0.02333,
+              "delta": 1.0E-15
+            },
+            "vidSamplingInterval": {
+              "start": 0.2909,
+              "width": 0.3237
+            }
+          },
+          "singleDataProviderParams": {
+            "privacyParams": {
+              "epsilon": 0.00402,
+              "delta": 1.0E-15
+            },
+            "vidSamplingInterval": {
+              "start": 0.0,
+              "width": 1.0
+            }
+          }
+        }
+      },
+      "timeInterval": {
+        "startTime": "2025-05-12T00:00:00Z",
+        "endTime": "2025-05-18T00:00:00Z"
+      },
+      "metricResult": {
+        "reach": {
+          "value": "18916584",
+          "univariateStatistics": {
+            "standardDeviation": 57983.347653369274
+          }
+        },
+        "cmmsMeasurements": ["measurementConsumers/ONYdS_z_3xo/measurements/FCd6fo0PxlI", "measurementConsumers/ONYdS_z_3xo/measurements/ZgFGV40PxlI"]
+      },
+      "filter": "(common.sex\u003d\u003d2\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))||(common.sex\u003d\u003d1\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))",
+      "metric": "measurementConsumers/ONYdS_z_3xo/metrics/a609869b8-fff7-4080-ba46-0c5a28d9efad",
+      "state": "SUCCEEDED"
+    }],
+    "metricCalculationSpec": "measurementConsumers/ONYdS_z_3xo/metricCalculationSpecs/bc008ac3dd40eb8107bfbed62bea04"
+  }, {
+    "displayName": "METRICS_reach_CUMULATIVE_false",
+    "reportingSet": "measurementConsumers/ONYdS_z_3xo/reportingSets/cb46bcee1289453686e219908febeba4",
+    "resultAttributes": [{
+      "groupingPredicates": [],
+      "metricSpec": {
+        "reach": {
+          "multipleDataProviderParams": {
+            "privacyParams": {
+              "epsilon": 0.02333,
+              "delta": 1.0E-15
+            },
+            "vidSamplingInterval": {
+              "start": 0.2909,
+              "width": 0.3237
+            }
+          },
+          "singleDataProviderParams": {
+            "privacyParams": {
+              "epsilon": 0.00402,
+              "delta": 1.0E-15
+            },
+            "vidSamplingInterval": {
+              "start": 0.0,
+              "width": 1.0
+            }
+          }
+        }
+      },
+      "timeInterval": {
+        "startTime": "2025-05-12T00:00:00Z",
+        "endTime": "2025-05-18T00:00:00Z"
+      },
+      "metricResult": {
+        "reach": {
+          "value": "15990553",
+          "univariateStatistics": {
+            "standardDeviation": 48338.920578883495
+          }
+        },
+        "cmmsMeasurements": ["measurementConsumers/ONYdS_z_3xo/measurements/MhrV_Y0PxlI", "measurementConsumers/ONYdS_z_3xo/measurements/Jpim2I0PxlI"]
+      },
+      "filter": "(common.sex\u003d\u003d2\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))||(common.sex\u003d\u003d1\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))",
+      "metric": "measurementConsumers/ONYdS_z_3xo/metrics/a716ef311-3b93-4ff1-8c82-ace82320d9a2",
+      "state": "SUCCEEDED"
+    }],
+    "metricCalculationSpec": "measurementConsumers/ONYdS_z_3xo/metricCalculationSpecs/bc008ac3dd40eb8107bfbed62bea04"
+  }, {
+    "displayName": "METRICS_reach_CUMULATIVE_false",
+    "reportingSet": "measurementConsumers/ONYdS_z_3xo/reportingSets/bf95d1f1c310431d929b771d03238601",
+    "resultAttributes": [{
+      "groupingPredicates": [],
+      "metricSpec": {
+        "reach": {
+          "multipleDataProviderParams": {
+            "privacyParams": {
+              "epsilon": 0.02333,
+              "delta": 1.0E-15
+            },
+            "vidSamplingInterval": {
+              "start": 0.2909,
+              "width": 0.3237
+            }
+          },
+          "singleDataProviderParams": {
+            "privacyParams": {
+              "epsilon": 0.00402,
+              "delta": 1.0E-15
+            },
+            "vidSamplingInterval": {
+              "start": 0.0,
+              "width": 1.0
+            }
+          }
+        }
+      },
+      "timeInterval": {
+        "startTime": "2025-05-12T00:00:00Z",
+        "endTime": "2025-05-18T00:00:00Z"
+      },
+      "metricResult": {
+        "reach": {
+          "value": "-12642"
+        },
+        "cmmsMeasurements": ["measurementConsumers/ONYdS_z_3xo/measurements/cv_H_40PxlI", "measurementConsumers/ONYdS_z_3xo/measurements/FvE59o0PxlI"]
+      },
+      "filter": "(common.sex\u003d\u003d2\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))||(common.sex\u003d\u003d1\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))",
+      "metric": "measurementConsumers/ONYdS_z_3xo/metrics/a81890700-9f0e-48bd-8554-055bdfb20873",
+      "state": "SUCCEEDED"
+    }],
+    "metricCalculationSpec": "measurementConsumers/ONYdS_z_3xo/metricCalculationSpecs/bc008ac3dd40eb8107bfbed62bea04"
+  }, {
+    "displayName": "METRICS_reach_CUMULATIVE_false",
+    "reportingSet": "measurementConsumers/ONYdS_z_3xo/reportingSets/c927f44f76b4e83fd30a341d1c",
+    "resultAttributes": [{
+      "groupingPredicates": [],
+      "metricSpec": {
+        "reach": {
+          "multipleDataProviderParams": {
+            "privacyParams": {
+              "epsilon": 0.02333,
+              "delta": 1.0E-15
+            },
+            "vidSamplingInterval": {
+              "start": 0.2909,
+              "width": 0.3237
+            }
+          },
+          "singleDataProviderParams": {
+            "privacyParams": {
+              "epsilon": 0.00402,
+              "delta": 1.0E-15
+            },
+            "vidSamplingInterval": {
+              "start": 0.0,
+              "width": 1.0
+            }
+          }
+        }
+      },
+      "timeInterval": {
+        "startTime": "2025-05-12T00:00:00Z",
+        "endTime": "2025-05-18T00:00:00Z"
+      },
+      "metricResult": {
+        "reach": {
+          "value": "-961"
+        },
+        "cmmsMeasurements": ["measurementConsumers/ONYdS_z_3xo/measurements/BHuwEI0PxlI", "measurementConsumers/ONYdS_z_3xo/measurements/IZ8BX40PxlI"]
+      },
+      "filter": "(common.sex\u003d\u003d2\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))||(common.sex\u003d\u003d1\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))",
+      "metric": "measurementConsumers/ONYdS_z_3xo/metrics/a83e8c5c6-c781-4dae-a92f-71e4780015d2",
+      "state": "SUCCEEDED"
+    }],
+    "metricCalculationSpec": "measurementConsumers/ONYdS_z_3xo/metricCalculationSpecs/bc008ac3dd40eb8107bfbed62bea04"
+  }, {
+    "displayName": "METRICS_reach_CUMULATIVE_false",
+    "reportingSet": "measurementConsumers/ONYdS_z_3xo/reportingSets/e0171287d7144249bf85554d2689114",
+    "resultAttributes": [{
+      "groupingPredicates": [],
+      "metricSpec": {
+        "reach": {
+          "multipleDataProviderParams": {
+            "privacyParams": {
+              "epsilon": 0.02333,
+              "delta": 1.0E-15
+            },
+            "vidSamplingInterval": {
+              "start": 0.2909,
+              "width": 0.3237
+            }
+          },
+          "singleDataProviderParams": {
+            "privacyParams": {
+              "epsilon": 0.00402,
+              "delta": 1.0E-15
+            },
+            "vidSamplingInterval": {
+              "start": 0.0,
+              "width": 1.0
+            }
+          }
+        }
+      },
+      "timeInterval": {
+        "startTime": "2025-05-12T00:00:00Z",
+        "endTime": "2025-05-18T00:00:00Z"
+      },
+      "metricResult": {
+        "reach": {
+          "value": "5173"
+        },
+        "cmmsMeasurements": ["measurementConsumers/ONYdS_z_3xo/measurements/bvop1o0PxlI", "measurementConsumers/ONYdS_z_3xo/measurements/R07mGXLwOa4"]
+      },
+      "filter": "(common.sex\u003d\u003d2\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))||(common.sex\u003d\u003d1\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))",
+      "metric": "measurementConsumers/ONYdS_z_3xo/metrics/aed0d918e-c0f2-4626-b856-e09ed3f4183d",
+      "state": "SUCCEEDED"
+    }],
+    "metricCalculationSpec": "measurementConsumers/ONYdS_z_3xo/metricCalculationSpecs/bc008ac3dd40eb8107bfbed62bea04"
+  }, {
+    "displayName": "METRICS_impressions_reach_CUMULATIVE_false",
+    "reportingSet": "measurementConsumers/ONYdS_z_3xo/reportingSets/e1d64f6ffe543dba905378bfaeb1d5c",
+    "resultAttributes": [{
+      "groupingPredicates": [],
+      "metricSpec": {
+        "impressionCount": {
+          "privacyParams": {
+            "epsilon": 0.04213,
+            "delta": 1.0E-15
+          },
+          "maximumFrequencyPerUser": 15,
+          "params": {
+            "privacyParams": {
+              "epsilon": 0.04213,
+              "delta": 1.0E-15
+            },
+            "vidSamplingInterval": {
+              "start": 0.0,
+              "width": 1.0
+            }
+          }
+        },
+        "vidSamplingInterval": {
+          "start": 0.0,
+          "width": 1.0
+        }
+      },
+      "timeInterval": {
+        "startTime": "2025-05-12T00:00:00Z",
+        "endTime": "2025-05-18T00:00:00Z"
+      },
+      "metricResult": {
+        "impressionCount": {
+          "value": "35314000"
+        },
+        "cmmsMeasurements": ["measurementConsumers/ONYdS_z_3xo/measurements/EuH5g40PxlI"]
+      },
+      "filter": "(common.sex\u003d\u003d2\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))||(common.sex\u003d\u003d1\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))",
+      "metric": "measurementConsumers/ONYdS_z_3xo/metrics/a14e6503b-499f-4889-8b9e-81a554fade0e",
+      "state": "SUCCEEDED"
+    }, {
+      "groupingPredicates": [],
+      "metricSpec": {
+        "reach": {
+          "multipleDataProviderParams": {
+            "privacyParams": {
+              "epsilon": 0.02333,
+              "delta": 1.0E-15
+            },
+            "vidSamplingInterval": {
+              "start": 0.2166,
+              "width": 0.3237
+            }
+          },
+          "singleDataProviderParams": {
+            "privacyParams": {
+              "epsilon": 0.00402,
+              "delta": 1.0E-15
+            },
+            "vidSamplingInterval": {
+              "start": 0.0,
+              "width": 1.0
+            }
+          }
+        }
+      },
+      "timeInterval": {
+        "startTime": "2025-05-12T00:00:00Z",
+        "endTime": "2025-05-18T00:00:00Z"
+      },
+      "metricResult": {
+        "reach": {
+          "value": "15886054",
+          "univariateStatistics": {
+            "standardDeviation": 47970.03369807774
+          }
+        },
+        "cmmsMeasurements": ["measurementConsumers/ONYdS_z_3xo/measurements/RocAbHLwOa4"]
+      },
+      "filter": "(common.sex\u003d\u003d2\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))||(common.sex\u003d\u003d1\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))",
+      "metric": "measurementConsumers/ONYdS_z_3xo/metrics/ab0d4bec2-98ad-4501-91ce-2d8d21414e9f",
+      "state": "SUCCEEDED"
+    }],
+    "metricCalculationSpec": "measurementConsumers/ONYdS_z_3xo/metricCalculationSpecs/c2633bee164174898bd82706a9815a"
+  }, {
+    "displayName": "METRICS_impressions_reach_CUMULATIVE_false",
+    "reportingSet": "measurementConsumers/ONYdS_z_3xo/reportingSets/b31e4e5ab8d6471d8eac8a629ef50187",
+    "resultAttributes": [{
+      "groupingPredicates": [],
+      "metricSpec": {
+        "reach": {
+          "multipleDataProviderParams": {
+            "privacyParams": {
+              "epsilon": 0.02333,
+              "delta": 1.0E-15
+            },
+            "vidSamplingInterval": {
+              "start": 0.2166,
+              "width": 0.3237
+            }
+          },
+          "singleDataProviderParams": {
+            "privacyParams": {
+              "epsilon": 0.00402,
+              "delta": 1.0E-15
+            },
+            "vidSamplingInterval": {
+              "start": 0.0,
+              "width": 1.0
+            }
+          }
+        }
+      },
+      "timeInterval": {
+        "startTime": "2025-05-12T00:00:00Z",
+        "endTime": "2025-05-18T00:00:00Z"
+      },
+      "metricResult": {
+        "reach": {
+          "value": "0",
+          "univariateStatistics": {
+            "standardDeviation": 1663.765088378906
+          }
+        },
+        "cmmsMeasurements": ["measurementConsumers/ONYdS_z_3xo/measurements/HFMYCI0PxlI"]
+      },
+      "filter": "(common.sex\u003d\u003d2\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))||(common.sex\u003d\u003d1\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))",
+      "metric": "measurementConsumers/ONYdS_z_3xo/metrics/a15a56e92-8fc3-48ef-b85d-8d66f1a90e86",
+      "state": "SUCCEEDED"
+    }, {
+      "groupingPredicates": [],
+      "metricSpec": {
+        "impressionCount": {
+          "privacyParams": {
+            "epsilon": 0.04213,
+            "delta": 1.0E-15
+          },
+          "maximumFrequencyPerUser": 15,
+          "params": {
+            "privacyParams": {
+              "epsilon": 0.04213,
+              "delta": 1.0E-15
+            },
+            "vidSamplingInterval": {
+              "start": 0.0,
+              "width": 1.0
+            }
+          }
+        },
+        "vidSamplingInterval": {
+          "start": 0.0,
+          "width": 1.0
+        }
+      },
+      "timeInterval": {
+        "startTime": "2025-05-12T00:00:00Z",
+        "endTime": "2025-05-18T00:00:00Z"
+      },
+      "metricResult": {
+        "impressionCount": {
+          "value": "0",
+          "univariateStatistics": {
+            "standardDeviation": 1332.2240742187498
+          }
+        },
+        "cmmsMeasurements": ["measurementConsumers/ONYdS_z_3xo/measurements/ZqQfyI0PxlI"]
+      },
+      "filter": "(common.sex\u003d\u003d2\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))||(common.sex\u003d\u003d1\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))",
+      "metric": "measurementConsumers/ONYdS_z_3xo/metrics/af75f3599-63a6-4db3-a7ea-f43c8b667e0d",
+      "state": "SUCCEEDED"
+    }],
+    "metricCalculationSpec": "measurementConsumers/ONYdS_z_3xo/metricCalculationSpecs/c2633bee164174898bd82706a9815a"
+  }, {
+    "displayName": "METRICS_impressions_reach_CUMULATIVE_false",
+    "reportingSet": "measurementConsumers/ONYdS_z_3xo/reportingSets/aebfa0568d264740bc0e34dcb691f86c",
+    "resultAttributes": [{
+      "groupingPredicates": [],
+      "metricSpec": {
+        "reach": {
+          "multipleDataProviderParams": {
+            "privacyParams": {
+              "epsilon": 0.02333,
+              "delta": 1.0E-15
+            },
+            "vidSamplingInterval": {
+              "start": 0.2166,
+              "width": 0.3237
+            }
+          },
+          "singleDataProviderParams": {
+            "privacyParams": {
+              "epsilon": 0.00402,
+              "delta": 1.0E-15
+            },
+            "vidSamplingInterval": {
+              "start": 0.0,
+              "width": 1.0
+            }
+          }
+        }
+      },
+      "timeInterval": {
+        "startTime": "2025-05-12T00:00:00Z",
+        "endTime": "2025-05-18T00:00:00Z"
+      },
+      "metricResult": {
+        "reach": {
+          "value": "18961000"
+        },
+        "cmmsMeasurements": ["measurementConsumers/ONYdS_z_3xo/measurements/PDkoco0PxlI"]
+      },
+      "filter": "(common.sex\u003d\u003d2\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))||(common.sex\u003d\u003d1\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))",
+      "metric": "measurementConsumers/ONYdS_z_3xo/metrics/a34249d47-e83d-4664-bf27-fd38b56094c6",
+      "state": "SUCCEEDED"
+    }, {
+      "groupingPredicates": [],
+      "metricSpec": {
+        "impressionCount": {
+          "privacyParams": {
+            "epsilon": 0.04213,
+            "delta": 1.0E-15
+          },
+          "maximumFrequencyPerUser": 15,
+          "params": {
+            "privacyParams": {
+              "epsilon": 0.04213,
+              "delta": 1.0E-15
+            },
+            "vidSamplingInterval": {
+              "start": 0.0,
+              "width": 1.0
+            }
+          }
+        },
+        "vidSamplingInterval": {
+          "start": 0.0,
+          "width": 1.0
+        }
+      },
+      "timeInterval": {
+        "startTime": "2025-05-12T00:00:00Z",
+        "endTime": "2025-05-18T00:00:00Z"
+      },
+      "metricResult": {
+        "impressionCount": {
+          "value": "43753000"
+        },
+        "cmmsMeasurements": ["measurementConsumers/ONYdS_z_3xo/measurements/K-SfrHLwOa4"]
+      },
+      "filter": "(common.sex\u003d\u003d2\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))||(common.sex\u003d\u003d1\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))",
+      "metric": "measurementConsumers/ONYdS_z_3xo/metrics/ac79626ce-9911-48b3-9652-7e2c07e04440",
+      "state": "SUCCEEDED"
+    }],
+    "metricCalculationSpec": "measurementConsumers/ONYdS_z_3xo/metricCalculationSpecs/c2633bee164174898bd82706a9815a"
+  }, {
+    "displayName": "METRICS_impressions_reach_CUMULATIVE_false",
+    "reportingSet": "measurementConsumers/ONYdS_z_3xo/reportingSets/ec81af090410eb3daa0e3a21b1638",
+    "resultAttributes": [{
+      "groupingPredicates": [],
+      "metricSpec": {
+        "impressionCount": {
+          "privacyParams": {
+            "epsilon": 0.04213,
+            "delta": 1.0E-15
+          },
+          "maximumFrequencyPerUser": 15,
+          "params": {
+            "privacyParams": {
+              "epsilon": 0.04213,
+              "delta": 1.0E-15
+            },
+            "vidSamplingInterval": {
+              "start": 0.0,
+              "width": 1.0
+            }
+          }
+        },
+        "vidSamplingInterval": {
+          "start": 0.0,
+          "width": 1.0
+        }
+      },
+      "timeInterval": {
+        "startTime": "2025-05-12T00:00:00Z",
+        "endTime": "2025-05-18T00:00:00Z"
+      },
+      "metricResult": {
+        "impressionCount": {
+          "value": "43413000"
+        },
+        "cmmsMeasurements": ["measurementConsumers/ONYdS_z_3xo/measurements/ayXLdXLwOa4"]
+      },
+      "filter": "(common.sex\u003d\u003d2\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))||(common.sex\u003d\u003d1\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))",
+      "metric": "measurementConsumers/ONYdS_z_3xo/metrics/a36109ec6-6cbb-456c-8c03-1b55170a6de5",
+      "state": "SUCCEEDED"
+    }, {
+      "groupingPredicates": [],
+      "metricSpec": {
+        "reach": {
+          "multipleDataProviderParams": {
+            "privacyParams": {
+              "epsilon": 0.02333,
+              "delta": 1.0E-15
+            },
+            "vidSamplingInterval": {
+              "start": 0.2166,
+              "width": 0.3237
+            }
+          },
+          "singleDataProviderParams": {
+            "privacyParams": {
+              "epsilon": 0.00402,
+              "delta": 1.0E-15
+            },
+            "vidSamplingInterval": {
+              "start": 0.0,
+              "width": 1.0
+            }
+          }
+        }
+      },
+      "timeInterval": {
+        "startTime": "2025-05-12T00:00:00Z",
+        "endTime": "2025-05-18T00:00:00Z"
+      },
+      "metricResult": {
+        "reach": {
+          "value": "18867432",
+          "univariateStatistics": {
+            "standardDeviation": 57792.14362594933
+          }
+        },
+        "cmmsMeasurements": ["measurementConsumers/ONYdS_z_3xo/measurements/J1D-23LwOa4"]
+      },
+      "filter": "(common.sex\u003d\u003d2\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))||(common.sex\u003d\u003d1\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))",
+      "metric": "measurementConsumers/ONYdS_z_3xo/metrics/ae7af2f62-c288-4ee1-b5a9-bf3acc5e6a34",
+      "state": "SUCCEEDED"
+    }],
+    "metricCalculationSpec": "measurementConsumers/ONYdS_z_3xo/metricCalculationSpecs/c2633bee164174898bd82706a9815a"
+  }, {
+    "displayName": "METRICS_impressions_reach_CUMULATIVE_false",
+    "reportingSet": "measurementConsumers/ONYdS_z_3xo/reportingSets/b573c71b2eb4910a366347b12573475",
+    "resultAttributes": [{
+      "groupingPredicates": [],
+      "metricSpec": {
+        "impressionCount": {
+          "privacyParams": {
+            "epsilon": 0.04213,
+            "delta": 1.0E-15
+          },
+          "maximumFrequencyPerUser": 15,
+          "params": {
+            "privacyParams": {
+              "epsilon": 0.04213,
+              "delta": 1.0E-15
+            },
+            "vidSamplingInterval": {
+              "start": 0.0,
+              "width": 1.0
+            }
+          }
+        },
+        "vidSamplingInterval": {
+          "start": 0.0,
+          "width": 1.0
+        }
+      },
+      "timeInterval": {
+        "startTime": "2025-05-12T00:00:00Z",
+        "endTime": "2025-05-18T00:00:00Z"
+      },
+      "metricResult": {
+        "impressionCount": {
+          "value": "43757000"
+        },
+        "cmmsMeasurements": ["measurementConsumers/ONYdS_z_3xo/measurements/VwOS5HLwOa4"]
+      },
+      "filter": "(common.sex\u003d\u003d2\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))||(common.sex\u003d\u003d1\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))",
+      "metric": "measurementConsumers/ONYdS_z_3xo/metrics/a3c20f22e-ac9e-4bea-a41c-dc1900924280",
+      "state": "SUCCEEDED"
+    }, {
+      "groupingPredicates": [],
+      "metricSpec": {
+        "reach": {
+          "multipleDataProviderParams": {
+            "privacyParams": {
+              "epsilon": 0.02333,
+              "delta": 1.0E-15
+            },
+            "vidSamplingInterval": {
+              "start": 0.2166,
+              "width": 0.3237
+            }
+          },
+          "singleDataProviderParams": {
+            "privacyParams": {
+              "epsilon": 0.00402,
+              "delta": 1.0E-15
+            },
+            "vidSamplingInterval": {
+              "start": 0.0,
+              "width": 1.0
+            }
+          }
+        }
+      },
+      "timeInterval": {
+        "startTime": "2025-05-12T00:00:00Z",
+        "endTime": "2025-05-18T00:00:00Z"
+      },
+      "metricResult": {
+        "reach": {
+          "value": "18987339",
+          "univariateStatistics": {
+            "standardDeviation": 58192.731960604746
+          }
+        },
+        "cmmsMeasurements": ["measurementConsumers/ONYdS_z_3xo/measurements/OJqcao0PxlI"]
+      },
+      "filter": "(common.sex\u003d\u003d2\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))||(common.sex\u003d\u003d1\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))",
+      "metric": "measurementConsumers/ONYdS_z_3xo/metrics/a6d71eea8-7ba8-4b6e-b580-bd01f97db5ff",
+      "state": "SUCCEEDED"
+    }],
+    "metricCalculationSpec": "measurementConsumers/ONYdS_z_3xo/metricCalculationSpecs/c2633bee164174898bd82706a9815a"
+  }, {
+    "displayName": "METRICS_impressions_reach_CUMULATIVE_false",
+    "reportingSet": "measurementConsumers/ONYdS_z_3xo/reportingSets/da0db1906b442a88a8a0166d98621ff",
+    "resultAttributes": [{
+      "groupingPredicates": [],
+      "metricSpec": {
+        "impressionCount": {
+          "privacyParams": {
+            "epsilon": 0.04213,
+            "delta": 1.0E-15
+          },
+          "maximumFrequencyPerUser": 15,
+          "params": {
+            "privacyParams": {
+              "epsilon": 0.04213,
+              "delta": 1.0E-15
+            },
+            "vidSamplingInterval": {
+              "start": 0.0,
+              "width": 1.0
+            }
+          }
+        },
+        "vidSamplingInterval": {
+          "start": 0.0,
+          "width": 1.0
+        }
+      },
+      "timeInterval": {
+        "startTime": "2025-05-12T00:00:00Z",
+        "endTime": "2025-05-18T00:00:00Z"
+      },
+      "metricResult": {
+        "impressionCount": {
+          "value": "43413000"
+        },
+        "cmmsMeasurements": ["measurementConsumers/ONYdS_z_3xo/measurements/Byjy4Y0PxlI"]
+      },
+      "filter": "(common.sex\u003d\u003d2\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))||(common.sex\u003d\u003d1\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))",
+      "metric": "measurementConsumers/ONYdS_z_3xo/metrics/a5385c142-dbfd-43ac-8047-d733110b7b2d",
+      "state": "SUCCEEDED"
+    }, {
+      "groupingPredicates": [],
+      "metricSpec": {
+        "reach": {
+          "multipleDataProviderParams": {
+            "privacyParams": {
+              "epsilon": 0.02333,
+              "delta": 1.0E-15
+            },
+            "vidSamplingInterval": {
+              "start": 0.2166,
+              "width": 0.3237
+            }
+          },
+          "singleDataProviderParams": {
+            "privacyParams": {
+              "epsilon": 0.00402,
+              "delta": 1.0E-15
+            },
+            "vidSamplingInterval": {
+              "start": 0.0,
+              "width": 1.0
+            }
+          }
+        }
+      },
+      "timeInterval": {
+        "startTime": "2025-05-12T00:00:00Z",
+        "endTime": "2025-05-18T00:00:00Z"
+      },
+      "metricResult": {
+        "reach": {
+          "value": "18884000"
+        },
+        "cmmsMeasurements": ["measurementConsumers/ONYdS_z_3xo/measurements/Q2N4D40PxlI"]
+      },
+      "filter": "(common.sex\u003d\u003d2\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))||(common.sex\u003d\u003d1\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))",
+      "metric": "measurementConsumers/ONYdS_z_3xo/metrics/acebe77d4-7657-4ba5-a440-49ae5a5119f5",
+      "state": "SUCCEEDED"
+    }],
+    "metricCalculationSpec": "measurementConsumers/ONYdS_z_3xo/metricCalculationSpecs/c2633bee164174898bd82706a9815a"
+  }, {
+    "displayName": "METRICS_impressions_reach_CUMULATIVE_false",
+    "reportingSet": "measurementConsumers/ONYdS_z_3xo/reportingSets/d38a5087b63f40d68fe17c683bf31e54",
+    "resultAttributes": [{
+      "groupingPredicates": [],
+      "metricSpec": {
+        "impressionCount": {
+          "privacyParams": {
+            "epsilon": 0.04213,
+            "delta": 1.0E-15
+          },
+          "maximumFrequencyPerUser": 15,
+          "params": {
+            "privacyParams": {
+              "epsilon": 0.04213,
+              "delta": 1.0E-15
+            },
+            "vidSamplingInterval": {
+              "start": 0.0,
+              "width": 1.0
+            }
+          }
+        },
+        "vidSamplingInterval": {
+          "start": 0.0,
+          "width": 1.0
+        }
+      },
+      "timeInterval": {
+        "startTime": "2025-05-12T00:00:00Z",
+        "endTime": "2025-05-18T00:00:00Z"
+      },
+      "metricResult": {
+        "impressionCount": {
+          "value": "35314000"
+        },
+        "cmmsMeasurements": ["measurementConsumers/ONYdS_z_3xo/measurements/Wa1jko0PxlI"]
+      },
+      "filter": "(common.sex\u003d\u003d2\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))||(common.sex\u003d\u003d1\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))",
+      "metric": "measurementConsumers/ONYdS_z_3xo/metrics/a5f02132d-7978-470d-b353-6712c8961848",
+      "state": "SUCCEEDED"
+    }, {
+      "groupingPredicates": [],
+      "metricSpec": {
+        "reach": {
+          "multipleDataProviderParams": {
+            "privacyParams": {
+              "epsilon": 0.02333,
+              "delta": 1.0E-15
+            },
+            "vidSamplingInterval": {
+              "start": 0.2166,
+              "width": 0.3237
+            }
+          },
+          "singleDataProviderParams": {
+            "privacyParams": {
+              "epsilon": 0.00402,
+              "delta": 1.0E-15
+            },
+            "vidSamplingInterval": {
+              "start": 0.0,
+              "width": 1.0
+            }
+          }
+        }
+      },
+      "timeInterval": {
+        "startTime": "2025-05-12T00:00:00Z",
+        "endTime": "2025-05-18T00:00:00Z"
+      },
+      "metricResult": {
+        "reach": {
+          "value": "15989000"
+        },
+        "cmmsMeasurements": ["measurementConsumers/ONYdS_z_3xo/measurements/YD7R_Y0PxlI"]
+      },
+      "filter": "(common.sex\u003d\u003d2\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))||(common.sex\u003d\u003d1\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))",
+      "metric": "measurementConsumers/ONYdS_z_3xo/metrics/a8003b3d4-245a-41b9-9259-a62e8de978e9",
+      "state": "SUCCEEDED"
+    }],
+    "metricCalculationSpec": "measurementConsumers/ONYdS_z_3xo/metricCalculationSpecs/c2633bee164174898bd82706a9815a"
+  }, {
+    "displayName": "METRICS_impressions_reach_CUMULATIVE_false",
+    "reportingSet": "measurementConsumers/ONYdS_z_3xo/reportingSets/e81abef1c7ff477fb988746d343d662a",
+    "resultAttributes": [{
+      "groupingPredicates": [],
+      "metricSpec": {
+        "reach": {
+          "multipleDataProviderParams": {
+            "privacyParams": {
+              "epsilon": 0.02333,
+              "delta": 1.0E-15
+            },
+            "vidSamplingInterval": {
+              "start": 0.2166,
+              "width": 0.3237
+            }
+          },
+          "singleDataProviderParams": {
+            "privacyParams": {
+              "epsilon": 0.00402,
+              "delta": 1.0E-15
+            },
+            "vidSamplingInterval": {
+              "start": 0.0,
+              "width": 1.0
+            }
+          }
+        }
+      },
+      "timeInterval": {
+        "startTime": "2025-05-12T00:00:00Z",
+        "endTime": "2025-05-18T00:00:00Z"
+      },
+      "metricResult": {
+        "reach": {
+          "value": "0",
+          "univariateStatistics": {
+            "standardDeviation": 1663.765088378906
+          }
+        },
+        "cmmsMeasurements": ["measurementConsumers/ONYdS_z_3xo/measurements/elISy3LwOa4"]
+      },
+      "filter": "(common.sex\u003d\u003d2\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))||(common.sex\u003d\u003d1\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))",
+      "metric": "measurementConsumers/ONYdS_z_3xo/metrics/aa445c369-08d5-452d-8f9f-f79c265b8578",
+      "state": "SUCCEEDED"
+    }, {
+      "groupingPredicates": [],
+      "metricSpec": {
+        "impressionCount": {
+          "privacyParams": {
+            "epsilon": 0.04213,
+            "delta": 1.0E-15
+          },
+          "maximumFrequencyPerUser": 15,
+          "params": {
+            "privacyParams": {
+              "epsilon": 0.04213,
+              "delta": 1.0E-15
+            },
+            "vidSamplingInterval": {
+              "start": 0.0,
+              "width": 1.0
+            }
+          }
+        },
+        "vidSamplingInterval": {
+          "start": 0.0,
+          "width": 1.0
+        }
+      },
+      "timeInterval": {
+        "startTime": "2025-05-12T00:00:00Z",
+        "endTime": "2025-05-18T00:00:00Z"
+      },
+      "metricResult": {
+        "impressionCount": {
+          "value": "0",
+          "univariateStatistics": {
+            "standardDeviation": 1332.2240742187498
+          }
+        },
+        "cmmsMeasurements": ["measurementConsumers/ONYdS_z_3xo/measurements/fHQCb3LwOa4"]
+      },
+      "filter": "(common.sex\u003d\u003d2\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))||(common.sex\u003d\u003d1\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))",
+      "metric": "measurementConsumers/ONYdS_z_3xo/metrics/abdb73672-f17a-4516-abf7-9019cebae33e",
+      "state": "SUCCEEDED"
+    }],
+    "metricCalculationSpec": "measurementConsumers/ONYdS_z_3xo/metricCalculationSpecs/c2633bee164174898bd82706a9815a"
+  }, {
+    "displayName": "METRICS_impressions_reach_CUMULATIVE_false",
+    "reportingSet": "measurementConsumers/ONYdS_z_3xo/reportingSets/db571b92c1143d7b3e55a9614654482",
+    "resultAttributes": [{
+      "groupingPredicates": [],
+      "metricSpec": {
+        "reach": {
+          "multipleDataProviderParams": {
+            "privacyParams": {
+              "epsilon": 0.02333,
+              "delta": 1.0E-15
+            },
+            "vidSamplingInterval": {
+              "start": 0.2166,
+              "width": 0.3237
+            }
+          },
+          "singleDataProviderParams": {
+            "privacyParams": {
+              "epsilon": 0.00402,
+              "delta": 1.0E-15
+            },
+            "vidSamplingInterval": {
+              "start": 0.0,
+              "width": 1.0
+            }
+          }
+        }
+      },
+      "timeInterval": {
+        "startTime": "2025-05-12T00:00:00Z",
+        "endTime": "2025-05-18T00:00:00Z"
+      },
+      "metricResult": {
+        "reach": {
+          "value": "0",
+          "univariateStatistics": {
+            "standardDeviation": 1663.765088378906
+          }
+        },
+        "cmmsMeasurements": ["measurementConsumers/ONYdS_z_3xo/measurements/J5_HhI0PxlI"]
+      },
+      "filter": "(common.sex\u003d\u003d2\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))||(common.sex\u003d\u003d1\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))",
+      "metric": "measurementConsumers/ONYdS_z_3xo/metrics/acf17c4bd-8f26-4065-a167-85e3f75c3654",
+      "state": "SUCCEEDED"
+    }, {
+      "groupingPredicates": [],
+      "metricSpec": {
+        "impressionCount": {
+          "privacyParams": {
+            "epsilon": 0.04213,
+            "delta": 1.0E-15
+          },
+          "maximumFrequencyPerUser": 15,
+          "params": {
+            "privacyParams": {
+              "epsilon": 0.04213,
+              "delta": 1.0E-15
+            },
+            "vidSamplingInterval": {
+              "start": 0.0,
+              "width": 1.0
+            }
+          }
+        },
+        "vidSamplingInterval": {
+          "start": 0.0,
+          "width": 1.0
+        }
+      },
+      "timeInterval": {
+        "startTime": "2025-05-12T00:00:00Z",
+        "endTime": "2025-05-18T00:00:00Z"
+      },
+      "metricResult": {
+        "impressionCount": {
+          "value": "0",
+          "univariateStatistics": {
+            "standardDeviation": 1332.2240742187498
+          }
+        },
+        "cmmsMeasurements": ["measurementConsumers/ONYdS_z_3xo/measurements/ezFqUI0PxlI"]
+      },
+      "filter": "(common.sex\u003d\u003d2\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))||(common.sex\u003d\u003d1\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))",
+      "metric": "measurementConsumers/ONYdS_z_3xo/metrics/ae1a5d443-266c-4401-bb5b-239006a720af",
+      "state": "SUCCEEDED"
+    }],
+    "metricCalculationSpec": "measurementConsumers/ONYdS_z_3xo/metricCalculationSpecs/c2633bee164174898bd82706a9815a"
+  }],
+  "reportSchedule": "",
+  "tags": {
+    "brands": "\u0027CONFUSED.COM\u0027 \u0027TV data synced\u0027",
+    "campaign_name": "GTV fake brand 1 x confused",
+    "end_date": "2025-05-18T00:00:00Z",
+    "filter_video_completion_custom": "video.completed_100_percent",
+    "filter_video_viewability_custom": "video.viewable_100_percent",
+    "filter_video_viewability_mrc": "video.viewable_100_percent",
+    "measurementConsumers/ONYdS_z_3xo/metricCalculationSpecs/bc008ac3dd40eb8107bfbed62bea04": "{common_filter\u003dFEMALE_YEARS_16_TO_34;FEMALE_YEARS_35_TO_54;FEMALE_YEARS_55_PLUS;MALE_YEARS_16_TO_34;MALE_YEARS_35_TO_54;MALE_YEARS_55_PLUS;, cumulative\u003dfalse, grouping\u003d-, metric_frequency\u003d-, metrics\u003dreach, set_operation\u003ddifference}",
+    "measurementConsumers/ONYdS_z_3xo/metricCalculationSpecs/c2633bee164174898bd82706a9815a": "{common_filter\u003dFEMALE_YEARS_16_TO_34;FEMALE_YEARS_35_TO_54;FEMALE_YEARS_55_PLUS;MALE_YEARS_16_TO_34;MALE_YEARS_35_TO_54;MALE_YEARS_55_PLUS;, cumulative\u003dfalse, grouping\u003d-, metric_frequency\u003d-, metrics\u003dimpressions,reach, set_operation\u003dunion}",
+    "measurementConsumers/ONYdS_z_3xo/reportingSets/aebfa0568d264740bc0e34dcb691f86c": "{anchor\u003ddataProviders/NhIlS1uaAVo, campaign_id\u003d, channels\u003d, incrementality_type\u003dENTITY, lhs_reporting_set_ids\u003d, measured_entity\u003ddataProviders/KEXAh-z7uhU, measurement_entities\u003ddataProviders/KEXAh-z7uhU, measurement_policy\u003dAMI, measurement_policy_incrementality\u003dAMI, media_type\u003dVIDEO, position_in_incrementality\u003d, primitive_egroup_id\u003dIRCd4HlHZRA, rhs_reporting_set_ids\u003d, set_operation\u003dunion,incrementality,marked unions for reach only, target\u003ddataProviders/KEXAh-z7uhU, unique_Reach_Target\u003d, version\u003d1.0, video_completion\u003d, viewability\u003d}",
+    "measurementConsumers/ONYdS_z_3xo/reportingSets/b31e4e5ab8d6471d8eac8a629ef50187": "{anchor\u003ddataProviders/NhIlS1uaAVo, campaign_id\u003d, channels\u003d, incrementality_type\u003dENTITY, lhs_reporting_set_ids\u003d, measured_entity\u003ddataProviders/NhIlS1uaAVo, measurement_entities\u003ddataProviders/KEXAh-z7uhU, measurement_policy\u003dAMI, measurement_policy_incrementality\u003dAMI, media_type\u003dVIDEO, position_in_incrementality\u003d, primitive_egroup_id\u003daYU8uoREr7U, rhs_reporting_set_ids\u003d, set_operation\u003dunion,incrementality,marked unions for reach only, target\u003ddataProviders/NhIlS1uaAVo, unique_Reach_Target\u003d, version\u003d1.0, video_completion\u003d, viewability\u003d}",
+    "measurementConsumers/ONYdS_z_3xo/reportingSets/b573c71b2eb4910a366347b12573475": "{anchor\u003ddataProviders/NhIlS1uaAVo, campaign_id\u003d5abfb908-8290-4068-bf31-0fb3f12b3a90, channels\u003d, incrementality_type\u003dENTITY, lhs_reporting_set_ids\u003daebfa0568d264740bc0e34dcb691f86c b31e4e5ab8d6471d8eac8a629ef50187, measured_entity\u003ddataProviders/KEXAh-z7uhU,dataProviders/NhIlS1uaAVo, measurement_entities\u003ddataProviders/KEXAh-z7uhU, measurement_policy\u003dAMI, measurement_policy_incrementality\u003dAMI, media_type\u003dVIDEO, position_in_incrementality\u003d, primitive_egroup_id\u003d, rhs_reporting_set_ids\u003d, set_operation\u003dunion,incrementality,marked unions for reach only, target\u003ddataProviders/KEXAh-z7uhU,dataProviders/NhIlS1uaAVo, unique_Reach_Target\u003d, version\u003d1.0, video_completion\u003d, viewability\u003d}",
+    "measurementConsumers/ONYdS_z_3xo/reportingSets/bf95d1f1c310431d929b771d03238601": "{anchor\u003ddataProviders/NhIlS1uaAVo, campaign_id\u003d, channels\u003d, incrementality_type\u003dENTITY, lhs_reporting_set_ids\u003db31e4e5ab8d6471d8eac8a629ef50187, measured_entity\u003ddataProviders/NhIlS1uaAVo, measurement_entities\u003ddataProviders/KEXAh-z7uhU, measurement_policy\u003d, measurement_policy_incrementality\u003dAMI, media_type\u003dVIDEO, position_in_incrementality\u003d, primitive_egroup_id\u003d, rhs_reporting_set_ids\u003daebfa0568d264740bc0e34dcb691f86c, set_operation\u003ddifference,incrementality, target\u003ddataProviders/KEXAh-z7uhU,dataProviders/NhIlS1uaAVo, unique_Reach_Target\u003d, version\u003d1.0, video_completion\u003d, viewability\u003d}",
+    "measurementConsumers/ONYdS_z_3xo/reportingSets/c927f44f76b4e83fd30a341d1c": "{anchor\u003ddataProviders/NhIlS1uaAVo, campaign_id\u003d, channels\u003d, incrementality_type\u003dENTITY, lhs_reporting_set_ids\u003de81abef1c7ff477fb988746d343d662a, measured_entity\u003ddataProviders/NhIlS1uaAVo, measurement_entities\u003ddataProviders/KEXAh-z7uhU, measurement_policy\u003d, measurement_policy_incrementality\u003dMRC, media_type\u003dVIDEO, position_in_incrementality\u003d, primitive_egroup_id\u003d, rhs_reporting_set_ids\u003dda0db1906b442a88a8a0166d98621ff, set_operation\u003ddifference,incrementality, target\u003ddataProviders/KEXAh-z7uhU,dataProviders/NhIlS1uaAVo, unique_Reach_Target\u003d, version\u003d1.0, video_completion\u003d, viewability\u003dviewable_100_percent}",
+    "measurementConsumers/ONYdS_z_3xo/reportingSets/cb46bcee1289453686e219908febeba4": "{anchor\u003ddataProviders/NhIlS1uaAVo, campaign_id\u003d, channels\u003d, incrementality_type\u003dENTITY, lhs_reporting_set_ids\u003dd38a5087b63f40d68fe17c683bf31e54, measured_entity\u003ddataProviders/KEXAh-z7uhU, measurement_entities\u003ddataProviders/KEXAh-z7uhU, measurement_policy\u003d, measurement_policy_incrementality\u003dCUSTOM, media_type\u003dVIDEO, position_in_incrementality\u003dmeasuredEntity2, primitive_egroup_id\u003d, rhs_reporting_set_ids\u003ddb571b92c1143d7b3e55a9614654482, set_operation\u003ddifference,incrementality, target\u003ddataProviders/KEXAh-z7uhU,dataProviders/NhIlS1uaAVo, unique_Reach_Target\u003d, version\u003d1.0, video_completion\u003dcompleted_100_percent, viewability\u003dviewable_100_percent}",
+    "measurementConsumers/ONYdS_z_3xo/reportingSets/d38a5087b63f40d68fe17c683bf31e54": "{anchor\u003ddataProviders/NhIlS1uaAVo, campaign_id\u003d, channels\u003d, incrementality_type\u003dENTITY, lhs_reporting_set_ids\u003d, measured_entity\u003ddataProviders/KEXAh-z7uhU, measurement_entities\u003ddataProviders/KEXAh-z7uhU, measurement_policy\u003dCUSTOM, measurement_policy_incrementality\u003dCUSTOM, media_type\u003dVIDEO, position_in_incrementality\u003d, primitive_egroup_id\u003dIRCd4HlHZRA, rhs_reporting_set_ids\u003d, set_operation\u003dunion,incrementality,marked unions for reach only, target\u003ddataProviders/KEXAh-z7uhU, unique_Reach_Target\u003d, version\u003d1.0, video_completion\u003dcompleted_100_percent, viewability\u003dviewable_100_percent}",
+    "measurementConsumers/ONYdS_z_3xo/reportingSets/da0db1906b442a88a8a0166d98621ff": "{anchor\u003ddataProviders/NhIlS1uaAVo, campaign_id\u003d, channels\u003d, incrementality_type\u003dENTITY, lhs_reporting_set_ids\u003d, measured_entity\u003ddataProviders/KEXAh-z7uhU, measurement_entities\u003ddataProviders/KEXAh-z7uhU, measurement_policy\u003dMRC, measurement_policy_incrementality\u003dMRC, media_type\u003dVIDEO, position_in_incrementality\u003d, primitive_egroup_id\u003dIRCd4HlHZRA, rhs_reporting_set_ids\u003d, set_operation\u003dunion,incrementality,marked unions for reach only, target\u003ddataProviders/KEXAh-z7uhU, unique_Reach_Target\u003d, version\u003d1.0, video_completion\u003d, viewability\u003dviewable_100_percent}",
+    "measurementConsumers/ONYdS_z_3xo/reportingSets/db571b92c1143d7b3e55a9614654482": "{anchor\u003ddataProviders/NhIlS1uaAVo, campaign_id\u003d, channels\u003d, incrementality_type\u003dENTITY, lhs_reporting_set_ids\u003d, measured_entity\u003ddataProviders/NhIlS1uaAVo, measurement_entities\u003ddataProviders/KEXAh-z7uhU, measurement_policy\u003dCUSTOM, measurement_policy_incrementality\u003dCUSTOM, media_type\u003dVIDEO, position_in_incrementality\u003d, primitive_egroup_id\u003daYU8uoREr7U, rhs_reporting_set_ids\u003d, set_operation\u003dunion,incrementality,marked unions for reach only, target\u003ddataProviders/NhIlS1uaAVo, unique_Reach_Target\u003d, version\u003d1.0, video_completion\u003dcompleted_100_percent, viewability\u003dviewable_100_percent}",
+    "measurementConsumers/ONYdS_z_3xo/reportingSets/e0171287d7144249bf85554d2689114": "{anchor\u003ddataProviders/NhIlS1uaAVo, campaign_id\u003d, channels\u003d, incrementality_type\u003dENTITY, lhs_reporting_set_ids\u003ddb571b92c1143d7b3e55a9614654482, measured_entity\u003ddataProviders/NhIlS1uaAVo, measurement_entities\u003ddataProviders/KEXAh-z7uhU, measurement_policy\u003d, measurement_policy_incrementality\u003dCUSTOM, media_type\u003dVIDEO, position_in_incrementality\u003d, primitive_egroup_id\u003d, rhs_reporting_set_ids\u003dd38a5087b63f40d68fe17c683bf31e54, set_operation\u003ddifference,incrementality, target\u003ddataProviders/KEXAh-z7uhU,dataProviders/NhIlS1uaAVo, unique_Reach_Target\u003d, version\u003d1.0, video_completion\u003dcompleted_100_percent, viewability\u003dviewable_100_percent}",
+    "measurementConsumers/ONYdS_z_3xo/reportingSets/e1d64f6ffe543dba905378bfaeb1d5c": "{anchor\u003ddataProviders/NhIlS1uaAVo, campaign_id\u003d5abfb908-8290-4068-bf31-0fb3f12b3a90, channels\u003d, incrementality_type\u003dENTITY, lhs_reporting_set_ids\u003dd38a5087b63f40d68fe17c683bf31e54 db571b92c1143d7b3e55a9614654482, measured_entity\u003ddataProviders/KEXAh-z7uhU,dataProviders/NhIlS1uaAVo, measurement_entities\u003ddataProviders/KEXAh-z7uhU, measurement_policy\u003dCUSTOM, measurement_policy_incrementality\u003dCUSTOM, media_type\u003dVIDEO, position_in_incrementality\u003d, primitive_egroup_id\u003d, rhs_reporting_set_ids\u003d, set_operation\u003dunion,incrementality,marked unions for reach only, target\u003ddataProviders/KEXAh-z7uhU,dataProviders/NhIlS1uaAVo, unique_Reach_Target\u003d, version\u003d1.0, video_completion\u003dcompleted_100_percent, viewability\u003dviewable_100_percent}",
+    "measurementConsumers/ONYdS_z_3xo/reportingSets/e81abef1c7ff477fb988746d343d662a": "{anchor\u003ddataProviders/NhIlS1uaAVo, campaign_id\u003d, channels\u003d, incrementality_type\u003dENTITY, lhs_reporting_set_ids\u003d, measured_entity\u003ddataProviders/NhIlS1uaAVo, measurement_entities\u003ddataProviders/KEXAh-z7uhU, measurement_policy\u003dMRC, measurement_policy_incrementality\u003dMRC, media_type\u003dVIDEO, position_in_incrementality\u003d, primitive_egroup_id\u003daYU8uoREr7U, rhs_reporting_set_ids\u003d, set_operation\u003dunion,incrementality,marked unions for reach only, target\u003ddataProviders/NhIlS1uaAVo, unique_Reach_Target\u003d, version\u003d1.0, video_completion\u003d, viewability\u003dviewable_100_percent}",
+    "measurementConsumers/ONYdS_z_3xo/reportingSets/ec81af090410eb3daa0e3a21b1638": "{anchor\u003ddataProviders/NhIlS1uaAVo, campaign_id\u003d5abfb908-8290-4068-bf31-0fb3f12b3a90, channels\u003d, incrementality_type\u003dENTITY, lhs_reporting_set_ids\u003dda0db1906b442a88a8a0166d98621ff e81abef1c7ff477fb988746d343d662a, measured_entity\u003ddataProviders/KEXAh-z7uhU,dataProviders/NhIlS1uaAVo, measurement_entities\u003ddataProviders/KEXAh-z7uhU, measurement_policy\u003dMRC, measurement_policy_incrementality\u003dMRC, media_type\u003dVIDEO, position_in_incrementality\u003d, primitive_egroup_id\u003d, rhs_reporting_set_ids\u003d, set_operation\u003dunion,incrementality,marked unions for reach only, target\u003ddataProviders/KEXAh-z7uhU,dataProviders/NhIlS1uaAVo, unique_Reach_Target\u003d, version\u003d1.0, video_completion\u003d, viewability\u003dviewable_100_percent}",
+    "measurementConsumers/ONYdS_z_3xo/reportingSets/ee44e751f72477ba09e745157cbe2a9": "{anchor\u003ddataProviders/NhIlS1uaAVo, campaign_id\u003d, channels\u003d, incrementality_type\u003dENTITY, lhs_reporting_set_ids\u003daebfa0568d264740bc0e34dcb691f86c, measured_entity\u003ddataProviders/KEXAh-z7uhU, measurement_entities\u003ddataProviders/KEXAh-z7uhU, measurement_policy\u003d, measurement_policy_incrementality\u003dAMI, media_type\u003dVIDEO, position_in_incrementality\u003dmeasuredEntity2, primitive_egroup_id\u003d, rhs_reporting_set_ids\u003db31e4e5ab8d6471d8eac8a629ef50187, set_operation\u003ddifference,incrementality, target\u003ddataProviders/KEXAh-z7uhU,dataProviders/NhIlS1uaAVo, unique_Reach_Target\u003d, version\u003d1.0, video_completion\u003d, viewability\u003d}",
+    "measurementConsumers/ONYdS_z_3xo/reportingSets/f8f9c2fe2e8c46afbfd2215b775b9f0a": "{anchor\u003ddataProviders/NhIlS1uaAVo, campaign_id\u003d, channels\u003d, incrementality_type\u003dENTITY, lhs_reporting_set_ids\u003dda0db1906b442a88a8a0166d98621ff, measured_entity\u003ddataProviders/KEXAh-z7uhU, measurement_entities\u003ddataProviders/KEXAh-z7uhU, measurement_policy\u003d, measurement_policy_incrementality\u003dMRC, media_type\u003dVIDEO, position_in_incrementality\u003dmeasuredEntity2, primitive_egroup_id\u003d, rhs_reporting_set_ids\u003de81abef1c7ff477fb988746d343d662a, set_operation\u003ddifference,incrementality, target\u003ddataProviders/KEXAh-z7uhU,dataProviders/NhIlS1uaAVo, unique_Reach_Target\u003d, version\u003d1.0, video_completion\u003d, viewability\u003dviewable_100_percent}",
+    "media_types": "VIDEO",
+    "population": "MALE_YEARS_16_TO_34\u003d74254;MALE_YEARS_35_TO_54\u003d75427;MALE_YEARS_55_PLUS\u003d92201;FEMALE_YEARS_16_TO_34\u003d71124;FEMALE_YEARS_35_TO_54\u003d83950;FEMALE_YEARS_55_PLUS\u003d103044",
+    "report_name": "TEST_ORGN_STG_NCFix_Validation_with REach_0620",
+    "start_date": "2025-05-12T00:00:00Z",
+    "target": "\u0027dataProviders/KEXAh-z7uhU\u0027 \u0027dataProviders/NhIlS1uaAVo\u0027"
+  },
+  "reportingInterval": {
+    "reportStart": {
+      "year": 2025,
+      "month": 5,
+      "day": 12,
+      "hours": 0,
+      "minutes": 0,
+      "seconds": 0,
+      "nanos": 0,
+      "utcOffset": "0s"
+    },
+    "reportEnd": {
+      "year": 2025,
+      "month": 5,
+      "day": 18
+    }
+  }
+}
