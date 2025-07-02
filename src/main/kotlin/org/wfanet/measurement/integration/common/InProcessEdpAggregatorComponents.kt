@@ -21,17 +21,16 @@ import com.google.crypto.tink.KeyTemplates
 import com.google.crypto.tink.KeysetHandle
 import com.google.crypto.tink.aead.AeadConfig
 import com.google.crypto.tink.streamingaead.StreamingAeadConfig
+import com.google.protobuf.TypeRegistry
 import com.google.protobuf.timestamp
 import com.google.type.interval
 import io.grpc.Channel
 import java.nio.file.Files
 import java.nio.file.Path
-import java.security.MessageDigest
 import java.time.Clock
 import java.time.Duration
 import java.time.LocalDate
 import java.time.ZoneId
-import java.util.Base64
 import java.util.logging.Level
 import java.util.logging.Logger
 import kotlinx.coroutines.CoroutineExceptionHandler
@@ -62,6 +61,7 @@ import org.wfanet.measurement.common.testing.ProviderRule
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.config.securecomputation.WatchedPath
+import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.eventgroups.EventGroupSync
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup.MediaType
@@ -73,7 +73,11 @@ import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.eventGroup
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionFetcher
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionGrouperByReportId
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionsValidator
+import org.wfanet.measurement.edpaggregator.resultsfulfiller.ResultsFulfillerApp
+import org.wfanet.measurement.edpaggregator.resultsfulfiller.testing.TestRequisitionStubFactory
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
+import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
+import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
 import org.wfanet.measurement.gcloud.pubsub.Subscriber
 import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorClient
 import org.wfanet.measurement.loadtest.dataprovider.LabeledEventDateShard
@@ -140,18 +144,25 @@ class InProcessEdpAggregatorComponents(
   }
 
   private val resultFulfillerApp by lazy {
+    val typeRegistry = TypeRegistry.newBuilder().add(LabeledImpression.getDescriptor()).build()
+    val requisitionStubFactory = TestRequisitionStubFactory(publicApiChannel)
     val subscriber = Subscriber(PROJECT_ID, pubSubClient)
-    ResultsFulfillerTestApp(
+    val getStorageConfig = { _: ResultsFulfillerParams.StorageParams ->
+      StorageConfig(rootDirectory = storagePath.toFile())
+    }
+    ResultsFulfillerApp(
       parser = WorkItem.parser(),
       subscriptionId = SUBSCRIPTION_ID,
       workItemsClient = workItemsClient,
       workItemAttemptsClient =
         WorkItemAttemptsCoroutineStub(secureComputationPublicApi.publicApiChannel),
       queueSubscriber = subscriber,
-      cmmsChannel = publicApiChannel,
-      fileSystemRootDirectory = storagePath.toFile(),
       kmsClient = kmsClient,
-      principalName = edpResourceName,
+      requisitionStubFactory = requisitionStubFactory,
+      typeRegistry = typeRegistry,
+      getImpressionsMetadataStorageConfig = getStorageConfig,
+      getImpressionsStorageConfig = getStorageConfig,
+      getRequisitionsStorageConfig = getStorageConfig,
     )
   }
 

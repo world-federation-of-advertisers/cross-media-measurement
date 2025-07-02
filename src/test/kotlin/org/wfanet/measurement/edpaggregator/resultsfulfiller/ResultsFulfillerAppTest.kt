@@ -306,7 +306,7 @@ class ResultsFulfillerAppTest {
         parser = WorkItem.parser(),
         workItemsStub,
         workItemAttemptsStub,
-        TestRequisitionStubFactory(grpcTestServerRule.channel, EDP_NAME),
+        TestRequisitionStubFactory(grpcTestServerRule.channel),
         kmsClient,
         typeRegistry,
         getStorageConfig(tmpPath),
