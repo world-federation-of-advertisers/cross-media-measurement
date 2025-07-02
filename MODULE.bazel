@@ -37,7 +37,7 @@ bazel_dep(
 )
 bazel_dep(
     name = "common-jvm",
-    version = "0.107.2",
+    version = "0.110.0",
     repo_name = "wfa_common_jvm",
 )
 bazel_dep(
@@ -234,6 +234,8 @@ maven.install(
         # TODO(googleapis/java-cloud-bom#5279): Remove when managed by BOM.
         "com.google.apis:google-api-services-storage:v1-rev20240706-2.0.0",
         "com.google.cloud.functions.invoker:java-function-invoker:1.4.0",
+        "com.google.auth:google-auth-library-credentials",
+        "com.google.auth:google-auth-library-oauth2-http",
 
         # AWS
         "software.amazon.awssdk:acmpca",

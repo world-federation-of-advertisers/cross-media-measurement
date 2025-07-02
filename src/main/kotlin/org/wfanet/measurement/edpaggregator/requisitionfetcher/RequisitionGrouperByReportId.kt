@@ -122,5 +122,4 @@ class RequisitionGrouperByReportId(
     result.add(current)
     return result
   }
-
 }
