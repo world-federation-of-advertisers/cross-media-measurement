@@ -47,10 +47,13 @@ import org.junit.runner.Description
 import org.junit.runners.model.Statement
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.Requisition
+import org.wfanet.measurement.api.v2alpha.RequisitionKt
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticPopulationSpec
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
+import org.wfanet.measurement.api.v2alpha.refuseRequisitionRequest
 import org.wfanet.measurement.common.crypto.tink.testing.FakeKmsClient
 import org.wfanet.measurement.common.identity.withPrincipalName
 import org.wfanet.measurement.common.testing.ProviderRule
@@ -63,15 +66,12 @@ import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup.Media
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.MetadataKt.AdMetadataKt.campaignMetadata
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.MetadataKt.adMetadata
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.metadata as eventGroupMetadata
-import org.wfanet.measurement.api.v2alpha.Requisition
-import org.wfanet.measurement.api.v2alpha.RequisitionKt
-import org.wfanet.measurement.api.v2alpha.refuseRequisitionRequest
-import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionGrouperByReportId
-import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionsValidator
-import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.MappedEventGroup
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.eventGroup
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionFetcher
+import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionGrouperByReportId
+import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionsValidator
+import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
 import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorClient
 import org.wfanet.measurement.loadtest.dataprovider.LabeledEventDateShard
 import org.wfanet.measurement.loadtest.dataprovider.SyntheticDataGeneration
@@ -192,12 +192,13 @@ class InProcessEdpAggregatorComponents(
         }
       }
 
-    val requisitionGrouper = RequisitionGrouperByReportId(
-      requisitionsValidator,
-      eventGroupsClient,
-      requisitionsClient,
-      MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofSeconds(1L))
-    )
+    val requisitionGrouper =
+      RequisitionGrouperByReportId(
+        requisitionsValidator,
+        eventGroupsClient,
+        requisitionsClient,
+        MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofSeconds(1L)),
+      )
 
     requisitionFetcher =
       RequisitionFetcher(
@@ -206,7 +207,7 @@ class InProcessEdpAggregatorComponents(
         edpResourceName,
         REQUISITION_STORAGE_PREFIX,
         requisitionGrouper,
-        ::createDeterministicId
+        ::createDeterministicId,
       )
     backgroundScope.launch {
       while (true) {
@@ -340,6 +341,5 @@ class InProcessEdpAggregatorComponents(
     fun createDeterministicId(groupedRequisition: GroupedRequisitions): String {
       return "hash_value"
     }
-
   }
 }
