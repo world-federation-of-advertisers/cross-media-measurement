@@ -97,7 +97,9 @@ kt_jvm_library(
     name = "results_fulfiller_app",
     srcs = ["ResultsFulfillerApp.kt"],
     deps = [
+        ":continuous_gaussian_noiser_selector",
         ":no_noiser_selector",
+        ":requisition_stub_factory",
         ":results_fulfiller",
         "//src/main/kotlin/org/wfanet/measurement/securecomputation/controlplane/v1alpha:work_item_attempts_service",
         "//src/main/kotlin/org/wfanet/measurement/securecomputation/controlplane/v1alpha:work_items_service",
@@ -111,12 +113,27 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
-    name = "results_fulfiller_app_impl",
-    srcs = ["ResultsFulfillerAppImpl.kt"],
+    name = "requisition_stub_factory",
+    srcs = ["RequisitionStubFactory.kt"],
     deps = [
-        ":results_fulfiller_app",
-        "//imports/java/com/google/crypto/tink/integration/gcpkms",
-        "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:test_event_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:requisitions_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:results_fulfiller_params_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+    ],
+)
+
+kt_jvm_library(
+    name = "requisition_stub_factory_impl",
+    srcs = ["RequisitionStubFactoryImpl.kt"],
+    deps = [
+        ":requisition_stub_factory",
+        "//src/main/proto/wfa/measurement/api/v2alpha:requisitions_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:results_fulfiller_params_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto:signing_certs",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
     ],
 )
 

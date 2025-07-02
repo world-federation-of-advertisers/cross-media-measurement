@@ -32,7 +32,6 @@ import kotlin.math.sqrt
 import kotlin.random.Random
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.time.delay
 import org.projectnessie.cel.Program
@@ -194,14 +193,14 @@ abstract class MeasurementConsumerSimulator(
     val noiseMechanism: NoiseMechanism,
   )
 
-  abstract fun Flow<EventGroup>.filterEventGroups(): Flow<EventGroup>
+  protected abstract fun Flow<EventGroup>.filterEventGroups(): Flow<EventGroup>
 
-  abstract fun getFilteredVids(measurementInfo: MeasurementInfo): Flow<Long>
+  protected abstract fun getFilteredVids(measurementInfo: MeasurementInfo): Sequence<Long>
 
-  abstract fun getFilteredVids(
+  protected abstract fun getFilteredVids(
     measurementInfo: MeasurementInfo,
     targetDataProviderId: String,
-  ): Flow<Long>
+  ): Sequence<Long>
 
   data class ExecutionResult(
     val actualResult: Result,
@@ -1010,7 +1009,7 @@ abstract class MeasurementConsumerSimulator(
   }
 
   /** Gets the failure of an invalid [Measurement] if it is failed */
-  protected suspend fun getFailure(measurementName: String): Failure? {
+  private suspend fun getFailure(measurementName: String): Failure? {
     val measurement = getMeasurement(measurementName)
     if (measurement.state != Measurement.State.FAILED) {
       return null
@@ -1048,7 +1047,7 @@ abstract class MeasurementConsumerSimulator(
   }
 
   /** Gets the expected result of a [Measurement] using raw sketches. */
-  private suspend fun getExpectedResult(measurementInfo: MeasurementInfo): Result {
+  private fun getExpectedResult(measurementInfo: MeasurementInfo): Result {
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf enum fields cannot be null.
     return when (measurementInfo.measurementSpec.measurementTypeCase) {
       MeasurementSpec.MeasurementTypeCase.REACH -> getExpectedReachResult(measurementInfo)
@@ -1067,7 +1066,7 @@ abstract class MeasurementConsumerSimulator(
   }
 
   /** Gets the expected result of impression from a specific data provider. */
-  private suspend fun getExpectedImpressionResultByDataProvider(
+  private fun getExpectedImpressionResultByDataProvider(
     measurementInfo: MeasurementInfo,
     targetDataProviderId: String,
   ): Result {
@@ -1083,7 +1082,7 @@ abstract class MeasurementConsumerSimulator(
     }
   }
 
-  private suspend fun getExpectedPopulationResult(
+  private fun getExpectedPopulationResult(
     populationMeasurementInfo: PopulationMeasurementInfo
   ): Result {
     val measurementInfo = populationMeasurementInfo.measurementInfo
@@ -1126,12 +1125,12 @@ abstract class MeasurementConsumerSimulator(
     }
   }
 
-  private suspend fun getExpectedReachResult(measurementInfo: MeasurementInfo): Result {
+  private fun getExpectedReachResult(measurementInfo: MeasurementInfo): Result {
     val reach = MeasurementResults.computeReach(getFilteredVids(measurementInfo))
     return result { this.reach = reach { value = reach.toLong() } }
   }
 
-  private suspend fun getExpectedReachAndFrequencyResult(measurementInfo: MeasurementInfo): Result {
+  private fun getExpectedReachAndFrequencyResult(measurementInfo: MeasurementInfo): Result {
     val (reach, relativeFrequencyDistribution) =
       MeasurementResults.computeReachAndFrequency(
         getFilteredVids(measurementInfo),

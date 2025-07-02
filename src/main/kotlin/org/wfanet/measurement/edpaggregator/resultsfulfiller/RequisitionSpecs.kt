@@ -67,10 +67,15 @@ object RequisitionSpecs {
       logger.info("Reading event group: $eventGroup")
       val collectionInterval = eventGroup.value.collectionInterval
       val startDate = LocalDate.ofInstant(collectionInterval.startTime.toInstant(), zoneId)
-      val endDate = LocalDate.ofInstant(collectionInterval.endTime.toInstant(), zoneId)
+      // One second is subtracted since interval is exclusive just in case the time is midnight to
+      // avoid fetching an extra day.
+      val endDate =
+        LocalDate.ofInstant(collectionInterval.endTime.toInstant().minusSeconds(1), zoneId)
       logger.info(
         "Fetching Dates: ${startDate.datesUntil(endDate.plusDays(1)).asSequence().toList()}"
       )
+      // datesUntil is end exclusive so a day is added. If an event time is 3PM, then a day needs to
+      // be added in order to read the day up until 3pm.
       val dates = startDate.datesUntil(endDate.plusDays(1)).asSequence()
       // Iterates through all dates up to the end date in the collection interval(inclusive)
       val impressions =
