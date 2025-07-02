@@ -62,9 +62,14 @@ import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup.Media
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.MetadataKt.AdMetadataKt.campaignMetadata
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.MetadataKt.adMetadata
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.metadata as eventGroupMetadata
+import org.wfanet.measurement.api.v2alpha.Requisition
+import org.wfanet.measurement.api.v2alpha.RequisitionKt
+import org.wfanet.measurement.api.v2alpha.refuseRequisitionRequest
+import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionGrouperByReportId
+import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionsValidator
+import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.MappedEventGroup
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.eventGroup
-import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.mappedEventGroup
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionFetcher
 import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorClient
 import org.wfanet.measurement.loadtest.dataprovider.SyntheticDataGeneration
@@ -175,13 +180,31 @@ class InProcessEdpAggregatorComponents(
     val subscribingStorageClient = DataWatcherSubscribingStorageClient(storageClient, "file:///")
     subscribingStorageClient.subscribe(dataWatcher)
 
+    val edpPrivateKey = getDataProviderPrivateEncryptionKey(edpAggregatorShortName)
+
+    val requisitionsValidator =
+      RequisitionsValidator(edpPrivateKey) { requisition, refusal ->
+        runBlocking {
+          logger.info("Refusing ${requisition.name}: $refusal")
+          refuseRequisition(requisitionsClient, requisition, refusal)
+        }
+      }
+
+    val requisitionGrouper = RequisitionGrouperByReportId(
+      requisitionsValidator,
+      eventGroupsClient,
+      requisitionsClient,
+      MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofSeconds(1L))
+    )
+
     requisitionFetcher =
       RequisitionFetcher(
         requisitionsClient,
         subscribingStorageClient,
         edpResourceName,
         REQUISITION_STORAGE_PREFIX,
-        10,
+        requisitionGrouper,
+        ::createDeterministicId
       )
     backgroundScope.launch {
       while (true) {
@@ -203,6 +226,23 @@ class InProcessEdpAggregatorComponents(
       runBlocking { writeImpressionData(mappedEventGroups) }
 
       // TODO(@stevenwarejones): Run Results Fulfiller App
+    }
+  }
+
+  private suspend fun refuseRequisition(
+    requisitionsStub: RequisitionsCoroutineStub,
+    requisition: Requisition,
+    refusal: Requisition.Refusal,
+  ) {
+    try {
+      logger.info("Requisition ${requisition.name} was refused. $refusal")
+      val request = refuseRequisitionRequest {
+        this.name = requisition.name
+        this.refusal = RequisitionKt.refusal { justification = refusal.justification }
+      }
+      requisitionsStub.refuseRequisition(request)
+    } catch (e: Exception) {
+      logger.log(Level.SEVERE, "Error while refusing requisition ${requisition.name}", e)
     }
   }
 
@@ -292,5 +332,10 @@ class InProcessEdpAggregatorComponents(
     private const val IMPRESSIONS_METADATA_BUCKET = "impression-metadata-bucket"
     private const val REQUISITION_STORAGE_PREFIX = "requisition-storage-prefix"
     private val ZONE_ID = ZoneId.of("UTC")
+
+    fun createDeterministicId(groupedRequisition: GroupedRequisitions): String {
+      return "hash_value"
+    }
+
   }
 }
