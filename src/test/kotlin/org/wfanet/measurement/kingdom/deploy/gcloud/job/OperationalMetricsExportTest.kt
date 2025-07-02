@@ -1625,11 +1625,12 @@ class OperationalMetricsExportTest {
         nanos = 100
       }
       details = requisitionDetails {
-        fulfillmentContext = RequisitionDetailsKt.fulfillmentContext {
-          buildLabel = "build-label"
-          warnings += "warning"
-          warnings += "warning2"
-        }
+        fulfillmentContext =
+          RequisitionDetailsKt.fulfillmentContext {
+            buildLabel = "build-label"
+            warnings += "warning"
+            warnings += "warning2"
+          }
       }
       parentMeasurement =
         RequisitionKt.parentMeasurement {
@@ -1655,11 +1656,12 @@ class OperationalMetricsExportTest {
         nanos = 100
       }
       details = requisitionDetails {
-        fulfillmentContext = RequisitionDetailsKt.fulfillmentContext {
-          buildLabel = "build-label"
-          warnings += "warning"
-          warnings += "warning2"
-        }
+        fulfillmentContext =
+          RequisitionDetailsKt.fulfillmentContext {
+            buildLabel = "build-label"
+            warnings += "warning"
+            warnings += "warning2"
+          }
       }
       parentMeasurement =
         RequisitionKt.parentMeasurement {
