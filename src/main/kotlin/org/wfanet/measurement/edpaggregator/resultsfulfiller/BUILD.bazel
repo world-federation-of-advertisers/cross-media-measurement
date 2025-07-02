@@ -1,4 +1,5 @@
 load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
+load("//src/main/docker:macros.bzl", "java_image")
 
 package(
     default_visibility = [
@@ -145,4 +146,36 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/eventfiltration:event_filters",
         "//src/main/proto/wfa/measurement/api/v2alpha:measurement_spec_kt_jvm_proto",
     ],
+)
+
+kt_jvm_library(
+    name = "results_fulfiller_app_runner",
+    testonly = True,
+    srcs = ["ResultsFulfillerAppRunner.kt"],
+    deps = [
+        ":requisition_stub_factory_impl",
+        ":results_fulfiller_app",
+        "//imports/java/com/google/crypto/tink/integration/gcpkms",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:test_event_kt_jvm_proto",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/pubsub:google_pub_sub_client",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/pubsub:publisher",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/pubsub:subscriber",
+    ],
+)
+
+java_binary(
+    name = "EdpResultsFulfiller",
+    testonly = True,
+    main_class = "org.wfanet.measurement.edpaggregator.resultsfulfiller.ResultsFulfillerAppRunner",
+    runtime_deps = [
+        ":results_fulfiller_app_runner",
+    ],
+)
+
+java_image(
+    name = "edp_results_fulfiller_image",
+    testonly = True,
+    binary = ":EdpResultsFulfiller",
+    main_class = "org.wfanet.measurement.edpaggregator.resultsfulfiller.ResultsFulfillerAppRunner",
+    visibility = ["//src:docker_image_deployment"],
 )
