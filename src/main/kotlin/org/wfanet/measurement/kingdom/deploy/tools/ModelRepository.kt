@@ -136,7 +136,11 @@ private class ModelProviders {
   }
 }
 
-@Command(name = "get", description = ["Get a ModelProvider"], mixinStandardHelpOptions = true)
+@Command(
+  name = "get",
+  description = ["Get a ModelProvider"],
+  subcommands = [CommandLine.HelpCommand::class],
+)
 class GetModelProvider : Runnable {
   @ParentCommand private lateinit var parentCommand: ModelProviders
 
@@ -153,7 +157,11 @@ class GetModelProvider : Runnable {
   }
 }
 
-@Command(name = "list", description = ["List ModelProviders"], mixinStandardHelpOptions = true)
+@Command(
+  name = "list",
+  description = ["List ModelProviders"],
+  subcommands = [CommandLine.HelpCommand::class],
+)
 class ListModelProviders : Runnable {
   @ParentCommand private lateinit var parentCommand: ModelProviders
 
@@ -190,7 +198,11 @@ private class ModelSuites {
   }
 }
 
-@Command(name = "get", description = ["Get a ModelSuite"], mixinStandardHelpOptions = true)
+@Command(
+  name = "get",
+  description = ["Get a ModelSuite"],
+  subcommands = [CommandLine.HelpCommand::class],
+)
 class GetModelSuite : Runnable {
   @ParentCommand private lateinit var parentCommand: ModelSuites
 
@@ -205,7 +217,11 @@ class GetModelSuite : Runnable {
   }
 }
 
-@Command(name = "create", description = ["Create a ModelSuite"], mixinStandardHelpOptions = true)
+@Command(
+  name = "create",
+  description = ["Create a ModelSuite"],
+  subcommands = [CommandLine.HelpCommand::class],
+)
 class CreateModelSuite : Runnable {
   @ParentCommand private lateinit var parentCommand: ModelSuites
 
@@ -246,7 +262,11 @@ class CreateModelSuite : Runnable {
   }
 }
 
-@Command(name = "list", description = ["List ModelSuites"], mixinStandardHelpOptions = true)
+@Command(
+  name = "list",
+  description = ["List ModelSuites"],
+  subcommands = [CommandLine.HelpCommand::class],
+)
 class ListModelSuites : Runnable {
   @ParentCommand private lateinit var parentCommand: ModelSuites
 
@@ -291,7 +311,11 @@ private class Populations {
   }
 }
 
-@Command(name = "create", description = ["Create a Population"], mixinStandardHelpOptions = true)
+@Command(
+  name = "create",
+  description = ["Create a Population"],
+  subcommands = [CommandLine.HelpCommand::class],
+)
 class CreatePopulation : Runnable {
   @ParentCommand private lateinit var parentCommand: Populations
 
@@ -336,7 +360,11 @@ class CreatePopulation : Runnable {
   }
 }
 
-@Command(name = "get", description = ["Get a Population"], mixinStandardHelpOptions = true)
+@Command(
+  name = "get",
+  description = ["Get a Population"],
+  subcommands = [CommandLine.HelpCommand::class],
+)
 class GetPopulation : Runnable {
   @ParentCommand private lateinit var parentCommand: Populations
 
@@ -351,7 +379,11 @@ class GetPopulation : Runnable {
   }
 }
 
-@Command(name = "list", description = ["List Populations"], mixinStandardHelpOptions = true)
+@Command(
+  name = "list",
+  description = ["List Populations"],
+  subcommands = [CommandLine.HelpCommand::class],
+)
 class ListPopulations : Runnable {
   @ParentCommand private lateinit var parentCommand: Populations
 
@@ -408,7 +440,7 @@ private class ModelLines {
 @Command(
   name = "create",
   description = ["Create a ModelLine, a ModelRelease, and a ModelRollout)"],
-  mixinStandardHelpOptions = true,
+  subcommands = [CommandLine.HelpCommand::class],
 )
 class CreateModelLine : Runnable {
   @ParentCommand private lateinit var parentCommand: ModelLines
@@ -513,7 +545,11 @@ class CreateModelLine : Runnable {
   }
 }
 
-@Command(name = "get", description = ["Get a ModelLine"], mixinStandardHelpOptions = true)
+@Command(
+  name = "get",
+  description = ["Get a ModelLine"],
+  subcommands = [CommandLine.HelpCommand::class],
+)
 class GetModelLine : Runnable {
   @ParentCommand private lateinit var parentCommand: ModelLines
 
@@ -528,7 +564,11 @@ class GetModelLine : Runnable {
   }
 }
 
-@Command(name = "list", description = ["List ModelLines"], mixinStandardHelpOptions = true)
+@Command(
+  name = "list",
+  description = ["List ModelLines"],
+  subcommands = [CommandLine.HelpCommand::class],
+)
 class ListModelLines : Runnable {
   @ParentCommand private lateinit var parentCommand: ModelLines
 
@@ -568,7 +608,7 @@ class ListModelLines : Runnable {
 @Command(
   name = "set-active-end-time",
   description = ["Set the active end time of a ModelLine"],
-  mixinStandardHelpOptions = true,
+  subcommands = [CommandLine.HelpCommand::class],
 )
 class SetModelLineActiveEndTime : Runnable {
   @ParentCommand private lateinit var parentCommand: ModelLines
