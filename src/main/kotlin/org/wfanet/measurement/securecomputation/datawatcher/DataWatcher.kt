@@ -16,13 +16,15 @@
 
 package org.wfanet.measurement.securecomputation.datawatcher
 
+import com.google.auth.oauth2.GoogleCredentials
+import com.google.auth.oauth2.IdToken
+import com.google.auth.oauth2.IdTokenProvider
 import java.net.URI
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse.BodyHandlers
 import java.util.UUID
 import java.util.logging.Logger
-import kotlin.text.matches
 import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.common.toJson
 import org.wfanet.measurement.config.securecomputation.WatchedPath
@@ -41,6 +43,9 @@ class DataWatcher(
   private val workItemsStub: WorkItemsCoroutineStub,
   private val dataWatcherConfigs: List<WatchedPath>,
   private val workItemIdGenerator: () -> String = { "work-item-" + UUID.randomUUID().toString() },
+  private val idTokenProvider: IdTokenProvider =
+    GoogleCredentials.getApplicationDefault() as? IdTokenProvider
+      ?: throw IllegalArgumentException("Application Default Credentials do not provide ID token"),
 ) {
   suspend fun receivePath(path: String) {
     logger.info("Received Path: $path")
@@ -88,12 +93,18 @@ class DataWatcher(
     workItemsStub.createWorkItem(request)
   }
 
-  private suspend fun sendToHttpEndpoint(config: WatchedPath) {
+  private fun sendToHttpEndpoint(config: WatchedPath) {
+
+    val idToken: IdToken =
+      idTokenProvider.idTokenWithAudience(config.httpEndpointSink.endpointUri, emptyList())
+    val jwt = idToken.tokenValue
+
     val httpEndpointConfig = config.httpEndpointSink
     val client = HttpClient.newHttpClient()
     val request =
       HttpRequest.newBuilder()
         .uri(URI.create(httpEndpointConfig.endpointUri))
+        .header("Authorization", "Bearer $jwt")
         .POST(HttpRequest.BodyPublishers.ofString(httpEndpointConfig.appParams.toJson()))
         .build()
     val response = client.send(request, BodyHandlers.ofString())

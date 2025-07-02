@@ -41,6 +41,7 @@ import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
 import org.junit.rules.TestRule
 import org.junit.runner.Description
 import org.junit.runners.model.Statement
@@ -72,6 +73,7 @@ import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.MappedEventGroup
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.eventGroup
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionFetcher
 import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorClient
+import org.wfanet.measurement.loadtest.dataprovider.LabeledEventDateShard
 import org.wfanet.measurement.loadtest.dataprovider.SyntheticDataGeneration
 import org.wfanet.measurement.loadtest.edpaggregator.testing.ImpressionsWriter
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
@@ -285,11 +287,13 @@ class InProcessEdpAggregatorComponents(
   }
 
   private suspend fun writeImpressionData(mappedEventGroups: List<MappedEventGroup>) {
-    Files.createDirectories(storagePath.resolve(IMPRESSIONS_BUCKET))
-    Files.createDirectories(storagePath.resolve(IMPRESSIONS_METADATA_BUCKET))
+    withContext(Dispatchers.IO) {
+      Files.createDirectories(storagePath.resolve(IMPRESSIONS_BUCKET))
+      Files.createDirectories(storagePath.resolve(IMPRESSIONS_METADATA_BUCKET))
+    }
 
     mappedEventGroups.forEach { mappedEventGroup ->
-      val events =
+      val events: Sequence<LabeledEventDateShard<TestEvent>> =
         SyntheticDataGeneration.generateEvents(
           TestEvent.getDefaultInstance(),
           syntheticPopulationSpec,
@@ -306,7 +310,7 @@ class InProcessEdpAggregatorComponents(
           storagePath.toFile(),
           "file:///",
         )
-      runBlocking { impressionWriter.writeLabeledImpressionData(events) }
+      impressionWriter.writeLabeledImpressionData(events)
     }
   }
 

@@ -17,13 +17,10 @@ package org.wfanet.measurement.loadtest.edpaggregator.testing
 import com.google.crypto.tink.KmsClient
 import com.google.protobuf.Any
 import com.google.protobuf.Message
-import com.google.protobuf.kotlin.toByteString
 import java.io.File
 import java.time.LocalDate
 import java.util.logging.Logger
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.flow.asFlow
 import org.wfanet.measurement.common.crypto.tink.withEnvelopeEncryption
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.edpaggregator.EncryptedStorage
@@ -31,8 +28,8 @@ import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
 import org.wfanet.measurement.edpaggregator.v1alpha.blobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.labeledImpression
-import org.wfanet.measurement.loadtest.dataprovider.DateShardedLabeledImpression
 import org.wfanet.measurement.loadtest.dataprovider.LabeledEvent
+import org.wfanet.measurement.loadtest.dataprovider.LabeledEventDateShard
 import org.wfanet.measurement.storage.MesosRecordIoStorageClient
 import org.wfanet.measurement.storage.SelectedStorageClient
 
@@ -70,16 +67,14 @@ class ImpressionsWriter(
    * and outputs the data to storage along with the necessary metadata for the ResultsFulfiller
    * to be able to find and read the contents.
    */
-  suspend fun <T : Message> writeLabeledImpressionData(
-    events: Flow<DateShardedLabeledImpression<T>>
-  ) {
+  suspend fun <T : Message> writeLabeledImpressionData(events: Sequence<LabeledEventDateShard<T>>) {
     val serializedEncryptionKey =
       EncryptedStorage.generateSerializedEncryptionKey(kmsClient, kekUri, "AES128_GCM_HKDF_1MB")
     val encryptedDek =
       EncryptedDek.newBuilder().setKekUri(kekUri).setEncryptedDek(serializedEncryptionKey).build()
 
-    events.collect { (localDate: LocalDate, labeledEvents: Flow<LabeledEvent<T>>) ->
-      val labeledImpressions: Flow<LabeledImpression> =
+    events.forEach { (localDate: LocalDate, labeledEvents: Sequence<LabeledEvent<T>>) ->
+      val labeledImpressions: Sequence<LabeledImpression> =
         labeledEvents.map { it: LabeledEvent<T> ->
           labeledImpression {
             vid = it.vid
@@ -102,9 +97,10 @@ class ImpressionsWriter(
       }
       logger.info("Writing impressions to $impressionsFileUri")
       // Write impressions to storage
-      runBlocking {
-        encryptedStorage.writeBlob(impressionsBlobKey, labeledImpressions.map { it.toByteString() })
-      }
+      encryptedStorage.writeBlob(
+        impressionsBlobKey,
+        labeledImpressions.map { it.toByteString() }.asFlow(),
+      )
       val impressionsMetaDataBlobKey = "ds/$ds/$eventGroupPath/metadata"
 
       val impressionsMetadataFileUri =
@@ -120,12 +116,10 @@ class ImpressionsWriter(
         this.blobUri = impressionsFileUri
         this.encryptedDek = encryptedDek
       }
-      runBlocking {
-        impressionsMetadataStorageClient.writeBlob(
-          impressionsMetaDataBlobKey,
-          blobDetails.toByteString(),
-        )
-      }
+      impressionsMetadataStorageClient.writeBlob(
+        impressionsMetaDataBlobKey,
+        blobDetails.toByteString(),
+      )
     }
   }
 
