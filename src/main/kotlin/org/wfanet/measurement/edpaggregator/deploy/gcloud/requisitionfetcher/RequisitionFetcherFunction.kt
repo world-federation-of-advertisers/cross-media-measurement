@@ -24,12 +24,9 @@ import java.io.File
 import java.security.MessageDigest
 import java.time.Clock
 import java.time.Duration
+import java.util.Base64
 import java.util.logging.Level
 import java.util.logging.Logger
-import java.util.Base64
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.Requisition
@@ -38,37 +35,35 @@ import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCorouti
 import org.wfanet.measurement.api.v2alpha.refuseRequisitionRequest
 import org.wfanet.measurement.common.EnvVars
 import org.wfanet.measurement.common.crypto.SigningCerts
+import org.wfanet.measurement.common.crypto.tink.loadPrivateKey
 import org.wfanet.measurement.common.edpaggregator.CloudFunctionConfig.getConfig
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
+import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
+import org.wfanet.measurement.common.toDuration
+import org.wfanet.measurement.config.edpaggregator.DataProviderRequisitionConfig
 import org.wfanet.measurement.config.edpaggregator.RequisitionFetcherConfig
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionFetcher
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionGrouperByReportId
-import org.wfanet.measurement.config.edpaggregator.DataProviderRequisitionConfig
-import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
-import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
-import org.wfanet.measurement.common.crypto.tink.loadPrivateKey
-import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
-import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionsValidator
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
+import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
+import org.wfanet.measurement.storage.StorageClient
+import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 
 /**
  * A Google Cloud Function that fetches and stores requisitions for each configured data provider.
  *
  * ## Environment Variables
- *
- * - `REQUISITION_FILE_SYSTEM_PATH`: Optional. If set, requisitions are written to this local filesystem path.
- *   If unset, the function defaults to writing to GCS using configuration in the proto.
- *
+ * - `REQUISITION_FILE_SYSTEM_PATH`: Optional. If set, requisitions are written to this local
+ *   filesystem path. If unset, the function defaults to writing to GCS using configuration in the
+ *   proto.
  * - `KINGDOM_TARGET`: Required. The gRPC target address for the Kingdom services.
- *
- * - `KINGDOM_CERT_HOST`: Optional. The server name to verify in the Kingdom service's TLS certificate.
- *   Useful when the hostname in the certificate does not match the `KINGDOM_TARGET`.
- *
- * - `GRPC_THROTTLER`: Required. A numeric value (in milliseconds) that defines the minimum interval between
- *   gRPC calls to Kingdom to avoid overwhelming the service.
- *
- * - `PAGE_SIZE`: Optional. Overrides the default number of requisitions fetched per page from the backend.
+ * - `KINGDOM_CERT_HOST`: Optional. The server name to verify in the Kingdom service's TLS
+ *   certificate. Useful when the hostname in the certificate does not match the `KINGDOM_TARGET`.
+ * - `GRPC_THROTTLER`: Required. A numeric value (in milliseconds) that defines the minimum interval
+ *   between gRPC calls to Kingdom to avoid overwhelming the service.
+ * - `PAGE_SIZE`: Optional. Overrides the default number of requisitions fetched per page from the
+ *   backend.
  */
 class RequisitionFetcherFunction : HttpFunction {
 
@@ -86,7 +81,8 @@ class RequisitionFetcherFunction : HttpFunction {
         errors.add(errorMsg)
         logger.log(Level.SEVERE, errorMsg, e)
       } catch (e: Exception) {
-        val errorMsg = "Failed to fetch and store requisitions for ${dataProviderConfig.dataProvider}"
+        val errorMsg =
+          "Failed to fetch and store requisitions for ${dataProviderConfig.dataProvider}"
         errors.add(errorMsg)
         logger.log(Level.SEVERE, errorMsg, e)
       }
@@ -98,7 +94,6 @@ class RequisitionFetcherFunction : HttpFunction {
         response.setStatusCode(200)
         response.writer.write("All requisitions fetched successfully")
       }
-
     }
   }
 
@@ -106,32 +101,37 @@ class RequisitionFetcherFunction : HttpFunction {
    * Creates a [RequisitionFetcher] instance for the given data provider configuration.
    *
    * @param dataProviderConfig The configuration for a single data provider.
-   * @return A fully initialized [RequisitionFetcher] ready to fetch and store requisitions for the data provider.
+   * @return A fully initialized [RequisitionFetcher] ready to fetch and store requisitions for the
+   *   data provider.
    */
-  private fun createRequisitionFetcher(dataProviderConfig: DataProviderRequisitionConfig): RequisitionFetcher {
+  private fun createRequisitionFetcher(
+    dataProviderConfig: DataProviderRequisitionConfig
+  ): RequisitionFetcher {
     val storageClient = createStorageClient(dataProviderConfig)
     val signingCerts = loadSigningCerts(dataProviderConfig)
-    val publicChannel by lazy { buildMutualTlsChannel(kingdomTarget, signingCerts, kingdomCertHost) }
+    val publicChannel by lazy {
+      buildMutualTlsChannel(kingdomTarget, signingCerts, kingdomCertHost)
+    }
 
     val requisitionsStub = RequisitionsCoroutineStub(publicChannel)
     val eventGroupsStub = EventGroupsCoroutineStub(publicChannel)
     val edpPrivateKey = checkNotNull(File(dataProviderConfig.edpPrivateKeyPath))
 
-    val requisitionsValidator = RequisitionsValidator(
-      loadPrivateKey(edpPrivateKey),
-    ) { requisition, refusal ->
-      refusalCoroutineScope.launch {
-        logger.info("Refusing ${requisition.name}: $refusal")
-        refuseRequisition(requisitionsStub, requisition, refusal)
+    val requisitionsValidator =
+      RequisitionsValidator(loadPrivateKey(edpPrivateKey)) { requisition, refusal ->
+        runBlocking {
+          logger.info("Refusing ${requisition.name}: $refusal")
+          refuseRequisition(requisitionsStub, requisition, refusal)
+        }
       }
-    }
 
-    val requisitionGrouper = RequisitionGrouperByReportId(
-      requisitionsValidator,
-      eventGroupsStub,
-      requisitionsStub,
-      MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofSeconds(grpcThrottler))
-    )
+    val requisitionGrouper =
+      RequisitionGrouperByReportId(
+        requisitionsValidator,
+        eventGroupsStub,
+        requisitionsStub,
+        MinimumIntervalThrottler(Clock.systemUTC(), grpcRequestInterval),
+      )
 
     return RequisitionFetcher(
       requisitionsStub = requisitionsStub,
@@ -139,19 +139,23 @@ class RequisitionFetcherFunction : HttpFunction {
       dataProviderName = dataProviderConfig.dataProvider,
       storagePathPrefix = dataProviderConfig.storagePathPrefix,
       requisitionGrouper = requisitionGrouper,
-      idGenerator = ::createDeterministicId,
+      groupedRequisitionsIdGenerator = ::createDeterministicId,
       responsePageSize = pageSize,
     )
   }
 
   /**
-   * Creates a [StorageClient] based on the current environment and the provided data provider configuration.
+   * Creates a [StorageClient] based on the current environment and the provided data provider
+   * configuration.
    *
    * @param dataProviderConfig The configuration object for a `DataProvider`.
    * @return A [StorageClient] instance, either for local file system access or GCS access.
    */
-  // @TODO(@marcopremier): This function may share the logic of `ResultsFulfillerAppImpl.createStorageClient` method.
-  private fun createStorageClient(dataProviderConfig: DataProviderRequisitionConfig): StorageClient {
+  // @TODO(@marcopremier): This function may share the logic of
+  // `ResultsFulfillerAppImpl.createStorageClient` method.
+  private fun createStorageClient(
+    dataProviderConfig: DataProviderRequisitionConfig
+  ): StorageClient {
     return if (!fileSystemPath.isNullOrEmpty()) {
       FileSystemStorageClient(File(EnvVars.checkIsPath("REQUISITION_FILE_SYSTEM_PATH")))
     } else {
@@ -165,12 +169,16 @@ class RequisitionFetcherFunction : HttpFunction {
           }
           .build()
           .service,
-        gcsConfig.bucketName
+        gcsConfig.bucketName,
       )
     }
   }
 
-  private suspend fun refuseRequisition(requisitionsStub: RequisitionsCoroutineStub, requisition: Requisition, refusal: Requisition.Refusal) {
+  private suspend fun refuseRequisition(
+    requisitionsStub: RequisitionsCoroutineStub,
+    requisition: Requisition,
+    refusal: Requisition.Refusal,
+  ) {
     try {
       logger.info("Requisition ${requisition.name} was refused. $refusal")
       val request = refuseRequisitionRequest {
@@ -179,7 +187,7 @@ class RequisitionFetcherFunction : HttpFunction {
       }
       requisitionsStub.refuseRequisition(request)
     } catch (e: Exception) {
-      logger.log(Level.SEVERE,"Error while refusing requisition ${requisition.name}", e)
+      logger.log(Level.SEVERE, "Error while refusing requisition ${requisition.name}", e)
     }
   }
 
@@ -188,9 +196,9 @@ class RequisitionFetcherFunction : HttpFunction {
     private val kingdomTarget = EnvVars.checkNotNullOrEmpty("KINGDOM_TARGET")
     private val kingdomCertHost: String? = System.getenv("KINGDOM_CERT_HOST")
     private val fileSystemPath: String? = System.getenv("REQUISITION_FILE_SYSTEM_PATH")
-    private val grpcThrottler = EnvVars.checkNotNullOrEmpty("GRPC_THROTTLER").toLongOrNull()
-      ?: error("Invalid GRPC_THROTTLER value: must be a number (milliseconds)")
-
+    private const val DEFAULT_GRCP_INTERVAL = "1s"
+    private val grpcRequestInterval: Duration =
+      (System.getenv("GRPC_REQUEST_INTERVAL") ?: DEFAULT_GRCP_INTERVAL).toDuration()
 
     val pageSize = run {
       val envPageSize = System.getenv("PAGE_SIZE")
@@ -206,13 +214,14 @@ class RequisitionFetcherFunction : HttpFunction {
       runBlocking { getConfig(CONFIG_BLOB_KEY, RequisitionFetcherConfig.getDefaultInstance()) }
     }
 
-    private val refusalCoroutineScope = CoroutineScope(Dispatchers.IO)
-
     fun createDeterministicId(groupedRequisition: GroupedRequisitions): String {
-      val requisitionNames = groupedRequisition.requisitionsList.mapNotNull { entry ->
-        val requisition = entry.requisition.unpack(Requisition::class.java)
-        requisition.name
-      }.sorted()
+      val requisitionNames =
+        groupedRequisition.requisitionsList
+          .mapNotNull { entry ->
+            val requisition = entry.requisition.unpack(Requisition::class.java)
+            requisition.name
+          }
+          .sorted()
 
       val concatenated = requisitionNames.joinToString(separator = "|")
       val digest = MessageDigest.getInstance("SHA-256").digest(concatenated.toByteArray())
@@ -220,12 +229,13 @@ class RequisitionFetcherFunction : HttpFunction {
     }
 
     /**
-     * Loads [SigningCerts] from PEM-encoded certificate, private key, and trusted certificate collection files
-     * specified in the given [dataProviderConfig].
+     * Loads [SigningCerts] from PEM-encoded certificate, private key, and trusted certificate
+     * collection files specified in the given [dataProviderConfig].
      *
      * @param dataProviderConfig The configuration object.
      * @return A [SigningCerts] instance loaded from the specified PEM files.
-     * @throws IllegalStateException if any of the required file paths are missing in the configuration.
+     * @throws IllegalStateException if any of the required file paths are missing in the
+     *   configuration.
      */
     private fun loadSigningCerts(dataProviderConfig: DataProviderRequisitionConfig): SigningCerts {
       val cmms = dataProviderConfig.cmmsConnection
@@ -237,16 +247,15 @@ class RequisitionFetcherFunction : HttpFunction {
     }
 
     fun validateConfig(dataProviderConfig: DataProviderRequisitionConfig) {
-      require(dataProviderConfig.dataProvider.isNotBlank()) {
-        "Missing 'data_provider' in config."
-      }
+      require(dataProviderConfig.dataProvider.isNotBlank()) { "Missing 'data_provider' in config." }
 
       require(dataProviderConfig.hasRequisitionStorage()) {
         "Missing 'requisition_storage' in config for data provider: ${dataProviderConfig.dataProvider}."
       }
 
       require(
-        dataProviderConfig.requisitionStorage.hasGcs() || dataProviderConfig.requisitionStorage.hasFileSystem()
+        dataProviderConfig.requisitionStorage.hasGcs() ||
+          dataProviderConfig.requisitionStorage.hasFileSystem()
       ) {
         "Invalid 'requisition_storage': must specify either GCS or FileSystem storage for data provider: ${dataProviderConfig.dataProvider}."
       }
@@ -274,6 +283,5 @@ class RequisitionFetcherFunction : HttpFunction {
         "Missing 'cert_collection_file_path' in cmms_connection for data provider: ${dataProviderConfig.dataProvider}."
       }
     }
-
   }
 }

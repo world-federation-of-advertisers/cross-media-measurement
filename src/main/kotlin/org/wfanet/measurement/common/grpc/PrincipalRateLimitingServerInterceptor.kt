@@ -17,7 +17,6 @@
 package org.wfanet.measurement.common.grpc
 
 import io.grpc.Context
-import io.grpc.ForwardingServerCall.SimpleForwardingServerCall
 import io.grpc.Metadata
 import io.grpc.ServerCall
 import io.grpc.ServerCallHandler
@@ -63,16 +62,8 @@ class PrincipalRateLimitingServerInterceptor(
       }
     val cost = methodCost.getOrDefault(call.methodDescriptor.fullMethodName, DEFAULT_METHOD_COST)
 
-    val permit: RateLimiter.Permit? = rateLimiter.tryAcquire(cost)
-    return if (permit != null) {
-      val interceptedCall =
-        object : SimpleForwardingServerCall<ReqT, RespT>(call) {
-          override fun close(status: Status, trailers: Metadata) {
-            permit.release()
-            super.close(status, trailers)
-          }
-        }
-      next.startCall(interceptedCall, headers)
+    return if (rateLimiter.tryAcquire(cost)) {
+      next.startCall(call, headers)
     } else {
       call.close(RATE_LIMIT_EXCEEDED_STATUS, Metadata())
       object : ServerCall.Listener<ReqT>() {}
