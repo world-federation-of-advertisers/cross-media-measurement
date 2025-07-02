@@ -171,6 +171,7 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
     inProcessCmmsComponents.stopPopulationRequisitionFulfillerDaemon()
   }
 
+  @Test
   fun `create a direct RF measurement and check the result is equal to the expected result`() =
     runBlocking {
       delay(1000)
@@ -180,7 +181,7 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
     }
 
   @Test
-  fun `create incremental direct RF measurements and check the result is equal to the expected result`() =
+  fun `create incremental direct RF measurements in same report and check the result is equal to the expected result`() =
     runBlocking {
       delay(1000)
       // Use frontend simulator to create N incremental direct reach and frequency measurements and

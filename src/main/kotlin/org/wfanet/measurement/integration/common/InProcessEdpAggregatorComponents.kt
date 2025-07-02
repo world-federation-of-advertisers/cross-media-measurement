@@ -91,6 +91,7 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGr
 import org.wfanet.measurement.securecomputation.datawatcher.DataWatcher
 import org.wfanet.measurement.securecomputation.datawatcher.testing.DataWatcherSubscribingStorageClient
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.InternalApiServices
+import org.wfanet.measurement.securecomputation.deploy.gcloud.testing.TestIdTokenProvider
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 
@@ -144,7 +145,7 @@ class InProcessEdpAggregatorComponents(
   }
 
   private val resultFulfillerApp by lazy {
-    val typeRegistry = TypeRegistry.newBuilder().add(LabeledImpression.getDescriptor()).build()
+    val typeRegistry = TypeRegistry.newBuilder().add(TestEvent.getDescriptor()).build()
     val requisitionStubFactory = TestRequisitionStubFactory(publicApiChannel)
     val subscriber = Subscriber(PROJECT_ID, pubSubClient)
     val getStorageConfig = { _: ResultsFulfillerParams.StorageParams ->
@@ -200,6 +201,7 @@ class InProcessEdpAggregatorComponents(
           edpDisplayNameToResourceMap.getValue(edpAggregatorShortName).dataProvider.certificate
         )!!,
         "file:///$IMPRESSIONS_METADATA_BUCKET",
+        noiseType = ResultsFulfillerParams.NoiseParams.NoiseType.CONTINUOUS_GAUSSIAN,
       )
     val watchedPaths =
       getDataWatcherResultFulfillerParamsConfig(
@@ -209,7 +211,8 @@ class InProcessEdpAggregatorComponents(
     for (path in watchedPaths) {
       WatchedPath.parseFrom(path.toByteString())
     }
-    dataWatcher = DataWatcher(workItemsClient, watchedPaths)
+    dataWatcher =
+      DataWatcher(workItemsClient, watchedPaths, idTokenProvider = TestIdTokenProvider())
 
     val subscribingStorageClient = DataWatcherSubscribingStorageClient(storageClient, "file:///")
     subscribingStorageClient.subscribe(dataWatcher)
@@ -243,8 +246,8 @@ class InProcessEdpAggregatorComponents(
       )
     backgroundScope.launch {
       while (true) {
-        requisitionFetcher.fetchAndStoreRequisitions()
         delay(1000)
+        requisitionFetcher.fetchAndStoreRequisitions()
       }
     }
     val eventGroups = buildEventGroups(measurementConsumerData)

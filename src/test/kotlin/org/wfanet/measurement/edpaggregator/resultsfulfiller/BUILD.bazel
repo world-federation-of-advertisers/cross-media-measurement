@@ -56,6 +56,9 @@ kt_jvm_test(
         "//src/main/k8s/testing/secretfiles:all_tink_keysets",
         "//src/main/k8s/testing/secretfiles:edp_trusted_certs.pem",
     ],
+    tags = [
+        "no-remote-exec",
+    ],
     test_class = "org.wfanet.measurement.edpaggregator.resultsfulfiller.ResultsFulfillerAppTest",
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha/testing",
