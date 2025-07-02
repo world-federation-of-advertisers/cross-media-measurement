@@ -295,7 +295,12 @@ class InProcessReportingServer(
                 SecureRandom().asKotlinRandom(),
               )
               .withTrustedPrincipalAuthentication(),
-            BasicReportsService(internalBasicReportsClient, authorization)
+            BasicReportsService(
+                internalBasicReportsClient,
+                internalImpressionQualificationFiltersClient,
+                internalReportingSetsClient,
+                authorization,
+              )
               .withTrustedPrincipalAuthentication(),
             ImpressionQualificationFiltersService(
                 internalImpressionQualificationFiltersClient,
