@@ -19,9 +19,7 @@ import com.google.protobuf.Message
 import java.security.cert.X509Certificate
 import java.time.Duration
 import java.time.LocalDate
-import java.util.logging.Logger
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.filter
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
@@ -34,7 +32,6 @@ import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCorouti
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig.NoiseMechanism
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
-import org.wfanet.measurement.api.v2alpha.requisitionSpec
 import org.wfanet.measurement.common.OpenEndTimeRange
 import org.wfanet.measurement.loadtest.config.TestIdentifiers
 import org.wfanet.measurement.loadtest.dataprovider.EventQuery
@@ -44,7 +41,7 @@ import org.wfanet.measurement.loadtest.dataprovider.EventQuery
  * EDPSimulator.
  */
 class EventQueryMeasurementConsumerSimulator(
-  private val measurementConsumerData: MeasurementConsumerData,
+  measurementConsumerData: MeasurementConsumerData,
   outputDpParams: DifferentialPrivacyParams,
   dataProvidersClient: DataProvidersCoroutineStub,
   eventGroupsClient: EventGroupsCoroutineStub,
@@ -81,7 +78,7 @@ class EventQueryMeasurementConsumerSimulator(
     }
   }
 
-  override fun getFilteredVids(measurementInfo: MeasurementInfo): Flow<Long> {
+  override fun getFilteredVids(measurementInfo: MeasurementInfo): Sequence<Long> {
     val eventGroupSpecs =
       measurementInfo.requisitions
         .flatMap {
@@ -93,13 +90,13 @@ class EventQueryMeasurementConsumerSimulator(
         }
         .asSequence()
 
-    return eventGroupSpecs.flatMap { eventQuery.getUserVirtualIds(it) }.asFlow()
+    return eventGroupSpecs.flatMap { eventQuery.getUserVirtualIds(it) }
   }
 
   override fun getFilteredVids(
     measurementInfo: MeasurementInfo,
     targetDataProviderId: String,
-  ): Flow<Long> {
+  ): Sequence<Long> {
     val eventGroupSpecs =
       measurementInfo.requisitions
         .flatMap { requisitionInfo ->
@@ -115,7 +112,7 @@ class EventQueryMeasurementConsumerSimulator(
             }
         }
         .asSequence()
-    return eventGroupSpecs.flatMap { eventQuery.getUserVirtualIds(it) }.asFlow()
+    return eventGroupSpecs.flatMap { eventQuery.getUserVirtualIds(it) }
   }
 
   companion object {
@@ -126,7 +123,5 @@ class EventQueryMeasurementConsumerSimulator(
     /** Default time range for events. */
     private val DEFAULT_EVENT_RANGE =
       OpenEndTimeRange.fromClosedDateRange(LocalDate.of(2021, 3, 15)..LocalDate.of(2021, 3, 17))
-
-    private val logger: Logger = Logger.getLogger(this::class.java.name)
   }
 }

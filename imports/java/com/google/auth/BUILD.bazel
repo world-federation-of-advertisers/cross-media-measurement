@@ -1,0 +1,11 @@
+package(default_visibility = ["//visibility:public"])
+
+alias(
+    name = "oauth_http2",
+    actual = "@maven//:com_google_auth_google_auth_library_oauth2_http",
+)
+
+alias(
+    name = "credentials",
+    actual = "@maven//:com_google_auth_google_auth_library_credentials",
+)
