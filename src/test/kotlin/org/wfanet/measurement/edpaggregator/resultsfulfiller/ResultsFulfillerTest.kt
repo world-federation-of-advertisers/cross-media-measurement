@@ -37,6 +37,7 @@ import java.time.Duration
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.ZoneOffset
+import java.util.logging.Logger
 import kotlin.test.assertTrue
 import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.flow
@@ -225,7 +226,8 @@ class ResultsFulfillerTest {
       }
 
     for (date in dates) {
-      val impressionMetadataBlobKey = "ds/$date/event-group-id/$EVENT_GROUP_NAME/metadata"
+      val impressionMetadataBlobKey =
+        "ds/$date/event-group-reference-id/some-event-group-reference-id/metadata"
       val impressionsMetadataFileUri =
         "file:///$IMPRESSIONS_METADATA_BUCKET/$impressionMetadataBlobKey"
 
@@ -239,6 +241,7 @@ class ResultsFulfillerTest {
           .setBlobUri(IMPRESSIONS_FILE_URI)
           .setEncryptedDek(encryptedDek)
           .build()
+      logger.info("Writing $impressionMetadataBlobKey")
 
       impressionsMetadataStorageClient.writeBlob(
         impressionMetadataBlobKey,
@@ -363,6 +366,7 @@ class ResultsFulfillerTest {
   }
 
   companion object {
+    private val logger: Logger = Logger.getLogger(this::class.java.name)
     private val RANDOM = SecureRandom.getInstance("SHA1PRNG")
     private val LAST_EVENT_DATE = LocalDate.now(ZoneId.of("America/New_York")).minusDays(1)
     private val FIRST_EVENT_DATE = LAST_EVENT_DATE.minusDays(1)
