@@ -150,7 +150,6 @@ class HardcodedImpressionsResultsFulfillerTest {
     // Set up streaming encryption
     val tinkKeyTemplateType = "AES128_GCM_HKDF_1MB"
     val aeadKeyTemplate = KeyTemplates.get(tinkKeyTemplateType)
-    val keyEncryptionHandle = KeysetHandle.generateNew(aeadKeyTemplate)
     val typeRegistry = TypeRegistry.newBuilder().add(TestEvent.getDescriptor()).build()
 
     // Setting RANDOM to always return 1 to cancel out noise and properly test with a consistent
@@ -201,15 +200,8 @@ class HardcodedImpressionsResultsFulfillerTest {
   companion object {
     private val RANDOM = SecureRandom.getInstance("SHA1PRNG")
     private val FIRST_EVENT_DATE = LocalDate.of(2025, 1, 1)
-    private val LAST_EVENT_DATE = LocalDate.of(2025, 3, 30)
+    private val LAST_EVENT_DATE = LocalDate.of(2025, 1, 2)
     private val TIME_RANGE = OpenEndTimeRange.fromClosedDateRange(FIRST_EVENT_DATE..LAST_EVENT_DATE)
-
-    private val PERSON = person {
-      ageGroup = Person.AgeGroup.YEARS_18_TO_34
-      gender = Person.Gender.MALE
-      socialGradeGroup = Person.SocialGradeGroup.A_B_C1
-    }
-
     private const val EDP_ID = "someDataProvider"
     private const val EDP_NAME = "dataProviders/$EDP_ID"
     private const val EVENT_GROUP_NAME = "$EDP_NAME/eventGroups/name"

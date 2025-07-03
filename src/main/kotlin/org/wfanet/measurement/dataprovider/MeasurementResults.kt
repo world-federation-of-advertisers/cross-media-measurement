@@ -20,6 +20,7 @@ import com.google.protobuf.TypeRegistry
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.fold
+import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.projectnessie.cel.Program
 import org.wfanet.measurement.populationdataprovider.PopulationInfo
@@ -39,15 +40,20 @@ object MeasurementResults {
   ): ReachAndFrequency {
     val startTime = System.currentTimeMillis()
     
-    // Count occurrences of each VID using fold operation on the flow
+    // Drain the flow entirely into a list first
+    val drainStartTime = System.currentTimeMillis()
+    val vidsList = filteredVids.toList()
+    val drainDuration = System.currentTimeMillis() - drainStartTime
+    println("Profile: Flow draining took ${drainDuration}ms for ${vidsList.size} total VIDs")
+    
+    // Count occurrences of each VID from the drained list
     val foldStartTime = System.currentTimeMillis()
-    val eventsPerVid =
-      filteredVids.fold(mutableMapOf<Long, Int>()) { acc, vid ->
-        acc[vid] = acc.getOrDefault(vid, 0) + 1
-        acc
-      }
+    val eventsPerVid = mutableMapOf<Long, Int>()
+    for (vid in vidsList) {
+      eventsPerVid[vid] = eventsPerVid.getOrDefault(vid, 0) + 1
+    }
     val foldDuration = System.currentTimeMillis() - foldStartTime
-    println("Profile: VID folding took ${foldDuration}ms for ${eventsPerVid.size} unique VIDs")
+    println("Profile: VID counting took ${foldDuration}ms for ${eventsPerVid.size} unique VIDs")
 
     val reach: Int = eventsPerVid.keys.size
 
