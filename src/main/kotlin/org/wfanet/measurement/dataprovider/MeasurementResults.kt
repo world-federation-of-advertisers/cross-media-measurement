@@ -37,29 +37,46 @@ object MeasurementResults {
     filteredVids: Flow<Long>,
     maxFrequency: Int,
   ): ReachAndFrequency {
+    val startTime = System.currentTimeMillis()
+    
     // Count occurrences of each VID using fold operation on the flow
+    val foldStartTime = System.currentTimeMillis()
     val eventsPerVid =
       filteredVids.fold(mutableMapOf<Long, Int>()) { acc, vid ->
         acc[vid] = acc.getOrDefault(vid, 0) + 1
         acc
       }
+    val foldDuration = System.currentTimeMillis() - foldStartTime
+    println("Profile: VID folding took ${foldDuration}ms for ${eventsPerVid.size} unique VIDs")
 
     val reach: Int = eventsPerVid.keys.size
 
     // If the filtered VIDs is empty, set the distribution with all 0s up to maxFrequency.
     if (reach == 0) {
+      val totalDuration = System.currentTimeMillis() - startTime
+      println("Profile: computeReachAndFrequency (empty) took ${totalDuration}ms")
       return ReachAndFrequency(reach, (1..maxFrequency).associateWith { 0.0 })
     }
 
     // Build frequency histogram as a 0-based array.
+    val histogramStartTime = System.currentTimeMillis()
     val frequencyArray = IntArray(maxFrequency)
     for (count in eventsPerVid.values) {
       val bucket = count.coerceAtMost(maxFrequency)
       frequencyArray[bucket - 1]++
     }
+    val histogramDuration = System.currentTimeMillis() - histogramStartTime
+    println("Profile: Frequency histogram creation took ${histogramDuration}ms")
 
+    val distributionStartTime = System.currentTimeMillis()
     val frequencyDistribution: Map<Int, Double> =
       frequencyArray.withIndex().associateBy({ it.index + 1 }, { it.value.toDouble() / reach })
+    val distributionDuration = System.currentTimeMillis() - distributionStartTime
+    println("Profile: Frequency distribution calculation took ${distributionDuration}ms")
+    
+    val totalDuration = System.currentTimeMillis() - startTime
+    println("Profile: computeReachAndFrequency total took ${totalDuration}ms (reach: $reach, maxFreq: $maxFrequency)")
+    
     return ReachAndFrequency(reach, frequencyDistribution)
   }
 
@@ -68,7 +85,11 @@ object MeasurementResults {
    * "deterministic distribution" methodology.
    */
   fun computeReachAndFrequency(filteredVids: Iterable<Long>, maxFrequency: Int): ReachAndFrequency {
-    return runBlocking { computeReachAndFrequency(filteredVids.asFlow(), maxFrequency) }
+    val startTime = System.currentTimeMillis()
+    val result = runBlocking { computeReachAndFrequency(filteredVids.asFlow(), maxFrequency) }
+    val totalDuration = System.currentTimeMillis() - startTime
+    println("Profile: computeReachAndFrequency (sync wrapper) took ${totalDuration}ms")
+    return result
   }
 
   /** Computes reach using the "deterministic count distinct" methodology. */

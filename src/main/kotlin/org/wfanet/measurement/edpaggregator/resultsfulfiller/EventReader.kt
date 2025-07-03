@@ -67,7 +67,7 @@ class EventReader(
   private suspend fun getBlobDetails(ds: LocalDate, eventGroupReferenceId: String): BlobDetails {
     val dekBlobKey = "ds/$ds/event-group-reference-id/$eventGroupReferenceId/metadata"
     val dekBlobUri = "$labeledImpressionsDekPrefix/$dekBlobKey"
-
+    print(impressionDekStorageConfig)
     val storageClientUri = SelectedStorageClient.parseBlobUri(dekBlobUri)
     val impressionsDekStorageClient =
       SelectedStorageClient(
