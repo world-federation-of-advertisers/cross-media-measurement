@@ -228,6 +228,7 @@ fun getResultsFulfillerParams(
   edpResourceName: String,
   edpCertificateKey: DataProviderCertificateKey,
   labeledImpressionBlobUriPrefix: String,
+  noiseType: ResultsFulfillerParams.NoiseParams.NoiseType,
 ): ResultsFulfillerParams {
   return resultsFulfillerParams {
     this.dataProvider = edpResourceName
@@ -251,6 +252,7 @@ fun getResultsFulfillerParams(
           SECRET_FILES_PATH.resolve("${edpDisplayName}_enc_private.tink").toString()
         edpCertificateName = edpCertificateKey.toName()
       }
+    this.noiseParams = ResultsFulfillerParamsKt.noiseParams { this.noiseType = noiseType }
   }
 }
 
@@ -263,7 +265,7 @@ fun getDataWatcherResultFulfillerParamsConfig(
     .map { (edpName, params) ->
       listOf(
         watchedPath {
-          sourcePathRegex = "$blobPrefix$edpName/(.*)"
+          sourcePathRegex = "$blobPrefix(.*)"
           this.controlPlaneQueueSink =
             WatchedPathKt.controlPlaneQueueSink {
               queue = FULFILLER_TOPIC_ID

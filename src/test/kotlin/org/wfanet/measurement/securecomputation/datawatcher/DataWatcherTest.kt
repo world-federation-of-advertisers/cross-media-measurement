@@ -16,7 +16,6 @@
 
 package org.wfanet.measurement.securecomputation.datawatcher
 
-import com.google.auth.oauth2.IdToken
 import com.google.auth.oauth2.IdTokenProvider
 import com.google.common.truth.Truth.assertThat
 import com.google.gson.Gson
@@ -47,21 +46,7 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.CreateWorkI
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem.WorkItemParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineImplBase
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
-
-class TestIdTokenProvider : IdTokenProvider {
-  override fun idTokenWithAudience(
-    targetAudience: String,
-    options: MutableList<IdTokenProvider.Option>?,
-  ): IdToken {
-    val idToken = IdToken.create(JWT_TOKEN)
-    return idToken
-  }
-
-  companion object {
-    private const val JWT_TOKEN =
-      "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiYWRtaW4iOnRydWUsImlhdCI6MTUxNjIzOTAyMiwiZXhwIjoxNTE2MjQyNjIyfQ.KMUFsIDTnFmyG3nMiGM6H9FNFUROf3wh7SmqJp-QV30"
-  }
-}
+import org.wfanet.measurement.securecomputation.deploy.gcloud.testing.TestIdTokenProvider
 
 @RunWith(JUnit4::class)
 class DataWatcherTest() {

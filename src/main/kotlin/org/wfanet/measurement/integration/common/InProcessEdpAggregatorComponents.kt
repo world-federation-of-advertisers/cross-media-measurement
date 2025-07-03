@@ -21,6 +21,7 @@ import com.google.crypto.tink.KeyTemplates
 import com.google.crypto.tink.KeysetHandle
 import com.google.crypto.tink.aead.AeadConfig
 import com.google.crypto.tink.streamingaead.StreamingAeadConfig
+import com.google.protobuf.TypeRegistry
 import com.google.protobuf.timestamp
 import com.google.type.interval
 import io.grpc.Channel
@@ -60,6 +61,7 @@ import org.wfanet.measurement.common.testing.ProviderRule
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.config.securecomputation.WatchedPath
+import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.eventgroups.EventGroupSync
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup.MediaType
@@ -71,27 +73,45 @@ import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.eventGroup
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionFetcher
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionGrouperByReportId
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionsValidator
+import org.wfanet.measurement.edpaggregator.resultsfulfiller.ResultsFulfillerApp
+import org.wfanet.measurement.edpaggregator.resultsfulfiller.testing.TestRequisitionStubFactory
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
+import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
+import org.wfanet.measurement.gcloud.pubsub.Subscriber
 import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorClient
+import org.wfanet.measurement.gcloud.spanner.testing.SpannerDatabaseAdmin
+import org.wfanet.measurement.integration.deploy.gcloud.SecureComputationServicesProviderRule
 import org.wfanet.measurement.loadtest.dataprovider.LabeledEventDateShard
 import org.wfanet.measurement.loadtest.dataprovider.SyntheticDataGeneration
 import org.wfanet.measurement.loadtest.edpaggregator.testing.ImpressionsWriter
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
 import org.wfanet.measurement.loadtest.resourcesetup.Resources.Resource
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineStub
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
 import org.wfanet.measurement.securecomputation.datawatcher.DataWatcher
 import org.wfanet.measurement.securecomputation.datawatcher.testing.DataWatcherSubscribingStorageClient
+import org.wfanet.measurement.securecomputation.deploy.gcloud.publisher.GoogleWorkItemPublisher
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.InternalApiServices
+import org.wfanet.measurement.securecomputation.deploy.gcloud.testing.TestIdTokenProvider
+import org.wfanet.measurement.securecomputation.service.internal.QueueMapping
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 
 class InProcessEdpAggregatorComponents(
-  private val internalServicesRule: ProviderRule<InternalApiServices>,
-  private val pubSubClient: GooglePubSubEmulatorClient,
+  secureComputationDatabaseAdmin: SpannerDatabaseAdmin,
   private val storagePath: Path,
+  private val pubSubClient: GooglePubSubEmulatorClient,
   private val syntheticPopulationSpec: SyntheticPopulationSpec,
   private val syntheticEventGroupMap: Map<String, SyntheticEventGroupSpec>,
 ) : TestRule {
+
+  private val internalServicesRule: ProviderRule<InternalApiServices> =
+    SecureComputationServicesProviderRule(
+      workItemPublisher = GoogleWorkItemPublisher(PROJECT_ID, pubSubClient),
+      queueMapping = QueueMapping(QUEUES_CONFIG),
+      emulatorDatabaseAdmin = secureComputationDatabaseAdmin,
+    )
 
   private val internalServices: InternalApiServices
     get() = internalServicesRule.value
@@ -134,7 +154,28 @@ class InProcessEdpAggregatorComponents(
     kmsClient
   }
 
-  // TODO(@stevenewarejones): Add Results Fulfiller App when ready
+  private val resultFulfillerApp by lazy {
+    val typeRegistry = TypeRegistry.newBuilder().add(TestEvent.getDescriptor()).build()
+    val requisitionStubFactory = TestRequisitionStubFactory(publicApiChannel)
+    val subscriber = Subscriber(PROJECT_ID, pubSubClient)
+    val getStorageConfig = { _: ResultsFulfillerParams.StorageParams ->
+      StorageConfig(rootDirectory = storagePath.toFile())
+    }
+    ResultsFulfillerApp(
+      parser = WorkItem.parser(),
+      subscriptionId = SUBSCRIPTION_ID,
+      workItemsClient = workItemsClient,
+      workItemAttemptsClient =
+        WorkItemAttemptsCoroutineStub(secureComputationPublicApi.publicApiChannel),
+      queueSubscriber = subscriber,
+      kmsClient = kmsClient,
+      requisitionStubFactory = requisitionStubFactory,
+      typeRegistry = typeRegistry,
+      getImpressionsMetadataStorageConfig = getStorageConfig,
+      getImpressionsStorageConfig = getStorageConfig,
+      getRequisitionsStorageConfig = getStorageConfig,
+    )
+  }
 
   val ruleChain: TestRule by lazy {
     chainRulesSequentially(internalServicesRule, secureComputationPublicApi)
@@ -149,6 +190,8 @@ class InProcessEdpAggregatorComponents(
           logger.log(Level.SEVERE, e) { "Error in $loggingName" }
         }
     )
+
+  private val throttler = MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofSeconds(1L))
 
   fun startDaemons(
     kingdomChannel: Channel,
@@ -168,6 +211,7 @@ class InProcessEdpAggregatorComponents(
           edpDisplayNameToResourceMap.getValue(edpAggregatorShortName).dataProvider.certificate
         )!!,
         "file:///$IMPRESSIONS_METADATA_BUCKET",
+        noiseType = ResultsFulfillerParams.NoiseParams.NoiseType.CONTINUOUS_GAUSSIAN,
       )
     val watchedPaths =
       getDataWatcherResultFulfillerParamsConfig(
@@ -177,7 +221,8 @@ class InProcessEdpAggregatorComponents(
     for (path in watchedPaths) {
       WatchedPath.parseFrom(path.toByteString())
     }
-    dataWatcher = DataWatcher(workItemsClient, watchedPaths)
+    dataWatcher =
+      DataWatcher(workItemsClient, watchedPaths, idTokenProvider = TestIdTokenProvider())
 
     val subscribingStorageClient = DataWatcherSubscribingStorageClient(storageClient, "file:///")
     subscribingStorageClient.subscribe(dataWatcher)
@@ -197,7 +242,7 @@ class InProcessEdpAggregatorComponents(
         requisitionsValidator,
         eventGroupsClient,
         requisitionsClient,
-        MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofSeconds(1L)),
+        throttler,
       )
 
     requisitionFetcher =
@@ -211,24 +256,18 @@ class InProcessEdpAggregatorComponents(
       )
     backgroundScope.launch {
       while (true) {
-        requisitionFetcher.fetchAndStoreRequisitions()
         delay(1000)
+        requisitionFetcher.fetchAndStoreRequisitions()
       }
     }
     val eventGroups = buildEventGroups(measurementConsumerData)
     eventGroupSync =
-      EventGroupSync(
-        edpResourceName,
-        eventGroupsClient,
-        eventGroups.asFlow(),
-        MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000L)),
-      )
+      EventGroupSync(edpResourceName, eventGroupsClient, eventGroups.asFlow(), throttler)
     val mappedEventGroups: List<MappedEventGroup> = runBlocking { eventGroupSync.sync().toList() }
     logger.info("Received mappedEventGroups: $mappedEventGroups")
     backgroundScope.launch {
       runBlocking { writeImpressionData(mappedEventGroups) }
-
-      // TODO(@stevenwarejones): Run Results Fulfiller App
+      resultFulfillerApp.run()
     }
   }
 
@@ -300,10 +339,9 @@ class InProcessEdpAggregatorComponents(
           syntheticPopulationSpec,
           syntheticEventGroupMap.getValue(mappedEventGroup.eventGroupReferenceId),
         )
-      // TODO: Change this to event-group-reference ID once the app is updated
       val impressionWriter =
         ImpressionsWriter(
-          "event-group-id/${mappedEventGroup.eventGroupResource}",
+          "event-group-reference-id/${mappedEventGroup.eventGroupReferenceId}",
           kekUri,
           kmsClient,
           IMPRESSIONS_BUCKET,
