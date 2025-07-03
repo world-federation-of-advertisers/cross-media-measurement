@@ -12,8 +12,8 @@ date_specs {
     }
     end_exclusive {
       year: 2025
-      month: 1
-      day: 30
+      month: 2
+      day: 1
     }
   }
   frequency_specs {

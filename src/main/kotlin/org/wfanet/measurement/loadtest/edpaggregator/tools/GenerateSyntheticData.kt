@@ -15,13 +15,17 @@
 package org.wfanet.measurement.loadtest.edpaggregator.tools
 
 import com.google.crypto.tink.Aead
+import com.google.crypto.tink.BinaryKeysetWriter
+import com.google.crypto.tink.CleartextKeysetHandle
 import com.google.crypto.tink.KeyTemplates
 import com.google.crypto.tink.KeysetHandle
+import com.google.crypto.tink.KeysetWriter
 import com.google.crypto.tink.KmsClient
 import com.google.crypto.tink.aead.AeadConfig
 import com.google.crypto.tink.integration.gcpkms.GcpKmsClient
 import com.google.crypto.tink.streamingaead.StreamingAeadConfig
 import java.io.File
+import java.io.FileOutputStream
 import java.nio.file.Paths
 import java.time.ZoneId
 import java.util.logging.Logger
@@ -125,6 +129,15 @@ class GenerateSyntheticData : Runnable {
   lateinit var dataSpecResourcePath: String
     private set
 
+  @Option(
+    names = ["--master-key-file"],
+    description = ["Path to save the master key file when using FAKE KMS type."],
+    required = false,
+    defaultValue = "master-key.bin",
+  )
+  lateinit var masterKeyFile: String
+    private set
+
   @kotlin.io.path.ExperimentalPathApi
   override fun run() {
     val syntheticPopulationSpec: SyntheticPopulationSpec =
@@ -149,8 +162,26 @@ class GenerateSyntheticData : Runnable {
       when (kmsType) {
         KmsType.FAKE -> {
           val client = FakeKmsClient()
-          val kmsKeyHandle = KeysetHandle.generateNew(KeyTemplates.get("AES128_GCM"))
-          client.setAead(kekUri, kmsKeyHandle.getPrimitive(Aead::class.java))
+          val masterKeyHandle = KeysetHandle.generateNew(KeyTemplates.get("AES128_GCM"))
+          client.setAead(kekUri, masterKeyHandle.getPrimitive(Aead::class.java))
+          
+          // Save the master key to file (cleartext for FAKE KMS testing)
+          val masterKeyPath = File(masterKeyFile).absolutePath
+          logger.info("Attempting to save master key to: $masterKeyPath")
+          
+          try {
+            FileOutputStream(masterKeyFile).use { outputStream ->
+              val keySetWriter = BinaryKeysetWriter.withOutputStream(outputStream)
+              CleartextKeysetHandle.write(masterKeyHandle, keySetWriter)
+            }
+            logger.info("Master key successfully saved to: $masterKeyPath")
+            logger.info("File exists: ${File(masterKeyFile).exists()}")
+            logger.info("File size: ${File(masterKeyFile).length()} bytes")
+          } catch (e: Exception) {
+            logger.severe("Failed to save master key: ${e.message}")
+            throw e
+          }
+          
           client
         }
         KmsType.GCP -> {

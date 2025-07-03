@@ -16,68 +16,31 @@
 
 package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
-import com.google.common.truth.Truth.assertThat
-import com.google.crypto.tink.Aead
-import com.google.crypto.tink.KeyTemplates
-import com.google.crypto.tink.KeysetHandle
-import com.google.crypto.tink.TinkProtoKeysetFormat
+import com.google.crypto.tink.*
 import com.google.crypto.tink.aead.AeadConfig
 import com.google.crypto.tink.streamingaead.StreamingAeadConfig
 import com.google.protobuf.Any
-import com.google.protobuf.ByteString
-import com.google.protobuf.Timestamp
 import com.google.protobuf.TypeRegistry
 import com.google.type.interval
-import java.nio.file.Files
-import java.nio.file.Path
-import java.nio.file.Paths
-import java.security.SecureRandom
-import java.time.Clock
-import java.time.Duration
-import java.time.LocalDate
-import java.time.ZoneId
-import java.time.ZoneOffset
-import kotlin.test.assertTrue
-import kotlinx.coroutines.flow.asFlow
-import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.runBlocking
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
-import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
-import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
+import org.wfanet.measurement.api.v2alpha.*
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
-import org.wfanet.measurement.api.v2alpha.FulfillDirectRequisitionRequest
-import org.wfanet.measurement.api.v2alpha.GetEventGroupRequest
-import org.wfanet.measurement.api.v2alpha.Measurement
-import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reachAndFrequency
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.vidSamplingInterval
-import org.wfanet.measurement.api.v2alpha.ProtocolConfig
-import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt
-import org.wfanet.measurement.api.v2alpha.Requisition
-import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventFilter
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventGroupEntry
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.events
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
-import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
-import org.wfanet.measurement.api.v2alpha.eventGroup
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.person
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.testEvent
-import org.wfanet.measurement.api.v2alpha.fulfillDirectRequisitionResponse
-import org.wfanet.measurement.api.v2alpha.measurementSpec
-import org.wfanet.measurement.api.v2alpha.protocolConfig
-import org.wfanet.measurement.api.v2alpha.requisition
-import org.wfanet.measurement.api.v2alpha.requisitionSpec
-import org.wfanet.measurement.api.v2alpha.testing.MeasurementResultSubject.Companion.assertThat
-import org.wfanet.measurement.api.v2alpha.unpack
 import org.wfanet.measurement.common.OpenEndTimeRange
 import org.wfanet.measurement.common.crypto.Hashing
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
@@ -85,7 +48,6 @@ import org.wfanet.measurement.common.crypto.tink.TinkPrivateKeyHandle
 import org.wfanet.measurement.common.crypto.tink.loadPrivateKey
 import org.wfanet.measurement.common.crypto.tink.loadPublicKey
 import org.wfanet.measurement.common.crypto.tink.testing.FakeKmsClient
-import org.wfanet.measurement.common.crypto.tink.withEnvelopeEncryption
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
@@ -99,18 +61,20 @@ import org.wfanet.measurement.consent.client.measurementconsumer.decryptResult
 import org.wfanet.measurement.consent.client.measurementconsumer.encryptRequisitionSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.signMeasurementSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.signRequisitionSpec
-import org.wfanet.measurement.dataprovider.MeasurementResults
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionsValidator
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.SingleRequisitionGrouper
-import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
-import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
-import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
-import org.wfanet.measurement.edpaggregator.v1alpha.copy
 import org.wfanet.measurement.integration.common.loadEncryptionPrivateKey
-import org.wfanet.measurement.loadtest.config.VidSampling
-import org.wfanet.measurement.storage.MesosRecordIoStorageClient
 import org.wfanet.measurement.storage.SelectedStorageClient
+import java.io.FileInputStream
+import java.nio.file.Files
+import java.nio.file.Path
+import java.nio.file.Paths
+import java.security.SecureRandom
+import java.time.Clock
+import java.time.Duration
+import java.time.LocalDate
+import java.time.ZoneOffset
 
 @RunWith(JUnit4::class)
 class HardcodedImpressionsResultsFulfillerTest {
@@ -173,8 +137,14 @@ class HardcodedImpressionsResultsFulfillerTest {
 
     // Set up KMS
     val kmsClient = FakeKmsClient()
-    val kekUri = FakeKmsClient.KEY_URI_PREFIX + "kek"
-    val kmsKeyHandle = KeysetHandle.generateNew(KeyTemplates.get("AES128_GCM"))
+    val kekUri = FakeKmsClient.KEY_URI_PREFIX + "key1"
+
+    // Load master key from file
+    val masterKeyFile = "/home/mmg/storage/master-key.bin"
+    val kmsKeyHandle = FileInputStream(masterKeyFile).use { inputStream ->
+      val keysetReader = BinaryKeysetReader.withInputStream(inputStream)
+      CleartextKeysetHandle.read(keysetReader)
+    }
     kmsClient.setAead(kekUri, kmsKeyHandle.getPrimitive(Aead::class.java))
 
     // Set up streaming encryption
@@ -187,13 +157,13 @@ class HardcodedImpressionsResultsFulfillerTest {
     // result value
     RANDOM.setSeed(byteArrayOf(1, 1, 1, 1, 1, 1, 1, 1))
 
-    val impressionsPath = Paths.get("/tmp/impressions").toFile()
+    val impressionsPath = Paths.get("/home/mmg/storage").toFile()
     val eventReader =
       EventReader(
         kmsClient,
         StorageConfig(rootDirectory = impressionsPath),
         StorageConfig(rootDirectory = impressionsPath),
-        IMPRESSIONS_METADATA_FILE_URI_PREFIX,
+        "file://storage/impressions"
       )
 
     val resultsFulfiller =
