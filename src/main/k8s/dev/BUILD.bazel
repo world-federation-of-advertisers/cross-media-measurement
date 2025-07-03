@@ -553,7 +553,7 @@ cue_library(
     name = "measurement_system_prober_cue",
     srcs = ["measurement_system_prober_gke.cue"],
     deps = [
-        ":base_gke",
+        ":config_gke",
         "//src/main/k8s:measurement_system_prober",
     ],
 )
@@ -570,9 +570,12 @@ cue_dump(
         "secret_name": SECRET_NAME,
         "edp1_name": SIMULATOR_K8S_SETTINGS.edp1_name,
         "edp2_name": SIMULATOR_K8S_SETTINGS.edp2_name,
+        "prober_memory_request": "256Mi",
     },
     tags = ["manual"],
     deps = [
+        ":base_gke",
+        ":config_gke",
         ":measurement_system_prober_cue",
         "//src/main/k8s:measurement_system_prober",
     ],
