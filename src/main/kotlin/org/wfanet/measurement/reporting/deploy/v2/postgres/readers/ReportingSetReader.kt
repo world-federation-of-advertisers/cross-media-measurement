@@ -205,7 +205,9 @@ class ReportingSetReader(private val readContext: ReadContext) {
 
   fun readReportingSets(request: StreamReportingSetsRequest): Flow<Result> {
     val whereClause = buildString {
-      append("WHERE MeasurementConsumerId IN (SELECT MeasurementConsumerId FROM MeasurementConsumers WHERE CmmsMeasurementConsumerId = $1)")
+      append(
+        "WHERE MeasurementConsumerId IN (SELECT MeasurementConsumerId FROM MeasurementConsumers WHERE CmmsMeasurementConsumerId = $1)"
+      )
       if (request.filter.externalCampaignGroupId.isNotEmpty()) {
         append(
           "AND CampaignGroupId IN (SELECT ReportingSetId FROM ReportingSets WHERE ExternalReportingSetId = $4)"
