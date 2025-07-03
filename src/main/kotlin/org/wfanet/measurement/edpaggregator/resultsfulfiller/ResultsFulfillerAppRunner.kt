@@ -17,6 +17,8 @@
 package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
 import com.google.crypto.tink.integration.gcpkms.GcpKmsClient
+import com.google.protobuf.DescriptorProtos
+import com.google.protobuf.Descriptors
 import kotlinx.coroutines.runBlocking
 import com.google.protobuf.Parser
 import org.wfanet.measurement.common.commandLineMain
@@ -32,7 +34,7 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAttemptsGrpcKt
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt
 import org.wfanet.measurement.queue.QueueSubscriber
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
+import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams.StorageParams
 import org.wfanet.measurement.edpaggregator.StorageConfig
@@ -120,6 +122,24 @@ class ResultsFulfillerAppRunner : Runnable {
   lateinit var pubSubProjectId: String
     private set
 
+  @CommandLine.Option(
+    names = ["--event-template-metadata-type"],
+    description = [
+      "File path to a FileDescriptorSet containing your EventTemplate metadata types.",
+    ],
+    required = true
+  )
+  private fun setEventTemplateMetadataType(file: File) {
+    val fileDescriptorSet = file.inputStream().use { input ->
+      DescriptorProtos.FileDescriptorSet.parseFrom(input)
+    }
+
+    eventTemplateDescriptors = ProtoReflection.buildFileDescriptors(listOf(fileDescriptorSet))
+  }
+
+  lateinit var eventTemplateDescriptors: List<Descriptors.FileDescriptor>
+    private set
+
   private val getImpressionsStorageConfig: (StorageParams) -> StorageConfig = { storageParams ->
     StorageConfig(projectId = storageParams.gcsProjectId)
   }
@@ -155,11 +175,13 @@ class ResultsFulfillerAppRunner : Runnable {
     )
 
     val kmsClient = GcpKmsClient().withDefaultCredentials()
-    val typeRegistry =
-      TypeRegistry.newBuilder()
-        .add(TestEvent.getDescriptor())
-        .add(ResultsFulfillerParams.getDescriptor())
-        .build()
+
+    val typeRegistryBuilder = TypeRegistry.newBuilder()
+    eventTemplateDescriptors
+      .flatMap { it.messageTypes }
+      .forEach { typeRegistryBuilder.add(it) }
+    typeRegistryBuilder.add(ResultsFulfillerParams.getDescriptor())
+    val typeRegistry = typeRegistryBuilder.build()
 
     val resultsFulfillerApp = ResultsFulfillerApp(
       subscriptionId = subscriptionId,
