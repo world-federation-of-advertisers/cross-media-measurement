@@ -317,8 +317,8 @@ abstract class MeasurementConsumerSimulator(
   /**
    * A sequence of operations done in the simulator involving a direct reach and frequency
    * measurement.
-   *
-   * 1. Requisitions are all created before results are checked for any since requistions may be grouped.
+   * 1. Requisitions are all created before results are checked for any since requistions may be
+   *    grouped.
    * 2. Poll for requisition results.
    *
    * @numMeasurements - The number of incremental measurements to request within the time period.

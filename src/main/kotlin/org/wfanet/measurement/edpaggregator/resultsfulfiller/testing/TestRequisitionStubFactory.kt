@@ -23,9 +23,7 @@ import org.wfanet.measurement.edpaggregator.resultsfulfiller.RequisitionStubFact
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
 
 /** A Test [RequisitionStubFactory] that ignores params and uses a test stub. */
-class TestRequisitionStubFactory(
-  private val cmmsChannel: Channel,
-) : RequisitionStubFactory {
+class TestRequisitionStubFactory(private val cmmsChannel: Channel) : RequisitionStubFactory {
 
   override fun buildRequisitionsStub(
     fulfillerParams: ResultsFulfillerParams
