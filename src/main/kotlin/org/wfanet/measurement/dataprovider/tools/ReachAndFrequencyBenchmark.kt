@@ -515,7 +515,7 @@ class ReachAndFrequencyBenchmark : Runnable {
       }
       vidSamplingInterval = MeasurementSpecKt.vidSamplingInterval {
         start = 0.0f
-        width = 1.0f
+        width = 0.1f
       }
     }
 

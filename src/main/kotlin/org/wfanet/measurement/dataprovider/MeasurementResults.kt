@@ -18,6 +18,7 @@ package org.wfanet.measurement.dataprovider
 
 import com.google.protobuf.TypeRegistry
 import java.util.concurrent.atomic.AtomicIntegerArray
+import java.util.logging.Level
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.fold
@@ -28,6 +29,7 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import org.projectnessie.cel.Program
+import java.util.BitSet
 import org.wfanet.measurement.populationdataprovider.PopulationInfo
 import org.wfanet.measurement.populationdataprovider.PopulationRequisitionFulfiller
 import org.wfanet.measurement.eventdataprovider.shareshuffle.v2alpha.FrequencyVectorBuilder
@@ -47,28 +49,28 @@ object MeasurementResults {
     maxFrequency: Int,
   ): ReachAndFrequency {
     val startTime = System.currentTimeMillis()
-    
+
     // Drain the flow entirely into a list first
     val drainStartTime = System.currentTimeMillis()
     val vidsList = filteredVids.toList()
     val drainDuration = System.currentTimeMillis() - drainStartTime
     println("Profile: Flow draining took ${drainDuration}ms for ${vidsList.size} total VIDs")
-    
+
     // Count occurrences of each VID from the drained list
     val foldStartTime = System.currentTimeMillis()
     val vidToIndex = mutableMapOf<Long, Int>()
     var nextIndex = 0
-    
+
     // First pass: build VID to index mapping
     for (vid in vidsList) {
       if (!vidToIndex.containsKey(vid)) {
         vidToIndex[vid] = nextIndex++
       }
     }
-    
+
     // Create atomic integer array for counts
     val countsArray = AtomicIntegerArray(vidToIndex.size)
-    
+
     // Second pass: count occurrences using atomic operations in parallel
     val countingStartTime = System.currentTimeMillis()
     coroutineScope {
@@ -84,7 +86,7 @@ object MeasurementResults {
     }
     val countingDuration = System.currentTimeMillis() - countingStartTime
     println("Profile: Parallel counting took ${countingDuration}ms")
-    
+
     val foldDuration = System.currentTimeMillis() - foldStartTime
     println("Profile: VID counting took ${foldDuration}ms for ${vidToIndex.size} unique VIDs")
 
@@ -113,10 +115,10 @@ object MeasurementResults {
       frequencyArray.withIndex().associateBy({ it.index + 1 }, { it.value.toDouble() / reach })
     val distributionDuration = System.currentTimeMillis() - distributionStartTime
     println("Profile: Frequency distribution calculation took ${distributionDuration}ms")
-    
+
     val totalDuration = System.currentTimeMillis() - startTime
     println("Profile: computeReachAndFrequency total took ${totalDuration}ms (reach: $reach, maxFreq: $maxFrequency)")
-    
+
     return ReachAndFrequency(reach, frequencyDistribution)
   }
 
@@ -151,7 +153,7 @@ object MeasurementResults {
   suspend fun computeImpression(filteredVids: Flow<Long>, maxFrequency: Int): Long {
     // Drain the flow into a list
     val vidsList = filteredVids.toList()
-    
+
     // Build VID to index mapping
     val vidToIndex = mutableMapOf<Long, Int>()
     var nextIndex = 0
@@ -160,10 +162,10 @@ object MeasurementResults {
         vidToIndex[vid] = nextIndex++
       }
     }
-    
+
     // Create atomic integer array for counts
     val countsArray = AtomicIntegerArray(vidToIndex.size)
-    
+
     // Count occurrences using atomic operations in parallel
     coroutineScope {
       val chunkSize = (vidsList.size / Runtime.getRuntime().availableProcessors()).coerceAtLeast(1000)
@@ -210,9 +212,9 @@ object MeasurementResults {
     parallelThreads: Int = 1,
   ): ReachAndFrequency {
     val startTime = System.currentTimeMillis()
-    
+
     val frequencyVectorBuilder = FrequencyVectorBuilder(populationSpec, measurementSpec, strict = false)
-    
+
     if (parallelThreads <= 1) {
       // Sequential processing
       vidIndices.forEach { vidIndex ->
@@ -234,11 +236,12 @@ object MeasurementResults {
         }
       }
     }
-    
+
     val frequencyVector = frequencyVectorBuilder.build()
-    
+    print("Sampled frequency vector size:\n${frequencyVector.dataCount}")
+
     val reach = frequencyVector.dataList.count { it > 0 }
-    
+
     if (reach == 0) {
       val maxFrequency = if (measurementSpec.hasReachAndFrequency()) {
         measurementSpec.reachAndFrequency.maximumFrequency
@@ -249,13 +252,13 @@ object MeasurementResults {
       println("Profile: computeReachAndFrequencyWithBuilder (empty) took ${totalDuration}ms")
       return ReachAndFrequency(reach, (1..maxFrequency).associateWith { 0.0 })
     }
-    
+
     val maxFrequency = if (measurementSpec.hasReachAndFrequency()) {
       measurementSpec.reachAndFrequency.maximumFrequency
     } else {
       1
     }
-    
+
     val frequencyArray = IntArray(maxFrequency)
     for (frequency in frequencyVector.dataList) {
       if (frequency > 0) {
@@ -263,13 +266,121 @@ object MeasurementResults {
         frequencyArray[bucket - 1]++
       }
     }
-    
+
     val frequencyDistribution: Map<Int, Double> =
       frequencyArray.withIndex().associateBy({ it.index + 1 }, { it.value.toDouble() / reach })
-    
+
     val totalDuration = System.currentTimeMillis() - startTime
     println("Profile: computeReachAndFrequencyWithBuilder took ${totalDuration}ms (reach: $reach, maxFreq: $maxFrequency)")
-    
+
     return ReachAndFrequency(reach, frequencyDistribution)
+  }
+
+  /**
+   * Computes reach and frequency using RoaringBitmap for efficient memory usage.
+   * This implementation uses bitmaps to track VID occurrences and frequency distribution.
+   */
+  suspend fun computeReachAndFrequencyBitmap(
+    filteredVids: Flow<Long>,
+    maxFrequency: Int,
+  ): ReachAndFrequency {
+    val startTime = System.currentTimeMillis()
+
+    // Drain the flow entirely into a list first
+    val drainStartTime = System.currentTimeMillis()
+    val vidsList = filteredVids.toList()
+    val drainDuration = System.currentTimeMillis() - drainStartTime
+    println("Profile: Flow draining took ${drainDuration}ms for ${vidsList.size} total VIDs")
+
+    // Create bitmaps for each frequency level (1 to maxFrequency)
+    val frequencyBitmaps = List(maxFrequency) { BitSet() }
+    
+    // Map to track VID counts
+    val vidCounts = mutableMapOf<Long, Int>()
+    
+    // Count occurrences
+    val countingStartTime = System.currentTimeMillis()
+    for (vid in vidsList) {
+      vidCounts[vid] = vidCounts.getOrDefault(vid, 0) + 1
+    }
+    val countingDuration = System.currentTimeMillis() - countingStartTime
+    println("Profile: VID counting took ${countingDuration}ms for ${vidCounts.size} unique VIDs")
+
+    val reach = vidCounts.size
+
+    // If the filtered VIDs is empty, return empty distribution
+    if (reach == 0) {
+      val totalDuration = System.currentTimeMillis() - startTime
+      println("Profile: computeReachAndFrequencyBitmap (empty) took ${totalDuration}ms")
+      return ReachAndFrequency(reach, (1..maxFrequency).associateWith { 0.0 })
+    }
+
+    // Build frequency bitmaps
+    val bitmapStartTime = System.currentTimeMillis()
+    vidCounts.entries.forEachIndexed { index, (_, count) ->
+      val frequency = count.coerceAtMost(maxFrequency)
+      frequencyBitmaps[frequency - 1].set(index)
+    }
+    
+    val bitmapDuration = System.currentTimeMillis() - bitmapStartTime
+    println("Profile: Bitmap creation took ${bitmapDuration}ms")
+
+    // Calculate frequency distribution
+    val distributionStartTime = System.currentTimeMillis()
+    val frequencyDistribution = frequencyBitmaps.mapIndexed { index, bitmap ->
+      (index + 1) to (bitmap.cardinality().toDouble() / reach)
+    }.toMap()
+    val distributionDuration = System.currentTimeMillis() - distributionStartTime
+    println("Profile: Frequency distribution calculation took ${distributionDuration}ms")
+
+    val totalDuration = System.currentTimeMillis() - startTime
+    println("Profile: computeReachAndFrequencyBitmap total took ${totalDuration}ms (reach: $reach, maxFreq: $maxFrequency)")
+
+    return ReachAndFrequency(reach, frequencyDistribution)
+  }
+
+  /**
+   * Computes reach and frequency using RoaringBitmap for efficient memory usage.
+   * Synchronous wrapper version.
+   */
+  fun computeReachAndFrequencyBitmap(filteredVids: Iterable<Long>, maxFrequency: Int): ReachAndFrequency {
+    val startTime = System.currentTimeMillis()
+    val result = runBlocking { computeReachAndFrequencyBitmap(filteredVids.asFlow(), maxFrequency) }
+    val totalDuration = System.currentTimeMillis() - startTime
+    println("Profile: computeReachAndFrequencyBitmap (sync wrapper) took ${totalDuration}ms")
+    return result
+  }
+
+  /**
+   * Computes impression using RoaringBitmap for efficient memory usage.
+   * This implementation uses bitmaps to track VID occurrences.
+   */
+  suspend fun computeImpressionBitmap(filteredVids: Flow<Long>, maxFrequency: Int): Long {
+    val startTime = System.currentTimeMillis()
+    
+    // Drain the flow into a list
+    val vidsList = filteredVids.toList()
+
+    // Count occurrences
+    val vidCounts = mutableMapOf<Long, Int>()
+    for (vid in vidsList) {
+      vidCounts[vid] = vidCounts.getOrDefault(vid, 0) + 1
+    }
+
+    // Cap each count at maxFrequency and sum
+    val total = vidCounts.values.sumOf { count -> count.coerceAtMost(maxFrequency).toLong() }
+    
+    val totalDuration = System.currentTimeMillis() - startTime
+    println("Profile: computeImpressionBitmap took ${totalDuration}ms")
+    
+    return total
+  }
+
+  /**
+   * Computes impression using RoaringBitmap for efficient memory usage.
+   * Synchronous wrapper version.
+   */
+  fun computeImpressionBitmap(filteredVids: Iterable<Long>, maxFrequency: Int): Long {
+    return runBlocking { computeImpressionBitmap(filteredVids.asFlow(), maxFrequency) }
   }
 }
