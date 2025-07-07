@@ -22,7 +22,6 @@ import com.google.protobuf.Any
 import com.google.protobuf.ByteString
 import com.google.protobuf.ExtensionRegistry
 import com.google.protobuf.TypeRegistry
-import java.util.*
 import kotlinx.coroutines.runBlocking
 import org.junit.Rule
 import org.junit.Test
