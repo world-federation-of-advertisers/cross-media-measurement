@@ -19,6 +19,7 @@ package org.wfanet.measurement.edpaggregator.resultsfulfiller
 import com.google.crypto.tink.integration.gcpkms.GcpKmsClient
 import com.google.protobuf.DescriptorProtos
 import com.google.protobuf.Descriptors
+import com.google.protobuf.ExtensionRegistry
 import kotlinx.coroutines.runBlocking
 import com.google.protobuf.Parser
 import org.wfanet.measurement.common.commandLineMain
@@ -28,6 +29,7 @@ import picocli.CommandLine
 import java.io.File
 import java.util.logging.Logger
 import com.google.protobuf.TypeRegistry
+import org.wfanet.measurement.api.v2alpha.EventAnnotationsProto
 import org.wfanet.measurement.gcloud.pubsub.DefaultGooglePubSubClient
 import org.wfanet.measurement.gcloud.pubsub.Subscriber
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
@@ -125,20 +127,12 @@ class ResultsFulfillerAppRunner : Runnable {
   @CommandLine.Option(
     names = ["--event-template-metadata-type"],
     description = [
-      "File path to a FileDescriptorSet containing your EventTemplate metadata types.",
+      "Serialized FileDescriptorSet for EventTemplate metadata types.",
+      "This can be specified multiple times.",
     ],
     required = true
   )
-  private fun setEventTemplateMetadataType(file: File) {
-    val fileDescriptorSet = file.inputStream().use { input ->
-      DescriptorProtos.FileDescriptorSet.parseFrom(input)
-    }
-
-    eventTemplateDescriptors = ProtoReflection.buildFileDescriptors(listOf(fileDescriptorSet))
-  }
-
-  lateinit var eventTemplateDescriptors: List<Descriptors.FileDescriptor>
-    private set
+  private lateinit var eventTemplateDescriptorSetFiles: List<File>
 
   private val getImpressionsStorageConfig: (StorageParams) -> StorageConfig = { storageParams ->
     StorageConfig(projectId = storageParams.gcsProjectId)
@@ -176,12 +170,7 @@ class ResultsFulfillerAppRunner : Runnable {
 
     val kmsClient = GcpKmsClient().withDefaultCredentials()
 
-    val typeRegistryBuilder = TypeRegistry.newBuilder()
-    eventTemplateDescriptors
-      .flatMap { it.messageTypes }
-      .forEach { typeRegistryBuilder.add(it) }
-    typeRegistryBuilder.add(ResultsFulfillerParams.getDescriptor())
-    val typeRegistry = typeRegistryBuilder.build()
+    val typeRegistry: TypeRegistry = buildTypeRegistry()
 
     val resultsFulfillerApp = ResultsFulfillerApp(
       subscriptionId = subscriptionId,
@@ -202,6 +191,34 @@ class ResultsFulfillerAppRunner : Runnable {
     }
   }
 
+  private fun loadFileDescriptorSets(
+    files: Iterable<File>
+  ): List<DescriptorProtos.FileDescriptorSet> {
+    return files.map { file ->
+      file.inputStream().use { input ->
+        DescriptorProtos.FileDescriptorSet.parseFrom(input,
+          EXTENSION_REGISTRY
+        )
+      }
+    }
+  }
+
+  private fun buildTypeRegistry(): TypeRegistry {
+      return TypeRegistry.newBuilder()
+        .apply {
+          add(COMPILED_PROTOBUF_TYPES.flatMap { it.messageTypes })
+          if (::eventTemplateDescriptorSetFiles.isInitialized) {
+            add(
+              ProtoReflection.buildDescriptors(
+                loadFileDescriptorSets(eventTemplateDescriptorSetFiles),
+                COMPILED_PROTOBUF_TYPES,
+              )
+            )
+          }
+        }
+        .build()
+    }
+
   private fun createQueueSubscriber(): QueueSubscriber {
     logger.info("Creating DefaultGooglePubSubclient: ${pubSubProjectId}")
     val pubSubClient = DefaultGooglePubSubClient()
@@ -213,6 +230,21 @@ class ResultsFulfillerAppRunner : Runnable {
   }
 
   companion object {
+
+    /**
+     * [Descriptors.FileDescriptor]s of protobuf types known at compile-time that may be loaded from
+     * a [DescriptorProtos.FileDescriptorSet].
+     */
+    private val COMPILED_PROTOBUF_TYPES: Iterable<Descriptors.FileDescriptor> =
+      (ProtoReflection.WELL_KNOWN_TYPES.asSequence() +
+        ResultsFulfillerParams.getDescriptor().file)
+        .asIterable()
+
+    private val EXTENSION_REGISTRY =
+      ExtensionRegistry.newInstance()
+        .also { EventAnnotationsProto.registerAllExtensions(it) }
+        .unmodifiable
+
     private val logger = Logger.getLogger(this::class.java.name)
     @JvmStatic
     fun main(args: Array<String>) = commandLineMain(ResultsFulfillerAppRunner(), args)
