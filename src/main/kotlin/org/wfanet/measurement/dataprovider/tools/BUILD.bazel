@@ -1,0 +1,30 @@
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_binary")
+
+package(default_testonly = True)
+
+kt_jvm_binary(
+    name = "ReachAndFrequencyRandomFlow",
+    srcs = ["ReachAndFrequencyRandomFlow.kt"],
+    main_class = "org.wfanet.measurement.dataprovider.tools.ReachAndFrequencyRandomFlowKt",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/dataprovider:measurement_results",
+        "@wfa_common_jvm//imports/java/picocli",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+    ],
+)
+
+kt_jvm_binary(
+    name = "ReachAndFrequencyBenchmark",
+    srcs = ["ReachAndFrequencyBenchmark.kt"],
+    main_class = "org.wfanet.measurement.dataprovider.tools.ReachAndFrequencyBenchmarkKt",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/dataprovider:measurement_results",
+        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/shareshuffle/v2alpha:shareshuffle",
+        "//src/main/proto/wfa/measurement/api/v2alpha:measurement_spec_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:population_spec_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/picocli",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+    ],
+)

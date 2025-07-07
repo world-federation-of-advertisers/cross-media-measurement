@@ -17,14 +17,22 @@
 package org.wfanet.measurement.dataprovider
 
 import com.google.protobuf.TypeRegistry
+import java.util.concurrent.atomic.AtomicIntegerArray
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.fold
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import org.projectnessie.cel.Program
 import org.wfanet.measurement.populationdataprovider.PopulationInfo
 import org.wfanet.measurement.populationdataprovider.PopulationRequisitionFulfiller
+import org.wfanet.measurement.eventdataprovider.shareshuffle.v2alpha.FrequencyVectorBuilder
+import org.wfanet.measurement.api.v2alpha.MeasurementSpec
+import org.wfanet.measurement.api.v2alpha.PopulationSpec
 
 /** Utilities for computing Measurement results. */
 object MeasurementResults {
@@ -48,14 +56,39 @@ object MeasurementResults {
     
     // Count occurrences of each VID from the drained list
     val foldStartTime = System.currentTimeMillis()
-    val eventsPerVid = mutableMapOf<Long, Int>()
+    val vidToIndex = mutableMapOf<Long, Int>()
+    var nextIndex = 0
+    
+    // First pass: build VID to index mapping
     for (vid in vidsList) {
-      eventsPerVid[vid] = eventsPerVid.getOrDefault(vid, 0) + 1
+      if (!vidToIndex.containsKey(vid)) {
+        vidToIndex[vid] = nextIndex++
+      }
     }
+    
+    // Create atomic integer array for counts
+    val countsArray = AtomicIntegerArray(vidToIndex.size)
+    
+    // Second pass: count occurrences using atomic operations in parallel
+    val countingStartTime = System.currentTimeMillis()
+    coroutineScope {
+      val chunkSize = (vidsList.size / Runtime.getRuntime().availableProcessors()).coerceAtLeast(1000)
+      vidsList.chunked(chunkSize).map { chunk ->
+        async(Dispatchers.Default) {
+          for (vid in chunk) {
+            val index = vidToIndex[vid]!!
+            countsArray.incrementAndGet(index)
+          }
+        }
+      }.awaitAll()
+    }
+    val countingDuration = System.currentTimeMillis() - countingStartTime
+    println("Profile: Parallel counting took ${countingDuration}ms")
+    
     val foldDuration = System.currentTimeMillis() - foldStartTime
-    println("Profile: VID counting took ${foldDuration}ms for ${eventsPerVid.size} unique VIDs")
+    println("Profile: VID counting took ${foldDuration}ms for ${vidToIndex.size} unique VIDs")
 
-    val reach: Int = eventsPerVid.keys.size
+    val reach: Int = vidToIndex.size
 
     // If the filtered VIDs is empty, set the distribution with all 0s up to maxFrequency.
     if (reach == 0) {
@@ -67,7 +100,8 @@ object MeasurementResults {
     // Build frequency histogram as a 0-based array.
     val histogramStartTime = System.currentTimeMillis()
     val frequencyArray = IntArray(maxFrequency)
-    for (count in eventsPerVid.values) {
+    for (i in 0 until countsArray.length()) {
+      val count = countsArray.get(i)
       val bucket = count.coerceAtMost(maxFrequency)
       frequencyArray[bucket - 1]++
     }
@@ -115,15 +149,41 @@ object MeasurementResults {
 
   /** Computes impression using the "deterministic count" methodology. */
   suspend fun computeImpression(filteredVids: Flow<Long>, maxFrequency: Int): Long {
-    // Count occurrences of each VID using fold operation on the flow
-    val eventsPerVid =
-      filteredVids.fold(mutableMapOf<Long, Int>()) { acc, vid ->
-        acc[vid] = acc.getOrDefault(vid, 0) + 1
-        acc
+    // Drain the flow into a list
+    val vidsList = filteredVids.toList()
+    
+    // Build VID to index mapping
+    val vidToIndex = mutableMapOf<Long, Int>()
+    var nextIndex = 0
+    for (vid in vidsList) {
+      if (!vidToIndex.containsKey(vid)) {
+        vidToIndex[vid] = nextIndex++
       }
+    }
+    
+    // Create atomic integer array for counts
+    val countsArray = AtomicIntegerArray(vidToIndex.size)
+    
+    // Count occurrences using atomic operations in parallel
+    coroutineScope {
+      val chunkSize = (vidsList.size / Runtime.getRuntime().availableProcessors()).coerceAtLeast(1000)
+      vidsList.chunked(chunkSize).map { chunk ->
+        async(Dispatchers.Default) {
+          for (vid in chunk) {
+            val index = vidToIndex[vid]!!
+            countsArray.incrementAndGet(index)
+          }
+        }
+      }.awaitAll()
+    }
 
-    // Cap each count at `maxFrequency`.
-    return eventsPerVid.values.sumOf { count -> count.coerceAtMost(maxFrequency).toLong() }
+    // Cap each count at `maxFrequency` and sum.
+    var total = 0L
+    for (i in 0 until countsArray.length()) {
+      val count = countsArray.get(i)
+      total += count.coerceAtMost(maxFrequency).toLong()
+    }
+    return total
   }
 
   /** Computes impression using the "deterministic count" methodology. */
@@ -140,5 +200,76 @@ object MeasurementResults {
     typeRegistry: TypeRegistry,
   ): Long {
     return PopulationRequisitionFulfiller.computePopulation(populationInfo, program, typeRegistry)
+  }
+
+  /** Computes reach and frequency using FrequencyVectorBuilder (EdpSimulator algorithm). */
+  fun computeReachAndFrequencyWithBuilder(
+    populationSpec: PopulationSpec,
+    measurementSpec: MeasurementSpec,
+    vidIndices: Iterable<Int>,
+    parallelThreads: Int = 1,
+  ): ReachAndFrequency {
+    val startTime = System.currentTimeMillis()
+    
+    val frequencyVectorBuilder = FrequencyVectorBuilder(populationSpec, measurementSpec, strict = false)
+    
+    if (parallelThreads <= 1) {
+      // Sequential processing
+      vidIndices.forEach { vidIndex ->
+        frequencyVectorBuilder.increment(vidIndex)
+      }
+    } else {
+      // Parallel processing
+      val vidIndicesList = vidIndices.toList()
+      runBlocking {
+        coroutineScope {
+          val chunkSize = (vidIndicesList.size / parallelThreads).coerceAtLeast(1)
+          vidIndicesList.chunked(chunkSize).map { chunk ->
+            async(Dispatchers.Default) {
+              chunk.forEach { vidIndex ->
+                frequencyVectorBuilder.increment(vidIndex)
+              }
+            }
+          }.awaitAll()
+        }
+      }
+    }
+    
+    val frequencyVector = frequencyVectorBuilder.build()
+    
+    val reach = frequencyVector.dataList.count { it > 0 }
+    
+    if (reach == 0) {
+      val maxFrequency = if (measurementSpec.hasReachAndFrequency()) {
+        measurementSpec.reachAndFrequency.maximumFrequency
+      } else {
+        1
+      }
+      val totalDuration = System.currentTimeMillis() - startTime
+      println("Profile: computeReachAndFrequencyWithBuilder (empty) took ${totalDuration}ms")
+      return ReachAndFrequency(reach, (1..maxFrequency).associateWith { 0.0 })
+    }
+    
+    val maxFrequency = if (measurementSpec.hasReachAndFrequency()) {
+      measurementSpec.reachAndFrequency.maximumFrequency
+    } else {
+      1
+    }
+    
+    val frequencyArray = IntArray(maxFrequency)
+    for (frequency in frequencyVector.dataList) {
+      if (frequency > 0) {
+        val bucket = frequency.coerceAtMost(maxFrequency)
+        frequencyArray[bucket - 1]++
+      }
+    }
+    
+    val frequencyDistribution: Map<Int, Double> =
+      frequencyArray.withIndex().associateBy({ it.index + 1 }, { it.value.toDouble() / reach })
+    
+    val totalDuration = System.currentTimeMillis() - startTime
+    println("Profile: computeReachAndFrequencyWithBuilder took ${totalDuration}ms (reach: $reach, maxFreq: $maxFrequency)")
+    
+    return ReachAndFrequency(reach, frequencyDistribution)
   }
 }
