@@ -203,7 +203,7 @@ fun createEntityContent(displayName: String) =
 /** Used to configure Secure Computation Control Plane */
 const val PROJECT_ID = "some-project-id"
 const val SUBSCRIPTION_ID = "some-subscription-id"
-const val FULFILLER_TOPIC_ID = "requisition-fulfiller-queue"
+const val FULFILLER_TOPIC_ID = "results-fulfiller-queue"
 val QUEUES_CONFIG: QueuesConfig
   get() {
     val configPath =

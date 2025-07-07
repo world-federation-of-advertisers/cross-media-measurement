@@ -37,6 +37,7 @@ import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.toList
@@ -182,9 +183,11 @@ class InProcessEdpAggregatorComponents(
   }
 
   private val loggingName = javaClass.simpleName
+  private val backgroundJob = Job()
   private val backgroundScope =
     CoroutineScope(
-      Dispatchers.Default +
+      backgroundJob +
+        Dispatchers.Default +
         CoroutineName(loggingName) +
         CoroutineExceptionHandler { _, e ->
           logger.log(Level.SEVERE, e) { "Error in $loggingName" }
@@ -199,8 +202,6 @@ class InProcessEdpAggregatorComponents(
     edpDisplayNameToResourceMap: Map<String, Resource>,
     edpAggregatorShortName: String,
   ) = runBlocking {
-    pubSubClient.createTopic(PROJECT_ID, FULFILLER_TOPIC_ID)
-    pubSubClient.createSubscription(PROJECT_ID, SUBSCRIPTION_ID, FULFILLER_TOPIC_ID)
     edpResourceName = edpDisplayNameToResourceMap.getValue(edpAggregatorShortName).name
     publicApiChannel = kingdomChannel
     val resultsFulfillerParams =
@@ -354,10 +355,7 @@ class InProcessEdpAggregatorComponents(
   }
 
   fun stopDaemons() {
-    runBlocking {
-      pubSubClient.deleteTopic(PROJECT_ID, FULFILLER_TOPIC_ID)
-      pubSubClient.deleteSubscription(PROJECT_ID, SUBSCRIPTION_ID)
-    }
+    backgroundJob.cancel()
   }
 
   override fun apply(statement: Statement, description: Description): Statement {

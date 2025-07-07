@@ -60,12 +60,12 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
   secureComputationDatabaseAdmin: SpannerDatabaseAdmin,
 ) {
 
-  private val pubSubClient: GooglePubSubEmulatorClient
-    get() =
-      GooglePubSubEmulatorClient(
-        host = pubSubEmulatorProvider.host,
-        port = pubSubEmulatorProvider.port,
-      )
+  private val pubSubClient: GooglePubSubEmulatorClient by lazy {
+    GooglePubSubEmulatorClient(
+      host = pubSubEmulatorProvider.host,
+      port = pubSubEmulatorProvider.port,
+    )
+  }
 
   @get:Rule
   val inProcessCmmsComponents =
@@ -95,6 +95,10 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
 
   @Before
   fun setup() {
+    runBlocking {
+      pubSubClient.createTopic(PROJECT_ID, FULFILLER_TOPIC_ID)
+      pubSubClient.createSubscription(PROJECT_ID, SUBSCRIPTION_ID, FULFILLER_TOPIC_ID)
+    }
     inProcessCmmsComponents.startDaemons()
     val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
     val edpDisplayNameToResourceMap = inProcessCmmsComponents.edpDisplayNameToResourceMap
@@ -152,14 +156,14 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
   }
 
   @After
-  fun stopDuchyDaemons() {
+  fun tearDown() {
     inProcessCmmsComponents.stopDuchyDaemons()
-    inProcessEdpAggregatorComponents.stopDaemons()
-  }
-
-  @After
-  fun stopPopulationRequisitionFulfillerDaemon() {
     inProcessCmmsComponents.stopPopulationRequisitionFulfillerDaemon()
+    inProcessEdpAggregatorComponents.stopDaemons()
+    runBlocking {
+      pubSubClient.deleteTopic(PROJECT_ID, FULFILLER_TOPIC_ID)
+      pubSubClient.deleteSubscription(PROJECT_ID, SUBSCRIPTION_ID)
+    }
   }
 
   @Test
