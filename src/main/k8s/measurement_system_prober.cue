@@ -80,9 +80,14 @@ import ("strings")
 						"--data-provider=\(edp)"
 					},
 				]
-				resources:
-				  requests: memory: _proberMemoryRequest
-				  limits: memory: _proberMemoryRequest
+				resources: Resources={
+					requests: {
+						memory: _proberMemoryRequest
+					}
+					limits: {
+						memory: _proberMemoryRequest
+					}
+				}
 			}
 			spec: schedule: "* * * * *"
 		}
