@@ -101,6 +101,7 @@ locals {
     for edp_name, certs in var.edps_certs : [
       "${edp_name}_tls_key",
       "${edp_name}_tls_pem",
+      "${edp_name}_enc_private",
     ]
   ])
 
