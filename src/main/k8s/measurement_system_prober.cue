@@ -23,7 +23,6 @@ import ("strings")
 	_edpResourceNames: [...string]
 	_verboseGrpcClientLogging: bool | *false
 	_kingdomPublicApiTarget:   string
-	_proberMemoryRequest:      string | *"192Mi"
 	_secretName:               string
 	let SecretName = _secretName
 
@@ -80,14 +79,6 @@ import ("strings")
 						"--data-provider=\(edp)"
 					},
 				]
-				resources: Resources={
-					requests: {
-						memory: _proberMemoryRequest
-					}
-					limits: {
-						memory: _proberMemoryRequest
-					}
-				}
 			}
 			spec: schedule: "* * * * *"
 		}

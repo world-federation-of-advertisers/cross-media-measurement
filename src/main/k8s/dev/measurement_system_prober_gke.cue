@@ -5,9 +5,17 @@ _mc_resource_name: string @tag("mc_name")
 _mc_api_key:       string @tag("mc_api_key")
 _edp1:             string @tag("edp1_name")
 _edp2:             string @tag("edp2_name")
-_memory:           string @tag("prober_memory_request")
 
 #KingdomPublicApiTarget: (#Target & {name: "v2alpha-public-api-server"}).target
+
+#ProberResourceRequirements: ResourceRequirements=#ResourceRequirements & {
+	requests: {
+		memory: "256Mi"
+	}
+	limits: {
+		memory: "256Mi"
+	}
+}
 
 objectSets: [ for objectSet in measurementSystemProber {objectSet}]
 
@@ -18,5 +26,12 @@ measurementSystemProber: #MeasurementSystemProber & {
 	_verboseGrpcClientLogging: true
 	_edpResourceNames: [_edp1, _edp2]
 	_kingdomPublicApiTarget: #KingdomPublicApiTarget
-	_proberMemoryRequest: _memory
+
+	cronJobs: {
+		"measurmement-system-prober": {
+			_container: {
+				resources: #ProberResourceRequirements
+			}
+		}
+	}
 }
