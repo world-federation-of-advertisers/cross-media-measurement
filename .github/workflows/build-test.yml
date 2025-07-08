@@ -104,7 +104,7 @@ jobs:
 
       - name: Run tests with coverage
         id: run-coverage
-        run: bazel coverage --experimental_split_coverage_postprocessing --experimental_fetch_all_coverage_outputs --instrumentation_filter=//src/main/python/.*,//src/main/cc/.*,-@.* //src/test/python/... //src/test/cc/...
+        run: bazel coverage --nocache_test_results --experimental_split_coverage_postprocessing --experimental_fetch_all_coverage_outputs --instrumentation_filter=//src/main/python/.*,//src/main/cc/.*,-@.* //src/test/python/... //src/test/cc/wfa/measurement/internal/duchy/protocol/liquid_legions_v2:liquid_legions_v2_encryption_utility_test
 
       - name: Export bazel output path
         run: echo "BAZEL_OUTPUT_PATH=$(bazel info output_path)" >> $GITHUB_ENV
