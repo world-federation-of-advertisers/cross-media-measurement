@@ -195,6 +195,7 @@ class ResultsFulfillerAppRunner : Runnable {
     runBlocking { resultsFulfillerApp.run() }
   }
 
+  // @TODO(@marcopremier): Move this and `buildTypeRegistry` on common-jvm
   private fun loadFileDescriptorSets(
     files: Iterable<File>
   ): List<DescriptorProtos.FileDescriptorSet> {
