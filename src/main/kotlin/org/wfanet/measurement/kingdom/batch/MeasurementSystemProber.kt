@@ -120,6 +120,7 @@ class MeasurementSystemProber(
     val lastUpdatedMeasurement = getLastUpdatedMeasurement()
     if (lastUpdatedMeasurement != null) {
       updateLastTerminalRequisitionGauge(lastUpdatedMeasurement)
+      logger.info("set last terminal requisition gauge")
       if (lastUpdatedMeasurement.state in COMPLETED_MEASUREMENT_STATES) {
         val attributes =
           Attributes.of(
@@ -130,11 +131,12 @@ class MeasurementSystemProber(
           lastUpdatedMeasurement.updateTime.toInstant().toEpochMilli() / MILLISECONDS_PER_SECOND,
           attributes,
         )
+        logger.info("set last terminal measurement gauge")
       }
     }
     logger.info("prober run() lastUpdatedMeasurement: \n $lastUpdatedMeasurement \n")
     if (shouldCreateNewMeasurement(lastUpdatedMeasurement)) {
-      println("should create another one")
+      logger.info("should create a new measurement")
       createMeasurement()
     }
     delay(Duration.ofSeconds(30))
