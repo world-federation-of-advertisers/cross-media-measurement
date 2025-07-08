@@ -50,6 +50,10 @@ class DataWatcherFunction : CloudEventsFunction {
       StorageObjectData.newBuilder()
         .apply { JsonFormat.parser().merge(cloudEventData, this) }
         .build()
+    val mt = data.metadataMap
+    for ((key, value) in mt) {
+      println("~~~~~~~~~~~~~~~~~~`> Key: $key, Value: $value")
+    }
     val blobKey: String = data.getName()
     val bucket: String = data.getBucket()
     val path = "$scheme://$bucket/$blobKey"

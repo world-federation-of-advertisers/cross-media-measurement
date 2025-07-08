@@ -95,6 +95,7 @@ runs:
           --region="$CLOUD_REGION"
           --run-service-account="$RUN_SERVICE_ACCOUNT"
           --source="$UBER_JAR_TEMP_DIR"
+          --allow-unauthenticated
         )
         
         if [[ -n "$TRIGGER_BUCKET" ]]; then
