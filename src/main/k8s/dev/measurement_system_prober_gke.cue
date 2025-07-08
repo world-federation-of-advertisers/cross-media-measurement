@@ -8,15 +8,6 @@ _edp2:             string @tag("edp2_name")
 
 #KingdomPublicApiTarget: (#Target & {name: "v2alpha-public-api-server"}).target
 
-#ProberResourceRequirements: ResourceRequirements=#ResourceRequirements & {
-	requests: {
-		memory: "256Mi"
-	}
-	limits: {
-		memory: "256Mi"
-	}
-}
-
 objectSets: [ for objectSet in measurementSystemProber {objectSet}]
 
 measurementSystemProber: #MeasurementSystemProber & {
@@ -26,12 +17,4 @@ measurementSystemProber: #MeasurementSystemProber & {
 	_verboseGrpcClientLogging: true
 	_edpResourceNames: [_edp1, _edp2]
 	_kingdomPublicApiTarget: #KingdomPublicApiTarget
-
-	cronJobs: {
-		"measurmement-system-prober": {
-			_container: {
-				resources: #ProberResourceRequirements
-			}
-		}
-	}
 }

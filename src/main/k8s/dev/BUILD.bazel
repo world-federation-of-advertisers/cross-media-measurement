@@ -589,7 +589,6 @@ kustomization_dir(
 kustomization_dir(
     name = "measurement_system_prober",
     srcs = [
-        "resource_requirements.yaml",
         ":measurement_system_prober_gke",
     ],
     generate_kustomization = True,
