@@ -13,6 +13,7 @@
 # limitations under the License.
 
 data "google_project" "project" {}
+data "google_client_config" "default" {}
 
 resource "google_service_account" "cloud_function_service_account" {
   account_id   = var.cloud_function_service_account_name
