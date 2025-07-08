@@ -330,7 +330,7 @@ SECURE_COMPUTATION_GKE_IMAGES = [
 SECURE_COMPUTATION_TEE_APP_IMAGES = [
     struct(
         name = "gcloud_results_fulfiller_app",
-        image = "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:edp_results_fulfiller_image",
+        image = "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:results_fulfiller_image",
         repository = _PREFIX + "/edp-aggregator/results_fulfiller",
     ),
 ]

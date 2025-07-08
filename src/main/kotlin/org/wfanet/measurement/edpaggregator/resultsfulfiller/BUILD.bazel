@@ -162,7 +162,7 @@ kt_jvm_library(
 )
 
 java_binary(
-    name = "EdpResultsFulfiller",
+    name = "ResultsFulfiller",
     main_class = "org.wfanet.measurement.edpaggregator.resultsfulfiller.ResultsFulfillerAppRunner",
     runtime_deps = [
         ":results_fulfiller_app_runner",
@@ -170,8 +170,8 @@ java_binary(
 )
 
 java_image(
-    name = "edp_results_fulfiller_image",
-    binary = ":EdpResultsFulfiller",
+    name = "results_fulfiller_image",
+    binary = ":ResultsFulfiller",
     main_class = "org.wfanet.measurement.edpaggregator.resultsfulfiller.ResultsFulfillerAppRunner",
     visibility = ["//src:docker_image_deployment"],
 )
