@@ -100,7 +100,9 @@ resource "terraform_data" "deploy_data_watcher" {
 
         bazel build "$BAZEL_TARGET_LABEL"
 
-        JAR=$(bazel cquery "$BAZEL_TARGET_LABEL" --output=files | sed 's|^bazel-out/k8-fastbuild/bin/|bazel-bin/|')
+        JAR=$(bazel cquery "$BAZEL_TARGET_LABEL" --output=starlark --starlark:expr="target.files.to_list()[0].path")
+        JAR=$(realpath "$JAR")
+        echo "The path is: $JAR"
         TEMP_DIR=$(mktemp -d)
         cp "$JAR" "$TEMP_DIR/"
 
