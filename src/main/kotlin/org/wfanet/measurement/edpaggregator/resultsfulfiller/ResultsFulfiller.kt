@@ -23,6 +23,7 @@ import com.google.protobuf.kotlin.unpack
 import java.security.GeneralSecurityException
 import java.security.SecureRandom
 import java.time.ZoneId
+import java.util.logging.Logger
 import kotlinx.coroutines.flow.Flow
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
@@ -74,9 +75,15 @@ class ResultsFulfiller(
   private val eventReader: EventReader,
 ) {
   suspend fun fulfillRequisitions() {
+    val groupedRequisitions = getRequisitions()
     val requisitions =
-      getRequisitions().requisitionsList.map { it.requisition.unpack(Requisition::class.java) }
+      groupedRequisitions.requisitionsList.map { it.requisition.unpack(Requisition::class.java) }
+    val eventGroupMap =
+      groupedRequisitions.eventGroupMapList
+        .map { Pair(it.eventGroup, it.details.eventGroupReferenceId) }
+        .toMap()
     for (requisition in requisitions) {
+      logger.info("Processing requisition: ${requisition.name}")
       val signedRequisitionSpec: SignedMessage =
         try {
           decryptRequisitionSpec(requisition.encryptedRequisitionSpec, privateEncryptionKey)
@@ -89,6 +96,7 @@ class ResultsFulfiller(
       val sampledVids: Flow<Long> =
         RequisitionSpecs.getSampledVids(
           requisitionSpec,
+          eventGroupMap,
           measurementSpec.vidSamplingInterval,
           typeRegistry,
           eventReader,
@@ -182,5 +190,9 @@ class ResultsFulfiller(
       dataProviderCertificateKey,
       requisitionsStub,
     )
+  }
+
+  companion object {
+    private val logger: Logger = Logger.getLogger(this::class.java.name)
   }
 }
