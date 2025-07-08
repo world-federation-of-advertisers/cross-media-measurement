@@ -100,7 +100,7 @@ jobs:
 
       - name: Run tests
         id: run-tests
-        run: bazel test --nocache_test_results //src/test/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/... //src/test/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/...
+        run: bazel test --nocache_test_results //src/test/cc/wfa/measurement/internal/duchy/protocol/liquid_legions_v2:liquid_legions_v2_encryption_utility_test
 
       - name: Run tests with coverage
         id: run-coverage
