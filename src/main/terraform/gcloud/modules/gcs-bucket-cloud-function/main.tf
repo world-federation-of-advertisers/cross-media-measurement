@@ -96,25 +96,39 @@ resource "terraform_data" "deploy_data_watcher" {
     command = <<-EOT
       set -euo pipefail
 
+      # 1) Build your uber-jar
       bazel build "$BAZEL_TARGET_LABEL"
 
+      # 2) Stage it
       JAR=$(bazel cquery "$BAZEL_TARGET_LABEL" --output=files)
       TEMP_DIR=$(mktemp -d)
       cp "$JAR" "$TEMP_DIR/"
 
-      gcloud functions deploy "$FUNCTION_NAME" \
-        --gen2 \
-        --runtime=java17 \
-        --entry-point="$ENTRY_POINT" \
-        --memory=512MB \
-        --region="$CLOUD_REGION" \
-        --run-service-account="$RUN_SERVICE_ACCOUNT" \
-        --source="$TEMP_DIR" \
-        --trigger-event-filters="type=google.cloud.storage.object.v1.finalized" \
-        --trigger-event-filters="bucket=$TRIGGER_BUCKET" \
-        --trigger-service-account="$TRIGGER_SERVICE_ACCOUNT" \
-        ${EXTRA_ENV_VARS:+--set-env-vars="$EXTRA_ENV_VARS"} \
-        ${SECRET_MAPPINGS:+--set-secrets="$SECRET_MAPPINGS"}
+      # 3) Assemble gcloud args
+      ARGS=(
+        functions deploy "$FUNCTION_NAME"
+        --gen2
+        --runtime=java17
+        --entry-point="$ENTRY_POINT"
+        --memory=512MB
+        --region="$CLOUD_REGION"
+        --run-service-account="$RUN_SERVICE_ACCOUNT"
+        --source="$TEMP_DIR"
+        --trigger-event-filters="type=google.cloud.storage.object.v1.finalized"
+        --trigger-event-filters="bucket=$TRIGGER_BUCKET"
+        --trigger-service-account="$TRIGGER_SERVICE_ACCOUNT"
+      )
+
+      # only add these if non-empty
+      if [[ -n "$EXTRA_ENV_VARS" ]]; then
+        ARGS+=(--set-env-vars "$EXTRA_ENV_VARS")
+      fi
+      if [[ -n "$SECRET_MAPPINGS" ]]; then
+        ARGS+=(--set-secrets "$SECRET_MAPPINGS")
+      fi
+
+      # 4) Deploy!
+      gcloud "${ARGS[@]}"
     EOT
   }
 }
