@@ -100,7 +100,7 @@ resource "terraform_data" "deploy_data_watcher" {
 
         bazel build "$BAZEL_TARGET_LABEL"
 
-        JAR=$(bazel cquery "$BAZEL_TARGET_LABEL" --output=files)
+        JAR=$(bazel cquery "$BAZEL_TARGET_LABEL" --output=files | sed 's|^bazel-out/k8-fastbuild/bin/|bazel-bin/|')
         TEMP_DIR=$(mktemp -d)
         cp "$JAR" "$TEMP_DIR/"
 
