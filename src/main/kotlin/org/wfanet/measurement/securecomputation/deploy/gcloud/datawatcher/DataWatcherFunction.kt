@@ -52,8 +52,18 @@ class DataWatcherFunction : CloudEventsFunction {
         .build()
     val mt = data.metadataMap
     for ((key, value) in mt) {
-      println("~~~~~~~~~~~~~~~~~~`> Key: $key, Value: $value")
+      logger.info("~~~~~~~~~~~~~~~~~~`> Key: $key, Value: $value")
     }
+    logger.info("~~~~~~~~~~~~~~~~~~~~> size: ${data.size}")
+    logger.info("~~~~~~~~~~~~~~~~~~~~> isInitialized: ${data.isInitialized}")
+    logger.info("~~~~~~~~~~~~~~~~~~~~> temporaryHold: ${data.temporaryHold}")
+    logger.info("~~~~~~~~~~~~~~~~~~~~> eventBasedHold: ${data.eventBasedHold}")
+    logger.info("~~~~~~~~~~~~~~~~~~~~> generation: ${data.generation}")
+    logger.info("~~~~~~~~~~~~~~~~~~~~> etag: ${data.etag}")
+    logger.info("~~~~~~~~~~~~~~~~~~~~> metageneration: ${data.metageneration}")
+    logger.info("~~~~~~~~~~~~~~~~~~~~> timeCreated: ${data.timeCreated}")
+    logger.info("~~~~~~~~~~~~~~~~~~~~> timeStorageClassUpdated: ${data.timeStorageClassUpdated}")
+    logger.info("~~~~~~~~~~~~~~~~~~~~> updated: ${data.updated}")
     val blobKey: String = data.getName()
     val bucket: String = data.getBucket()
     val path = "$scheme://$bucket/$blobKey"
