@@ -59,3 +59,62 @@ resource "google_project_iam_member" "trigger_run_invoker" {
   role    = "roles/run.invoker"
   member  = "serviceAccount:${google_service_account.cloud_function_trigger_service_account.email}"
 }
+
+resource "terraform_data" "deploy_data_watcher" {
+  # wait for all of the above to exist first
+  depends_on = [
+    google_service_account.cloud_function_service_account,
+    google_service_account.cloud_function_trigger_service_account,
+    google_service_account_iam_member.allow_terraform_to_use_cloud_function_service_account,
+    google_service_account_iam_member.allow_terraform_to_use_data_watcher_trigger_service_account,
+    google_storage_bucket_iam_member.cloud_function_object_viewer,
+    google_storage_bucket_iam_member.cloud_function_object_creator,
+    google_project_iam_member.trigger_event_receiver,
+    google_project_iam_member.trigger_run_invoker,
+  ]
+
+  # force recreation (and thus re-run of the provisioner) if any of these values change
+  triggers_replace = [
+    var.bazel_target_label,
+    var.extra_env_vars,
+    var.secret_mappings,
+  ]
+
+  provisioner "local-exec" {
+    interpreter = ["/bin/bash", "-c"]
+    environment = {
+      FUNCTION_NAME           = var.function_name
+      ENTRY_POINT             = var.entry_point
+      CLOUD_REGION            = data.google_client_config.default.region
+      RUN_SERVICE_ACCOUNT     = google_service_account.cloud_function_service_account.email
+      TRIGGER_BUCKET          = var.trigger_bucket_name
+      TRIGGER_SERVICE_ACCOUNT = google_service_account.cloud_function_trigger_service_account.email
+      EXTRA_ENV_VARS          = var.extra_env_vars
+      SECRET_MAPPINGS         = var.secret_mappings
+      BAZEL_TARGET_LABEL      = var.bazel_target_label
+    }
+    command = <<-EOT
+      set -euo pipefail
+
+      bazel build "$BAZEL_TARGET_LABEL"
+
+      JAR=$(bazel cquery "$BAZEL_TARGET_LABEL" --output=files)
+      TEMP_DIR=$(mktemp -d)
+      cp "$JAR" "$TEMP_DIR/"
+
+      gcloud functions deploy "$FUNCTION_NAME" \
+        --gen2 \
+        --runtime=java17 \
+        --entry-point="$ENTRY_POINT" \
+        --memory=512MB \
+        --region="$CLOUD_REGION" \
+        --run-service-account="$RUN_SERVICE_ACCOUNT" \
+        --source="$TEMP_DIR" \
+        --trigger-event-filters="type=google.cloud.storage.object.v1.finalized" \
+        --trigger-event-filters="bucket=$TRIGGER_BUCKET" \
+        --trigger-service-account="$TRIGGER_SERVICE_ACCOUNT" \
+        ${EXTRA_ENV_VARS:+--set-env-vars="$EXTRA_ENV_VARS"} \
+        ${SECRET_MAPPINGS:+--set-secrets="$SECRET_MAPPINGS"}
+    EOT
+  }
+}

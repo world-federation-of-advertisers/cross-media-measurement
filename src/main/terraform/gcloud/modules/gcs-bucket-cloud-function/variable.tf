@@ -35,3 +35,33 @@ variable "terraform_service_account" {
   type        = string
   nullable    = false
 }
+
+variable "function_name" {
+  description = "The function name to be deployed."
+  type        = string
+  nullable    = false
+}
+
+variable "entry_point" {
+  description = "The entry point of the main class prefixed with its package."
+  type        = string
+  nullable    = false
+}
+
+variable "extra_env_vars" {
+  description = "Additional environment variables to be provided to the Cloud Function."
+  type        = string
+  nullable    = false
+}
+
+variable "secret_mappings" {
+  description = "Mapping of local file system paths to Google Secret Manager secrets and versions."
+  type        = string
+  nullable    = false
+}
+
+variable "bazel_target_label" {
+  description = "The bazel target to use for building the uber jar."
+  type        = string
+  nullable    = false
+}

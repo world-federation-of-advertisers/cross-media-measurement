@@ -175,10 +175,15 @@ module "secrets" {
 module "data_watcher_function_service_accounts" {
   source    = "../gcs-bucket-cloud-function"
 
-  cloud_function_service_account_name       = var.data_watcher_service_account_name
-  cloud_function_trigger_service_account_name    = var.data_watcher_trigger_service_account_name
-  trigger_bucket_name                       = module.edp_aggregator_bucket.storage_bucket.name
-  terraform_service_account                 = var.terraform_service_account
+  cloud_function_service_account_name           = var.data_watcher_service_account_name
+  cloud_function_trigger_service_account_name   = var.data_watcher_trigger_service_account_name
+  trigger_bucket_name                           = module.edp_aggregator_bucket.storage_bucket.name
+  terraform_service_account                     = var.terraform_service_account
+  function_name                                 = var.function_name
+  entry_point                                   = var.entry_point
+  extra_env_vars                                = var.extra_env_vars
+  secret_mappings                               = var.secret_mappings
+  bazel_target_label                            = var.bazel_target_label
 }
 
 module "requisition_fetcher_function_service_account" {
