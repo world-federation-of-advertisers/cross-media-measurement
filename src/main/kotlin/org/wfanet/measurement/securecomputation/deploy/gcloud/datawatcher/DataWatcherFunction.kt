@@ -52,6 +52,10 @@ class DataWatcherFunction : CloudEventsFunction {
         .build()
     val mt = data.metadataMap
     for ((key, value) in mt) {
+      logger.info("~~~~~~~~~~~~~~~~~~`> Key1: $key, Value1: $value")
+    }
+    val metadata = data.metadata
+    for ((key, value) in mt) {
       logger.info("~~~~~~~~~~~~~~~~~~`> Key: $key, Value: $value")
     }
     logger.info("~~~~~~~~~~~~~~~~~~~~> size: ${data.size}")
