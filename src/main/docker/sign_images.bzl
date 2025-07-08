@@ -1,12 +1,11 @@
 load("//build:variables.bzl", "IMAGE_REPOSITORY_SETTINGS")
-# TODO - wip: all images?
-load(":images.bzl", "TEST_SIGNED_BUILD_IMAGES")
+load(":images.bzl", "IMAGES_TO_SIGN")
 
 def _compute_image_list(ctx):
     registry = ctx.expand_make_variables("registry", IMAGE_REPOSITORY_SETTINGS.container_registry, {})
     tag = ctx.expand_make_variables("tag", IMAGE_REPOSITORY_SETTINGS.image_tag, {})
     lines = []
-    for image_spec in TEST_SIGNED_BUILD_IMAGES:
+    for image_spec in IMAGES_TO_SIGN:
         repository = ctx.expand_make_variables("repository", image_spec.repository, {})
         lines.append("%s/%s:%s" % (registry, repository, tag))
     return lines
