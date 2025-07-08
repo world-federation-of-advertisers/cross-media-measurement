@@ -73,7 +73,7 @@ import ("strings")
 					_kingdomPublicApiTargetFlag,
 					_kingdomPublicApiCertHostFlag,
 					"--measurement-lookback-duration=1d",
-					"--duration-between-measurements=1d",
+					"--duration-between-measurements=2m",
 					"--measurement-update-lookback-duration=2h",
 					for edp in _edpResourceNames {
 						"--data-provider=\(edp)"
