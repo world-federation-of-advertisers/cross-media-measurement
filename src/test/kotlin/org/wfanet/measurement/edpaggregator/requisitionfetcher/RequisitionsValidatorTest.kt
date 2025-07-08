@@ -16,7 +16,6 @@
 
 package org.wfanet.measurement.edpaggregator.requisitionfetcher
 
-import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.Any
 import com.google.protobuf.StringValue
 import com.google.protobuf.kotlin.toByteString
@@ -93,9 +92,7 @@ class RequisitionsValidatorTest {
   @get:Rule val grpcTestServerRule = GrpcTestServerRule { addService(requisitionsServiceMock) }
 
   private val requisitionValidator by lazy {
-    RequisitionsValidator(
-      privateEncryptionKey = TestRequisitionData.EDP_DATA.privateEncryptionKey,
-    )
+    RequisitionsValidator(privateEncryptionKey = TestRequisitionData.EDP_DATA.privateEncryptionKey)
   }
 
   @Test
@@ -117,7 +114,6 @@ class RequisitionsValidatorTest {
     assertFailsWith<InvalidRequisitionException> {
       requisitionValidator.validateMeasurementSpec(requisition)
     }
-
   }
 
   @Test

@@ -77,9 +77,7 @@ class RequisitionGrouperByReportIdTest : AbstractRequisitionGrouperTest() {
   private val throttler = MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofSeconds(1L))
 
   private val requisitionValidator by lazy {
-    RequisitionsValidator(
-      privateEncryptionKey = TestRequisitionData.EDP_DATA.privateEncryptionKey,
-    )
+    RequisitionsValidator(privateEncryptionKey = TestRequisitionData.EDP_DATA.privateEncryptionKey)
   }
 
   override val requisitionGrouper: RequisitionGrouper by lazy {
