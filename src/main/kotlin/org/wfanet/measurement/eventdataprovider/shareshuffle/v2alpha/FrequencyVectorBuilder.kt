@@ -161,6 +161,24 @@ class FrequencyVectorBuilder(
     }
   }
 
+  /**
+   * Constructor that initializes from a frequency array directly.
+   *
+   * @param populationSpec specification of the population being measured
+   * @param measurementSpec a [MeasurementSpec] that specifies a Reach or ReachAndFrequency
+   * @param frequencyArray an IntArray with frequency counts
+   * @param strict If false the various increment methods ignore indexes that are out of bounds. If
+   *   true, an out of bounds index will result in an exception being thrown.
+   */
+  constructor(
+    populationSpec: PopulationSpec,
+    measurementSpec: MeasurementSpec,
+    frequencyArray: IntArray,
+    strict: Boolean = true,
+  ) : this(populationSpec, measurementSpec, strict) {
+    frequencyArray.copyInto(frequencyData)
+  }
+
   /** Build a FrequencyVector. */
   fun build(): FrequencyVector = frequencyVector { data += frequencyData.asList() }
 
