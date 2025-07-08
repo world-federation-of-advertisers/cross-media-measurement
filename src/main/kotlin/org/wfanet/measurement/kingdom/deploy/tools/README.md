@@ -95,13 +95,21 @@ to the executable.
 
 ## `ModelRepository`
 
-Command-Line interface (CLI) tool to manager Model Repository artifacts
+Command-Line interface (CLI) tool to manager Model Repository artifacts.
+
+There are three layers for this CLI. Firstly, the root command is model-repository.
+Secondly, under the root command, there are command groups. Each command group focus
+on one type of resource (e.g. model-providers, model-lines). Thirdly, each command
+group has several leaf commands that corresponds to one specific action on the resource
+(e.g. create, get, list).
+
+Run the help subcommand for usage information. For help on each leaf command, due to
+current limitations, a value needs to be provided for --kingdom-public-api-target,
+(e.g. model-repository --kingdom-public-api-target=x model-lines create help).
 
 The examples assume that you have built the relevant target, which outputs to
 bazel-bin by default. For brevity, the examples do not include the full path to
 the executable.
-
-Run the help subcommand for usage information.
 
 ### Authenticating to the Kingdom API Server
 
