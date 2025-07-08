@@ -17,7 +17,6 @@ package org.wfanet.measurement.integration.common
 import java.nio.file.Path
 import java.nio.file.Paths
 import java.util.logging.Logger
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Before
@@ -169,19 +168,17 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
   @Test
   fun `create a direct RF measurement and check the result is equal to the expected result`() =
     runBlocking {
-      delay(1000)
       // Use frontend simulator to create a direct reach and frequency measurement and verify its
       // result.
-      mcSimulator.testDirectReachAndFrequency("1234", 1)
+      mcSimulator.testDirectReachAndFrequency(runId = "1234", numMeasurements = 1)
     }
 
   @Test
   fun `create incremental direct RF measurements in same report and check the result is equal to the expected result`() =
     runBlocking {
-      delay(1000)
       // Use frontend simulator to create N incremental direct reach and frequency measurements and
       // verify its result.
-      mcSimulator.testDirectReachAndFrequency("1234", 3)
+      mcSimulator.testDirectReachAndFrequency(runId = "1234", numMeasurements = 3)
     }
 
   companion object {
