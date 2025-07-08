@@ -61,7 +61,7 @@ resource "google_project_iam_member" "trigger_run_invoker" {
 }
 
 resource "terraform_data" "deploy_data_watcher" {
-  # wait for all of the above to exist first
+
   depends_on = [
     google_service_account.cloud_function_service_account,
     google_service_account.cloud_function_trigger_service_account,
@@ -94,41 +94,35 @@ resource "terraform_data" "deploy_data_watcher" {
       BAZEL_TARGET_LABEL      = var.bazel_target_label
     }
     command = <<-EOT
-      set -euo pipefail
+        #!/bin/bash
+        set -euo pipefail
 
-      # 1) Build your uber-jar
-      bazel build "$BAZEL_TARGET_LABEL"
+        bazel build "$BAZEL_TARGET_LABEL"
 
-      # 2) Stage it
-      JAR=$(bazel cquery "$BAZEL_TARGET_LABEL" --output=files)
-      TEMP_DIR=$(mktemp -d)
-      cp "$JAR" "$TEMP_DIR/"
+        JAR=$(bazel cquery "$BAZEL_TARGET_LABEL" --output=files)
+        TEMP_DIR=$(mktemp -d)
+        cp "$JAR" "$TEMP_DIR/"
 
-      # 3) Assemble gcloud args
-      ARGS=(
-        functions deploy "$FUNCTION_NAME"
-        --gen2
-        --runtime=java17
-        --entry-point="$ENTRY_POINT"
-        --memory=512MB
-        --region="$CLOUD_REGION"
-        --run-service-account="$RUN_SERVICE_ACCOUNT"
-        --source="$TEMP_DIR"
-        --trigger-event-filters="type=google.cloud.storage.object.v1.finalized"
-        --trigger-event-filters="bucket=$TRIGGER_BUCKET"
-        --trigger-service-account="$TRIGGER_SERVICE_ACCOUNT"
-      )
+        GCLOUD_CMD="gcloud functions deploy \"$FUNCTION_NAME\" \
+          --gen2 \
+          --runtime=java17 \
+          --entry-point=\"$ENTRY_POINT\" \
+          --memory=512MB \
+          --region=\"$CLOUD_REGION\" \
+          --run-service-account=\"$RUN_SERVICE_ACCOUNT\" \
+          --source=\"$TEMP_DIR\" \
+          --trigger-event-filters=type=google.cloud.storage.object.v1.finalized \
+          --trigger-event-filters=bucket=$TRIGGER_BUCKET \
+          --trigger-service-account=\"$TRIGGER_SERVICE_ACCOUNT\""
 
-      # only add these if non-empty
-      if [[ -n "$EXTRA_ENV_VARS" ]]; then
-        ARGS+=(--set-env-vars "$EXTRA_ENV_VARS")
-      fi
-      if [[ -n "$SECRET_MAPPINGS" ]]; then
-        ARGS+=(--set-secrets "$SECRET_MAPPINGS")
-      fi
+        if [[ -n "$EXTRA_ENV_VARS" ]]; then
+          GCLOUD_CMD+=" --set-env-vars=\"$EXTRA_ENV_VARS\""
+        fi
+        if [[ -n "$SECRET_MAPPINGS" ]]; then
+          GCLOUD_CMD+=" --set-secrets=\"$SECRET_MAPPINGS\""
+        fi
 
-      # 4) Deploy!
-      gcloud "${ARGS[@]}"
-    EOT
+        eval "$GCLOUD_CMD"
+      EOT
   }
 }
