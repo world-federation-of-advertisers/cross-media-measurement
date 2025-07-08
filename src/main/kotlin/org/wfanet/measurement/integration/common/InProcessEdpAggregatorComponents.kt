@@ -230,13 +230,7 @@ class InProcessEdpAggregatorComponents(
 
     val edpPrivateKey = getDataProviderPrivateEncryptionKey(edpAggregatorShortName)
 
-    val requisitionsValidator =
-      RequisitionsValidator(edpPrivateKey) { requisition, refusal ->
-        runBlocking {
-          logger.info("Refusing ${requisition.name}: $refusal")
-          refuseRequisition(requisitionsClient, requisition, refusal)
-        }
-      }
+    val requisitionsValidator = RequisitionsValidator(edpPrivateKey)
 
     val requisitionGrouper =
       RequisitionGrouperByReportId(
