@@ -4,18 +4,18 @@ load(":images.bzl", "IMAGES_TO_SIGN")
 def _compute_image_list(ctx):
     registry = ctx.expand_make_variables("registry", IMAGE_REPOSITORY_SETTINGS.container_registry, {})
     tag = ctx.expand_make_variables("tag", IMAGE_REPOSITORY_SETTINGS.image_tag, {})
-    lines = []
+    image_refs = []
     for image_spec in IMAGES_TO_SIGN:
         repository = ctx.expand_make_variables("repository", image_spec.repository, {})
-        lines.append("%s/%s:%s" % (registry, repository, tag))
-    return lines
+        image_refs.append("%s/%s:%s" % (registry, repository, tag))
+    return image_refs
 
 def _sign_images_impl(ctx):
-    images = _compute_image_list(ctx)
+    image_refs = _compute_image_list(ctx)
     images_file = ctx.actions.declare_file(ctx.label.name + "-images.txt")
     ctx.actions.write(
         output = images_file,
-        content = "\n".join(images),
+        content = "\n".join(image_refs),
     )
     script = ctx.actions.declare_file("%s-sign-script" % ctx.label.name)
     ctx.actions.expand_template(
