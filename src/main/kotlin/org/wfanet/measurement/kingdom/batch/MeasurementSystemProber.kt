@@ -139,7 +139,7 @@ class MeasurementSystemProber(
       logger.info("should create a new measurement")
       createMeasurement()
     }
-    delay(Duration.ofSeconds(30))
+    delay(Duration.ofSeconds(60))
   }
 
   private suspend fun createMeasurement() {
