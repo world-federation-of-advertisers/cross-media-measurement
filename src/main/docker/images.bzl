@@ -335,7 +335,7 @@ SECURE_COMPUTATION_TEE_APP_IMAGES = [
     ),
 ]
 
-TEST_SIGNED_BUILD_IMAGES = [
+IMAGES_TO_SIGN = [
     struct(
         name = "test_signed_image",
         image = "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/job/mill/shareshuffle:gcs_honest_majority_share_shuffle_mill_job_image",
