@@ -47,4 +47,8 @@ message CorrectnessTestConfig {
   //
   // If not specified, standard TLS DNS-ID derivation will be used.
   string reporting_public_api_cert_host = 6;
+
+  // DataProvider resource names of simulated EDPs, in order.
+  repeated string data_providers = 7
+      [(google.api.resource_reference).type = "halo.wfanet.org/DataProvider"];
 }

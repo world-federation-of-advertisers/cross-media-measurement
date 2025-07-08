@@ -54,7 +54,6 @@ import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
 import org.wfanet.measurement.loadtest.measurementconsumer.EventQueryMeasurementConsumerSimulator
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
-import org.wfanet.measurement.loadtest.measurementconsumer.MetadataSyntheticGeneratorEventQuery
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub
 
 /**
@@ -122,11 +121,6 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest(
 
   private fun initMcSimulator() {
     val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
-    val eventQuery =
-      MetadataSyntheticGeneratorEventQuery(
-        SyntheticGenerationSpecs.SYNTHETIC_POPULATION_SPEC_SMALL,
-        InProcessCmmsComponents.MC_ENCRYPTION_PRIVATE_KEY,
-      )
     mcSimulator =
       EventQueryMeasurementConsumerSimulator(
         MeasurementConsumerData(
@@ -142,7 +136,7 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest(
         publicMeasurementConsumersClient,
         publicCertificatesClient,
         InProcessCmmsComponents.TRUSTED_CERTIFICATES,
-        eventQuery,
+        inProcessCmmsComponents.eventQuery,
         NoiseMechanism.CONTINUOUS_GAUSSIAN,
       )
   }
