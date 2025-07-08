@@ -20,26 +20,26 @@ import com.google.crypto.tink.integration.gcpkms.GcpKmsClient
 import com.google.protobuf.DescriptorProtos
 import com.google.protobuf.Descriptors
 import com.google.protobuf.ExtensionRegistry
-import kotlinx.coroutines.runBlocking
 import com.google.protobuf.Parser
+import com.google.protobuf.TypeRegistry
+import java.io.File
+import java.util.logging.Logger
+import kotlinx.coroutines.runBlocking
+import org.wfanet.measurement.api.v2alpha.EventAnnotationsProto
+import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
-import picocli.CommandLine
-import java.io.File
-import java.util.logging.Logger
-import com.google.protobuf.TypeRegistry
-import org.wfanet.measurement.api.v2alpha.EventAnnotationsProto
+import org.wfanet.measurement.edpaggregator.StorageConfig
+import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
+import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams.StorageParams
 import org.wfanet.measurement.gcloud.pubsub.DefaultGooglePubSubClient
 import org.wfanet.measurement.gcloud.pubsub.Subscriber
+import org.wfanet.measurement.queue.QueueSubscriber
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAttemptsGrpcKt
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt
-import org.wfanet.measurement.queue.QueueSubscriber
-import org.wfanet.measurement.common.ProtoReflection
-import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
-import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams.StorageParams
-import org.wfanet.measurement.edpaggregator.StorageConfig
+import picocli.CommandLine
 
 @CommandLine.Command(name = "results_fulfiller_app_runner")
 class ResultsFulfillerAppRunner : Runnable {
@@ -70,49 +70,50 @@ class ResultsFulfillerAppRunner : Runnable {
   @CommandLine.Option(
     names = ["--kingdom-public-api-target"],
     description = ["gRPC target of the Kingdom public API server"],
-    required = true
+    required = true,
   )
   private lateinit var kingdomPublicApiTarget: String
 
   @CommandLine.Option(
     names = ["--secure-computation-public-api-target"],
     description = ["gRPC target of the Secure Conmputation public API server"],
-    required = true
+    required = true,
   )
   private lateinit var secureComputationPublicApiTarget: String
 
   @CommandLine.Option(
     names = ["--kingdom-public-api-cert-host"],
-    description = [
-      "Expected hostname (DNS-ID) in the Kingdom public API server's TLS certificate.",
-      "This overrides derivation of the TLS DNS-ID from --kingdom-public-api-target."
-    ],
-    required = false
+    description =
+      [
+        "Expected hostname (DNS-ID) in the Kingdom public API server's TLS certificate.",
+        "This overrides derivation of the TLS DNS-ID from --kingdom-public-api-target.",
+      ],
+    required = false,
   )
   private var kingdomPublicApiCertHost: String? = null
 
   @CommandLine.Option(
     names = ["--secure-computation-public-api-cert-host"],
-    description = [
-      "Expected hostname (DNS-ID) in the SecureComputation public API server's TLS certificate.",
-      "This overrides derivation of the TLS DNS-ID from --secure-computation-public-api-target."
-    ],
-    required = false
+    description =
+      [
+        "Expected hostname (DNS-ID) in the SecureComputation public API server's TLS certificate.",
+        "This overrides derivation of the TLS DNS-ID from --secure-computation-public-api-target.",
+      ],
+    required = false,
   )
   private var secureComputationPublicApiCertHost: String? = null
 
   @CommandLine.Option(
     names = ["--kingdom-cert-collection-file-path"],
     description = ["Kingdom root collections file path"],
-    required = true
+    required = true,
   )
   private lateinit var kingdomCertCollectionFilePath: String
-
 
   @CommandLine.Option(
     names = ["--subscription-id"],
     description = ["Subscription ID for the queue"],
-    required = true
+    required = true,
   )
   private lateinit var subscriptionId: String
 
@@ -126,11 +127,12 @@ class ResultsFulfillerAppRunner : Runnable {
 
   @CommandLine.Option(
     names = ["--event-template-metadata-type"],
-    description = [
-      "Serialized FileDescriptorSet for EventTemplate metadata types.",
-      "This can be specified multiple times.",
-    ],
-    required = true
+    description =
+      [
+        "Serialized FileDescriptorSet for EventTemplate metadata types.",
+        "This can be specified multiple times.",
+      ],
+    required = true,
   )
   private lateinit var eventTemplateDescriptorSetFiles: List<File>
 
@@ -146,49 +148,51 @@ class ResultsFulfillerAppRunner : Runnable {
     val edpaCertFile = File(edpaCertFilePath)
     val edpaPrivateKeyFile = File(edpaPrivateKeyFilePath)
     val secureComputationCertCollectionFile = File(secureComputationCertCollectionFilePath)
-    val secureComputationClientCerts = SigningCerts.fromPemFiles(
-      certificateFile = edpaCertFile,
-      privateKeyFile = edpaPrivateKeyFile,
-      trustedCertCollectionFile = secureComputationCertCollectionFile
-    )
+    val secureComputationClientCerts =
+      SigningCerts.fromPemFiles(
+        certificateFile = edpaCertFile,
+        privateKeyFile = edpaPrivateKeyFile,
+        trustedCertCollectionFile = secureComputationCertCollectionFile,
+      )
 
     // Build the mutual TLS channel for secure computation API
-    val publicChannel = buildMutualTlsChannel(
-      secureComputationPublicApiTarget,
-      secureComputationClientCerts,
-      secureComputationPublicApiCertHost
-    )
+    val publicChannel =
+      buildMutualTlsChannel(
+        secureComputationPublicApiTarget,
+        secureComputationClientCerts,
+        secureComputationPublicApiCertHost,
+      )
     val workItemsClient = WorkItemsGrpcKt.WorkItemsCoroutineStub(publicChannel)
     val workItemAttemptsClient = WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineStub(publicChannel)
     val kingdomCertCollectionFile = File(kingdomCertCollectionFilePath)
 
-    val requisitionStubFactory = RequisitionStubFactoryImpl(
-      cmmsCertHost = kingdomPublicApiCertHost,
-      cmmsTarget = kingdomPublicApiTarget,
-      trustedCertCollection = kingdomCertCollectionFile,
-    )
+    val requisitionStubFactory =
+      RequisitionStubFactoryImpl(
+        cmmsCertHost = kingdomPublicApiCertHost,
+        cmmsTarget = kingdomPublicApiTarget,
+        trustedCertCollection = kingdomCertCollectionFile,
+      )
 
     val kmsClient = GcpKmsClient().withDefaultCredentials()
 
     val typeRegistry: TypeRegistry = buildTypeRegistry()
 
-    val resultsFulfillerApp = ResultsFulfillerApp(
-      subscriptionId = subscriptionId,
-      queueSubscriber = queueSubscriber,
-      parser = parser,
-      workItemsClient = workItemsClient,
-      workItemAttemptsClient = workItemAttemptsClient,
-      requisitionStubFactory = requisitionStubFactory,
-      kmsClient = kmsClient,
-      typeRegistry = typeRegistry,
-      getImpressionsMetadataStorageConfig = getImpressionsStorageConfig,
-      getImpressionsStorageConfig = getImpressionsStorageConfig,
-      getRequisitionsStorageConfig = getImpressionsStorageConfig
-    )
+    val resultsFulfillerApp =
+      ResultsFulfillerApp(
+        subscriptionId = subscriptionId,
+        queueSubscriber = queueSubscriber,
+        parser = parser,
+        workItemsClient = workItemsClient,
+        workItemAttemptsClient = workItemAttemptsClient,
+        requisitionStubFactory = requisitionStubFactory,
+        kmsClient = kmsClient,
+        typeRegistry = typeRegistry,
+        getImpressionsMetadataStorageConfig = getImpressionsStorageConfig,
+        getImpressionsStorageConfig = getImpressionsStorageConfig,
+        getRequisitionsStorageConfig = getImpressionsStorageConfig,
+      )
 
-    runBlocking {
-      resultsFulfillerApp.run()
-    }
+    runBlocking { resultsFulfillerApp.run() }
   }
 
   private fun loadFileDescriptorSets(
@@ -196,28 +200,26 @@ class ResultsFulfillerAppRunner : Runnable {
   ): List<DescriptorProtos.FileDescriptorSet> {
     return files.map { file ->
       file.inputStream().use { input ->
-        DescriptorProtos.FileDescriptorSet.parseFrom(input,
-          EXTENSION_REGISTRY
-        )
+        DescriptorProtos.FileDescriptorSet.parseFrom(input, EXTENSION_REGISTRY)
       }
     }
   }
 
   private fun buildTypeRegistry(): TypeRegistry {
-      return TypeRegistry.newBuilder()
-        .apply {
-          add(COMPILED_PROTOBUF_TYPES.flatMap { it.messageTypes })
-          if (::eventTemplateDescriptorSetFiles.isInitialized) {
-            add(
-              ProtoReflection.buildDescriptors(
-                loadFileDescriptorSets(eventTemplateDescriptorSetFiles),
-                COMPILED_PROTOBUF_TYPES,
-              )
+    return TypeRegistry.newBuilder()
+      .apply {
+        add(COMPILED_PROTOBUF_TYPES.flatMap { it.messageTypes })
+        if (::eventTemplateDescriptorSetFiles.isInitialized) {
+          add(
+            ProtoReflection.buildDescriptors(
+              loadFileDescriptorSets(eventTemplateDescriptorSetFiles),
+              COMPILED_PROTOBUF_TYPES,
             )
-          }
+          )
         }
-        .build()
-    }
+      }
+      .build()
+  }
 
   private fun createQueueSubscriber(): QueueSubscriber {
     logger.info("Creating DefaultGooglePubSubclient: ${pubSubProjectId}")
@@ -236,8 +238,7 @@ class ResultsFulfillerAppRunner : Runnable {
      * a [DescriptorProtos.FileDescriptorSet].
      */
     private val COMPILED_PROTOBUF_TYPES: Iterable<Descriptors.FileDescriptor> =
-      (ProtoReflection.WELL_KNOWN_TYPES.asSequence() +
-        ResultsFulfillerParams.getDescriptor().file)
+      (ProtoReflection.WELL_KNOWN_TYPES.asSequence() + ResultsFulfillerParams.getDescriptor().file)
         .asIterable()
 
     private val EXTENSION_REGISTRY =
@@ -246,7 +247,7 @@ class ResultsFulfillerAppRunner : Runnable {
         .unmodifiable
 
     private val logger = Logger.getLogger(this::class.java.name)
-    @JvmStatic
-    fun main(args: Array<String>) = commandLineMain(ResultsFulfillerAppRunner(), args)
+
+    @JvmStatic fun main(args: Array<String>) = commandLineMain(ResultsFulfillerAppRunner(), args)
   }
 }
