@@ -51,7 +51,7 @@ import org.wfanet.measurement.loadtest.dataprovider.SyntheticDataGeneration
 
 /** Implementation of MeasurementConsumerSimulator for use with the EDP Aggregator. */
 class EdpAggregatorMeasurementConsumerSimulator(
-  measurementConsumerData: MeasurementConsumerData,
+  private val measurementConsumerData: MeasurementConsumerData,
   outputDpParams: DifferentialPrivacyParams,
   dataProvidersClient: DataProvidersCoroutineStub,
   eventGroupsClient: EventGroupsCoroutineStub,
@@ -147,7 +147,7 @@ class EdpAggregatorMeasurementConsumerSimulator(
     eventGroups: List<EventGroup>,
     measurementConsumer: MeasurementConsumer,
     nonce: Long,
-    percentage: Double = 1.0,
+    percentage: Double,
   ): RequisitionInfo {
     val requisitionSpec = requisitionSpec {
       for (eventGroup in eventGroups) {
