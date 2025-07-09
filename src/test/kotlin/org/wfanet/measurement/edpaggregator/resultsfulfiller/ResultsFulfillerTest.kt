@@ -104,6 +104,7 @@ import org.wfanet.measurement.dataprovider.MeasurementResults
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionsValidator
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.SingleRequisitionGrouper
+import org.wfanet.measurement.edpaggregator.requisitionfetcher.testing.TestRequisitionData
 import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
@@ -153,11 +154,7 @@ class ResultsFulfillerTest {
     val requisitionsStorageClient =
       SelectedStorageClient(REQUISITIONS_FILE_URI, requisitionsTmpPath)
     val requisitionValidator =
-      RequisitionsValidator(
-        fatalRequisitionErrorPredicate =
-          fun(requisition: Requisition, refusal: Requisition.Refusal) {},
-        privateEncryptionKey = PRIVATE_ENCRYPTION_KEY,
-      )
+      RequisitionsValidator(TestRequisitionData.EDP_DATA.privateEncryptionKey)
     val groupedRequisitions =
       SingleRequisitionGrouper(
           requisitionsClient = requisitionsStub,
