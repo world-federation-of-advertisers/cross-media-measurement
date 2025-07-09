@@ -43,7 +43,6 @@ import org.wfanet.measurement.api.v2alpha.requisitionSpec
 import org.wfanet.measurement.common.OpenEndTimeRange
 import org.wfanet.measurement.common.crypto.Hashing
 import org.wfanet.measurement.common.toInstant
-import org.wfanet.measurement.common.toInterval
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.consent.client.measurementconsumer.signRequisitionSpec
 import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters
@@ -64,7 +63,6 @@ class EdpAggregatorMeasurementConsumerSimulator(
   private val syntheticPopulationSpec: SyntheticPopulationSpec,
   private val syntheticEventGroupMap: Map<String, SyntheticEventGroupSpec>,
   private val filterExpression: String = DEFAULT_FILTER_EXPRESSION,
-  private val eventRange: OpenEndTimeRange = DEFAULT_EVENT_RANGE,
   initialResultPollingDelay: Duration = Duration.ofSeconds(1),
   maximumResultPollingDelay: Duration = Duration.ofMinutes(1),
 ) :
@@ -158,34 +156,21 @@ class EdpAggregatorMeasurementConsumerSimulator(
                 key = eventGroup.name
                 value =
                   RequisitionSpecKt.EventGroupEntryKt.value {
-                    if (!eventGroup.hasDataAvailabilityInterval()) {
-                      collectionInterval = eventRange.toInterval()
-                    } else {
-                      collectionInterval = interval {
-                        startTime =
-                          if (
-                            eventRange.start <
-                              eventGroup.dataAvailabilityInterval.startTime.toInstant()
+                    collectionInterval = interval {
+                      startTime = eventGroup.dataAvailabilityInterval.startTime
+                      val durationMillis =
+                        Duration.between(
+                            eventGroup.dataAvailabilityInterval.startTime.toInstant(),
+                            eventGroup.dataAvailabilityInterval.endTime.toInstant(),
                           )
-                            eventGroup.dataAvailabilityInterval.startTime
-                          else eventRange.start.toProtoTime()
-                        val durationMillis =
-                          Duration.between(
-                              eventGroup.dataAvailabilityInterval.startTime.toInstant(),
-                              eventGroup.dataAvailabilityInterval.endTime.toInstant(),
-                            )
-                            .toMillis() * percentage
-                        val requisitionEndTime =
-                          (eventGroup.dataAvailabilityInterval.startTime
-                              .toInstant()
-                              .plusMillis(durationMillis.toLong()))
-                            .toProtoTime()
+                          .toMillis() * percentage
+                      val requisitionEndTime =
+                        (eventGroup.dataAvailabilityInterval.startTime
+                            .toInstant()
+                            .plusMillis(durationMillis.toLong()))
+                          .toProtoTime()
 
-                        endTime =
-                          if (eventRange.endExclusive > requisitionEndTime.toInstant())
-                            requisitionEndTime
-                          else eventRange.endExclusive.toProtoTime()
-                      }
+                      endTime = requisitionEndTime
                     }
                     filter = RequisitionSpecKt.eventFilter { expression = filterExpression }
                   }
