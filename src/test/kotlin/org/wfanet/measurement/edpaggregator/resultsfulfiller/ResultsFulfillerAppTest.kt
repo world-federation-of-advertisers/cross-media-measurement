@@ -107,6 +107,7 @@ import org.wfanet.measurement.consent.client.measurementconsumer.signRequisition
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionsValidator
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.SingleRequisitionGrouper
+import org.wfanet.measurement.edpaggregator.requisitionfetcher.testing.TestRequisitionData
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.testing.TestRequisitionStubFactory
 import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
@@ -219,11 +220,7 @@ class ResultsFulfillerAppTest {
     val requisitionsStorageClient = SelectedStorageClient(REQUISITIONS_FILE_URI, tmpPath)
 
     val requisitionValidator =
-      RequisitionsValidator(
-        fatalRequisitionErrorPredicate =
-          fun(requisition: Requisition, refusal: Requisition.Refusal) {},
-        privateEncryptionKey = PRIVATE_ENCRYPTION_KEY,
-      )
+      RequisitionsValidator(TestRequisitionData.EDP_DATA.privateEncryptionKey)
     val groupedRequisitions =
       SingleRequisitionGrouper(
           requisitionsClient = requisitionsStub,
@@ -361,11 +358,7 @@ class ResultsFulfillerAppTest {
     val requisitionsStorageClient = SelectedStorageClient(REQUISITIONS_FILE_URI, tmpPath)
 
     val requisitionValidator =
-      RequisitionsValidator(
-        fatalRequisitionErrorPredicate =
-          fun(requisition: Requisition, refusal: Requisition.Refusal) {},
-        privateEncryptionKey = PRIVATE_ENCRYPTION_KEY,
-      )
+      RequisitionsValidator(TestRequisitionData.EDP_DATA.privateEncryptionKey)
     val requisition2 =
       REQUISITION.copy {
         protocolConfig = protocolConfig {
@@ -512,11 +505,7 @@ class ResultsFulfillerAppTest {
     val requisitionsStorageClient = SelectedStorageClient(REQUISITIONS_FILE_URI, tmpPath)
 
     val requisitionValidator =
-      RequisitionsValidator(
-        fatalRequisitionErrorPredicate =
-          fun(requisition: Requisition, refusal: Requisition.Refusal) {},
-        privateEncryptionKey = PRIVATE_ENCRYPTION_KEY,
-      )
+      RequisitionsValidator(TestRequisitionData.EDP_DATA.privateEncryptionKey)
     val requisition2 =
       REQUISITION.copy {
         protocolConfig = protocolConfig {

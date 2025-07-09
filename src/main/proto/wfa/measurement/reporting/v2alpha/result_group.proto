@@ -44,7 +44,7 @@ message DimensionSpec {
     //
     // For example, if the Event message had an Event Template `common` with
     // a field `age_group` then the field path would be `common.age_group`.
-    repeated string event_template_field = 1 [
+    repeated string event_template_fields = 1 [
       (google.api.field_behavior) = REQUIRED,
       (google.api.field_behavior) = IMMUTABLE
     ];
@@ -187,7 +187,7 @@ message ResultGroupMetricSpec {
     // Cumulative metrics for the various intersections
     BasicMetricSetSpec cumulative = 3 [(google.api.field_behavior) = IMMUTABLE];
   }
-  // Metrics for n-way intersections
+  // Metrics for n-way intersections. Currently not supported.
   ComponentIntersectionMetricSetSpec component_intersection = 4
       [(google.api.field_behavior) = IMMUTABLE];
 }
@@ -207,7 +207,7 @@ message ResultGroupSpec {
   MetricFrequencySpec metric_frequency = 3
       [(google.api.field_behavior) = IMMUTABLE];
 
-  // Specfies the dimensions over which the report is filtered and grouped.
+  // Specifies the dimensions over which the report is filtered and grouped.
   DimensionSpec dimension_spec = 4 [
     (google.api.field_behavior) = REQUIRED,
     (google.api.field_behavior) = IMMUTABLE
@@ -403,7 +403,7 @@ message ResultGroup {
         [(google.api.field_behavior) = IMMUTABLE];
   }
 
-  // The metadata and metrics for a impression aualification filter
+  // The metadata and metrics for a impression qualification filter
   message Result {
     // Metadata that describes the metric
     MetricMetadata metadata = 1 [(google.api.field_behavior) = IMMUTABLE];
