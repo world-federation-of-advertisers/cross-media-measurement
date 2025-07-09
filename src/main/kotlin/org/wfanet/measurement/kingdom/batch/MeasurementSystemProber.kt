@@ -30,6 +30,7 @@ import java.util.logging.Level
 import java.util.logging.Logger
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.lastOrNull
 import kotlinx.coroutines.flow.map
@@ -306,7 +307,10 @@ class MeasurementSystemProber(
         ResourceList(response.measurementsList, response.nextPageToken)
       }
 
-    return measurements.flattenConcat().lastOrNull()
+    return measurements
+      .flattenConcat()
+      .filter { measurement -> measurement.dataProvidersList.toSet() == dataProviderNames.toSet() }
+      .lastOrNull()
   }
 
   @OptIn(ExperimentalCoroutinesApi::class) // For `flattenConcat`.
