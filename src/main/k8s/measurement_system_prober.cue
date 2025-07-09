@@ -81,6 +81,10 @@ import ("strings")
 						"--data-provider=\(edp)"
 					},
 				]
+				resources: {
+				  requests: memory: "500Mi"
+				  limits: memory: "500Mi"
+				}
 			}
 			spec: schedule: "* * * * *"
 		}

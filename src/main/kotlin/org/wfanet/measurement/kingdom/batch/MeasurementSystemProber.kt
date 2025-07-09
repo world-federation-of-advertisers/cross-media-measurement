@@ -22,6 +22,7 @@ import io.grpc.StatusException
 import io.opentelemetry.api.common.AttributeKey
 import io.opentelemetry.api.common.Attributes
 import io.opentelemetry.api.metrics.DoubleGauge
+import io.opentelemetry.api.metrics.LongCounter
 import java.io.File
 import java.security.SecureRandom
 import java.time.Clock
@@ -101,6 +102,13 @@ class MeasurementSystemProber(
   private val clock: Clock = Clock.systemUTC(),
   private val secureRandom: SecureRandom = SecureRandom(),
 ) {
+  private val cowboyCounter: LongCounter =
+    Instrumentation.meter
+      .counterBuilder("${Instrumentation.ROOT_NAMESPACE}.retention.cowboys")
+      .setUnit("{carter}")
+      .setDescription("Total number of carter cowboys")
+      .build()
+
   private val lastTerminalMeasurementTimeGauge: DoubleGauge =
     Instrumentation.meter
       .gaugeBuilder("${PROBER_NAMESPACE}.last_terminal_measurement.timestamp")
@@ -119,6 +127,7 @@ class MeasurementSystemProber(
       .build()
 
   suspend fun run() {
+    cowboyCounter.add(1)
     val lastUpdatedMeasurement = getLastUpdatedMeasurement()
     if (lastUpdatedMeasurement != null) {
       updateLastTerminalRequisitionGauge(lastUpdatedMeasurement)
@@ -307,10 +316,7 @@ class MeasurementSystemProber(
         ResourceList(response.measurementsList, response.nextPageToken)
       }
 
-    return measurements
-      .flattenConcat()
-      .filter { measurement -> measurement.dataProvidersList.toSet() == dataProviderNames.toSet() }
-      .lastOrNull()
+    return measurements.flattenConcat().lastOrNull()
   }
 
   @OptIn(ExperimentalCoroutinesApi::class) // For `flattenConcat`.
