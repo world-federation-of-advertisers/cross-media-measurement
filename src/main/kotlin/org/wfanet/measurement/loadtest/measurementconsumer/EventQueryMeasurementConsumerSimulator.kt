@@ -51,10 +51,6 @@ import org.wfanet.measurement.loadtest.dataprovider.EventQuery
  * enabling load testing and validation of measurement consumer workflows in a controlled
  * environment.
  *
- * Note that this implementation disregards the `dataAvailabilityInterval` field of the [EventGroup]
- * and instead uses the configured [eventRange] to determine the time range for events. This allows
- * for more flexible and customizable simulation scenarios.
- *
  * @param measurementConsumerData Data and configuration for the measurement consumer.
  * @param outputDpParams Differential privacy parameters to be used for output.
  * @param dataProvidersClient gRPC client for interacting with DataProviders service.
@@ -68,7 +64,9 @@ import org.wfanet.measurement.loadtest.dataprovider.EventQuery
  * @param filterExpression Expression used to filter events (default: filters for male gender and
  *   video ad viewed fraction > 0.25).
  * @param eventRange Time range for events to be considered (default: March 15–17, 2021). This range
- *   is used instead of the `dataAvailabilityInterval` field of the [EventGroup].
+ *   is used instead of the intersection of the `dataAvailabilityInterval` field of the [EventGroup]
+ *   and the dataAvailabilityIntervals of the [DataProvider] for the modelLine specified in the
+ *   [MeasurementSpec].
  * @param initialResultPollingDelay Initial delay before polling for results.
  * @param maximumResultPollingDelay Maximum delay between polling attempts.
  * @see MeasurementConsumerSimulator
