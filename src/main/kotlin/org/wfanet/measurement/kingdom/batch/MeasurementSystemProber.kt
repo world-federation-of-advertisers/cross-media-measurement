@@ -30,9 +30,9 @@ import java.util.logging.Level
 import java.util.logging.Logger
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.lastOrNull
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.single
 import kotlinx.coroutines.time.delay
 import org.wfanet.measurement.api.v2alpha.CanonicalRequisitionKey
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt
@@ -89,6 +89,7 @@ class MeasurementSystemProber(
   private val measurementLookbackDuration: Duration,
   private val durationBetweenMeasurement: Duration,
   private val measurementUpdateLookbackDuration: Duration,
+  private val eventGroupReferenceIdPrefix: String,
   private val measurementConsumersStub:
     MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub,
   private val measurementsStub:
@@ -220,10 +221,10 @@ class MeasurementSystemProber(
   private suspend fun buildDataProviderNameToEventGroup(): Map<String, EventGroup> {
     val dataProviderNameToEventGroup = mutableMapOf<String, EventGroup>()
     for (dataProviderName in dataProviderNames) {
-      val eventGroup: EventGroup =
+      val eventGroups: Flow<EventGroup> =
         eventGroupsStub
           .withAuthenticationKey(apiAuthenticationKey)
-          .listResources(1) { pageToken: String, remaining ->
+          .listResources(Int.MAX_VALUE) { pageToken: String, remaining ->
             val request = listEventGroupsRequest {
               parent = measurementConsumerName
               filter = ListEventGroupsRequestKt.filter { dataProviderIn += dataProviderName }
@@ -242,11 +243,20 @@ class MeasurementSystemProber(
             logger.log(Level.INFO, "debug list event groups res:\n $response \n")
             ResourceList(response.eventGroupsList, response.nextPageToken)
           }
-          .map {
-            logger.log(Level.INFO, "debug list event groups map it:\n $it \n")
-            it.single()
+          .flattenConcat()
+
+      var eventGroup =
+        if (eventGroupReferenceIdPrefix.isNotEmpty()) {
+          eventGroups.firstOrNull {
+            it.eventGroupReferenceId.startsWith(eventGroupReferenceIdPrefix)
           }
-          .single()
+        } else {
+          eventGroups.firstOrNull()
+        }
+
+      if (eventGroup == null) {
+        throw Exception("No EventGroup found")
+      }
 
       logger.log(Level.INFO, "debug list event group final single: \n $eventGroup \n")
       dataProviderNameToEventGroup[dataProviderName] = eventGroup

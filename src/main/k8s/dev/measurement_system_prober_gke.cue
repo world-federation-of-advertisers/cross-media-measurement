@@ -5,15 +5,17 @@ _mc_resource_name: string @tag("mc_name")
 _mc_api_key:       string @tag("mc_api_key")
 _edp1:             string @tag("edp1_name")
 _edp2:             string @tag("edp2_name")
+_eventGroupPrefix: string @tag("event_group_reference_id_prefix")
 
 #KingdomPublicApiTarget: (#Target & {name: "v2alpha-public-api-server"}).target
 
 objectSets: [ for objectSet in measurementSystemProber {objectSet}]
 
 measurementSystemProber: #MeasurementSystemProber & {
-	_mcName:                   _mc_resource_name
-	_apiKey:                   _mc_api_key
-	_secretName:               _secret_name
+	_mcName:                     _mc_resource_name
+	_apiKey:                      _mc_api_key
+	_secretName:                  _secret_name
+	_eventGroupReferenceIdPrefix: _eventGroupPrefix
 	_verboseGrpcClientLogging: true
 	_edpResourceNames: [_edp1, _edp2]
 	_kingdomPublicApiTarget: #KingdomPublicApiTarget

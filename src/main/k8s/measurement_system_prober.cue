@@ -17,10 +17,11 @@ package k8s
 import ("strings")
 
 #MeasurementSystemProber: {
-	_mcName:            string
-	_privateKeyDerFile: string
-	_apiKey:            string
-	_edpResourceNames: [...string]
+	_mcName:                      string
+	_privateKeyDerFile:           string
+	_apiKey:                      string
+	_eventGroupReferenceIdPrefix: string
+	_edpResourceNames:            [...string]
 	_verboseGrpcClientLogging: bool | *false
 	_kingdomPublicApiTarget:   string
 	_secretName:               string
@@ -73,8 +74,9 @@ import ("strings")
 					_kingdomPublicApiTargetFlag,
 					_kingdomPublicApiCertHostFlag,
 					"--measurement-lookback-duration=1d",
-					"--duration-between-measurements=10m",
+					"--duration-between-measurements=5m",
 					"--measurement-update-lookback-duration=2h",
+					"--event-group-reference-id-prefix=\(_eventGroupReferenceIdPrefix)"
 					for edp in _edpResourceNames {
 						"--data-provider=\(edp)"
 					},
