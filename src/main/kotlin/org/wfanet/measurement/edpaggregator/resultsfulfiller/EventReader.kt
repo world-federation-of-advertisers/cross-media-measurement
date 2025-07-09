@@ -26,6 +26,7 @@ import org.wfanet.measurement.edpaggregator.EncryptedStorage
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
+import org.wfanet.measurement.storage.MesosRecordIoStorageClient
 import org.wfanet.measurement.storage.SelectedStorageClient
 
 /**
@@ -37,7 +38,7 @@ import org.wfanet.measurement.storage.SelectedStorageClient
  * @param labeledImpressionsDekPrefix Prefix for labeled impressions DEK
  */
 class EventReader(
-  private val kmsClient: KmsClient,
+  private val kmsClient: KmsClient?,
   private val impressionsStorageConfig: StorageConfig,
   private val impressionDekStorageConfig: StorageConfig,
   private val labeledImpressionsDekPrefix: String,
@@ -67,7 +68,6 @@ class EventReader(
   private suspend fun getBlobDetails(ds: LocalDate, eventGroupReferenceId: String): BlobDetails {
     val dekBlobKey = "ds/$ds/event-group-reference-id/$eventGroupReferenceId/metadata"
     val dekBlobUri = "$labeledImpressionsDekPrefix/$dekBlobKey"
-    print(impressionDekStorageConfig)
     val storageClientUri = SelectedStorageClient.parseBlobUri(dekBlobUri)
     val impressionsDekStorageClient =
       SelectedStorageClient(
@@ -102,12 +102,17 @@ class EventReader(
       )
 
     val impressionsStorage =
-      EncryptedStorage.buildEncryptedMesosStorageClient(
-        selectedStorageClient,
-        kekUri = encryptedDek.kekUri,
-        kmsClient = kmsClient,
-        serializedEncryptionKey = encryptedDek.encryptedDek,
-      )
+      if (kmsClient == null) {
+        MesosRecordIoStorageClient(selectedStorageClient.underlyingClient)
+      } else {
+        EncryptedStorage.buildEncryptedMesosStorageClient(
+          selectedStorageClient,
+          kekUri = encryptedDek.kekUri,
+          kmsClient = kmsClient,
+          serializedEncryptionKey = encryptedDek.encryptedDek,
+        )
+      }
+
     val impressionBlob =
       impressionsStorage.getBlob(storageClientUri.key)
         ?: throw ImpressionReadException(

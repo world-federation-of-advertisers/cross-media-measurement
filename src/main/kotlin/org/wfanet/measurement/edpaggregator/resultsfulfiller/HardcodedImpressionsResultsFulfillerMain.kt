@@ -90,9 +90,9 @@ class HardcodedImpressionsResultsFulfillerMain : Runnable {
   @CommandLine.Option(
     names = ["--master-key-file"],
     description = ["Path to master key file"],
-    required = true
+    required = false
   )
-  private lateinit var masterKeyFile: Path
+  private var masterKeyFile: Path? = null
 
   @CommandLine.Option(
     names = ["--start-date"],
@@ -176,15 +176,19 @@ class HardcodedImpressionsResultsFulfillerMain : Runnable {
     }
 
     // Set up KMS
-    val kmsClient = FakeKmsClient()
-    val kekUri = FakeKmsClient.KEY_URI_PREFIX + "key1"
+    val kmsClient: FakeKmsClient? = if (masterKeyFile == null) null
+    else {
+      val kmsClient = FakeKmsClient()
+      val kekUri = FakeKmsClient.KEY_URI_PREFIX + "key1"
 
-    // Load master key from file
-    val kmsKeyHandle = FileInputStream(masterKeyFile.toFile()).use { inputStream ->
-      val keysetReader = BinaryKeysetReader.withInputStream(inputStream)
-      CleartextKeysetHandle.read(keysetReader)
+      // Load master key from file
+      val kmsKeyHandle = FileInputStream(masterKeyFile!!.toFile()).use { inputStream ->
+        val keysetReader = BinaryKeysetReader.withInputStream(inputStream)
+        CleartextKeysetHandle.read(keysetReader)
+      }
+      kmsClient.setAead(kekUri, kmsKeyHandle.getPrimitive(Aead::class.java))
+      kmsClient
     }
-    kmsClient.setAead(kekUri, kmsKeyHandle.getPrimitive(Aead::class.java))
 
     // Set up type registry
     val typeRegistry = TypeRegistry.newBuilder().add(TestEvent.getDescriptor()).build()
@@ -200,10 +204,10 @@ class HardcodedImpressionsResultsFulfillerMain : Runnable {
 
     // Process requisitions directly without ResultsFulfiller dependencies
     println("Processing requisitions...")
-    
+
     // Measure time to read event data only
     val readStartTime = System.currentTimeMillis()
-    
+
     val sampledVids = getSampledVids(
       requisitionSpec,
       groupedRequisitions.eventGroupMapList.associate { it.eventGroup to it.details.eventGroupReferenceId },
@@ -213,21 +217,21 @@ class HardcodedImpressionsResultsFulfillerMain : Runnable {
       ZoneId.systemDefault(),
       timeRange
     )
-    
+
     // Collect all VIDs to force reading from disk
     val vidCount = sampledVids.count()
-    
+
     val readEndTime = System.currentTimeMillis()
     val readDuration = readEndTime - readStartTime
-    
+
     println("Event data reading completed:")
     println("  Total VIDs read: $vidCount")
     println("  Time taken: ${readDuration}ms (${readDuration / 1000.0} seconds)")
     println("  Average rate: ${if (readDuration > 0) (vidCount * 1000.0 / readDuration).toLong() else 0} VIDs/second")
-    
+
     // Skip computation for now
     // val result = processRequisitions(...)
-    
+
     println("Done!")
   }
 
@@ -356,7 +360,8 @@ class HardcodedImpressionsResultsFulfillerMain : Runnable {
           println("  Completed reading for $date in ${System.currentTimeMillis() - dateStartTime}ms")
         }
       }
-
+      impressions.map { i -> i.vid }
+/*
       filterAndExtractVids(
         impressions,
         vidSamplingIntervalStart,
@@ -365,6 +370,7 @@ class HardcodedImpressionsResultsFulfillerMain : Runnable {
         collectionInterval,
         typeRegistry
       )
+*/
     }
   }
 

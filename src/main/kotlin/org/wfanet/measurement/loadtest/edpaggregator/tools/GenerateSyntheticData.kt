@@ -45,6 +45,7 @@ import picocli.CommandLine.Option
 enum class KmsType {
   FAKE,
   GCP,
+  NONE
 }
 
 @Command(
@@ -158,17 +159,20 @@ class GenerateSyntheticData : Runnable {
         syntheticEventGroupSpec = syntheticEventGroupSpec,
         zoneId = ZoneId.of(zoneId),
       )
-    val kmsClient: KmsClient = run {
+    val kmsClient: KmsClient? = run {
       when (kmsType) {
+        KmsType.NONE -> {
+          null
+        }
         KmsType.FAKE -> {
           val client = FakeKmsClient()
           val masterKeyHandle = KeysetHandle.generateNew(KeyTemplates.get("AES128_GCM"))
           client.setAead(kekUri, masterKeyHandle.getPrimitive(Aead::class.java))
-          
+
           // Save the master key to file (cleartext for FAKE KMS testing)
           val masterKeyPath = File(masterKeyFile).absolutePath
           logger.info("Attempting to save master key to: $masterKeyPath")
-          
+
           try {
             FileOutputStream(masterKeyFile).use { outputStream ->
               val keySetWriter = BinaryKeysetWriter.withOutputStream(outputStream)
@@ -181,7 +185,7 @@ class GenerateSyntheticData : Runnable {
             logger.severe("Failed to save master key: ${e.message}")
             throw e
           }
-          
+
           client
         }
         KmsType.GCP -> {

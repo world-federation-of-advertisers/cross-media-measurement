@@ -17,7 +17,6 @@ package org.wfanet.measurement.loadtest.edpaggregator.testing
 import com.google.crypto.tink.KmsClient
 import com.google.protobuf.Any
 import com.google.protobuf.Message
-import com.google.protobuf.kotlin.toByteString
 import java.io.File
 import java.time.LocalDate
 import java.util.logging.Logger
@@ -56,13 +55,13 @@ import org.wfanet.measurement.storage.SelectedStorageClient
  * @property schema The URI schema for storage paths, defaulting to "file:///".
  */
 class ImpressionsWriter(
-  private val eventGroupPath: String,
-  private val kekUri: String,
-  private val kmsClient: KmsClient,
-  private val impressionsBucket: String,
-  private val impressionsMetadataBucket: String,
-  private val storagePath: File? = null,
-  private val schema: String = "file:///",
+    private val eventGroupPath: String,
+    private val kekUri: String,
+    private val kmsClient: KmsClient?,
+    private val impressionsBucket: String,
+    private val impressionsMetadataBucket: String,
+    private val storagePath: File? = null,
+    private val schema: String = "file:///",
 ) {
 
   /*
@@ -71,50 +70,63 @@ class ImpressionsWriter(
    * to be able to find and read the contents.
    */
   suspend fun <T : Message> writeLabeledImpressionData(
-    events: Flow<DateShardedLabeledImpression<T>>
+      events: Flow<DateShardedLabeledImpression<T>>
   ) {
     val serializedEncryptionKey =
-      EncryptedStorage.generateSerializedEncryptionKey(kmsClient, kekUri, "AES128_GCM_HKDF_1MB")
+        if (kmsClient == null) null
+        else
+            EncryptedStorage.generateSerializedEncryptionKey(
+                kmsClient, kekUri, "AES128_GCM_HKDF_1MB")
     val encryptedDek =
-      EncryptedDek.newBuilder().setKekUri(kekUri).setEncryptedDek(serializedEncryptionKey).build()
+        if (kmsClient == null)
+          EncryptedDek.newBuilder().build()
+        else
+            EncryptedDek.newBuilder()
+                .setKekUri(kekUri)
+                .setEncryptedDek(serializedEncryptionKey)
+                .build()
 
     events.collect { (localDate: LocalDate, labeledEvents: Flow<LabeledEvent<T>>) ->
       val labeledImpressions: Flow<LabeledImpression> =
-        labeledEvents.map { it: LabeledEvent<T> ->
-          labeledImpression {
-            vid = it.vid
-            event = Any.pack(it.message)
-            eventTime = it.timestamp.toProtoTime()
+          labeledEvents.map { it: LabeledEvent<T> ->
+            labeledImpression {
+              vid = it.vid
+              event = Any.pack(it.message)
+              eventTime = it.timestamp.toProtoTime()
+            }
           }
-        }
       val ds = localDate.toString()
       logger.info("Writing Date: $ds")
 
       val impressionsBlobKey = "ds/$ds/$eventGroupPath/impressions"
       val impressionsFileUri = "$schema$impressionsBucket/$impressionsBlobKey"
-      val encryptedStorage = run {
+      val storage = run {
         val selectedStorageClient = SelectedStorageClient(impressionsFileUri, storagePath)
 
-        val aeadStorageClient =
-          selectedStorageClient.withEnvelopeEncryption(kmsClient, kekUri, serializedEncryptionKey)
-
-        MesosRecordIoStorageClient(aeadStorageClient)
+        if (kmsClient == null || serializedEncryptionKey == null)
+            MesosRecordIoStorageClient(selectedStorageClient.underlyingClient)
+        else {
+          val aeadStorageClient =
+              selectedStorageClient.withEnvelopeEncryption(
+                  kmsClient, kekUri, serializedEncryptionKey)
+          MesosRecordIoStorageClient(aeadStorageClient)
+        }
       }
       logger.info("Writing impressions to $impressionsFileUri")
       // Write impressions to storage
       runBlocking {
-        encryptedStorage.writeBlob(impressionsBlobKey, labeledImpressions.map { it.toByteString() })
+        storage.writeBlob(impressionsBlobKey, labeledImpressions.map { it.toByteString() })
       }
       val impressionsMetaDataBlobKey = "ds/$ds/$eventGroupPath/metadata"
 
       val impressionsMetadataFileUri =
-        "$schema$impressionsMetadataBucket/$impressionsMetaDataBlobKey"
+          "$schema$impressionsMetadataBucket/$impressionsMetaDataBlobKey"
 
       logger.info("Writing metadata to $impressionsMetadataFileUri")
 
       // Create the impressions metadata store
       val impressionsMetadataStorageClient =
-        SelectedStorageClient(impressionsMetadataFileUri, storagePath)
+          SelectedStorageClient(impressionsMetadataFileUri, storagePath)
 
       val blobDetails = blobDetails {
         this.blobUri = impressionsFileUri
@@ -122,8 +134,8 @@ class ImpressionsWriter(
       }
       runBlocking {
         impressionsMetadataStorageClient.writeBlob(
-          impressionsMetaDataBlobKey,
-          blobDetails.toByteString(),
+            impressionsMetaDataBlobKey,
+            blobDetails.toByteString(),
         )
       }
     }
