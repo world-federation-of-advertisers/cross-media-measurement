@@ -256,7 +256,7 @@ class MeasurementSystemProber(
         }
 
       if (eventGroup == null) {
-        throw Exception("No EventGroup found")
+        throw Exception("No EventGroup found for DataProvider $dataProviderName")
       }
 
       logger.log(Level.INFO, "debug list event group final single: \n $eventGroup \n")
