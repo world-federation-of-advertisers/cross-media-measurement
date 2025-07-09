@@ -22,26 +22,59 @@ import java.time.LocalDate
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.filter
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
+import org.wfanet.measurement.api.v2alpha.DataProvider
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.DifferentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupKey
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.MeasurementConsumer
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig.NoiseMechanism
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec
+import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
+import org.wfanet.measurement.api.v2alpha.requisitionSpec
 import org.wfanet.measurement.common.OpenEndTimeRange
+import org.wfanet.measurement.common.crypto.Hashing
+import org.wfanet.measurement.common.toInterval
+import org.wfanet.measurement.consent.client.measurementconsumer.signRequisitionSpec
 import org.wfanet.measurement.loadtest.config.TestIdentifiers
 import org.wfanet.measurement.loadtest.dataprovider.EventQuery
 
 /**
- * Implementation of MeasurementConsumerSimulator that uses Synthetic Event Query typically with the
- * EDPSimulator.
+ * Implementation of [MeasurementConsumerSimulator] that uses a synthetic [EventQuery] for
+ * simulating measurement consumer behavior, typically in conjunction with [EDPSimulator].
+ *
+ * This simulator filters event groups and virtual IDs (VIDs) based on synthetic event queries,
+ * enabling load testing and validation of measurement consumer workflows in a controlled
+ * environment.
+ *
+ * Note that this implementation disregards the `dataAvailabilityInterval` field of the [EventGroup]
+ * and instead uses the configured [eventRange] to determine the time range for events. This allows
+ * for more flexible and customizable simulation scenarios.
+ *
+ * @param measurementConsumerData Data and configuration for the measurement consumer.
+ * @param outputDpParams Differential privacy parameters to be used for output.
+ * @param dataProvidersClient gRPC client for interacting with DataProviders service.
+ * @param eventGroupsClient gRPC client for interacting with EventGroups service.
+ * @param measurementsClient gRPC client for interacting with Measurements service.
+ * @param measurementConsumersClient gRPC client for interacting with MeasurementConsumers service.
+ * @param certificatesClient gRPC client for interacting with Certificates service.
+ * @param trustedCertificates Map of trusted certificate fingerprints to [X509Certificate]s.
+ * @param eventQuery Synthetic event query used to filter and retrieve user virtual IDs.
+ * @param expectedDirectNoiseMechanism The expected noise mechanism for direct measurement.
+ * @param filterExpression Expression used to filter events (default: filters for male gender and
+ *   video ad viewed fraction > 0.25).
+ * @param eventRange Time range for events to be considered (default: March 15–17, 2021). This range
+ *   is used instead of the `dataAvailabilityInterval` field of the [EventGroup].
+ * @param initialResultPollingDelay Initial delay before polling for results.
+ * @param maximumResultPollingDelay Maximum delay between polling attempts.
+ * @see MeasurementConsumerSimulator
  */
 class EventQueryMeasurementConsumerSimulator(
-  measurementConsumerData: MeasurementConsumerData,
+  private val measurementConsumerData: MeasurementConsumerData,
   outputDpParams: DifferentialPrivacyParams,
   dataProvidersClient: DataProvidersCoroutineStub,
   eventGroupsClient: EventGroupsCoroutineStub,
@@ -51,8 +84,8 @@ class EventQueryMeasurementConsumerSimulator(
   trustedCertificates: Map<ByteString, X509Certificate>,
   private val eventQuery: EventQuery<Message>,
   expectedDirectNoiseMechanism: NoiseMechanism,
-  filterExpression: String = DEFAULT_FILTER_EXPRESSION,
-  eventRange: OpenEndTimeRange = DEFAULT_EVENT_RANGE,
+  private val filterExpression: String = DEFAULT_FILTER_EXPRESSION,
+  private val eventRange: OpenEndTimeRange = DEFAULT_EVENT_RANGE,
   initialResultPollingDelay: Duration = Duration.ofSeconds(1),
   maximumResultPollingDelay: Duration = Duration.ofMinutes(1),
 ) :
@@ -66,8 +99,6 @@ class EventQueryMeasurementConsumerSimulator(
     certificatesClient,
     trustedCertificates,
     expectedDirectNoiseMechanism,
-    filterExpression,
-    eventRange,
     initialResultPollingDelay,
     maximumResultPollingDelay,
   ) {
@@ -113,6 +144,39 @@ class EventQueryMeasurementConsumerSimulator(
         }
         .asSequence()
     return eventGroupSpecs.flatMap { eventQuery.getUserVirtualIds(it) }
+  }
+
+  override fun buildRequisitionInfo(
+    dataProvider: DataProvider,
+    eventGroups: List<EventGroup>,
+    measurementConsumer: MeasurementConsumer,
+    nonce: Long,
+    percentage: Double,
+  ): RequisitionInfo {
+    val requisitionSpec = requisitionSpec {
+      for (eventGroup in eventGroups) {
+        events =
+          RequisitionSpecKt.events {
+            this.eventGroups +=
+              RequisitionSpecKt.eventGroupEntry {
+                key = eventGroup.name
+                value =
+                  RequisitionSpecKt.EventGroupEntryKt.value {
+                    collectionInterval = eventRange.toInterval()
+                    filter = RequisitionSpecKt.eventFilter { expression = filterExpression }
+                  }
+              }
+          }
+      }
+      measurementPublicKey = measurementConsumer.publicKey.message
+      this.nonce = nonce
+    }
+    val signedRequisitionSpec =
+      signRequisitionSpec(requisitionSpec, measurementConsumerData.signingKey)
+    val dataProviderEntry =
+      dataProvider.toDataProviderEntry(signedRequisitionSpec, Hashing.hashSha256(nonce))
+
+    return RequisitionInfo(dataProviderEntry, requisitionSpec, eventGroups)
   }
 
   companion object {

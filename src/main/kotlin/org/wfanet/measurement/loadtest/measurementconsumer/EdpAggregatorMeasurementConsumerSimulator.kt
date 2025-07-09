@@ -17,6 +17,7 @@ package org.wfanet.measurement.loadtest.measurementconsumer
 import com.google.protobuf.ByteString
 import com.google.protobuf.Message
 import com.google.type.Interval
+import com.google.type.interval
 import java.security.cert.X509Certificate
 import java.time.Duration
 import java.time.LocalDate
@@ -24,19 +25,27 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.filter
 import org.projectnessie.cel.Program
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
+import org.wfanet.measurement.api.v2alpha.DataProvider
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.DifferentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupKey
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.MeasurementConsumer
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig.NoiseMechanism
+import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticPopulationSpec
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
+import org.wfanet.measurement.api.v2alpha.requisitionSpec
 import org.wfanet.measurement.common.OpenEndTimeRange
+import org.wfanet.measurement.common.crypto.Hashing
 import org.wfanet.measurement.common.toInstant
+import org.wfanet.measurement.common.toInterval
+import org.wfanet.measurement.common.toProtoTime
+import org.wfanet.measurement.consent.client.measurementconsumer.signRequisitionSpec
 import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters
 import org.wfanet.measurement.loadtest.dataprovider.SyntheticDataGeneration
 
@@ -54,8 +63,8 @@ class EdpAggregatorMeasurementConsumerSimulator(
   expectedDirectNoiseMechanism: NoiseMechanism,
   private val syntheticPopulationSpec: SyntheticPopulationSpec,
   private val syntheticEventGroupMap: Map<String, SyntheticEventGroupSpec>,
-  filterExpression: String = DEFAULT_FILTER_EXPRESSION,
-  eventRange: OpenEndTimeRange = DEFAULT_EVENT_RANGE,
+  private val filterExpression: String = DEFAULT_FILTER_EXPRESSION,
+  private val eventRange: OpenEndTimeRange = DEFAULT_EVENT_RANGE,
   initialResultPollingDelay: Duration = Duration.ofSeconds(1),
   maximumResultPollingDelay: Duration = Duration.ofMinutes(1),
 ) :
@@ -69,8 +78,6 @@ class EdpAggregatorMeasurementConsumerSimulator(
     certificatesClient,
     trustedCertificates,
     expectedDirectNoiseMechanism,
-    filterExpression,
-    eventRange,
     initialResultPollingDelay,
     maximumResultPollingDelay,
   ) {
@@ -133,6 +140,67 @@ class EdpAggregatorMeasurementConsumerSimulator(
     targetDataProviderId: String,
   ): Sequence<Long> {
     return getMeasurementFilteredVids(measurementInfo, targetDataProviderId)
+  }
+
+  override fun buildRequisitionInfo(
+    dataProvider: DataProvider,
+    eventGroups: List<EventGroup>,
+    measurementConsumer: MeasurementConsumer,
+    nonce: Long,
+    percentage: Double = 1.0,
+  ): RequisitionInfo {
+    val requisitionSpec = requisitionSpec {
+      for (eventGroup in eventGroups) {
+        events =
+          RequisitionSpecKt.events {
+            this.eventGroups +=
+              RequisitionSpecKt.eventGroupEntry {
+                key = eventGroup.name
+                value =
+                  RequisitionSpecKt.EventGroupEntryKt.value {
+                    if (!eventGroup.hasDataAvailabilityInterval()) {
+                      collectionInterval = eventRange.toInterval()
+                    } else {
+                      collectionInterval = interval {
+                        startTime =
+                          if (
+                            eventRange.start <
+                              eventGroup.dataAvailabilityInterval.startTime.toInstant()
+                          )
+                            eventGroup.dataAvailabilityInterval.startTime
+                          else eventRange.start.toProtoTime()
+                        val durationMillis =
+                          Duration.between(
+                              eventGroup.dataAvailabilityInterval.startTime.toInstant(),
+                              eventGroup.dataAvailabilityInterval.endTime.toInstant(),
+                            )
+                            .toMillis() * percentage
+                        val requisitionEndTime =
+                          (eventGroup.dataAvailabilityInterval.startTime
+                              .toInstant()
+                              .plusMillis(durationMillis.toLong()))
+                            .toProtoTime()
+
+                        endTime =
+                          if (eventRange.endExclusive > requisitionEndTime.toInstant())
+                            requisitionEndTime
+                          else eventRange.endExclusive.toProtoTime()
+                      }
+                    }
+                    filter = RequisitionSpecKt.eventFilter { expression = filterExpression }
+                  }
+              }
+          }
+      }
+      measurementPublicKey = measurementConsumer.publicKey.message
+      this.nonce = nonce
+    }
+    val signedRequisitionSpec =
+      signRequisitionSpec(requisitionSpec, measurementConsumerData.signingKey)
+    val dataProviderEntry =
+      dataProvider.toDataProviderEntry(signedRequisitionSpec, Hashing.hashSha256(nonce))
+
+    return RequisitionInfo(dataProviderEntry, requisitionSpec, eventGroups)
   }
 
   companion object {
