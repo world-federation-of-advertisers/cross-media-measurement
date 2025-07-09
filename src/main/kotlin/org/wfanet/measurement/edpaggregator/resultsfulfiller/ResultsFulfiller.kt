@@ -28,6 +28,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
+import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.Requisition
@@ -43,13 +44,14 @@ import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.compute.protocols.direct.DirectMeasurementResultFactory
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.fulfillers.DirectMeasurementFulfiller
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
+import org.wfanet.measurement.eventdataprovider.noiser.DirectNoiseMechanism
 import org.wfanet.measurement.storage.SelectedStorageClient
 
 /**
  * A class responsible for fulfilling results.
  *
  * @param privateEncryptionKey Handle to the private encryption key.
- * @param requisitionsStub Stub for requisitions gRPC coroutine.
+ * @param requisitionsStub Stub for requisitions gRPC coroutine. Optional - if not provided, results will be printed instead of fulfilled.
  * @param dataProviderCertificateKey Data provider certificate key.
  * @param dataProviderSigningKeyHandle Handle to the data provider signing key.
  * @param typeRegistry Type registry instance.
@@ -64,7 +66,7 @@ import org.wfanet.measurement.storage.SelectedStorageClient
  */
 class ResultsFulfiller(
   private val privateEncryptionKey: PrivateKeyHandle,
-  private val requisitionsStub: RequisitionsGrpcKt.RequisitionsCoroutineStub,
+  private val requisitionsStub: RequisitionsGrpcKt.RequisitionsCoroutineStub? = null,
   private val dataProviderCertificateKey: DataProviderCertificateKey,
   private val dataProviderSigningKeyHandle: SigningKeyHandle,
   private val typeRegistry: TypeRegistry,
@@ -106,28 +108,44 @@ class ResultsFulfiller(
 
       val protocols: List<ProtocolConfig.Protocol> = requisition.protocolConfig.protocolsList
 
-      val fulfiller =
-        if (protocols.any { it.hasDirect() }) {
-          buildDirectMeasurementFulfiller(
+      if (protocols.any { it.hasDirect() }) {
+        val directProtocolConfig =
+          requisition.protocolConfig.protocolsList.first { it.hasDirect() }.direct
+        val directNoiseMechanism =
+          noiserSelector.selectNoiseMechanism(directProtocolConfig.noiseMechanismsList)
+        val result = buildDirectMeasurementResult(
+          directProtocolConfig,
+          directNoiseMechanism,
+          measurementSpec,
+          sampledVids,
+          random,
+        )
+        
+        if (requisitionsStub != null) {
+          val fulfiller = buildDirectMeasurementFulfiller(
             requisition,
             measurementSpec,
             requisitionSpec,
-            random,
+            result,
             sampledVids,
           )
-        } else if (protocols.any { it.hasHonestMajorityShareShuffle() }) {
-          TODO("Not yet implemented")
+          fulfiller.fulfillRequisition()
         } else {
-          throw Exception("Protocol not supported")
+          logger.info("No requisitionsStub provided, printing result instead of fulfilling:")
+          logger.info("Measurement result: $result")
         }
-      fulfiller.fulfillRequisition()
+      } else if (protocols.any { it.hasHonestMajorityShareShuffle() }) {
+        TODO("Not yet implemented")
+      } else {
+        throw Exception("Protocol not supported")
+      }
     }
   }
 
   /**
    * Retrieves a list of requisitions from the configured blob storage.
    *
-   * @return A [GroupredRequisitions] retrieved from blob storage
+   * @return A [GroupedRequisitions] retrieved from blob storage
    * @throws ImpressionReadException If the requisition blob cannot be found at the specified URI
    */
   private suspend fun getRequisitions(): GroupedRequisitions {
@@ -156,28 +174,35 @@ class ResultsFulfiller(
     }
   }
 
+  /** Builds a direct measurement result. */
+  private suspend fun buildDirectMeasurementResult(
+    directProtocolConfig: ProtocolConfig.Direct,
+    directNoiseMechanism: DirectNoiseMechanism,
+    measurementSpec: MeasurementSpec,
+    sampledVids: Flow<Long>,
+    random: SecureRandom,
+  ): Measurement.Result = DirectMeasurementResultFactory.buildMeasurementResult(
+    directProtocolConfig,
+    directNoiseMechanism,
+    measurementSpec,
+    sampledVids,
+    random,
+  )
+
   /** Builds a [DirectMeasurementFulfiller]. */
   private suspend fun buildDirectMeasurementFulfiller(
     requisition: Requisition,
     measurementSpec: MeasurementSpec,
     requisitionSpec: RequisitionSpec,
-    random: SecureRandom,
+    result: Measurement.Result,
     sampledVids: Flow<Long>,
   ): DirectMeasurementFulfiller {
     val measurementEncryptionPublicKey: EncryptionPublicKey =
       measurementSpec.measurementPublicKey.unpack()
     val directProtocolConfig =
       requisition.protocolConfig.protocolsList.first { it.hasDirect() }.direct
-    val noiseMechanism =
+    val directNoiseMechanism =
       noiserSelector.selectNoiseMechanism(directProtocolConfig.noiseMechanismsList)
-    val result =
-      DirectMeasurementResultFactory.buildMeasurementResult(
-        directProtocolConfig,
-        noiseMechanism,
-        measurementSpec,
-        sampledVids,
-        random,
-      )
     return DirectMeasurementFulfiller(
       requisition.name,
       requisition.dataProviderCertificate,
@@ -186,10 +211,10 @@ class ResultsFulfiller(
       measurementEncryptionPublicKey,
       sampledVids,
       directProtocolConfig,
-      noiseMechanism,
+      directNoiseMechanism,
       dataProviderSigningKeyHandle,
       dataProviderCertificateKey,
-      requisitionsStub,
+      requisitionsStub!!,
     )
   }
 

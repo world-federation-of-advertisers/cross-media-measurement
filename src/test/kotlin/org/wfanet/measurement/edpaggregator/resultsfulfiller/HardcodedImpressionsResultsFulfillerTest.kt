@@ -29,8 +29,6 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
 import org.wfanet.measurement.api.v2alpha.*
-import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineImplBase
-import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reachAndFrequency
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.vidSamplingInterval
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventFilter
@@ -54,7 +52,6 @@ import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.common.testing.verifyAndCapture
-import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
 import org.wfanet.measurement.consent.client.measurementconsumer.decryptResult
@@ -63,16 +60,18 @@ import org.wfanet.measurement.consent.client.measurementconsumer.signMeasurement
 import org.wfanet.measurement.consent.client.measurementconsumer.signRequisitionSpec
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionsValidator
-import org.wfanet.measurement.edpaggregator.requisitionfetcher.SingleRequisitionGrouper
+import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt.eventGroupDetails
+import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt.eventGroupMapEntry
+import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt.requisitionEntry
+import org.wfanet.measurement.edpaggregator.v1alpha.groupedRequisitions
 import org.wfanet.measurement.integration.common.loadEncryptionPrivateKey
 import org.wfanet.measurement.storage.SelectedStorageClient
+import org.wfanet.measurement.api.v2alpha.fulfillDirectRequisitionResponse
 import java.io.FileInputStream
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
 import java.security.SecureRandom
-import java.time.Clock
-import java.time.Duration
 import java.time.LocalDate
 import java.time.ZoneOffset
 
@@ -81,32 +80,15 @@ class HardcodedImpressionsResultsFulfillerTest {
   private val requisitionsServiceMock: RequisitionsCoroutineImplBase = mockService {
     onBlocking { fulfillDirectRequisition(any()) }.thenReturn(fulfillDirectRequisitionResponse {})
   }
-  private val eventGroupsServiceMock: EventGroupsCoroutineImplBase by lazy {
-    mockService {
-      onBlocking { getEventGroup(any()) }
-        .thenAnswer { invocation ->
-          val request = invocation.getArgument<GetEventGroupRequest>(0)
-          eventGroup {
-            name = request.name
-            eventGroupReferenceId = "edpa-eg-reference-id-1"
-          }
-        }
-    }
-  }
 
   @get:Rule
   val grpcTestServerRule = GrpcTestServerRule {
     addService(requisitionsServiceMock)
-    addService(eventGroupsServiceMock)
   }
   private val requisitionsStub: RequisitionsCoroutineStub by lazy {
     RequisitionsCoroutineStub(grpcTestServerRule.channel)
   }
-  private val eventGroupsStub: EventGroupsCoroutineStub by lazy {
-    EventGroupsCoroutineStub(grpcTestServerRule.channel)
-  }
 
-  private val throttler = MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofSeconds(1L))
 
   @Test
   fun `runWork processes requisition with hardcoded impressions location`() = runBlocking {
@@ -117,22 +99,29 @@ class HardcodedImpressionsResultsFulfillerTest {
       SelectedStorageClient(REQUISITIONS_FILE_URI, requisitionsTmpPath)
     val requisitionValidator =
       RequisitionsValidator(
-        fatalRequisitionErrorPredicate =
-          fun(requisition: Requisition, refusal: Requisition.Refusal) {},
+        fatalRequisitionErrorPredicate = { _, _ -> },
         privateEncryptionKey = PRIVATE_ENCRYPTION_KEY,
       )
-    val groupedRequisitions =
-      SingleRequisitionGrouper(
-          requisitionsClient = requisitionsStub,
-          eventGroupsClient = eventGroupsStub,
-          requisitionValidator = requisitionValidator,
-          throttler = throttler,
-        )
-        .groupRequisitions(listOf(REQUISITION))
-    // Add requisitions to storage
+    // Write requisitions proto directly to storage
+    val groupedRequisitions = groupedRequisitions {
+      modelLine = "test-model-line"
+      eventGroupMap += eventGroupMapEntry {
+        eventGroup = EVENT_GROUP_NAME
+        details = eventGroupDetails {
+          eventGroupReferenceId = "edpa-eg-reference-id-1"
+          collectionIntervals += interval {
+            startTime = TIME_RANGE.start.toProtoTime()
+            endTime = TIME_RANGE.endExclusive.toProtoTime()
+          }
+        }
+      }
+      requisitions += requisitionEntry {
+        requisition = Any.pack(REQUISITION)
+      }
+    }
     requisitionsStorageClient.writeBlob(
       REQUISITIONS_BLOB_KEY,
-      Any.pack(groupedRequisitions.single()).toByteString(),
+      Any.pack(groupedRequisitions).toByteString(),
     )
 
     // Set up KMS
