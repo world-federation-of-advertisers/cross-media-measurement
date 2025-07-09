@@ -76,7 +76,7 @@ import ("strings")
 					"--measurement-lookback-duration=1d",
 					"--duration-between-measurements=5m",
 					"--measurement-update-lookback-duration=2h",
-					"--event-group-reference-id-prefix=\(_eventGroupReferenceIdPrefix)"
+					"--event-group-reference-id-prefix=\(_eventGroupReferenceIdPrefix)",
 					for edp in _edpResourceNames {
 						"--data-provider=\(edp)"
 					},
