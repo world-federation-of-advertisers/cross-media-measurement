@@ -33,6 +33,7 @@ import java.security.SecureRandom
 import java.time.LocalDate
 import java.time.ZoneId
 import java.util.concurrent.atomic.AtomicIntegerArray
+import java.util.concurrent.Executors
 import kotlin.ranges.coerceAtLeast
 import kotlin.ranges.coerceAtMost
 import kotlin.ranges.rangeTo
@@ -80,6 +81,13 @@ import picocli.CommandLine
 )
 class HardcodedImpressionsResultsFulfillerMain : Runnable {
 
+  data class BenchmarkResult(
+    val parallelism: Int,
+    val vidCount: Long,
+    val durationMs: Long,
+    val vidsPerSecond: Long
+  )
+
   @CommandLine.Option(
     names = ["--impressions-path"],
     description = ["Path to impressions data directory"],
@@ -121,10 +129,21 @@ class HardcodedImpressionsResultsFulfillerMain : Runnable {
     defaultValue = "file://storage/impressions"
   )
   private lateinit var impressionsUri: String
+
+  @CommandLine.Option(
+    names = ["--enable-filtering"],
+    description = ["Enable VidFilter for filtering impressions"],
+    defaultValue = "false"
+  )
+  private var enableFiltering: Boolean = false
   override fun run() = runBlocking {
     // Initialize Tink
     AeadConfig.register()
     StreamingAeadConfig.register()
+
+    // Force Dispatchers.Default to use exactly the max parallelism threads
+    System.setProperty("kotlinx.coroutines.scheduler.core.pool.size", "64")
+    System.setProperty("kotlinx.coroutines.scheduler.max.pool.size", "256")
 
     val startDate = LocalDate.parse(startDateStr)
     val endDate = LocalDate.parse(endDateStr)
@@ -204,34 +223,68 @@ class HardcodedImpressionsResultsFulfillerMain : Runnable {
 
     // Process requisitions directly without ResultsFulfiller dependencies
     println("Processing requisitions...")
+    println("\n=== Parallelism Benchmark (Filtering: ${if (enableFiltering) "ENABLED" else "DISABLED"}) ===\n")
 
-    // Measure time to read event data only
-    val readStartTime = System.currentTimeMillis()
+    // Benchmark different parallelism levels
+    val parallelismLevels = listOf(1, 8)
+    val benchmarkResults = mutableMapOf<Int, BenchmarkResult>()
 
-    val sampledVids = getSampledVids(
-      requisitionSpec,
-      groupedRequisitions.eventGroupMapList.associate { it.eventGroup to it.details.eventGroupReferenceId },
-      measurementSpec.vidSamplingInterval,
-      typeRegistry,
-      eventReader,
-      ZoneId.systemDefault(),
-      timeRange
-    )
+    // Print thread pool info
+    println("Available processors: ${Runtime.getRuntime().availableProcessors()}")
+    println("Coroutine thread pool size: ${System.getProperty("kotlinx.coroutines.scheduler.core.pool.size")}")
 
-    // Collect all VIDs to force reading from disk
-    val vidCount = sampledVids.count()
+    for (parallelism in parallelismLevels) {
+      println("Testing with parallelism = $parallelism...")
 
-    val readEndTime = System.currentTimeMillis()
-    val readDuration = readEndTime - readStartTime
+      // Measure time to read event data only
+      val readStartTime = System.currentTimeMillis()
 
-    println("Event data reading completed:")
-    println("  Total VIDs read: $vidCount")
-    println("  Time taken: ${readDuration}ms (${readDuration / 1000.0} seconds)")
-    println("  Average rate: ${if (readDuration > 0) (vidCount * 1000.0 / readDuration).toLong() else 0} VIDs/second")
+      val sampledVids = getSampledVids(
+        requisitionSpec,
+        groupedRequisitions.eventGroupMapList.associate { it.eventGroup to it.details.eventGroupReferenceId },
+        measurementSpec.vidSamplingInterval,
+        typeRegistry,
+        eventReader,
+        ZoneId.systemDefault(),
+        parallelism,
+        enableFiltering
+      )
 
-    // Skip computation for now
-    // val result = processRequisitions(...)
+      // Collect all VIDs to force reading from disk
+      val vidCount = sampledVids.count().toLong()
 
+      val readEndTime = System.currentTimeMillis()
+      val readDuration = readEndTime - readStartTime
+
+      benchmarkResults[parallelism] = BenchmarkResult(
+        parallelism = parallelism,
+        vidCount = vidCount,
+        durationMs = readDuration,
+        vidsPerSecond = if (readDuration > 0) (vidCount * 1000.0 / readDuration).toLong() else 0
+      )
+
+      println("  Completed in ${readDuration}ms")
+      println()
+    }
+
+    // Print comparison table
+    println("\n=== Benchmark Results (Filtering: ${if (enableFiltering) "ENABLED" else "DISABLED"}) ===")
+    println("%-12s %-15s %-15s %-15s %-15s".format("Parallelism", "Time (ms)", "Time (s)", "VIDs/second", "Speedup"))
+    println("-".repeat(80))
+
+    val baselineTime = benchmarkResults[1]?.durationMs ?: 1
+    for ((parallelism, result) in benchmarkResults.entries.sortedBy { it.key }) {
+      val speedup = baselineTime.toDouble() / result.durationMs
+      println("%-12d %-15d %-15.2f %-15d %-15.2fx".format(
+        parallelism,
+        result.durationMs,
+        result.durationMs / 1000.0,
+        result.vidsPerSecond,
+        speedup
+      ))
+    }
+
+    println("\nTotal VIDs processed: ${benchmarkResults[1]?.vidCount ?: 0}")
     println("Done!")
   }
 
@@ -298,7 +351,6 @@ class HardcodedImpressionsResultsFulfillerMain : Runnable {
     measurementSpec: MeasurementSpec,
     eventReader: EventReader,
     typeRegistry: TypeRegistry,
-    timeRange: OpenEndTimeRange
   ): Measurement.Result {
     // Extract VIDs from impressions
     val sampledVids = getSampledVids(
@@ -308,7 +360,8 @@ class HardcodedImpressionsResultsFulfillerMain : Runnable {
       typeRegistry,
       eventReader,
       ZoneId.systemDefault(),
-      timeRange
+      parallelism = 8,
+      enableFiltering = enableFiltering
     )
 
     // Compute reach and frequency
@@ -332,6 +385,7 @@ class HardcodedImpressionsResultsFulfillerMain : Runnable {
   /**
    * Extracts and samples VIDs from impression data
    */
+  @OptIn(ExperimentalCoroutinesApi::class)
   private suspend fun getSampledVids(
     requisitionSpec: RequisitionSpec,
     eventGroupMap: Map<String, String>,
@@ -339,7 +393,8 @@ class HardcodedImpressionsResultsFulfillerMain : Runnable {
     typeRegistry: TypeRegistry,
     eventReader: EventReader,
     zoneId: ZoneId,
-    timeRange: OpenEndTimeRange
+    parallelism: Int = 8,
+    enableFiltering: Boolean = false
   ): Flow<Long> {
     val vidSamplingIntervalStart = vidSamplingInterval.start
     val vidSamplingIntervalWidth = vidSamplingInterval.width
@@ -352,92 +407,28 @@ class HardcodedImpressionsResultsFulfillerMain : Runnable {
       val datesList = generateSequence(startDate) { date ->
         if (date < endDate) date.plusDays(1) else null
       }.toList()
-      val impressions = datesList.asFlow().flatMapConcat { date ->
-        println("Reading impressions for date: $date")
-        val dateStartTime = System.currentTimeMillis()
-        val impressionsFlow = eventReader.getLabeledImpressions(date, eventGroupMap.getValue(eventGroup.key))
-        impressionsFlow.onCompletion {
-          println("  Completed reading for $date in ${System.currentTimeMillis() - dateStartTime}ms")
+
+      println("Processing ${datesList.size} dates from $startDate to ${datesList.lastOrNull() ?: endDate} with parallelism=$parallelism")
+
+      // Process dates in parallel
+      datesList.asFlow()
+        .flatMapMerge(parallelism) { date ->
+          flow {
+            val impressionsFlow = eventReader.getLabeledImpressions(date, eventGroupMap.getValue(eventGroup.key))
+            val filteredImpressions = if (enableFiltering) VidFilter.filterAndExtractVids(
+              impressionsFlow,
+              vidSamplingIntervalStart,
+              vidSamplingIntervalWidth,
+              eventGroup.value.filter,
+              collectionInterval,
+              typeRegistry
+            ) else impressionsFlow.map { i -> i.vid }
+            emitAll(filteredImpressions)
+          }
         }
-      }
-      impressions.map { i -> i.vid }
-/*
-      filterAndExtractVids(
-        impressions,
-        vidSamplingIntervalStart,
-        vidSamplingIntervalWidth,
-        eventGroup.value.filter,
-        collectionInterval,
-        typeRegistry
-      )
-*/
     }
   }
 
-  /**
-   * Filters labeled impressions and extracts VIDs
-   */
-  private fun filterAndExtractVids(
-    labeledImpressions: Flow<LabeledImpression>,
-    vidSamplingIntervalStart: Float,
-    vidSamplingIntervalWidth: Float,
-    eventFilter: EventFilter,
-    collectionInterval: com.google.type.Interval,
-    typeRegistry: TypeRegistry
-  ): Flow<Long> {
-    return labeledImpressions
-      .filter { labeledImpression ->
-        isValidImpression(
-          labeledImpression,
-          vidSamplingIntervalStart,
-          vidSamplingIntervalWidth,
-          eventFilter,
-          collectionInterval,
-          typeRegistry
-        )
-      }
-      .map { labeledImpression -> labeledImpression.vid }
-  }
-
-  /**
-   * Determines if an impression is valid based on various criteria
-   */
-  private fun isValidImpression(
-    labeledImpression: LabeledImpression,
-    vidSamplingIntervalStart: Float,
-    vidSamplingIntervalWidth: Float,
-    eventFilter: EventFilter,
-    collectionInterval: com.google.type.Interval,
-    typeRegistry: TypeRegistry
-  ): Boolean {
-    // Check if impression is within collection interval
-    val impressionTime = labeledImpression.eventTime
-    val startInstant = collectionInterval.startTime.toInstant()
-    val endInstant = collectionInterval.endTime.toInstant()
-    val impressionInstant = impressionTime.toInstant()
-    if (impressionInstant < startInstant || impressionInstant >= endInstant) {
-      return false
-    }
-
-    // Check VID sampling
-    val vidSampler = VidSampler(com.google.common.hash.Hashing.farmHashFingerprint64())
-    if (!vidSampler.vidIsInSamplingBucket(labeledImpression.vid, vidSamplingIntervalStart, vidSamplingIntervalWidth)) {
-      return false
-    }
-
-    // Apply event filter if present
-    if (eventFilter.expression.isNotEmpty()) {
-      val eventMessage = labeledImpression.event
-      val eventTemplateDescriptor = typeRegistry.getDescriptorForTypeUrl(eventMessage.typeUrl)
-      val program = EventFilters.compileProgram(eventTemplateDescriptor, eventFilter.expression)
-      val dynamicMessage = com.google.protobuf.DynamicMessage.parseFrom(eventTemplateDescriptor, eventMessage.value)
-      if (!EventFilters.matches(dynamicMessage, program)) {
-        return false
-      }
-    }
-
-    return true
-  }
 
   /**
    * Computes reach and frequency using deterministic count distinct methodology
@@ -467,12 +458,20 @@ class HardcodedImpressionsResultsFulfillerMain : Runnable {
     val countsArray = AtomicIntegerArray(vidToIndex.size)
 
     // Count occurrences using atomic operations in parallel
+    // Use a fixed thread pool with exactly the number of available processors
+    val countingDispatcher = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors()) { runnable ->
+      Thread(runnable).apply {
+        name = "VidCounter-${Thread.currentThread().id}"
+        isDaemon = true
+      }
+    }.asCoroutineDispatcher()
+
     coroutineScope {
       val chunkSize = (vidsList.size / Runtime.getRuntime().availableProcessors()).coerceAtLeast(1000)
       vidsList
         .chunked(chunkSize)
         .map { chunk ->
-          async(Dispatchers.Default) {
+          async(countingDispatcher) {
             for (vid in chunk) {
               val index = vidToIndex[vid]!!
               countsArray.incrementAndGet(index)
@@ -481,6 +480,8 @@ class HardcodedImpressionsResultsFulfillerMain : Runnable {
         }
         .awaitAll()
     }
+
+    countingDispatcher.close()
 
     val reach: Int = vidToIndex.size
 

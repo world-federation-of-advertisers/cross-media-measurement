@@ -103,7 +103,7 @@ class EventReader(
 
     val impressionsStorage =
       if (kmsClient == null) {
-        MesosRecordIoStorageClient(selectedStorageClient.underlyingClient)
+        MesosRecordIoStorageClient(selectedStorageClient)
       } else {
         EncryptedStorage.buildEncryptedMesosStorageClient(
           selectedStorageClient,

@@ -21,8 +21,13 @@ import com.google.protobuf.Descriptors
 import com.google.protobuf.DynamicMessage
 import com.google.protobuf.TypeRegistry
 import com.google.type.Interval
+import java.time.Instant
+import java.util.concurrent.ConcurrentHashMap
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.buffer
 import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import org.projectnessie.cel.Program
 import org.projectnessie.cel.common.types.BoolT
@@ -47,6 +52,24 @@ object VidFilter {
     collectionInterval: Interval,
     typeRegistry: TypeRegistry,
   ): Flow<Long> {
+    // Validate sampling interval parameters once
+    require(
+      vidSamplingIntervalStart < 1 &&
+        vidSamplingIntervalStart >= 0 &&
+        vidSamplingIntervalWidth > 0 &&
+        vidSamplingIntervalStart + vidSamplingIntervalWidth <= 1.0
+    ) {
+      "Invalid vidSamplingInterval: start = $vidSamplingIntervalStart, width = " +
+        "$vidSamplingIntervalWidth"
+    }
+
+    // Initialize reusable components once
+    val sampler = VidSampler(Hashing.farmHashFingerprint64())
+    val collectionStartInstant = collectionInterval.startTime.toInstant()
+    val collectionEndInstant = collectionInterval.endTime.toInstant()
+    // Use thread-safe cache for compiled programs and descriptors
+    val programCache = ConcurrentHashMap<String, Any>()
+
     return labeledImpressions
       .filter { labeledImpression ->
         isValidImpression(
@@ -54,8 +77,11 @@ object VidFilter {
           vidSamplingIntervalStart,
           vidSamplingIntervalWidth,
           eventFilter,
-          collectionInterval,
           typeRegistry,
+          sampler,
+          collectionStartInstant,
+          collectionEndInstant,
+          programCache,
         )
       }
       .map { labeledImpression -> labeledImpression.vid }
@@ -68,8 +94,11 @@ object VidFilter {
    * @param vidSamplingIntervalStart The start of the VID sampling interval
    * @param vidSamplingIntervalWidth The width of the VID sampling interval
    * @param eventFilter The event filter criteria
-   * @param collectionInterval The time interval for collection
    * @param typeRegistry The registry for looking up protobuf descriptors
+   * @param sampler Pre-initialized VID sampler
+   * @param collectionStartInstant Pre-computed collection start instant
+   * @param collectionEndInstant Pre-computed collection end instant
+   * @param programCache Cache for compiled CEL programs and descriptors
    * @return True if the impression is valid, false otherwise
    */
   private fun isValidImpression(
@@ -77,29 +106,21 @@ object VidFilter {
     vidSamplingIntervalStart: Float,
     vidSamplingIntervalWidth: Float,
     eventFilter: EventFilter,
-    collectionInterval: Interval,
     typeRegistry: TypeRegistry,
+    sampler: VidSampler,
+    collectionStartInstant: Instant,
+    collectionEndInstant: Instant,
+    programCache: ConcurrentHashMap<String, Any>,
   ): Boolean {
-    require(
-      vidSamplingIntervalStart < 1 &&
-        vidSamplingIntervalStart >= 0 &&
-        vidSamplingIntervalWidth > 0 &&
-        vidSamplingIntervalStart + vidSamplingIntervalWidth <= 1.0
-    ) {
-      "Invalid vidSamplingInterval: start = $vidSamplingIntervalStart, width = " +
-        "$vidSamplingIntervalWidth"
-    }
-
     // Check if impression is within collection time interval
+    val eventInstant = labeledImpression.eventTime.toInstant()
     val isInCollectionInterval =
-      labeledImpression.eventTime.toInstant() >= collectionInterval.startTime.toInstant() &&
-        labeledImpression.eventTime.toInstant() < collectionInterval.endTime.toInstant()
+      eventInstant >= collectionStartInstant && eventInstant < collectionEndInstant
 
     if (!isInCollectionInterval) {
       return false
     }
 
-    val sampler = VidSampler(Hashing.farmHashFingerprint64())
     // Check if VID is in sampling bucket
     val isInSamplingInterval =
       sampler.vidIsInSamplingBucket(
@@ -112,14 +133,25 @@ object VidFilter {
       return false
     }
 
-    // Create filter program
+    // Get or compile filter program
     val eventMessageData = labeledImpression.event
-    val eventTemplateDescriptor = typeRegistry.getDescriptorForTypeUrl(eventMessageData.typeUrl)
-    val program = compileProgram(eventTemplateDescriptor, eventFilter.expression)
-    val eventMessage = DynamicMessage.parseFrom(eventTemplateDescriptor, eventMessageData.value)
+    val eventTypeUrl = eventMessageData.typeUrl
+
+    // Cache both program and descriptor together to avoid redundant lookups
+    data class CachedFilterData(val program: Program, val descriptor: Descriptors.Descriptor)
+
+    val cachedData = programCache.computeIfAbsent(eventTypeUrl) {
+      val eventTemplateDescriptor = typeRegistry.getDescriptorForTypeUrl(eventTypeUrl)
+      CachedFilterData(
+        compileProgram(eventTemplateDescriptor, eventFilter.expression),
+        eventTemplateDescriptor
+      )
+    } as CachedFilterData
+
+    val eventMessage = DynamicMessage.parseFrom(cachedData.descriptor, eventMessageData.value)
 
     // Pass event message through program
-    val passesFilter = EventFilters.matches(eventMessage, program)
+    val passesFilter = EventFilters.matches(eventMessage, cachedData.program)
 
     return passesFilter
   }
