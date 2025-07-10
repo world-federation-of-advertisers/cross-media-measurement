@@ -58,6 +58,7 @@ class EdpAggregatorMeasurementConsumerSimulator(
   eventRange: OpenEndTimeRange = DEFAULT_EVENT_RANGE,
   initialResultPollingDelay: Duration = Duration.ofSeconds(1),
   maximumResultPollingDelay: Duration = Duration.ofMinutes(1),
+  eventGroupFilter: ((EventGroup) -> Boolean)? = null,
 ) :
   MeasurementConsumerSimulator(
     measurementConsumerData,
@@ -73,6 +74,7 @@ class EdpAggregatorMeasurementConsumerSimulator(
     eventRange,
     initialResultPollingDelay,
     maximumResultPollingDelay,
+    eventGroupFilter
   ) {
 
   override fun Flow<EventGroup>.filterEventGroups(): Flow<EventGroup> {

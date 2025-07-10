@@ -162,6 +162,7 @@ abstract class MeasurementConsumerSimulator(
   private val eventRange: OpenEndTimeRange,
   private val initialResultPollingDelay: Duration,
   private val maximumResultPollingDelay: Duration,
+  private val eventGroupFilter: ((EventGroup) -> Boolean)? = null,
 ) {
   /** Cache of resource name to [Certificate]. */
   private val certificateCache = mutableMapOf<String, Certificate>()
@@ -830,6 +831,7 @@ abstract class MeasurementConsumerSimulator(
 
     val requisitions: List<RequisitionInfo> =
       eventGroups
+        .filter { eventGroupFilter?.invoke(it) ?: true }
         .groupBy { extractDataProviderKey(it.name) }
         .entries
         .filter {
