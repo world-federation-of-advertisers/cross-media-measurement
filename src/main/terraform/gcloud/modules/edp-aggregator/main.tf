@@ -132,9 +132,9 @@ locals {
   ]...)
 
   service_accounts = {
-    "data_watcher"        = module.data_watcher_function_service_accounts.cloud_function_service_account.email
-    "requisition_fetcher" = module.requisition_fetcher_function_service_account.cloud_function_service_account.email
-    "event_group_sync"    = module.event_group_sync_function_service_account.cloud_function_service_account.email
+    "data_watcher"        = module.data_watcher_cloud_function.cloud_function_service_account.email
+    "requisition_fetcher" = module.requisition_fetcher_cloud_function.cloud_function_service_account.email
+    "event_group_sync"    = module.event_group_sync_cloud_function.cloud_function_service_account.email
   }
 }
 
@@ -284,25 +284,25 @@ resource "google_storage_bucket_iam_binding" "aggregator_storage_admin" {
   bucket = module.edp_aggregator_bucket.storage_bucket.name
   role   = "roles/storage.objectAdmin"
   members = [
-    "serviceAccount:${module.requisition_fetcher_function_service_account.cloud_function_service_account.email}",
-    "serviceAccount:${module.event_group_sync_function_service_account.cloud_function_service_account.email}",
+    "serviceAccount:${module.requisition_fetcher_cloud_function.cloud_function_service_account.email}",
+    "serviceAccount:${module.event_group_sync_cloud_function.cloud_function_service_account.email}",
   ]
 }
 
 resource "google_storage_bucket_iam_member" "requisition_fetcher_config_storage_viewer" {
   bucket = module.config_files_bucket.storage_bucket.name
   role   = "roles/storage.objectViewer"
-  member = "serviceAccount:${module.requisition_fetcher_function_service_account.cloud_function_service_account.email}"
+  member = "serviceAccount:${module.requisition_fetcher_cloud_function.cloud_function_service_account.email}"
 }
 
 resource "google_storage_bucket_iam_member" "data_watcher_config_storage_viewer" {
   bucket = module.config_files_bucket.storage_bucket.name
   role   = "roles/storage.objectViewer"
-  member = "serviceAccount:${module.data_watcher_function_service_accounts.cloud_function_service_account.email}"
+  member = "serviceAccount:${module.data_watcher_cloud_function.cloud_function_service_account.email}"
 }
 
 resource "google_cloud_run_service_iam_member" "event_group_sync_invoker" {
   service  = var.event_group_sync_function_name
   role     = "roles/run.invoker"
-  member   = "serviceAccount:${module.data_watcher_function_service_accounts.cloud_function_service_account.email}"
+  member   = "serviceAccount:${module.data_watcher_cloud_function.cloud_function_service_account.email}"
 }

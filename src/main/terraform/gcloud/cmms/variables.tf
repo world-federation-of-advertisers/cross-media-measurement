@@ -135,7 +135,6 @@ variable "image_tag" {
   type        = string
 }
 
-// -----
 variable "data_watcher_function_name" {
   description = "Name of the DataWatcher function"
   type        = string
