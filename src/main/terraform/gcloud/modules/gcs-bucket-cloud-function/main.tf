@@ -108,6 +108,8 @@ resource "terraform_data" "deploy_data_watcher" {
         JAR="$BAZEL_BIN/$REL_PATH"
 
         echo "Deploying JAR at: $JAR"
+        TEMP_DIR=$(mktemp -d)
+        cp "$JAR" "$TEMP_DIR/"
 
         GCLOUD_CMD="gcloud functions deploy \"$FUNCTION_NAME\" \
           --gen2 \
