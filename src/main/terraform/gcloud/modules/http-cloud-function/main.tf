@@ -13,6 +13,7 @@
 # limitations under the License.
 
 data "google_project" "project" {}
+data "google_client_config" "default" {}
 
 resource "google_service_account" "http_cloud_function_service_account" {
   account_id   = var.http_cloud_function_service_account_name
@@ -44,9 +45,7 @@ resource "terraform_data" "deploy_data_watcher" {
       FUNCTION_NAME           = var.function_name
       ENTRY_POINT             = var.entry_point
       CLOUD_REGION            = data.google_client_config.default.region
-      RUN_SERVICE_ACCOUNT     = google_service_account.cloud_function_service_account.email
-      TRIGGER_BUCKET          = var.trigger_bucket_name
-      TRIGGER_SERVICE_ACCOUNT = google_service_account.cloud_function_trigger_service_account.email
+      RUN_SERVICE_ACCOUNT     = google_service_account.http_cloud_function_service_account.email
       EXTRA_ENV_VARS          = var.extra_env_vars
       SECRET_MAPPINGS         = var.secret_mappings
       BAZEL_TARGET_LABEL      = var.bazel_target_label
