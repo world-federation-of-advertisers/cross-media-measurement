@@ -26,7 +26,7 @@ resource "google_service_account_iam_member" "allow_terraform_to_use_cloud_funct
   member             = "serviceAccount:${var.terraform_service_account}"
 }
 
-resource "terraform_data" "deploy_data_watcher" {
+resource "terraform_data" "deploy_http_cloud_function" {
 
   depends_on = [
     google_service_account.http_cloud_function_service_account,
@@ -57,13 +57,12 @@ resource "terraform_data" "deploy_data_watcher" {
         bazel build "$BAZEL_TARGET_LABEL"
 
         EXEC_ROOT=$(bazel info execution_root)
-        # query for the relative jar path from workspace root
+
         REL_PATH=$(bazel cquery "$BAZEL_TARGET_LABEL" --output=starlark \
           --starlark:expr="target.files.to_list()[0].path")
-        # now combine them
+
         JAR="$EXEC_ROOT/$REL_PATH"
 
-        echo "Deploying JAR at: $JAR"
         TEMP_DIR=$(mktemp -d)
         cp "$JAR" "$TEMP_DIR/"
 
@@ -75,7 +74,7 @@ resource "terraform_data" "deploy_data_watcher" {
           --region=\"$CLOUD_REGION\" \
           --run-service-account=\"$RUN_SERVICE_ACCOUNT\" \
           --source=\"$TEMP_DIR\" \
-          --trigger-http
+          --trigger-http"
 
         if [[ -n "$EXTRA_ENV_VARS" ]]; then
           GCLOUD_CMD+=" --set-env-vars=\"$EXTRA_ENV_VARS\""

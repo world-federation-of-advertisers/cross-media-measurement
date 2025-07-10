@@ -61,7 +61,7 @@ resource "google_project_iam_member" "trigger_run_invoker" {
   member  = "serviceAccount:${google_service_account.cloud_function_trigger_service_account.email}"
 }
 
-resource "terraform_data" "deploy_data_watcher" {
+resource "terraform_data" "deploy_gcs_cloud_function" {
 
   depends_on = [
     google_service_account.cloud_function_service_account,
