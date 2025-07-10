@@ -53,6 +53,12 @@ jobs:
         MC_API_KEY: ${{ secrets.MC_API_KEY }}
         GCLOUD_PROJECT: ${{ vars.GCLOUD_PROJECT }}
         REPORTING_PUBLIC_API_TARGET: ${{ vars.REPORTING_PUBLIC_API_TARGET }}
+        EDP1_NAME: ${{ vars.EDP1_NAME }}
+        EDP2_NAME: ${{ vars.EDP2_NAME }}
+        EDP3_NAME: ${{ vars.EDP3_NAME }}
+        EDP4_NAME: ${{ vars.EDP4_NAME }}
+        EDP5_NAME: ${{ vars.EDP5_NAME }}
+        EDP6_NAME: ${{ vars.EDP6_NAME }}
       run: |
         cat << EOF > ~/.bazelrc
         common --config=ci
@@ -62,6 +68,12 @@ jobs:
         build --define google_cloud_project=$GCLOUD_PROJECT
         build --define reporting_public_api_target=$REPORTING_PUBLIC_API_TARGET
         build --define basic_reports_enabled=true
+        build --define "edp1_name=$EDP1_NAME"
+        build --define "edp2_name=$EDP2_NAME"
+        build --define "edp3_name=$EDP3_NAME"
+        build --define "edp4_name=$EDP4_NAME"
+        build --define "edp5_name=$EDP5_NAME"
+        build --define "edp6_name=$EDP6_NAME"
         test --test_output=streamed
         test --test_timeout=3600
         EOF
