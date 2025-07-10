@@ -100,11 +100,14 @@ resource "terraform_data" "deploy_data_watcher" {
 
         bazel build "$BAZEL_TARGET_LABEL"
 
-        JAR=$(bazel cquery "$BAZEL_TARGET_LABEL" --output=starlark --starlark:expr="target.files.to_list()[0].path")
-        JAR=$(realpath "$JAR")
-        echo "The path is: $JAR"
-        TEMP_DIR=$(mktemp -d)
-        cp "$JAR" "$TEMP_DIR/"
+        BAZEL_BIN=$(bazel info bazel-bin)
+        # query for the relative jar path from workspace root
+        REL_PATH=$(bazel cquery "$BAZEL_TARGET_LABEL" --output=starlark \
+          --starlark:expr="target.files.to_list()[0].path")
+        # now combine them
+        JAR="$BAZEL_BIN/$REL_PATH"
+
+        echo "Deploying JAR at: $JAR"
 
         GCLOUD_CMD="gcloud functions deploy \"$FUNCTION_NAME\" \
           --gen2 \
