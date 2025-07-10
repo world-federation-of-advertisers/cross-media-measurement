@@ -100,12 +100,12 @@ resource "terraform_data" "deploy_data_watcher" {
 
         bazel build "$BAZEL_TARGET_LABEL"
 
-        BAZEL_BIN=$(bazel info bazel-bin)
+        EXEC_ROOT=$(bazel info execution_root)
         # query for the relative jar path from workspace root
         REL_PATH=$(bazel cquery "$BAZEL_TARGET_LABEL" --output=starlark \
           --starlark:expr="target.files.to_list()[0].path")
         # now combine them
-        JAR="$BAZEL_BIN/$REL_PATH"
+        JAR="$EXEC_ROOT/$REL_PATH"
 
         echo "Deploying JAR at: $JAR"
         TEMP_DIR=$(mktemp -d)
