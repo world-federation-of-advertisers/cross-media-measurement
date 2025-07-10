@@ -134,3 +134,52 @@ variable "image_tag" {
   description = "Tag of container images"
   type        = string
 }
+
+// -----
+variable "data_watcher_function_name" {
+  description = "Name of the DataWatcher function"
+  type        = string
+  nullable    = false
+}
+
+variable "requisition_fetcher_function_name" {
+  description = "Name of the RequisitionFetcher function"
+  type        = string
+  nullable    = false
+}
+
+variable "event_group_sync_function_name" {
+  description = "Name of the EventGroupSync function"
+  type        = string
+  nullable    = false
+}
+
+variable "data_watcher_env_var" {
+  description = "DataWatcher extra env variables"
+  type        = string
+}
+
+variable "data_watcher_secret_mapping" {
+  description = "DataWatcher secret mapping"
+  type        = string
+}
+
+variable "requisition_fetcher_env_var" {
+  description = "RequisitionFetcher extra env variables"
+  type        = string
+}
+
+variable "requisition_fetcher_secret_mapping" {
+  description = "RequisitionFetcher secret mapping"
+  type        = string
+}
+
+variable "event_group_env_var" {
+  description = "EventGroupSync extra env variables"
+  type        = string
+}
+
+variable "event_group_secret_mapping" {
+  description = "EventGroupSync secret mapping"
+  type        = string
+}

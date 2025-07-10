@@ -216,12 +216,6 @@ variable "event_group_sync_function_name" {
   nullable    = false
 }
 
-variable "event_group_sync_function_location" {
-  description = "The location of the EventGroupSync cloud function."
-  type        = string
-  nullable    = false
-}
-
 variable "function_name" {
   description = "The function name to be deployed."
   type        = string
@@ -250,4 +244,14 @@ variable "bazel_target_label" {
   description = "The bazel target to use for building the uber jar."
   type        = string
   nullable    = false
+}
+
+variable "cloud_function_configs" {
+  type = map(object({
+    function_name       = string
+    entry_point         = string
+    extra_env_vars      = string
+    secret_mappings     = string
+    bazel_target_label  = string
+  }))
 }

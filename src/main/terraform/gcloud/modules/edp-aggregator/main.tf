@@ -172,32 +172,42 @@ module "secrets" {
   is_binary_format  = each.value.is_binary_format
 }
 
-module "data_watcher_function_service_accounts" {
+module "data_watcher_cloud_function" {
   source    = "../gcs-bucket-cloud-function"
 
   cloud_function_service_account_name           = var.data_watcher_service_account_name
   cloud_function_trigger_service_account_name   = var.data_watcher_trigger_service_account_name
   trigger_bucket_name                           = module.edp_aggregator_bucket.storage_bucket.name
   terraform_service_account                     = var.terraform_service_account
-  function_name                                 = var.function_name
-  entry_point                                   = var.entry_point
-  extra_env_vars                                = var.extra_env_vars
-  secret_mappings                               = var.secret_mappings
-  bazel_target_label                            = var.bazel_target_label
+  function_name                                 = var.cloud_function_configs.data_watcher.function_name
+  entry_point                                   = var.cloud_function_configs.data_watcher.entry_point
+  extra_env_vars                                = var.cloud_function_configs.data_watcher.extra_env_vars
+  secret_mappings                               = var.cloud_function_configs.data_watcher.secret_mappings
+  bazel_target_label                            = var.cloud_function_configs.data_watcher.bazel_target_label
 }
 
-module "requisition_fetcher_function_service_account" {
+module "requisition_fetcher_cloud_function" {
   source    = "../http-cloud-function"
 
   http_cloud_function_service_account_name  = var.requisition_fetcher_service_account_name
   terraform_service_account                 = var.terraform_service_account
+  function_name                             = var.cloud_function_configs.requisition_fetcher.function_name
+  entry_point                               = var.cloud_function_configs.requisition_fetcher.entry_point
+  extra_env_vars                            = var.cloud_function_configs.requisition_fetcher.extra_env_vars
+  secret_mappings                           = var.cloud_function_configs.requisition_fetcher.secret_mappings
+  bazel_target_label                        = var.cloud_function_configs.requisition_fetcher.bazel_target_label
 }
 
-module "event_group_sync_function_service_account" {
+module "event_group_sync_cloud_function" {
   source    = "../http-cloud-function"
 
   http_cloud_function_service_account_name  = var.event_group_sync_service_account_name
   terraform_service_account                 = var.terraform_service_account
+  function_name                             = var.cloud_function_configs.event_group.function_name
+  entry_point                               = var.cloud_function_configs.event_group.entry_point
+  extra_env_vars                            = var.cloud_function_configs.event_group.extra_env_vars
+  secret_mappings                           = var.cloud_function_configs.event_group.secret_mappings
+  bazel_target_label                        = var.cloud_function_configs.event_group.bazel_target_label
 }
 
 resource "google_secret_manager_secret_iam_member" "secret_accessor" {
@@ -289,4 +299,10 @@ resource "google_storage_bucket_iam_member" "data_watcher_config_storage_viewer"
   bucket = module.config_files_bucket.storage_bucket.name
   role   = "roles/storage.objectViewer"
   member = "serviceAccount:${module.data_watcher_function_service_accounts.cloud_function_service_account.email}"
+}
+
+resource "google_cloud_run_service_iam_member" "event_group_sync_invoker" {
+  service  = var.event_group_sync_function_name
+  role     = "roles/run.invoker"
+  member   = "serviceAccount:${module.data_watcher_function_service_accounts.cloud_function_service_account.email}"
 }

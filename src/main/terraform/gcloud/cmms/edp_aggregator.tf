@@ -118,6 +118,35 @@ locals {
     destination = "requisition-fetcher-config.textproto"
   }
 
+  entry_point                               = "org.wfanet.measurement.securecomputation.deploy.gcloud.datawatcher.DataWatcherFunction"
+  extra_env_vars                            = "CERT_FILE_PATH=/secrets/cert/data_watcher_tls.pem,PRIVATE_KEY_FILE_PATH=/secrets/key/data_watcher_tls.key,CERT_COLLECTION_FILE_PATH=/secrets/ca/secure_computation_root.pem,CONTROL_PLANE_TARGET=v1alpha.secure-computation.dev.halo-cmm.org:8443,CONTROL_PLANE_CERT_HOST=data-watcher.secure-computation.dev.halo-cmm.org,EDPA_CONFIG_STORAGE_BUCKET=edpa-configs-storage-dev-bucket,GOOGLE_PROJECT_ID=halo-cmm-dev"
+  secret_mappings                           = "/secrets/key/data_watcher_tls.key=edpa-data-watcher-tls-key:latest,/secrets/cert/data_watcher_tls.pem=edpa-data-watcher-tls-pem:latest,/secrets/ca/secure_computation_root.pem=securecomputation-root-ca:latest"
+  bazel_target_label                        = "//src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/datawatcher:DataWatcherFunction_deploy.jar"
+
+  cloud_function_configs = {
+    data_watcher = {
+      function_name       = var.data_watcher_function_name
+      entry_point         = "org.wfanet.measurement.securecomputation.deploy.gcloud.datawatcher.DataWatcherFunction"
+      extra_env_vars      = var.data_watcher_env_var
+      secret_mappings     = var.data_watcher_secret_mapping
+      bazel_target_label  = "//src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/datawatcher:DataWatcherFunction_deploy.jar"
+    },
+    requisition_fetcher = {
+      function_name       = var.requisition_fetcher_function_name
+      entry_point         = "org.wfanet.measurement.edpaggregator.deploy.gcloud.requisitionfetcher.RequisitionFetcherFunction"
+      extra_env_vars      = var.requisition_fetcher_env_var
+      secret_mappings     = var.requisition_fetcher_secret_mapping
+      bazel_target_label  = "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/requisitionfetcher:RequisitionFetcherFunction_deploy.jar"
+    },
+    event_group_sync = {
+      function_name       = var.event_group_sync_function_name
+      entry_point         = "org.wfanet.measurement.edpaggregator.deploy.gcloud.eventgroups.EventGroupSyncFunction"
+      extra_env_vars      = var.event_group_env_var
+      secret_mappings     = var.requisition_fetcher_secret_mapping
+      bazel_target_label  = "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/eventgroups:EventGroupSyncFunction_deploy.jar"
+    }
+  }
+
 }
 
 module "edp_aggregator" {
@@ -139,7 +168,6 @@ module "edp_aggregator" {
   requisition_fetcher_config                = local.requisition_fetcher_config
   event_group_sync_service_account_name     = "edpa-event-group-sync"
   event_group_sync_function_name            = "event-group-sync"
-  event_group_sync_function_location        = data.google_client_config.default.region
   edpa_tee_app_tls_key                      = local.edpa_tee_app_tls_key
   edpa_tee_app_tls_pem                      = local.edpa_tee_app_tls_pem
   data_watcher_tls_key                      = local.data_watcher_tls_key
@@ -147,9 +175,5 @@ module "edp_aggregator" {
   secure_computation_root_ca                = local.secure_computation_root_ca
   kingdom_root_ca                           = local.kingdom_root_ca
   edps_certs                                = local.edps_certs
-  function_name                             = "test"
-  entry_point                               = "org.wfanet.measurement.securecomputation.deploy.gcloud.datawatcher.DataWatcherFunction"
-  extra_env_vars                            = "CERT_FILE_PATH=/secrets/cert/data_watcher_tls.pem,PRIVATE_KEY_FILE_PATH=/secrets/key/data_watcher_tls.key,CERT_COLLECTION_FILE_PATH=/secrets/ca/secure_computation_root.pem,CONTROL_PLANE_TARGET=v1alpha.secure-computation.dev.halo-cmm.org:8443,CONTROL_PLANE_CERT_HOST=data-watcher.secure-computation.dev.halo-cmm.org,EDPA_CONFIG_STORAGE_BUCKET=edpa-configs-storage-dev-bucket,GOOGLE_PROJECT_ID=halo-cmm-dev"
-  secret_mappings                           = "/secrets/key/data_watcher_tls.key=edpa-data-watcher-tls-key:latest,/secrets/cert/data_watcher_tls.pem=edpa-data-watcher-tls-pem:latest,/secrets/ca/secure_computation_root.pem=securecomputation-root-ca:latest"
-  bazel_target_label                        = "//src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/datawatcher:DataWatcherFunction_deploy.jar"
+  cloud_function_configs                    = local.cloud_function_configs
 }

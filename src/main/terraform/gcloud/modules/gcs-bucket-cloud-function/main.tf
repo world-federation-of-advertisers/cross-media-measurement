@@ -74,7 +74,6 @@ resource "terraform_data" "deploy_data_watcher" {
     google_project_iam_member.trigger_run_invoker,
   ]
 
-  # force recreation (and thus re-run of the provisioner) if any of these values change
   triggers_replace = [
     var.bazel_target_label,
     var.extra_env_vars,
@@ -101,13 +100,10 @@ resource "terraform_data" "deploy_data_watcher" {
         bazel build "$BAZEL_TARGET_LABEL"
 
         EXEC_ROOT=$(bazel info execution_root)
-        # query for the relative jar path from workspace root
         REL_PATH=$(bazel cquery "$BAZEL_TARGET_LABEL" --output=starlark \
           --starlark:expr="target.files.to_list()[0].path")
-        # now combine them
         JAR="$EXEC_ROOT/$REL_PATH"
 
-        echo "Deploying JAR at: $JAR"
         TEMP_DIR=$(mktemp -d)
         cp "$JAR" "$TEMP_DIR/"
 

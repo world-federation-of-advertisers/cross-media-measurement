@@ -105,6 +105,15 @@ jobs:
         KINGDOM_PUBLIC_API_TARGET: ${{ vars.KINGDOM_PUBLIC_API_TARGET }}
         SECURE_COMPUTATION_PUBLIC_API_TARGET: ${{ vars.SECURE_COMPUTATION_PUBLIC_API_TARGET }}
         IMAGE_TAG: ${{ inputs.image-tag }}
+        DATA_WATCHER_FUNCTION_NAME: ${{ vars.DATA_WATCHER_FUNCTION_NAME }}
+        REQUISITION_FETCHER_FUNCTION_NAME: ${{ vars.REQUISITION_FETCHER_FUNCTION_NAME }}
+        EVENT_GROUP_FUNCTION_NAME: ${{ vars.EVENT_GROUP_FUNCTION_NAME }}
+        DATA_WATCHER_ENV_VAR: ${{ vars.DATA_WATCHER_ENV_VAR }}
+        DATA_WATCHER_SECRET_MAPPING: ${{ vars.DATA_WATCHER_SECRET_MAPPING }}
+        REQUISITION_FETCHER_ENV_VAR: ${{ vars.REQUISITION_FETCHER_ENV_VAR }}
+        REQUISITION_FETCHER_SECRET_MAPPING: ${{ vars.REQUISITION_FETCHER_SECRET_MAPPING }}
+        EVENT_GROUP_ENV_VAR: ${{ vars.EVENT_GROUP_ENV_VAR }}
+        EVENT_GROUP_SECRET_MAPPING: ${{ vars.EVENT_GROUP_SECRET_MAPPING }}
       working-directory: ${{ env.GCLOUD_MODULE_PATH }}
       run: >
         terraform plan
@@ -122,6 +131,15 @@ jobs:
         -var="requisition_fetcher_config_file_path=$CONFIG_DIR/requisition-fetcher-config.textproto"
         -var="kingdom_public_api_target=$KINGDOM_PUBLIC_API_TARGET"
         -var="secure_computation_public_api_target=$SECURE_COMPUTATION_PUBLIC_API_TARGET"
+        -var="data_watcher_function_name=$DATA_WATCHER_FUNCTION_NAME"
+        -var="requisition_fetcher_function_name=$REQUISITION_FETCHER_FUNCTION_NAME"
+        -var="event_group_sync_function_name=$EVENT_GROUP_FUNCTION_NAME"
+        -var="data_watcher_env_var=$DATA_WATCHER_ENV_VAR"
+        -var="data_watcher_secret_mapping=$DATA_WATCHER_SECRET_MAPPING"
+        -var="requisition_fetcher_env_var=$REQUISITION_FETCHER_ENV_VAR"
+        -var="requisition_fetcher_secret_mapping=$REQUISITION_FETCHER_SECRET_MAPPING"
+        -var="event_group_env_var=$EVENT_GROUP_ENV_VAR"
+        -var="event_group_secret_mapping=$EVENT_GROUP_SECRET_MAPPING"
         -var="image_tag=$IMAGE_TAG"
         -out=tfplan
 

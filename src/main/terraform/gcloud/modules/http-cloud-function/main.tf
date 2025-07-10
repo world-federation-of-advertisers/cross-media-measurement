@@ -24,3 +24,68 @@ resource "google_service_account_iam_member" "allow_terraform_to_use_cloud_funct
   role               = "roles/iam.serviceAccountUser"
   member             = "serviceAccount:${var.terraform_service_account}"
 }
+
+resource "terraform_data" "deploy_data_watcher" {
+
+  depends_on = [
+    google_service_account.http_cloud_function_service_account,
+    google_service_account_iam_member.allow_terraform_to_use_cloud_function_service_account,
+  ]
+
+  triggers_replace = [
+    var.bazel_target_label,
+    var.extra_env_vars,
+    var.secret_mappings,
+  ]
+
+  provisioner "local-exec" {
+    interpreter = ["/bin/bash", "-c"]
+    environment = {
+      FUNCTION_NAME           = var.function_name
+      ENTRY_POINT             = var.entry_point
+      CLOUD_REGION            = data.google_client_config.default.region
+      RUN_SERVICE_ACCOUNT     = google_service_account.cloud_function_service_account.email
+      TRIGGER_BUCKET          = var.trigger_bucket_name
+      TRIGGER_SERVICE_ACCOUNT = google_service_account.cloud_function_trigger_service_account.email
+      EXTRA_ENV_VARS          = var.extra_env_vars
+      SECRET_MAPPINGS         = var.secret_mappings
+      BAZEL_TARGET_LABEL      = var.bazel_target_label
+    }
+    command = <<-EOT
+        #!/bin/bash
+        set -euo pipefail
+
+        bazel build "$BAZEL_TARGET_LABEL"
+
+        EXEC_ROOT=$(bazel info execution_root)
+        # query for the relative jar path from workspace root
+        REL_PATH=$(bazel cquery "$BAZEL_TARGET_LABEL" --output=starlark \
+          --starlark:expr="target.files.to_list()[0].path")
+        # now combine them
+        JAR="$EXEC_ROOT/$REL_PATH"
+
+        echo "Deploying JAR at: $JAR"
+        TEMP_DIR=$(mktemp -d)
+        cp "$JAR" "$TEMP_DIR/"
+
+        GCLOUD_CMD="gcloud functions deploy \"$FUNCTION_NAME\" \
+          --gen2 \
+          --runtime=java17 \
+          --entry-point=\"$ENTRY_POINT\" \
+          --memory=512MB \
+          --region=\"$CLOUD_REGION\" \
+          --run-service-account=\"$RUN_SERVICE_ACCOUNT\" \
+          --source=\"$TEMP_DIR\" \
+          --trigger-http
+
+        if [[ -n "$EXTRA_ENV_VARS" ]]; then
+          GCLOUD_CMD+=" --set-env-vars=\"$EXTRA_ENV_VARS\""
+        fi
+        if [[ -n "$SECRET_MAPPINGS" ]]; then
+          GCLOUD_CMD+=" --set-secrets=\"$SECRET_MAPPINGS\""
+        fi
+
+        eval "$GCLOUD_CMD"
+      EOT
+  }
+}
