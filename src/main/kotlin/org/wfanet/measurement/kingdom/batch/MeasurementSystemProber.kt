@@ -112,7 +112,7 @@ class MeasurementSystemProber(
 
   private val carterGauge: LongGauge =
     Instrumentation.meter
-      .gaugeBuilder("${Instrumentation.ROOT_NAMESPACE}.retention.carters")
+      .gaugeBuilder("${Instrumentation.ROOT_NAMESPACE}_retention_carters")
       .ofLongs()
       .setUnit("{carter}")
       .setDescription("Total number of carters")
@@ -433,7 +433,7 @@ class MeasurementSystemProber(
     private val COMPLETED_MEASUREMENT_STATES =
       listOf(Measurement.State.SUCCEEDED, Measurement.State.FAILED, Measurement.State.CANCELLED)
 
-    private const val PROBER_NAMESPACE = "${Instrumentation.ROOT_NAMESPACE}.prober"
+    private const val PROBER_NAMESPACE = "${Instrumentation.ROOT_NAMESPACE}_prober"
     private val DATA_PROVIDER_ATTRIBUTE_KEY =
       AttributeKey.stringKey("${Instrumentation.ROOT_NAMESPACE}.data_provider")
     private val REQUISITION_SUCCESS_ATTRIBUTE_KEY =
