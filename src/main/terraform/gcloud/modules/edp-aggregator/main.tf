@@ -203,11 +203,11 @@ module "event_group_sync_cloud_function" {
 
   http_cloud_function_service_account_name  = var.event_group_sync_service_account_name
   terraform_service_account                 = var.terraform_service_account
-  function_name                             = var.cloud_function_configs.event_group.function_name
-  entry_point                               = var.cloud_function_configs.event_group.entry_point
-  extra_env_vars                            = var.cloud_function_configs.event_group.extra_env_vars
-  secret_mappings                           = var.cloud_function_configs.event_group.secret_mappings
-  bazel_target_label                        = var.cloud_function_configs.event_group.bazel_target_label
+  function_name                             = var.cloud_function_configs.event_group_sync.function_name
+  entry_point                               = var.cloud_function_configs.event_group_sync.entry_point
+  extra_env_vars                            = var.cloud_function_configs.event_group_sync.extra_env_vars
+  secret_mappings                           = var.cloud_function_configs.event_group_sync.secret_mappings
+  bazel_target_label                        = var.cloud_function_configs.event_group_sync.bazel_target_label
 }
 
 resource "google_secret_manager_secret_iam_member" "secret_accessor" {
