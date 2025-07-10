@@ -109,9 +109,16 @@ class MeasurementSystemProber(
       .setDescription("Total number of carter cowboys")
       .build()
 
+  private val carterGauge: DoubleGauge =
+    Instrumentation.meter
+      .gaugeBuilder("${Instrumentation.ROOT_NAMESPACE}.retention.carters")
+      .setUnit("s")
+      .setDescription("Total number of carters")
+      .build()
+
   private val lastTerminalMeasurementTimeGauge: DoubleGauge =
     Instrumentation.meter
-      .gaugeBuilder("${PROBER_NAMESPACE}.last_terminal_measurement.timestamp")
+      .gaugeBuilder("${PROBER_NAMESPACE}.last_terminal_measurement_timestamp")
       .setUnit("s")
       .setDescription(
         "Unix epoch timestamp (in seconds) of the update time of the most recently issued and completed prober Measurement"
@@ -128,6 +135,7 @@ class MeasurementSystemProber(
 
   suspend fun run() {
     cowboyCounter.add(1)
+    carterGauge.set(2.0)
     val lastUpdatedMeasurement = getLastUpdatedMeasurement()
     if (lastUpdatedMeasurement != null) {
       updateLastTerminalRequisitionGauge(lastUpdatedMeasurement)
