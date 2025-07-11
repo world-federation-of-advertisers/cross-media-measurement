@@ -81,11 +81,27 @@ import picocli.CommandLine
 )
 class HardcodedImpressionsResultsFulfillerMain : Runnable {
 
+  data class FrequencyVector(
+    val vidToIndex: Map<Long, Int>,
+    val counts: IntArray
+  )
+
   data class BenchmarkResult(
     val parallelism: Int,
+    val impressionCount: Long,
     val vidCount: Long,
-    val durationMs: Long,
-    val vidsPerSecond: Long
+    val readDurationMs: Long,
+    val filterDurationMs: Long,
+    val frequencyDurationMs: Long,
+    val mergeDurationMs: Long,
+    val distributionDurationMs: Long,
+    val totalDurationMs: Long,
+    val readThroughput: Long,
+    val filterThroughput: Long,
+    val frequencyThroughput: Long,
+    val mergeThroughput: Long,
+    val distributionThroughput: Long,
+    val totalThroughput: Long
   )
 
   @CommandLine.Option(
@@ -130,12 +146,6 @@ class HardcodedImpressionsResultsFulfillerMain : Runnable {
   )
   private lateinit var impressionsUri: String
 
-  @CommandLine.Option(
-    names = ["--enable-filtering"],
-    description = ["Enable VidFilter for filtering impressions"],
-    defaultValue = "false"
-  )
-  private var enableFiltering: Boolean = false
   override fun run() = runBlocking {
     // Initialize Tink
     AeadConfig.register()
@@ -223,10 +233,10 @@ class HardcodedImpressionsResultsFulfillerMain : Runnable {
 
     // Process requisitions directly without ResultsFulfiller dependencies
     println("Processing requisitions...")
-    println("\n=== Parallelism Benchmark (Filtering: ${if (enableFiltering) "ENABLED" else "DISABLED"}) ===\n")
+    println("\n=== Parallelism Benchmark ===\n")
 
     // Benchmark different parallelism levels
-    val parallelismLevels = listOf(1, 8)
+    val parallelismLevels = listOf(1, 2, 4, 8)
     val benchmarkResults = mutableMapOf<Int, BenchmarkResult>()
 
     // Print thread pool info
@@ -236,55 +246,166 @@ class HardcodedImpressionsResultsFulfillerMain : Runnable {
     for (parallelism in parallelismLevels) {
       println("Testing with parallelism = $parallelism...")
 
-      // Measure time to read event data only
+      // Measure time to read impressions only
       val readStartTime = System.currentTimeMillis()
 
-      val sampledVids = getSampledVids(
+      val impressions = getSampledVids(
         requisitionSpec,
         groupedRequisitions.eventGroupMapList.associate { it.eventGroup to it.details.eventGroupReferenceId },
-        measurementSpec.vidSamplingInterval,
-        typeRegistry,
         eventReader,
         ZoneId.systemDefault(),
-        parallelism,
-        enableFiltering
+        parallelism
       )
 
-      // Collect all VIDs to force reading from disk
-      val vidCount = sampledVids.count().toLong()
+      // Collect all impressions to force reading from disk
+      val impressionCount = impressions.sumOf { it.size }.toLong()
 
       val readEndTime = System.currentTimeMillis()
       val readDuration = readEndTime - readStartTime
 
-      benchmarkResults[parallelism] = BenchmarkResult(
-        parallelism = parallelism,
-        vidCount = vidCount,
-        durationMs = readDuration,
-        vidsPerSecond = if (readDuration > 0) (vidCount * 1000.0 / readDuration).toLong() else 0
+      println("  Read stage completed in ${readDuration}ms (${impressionCount} impressions)")
+
+      // Measure time to filter impressions
+      val filterStartTime = System.currentTimeMillis()
+
+      val filteredVids = filterImpressions(
+        impressions,
+        requisitionSpec,
+        measurementSpec.vidSamplingInterval,
+        typeRegistry,
+        parallelism
       )
 
-      println("  Completed in ${readDuration}ms")
+      // Collect all VIDs to force filtering
+      val allVids = filteredVids.toList()
+      val totalVidCount = allVids.size.toLong()
+
+      val filterEndTime = System.currentTimeMillis()
+      val filterDuration = filterEndTime - filterStartTime
+
+      println("  Filter stage completed in ${filterDuration}ms (${totalVidCount} VIDs)")
+
+      // Group VIDs by dates for frequency vector stage
+      val vidsPerDate = mutableListOf<List<Long>>()
+      val datesCount = impressions.size
+      val vidsPerDateCount = if (datesCount > 0) (totalVidCount / datesCount).toInt() else 0
+      repeat(datesCount) { dateIndex ->
+        val startIdx = dateIndex * vidsPerDateCount
+        val endIdx = if (dateIndex == datesCount - 1) allVids.size else (dateIndex + 1) * vidsPerDateCount
+        if (startIdx < allVids.size) {
+          vidsPerDate.add(allVids.subList(startIdx, minOf(endIdx, allVids.size)))
+        }
+      }
+
+      // Measure time to compute frequency vectors
+      val frequencyStartTime = System.currentTimeMillis()
+
+      val frequencyVectors = computeFrequencyVectors(vidsPerDate, parallelism)
+      val vectorList = frequencyVectors.toList()
+      val vectorCount = vectorList.size.toLong()
+
+      val frequencyEndTime = System.currentTimeMillis()
+      val frequencyDuration = frequencyEndTime - frequencyStartTime
+
+      println("  Frequency stage completed in ${frequencyDuration}ms (${vectorCount} vectors)")
+
+      // Measure time to merge frequency vectors
+      val mergeStartTime = System.currentTimeMillis()
+
+      val mergedVector = mergeFrequencyVectors(vectorList)
+
+      val mergeEndTime = System.currentTimeMillis()
+      val mergeDuration = mergeEndTime - mergeStartTime
+
+      println("  Merge stage completed in ${mergeDuration}ms (${mergedVector.vidToIndex.size} unique VIDs)")
+
+      // Measure time to compute frequency distribution
+      val distributionStartTime = System.currentTimeMillis()
+
+      val averageFrequency = computeFrequencyDistribution(mergedVector)
+
+      val distributionEndTime = System.currentTimeMillis()
+      val distributionDuration = distributionEndTime - distributionStartTime
+      val totalDuration = readDuration + filterDuration + frequencyDuration + mergeDuration + distributionDuration
+
+      println("  Distribution stage completed in ${distributionDuration}ms (average frequency: ${String.format("%.2f", averageFrequency)})")
+
+      benchmarkResults[parallelism] = BenchmarkResult(
+        parallelism = parallelism,
+        impressionCount = impressionCount,
+        vidCount = totalVidCount,
+        readDurationMs = readDuration,
+        filterDurationMs = filterDuration,
+        frequencyDurationMs = frequencyDuration,
+        mergeDurationMs = mergeDuration,
+        distributionDurationMs = distributionDuration,
+        totalDurationMs = totalDuration,
+        readThroughput = if (readDuration > 0) (impressionCount * 1000.0 / readDuration).toLong() else 0,
+        filterThroughput = if (filterDuration > 0) (impressionCount * 1000.0 / filterDuration).toLong() else 0,
+        frequencyThroughput = if (frequencyDuration > 0) (impressionCount * 1000.0 / frequencyDuration).toLong() else 0,
+        mergeThroughput = if (mergeDuration > 0) (impressionCount * 1000.0 / mergeDuration).toLong() else 0,
+        distributionThroughput = if (distributionDuration > 0) (impressionCount * 1000.0 / distributionDuration).toLong() else 0,
+        totalThroughput = if (totalDuration > 0) (totalVidCount * 1000.0 / totalDuration).toLong() else 0
+      )
+
+      println("  Total completed in ${totalDuration}ms")
       println()
     }
 
     // Print comparison table
-    println("\n=== Benchmark Results (Filtering: ${if (enableFiltering) "ENABLED" else "DISABLED"}) ===")
-    println("%-12s %-15s %-15s %-15s %-15s".format("Parallelism", "Time (ms)", "Time (s)", "VIDs/second", "Speedup"))
-    println("-".repeat(80))
+    println("\n=== Benchmark Results ===")
+    println("%-12s %-15s %-15s %-15s %-15s %-15s %-15s %-15s %-15s %-15s %-15s %-15s %-15s".format("Parallelism", "Read (ms)", "Filter (ms)", "Freq (ms)", "Merge (ms)", "Dist (ms)", "Total (ms)", "Read/sec", "Filter/sec", "Freq/sec", "Merge/sec", "Dist/sec", "VIDs/sec"))
+    println("-".repeat(190))
 
-    val baselineTime = benchmarkResults[1]?.durationMs ?: 1
+    val baselineReadTime = benchmarkResults[1]?.readDurationMs ?: 1
+    val baselineFilterTime = benchmarkResults[1]?.filterDurationMs ?: 1
+    val baselineFrequencyTime = benchmarkResults[1]?.frequencyDurationMs ?: 1
+    val baselineMergeTime = benchmarkResults[1]?.mergeDurationMs ?: 1
+    val baselineDistributionTime = benchmarkResults[1]?.distributionDurationMs ?: 1
+    val baselineTotalTime = benchmarkResults[1]?.totalDurationMs ?: 1
+
     for ((parallelism, result) in benchmarkResults.entries.sortedBy { it.key }) {
-      val speedup = baselineTime.toDouble() / result.durationMs
-      println("%-12d %-15d %-15.2f %-15d %-15.2fx".format(
+      println("%-12d %-15d %-15d %-15d %-15d %-15d %-15d %-15d %-15d %-15d %-15d %-15d %-15d".format(
         parallelism,
-        result.durationMs,
-        result.durationMs / 1000.0,
-        result.vidsPerSecond,
-        speedup
+        result.readDurationMs,
+        result.filterDurationMs,
+        result.frequencyDurationMs,
+        result.mergeDurationMs,
+        result.distributionDurationMs,
+        result.totalDurationMs,
+        result.readThroughput,
+        result.filterThroughput,
+        result.frequencyThroughput,
+        result.mergeThroughput,
+        result.distributionThroughput,
+        result.totalThroughput
       ))
     }
 
-    println("\nTotal VIDs processed: ${benchmarkResults[1]?.vidCount ?: 0}")
+    println("\n=== Speedup Analysis ===")
+    println("%-12s %-15s %-15s %-15s %-15s %-15s %-15s".format("Parallelism", "Read Speedup", "Filter Speedup", "Freq Speedup", "Merge Speedup", "Dist Speedup", "Total Speedup"))
+    println("-".repeat(120))
+
+    for ((parallelism, result) in benchmarkResults.entries.sortedBy { it.key }) {
+      val readSpeedup = baselineReadTime.toDouble() / result.readDurationMs
+      val filterSpeedup = baselineFilterTime.toDouble() / result.filterDurationMs
+      val frequencySpeedup = baselineFrequencyTime.toDouble() / result.frequencyDurationMs
+      val mergeSpeedup = baselineMergeTime.toDouble() / result.mergeDurationMs
+      val distributionSpeedup = baselineDistributionTime.toDouble() / result.distributionDurationMs
+      val totalSpeedup = baselineTotalTime.toDouble() / result.totalDurationMs
+      println("%-12d %-15.2fx %-15.2fx %-15.2fx %-15.2fx %-15.2fx %-15.2fx".format(
+        parallelism,
+        readSpeedup,
+        filterSpeedup,
+        frequencySpeedup,
+        mergeSpeedup,
+        distributionSpeedup,
+        totalSpeedup
+      ))
+    }
+
+    println("\nTotal impressions processed: ${benchmarkResults[1]?.impressionCount ?: 0}")
+    println("Total VIDs processed: ${benchmarkResults[1]?.vidCount ?: 0}")
     println("Done!")
   }
 
@@ -319,10 +440,6 @@ class HardcodedImpressionsResultsFulfillerMain : Runnable {
     private const val EDP_ID = "someDataProvider"
     private const val EDP_NAME = "dataProviders/$EDP_ID"
     private const val EVENT_GROUP_NAME = "$EDP_NAME/eventGroups/name"
-    private const val EDP_DISPLAY_NAME = "edp1"
-
-    private val SECRET_FILES_PATH: Path =
-      Paths.get(System.getProperty("user.dir"), "src", "main", "k8s", "testing", "secretfiles")
 
     private const val MEASUREMENT_CONSUMER_NAME = "measurementConsumers/AAAAAAAAAHs"
     private const val DATA_PROVIDER_NAME = "dataProviders/AAAAAAAAAHs"
@@ -343,63 +460,19 @@ class HardcodedImpressionsResultsFulfillerMain : Runnable {
   data class ReachAndFrequency(val reach: Int, val relativeFrequencyDistribution: Map<Int, Double>)
 
   /**
-   * Processes requisitions and builds measurement results directly
-   */
-  private suspend fun processRequisitions(
-    groupedRequisitions: GroupedRequisitions,
-    requisitionSpec: RequisitionSpec,
-    measurementSpec: MeasurementSpec,
-    eventReader: EventReader,
-    typeRegistry: TypeRegistry,
-  ): Measurement.Result {
-    // Extract VIDs from impressions
-    val sampledVids = getSampledVids(
-      requisitionSpec,
-      groupedRequisitions.eventGroupMapList.associate { it.eventGroup to it.details.eventGroupReferenceId },
-      measurementSpec.vidSamplingInterval,
-      typeRegistry,
-      eventReader,
-      ZoneId.systemDefault(),
-      parallelism = 8,
-      enableFiltering = enableFiltering
-    )
-
-    // Compute reach and frequency
-    val maxFrequency = measurementSpec.reachAndFrequency.maximumFrequency
-    val reachAndFrequency = computeReachAndFrequency(sampledVids, maxFrequency)
-
-    // Build the measurement result
-    return Measurement.Result.newBuilder().apply {
-      reach = Measurement.Result.Reach.newBuilder().apply {
-        value = reachAndFrequency.reach.toLong()
-      }.build()
-
-      frequency = Measurement.Result.Frequency.newBuilder().apply {
-        putAllRelativeFrequencyDistribution(
-          reachAndFrequency.relativeFrequencyDistribution.mapKeys { it.key.toLong() }
-        )
-      }.build()
-    }.build()
-  }
-
-  /**
-   * Extracts and samples VIDs from impression data
+   * Extracts impressions from impression data (reading only), grouped by dates
    */
   @OptIn(ExperimentalCoroutinesApi::class)
   private suspend fun getSampledVids(
     requisitionSpec: RequisitionSpec,
     eventGroupMap: Map<String, String>,
-    vidSamplingInterval: MeasurementSpec.VidSamplingInterval,
-    typeRegistry: TypeRegistry,
     eventReader: EventReader,
     zoneId: ZoneId,
-    parallelism: Int = 8,
-    enableFiltering: Boolean = false
-  ): Flow<Long> {
-    val vidSamplingIntervalStart = vidSamplingInterval.start
-    val vidSamplingIntervalWidth = vidSamplingInterval.width
+    parallelism: Int = 8
+  ): List<List<LabeledImpression>> {
+    val allDateImpressions = mutableListOf<List<LabeledImpression>>()
 
-    return requisitionSpec.events.eventGroupsList.asFlow().flatMapConcat { eventGroup ->
+    for (eventGroup in requisitionSpec.events.eventGroupsList) {
       val collectionInterval = eventGroup.value.collectionInterval
       val startDate = LocalDate.ofInstant(collectionInterval.startTime.toInstant(), zoneId)
       val endDate = LocalDate.ofInstant(collectionInterval.endTime.toInstant(), zoneId)
@@ -410,100 +483,138 @@ class HardcodedImpressionsResultsFulfillerMain : Runnable {
 
       println("Processing ${datesList.size} dates from $startDate to ${datesList.lastOrNull() ?: endDate} with parallelism=$parallelism")
 
-      // Process dates in parallel
-      datesList.asFlow()
+      // Process dates in parallel and collect impressions per date
+      val dateImpressions = datesList.asFlow()
         .flatMapMerge(parallelism) { date ->
           flow {
             val impressionsFlow = eventReader.getLabeledImpressions(date, eventGroupMap.getValue(eventGroup.key))
-            val filteredImpressions = if (enableFiltering) VidFilter.filterAndExtractVids(
-              impressionsFlow,
-              vidSamplingIntervalStart,
-              vidSamplingIntervalWidth,
-              eventGroup.value.filter,
-              collectionInterval,
-              typeRegistry
-            ) else impressionsFlow.map { i -> i.vid }
-            emitAll(filteredImpressions)
+            val impressionsList = impressionsFlow.toList()
+            emit(impressionsList)
           }
         }
+        .toList()
+
+      allDateImpressions.addAll(dateImpressions)
     }
+
+    return allDateImpressions
   }
 
-
   /**
-   * Computes reach and frequency using deterministic count distinct methodology
+   * Computes frequency vector for a list of VIDs without concurrency
    */
-  private suspend fun computeReachAndFrequency(
-    filteredVids: Flow<Long>,
-    maxFrequency: Int
-  ): ReachAndFrequency {
-    val startTime = System.currentTimeMillis()
-
-    // Drain the flow entirely into a list first
-    val vidsList = filteredVids.toList()
-    println("Profile: Flow draining took ${System.currentTimeMillis() - startTime}ms for ${vidsList.size} total VIDs")
-
-    // Count occurrences of each VID
+  private fun computeFrequencyVector(vids: List<Long>): FrequencyVector {
     val vidToIndex = mutableMapOf<Long, Int>()
     var nextIndex = 0
 
     // Build VID to index mapping
-    for (vid in vidsList) {
+    for (vid in vids) {
       if (!vidToIndex.containsKey(vid)) {
         vidToIndex[vid] = nextIndex++
       }
     }
 
-    // Create atomic integer array for counts
-    val countsArray = AtomicIntegerArray(vidToIndex.size)
+    // Create counts array
+    val counts = IntArray(vidToIndex.size)
 
-    // Count occurrences using atomic operations in parallel
-    // Use a fixed thread pool with exactly the number of available processors
-    val countingDispatcher = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors()) { runnable ->
-      Thread(runnable).apply {
-        name = "VidCounter-${Thread.currentThread().id}"
-        isDaemon = true
-      }
-    }.asCoroutineDispatcher()
+    // Count occurrences
+    for (vid in vids) {
+      val index = vidToIndex[vid]!!
+      counts[index]++
+    }
 
-    coroutineScope {
-      val chunkSize = (vidsList.size / Runtime.getRuntime().availableProcessors()).coerceAtLeast(1000)
-      vidsList
-        .chunked(chunkSize)
-        .map { chunk ->
-          async(countingDispatcher) {
-            for (vid in chunk) {
-              val index = vidToIndex[vid]!!
-              countsArray.incrementAndGet(index)
-            }
-          }
+    return FrequencyVector(vidToIndex, counts)
+  }
+
+  /**
+   * Filters impressions and extracts VIDs, processing dates in parallel
+   */
+  @OptIn(ExperimentalCoroutinesApi::class)
+  private suspend fun filterImpressions(
+    impressionsByDate: List<List<LabeledImpression>>,
+    requisitionSpec: RequisitionSpec,
+    vidSamplingInterval: MeasurementSpec.VidSamplingInterval,
+    typeRegistry: TypeRegistry,
+    parallelism: Int = 8
+  ): Flow<Long> {
+    val vidSamplingIntervalStart = vidSamplingInterval.start
+    val vidSamplingIntervalWidth = vidSamplingInterval.width
+
+    return requisitionSpec.events.eventGroupsList.asFlow().flatMapConcat { eventGroup ->
+      val collectionInterval = eventGroup.value.collectionInterval
+      impressionsByDate.asFlow()
+        .flatMapMerge(parallelism) { dateImpressions ->
+          VidFilter.filterAndExtractVids(
+            dateImpressions.asFlow(),
+            vidSamplingIntervalStart,
+            vidSamplingIntervalWidth,
+            eventGroup.value.filter,
+            collectionInterval,
+            typeRegistry
+          )
         }
-        .awaitAll()
+    }
+  }
+
+  /**
+   * Computes frequency vectors for each date in parallel
+   */
+  @OptIn(ExperimentalCoroutinesApi::class)
+  private suspend fun computeFrequencyVectors(
+    vidsPerDate: List<List<Long>>,
+    parallelism: Int = 8
+  ): Flow<FrequencyVector> {
+    return vidsPerDate.asFlow()
+      .flatMapMerge(parallelism) { vids ->
+        flow {
+          val frequencyVector = computeFrequencyVector(vids)
+          emit(frequencyVector)
+        }
+      }
+  }
+
+  /**
+   * Merges frequency vectors across dates by combining counts for same VIDs
+   */
+  private suspend fun mergeFrequencyVectors(frequencyVectors: List<FrequencyVector>): FrequencyVector {
+    val mergedCounts = mutableMapOf<Long, Int>()
+
+    // Combine counts for all VIDs across all vectors
+    for (vector in frequencyVectors) {
+      for ((vid, index) in vector.vidToIndex) {
+        val count = vector.counts[index]
+        mergedCounts[vid] = mergedCounts.getOrDefault(vid, 0) + count
+      }
     }
 
-    countingDispatcher.close()
+    // Build final merged vector
+    val finalVidToIndex = mutableMapOf<Long, Int>()
+    var nextIndex = 0
 
-    val reach: Int = vidToIndex.size
-
-    // If empty, return zero distribution
-    if (reach == 0) {
-      return ReachAndFrequency(reach, (1..maxFrequency).associateWith { 0.0 })
+    for (vid in mergedCounts.keys) {
+      finalVidToIndex[vid] = nextIndex++
     }
 
-    // Build frequency histogram
-    val frequencyArray = IntArray(maxFrequency)
-    for (i in 0 until countsArray.length()) {
-      val count = countsArray.get(i)
-      val bucket = count.coerceAtMost(maxFrequency)
-      frequencyArray[bucket - 1]++
+    val finalCounts = IntArray(finalVidToIndex.size)
+    for ((vid, totalCount) in mergedCounts) {
+      val index = finalVidToIndex[vid]!!
+      finalCounts[index] = totalCount
     }
 
-    // Calculate relative frequency distribution
-    val frequencyDistribution: Map<Int, Double> =
-      frequencyArray.withIndex().associateBy({ it.index + 1 }, { it.value.toDouble() / reach })
+    return FrequencyVector(finalVidToIndex, finalCounts)
+  }
 
-    println("Profile: computeReachAndFrequency total took ${System.currentTimeMillis() - startTime}ms (reach: $reach, maxFreq: $maxFrequency)")
+  /**
+   * Computes frequency distribution from a frequency vector (average frequency)
+   */
+  private fun computeFrequencyDistribution(frequencyVector: FrequencyVector): Double {
+    if (frequencyVector.counts.isEmpty()) {
+      return 0.0
+    }
 
-    return ReachAndFrequency(reach, frequencyDistribution)
+    val totalFrequency = frequencyVector.counts.sum()
+    val uniqueVids = frequencyVector.counts.size
+
+    return totalFrequency.toDouble() / uniqueVids
   }
 }
