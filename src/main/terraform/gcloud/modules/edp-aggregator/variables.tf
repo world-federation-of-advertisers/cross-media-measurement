@@ -222,6 +222,6 @@ variable "cloud_function_configs" {
     entry_point         = string
     extra_env_vars      = string
     secret_mappings     = string
-    bazel_target_label  = string
+    uber_jar_path       = string
   }))
 }

@@ -182,3 +182,18 @@ variable "event_group_secret_mapping" {
   description = "EventGroupSync secret mapping"
   type        = string
 }
+
+variable "data_watcher_uber_jar_path" {
+  description = "Path to DataWatcher uber jar."
+  type = string
+}
+
+variable "requisition_fetcher_uber_jar_path" {
+  description = "Path to RequisitionFetcher uber jar."
+  type = string
+}
+
+variable "event_group_uber_jar_path" {
+  description = "Path to EventGroupSync uber jar."
+  type = string
+}

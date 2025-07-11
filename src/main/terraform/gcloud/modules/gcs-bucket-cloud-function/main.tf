@@ -91,42 +91,35 @@ resource "terraform_data" "deploy_gcs_cloud_function" {
       TRIGGER_SERVICE_ACCOUNT = google_service_account.cloud_function_trigger_service_account.email
       EXTRA_ENV_VARS          = var.extra_env_vars
       SECRET_MAPPINGS         = var.secret_mappings
-      BAZEL_TARGET_LABEL      = var.bazel_target_label
+      UBER_JAR_PATH           = var.uber_jar_path
     }
     command = <<-EOT
-        #!/bin/bash
-        set -euo pipefail
+      #!/bin/bash
+      set -euo pipefail
 
-        bazel build "$BAZEL_TARGET_LABEL"
+      args=(
+        "functions" "deploy" "$FUNCTION_NAME"
+        "--gen2"
+        "--runtime=java17"
+        "--entry-point=$ENTRY_POINT"
+        "--memory=512MB"
+        "--region=$CLOUD_REGION"
+        "--run-service-account=$RUN_SERVICE_ACCOUNT"
+        "--source=$UBER_JAR_PATH"
+        "--trigger-event-filters=type=google.cloud.storage.object.v1.finalized"
+        "--trigger-event-filters=bucket=$TRIGGER_BUCKET"
+        "--trigger-service-account=$TRIGGER_SERVICE_ACCOUNT"
+      )
 
-        EXEC_ROOT=$(bazel info execution_root)
-        REL_PATH=$(bazel cquery "$BAZEL_TARGET_LABEL" --output=starlark \
-          --starlark:expr="target.files.to_list()[0].path")
-        JAR="$EXEC_ROOT/$REL_PATH"
+      if [[ -n "$EXTRA_ENV_VARS" ]]; then
+        args+=("--set-env-vars=$EXTRA_ENV_VARS")
+      fi
 
-        TEMP_DIR=$(mktemp -d)
-        cp "$JAR" "$TEMP_DIR/"
+      if [[ -n "$SECRET_MAPPINGS" ]]; then
+        args+=("--set-secrets=$SECRET_MAPPINGS")
+      fi
 
-        GCLOUD_CMD="gcloud functions deploy \"$FUNCTION_NAME\" \
-          --gen2 \
-          --runtime=java17 \
-          --entry-point=\"$ENTRY_POINT\" \
-          --memory=512MB \
-          --region=\"$CLOUD_REGION\" \
-          --run-service-account=\"$RUN_SERVICE_ACCOUNT\" \
-          --source=\"$TEMP_DIR\" \
-          --trigger-event-filters=type=google.cloud.storage.object.v1.finalized \
-          --trigger-event-filters=bucket=$TRIGGER_BUCKET \
-          --trigger-service-account=\"$TRIGGER_SERVICE_ACCOUNT\""
-
-        if [[ -n "$EXTRA_ENV_VARS" ]]; then
-          GCLOUD_CMD+=" --set-env-vars=\"$EXTRA_ENV_VARS\""
-        fi
-        if [[ -n "$SECRET_MAPPINGS" ]]; then
-          GCLOUD_CMD+=" --set-secrets=\"$SECRET_MAPPINGS\""
-        fi
-
-        eval "$GCLOUD_CMD"
-      EOT
+      gcloud "${args[@]}"
+    EOT
   }
 }

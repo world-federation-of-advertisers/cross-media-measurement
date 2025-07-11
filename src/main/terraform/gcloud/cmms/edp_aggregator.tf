@@ -124,21 +124,21 @@ locals {
       entry_point         = "org.wfanet.measurement.securecomputation.deploy.gcloud.datawatcher.DataWatcherFunction"
       extra_env_vars      = var.data_watcher_env_var
       secret_mappings     = var.data_watcher_secret_mapping
-      bazel_target_label  = "//src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/datawatcher:DataWatcherFunction_deploy.jar"
+      uber_jar_path       = var.data_watcher_uber_jar_path
     },
     requisition_fetcher = {
       function_name       = var.requisition_fetcher_function_name
       entry_point         = "org.wfanet.measurement.edpaggregator.deploy.gcloud.requisitionfetcher.RequisitionFetcherFunction"
       extra_env_vars      = var.requisition_fetcher_env_var
       secret_mappings     = var.requisition_fetcher_secret_mapping
-      bazel_target_label  = "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/requisitionfetcher:RequisitionFetcherFunction_deploy.jar"
+      uber_jar_path       = var.requisition_fetcher_uber_jar_path
     },
     event_group_sync = {
       function_name       = var.event_group_sync_function_name
       entry_point         = "org.wfanet.measurement.edpaggregator.deploy.gcloud.eventgroups.EventGroupSyncFunction"
       extra_env_vars      = var.event_group_env_var
       secret_mappings     = var.requisition_fetcher_secret_mapping
-      bazel_target_label  = "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/eventgroups:EventGroupSyncFunction_deploy.jar"
+      uber_jar_path       = var.event_group_uber_jar_path
     }
   }
 
