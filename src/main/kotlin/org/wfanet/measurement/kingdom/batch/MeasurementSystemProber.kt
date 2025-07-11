@@ -23,7 +23,6 @@ import io.opentelemetry.api.common.AttributeKey
 import io.opentelemetry.api.common.Attributes
 import io.opentelemetry.api.metrics.DoubleGauge
 import io.opentelemetry.api.metrics.LongCounter
-import io.opentelemetry.api.metrics.LongGauge
 import java.io.File
 import java.security.SecureRandom
 import java.time.Clock
@@ -110,11 +109,10 @@ class MeasurementSystemProber(
       .setDescription("Total number of carter cowboys")
       .build()
 
-  private val carterGauge: LongGauge =
+  private val carterGauge: DoubleGauge =
     Instrumentation.meter
-      .gaugeBuilder("${Instrumentation.ROOT_NAMESPACE}_retention_carters")
-      .ofLongs()
-      .setUnit("{carter}")
+      .gaugeBuilder("${Instrumentation.ROOT_NAMESPACE}.retention.carters")
+      .setUnit("1")
       .setDescription("Total number of carters")
       .build()
 
