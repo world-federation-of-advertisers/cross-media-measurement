@@ -100,14 +100,18 @@ jobs:
         targets[requisition_fetcher]="//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/requisitionfetcher:RequisitionFetcherFunction_deploy.jar"
         targets[event_group]="//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/eventgroups:EventGroupSyncFunction_deploy.jar"
 
-        TEMP_DIR="${RUNNER_TEMP}/uber-jars"
-        mkdir -p "$TEMP_DIR"
-
+        BASE_DIR="${RUNNER_TEMP}/uber-jars"
+        mkdir -p "$BASE_DIR"
+    
         for key in "${!targets[@]}"; do
           rel_path=$(bazel cquery "${targets[$key]}" --output=files)
           full_path="$EXEC_ROOT/$rel_path"
-          cp "$full_path" "$TEMP_DIR/"
-          echo "${key}_jar_path=$TEMP_DIR/$(basename "$full_path")" >> "$GITHUB_OUTPUT"
+          
+          dest_dir="$BASE_DIR/$key"
+          mkdir -p "$dest_dir"
+          cp "$full_path" "$dest_dir/"
+          
+          echo "${key}_source_dir=$dest_dir" >> "$GITHUB_OUTPUT"
         done
 
     - name: terraform init
