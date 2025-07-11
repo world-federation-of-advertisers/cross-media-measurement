@@ -112,7 +112,7 @@ class MeasurementSystemProber(
   private val carterGauge: DoubleGauge =
     Instrumentation.meter
       .gaugeBuilder("${Instrumentation.ROOT_NAMESPACE}.retention.carters")
-      .setUnit("1")
+      .setUnit("{carter}")
       .setDescription("Total number of carters")
       .build()
 
@@ -135,7 +135,7 @@ class MeasurementSystemProber(
 
   suspend fun run() {
     cowboyCounter.add(1)
-    carterGauge.set(2)
+    carterGauge.set(2.0)
     val lastUpdatedMeasurement = getLastUpdatedMeasurement()
     if (lastUpdatedMeasurement != null) {
       updateLastTerminalRequisitionGauge(lastUpdatedMeasurement)
