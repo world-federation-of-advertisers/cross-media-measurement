@@ -82,8 +82,7 @@ import picocli.CommandLine
 class HardcodedImpressionsResultsFulfillerMain : Runnable {
 
   data class FrequencyVector(
-    val vidToIndex: Map<Long, Int>,
-    val counts: IntArray
+    val counts: Map<Long, Int>
   )
 
   data class BenchmarkResult(
@@ -317,7 +316,7 @@ class HardcodedImpressionsResultsFulfillerMain : Runnable {
       val mergeEndTime = System.currentTimeMillis()
       val mergeDuration = mergeEndTime - mergeStartTime
 
-      println("  Merge stage completed in ${mergeDuration}ms (${mergedVector.vidToIndex.size} unique VIDs)")
+      println("  Merge stage completed in ${mergeDuration}ms (${mergedVector.counts.size} unique VIDs)")
 
       // Measure time to compute frequency distribution
       val distributionStartTime = System.currentTimeMillis()
@@ -345,7 +344,7 @@ class HardcodedImpressionsResultsFulfillerMain : Runnable {
         frequencyThroughput = if (frequencyDuration > 0) (impressionCount * 1000.0 / frequencyDuration).toLong() else 0,
         mergeThroughput = if (mergeDuration > 0) (impressionCount * 1000.0 / mergeDuration).toLong() else 0,
         distributionThroughput = if (distributionDuration > 0) (impressionCount * 1000.0 / distributionDuration).toLong() else 0,
-        totalThroughput = if (totalDuration > 0) (totalVidCount * 1000.0 / totalDuration).toLong() else 0
+        totalThroughput = if (totalDuration > 0) (impressionCount * 1000.0 / totalDuration).toLong() else 0
       )
 
       println("  Total completed in ${totalDuration}ms")
@@ -354,7 +353,7 @@ class HardcodedImpressionsResultsFulfillerMain : Runnable {
 
     // Print comparison table
     println("\n=== Benchmark Results ===")
-    println("%-12s %-15s %-15s %-15s %-15s %-15s %-15s %-15s %-15s %-15s %-15s %-15s %-15s".format("Parallelism", "Read (ms)", "Filter (ms)", "Freq (ms)", "Merge (ms)", "Dist (ms)", "Total (ms)", "Read/sec", "Filter/sec", "Freq/sec", "Merge/sec", "Dist/sec", "VIDs/sec"))
+    println("%-12s %-15s %-15s %-15s %-15s %-15s %-15s %-15s %-15s %-15s %-15s %-15s %-15s".format("Parallelism", "Read (ms)", "Filter (ms)", "Freq (ms)", "Merge (ms)", "Dist (ms)", "Total (ms)", "Read/sec", "Filter/sec", "Freq/sec", "Merge/sec", "Dist/sec", "Impressions/sec"))
     println("-".repeat(190))
 
     val baselineReadTime = benchmarkResults[1]?.readDurationMs ?: 1
@@ -504,26 +503,14 @@ class HardcodedImpressionsResultsFulfillerMain : Runnable {
    * Computes frequency vector for a list of VIDs without concurrency
    */
   private fun computeFrequencyVector(vids: List<Long>): FrequencyVector {
-    val vidToIndex = mutableMapOf<Long, Int>()
-    var nextIndex = 0
+    val counts = mutableMapOf<Long, Int>()
 
-    // Build VID to index mapping
+    // Count occurrences of each VID
     for (vid in vids) {
-      if (!vidToIndex.containsKey(vid)) {
-        vidToIndex[vid] = nextIndex++
-      }
+      counts[vid] = counts.getOrDefault(vid, 0) + 1
     }
 
-    // Create counts array
-    val counts = IntArray(vidToIndex.size)
-
-    // Count occurrences
-    for (vid in vids) {
-      val index = vidToIndex[vid]!!
-      counts[index]++
-    }
-
-    return FrequencyVector(vidToIndex, counts)
+    return FrequencyVector(counts)
   }
 
   /**
@@ -581,27 +568,12 @@ class HardcodedImpressionsResultsFulfillerMain : Runnable {
 
     // Combine counts for all VIDs across all vectors
     for (vector in frequencyVectors) {
-      for ((vid, index) in vector.vidToIndex) {
-        val count = vector.counts[index]
+      for ((vid, count) in vector.counts) {
         mergedCounts[vid] = mergedCounts.getOrDefault(vid, 0) + count
       }
     }
 
-    // Build final merged vector
-    val finalVidToIndex = mutableMapOf<Long, Int>()
-    var nextIndex = 0
-
-    for (vid in mergedCounts.keys) {
-      finalVidToIndex[vid] = nextIndex++
-    }
-
-    val finalCounts = IntArray(finalVidToIndex.size)
-    for ((vid, totalCount) in mergedCounts) {
-      val index = finalVidToIndex[vid]!!
-      finalCounts[index] = totalCount
-    }
-
-    return FrequencyVector(finalVidToIndex, finalCounts)
+    return FrequencyVector(mergedCounts)
   }
 
   /**
@@ -612,7 +584,7 @@ class HardcodedImpressionsResultsFulfillerMain : Runnable {
       return 0.0
     }
 
-    val totalFrequency = frequencyVector.counts.sum()
+    val totalFrequency = frequencyVector.counts.values.sum()
     val uniqueVids = frequencyVector.counts.size
 
     return totalFrequency.toDouble() / uniqueVids
