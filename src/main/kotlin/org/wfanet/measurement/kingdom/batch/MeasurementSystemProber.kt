@@ -112,7 +112,7 @@ class MeasurementSystemProber(
   private val carterGauge: DoubleGauge =
     Instrumentation.meter
       .gaugeBuilder("${Instrumentation.ROOT_NAMESPACE}.retention.carters")
-      .setUnit("{carter}")
+      .setUnit("1")
       .setDescription("Total number of carters")
       .build()
 
