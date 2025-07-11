@@ -35,16 +35,13 @@ import org.jetbrains.annotations.Blocking
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
-import org.wfanet.measurement.api.v2alpha.EventGroupMetadata
-import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataKt
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
-import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
+import org.wfanet.measurement.api.v2alpha.MediaType
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt.RequisitionFulfillmentCoroutineStub
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.eventGroupMetadata
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.common.Health
 import org.wfanet.measurement.common.identity.withPrincipalName
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
@@ -83,6 +80,17 @@ class InProcessEdpSimulator(
 
   private val delegate: EdpSimulator
 
+  private val eventGroupMetadata = eventGroupMetadata {
+    adMetadata =
+      EventGroupMetadataKt.adMetadata {
+        campaignMetadata =
+          EventGroupMetadataKt.AdMetadataKt.campaignMetadata {
+            campaignName = "$displayName campaign"
+            brandName = "Brand"
+          }
+      }
+  }
+
   init {
     val populationSpec: PopulationSpec = eventQuery.populationSpec.toPopulationSpec()
     val hmssVidIndexMap =
@@ -96,18 +104,12 @@ class InProcessEdpSimulator(
       EdpSimulator(
         edpData = createEdpData(displayName, resourceName),
         measurementConsumerName = mcResourceName,
-        measurementConsumersStub =
-          MeasurementConsumersCoroutineStub(kingdomPublicApiChannel)
-            .withPrincipalName(resourceName),
         certificatesStub =
           CertificatesCoroutineStub(kingdomPublicApiChannel).withPrincipalName(resourceName),
         dataProvidersStub =
           DataProvidersCoroutineStub(kingdomPublicApiChannel).withPrincipalName(resourceName),
         eventGroupsStub =
           EventGroupsCoroutineStub(kingdomPublicApiChannel).withPrincipalName(resourceName),
-        eventGroupMetadataDescriptorsStub =
-          EventGroupMetadataDescriptorsCoroutineStub(kingdomPublicApiChannel)
-            .withPrincipalName(resourceName),
         requisitionsStub =
           RequisitionsCoroutineStub(kingdomPublicApiChannel).withPrincipalName(resourceName),
         requisitionFulfillmentStubsByDuchyId =
@@ -125,7 +127,6 @@ class InProcessEdpSimulator(
           ),
         trustedCertificates = trustedCertificates,
         hmssVidIndexMap = hmssVidIndexMap,
-        knownEventGroupMetadataTypes = listOf(EventGroupMetadata.getDescriptor().file),
         random = random,
       )
   }
@@ -147,19 +148,7 @@ class InProcessEdpSimulator(
   }
 
   suspend fun ensureEventGroup() =
-    delegate.ensureEventGroup(
-      EVENT_TEMPLATES,
-      eventGroupMetadata {
-        adMetadata =
-          EventGroupMetadataKt.adMetadata {
-            campaignMetadata =
-              EventGroupMetadataKt.AdMetadataKt.campaignMetadata {
-                campaignName = "$displayName campaign"
-                brandName = "Brand"
-              }
-          }
-      },
-    )
+    delegate.ensureEventGroup("", EVENT_GROUP_MEDIA_TYPES, eventGroupMetadata)
 
   /**
    * Builds a [DataProviderData] object for the Edp with a certain [displayName] and [resourceName].
@@ -178,9 +167,9 @@ class InProcessEdpSimulator(
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
 
+    private val EVENT_GROUP_MEDIA_TYPES = setOf(MediaType.VIDEO, MediaType.DISPLAY)
+
     private const val RANDOM_SEED: Long = 1
     private val random = Random(RANDOM_SEED)
-
-    private val EVENT_TEMPLATES = EdpSimulator.buildEventTemplates(TestEvent.getDescriptor())
   }
 }
