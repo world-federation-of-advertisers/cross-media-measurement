@@ -48,8 +48,8 @@ variable "secret_mappings" {
   nullable    = false
 }
 
-variable "bazel_target_label" {
-  description = "The bazel target to use for building the uber jar."
+variable "uber_jar_path" {
+  description = "The path to the uber jar."
   type        = string
   nullable    = false
 }

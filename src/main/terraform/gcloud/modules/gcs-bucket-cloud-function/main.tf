@@ -75,7 +75,7 @@ resource "terraform_data" "deploy_gcs_cloud_function" {
   ]
 
   triggers_replace = [
-    var.bazel_target_label,
+    var.uber_jar_path,
     var.extra_env_vars,
     var.secret_mappings,
   ]
