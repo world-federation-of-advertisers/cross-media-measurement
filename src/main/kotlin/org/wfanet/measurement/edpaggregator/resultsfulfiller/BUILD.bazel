@@ -5,6 +5,7 @@ load("//src/main/docker:macros.bzl", "java_image")
 package(
     default_visibility = [
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator:__subpackages__",
+        "//src/main/kotlin/org/wfanet/measurement/integration/common:__subpackages__",
         "//src/test/kotlin/org/wfanet/measurement/edpaggregator:__subpackages__",
     ],
 )
@@ -13,6 +14,7 @@ kt_jvm_library(
     name = "results_fulfiller",
     srcs = ["ResultsFulfiller.kt"],
     deps = [
+        ":continuous_gaussian_noiser_selector",
         ":event_reader",
         ":noiser_selector",
         ":requisition_specs",

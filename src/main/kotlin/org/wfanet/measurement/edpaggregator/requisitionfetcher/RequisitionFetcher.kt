@@ -119,6 +119,7 @@ class RequisitionFetcher(
       if (
         groupedRequisition.requisitionsList.isNotEmpty() && storageClient.getBlob(blobKey) == null
       ) {
+        logger.info("Storing ${groupedRequisition.requisitionsList.size} requisitions: $blobKey")
         storageClient.writeBlob(blobKey, Any.pack(groupedRequisition).toByteString())
         storedGroupedRequisitions += 1
       }

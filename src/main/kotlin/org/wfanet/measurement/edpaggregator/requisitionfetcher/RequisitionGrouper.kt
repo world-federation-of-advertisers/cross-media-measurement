@@ -77,7 +77,6 @@ abstract class RequisitionGrouper(
 
   /* Maps a single [Requisition] to a single [GroupedRequisition]. */
   private suspend fun mapRequisition(requisition: Requisition): GroupedRequisitions? {
-
     val measurementSpec: MeasurementSpec =
       try {
         requisitionValidator.validateMeasurementSpec(requisition)
