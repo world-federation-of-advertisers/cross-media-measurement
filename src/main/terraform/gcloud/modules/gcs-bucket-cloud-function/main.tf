@@ -97,29 +97,40 @@ resource "terraform_data" "deploy_gcs_cloud_function" {
       #!/bin/bash
       set -euo pipefail
 
-      args=(
-        "functions" "deploy" "$FUNCTION_NAME"
-        "--gen2"
-        "--runtime=java17"
-        "--entry-point=$ENTRY_POINT"
-        "--memory=512MB"
-        "--region=$CLOUD_REGION"
-        "--run-service-account=$RUN_SERVICE_ACCOUNT"
-        "--source=$UBER_JAR_PATH"
-        "--trigger-event-filters=type=google.cloud.storage.object.v1.finalized"
-        "--trigger-event-filters=bucket=$TRIGGER_BUCKET"
-        "--trigger-service-account=$TRIGGER_SERVICE_ACCOUNT"
+      readonly FUNCTION_NAME="\${FUNCTION_NAME}"
+      readonly ENTRY_POINT="\${ENTRY_POINT}"
+      readonly CLOUD_REGION="\${CLOUD_REGION}"
+      readonly RUN_SERVICE_ACCOUNT="\${RUN_SERVICE_ACCOUNT}"
+      readonly UBER_JAR_PATH="\${UBER_JAR_PATH}"
+      readonly TRIGGER_BUCKET="\${TRIGGER_BUCKET}"
+      readonly TRIGGER_SERVICE_ACCOUNT="\${TRIGGER_SERVICE_ACCOUNT}"
+      readonly EXTRA_ENV_VARS="\${EXTRA_ENV_VARS:-}"
+      readonly SECRET_MAPPINGS="\${SECRET_MAPPINGS:-}"
+
+      gcloud_args=(
+        functions deploy "\${FUNCTION_NAME}"
+        --gen2
+        --runtime=java17
+        --entry-point="\${ENTRY_POINT}"
+        --memory=512MB
+        --region="\${CLOUD_REGION}"
+        --run-service-account="\${RUN_SERVICE_ACCOUNT}"
+        --source="\${UBER_JAR_PATH}"
+        --trigger-event-filters=type=google.cloud.storage.object.v1.finalized
+        --trigger-event-filters=bucket="\${TRIGGER_BUCKET}"
+        --trigger-service-account="\${TRIGGER_SERVICE_ACCOUNT}"
       )
 
-      if [[ -n "$EXTRA_ENV_VARS" ]]; then
-        args+=("--set-env-vars=$EXTRA_ENV_VARS")
+      if [[ -n "\${EXTRA_ENV_VARS}" ]]; then
+        gcloud_args+=(--set-env-vars="\${EXTRA_ENV_VARS}")
       fi
 
-      if [[ -n "$SECRET_MAPPINGS" ]]; then
-        args+=("--set-secrets=$SECRET_MAPPINGS")
+      if [[ -n "\${SECRET_MAPPINGS}" ]]; then
+        gcloud_args+=(--set-secrets="\${SECRET_MAPPINGS}")
       fi
 
-      gcloud "${args[@]}"
+      echo "Running: gcloud \${gcloud_args[*]}" >&2
+      gcloud "\${gcloud_args[@]}"
     EOT
   }
 }
