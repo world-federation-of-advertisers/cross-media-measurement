@@ -1,0 +1,272 @@
+/*
+ * Copyright 2025 The Cross-Media Measurement Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.wfanet.measurement.loadtest.dataprovider
+
+import com.google.protobuf.ByteString
+import com.google.protobuf.Descriptors
+import com.google.protobuf.Message
+import com.google.protobuf.kotlin.unpack
+import io.grpc.StatusException
+import java.security.SignatureException
+import java.security.cert.CertPathValidatorException
+import java.security.cert.X509Certificate
+import kotlin.random.Random
+import org.wfanet.measurement.api.v2alpha.Certificate
+import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt
+import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt
+import org.wfanet.measurement.api.v2alpha.EncryptedMessage
+import org.wfanet.measurement.api.v2alpha.EventAnnotationsProto
+import org.wfanet.measurement.api.v2alpha.EventGroup
+import org.wfanet.measurement.api.v2alpha.EventGroupKt
+import org.wfanet.measurement.api.v2alpha.EventGroupKt.metadata
+import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptor
+import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt
+import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt
+import org.wfanet.measurement.api.v2alpha.MeasurementConsumer
+import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
+import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt
+import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt
+import org.wfanet.measurement.api.v2alpha.SignedMessage
+import org.wfanet.measurement.api.v2alpha.copy
+import org.wfanet.measurement.api.v2alpha.createEventGroupMetadataDescriptorRequest
+import org.wfanet.measurement.api.v2alpha.eventGroupMetadataDescriptor
+import org.wfanet.measurement.api.v2alpha.getMeasurementConsumerRequest
+import org.wfanet.measurement.api.v2alpha.updateEventGroupMetadataDescriptorRequest
+import org.wfanet.measurement.common.ProtoReflection
+import org.wfanet.measurement.common.SettableHealth
+import org.wfanet.measurement.common.crypto.authorityKeyIdentifier
+import org.wfanet.measurement.common.crypto.readCertificate
+import org.wfanet.measurement.common.pack
+import org.wfanet.measurement.common.throttler.Throttler
+import org.wfanet.measurement.consent.client.dataprovider.encryptMetadata
+import org.wfanet.measurement.dataprovider.DataProviderData
+import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetManager
+import org.wfanet.measurement.eventdataprovider.shareshuffle.v2alpha.VidIndexMap
+
+/** [EdpSimulator] which sets legacy encrypted metadata on created EventGroups. */
+class LegacyMetadataEdpSimulator(
+  edpData: DataProviderData,
+  measurementConsumerName: String,
+  private val measurementConsumersStub: MeasurementConsumersCoroutineStub,
+  certificatesStub: CertificatesGrpcKt.CertificatesCoroutineStub,
+  dataProvidersStub: DataProvidersGrpcKt.DataProvidersCoroutineStub,
+  eventGroupsStub: EventGroupsGrpcKt.EventGroupsCoroutineStub,
+  private val eventGroupMetadataDescriptorsStub:
+    EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub,
+  requisitionsStub: RequisitionsGrpcKt.RequisitionsCoroutineStub,
+  requisitionFulfillmentStubsByDuchyId:
+    Map<String, RequisitionFulfillmentGrpcKt.RequisitionFulfillmentCoroutineStub>,
+  eventQuery: EventQuery<Message>,
+  throttler: Throttler,
+  privacyBudgetManager: PrivacyBudgetManager,
+  trustedCertificates: Map<ByteString, X509Certificate>,
+  /**
+   * Known protobuf types for [EventGroupMetadataDescriptor]s.
+   *
+   * This is in addition to the standard
+   * [protobuf well-known types][ProtoReflection.WELL_KNOWN_TYPES].
+   */
+  private val knownEventGroupMetadataTypes: Iterable<Descriptors.FileDescriptor>,
+  hmssVidIndexMap: VidIndexMap? = null,
+  logSketchDetails: Boolean = false,
+  health: SettableHealth = SettableHealth(),
+  random: Random = Random,
+) :
+  EdpSimulator(
+    edpData,
+    measurementConsumerName,
+    certificatesStub,
+    dataProvidersStub,
+    eventGroupsStub,
+    requisitionsStub,
+    requisitionFulfillmentStubsByDuchyId,
+    eventQuery,
+    throttler,
+    privacyBudgetManager,
+    trustedCertificates,
+    hmssVidIndexMap = hmssVidIndexMap,
+    logSketchDetails = logSketchDetails,
+    health = health,
+    random = random,
+  ) {
+  /**
+   * Ensures that an appropriate [EventGroup] with appropriate [EventGroupMetadataDescriptor] exists
+   * for the [MeasurementConsumer].
+   */
+  suspend fun ensureEventGroup(
+    eventTemplates: Iterable<EventGroup.EventTemplate>,
+    eventGroupMetadata: Message,
+  ): EventGroup {
+    return ensureEventGroups(eventTemplates, mapOf("" to eventGroupMetadata)).single()
+  }
+
+  /**
+   * Ensures that appropriate [EventGroup]s with appropriate [EventGroupMetadataDescriptor] exists
+   * for the [MeasurementConsumer].
+   */
+  suspend fun ensureEventGroups(
+    eventTemplates: Iterable<EventGroup.EventTemplate>,
+    metadataByReferenceIdSuffix: Map<String, Message>,
+  ): List<EventGroup> {
+    require(metadataByReferenceIdSuffix.isNotEmpty())
+
+    val metadataDescriptor: Descriptors.Descriptor =
+      metadataByReferenceIdSuffix.values.first().descriptorForType
+    require(metadataByReferenceIdSuffix.values.all { it.descriptorForType == metadataDescriptor }) {
+      "All metadata messages must have the same type"
+    }
+
+    val measurementConsumer: MeasurementConsumer =
+      try {
+        measurementConsumersStub.getMeasurementConsumer(
+          getMeasurementConsumerRequest { name = measurementConsumerName }
+        )
+      } catch (e: StatusException) {
+        throw Exception("Error getting MeasurementConsumer $measurementConsumerName", e)
+      }
+
+    verifyEncryptionPublicKey(
+      measurementConsumer.publicKey,
+      getCertificate(measurementConsumer.certificate),
+    )
+
+    val descriptorResource: EventGroupMetadataDescriptor =
+      ensureMetadataDescriptor(metadataDescriptor)
+    return metadataByReferenceIdSuffix.map { (suffix, metadata) ->
+      val eventGroupReferenceId = eventGroupReferenceIdPrefix + suffix
+      ensureEventGroup(
+        measurementConsumer,
+        eventGroupReferenceId,
+        eventTemplates,
+        metadata,
+        descriptorResource,
+      )
+    }
+  }
+
+  /**
+   * Ensures that an [EventGroup] exists for [measurementConsumer] with the specified
+   * [eventGroupReferenceId] and [descriptorResource].
+   */
+  private suspend fun ensureEventGroup(
+    measurementConsumer: MeasurementConsumer,
+    eventGroupReferenceId: String,
+    eventTemplates: Iterable<EventGroup.EventTemplate>,
+    eventGroupMetadata: Message,
+    descriptorResource: EventGroupMetadataDescriptor,
+  ): EventGroup {
+    val encryptedMetadata: EncryptedMessage =
+      encryptMetadata(
+        metadata {
+          eventGroupMetadataDescriptor = descriptorResource.name
+          metadata = eventGroupMetadata.pack()
+        },
+        measurementConsumer.publicKey.message.unpack(),
+      )
+
+    return ensureEventGroup(eventGroupReferenceId) {
+      this.eventTemplates.clear()
+      this.eventTemplates += eventTemplates
+      measurementConsumerPublicKey = measurementConsumer.publicKey.message
+      this.encryptedMetadata = encryptedMetadata
+    }
+  }
+
+  private suspend fun ensureMetadataDescriptor(
+    metadataDescriptor: Descriptors.Descriptor
+  ): EventGroupMetadataDescriptor {
+    val descriptorSet =
+      ProtoReflection.buildFileDescriptorSet(
+        metadataDescriptor,
+        ProtoReflection.WELL_KNOWN_TYPES + knownEventGroupMetadataTypes,
+      )
+    val descriptorResource =
+      try {
+        eventGroupMetadataDescriptorsStub.createEventGroupMetadataDescriptor(
+          createEventGroupMetadataDescriptorRequest {
+            parent = edpData.name
+            eventGroupMetadataDescriptor = eventGroupMetadataDescriptor {
+              this.descriptorSet = descriptorSet
+            }
+            requestId = "type.googleapis.com/${metadataDescriptor.fullName}"
+          }
+        )
+      } catch (e: StatusException) {
+        throw Exception("Error creating EventGroupMetadataDescriptor", e)
+      }
+
+    if (descriptorResource.descriptorSet == descriptorSet) {
+      return descriptorResource
+    }
+
+    return try {
+      eventGroupMetadataDescriptorsStub.updateEventGroupMetadataDescriptor(
+        updateEventGroupMetadataDescriptorRequest {
+          eventGroupMetadataDescriptor =
+            descriptorResource.copy { this.descriptorSet = descriptorSet }
+        }
+      )
+    } catch (e: StatusException) {
+      throw Exception("Error updating EventGroupMetadataDescriptor", e)
+    }
+  }
+
+  private fun verifyEncryptionPublicKey(
+    signedEncryptionPublicKey: SignedMessage,
+    measurementConsumerCertificate: Certificate,
+  ) {
+    val x509Certificate = readCertificate(measurementConsumerCertificate.x509Der)
+    // Look up the trusted issuer certificate for this MC certificate. Note that this doesn't
+    // confirm that this is the trusted issuer for the right MC. In a production environment,
+    // consider having a mapping of MC to root/CA cert.
+    val trustedIssuer =
+      trustedCertificates[checkNotNull(x509Certificate.authorityKeyIdentifier)]
+        ?: throw InvalidConsentSignalException(
+          "Issuer of ${measurementConsumerCertificate.name} is not trusted"
+        )
+    // TODO(world-federation-of-advertisers/consent-signaling-client#41): Use method from
+    // DataProviders client instead of MeasurementConsumers client.
+    try {
+      org.wfanet.measurement.consent.client.measurementconsumer.verifyEncryptionPublicKey(
+        signedEncryptionPublicKey,
+        x509Certificate,
+        trustedIssuer,
+      )
+    } catch (e: CertPathValidatorException) {
+      throw InvalidConsentSignalException(
+        "Certificate path for ${measurementConsumerCertificate.name} is invalid",
+        e,
+      )
+    } catch (e: SignatureException) {
+      throw InvalidConsentSignalException("EncryptionPublicKey signature is invalid", e)
+    }
+  }
+
+  companion object {
+    /** Builds [EventGroup.EventTemplate] messages for all templates in [eventMessageDescriptor]. */
+    fun buildEventTemplates(
+      eventMessageDescriptor: Descriptors.Descriptor
+    ): List<EventGroup.EventTemplate> {
+      val eventTemplateTypes: List<Descriptors.Descriptor> =
+        eventMessageDescriptor.fields
+          .filter { it.type == Descriptors.FieldDescriptor.Type.MESSAGE }
+          .map { it.messageType }
+          .filter { it.options.hasExtension(EventAnnotationsProto.eventTemplate) }
+      return eventTemplateTypes.map { EventGroupKt.eventTemplate { type = it.fullName } }
+    }
+  }
+}

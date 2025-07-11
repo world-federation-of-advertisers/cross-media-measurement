@@ -16,6 +16,7 @@
 
 package org.wfanet.measurement.integration.common
 
+import java.time.ZoneOffset
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupKey
@@ -28,7 +29,8 @@ import org.wfanet.measurement.loadtest.dataprovider.SyntheticGeneratorEventQuery
 class EventQuery(
   syntheticPopulationSpec: SyntheticPopulationSpec,
   private val eventGroupSpecByDataProvider: Map<DataProviderKey, SyntheticEventGroupSpec>,
-) : SyntheticGeneratorEventQuery(syntheticPopulationSpec, TestEvent.getDescriptor()) {
+) :
+  SyntheticGeneratorEventQuery(syntheticPopulationSpec, TestEvent.getDescriptor(), ZoneOffset.UTC) {
   /**
    * @param syntheticPopulationSpec Synthetic population spec used by the EDP simulators.
    * @param syntheticEventGroupSpecs Synthetic event groups specs used by the EDP simulators, in

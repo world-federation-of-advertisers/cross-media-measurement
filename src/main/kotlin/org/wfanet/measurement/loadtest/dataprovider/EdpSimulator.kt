@@ -15,11 +15,10 @@
 package org.wfanet.measurement.loadtest.dataprovider
 
 import com.google.protobuf.ByteString
-import com.google.protobuf.Descriptors
 import com.google.protobuf.Message
 import com.google.protobuf.duration
-import com.google.protobuf.kotlin.unpack
 import com.google.protobuf.timestamp
+import com.google.type.Interval
 import com.google.type.interval
 import io.grpc.Status
 import io.grpc.StatusException
@@ -61,14 +60,10 @@ import org.wfanet.measurement.api.v2alpha.DeterministicCountDistinct
 import org.wfanet.measurement.api.v2alpha.DeterministicDistribution
 import org.wfanet.measurement.api.v2alpha.DifferentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.ElGamalPublicKey
-import org.wfanet.measurement.api.v2alpha.EncryptedMessage
-import org.wfanet.measurement.api.v2alpha.EventAnnotationsProto
 import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupKey
 import org.wfanet.measurement.api.v2alpha.EventGroupKt
-import org.wfanet.measurement.api.v2alpha.EventGroupKt.metadata
-import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptor
-import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.EventGroupMetadata
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequestKt.bodyChunk
@@ -77,7 +72,6 @@ import org.wfanet.measurement.api.v2alpha.ListEventGroupsRequestKt
 import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumer
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
-import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementKey
 import org.wfanet.measurement.api.v2alpha.MeasurementKt
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.ResultKt.frequency
@@ -85,6 +79,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementKt.ResultKt.impression
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.ResultKt.reach
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.ResultKt.watchDuration
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
+import org.wfanet.measurement.api.v2alpha.MediaType
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig.NoiseMechanism
 import org.wfanet.measurement.api.v2alpha.Requisition
@@ -94,22 +89,17 @@ import org.wfanet.measurement.api.v2alpha.RequisitionSpec
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.SignedMessage
 import org.wfanet.measurement.api.v2alpha.copy
-import org.wfanet.measurement.api.v2alpha.createEventGroupMetadataDescriptorRequest
 import org.wfanet.measurement.api.v2alpha.createEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.customDirectMethodology
 import org.wfanet.measurement.api.v2alpha.eventGroup
-import org.wfanet.measurement.api.v2alpha.eventGroupMetadataDescriptor
 import org.wfanet.measurement.api.v2alpha.fulfillRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.getEventGroupRequest
-import org.wfanet.measurement.api.v2alpha.getMeasurementConsumerRequest
 import org.wfanet.measurement.api.v2alpha.listEventGroupsRequest
 import org.wfanet.measurement.api.v2alpha.replaceDataAvailabilityIntervalRequest
 import org.wfanet.measurement.api.v2alpha.replaceDataProviderCapabilitiesRequest
 import org.wfanet.measurement.api.v2alpha.unpack
-import org.wfanet.measurement.api.v2alpha.updateEventGroupMetadataDescriptorRequest
 import org.wfanet.measurement.api.v2alpha.updateEventGroupRequest
 import org.wfanet.measurement.common.Health
-import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.SettableHealth
 import org.wfanet.measurement.common.api.grpc.ResourceList
 import org.wfanet.measurement.common.api.grpc.flattenConcat
@@ -118,11 +108,9 @@ import org.wfanet.measurement.common.asBufferedFlow
 import org.wfanet.measurement.common.crypto.authorityKeyIdentifier
 import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.identity.apiIdToExternalId
-import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.consent.client.dataprovider.computeRequisitionFingerprint
-import org.wfanet.measurement.consent.client.dataprovider.encryptMetadata
 import org.wfanet.measurement.consent.client.dataprovider.verifyElGamalPublicKey
 import org.wfanet.measurement.consent.client.measurementconsumer.verifyEncryptionPublicKey
 import org.wfanet.measurement.dataprovider.DataProviderData
@@ -149,21 +137,19 @@ import org.wfanet.measurement.loadtest.common.sampleVids
 import org.wfanet.measurement.loadtest.config.TestIdentifiers.SIMULATOR_EVENT_GROUP_REFERENCE_ID_PREFIX
 
 /** A simulator handling EDP businesses. */
-class EdpSimulator(
-  private val edpData: DataProviderData,
-  private val measurementConsumerName: String,
-  private val measurementConsumersStub: MeasurementConsumersCoroutineStub,
+open class EdpSimulator(
+  edpData: DataProviderData,
+  protected val measurementConsumerName: String,
   certificatesStub: CertificatesCoroutineStub,
   private val dataProvidersStub: DataProvidersCoroutineStub,
   private val eventGroupsStub: EventGroupsCoroutineStub,
-  private val eventGroupMetadataDescriptorsStub: EventGroupMetadataDescriptorsCoroutineStub,
   requisitionsStub: RequisitionsCoroutineStub,
   private val requisitionFulfillmentStubsByDuchyId:
     Map<String, RequisitionFulfillmentCoroutineStub>,
   private val eventQuery: EventQuery<Message>,
   throttler: Throttler,
   private val privacyBudgetManager: PrivacyBudgetManager,
-  private val trustedCertificates: Map<ByteString, X509Certificate>,
+  trustedCertificates: Map<ByteString, X509Certificate>,
   /**
    * EDP uses the vidIndexMap to fulfill the requisitions for the honest majority share shuffle
    * protocol.
@@ -171,13 +157,6 @@ class EdpSimulator(
    * When the vidIndexMap is empty, the honest majority share shuffle protocol is not supported.
    */
   private val hmssVidIndexMap: VidIndexMap? = null,
-  /**
-   * Known protobuf types for [EventGroupMetadataDescriptor]s.
-   *
-   * This is in addition to the standard
-   * [protobuf well-known types][ProtoReflection.WELL_KNOWN_TYPES].
-   */
-  private val knownEventGroupMetadataTypes: Iterable<Descriptors.FileDescriptor> = emptyList(),
   private val sketchEncrypter: SketchEncrypter = SketchEncrypter.Default,
   private val random: Random = Random,
   private val logSketchDetails: Boolean = false,
@@ -186,7 +165,10 @@ class EdpSimulator(
 ) :
   RequisitionFulfiller(edpData, certificatesStub, requisitionsStub, throttler, trustedCertificates),
   Health by health {
-  private val eventGroupReferenceIdPrefix = getEventGroupReferenceIdPrefix(edpData.displayName)
+  protected val eventGroupReferenceIdPrefix = getEventGroupReferenceIdPrefix(edpData.displayName)
+
+  protected val edpData: DataProviderData
+    get() = dataProviderData
 
   private val supportedProtocols = buildSet {
     add(ProtocolConfig.Protocol.ProtocolCase.LIQUID_LEGIONS_V2)
@@ -227,91 +209,37 @@ class EdpSimulator(
     throttler.loopOnReady { executeRequisitionFulfillingWorkflow() }
   }
 
-  /**
-   * Ensures that an appropriate [EventGroup] with appropriate [EventGroupMetadataDescriptor] exists
-   * for the [MeasurementConsumer].
-   */
   suspend fun ensureEventGroup(
-    eventTemplates: Iterable<EventGroup.EventTemplate>,
-    eventGroupMetadata: Message,
-  ): EventGroup {
-    return ensureEventGroups(eventTemplates, mapOf("" to eventGroupMetadata)).single()
-  }
-
-  /**
-   * Ensures that appropriate [EventGroup]s with appropriate [EventGroupMetadataDescriptor] exists
-   * for the [MeasurementConsumer].
-   */
-  suspend fun ensureEventGroups(
-    eventTemplates: Iterable<EventGroup.EventTemplate>,
-    metadataByReferenceIdSuffix: Map<String, Message>,
-  ): List<EventGroup> {
-    require(metadataByReferenceIdSuffix.isNotEmpty())
-
-    val metadataDescriptor: Descriptors.Descriptor =
-      metadataByReferenceIdSuffix.values.first().descriptorForType
-    require(metadataByReferenceIdSuffix.values.all { it.descriptorForType == metadataDescriptor }) {
-      "All metadata messages must have the same type"
-    }
-
-    val measurementConsumer: MeasurementConsumer =
-      try {
-        measurementConsumersStub.getMeasurementConsumer(
-          getMeasurementConsumerRequest { name = measurementConsumerName }
-        )
-      } catch (e: StatusException) {
-        throw Exception("Error getting MeasurementConsumer $measurementConsumerName", e)
+    referenceIdSuffix: String,
+    mediaTypes: Set<MediaType>,
+    dataAvailabilityInterval: Interval,
+    metadata: EventGroupMetadata?,
+  ) {
+    val eventGroupReferenceId = eventGroupReferenceIdPrefix + referenceIdSuffix
+    ensureEventGroup(eventGroupReferenceId) {
+      this.mediaTypes += mediaTypes
+      this.dataAvailabilityInterval = dataAvailabilityInterval
+      if (metadata == null) {
+        clearEventGroupMetadata()
+      } else {
+        eventGroupMetadata = metadata
       }
-
-    verifyEncryptionPublicKey(
-      measurementConsumer.publicKey,
-      getCertificate(measurementConsumer.certificate),
-    )
-
-    val descriptorResource: EventGroupMetadataDescriptor =
-      ensureMetadataDescriptor(metadataDescriptor)
-    return metadataByReferenceIdSuffix.map { (suffix, metadata) ->
-      val eventGroupReferenceId = eventGroupReferenceIdPrefix + suffix
-      ensureEventGroup(
-        measurementConsumer,
-        eventGroupReferenceId,
-        eventTemplates,
-        metadata,
-        descriptorResource,
-      )
     }
   }
 
-  /**
-   * Ensures that an [EventGroup] exists for [measurementConsumer] with the specified
-   * [eventGroupReferenceId] and [descriptorResource].
-   */
-  private suspend fun ensureEventGroup(
-    measurementConsumer: MeasurementConsumer,
-    eventGroupReferenceId: String,
-    eventTemplates: Iterable<EventGroup.EventTemplate>,
-    eventGroupMetadata: Message,
-    descriptorResource: EventGroupMetadataDescriptor,
+  /** Ensures that appropriate [EventGroup]s exist for the [MeasurementConsumer]. */
+  protected suspend fun ensureEventGroup(
+    referenceId: String,
+    fillRequest: EventGroupKt.Dsl.() -> Unit,
   ): EventGroup {
-    val existingEventGroup: EventGroup? = getEventGroupByReferenceId(eventGroupReferenceId)
-    val encryptedMetadata: EncryptedMessage =
-      encryptMetadata(
-        metadata {
-          eventGroupMetadataDescriptor = descriptorResource.name
-          metadata = eventGroupMetadata.pack()
-        },
-        measurementConsumer.publicKey.message.unpack(),
-      )
-
+    val existingEventGroup: EventGroup? = getEventGroupByReferenceId(referenceId)
     if (existingEventGroup == null) {
       val request = createEventGroupRequest {
         parent = edpData.name
         eventGroup = eventGroup {
-          this.measurementConsumer = measurementConsumerName
-          this.eventGroupReferenceId = eventGroupReferenceId
-          this.eventTemplates += eventTemplates
-          measurementConsumerPublicKey = measurementConsumer.publicKey.message
-          this.encryptedMetadata = encryptedMetadata
+          measurementConsumer = measurementConsumerName
+          eventGroupReferenceId = referenceId
+          fillRequest()
         }
       }
 
@@ -324,15 +252,7 @@ class EdpSimulator(
       }
     }
 
-    val request = updateEventGroupRequest {
-      eventGroup =
-        existingEventGroup.copy {
-          this.eventTemplates.clear()
-          this.eventTemplates += eventTemplates
-          measurementConsumerPublicKey = measurementConsumer.publicKey.message
-          this.encryptedMetadata = encryptedMetadata
-        }
-    }
+    val request = updateEventGroupRequest { eventGroup = existingEventGroup.copy { fillRequest() } }
     return try {
       eventGroupsStub.updateEventGroup(request).also {
         logger.info { "Successfully updated ${it.name}..." }
@@ -347,7 +267,7 @@ class EdpSimulator(
    * [eventGroupReferenceId], or `null` if not found.
    */
   @OptIn(ExperimentalCoroutinesApi::class) // For `flattenConcat`.
-  private suspend fun getEventGroupByReferenceId(eventGroupReferenceId: String): EventGroup? {
+  protected suspend fun getEventGroupByReferenceId(eventGroupReferenceId: String): EventGroup? {
     return eventGroupsStub
       .listResources { pageToken: String ->
         val response =
@@ -369,45 +289,6 @@ class EdpSimulator(
       }
       .flattenConcat()
       .firstOrNull { it.eventGroupReferenceId == eventGroupReferenceId }
-  }
-
-  private suspend fun ensureMetadataDescriptor(
-    metadataDescriptor: Descriptors.Descriptor
-  ): EventGroupMetadataDescriptor {
-    val descriptorSet =
-      ProtoReflection.buildFileDescriptorSet(
-        metadataDescriptor,
-        ProtoReflection.WELL_KNOWN_TYPES + knownEventGroupMetadataTypes,
-      )
-    val descriptorResource =
-      try {
-        eventGroupMetadataDescriptorsStub.createEventGroupMetadataDescriptor(
-          createEventGroupMetadataDescriptorRequest {
-            parent = edpData.name
-            eventGroupMetadataDescriptor = eventGroupMetadataDescriptor {
-              this.descriptorSet = descriptorSet
-            }
-            requestId = "type.googleapis.com/${metadataDescriptor.fullName}"
-          }
-        )
-      } catch (e: StatusException) {
-        throw Exception("Error creating EventGroupMetadataDescriptor", e)
-      }
-
-    if (descriptorResource.descriptorSet == descriptorSet) {
-      return descriptorResource
-    }
-
-    return try {
-      eventGroupMetadataDescriptorsStub.updateEventGroupMetadataDescriptor(
-        updateEventGroupMetadataDescriptorRequest {
-          eventGroupMetadataDescriptor =
-            descriptorResource.copy { this.descriptorSet = descriptorSet }
-        }
-      )
-    } catch (e: StatusException) {
-      throw Exception("Error updating EventGroupMetadataDescriptor", e)
-    }
   }
 
   private fun verifyProtocolConfig(
@@ -526,33 +407,6 @@ class EdpSimulator(
           "Exactly one duchy entry is expected to have the encryption public key, but ${publicKeyList.size} duchy entries do.",
         )
       }
-    }
-  }
-
-  private fun verifyEncryptionPublicKey(
-    signedEncryptionPublicKey: SignedMessage,
-    measurementConsumerCertificate: Certificate,
-  ) {
-    val x509Certificate = readCertificate(measurementConsumerCertificate.x509Der)
-    // Look up the trusted issuer certificate for this MC certificate. Note that this doesn't
-    // confirm that this is the trusted issuer for the right MC. In a production environment,
-    // consider having a mapping of MC to root/CA cert.
-    val trustedIssuer =
-      trustedCertificates[checkNotNull(x509Certificate.authorityKeyIdentifier)]
-        ?: throw InvalidConsentSignalException(
-          "Issuer of ${measurementConsumerCertificate.name} is not trusted"
-        )
-    // TODO(world-federation-of-advertisers/consent-signaling-client#41): Use method from
-    // DataProviders client instead of MeasurementConsumers client.
-    try {
-      verifyEncryptionPublicKey(signedEncryptionPublicKey, x509Certificate, trustedIssuer)
-    } catch (e: CertPathValidatorException) {
-      throw InvalidConsentSignalException(
-        "Certificate path for ${measurementConsumerCertificate.name} is invalid",
-        e,
-      )
-    } catch (e: SignatureException) {
-      throw InvalidConsentSignalException("EncryptionPublicKey signature is invalid", e)
     }
   }
 
@@ -787,7 +641,7 @@ class EdpSimulator(
   /**
    * Builds [EventQuery.EventGroupSpec]s from a [requisitionSpec] by fetching [EventGroup]s.
    *
-   * @throws InvalidSpecException if [requisitionSpec] is found to be invalid
+   * @throws RequisitionFulfiller.InvalidSpecException if [requisitionSpec] is found to be invalid
    */
   private suspend fun buildEventGroupSpecs(
     requisitionSpec: RequisitionSpec
@@ -944,12 +798,6 @@ class EdpSimulator(
     }
 
     return sketch
-  }
-
-  private fun logShareShuffleSketchDetails(sketch: IntArray) {
-    for (register in sketch) {
-      logger.log(Level.INFO) { "${register}" }
-    }
   }
 
   private fun encryptLiquidLegionsV2Sketch(
@@ -1127,16 +975,6 @@ class EdpSimulator(
     } catch (e: StatusException) {
       throw Exception("Error fulfilling requisition ${requisition.name}", e)
     }
-  }
-
-  private fun getEncryptionKeyForShareSeed(requisition: Requisition): SignedMessage {
-    return requisition.duchiesList
-      .map { it.value.honestMajorityShareShuffle }
-      .singleOrNull { it.hasPublicKey() }
-      ?.publicKey
-      ?: throw IllegalArgumentException(
-        "Expected exactly one Duchy entry with an HMSS encryption public key."
-      )
   }
 
   private fun getDuchyWithoutPublicKey(requisition: Requisition): String {
@@ -1647,17 +1485,6 @@ class EdpSimulator(
     fun getEventGroupReferenceIdSuffix(eventGroup: EventGroup, edpDisplayName: String): String {
       val prefix = getEventGroupReferenceIdPrefix(edpDisplayName)
       return eventGroup.eventGroupReferenceId.removePrefix(prefix)
-    }
-
-    fun buildEventTemplates(
-      eventMessageDescriptor: Descriptors.Descriptor
-    ): List<EventGroup.EventTemplate> {
-      val eventTemplateTypes: List<Descriptors.Descriptor> =
-        eventMessageDescriptor.fields
-          .filter { it.type == Descriptors.FieldDescriptor.Type.MESSAGE }
-          .map { it.messageType }
-          .filter { it.options.hasExtension(EventAnnotationsProto.eventTemplate) }
-      return eventTemplateTypes.map { EventGroupKt.eventTemplate { type = it.fullName } }
     }
   }
 }
