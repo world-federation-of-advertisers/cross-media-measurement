@@ -76,6 +76,7 @@ import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt
 import org.wfanet.measurement.internal.kingdom.ProtocolConfig
 import org.wfanet.measurement.internal.kingdom.Requisition
+import org.wfanet.measurement.internal.kingdom.RequisitionDetailsKt
 import org.wfanet.measurement.internal.kingdom.RequisitionKt
 import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt
 import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequest
@@ -109,6 +110,7 @@ import org.wfanet.measurement.internal.kingdom.measurementLogEntryDetails
 import org.wfanet.measurement.internal.kingdom.measurementLogEntryError
 import org.wfanet.measurement.internal.kingdom.protocolConfig
 import org.wfanet.measurement.internal.kingdom.requisition
+import org.wfanet.measurement.internal.kingdom.requisitionDetails
 import org.wfanet.measurement.internal.kingdom.streamMeasurementsRequest
 import org.wfanet.measurement.internal.kingdom.streamRequisitionsRequest
 
@@ -311,6 +313,8 @@ class OperationalMetricsExportTest {
             dataProviderId = externalIdToApiId(REQUISITION.externalDataProviderId)
             isDirect = false
             measurementType = MeasurementType.REACH_AND_FREQUENCY
+            buildLabel = REQUISITION.details.fulfillmentContext.buildLabel
+            warnings += REQUISITION.details.fulfillmentContext.warningsList
             state = RequisitionsTableRow.State.FULFILLED
             createTime = REQUISITION.parentMeasurement.createTime
             updateTime = REQUISITION.updateTime
@@ -334,6 +338,8 @@ class OperationalMetricsExportTest {
             dataProviderId = externalIdToApiId(REQUISITION_2.externalDataProviderId)
             isDirect = true
             measurementType = MeasurementType.REACH_AND_FREQUENCY
+            buildLabel = REQUISITION_2.details.fulfillmentContext.buildLabel
+            warnings += REQUISITION_2.details.fulfillmentContext.warningsList
             state = RequisitionsTableRow.State.FULFILLED
             createTime = REQUISITION_2.parentMeasurement.createTime
             updateTime = REQUISITION_2.updateTime
@@ -1618,6 +1624,14 @@ class OperationalMetricsExportTest {
         seconds = 500
         nanos = 100
       }
+      details = requisitionDetails {
+        fulfillmentContext =
+          RequisitionDetailsKt.fulfillmentContext {
+            buildLabel = "build-label"
+            warnings += "warning"
+            warnings += "warning2"
+          }
+      }
       parentMeasurement =
         RequisitionKt.parentMeasurement {
           apiVersion = API_VERSION
@@ -1640,6 +1654,14 @@ class OperationalMetricsExportTest {
       updateTime = timestamp {
         seconds = 600
         nanos = 100
+      }
+      details = requisitionDetails {
+        fulfillmentContext =
+          RequisitionDetailsKt.fulfillmentContext {
+            buildLabel = "build-label"
+            warnings += "warning"
+            warnings += "warning2"
+          }
       }
       parentMeasurement =
         RequisitionKt.parentMeasurement {
