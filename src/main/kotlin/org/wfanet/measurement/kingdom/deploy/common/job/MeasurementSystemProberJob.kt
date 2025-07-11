@@ -135,6 +135,13 @@ private class MeasurementSystemProberFlags {
   )
   lateinit var measurementUpdateLookbackDuration: Duration
     private set
+
+  @Option(
+    names = ["--event-group-reference-id-prefix"],
+    description = ["Filtered event groups by reference id prefix"],
+    required = false,
+  )
+  lateinit var eventGroupReferenceIdPrefix: String
 }
 
 @Command(
@@ -171,6 +178,7 @@ private fun run(@Mixin flags: MeasurementSystemProberFlags) {
       flags.measurementLookbackDuration,
       flags.durationBetweenMeasurement,
       flags.measurementUpdateLookbackDuration,
+      flags.eventGroupReferenceIdPrefix,
       measurementConsumersService,
       measurementsService,
       dataProvidersService,

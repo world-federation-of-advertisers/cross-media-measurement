@@ -17,10 +17,11 @@ package k8s
 import ("strings")
 
 #MeasurementSystemProber: {
-	_mcName:            string
-	_privateKeyDerFile: string
-	_apiKey:            string
-	_edpResourceNames: [...string]
+	_mcName:                      string
+	_privateKeyDerFile:           string
+	_apiKey:                      string
+	_eventGroupReferenceIdPrefix: string
+	_edpResourceNames:            [...string]
 	_verboseGrpcClientLogging: bool | *false
 	_kingdomPublicApiTarget:   string
 	_secretName:               string
@@ -62,22 +63,29 @@ import ("strings")
 
 	cronJobs: {
 		"measurement-system-prober": {
-			_container: args: [
-				"--measurement-consumer=\(_mcName)",
-				_privateKeyDerFileFlag,
-				"--api-key=\(_apiKey)",
-				_tlsKeyFileFlag,
-				_tlsCertFileFlag,
-				_certCollectionFileFlag,
-				_kingdomPublicApiTargetFlag,
-				_kingdomPublicApiCertHostFlag,
-				"--measurement-lookback-duration=1d",
-				"--duration-between-measurements=1d",
-				"--measurement-update-lookback-duration=2h",
-				for edp in _edpResourceNames {
-					"--data-provider=\(edp)"
-				},
-			]
+			_container: {
+				args: [
+					"--measurement-consumer=\(_mcName)",
+					_privateKeyDerFileFlag,
+					"--api-key=\(_apiKey)",
+					_tlsKeyFileFlag,
+					_tlsCertFileFlag,
+					_certCollectionFileFlag,
+					_kingdomPublicApiTargetFlag,
+					_kingdomPublicApiCertHostFlag,
+					"--measurement-lookback-duration=1d",
+					"--duration-between-measurements=5m",
+					"--measurement-update-lookback-duration=2h",
+					"--event-group-reference-id-prefix=\(_eventGroupReferenceIdPrefix)",
+					for edp in _edpResourceNames {
+						"--data-provider=\(edp)"
+					},
+				]
+				resources: {
+				  requests: memory: "500Mi"
+				  limits: memory: "500Mi"
+				}
+			}
 			spec: schedule: "* * * * *"
 		}
 	}

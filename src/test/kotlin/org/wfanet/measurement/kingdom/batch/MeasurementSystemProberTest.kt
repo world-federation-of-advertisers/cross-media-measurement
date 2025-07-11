@@ -181,6 +181,7 @@ class MeasurementSystemProberTest {
         MEASUREMENT_LOOKBACK_DURATION,
         DURATION_BETWEEN_MEASUREMENT,
         MEASUREMENT_UPDATE_LOOKBACK_DURATION,
+        "",
         measurementConsumersClient,
         measurementsClient,
         dataProvidersClient,

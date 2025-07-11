@@ -22,16 +22,20 @@ import io.grpc.StatusException
 import io.opentelemetry.api.common.AttributeKey
 import io.opentelemetry.api.common.Attributes
 import io.opentelemetry.api.metrics.DoubleGauge
+import io.opentelemetry.api.metrics.LongCounter
 import java.io.File
 import java.security.SecureRandom
 import java.time.Clock
 import java.time.Duration
+import java.util.logging.Level
 import java.util.logging.Logger
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.lastOrNull
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.single
+import kotlinx.coroutines.time.delay
 import org.wfanet.measurement.api.v2alpha.CanonicalRequisitionKey
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt
 import org.wfanet.measurement.api.v2alpha.EventGroup
@@ -87,6 +91,7 @@ class MeasurementSystemProber(
   private val measurementLookbackDuration: Duration,
   private val durationBetweenMeasurement: Duration,
   private val measurementUpdateLookbackDuration: Duration,
+  private val eventGroupReferenceIdPrefix: String,
   private val measurementConsumersStub:
     MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub,
   private val measurementsStub:
@@ -97,9 +102,23 @@ class MeasurementSystemProber(
   private val clock: Clock = Clock.systemUTC(),
   private val secureRandom: SecureRandom = SecureRandom(),
 ) {
+  private val cowboyCounter: LongCounter =
+    Instrumentation.meter
+      .counterBuilder("${Instrumentation.ROOT_NAMESPACE}.retention.cowboys")
+      .setUnit("{carter}")
+      .setDescription("Total number of carter cowboys")
+      .build()
+
+  private val carterGauge: DoubleGauge =
+    Instrumentation.meter
+      .gaugeBuilder("${Instrumentation.ROOT_NAMESPACE}.retention.carters")
+      .setUnit("1")
+      .setDescription("Total number of carters")
+      .build()
+
   private val lastTerminalMeasurementTimeGauge: DoubleGauge =
     Instrumentation.meter
-      .gaugeBuilder("${PROBER_NAMESPACE}.last_terminal_measurement.timestamp")
+      .gaugeBuilder("${PROBER_NAMESPACE}.last_terminal_measurement_timestamp")
       .setUnit("s")
       .setDescription(
         "Unix epoch timestamp (in seconds) of the update time of the most recently issued and completed prober Measurement"
@@ -115,9 +134,12 @@ class MeasurementSystemProber(
       .build()
 
   suspend fun run() {
+    cowboyCounter.add(1)
+    carterGauge.set(2.0)
     val lastUpdatedMeasurement = getLastUpdatedMeasurement()
     if (lastUpdatedMeasurement != null) {
       updateLastTerminalRequisitionGauge(lastUpdatedMeasurement)
+      logger.info("set last terminal requisition gauge")
       if (lastUpdatedMeasurement.state in COMPLETED_MEASUREMENT_STATES) {
         val attributes =
           Attributes.of(
@@ -128,11 +150,15 @@ class MeasurementSystemProber(
           lastUpdatedMeasurement.updateTime.toInstant().toEpochMilli() / MILLISECONDS_PER_SECOND,
           attributes,
         )
+        logger.info("set last terminal measurement gauge")
       }
     }
+    logger.info("prober run() lastUpdatedMeasurement: \n $lastUpdatedMeasurement \n")
     if (shouldCreateNewMeasurement(lastUpdatedMeasurement)) {
+      logger.info("should create a new measurement")
       createMeasurement()
     }
+    delay(Duration.ofSeconds(60))
   }
 
   private suspend fun createMeasurement() {
@@ -213,10 +239,10 @@ class MeasurementSystemProber(
   private suspend fun buildDataProviderNameToEventGroup(): Map<String, EventGroup> {
     val dataProviderNameToEventGroup = mutableMapOf<String, EventGroup>()
     for (dataProviderName in dataProviderNames) {
-      val eventGroup: EventGroup =
+      val eventGroups: Flow<EventGroup> =
         eventGroupsStub
           .withAuthenticationKey(apiAuthenticationKey)
-          .listResources(1) { pageToken: String, remaining ->
+          .listResources(Int.MAX_VALUE) { pageToken: String, remaining ->
             val request = listEventGroupsRequest {
               parent = measurementConsumerName
               filter = ListEventGroupsRequestKt.filter { dataProviderIn += dataProviderName }
@@ -232,11 +258,25 @@ class MeasurementSystemProber(
                   e,
                 )
               }
+            logger.log(Level.INFO, "debug list event groups res:\n $response \n")
             ResourceList(response.eventGroupsList, response.nextPageToken)
           }
-          .map { it.single() }
-          .single()
+          .flattenConcat()
 
+      var eventGroup =
+        if (eventGroupReferenceIdPrefix.isNotEmpty()) {
+          eventGroups.firstOrNull {
+            it.eventGroupReferenceId.startsWith(eventGroupReferenceIdPrefix)
+          }
+        } else {
+          eventGroups.firstOrNull()
+        }
+
+      if (eventGroup == null) {
+        throw Exception("No EventGroup found for DataProvider $dataProviderName")
+      }
+
+      logger.log(Level.INFO, "debug list event group final single: \n $eventGroup \n")
       dataProviderNameToEventGroup[dataProviderName] = eventGroup
     }
     return dataProviderNameToEventGroup
@@ -314,21 +354,20 @@ class MeasurementSystemProber(
     measurementConsumerSigningKey: SigningKeyHandle,
     packedMeasurementEncryptionPublicKey: Any,
   ): Measurement.DataProviderEntry {
+    logger.log(Level.INFO, "event group:\n $eventGroup \n")
     return dataProviderEntry {
       val requisitionSpec = requisitionSpec {
         events =
           RequisitionSpecKt.events {
             this.eventGroups += eventGroupEntry {
-              eventGroupEntry {
-                key = eventGroup.name
-                value =
-                  EventGroupEntryKt.value {
-                    collectionInterval = interval {
-                      startTime = clock.instant().minus(measurementLookbackDuration).toProtoTime()
-                      endTime = clock.instant().plus(Duration.ofDays(1)).toProtoTime()
-                    }
+              key = eventGroup.name
+              value =
+                EventGroupEntryKt.value {
+                  collectionInterval = interval {
+                    startTime = clock.instant().minus(measurementLookbackDuration).toProtoTime()
+                    endTime = clock.instant().plus(Duration.ofDays(1)).toProtoTime()
                   }
-              }
+                }
             }
           }
         measurementPublicKey = packedMeasurementEncryptionPublicKey
@@ -392,7 +431,7 @@ class MeasurementSystemProber(
     private val COMPLETED_MEASUREMENT_STATES =
       listOf(Measurement.State.SUCCEEDED, Measurement.State.FAILED, Measurement.State.CANCELLED)
 
-    private const val PROBER_NAMESPACE = "${Instrumentation.ROOT_NAMESPACE}.prober"
+    private const val PROBER_NAMESPACE = "${Instrumentation.ROOT_NAMESPACE}_prober"
     private val DATA_PROVIDER_ATTRIBUTE_KEY =
       AttributeKey.stringKey("${Instrumentation.ROOT_NAMESPACE}.data_provider")
     private val REQUISITION_SUCCESS_ATTRIBUTE_KEY =

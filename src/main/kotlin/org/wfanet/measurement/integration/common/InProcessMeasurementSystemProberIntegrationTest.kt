@@ -114,6 +114,7 @@ abstract class InProcessMeasurementSystemProberIntegrationTest(
         measurementLookBackDuration,
         durationBetweenMeasurement,
         measurementUpdateLookBackDuration,
+        "",
         publicMeasurementConsumersClient,
         publicMeasurementsClient,
         publicDataProvidersClient,
