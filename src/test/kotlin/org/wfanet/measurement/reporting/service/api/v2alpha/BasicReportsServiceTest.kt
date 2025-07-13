@@ -85,6 +85,7 @@ import org.wfanet.measurement.internal.reporting.v2.metricFrequencySpec as inter
 import org.wfanet.measurement.internal.reporting.v2.reportingImpressionQualificationFilter as internalReportingImpressionQualificationFilter
 import org.wfanet.measurement.internal.reporting.v2.reportingInterval as internalReportingInterval
 import org.wfanet.measurement.internal.reporting.v2.reportingSet as internalReportingSet
+import org.wfanet.measurement.internal.reporting.v2.ReportingSet as InternalReportingSet
 import org.wfanet.measurement.internal.reporting.v2.resultGroup as internalResultGroup
 import org.wfanet.measurement.reporting.deploy.v2.common.service.ImpressionQualificationFiltersService
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.SpannerBasicReportsService
@@ -92,6 +93,10 @@ import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.testing.Schemat
 import org.wfanet.measurement.reporting.deploy.v2.postgres.PostgresMeasurementConsumersService
 import org.wfanet.measurement.reporting.deploy.v2.postgres.PostgresReportingSetsService
 import org.wfanet.measurement.reporting.deploy.v2.postgres.testing.Schemata as PostgresSchemata
+import io.grpc.StatusException
+import kotlinx.coroutines.flow.toList
+import org.wfanet.measurement.internal.reporting.v2.StreamReportingSetsRequestKt
+import org.wfanet.measurement.internal.reporting.v2.streamReportingSetsRequest
 import org.wfanet.measurement.reporting.service.api.Errors
 import org.wfanet.measurement.reporting.service.internal.ImpressionQualificationFilterMapping
 import org.wfanet.measurement.reporting.v2alpha.BasicReport
@@ -100,6 +105,7 @@ import org.wfanet.measurement.reporting.v2alpha.EventTemplateFieldKt
 import org.wfanet.measurement.reporting.v2alpha.ListBasicReportsRequestKt
 import org.wfanet.measurement.reporting.v2alpha.MediaType
 import org.wfanet.measurement.reporting.v2alpha.ReportingImpressionQualificationFilterKt
+import org.wfanet.measurement.reporting.v2alpha.ReportingSetsGrpcKt.ReportingSetsCoroutineImplBase
 import org.wfanet.measurement.reporting.v2alpha.ResultGroupKt
 import org.wfanet.measurement.reporting.v2alpha.ResultGroupMetricSpecKt
 import org.wfanet.measurement.reporting.v2alpha.basicReport
@@ -157,8 +163,9 @@ class BasicReportsServiceTest {
   private lateinit var measurementConsumersService: MeasurementConsumersCoroutineStub
   private lateinit var internalImpressionQualificationFiltersService:
     InternalImpressionQualificationFiltersCoroutineStub
-  private lateinit var reportingSetsService: InternalReportingSetsCoroutineStub
+  private lateinit var internalReportingSetsService: InternalReportingSetsCoroutineStub
   private lateinit var internalBasicReportsService: InternalBasicReportsCoroutineStub
+  private lateinit var publicReportingSetsService: ReportingSetsCoroutineImplBase
 
   private lateinit var service: BasicReportsService
 
@@ -167,19 +174,138 @@ class BasicReportsServiceTest {
     measurementConsumersService = MeasurementConsumersCoroutineStub(grpcTestServerRule.channel)
     internalImpressionQualificationFiltersService =
       InternalImpressionQualificationFiltersCoroutineStub(grpcTestServerRule.channel)
-    reportingSetsService = InternalReportingSetsCoroutineStub(grpcTestServerRule.channel)
+    internalReportingSetsService = InternalReportingSetsCoroutineStub(grpcTestServerRule.channel)
     internalBasicReportsService = InternalBasicReportsCoroutineStub(grpcTestServerRule.channel)
     authorization =
       Authorization(PermissionsGrpcKt.PermissionsCoroutineStub(grpcTestServerRule.channel))
+    publicReportingSetsService = ReportingSetsService(internalReportingSetsService, authorization)
 
     service =
       BasicReportsService(
         internalBasicReportsService,
         internalImpressionQualificationFiltersService,
-        reportingSetsService,
+        internalReportingSetsService,
+        publicReportingSetsService,
         authorization,
       )
   }
+
+  @Test
+  fun `createBasicReport creates new primitive reportingsets only when needed`(): Unit =
+    runBlocking {
+      val measurementConsumerKey = MeasurementConsumerKey("1234")
+      val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
+
+      measurementConsumersService.createMeasurementConsumer(
+        measurementConsumer {
+          cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+        }
+      )
+
+      val campaignGroup = internalReportingSetsService.createReportingSet(
+        createReportingSetRequest {
+          reportingSet = internalReportingSet {
+            cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+            externalCampaignGroupId = campaignGroupKey.reportingSetId
+            displayName = "displayName"
+            filter = "filter"
+
+            primitive =
+              ReportingSetKt.primitive {
+                eventGroupKeys +=
+                  ReportingSetKt.PrimitiveKt.eventGroupKey {
+                    cmmsDataProviderId = DATA_PROVIDER_KEY.dataProviderId
+                    cmmsEventGroupId = "1235"
+                  }
+                eventGroupKeys +=
+                  ReportingSetKt.PrimitiveKt.eventGroupKey {
+                    cmmsDataProviderId = DATA_PROVIDER_KEY.dataProviderId + "b"
+                    cmmsEventGroupId = "1235"
+                  }
+              }
+          }
+          externalReportingSetId = campaignGroupKey.reportingSetId
+        }
+      )
+
+      val existingReportingSets = internalReportingSetsService.streamReportingSets(streamReportingSetsRequest {
+        filter = StreamReportingSetsRequestKt.filter {
+          cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+        }
+      }).toList()
+
+      assertThat(existingReportingSets).containsExactly(campaignGroup)
+
+      val request = createBasicReportRequest {
+        parent = measurementConsumerKey.toName()
+        basicReport = BASIC_REPORT.copy { this.campaignGroup = campaignGroupKey.toName() }
+        basicReportId = "a1234"
+      }
+
+      assertFailsWith<StatusException> {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+      }
+
+      val updatedReportingSets = internalReportingSetsService.streamReportingSets(streamReportingSetsRequest {
+        filter = StreamReportingSetsRequestKt.filter {
+          cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+        }
+      }).toList()
+
+      assertThat(updatedReportingSets).hasSize(3)
+      assertThat(updatedReportingSets.map { if (it.externalReportingSetId == campaignGroup.externalReportingSetId) {
+      it } else { it.copy {
+        clearExternalReportingSetId()
+        weightedSubsetUnions.clear()
+      } }
+      })
+        .containsExactly(campaignGroup, internalReportingSet {
+          cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+          externalCampaignGroupId = campaignGroupKey.reportingSetId
+
+          primitive =
+            ReportingSetKt.primitive {
+              eventGroupKeys +=
+                ReportingSetKt.PrimitiveKt.eventGroupKey {
+                  cmmsDataProviderId = DATA_PROVIDER_KEY.dataProviderId
+                  cmmsEventGroupId = "1235"
+                }
+            }
+        },
+       internalReportingSet {
+         cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+         externalCampaignGroupId = campaignGroupKey.reportingSetId
+
+         primitive =
+           ReportingSetKt.primitive {
+             eventGroupKeys +=
+               ReportingSetKt.PrimitiveKt.eventGroupKey {
+                 cmmsDataProviderId = DATA_PROVIDER_KEY.dataProviderId + "b"
+                 cmmsEventGroupId = "1235"
+               }
+           }
+       })
+
+      val request2 = createBasicReportRequest {
+        parent = measurementConsumerKey.toName()
+        basicReport = BASIC_REPORT.copy { this.campaignGroup = campaignGroupKey.toName() }
+        basicReportId = "b1234"
+      }
+
+      assertFailsWith<StatusException> {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request2) }
+      }
+
+      val identicalReportingSets = internalReportingSetsService.streamReportingSets(streamReportingSetsRequest {
+        filter = StreamReportingSetsRequestKt.filter {
+          cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+        }
+      }).toList()
+
+      assertThat(identicalReportingSets).hasSize(3)
+      assertThat(updatedReportingSets)
+        .containsExactlyElementsIn(identicalReportingSets)
+    }
 
   @Test
   fun `createBasicReport throws INVALID_ARGUMENT when parent is missing`() = runBlocking {
@@ -192,7 +318,7 @@ class BasicReportsServiceTest {
       }
     )
 
-    reportingSetsService.createReportingSet(
+    internalReportingSetsService.createReportingSet(
       createReportingSetRequest {
         reportingSet =
           INTERNAL_CAMPAIGN_GROUP.copy {
@@ -234,7 +360,7 @@ class BasicReportsServiceTest {
       }
     )
 
-    reportingSetsService.createReportingSet(
+    internalReportingSetsService.createReportingSet(
       createReportingSetRequest {
         reportingSet =
           INTERNAL_CAMPAIGN_GROUP.copy {
@@ -278,7 +404,7 @@ class BasicReportsServiceTest {
         }
       )
 
-      reportingSetsService.createReportingSet(
+      internalReportingSetsService.createReportingSet(
         createReportingSetRequest {
           reportingSet =
             INTERNAL_CAMPAIGN_GROUP.copy {
@@ -316,7 +442,7 @@ class BasicReportsServiceTest {
       }
     )
 
-    reportingSetsService.createReportingSet(
+    internalReportingSetsService.createReportingSet(
       createReportingSetRequest {
         reportingSet =
           INTERNAL_CAMPAIGN_GROUP.copy {
@@ -358,7 +484,7 @@ class BasicReportsServiceTest {
       }
     )
 
-    reportingSetsService.createReportingSet(
+    internalReportingSetsService.createReportingSet(
       createReportingSetRequest {
         reportingSet =
           INTERNAL_CAMPAIGN_GROUP.copy {
@@ -401,7 +527,7 @@ class BasicReportsServiceTest {
       }
     )
 
-    reportingSetsService.createReportingSet(
+    internalReportingSetsService.createReportingSet(
       createReportingSetRequest {
         reportingSet =
           INTERNAL_CAMPAIGN_GROUP.copy {
@@ -445,7 +571,7 @@ class BasicReportsServiceTest {
       }
     )
 
-    reportingSetsService.createReportingSet(
+    internalReportingSetsService.createReportingSet(
       createReportingSetRequest {
         reportingSet =
           INTERNAL_CAMPAIGN_GROUP.copy {
@@ -552,7 +678,7 @@ class BasicReportsServiceTest {
         }
       )
 
-      reportingSetsService.createReportingSet(
+      internalReportingSetsService.createReportingSet(
         createReportingSetRequest {
           reportingSet =
             INTERNAL_CAMPAIGN_GROUP.copy {
@@ -595,7 +721,7 @@ class BasicReportsServiceTest {
       }
     )
 
-    reportingSetsService.createReportingSet(
+    internalReportingSetsService.createReportingSet(
       createReportingSetRequest {
         reportingSet =
           INTERNAL_CAMPAIGN_GROUP.copy {
@@ -643,7 +769,7 @@ class BasicReportsServiceTest {
         }
       )
 
-      reportingSetsService.createReportingSet(
+      internalReportingSetsService.createReportingSet(
         createReportingSetRequest {
           reportingSet =
             INTERNAL_CAMPAIGN_GROUP.copy {
@@ -692,7 +818,7 @@ class BasicReportsServiceTest {
         }
       )
 
-      reportingSetsService.createReportingSet(
+      internalReportingSetsService.createReportingSet(
         createReportingSetRequest {
           reportingSet =
             INTERNAL_CAMPAIGN_GROUP.copy {
@@ -739,7 +865,7 @@ class BasicReportsServiceTest {
       }
     )
 
-    reportingSetsService.createReportingSet(
+    internalReportingSetsService.createReportingSet(
       createReportingSetRequest {
         reportingSet =
           INTERNAL_CAMPAIGN_GROUP.copy {
@@ -787,7 +913,7 @@ class BasicReportsServiceTest {
       }
     )
 
-    reportingSetsService.createReportingSet(
+    internalReportingSetsService.createReportingSet(
       createReportingSetRequest {
         reportingSet =
           INTERNAL_CAMPAIGN_GROUP.copy {
@@ -835,7 +961,7 @@ class BasicReportsServiceTest {
       }
     )
 
-    reportingSetsService.createReportingSet(
+    internalReportingSetsService.createReportingSet(
       createReportingSetRequest {
         reportingSet =
           INTERNAL_CAMPAIGN_GROUP.copy {
@@ -884,7 +1010,7 @@ class BasicReportsServiceTest {
         }
       )
 
-      reportingSetsService.createReportingSet(
+      internalReportingSetsService.createReportingSet(
         createReportingSetRequest {
           reportingSet =
             INTERNAL_CAMPAIGN_GROUP.copy {
@@ -935,7 +1061,7 @@ class BasicReportsServiceTest {
       }
     )
 
-    reportingSetsService.createReportingSet(
+    internalReportingSetsService.createReportingSet(
       createReportingSetRequest {
         reportingSet =
           INTERNAL_CAMPAIGN_GROUP.copy {
@@ -983,7 +1109,7 @@ class BasicReportsServiceTest {
       }
     )
 
-    reportingSetsService.createReportingSet(
+    internalReportingSetsService.createReportingSet(
       createReportingSetRequest {
         reportingSet =
           INTERNAL_CAMPAIGN_GROUP.copy {
@@ -1031,7 +1157,7 @@ class BasicReportsServiceTest {
       }
     )
 
-    reportingSetsService.createReportingSet(
+    internalReportingSetsService.createReportingSet(
       createReportingSetRequest {
         reportingSet =
           INTERNAL_CAMPAIGN_GROUP.copy {
@@ -1079,7 +1205,7 @@ class BasicReportsServiceTest {
       }
     )
 
-    reportingSetsService.createReportingSet(
+    internalReportingSetsService.createReportingSet(
       createReportingSetRequest {
         reportingSet =
           INTERNAL_CAMPAIGN_GROUP.copy {
@@ -1127,7 +1253,7 @@ class BasicReportsServiceTest {
         }
       )
 
-      reportingSetsService.createReportingSet(
+      internalReportingSetsService.createReportingSet(
         createReportingSetRequest {
           reportingSet =
             INTERNAL_CAMPAIGN_GROUP.copy {
@@ -1179,7 +1305,7 @@ class BasicReportsServiceTest {
         }
       )
 
-      reportingSetsService.createReportingSet(
+      internalReportingSetsService.createReportingSet(
         createReportingSetRequest {
           reportingSet =
             INTERNAL_CAMPAIGN_GROUP.copy {
@@ -1232,7 +1358,7 @@ class BasicReportsServiceTest {
         }
       )
 
-      reportingSetsService.createReportingSet(
+      internalReportingSetsService.createReportingSet(
         createReportingSetRequest {
           reportingSet =
             INTERNAL_CAMPAIGN_GROUP.copy {
@@ -1304,7 +1430,7 @@ class BasicReportsServiceTest {
         }
       )
 
-      reportingSetsService.createReportingSet(
+      internalReportingSetsService.createReportingSet(
         createReportingSetRequest {
           reportingSet =
             INTERNAL_CAMPAIGN_GROUP.copy {
@@ -1359,7 +1485,7 @@ class BasicReportsServiceTest {
         }
       )
 
-      reportingSetsService.createReportingSet(
+      internalReportingSetsService.createReportingSet(
         createReportingSetRequest {
           reportingSet =
             INTERNAL_CAMPAIGN_GROUP.copy {
@@ -1417,7 +1543,7 @@ class BasicReportsServiceTest {
         }
       )
 
-      reportingSetsService.createReportingSet(
+      internalReportingSetsService.createReportingSet(
         createReportingSetRequest {
           reportingSet =
             INTERNAL_CAMPAIGN_GROUP.copy {
@@ -1479,7 +1605,7 @@ class BasicReportsServiceTest {
         }
       )
 
-      reportingSetsService.createReportingSet(
+      internalReportingSetsService.createReportingSet(
         createReportingSetRequest {
           reportingSet =
             INTERNAL_CAMPAIGN_GROUP.copy {
@@ -1539,7 +1665,7 @@ class BasicReportsServiceTest {
         }
       )
 
-      reportingSetsService.createReportingSet(
+      internalReportingSetsService.createReportingSet(
         createReportingSetRequest {
           reportingSet =
             INTERNAL_CAMPAIGN_GROUP.copy {
@@ -1588,7 +1714,7 @@ class BasicReportsServiceTest {
       }
     )
 
-    reportingSetsService.createReportingSet(
+    internalReportingSetsService.createReportingSet(
       createReportingSetRequest {
         reportingSet =
           INTERNAL_CAMPAIGN_GROUP.copy {
@@ -1636,7 +1762,7 @@ class BasicReportsServiceTest {
         }
       )
 
-      reportingSetsService.createReportingSet(
+      internalReportingSetsService.createReportingSet(
         createReportingSetRequest {
           reportingSet =
             INTERNAL_CAMPAIGN_GROUP.copy {
@@ -1685,7 +1811,7 @@ class BasicReportsServiceTest {
         }
       )
 
-      reportingSetsService.createReportingSet(
+      internalReportingSetsService.createReportingSet(
         createReportingSetRequest {
           reportingSet =
             INTERNAL_CAMPAIGN_GROUP.copy {
@@ -1734,7 +1860,7 @@ class BasicReportsServiceTest {
         }
       )
 
-      reportingSetsService.createReportingSet(
+      internalReportingSetsService.createReportingSet(
         createReportingSetRequest {
           reportingSet =
             INTERNAL_CAMPAIGN_GROUP.copy {
@@ -1784,7 +1910,7 @@ class BasicReportsServiceTest {
         }
       )
 
-      reportingSetsService.createReportingSet(
+      internalReportingSetsService.createReportingSet(
         createReportingSetRequest {
           reportingSet =
             INTERNAL_CAMPAIGN_GROUP.copy {
@@ -1835,7 +1961,7 @@ class BasicReportsServiceTest {
       }
     )
 
-    reportingSetsService.createReportingSet(
+    internalReportingSetsService.createReportingSet(
       createReportingSetRequest {
         reportingSet =
           INTERNAL_CAMPAIGN_GROUP.copy {
@@ -1884,7 +2010,7 @@ class BasicReportsServiceTest {
         }
       )
 
-      reportingSetsService.createReportingSet(
+      internalReportingSetsService.createReportingSet(
         createReportingSetRequest {
           reportingSet =
             INTERNAL_CAMPAIGN_GROUP.copy {
@@ -1939,7 +2065,7 @@ class BasicReportsServiceTest {
         }
       )
 
-      reportingSetsService.createReportingSet(
+      internalReportingSetsService.createReportingSet(
         createReportingSetRequest {
           reportingSet =
             INTERNAL_CAMPAIGN_GROUP.copy {
@@ -1994,7 +2120,7 @@ class BasicReportsServiceTest {
         }
       )
 
-      reportingSetsService.createReportingSet(
+      internalReportingSetsService.createReportingSet(
         createReportingSetRequest {
           reportingSet =
             INTERNAL_CAMPAIGN_GROUP.copy {
@@ -2058,7 +2184,7 @@ class BasicReportsServiceTest {
         }
       )
 
-      reportingSetsService.createReportingSet(
+      internalReportingSetsService.createReportingSet(
         createReportingSetRequest {
           reportingSet =
             INTERNAL_CAMPAIGN_GROUP.copy {
@@ -2117,7 +2243,7 @@ class BasicReportsServiceTest {
         }
       )
 
-      reportingSetsService.createReportingSet(
+      internalReportingSetsService.createReportingSet(
         createReportingSetRequest {
           reportingSet =
             INTERNAL_CAMPAIGN_GROUP.copy {
@@ -2174,7 +2300,7 @@ class BasicReportsServiceTest {
         }
       )
 
-      reportingSetsService.createReportingSet(
+      internalReportingSetsService.createReportingSet(
         createReportingSetRequest {
           reportingSet =
             INTERNAL_CAMPAIGN_GROUP.copy {
@@ -2222,7 +2348,7 @@ class BasicReportsServiceTest {
       }
     )
 
-    reportingSetsService.createReportingSet(
+    internalReportingSetsService.createReportingSet(
       createReportingSetRequest {
         reportingSet =
           INTERNAL_CAMPAIGN_GROUP.copy {
@@ -2276,7 +2402,7 @@ class BasicReportsServiceTest {
       }
     )
 
-    reportingSetsService.createReportingSet(
+    internalReportingSetsService.createReportingSet(
       createReportingSetRequest {
         reportingSet =
           INTERNAL_CAMPAIGN_GROUP.copy {
@@ -2325,7 +2451,7 @@ class BasicReportsServiceTest {
         }
       )
 
-      reportingSetsService.createReportingSet(
+      internalReportingSetsService.createReportingSet(
         createReportingSetRequest {
           reportingSet =
             INTERNAL_CAMPAIGN_GROUP.copy {
@@ -2383,7 +2509,7 @@ class BasicReportsServiceTest {
         }
       )
 
-      reportingSetsService.createReportingSet(
+      internalReportingSetsService.createReportingSet(
         createReportingSetRequest {
           reportingSet =
             INTERNAL_CAMPAIGN_GROUP.copy {
@@ -2441,7 +2567,7 @@ class BasicReportsServiceTest {
         }
       )
 
-      reportingSetsService.createReportingSet(
+      internalReportingSetsService.createReportingSet(
         createReportingSetRequest {
           reportingSet =
             INTERNAL_CAMPAIGN_GROUP.copy {
@@ -2503,7 +2629,7 @@ class BasicReportsServiceTest {
         }
       )
 
-      reportingSetsService.createReportingSet(
+      internalReportingSetsService.createReportingSet(
         createReportingSetRequest {
           reportingSet =
             INTERNAL_CAMPAIGN_GROUP.copy {
@@ -2565,7 +2691,7 @@ class BasicReportsServiceTest {
         }
       )
 
-      reportingSetsService.createReportingSet(
+      internalReportingSetsService.createReportingSet(
         createReportingSetRequest {
           reportingSet =
             INTERNAL_CAMPAIGN_GROUP.copy {
@@ -2623,7 +2749,7 @@ class BasicReportsServiceTest {
         }
       )
 
-      reportingSetsService.createReportingSet(
+      internalReportingSetsService.createReportingSet(
         createReportingSetRequest {
           reportingSet =
             INTERNAL_CAMPAIGN_GROUP.copy {
@@ -2685,7 +2811,7 @@ class BasicReportsServiceTest {
         }
       )
 
-      reportingSetsService.createReportingSet(
+      internalReportingSetsService.createReportingSet(
         createReportingSetRequest {
           reportingSet =
             INTERNAL_CAMPAIGN_GROUP.copy {
@@ -2747,7 +2873,7 @@ class BasicReportsServiceTest {
         }
       )
 
-      reportingSetsService.createReportingSet(
+      internalReportingSetsService.createReportingSet(
         createReportingSetRequest {
           reportingSet =
             INTERNAL_CAMPAIGN_GROUP.copy {
@@ -2800,7 +2926,7 @@ class BasicReportsServiceTest {
       measurementConsumer { this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId }
     )
 
-    reportingSetsService.createReportingSet(
+    internalReportingSetsService.createReportingSet(
       createReportingSetRequest {
         reportingSet =
           INTERNAL_CAMPAIGN_GROUP.copy {
@@ -4100,7 +4226,7 @@ class BasicReportsServiceTest {
       measurementConsumer { this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId }
     )
 
-    reportingSetsService.createReportingSet(
+    internalReportingSetsService.createReportingSet(
       createReportingSetRequest {
         reportingSet =
           INTERNAL_CAMPAIGN_GROUP.copy {
@@ -4179,7 +4305,7 @@ class BasicReportsServiceTest {
         measurementConsumer { this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId }
       )
 
-      reportingSetsService.createReportingSet(
+      internalReportingSetsService.createReportingSet(
         createReportingSetRequest {
           reportingSet =
             INTERNAL_CAMPAIGN_GROUP.copy {
@@ -4238,7 +4364,7 @@ class BasicReportsServiceTest {
       measurementConsumer { this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId }
     )
 
-    reportingSetsService.createReportingSet(
+    internalReportingSetsService.createReportingSet(
       createReportingSetRequest {
         reportingSet =
           INTERNAL_CAMPAIGN_GROUP.copy {
@@ -4295,7 +4421,7 @@ class BasicReportsServiceTest {
       measurementConsumer { this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId }
     )
 
-    reportingSetsService.createReportingSet(
+    internalReportingSetsService.createReportingSet(
       createReportingSetRequest {
         reportingSet =
           INTERNAL_CAMPAIGN_GROUP.copy {
@@ -4353,7 +4479,7 @@ class BasicReportsServiceTest {
       measurementConsumer { this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId }
     )
 
-    reportingSetsService.createReportingSet(
+    internalReportingSetsService.createReportingSet(
       createReportingSetRequest {
         reportingSet =
           INTERNAL_CAMPAIGN_GROUP.copy {
@@ -4451,7 +4577,7 @@ class BasicReportsServiceTest {
       measurementConsumer { this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId }
     )
 
-    reportingSetsService.createReportingSet(
+    internalReportingSetsService.createReportingSet(
       createReportingSetRequest {
         reportingSet =
           INTERNAL_CAMPAIGN_GROUP.copy {
@@ -4681,6 +4807,7 @@ class BasicReportsServiceTest {
         BasicReportsService.Permission.GET,
         BasicReportsService.Permission.LIST,
         BasicReportsService.Permission.CREATE,
+        ReportingSetsService.Permission.CREATE_PRIMITIVE,
       )
     private val SCOPES = ALL_PERMISSIONS
     private val PRINCIPAL = principal { name = "principals/mc-user" }
