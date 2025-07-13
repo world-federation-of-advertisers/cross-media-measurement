@@ -286,8 +286,7 @@ class InProcessReportingServer(
                 cacheLoaderContext = Dispatchers.Default,
               )
               .withTrustedPrincipalAuthentication(),
-            reportingSetsService
-              .withTrustedPrincipalAuthentication(),
+            reportingSetsService.withTrustedPrincipalAuthentication(),
             ReportsService(
                 internalReportsClient,
                 internalMetricCalculationSpecsClient,

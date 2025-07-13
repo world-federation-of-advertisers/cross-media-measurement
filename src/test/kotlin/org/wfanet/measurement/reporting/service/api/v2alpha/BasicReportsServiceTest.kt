@@ -26,10 +26,12 @@ import com.google.type.date
 import com.google.type.dateTime
 import com.google.type.timeZone
 import io.grpc.Status
+import io.grpc.StatusException
 import io.grpc.StatusRuntimeException
 import java.time.Clock
 import kotlin.random.Random
 import kotlin.test.assertFailsWith
+import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.ClassRule
@@ -70,6 +72,7 @@ import org.wfanet.measurement.internal.reporting.v2.MeasurementConsumersGrpcKt.M
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetKt
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt.ReportingSetsCoroutineStub as InternalReportingSetsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.ResultGroupKt as InternalResultGroupKt
+import org.wfanet.measurement.internal.reporting.v2.StreamReportingSetsRequestKt
 import org.wfanet.measurement.internal.reporting.v2.basicReport as internalBasicReport
 import org.wfanet.measurement.internal.reporting.v2.basicReportDetails
 import org.wfanet.measurement.internal.reporting.v2.basicReportResultDetails
@@ -85,18 +88,14 @@ import org.wfanet.measurement.internal.reporting.v2.metricFrequencySpec as inter
 import org.wfanet.measurement.internal.reporting.v2.reportingImpressionQualificationFilter as internalReportingImpressionQualificationFilter
 import org.wfanet.measurement.internal.reporting.v2.reportingInterval as internalReportingInterval
 import org.wfanet.measurement.internal.reporting.v2.reportingSet as internalReportingSet
-import org.wfanet.measurement.internal.reporting.v2.ReportingSet as InternalReportingSet
 import org.wfanet.measurement.internal.reporting.v2.resultGroup as internalResultGroup
+import org.wfanet.measurement.internal.reporting.v2.streamReportingSetsRequest
 import org.wfanet.measurement.reporting.deploy.v2.common.service.ImpressionQualificationFiltersService
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.SpannerBasicReportsService
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.testing.Schemata
 import org.wfanet.measurement.reporting.deploy.v2.postgres.PostgresMeasurementConsumersService
 import org.wfanet.measurement.reporting.deploy.v2.postgres.PostgresReportingSetsService
 import org.wfanet.measurement.reporting.deploy.v2.postgres.testing.Schemata as PostgresSchemata
-import io.grpc.StatusException
-import kotlinx.coroutines.flow.toList
-import org.wfanet.measurement.internal.reporting.v2.StreamReportingSetsRequestKt
-import org.wfanet.measurement.internal.reporting.v2.streamReportingSetsRequest
 import org.wfanet.measurement.reporting.service.api.Errors
 import org.wfanet.measurement.reporting.service.internal.ImpressionQualificationFilterMapping
 import org.wfanet.measurement.reporting.v2alpha.BasicReport
@@ -202,37 +201,44 @@ class BasicReportsServiceTest {
         }
       )
 
-      val campaignGroup = internalReportingSetsService.createReportingSet(
-        createReportingSetRequest {
-          reportingSet = internalReportingSet {
-            cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
-            externalCampaignGroupId = campaignGroupKey.reportingSetId
-            displayName = "displayName"
-            filter = "filter"
+      val campaignGroup =
+        internalReportingSetsService.createReportingSet(
+          createReportingSetRequest {
+            reportingSet = internalReportingSet {
+              cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+              externalCampaignGroupId = campaignGroupKey.reportingSetId
+              displayName = "displayName"
+              filter = "filter"
 
-            primitive =
-              ReportingSetKt.primitive {
-                eventGroupKeys +=
-                  ReportingSetKt.PrimitiveKt.eventGroupKey {
-                    cmmsDataProviderId = DATA_PROVIDER_KEY.dataProviderId
-                    cmmsEventGroupId = "1235"
-                  }
-                eventGroupKeys +=
-                  ReportingSetKt.PrimitiveKt.eventGroupKey {
-                    cmmsDataProviderId = DATA_PROVIDER_KEY.dataProviderId + "b"
-                    cmmsEventGroupId = "1235"
-                  }
-              }
+              primitive =
+                ReportingSetKt.primitive {
+                  eventGroupKeys +=
+                    ReportingSetKt.PrimitiveKt.eventGroupKey {
+                      cmmsDataProviderId = DATA_PROVIDER_KEY.dataProviderId
+                      cmmsEventGroupId = "1235"
+                    }
+                  eventGroupKeys +=
+                    ReportingSetKt.PrimitiveKt.eventGroupKey {
+                      cmmsDataProviderId = DATA_PROVIDER_KEY.dataProviderId + "b"
+                      cmmsEventGroupId = "1235"
+                    }
+                }
+            }
+            externalReportingSetId = campaignGroupKey.reportingSetId
           }
-          externalReportingSetId = campaignGroupKey.reportingSetId
-        }
-      )
+        )
 
-      val existingReportingSets = internalReportingSetsService.streamReportingSets(streamReportingSetsRequest {
-        filter = StreamReportingSetsRequestKt.filter {
-          cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
-        }
-      }).toList()
+      val existingReportingSets =
+        internalReportingSetsService
+          .streamReportingSets(
+            streamReportingSetsRequest {
+              filter =
+                StreamReportingSetsRequestKt.filter {
+                  cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+                }
+            }
+          )
+          .toList()
 
       assertThat(existingReportingSets).containsExactly(campaignGroup)
 
@@ -246,45 +252,60 @@ class BasicReportsServiceTest {
         withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
       }
 
-      val updatedReportingSets = internalReportingSetsService.streamReportingSets(streamReportingSetsRequest {
-        filter = StreamReportingSetsRequestKt.filter {
-          cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
-        }
-      }).toList()
-
-      assertThat(updatedReportingSets).hasSize(3)
-      assertThat(updatedReportingSets.map { if (it.externalReportingSetId == campaignGroup.externalReportingSetId) {
-      it } else { it.copy {
-        clearExternalReportingSetId()
-        weightedSubsetUnions.clear()
-      } }
-      })
-        .containsExactly(campaignGroup, internalReportingSet {
-          cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
-          externalCampaignGroupId = campaignGroupKey.reportingSetId
-
-          primitive =
-            ReportingSetKt.primitive {
-              eventGroupKeys +=
-                ReportingSetKt.PrimitiveKt.eventGroupKey {
-                  cmmsDataProviderId = DATA_PROVIDER_KEY.dataProviderId
-                  cmmsEventGroupId = "1235"
+      val updatedReportingSets =
+        internalReportingSetsService
+          .streamReportingSets(
+            streamReportingSetsRequest {
+              filter =
+                StreamReportingSetsRequestKt.filter {
+                  cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
                 }
             }
-        },
-       internalReportingSet {
-         cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
-         externalCampaignGroupId = campaignGroupKey.reportingSetId
+          )
+          .toList()
 
-         primitive =
-           ReportingSetKt.primitive {
-             eventGroupKeys +=
-               ReportingSetKt.PrimitiveKt.eventGroupKey {
-                 cmmsDataProviderId = DATA_PROVIDER_KEY.dataProviderId + "b"
-                 cmmsEventGroupId = "1235"
-               }
-           }
-       })
+      assertThat(updatedReportingSets).hasSize(3)
+      assertThat(
+          updatedReportingSets.map {
+            if (it.externalReportingSetId == campaignGroup.externalReportingSetId) {
+              it
+            } else {
+              it.copy {
+                clearExternalReportingSetId()
+                weightedSubsetUnions.clear()
+              }
+            }
+          }
+        )
+        .containsExactly(
+          campaignGroup,
+          internalReportingSet {
+            cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+            externalCampaignGroupId = campaignGroupKey.reportingSetId
+
+            primitive =
+              ReportingSetKt.primitive {
+                eventGroupKeys +=
+                  ReportingSetKt.PrimitiveKt.eventGroupKey {
+                    cmmsDataProviderId = DATA_PROVIDER_KEY.dataProviderId
+                    cmmsEventGroupId = "1235"
+                  }
+              }
+          },
+          internalReportingSet {
+            cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+            externalCampaignGroupId = campaignGroupKey.reportingSetId
+
+            primitive =
+              ReportingSetKt.primitive {
+                eventGroupKeys +=
+                  ReportingSetKt.PrimitiveKt.eventGroupKey {
+                    cmmsDataProviderId = DATA_PROVIDER_KEY.dataProviderId + "b"
+                    cmmsEventGroupId = "1235"
+                  }
+              }
+          },
+        )
 
       val request2 = createBasicReportRequest {
         parent = measurementConsumerKey.toName()
@@ -296,15 +317,20 @@ class BasicReportsServiceTest {
         withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request2) }
       }
 
-      val identicalReportingSets = internalReportingSetsService.streamReportingSets(streamReportingSetsRequest {
-        filter = StreamReportingSetsRequestKt.filter {
-          cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
-        }
-      }).toList()
+      val identicalReportingSets =
+        internalReportingSetsService
+          .streamReportingSets(
+            streamReportingSetsRequest {
+              filter =
+                StreamReportingSetsRequestKt.filter {
+                  cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+                }
+            }
+          )
+          .toList()
 
       assertThat(identicalReportingSets).hasSize(3)
-      assertThat(updatedReportingSets)
-        .containsExactlyElementsIn(identicalReportingSets)
+      assertThat(updatedReportingSets).containsExactlyElementsIn(identicalReportingSets)
     }
 
   @Test

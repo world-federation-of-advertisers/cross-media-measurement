@@ -17,14 +17,17 @@
 package org.wfanet.measurement.reporting.service.api.v2alpha
 
 import com.google.longrunning.Operation
+import com.google.protobuf.ByteString
 import com.google.protobuf.InvalidProtocolBufferException
 import io.grpc.Status
 import io.grpc.StatusException
+import java.util.UUID
 import kotlin.collections.List
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
 import org.wfanet.measurement.access.client.v1alpha.Authorization
 import org.wfanet.measurement.access.client.v1alpha.check
+import org.wfanet.measurement.api.v2alpha.EventGroupKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
@@ -37,11 +40,13 @@ import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsPageTokenKt
 import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsRequest as InternalListBasicReportsRequest
 import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsRequestKt as InternalListBasicReportsRequestKt
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt.ReportingSetsCoroutineStub as InternalReportingSetsCoroutineStub
+import org.wfanet.measurement.internal.reporting.v2.StreamReportingSetsRequestKt
 import org.wfanet.measurement.internal.reporting.v2.batchGetReportingSetsRequest
 import org.wfanet.measurement.internal.reporting.v2.getBasicReportRequest as internalGetBasicReportRequest
 import org.wfanet.measurement.internal.reporting.v2.getImpressionQualificationFilterRequest
 import org.wfanet.measurement.internal.reporting.v2.listBasicReportsPageToken
 import org.wfanet.measurement.internal.reporting.v2.listBasicReportsRequest as internalListBasicReportsRequest
+import org.wfanet.measurement.internal.reporting.v2.streamReportingSetsRequest
 import org.wfanet.measurement.reporting.service.api.ArgumentChangedInRequestForNextPageException
 import org.wfanet.measurement.reporting.service.api.BasicReportNotFoundException
 import org.wfanet.measurement.reporting.service.api.Errors
@@ -51,11 +56,6 @@ import org.wfanet.measurement.reporting.service.api.ReportingSetNotFoundExceptio
 import org.wfanet.measurement.reporting.service.api.RequiredFieldNotSetException
 import org.wfanet.measurement.reporting.service.api.ServiceException
 import org.wfanet.measurement.reporting.service.internal.Errors as InternalErrors
-import com.google.protobuf.ByteString
-import java.util.UUID
-import org.wfanet.measurement.api.v2alpha.EventGroupKey
-import org.wfanet.measurement.internal.reporting.v2.StreamReportingSetsRequestKt
-import org.wfanet.measurement.internal.reporting.v2.streamReportingSetsRequest
 import org.wfanet.measurement.reporting.service.internal.ReportingInternalException
 import org.wfanet.measurement.reporting.v2alpha.BasicReport
 import org.wfanet.measurement.reporting.v2alpha.BasicReportsGrpcKt.BasicReportsCoroutineImplBase
@@ -182,29 +182,34 @@ class BasicReportsService(
     }
 
     // For determining whether a ReportingSet already exists.
-    val campaignGroupReportingSetMap = buildMap<ByteString, ReportingSet> {
-      internalReportingSetsStub.streamReportingSets(streamReportingSetsRequest {
-        filter = StreamReportingSetsRequestKt.filter {
-          cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
-          externalCampaignGroupId = campaignGroupKey.reportingSetId
-        }
-        limit = 1000
-      }).collect {
-        val reportingSet = it.toReportingSet()
-        put(reportingSet.copy {
-          clearName()
-        }.toByteString(), reportingSet)
+    val campaignGroupReportingSetMap =
+      buildMap<ByteString, ReportingSet> {
+        internalReportingSetsStub
+          .streamReportingSets(
+            streamReportingSetsRequest {
+              filter =
+                StreamReportingSetsRequestKt.filter {
+                  cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+                  externalCampaignGroupId = campaignGroupKey.reportingSetId
+                }
+              limit = 1000
+            }
+          )
+          .collect {
+            val reportingSet = it.toReportingSet()
+            put(reportingSet.copy { clearName() }.toByteString(), reportingSet)
+          }
       }
-    }
 
     // Map of DataProvider resource names to primitive Reporting Sets.
     val dataProviderPrimitiveReportingSetMap: Map<String, ReportingSet> = buildMap {
       for (dataProviderName in dataProviderEventGroupsMap.keys) {
         val reportingSet = reportingSet {
           this.campaignGroup = request.basicReport.campaignGroup
-          primitive = ReportingSetKt.primitive {
-            cmmsEventGroups += dataProviderEventGroupsMap.getValue(dataProviderName)
-          }
+          primitive =
+            ReportingSetKt.primitive {
+              cmmsEventGroups += dataProviderEventGroupsMap.getValue(dataProviderName)
+            }
         }
 
         if (campaignGroupReportingSetMap.containsKey(reportingSet.toByteString())) {
@@ -212,30 +217,34 @@ class BasicReportsService(
         } else {
           val uuid = UUID.randomUUID()
 
-          val createdReportingSet = try {
-            publicReportingSetsService.createReportingSet(createReportingSetRequest {
-              parent = request.parent
-              this.reportingSet = reportingSet {
-                this.campaignGroup = request.basicReport.campaignGroup
-                primitive = ReportingSetKt.primitive {
-                  cmmsEventGroups += dataProviderEventGroupsMap.getValue(dataProviderName)
+          val createdReportingSet =
+            try {
+              publicReportingSetsService.createReportingSet(
+                createReportingSetRequest {
+                  parent = request.parent
+                  this.reportingSet = reportingSet {
+                    this.campaignGroup = request.basicReport.campaignGroup
+                    primitive =
+                      ReportingSetKt.primitive {
+                        cmmsEventGroups += dataProviderEventGroupsMap.getValue(dataProviderName)
+                      }
+                  }
+                  reportingSetId = "a$uuid"
                 }
+              )
+            } catch (e: StatusException) {
+              throw when (InternalErrors.getReason(e)) {
+                InternalErrors.Reason.IMPRESSION_QUALIFICATION_FILTER_NOT_FOUND,
+                InternalErrors.Reason.BASIC_REPORT_NOT_FOUND,
+                InternalErrors.Reason.MEASUREMENT_CONSUMER_NOT_FOUND,
+                InternalErrors.Reason.BASIC_REPORT_ALREADY_EXISTS,
+                InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
+                InternalErrors.Reason.INVALID_FIELD_VALUE,
+                InternalErrors.Reason.METRIC_NOT_FOUND,
+                InternalErrors.Reason.INVALID_METRIC_STATE_TRANSITION,
+                null -> Status.INTERNAL.withCause(e).asRuntimeException()
               }
-              reportingSetId = "a$uuid"
-            })
-          } catch (e: StatusException) {
-            throw when (InternalErrors.getReason(e)) {
-              InternalErrors.Reason.IMPRESSION_QUALIFICATION_FILTER_NOT_FOUND,
-              InternalErrors.Reason.BASIC_REPORT_NOT_FOUND,
-              InternalErrors.Reason.MEASUREMENT_CONSUMER_NOT_FOUND,
-              InternalErrors.Reason.BASIC_REPORT_ALREADY_EXISTS,
-              InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
-              InternalErrors.Reason.INVALID_FIELD_VALUE,
-              InternalErrors.Reason.METRIC_NOT_FOUND,
-              InternalErrors.Reason.INVALID_METRIC_STATE_TRANSITION,
-              null -> Status.INTERNAL.withCause(e).asRuntimeException()
             }
-          }
 
           put(dataProviderName, createdReportingSet)
         }
