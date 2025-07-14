@@ -335,6 +335,24 @@ SECURE_COMPUTATION_TEE_APP_IMAGES = [
     ),
 ]
 
+EDPA_CLOUD_FUNCTIONS_GKE_IMAGES = [
+    struct(
+        name = "gcloud_data_watcher_app",
+        image = "//src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/datawatcher:DataWatcherFunction_deploy.jar",
+        repository = _PREFIX + "/edp-aggregator/data_watcher",
+    ),
+    struct(
+        name = "gcloud_requisition_fetcher_app",
+        image = "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/requisitionfetcher:RequisitionFetcherFunction_deploy.jar",
+        repository = _PREFIX + "/edp-aggregator/requisition_fetcher",
+    ),
+    struct(
+        name = "gcloud_event_group_sync_app",
+        image = "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/eventgroups:EventGroupSyncFunction_deploy.jar",
+        repository = _PREFIX + "/edp-aggregator/event_group_sync",
+    ),
+]
+
 ALL_SECURE_COMPUTATION_GKE_IMAGES = SECURE_COMPUTATION_COMMON_IMAGES + SECURE_COMPUTATION_GKE_IMAGES
 
 ALL_GKE_IMAGES = COMMON_IMAGES + GKE_IMAGES + REPORTING_V2_COMMON_IMAGES + REPORTING_V2_GKE_IMAGES + ALL_SECURE_COMPUTATION_GKE_IMAGES
@@ -347,4 +365,4 @@ ALL_REPORTING_GKE_IMAGES = REPORTING_V2_COMMON_IMAGES + REPORTING_V2_GKE_IMAGES
 
 ALL_EKS_IMAGES = COMMON_IMAGES + EKS_IMAGES
 
-ALL_TEE_APP_GKE_IMAGES = SECURE_COMPUTATION_TEE_APP_IMAGES
+ALL_EDPA_GKE_IMAGES = SECURE_COMPUTATION_TEE_APP_IMAGES + EDPA_CLOUD_FUNCTIONS_GKE_IMAGES
