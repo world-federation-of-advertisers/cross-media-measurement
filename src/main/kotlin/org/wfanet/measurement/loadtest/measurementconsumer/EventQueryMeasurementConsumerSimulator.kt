@@ -64,9 +64,8 @@ import org.wfanet.measurement.loadtest.dataprovider.EventQuery
  * @param filterExpression Expression used to filter events (default: filters for male gender and
  *   video ad viewed fraction > 0.25).
  * @param eventRange Time range for events to be considered (default: March 15–17, 2021). This range
- *   is used instead of the intersection of the `dataAvailabilityInterval` field of the [EventGroup]
- *   and the dataAvailabilityIntervals of the [DataProvider] for the modelLine specified in the
- *   [MeasurementSpec].
+ *   is used instead of the dataAvailabilityIntervals of the [DataProvider] for the modelLine
+ *   specified in the [MeasurementSpec].
  * @param initialResultPollingDelay Initial delay before polling for results.
  * @param maximumResultPollingDelay Maximum delay between polling attempts.
  * @see MeasurementConsumerSimulator
