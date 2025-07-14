@@ -32,7 +32,6 @@ import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.BeforeClass
@@ -93,7 +92,6 @@ import org.wfanet.measurement.integration.common.AccessServicesFactory
 import org.wfanet.measurement.integration.common.InProcessCmmsComponents
 import org.wfanet.measurement.integration.common.InProcessDuchy
 import org.wfanet.measurement.integration.common.PERMISSIONS_CONFIG
-import org.wfanet.measurement.integration.common.SyntheticGenerationSpecs
 import org.wfanet.measurement.internal.reporting.v2.EventTemplateFieldKt as InternalEventTemplateFieldKt
 import org.wfanet.measurement.internal.reporting.v2.ImpressionQualificationFilterSpec as InternalImpressionQualificationFilterSpec
 import org.wfanet.measurement.internal.reporting.v2.ListImpressionQualificationFiltersPageTokenKt
@@ -112,8 +110,8 @@ import org.wfanet.measurement.internal.reporting.v2.reportingInterval as interna
 import org.wfanet.measurement.internal.reporting.v2.resultGroup as internalResultGroup
 import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
 import org.wfanet.measurement.loadtest.dataprovider.EventQuery
+import org.wfanet.measurement.loadtest.dataprovider.SyntheticGeneratorEventQuery
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
-import org.wfanet.measurement.loadtest.measurementconsumer.MetadataSyntheticGeneratorEventQuery
 import org.wfanet.measurement.reporting.deploy.v2.common.service.Services
 import org.wfanet.measurement.reporting.service.api.v2alpha.BasicReportKey
 import org.wfanet.measurement.reporting.service.api.v2alpha.EventGroupKey
@@ -269,6 +267,9 @@ abstract class InProcessLifeOfAReportIntegrationTest(
       reportingServerRule,
     )
 
+  private val syntheticEventQuery: SyntheticGeneratorEventQuery
+    get() = inProcessCmmsComponents.eventQuery
+
   private lateinit var credentials: TrustedPrincipalAuthInterceptor.Credentials
 
   @Before
@@ -395,17 +396,13 @@ abstract class InProcessLifeOfAReportIntegrationTest(
     MeasurementsCoroutineStub(inProcessCmmsComponents.kingdom.publicApiChannel)
   }
 
-  suspend fun listMeasurements(): List<Measurement> {
+  private suspend fun listMeasurements(): List<Measurement> {
     val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
 
-    val measurements: List<Measurement> = runBlocking {
-      publicMeasurementsClient
-        .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
-        .listMeasurements(listMeasurementsRequest { parent = measurementConsumerData.name })
-        .measurementsList
-    }
-
-    return measurements
+    return publicMeasurementsClient
+      .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
+      .listMeasurements(listMeasurementsRequest { parent = measurementConsumerData.name })
+      .measurementsList
   }
 
   @Test
@@ -2555,31 +2552,25 @@ abstract class InProcessLifeOfAReportIntegrationTest(
     }
   }
 
-  private suspend fun calculateExpectedReachMeasurementResult(
+  private fun calculateExpectedReachMeasurementResult(
     eventGroupSpecs: Iterable<EventQuery.EventGroupSpec>
   ): Measurement.Result {
     val reach =
       MeasurementResults.computeReach(
-        eventGroupSpecs
-          .asSequence()
-          .flatMap { SYNTHETIC_EVENT_QUERY.getUserVirtualIds(it) }
-          .asFlow()
+        eventGroupSpecs.asSequence().flatMap { syntheticEventQuery.getUserVirtualIds(it) }
       )
     return MeasurementKt.result {
       this.reach = MeasurementKt.ResultKt.reach { value = reach.toLong() }
     }
   }
 
-  private suspend fun calculateExpectedReachAndFrequencyMeasurementResult(
+  private fun calculateExpectedReachAndFrequencyMeasurementResult(
     eventGroupSpecs: Iterable<EventQuery.EventGroupSpec>,
     maxFrequency: Int,
   ): Measurement.Result {
     val reachAndFrequency =
       MeasurementResults.computeReachAndFrequency(
-        eventGroupSpecs
-          .asSequence()
-          .flatMap { SYNTHETIC_EVENT_QUERY.getUserVirtualIds(it) }
-          .asFlow(),
+        eventGroupSpecs.asSequence().flatMap { syntheticEventQuery.getUserVirtualIds(it) },
         maxFrequency,
       )
     return MeasurementKt.result {
@@ -2593,16 +2584,13 @@ abstract class InProcessLifeOfAReportIntegrationTest(
     }
   }
 
-  private suspend fun calculateExpectedImpressionMeasurementResult(
+  private fun calculateExpectedImpressionMeasurementResult(
     eventGroupSpecs: Iterable<EventQuery.EventGroupSpec>,
     maxFrequency: Int,
   ): Measurement.Result {
     val impression =
       MeasurementResults.computeImpression(
-        eventGroupSpecs
-          .asSequence()
-          .flatMap { SYNTHETIC_EVENT_QUERY.getUserVirtualIds(it) }
-          .asFlow(),
+        eventGroupSpecs.asSequence().flatMap { syntheticEventQuery.getUserVirtualIds(it) },
         maxFrequency,
       )
     return MeasurementKt.result {
@@ -2622,7 +2610,10 @@ abstract class InProcessLifeOfAReportIntegrationTest(
       }
     val encryptedCmmsMetadata =
       encryptMetadata(cmmsMetadata, InProcessCmmsComponents.MC_ENTITY_CONTENT.encryptionPublicKey)
-    val cmmsEventGroup = cmmsEventGroup { encryptedMetadata = encryptedCmmsMetadata }
+    val cmmsEventGroup = cmmsEventGroup {
+      name = eventGroup.cmmsEventGroup
+      encryptedMetadata = encryptedCmmsMetadata
+    }
 
     val eventFilter = RequisitionSpecKt.eventFilter { expression = filter }
 
@@ -2653,12 +2644,6 @@ abstract class InProcessLifeOfAReportIntegrationTest(
       }
 
     private const val MC_SIGNING_PRIVATE_KEY_PATH = "mc_cs_private.der"
-
-    private val SYNTHETIC_EVENT_QUERY =
-      MetadataSyntheticGeneratorEventQuery(
-        SyntheticGenerationSpecs.SYNTHETIC_POPULATION_SPEC_SMALL,
-        InProcessCmmsComponents.MC_ENCRYPTION_PRIVATE_KEY,
-      )
 
     private val EVENT_RANGE =
       OpenEndTimeRange.fromClosedDateRange(LocalDate.of(2021, 3, 15)..LocalDate.of(2021, 3, 17))
