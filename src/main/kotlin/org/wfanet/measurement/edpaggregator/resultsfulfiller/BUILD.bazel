@@ -1,4 +1,5 @@
 load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_binary", "kt_jvm_library")
+load("@rules_java//java:defs.bzl", "java_binary")
 
 package(
     default_visibility = [
@@ -131,6 +132,43 @@ kt_jvm_library(
     ],
 )
 
+kt_jvm_library(
+    name = "hardcoded_impressions_results_fulfiller_lib",
+    testonly = True,
+    srcs = ["HardcodedImpressionsResultsFulfillerMain.kt"],
+    deps = [
+        ":event_reader",
+        ":vid_filter",
+        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:packed_messages",
+        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator:storage_config",
+        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/eventfiltration:event_filters",
+        "//src/main/proto/wfa/measurement/api/v2alpha:differential_privacy_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:event_group_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:measurement_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:measurement_spec_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:protocol_config_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:requisition_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:requisition_spec_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:test_event_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:grouped_requisitions_kt_jvm_proto",
+        "@any_sketch_java//src/main/java/org/wfanet/sampling",
+        "@wfa_common_jvm//imports/java/com/google/crypto/tink",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/java/picocli",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/testing",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/tink",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/tink/testing",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/identity",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:selected_storage_client",
+        "@wfa_consent_signaling_client//src/main/kotlin/org/wfanet/measurement/consent/client/common:key_handles",
+        "@wfa_consent_signaling_client//src/main/kotlin/org/wfanet/measurement/consent/client/dataprovider",
+        "@wfa_consent_signaling_client//src/main/kotlin/org/wfanet/measurement/consent/client/measurementconsumer",
+    ],
+)
+
 kt_jvm_binary(
     name = "HardcodedImpressionsResultsFulfillerMain",
     testonly = True,
@@ -167,4 +205,11 @@ kt_jvm_binary(
         "@wfa_consent_signaling_client//src/main/kotlin/org/wfanet/measurement/consent/client/dataprovider",
         "@wfa_consent_signaling_client//src/main/kotlin/org/wfanet/measurement/consent/client/measurementconsumer",
     ],
+)
+
+java_binary(
+    name = "HardcodedImpressionsResultsFulfillerMainDeployJar",
+    testonly = True,
+    main_class = "org.wfanet.measurement.edpaggregator.resultsfulfiller.HardcodedImpressionsResultsFulfillerMain",
+    runtime_deps = [":hardcoded_impressions_results_fulfiller_lib"],
 )

@@ -29,13 +29,13 @@ import java.io.FileOutputStream
 import java.nio.file.Paths
 import java.time.ZoneId
 import java.util.logging.Logger
+import kotlin.io.path.Path
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticPopulationSpec
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.tink.testing.FakeKmsClient
-import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.loadtest.dataprovider.SyntheticDataGeneration
 import org.wfanet.measurement.loadtest.edpaggregator.testing.ImpressionsWriter
@@ -143,12 +143,12 @@ class GenerateSyntheticData : Runnable {
   override fun run() {
     val syntheticPopulationSpec: SyntheticPopulationSpec =
       parseTextProto(
-        TEST_DATA_RUNTIME_PATH.resolve(populationSpecResourcePath).toFile(),
+        Path(populationSpecResourcePath).toFile(),
         SyntheticPopulationSpec.getDefaultInstance(),
       )
     val syntheticEventGroupSpec: SyntheticEventGroupSpec =
       parseTextProto(
-        TEST_DATA_RUNTIME_PATH.resolve(dataSpecResourcePath).toFile(),
+        Path(dataSpecResourcePath).toFile(),
         SyntheticEventGroupSpec.getDefaultInstance(),
       )
     // TODO(#2360): Support other event types
@@ -224,7 +224,7 @@ class GenerateSyntheticData : Runnable {
         "loadtest",
         "dataprovider",
       )
-    private val TEST_DATA_RUNTIME_PATH = getRuntimePath(TEST_DATA_PATH)!!
+    // Removed TEST_DATA_RUNTIME_PATH as it's not used and causes runfiles issues in Docker
   }
 
   init {
