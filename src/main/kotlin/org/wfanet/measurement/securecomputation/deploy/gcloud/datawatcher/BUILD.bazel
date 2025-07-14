@@ -1,5 +1,6 @@
 load("@rules_java//java:defs.bzl", "java_binary")
 load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
+load("@rules_jvm_external//:defs.bzl", "maven_publish")
 
 package(default_visibility = [
     "//src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/datawatcher/testing:__subpackages__",
@@ -29,6 +30,13 @@ kt_jvm_library(
 java_binary(
     name = "DataWatcherFunction",
     main_class = "org.wfanet.measurement.securecomputation.deploy.gcloud.datawatcher.DataWatcherFunction",
-    visibility = ["//src:docker_image_deployment"],
     runtime_deps = [":data_watcher_function"],
+)
+
+maven_publish(
+    name = "publish_data_watcher_function",
+    artifact = "data-watcher-function",
+    group = "org.wfanet.measurement",
+    jars = [":DataWatcherFunction"],
+    version = "0.1.0",
 )
