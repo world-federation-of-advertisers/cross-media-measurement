@@ -33,10 +33,14 @@ java_binary(
     runtime_deps = [":data_watcher_function"],
 )
 
+java_import(
+    name = "data_watcher_function_deploy_jar",
+    jars = ["DataWatcherFunction_deploy.jar"],
+)
+
 maven_publish(
     name = "publish_data_watcher_function",
     artifact = "data-watcher-function",
     group = "org.wfanet.measurement",
-    jars = [":DataWatcherFunction"],
-    version = "0.1.0",
+    jars = [":data_watcher_function_deploy_jar"],
 )
