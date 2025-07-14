@@ -308,6 +308,14 @@ resource "google_compute_subnetwork" "private_subnetwork" {
   private_ip_google_access = true
 }
 
+resource "google_compute_subnetwork" "public_subnetwork" {
+  name                     = var.public_subnetwork_name
+  region                   = var.private_network_location
+  network                  = google_compute_network.private_network.id
+  ip_cidr_range            = "10.0.1.0/24"
+  private_ip_google_access = true
+}
+
 # Cloud Router for NAT gateway
 resource "google_compute_router" "router" {
   name    = var.private_router_name
@@ -332,4 +340,17 @@ resource "google_compute_router_nat" "nat_gateway" {
     enable = true
     filter = "ERRORS_ONLY"
   }
+}
+
+# Bastion host for SSH access to private instances
+module "bastion" {
+  source = "../bastion"
+
+  bastion_name             = var.bastion_name
+  zone                     = var.bastion_zone
+  network_name             = google_compute_network.private_network.name
+  subnetwork_name          = google_compute_subnetwork.public_subnetwork.name
+  service_account_email    = module.result_fulfiller_tee_app.mig_service_account.email
+  private_instance_tags    = ["worker"]
+  allowed_ssh_source_ranges = var.bastion_allowed_ssh_ranges
 }

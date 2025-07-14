@@ -148,4 +148,5 @@ module "edp_aggregator" {
   kingdom_root_ca                           = local.kingdom_root_ca
   edps_certs                                = local.edps_certs
   private_network_location                  = data.google_client_config.default.region
+  bastion_zone                              = data.google_client_config.default.zone
 }
