@@ -91,7 +91,7 @@ locals {
     worker = {
       instance_template_name        = "requisition-fulfiller-template"
       base_instance_name            = "secure-computation"
-      managed_instance_group_name   = "results-fulfiller-mig"
+      managed_instance_group_name   = "results-fulfiller-mig-private"
       mig_service_account_name      = "results-fulfiller-sa"
       single_instance_assignment    = 1
       min_replicas                  = 1
