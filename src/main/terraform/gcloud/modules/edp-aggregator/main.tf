@@ -251,8 +251,8 @@ module "result_fulfiller_tee_app" {
   mig_distribution_policy_zones = var.requisition_fulfiller_config.worker.mig_distribution_policy_zones
   terraform_service_account     = var.terraform_service_account
   secrets_to_mount              = local.result_fulfiller_secrets_to_mount
-  network_name                  = var.private_network_name
-  subnetwork_name               = var.private_subnetwork_name
+  network_name                  = google_compute_network.private_network.name
+  subnetwork_name               = google_compute_subnetwork.private_subnetwork.name
 }
 
 resource "google_storage_bucket_iam_member" "result_fulfiller_storage_viewer" {
@@ -304,6 +304,7 @@ resource "google_compute_subnetwork" "private_subnetwork" {
   name                     = var.private_subnetwork_name
   region                   = var.private_network_location
   network                  = google_compute_network.private_network.id
+  ip_cidr_range            = "10.0.0.0/24"
   private_ip_google_access = true
 }
 
