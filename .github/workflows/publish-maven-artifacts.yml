@@ -33,7 +33,8 @@ jobs:
 
       - id: get-artifact-version
         env:
-          BASE_VERSION: ${{ inputs.base-version }}
+#          BASE_VERSION: ${{ inputs.base-version }}
+          BASE_VERSION: "test-version"
         run: |
           declare artifact_version
           if [[ "$GITHUB_EVENT_NAME" == 'release' ]]; then
