@@ -27,5 +27,6 @@ kt_jvm_library(
 java_binary(
     name = "RequisitionFetcherFunction",
     main_class = "org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionFetcherFunction",
+    visibility = ["//src:docker_image_deployment"],
     runtime_deps = [":requisition_fetcher_function"],
 )

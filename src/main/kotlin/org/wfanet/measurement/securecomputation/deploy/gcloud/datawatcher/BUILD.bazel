@@ -29,5 +29,6 @@ kt_jvm_library(
 java_binary(
     name = "DataWatcherFunction",
     main_class = "org.wfanet.measurement.securecomputation.deploy.gcloud.datawatcher.DataWatcherFunction",
+    visibility = ["//src:docker_image_deployment"],
     runtime_deps = [":data_watcher_function"],
 )
