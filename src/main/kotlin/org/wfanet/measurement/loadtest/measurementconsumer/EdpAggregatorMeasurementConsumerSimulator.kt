@@ -74,7 +74,7 @@ class EdpAggregatorMeasurementConsumerSimulator(
     eventRange,
     initialResultPollingDelay,
     maximumResultPollingDelay,
-    eventGroupFilter
+    eventGroupFilter,
   ) {
 
   override fun Flow<EventGroup>.filterEventGroups(): Flow<EventGroup> {

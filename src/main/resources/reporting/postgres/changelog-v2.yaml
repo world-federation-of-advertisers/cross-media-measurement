@@ -64,3 +64,6 @@ databaseChangeLog:
 - include:
     file: add-model-line-to-metric-calculation-specs-and-metrics.sql
     relativeToChangeLogFile: true
+- include:
+    file: add-campaign-group-id-index-to-reporting-sets.sql
+    relativeToChangeLogFile: true
