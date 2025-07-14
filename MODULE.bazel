@@ -37,9 +37,10 @@ bazel_dep(
 )
 bazel_dep(
     name = "common-jvm",
-    version = "0.107.2",
+    version = "0.110.0",
     repo_name = "wfa_common_jvm",
 )
+
 bazel_dep(
     name = "common-cpp",
     version = "0.13.0",
@@ -365,4 +366,10 @@ http_archive(
 single_version_override(
     module_name = "boringssl",
     version = BORINGSSL_VERSION,
+)
+
+# Local path override for common-jvm
+local_path_override(
+    module_name = "common-jvm",
+    path = "/home/mmg/common-jvm",
 )

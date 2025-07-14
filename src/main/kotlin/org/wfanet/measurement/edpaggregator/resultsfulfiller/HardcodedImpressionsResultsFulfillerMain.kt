@@ -34,12 +34,20 @@ import java.time.LocalDate
 import java.time.ZoneId
 import java.util.concurrent.atomic.AtomicIntegerArray
 import java.util.concurrent.Executors
+import java.util.concurrent.ThreadPoolExecutor
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.Future
+import java.util.concurrent.Callable
+import java.util.concurrent.LinkedBlockingQueue
+import java.util.concurrent.ConcurrentLinkedQueue
 import kotlin.ranges.coerceAtLeast
 import kotlin.ranges.coerceAtMost
 import kotlin.ranges.rangeTo
 import kotlin.ranges.until
-import kotlinx.coroutines.*
-import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.flow.asFlow
 import org.wfanet.measurement.api.v2alpha.*
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reachAndFrequency
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.vidSamplingInterval
@@ -145,14 +153,14 @@ class HardcodedImpressionsResultsFulfillerMain : Runnable {
   )
   private lateinit var impressionsUri: String
 
-  override fun run() = runBlocking {
+  override fun run() {
     // Initialize Tink
     AeadConfig.register()
     StreamingAeadConfig.register()
 
-    // Force Dispatchers.Default to use exactly the max parallelism threads
-    System.setProperty("kotlinx.coroutines.scheduler.core.pool.size", "64")
-    System.setProperty("kotlinx.coroutines.scheduler.max.pool.size", "256")
+    // Create thread pool executor for parallel processing
+    val corePoolSize = Runtime.getRuntime().availableProcessors()
+    val maximumPoolSize = corePoolSize * 4
 
     val startDate = LocalDate.parse(startDateStr)
     val endDate = LocalDate.parse(endDateStr)
@@ -240,7 +248,8 @@ class HardcodedImpressionsResultsFulfillerMain : Runnable {
 
     // Print thread pool info
     println("Available processors: ${Runtime.getRuntime().availableProcessors()}")
-    println("Coroutine thread pool size: ${System.getProperty("kotlinx.coroutines.scheduler.core.pool.size")}")
+    println("Thread pool core size: $corePoolSize")
+    println("Thread pool max size: $maximumPoolSize")
 
     for (parallelism in parallelismLevels) {
       println("Testing with parallelism = $parallelism...")
@@ -267,7 +276,7 @@ class HardcodedImpressionsResultsFulfillerMain : Runnable {
       // Measure time to filter impressions
       val filterStartTime = System.currentTimeMillis()
 
-      val filteredVids = filterImpressions(
+      val allVids = filterImpressions(
         impressions,
         requisitionSpec,
         measurementSpec.vidSamplingInterval,
@@ -275,8 +284,7 @@ class HardcodedImpressionsResultsFulfillerMain : Runnable {
         parallelism
       )
 
-      // Collect all VIDs to force filtering
-      val allVids = filteredVids.toList()
+      // All VIDs are already collected
       val totalVidCount = allVids.size.toLong()
 
       val filterEndTime = System.currentTimeMillis()
@@ -299,8 +307,7 @@ class HardcodedImpressionsResultsFulfillerMain : Runnable {
       // Measure time to compute frequency vectors
       val frequencyStartTime = System.currentTimeMillis()
 
-      val frequencyVectors = computeFrequencyVectors(vidsPerDate, parallelism)
-      val vectorList = frequencyVectors.toList()
+      val vectorList = computeFrequencyVectors(vidsPerDate, parallelism)
       val vectorCount = vectorList.size.toLong()
 
       val frequencyEndTime = System.currentTimeMillis()
@@ -461,8 +468,7 @@ class HardcodedImpressionsResultsFulfillerMain : Runnable {
   /**
    * Extracts impressions from impression data (reading only), grouped by dates
    */
-  @OptIn(ExperimentalCoroutinesApi::class)
-  private suspend fun getSampledVids(
+  private fun getSampledVids(
     requisitionSpec: RequisitionSpec,
     eventGroupMap: Map<String, String>,
     eventReader: EventReader,
@@ -482,22 +488,42 @@ class HardcodedImpressionsResultsFulfillerMain : Runnable {
 
       println("Processing ${datesList.size} dates from $startDate to ${datesList.lastOrNull() ?: endDate} with parallelism=$parallelism")
 
-      // Process dates in parallel and collect impressions per date
-      val dateImpressions = datesList.asFlow()
-        .flatMapMerge(parallelism) { date ->
-          flow {
-            val impressionsFlow = eventReader.getLabeledImpressions(date, eventGroupMap.getValue(eventGroup.key))
-            val impressionsList = impressionsFlow.toList()
-            emit(impressionsList)
-          }
-        }
-        .toList()
+      // Create thread pool for this batch of dates
+      val executor = ThreadPoolExecutor(
+        parallelism,
+        parallelism,
+        60L,
+        TimeUnit.SECONDS,
+        LinkedBlockingQueue<Runnable>()
+      )
 
-      allDateImpressions.addAll(dateImpressions)
+      try {
+        // Process dates in parallel using thread pool
+        val futures = datesList.map { date ->
+          executor.submit(Callable<List<LabeledImpression>> {
+            // Each thread runs its own coroutine context
+            runBlocking {
+              val impressionsFlow = eventReader.getLabeledImpressions(date, eventGroupMap.getValue(eventGroup.key))
+              impressionsFlow.toList()
+            }
+          })
+        }
+
+        // Collect results from all futures
+        val dateImpressions = futures.map { future ->
+          future.get() // This blocks until the task completes
+        }
+
+        allDateImpressions.addAll(dateImpressions)
+      } finally {
+        executor.shutdown()
+        executor.awaitTermination(5, TimeUnit.MINUTES)
+      }
     }
 
     return allDateImpressions
   }
+
 
   /**
    * Computes frequency vector for a list of VIDs without concurrency
@@ -516,54 +542,97 @@ class HardcodedImpressionsResultsFulfillerMain : Runnable {
   /**
    * Filters impressions and extracts VIDs, processing dates in parallel
    */
-  @OptIn(ExperimentalCoroutinesApi::class)
-  private suspend fun filterImpressions(
+  private fun filterImpressions(
     impressionsByDate: List<List<LabeledImpression>>,
     requisitionSpec: RequisitionSpec,
     vidSamplingInterval: MeasurementSpec.VidSamplingInterval,
     typeRegistry: TypeRegistry,
     parallelism: Int = 8
-  ): Flow<Long> {
+  ): List<Long> {
     val vidSamplingIntervalStart = vidSamplingInterval.start
     val vidSamplingIntervalWidth = vidSamplingInterval.width
+    val allVids = ConcurrentLinkedQueue<Long>()
 
-    return requisitionSpec.events.eventGroupsList.asFlow().flatMapConcat { eventGroup ->
+    for (eventGroup in requisitionSpec.events.eventGroupsList) {
       val collectionInterval = eventGroup.value.collectionInterval
-      impressionsByDate.asFlow()
-        .flatMapMerge(parallelism) { dateImpressions ->
-          VidFilter.filterAndExtractVids(
-            dateImpressions.asFlow(),
-            vidSamplingIntervalStart,
-            vidSamplingIntervalWidth,
-            eventGroup.value.filter,
-            collectionInterval,
-            typeRegistry
-          )
+      
+      // Create thread pool for filtering
+      val executor = ThreadPoolExecutor(
+        parallelism,
+        parallelism,
+        60L,
+        TimeUnit.SECONDS,
+        LinkedBlockingQueue<Runnable>()
+      )
+
+      try {
+        // Process each date's impressions in parallel
+        val futures = impressionsByDate.map { dateImpressions ->
+          executor.submit(Callable<List<Long>> {
+            runBlocking {
+              VidFilter.filterAndExtractVids(
+                dateImpressions.asFlow(),
+                vidSamplingIntervalStart,
+                vidSamplingIntervalWidth,
+                eventGroup.value.filter,
+                collectionInterval,
+                typeRegistry
+              ).toList()
+            }
+          })
         }
+
+        // Collect results from all futures
+        futures.forEach { future ->
+          allVids.addAll(future.get())
+        }
+      } finally {
+        executor.shutdown()
+        executor.awaitTermination(5, TimeUnit.MINUTES)
+      }
     }
+
+    return allVids.toList()
   }
 
   /**
    * Computes frequency vectors for each date in parallel
    */
-  @OptIn(ExperimentalCoroutinesApi::class)
-  private suspend fun computeFrequencyVectors(
+  private fun computeFrequencyVectors(
     vidsPerDate: List<List<Long>>,
     parallelism: Int = 8
-  ): Flow<FrequencyVector> {
-    return vidsPerDate.asFlow()
-      .flatMapMerge(parallelism) { vids ->
-        flow {
-          val frequencyVector = computeFrequencyVector(vids)
-          emit(frequencyVector)
-        }
+  ): List<FrequencyVector> {
+    // Create thread pool for frequency computation
+    val executor = ThreadPoolExecutor(
+      parallelism,
+      parallelism,
+      60L,
+      TimeUnit.SECONDS,
+      LinkedBlockingQueue<Runnable>()
+    )
+
+    try {
+      // Process each date's VIDs in parallel
+      val futures = vidsPerDate.map { vids ->
+        executor.submit(Callable<FrequencyVector> {
+          computeFrequencyVector(vids)
+        })
       }
+
+      // Collect results from all futures
+      return futures.map { future ->
+        future.get() // This blocks until the task completes
+      }
+    } finally {
+      executor.shutdown()
+      executor.awaitTermination(5, TimeUnit.MINUTES)
+    }
   }
 
   /**
    * Merges frequency vectors across dates by combining counts for same VIDs
    */
-  private suspend fun mergeFrequencyVectors(frequencyVectors: List<FrequencyVector>): FrequencyVector {
+  private fun mergeFrequencyVectors(frequencyVectors: List<FrequencyVector>): FrequencyVector {
     val mergedCounts = mutableMapOf<Long, Int>()
 
     // Combine counts for all VIDs across all vectors
