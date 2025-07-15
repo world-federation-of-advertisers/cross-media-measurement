@@ -123,8 +123,6 @@ jobs:
             -DremoteRepositories=github::default::https://maven.pkg.github.com/world-federation-of-advertisers/cross-media-measurement \
             -Dartifact="${coords[$key]}" \
             -Ddest="$dest_dir/function.jar"
-
-          mv "$dest_dir"/*.jar "$dest_dir/function.jar"
         
           echo "${key}_source_dir=$dest_dir" >> "$GITHUB_OUTPUT"
         done
@@ -225,3 +223,4 @@ jobs:
 #        -Dartifact="${coords[$key]}" \
 #        -DoutputDirectory="$dest_dir" \
 #        -Dtransitive=false
+#        mv "$dest_dir"/*.jar "$dest_dir/function.jar"
