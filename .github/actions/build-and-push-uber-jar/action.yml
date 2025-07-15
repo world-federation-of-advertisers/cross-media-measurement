@@ -48,10 +48,9 @@ runs:
         ARTIFACT_VERSION: ${{ inputs.package-version }}
         ARTIFACT_GROUP_ID: ${{ inputs.artifact-group-id }}
         ARTIFACT_ID: ${{ inputs.artifact-id }}
+        BAZEL_TARGET_LABEL: ${{ inputs.bazel_target_label }}
       run: |
-        REL_PATH="${BAZEL_TARGET_LABEL#//}"
-        REL_PATH="${REL_PATH/:/\/}"
-        JAR_PATH="$(bazel info bazel-bin)/${REL_PATH}"
+        JAR_PATH=$(bazel cquery "$BAZEL_TARGET_LABEL" --output=files)
               
         mvn -B -e deploy:deploy-file \
           -Durl=${MAVEN_REPO} \

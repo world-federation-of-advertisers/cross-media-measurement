@@ -69,3 +69,23 @@ jobs:
           artifact-group-id: org.wfanet.measurement.securecomputation.deploy.gcloud.datawatcher
           bazel_target_label: //src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/datawatcher:DataWatcherFunction_deploy.jar
 
+      - name: Build and Deploy Requisition Fetcher
+        env:
+          IMAGE_TAG: ${{ inputs.image-tag }}
+        uses: ./.github/actions/build-and-push-uber-jar
+        with:
+          package-version: $IMAGE_TAG
+          artifact-id: requisition-fetcher
+          artifact-group-id: org.wfanet.measurement.edpaggregator.deploy.gcloud.requisitionfetcher
+          bazel_target_label: //src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/requisitionfetcher:RequisitionFetcherFunction_deploy.jar
+
+      - name: Build and Deploy Event Group Sync
+        env:
+          IMAGE_TAG: ${{ inputs.image-tag }}
+        uses: ./.github/actions/build-and-push-uber-jar
+        with:
+          package-version: $IMAGE_TAG
+          artifact-id: event-group-sync
+          artifact-group-id: org.wfanet.measurement.edpaggregator.deploy.gcloud.eventgroups
+          bazel_target_label: //src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/eventgroups:EventGroupSyncFunction_deploy.jar
+
