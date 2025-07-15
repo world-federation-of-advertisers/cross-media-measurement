@@ -22,7 +22,7 @@ K8S_CLIENT_VERSION = "21.0.1"
 # See https://github.com/bazelbuild/bazel/discussions/23075.
 bazel_dep(
     name = "rules_kotlin_jvm",
-    version = "0.6.0",
+    version = "0.8.0",
     repo_name = "wfa_rules_kotlin_jvm",
 )
 bazel_dep(
@@ -37,7 +37,7 @@ bazel_dep(
 )
 bazel_dep(
     name = "common-jvm",
-    version = "0.116.0",
+    version = "0.117.0",
     repo_name = "wfa_common_jvm",
 )
 bazel_dep(
@@ -97,6 +97,11 @@ bazel_dep(
 
 # --- Bazel Central Registry modules. ---
 
+# TODO(bazelbuild/bazel-worker-api#10): Remove this once rules_kotlin stops using version 0.0.4
+bazel_dep(
+    name = "bazel_worker_java",
+    version = "0.0.5",
+)
 bazel_dep(
     name = "platforms",
     version = "1.0.0",
@@ -133,7 +138,7 @@ bazel_dep(
 )
 bazel_dep(
     name = "rules_jvm_external",
-    version = "6.6",
+    version = "6.8",
 )
 bazel_dep(
     name = "rules_python",
@@ -264,6 +269,8 @@ maven.install(
 
         # Bouncy Castle
         "org.bouncycastle:bcpkix-jdk18on:1.79",
+        "com.google.protobuf:protobuf-java",
+        "com.google.protobuf:protobuf-java-util",
     ],
     boms = [
         "org.apache.beam:beam-sdks-java-bom:" + APACHE_BEAM_VERSION,
