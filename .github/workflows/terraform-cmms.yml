@@ -119,10 +119,12 @@ jobs:
         for key in "${!coords[@]}"; do
           dest_dir="$TEMP_DIR/$key"
           mkdir -p "$dest_dir"
-          mvn dependency:get \
+          mvn dependency:copy \
             -DremoteRepositories=github::default::https://maven.pkg.github.com/world-federation-of-advertisers/cross-media-measurement \
             -Dartifact="${coords[$key]}" \
-            -Ddest="$dest_dir/function.jar"
+            -DoutputDirectory="$dest_dir" \
+            -Dtransitive=false
+          mv "$dest_dir"/*.jar "$dest_dir/function.jar"
         
           echo "${key}_source_dir=$dest_dir" >> "$GITHUB_OUTPUT"
         done
