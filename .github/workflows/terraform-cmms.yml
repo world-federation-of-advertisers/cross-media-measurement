@@ -117,8 +117,12 @@ jobs:
         coords[event-group-sync]="org.wfanet.measurement.edpaggregator.deploy.gcloud.eventgroups:event-group-sync:$IMAGE_TAG:jar"
   
         for key in "${!coords[@]}"; do
+#          dest_dir="$TEMP_DIR/$key"
+#          mkdir -p "$dest_dir"
           dest_dir="$TEMP_DIR/$key"
           mkdir -p "$dest_dir"
+          jar_path="$dest_dir/function.jar"
+          rm -f "$jar_path"
           mvn dependency:get \
             -DremoteRepositories=github::default::https://maven.pkg.github.com/world-federation-of-advertisers/cross-media-measurement \
             -Dartifact="${coords[$key]}" \
