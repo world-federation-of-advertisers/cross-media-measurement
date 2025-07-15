@@ -421,7 +421,6 @@ class PostgresComputationsService(
     grpcRequire(request.delaySecond >= 0) {
       "DelaySecond ${request.delaySecond} should be non-negative."
     }
-    // TODO(renjiezh): Check request.expectedOwner before enqueue.
     val writer =
       EnqueueComputation(
         request.token.localComputationId,
