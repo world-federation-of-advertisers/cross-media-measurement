@@ -61,7 +61,8 @@ jobs:
 
       - name: Build and Deploy Data Watcher
         env:
-          IMAGE_TAG: ${{ inputs.image-tag }}
+#          IMAGE_TAG: ${{ inputs.image-tag }}
+          IMAGE_TAG: "test-1"
         uses: ./.github/actions/build-and-push-uber-jar
         with:
           package-version: $IMAGE_TAG
