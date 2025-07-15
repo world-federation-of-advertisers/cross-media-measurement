@@ -98,17 +98,6 @@ jobs:
               <password>${{ secrets.GITHUB_TOKEN }}</password>
             </server>
           </servers>
-          <repositories>
-            <repository>
-              <id>github</id>
-              <url>https://maven.pkg.github.com/world-federation-of-advertisers/cross-media-measurement</url>
-              <releases><enabled>true</enabled></releases>
-              <snapshots><enabled>true</enabled></snapshots>
-            </repository>
-          </repositories>
-        <activeProfiles>
-          <activeProfile>github-packages</activeProfile>
-        </activeProfiles>
         </settings>
         EOF
 
@@ -127,13 +116,20 @@ jobs:
         coords[data-watcher]="org.wfanet.measurement.securecomputation.deploy.gcloud.datawatcher:data-watcher:$IMAGE_TAG:jar"
         coords[requisition-fetcher]="org.wfanet.measurement.edpaggregator.deploy.gcloud.requisitionfetcher:requisition-fetcher:$IMAGE_TAG:jar"
         coords[event-group-sync]="org.wfanet.measurement.edpaggregator.deploy.gcloud.eventgroups:event-group-sync:$IMAGE_TAG:jar"
-  
+        
+        LOCAL_REPO=$(mvn help:evaluate -Dexpression=settings.localRepository -q -DforceStdout)
+        echo "---------> LOCAL REPO: ${LOCAL_REPO}"
         for key in "${!coords[@]}"; do
           dest_dir="$TEMP_DIR/$key"
           mkdir -p "$dest_dir"
-          mvn -U org.apache.maven.plugins:maven-dependency-plugin:3.8.1:copy \
-            -Dartifact="${coords[$key]}" \
-            -DoutputDirectory="$dest_dir" \
+          mvn -U dependency:get \
+            -DremoteRepositories=github::default::https://maven.pkg.github.com/world-federation-of-advertisers/cross-media-measurement \
+            -Dartifact="${coords[$key]}" 
+        
+          IFS=':' read -r groupId artifactId version type <<<"${coords[$key]}"
+          jar_path="$LOCAL_REPO/${groupId//./\/}/$artifactId/$version/$artifactId-$version.$type"
+          cp "$jar_path" "$dest_dir/function.jar"
+          
           safe_key=${key//-/_}
           echo "${safe_key}_source_dir=$dest_dir" >> "$GITHUB_OUTPUT"
         done
@@ -216,23 +212,8 @@ jobs:
       run: terraform apply -input=false tfplan
 
 
-
-#        mvn dependency:get \
-#            -DremoteRepositories=github::default::https://maven.pkg.github.com/world-federation-of-advertisers/cross-media-measurement \
-#            -Dartifact="${coords[$key]}" \
-#            -Ddest="$dest_dir/function.jar"
-#          mvn dependency:copy \
-#            -DremoteRepositories=github::default::https://maven.pkg.github.com/world-federation-of-advertisers/cross-media-measurement \
-#            -Dartifact="${coords[$key]}" \
-#            -DoutputDirectory="$dest_dir" \
-#            -Dtransitive=false
-
-#        mvn dependency:get \
-#        -DremoteRepositories=github::default::https://maven.pkg.github.com/world-federation-of-advertisers/cross-media-measurement \
-#        -Dartifact="${coords[$key]}"
-#
-#        mvn dependency:copy \
-#        -Dartifact="${coords[$key]}" \
-#        -DoutputDirectory="$dest_dir" \
-#        -Dtransitive=false
-#        mv "$dest_dir"/*.jar "$dest_dir/function.jar"
+#  mvn -U org.apache.maven.plugins:maven-dependency-plugin:3.8.1:copy \
+#  -DremoteRepositories=github::default::https://maven.pkg.github.com/world-federation-of-advertisers/cross-media-measurement \
+#  -Dartifact="${coords[$key]}" \
+#  -DoutputDirectory="$dest_dir" \
+#  -DdestFileName=function.jar
