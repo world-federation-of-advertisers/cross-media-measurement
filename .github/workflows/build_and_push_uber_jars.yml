@@ -41,28 +41,12 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Configure Maven for GitHub Packages
-        env:
-          MAVEN_USERNAME: ${{ github.actor }}
-          MAVEN_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          mkdir -p ~/.m2
-          cat > ~/.m2/settings.xml <<EOF
-          <settings>
-            <servers>
-              <server>
-                <id>github</id>
-                <username>\${env.MAVEN_USERNAME}</username>
-                <password>\${env.MAVEN_PASSWORD}</password>
-              </server>
-            </servers>
-          </settings>
-          EOF
-
       - name: Build and Deploy Data Watcher
         env:
 #          IMAGE_TAG: ${{ inputs.image-tag }}
           IMAGE_TAG: "test-1"
+          MAVEN_USERNAME: ${{ github.actor }}
+          MAVEN_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
         uses: ./.github/actions/build-and-push-uber-jar
         with:
           package-version: $IMAGE_TAG

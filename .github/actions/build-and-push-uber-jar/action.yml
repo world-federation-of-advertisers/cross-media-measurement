@@ -34,6 +34,22 @@ runs:
   using: "composite"
   steps:
 
+    - name: Configure Maven for GitHub Packages
+      shell: bash
+      run: |
+        mkdir -p ~/.m2
+        cat > ~/.m2/settings.xml <<EOF
+        <settings>
+          <servers>
+            <server>
+              <id>github</id>
+              <username>${MAVEN_USERNAME}</username>
+              <password>${MAVEN_PASSWORD}</password>
+            </server>
+          </servers>
+        </settings>
+        EOF
+
     - name: Build uber‑jar
       shell: bash
       env:
