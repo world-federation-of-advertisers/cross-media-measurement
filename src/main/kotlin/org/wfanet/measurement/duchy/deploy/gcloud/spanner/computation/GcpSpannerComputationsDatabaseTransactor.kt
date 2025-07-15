@@ -787,6 +787,8 @@ class GcpSpannerComputationsDatabaseTransactor<
    *   [token].[localId][ComputationEditToken.localId] is not found
    * @throws ComputationTokenVersionMismatchException if
    *   [token].[editVersion][ComputationEditToken.editVersion] does not match
+   *
+   * TODO(world-federation-of-advertisers/cross-media-measurement#2578): Check the lock owner
    */
   private suspend fun <R> runIfTokenFromLastUpdate(
     token: ComputationEditToken<ProtocolT, StageT>,
