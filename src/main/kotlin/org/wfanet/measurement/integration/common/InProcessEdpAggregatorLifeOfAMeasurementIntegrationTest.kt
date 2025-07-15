@@ -151,6 +151,7 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
         NoiseMechanism.CONTINUOUS_GAUSSIAN,
         syntheticPopulationSpec,
         syntheticEventGroupMap,
+        eventGroupFilter = null,
       )
   }
 
