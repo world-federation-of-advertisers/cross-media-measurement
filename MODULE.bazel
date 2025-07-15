@@ -22,8 +22,14 @@ K8S_CLIENT_VERSION = "21.0.1"
 # See https://github.com/bazelbuild/bazel/discussions/23075.
 bazel_dep(
     name = "rules_kotlin_jvm",
-    version = "0.6.0",
+    version = "0.7.0",
     repo_name = "wfa_rules_kotlin_jvm",
+)
+# DO_NOT_SUBMIT: use new rules_kotlin_jvm release
+git_override(
+    module_name = "rules_kotlin_jvm",
+    commit = "1217c0dc0b1aeee2d56df38be69a0c39ab0225fe",
+    remote = "https://github.com/world-federation-of-advertisers/rules_kotlin_jvm.git",
 )
 bazel_dep(
     name = "rules_swig",
@@ -39,6 +45,12 @@ bazel_dep(
     name = "common-jvm",
     version = "0.116.0",
     repo_name = "wfa_common_jvm",
+)
+# DO_NOT_SUBMIT: use new common-jvm release
+git_override(
+    module_name = "common-jvm",
+    commit = "16387c083668fa2a4c59b4eb64cb3a1a2499b2d5",
+    remote = "https://github.com/world-federation-of-advertisers/common-jvm.git",
 )
 bazel_dep(
     name = "common-cpp",
@@ -97,6 +109,11 @@ bazel_dep(
 
 # --- Bazel Central Registry modules. ---
 
+# TODO(bazelbuild/bazel-worker-api#10): Remove this once rules_kotlin stops using version 0.0.4
+bazel_dep(
+    name = "bazel_worker_java",
+    version = "0.0.5",
+)
 bazel_dep(
     name = "platforms",
     version = "1.0.0",
@@ -133,7 +150,7 @@ bazel_dep(
 )
 bazel_dep(
     name = "rules_jvm_external",
-    version = "6.6",
+    version = "6.8",
 )
 bazel_dep(
     name = "rules_python",
@@ -264,6 +281,8 @@ maven.install(
 
         # Bouncy Castle
         "org.bouncycastle:bcpkix-jdk18on:1.79",
+        "com.google.protobuf:protobuf-java",
+        "com.google.protobuf:protobuf-java-util",
     ],
     boms = [
         "org.apache.beam:beam-sdks-java-bom:" + APACHE_BEAM_VERSION,
