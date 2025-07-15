@@ -127,6 +127,12 @@ jobs:
           echo "${key}_source_dir=$dest_dir" >> "$GITHUB_OUTPUT"
         done
 
+    - name: Verify downloaded JARs
+      run: |
+        ls -al ${{ steps.download-uber-jars.outputs.data_watcher_source_dir }}
+        ls -al ${{ steps.download-uber-jars.outputs.requisition_fetcher_source_dir }}
+        ls -al ${{ steps.download-uber-jars.outputs.event_group_source_dir }}
+
     - name: terraform init
       env:
         TF_STORAGE_BUCKET: ${{ vars.TF_STORAGE_BUCKET }}
