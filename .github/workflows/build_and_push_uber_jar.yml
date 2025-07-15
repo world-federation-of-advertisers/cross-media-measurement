@@ -72,15 +72,40 @@ jobs:
       - name: Deploy fat‑jar to GitHub Packages
         env:
           MAVEN_REPO: https://maven.pkg.github.com/${{ github.repository }}
-#          ARTIFACT_VERSION: ${{ input.image-tag }}
+          MAVEN_USERNAME: ${{ github.actor }}
+          MAVEN_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
           ARTIFACT_VERSION: "test"
         run: |
+          # 1) Resolve and validate the JAR path:
           JAR_PATH="$(bazel info bazel-bin)/src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/datawatcher/DataWatcherFunction_deploy.jar"
-          mvn deploy:deploy-file \
+          echo "-> JAR_PATH is: $JAR_PATH"
+          if [ ! -f "$JAR_PATH" ]; then
+            echo "❌ Jar not found at $JAR_PATH"; exit 1
+          fi
+          ls -lh "$JAR_PATH"
+          
+          # 2) Run with batch mode (-B) and full stacktrace (-e):
+          mvn -B -e deploy:deploy-file \
             -Durl=${MAVEN_REPO} \
             -DrepositoryId=github \
-            -Dfile=${JAR_PATH} \
+            -Dfile="$JAR_PATH" \
             -DgroupId=org.wfanet.measurement.securecomputation.deploy.gcloud.datawatcher \
             -DartifactId=datawatcher \
             -Dversion=${ARTIFACT_VERSION} \
-            -DgeneratePom=true
+            -DgeneratePom=true \
+            -Dpackaging=jar
+#      - name: Deploy fat‑jar to GitHub Packages
+#        env:
+#          MAVEN_REPO: https://maven.pkg.github.com/${{ github.repository }}
+##          ARTIFACT_VERSION: ${{ input.image-tag }}
+#          ARTIFACT_VERSION: "test"
+#        run: |
+#          JAR_PATH="$(bazel info bazel-bin)/src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/datawatcher/DataWatcherFunction_deploy.jar"
+#          mvn deploy:deploy-file \
+#            -Durl=${MAVEN_REPO} \
+#            -DrepositoryId=github \
+#            -Dfile=${JAR_PATH} \
+#            -DgroupId=org.wfanet.measurement.securecomputation.deploy.gcloud.datawatcher \
+#            -DartifactId=datawatcher \
+#            -Dversion=${ARTIFACT_VERSION} \
+#            -DgeneratePom=true
