@@ -20,6 +20,7 @@ import com.google.protobuf.ByteString
 import com.google.protobuf.TypeRegistry
 import com.google.protobuf.util.Durations
 import io.grpc.StatusException
+import java.lang.IllegalStateException
 import java.security.SignatureException
 import java.security.cert.CertPathValidatorException
 import java.security.cert.X509Certificate
@@ -237,6 +238,10 @@ abstract class MeasurementConsumerSimulator(
         protocol,
       )
     val reachTolerance = computeErrorMargin(reachVariance)
+    if (expectedResult.reach.value.toDouble() < reachTolerance) {
+      throw IllegalStateException("Expected result cannot be less and tolerance")
+    }
+
     if (requiredCapabilities.honestMajorityShareShuffleSupported) {
       assertThat(protocol.protocolCase)
         .isEqualTo(ProtocolConfig.Protocol.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE)
@@ -248,8 +253,6 @@ abstract class MeasurementConsumerSimulator(
       .reachValue()
       .isWithin(reachTolerance)
       .of(expectedResult.reach.value)
-
-    assertThat(reachAndFrequencyResult.reach.value.toDouble()).isGreaterThan(reachTolerance)
 
     val frequencyTolerance: Map<Long, Double> =
       computeRelativeFrequencyTolerance(
@@ -351,12 +354,14 @@ abstract class MeasurementConsumerSimulator(
           protocol,
         )
       val reachTolerance = computeErrorMargin(reachVariance)
+      if (expectedResult.reach.value.toDouble() < reachTolerance) {
+        throw IllegalStateException("Expected result cannot be less and tolerance")
+      }
+
       assertThat(reachAndFrequencyResult)
         .reachValue()
         .isWithin(reachTolerance)
         .of(expectedResult.reach.value)
-
-      assertThat(reachAndFrequencyResult.reach.value.toDouble()).isGreaterThan(reachTolerance)
 
       val frequencyTolerance: Map<Long, Double> =
         computeRelativeFrequencyTolerance(
@@ -416,9 +421,11 @@ abstract class MeasurementConsumerSimulator(
           protocol,
         )
       val reachTolerance = computeErrorMargin(reachVariance)
+      if (expectedResult.reach.value.toDouble() < reachTolerance) {
+        throw IllegalStateException("Expected result cannot be less and tolerance")
+      }
 
       assertThat(reachResult).reachValue().isWithin(reachTolerance).of(expectedResult.reach.value)
-      assertThat(reachResult.reach.value.toDouble()).isGreaterThan(reachTolerance)
       assertThat(reachResult.reach.hasDeterministicCountDistinct()).isTrue()
       assertThat(reachResult.reach.noiseMechanism).isEqualTo(expectedDirectNoiseMechanism)
       assertThat(reachResult.hasFrequency()).isFalse()
@@ -518,6 +525,9 @@ abstract class MeasurementConsumerSimulator(
         protocol,
       )
     val reachTolerance = computeErrorMargin(reachVariance)
+    if (result.expectedResult.reach.value.toDouble() < reachTolerance) {
+      throw IllegalStateException("Expected result cannot be less and tolerance")
+    }
 
     if (requiredCapabilities.honestMajorityShareShuffleSupported) {
       assertThat(protocol.protocolCase)
@@ -530,7 +540,6 @@ abstract class MeasurementConsumerSimulator(
       .reachValue()
       .isWithin(reachTolerance)
       .of(result.expectedResult.reach.value)
-    assertThat(result.actualResult.reach.value.toDouble()).isGreaterThan(reachTolerance)
     logger.info("Actual result: ${result.actualResult}")
     logger.info("Expected result: ${result.expectedResult}")
 
@@ -573,10 +582,12 @@ abstract class MeasurementConsumerSimulator(
 
       val variance = computeImpressionVariance(result, measurementInfo.measurementSpec, protocol)
       val tolerance = computeErrorMargin(variance)
+      if (expectedResult.reach.value.toDouble() < tolerance) {
+        throw IllegalStateException("Expected result cannot be less and tolerance")
+      }
       assertThat(result.impression.hasDeterministicCount()).isTrue()
       assertThat(result.impression.noiseMechanism).isEqualTo(expectedDirectNoiseMechanism)
       assertThat(result).impressionValue().isWithin(tolerance).of(expectedResult.impression.value)
-      assertThat(result.impression.value.toDouble()).isGreaterThan(tolerance)
     }
     logger.info("Impression result is equal to the expected result")
   }
