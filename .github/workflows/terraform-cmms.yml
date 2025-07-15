@@ -112,22 +112,18 @@ jobs:
         mkdir -p "$TEMP_DIR"
       
         declare -A coords
-        coords[data_watcher]="org.wfanet.measurement.securecomputation.deploy.gcloud.datawatcher:data-watcher:$IMAGE_TAG:jar"
-        coords[requisition_fetcher]="org.wfanet.measurement.edpaggregator.deploy.gcloud.requisitionfetcher:requisition-fetcher:$IMAGE_TAG:jar"
-        coords[event_group]="org.wfanet.measurement.edpaggregator.deploy.gcloud.eventgroups:event-group-sync:$IMAGE_TAG:jar"
+        coords[data-watcher]="org.wfanet.measurement.securecomputation.deploy.gcloud.datawatcher:data-watcher:$IMAGE_TAG:jar"
+        coords[requisition-fetcher]="org.wfanet.measurement.edpaggregator.deploy.gcloud.requisitionfetcher:requisition-fetcher:$IMAGE_TAG:jar"
+        coords[event-group-sync]="org.wfanet.measurement.edpaggregator.deploy.gcloud.eventgroups:event-group-sync:$IMAGE_TAG:jar"
   
         for key in "${!coords[@]}"; do
           dest_dir="$TEMP_DIR/$key"
           mkdir -p "$dest_dir"
-             
           mvn dependency:get \
             -DremoteRepositories=github::default::https://maven.pkg.github.com/world-federation-of-advertisers/cross-media-measurement \
-            -Dartifact="${coords[$key]}"
-           
-          mvn dependency:copy \
             -Dartifact="${coords[$key]}" \
-            -DoutputDirectory="$dest_dir" \
-            -Dtransitive=false
+            -Ddest="$dest_dir/function.jar"
+
           mv "$dest_dir"/*.jar "$dest_dir/function.jar"
         
           echo "${key}_source_dir=$dest_dir" >> "$GITHUB_OUTPUT"
@@ -220,3 +216,12 @@ jobs:
 #            -Dartifact="${coords[$key]}" \
 #            -DoutputDirectory="$dest_dir" \
 #            -Dtransitive=false
+
+#        mvn dependency:get \
+#        -DremoteRepositories=github::default::https://maven.pkg.github.com/world-federation-of-advertisers/cross-media-measurement \
+#        -Dartifact="${coords[$key]}"
+#
+#        mvn dependency:copy \
+#        -Dartifact="${coords[$key]}" \
+#        -DoutputDirectory="$dest_dir" \
+#        -Dtransitive=false
