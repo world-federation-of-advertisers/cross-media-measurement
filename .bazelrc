@@ -3,6 +3,10 @@ common --enable_bzlmod
 common --registry=https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main
 common --registry=https://bcr.bazel.build
 
+# Ignore android SDK in GHA.
+common --action_env=ANDROID_HOME=""
+common --action_env=ANDROID_SDK_ROOT=""
+
 # Use clang as C++ compiler.
 build --repo_env='CC=clang'
 
