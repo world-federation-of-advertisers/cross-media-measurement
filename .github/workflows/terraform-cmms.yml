@@ -72,6 +72,12 @@ jobs:
         workload_identity_provider: ${{ vars.WORKLOAD_IDENTITY_PROVIDER }}
         service_account: ${{ vars.TF_SERVICE_ACCOUNT }}
 
+    - name: Set up Java & Maven
+      uses: actions/setup-java@v3
+      with:
+        distribution: temurin
+        java-version: '17'
+
     - name: Write edpa cloud function configs to files
       env:
         CONFIG_DIR: ${{ runner.temp }}/configs
@@ -80,38 +86,44 @@ jobs:
         echo "$DATA_WATCHER_CONFIG_CONTENT" > "$CONFIG_DIR/data-watcher-config.textproto"
         echo "$REQUISITION_FETCHER_CONFIG_CONTENT" > "$CONFIG_DIR/requisition-fetcher-config.textproto"
 
-    - name: Build edpa cloud function images
-      run: >
-        bazelisk build
-        //src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/datawatcher:DataWatcherFunction_deploy.jar
-        //src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/requisitionfetcher:RequisitionFetcherFunction_deploy.jar
-        //src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/eventgroups:EventGroupSyncFunction_deploy.jar
+    - name: Set up Maven GitHub Packages auth
+      run: |
+        mkdir -p ~/.m2
+        cat > ~/.m2/settings.xml <<EOF
+        <settings>
+          <servers>
+            <server>
+              <id>github</id>
+              <username>${{ github.actor }}</username>
+              <password>${{ secrets.GITHUB_TOKEN }}</password>
+            </server>
+          </servers>
+        </settings>
+        EOF
 
-    - name: Locate and copy uber-jars
-      id: locate-and-copy-uber-jars
-      shell: bash
+    - name: Download Uber JARs using Maven
+      id: download-uber-jars
+      env:
+#        IMAGE_TAG: ${{ inputs.image-tag }}
+        IMAGE_TAG: "test-1"
       run: |
         set -euo pipefail
-
-        EXEC_ROOT=$(bazel info execution_root)
-
-        declare -A targets
-        targets[data_watcher]="//src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/datawatcher:DataWatcherFunction_deploy.jar"
-        targets[requisition_fetcher]="//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/requisitionfetcher:RequisitionFetcherFunction_deploy.jar"
-        targets[event_group]="//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/eventgroups:EventGroupSyncFunction_deploy.jar"
-
-        BASE_DIR="${RUNNER_TEMP}/uber-jars"
-        mkdir -p "$BASE_DIR"
-    
-        for key in "${!targets[@]}"; do
-          # find the JAR for this function
-          rel_path=$(bazel cquery "${targets[$key]}" --output=files)
-          full_path="$EXEC_ROOT/$rel_path"
-          
-          dest_dir="$BASE_DIR/$key"
+        TEMP_DIR="${RUNNER_TEMP}/uber-jars"
+        mkdir -p "$TEMP_DIR"
+      
+        declare -A coords
+        coords[data_watcher]="org.wfanet.measurement.securecomputation.deploy.gcloud.datawatcher:data-watcher:$IMAGE_TAG:jar"
+        coords[requisition_fetcher]="org.wfanet.measurement.edpaggregator.deploy.gcloud.requisitionfetcher:requisition-fetcher:$IMAGE_TAG:jar"
+        coords[event_group]="org.wfanet.measurement.edpaggregator.deploy.gcloud.eventgroups:event-group-sync:$IMAGE_TAG:jar"
+  
+        for key in "${!coords[@]}"; do
+          dest_dir="$TEMP_DIR/$key"
           mkdir -p "$dest_dir"
-          cp "$full_path" "$dest_dir/"
-          
+          mvn dependency:get \
+            -DremoteRepositories=github::default::https://maven.pkg.github.com/world-federation-of-advertisers/cross-media-measurement \
+            -Dartifact="${coords[$key]}" \
+            -Ddest="$dest_dir/function.jar"
+        
           echo "${key}_source_dir=$dest_dir" >> "$GITHUB_OUTPUT"
         done
 
@@ -175,9 +187,9 @@ jobs:
         -var="requisition_fetcher_secret_mapping=$REQUISITION_FETCHER_SECRET_MAPPING"
         -var="event_group_env_var=$EVENT_GROUP_ENV_VAR"
         -var="event_group_secret_mapping=$EVENT_GROUP_SECRET_MAPPING"
-        -var="data_watcher_uber_jar_path=${{ steps.locate-and-copy-uber-jars.outputs.data_watcher_source_dir }}"
-        -var="requisition_fetcher_uber_jar_path=${{ steps.locate-and-copy-uber-jars.outputs.requisition_fetcher_source_dir }}"
-        -var="event_group_uber_jar_path=${{ steps.locate-and-copy-uber-jars.outputs.event_group_source_dir }}"
+        -var="data_watcher_uber_jar_path=${{ steps.download-uber-jars.outputs.data_watcher_source_dir }}"
+        -var="requisition_fetcher_uber_jar_path=${{ steps.download-uber-jars.outputs.requisition_fetcher_source_dir }}"
+        -var="event_group_uber_jar_path=${{ steps.download-uber-jars.outputs.event_group_source_dir }}"
         -var="image_tag=$IMAGE_TAG"
         -out=tfplan
 

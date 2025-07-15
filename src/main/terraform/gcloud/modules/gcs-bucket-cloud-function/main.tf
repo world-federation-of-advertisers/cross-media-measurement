@@ -76,8 +76,6 @@ resource "terraform_data" "deploy_gcs_cloud_function" {
 
   triggers_replace = [
     var.uber_jar_path,
-    var.extra_env_vars,
-    var.secret_mappings,
   ]
 
   provisioner "local-exec" {
