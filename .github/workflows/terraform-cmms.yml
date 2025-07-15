@@ -119,14 +119,12 @@ jobs:
         for key in "${!coords[@]}"; do
           dest_dir="$TEMP_DIR/$key"
           mkdir -p "$dest_dir"
-          jar_path="$dest_dir/function.jar"
-          rm -f "$jar_path"
           mvn dependency:get \
             -DremoteRepositories=github::default::https://maven.pkg.github.com/world-federation-of-advertisers/cross-media-measurement \
             -Dartifact="${coords[$key]}" \
-            -Ddest="$jar_path"
-        
-          echo "${key}_source_dir=$dest_dir" >> "$GITHUB_OUTPUT"
+            -Ddest="$dest_dir/function.jar"
+          safe_key=${key//-/_}
+          echo "${safe_key}_source_dir=$dest_dir" >> "$GITHUB_OUTPUT"
         done
 
     - name: Verify downloaded JARs
@@ -197,7 +195,7 @@ jobs:
         -var="event_group_secret_mapping=$EVENT_GROUP_SECRET_MAPPING"
         -var="data_watcher_uber_jar_path=${{ steps.download-uber-jars.outputs.data_watcher_source_dir }}"
         -var="requisition_fetcher_uber_jar_path=${{ steps.download-uber-jars.outputs.requisition_fetcher_source_dir }}"
-        -var="event_group_uber_jar_path=${{ steps.download-uber-jars.outputs.event_group_source_dir }}"
+        -var="event_group_uber_jar_path=${{ steps.download-uber-jars.outputs.event_group_sync_source_dir }}"
         -var="image_tag=$IMAGE_TAG"
         -out=tfplan
 
@@ -207,8 +205,7 @@ jobs:
       run: terraform apply -input=false tfplan
 
 
-#          dest_dir="$TEMP_DIR/$key"
-#          mkdir -p "$dest_dir"
+
 #        mvn dependency:get \
 #            -DremoteRepositories=github::default::https://maven.pkg.github.com/world-federation-of-advertisers/cross-media-measurement \
 #            -Dartifact="${coords[$key]}" \
