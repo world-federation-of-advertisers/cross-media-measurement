@@ -40,8 +40,7 @@ jobs:
 
       - name: Build and Deploy Data Watcher
         env:
-#          IMAGE_TAG: ${{ inputs.image-tag }}
-          IMAGE_TAG: "test-1"
+          IMAGE_TAG: ${{ inputs.image-tag }}
           MAVEN_USERNAME: ${{ github.actor }}
           MAVEN_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
         uses: ./.github/actions/build-and-push-uber-jar
@@ -53,8 +52,7 @@ jobs:
 
       - name: Build and Deploy Requisition Fetcher
         env:
-#          IMAGE_TAG: ${{ inputs.image-tag }}
-          IMAGE_TAG: "test-1"
+          IMAGE_TAG: ${{ inputs.image-tag }}
           MAVEN_USERNAME: ${{ github.actor }}
           MAVEN_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
         uses: ./.github/actions/build-and-push-uber-jar
@@ -66,8 +64,7 @@ jobs:
 
       - name: Build and Deploy Event Group Sync
         env:
-#          IMAGE_TAG: ${{ inputs.image-tag }}
-          IMAGE_TAG: "test-1"
+          IMAGE_TAG: ${{ inputs.image-tag }}
           MAVEN_USERNAME: ${{ github.actor }}
           MAVEN_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
         uses: ./.github/actions/build-and-push-uber-jar
