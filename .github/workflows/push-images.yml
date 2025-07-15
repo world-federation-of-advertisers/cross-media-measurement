@@ -72,7 +72,6 @@ jobs:
           MAVEN_USERNAME: ${{ github.actor }}
           MAVEN_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          bazelisk run //src/main/docker:publish_data_watcher_jar
           bazelisk run //src/main/docker:push_all_gke_images 
           bazelisk run //src/main/docker:push_edpa_gke_images
           bazelisk run //src/main/docker/panel_exchange_client:push_all_images

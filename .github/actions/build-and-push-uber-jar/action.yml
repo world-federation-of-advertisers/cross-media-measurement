@@ -1,0 +1,64 @@
+# Copyright 2025 The Cross-Media Measurement Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: Build and Publish JAR
+description: |
+  Builds a fat JAR with Maven and publishes it to GitHub Packages.
+
+inputs:
+  package-version:
+    description: "Maven version to assign"
+    required: true
+  artifact-group-id:
+    description: "The maven group id to deploy"
+    required: true
+  artifact-id:
+    description: "The artifact id to deploy"
+    required: true
+  bazel_target_label:
+    description: "The Bazel target to build"
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+
+    - name: Build uber‑jar
+      shell: bash
+      env:
+        BAZEL_TARGET_LABEL: ${{ inputs.bazel_target_label }}
+      run: |
+        bazel build "$BAZEL_TARGET_LABEL"
+
+    - name: Deploy fat‑jar to GitHub Packages
+      shell: bash
+      env:
+        MAVEN_REPO: https://maven.pkg.github.com/${{ github.repository }}
+        ARTIFACT_VERSION: ${{ inputs.package-version }}
+        ARTIFACT_GROUP_ID: ${{ inputs.artifact-group-id }}
+        ARTIFACT_ID: ${{ inputs.artifact-id }}
+      run: |
+        REL_PATH="${BAZEL_TARGET_LABEL#//}"
+        REL_PATH="${REL_PATH/:/\/}"
+        JAR_PATH="$(bazel info bazel-bin)/${REL_PATH}"
+              
+        mvn -B -e deploy:deploy-file \
+          -Durl=${MAVEN_REPO} \
+          -DrepositoryId=github \
+          -Dfile="$JAR_PATH" \
+          -DgroupId=$ARTIFACT_GROUP_ID \
+          -DartifactId=$ARTIFACT_ID \
+          -Dversion=${ARTIFACT_VERSION} \
+          -DgeneratePom=true \
+          -Dpackaging=jar    

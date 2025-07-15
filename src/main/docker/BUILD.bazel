@@ -2,7 +2,6 @@ load(
     "@wfa_common_jvm//build/rules_oci:defs.bzl",
     "container_push",
     "container_push_all",
-    "maven_deploy",
 )
 load("//build:variables.bzl", "IMAGE_REPOSITORY_SETTINGS")
 load(":images.bzl", "ALL_EKS_IMAGES", "ALL_GKE_IMAGES", "ALL_IMAGES", "ALL_LOCAL_IMAGES", "ALL_REPORTING_GKE_IMAGES", "ALL_TEE_APP_GKE_IMAGES")
@@ -134,13 +133,4 @@ container_push_all(
         "manual",
         "no-remote",
     ],
-)
-
-maven_deploy(
-    name = "publish_data_watcher_jar",
-    artifact_id = "datawatcher-function",
-    group_id = "org.wfanet.measurement.securecomputation.deploy.gcloud.datawatcher",
-    jar = "//src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/datawatcher:DataWatcherFunction_deploy.jar",
-    repository_url = "https://maven.pkg.github.com/world-federation-of-advertisers/cross-media-measurement",
-    version = IMAGE_REPOSITORY_SETTINGS.image_tag,
 )
