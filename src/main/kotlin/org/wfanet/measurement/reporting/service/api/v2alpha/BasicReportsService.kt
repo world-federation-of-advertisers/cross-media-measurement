@@ -376,7 +376,10 @@ class BasicReportsService(
     }
   }
 
-  private suspend fun buildDataProviderPrimitiveReportingSetMap(campaignGroup: ReportingSet, campaignGroupKey: ReportingSetKey): Map<String, ReportingSet> {
+  private suspend fun buildDataProviderPrimitiveReportingSetMap(
+    campaignGroup: ReportingSet,
+    campaignGroupKey: ReportingSetKey,
+  ): Map<String, ReportingSet> {
     val dataProviderEventGroupsMap: Map<String, MutableList<String>> = buildMap {
       for (eventGroupName in campaignGroup.primitive.cmmsEventGroupsList) {
         val eventGroupKey = EventGroupKey.fromName(eventGroupName)
@@ -431,13 +434,13 @@ class BasicReportsService(
                     externalReportingSetId = "a$uuid"
                     this.reportingSet =
                       reportingSet {
-                        this.campaignGroup = campaignGroup.name
-                        primitive =
-                          ReportingSetKt.primitive {
-                            cmmsEventGroups +=
-                              dataProviderEventGroupsMap.getValue(dataProviderName)
-                          }
-                      }
+                          this.campaignGroup = campaignGroup.name
+                          primitive =
+                            ReportingSetKt.primitive {
+                              cmmsEventGroups +=
+                                dataProviderEventGroupsMap.getValue(dataProviderName)
+                            }
+                        }
                         .toInternal(
                           reportingSetId = id,
                           cmmsMeasurementConsumerId = campaignGroupKey.cmmsMeasurementConsumerId,

@@ -1410,7 +1410,8 @@ private suspend fun compileCompositeReportingSet(
   cmmsMeasurementConsumerId: String,
   internalReportingsetsStub: InternalReportingSetsCoroutineStub,
 ): List<InternalReportingSet.WeightedSubsetUnion> {
-  val primitiveReportingSetBasesMap = mutableMapOf<ProtoConversions.PrimitiveReportingSetBasis, Int>()
+  val primitiveReportingSetBasesMap =
+    mutableMapOf<ProtoConversions.PrimitiveReportingSetBasis, Int>()
   val initialFiltersStack = mutableListOf<String>()
 
   if (!rootReportingSet.filter.isNullOrBlank()) {
@@ -1674,7 +1675,8 @@ private fun ReportingSet.SetExpression.Operation.toInternal():
  * Converts a [ReportingSet.SetExpression.Operand] to an
  * [InternalReportingSet.SetExpression.Operand].
  */
-private fun ReportingSet.SetExpression.Operand.toInternal(): InternalReportingSet.SetExpression.Operand {
+private fun ReportingSet.SetExpression.Operand.toInternal():
+  InternalReportingSet.SetExpression.Operand {
   val source = this
   return InternalReportingSetKt.SetExpressionKt.operand {
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
@@ -1739,5 +1741,9 @@ private fun ReportingSet.SetExpression.Operation.toSetOperator(): Operator {
 
 private object ProtoConversions {
   val setExpressionCompiler = SetExpressionCompiler()
-  data class PrimitiveReportingSetBasis(val externalReportingSetId: String, val filters: Set<String>)
+
+  data class PrimitiveReportingSetBasis(
+    val externalReportingSetId: String,
+    val filters: Set<String>,
+  )
 }
