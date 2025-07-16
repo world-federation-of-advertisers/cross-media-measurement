@@ -156,7 +156,6 @@ jobs:
       run: >
         terraform init
         -input=false
-#        -lockfile=readonly
         -backend-config="bucket=$TF_STORAGE_BUCKET"
 
     - name: terraform plan
@@ -221,6 +220,5 @@ jobs:
       run: terraform apply -input=false tfplan
 
 
-#jar_path="$LOCAL_REPO/${groupId//:
-#  /\/}/$artifactId/$version/$artifactId-$version:
-#    $type":
+
+#        -lockfile=readonly
