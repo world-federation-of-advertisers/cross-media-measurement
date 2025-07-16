@@ -2176,13 +2176,9 @@ abstract class InProcessLifeOfAReportIntegrationTest(
                               grps = 0.2f
                             }
                           nonCumulativeUnique =
-                            InternalResultGroupKt.MetricSetKt.uniqueMetricSet {
-                              reach = 2
-                            }
+                            InternalResultGroupKt.MetricSetKt.uniqueMetricSet { reach = 2 }
                           cumulativeUnique =
-                            InternalResultGroupKt.MetricSetKt.uniqueMetricSet {
-                              reach = 2
-                            }
+                            InternalResultGroupKt.MetricSetKt.uniqueMetricSet { reach = 2 }
                         }
                     }
                   componentIntersections +=
