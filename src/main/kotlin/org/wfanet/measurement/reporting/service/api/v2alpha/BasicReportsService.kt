@@ -42,6 +42,7 @@ import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsRequestKt as
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt.ReportingSetsCoroutineStub as InternalReportingSetsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.StreamReportingSetsRequestKt
 import org.wfanet.measurement.internal.reporting.v2.batchGetReportingSetsRequest
+import org.wfanet.measurement.internal.reporting.v2.createReportingSetRequest
 import org.wfanet.measurement.internal.reporting.v2.getBasicReportRequest as internalGetBasicReportRequest
 import org.wfanet.measurement.internal.reporting.v2.getImpressionQualificationFilterRequest
 import org.wfanet.measurement.internal.reporting.v2.listBasicReportsPageToken
@@ -56,7 +57,6 @@ import org.wfanet.measurement.reporting.service.api.ReportingSetNotFoundExceptio
 import org.wfanet.measurement.reporting.service.api.RequiredFieldNotSetException
 import org.wfanet.measurement.reporting.service.api.ServiceException
 import org.wfanet.measurement.reporting.service.internal.Errors as InternalErrors
-import org.wfanet.measurement.internal.reporting.v2.createReportingSetRequest
 import org.wfanet.measurement.reporting.service.internal.ReportingInternalException
 import org.wfanet.measurement.reporting.v2alpha.BasicReport
 import org.wfanet.measurement.reporting.v2alpha.BasicReportsGrpcKt.BasicReportsCoroutineImplBase
@@ -218,18 +218,27 @@ class BasicReportsService(
 
           val createdReportingSet =
             try {
-              internalReportingSetsStub.createReportingSet(
-                createReportingSetRequest {
-                  externalReportingSetId = "a$uuid"
-                  this.reportingSet = reportingSet {
-                    this.campaignGroup = request.basicReport.campaignGroup
-                    primitive =
-                      ReportingSetKt.primitive {
-                        cmmsEventGroups += dataProviderEventGroupsMap.getValue(dataProviderName)
-                      }
-                  }.toInternal(reportingSetId = id, cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId, internalReportingSetsStub = internalReportingSetsStub)
-                }
-              ).toReportingSet()
+              internalReportingSetsStub
+                .createReportingSet(
+                  createReportingSetRequest {
+                    externalReportingSetId = "a$uuid"
+                    this.reportingSet =
+                      reportingSet {
+                          this.campaignGroup = request.basicReport.campaignGroup
+                          primitive =
+                            ReportingSetKt.primitive {
+                              cmmsEventGroups +=
+                                dataProviderEventGroupsMap.getValue(dataProviderName)
+                            }
+                        }
+                        .toInternal(
+                          reportingSetId = id,
+                          cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId,
+                          internalReportingSetsStub = internalReportingSetsStub,
+                        )
+                  }
+                )
+                .toReportingSet()
             } catch (e: StatusException) {
               throw when (InternalErrors.getReason(e)) {
                 InternalErrors.Reason.IMPRESSION_QUALIFICATION_FILTER_NOT_FOUND,

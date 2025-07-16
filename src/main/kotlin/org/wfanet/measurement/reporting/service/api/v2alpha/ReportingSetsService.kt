@@ -222,7 +222,7 @@ class ReportingSetsService(
         getInternalReportingSet(
           reportingSetKey.toName(),
           reportingSetKey.cmmsMeasurementConsumerId,
-          internalReportingSetsStub
+          internalReportingSetsStub,
         )
       } catch (e: StatusException) {
         throw when (e.status.code) {
@@ -286,7 +286,12 @@ class ReportingSetsService(
     val cmmsMeasurementConsumerId =
       checkNotNull(MeasurementConsumerKey.fromName(source.parent)).measurementConsumerId
 
-    val internalReportingSet = source.reportingSet.toInternal(source.reportingSetId, cmmsMeasurementConsumerId, internalReportingSetsStub)
+    val internalReportingSet =
+      source.reportingSet.toInternal(
+        source.reportingSetId,
+        cmmsMeasurementConsumerId,
+        internalReportingSetsStub,
+      )
 
     return internalCreateReportingSetRequest {
       this.reportingSet = internalReportingSet

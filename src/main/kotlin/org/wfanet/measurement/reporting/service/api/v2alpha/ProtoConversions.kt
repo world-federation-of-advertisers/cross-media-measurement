@@ -19,6 +19,8 @@ package org.wfanet.measurement.reporting.service.api.v2alpha
 import com.google.protobuf.Timestamp
 import com.google.type.DateTime
 import io.grpc.Status
+import io.grpc.StatusException
+import io.grpc.StatusRuntimeException
 import java.time.DateTimeException
 import java.time.OffsetDateTime
 import java.time.ZoneId
@@ -63,6 +65,8 @@ import org.wfanet.measurement.internal.reporting.v2.Report as InternalReport
 import org.wfanet.measurement.internal.reporting.v2.ReportKt as InternalReportKt
 import org.wfanet.measurement.internal.reporting.v2.ReportSchedule as InternalReportSchedule
 import org.wfanet.measurement.internal.reporting.v2.ReportingSet as InternalReportingSet
+import org.wfanet.measurement.internal.reporting.v2.ReportingSetKt as InternalReportingSetKt
+import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt.ReportingSetsCoroutineStub as InternalReportingSetsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.StreamMetricsRequest
 import org.wfanet.measurement.internal.reporting.v2.StreamMetricsRequestKt
 import org.wfanet.measurement.internal.reporting.v2.StreamReportingSetsRequest
@@ -70,6 +74,7 @@ import org.wfanet.measurement.internal.reporting.v2.StreamReportingSetsRequestKt
 import org.wfanet.measurement.internal.reporting.v2.StreamReportsRequest
 import org.wfanet.measurement.internal.reporting.v2.StreamReportsRequestKt
 import org.wfanet.measurement.internal.reporting.v2.TimeIntervals as InternalTimeIntervals
+import org.wfanet.measurement.internal.reporting.v2.batchGetReportingSetsRequest
 import org.wfanet.measurement.internal.reporting.v2.customDirectMethodology
 import org.wfanet.measurement.internal.reporting.v2.deterministicCount
 import org.wfanet.measurement.internal.reporting.v2.honestMajorityShareShuffle
@@ -80,12 +85,16 @@ import org.wfanet.measurement.internal.reporting.v2.liquidLegionsV2
 import org.wfanet.measurement.internal.reporting.v2.metricSpec as internalMetricSpec
 import org.wfanet.measurement.internal.reporting.v2.reachOnlyLiquidLegionsSketchParams
 import org.wfanet.measurement.internal.reporting.v2.reachOnlyLiquidLegionsV2
+import org.wfanet.measurement.internal.reporting.v2.reportingSet as internalReportingSet
 import org.wfanet.measurement.internal.reporting.v2.streamMetricsRequest
 import org.wfanet.measurement.internal.reporting.v2.streamReportingSetsRequest
 import org.wfanet.measurement.internal.reporting.v2.streamReportsRequest
 import org.wfanet.measurement.internal.reporting.v2.timeIntervals as internalTimeIntervals
 import org.wfanet.measurement.measurementconsumer.stats.NoiseMechanism as StatsNoiseMechanism
 import org.wfanet.measurement.measurementconsumer.stats.VidSamplingInterval as StatsVidSamplingInterval
+import org.wfanet.measurement.reporting.service.api.CampaignGroupInvalidException
+import org.wfanet.measurement.reporting.service.api.InvalidFieldValueException
+import org.wfanet.measurement.reporting.service.api.RequiredFieldNotSetException
 import org.wfanet.measurement.reporting.v2alpha.CreateMetricRequest
 import org.wfanet.measurement.reporting.v2alpha.ListMetricsPageToken
 import org.wfanet.measurement.reporting.v2alpha.ListReportingSetsPageToken
@@ -107,22 +116,10 @@ import org.wfanet.measurement.reporting.v2alpha.report
 import org.wfanet.measurement.reporting.v2alpha.reportSchedule
 import org.wfanet.measurement.reporting.v2alpha.reportingSet
 import org.wfanet.measurement.reporting.v2alpha.timeIntervals
-import org.wfanet.measurement.internal.reporting.v2.reportingSet as internalReportingSet
-import org.wfanet.measurement.internal.reporting.v2.ReportingSetKt as InternalReportingSetKt
-import io.grpc.StatusException
-import io.grpc.StatusRuntimeException
-import org.wfanet.measurement.internal.reporting.v2.batchGetReportingSetsRequest
-import org.wfanet.measurement.reporting.service.api.CampaignGroupInvalidException
-import org.wfanet.measurement.reporting.service.api.InvalidFieldValueException
-import org.wfanet.measurement.reporting.service.api.RequiredFieldNotSetException
-import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt.ReportingSetsCoroutineStub as InternalReportingSetsCoroutineStub
 
 private val setExpressionCompiler = SetExpressionCompiler()
 
-data class PrimitiveReportingSetBasis(
-  val externalReportingSetId: String,
-  val filters: Set<String>,
-)
+data class PrimitiveReportingSetBasis(val externalReportingSetId: String, val filters: Set<String>)
 
 /** Converts an [InternalMetricSpec.VidSamplingInterval] to a CMMS [VidSamplingInterval]. */
 fun InternalMetricSpec.VidSamplingInterval.toCmmsVidSamplingInterval(): VidSamplingInterval {
@@ -1367,7 +1364,7 @@ suspend fun ReportingSet.toInternal(
   reportingSetId: String,
   cmmsMeasurementConsumerId: String,
   internalReportingSetsStub: InternalReportingSetsCoroutineStub,
-  ): InternalReportingSet {
+): InternalReportingSet {
   val source = this
   return internalReportingSet {
     this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
@@ -1407,7 +1404,6 @@ suspend fun ReportingSet.toInternal(
     }
   }
 }
-
 
 /**
  * Compiles a public composite [ReportingSet] to a list of
@@ -1463,8 +1459,9 @@ suspend fun getInternalReportingSet(
   cmmsMeasurementConsumerId: String,
   internalReportingSetsStub: InternalReportingSetsCoroutineStub,
 ): InternalReportingSet {
-  val reportingSetKey = ReportingSetKey.fromName(reportingSet)
-    ?: throw IllegalArgumentException("Invalid reporting set name: $reportingSet")
+  val reportingSetKey =
+    ReportingSetKey.fromName(reportingSet)
+      ?: throw IllegalArgumentException("Invalid reporting set name: $reportingSet")
 
   return internalReportingSetsStub
     .batchGetReportingSets(
@@ -1550,14 +1547,14 @@ suspend fun buildSetOperationExpressionOperand(
           getInternalReportingSet(
             operand.reportingSet,
             cmmsMeasurementConsumerId,
-            internalReportingSetsStub
+            internalReportingSetsStub,
           )
         } catch (e: StatusException) {
           throw when (e.status.code) {
-            Status.Code.NOT_FOUND ->
-              Status.FAILED_PRECONDITION.withDescription("${operand.reportingSet} not found")
-            else -> Status.INTERNAL
-          }
+              Status.Code.NOT_FOUND ->
+                Status.FAILED_PRECONDITION.withDescription("${operand.reportingSet} not found")
+              else -> Status.INTERNAL
+            }
             .withCause(e)
             .asRuntimeException()
         }
@@ -1569,7 +1566,7 @@ suspend fun buildSetOperationExpressionOperand(
             PrimitiveReportingSetBasis(
               externalReportingSetId = internalReportingSet.externalReportingSetId,
               filters =
-              (filters + internalReportingSet.filter).filter { !it.isNullOrBlank() }.toSet(),
+                (filters + internalReportingSet.filter).filter { !it.isNullOrBlank() }.toSet(),
             )
 
           // Avoid duplicates
@@ -1590,12 +1587,12 @@ suspend fun buildSetOperationExpressionOperand(
 
           // Return the set operation expression
           buildSetOperationExpression(
-            internalReportingSet.composite.toExpression(cmmsMeasurementConsumerId),
-            filters,
-            primitiveReportingSetBasesMap,
-            cmmsMeasurementConsumerId,
-            internalReportingSetsStub,
-          )
+              internalReportingSet.composite.toExpression(cmmsMeasurementConsumerId),
+              filters,
+              primitiveReportingSetBasesMap,
+              cmmsMeasurementConsumerId,
+              internalReportingSetsStub,
+            )
             .also {
               // Remove the reporting set's filter from the stack if there is any.
               if (!internalReportingSet.filter.isNullOrBlank()) {
@@ -1681,8 +1678,7 @@ fun ReportingSet.SetExpression.Operation.toInternal():
  * Converts a [ReportingSet.SetExpression.Operand] to an
  * [InternalReportingSet.SetExpression.Operand].
  */
-fun ReportingSet.SetExpression.Operand.toInternal():
-  InternalReportingSet.SetExpression.Operand {
+fun ReportingSet.SetExpression.Operand.toInternal(): InternalReportingSet.SetExpression.Operand {
   val source = this
   return InternalReportingSetKt.SetExpressionKt.operand {
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
@@ -1719,7 +1715,8 @@ fun ReportingSet.Primitive.toInternal(): InternalReportingSet.Primitive {
   }
 }
 
-/** Converts a [ReportingSet.SetExpression.Operation] to an [Operator].
+/**
+ * Converts a [ReportingSet.SetExpression.Operation] to an [Operator].
  *
  * @throws [RequiredFieldNotSetException] when operation is unspecified
  * @throws [InvalidFieldValueException] when operation is invalid
