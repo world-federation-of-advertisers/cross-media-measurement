@@ -154,9 +154,9 @@ message ResultGroupMetricSpec {
     BasicMetricSetSpec cumulative = 2 [(google.api.field_behavior) = IMMUTABLE];
 
     message Unique {
-        // The unique reach of each item in reporting_unit.components
-        // with respect to all other components
-        bool reach = 1 [(google.api.field_behavior) = IMMUTABLE];
+      // The unique reach of each item in reporting_unit.components with respect
+      // to all other components
+      bool reach = 1 [(google.api.field_behavior) = IMMUTABLE];
     }
 
     Unique non_cumulative_unique = 4 [(google.api.field_behavior) = IMMUTABLE];
@@ -370,7 +370,7 @@ message ResultGroup {
       BasicMetricSet cumulative = 2 [(google.api.field_behavior) = IMMUTABLE];
 
       message Unique {
-          int32 reach = 1 [(google.api.field_behavior) = IMMUTABLE];
+        int32 reach = 1 [(google.api.field_behavior) = IMMUTABLE];
       }
 
       Unique non_cumulative_unique = 4 [(google.api.field_behavior) = IMMUTABLE];
