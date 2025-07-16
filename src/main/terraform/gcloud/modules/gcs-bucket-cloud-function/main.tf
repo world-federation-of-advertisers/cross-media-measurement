@@ -95,7 +95,7 @@ resource "terraform_data" "deploy_gcs_cloud_function" {
       TRIGGER_SERVICE_ACCOUNT = google_service_account.cloud_function_trigger_service_account.email
       EXTRA_ENV_VARS          = var.extra_env_vars
       SECRET_MAPPINGS         = var.secret_mappings
-      UBER_JAR_DIRECTORY      = var.uber_jar_directory
+      UBER_JAR_DIRECTORY      = var.uber_jar_dir
     }
     command = <<-EOT
       #!/bin/bash

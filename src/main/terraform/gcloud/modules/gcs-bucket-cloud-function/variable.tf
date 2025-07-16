@@ -66,7 +66,7 @@ variable "uber_jar_path" {
   nullable    = false
 }
 
-variable "uber_jar_directory" {
+variable "uber_jar_dir" {
   description = "The directory that contains the uber jar."
   type        = string
   nullable    = false
