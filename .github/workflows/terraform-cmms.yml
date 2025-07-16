@@ -158,6 +158,7 @@ jobs:
       run: >
         terraform init
         -input=false
+        -lockfile=readonly
         -backend-config="bucket=$TF_STORAGE_BUCKET"
 
     - name: terraform plan
@@ -223,7 +224,3 @@ jobs:
       if: ${{ inputs.apply }}
       working-directory: ${{ env.GCLOUD_MODULE_PATH }}
       run: terraform apply -input=false tfplan
-
-
-
-#        -lockfile=readonly
