@@ -438,9 +438,9 @@ class ComputationsServiceTest {
       NON_AGGREGATOR_COMPUTATION_DETAILS,
       listOf(),
     )
-    fakeDatabase.claimedComputationIds.add(claimed)
-    val claimedAtStart = service.getComputationToken(claimed.toGetTokenRequest()).token
     val owner = "TheOwner"
+    fakeDatabase.claimedComputations[claimed] = owner
+    val claimedAtStart = service.getComputationToken(claimed.toGetTokenRequest()).token
     val request =
       ClaimWorkRequest.newBuilder()
         .setComputationType(ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2)
