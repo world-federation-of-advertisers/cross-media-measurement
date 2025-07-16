@@ -170,93 +170,8 @@ class BasicReportsService(
         }
       }
 
-    val dataProviderEventGroupsMap: Map<String, MutableList<String>> = buildMap {
-      for (eventGroupName in campaignGroup.primitive.cmmsEventGroupsList) {
-        val eventGroupKey = EventGroupKey.fromName(eventGroupName)
-        val eventGroupsList = getOrDefault(eventGroupKey!!.parentKey.toName(), mutableListOf())
-        eventGroupsList.add(eventGroupName)
-        put(eventGroupKey.parentKey.toName(), eventGroupsList)
-      }
-    }
-
-    // For determining whether a ReportingSet already exists.
-    val campaignGroupReportingSetMap =
-      buildMap<ByteString, ReportingSet> {
-        internalReportingSetsStub
-          .streamReportingSets(
-            streamReportingSetsRequest {
-              filter =
-                StreamReportingSetsRequestKt.filter {
-                  cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
-                  externalCampaignGroupId = campaignGroupKey.reportingSetId
-                }
-              limit = 1000
-            }
-          )
-          .collect {
-            val reportingSet = it.toReportingSet()
-            put(reportingSet.copy { clearName() }.toByteString(), reportingSet)
-          }
-      }
-
-    // Map of DataProvider resource names to primitive Reporting Sets.
-    val dataProviderPrimitiveReportingSetMap: Map<String, ReportingSet> = buildMap {
-      for (dataProviderName in dataProviderEventGroupsMap.keys) {
-        val reportingSet = reportingSet {
-          this.campaignGroup = request.basicReport.campaignGroup
-          primitive =
-            ReportingSetKt.primitive {
-              cmmsEventGroups += dataProviderEventGroupsMap.getValue(dataProviderName)
-            }
-        }
-
-        if (campaignGroupReportingSetMap.containsKey(reportingSet.toByteString())) {
-          put(dataProviderName, campaignGroupReportingSetMap.getValue(reportingSet.toByteString()))
-        } else {
-          val uuid = UUID.randomUUID()
-          val id = "a$uuid"
-
-          val createdReportingSet =
-            try {
-              internalReportingSetsStub
-                .createReportingSet(
-                  createReportingSetRequest {
-                    externalReportingSetId = "a$uuid"
-                    this.reportingSet =
-                      reportingSet {
-                          this.campaignGroup = request.basicReport.campaignGroup
-                          primitive =
-                            ReportingSetKt.primitive {
-                              cmmsEventGroups +=
-                                dataProviderEventGroupsMap.getValue(dataProviderName)
-                            }
-                        }
-                        .toInternal(
-                          reportingSetId = id,
-                          cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId,
-                          internalReportingSetsStub = internalReportingSetsStub,
-                        )
-                  }
-                )
-                .toReportingSet()
-            } catch (e: StatusException) {
-              throw when (InternalErrors.getReason(e)) {
-                InternalErrors.Reason.IMPRESSION_QUALIFICATION_FILTER_NOT_FOUND,
-                InternalErrors.Reason.BASIC_REPORT_NOT_FOUND,
-                InternalErrors.Reason.MEASUREMENT_CONSUMER_NOT_FOUND,
-                InternalErrors.Reason.BASIC_REPORT_ALREADY_EXISTS,
-                InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
-                InternalErrors.Reason.INVALID_FIELD_VALUE,
-                InternalErrors.Reason.METRIC_NOT_FOUND,
-                InternalErrors.Reason.INVALID_METRIC_STATE_TRANSITION,
-                null -> Status.INTERNAL.withCause(e).asRuntimeException()
-              }
-            }
-
-          put(dataProviderName, createdReportingSet)
-        }
-      }
-    }
+    val dataProviderPrimitiveReportingSetMap: Map<String, ReportingSet> =
+      buildDataProviderPrimitiveReportingSetMap(campaignGroup, campaignGroupKey)
 
     // TODO(@tristanvuong2021): Will be implemented for phase 2
     return super.createBasicReport(request)
@@ -459,6 +374,98 @@ class BasicReportsService(
         pageSize = finalPageSize
       }
     }
+  }
+
+  private suspend fun buildDataProviderPrimitiveReportingSetMap(campaignGroup: ReportingSet, campaignGroupKey: ReportingSetKey): Map<String, ReportingSet> {
+    val dataProviderEventGroupsMap: Map<String, MutableList<String>> = buildMap {
+      for (eventGroupName in campaignGroup.primitive.cmmsEventGroupsList) {
+        val eventGroupKey = EventGroupKey.fromName(eventGroupName)
+        val eventGroupsList = getOrDefault(eventGroupKey!!.parentKey.toName(), mutableListOf())
+        eventGroupsList.add(eventGroupName)
+        put(eventGroupKey.parentKey.toName(), eventGroupsList)
+      }
+    }
+
+    // For determining whether a ReportingSet already exists.
+    val campaignGroupReportingSetMap =
+      buildMap<ByteString, ReportingSet> {
+        internalReportingSetsStub
+          .streamReportingSets(
+            streamReportingSetsRequest {
+              filter =
+                StreamReportingSetsRequestKt.filter {
+                  cmmsMeasurementConsumerId = campaignGroupKey.cmmsMeasurementConsumerId
+                  externalCampaignGroupId = campaignGroupKey.reportingSetId
+                }
+              limit = 1000
+            }
+          )
+          .collect {
+            val reportingSet = it.toReportingSet()
+            put(reportingSet.copy { clearName() }.toByteString(), reportingSet)
+          }
+      }
+
+    // Map of DataProvider resource names to primitive Reporting Sets.
+    val dataProviderPrimitiveReportingSetMap: Map<String, ReportingSet> = buildMap {
+      for (dataProviderName in dataProviderEventGroupsMap.keys) {
+        val reportingSet = reportingSet {
+          this.campaignGroup = campaignGroup.name
+          primitive =
+            ReportingSetKt.primitive {
+              cmmsEventGroups += dataProviderEventGroupsMap.getValue(dataProviderName)
+            }
+        }
+
+        if (campaignGroupReportingSetMap.containsKey(reportingSet.toByteString())) {
+          put(dataProviderName, campaignGroupReportingSetMap.getValue(reportingSet.toByteString()))
+        } else {
+          val uuid = UUID.randomUUID()
+          val id = "a$uuid"
+
+          val createdReportingSet =
+            try {
+              internalReportingSetsStub
+                .createReportingSet(
+                  createReportingSetRequest {
+                    externalReportingSetId = "a$uuid"
+                    this.reportingSet =
+                      reportingSet {
+                        this.campaignGroup = campaignGroup.name
+                        primitive =
+                          ReportingSetKt.primitive {
+                            cmmsEventGroups +=
+                              dataProviderEventGroupsMap.getValue(dataProviderName)
+                          }
+                      }
+                        .toInternal(
+                          reportingSetId = id,
+                          cmmsMeasurementConsumerId = campaignGroupKey.cmmsMeasurementConsumerId,
+                          internalReportingSetsStub = internalReportingSetsStub,
+                        )
+                  }
+                )
+                .toReportingSet()
+            } catch (e: StatusException) {
+              throw when (InternalErrors.getReason(e)) {
+                InternalErrors.Reason.IMPRESSION_QUALIFICATION_FILTER_NOT_FOUND,
+                InternalErrors.Reason.BASIC_REPORT_NOT_FOUND,
+                InternalErrors.Reason.MEASUREMENT_CONSUMER_NOT_FOUND,
+                InternalErrors.Reason.BASIC_REPORT_ALREADY_EXISTS,
+                InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
+                InternalErrors.Reason.INVALID_FIELD_VALUE,
+                InternalErrors.Reason.METRIC_NOT_FOUND,
+                InternalErrors.Reason.INVALID_METRIC_STATE_TRANSITION,
+                null -> Status.INTERNAL.withCause(e).asRuntimeException()
+              }
+            }
+
+          put(dataProviderName, createdReportingSet)
+        }
+      }
+    }
+
+    return dataProviderPrimitiveReportingSetMap
   }
 
   object Permission {

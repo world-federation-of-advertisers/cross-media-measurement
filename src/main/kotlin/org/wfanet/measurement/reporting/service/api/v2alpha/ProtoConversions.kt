@@ -117,10 +117,6 @@ import org.wfanet.measurement.reporting.v2alpha.reportSchedule
 import org.wfanet.measurement.reporting.v2alpha.reportingSet
 import org.wfanet.measurement.reporting.v2alpha.timeIntervals
 
-private val setExpressionCompiler = SetExpressionCompiler()
-
-data class PrimitiveReportingSetBasis(val externalReportingSetId: String, val filters: Set<String>)
-
 /** Converts an [InternalMetricSpec.VidSamplingInterval] to a CMMS [VidSamplingInterval]. */
 fun InternalMetricSpec.VidSamplingInterval.toCmmsVidSamplingInterval(): VidSamplingInterval {
   val source = this
@@ -1409,12 +1405,12 @@ suspend fun ReportingSet.toInternal(
  * Compiles a public composite [ReportingSet] to a list of
  * [InternalReportingSet.WeightedSubsetUnion]s.
  */
-suspend fun compileCompositeReportingSet(
+private suspend fun compileCompositeReportingSet(
   rootReportingSet: ReportingSet,
   cmmsMeasurementConsumerId: String,
   internalReportingsetsStub: InternalReportingSetsCoroutineStub,
 ): List<InternalReportingSet.WeightedSubsetUnion> {
-  val primitiveReportingSetBasesMap = mutableMapOf<PrimitiveReportingSetBasis, Int>()
+  val primitiveReportingSetBasesMap = mutableMapOf<ProtoConversions.PrimitiveReportingSetBasis, Int>()
   val initialFiltersStack = mutableListOf<String>()
 
   if (!rootReportingSet.filter.isNullOrBlank()) {
@@ -1430,7 +1426,7 @@ suspend fun compileCompositeReportingSet(
       internalReportingsetsStub,
     )
 
-  val idToPrimitiveReportingSetBasis: Map<Int, PrimitiveReportingSetBasis> =
+  val idToPrimitiveReportingSetBasis: Map<Int, ProtoConversions.PrimitiveReportingSetBasis> =
     primitiveReportingSetBasesMap.entries.associateBy({ it.value }) { it.key }
 
   if (idToPrimitiveReportingSetBasis.size != primitiveReportingSetBasesMap.size) {
@@ -1438,7 +1434,7 @@ suspend fun compileCompositeReportingSet(
   }
 
   val weightedSubsetUnions: List<WeightedSubsetUnion> =
-    setExpressionCompiler.compileSetExpression(
+    ProtoConversions.setExpressionCompiler.compileSetExpression(
       setOperationExpression,
       idToPrimitiveReportingSetBasis.size,
     )
@@ -1482,10 +1478,10 @@ suspend fun getInternalReportingSet(
  * @throws [InvalidFieldValueException] when ReportingSet name in lhs is invalid
  * @throws [InvalidFieldValueException] when ReportingSet name in rhs is invalid
  */
-suspend fun buildSetOperationExpression(
+private suspend fun buildSetOperationExpression(
   expression: ReportingSet.SetExpression,
   filters: MutableList<String>,
-  primitiveReportingSetBasesMap: MutableMap<PrimitiveReportingSetBasis, Int>,
+  primitiveReportingSetBasesMap: MutableMap<ProtoConversions.PrimitiveReportingSetBasis, Int>,
   cmmsMeasurementConsumerId: String,
   internalReportingSetsStub: InternalReportingSetsCoroutineStub,
 ): SetOperationExpression {
@@ -1532,10 +1528,10 @@ suspend fun buildSetOperationExpression(
  * @throws [StatusRuntimeException] when ReprtingSet in expression not found
  * @throws [IllegalArgumentException] when ReportingSet resource name invalid
  */
-suspend fun buildSetOperationExpressionOperand(
+private suspend fun buildSetOperationExpressionOperand(
   operand: ReportingSet.SetExpression.Operand,
   filters: MutableList<String>,
-  primitiveReportingSetBasesMap: MutableMap<PrimitiveReportingSetBasis, Int>,
+  primitiveReportingSetBasesMap: MutableMap<ProtoConversions.PrimitiveReportingSetBasis, Int>,
   cmmsMeasurementConsumerId: String,
   internalReportingSetsStub: InternalReportingSetsCoroutineStub,
 ): Operand? {
@@ -1563,7 +1559,7 @@ suspend fun buildSetOperationExpressionOperand(
         // Reach the leaf node
         InternalReportingSet.ValueCase.PRIMITIVE -> {
           val primitiveReportingSetBasis =
-            PrimitiveReportingSetBasis(
+            ProtoConversions.PrimitiveReportingSetBasis(
               externalReportingSetId = internalReportingSet.externalReportingSetId,
               filters =
                 (filters + internalReportingSet.filter).filter { !it.isNullOrBlank() }.toSet(),
@@ -1621,9 +1617,9 @@ suspend fun buildSetOperationExpressionOperand(
 }
 
 /** Builds an [InternalReportingSet.WeightedSubsetUnion] from a [WeightedSubsetUnion]. */
-fun buildInternalWeightedSubsetUnion(
+private fun buildInternalWeightedSubsetUnion(
   weightedSubsetUnion: WeightedSubsetUnion,
-  idToPrimitiveReportingSetBasis: Map<Int, PrimitiveReportingSetBasis>,
+  idToPrimitiveReportingSetBasis: Map<Int, ProtoConversions.PrimitiveReportingSetBasis>,
 ): InternalReportingSet.WeightedSubsetUnion {
   return InternalReportingSetKt.weightedSubsetUnion {
     primitiveReportingSetBases +=
@@ -1640,7 +1636,7 @@ fun buildInternalWeightedSubsetUnion(
 }
 
 /** Converts a [ReportingSet.SetExpression] to an [InternalReportingSet.SetExpression]. */
-fun ReportingSet.SetExpression.toInternal(): InternalReportingSet.SetExpression {
+private fun ReportingSet.SetExpression.toInternal(): InternalReportingSet.SetExpression {
   val source = this
 
   return InternalReportingSetKt.setExpression {
@@ -1657,7 +1653,7 @@ fun ReportingSet.SetExpression.toInternal(): InternalReportingSet.SetExpression 
  * Converts a [ReportingSet.SetExpression.Operation] to an
  * [InternalReportingSet.SetExpression.Operation].
  */
-fun ReportingSet.SetExpression.Operation.toInternal():
+private fun ReportingSet.SetExpression.Operation.toInternal():
   InternalReportingSet.SetExpression.Operation {
   return when (this) {
     ReportingSet.SetExpression.Operation.UNION -> {
@@ -1678,7 +1674,7 @@ fun ReportingSet.SetExpression.Operation.toInternal():
  * Converts a [ReportingSet.SetExpression.Operand] to an
  * [InternalReportingSet.SetExpression.Operand].
  */
-fun ReportingSet.SetExpression.Operand.toInternal(): InternalReportingSet.SetExpression.Operand {
+private fun ReportingSet.SetExpression.Operand.toInternal(): InternalReportingSet.SetExpression.Operand {
   val source = this
   return InternalReportingSetKt.SetExpressionKt.operand {
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
@@ -1696,7 +1692,7 @@ fun ReportingSet.SetExpression.Operand.toInternal(): InternalReportingSet.SetExp
 }
 
 /** Converts a [ReportingSet.Primitive] to an [InternalReportingSet.Primitive]. */
-fun ReportingSet.Primitive.toInternal(): InternalReportingSet.Primitive {
+private fun ReportingSet.Primitive.toInternal(): InternalReportingSet.Primitive {
   val source = this
 
   return InternalReportingSetKt.primitive {
@@ -1721,7 +1717,7 @@ fun ReportingSet.Primitive.toInternal(): InternalReportingSet.Primitive {
  * @throws [RequiredFieldNotSetException] when operation is unspecified
  * @throws [InvalidFieldValueException] when operation is invalid
  */
-fun ReportingSet.SetExpression.Operation.toSetOperator(): Operator {
+private fun ReportingSet.SetExpression.Operation.toSetOperator(): Operator {
   return when (this) {
     ReportingSet.SetExpression.Operation.UNION -> {
       Operator.UNION
@@ -1739,4 +1735,9 @@ fun ReportingSet.SetExpression.Operation.toSetOperator(): Operator {
       throw InvalidFieldValueException("reporting_set.composite.expression.operation")
     }
   }
+}
+
+private object ProtoConversions {
+  val setExpressionCompiler = SetExpressionCompiler()
+  data class PrimitiveReportingSetBasis(val externalReportingSetId: String, val filters: Set<String>)
 }
