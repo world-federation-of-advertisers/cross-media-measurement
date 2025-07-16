@@ -118,8 +118,7 @@ jobs:
     - name: Download Uber JARs using Maven
       id: download-uber-jars
       env:
-#        IMAGE_TAG: ${{ steps.get-artifact-version.outputs.artifact-version }}
-        IMAGE_TAG: "0.0.0--SNAPSHOT"
+        IMAGE_TAG: ${{ steps.get-artifact-version.outputs.artifact-version }}
       run: |
         set -euo pipefail
         TEMP_DIR="${RUNNER_TEMP}/uber-jars"
