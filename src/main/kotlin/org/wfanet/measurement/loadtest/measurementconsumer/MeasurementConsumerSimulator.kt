@@ -66,6 +66,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.duration
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.impression
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reachAndFrequency
+import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reportingMetadata
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.vidSamplingInterval
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.PopulationKey
@@ -154,6 +155,8 @@ abstract class MeasurementConsumerSimulator(
   private val expectedDirectNoiseMechanism: NoiseMechanism,
   private val initialResultPollingDelay: Duration,
   private val maximumResultPollingDelay: Duration,
+  private val eventGroupFilter: ((EventGroup) -> Boolean)? = null,
+  private val reportName: String = "some-report-id",
 ) {
   /** Cache of resource name to [Certificate]. */
   private val certificateCache = mutableMapOf<String, Certificate>()
@@ -311,27 +314,35 @@ abstract class MeasurementConsumerSimulator(
   /**
    * A sequence of operations done in the simulator involving a direct reach and frequency
    * measurement.
+   * 1. Requisitions are all created before results are checked for any since requistions may be
+   *    grouped.
+   * 2. Poll for requisition results.
    *
    * @numMeasurements - The number of incremental measurements to request within the time period.
    */
   suspend fun testDirectReachAndFrequency(runId: String, numMeasurements: Int) {
     // Create a new measurement on behalf of the measurement consumer.
     val measurementConsumer = getMeasurementConsumer(measurementConsumerData.name)
-    (1..numMeasurements).map { measurementNumber ->
-      val measurementInfo =
-        createMeasurement(
-          measurementConsumer,
-          runId,
-          ::newReachAndFrequencyMeasurementSpec,
-          DataProviderKt.capabilities { honestMajorityShareShuffleSupported = false },
-          DEFAULT_VID_SAMPLING_INTERVAL,
-          measurementNumber.toDouble() / numMeasurements,
-          1,
-        )
+    val measurementInfos =
+      (1..numMeasurements).map { measurementNumber ->
+        val measurementInfo =
+          createMeasurement(
+            measurementConsumer,
+            runId,
+            ::newReachAndFrequencyMeasurementSpec,
+            DataProviderKt.capabilities { honestMajorityShareShuffleSupported = false },
+            DEFAULT_VID_SAMPLING_INTERVAL,
+            measurementNumber.toDouble() / numMeasurements,
+            1,
+          )
+        val measurementName = measurementInfo.measurement.name
+        logger.info("Created direct reach and frequency measurement $measurementName.")
+        measurementInfo
+      }
+    measurementInfos.forEachIndexed { measurementNumber, measurementInfo ->
       val measurementName = measurementInfo.measurement.name
-      logger.info("Created direct reach and frequency measurement $measurementName.")
-
       // Get the CMMS computed result and compare it with the expected result.
+      logger.info("Polling for result for $measurementNumber/$numMeasurements: $measurementInfo")
       val reachAndFrequencyResult = pollForResult { getReachAndFrequencyResult(measurementName) }
       logger.info("Got direct reach and frequency result from Kingdom: $reachAndFrequencyResult")
 
@@ -837,6 +848,7 @@ abstract class MeasurementConsumerSimulator(
 
     val requisitions: List<RequisitionInfo> =
       eventGroups
+        .filter { eventGroupFilter?.invoke(it) ?: true }
         .groupBy { extractDataProviderKey(it.name) }
         .entries
         .filter {
@@ -1172,6 +1184,7 @@ abstract class MeasurementConsumerSimulator(
       reach = MeasurementSpecKt.reach { privacyParams = outputDpParams }
       this.vidSamplingInterval = vidSamplingInterval
       this.nonceHashes += nonceHashes
+      this.reportingMetadata = reportingMetadata { report = reportName }
     }
   }
 
@@ -1189,6 +1202,7 @@ abstract class MeasurementConsumerSimulator(
       }
       this.vidSamplingInterval = vidSamplingInterval
       this.nonceHashes += nonceHashes
+      this.reportingMetadata = reportingMetadata { report = reportName }
     }
   }
 

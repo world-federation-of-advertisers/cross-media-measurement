@@ -43,4 +43,7 @@ enum ErrorCode {
   /** The version from the request ComputationToken does not match the persisted
    * value. */
   COMPUTATION_TOKEN_VERSION_MISMATCH = 7;
+
+  /** Lock owner mismatch for computation. */
+  COMPUTATION_LOCK_OWNER_MISMATCH = 8;
 }
