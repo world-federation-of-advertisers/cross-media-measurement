@@ -143,11 +143,12 @@ jobs:
           IFS=':' read -r groupId artifactId version type <<<"${coords[$key]}"
           jar_dir="$LOCAL_REPO/${groupId//./\/}/$artifactId/$version"
           jar_path=$(find "$jar_dir" -maxdepth 1 -type f -name "$artifactId-*.jar" ! -name "*sources*" | head -n1)
-          cp "$jar_path" "$dest_dir/function.jar"
+          filename="${version}-function.jar"
+          cp "$jar_path" "$dest_dir/$filename"
           
           safe_key=${key//-/_}
           echo "${safe_key}_source_dir=$dest_dir" >> "$GITHUB_OUTPUT"
-          echo "${safe_key}_source_path=$dest_dir/function.jar" >> "$GITHUB_OUTPUT"
+          echo "${safe_key}_source_path=$dest_dir/$filename" >> "$GITHUB_OUTPUT"
         done
 
     - name: terraform init
