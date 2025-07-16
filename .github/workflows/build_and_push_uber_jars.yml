@@ -15,9 +15,6 @@
 name: Build and push uber jar to Github packages
 
 on:
-  push:
-    branches:
-      - marcopremier/deploy_cloudfunctions_using_terraform
   release:
     types: [ published ]
   workflow_dispatch:
