@@ -26,6 +26,14 @@ resource "google_service_account_iam_member" "allow_terraform_to_use_cloud_funct
   member             = "serviceAccount:${var.terraform_service_account}"
 }
 
+data "local_file" "uber_jar" {
+  filename = var.uber_jar_path
+}
+
+locals {
+  uber_jar_sha256 = sha256(data.local_file.uber_jar.content)
+}
+
 resource "terraform_data" "deploy_http_cloud_function" {
 
   depends_on = [
@@ -33,9 +41,7 @@ resource "terraform_data" "deploy_http_cloud_function" {
     google_service_account_iam_member.allow_terraform_to_use_cloud_function_service_account,
   ]
 
-  triggers_replace = [
-    var.uber_jar_path,
-  ]
+  triggers_replace = [local.uber_jar_sha256]
 
   provisioner "local-exec" {
     interpreter = ["/bin/bash", "-c"]
