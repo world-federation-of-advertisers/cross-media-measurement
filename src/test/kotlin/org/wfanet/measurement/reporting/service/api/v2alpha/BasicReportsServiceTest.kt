@@ -2464,7 +2464,7 @@ class BasicReportsServiceTest {
                   component =
                     ResultGroupMetricSpecKt.componentMetricSetSpec {
                       nonCumulativeUnique =
-                        ResultGroupMetricSpecKt.ComponentMetricSetSpecKt.unique { reach = true }
+                        ResultGroupMetricSpecKt.uniqueMetricSetSpec { reach = true }
                     }
                 }
               }
@@ -3057,11 +3057,11 @@ class BasicReportsServiceTest {
                               grps = 0.2f
                             }
                           nonCumulativeUnique =
-                            InternalResultGroupKt.MetricSetKt.ComponentMetricSetKt.unique {
+                            InternalResultGroupKt.MetricSetKt.uniqueMetricSet {
                               reach = 5
                             }
                           cumulativeUnique =
-                            InternalResultGroupKt.MetricSetKt.ComponentMetricSetKt.unique {
+                            InternalResultGroupKt.MetricSetKt.uniqueMetricSet {
                               reach = 5
                             }
                         }
@@ -3096,11 +3096,11 @@ class BasicReportsServiceTest {
                               grps = 0.2f
                             }
                           nonCumulativeUnique =
-                            InternalResultGroupKt.MetricSetKt.ComponentMetricSetKt.unique {
+                            InternalResultGroupKt.MetricSetKt.uniqueMetricSet {
                               reach = 10
                             }
                           cumulativeUnique =
-                            InternalResultGroupKt.MetricSetKt.ComponentMetricSetKt.unique {
+                            InternalResultGroupKt.MetricSetKt.uniqueMetricSet {
                               reach = 10
                             }
                         }
@@ -3277,11 +3277,11 @@ class BasicReportsServiceTest {
                               grps = 0.2f
                             }
                           nonCumulativeUnique =
-                            InternalResultGroupKt.MetricSetKt.ComponentMetricSetKt.unique {
+                            InternalResultGroupKt.MetricSetKt.uniqueMetricSet {
                               reach = 5
                             }
                           cumulativeUnique =
-                            InternalResultGroupKt.MetricSetKt.ComponentMetricSetKt.unique {
+                            InternalResultGroupKt.MetricSetKt.uniqueMetricSet {
                               reach = 5
                             }
                         }
@@ -3433,11 +3433,11 @@ class BasicReportsServiceTest {
                               grps = 0.2f
                             }
                           nonCumulativeUnique =
-                            InternalResultGroupKt.MetricSetKt.ComponentMetricSetKt.unique {
+                            InternalResultGroupKt.MetricSetKt.uniqueMetricSet {
                               reach = 5
                             }
                           cumulativeUnique =
-                            InternalResultGroupKt.MetricSetKt.ComponentMetricSetKt.unique {
+                            InternalResultGroupKt.MetricSetKt.uniqueMetricSet {
                               reach = 5
                             }
                         }
@@ -3700,9 +3700,9 @@ class BasicReportsServiceTest {
                                 grps = 0.2f
                               }
                             nonCumulativeUnique =
-                              ResultGroupKt.MetricSetKt.ComponentMetricSetKt.unique { reach = 5 }
+                              ResultGroupKt.MetricSetKt.uniqueMetricSet { reach = 5 }
                             cumulativeUnique =
-                              ResultGroupKt.MetricSetKt.ComponentMetricSetKt.unique { reach = 5 }
+                              ResultGroupKt.MetricSetKt.uniqueMetricSet { reach = 5 }
                           }
                       }
                     components +=
@@ -3735,9 +3735,9 @@ class BasicReportsServiceTest {
                                 grps = 0.2f
                               }
                             nonCumulativeUnique =
-                              ResultGroupKt.MetricSetKt.ComponentMetricSetKt.unique { reach = 10 }
+                              ResultGroupKt.MetricSetKt.uniqueMetricSet { reach = 10 }
                             cumulativeUnique =
-                              ResultGroupKt.MetricSetKt.ComponentMetricSetKt.unique { reach = 10 }
+                              ResultGroupKt.MetricSetKt.uniqueMetricSet { reach = 10 }
                           }
                       }
                     componentIntersections +=
@@ -3920,9 +3920,9 @@ class BasicReportsServiceTest {
                                 grps = 0.2f
                               }
                             nonCumulativeUnique =
-                              ResultGroupKt.MetricSetKt.ComponentMetricSetKt.unique { reach = 5 }
+                              ResultGroupKt.MetricSetKt.uniqueMetricSet { reach = 5 }
                             cumulativeUnique =
-                              ResultGroupKt.MetricSetKt.ComponentMetricSetKt.unique { reach = 5 }
+                              ResultGroupKt.MetricSetKt.uniqueMetricSet { reach = 5 }
                           }
                       }
                     componentIntersections +=
@@ -4080,9 +4080,9 @@ class BasicReportsServiceTest {
                                 grps = 0.2f
                               }
                             nonCumulativeUnique =
-                              ResultGroupKt.MetricSetKt.ComponentMetricSetKt.unique { reach = 5 }
+                              ResultGroupKt.MetricSetKt.uniqueMetricSet { reach = 5 }
                             cumulativeUnique =
-                              ResultGroupKt.MetricSetKt.ComponentMetricSetKt.unique { reach = 5 }
+                              ResultGroupKt.MetricSetKt.uniqueMetricSet { reach = 5 }
                           }
                       }
                     componentIntersections +=
@@ -4939,9 +4939,9 @@ class BasicReportsServiceTest {
                   grps = true
                 }
               nonCumulativeUnique =
-                ResultGroupMetricSpecKt.ComponentMetricSetSpecKt.unique { reach = true }
+                ResultGroupMetricSpecKt.uniqueMetricSetSpec { reach = true }
               cumulativeUnique =
-                ResultGroupMetricSpecKt.ComponentMetricSetSpecKt.unique { reach = true }
+                ResultGroupMetricSpecKt.uniqueMetricSetSpec { reach = true }
             }
         }
       }
