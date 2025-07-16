@@ -184,6 +184,7 @@ module "data_watcher_cloud_function" {
   extra_env_vars                                = var.cloud_function_configs.data_watcher.extra_env_vars
   secret_mappings                               = var.cloud_function_configs.data_watcher.secret_mappings
   uber_jar_path                                 = var.cloud_function_configs.data_watcher.uber_jar_path
+  uber_jar_dir                                  = var.cloud_function_configs.data_watcher.uber_jar_dir
 }
 
 module "requisition_fetcher_cloud_function" {
@@ -196,6 +197,7 @@ module "requisition_fetcher_cloud_function" {
   extra_env_vars                            = var.cloud_function_configs.requisition_fetcher.extra_env_vars
   secret_mappings                           = var.cloud_function_configs.requisition_fetcher.secret_mappings
   uber_jar_path                             = var.cloud_function_configs.requisition_fetcher.uber_jar_path
+  uber_jar_dir                              = var.cloud_function_configs.requisition_fetcher.uber_jar_dir
 }
 
 module "event_group_sync_cloud_function" {
@@ -208,6 +210,7 @@ module "event_group_sync_cloud_function" {
   extra_env_vars                            = var.cloud_function_configs.event_group_sync.extra_env_vars
   secret_mappings                           = var.cloud_function_configs.event_group_sync.secret_mappings
   uber_jar_path                             = var.cloud_function_configs.event_group_sync.uber_jar_path
+  uber_jar_dir                              = var.cloud_function_configs.event_group_sync.uber_jar_dir
 }
 
 resource "google_secret_manager_secret_iam_member" "secret_accessor" {

@@ -223,5 +223,6 @@ variable "cloud_function_configs" {
     extra_env_vars      = string
     secret_mappings     = string
     uber_jar_path       = string
+    uber_jar_dir        = string
   }))
 }

@@ -125,6 +125,7 @@ locals {
       extra_env_vars      = var.data_watcher_env_var
       secret_mappings     = var.data_watcher_secret_mapping
       uber_jar_path       = var.data_watcher_uber_jar_path
+      uber_jar_dir        = var.data_watcher_uber_jar_dir
     },
     requisition_fetcher = {
       function_name       = var.requisition_fetcher_function_name
@@ -132,6 +133,7 @@ locals {
       extra_env_vars      = var.requisition_fetcher_env_var
       secret_mappings     = var.requisition_fetcher_secret_mapping
       uber_jar_path       = var.requisition_fetcher_uber_jar_path
+      uber_jar_dir        = var.requisition_fetcher_uber_jar_dir
     },
     event_group_sync = {
       function_name       = var.event_group_sync_function_name
@@ -139,6 +141,7 @@ locals {
       extra_env_vars      = var.event_group_env_var
       secret_mappings     = var.requisition_fetcher_secret_mapping
       uber_jar_path       = var.event_group_uber_jar_path
+      uber_jar_dir        = var.event_group_uber_jar_dir
     }
   }
 
