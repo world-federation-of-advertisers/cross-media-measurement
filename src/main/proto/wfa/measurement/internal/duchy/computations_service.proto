@@ -290,6 +290,15 @@ message EnqueueComputationRequest {
 
   // The delay when the computation is ready for a mill to work.
   int32 delay_second = 2;
+
+  // The ID of the mill that is expected to be the current owner of the
+  // computation's lock.
+  //
+  // This is used as a precondition to ensure the requester is still the owner
+  // of the computation's lock. The request will fail if this ID does not
+  // match the current lock owner, preventing a race condition where a lock
+  // expires and another mill claims the work before this request is processed.
+  string expected_owner = 3;
 }
 // Response to enqueuing a computation. This is an ack
 // of the request which signifies the computation was
