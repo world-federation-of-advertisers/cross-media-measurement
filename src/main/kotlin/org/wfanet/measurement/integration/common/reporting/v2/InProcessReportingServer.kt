@@ -229,8 +229,6 @@ class InProcessReportingServer(
         METRIC_SPEC_CONFIG.validate()
         metricSpecConfig = METRIC_SPEC_CONFIG
 
-        val reportingSetsService = ReportingSetsService(internalReportingSetsClient, authorization)
-
         listOf(
             DataProvidersService(
                 publicKingdomDataProvidersClient,
@@ -286,7 +284,8 @@ class InProcessReportingServer(
                 cacheLoaderContext = Dispatchers.Default,
               )
               .withTrustedPrincipalAuthentication(),
-            reportingSetsService.withTrustedPrincipalAuthentication(),
+            ReportingSetsService(internalReportingSetsClient, authorization)
+              .withTrustedPrincipalAuthentication(),
             ReportsService(
                 internalReportsClient,
                 internalMetricCalculationSpecsClient,
@@ -300,7 +299,6 @@ class InProcessReportingServer(
                 internalBasicReportsClient,
                 internalImpressionQualificationFiltersClient,
                 internalReportingSetsClient,
-                reportingSetsService,
                 authorization,
               )
               .withTrustedPrincipalAuthentication(),

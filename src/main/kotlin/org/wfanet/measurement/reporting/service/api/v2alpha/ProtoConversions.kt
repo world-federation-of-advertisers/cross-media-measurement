@@ -107,6 +107,22 @@ import org.wfanet.measurement.reporting.v2alpha.report
 import org.wfanet.measurement.reporting.v2alpha.reportSchedule
 import org.wfanet.measurement.reporting.v2alpha.reportingSet
 import org.wfanet.measurement.reporting.v2alpha.timeIntervals
+import org.wfanet.measurement.internal.reporting.v2.reportingSet as internalReportingSet
+import org.wfanet.measurement.internal.reporting.v2.ReportingSetKt as InternalReportingSetKt
+import io.grpc.StatusException
+import io.grpc.StatusRuntimeException
+import org.wfanet.measurement.internal.reporting.v2.batchGetReportingSetsRequest
+import org.wfanet.measurement.reporting.service.api.CampaignGroupInvalidException
+import org.wfanet.measurement.reporting.service.api.InvalidFieldValueException
+import org.wfanet.measurement.reporting.service.api.RequiredFieldNotSetException
+import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt.ReportingSetsCoroutineStub as InternalReportingSetsCoroutineStub
+
+private val setExpressionCompiler = SetExpressionCompiler()
+
+data class PrimitiveReportingSetBasis(
+  val externalReportingSetId: String,
+  val filters: Set<String>,
+)
 
 /** Converts an [InternalMetricSpec.VidSamplingInterval] to a CMMS [VidSamplingInterval]. */
 fun InternalMetricSpec.VidSamplingInterval.toCmmsVidSamplingInterval(): VidSamplingInterval {
@@ -1344,5 +1360,386 @@ fun Temporal.toTimestamp(): Timestamp {
       source.toInstant().toProtoTime()
     }
     else -> throw IllegalArgumentException("Temporal is not the right type.")
+  }
+}
+
+suspend fun ReportingSet.toInternal(
+  reportingSetId: String,
+  cmmsMeasurementConsumerId: String,
+  internalReportingSetsStub: InternalReportingSetsCoroutineStub,
+  ): InternalReportingSet {
+  val source = this
+  return internalReportingSet {
+    this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
+    if (source.campaignGroup.isNotEmpty()) {
+      val campaignGroupKey =
+        ReportingSetKey.fromName(source.campaignGroup)
+          ?: throw InvalidFieldValueException("reporting_set.campaign_group")
+      if (campaignGroupKey.cmmsMeasurementConsumerId != cmmsMeasurementConsumerId) {
+        throw InvalidFieldValueException("reporting_set.campaign_group") { fieldName ->
+          "$fieldName must belong to the same MeasurementConsumer"
+        }
+      }
+      if (campaignGroupKey.reportingSetId == reportingSetId && !source.hasPrimitive()) {
+        throw CampaignGroupInvalidException(source.campaignGroup)
+      }
+      this.externalCampaignGroupId = campaignGroupKey.reportingSetId
+    }
+    displayName = source.displayName
+    if (!source.filter.isNullOrBlank()) {
+      filter = source.filter
+    }
+
+    details = InternalReportingSetKt.details { tags.putAll(source.tagsMap) }
+
+    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
+    when (source.valueCase) {
+      ReportingSet.ValueCase.PRIMITIVE -> {
+        primitive = source.primitive.toInternal()
+      }
+      ReportingSet.ValueCase.COMPOSITE -> {
+        composite = source.composite.expression.toInternal()
+        weightedSubsetUnions +=
+          compileCompositeReportingSet(source, cmmsMeasurementConsumerId, internalReportingSetsStub)
+      }
+      ReportingSet.ValueCase.VALUE_NOT_SET ->
+        throw RequiredFieldNotSetException("reporting_set.value")
+    }
+  }
+}
+
+
+/**
+ * Compiles a public composite [ReportingSet] to a list of
+ * [InternalReportingSet.WeightedSubsetUnion]s.
+ */
+suspend fun compileCompositeReportingSet(
+  rootReportingSet: ReportingSet,
+  cmmsMeasurementConsumerId: String,
+  internalReportingsetsStub: InternalReportingSetsCoroutineStub,
+): List<InternalReportingSet.WeightedSubsetUnion> {
+  val primitiveReportingSetBasesMap = mutableMapOf<PrimitiveReportingSetBasis, Int>()
+  val initialFiltersStack = mutableListOf<String>()
+
+  if (!rootReportingSet.filter.isNullOrBlank()) {
+    initialFiltersStack += rootReportingSet.filter
+  }
+
+  val setOperationExpression =
+    buildSetOperationExpression(
+      rootReportingSet.composite.expression,
+      initialFiltersStack,
+      primitiveReportingSetBasesMap,
+      cmmsMeasurementConsumerId,
+      internalReportingsetsStub,
+    )
+
+  val idToPrimitiveReportingSetBasis: Map<Int, PrimitiveReportingSetBasis> =
+    primitiveReportingSetBasesMap.entries.associateBy({ it.value }) { it.key }
+
+  if (idToPrimitiveReportingSetBasis.size != primitiveReportingSetBasesMap.size) {
+    error("The reporting set ID in the set operation expression should be indexed uniquely.")
+  }
+
+  val weightedSubsetUnions: List<WeightedSubsetUnion> =
+    setExpressionCompiler.compileSetExpression(
+      setOperationExpression,
+      idToPrimitiveReportingSetBasis.size,
+    )
+
+  return weightedSubsetUnions.map { weightedSubsetUnion ->
+    buildInternalWeightedSubsetUnion(weightedSubsetUnion, idToPrimitiveReportingSetBasis)
+  }
+}
+
+/**
+ * Gets an [InternalReportingSet] given the reporting set resource name.
+ *
+ * @throw [StatusException] when gRPC call fails.
+ * @throw [IllegalArgumentException] when reportingSet is an invalid name.
+ */
+suspend fun getInternalReportingSet(
+  reportingSet: String,
+  cmmsMeasurementConsumerId: String,
+  internalReportingSetsStub: InternalReportingSetsCoroutineStub,
+): InternalReportingSet {
+  val reportingSetKey = ReportingSetKey.fromName(reportingSet)
+    ?: throw IllegalArgumentException("Invalid reporting set name: $reportingSet")
+
+  return internalReportingSetsStub
+    .batchGetReportingSets(
+      batchGetReportingSetsRequest {
+        this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
+        externalReportingSetIds += reportingSetKey.reportingSetId
+      }
+    )
+    .reportingSetsList
+    .single()
+}
+
+/**
+ * Builds a [SetOperationExpression] by expanding the given [ReportingSet.SetExpression].
+ *
+ * @throws [StatusRuntimeException] when gRPC call fails
+ * @throws [InvalidFieldValueException] when lhs is missing
+ * @throws [InvalidFieldValueException] when ReportingSet name in lhs is invalid
+ * @throws [InvalidFieldValueException] when ReportingSet name in rhs is invalid
+ */
+suspend fun buildSetOperationExpression(
+  expression: ReportingSet.SetExpression,
+  filters: MutableList<String>,
+  primitiveReportingSetBasesMap: MutableMap<PrimitiveReportingSetBasis, Int>,
+  cmmsMeasurementConsumerId: String,
+  internalReportingSetsStub: InternalReportingSetsCoroutineStub,
+): SetOperationExpression {
+  val lhs =
+    try {
+      buildSetOperationExpressionOperand(
+        expression.lhs,
+        filters,
+        primitiveReportingSetBasesMap,
+        cmmsMeasurementConsumerId,
+        internalReportingSetsStub,
+      )
+    } catch (_: IllegalArgumentException) {
+      throw InvalidFieldValueException("reporting_set.composite.expression.lhs")
+    }
+
+  if (lhs == null) {
+    throw RequiredFieldNotSetException("reporting_set.composite.expression.lhs")
+  }
+
+  val rhs =
+    try {
+      buildSetOperationExpressionOperand(
+        expression.rhs,
+        filters,
+        primitiveReportingSetBasesMap,
+        cmmsMeasurementConsumerId,
+        internalReportingSetsStub,
+      )
+    } catch (_: IllegalArgumentException) {
+      throw InvalidFieldValueException("reporting_set.composite.expression.rhs")
+    }
+
+  return SetOperationExpression(
+    setOperator = expression.operation.toSetOperator(),
+    lhs = lhs,
+    rhs = rhs,
+  )
+}
+
+/**
+ * Builds a nullable [Operand] from a [ReportingSet.SetExpression.Operand].
+ *
+ * @throws [StatusRuntimeException] when ReprtingSet in expression not found
+ * @throws [IllegalArgumentException] when ReportingSet resource name invalid
+ */
+suspend fun buildSetOperationExpressionOperand(
+  operand: ReportingSet.SetExpression.Operand,
+  filters: MutableList<String>,
+  primitiveReportingSetBasesMap: MutableMap<PrimitiveReportingSetBasis, Int>,
+  cmmsMeasurementConsumerId: String,
+  internalReportingSetsStub: InternalReportingSetsCoroutineStub,
+): Operand? {
+  @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
+  return when (operand.operandCase) {
+    ReportingSet.SetExpression.Operand.OperandCase.REPORTING_SET -> {
+      val internalReportingSet =
+        try {
+          getInternalReportingSet(
+            operand.reportingSet,
+            cmmsMeasurementConsumerId,
+            internalReportingSetsStub
+          )
+        } catch (e: StatusException) {
+          throw when (e.status.code) {
+            Status.Code.NOT_FOUND ->
+              Status.FAILED_PRECONDITION.withDescription("${operand.reportingSet} not found")
+            else -> Status.INTERNAL
+          }
+            .withCause(e)
+            .asRuntimeException()
+        }
+
+      when (internalReportingSet.valueCase) {
+        // Reach the leaf node
+        InternalReportingSet.ValueCase.PRIMITIVE -> {
+          val primitiveReportingSetBasis =
+            PrimitiveReportingSetBasis(
+              externalReportingSetId = internalReportingSet.externalReportingSetId,
+              filters =
+              (filters + internalReportingSet.filter).filter { !it.isNullOrBlank() }.toSet(),
+            )
+
+          // Avoid duplicates
+          if (!primitiveReportingSetBasesMap.contains(primitiveReportingSetBasis)) {
+            // New ID == current size of the map
+            primitiveReportingSetBasesMap[primitiveReportingSetBasis] =
+              primitiveReportingSetBasesMap.size
+          }
+
+          // Return the leaf reporting set
+          ReportingSet(primitiveReportingSetBasesMap.getValue(primitiveReportingSetBasis))
+        }
+        InternalReportingSet.ValueCase.COMPOSITE -> {
+          // Add the reporting set's filter to the stack.
+          if (!internalReportingSet.filter.isNullOrBlank()) {
+            filters += internalReportingSet.filter
+          }
+
+          // Return the set operation expression
+          buildSetOperationExpression(
+            internalReportingSet.composite.toExpression(cmmsMeasurementConsumerId),
+            filters,
+            primitiveReportingSetBasesMap,
+            cmmsMeasurementConsumerId,
+            internalReportingSetsStub,
+          )
+            .also {
+              // Remove the reporting set's filter from the stack if there is any.
+              if (!internalReportingSet.filter.isNullOrBlank()) {
+                filters.removeLast()
+              }
+            }
+        }
+        InternalReportingSet.ValueCase.VALUE_NOT_SET -> {
+          error("The reporting set [${operand.reportingSet}] value type should've been set. ")
+        }
+      }
+    }
+    ReportingSet.SetExpression.Operand.OperandCase.EXPRESSION -> {
+      buildSetOperationExpression(
+        operand.expression,
+        filters,
+        primitiveReportingSetBasesMap,
+        cmmsMeasurementConsumerId,
+        internalReportingSetsStub,
+      )
+    }
+    ReportingSet.SetExpression.Operand.OperandCase.OPERAND_NOT_SET -> {
+      null
+    }
+  }
+}
+
+/** Builds an [InternalReportingSet.WeightedSubsetUnion] from a [WeightedSubsetUnion]. */
+fun buildInternalWeightedSubsetUnion(
+  weightedSubsetUnion: WeightedSubsetUnion,
+  idToPrimitiveReportingSetBasis: Map<Int, PrimitiveReportingSetBasis>,
+): InternalReportingSet.WeightedSubsetUnion {
+  return InternalReportingSetKt.weightedSubsetUnion {
+    primitiveReportingSetBases +=
+      weightedSubsetUnion.reportingSetIds.map { reportingSetId ->
+        InternalReportingSetKt.primitiveReportingSetBasis {
+          val primitiveReportingSetBasis = idToPrimitiveReportingSetBasis.getValue(reportingSetId)
+          externalReportingSetId = primitiveReportingSetBasis.externalReportingSetId
+          filters += primitiveReportingSetBasis.filters.toList()
+        }
+      }
+    weight = weightedSubsetUnion.coefficient
+    binaryRepresentation = weightedSubsetUnion.reportingSetIds.sumOf { 1 shl it }
+  }
+}
+
+/** Converts a [ReportingSet.SetExpression] to an [InternalReportingSet.SetExpression]. */
+fun ReportingSet.SetExpression.toInternal(): InternalReportingSet.SetExpression {
+  val source = this
+
+  return InternalReportingSetKt.setExpression {
+    operation = source.operation.toInternal()
+
+    lhs = source.lhs.toInternal()
+    if (source.hasRhs()) {
+      rhs = source.rhs.toInternal()
+    }
+  }
+}
+
+/**
+ * Converts a [ReportingSet.SetExpression.Operation] to an
+ * [InternalReportingSet.SetExpression.Operation].
+ */
+fun ReportingSet.SetExpression.Operation.toInternal():
+  InternalReportingSet.SetExpression.Operation {
+  return when (this) {
+    ReportingSet.SetExpression.Operation.UNION -> {
+      InternalReportingSet.SetExpression.Operation.UNION
+    }
+    ReportingSet.SetExpression.Operation.DIFFERENCE -> {
+      InternalReportingSet.SetExpression.Operation.DIFFERENCE
+    }
+    ReportingSet.SetExpression.Operation.INTERSECTION -> {
+      InternalReportingSet.SetExpression.Operation.INTERSECTION
+    }
+    ReportingSet.SetExpression.Operation.OPERATION_UNSPECIFIED,
+    ReportingSet.SetExpression.Operation.UNRECOGNIZED -> error("operation not set or invalid")
+  }
+}
+
+/**
+ * Converts a [ReportingSet.SetExpression.Operand] to an
+ * [InternalReportingSet.SetExpression.Operand].
+ */
+fun ReportingSet.SetExpression.Operand.toInternal():
+  InternalReportingSet.SetExpression.Operand {
+  val source = this
+  return InternalReportingSetKt.SetExpressionKt.operand {
+    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
+    when (source.operandCase) {
+      ReportingSet.SetExpression.Operand.OperandCase.REPORTING_SET -> {
+        val reportingSetKey = ReportingSetKey.fromName(source.reportingSet)
+        externalReportingSetId = reportingSetKey!!.reportingSetId
+      }
+      ReportingSet.SetExpression.Operand.OperandCase.EXPRESSION -> {
+        expression = source.expression.toInternal()
+      }
+      ReportingSet.SetExpression.Operand.OperandCase.OPERAND_NOT_SET -> {}
+    }
+  }
+}
+
+/** Converts a [ReportingSet.Primitive] to an [InternalReportingSet.Primitive]. */
+fun ReportingSet.Primitive.toInternal(): InternalReportingSet.Primitive {
+  val source = this
+
+  return InternalReportingSetKt.primitive {
+    eventGroupKeys +=
+      source.cmmsEventGroupsList.map { cmmsEventGroup ->
+        val cmmsEventGroupKey =
+          checkNotNull(CmmsEventGroupKey.fromName(cmmsEventGroup)) {
+            "Invalid event group name $cmmsEventGroup."
+          }
+
+        InternalReportingSetKt.PrimitiveKt.eventGroupKey {
+          cmmsDataProviderId = cmmsEventGroupKey.dataProviderId
+          cmmsEventGroupId = cmmsEventGroupKey.eventGroupId
+        }
+      }
+  }
+}
+
+/** Converts a [ReportingSet.SetExpression.Operation] to an [Operator].
+ *
+ * @throws [RequiredFieldNotSetException] when operation is unspecified
+ * @throws [InvalidFieldValueException] when operation is invalid
+ */
+fun ReportingSet.SetExpression.Operation.toSetOperator(): Operator {
+  return when (this) {
+    ReportingSet.SetExpression.Operation.UNION -> {
+      Operator.UNION
+    }
+    ReportingSet.SetExpression.Operation.DIFFERENCE -> {
+      Operator.DIFFERENCE
+    }
+    ReportingSet.SetExpression.Operation.INTERSECTION -> {
+      Operator.INTERSECT
+    }
+    ReportingSet.SetExpression.Operation.OPERATION_UNSPECIFIED -> {
+      throw RequiredFieldNotSetException("reporting_set.composite.expression.operation")
+    }
+    ReportingSet.SetExpression.Operation.UNRECOGNIZED -> {
+      throw InvalidFieldValueException("reporting_set.composite.expression.operation")
+    }
   }
 }

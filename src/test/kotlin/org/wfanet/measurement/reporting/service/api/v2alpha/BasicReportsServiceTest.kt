@@ -164,7 +164,6 @@ class BasicReportsServiceTest {
     InternalImpressionQualificationFiltersCoroutineStub
   private lateinit var internalReportingSetsService: InternalReportingSetsCoroutineStub
   private lateinit var internalBasicReportsService: InternalBasicReportsCoroutineStub
-  private lateinit var publicReportingSetsService: ReportingSetsCoroutineImplBase
 
   private lateinit var service: BasicReportsService
 
@@ -177,14 +176,12 @@ class BasicReportsServiceTest {
     internalBasicReportsService = InternalBasicReportsCoroutineStub(grpcTestServerRule.channel)
     authorization =
       Authorization(PermissionsGrpcKt.PermissionsCoroutineStub(grpcTestServerRule.channel))
-    publicReportingSetsService = ReportingSetsService(internalReportingSetsService, authorization)
 
     service =
       BasicReportsService(
         internalBasicReportsService,
         internalImpressionQualificationFiltersService,
         internalReportingSetsService,
-        publicReportingSetsService,
         authorization,
       )
   }
@@ -4833,7 +4830,6 @@ class BasicReportsServiceTest {
         BasicReportsService.Permission.GET,
         BasicReportsService.Permission.LIST,
         BasicReportsService.Permission.CREATE,
-        ReportingSetsService.Permission.CREATE_PRIMITIVE,
       )
     private val SCOPES = ALL_PERMISSIONS
     private val PRINCIPAL = principal { name = "principals/mc-user" }

@@ -259,13 +259,6 @@ private object V2AlphaPublicApiServer {
         .build()
         .withShutdownTimeout(Duration.ofSeconds(30))
 
-    val reportingSetsService =
-      ReportingSetsService(
-        InternalReportingSetsCoroutineStub(channel),
-        authorization,
-        serviceDispatcher,
-      )
-
     val services: List<ServerServiceDefinition> =
       listOf(
         DataProvidersService(
@@ -292,7 +285,12 @@ private object V2AlphaPublicApiServer {
           )
           .withInterceptor(principalAuthInterceptor),
         metricsService.withInterceptor(principalAuthInterceptor),
-        reportingSetsService.withInterceptor(principalAuthInterceptor),
+        ReportingSetsService(
+            InternalReportingSetsCoroutineStub(channel),
+            authorization,
+            serviceDispatcher,
+          )
+          .withInterceptor(principalAuthInterceptor),
         ReportsService(
             InternalReportsCoroutineStub(channel),
             InternalMetricCalculationSpecsCoroutineStub(channel),
@@ -334,7 +332,6 @@ private object V2AlphaPublicApiServer {
             InternalBasicReportsCoroutineStub(channel),
             InternalImpressionQualificationFiltersCoroutineStub(channel),
             InternalReportingSetsCoroutineStub(channel),
-            reportingSetsService,
             authorization,
             serviceDispatcher,
           )
