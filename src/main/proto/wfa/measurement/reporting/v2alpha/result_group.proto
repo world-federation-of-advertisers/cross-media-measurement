@@ -373,7 +373,8 @@ message ResultGroup {
         int32 reach = 1 [(google.api.field_behavior) = IMMUTABLE];
       }
 
-      Unique non_cumulative_unique = 4 [(google.api.field_behavior) = IMMUTABLE];
+      Unique non_cumulative_unique = 4
+          [(google.api.field_behavior) = IMMUTABLE];
       Unique cumulative_unique = 5 [(google.api.field_behavior) = IMMUTABLE];
     }
     // Entry for `components` map.
