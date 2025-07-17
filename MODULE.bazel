@@ -252,8 +252,8 @@ maven.install(
 
         # Bouncy Castle
         "org.bouncycastle:bcpkix-jdk18on:1.79",
-#        "com.google.protobuf:protobuf-java",
-#        "com.google.protobuf:protobuf-java-util",
+        "com.google.protobuf:protobuf-java",
+        "com.google.protobuf:protobuf-java-util",
     ],
     boms = [
         "org.apache.beam:beam-sdks-java-bom:" + APACHE_BEAM_VERSION,
