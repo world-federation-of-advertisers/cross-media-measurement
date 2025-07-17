@@ -17,22 +17,22 @@
 package org.wfanet.measurement.reporting.service.api.v2alpha
 
 import com.google.type.DayOfWeek
+import org.wfanet.measurement.api.v2alpha.DataProvider
+import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpec
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpecKt
 import org.wfanet.measurement.internal.reporting.v2.MetricSpec
 import org.wfanet.measurement.internal.reporting.v2.MetricSpecKt
 import org.wfanet.measurement.internal.reporting.v2.metricSpec
+import org.wfanet.measurement.reporting.v2alpha.EventTemplateField
+import org.wfanet.measurement.reporting.v2alpha.ImpressionQualificationFilter
 import org.wfanet.measurement.reporting.v2alpha.MetricFrequencySpec
+import org.wfanet.measurement.reporting.v2alpha.Report
 import org.wfanet.measurement.reporting.v2alpha.ReportingSet
 import org.wfanet.measurement.reporting.v2alpha.ReportingSetKt
 import org.wfanet.measurement.reporting.v2alpha.ResultGroupMetricSpec
 import org.wfanet.measurement.reporting.v2alpha.ResultGroupSpec
 import org.wfanet.measurement.reporting.v2alpha.reportingSet
-import org.wfanet.measurement.reporting.v2alpha.Report
-import org.wfanet.measurement.reporting.v2alpha.ImpressionQualificationFilter
-import org.wfanet.measurement.api.v2alpha.DataProvider
-import org.wfanet.measurement.api.v2alpha.EventGroup
-import org.wfanet.measurement.reporting.v2alpha.EventTemplateField
 
 private data class MetricCalculationSpecBuilderKey(
   val filter: String,
@@ -47,14 +47,15 @@ private data class MetricCalculationSpecBuilder(
   var hasImpressionCount: Boolean = false,
 )
 
-
 /**
  * Transforms a List of [ResultGroupSpec] into a Map for building [Report.ReportingMetricEntry]s.
  * This assumes that all parameters have already been validated.
  *
  * @param campaignGroupName resource name of [ReportingSet] that is a campaign group
- * @param impressionQualificationFilterSpecsFilters List of CEL filters each representing an [ImpressionQualificationFilter]
- * @param dataProviderPrimitiveReportingSetMap Map of [DataProvider] resource name to primitive [ReportingSet] containing associated [EventGroup] resource names
+ * @param impressionQualificationFilterSpecsFilters List of CEL filters each representing an
+ *   [ImpressionQualificationFilter]
+ * @param dataProviderPrimitiveReportingSetMap Map of [DataProvider] resource name to primitive
+ *   [ReportingSet] containing associated [EventGroup] resource names
  * @param resultGroupSpecs List of [ResultGroupSpec] to transform
  * @return Map of [ReportingSet] to [MetricCalculationSpec.Details]
  */
@@ -64,28 +65,31 @@ fun buildReportingSetMetricCalculationSpecDetailsMap(
   dataProviderPrimitiveReportingSetMap: Map<String, ReportingSet>,
   resultGroupSpecs: List<ResultGroupSpec>,
 ): Map<ReportingSet, List<MetricCalculationSpec.Details>> {
-  val reportingSetMetricCalculationSpecBuilderMap: Map<ReportingSet, MutableMap<MetricCalculationSpecBuilderKey, MetricCalculationSpecBuilder>> =
+  val reportingSetMetricCalculationSpecBuilderMap:
+    Map<ReportingSet, MutableMap<MetricCalculationSpecBuilderKey, MetricCalculationSpecBuilder>> =
     buildMap {
       for (resultGroupSpec in resultGroupSpecs) {
         // TODO(tristanvuong2021): create groupings from dimension_spec
         val groupings = emptyList<MetricCalculationSpec.Grouping>()
-        val dimensionSpecFilter = resultGroupSpec.dimensionSpec.filtersList.joinToString(
-          prefix = "(",
-          postfix = ")",
-          separator = " && "
-        ) {
-          val term = it.termsList.first()
-          val termValue =
-            @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
-            when (term.value.selectorCase) {
-              EventTemplateField.FieldValue.SelectorCase.STRING_VALUE -> term.value.stringValue
-              EventTemplateField.FieldValue.SelectorCase.ENUM_VALUE -> term.value.enumValue
-              EventTemplateField.FieldValue.SelectorCase.FLOAT_VALUE -> term.value.floatValue
-              EventTemplateField.FieldValue.SelectorCase.BOOL_VALUE -> term.value.boolValue
-              EventTemplateField.FieldValue.SelectorCase.SELECTOR_NOT_SET -> IllegalArgumentException("Selector not set")
-            }
-          "${term.path} == $termValue"
-        }
+        val dimensionSpecFilter =
+          resultGroupSpec.dimensionSpec.filtersList.joinToString(
+            prefix = "(",
+            postfix = ")",
+            separator = " && ",
+          ) {
+            val term = it.termsList.first()
+            val termValue =
+              @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
+              when (term.value.selectorCase) {
+                EventTemplateField.FieldValue.SelectorCase.STRING_VALUE -> term.value.stringValue
+                EventTemplateField.FieldValue.SelectorCase.ENUM_VALUE -> term.value.enumValue
+                EventTemplateField.FieldValue.SelectorCase.FLOAT_VALUE -> term.value.floatValue
+                EventTemplateField.FieldValue.SelectorCase.BOOL_VALUE -> term.value.boolValue
+                EventTemplateField.FieldValue.SelectorCase.SELECTOR_NOT_SET ->
+                  IllegalArgumentException("Selector not set")
+              }
+            "${term.path} == $termValue"
+          }
 
         val metricCalculationSpecFilters = buildList {
           for (impressionQualificationSpecsFilter in impressionQualificationFilterSpecsFilters) {
@@ -98,10 +102,7 @@ fun buildReportingSetMetricCalculationSpecDetailsMap(
             dataProviderPrimitiveReportingSetMap.getValue(it)
           }
 
-        val primitiveReportingSetNames: List<String> =
-          primitiveReportingSets.map {
-            it.name
-          }
+        val primitiveReportingSetNames: List<String> = primitiveReportingSets.map { it.name }
 
         for (filter in metricCalculationSpecFilters) {
           val reportingUnitReportingSet =
@@ -112,26 +113,58 @@ fun buildReportingSetMetricCalculationSpecDetailsMap(
             }
 
           if (resultGroupSpec.resultGroupMetricSpec.hasReportingUnit()) {
-            val metricCalculationSpecBuilderMap = computeIfAbsent(reportingUnitReportingSet) {
-              mutableMapOf()
-            }
+            val metricCalculationSpecBuilderMap =
+              computeIfAbsent(reportingUnitReportingSet) { mutableMapOf() }
 
             if (resultGroupSpec.resultGroupMetricSpec.reportingUnit.hasNonCumulative()) {
-              val key = createMetricCalculationSpecBuilderKey(filter, groupings, false, resultGroupSpec.metricFrequency)
-              metricCalculationSpecBuilderMap.computeIfAbsent(key) { MetricCalculationSpecBuilder() }.updateRequestedMetricSpecs(resultGroupSpec.resultGroupMetricSpec.reportingUnit.nonCumulative)
+              val key =
+                createMetricCalculationSpecBuilderKey(
+                  filter,
+                  groupings,
+                  false,
+                  resultGroupSpec.metricFrequency,
+                )
+              metricCalculationSpecBuilderMap
+                .computeIfAbsent(key) { MetricCalculationSpecBuilder() }
+                .updateRequestedMetricSpecs(
+                  resultGroupSpec.resultGroupMetricSpec.reportingUnit.nonCumulative
+                )
             }
 
             if (resultGroupSpec.resultGroupMetricSpec.reportingUnit.hasCumulative()) {
-              val key = createMetricCalculationSpecBuilderKey(filter, groupings, true, resultGroupSpec.metricFrequency)
-              metricCalculationSpecBuilderMap.computeIfAbsent(key) { MetricCalculationSpecBuilder() }.updateRequestedMetricSpecs(resultGroupSpec.resultGroupMetricSpec.reportingUnit.cumulative)
+              val key =
+                createMetricCalculationSpecBuilderKey(
+                  filter,
+                  groupings,
+                  true,
+                  resultGroupSpec.metricFrequency,
+                )
+              metricCalculationSpecBuilderMap
+                .computeIfAbsent(key) { MetricCalculationSpecBuilder() }
+                .updateRequestedMetricSpecs(
+                  resultGroupSpec.resultGroupMetricSpec.reportingUnit.cumulative
+                )
             }
 
             if (resultGroupSpec.resultGroupMetricSpec.reportingUnit.stackedIncrementalReach) {
-              val firstMetricCalculationSpecBuilderMap = computeIfAbsent(dataProviderPrimitiveReportingSetMap.getValue(resultGroupSpec.reportingUnit.componentsList.first())) {
-                mutableMapOf()
-              }
-              val firstKey = createMetricCalculationSpecBuilderKey(filter, groupings, true, resultGroupSpec.metricFrequency)
-              firstMetricCalculationSpecBuilderMap.computeIfAbsent(firstKey) { MetricCalculationSpecBuilder() }.hasReach = true
+              val firstMetricCalculationSpecBuilderMap =
+                computeIfAbsent(
+                  dataProviderPrimitiveReportingSetMap.getValue(
+                    resultGroupSpec.reportingUnit.componentsList.first()
+                  )
+                ) {
+                  mutableMapOf()
+                }
+              val firstKey =
+                createMetricCalculationSpecBuilderKey(
+                  filter,
+                  groupings,
+                  true,
+                  resultGroupSpec.metricFrequency,
+                )
+              firstMetricCalculationSpecBuilderMap
+                .computeIfAbsent(firstKey) { MetricCalculationSpecBuilder() }
+                .hasReach = true
 
               if (primitiveReportingSetNames.size < 2) {
                 // There are no reporting sets to create
@@ -139,67 +172,98 @@ fun buildReportingSetMetricCalculationSpecDetailsMap(
               }
 
               for (i in 2..primitiveReportingSetNames.size) {
-                val partialList =
-                  primitiveReportingSetNames.subList(0, i)
+                val partialList = primitiveReportingSetNames.subList(0, i)
 
                 val partialReportingUnitCompositeReportingSet =
                   buildUnionCompositeReportingSet(campaignGroupName, partialList)
 
-                val partialMetricCalculationSpecBuilderMap = computeIfAbsent(partialReportingUnitCompositeReportingSet) {
-                  mutableMapOf()
-                }
-                val key = createMetricCalculationSpecBuilderKey(filter, groupings, true, resultGroupSpec.metricFrequency)
-                partialMetricCalculationSpecBuilderMap.computeIfAbsent(key) { MetricCalculationSpecBuilder() }.hasReach = true
+                val partialMetricCalculationSpecBuilderMap =
+                  computeIfAbsent(partialReportingUnitCompositeReportingSet) { mutableMapOf() }
+                val key =
+                  createMetricCalculationSpecBuilderKey(
+                    filter,
+                    groupings,
+                    true,
+                    resultGroupSpec.metricFrequency,
+                  )
+                partialMetricCalculationSpecBuilderMap
+                  .computeIfAbsent(key) { MetricCalculationSpecBuilder() }
+                  .hasReach = true
               }
             }
           }
 
           if (resultGroupSpec.resultGroupMetricSpec.hasComponent()) {
             for (primitiveReportingSet in primitiveReportingSets) {
-              val metricCalculationSpecBuilderMap = computeIfAbsent(primitiveReportingSet) {
-                mutableMapOf()
-              }
+              val metricCalculationSpecBuilderMap =
+                computeIfAbsent(primitiveReportingSet) { mutableMapOf() }
 
               if (resultGroupSpec.resultGroupMetricSpec.component.hasNonCumulative()) {
-                val key = createMetricCalculationSpecBuilderKey(filter, groupings, false, resultGroupSpec.metricFrequency)
-                metricCalculationSpecBuilderMap.computeIfAbsent(key) { MetricCalculationSpecBuilder() }
-                  .updateRequestedMetricSpecs(resultGroupSpec.resultGroupMetricSpec.component.nonCumulative)
+                val key =
+                  createMetricCalculationSpecBuilderKey(
+                    filter,
+                    groupings,
+                    false,
+                    resultGroupSpec.metricFrequency,
+                  )
+                metricCalculationSpecBuilderMap
+                  .computeIfAbsent(key) { MetricCalculationSpecBuilder() }
+                  .updateRequestedMetricSpecs(
+                    resultGroupSpec.resultGroupMetricSpec.component.nonCumulative
+                  )
               }
 
               if (resultGroupSpec.resultGroupMetricSpec.component.hasCumulative()) {
-                val key = createMetricCalculationSpecBuilderKey(filter, groupings, true, resultGroupSpec.metricFrequency)
-                metricCalculationSpecBuilderMap.computeIfAbsent(key) { MetricCalculationSpecBuilder() }
-                  .updateRequestedMetricSpecs(resultGroupSpec.resultGroupMetricSpec.component.cumulative)
+                val key =
+                  createMetricCalculationSpecBuilderKey(
+                    filter,
+                    groupings,
+                    true,
+                    resultGroupSpec.metricFrequency,
+                  )
+                metricCalculationSpecBuilderMap
+                  .computeIfAbsent(key) { MetricCalculationSpecBuilder() }
+                  .updateRequestedMetricSpecs(
+                    resultGroupSpec.resultGroupMetricSpec.component.cumulative
+                  )
               }
             }
 
-            if (resultGroupSpec.resultGroupMetricSpec.component.hasNonCumulativeUnique() || resultGroupSpec.resultGroupMetricSpec.component.hasCumulativeUnique()) {
-              val firstMetricCalculationSpecBuilderMap = computeIfAbsent(reportingUnitReportingSet) {
-                mutableMapOf()
-              }
+            if (
+              resultGroupSpec.resultGroupMetricSpec.component.hasNonCumulativeUnique() ||
+                resultGroupSpec.resultGroupMetricSpec.component.hasCumulativeUnique()
+            ) {
+              val firstMetricCalculationSpecBuilderMap =
+                computeIfAbsent(reportingUnitReportingSet) { mutableMapOf() }
 
               if (resultGroupSpec.resultGroupMetricSpec.component.hasNonCumulativeUnique()) {
-                val firstKey = createMetricCalculationSpecBuilderKey(
-                  filter,
-                  groupings,
-                  false,
-                  resultGroupSpec.metricFrequency
-                )
-                firstMetricCalculationSpecBuilderMap.computeIfAbsent(firstKey) {
-                  MetricCalculationSpecBuilder()
-                }.updateRequestedMetricSpecs(resultGroupSpec.resultGroupMetricSpec.component.nonCumulativeUnique)
+                val firstKey =
+                  createMetricCalculationSpecBuilderKey(
+                    filter,
+                    groupings,
+                    false,
+                    resultGroupSpec.metricFrequency,
+                  )
+                firstMetricCalculationSpecBuilderMap
+                  .computeIfAbsent(firstKey) { MetricCalculationSpecBuilder() }
+                  .updateRequestedMetricSpecs(
+                    resultGroupSpec.resultGroupMetricSpec.component.nonCumulativeUnique
+                  )
               }
 
               if (resultGroupSpec.resultGroupMetricSpec.component.hasCumulativeUnique()) {
-                val firstKey = createMetricCalculationSpecBuilderKey(
-                  filter,
-                  groupings,
-                  true,
-                  resultGroupSpec.metricFrequency
-                )
-                firstMetricCalculationSpecBuilderMap.computeIfAbsent(firstKey) {
-                  MetricCalculationSpecBuilder()
-                }.updateRequestedMetricSpecs(resultGroupSpec.resultGroupMetricSpec.component.cumulativeUnique)
+                val firstKey =
+                  createMetricCalculationSpecBuilderKey(
+                    filter,
+                    groupings,
+                    true,
+                    resultGroupSpec.metricFrequency,
+                  )
+                firstMetricCalculationSpecBuilderMap
+                  .computeIfAbsent(firstKey) { MetricCalculationSpecBuilder() }
+                  .updateRequestedMetricSpecs(
+                    resultGroupSpec.resultGroupMetricSpec.component.cumulativeUnique
+                  )
               }
 
               // Less than 3 means only primitive reporting sets are needed. There is no point in
@@ -207,46 +271,78 @@ fun buildReportingSetMetricCalculationSpecDetailsMap(
               if (primitiveReportingSetNames.size >= 3) {
                 for (i in primitiveReportingSetNames.indices) {
                   val partialList =
-                    primitiveReportingSetNames.filterIndexed { index, _ ->
-                      index != i
-                    }
+                    primitiveReportingSetNames.filterIndexed { index, _ -> index != i }
 
                   val partialReportingUnitCompositeReportingSet =
                     buildUnionCompositeReportingSet(campaignGroupName, partialList)
 
-                  val partialMetricCalculationSpecBuilderMap = computeIfAbsent(partialReportingUnitCompositeReportingSet) {
-                    mutableMapOf()
-                  }
+                  val partialMetricCalculationSpecBuilderMap =
+                    computeIfAbsent(partialReportingUnitCompositeReportingSet) { mutableMapOf() }
 
                   if (resultGroupSpec.resultGroupMetricSpec.component.hasNonCumulativeUnique()) {
-                    val key = createMetricCalculationSpecBuilderKey(filter, groupings, false, resultGroupSpec.metricFrequency)
-                    partialMetricCalculationSpecBuilderMap.computeIfAbsent(key) { MetricCalculationSpecBuilder() }
-                      .updateRequestedMetricSpecs(resultGroupSpec.resultGroupMetricSpec.component.nonCumulativeUnique)
+                    val key =
+                      createMetricCalculationSpecBuilderKey(
+                        filter,
+                        groupings,
+                        false,
+                        resultGroupSpec.metricFrequency,
+                      )
+                    partialMetricCalculationSpecBuilderMap
+                      .computeIfAbsent(key) { MetricCalculationSpecBuilder() }
+                      .updateRequestedMetricSpecs(
+                        resultGroupSpec.resultGroupMetricSpec.component.nonCumulativeUnique
+                      )
                   }
 
                   if (resultGroupSpec.resultGroupMetricSpec.component.hasCumulativeUnique()) {
-                    val key = createMetricCalculationSpecBuilderKey(filter, groupings, true, resultGroupSpec.metricFrequency)
-                    partialMetricCalculationSpecBuilderMap.computeIfAbsent(key) { MetricCalculationSpecBuilder() }
-                      .updateRequestedMetricSpecs(resultGroupSpec.resultGroupMetricSpec.component.cumulativeUnique)
+                    val key =
+                      createMetricCalculationSpecBuilderKey(
+                        filter,
+                        groupings,
+                        true,
+                        resultGroupSpec.metricFrequency,
+                      )
+                    partialMetricCalculationSpecBuilderMap
+                      .computeIfAbsent(key) { MetricCalculationSpecBuilder() }
+                      .updateRequestedMetricSpecs(
+                        resultGroupSpec.resultGroupMetricSpec.component.cumulativeUnique
+                      )
                   }
                 }
               } else {
                 for (primitiveReportingSet in primitiveReportingSets) {
-                  val metricCalculationSpecBuilderMap = computeIfAbsent(primitiveReportingSet) {
-                    mutableMapOf()
-                  }
+                  val metricCalculationSpecBuilderMap =
+                    computeIfAbsent(primitiveReportingSet) { mutableMapOf() }
 
                   if (resultGroupSpec.resultGroupMetricSpec.component.hasNonCumulativeUnique()) {
-                    val key = createMetricCalculationSpecBuilderKey(filter, groupings, false, resultGroupSpec.metricFrequency)
-                    metricCalculationSpecBuilderMap.computeIfAbsent(key) { MetricCalculationSpecBuilder() }
-                      .updateRequestedMetricSpecs(resultGroupSpec.resultGroupMetricSpec.component.nonCumulativeUnique)
+                    val key =
+                      createMetricCalculationSpecBuilderKey(
+                        filter,
+                        groupings,
+                        false,
+                        resultGroupSpec.metricFrequency,
+                      )
+                    metricCalculationSpecBuilderMap
+                      .computeIfAbsent(key) { MetricCalculationSpecBuilder() }
+                      .updateRequestedMetricSpecs(
+                        resultGroupSpec.resultGroupMetricSpec.component.nonCumulativeUnique
+                      )
                   }
 
-
                   if (resultGroupSpec.resultGroupMetricSpec.component.hasCumulativeUnique()) {
-                    val key = createMetricCalculationSpecBuilderKey(filter, groupings, true, resultGroupSpec.metricFrequency)
-                    metricCalculationSpecBuilderMap.computeIfAbsent(key) { MetricCalculationSpecBuilder() }
-                      .updateRequestedMetricSpecs(resultGroupSpec.resultGroupMetricSpec.component.cumulativeUnique)                  }
+                    val key =
+                      createMetricCalculationSpecBuilderKey(
+                        filter,
+                        groupings,
+                        true,
+                        resultGroupSpec.metricFrequency,
+                      )
+                    metricCalculationSpecBuilderMap
+                      .computeIfAbsent(key) { MetricCalculationSpecBuilder() }
+                      .updateRequestedMetricSpecs(
+                        resultGroupSpec.resultGroupMetricSpec.component.cumulativeUnique
+                      )
+                  }
                 }
               }
             }
@@ -256,40 +352,35 @@ fun buildReportingSetMetricCalculationSpecDetailsMap(
     }
 
   return reportingSetMetricCalculationSpecBuilderMap.entries
-    .filter {
-      it.value.isNotEmpty()
-    }
+    .filter { it.value.isNotEmpty() }
     .associate { entry ->
-    entry.key to entry.value.entries.map {
-      MetricCalculationSpecKt.details {
-        groupings += it.key.groupings
-        filter = it.key.filter
-        if (it.key.metricFrequencySpec != null) {
-          metricFrequencySpec = it.key.metricFrequencySpec!!
-        }
-        if (it.key.trailingWindow != null) {
-          trailingWindow = it.key.trailingWindow!!
-        }
+      entry.key to
+        entry.value.entries.map {
+          MetricCalculationSpecKt.details {
+            groupings += it.key.groupings
+            filter = it.key.filter
+            if (it.key.metricFrequencySpec != null) {
+              metricFrequencySpec = it.key.metricFrequencySpec!!
+            }
+            if (it.key.trailingWindow != null) {
+              trailingWindow = it.key.trailingWindow!!
+            }
 
-        // TODO(tristanvuong2021): Add privacy params
-        if (it.value.hasFrequency) {
-          metricSpecs += metricSpec {
-            reachAndFrequency = MetricSpecKt.reachAndFrequencyParams { }
-          }
-        } else if (it.value.hasReach) {
-          metricSpecs += metricSpec {
-            reach = MetricSpecKt.reachParams { }
-          }
-        }
+            // TODO(tristanvuong2021): Add privacy params
+            if (it.value.hasFrequency) {
+              metricSpecs += metricSpec {
+                reachAndFrequency = MetricSpecKt.reachAndFrequencyParams {}
+              }
+            } else if (it.value.hasReach) {
+              metricSpecs += metricSpec { reach = MetricSpecKt.reachParams {} }
+            }
 
-        if (it.value.hasImpressionCount) {
-          metricSpecs += metricSpec {
-            impressionCount = MetricSpecKt.impressionCountParams { }
+            if (it.value.hasImpressionCount) {
+              metricSpecs += metricSpec { impressionCount = MetricSpecKt.impressionCountParams {} }
+            }
           }
         }
-      }
     }
-  }
 }
 
 /**
@@ -297,7 +388,9 @@ fun buildReportingSetMetricCalculationSpecDetailsMap(
  *
  * @param basicMetricSetSpec [ResultGroupMetricSpec.BasicMetricSetSpec]
  */
-private fun MetricCalculationSpecBuilder.updateRequestedMetricSpecs(basicMetricSetSpec: ResultGroupMetricSpec.BasicMetricSetSpec) {
+private fun MetricCalculationSpecBuilder.updateRequestedMetricSpecs(
+  basicMetricSetSpec: ResultGroupMetricSpec.BasicMetricSetSpec
+) {
   if (basicMetricSetSpec.averageFrequency || basicMetricSetSpec.kPlusReach > 0) {
     this.hasFrequency = true
     this.hasReach = true
@@ -315,8 +408,10 @@ private fun MetricCalculationSpecBuilder.updateRequestedMetricSpecs(basicMetricS
  *
  * @param uniqueMetricSetSpec [ResultGroupMetricSpec.UniqueMetricSetSpec]
  */
-private fun MetricCalculationSpecBuilder.updateRequestedMetricSpecs(uniqueMetricSetSpec: ResultGroupMetricSpec.UniqueMetricSetSpec) {
- if (uniqueMetricSetSpec.reach) {
+private fun MetricCalculationSpecBuilder.updateRequestedMetricSpecs(
+  uniqueMetricSetSpec: ResultGroupMetricSpec.UniqueMetricSetSpec
+) {
+  if (uniqueMetricSetSpec.reach) {
     this.hasReach = true
   }
 }
@@ -327,16 +422,23 @@ private fun MetricCalculationSpecBuilder.updateRequestedMetricSpecs(uniqueMetric
  * @param metricCalculationSpecFilter filter for [MetricCalculationSpec]
  * @param groupings list of [MetricCalculationSpec.Grouping]
  * @param cumulative determines whether [MetricCalculationSpec.TrailingWindow] is set
- * @param dayOfWeek [DayOfWeek] if applicable. Determines whether [MetricCalculationSpec.MetricFrequencySpec] is set
+ * @param dayOfWeek [DayOfWeek] if applicable. Determines whether
+ *   [MetricCalculationSpec.MetricFrequencySpec] is set
  * @return [MetricCalculationSpecBuilderKey] for use as a key in a map
  */
-private fun createMetricCalculationSpecBuilderKey(metricCalculationSpecFilter: String, groupings: List<MetricCalculationSpec.Grouping>, cumulative: Boolean, basicReportMetricFrequencySpec: MetricFrequencySpec): MetricCalculationSpecBuilderKey {
+private fun createMetricCalculationSpecBuilderKey(
+  metricCalculationSpecFilter: String,
+  groupings: List<MetricCalculationSpec.Grouping>,
+  cumulative: Boolean,
+  basicReportMetricFrequencySpec: MetricFrequencySpec,
+): MetricCalculationSpecBuilderKey {
   val metricFrequencySpec =
     if (basicReportMetricFrequencySpec.hasWeekly()) {
       MetricCalculationSpecKt.metricFrequencySpec {
-        weekly = MetricCalculationSpecKt.MetricFrequencySpecKt.weekly {
-          dayOfWeek = basicReportMetricFrequencySpec.weekly
-        }
+        weekly =
+          MetricCalculationSpecKt.MetricFrequencySpecKt.weekly {
+            dayOfWeek = basicReportMetricFrequencySpec.weekly
+          }
       }
     } else {
       null
@@ -367,30 +469,27 @@ private fun createMetricCalculationSpecBuilderKey(metricCalculationSpecFilter: S
  * @param reportingSetNames List of resource names of [ReportingSet]s to union
  * @return Composite [ReportingSet] containing the union of reportingSetNames
  */
-fun buildUnionCompositeReportingSet(campaignGroupName: String, reportingSetNames: List<String>): ReportingSet {
-  var setExpression = ReportingSetKt.setExpression {
-    operation = ReportingSet.SetExpression.Operation.UNION
-    lhs = ReportingSetKt.SetExpressionKt.operand {
-      reportingSet = reportingSetNames.first()
+fun buildUnionCompositeReportingSet(
+  campaignGroupName: String,
+  reportingSetNames: List<String>,
+): ReportingSet {
+  var setExpression =
+    ReportingSetKt.setExpression {
+      operation = ReportingSet.SetExpression.Operation.UNION
+      lhs = ReportingSetKt.SetExpressionKt.operand { reportingSet = reportingSetNames.first() }
     }
-  }
 
   for (reportingSetName in reportingSetNames.subList(1, reportingSetNames.size)) {
-    setExpression = ReportingSetKt.setExpression {
-      operation = ReportingSet.SetExpression.Operation.UNION
-      lhs = ReportingSetKt.SetExpressionKt.operand {
-        reportingSet = reportingSetName
+    setExpression =
+      ReportingSetKt.setExpression {
+        operation = ReportingSet.SetExpression.Operation.UNION
+        lhs = ReportingSetKt.SetExpressionKt.operand { reportingSet = reportingSetName }
+        rhs = ReportingSetKt.SetExpressionKt.operand { expression = setExpression }
       }
-      rhs = ReportingSetKt.SetExpressionKt.operand {
-        expression = setExpression
-      }
-    }
   }
 
   return reportingSet {
     campaignGroup = campaignGroupName
-    composite = ReportingSetKt.composite {
-      expression = setExpression
-    }
+    composite = ReportingSetKt.composite { expression = setExpression }
   }
 }
