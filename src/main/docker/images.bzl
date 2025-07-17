@@ -97,9 +97,14 @@ COMMON_IMAGES = [
         repository = _PREFIX + "/loadtest/panel-match-resource-setup",
     ),
     struct(
-        name = "synthetic_generator_edp_simulator_runner_image",
-        image = "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:synthetic_generator_edp_simulator_runner_image",
-        repository = _PREFIX + "/simulator/synthetic-generator-edp",
+        name = "edp_simulator_runner_image",
+        image = "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:edp_simulator_runner_image",
+        repository = _PREFIX + "/simulator/edp",
+    ),
+    struct(
+        name = "legacy_metadata_edp_simulator_runner_image",
+        image = "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:legacy_metadata_edp_simulator_runner_image",
+        repository = _PREFIX + "/simulator/legacy-metadata-edp",
     ),
     struct(
         name = "access_public_api_server_image",
