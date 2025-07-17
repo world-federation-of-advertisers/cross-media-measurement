@@ -664,7 +664,7 @@ class BasicReportTransformationsTest {
         resultGroupSpecs = resultGroupSpecs,
       )
 
-    assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(3)
+    assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(4)
     assertThat(reportingSetMetricCalculationSpecDetailsMap)
       .containsEntry(
         reportingSet {
