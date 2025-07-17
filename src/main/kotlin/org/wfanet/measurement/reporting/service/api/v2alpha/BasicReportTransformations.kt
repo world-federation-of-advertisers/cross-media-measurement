@@ -23,6 +23,7 @@ import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpec
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpecKt
 import org.wfanet.measurement.internal.reporting.v2.MetricSpec
 import org.wfanet.measurement.internal.reporting.v2.MetricSpecKt
+import org.wfanet.measurement.internal.reporting.v2.metricCalculationSpec
 import org.wfanet.measurement.internal.reporting.v2.metricSpec
 import org.wfanet.measurement.reporting.v2alpha.EventTemplateField
 import org.wfanet.measurement.reporting.v2alpha.ImpressionQualificationFilter
@@ -60,14 +61,14 @@ private data class MetricCalculationSpecBuilder(
  * @param dataProviderPrimitiveReportingSetMap Map of [DataProvider] resource name to primitive
  *   [ReportingSet] containing associated [EventGroup] resource names
  * @param resultGroupSpecs List of [ResultGroupSpec] to transform
- * @return Map of [ReportingSet] to [MetricCalculationSpec.Details]
+ * @return Map of [ReportingSet] to [MetricCalculationSpec]
  */
 fun buildReportingSetMetricCalculationSpecDetailsMap(
   campaignGroupName: String,
   impressionQualificationFilterSpecsFilters: List<String>,
   dataProviderPrimitiveReportingSetMap: Map<String, ReportingSet>,
   resultGroupSpecs: List<ResultGroupSpec>,
-): Map<ReportingSet, List<MetricCalculationSpec.Details>> {
+): Map<ReportingSet, List<MetricCalculationSpec>> {
   val reportingSetMetricCalculationSpecBuilderMap:
     Map<ReportingSet, MutableMap<MetricCalculationSpecBuilderKey, MetricCalculationSpecBuilder>> =
     buildMap {
@@ -145,32 +146,37 @@ fun buildReportingSetMetricCalculationSpecDetailsMap(
       }
     }
 
+  val cmmsMeasurementConsumerId = ReportingSetKey.fromName(campaignGroupName)!!.cmmsMeasurementConsumerId
+
   return reportingSetMetricCalculationSpecBuilderMap.entries
     .filter { it.value.isNotEmpty() }
     .associate { entry ->
       entry.key to
         entry.value.entries.map {
-          MetricCalculationSpecKt.details {
-            groupings += it.key.groupings
-            filter = it.key.filter
-            if (it.key.metricFrequencySpec != null) {
-              metricFrequencySpec = it.key.metricFrequencySpec!!
-            }
-            if (it.key.trailingWindow != null) {
-              trailingWindow = it.key.trailingWindow!!
-            }
-
-            // TODO(tristanvuong2021): Add privacy params
-            if (it.value.hasFrequency) {
-              metricSpecs += metricSpec {
-                reachAndFrequency = MetricSpecKt.reachAndFrequencyParams {}
+          metricCalculationSpec {
+            this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
+            details = MetricCalculationSpecKt.details {
+              groupings += it.key.groupings
+              filter = it.key.filter
+              if (it.key.metricFrequencySpec != null) {
+                metricFrequencySpec = it.key.metricFrequencySpec!!
               }
-            } else if (it.value.hasReach) {
-              metricSpecs += metricSpec { reach = MetricSpecKt.reachParams {} }
-            }
+              if (it.key.trailingWindow != null) {
+                trailingWindow = it.key.trailingWindow!!
+              }
 
-            if (it.value.hasImpressionCount) {
-              metricSpecs += metricSpec { impressionCount = MetricSpecKt.impressionCountParams {} }
+              // TODO(tristanvuong2021): Add privacy params
+              if (it.value.hasFrequency) {
+                metricSpecs += metricSpec {
+                  reachAndFrequency = MetricSpecKt.reachAndFrequencyParams {}
+                }
+              } else if (it.value.hasReach) {
+                metricSpecs += metricSpec { reach = MetricSpecKt.reachParams {} }
+              }
+
+              if (it.value.hasImpressionCount) {
+                metricSpecs += metricSpec { impressionCount = MetricSpecKt.impressionCountParams {} }
+              }
             }
           }
         }
