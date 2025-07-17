@@ -146,7 +146,8 @@ fun buildReportingSetMetricCalculationSpecDetailsMap(
       }
     }
 
-  val cmmsMeasurementConsumerId = ReportingSetKey.fromName(campaignGroupName)!!.cmmsMeasurementConsumerId
+  val cmmsMeasurementConsumerId =
+    ReportingSetKey.fromName(campaignGroupName)!!.cmmsMeasurementConsumerId
 
   return reportingSetMetricCalculationSpecBuilderMap.entries
     .filter { it.value.isNotEmpty() }
@@ -155,29 +156,32 @@ fun buildReportingSetMetricCalculationSpecDetailsMap(
         entry.value.entries.map {
           metricCalculationSpec {
             this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
-            details = MetricCalculationSpecKt.details {
-              groupings += it.key.groupings
-              filter = it.key.filter
-              if (it.key.metricFrequencySpec != null) {
-                metricFrequencySpec = it.key.metricFrequencySpec!!
-              }
-              if (it.key.trailingWindow != null) {
-                trailingWindow = it.key.trailingWindow!!
-              }
-
-              // TODO(tristanvuong2021): Add privacy params
-              if (it.value.hasFrequency) {
-                metricSpecs += metricSpec {
-                  reachAndFrequency = MetricSpecKt.reachAndFrequencyParams {}
+            details =
+              MetricCalculationSpecKt.details {
+                groupings += it.key.groupings
+                filter = it.key.filter
+                if (it.key.metricFrequencySpec != null) {
+                  metricFrequencySpec = it.key.metricFrequencySpec!!
                 }
-              } else if (it.value.hasReach) {
-                metricSpecs += metricSpec { reach = MetricSpecKt.reachParams {} }
-              }
+                if (it.key.trailingWindow != null) {
+                  trailingWindow = it.key.trailingWindow!!
+                }
 
-              if (it.value.hasImpressionCount) {
-                metricSpecs += metricSpec { impressionCount = MetricSpecKt.impressionCountParams {} }
+                // TODO(tristanvuong2021): Add privacy params
+                if (it.value.hasFrequency) {
+                  metricSpecs += metricSpec {
+                    reachAndFrequency = MetricSpecKt.reachAndFrequencyParams {}
+                  }
+                } else if (it.value.hasReach) {
+                  metricSpecs += metricSpec { reach = MetricSpecKt.reachParams {} }
+                }
+
+                if (it.value.hasImpressionCount) {
+                  metricSpecs += metricSpec {
+                    impressionCount = MetricSpecKt.impressionCountParams {}
+                  }
+                }
               }
-            }
           }
         }
     }

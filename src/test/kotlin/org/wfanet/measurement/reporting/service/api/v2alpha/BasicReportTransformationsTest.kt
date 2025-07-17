@@ -128,45 +128,51 @@ class BasicReportTransformationsTest {
           add(
             metricCalculationSpec {
               cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
-              details = MetricCalculationSpecKt.details {
-                filter = "filter && (common.age_group == 18_TO_35 && common.gender == MALE)"
-                metricFrequencySpec =
-                  MetricCalculationSpecKt.metricFrequencySpec {
-                    weekly =
-                      MetricCalculationSpecKt.MetricFrequencySpecKt.weekly {
-                        dayOfWeek = DayOfWeek.WEDNESDAY
-                      }
+              details =
+                MetricCalculationSpecKt.details {
+                  filter = "filter && (common.age_group == 18_TO_35 && common.gender == MALE)"
+                  metricFrequencySpec =
+                    MetricCalculationSpecKt.metricFrequencySpec {
+                      weekly =
+                        MetricCalculationSpecKt.MetricFrequencySpecKt.weekly {
+                          dayOfWeek = DayOfWeek.WEDNESDAY
+                        }
+                    }
+                  trailingWindow =
+                    MetricCalculationSpecKt.trailingWindow {
+                      count = 1
+                      increment = MetricCalculationSpec.TrailingWindow.Increment.WEEK
+                    }
+                  metricSpecs += metricSpec {
+                    reachAndFrequency = MetricSpecKt.reachAndFrequencyParams {}
                   }
-                trailingWindow =
-                  MetricCalculationSpecKt.trailingWindow {
-                    count = 1
-                    increment = MetricCalculationSpec.TrailingWindow.Increment.WEEK
+                  metricSpecs += metricSpec {
+                    impressionCount = MetricSpecKt.impressionCountParams {}
                   }
-                metricSpecs += metricSpec {
-                  reachAndFrequency = MetricSpecKt.reachAndFrequencyParams {}
                 }
-                metricSpecs += metricSpec { impressionCount = MetricSpecKt.impressionCountParams {} }
-              }
             }
           )
 
           add(
             metricCalculationSpec {
               cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
-              details = MetricCalculationSpecKt.details {
-                filter = "filter && (common.age_group == 18_TO_35 && common.gender == MALE)"
-                metricFrequencySpec =
-                  MetricCalculationSpecKt.metricFrequencySpec {
-                    weekly =
-                      MetricCalculationSpecKt.MetricFrequencySpecKt.weekly {
-                        dayOfWeek = DayOfWeek.WEDNESDAY
-                      }
+              details =
+                MetricCalculationSpecKt.details {
+                  filter = "filter && (common.age_group == 18_TO_35 && common.gender == MALE)"
+                  metricFrequencySpec =
+                    MetricCalculationSpecKt.metricFrequencySpec {
+                      weekly =
+                        MetricCalculationSpecKt.MetricFrequencySpecKt.weekly {
+                          dayOfWeek = DayOfWeek.WEDNESDAY
+                        }
+                    }
+                  metricSpecs += metricSpec {
+                    reachAndFrequency = MetricSpecKt.reachAndFrequencyParams {}
                   }
-                metricSpecs += metricSpec {
-                  reachAndFrequency = MetricSpecKt.reachAndFrequencyParams {}
+                  metricSpecs += metricSpec {
+                    impressionCount = MetricSpecKt.impressionCountParams {}
+                  }
                 }
-                metricSpecs += metricSpec { impressionCount = MetricSpecKt.impressionCountParams {} }
-              }
             }
           )
         },
@@ -233,10 +239,11 @@ class BasicReportTransformationsTest {
           add(
             metricCalculationSpec {
               cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
-              details = MetricCalculationSpecKt.details {
-                filter = "filter && (common.age_group == 18_TO_35 && common.gender == MALE)"
-                metricSpecs += metricSpec { reach = MetricSpecKt.reachParams {} }
-              }
+              details =
+                MetricCalculationSpecKt.details {
+                  filter = "filter && (common.age_group == 18_TO_35 && common.gender == MALE)"
+                  metricSpecs += metricSpec { reach = MetricSpecKt.reachParams {} }
+                }
             }
           )
         },
@@ -273,15 +280,16 @@ class BasicReportTransformationsTest {
           add(
             metricCalculationSpec {
               cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
-              details = MetricCalculationSpecKt.details {
-                filter = "filter && (common.age_group == 18_TO_35 && common.gender == MALE)"
-                metricSpecs += metricSpec {
-                  reachAndFrequency = MetricSpecKt.reachAndFrequencyParams {}
+              details =
+                MetricCalculationSpecKt.details {
+                  filter = "filter && (common.age_group == 18_TO_35 && common.gender == MALE)"
+                  metricSpecs += metricSpec {
+                    reachAndFrequency = MetricSpecKt.reachAndFrequencyParams {}
+                  }
+                  metricSpecs += metricSpec {
+                    impressionCount = MetricSpecKt.impressionCountParams {}
+                  }
                 }
-                metricSpecs += metricSpec {
-                  impressionCount = MetricSpecKt.impressionCountParams {}
-                }
-              }
             }
           )
         },
@@ -354,47 +362,51 @@ class BasicReportTransformationsTest {
           add(
             metricCalculationSpec {
               cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
-              details = MetricCalculationSpecKt.details {
-                filter = "filter && (common.age_group == 18_TO_35 && common.gender == MALE)"
-                metricFrequencySpec =
-                  MetricCalculationSpecKt.metricFrequencySpec {
-                    weekly =
-                      MetricCalculationSpecKt.MetricFrequencySpecKt.weekly {
-                        dayOfWeek = DayOfWeek.WEDNESDAY
-                      }
+              details =
+                MetricCalculationSpecKt.details {
+                  filter = "filter && (common.age_group == 18_TO_35 && common.gender == MALE)"
+                  metricFrequencySpec =
+                    MetricCalculationSpecKt.metricFrequencySpec {
+                      weekly =
+                        MetricCalculationSpecKt.MetricFrequencySpecKt.weekly {
+                          dayOfWeek = DayOfWeek.WEDNESDAY
+                        }
+                    }
+                  trailingWindow =
+                    MetricCalculationSpecKt.trailingWindow {
+                      count = 1
+                      increment = MetricCalculationSpec.TrailingWindow.Increment.WEEK
+                    }
+                  metricSpecs += metricSpec {
+                    reachAndFrequency = MetricSpecKt.reachAndFrequencyParams {}
                   }
-                trailingWindow =
-                  MetricCalculationSpecKt.trailingWindow {
-                    count = 1
-                    increment = MetricCalculationSpec.TrailingWindow.Increment.WEEK
+                  metricSpecs += metricSpec {
+                    impressionCount = MetricSpecKt.impressionCountParams {}
                   }
-                metricSpecs += metricSpec {
-                  reachAndFrequency = MetricSpecKt.reachAndFrequencyParams {}
                 }
-                metricSpecs += metricSpec { impressionCount = MetricSpecKt.impressionCountParams {} }
-              }
             }
           )
 
           add(
             metricCalculationSpec {
               cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
-              details = MetricCalculationSpecKt.details {
-                filter = "filter && (common.age_group == 18_TO_35 && common.gender == MALE)"
-                metricFrequencySpec =
-                  MetricCalculationSpecKt.metricFrequencySpec {
-                    weekly =
-                      MetricCalculationSpecKt.MetricFrequencySpecKt.weekly {
-                        dayOfWeek = DayOfWeek.WEDNESDAY
-                      }
+              details =
+                MetricCalculationSpecKt.details {
+                  filter = "filter && (common.age_group == 18_TO_35 && common.gender == MALE)"
+                  metricFrequencySpec =
+                    MetricCalculationSpecKt.metricFrequencySpec {
+                      weekly =
+                        MetricCalculationSpecKt.MetricFrequencySpecKt.weekly {
+                          dayOfWeek = DayOfWeek.WEDNESDAY
+                        }
+                    }
+                  metricSpecs += metricSpec {
+                    reachAndFrequency = MetricSpecKt.reachAndFrequencyParams {}
                   }
-                metricSpecs += metricSpec {
-                  reachAndFrequency = MetricSpecKt.reachAndFrequencyParams {}
+                  metricSpecs += metricSpec {
+                    impressionCount = MetricSpecKt.impressionCountParams {}
+                  }
                 }
-                metricSpecs += metricSpec {
-                  impressionCount = MetricSpecKt.impressionCountParams {}
-                }
-              }
             }
           )
         },
@@ -407,45 +419,51 @@ class BasicReportTransformationsTest {
           add(
             metricCalculationSpec {
               cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
-              details = MetricCalculationSpecKt.details {
-                filter = "filter && (common.age_group == 18_TO_35 && common.gender == MALE)"
-                metricFrequencySpec =
-                  MetricCalculationSpecKt.metricFrequencySpec {
-                    weekly =
-                      MetricCalculationSpecKt.MetricFrequencySpecKt.weekly {
-                        dayOfWeek = DayOfWeek.WEDNESDAY
-                      }
+              details =
+                MetricCalculationSpecKt.details {
+                  filter = "filter && (common.age_group == 18_TO_35 && common.gender == MALE)"
+                  metricFrequencySpec =
+                    MetricCalculationSpecKt.metricFrequencySpec {
+                      weekly =
+                        MetricCalculationSpecKt.MetricFrequencySpecKt.weekly {
+                          dayOfWeek = DayOfWeek.WEDNESDAY
+                        }
+                    }
+                  trailingWindow =
+                    MetricCalculationSpecKt.trailingWindow {
+                      count = 1
+                      increment = MetricCalculationSpec.TrailingWindow.Increment.WEEK
+                    }
+                  metricSpecs += metricSpec {
+                    reachAndFrequency = MetricSpecKt.reachAndFrequencyParams {}
                   }
-                trailingWindow =
-                  MetricCalculationSpecKt.trailingWindow {
-                    count = 1
-                    increment = MetricCalculationSpec.TrailingWindow.Increment.WEEK
+                  metricSpecs += metricSpec {
+                    impressionCount = MetricSpecKt.impressionCountParams {}
                   }
-                metricSpecs += metricSpec {
-                  reachAndFrequency = MetricSpecKt.reachAndFrequencyParams {}
                 }
-                metricSpecs += metricSpec { impressionCount = MetricSpecKt.impressionCountParams {} }
-              }
             }
           )
 
           add(
             metricCalculationSpec {
               cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
-              details = MetricCalculationSpecKt.details {
-                filter = "filter && (common.age_group == 18_TO_35 && common.gender == MALE)"
-                metricFrequencySpec =
-                  MetricCalculationSpecKt.metricFrequencySpec {
-                    weekly =
-                      MetricCalculationSpecKt.MetricFrequencySpecKt.weekly {
-                        dayOfWeek = DayOfWeek.WEDNESDAY
-                      }
+              details =
+                MetricCalculationSpecKt.details {
+                  filter = "filter && (common.age_group == 18_TO_35 && common.gender == MALE)"
+                  metricFrequencySpec =
+                    MetricCalculationSpecKt.metricFrequencySpec {
+                      weekly =
+                        MetricCalculationSpecKt.MetricFrequencySpecKt.weekly {
+                          dayOfWeek = DayOfWeek.WEDNESDAY
+                        }
+                    }
+                  metricSpecs += metricSpec {
+                    reachAndFrequency = MetricSpecKt.reachAndFrequencyParams {}
                   }
-                metricSpecs += metricSpec {
-                  reachAndFrequency = MetricSpecKt.reachAndFrequencyParams {}
+                  metricSpecs += metricSpec {
+                    impressionCount = MetricSpecKt.impressionCountParams {}
+                  }
                 }
-                metricSpecs += metricSpec { impressionCount = MetricSpecKt.impressionCountParams {} }
-              }
             }
           )
         },
@@ -482,39 +500,41 @@ class BasicReportTransformationsTest {
           add(
             metricCalculationSpec {
               cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
-              details = MetricCalculationSpecKt.details {
-                filter = "filter && (common.age_group == 18_TO_35 && common.gender == MALE)"
-                metricFrequencySpec =
-                  MetricCalculationSpecKt.metricFrequencySpec {
-                    weekly =
-                      MetricCalculationSpecKt.MetricFrequencySpecKt.weekly {
-                        dayOfWeek = DayOfWeek.WEDNESDAY
-                      }
-                  }
-                trailingWindow =
-                  MetricCalculationSpecKt.trailingWindow {
-                    count = 1
-                    increment = MetricCalculationSpec.TrailingWindow.Increment.WEEK
-                  }
-                metricSpecs += metricSpec { reach = MetricSpecKt.reachParams {} }
-              }
+              details =
+                MetricCalculationSpecKt.details {
+                  filter = "filter && (common.age_group == 18_TO_35 && common.gender == MALE)"
+                  metricFrequencySpec =
+                    MetricCalculationSpecKt.metricFrequencySpec {
+                      weekly =
+                        MetricCalculationSpecKt.MetricFrequencySpecKt.weekly {
+                          dayOfWeek = DayOfWeek.WEDNESDAY
+                        }
+                    }
+                  trailingWindow =
+                    MetricCalculationSpecKt.trailingWindow {
+                      count = 1
+                      increment = MetricCalculationSpec.TrailingWindow.Increment.WEEK
+                    }
+                  metricSpecs += metricSpec { reach = MetricSpecKt.reachParams {} }
+                }
             }
           )
 
           add(
             metricCalculationSpec {
               cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
-              details = MetricCalculationSpecKt.details {
-                filter = "filter && (common.age_group == 18_TO_35 && common.gender == MALE)"
-                metricFrequencySpec =
-                  MetricCalculationSpecKt.metricFrequencySpec {
-                    weekly =
-                      MetricCalculationSpecKt.MetricFrequencySpecKt.weekly {
-                        dayOfWeek = DayOfWeek.WEDNESDAY
-                      }
-                  }
-                metricSpecs += metricSpec { reach = MetricSpecKt.reachParams {} }
-              }
+              details =
+                MetricCalculationSpecKt.details {
+                  filter = "filter && (common.age_group == 18_TO_35 && common.gender == MALE)"
+                  metricFrequencySpec =
+                    MetricCalculationSpecKt.metricFrequencySpec {
+                      weekly =
+                        MetricCalculationSpecKt.MetricFrequencySpecKt.weekly {
+                          dayOfWeek = DayOfWeek.WEDNESDAY
+                        }
+                    }
+                  metricSpecs += metricSpec { reach = MetricSpecKt.reachParams {} }
+                }
             }
           )
         },
@@ -581,13 +601,16 @@ class BasicReportTransformationsTest {
           add(
             metricCalculationSpec {
               cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
-              details = MetricCalculationSpecKt.details {
-                filter = "filter && (common.age_group == 18_TO_35 && common.gender == MALE)"
-                metricSpecs += metricSpec {
-                  reachAndFrequency = MetricSpecKt.reachAndFrequencyParams {}
+              details =
+                MetricCalculationSpecKt.details {
+                  filter = "filter && (common.age_group == 18_TO_35 && common.gender == MALE)"
+                  metricSpecs += metricSpec {
+                    reachAndFrequency = MetricSpecKt.reachAndFrequencyParams {}
+                  }
+                  metricSpecs += metricSpec {
+                    impressionCount = MetricSpecKt.impressionCountParams {}
+                  }
                 }
-                metricSpecs += metricSpec { impressionCount = MetricSpecKt.impressionCountParams {} }
-              }
             }
           )
         },
@@ -600,13 +623,16 @@ class BasicReportTransformationsTest {
           add(
             metricCalculationSpec {
               cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
-              details = MetricCalculationSpecKt.details {
-                filter = "filter && (common.age_group == 18_TO_35 && common.gender == MALE)"
-                metricSpecs += metricSpec {
-                  reachAndFrequency = MetricSpecKt.reachAndFrequencyParams {}
+              details =
+                MetricCalculationSpecKt.details {
+                  filter = "filter && (common.age_group == 18_TO_35 && common.gender == MALE)"
+                  metricSpecs += metricSpec {
+                    reachAndFrequency = MetricSpecKt.reachAndFrequencyParams {}
+                  }
+                  metricSpecs += metricSpec {
+                    impressionCount = MetricSpecKt.impressionCountParams {}
+                  }
                 }
-                metricSpecs += metricSpec { impressionCount = MetricSpecKt.impressionCountParams {} }
-              }
             }
           )
         },
@@ -643,10 +669,11 @@ class BasicReportTransformationsTest {
           add(
             metricCalculationSpec {
               cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
-              details = MetricCalculationSpecKt.details {
-                filter = "filter && (common.age_group == 18_TO_35 && common.gender == MALE)"
-                metricSpecs += metricSpec { reach = MetricSpecKt.reachParams {} }
-              }
+              details =
+                MetricCalculationSpecKt.details {
+                  filter = "filter && (common.age_group == 18_TO_35 && common.gender == MALE)"
+                  metricSpecs += metricSpec { reach = MetricSpecKt.reachParams {} }
+                }
             }
           )
         },
@@ -740,10 +767,11 @@ class BasicReportTransformationsTest {
           add(
             metricCalculationSpec {
               cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
-              details = MetricCalculationSpecKt.details {
-                filter = "filter && (common.age_group == 18_TO_35 && common.gender == MALE)"
-                metricSpecs += metricSpec { reach = MetricSpecKt.reachParams {} }
-              }
+              details =
+                MetricCalculationSpecKt.details {
+                  filter = "filter && (common.age_group == 18_TO_35 && common.gender == MALE)"
+                  metricSpecs += metricSpec { reach = MetricSpecKt.reachParams {} }
+                }
             }
           )
         },
@@ -780,10 +808,11 @@ class BasicReportTransformationsTest {
           add(
             metricCalculationSpec {
               cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
-              details = MetricCalculationSpecKt.details {
-                filter = "filter && (common.age_group == 18_TO_35 && common.gender == MALE)"
-                metricSpecs += metricSpec { reach = MetricSpecKt.reachParams {} }
-              }
+              details =
+                MetricCalculationSpecKt.details {
+                  filter = "filter && (common.age_group == 18_TO_35 && common.gender == MALE)"
+                  metricSpecs += metricSpec { reach = MetricSpecKt.reachParams {} }
+                }
             }
           )
         },
@@ -820,10 +849,11 @@ class BasicReportTransformationsTest {
           add(
             metricCalculationSpec {
               cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
-              details = MetricCalculationSpecKt.details {
-                filter = "filter && (common.age_group == 18_TO_35 && common.gender == MALE)"
-                metricSpecs += metricSpec { reach = MetricSpecKt.reachParams {} }
-              }
+              details =
+                MetricCalculationSpecKt.details {
+                  filter = "filter && (common.age_group == 18_TO_35 && common.gender == MALE)"
+                  metricSpecs += metricSpec { reach = MetricSpecKt.reachParams {} }
+                }
             }
           )
         },
@@ -871,10 +901,11 @@ class BasicReportTransformationsTest {
           add(
             metricCalculationSpec {
               cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
-              details = MetricCalculationSpecKt.details {
-                filter = "filter && (common.age_group == 18_TO_35 && common.gender == MALE)"
-                metricSpecs += metricSpec { reach = MetricSpecKt.reachParams {} }
-              }
+              details =
+                MetricCalculationSpecKt.details {
+                  filter = "filter && (common.age_group == 18_TO_35 && common.gender == MALE)"
+                  metricSpecs += metricSpec { reach = MetricSpecKt.reachParams {} }
+                }
             }
           )
         },
@@ -933,12 +964,13 @@ class BasicReportTransformationsTest {
           add(
             metricCalculationSpec {
               cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
-              details = MetricCalculationSpecKt.details {
-                filter = "filter && (common.age_group == 18_TO_35 && common.gender == MALE)"
-                metricSpecs += metricSpec {
-                  reachAndFrequency = MetricSpecKt.reachAndFrequencyParams {}
+              details =
+                MetricCalculationSpecKt.details {
+                  filter = "filter && (common.age_group == 18_TO_35 && common.gender == MALE)"
+                  metricSpecs += metricSpec {
+                    reachAndFrequency = MetricSpecKt.reachAndFrequencyParams {}
+                  }
                 }
-              }
             }
           )
         },
@@ -995,10 +1027,11 @@ class BasicReportTransformationsTest {
           add(
             metricCalculationSpec {
               cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
-              details = MetricCalculationSpecKt.details {
-                filter = "filter && (common.age_group == 18_TO_35 && common.gender == MALE)"
-                metricSpecs += metricSpec { reach = MetricSpecKt.reachParams {} }
-              }
+              details =
+                MetricCalculationSpecKt.details {
+                  filter = "filter && (common.age_group == 18_TO_35 && common.gender == MALE)"
+                  metricSpecs += metricSpec { reach = MetricSpecKt.reachParams {} }
+                }
             }
           )
         },
@@ -1057,10 +1090,13 @@ class BasicReportTransformationsTest {
           add(
             metricCalculationSpec {
               cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
-              details = MetricCalculationSpecKt.details {
-                filter = "filter && (common.age_group == 18_TO_35 && common.gender == MALE)"
-                metricSpecs += metricSpec { impressionCount = MetricSpecKt.impressionCountParams {} }
-              }
+              details =
+                MetricCalculationSpecKt.details {
+                  filter = "filter && (common.age_group == 18_TO_35 && common.gender == MALE)"
+                  metricSpecs += metricSpec {
+                    impressionCount = MetricSpecKt.impressionCountParams {}
+                  }
+                }
             }
           )
         },
@@ -1119,10 +1155,11 @@ class BasicReportTransformationsTest {
           add(
             metricCalculationSpec {
               cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
-              details = MetricCalculationSpecKt.details {
-                filter = "filter && (common.age_group == 18_TO_35 && common.gender == MALE)"
-                metricSpecs += metricSpec { reach = MetricSpecKt.reachParams {} }
-              }
+              details =
+                MetricCalculationSpecKt.details {
+                  filter = "filter && (common.age_group == 18_TO_35 && common.gender == MALE)"
+                  metricSpecs += metricSpec { reach = MetricSpecKt.reachParams {} }
+                }
             }
           )
         },
@@ -1181,12 +1218,13 @@ class BasicReportTransformationsTest {
           add(
             metricCalculationSpec {
               cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
-              details =             MetricCalculationSpecKt.details {
-                filter = "filter && (common.age_group == 18_TO_35 && common.gender == MALE)"
-                metricSpecs += metricSpec {
-                  reachAndFrequency = MetricSpecKt.reachAndFrequencyParams {}
+              details =
+                MetricCalculationSpecKt.details {
+                  filter = "filter && (common.age_group == 18_TO_35 && common.gender == MALE)"
+                  metricSpecs += metricSpec {
+                    reachAndFrequency = MetricSpecKt.reachAndFrequencyParams {}
+                  }
                 }
-              }
             }
           )
         },
