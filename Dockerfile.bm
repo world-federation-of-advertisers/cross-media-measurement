@@ -1,0 +1,21 @@
+FROM ubuntu:22.04
+
+# Install Java 17
+RUN apt-get update && \
+    apt-get install -y openjdk-17-jre-headless && \
+    rm -rf /var/lib/apt/lists/*
+
+# Create app directory and storage directory
+WORKDIR /app
+RUN mkdir -p /app/storage/impressions && chmod 755 /app/storage/impressions
+
+# Copy your JAR file and resource files
+COPY HardcodedImpressionsResultsFulfillerMainDeployJar_deploy.jar ./app.jar
+
+# Run the application
+CMD ["java", "-Xmx150g", "-jar", "app.jar", \
+    "--impressions-path", "/app/storage", \
+    "--start-date", "2025-01-01", \
+    "--end-date", "2025-01-30", \
+    "--event-group-reference-id", "edpa-eg-reference-id-1", \
+    "--impressions-uri", "file://storage/impressions"]

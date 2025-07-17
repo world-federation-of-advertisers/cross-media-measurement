@@ -68,7 +68,8 @@ resource "google_compute_instance_template" "confidential_vm_template" {
   }
 
   network_interface {
-    network = "default"
+    network    = var.network_name
+    subnetwork = var.subnetwork_name
     access_config { }
   }
 

@@ -221,3 +221,56 @@ variable "event_group_sync_function_location" {
   type        = string
   nullable    = false
 }
+
+variable "private_network_location" {
+  description = "The region used for the private network"
+  type        = string
+  nullable    = false
+}
+
+variable "private_network_name" {
+  description = "The name of the VPC network for the MIG instances."
+  type        = string
+  default     = "private-network"
+}
+
+variable "private_subnetwork_name" {
+  description = "The name of the subnetwork for the MIG instances."
+  type        = string
+  default     = "private-subnet"
+}
+
+variable "public_subnetwork_name" {
+  description = "The name of the public subnetwork for the bastion host."
+  type        = string
+  default     = "public-subnet"
+}
+
+variable "private_router_name" {
+  description = "The name for the Cloud Router for the private network."
+  type        = string
+  default     = "nat-router"
+}
+
+variable "nat_name" {
+  description = "The name for the Cloud NAT gateway."
+  type        = string
+  default     = "nat-gateway"
+}
+
+variable "bastion_name" {
+  description = "Name of the bastion host instance"
+  type        = string
+  default     = "bastion-host"
+}
+
+variable "bastion_zone" {
+  description = "Zone where the bastion host will be created"
+  type        = string
+}
+
+variable "bastion_allowed_ssh_ranges" {
+  description = "List of IP ranges allowed to SSH to the bastion host"
+  type        = list(string)
+  default     = ["0.0.0.0/0"]
+}
