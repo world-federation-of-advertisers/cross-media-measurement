@@ -262,7 +262,20 @@ fun InternalMetricSet.toMetricSet(): MetricSet {
                 cumulative =
                   internalDataProviderComponentMetricSetMapEntry.value.cumulative.toBasicMetricSet()
               }
-              uniqueReach = internalDataProviderComponentMetricSetMapEntry.value.uniqueReach
+              if (internalDataProviderComponentMetricSetMapEntry.value.hasNonCumulativeUnique()) {
+                nonCumulativeUnique =
+                  ResultGroupKt.MetricSetKt.uniqueMetricSet {
+                    reach =
+                      internalDataProviderComponentMetricSetMapEntry.value.nonCumulativeUnique.reach
+                  }
+              }
+              if (internalDataProviderComponentMetricSetMapEntry.value.hasCumulativeUnique()) {
+                cumulativeUnique =
+                  ResultGroupKt.MetricSetKt.uniqueMetricSet {
+                    reach =
+                      internalDataProviderComponentMetricSetMapEntry.value.cumulativeUnique.reach
+                  }
+              }
             }
         }
     }

@@ -2578,6 +2578,65 @@ class BasicReportsServiceTest {
     }
 
   @Test
+  fun `createBasicReport throws INVALID_ARGUMENT when component non cumulative unique with total`() =
+    runBlocking {
+      val measurementConsumerKey = MeasurementConsumerKey("1234")
+      val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
+
+      measurementConsumersService.createMeasurementConsumer(
+        measurementConsumer {
+          cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+        }
+      )
+
+      internalReportingSetsService.createReportingSet(
+        createReportingSetRequest {
+          reportingSet =
+            INTERNAL_CAMPAIGN_GROUP.copy {
+              cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+              externalCampaignGroupId = campaignGroupKey.reportingSetId
+            }
+          externalReportingSetId = campaignGroupKey.reportingSetId
+        }
+      )
+
+      val request = createBasicReportRequest {
+        parent = measurementConsumerKey.toName()
+        basicReport =
+          BASIC_REPORT.copy {
+            campaignGroup = campaignGroupKey.toName()
+            resultGroupSpecs[0] =
+              resultGroupSpecs[0].copy {
+                metricFrequency = metricFrequencySpec { total = true }
+                resultGroupMetricSpec = resultGroupMetricSpec {
+                  component =
+                    ResultGroupMetricSpecKt.componentMetricSetSpec {
+                      nonCumulativeUnique =
+                        ResultGroupMetricSpecKt.uniqueMetricSetSpec { reach = true }
+                    }
+                }
+              }
+          }
+        basicReportId = "a1234"
+      }
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.INVALID_FIELD_VALUE.name
+            metadata[Errors.Metadata.FIELD_NAME.key] =
+              "basic_report.result_group_specs.result_group_metric_spec.component.non_cumulative_unique"
+          }
+        )
+    }
+
+  @Test
   fun `createBasicReport throws INVALID_ARGUMENT when reportingunit non cumulative 0 kplusReach`() =
     runBlocking {
       val measurementConsumerKey = MeasurementConsumerKey("1234")
@@ -3145,7 +3204,10 @@ class BasicReportsServiceTest {
                               impressions = 2
                               grps = 0.2f
                             }
-                          uniqueReach = 5
+                          nonCumulativeUnique =
+                            InternalResultGroupKt.MetricSetKt.uniqueMetricSet { reach = 5 }
+                          cumulativeUnique =
+                            InternalResultGroupKt.MetricSetKt.uniqueMetricSet { reach = 5 }
                         }
                     }
                   components +=
@@ -3177,7 +3239,10 @@ class BasicReportsServiceTest {
                               impressions = 2
                               grps = 0.2f
                             }
-                          uniqueReach = 10
+                          nonCumulativeUnique =
+                            InternalResultGroupKt.MetricSetKt.uniqueMetricSet { reach = 10 }
+                          cumulativeUnique =
+                            InternalResultGroupKt.MetricSetKt.uniqueMetricSet { reach = 10 }
                         }
                     }
                   componentIntersections +=
@@ -3351,7 +3416,10 @@ class BasicReportsServiceTest {
                               impressions = 2
                               grps = 0.2f
                             }
-                          uniqueReach = 5
+                          nonCumulativeUnique =
+                            InternalResultGroupKt.MetricSetKt.uniqueMetricSet { reach = 5 }
+                          cumulativeUnique =
+                            InternalResultGroupKt.MetricSetKt.uniqueMetricSet { reach = 5 }
                         }
                     }
                   componentIntersections +=
@@ -3500,7 +3568,10 @@ class BasicReportsServiceTest {
                               impressions = 2
                               grps = 0.2f
                             }
-                          uniqueReach = 5
+                          nonCumulativeUnique =
+                            InternalResultGroupKt.MetricSetKt.uniqueMetricSet { reach = 5 }
+                          cumulativeUnique =
+                            InternalResultGroupKt.MetricSetKt.uniqueMetricSet { reach = 5 }
                         }
                     }
                   componentIntersections +=
@@ -3760,7 +3831,10 @@ class BasicReportsServiceTest {
                                 impressions = 2
                                 grps = 0.2f
                               }
-                            uniqueReach = 5
+                            nonCumulativeUnique =
+                              ResultGroupKt.MetricSetKt.uniqueMetricSet { reach = 5 }
+                            cumulativeUnique =
+                              ResultGroupKt.MetricSetKt.uniqueMetricSet { reach = 5 }
                           }
                       }
                     components +=
@@ -3792,7 +3866,10 @@ class BasicReportsServiceTest {
                                 impressions = 2
                                 grps = 0.2f
                               }
-                            uniqueReach = 10
+                            nonCumulativeUnique =
+                              ResultGroupKt.MetricSetKt.uniqueMetricSet { reach = 10 }
+                            cumulativeUnique =
+                              ResultGroupKt.MetricSetKt.uniqueMetricSet { reach = 10 }
                           }
                       }
                     componentIntersections +=
@@ -3974,7 +4051,10 @@ class BasicReportsServiceTest {
                                 impressions = 2
                                 grps = 0.2f
                               }
-                            uniqueReach = 5
+                            nonCumulativeUnique =
+                              ResultGroupKt.MetricSetKt.uniqueMetricSet { reach = 5 }
+                            cumulativeUnique =
+                              ResultGroupKt.MetricSetKt.uniqueMetricSet { reach = 5 }
                           }
                       }
                     componentIntersections +=
@@ -4131,7 +4211,10 @@ class BasicReportsServiceTest {
                                 impressions = 2
                                 grps = 0.2f
                               }
-                            uniqueReach = 5
+                            nonCumulativeUnique =
+                              ResultGroupKt.MetricSetKt.uniqueMetricSet { reach = 5 }
+                            cumulativeUnique =
+                              ResultGroupKt.MetricSetKt.uniqueMetricSet { reach = 5 }
                           }
                       }
                     componentIntersections +=
@@ -4987,7 +5070,8 @@ class BasicReportsServiceTest {
                   impressions = true
                   grps = true
                 }
-              uniqueReach = true
+              nonCumulativeUnique = ResultGroupMetricSpecKt.uniqueMetricSetSpec { reach = true }
+              cumulativeUnique = ResultGroupMetricSpecKt.uniqueMetricSetSpec { reach = true }
             }
         }
       }

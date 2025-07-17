@@ -242,6 +242,14 @@ fun validateResultGroupMetricSpec(
         "$fieldName cannot be specified when metric_frequency is total"
       }
     }
+
+    if (resultGroupMetricSpec.component.hasNonCumulativeUnique()) {
+      throw InvalidFieldValueException(
+        "basic_report.result_group_specs.result_group_metric_spec.component.non_cumulative_unique"
+      ) { fieldName ->
+        "$fieldName cannot be specified when metric_frequency is total"
+      }
+    }
   }
 
   validateBasicMetricSetSpec(

@@ -2175,7 +2175,10 @@ abstract class InProcessLifeOfAReportIntegrationTest(
                               impressions = 2
                               grps = 0.2f
                             }
-                          uniqueReach = 5
+                          nonCumulativeUnique =
+                            InternalResultGroupKt.MetricSetKt.uniqueMetricSet { reach = 2 }
+                          cumulativeUnique =
+                            InternalResultGroupKt.MetricSetKt.uniqueMetricSet { reach = 2 }
                         }
                     }
                   componentIntersections +=
@@ -2363,7 +2366,10 @@ abstract class InProcessLifeOfAReportIntegrationTest(
                                 impressions = 2
                                 grps = 0.2f
                               }
-                            uniqueReach = 5
+                            nonCumulativeUnique =
+                              ResultGroupKt.MetricSetKt.uniqueMetricSet { reach = 2 }
+                            cumulativeUnique =
+                              ResultGroupKt.MetricSetKt.uniqueMetricSet { reach = 2 }
                           }
                       }
                     componentIntersections +=
