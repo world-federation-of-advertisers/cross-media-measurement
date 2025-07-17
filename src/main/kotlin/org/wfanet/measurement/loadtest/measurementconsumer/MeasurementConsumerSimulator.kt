@@ -242,7 +242,7 @@ abstract class MeasurementConsumerSimulator(
       )
     val reachTolerance = computeErrorMargin(reachVariance)
     if (expectedResult.reach.value.toDouble() < reachTolerance) {
-      throw IllegalStateException("Expected result cannot be less and tolerance")
+      throw IllegalStateException("Expected result cannot be less than tolerance")
     }
 
     if (requiredCapabilities.honestMajorityShareShuffleSupported) {
@@ -366,7 +366,7 @@ abstract class MeasurementConsumerSimulator(
         )
       val reachTolerance = computeErrorMargin(reachVariance)
       if (expectedResult.reach.value.toDouble() < reachTolerance) {
-        throw IllegalStateException("Expected result cannot be less and tolerance")
+        throw IllegalStateException("Expected result cannot be less than tolerance")
       }
 
       assertThat(reachAndFrequencyResult)
@@ -433,7 +433,7 @@ abstract class MeasurementConsumerSimulator(
         )
       val reachTolerance = computeErrorMargin(reachVariance)
       if (expectedResult.reach.value.toDouble() < reachTolerance) {
-        throw IllegalStateException("Expected result cannot be less and tolerance")
+        throw IllegalStateException("Expected result cannot be less than tolerance")
       }
 
       assertThat(reachResult).reachValue().isWithin(reachTolerance).of(expectedResult.reach.value)
@@ -537,7 +537,7 @@ abstract class MeasurementConsumerSimulator(
       )
     val reachTolerance = computeErrorMargin(reachVariance)
     if (result.expectedResult.reach.value.toDouble() < reachTolerance) {
-      throw IllegalStateException("Expected result cannot be less and tolerance")
+      throw IllegalStateException("Expected result cannot be less than tolerance")
     }
 
     if (requiredCapabilities.honestMajorityShareShuffleSupported) {
@@ -593,8 +593,8 @@ abstract class MeasurementConsumerSimulator(
 
       val variance = computeImpressionVariance(result, measurementInfo.measurementSpec, protocol)
       val tolerance = computeErrorMargin(variance)
-      if (expectedResult.reach.value.toDouble() < tolerance) {
-        throw IllegalStateException("Expected result cannot be less and tolerance")
+      if (expectedResult.impression.value.toDouble() < tolerance) {
+        throw IllegalStateException("Expected impressions cannot be less than tolerance")
       }
       assertThat(result.impression.hasDeterministicCount()).isTrue()
       assertThat(result.impression.noiseMechanism).isEqualTo(expectedDirectNoiseMechanism)
