@@ -179,7 +179,7 @@ fun buildReportingSetMetricCalculationSpecDetailsMap(
 
 /**
  * Helper method for [buildReportingSetMetricCalculationSpecDetailsMap]. Transforms
- * [ReportingUnitMetricSetSpec]
+ * [ReportingUnitMetricSetSpec] into entries for the map
  */
 private fun MutableMap<
   ReportingSet,
@@ -247,7 +247,7 @@ private fun MutableMap<
 
 /**
  * Helper method for [buildReportingSetMetricCalculationSpecDetailsMap]. Transforms
- * [ComponentMetricSetSpec]
+ * [ComponentMetricSetSpec] into entries for the map
  */
 private fun MutableMap<
   ReportingSet,
