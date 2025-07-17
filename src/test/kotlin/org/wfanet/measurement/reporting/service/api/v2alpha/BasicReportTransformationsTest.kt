@@ -304,7 +304,7 @@ class BasicReportTransformationsTest {
         resultGroupSpecs = resultGroupSpecs,
       )
 
-    assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(2)
+    assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(3)
     assertThat(reportingSetMetricCalculationSpecDetailsMap).containsEntry(
       PRIMITIVE_REPORTING_SET_1,
       buildList {
@@ -378,6 +378,57 @@ class BasicReportTransformationsTest {
           }
           metricSpecs += metricSpec {
             impressionCount = MetricSpecKt.impressionCountParams {  }
+          }
+        })
+      }
+    )
+
+    assertThat(reportingSetMetricCalculationSpecDetailsMap).containsEntry(
+      reportingSet {
+        campaignGroup = CAMPAIGN_GROUP_NAME
+        composite = ReportingSetKt.composite {
+          expression = ReportingSetKt.setExpression {
+            operation = ReportingSet.SetExpression.Operation.UNION
+            lhs = ReportingSetKt.SetExpressionKt.operand {
+              reportingSet = PRIMITIVE_REPORTING_SET_NAME_2
+            }
+            rhs = ReportingSetKt.SetExpressionKt.operand {
+              expression = ReportingSetKt.setExpression {
+                operation = ReportingSet.SetExpression.Operation.UNION
+                lhs = ReportingSetKt.SetExpressionKt.operand {
+                  reportingSet = PRIMITIVE_REPORTING_SET_NAME_1
+                }
+              }
+            }
+          }
+        }
+      },
+      buildList {
+        add(MetricCalculationSpecKt.details {
+          filter = "filter && (common.age_group == 18_TO_35 && common.gender == MALE)"
+          metricFrequencySpec = MetricCalculationSpecKt.metricFrequencySpec {
+            weekly = MetricCalculationSpecKt.MetricFrequencySpecKt.weekly {
+              dayOfWeek = DayOfWeek.WEDNESDAY
+            }
+          }
+          trailingWindow = MetricCalculationSpecKt.trailingWindow {
+            count = 1
+            increment = MetricCalculationSpec.TrailingWindow.Increment.WEEK
+          }
+          metricSpecs += metricSpec {
+            reach = MetricSpecKt.reachParams { }
+          }
+        })
+
+        add(MetricCalculationSpecKt.details {
+          filter = "filter && (common.age_group == 18_TO_35 && common.gender == MALE)"
+          metricFrequencySpec = MetricCalculationSpecKt.metricFrequencySpec {
+            weekly = MetricCalculationSpecKt.MetricFrequencySpecKt.weekly {
+              dayOfWeek = DayOfWeek.WEDNESDAY
+            }
+          }
+          metricSpecs += metricSpec {
+            reach = MetricSpecKt.reachParams { }
           }
         })
       }
@@ -420,6 +471,9 @@ class BasicReportTransformationsTest {
             averageFrequency = true
             impressions = true
           }
+          cumulativeUnique = ResultGroupMetricSpecKt.uniqueMetricSetSpec {
+            reach = true
+          }
         }
       }
     })
@@ -432,7 +486,7 @@ class BasicReportTransformationsTest {
         resultGroupSpecs = resultGroupSpecs,
       )
 
-    assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(2)
+    assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(3)
     assertThat(reportingSetMetricCalculationSpecDetailsMap).containsEntry(
       PRIMITIVE_REPORTING_SET_1,
       buildList {
@@ -458,6 +512,222 @@ class BasicReportTransformationsTest {
           }
           metricSpecs += metricSpec {
             impressionCount = MetricSpecKt.impressionCountParams {  }
+          }
+        })
+      }
+    )
+
+    assertThat(reportingSetMetricCalculationSpecDetailsMap).containsEntry(
+      reportingSet {
+        campaignGroup = CAMPAIGN_GROUP_NAME
+        composite = ReportingSetKt.composite {
+          expression = ReportingSetKt.setExpression {
+            operation = ReportingSet.SetExpression.Operation.UNION
+            lhs = ReportingSetKt.SetExpressionKt.operand {
+              reportingSet = PRIMITIVE_REPORTING_SET_NAME_2
+            }
+            rhs = ReportingSetKt.SetExpressionKt.operand {
+              expression = ReportingSetKt.setExpression {
+                operation = ReportingSet.SetExpression.Operation.UNION
+                lhs = ReportingSetKt.SetExpressionKt.operand {
+                  reportingSet = PRIMITIVE_REPORTING_SET_NAME_1
+                }
+              }
+            }
+          }
+        }
+      },
+      buildList {
+        add(MetricCalculationSpecKt.details {
+          filter = "filter && (common.age_group == 18_TO_35 && common.gender == MALE)"
+          metricSpecs += metricSpec {
+            reach = MetricSpecKt.reachParams { }
+          }
+        })
+      }
+    )
+  }
+
+  @Test
+  fun `uniqueMetricSetSpec with 3 component reporting unit transforms into correct map`() {
+    val impressionQualificationSpecsFilters = listOf("filter")
+
+    val dataProviderName3 = "$MEASUREMENT_CONSUMER_NAME/dataProviders/CCCCCCCCCHs"
+    val primitiveReportingSetName3 = "$MEASUREMENT_CONSUMER_NAME/reportingSets/primitive-reporting-set-3"
+    val primitiveReportingSet3 = reportingSet {
+      name = primitiveReportingSetName3
+    }
+
+    val dataProviderPrimitiveReportingSetMap = buildMap {
+      put(DATA_PROVIDER_NAME_1, PRIMITIVE_REPORTING_SET_1)
+      put(DATA_PROVIDER_NAME_2, PRIMITIVE_REPORTING_SET_2)
+      put(dataProviderName3, primitiveReportingSet3)
+    }
+    val resultGroupSpecs = listOf(resultGroupSpec {
+      reportingUnit = reportingUnit {
+        components += DATA_PROVIDER_NAME_1
+        components += DATA_PROVIDER_NAME_2
+        components += dataProviderName3
+      }
+      metricFrequency = metricFrequencySpec {
+        total = true
+      }
+      dimensionSpec = dimensionSpec {
+        grouping = DimensionSpecKt.grouping { eventTemplateFields += "common.gender" }
+        filters += eventFilter {
+          terms += eventTemplateField {
+            path = "common.age_group"
+            value = EventTemplateFieldKt.fieldValue { enumValue = "18_TO_35" }
+          }
+        }
+        filters += eventFilter {
+          terms += eventTemplateField {
+            path = "common.gender"
+            value = EventTemplateFieldKt.fieldValue { enumValue = "MALE" }
+          }
+        }
+      }
+      resultGroupMetricSpec = resultGroupMetricSpec {
+        component = ResultGroupMetricSpecKt.componentMetricSetSpec {
+          cumulativeUnique = ResultGroupMetricSpecKt.uniqueMetricSetSpec {
+            reach = true
+          }
+        }
+      }
+    })
+
+    val reportingSetMetricCalculationSpecDetailsMap =
+      buildReportingSetMetricCalculationSpecDetailsMap(
+        campaignGroupName = CAMPAIGN_GROUP_NAME,
+        impressionQualificationFilterSpecsFilters = impressionQualificationSpecsFilters,
+        dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
+        resultGroupSpecs = resultGroupSpecs,
+      )
+
+    assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(3)
+    assertThat(reportingSetMetricCalculationSpecDetailsMap).containsEntry(
+      reportingSet {
+        campaignGroup = CAMPAIGN_GROUP_NAME
+        composite = ReportingSetKt.composite {
+          expression = ReportingSetKt.setExpression {
+            operation = ReportingSet.SetExpression.Operation.UNION
+            lhs = ReportingSetKt.SetExpressionKt.operand {
+              reportingSet = PRIMITIVE_REPORTING_SET_NAME_2
+            }
+            rhs = ReportingSetKt.SetExpressionKt.operand {
+              expression = ReportingSetKt.setExpression {
+                operation = ReportingSet.SetExpression.Operation.UNION
+                lhs = ReportingSetKt.SetExpressionKt.operand {
+                  reportingSet = PRIMITIVE_REPORTING_SET_NAME_1
+                }
+              }
+            }
+          }
+        }
+      },
+      buildList {
+        add(MetricCalculationSpecKt.details {
+          filter = "filter && (common.age_group == 18_TO_35 && common.gender == MALE)"
+          metricSpecs += metricSpec {
+            reach = MetricSpecKt.reachParams { }
+          }
+        })
+      }
+    )
+
+    assertThat(reportingSetMetricCalculationSpecDetailsMap).containsEntry(
+      reportingSet {
+        campaignGroup = CAMPAIGN_GROUP_NAME
+        composite = ReportingSetKt.composite {
+          expression = ReportingSetKt.setExpression {
+            operation = ReportingSet.SetExpression.Operation.UNION
+            lhs = ReportingSetKt.SetExpressionKt.operand {
+              reportingSet = primitiveReportingSetName3
+            }
+            rhs = ReportingSetKt.SetExpressionKt.operand {
+              expression = ReportingSetKt.setExpression {
+                operation = ReportingSet.SetExpression.Operation.UNION
+                lhs = ReportingSetKt.SetExpressionKt.operand {
+                  reportingSet = PRIMITIVE_REPORTING_SET_NAME_1
+                }
+              }
+            }
+          }
+        }
+      },
+      buildList {
+        add(MetricCalculationSpecKt.details {
+          filter = "filter && (common.age_group == 18_TO_35 && common.gender == MALE)"
+          metricSpecs += metricSpec {
+            reach = MetricSpecKt.reachParams { }
+          }
+        })
+      }
+    )
+
+    assertThat(reportingSetMetricCalculationSpecDetailsMap).containsEntry(
+      reportingSet {
+        campaignGroup = CAMPAIGN_GROUP_NAME
+        composite = ReportingSetKt.composite {
+          expression = ReportingSetKt.setExpression {
+            operation = ReportingSet.SetExpression.Operation.UNION
+            lhs = ReportingSetKt.SetExpressionKt.operand {
+              reportingSet = primitiveReportingSetName3
+            }
+            rhs = ReportingSetKt.SetExpressionKt.operand {
+              expression = ReportingSetKt.setExpression {
+                operation = ReportingSet.SetExpression.Operation.UNION
+                lhs = ReportingSetKt.SetExpressionKt.operand {
+                  reportingSet = PRIMITIVE_REPORTING_SET_NAME_2
+                }
+              }
+            }
+          }
+        }
+      },
+      buildList {
+        add(MetricCalculationSpecKt.details {
+          filter = "filter && (common.age_group == 18_TO_35 && common.gender == MALE)"
+          metricSpecs += metricSpec {
+            reach = MetricSpecKt.reachParams { }
+          }
+        })
+      }
+    )
+
+    assertThat(reportingSetMetricCalculationSpecDetailsMap).containsEntry(
+      reportingSet {
+        campaignGroup = CAMPAIGN_GROUP_NAME
+        composite = ReportingSetKt.composite {
+          expression = ReportingSetKt.setExpression {
+            operation = ReportingSet.SetExpression.Operation.UNION
+            lhs = ReportingSetKt.SetExpressionKt.operand {
+              reportingSet = primitiveReportingSetName3
+            }
+            rhs = ReportingSetKt.SetExpressionKt.operand {
+              expression = ReportingSetKt.setExpression {
+                operation = ReportingSet.SetExpression.Operation.UNION
+                lhs = ReportingSetKt.SetExpressionKt.operand {
+                  reportingSet = PRIMITIVE_REPORTING_SET_NAME_2
+                }
+                rhs = ReportingSetKt.SetExpressionKt.operand {
+                  expression = ReportingSetKt.setExpression {
+                    operation = ReportingSet.SetExpression.Operation.UNION
+                    lhs = ReportingSetKt.SetExpressionKt.operand {
+                      reportingSet = PRIMITIVE_REPORTING_SET_NAME_1
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      buildList {
+        add(MetricCalculationSpecKt.details {
+          filter = "filter && (common.age_group == 18_TO_35 && common.gender == MALE)"
+          metricSpecs += metricSpec {
+            reach = MetricSpecKt.reachParams { }
           }
         })
       }
