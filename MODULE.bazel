@@ -227,7 +227,7 @@ maven.install(
         "io.kubernetes:client-java-extended:" + K8S_CLIENT_VERSION,
         "joda-time:joda-time:2.10.10",
         "org.slf4j:slf4j-simple:1.7.32",
-#        "junit:junit:4.13.2",
+        "junit:junit:4.13.2",
 
         # Google Cloud
         "com.google.cloud:google-cloud-bigquerystorage",
@@ -252,8 +252,8 @@ maven.install(
 
         # Bouncy Castle
         "org.bouncycastle:bcpkix-jdk18on:1.79",
-        "com.google.protobuf:protobuf-java",
-        "com.google.protobuf:protobuf-java-util",
+#        "com.google.protobuf:protobuf-java",
+#        "com.google.protobuf:protobuf-java-util",
     ],
     boms = [
         "org.apache.beam:beam-sdks-java-bom:" + APACHE_BEAM_VERSION,
