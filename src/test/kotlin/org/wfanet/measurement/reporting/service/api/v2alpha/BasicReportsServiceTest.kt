@@ -2589,7 +2589,7 @@ class BasicReportsServiceTest {
         }
       )
 
-      reportingSetsService.createReportingSet(
+      internalReportingSetsService.createReportingSet(
         createReportingSetRequest {
           reportingSet =
             INTERNAL_CAMPAIGN_GROUP.copy {
