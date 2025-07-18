@@ -19,23 +19,51 @@ package wfa.measurement.config;
 option java_package = "org.wfanet.measurement.config";
 option java_multiple_files = true;
 
+// Configuration for gRPC rate limiting.
+//
+// Rate limit resolution:
+// 1. Look for an entry for the principal identifier in
+// [RateLimitConfig.principal_rate_limit_override][].
+//    a. If not present, use [RateLimitConfig.rate_limit][].
+// 2. Within the [RateLimitConfig.RateLimit][] resolved in (1), look for an
+// entry for the method in [RateLimitConfig.RateLimit.per_method_rate_limit][].
+//    a. If not present, use [RateLimitConfig.RateLimit.default_rate_limit][].
 message RateLimitConfig {
-  message RateLimit {
+  // Rate limit configuration for an RPC method.
+  message MethodRateLimit {
     // Maximum number of requests at one time. A negative value means there is
     // no rate limit.
     int32 maximum_request_count = 1;
     // Average number of requests per second.
     double average_request_rate = 2;
   }
+  message RateLimit {
+    // Default rate limit that applies when there is not a per-method limit.
+    // Required.
+    MethodRateLimit default_rate_limit = 1;
 
-  // Default limit applied when there not a per-principal limit.
-  RateLimit default_rate_limit = 1;
+    // Map of full method name to the rate limit for that method.
+    //
+    // Example full method names:
+    // * `wfa.measurement.api.v2alpha.Requisitions/ListRequisitions`
+    // * `wfa.measurement.reporting.v2alpha.EventGroups/ListEventGroups`
+    map<string, MethodRateLimit> per_method_rate_limit = 2;
+  }
 
-  // Map of full method name to cost of that method.
+  // Regular rate limit. Required.
   //
-  // If the cost is not specified here, it is assumed to be 1.
-  map<string, int32> method_cost = 2;
+  // This may be overridden by [principal_rate_limit_override][].
+  RateLimit rate_limit = 1;
 
-  // Map of principal identifier to the rate limit for that principal.
-  map<string, RateLimit> per_principal_rate_limit = 3;
+  // Map of principal identifier to the rate limit override for that principal.
+  //
+  // The principal identifier comes from the gRPC context. The format of the
+  // identifier depends on how the server implementation identifies a principal.
+  // For example, if the server uses mTLS for authentication then the principal
+  // identifier may be the authority key identifier (AKID) of the client
+  // certificate, such as
+  // `90:C1:D3:BD:E6:74:01:55:A7:EF:E6:64:72:A6:68:9C:41:5B:77:04`. If instead
+  // the server uses the Access API, then the principal identifier may be the
+  // Principal resource name, such as `principals/alice`.
+  map<string, RateLimit> principal_rate_limit_override = 2;
 }
