@@ -297,11 +297,15 @@ kubectl port-forward prometheus-pod 31111:9090
 Once you have a running CMMS with EDP simulators, you can run the correctness
 test against it.
 
-You'll need access to the public API server. You can do this via port forwarding
-as mentioned before:
+You'll need access to the Kingdom and Reporting public API servers. You can do
+this via port forwarding as mentioned before:
 
 ```shell
 kubectl port-forward --address=localhost services/v2alpha-public-api-server 8443:8443
+```
+
+```shell
+kubectl port-forward --address=localhost services/reporting-v2alpha-public-api-server 9443:8443
 ```
 
 Then you can run the test, substituting your own values(e.g. `mc_name` and
@@ -311,8 +315,14 @@ Then you can run the test, substituting your own values(e.g. `mc_name` and
 bazel test //src/test/kotlin/org/wfanet/measurement/integration/k8s:SyntheticGeneratorCorrectnessTest
   --test_output=streamed \
   --define=kingdom_public_api_target=localhost:8443 \
+  --define=reporting_public_api_target=localhost:9443 \
   --define=mc_name=measurementConsumers/Rcn7fKd25C8 \
-  --define=mc_api_key=W9q4zad246g
+  --define=mc_api_key=W9q4zad246g \
+  --define edp1_name=dataProviders/UjUpwCTmq0o \
+  --define edp2_name=dataProviders/cV4YC9sZVKQ \
+  --define edp3_name=dataProviders/DJweaNsZVJY \
+  --define edp4_name=dataProviders/JxgZTyTmq3k \
+  --define edp5_name=dataProviders/f8NzvNsZVHk
 ```
 
 ## Debugging Tips
