@@ -30,7 +30,7 @@ locals {
 
   data_watcher_tls_key = {
     secret_id         = "edpa-data-watcher-tls-key"
-    secret_local_path = abspath("${path.root}/../../../k8s/testing/secretfiles/edpa_tee_app_tls.key"),
+    secret_local_path = abspath("${path.root}/../../../k8s/testing/secretfiles/data_watcher_tls.key"),
     is_binary_format  = false
   }
 

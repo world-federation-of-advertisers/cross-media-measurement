@@ -5,6 +5,9 @@ package(default_visibility = ["//visibility:public"])
 kt_jvm_library(
     name = "rate_limiter",
     srcs = ["RateLimiter.kt"],
+    deps = [
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+    ],
 )
 
 kt_jvm_library(
@@ -12,5 +15,6 @@ kt_jvm_library(
     srcs = ["TokenBucket.kt"],
     deps = [
         ":rate_limiter",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
     ],
 )
