@@ -17,7 +17,7 @@
 
 vid_range {
   start: 1
-  end_exclusive: 1200000 # Age 18-64 with known social grade.
+  end_exclusive: 360000000  # Age 18-64 with known social grade.
 }
 event_message_type_url: "type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.TestEvent"
 population_fields: "person.gender"
@@ -27,7 +27,7 @@ non_population_fields: "video_ad.viewed_fraction"
 sub_populations {
   vid_sub_range {
     start: 1
-    end_exclusive: 100000
+    end_exclusive: 30000000
   }
   population_fields_values {
     key: "person.age_group"
@@ -50,8 +50,8 @@ sub_populations {
 }
 sub_populations {
   vid_sub_range {
-    start: 100000
-    end_exclusive: 200000
+    start: 30000000
+    end_exclusive: 60000000
   }
   population_fields_values {
     key: "person.age_group"
@@ -74,8 +74,8 @@ sub_populations {
 }
 sub_populations {
   vid_sub_range {
-    start: 200000
-    end_exclusive: 300000
+    start: 60000000
+    end_exclusive: 90000000
   }
   population_fields_values {
     key: "person.age_group"
@@ -98,8 +98,8 @@ sub_populations {
 }
 sub_populations {
   vid_sub_range {
-    start: 300000
-    end_exclusive: 400000
+    start: 90000000
+    end_exclusive: 120000000
   }
   population_fields_values {
     key: "person.age_group"
@@ -122,32 +122,8 @@ sub_populations {
 }
 sub_populations {
   vid_sub_range {
-    start: 400000
-    end_exclusive: 500000
-  }
-  population_fields_values {
-    key: "person.age_group"
-    value {
-      enum_value: 3
-    }
-  }
-  population_fields_values {
-    key: "person.gender"
-    value {
-      enum_value: 1
-    }
-  }
-  population_fields_values {
-    key: "person.social_grade_group"
-    value {
-      enum_value: 1
-    }
-  }
-}
-sub_populations {
-  vid_sub_range {
-    start: 500000
-    end_exclusive: 600000
+    start: 120000000
+    end_exclusive: 150000000
   }
   population_fields_values {
     key: "person.age_group"
@@ -164,14 +140,38 @@ sub_populations {
   population_fields_values {
     key: "person.social_grade_group"
     value {
+      enum_value: 1
+    }
+  }
+}
+sub_populations {
+  vid_sub_range {
+    start: 150000000
+    end_exclusive: 180000000
+  }
+  population_fields_values {
+    key: "person.age_group"
+    value {
+      enum_value: 3
+    }
+  }
+  population_fields_values {
+    key: "person.gender"
+    value {
+      enum_value: 1
+    }
+  }
+  population_fields_values {
+    key: "person.social_grade_group"
+    value {
       enum_value: 2
     }
   }
 }
 sub_populations {
   vid_sub_range {
-    start: 600000
-    end_exclusive: 700000
+    start: 180000000
+    end_exclusive: 210000000
   }
   population_fields_values {
     key: "person.age_group"
@@ -194,8 +194,8 @@ sub_populations {
 }
 sub_populations {
   vid_sub_range {
-    start: 700000
-    end_exclusive: 800000
+    start: 210000000
+    end_exclusive: 240000000
   }
   population_fields_values {
     key: "person.age_group"
@@ -218,8 +218,8 @@ sub_populations {
 }
 sub_populations {
   vid_sub_range {
-    start: 800000
-    end_exclusive: 900000
+    start: 240000000
+    end_exclusive: 270000000
   }
   population_fields_values {
     key: "person.age_group"
@@ -242,8 +242,8 @@ sub_populations {
 }
 sub_populations {
   vid_sub_range {
-    start: 900000
-    end_exclusive: 1000000
+    start: 270000000
+    end_exclusive: 300000000
   }
   population_fields_values {
     key: "person.age_group"
@@ -266,8 +266,8 @@ sub_populations {
 }
 sub_populations {
   vid_sub_range {
-    start: 1000000
-    end_exclusive: 1100000
+    start: 300000000
+    end_exclusive: 330000000
   }
   population_fields_values {
     key: "person.age_group"
@@ -290,8 +290,8 @@ sub_populations {
 }
 sub_populations {
   vid_sub_range {
-    start: 1100000
-    end_exclusive: 1200000
+    start: 330000000
+    end_exclusive: 360000000
   }
   population_fields_values {
     key: "person.age_group"

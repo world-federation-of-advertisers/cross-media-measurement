@@ -205,6 +205,10 @@ kt_jvm_binary(
         "@wfa_consent_signaling_client//src/main/kotlin/org/wfanet/measurement/consent/client/dataprovider",
         "@wfa_consent_signaling_client//src/main/kotlin/org/wfanet/measurement/consent/client/measurementconsumer",
     ],
+    jvm_flags = [
+        "-Xmx700g",
+        "-Xms700g",
+    ],
 )
 
 java_binary(

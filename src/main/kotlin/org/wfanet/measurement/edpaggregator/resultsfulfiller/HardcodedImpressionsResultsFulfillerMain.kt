@@ -20,7 +20,7 @@ package org.wfanet.measurement.edpaggregator.resultsfulfiller
 import com.google.crypto.tink.*
 import com.google.crypto.tink.aead.AeadConfig
 import com.google.crypto.tink.streamingaead.StreamingAeadConfig
-import com.google.protobuf.Any
+import com.google.protobuf.Any as ProtobufAny
 import com.google.protobuf.TypeRegistry
 import com.google.type.interval
 import java.io.FileInputStream
@@ -89,9 +89,23 @@ import picocli.CommandLine
 )
 class HardcodedImpressionsResultsFulfillerMain : Runnable {
 
-  data class FrequencyVector(
-    val counts: Map<Long, Int>
-  )
+  class FrequencyVector(
+    val counts: ByteArray
+  ) {
+    companion object {
+      const val MAX_VID = 360_000_000L
+    }
+    
+    override fun equals(other: kotlin.Any?): Boolean {
+      if (this === other) return true
+      if (other !is FrequencyVector) return false
+      return counts.contentEquals(other.counts)
+    }
+    
+    override fun hashCode(): Int {
+      return counts.contentHashCode()
+    }
+  }
 
   data class BenchmarkResult(
     val parallelism: Int,
@@ -207,7 +221,7 @@ class HardcodedImpressionsResultsFulfillerMain : Runnable {
         }
       }
       requisitions += requisitionEntry {
-        requisition = Any.pack(createRequisition(requisitionSpec, timeRange))
+        requisition = ProtobufAny.pack(createRequisition(requisitionSpec, timeRange))
       }
     }
 
@@ -243,7 +257,7 @@ class HardcodedImpressionsResultsFulfillerMain : Runnable {
     println("\n=== Parallelism Benchmark ===\n")
 
     // Benchmark different parallelism levels
-    val parallelismLevels = listOf(1, 2, 4, 8)
+    val parallelismLevels = listOf(90)
     val benchmarkResults = mutableMapOf<Int, BenchmarkResult>()
 
     // Print thread pool info
@@ -323,7 +337,8 @@ class HardcodedImpressionsResultsFulfillerMain : Runnable {
       val mergeEndTime = System.currentTimeMillis()
       val mergeDuration = mergeEndTime - mergeStartTime
 
-      println("  Merge stage completed in ${mergeDuration}ms (${mergedVector.counts.size} unique VIDs)")
+      val uniqueVidsInMerged = mergedVector.counts.count { it.toInt() != 0 }
+      println("  Merge stage completed in ${mergeDuration}ms (${uniqueVidsInMerged} unique VIDs)")
 
       // Measure time to compute frequency distribution
       val distributionStartTime = System.currentTimeMillis()
@@ -529,11 +544,17 @@ class HardcodedImpressionsResultsFulfillerMain : Runnable {
    * Computes frequency vector for a list of VIDs without concurrency
    */
   private fun computeFrequencyVector(vids: List<Long>): FrequencyVector {
-    val counts = mutableMapOf<Long, Int>()
+    val counts = ByteArray(FrequencyVector.MAX_VID.toInt())
 
     // Count occurrences of each VID
     for (vid in vids) {
-      counts[vid] = counts.getOrDefault(vid, 0) + 1
+      if (vid < FrequencyVector.MAX_VID) {
+        val vidIndex = vid.toInt()
+        val currentCount = counts[vidIndex].toInt() and 0xFF
+        if (currentCount < 255) {
+          counts[vidIndex] = (currentCount + 1).toByte()
+        }
+      }
     }
 
     return FrequencyVector(counts)
@@ -555,7 +576,7 @@ class HardcodedImpressionsResultsFulfillerMain : Runnable {
 
     for (eventGroup in requisitionSpec.events.eventGroupsList) {
       val collectionInterval = eventGroup.value.collectionInterval
-      
+
       // Create thread pool for filtering
       val executor = ThreadPoolExecutor(
         parallelism,
@@ -633,29 +654,148 @@ class HardcodedImpressionsResultsFulfillerMain : Runnable {
    * Merges frequency vectors across dates by combining counts for same VIDs
    */
   private fun mergeFrequencyVectors(frequencyVectors: List<FrequencyVector>): FrequencyVector {
-    val mergedCounts = mutableMapOf<Long, Int>()
+    if (frequencyVectors.isEmpty()) {
+      return FrequencyVector(ByteArray(FrequencyVector.MAX_VID.toInt()))
+    }
+    
+    if (frequencyVectors.size == 1) {
+      return frequencyVectors[0]
+    }
+    
+    if (frequencyVectors.size == 2) {
+      return mergeTwoVectors(frequencyVectors[0], frequencyVectors[1])
+    }
 
-    // Combine counts for all VIDs across all vectors
-    for (vector in frequencyVectors) {
-      for ((vid, count) in vector.counts) {
-        mergedCounts[vid] = mergedCounts.getOrDefault(vid, 0) + count
+    val mergedCounts = ByteArray(FrequencyVector.MAX_VID.toInt())
+    
+    // Use parallel merging for better performance
+    val parallelism = Runtime.getRuntime().availableProcessors()
+    val chunkSize = FrequencyVector.MAX_VID.toInt() / parallelism
+    
+    // Create thread pool for parallel merging
+    val executor = ThreadPoolExecutor(
+      parallelism,
+      parallelism,
+      60L,
+      TimeUnit.SECONDS,
+      LinkedBlockingQueue<Runnable>()
+    )
+    
+    try {
+      val futures = (0 until parallelism).map { threadId ->
+        executor.submit(Callable<Unit> {
+          val startIdx = threadId * chunkSize
+          val endIdx = if (threadId == parallelism - 1) FrequencyVector.MAX_VID.toInt() else (threadId + 1) * chunkSize
+          
+          // Process chunk with optimized merging
+          mergeChunk(frequencyVectors, mergedCounts, startIdx, endIdx)
+        })
       }
+      
+      // Wait for all chunks to complete
+      futures.forEach { it.get() }
+    } finally {
+      executor.shutdown()
+      executor.awaitTermination(5, TimeUnit.MINUTES)
     }
 
     return FrequencyVector(mergedCounts)
+  }
+  
+  /**
+   * Efficiently merges two frequency vectors
+   */
+  private fun mergeTwoVectors(v1: FrequencyVector, v2: FrequencyVector): FrequencyVector {
+    val result = ByteArray(FrequencyVector.MAX_VID.toInt())
+    
+    // Use vectorized addition
+    var i = 0
+    while (i + 8 <= result.size) {
+      // Process 8 bytes at a time
+      for (j in 0..7) {
+        val c1 = v1.counts[i + j].toInt() and 0xFF
+        val c2 = v2.counts[i + j].toInt() and 0xFF
+        result[i + j] = minOf(c1 + c2, 255).toByte()
+      }
+      i += 8
+    }
+    
+    // Handle remaining bytes
+    while (i < result.size) {
+      val c1 = v1.counts[i].toInt() and 0xFF
+      val c2 = v2.counts[i].toInt() and 0xFF
+      result[i] = minOf(c1 + c2, 255).toByte()
+      i++
+    }
+    
+    return FrequencyVector(result)
+  }
+  
+  /**
+   * Merges a chunk of frequency vectors for a specific range of indices
+   */
+  private fun mergeChunk(
+    frequencyVectors: List<FrequencyVector>,
+    mergedCounts: ByteArray,
+    startIdx: Int,
+    endIdx: Int
+  ) {
+    // Process in blocks for better cache locality
+    val blockSize = 4096 // 4KB blocks for L1 cache
+    
+    for (blockStart in startIdx until endIdx step blockSize) {
+      val blockEnd = minOf(blockStart + blockSize, endIdx)
+      
+      // Process each vector for this block
+      for (vector in frequencyVectors) {
+        // Unroll loop for better performance
+        var i = blockStart
+        while (i + 4 <= blockEnd) {
+          // Process 4 bytes at a time
+          val c0 = mergedCounts[i].toInt() and 0xFF
+          val c1 = mergedCounts[i + 1].toInt() and 0xFF
+          val c2 = mergedCounts[i + 2].toInt() and 0xFF
+          val c3 = mergedCounts[i + 3].toInt() and 0xFF
+          
+          val a0 = vector.counts[i].toInt() and 0xFF
+          val a1 = vector.counts[i + 1].toInt() and 0xFF
+          val a2 = vector.counts[i + 2].toInt() and 0xFF
+          val a3 = vector.counts[i + 3].toInt() and 0xFF
+          
+          mergedCounts[i] = minOf(c0 + a0, 255).toByte()
+          mergedCounts[i + 1] = minOf(c1 + a1, 255).toByte()
+          mergedCounts[i + 2] = minOf(c2 + a2, 255).toByte()
+          mergedCounts[i + 3] = minOf(c3 + a3, 255).toByte()
+          
+          i += 4
+        }
+        
+        // Handle remaining bytes
+        while (i < blockEnd) {
+          val currentCount = mergedCounts[i].toInt() and 0xFF
+          val additionalCount = vector.counts[i].toInt() and 0xFF
+          mergedCounts[i] = minOf(currentCount + additionalCount, 255).toByte()
+          i++
+        }
+      }
+    }
   }
 
   /**
    * Computes frequency distribution from a frequency vector (average frequency)
    */
   private fun computeFrequencyDistribution(frequencyVector: FrequencyVector): Double {
-    if (frequencyVector.counts.isEmpty()) {
-      return 0.0
+    var totalFrequency = 0L
+    var uniqueVids = 0L
+
+    for (count in frequencyVector.counts) {
+      val frequency = count.toInt() and 0xFF
+      if (frequency > 0) {
+        totalFrequency += frequency
+        uniqueVids++
+      }
     }
 
-    val totalFrequency = frequencyVector.counts.values.sum()
-    val uniqueVids = frequencyVector.counts.size
-
-    return totalFrequency.toDouble() / uniqueVids
+    return if (uniqueVids > 0) totalFrequency.toDouble() / uniqueVids else 0.0
   }
 }
