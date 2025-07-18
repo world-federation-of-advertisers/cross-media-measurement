@@ -97,6 +97,11 @@ bazel_dep(
 
 # --- Bazel Central Registry modules. ---
 
+# TODO(laureanobrs): Remove this once rules_kotlin stops using version 0.0.4, which causes issues with JUnit. See: bazelbuild/bazel-worker-api/issues/10
+bazel_dep(
+    name = "bazel_worker_java",
+    version = "0.0.5",
+)
 bazel_dep(
     name = "platforms",
     version = "0.0.11",
@@ -227,7 +232,6 @@ maven.install(
         "io.kubernetes:client-java-extended:" + K8S_CLIENT_VERSION,
         "joda-time:joda-time:2.10.10",
         "org.slf4j:slf4j-simple:1.7.32",
-        "junit:junit:4.13.2",
 
         # Google Cloud
         "com.google.cloud:google-cloud-bigquerystorage",
