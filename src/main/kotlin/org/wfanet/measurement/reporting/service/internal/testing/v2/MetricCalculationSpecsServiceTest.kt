@@ -428,10 +428,11 @@ abstract class MetricCalculationSpecsServiceTest<T : MetricCalculationSpecsCorou
         .listMetricCalculationSpecs(
           listMetricCalculationSpecsRequest {
             cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-            filter = ListMetricCalculationSpecsRequestKt.filter {
-              externalMetricCalculationSpecIdAfter =
-                createdMetricCalculationSpec.externalMetricCalculationSpecId
-            }
+            filter =
+              ListMetricCalculationSpecsRequestKt.filter {
+                externalMetricCalculationSpecIdAfter =
+                  createdMetricCalculationSpec.externalMetricCalculationSpecId
+              }
             limit = 50
           }
         )
@@ -474,14 +475,16 @@ abstract class MetricCalculationSpecsServiceTest<T : MetricCalculationSpecsCorou
       }
 
       service.createMetricCalculationSpec(request)
-      val createdMetricCalculationSpec2 = service.createMetricCalculationSpec(
-        request.copy {
-          externalMetricCalculationSpecId = "external-metric-calculation-spec-id-2"
-          this.metricCalculationSpec = metricCalculationSpec.copy {
-            externalCampaignGroupId = campaignGroup.externalCampaignGroupId
+      val createdMetricCalculationSpec2 =
+        service.createMetricCalculationSpec(
+          request.copy {
+            externalMetricCalculationSpecId = "external-metric-calculation-spec-id-2"
+            this.metricCalculationSpec =
+              metricCalculationSpec.copy {
+                externalCampaignGroupId = campaignGroup.externalCampaignGroupId
+              }
           }
-        }
-      )
+        )
 
       val retrievedMetricCalculationSpecs =
         service
@@ -489,9 +492,10 @@ abstract class MetricCalculationSpecsServiceTest<T : MetricCalculationSpecsCorou
             listMetricCalculationSpecsRequest {
               cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
               limit = 50
-              filter = ListMetricCalculationSpecsRequestKt.filter {
-                externalCampaignGroupId = campaignGroup.externalCampaignGroupId
-              }
+              filter =
+                ListMetricCalculationSpecsRequestKt.filter {
+                  externalCampaignGroupId = campaignGroup.externalCampaignGroupId
+                }
             }
           )
           .metricCalculationSpecsList

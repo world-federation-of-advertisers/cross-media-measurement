@@ -66,10 +66,8 @@ class CreateMetricCalculationSpec(private val request: CreateMetricCalculationSp
     val campaignGroupId: InternalId? =
       if (metricCalculationSpec.externalCampaignGroupId.isNotEmpty()) {
         ReportingSetReader(transactionContext)
-          .readCampaignGroup(
-            measurementConsumerId,
-            metricCalculationSpec.externalCampaignGroupId,
-          )?.reportingSetId
+          .readCampaignGroup(measurementConsumerId, metricCalculationSpec.externalCampaignGroupId)
+          ?.reportingSetId
       } else {
         null
       }

@@ -40,6 +40,7 @@ import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.config.reporting.MeasurementConsumerConfigs
 import org.wfanet.measurement.config.reporting.MetricSpecConfig
 import org.wfanet.measurement.internal.reporting.v2.ListMetricCalculationSpecsRequest as InternalListMetricCalculationSpecsRequest
+import org.wfanet.measurement.internal.reporting.v2.ListMetricCalculationSpecsRequestKt
 import org.wfanet.measurement.internal.reporting.v2.ListMetricCalculationSpecsResponse as InternalListMetricCalculationSpecsResponse
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpec as InternalMetricCalculationSpec
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpecKt as InternalMetricCalculationSpecKt
@@ -49,7 +50,6 @@ import org.wfanet.measurement.internal.reporting.v2.createMetricCalculationSpecR
 import org.wfanet.measurement.internal.reporting.v2.getMetricCalculationSpecRequest
 import org.wfanet.measurement.internal.reporting.v2.listMetricCalculationSpecsRequest
 import org.wfanet.measurement.internal.reporting.v2.metricCalculationSpec as internalMetricCalculationSpec
-import org.wfanet.measurement.internal.reporting.v2.ListMetricCalculationSpecsRequestKt
 import org.wfanet.measurement.reporting.service.api.InvalidFieldValueException
 import org.wfanet.measurement.reporting.v2alpha.CreateMetricCalculationSpecRequest
 import org.wfanet.measurement.reporting.v2alpha.GetMetricCalculationSpecRequest
@@ -381,10 +381,11 @@ class MetricCalculationSpecsService(
         limit = pageSize
         cmmsMeasurementConsumerId = source.cmmsMeasurementConsumerId
         if (source.hasLastMetricCalculationSpec()) {
-          filter = ListMetricCalculationSpecsRequestKt.filter {
-            externalMetricCalculationSpecIdAfter =
-              source.lastMetricCalculationSpec.externalMetricCalculationSpecId
-          }
+          filter =
+            ListMetricCalculationSpecsRequestKt.filter {
+              externalMetricCalculationSpecIdAfter =
+                source.lastMetricCalculationSpec.externalMetricCalculationSpecId
+            }
         }
       }
     }

@@ -82,9 +82,7 @@ class MetricCalculationSpecReader(private val readContext: ReadContext) {
 
   suspend fun readMetricCalculationSpecs(request: ListMetricCalculationSpecsRequest): List<Result> {
     val whereClause = buildString {
-      append(
-        "WHERE CmmsMeasurementConsumerId = $1"
-      )
+      append("WHERE CmmsMeasurementConsumerId = $1")
       if (request.filter.externalCampaignGroupId.isNotEmpty()) {
         append(
           " AND MetricCalculationSpecs.CampaignGroupId IN (SELECT ReportingSetId FROM ReportingSets WHERE ExternalReportingSetId = $4)"
