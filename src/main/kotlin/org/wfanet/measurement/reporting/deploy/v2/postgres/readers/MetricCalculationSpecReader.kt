@@ -39,13 +39,16 @@ class MetricCalculationSpecReader(private val readContext: ReadContext) {
     """
     SELECT
       CmmsMeasurementConsumerId,
-      MeasurementConsumerId,
+      MetricCalculationSpecs.MeasurementConsumerId,
       MetricCalculationSpecId,
       ExternalMetricCalculationSpecId,
       MetricCalculationSpecDetails,
-      CmmsModelLineName
+      CmmsModelLineName,
+      ReportingSets.ExternalReportingSetId AS ExternalCampaignGroupId
     FROM MetricCalculationSpecs
       JOIN MeasurementConsumers USING(MeasurementConsumerId)
+      LEFT JOIN ReportingSets ON MetricCalculationSpecs.MeasurementConsumerId = ReportingSets.MeasurementConsumerId
+        AND MetricCalculationSpecs.CampaignGroupId = ReportingSets.ReportingSetId
     """
       .trimIndent()
 
@@ -69,7 +72,7 @@ class MetricCalculationSpecReader(private val readContext: ReadContext) {
         .trimIndent()
 
     val statement =
-      boundStatement(sql.toString()) {
+      boundStatement(sql) {
         bind("$1", cmmsMeasurementConsumerId)
         bind("$2", externalMetricCalculationSpecId)
       }
@@ -78,11 +81,21 @@ class MetricCalculationSpecReader(private val readContext: ReadContext) {
   }
 
   suspend fun readMetricCalculationSpecs(request: ListMetricCalculationSpecsRequest): List<Result> {
+    val whereClause = buildString {
+      append(
+        "WHERE CmmsMeasurementConsumerId = $1"
+      )
+      if (request.filter.externalCampaignGroupId.isNotEmpty()) {
+        append(
+          " AND MetricCalculationSpecs.CampaignGroupId IN (SELECT ReportingSetId FROM ReportingSets WHERE ExternalReportingSetId = $4)"
+        )
+      }
+      append(" AND ExternalMetricCalculationSpecId > $2")
+    }
     val sql =
       """
           $baseSql
-          WHERE CmmsMeasurementConsumerId = $1
-            AND ExternalMetricCalculationSpecId > $2
+          $whereClause
           ORDER BY ExternalMetricCalculationSpecId ASC
           LIMIT $3
         """
@@ -91,12 +104,16 @@ class MetricCalculationSpecReader(private val readContext: ReadContext) {
     val statement =
       boundStatement(sql) {
         bind("$1", request.cmmsMeasurementConsumerId)
-        bind("$2", request.externalMetricCalculationSpecIdAfter)
+        bind("$2", request.filter.externalMetricCalculationSpecIdAfter)
 
         if (request.limit > 0) {
           bind("$3", request.limit)
         } else {
           bind("$3", LIST_DEFAULT_LIMIT)
+        }
+
+        if (request.filter.externalCampaignGroupId.isNotEmpty()) {
+          bind("$4", request.filter.externalCampaignGroupId)
         }
       }
 
@@ -143,12 +160,16 @@ class MetricCalculationSpecReader(private val readContext: ReadContext) {
 
   private fun buildMetricCalculationSpec(row: ResultRow): MetricCalculationSpec {
     val cmmsModelLineName: String? = row["CmmsModelLineName"]
+    val externalCampaignGroupId: String? = row["ExternalCampaignGroupId"]
 
     return metricCalculationSpec {
       cmmsMeasurementConsumerId = row["CmmsMeasurementConsumerId"]
       externalMetricCalculationSpecId = row["ExternalMetricCalculationSpecId"]
       if (cmmsModelLineName != null) {
         cmmsModelLine = cmmsModelLineName
+      }
+      if (externalCampaignGroupId != null) {
+        this.externalCampaignGroupId = externalCampaignGroupId
       }
       details =
         row.getProtoMessage("MetricCalculationSpecDetails", MetricCalculationSpec.Details.parser())

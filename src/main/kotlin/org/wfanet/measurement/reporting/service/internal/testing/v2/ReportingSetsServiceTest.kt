@@ -2147,27 +2147,26 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
         }
       )
 
-    val reportingSet2 =
-      service.createReportingSet(
-        createReportingSetRequest {
-          externalReportingSetId = "reporting-set-id-2"
-          reportingSet = reportingSet {
-            cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-            displayName = "displayName"
-            filter = "filter"
+    service.createReportingSet(
+      createReportingSetRequest {
+        externalReportingSetId = "reporting-set-id-2"
+        reportingSet = reportingSet {
+          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+          displayName = "displayName"
+          filter = "filter"
 
-            primitive =
-              ReportingSetKt.primitive {
-                eventGroupKeys +=
-                  ReportingSetKt.PrimitiveKt.eventGroupKey {
-                    cmmsDataProviderId = "1235"
-                    cmmsEventGroupId = "1236"
-                  }
-              }
-            details = ReportingSetKt.details { tags.putAll(REPORTING_SET_TAGS) }
-          }
+          primitive =
+            ReportingSetKt.primitive {
+              eventGroupKeys +=
+                ReportingSetKt.PrimitiveKt.eventGroupKey {
+                  cmmsDataProviderId = "1235"
+                  cmmsEventGroupId = "1236"
+                }
+            }
+          details = ReportingSetKt.details { tags.putAll(REPORTING_SET_TAGS) }
         }
-      )
+      }
+    )
 
     val retrievedReportingSets =
       service
@@ -2182,6 +2181,7 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
         )
         .toList()
 
+    assertThat(retrievedReportingSets).hasSize(1)
     assertThat(retrievedReportingSets).containsExactly(campaignGroup)
   }
 
