@@ -11,7 +11,7 @@
  * or implied. See the License for the specific language governing permissions and limitations under
  * the License.
  */
-package org.wfanet.measurement.eventdataprovider.shareshuffle.v2alpha
+package org.wfanet.measurement.eventdataprovider.frequencyvector.v2alpha
 
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.ByteString
@@ -27,6 +27,7 @@ import org.wfanet.measurement.api.v2alpha.PopulationSpecKt.subPopulation
 import org.wfanet.measurement.api.v2alpha.PopulationSpecKt.vidRange
 import org.wfanet.measurement.api.v2alpha.measurementSpec
 import org.wfanet.measurement.api.v2alpha.populationSpec
+import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.InMemoryVidIndexMap
 
 @RunWith(JUnit4::class)
 class FrequencyVectorBuilderTest {
