@@ -19,9 +19,11 @@ import com.google.crypto.tink.BinaryKeysetWriter
 import com.google.crypto.tink.KeyTemplates
 import com.google.crypto.tink.KeysetHandle
 import com.google.crypto.tink.KmsClient
+import com.google.crypto.tink.aead.AeadConfig
 import com.google.protobuf.ByteString
 import com.google.protobuf.kotlin.toByteString
 import java.io.ByteArrayOutputStream
+import java.security.GeneralSecurityException
 import org.wfanet.frequencycount.FrequencyVector
 import org.wfanet.measurement.api.v2alpha.EncryptionKey
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequest
@@ -45,6 +47,8 @@ class FulfillRequisitionRequestBuilder(
   private val impersonatedServiceAccountVal: String,
 ) {
   private val protocolConfig: TrusTee
+  private val encryptedFrequencyVectorBytes: ByteString
+  private val encryptedDekBytes: ByteString
 
   init {
     val trusTeeProtocolList =
@@ -55,26 +59,22 @@ class FulfillRequisitionRequestBuilder(
         ?: throw IllegalArgumentException(
           "Expected to find exactly one config for TrusTee. Found: ${trusTeeProtocolList.size}"
         )
-  }
 
-  private val dekHandle: KeysetHandle = KeysetHandle.generateNew(KeyTemplates.get("AES128_GCM"))
-  private val encryptedFrequencyVectorBytes: ByteString
-
-  init {
     require(frequencyVector.dataCount > 0) { "FrequencyVector must have size > 0" }
 
-    val dekAead = dekHandle.getPrimitive(Aead::class.java)
-    val encryptedData = dekAead.encrypt(frequencyVector.toByteArray(), null)
-    encryptedFrequencyVectorBytes = encryptedData.toByteString()
-  }
+    try {
+      val dekHandle = KeysetHandle.generateNew(KeyTemplates.get("AES128_GCM"))
+      val dekAead = dekHandle.getPrimitive(Aead::class.java)
+      val encryptedData = dekAead.encrypt(frequencyVector.toByteArray(), null)
+      encryptedFrequencyVectorBytes = encryptedData.toByteString()
 
-  private val kekAead: Aead = kmsClient.getAead(kmsKekUriVal)
-  private val encryptedDekBytes: ByteString
-
-  init {
-    val outputStream = ByteArrayOutputStream()
-    dekHandle.write(BinaryKeysetWriter.withOutputStream(outputStream), kekAead)
-    encryptedDekBytes = outputStream.toByteArray().toByteString()
+      val kekAead = kmsClient.getAead(kmsKekUriVal)
+      val outputStream = ByteArrayOutputStream()
+      dekHandle.write(BinaryKeysetWriter.withOutputStream(outputStream), kekAead)
+      encryptedDekBytes = outputStream.toByteArray().toByteString()
+    } catch (e: GeneralSecurityException) {
+      throw IllegalStateException("Failed to build trustee request due to a cryptographic error", e)
+    }
   }
 
   /** Builds the Sequence of requests. */
@@ -122,6 +122,10 @@ class FulfillRequisitionRequestBuilder(
 
   companion object {
     private const val RPC_CHUNK_SIZE_BYTES = 32 * 1024 // 32 KiB
+
+    init {
+      AeadConfig.register()
+    }
 
     /** A convenience function */
     fun build(
