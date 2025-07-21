@@ -97,7 +97,6 @@ class EventReader(
    * @return A flow of labeled events
    */
   private suspend fun getLabeledEvents(blobDetails: BlobDetails): Flow<LabeledEvent<Message>> {
-    var impressionCount = 0
     val storageClientUri = SelectedStorageClient.parseBlobUri(blobDetails.blobUri)
 
     // Create and configure storage client with encryption
@@ -129,33 +128,36 @@ class EventReader(
         )
 
     // Parse raw data into LabeledEvent objects
+    val labeledImpressionBuilder = LabeledImpression.newBuilder()
+    
+    // Reusable DynamicMessage builder and descriptor - assuming all events have the same type
+    var eventMessageBuilder: DynamicMessage.Builder? = null
+    var descriptor: com.google.protobuf.Descriptors.Descriptor? = null
+    
     return impressionBlob.read().map { impressionByteString ->
-      val labeledImpression = LabeledImpression.parseFrom(impressionByteString)
-        ?: throw ImpressionReadException(
-          storageClientUri.key,
-          ImpressionReadException.Code.INVALID_FORMAT,
-        )
+      labeledImpressionBuilder.clear()
+      labeledImpressionBuilder.mergeFrom(impressionByteString)
 
-      // Convert LabeledImpression to LabeledEvent
-      val eventTypeUrl = labeledImpression.event.typeUrl
-      val descriptor = typeRegistry.getDescriptorForTypeUrl(eventTypeUrl)
-        ?: throw ImpressionReadException(
-          storageClientUri.key,
-          ImpressionReadException.Code.INVALID_FORMAT,
-          "Unknown event type: $eventTypeUrl"
-        )
-
-      val eventMessage = DynamicMessage.parseFrom(descriptor, labeledImpression.event.value)
-
-      impressionCount++
-      if (impressionCount % 100000 == 0) {
-        logger.info("Processed $impressionCount impressions, running GC")
-        System.gc()
+      // Initialize the reusable builder and cache descriptor on first use
+      if (eventMessageBuilder == null) {
+        val eventTypeUrl = labeledImpressionBuilder.event.typeUrl
+        descriptor = typeRegistry.getDescriptorForTypeUrl(eventTypeUrl)
+          ?: throw ImpressionReadException(
+            storageClientUri.key,
+            ImpressionReadException.Code.INVALID_FORMAT,
+            "Unknown event type: $eventTypeUrl"
+          )
+        eventMessageBuilder = DynamicMessage.newBuilder(descriptor)
       }
 
+      val eventMessage = eventMessageBuilder!!
+        .clear()
+        .mergeFrom(labeledImpressionBuilder.event.value)
+        .build()
+
       LabeledEvent(
-        timestamp = labeledImpression.eventTime.toInstant(),
-        vid = labeledImpression.vid,
+        timestamp = labeledImpressionBuilder.eventTime.toInstant(),
+        vid = labeledImpressionBuilder.vid,
         message = eventMessage
       )
     }

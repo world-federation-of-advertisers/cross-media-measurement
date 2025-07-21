@@ -25,30 +25,18 @@ import com.google.protobuf.Message
 import com.google.protobuf.TypeRegistry
 import com.google.type.interval
 import java.io.FileInputStream
-import java.lang.Runnable
-import java.lang.Runtime
-import java.lang.System
 import java.nio.file.Path
 import java.nio.file.Paths
 import java.security.SecureRandom
 import java.time.LocalDate
 import java.time.ZoneId
-import java.util.concurrent.atomic.AtomicIntegerArray
-import java.util.concurrent.Executors
-import java.util.concurrent.ThreadPoolExecutor
-import java.util.concurrent.TimeUnit
-import java.util.concurrent.Future
-import java.util.concurrent.Callable
-import java.util.concurrent.LinkedBlockingQueue
-import java.util.concurrent.ConcurrentLinkedQueue
-import kotlin.ranges.coerceAtLeast
-import kotlin.ranges.coerceAtMost
-import kotlin.ranges.rangeTo
-import kotlin.ranges.until
 import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.toList
-import kotlinx.coroutines.flow.asFlow
+import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.wfanet.measurement.api.v2alpha.*
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reachAndFrequency
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.vidSamplingInterval
@@ -92,41 +80,6 @@ import picocli.CommandLine
 )
 class HardcodedImpressionsResultsFulfillerMain : Runnable {
 
-  class FrequencyVector(
-    val counts: ByteArray
-  ) {
-    companion object {
-      const val MAX_VID = 360_000_000L
-    }
-    
-    override fun equals(other: kotlin.Any?): Boolean {
-      if (this === other) return true
-      if (other !is FrequencyVector) return false
-      return counts.contentEquals(other.counts)
-    }
-    
-    override fun hashCode(): Int {
-      return counts.contentHashCode()
-    }
-  }
-
-  data class BenchmarkResult(
-    val parallelism: Int,
-    val impressionCount: Long,
-    val vidCount: Long,
-    val readDurationMs: Long,
-    val filterDurationMs: Long,
-    val frequencyDurationMs: Long,
-    val mergeDurationMs: Long,
-    val distributionDurationMs: Long,
-    val totalDurationMs: Long,
-    val readThroughput: Long,
-    val filterThroughput: Long,
-    val frequencyThroughput: Long,
-    val mergeThroughput: Long,
-    val distributionThroughput: Long,
-    val totalThroughput: Long
-  )
 
   @CommandLine.Option(
     names = ["--impressions-path"],
@@ -170,24 +123,32 @@ class HardcodedImpressionsResultsFulfillerMain : Runnable {
   )
   private lateinit var impressionsUri: String
 
-  override fun run() {
+  @CommandLine.Option(
+    names = ["--parallelism"],
+    description = ["Number of parallel threads for processing"],
+    defaultValue = "4"
+  )
+  private var parallelism: Int = 4
+
+  override fun run() = runBlocking {
     println("Starting HardcodedImpressionsResultsFulfillerMain.run()")
+    println("Using parallelism level: $parallelism")
     
+    // Create a dispatcher with the specified parallelism
+    val dispatcher = Dispatchers.IO.limitedParallelism(parallelism)
+
     // Initialize Tink
     println("Initializing Tink crypto libraries...")
     AeadConfig.register()
     StreamingAeadConfig.register()
     println("Tink initialization complete")
 
-    // Create thread pool executor for parallel processing
-    val corePoolSize = Runtime.getRuntime().availableProcessors()
-    val maximumPoolSize = corePoolSize * 4
-
     println("Parsing date range: $startDateStr to $endDateStr")
     val startDate = LocalDate.parse(startDateStr)
     val endDate = LocalDate.parse(endDateStr)
     val timeRange = OpenEndTimeRange.fromClosedDateRange(startDate..endDate)
     println("Date range parsed successfully: $startDate to $endDate")
+
     println("Building measurement spec...")
     val measurementSpec = measurementSpec {
       reachAndFrequency = reachAndFrequency {
@@ -201,6 +162,7 @@ class HardcodedImpressionsResultsFulfillerMain : Runnable {
       }
     }
     println("Measurement spec built successfully")
+
     println("Building requisition spec...")
     val requisitionSpec = requisitionSpec {
       events = events {
@@ -219,8 +181,6 @@ class HardcodedImpressionsResultsFulfillerMain : Runnable {
     }
     println("Requisition spec built successfully")
 
-
-    // Write requisitions proto to storage
     println("Building grouped requisitions...")
     val groupedRequisitions = groupedRequisitions {
       modelLine = "test-model-line"
@@ -247,7 +207,6 @@ class HardcodedImpressionsResultsFulfillerMain : Runnable {
       val kmsClient = FakeKmsClient()
       val kekUri = FakeKmsClient.KEY_URI_PREFIX + "key1"
 
-      // Load master key from file
       val kmsKeyHandle = FileInputStream(masterKeyFile!!.toFile()).use { inputStream ->
         val keysetReader = BinaryKeysetReader.withInputStream(inputStream)
         CleartextKeysetHandle.read(keysetReader)
@@ -278,186 +237,30 @@ class HardcodedImpressionsResultsFulfillerMain : Runnable {
     )
     println("Event reader configured successfully")
 
-    // Process requisitions directly without ResultsFulfiller dependencies
+    // Process requisitions
     println("Processing requisitions...")
-    println("\n=== Parallelism Benchmark ===\n")
 
-    // Benchmark different parallelism levels
-    val parallelismLevels = listOf(90)
-    val benchmarkResults = mutableMapOf<Int, BenchmarkResult>()
+    // Read impressions from all date partitions as parallel flows
+    val sampledEvents = getSampledVids(
+      requisitionSpec,
+      groupedRequisitions.eventGroupMapList.associate { it.eventGroup to it.details.eventGroupReferenceId },
+      eventReader,
+      ZoneId.systemDefault(),
+      dispatcher
+    )
 
-    // Print thread pool info
-    println("Available processors: ${Runtime.getRuntime().availableProcessors()}")
-    println("Thread pool core size: $corePoolSize")
-    println("Thread pool max size: $maximumPoolSize")
+    // Filter impressions and extract VIDs
+    val filteredVids = filterImpressions(
+      sampledEvents,
+      requisitionSpec,
+      measurementSpec.vidSamplingInterval,
+      typeRegistry,
+      dispatcher
+    )
 
-    for (parallelism in parallelismLevels) {
-      println("Testing with parallelism = $parallelism...")
-      println("  Starting impression reading stage...")
+    val vidCount = filteredVids.count()
+    println("Filtered $vidCount VIDs from impressions")
 
-      // Measure time to read impressions only
-      val readStartTime = System.currentTimeMillis()
-
-      val impressions = getSampledVids(
-        requisitionSpec,
-        groupedRequisitions.eventGroupMapList.associate { it.eventGroup to it.details.eventGroupReferenceId },
-        eventReader,
-        ZoneId.systemDefault(),
-        parallelism
-      )
-
-      // Collect all impressions to force reading from disk
-      val impressionCount = impressions.sumOf { it.size }.toLong()
-
-      val readEndTime = System.currentTimeMillis()
-      val readDuration = readEndTime - readStartTime
-
-      println("  Read stage completed in ${readDuration}ms (${impressionCount} impressions)")
-
-      // Measure time to filter impressions
-      println("  Starting impression filtering stage...")
-      val filterStartTime = System.currentTimeMillis()
-
-      val allVids = filterImpressions(
-        impressions,
-        requisitionSpec,
-        measurementSpec.vidSamplingInterval,
-        typeRegistry,
-        parallelism
-      )
-
-      // All VIDs are already collected
-      val totalVidCount = allVids.size.toLong()
-
-      val filterEndTime = System.currentTimeMillis()
-      val filterDuration = filterEndTime - filterStartTime
-
-      println("  Filter stage completed in ${filterDuration}ms (${totalVidCount} VIDs)")
-
-      // Group VIDs by dates for frequency vector stage
-      val vidsPerDate = mutableListOf<List<Long>>()
-      val datesCount = impressions.size
-      val vidsPerDateCount = if (datesCount > 0) (totalVidCount / datesCount).toInt() else 0
-      repeat(datesCount) { dateIndex ->
-        val startIdx = dateIndex * vidsPerDateCount
-        val endIdx = if (dateIndex == datesCount - 1) allVids.size else (dateIndex + 1) * vidsPerDateCount
-        if (startIdx < allVids.size) {
-          vidsPerDate.add(allVids.subList(startIdx, minOf(endIdx, allVids.size)))
-        }
-      }
-
-      // Measure time to compute frequency vectors
-      println("  Starting frequency vector computation stage...")
-      val frequencyStartTime = System.currentTimeMillis()
-
-      val vectorList = computeFrequencyVectors(vidsPerDate, parallelism)
-      val vectorCount = vectorList.size.toLong()
-
-      val frequencyEndTime = System.currentTimeMillis()
-      val frequencyDuration = frequencyEndTime - frequencyStartTime
-
-      println("  Frequency stage completed in ${frequencyDuration}ms (${vectorCount} vectors)")
-
-      // Measure time to merge frequency vectors
-      println("  Starting frequency vector merge stage...")
-      val mergeStartTime = System.currentTimeMillis()
-
-      val mergedVector = mergeFrequencyVectors(vectorList)
-
-      val mergeEndTime = System.currentTimeMillis()
-      val mergeDuration = mergeEndTime - mergeStartTime
-
-      val uniqueVidsInMerged = mergedVector.counts.count { it.toInt() != 0 }
-      println("  Merge stage completed in ${mergeDuration}ms (${uniqueVidsInMerged} unique VIDs)")
-
-      // Measure time to compute frequency distribution
-      println("  Starting frequency distribution computation stage...")
-      val distributionStartTime = System.currentTimeMillis()
-
-      val averageFrequency = computeFrequencyDistribution(mergedVector)
-
-      val distributionEndTime = System.currentTimeMillis()
-      val distributionDuration = distributionEndTime - distributionStartTime
-      val totalDuration = readDuration + filterDuration + frequencyDuration + mergeDuration + distributionDuration
-
-      println("  Distribution stage completed in ${distributionDuration}ms (average frequency: ${String.format("%.2f", averageFrequency)})")
-
-      benchmarkResults[parallelism] = BenchmarkResult(
-        parallelism = parallelism,
-        impressionCount = impressionCount,
-        vidCount = totalVidCount,
-        readDurationMs = readDuration,
-        filterDurationMs = filterDuration,
-        frequencyDurationMs = frequencyDuration,
-        mergeDurationMs = mergeDuration,
-        distributionDurationMs = distributionDuration,
-        totalDurationMs = totalDuration,
-        readThroughput = if (readDuration > 0) (impressionCount * 1000.0 / readDuration).toLong() else 0,
-        filterThroughput = if (filterDuration > 0) (impressionCount * 1000.0 / filterDuration).toLong() else 0,
-        frequencyThroughput = if (frequencyDuration > 0) (impressionCount * 1000.0 / frequencyDuration).toLong() else 0,
-        mergeThroughput = if (mergeDuration > 0) (impressionCount * 1000.0 / mergeDuration).toLong() else 0,
-        distributionThroughput = if (distributionDuration > 0) (impressionCount * 1000.0 / distributionDuration).toLong() else 0,
-        totalThroughput = if (totalDuration > 0) (impressionCount * 1000.0 / totalDuration).toLong() else 0
-      )
-
-      println("  Total completed in ${totalDuration}ms")
-      println()
-    }
-
-    // Print comparison table
-    println("\n=== Benchmark Results ===")
-    println("%-12s %-15s %-15s %-15s %-15s %-15s %-15s %-15s %-15s %-15s %-15s %-15s %-15s".format("Parallelism", "Read (ms)", "Filter (ms)", "Freq (ms)", "Merge (ms)", "Dist (ms)", "Total (ms)", "Read/sec", "Filter/sec", "Freq/sec", "Merge/sec", "Dist/sec", "Impressions/sec"))
-    println("-".repeat(190))
-
-    val baselineReadTime = benchmarkResults[1]?.readDurationMs ?: 1
-    val baselineFilterTime = benchmarkResults[1]?.filterDurationMs ?: 1
-    val baselineFrequencyTime = benchmarkResults[1]?.frequencyDurationMs ?: 1
-    val baselineMergeTime = benchmarkResults[1]?.mergeDurationMs ?: 1
-    val baselineDistributionTime = benchmarkResults[1]?.distributionDurationMs ?: 1
-    val baselineTotalTime = benchmarkResults[1]?.totalDurationMs ?: 1
-
-    for ((parallelism, result) in benchmarkResults.entries.sortedBy { it.key }) {
-      println("%-12d %-15d %-15d %-15d %-15d %-15d %-15d %-15d %-15d %-15d %-15d %-15d %-15d".format(
-        parallelism,
-        result.readDurationMs,
-        result.filterDurationMs,
-        result.frequencyDurationMs,
-        result.mergeDurationMs,
-        result.distributionDurationMs,
-        result.totalDurationMs,
-        result.readThroughput,
-        result.filterThroughput,
-        result.frequencyThroughput,
-        result.mergeThroughput,
-        result.distributionThroughput,
-        result.totalThroughput
-      ))
-    }
-
-    println("\n=== Speedup Analysis ===")
-    println("%-12s %-15s %-15s %-15s %-15s %-15s %-15s".format("Parallelism", "Read Speedup", "Filter Speedup", "Freq Speedup", "Merge Speedup", "Dist Speedup", "Total Speedup"))
-    println("-".repeat(120))
-
-    for ((parallelism, result) in benchmarkResults.entries.sortedBy { it.key }) {
-      val readSpeedup = baselineReadTime.toDouble() / result.readDurationMs
-      val filterSpeedup = baselineFilterTime.toDouble() / result.filterDurationMs
-      val frequencySpeedup = baselineFrequencyTime.toDouble() / result.frequencyDurationMs
-      val mergeSpeedup = baselineMergeTime.toDouble() / result.mergeDurationMs
-      val distributionSpeedup = baselineDistributionTime.toDouble() / result.distributionDurationMs
-      val totalSpeedup = baselineTotalTime.toDouble() / result.totalDurationMs
-      println("%-12d %-15.2fx %-15.2fx %-15.2fx %-15.2fx %-15.2fx %-15.2fx".format(
-        parallelism,
-        readSpeedup,
-        filterSpeedup,
-        frequencySpeedup,
-        mergeSpeedup,
-        distributionSpeedup,
-        totalSpeedup
-      ))
-    }
-
-    println("\nTotal impressions processed: ${benchmarkResults[1]?.impressionCount ?: 0}")
-    println("Total VIDs processed: ${benchmarkResults[1]?.vidCount ?: 0}")
     println("Done!")
   }
 
@@ -512,325 +315,66 @@ class HardcodedImpressionsResultsFulfillerMain : Runnable {
   data class ReachAndFrequency(val reach: Int, val relativeFrequencyDistribution: Map<Int, Double>)
 
   /**
-   * Extracts impressions from impression data (reading only), grouped by dates
+   * Extracts impressions from impression data as a flow of flows (one per date partition)
    */
-  private fun getSampledVids(
+  private suspend fun getSampledVids(
     requisitionSpec: RequisitionSpec,
     eventGroupMap: Map<String, String>,
     eventReader: EventReader,
     zoneId: ZoneId,
-    parallelism: Int = 8
-  ): List<List<LabeledEvent<*>>> {
-    val allDateImpressions = mutableListOf<List<LabeledEvent<*>>>()
+    dispatcher: kotlinx.coroutines.CoroutineDispatcher
+  ): Flow<Flow<LabeledEvent<*>>> =
+    requisitionSpec.events.eventGroupsList.asFlow()
+      .flatMapConcat { eventGroup ->
+        val collectionInterval = eventGroup.value.collectionInterval
+        val startDate = LocalDate.ofInstant(collectionInterval.startTime.toInstant(), zoneId)
+        val endDate = LocalDate.ofInstant(collectionInterval.endTime.toInstant(), zoneId)
 
-    for (eventGroup in requisitionSpec.events.eventGroupsList) {
-      val collectionInterval = eventGroup.value.collectionInterval
-      val startDate = LocalDate.ofInstant(collectionInterval.startTime.toInstant(), zoneId)
-      val endDate = LocalDate.ofInstant(collectionInterval.endTime.toInstant(), zoneId)
+        val datesList = generateSequence(startDate) { date ->
+          if (date < endDate) date.plusDays(1) else null
+        }.toList()
 
-      val datesList = generateSequence(startDate) { date ->
-        if (date < endDate) date.plusDays(1) else null
-      }.toList()
+        println("Processing ${datesList.size} dates from $startDate to ${datesList.lastOrNull() ?: endDate}")
 
-      println("Processing ${datesList.size} dates from $startDate to ${datesList.lastOrNull() ?: endDate} with parallelism=$parallelism")
-
-      // Create thread pool for this batch of dates
-      val executor = ThreadPoolExecutor(
-        parallelism,
-        parallelism,
-        60L,
-        TimeUnit.SECONDS,
-        LinkedBlockingQueue<Runnable>()
-      )
-
-      try {
-        // Process dates in parallel using thread pool
-        val futures = datesList.map { date ->
-          executor.submit(Callable<List<LabeledEvent<*>>> {
-            // Each thread runs its own coroutine context
-            runBlocking {
-              val impressionsFlow = eventReader.getLabeledEvents(date, eventGroupMap.getValue(eventGroup.key))
-              impressionsFlow.toList()
-            }
-          })
-        }
-
-        // Collect results from all futures
-        val dateImpressions = futures.map { future ->
-          future.get() // This blocks until the task completes
-        }
-
-        allDateImpressions.addAll(dateImpressions)
-        
-        // Force GC after processing each batch of dates to free memory from impressions
-        System.gc()
-      } finally {
-        executor.shutdown()
-        executor.awaitTermination(5, TimeUnit.MINUTES)
+        // Create flows for each date partition
+        datesList.asFlow()
+          .map { date ->
+            eventReader.getLabeledEvents(date, eventGroupMap.getValue(eventGroup.key))
+              .flowOn(dispatcher)
+          }
       }
-    }
 
-    return allDateImpressions
-  }
 
 
   /**
-   * Computes frequency vector for a list of VIDs without concurrency
+   * Filters impressions and extracts VIDs using flows
    */
-  private fun computeFrequencyVector(vids: List<Long>): FrequencyVector {
-    val counts = ByteArray(FrequencyVector.MAX_VID.toInt())
-
-    // Count occurrences of each VID
-    for (vid in vids) {
-      if (vid < FrequencyVector.MAX_VID) {
-        val vidIndex = vid.toInt()
-        val currentCount = counts[vidIndex].toInt() and 0xFF
-        if (currentCount < 255) {
-          counts[vidIndex] = (currentCount + 1).toByte()
-        }
-      }
-    }
-
-    return FrequencyVector(counts)
-  }
-
-  /**
-   * Filters impressions and extracts VIDs, processing dates in parallel
-   */
-  private fun filterImpressions(
-    impressionsByDate: List<List<LabeledEvent<*>>>,
+  private suspend fun filterImpressions(
+    impressionFlows: Flow<Flow<LabeledEvent<*>>>,
     requisitionSpec: RequisitionSpec,
     vidSamplingInterval: MeasurementSpec.VidSamplingInterval,
     typeRegistry: TypeRegistry,
-    parallelism: Int = 8
-  ): List<Long> {
-    val vidSamplingIntervalStart = vidSamplingInterval.start
-    val vidSamplingIntervalWidth = vidSamplingInterval.width
-    val allVids = ConcurrentLinkedQueue<Long>()
+    dispatcher: kotlinx.coroutines.CoroutineDispatcher
+  ): Flow<Long> =
+    requisitionSpec.events.eventGroupsList.asFlow()
+      .flatMapConcat { eventGroup ->
+        val collectionInterval = eventGroup.value.collectionInterval
+        val vidSamplingIntervalStart = vidSamplingInterval.start
+        val vidSamplingIntervalWidth = vidSamplingInterval.width
 
-    for (eventGroup in requisitionSpec.events.eventGroupsList) {
-      val collectionInterval = eventGroup.value.collectionInterval
-
-      // Create thread pool for filtering
-      val executor = ThreadPoolExecutor(
-        parallelism,
-        parallelism,
-        60L,
-        TimeUnit.SECONDS,
-        LinkedBlockingQueue<Runnable>()
-      )
-
-      try {
-        // Process each date's impressions in parallel
-        val futures = impressionsByDate.map { dateImpressions ->
-          executor.submit(Callable<List<Long>> {
-            runBlocking {
-              @Suppress("UNCHECKED_CAST")
-              VidFilter.filterAndExtractVids(
-                dateImpressions.asFlow() as Flow<LabeledEvent<Message>>,
-                vidSamplingIntervalStart,
-                vidSamplingIntervalWidth,
-                eventGroup.value.filter,
-                collectionInterval,
-                typeRegistry
-              ).toList()
-            }
-          })
-        }
-
-        // Collect results from all futures
-        futures.forEach { future ->
-          allVids.addAll(future.get())
-        }
-      } finally {
-        executor.shutdown()
-        executor.awaitTermination(5, TimeUnit.MINUTES)
-      }
-    }
-
-    return allVids.toList()
-  }
-
-  /**
-   * Computes frequency vectors for each date in parallel
-   */
-  private fun computeFrequencyVectors(
-    vidsPerDate: List<List<Long>>,
-    parallelism: Int = 8
-  ): List<FrequencyVector> {
-    // Create thread pool for frequency computation
-    val executor = ThreadPoolExecutor(
-      parallelism,
-      parallelism,
-      60L,
-      TimeUnit.SECONDS,
-      LinkedBlockingQueue<Runnable>()
-    )
-
-    try {
-      // Process each date's VIDs in parallel
-      val futures = vidsPerDate.map { vids ->
-        executor.submit(Callable<FrequencyVector> {
-          computeFrequencyVector(vids)
-        })
+        // Process each date partition flow in parallel
+        impressionFlows
+          .flatMapMerge(concurrency = parallelism) { dateFlow ->
+            @Suppress("UNCHECKED_CAST")
+            VidFilter.filterAndExtractVids(
+              dateFlow as Flow<LabeledEvent<Message>>,
+              vidSamplingIntervalStart,
+              vidSamplingIntervalWidth,
+              eventGroup.value.filter,
+              collectionInterval,
+              typeRegistry
+            ).flowOn(dispatcher)
+          }
       }
 
-      // Collect results from all futures
-      return futures.map { future ->
-        future.get() // This blocks until the task completes
-      }
-    } finally {
-      executor.shutdown()
-      executor.awaitTermination(5, TimeUnit.MINUTES)
-    }
-  }
-
-  /**
-   * Merges frequency vectors across dates by combining counts for same VIDs
-   */
-  private fun mergeFrequencyVectors(frequencyVectors: List<FrequencyVector>): FrequencyVector {
-    if (frequencyVectors.isEmpty()) {
-      return FrequencyVector(ByteArray(FrequencyVector.MAX_VID.toInt()))
-    }
-    
-    if (frequencyVectors.size == 1) {
-      return frequencyVectors[0]
-    }
-    
-    if (frequencyVectors.size == 2) {
-      return mergeTwoVectors(frequencyVectors[0], frequencyVectors[1])
-    }
-
-    val mergedCounts = ByteArray(FrequencyVector.MAX_VID.toInt())
-    
-    // Use parallel merging for better performance
-    val parallelism = Runtime.getRuntime().availableProcessors()
-    val chunkSize = FrequencyVector.MAX_VID.toInt() / parallelism
-    
-    // Create thread pool for parallel merging
-    val executor = ThreadPoolExecutor(
-      parallelism,
-      parallelism,
-      60L,
-      TimeUnit.SECONDS,
-      LinkedBlockingQueue<Runnable>()
-    )
-    
-    try {
-      val futures = (0 until parallelism).map { threadId ->
-        executor.submit(Callable<Unit> {
-          val startIdx = threadId * chunkSize
-          val endIdx = if (threadId == parallelism - 1) FrequencyVector.MAX_VID.toInt() else (threadId + 1) * chunkSize
-          
-          // Process chunk with optimized merging
-          mergeChunk(frequencyVectors, mergedCounts, startIdx, endIdx)
-        })
-      }
-      
-      // Wait for all chunks to complete
-      futures.forEach { it.get() }
-    } finally {
-      executor.shutdown()
-      executor.awaitTermination(5, TimeUnit.MINUTES)
-    }
-
-    return FrequencyVector(mergedCounts)
-  }
-  
-  /**
-   * Efficiently merges two frequency vectors
-   */
-  private fun mergeTwoVectors(v1: FrequencyVector, v2: FrequencyVector): FrequencyVector {
-    val result = ByteArray(FrequencyVector.MAX_VID.toInt())
-    
-    // Use vectorized addition
-    var i = 0
-    while (i + 8 <= result.size) {
-      // Process 8 bytes at a time
-      for (j in 0..7) {
-        val c1 = v1.counts[i + j].toInt() and 0xFF
-        val c2 = v2.counts[i + j].toInt() and 0xFF
-        result[i + j] = minOf(c1 + c2, 255).toByte()
-      }
-      i += 8
-    }
-    
-    // Handle remaining bytes
-    while (i < result.size) {
-      val c1 = v1.counts[i].toInt() and 0xFF
-      val c2 = v2.counts[i].toInt() and 0xFF
-      result[i] = minOf(c1 + c2, 255).toByte()
-      i++
-    }
-    
-    return FrequencyVector(result)
-  }
-  
-  /**
-   * Merges a chunk of frequency vectors for a specific range of indices
-   */
-  private fun mergeChunk(
-    frequencyVectors: List<FrequencyVector>,
-    mergedCounts: ByteArray,
-    startIdx: Int,
-    endIdx: Int
-  ) {
-    // Process in blocks for better cache locality
-    val blockSize = 4096 // 4KB blocks for L1 cache
-    
-    for (blockStart in startIdx until endIdx step blockSize) {
-      val blockEnd = minOf(blockStart + blockSize, endIdx)
-      
-      // Process each vector for this block
-      for (vector in frequencyVectors) {
-        // Unroll loop for better performance
-        var i = blockStart
-        while (i + 4 <= blockEnd) {
-          // Process 4 bytes at a time
-          val c0 = mergedCounts[i].toInt() and 0xFF
-          val c1 = mergedCounts[i + 1].toInt() and 0xFF
-          val c2 = mergedCounts[i + 2].toInt() and 0xFF
-          val c3 = mergedCounts[i + 3].toInt() and 0xFF
-          
-          val a0 = vector.counts[i].toInt() and 0xFF
-          val a1 = vector.counts[i + 1].toInt() and 0xFF
-          val a2 = vector.counts[i + 2].toInt() and 0xFF
-          val a3 = vector.counts[i + 3].toInt() and 0xFF
-          
-          mergedCounts[i] = minOf(c0 + a0, 255).toByte()
-          mergedCounts[i + 1] = minOf(c1 + a1, 255).toByte()
-          mergedCounts[i + 2] = minOf(c2 + a2, 255).toByte()
-          mergedCounts[i + 3] = minOf(c3 + a3, 255).toByte()
-          
-          i += 4
-        }
-        
-        // Handle remaining bytes
-        while (i < blockEnd) {
-          val currentCount = mergedCounts[i].toInt() and 0xFF
-          val additionalCount = vector.counts[i].toInt() and 0xFF
-          mergedCounts[i] = minOf(currentCount + additionalCount, 255).toByte()
-          i++
-        }
-      }
-    }
-  }
-
-  /**
-   * Computes frequency distribution from a frequency vector (average frequency)
-   */
-  private fun computeFrequencyDistribution(frequencyVector: FrequencyVector): Double {
-    var totalFrequency = 0L
-    var uniqueVids = 0L
-
-    for (count in frequencyVector.counts) {
-      val frequency = count.toInt() and 0xFF
-      if (frequency > 0) {
-        totalFrequency += frequency
-        uniqueVids++
-      }
-    }
-
-    return if (uniqueVids > 0) totalFrequency.toDouble() / uniqueVids else 0.0
-  }
 }
