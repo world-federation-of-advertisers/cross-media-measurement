@@ -50,6 +50,8 @@ import org.wfanet.measurement.access.client.v1alpha.check
 import org.wfanet.measurement.access.client.v1alpha.withForwardedTrustedCredentials
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.common.api.ResourceIds
+import org.wfanet.measurement.common.api.grpc.ResourceList
+import org.wfanet.measurement.common.api.grpc.listResources
 import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.grpc.failGrpc
@@ -70,8 +72,6 @@ import org.wfanet.measurement.internal.reporting.v2.batchGetMetricCalculationSpe
 import org.wfanet.measurement.internal.reporting.v2.createReportRequest as internalCreateReportRequest
 import org.wfanet.measurement.internal.reporting.v2.getReportRequest as internalGetReportRequest
 import org.wfanet.measurement.internal.reporting.v2.report as internalReport
-import org.wfanet.measurement.common.api.grpc.ResourceList
-import org.wfanet.measurement.common.api.grpc.listResources
 import org.wfanet.measurement.reporting.service.api.submitBatchRequests
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportScheduleInfoServerInterceptor.Companion.reportScheduleInfoFromCurrentContext
 import org.wfanet.measurement.reporting.v2alpha.BatchCreateMetricsResponse
@@ -170,23 +170,21 @@ class ReportsService(
       results.subList(0, min(results.size, listReportsPageToken.pageSize))
 
     val reportNames: List<String> =
-      subResults.map {
-        ReportKey(it.cmmsMeasurementConsumerId, it.externalReportId).toName()
-      }
+      subResults.map { ReportKey(it.cmmsMeasurementConsumerId, it.externalReportId).toName() }
 
     val externalIdToMetricMap: Map<String, Metric> = buildMap {
       for (reportName in reportNames) {
         val metricsFlow: Flow<ResourceList<Metric, String>> =
           metricsStub.listResources(Int.MAX_VALUE) { pageToken, _ ->
             val response: ListMetricsResponse =
-              listMetrics(listMetricsRequest {
-                parent = request.parent
-                filter = ListMetricsRequestKt.filter {
-                  report = reportName
+              listMetrics(
+                listMetricsRequest {
+                  parent = request.parent
+                  filter = ListMetricsRequestKt.filter { report = reportName }
+                  this.pageToken = pageToken
+                  pageSize = LIST_METRICS_LIMIT
                 }
-                this.pageToken = pageToken
-                pageSize = LIST_METRICS_LIMIT
-              })
+              )
 
             ResourceList(response.metricsList, response.nextPageToken)
           }
@@ -247,14 +245,14 @@ class ReportsService(
       val metricsFlow: Flow<ResourceList<Metric, String>> =
         metricsStub.listResources(Int.MAX_VALUE) { pageToken, _ ->
           val response: ListMetricsResponse =
-            listMetrics(listMetricsRequest {
-              this.parent = parent
-              filter = ListMetricsRequestKt.filter {
-                report = reportKey.toName()
+            listMetrics(
+              listMetricsRequest {
+                this.parent = parent
+                filter = ListMetricsRequestKt.filter { report = reportKey.toName() }
+                this.pageToken = pageToken
+                pageSize = LIST_METRICS_LIMIT
               }
-              this.pageToken = pageToken
-              pageSize = LIST_METRICS_LIMIT
-            })
+            )
 
           ResourceList(response.metricsList, response.nextPageToken)
         }

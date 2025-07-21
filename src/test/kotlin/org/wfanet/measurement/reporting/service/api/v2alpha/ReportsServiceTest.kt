@@ -210,10 +210,12 @@ class ReportsServiceTest {
       .thenReturn(batchCreateMetricsResponse { metrics += RUNNING_REACH_METRIC })
 
     onBlocking { listMetrics(any()) }
-      .thenReturn(listMetricsResponse {
-        metrics += RUNNING_REACH_METRIC
-        metrics += RUNNING_WATCH_DURATION_METRIC
-      })
+      .thenReturn(
+        listMetricsResponse {
+          metrics += RUNNING_REACH_METRIC
+          metrics += RUNNING_WATCH_DURATION_METRIC
+        }
+      )
   }
 
   private val internalMetricCalculationSpecsMock: MetricCalculationSpecsCoroutineImplBase =
@@ -3362,11 +3364,8 @@ class ReportsServiceTest {
 
   @Test
   fun `getReport returns the report with SUCCEEDED when all metrics are SUCCEEDED`() = runBlocking {
-    whenever(
-      metricsMock.listMetrics(any()))
-        .thenReturn(listMetricsResponse {
-          metrics += SUCCEEDED_REACH_METRIC
-        })
+    whenever(metricsMock.listMetrics(any()))
+      .thenReturn(listMetricsResponse { metrics += SUCCEEDED_REACH_METRIC })
 
     val request = getReportRequest { name = PENDING_REACH_REPORT.name }
 
@@ -3380,9 +3379,7 @@ class ReportsServiceTest {
         listMetricsRequest {
           parent = MEASUREMENT_CONSUMER_KEYS.first().toName()
           pageSize = LIST_METRICS_LIMIT
-          filter = ListMetricsRequestKt.filter {
-            this.report = report.name
-          }
+          filter = ListMetricsRequestKt.filter { this.report = report.name }
         }
       )
   }
@@ -3498,12 +3495,8 @@ class ReportsServiceTest {
         permissions += PermissionKey(ReportsService.Permission.GET).toName()
       }
 
-    wheneverBlocking {
-      metricsMock.listMetrics(any())
-    }
-      .thenReturn(listMetricsResponse {
-        metrics += SUCCEEDED_REACH_METRIC
-      })
+    wheneverBlocking { metricsMock.listMetrics(any()) }
+      .thenReturn(listMetricsResponse { metrics += SUCCEEDED_REACH_METRIC })
 
     val request = getReportRequest { name = SUCCEEDED_REACH_REPORT.name }
 
@@ -3517,9 +3510,7 @@ class ReportsServiceTest {
         listMetricsRequest {
           parent = MEASUREMENT_CONSUMER_KEYS.first().toName()
           pageSize = LIST_METRICS_LIMIT
-          filter = ListMetricsRequestKt.filter {
-            this.report = report.name
-          }
+          filter = ListMetricsRequestKt.filter { this.report = report.name }
         }
       )
   }
@@ -3528,11 +3519,8 @@ class ReportsServiceTest {
   fun `getReport returns the report with FAILED when any metric FAILED`() = runBlocking {
     val failedReachMetric = RUNNING_REACH_METRIC.copy { state = Metric.State.FAILED }
 
-    whenever(
-      metricsMock.listMetrics(any()))
-      .thenReturn(listMetricsResponse {
-        metrics += failedReachMetric
-      })
+    whenever(metricsMock.listMetrics(any()))
+      .thenReturn(listMetricsResponse { metrics += failedReachMetric })
 
     val request = getReportRequest { name = PENDING_REACH_REPORT.name }
 
@@ -3564,9 +3552,7 @@ class ReportsServiceTest {
         listMetricsRequest {
           parent = MEASUREMENT_CONSUMER_KEYS.first().toName()
           pageSize = LIST_METRICS_LIMIT
-          filter = ListMetricsRequestKt.filter {
-            this.report = report.name
-          }
+          filter = ListMetricsRequestKt.filter { this.report = report.name }
         }
       )
   }
@@ -3575,11 +3561,8 @@ class ReportsServiceTest {
   fun `getReport returns the report with INVALID when any metric INVALID`() = runBlocking {
     val invalidatedReachMetric = RUNNING_REACH_METRIC.copy { state = Metric.State.INVALID }
 
-    whenever(
-      metricsMock.listMetrics(any()))
-      .thenReturn(listMetricsResponse {
-        metrics += invalidatedReachMetric
-      })
+    whenever(metricsMock.listMetrics(any()))
+      .thenReturn(listMetricsResponse { metrics += invalidatedReachMetric })
 
     val request = getReportRequest { name = PENDING_REACH_REPORT.name }
 
@@ -3611,9 +3594,7 @@ class ReportsServiceTest {
         listMetricsRequest {
           parent = MEASUREMENT_CONSUMER_KEYS.first().toName()
           pageSize = LIST_METRICS_LIMIT
-          filter = ListMetricsRequestKt.filter {
-            this.report = report.name
-          }
+          filter = ListMetricsRequestKt.filter { this.report = report.name }
         }
       )
   }
@@ -3632,9 +3613,7 @@ class ReportsServiceTest {
         listMetricsRequest {
           parent = MEASUREMENT_CONSUMER_KEYS.first().toName()
           pageSize = LIST_METRICS_LIMIT
-          filter = ListMetricsRequestKt.filter {
-            this.report = report.name
-          }
+          filter = ListMetricsRequestKt.filter { this.report = report.name }
         }
       )
   }
@@ -4161,12 +4140,13 @@ class ReportsServiceTest {
   @Test
   fun `listReports returns reports with SUCCEEDED states when metrics are SUCCEEDED`() =
     runBlocking {
-      whenever(
-        metricsMock.listMetrics(any()))
-        .thenReturn(listMetricsResponse {
-          metrics += SUCCEEDED_REACH_METRIC
-          metrics += SUCCEEDED_WATCH_DURATION_METRIC
-        })
+      whenever(metricsMock.listMetrics(any()))
+        .thenReturn(
+          listMetricsResponse {
+            metrics += SUCCEEDED_REACH_METRIC
+            metrics += SUCCEEDED_WATCH_DURATION_METRIC
+          }
+        )
 
       val request = listReportsRequest { parent = MEASUREMENT_CONSUMER_KEYS.first().toName() }
 
@@ -4214,12 +4194,13 @@ class ReportsServiceTest {
     val failedWatchDurationMetric =
       RUNNING_WATCH_DURATION_METRIC.copy { state = Metric.State.FAILED }
 
-    whenever(
-      metricsMock.listMetrics(any()))
-      .thenReturn(listMetricsResponse {
-        metrics += failedReachMetric
-        metrics += failedWatchDurationMetric
-      })
+    whenever(metricsMock.listMetrics(any()))
+      .thenReturn(
+        listMetricsResponse {
+          metrics += failedReachMetric
+          metrics += failedWatchDurationMetric
+        }
+      )
 
     val request = listReportsRequest { parent = MEASUREMENT_CONSUMER_KEYS.first().toName() }
 

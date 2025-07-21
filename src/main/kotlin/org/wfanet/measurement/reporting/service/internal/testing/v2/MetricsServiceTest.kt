@@ -48,10 +48,10 @@ import org.wfanet.measurement.internal.reporting.v2.MeasurementConsumersGrpcKt.M
 import org.wfanet.measurement.internal.reporting.v2.MeasurementKt
 import org.wfanet.measurement.internal.reporting.v2.MeasurementsGrpcKt.MeasurementsCoroutineImplBase
 import org.wfanet.measurement.internal.reporting.v2.Metric
+import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpecsGrpcKt.MetricCalculationSpecsCoroutineImplBase
 import org.wfanet.measurement.internal.reporting.v2.MetricKt
 import org.wfanet.measurement.internal.reporting.v2.MetricSpec
 import org.wfanet.measurement.internal.reporting.v2.MetricSpecKt
-import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpecsGrpcKt.MetricCalculationSpecsCoroutineImplBase
 import org.wfanet.measurement.internal.reporting.v2.MetricsGrpcKt.MetricsCoroutineImplBase
 import org.wfanet.measurement.internal.reporting.v2.ReportKt
 import org.wfanet.measurement.internal.reporting.v2.ReportingSet
@@ -91,7 +91,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
     val measurementConsumersService: MeasurementConsumersCoroutineImplBase,
     val measurementsService: MeasurementsCoroutineImplBase,
     val reportsService: ReportsCoroutineImplBase,
-    val metricCalculationSpecsService: MetricCalculationSpecsCoroutineImplBase
+    val metricCalculationSpecsService: MetricCalculationSpecsCoroutineImplBase,
   )
 
   /** Instance of the service under test. */
@@ -3350,25 +3350,20 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
     service.createMetric(createMetricRequest2)
 
     val createdReportingSet =
-      createReportingSet(
-        CMMS_MEASUREMENT_CONSUMER_ID,
-        reportingSetsService,
-        "reporting-set",
-      )
+      createReportingSet(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService, "reporting-set")
 
     val createdMetricCalculationSpec =
       createMetricCalculationSpec(CMMS_MEASUREMENT_CONSUMER_ID, metricCalculationSpecsService)
 
     val externalReportId = "external-report-id"
 
-    val streamMetricsRequest =
-      streamMetricsRequest {
-        filter =
-          StreamMetricsRequestKt.filter {
-            cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-            this.externalReportId = externalReportId
-          }
-      }
+    val streamMetricsRequest = streamMetricsRequest {
+      filter =
+        StreamMetricsRequestKt.filter {
+          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+          this.externalReportId = externalReportId
+        }
+    }
 
     val retrievedMetrics = service.streamMetrics(streamMetricsRequest).toList()
 
@@ -3414,7 +3409,8 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
 
     val report = report {
       cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-      reportingMetricEntries[createdReportingSet.externalReportingSetId] = reportingMetricCalculationSpec
+      reportingMetricEntries[createdReportingSet.externalReportingSetId] =
+        reportingMetricCalculationSpec
       details =
         ReportKt.details {
           tags.putAll(REPORT_TAGS)
@@ -3435,43 +3431,50 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
         }
     }
 
-    val createdReport = reportsService.createReport(
-      createReportRequest {
-        this.report = report
-        this.externalReportId = externalReportId
-      }
-    )
-
-    val reportingMetric = createdReport.reportingMetricEntriesMap.entries.first().value.metricCalculationSpecReportingMetricsList.first().reportingMetricsList.first()
-    val createdMetric = service.createMetric(
-      createMetricRequest {
-        metric = metric {
-          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-          externalReportingSetId = createdReportingSet.externalReportingSetId
-          timeInterval = reportingMetric.details.timeInterval
-          metricSpec = reportingMetric.details.metricSpec
-          weightedMeasurements +=
-            MetricKt.weightedMeasurement {
-              weight = 2
-              binaryRepresentation = 1
-              measurement = measurement {
-                cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-                timeInterval = reportingMetric.details.timeInterval
-                primitiveReportingSetBases +=
-                  ReportingSetKt.primitiveReportingSetBasis {
-                    externalReportingSetId = createdReportingSet.externalReportingSetId
-                  }
-              }
-            }
+    val createdReport =
+      reportsService.createReport(
+        createReportRequest {
+          this.report = report
+          this.externalReportId = externalReportId
         }
-        requestId = reportingMetric.createMetricRequestId
-        externalMetricId = reportingMetric.createMetricRequestId
-      }
-    )
+      )
 
-    val updatedRetrievedMetrics =
-      service
-        .streamMetrics(streamMetricsRequest).toList()
+    val reportingMetric =
+      createdReport.reportingMetricEntriesMap.entries
+        .first()
+        .value
+        .metricCalculationSpecReportingMetricsList
+        .first()
+        .reportingMetricsList
+        .first()
+    val createdMetric =
+      service.createMetric(
+        createMetricRequest {
+          metric = metric {
+            cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+            externalReportingSetId = createdReportingSet.externalReportingSetId
+            timeInterval = reportingMetric.details.timeInterval
+            metricSpec = reportingMetric.details.metricSpec
+            weightedMeasurements +=
+              MetricKt.weightedMeasurement {
+                weight = 2
+                binaryRepresentation = 1
+                measurement = measurement {
+                  cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+                  timeInterval = reportingMetric.details.timeInterval
+                  primitiveReportingSetBases +=
+                    ReportingSetKt.primitiveReportingSetBasis {
+                      externalReportingSetId = createdReportingSet.externalReportingSetId
+                    }
+                }
+              }
+          }
+          requestId = reportingMetric.createMetricRequestId
+          externalMetricId = reportingMetric.createMetricRequestId
+        }
+      )
+
+    val updatedRetrievedMetrics = service.streamMetrics(streamMetricsRequest).toList()
 
     assertThat(updatedRetrievedMetrics).hasSize(1)
     assertThat(updatedRetrievedMetrics).ignoringRepeatedFieldOrder().containsExactly(createdMetric)
