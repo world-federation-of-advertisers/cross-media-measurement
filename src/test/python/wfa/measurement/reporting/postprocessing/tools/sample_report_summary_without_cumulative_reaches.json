@@ -1,0 +1,355 @@
+{
+  "measurementDetails": [
+    {
+      "measurementPolicy": "ami",
+      "setOperation": "difference",
+      "dataProviders": [
+        "dataProviders/KEXAh-z7uhU",
+        "dataProviders/NhIlS1uaAVo"
+      ],
+      "leftHandSideTargets": [
+        "dataProviders/KEXAh-z7uhU"
+      ],
+      "rightHandSideTargets": [
+        "dataProviders/NhIlS1uaAVo"
+      ],
+      "measurementResults": [
+        {
+          "reach": {
+            "value": "19003904",
+            "standardDeviation": 58271.86345052295
+          },
+          "metric": "measurementConsumers/ONYdS_z_3xo/metrics/a29783908-e0ee-4667-9647-6386bdf034b9"
+        }
+      ]
+    },
+    {
+      "measurementPolicy": "mrc",
+      "setOperation": "difference",
+      "dataProviders": [
+        "dataProviders/KEXAh-z7uhU",
+        "dataProviders/NhIlS1uaAVo"
+      ],
+      "leftHandSideTargets": [
+        "dataProviders/KEXAh-z7uhU"
+      ],
+      "rightHandSideTargets": [
+        "dataProviders/NhIlS1uaAVo"
+      ],
+      "measurementResults": [
+        {
+          "reach": {
+            "value": "18916584",
+            "standardDeviation": 57983.347653369274
+          },
+          "metric": "measurementConsumers/ONYdS_z_3xo/metrics/a609869b8-fff7-4080-ba46-0c5a28d9efad"
+        }
+      ]
+    },
+    {
+      "measurementPolicy": "custom",
+      "setOperation": "difference",
+      "dataProviders": [
+        "dataProviders/KEXAh-z7uhU",
+        "dataProviders/NhIlS1uaAVo"
+      ],
+      "leftHandSideTargets": [
+        "dataProviders/KEXAh-z7uhU"
+      ],
+      "rightHandSideTargets": [
+        "dataProviders/NhIlS1uaAVo"
+      ],
+      "measurementResults": [
+        {
+          "reach": {
+            "value": "15990553",
+            "standardDeviation": 48338.920578883495
+          },
+          "metric": "measurementConsumers/ONYdS_z_3xo/metrics/a716ef311-3b93-4ff1-8c82-ace82320d9a2"
+        }
+      ]
+    },
+    {
+      "measurementPolicy": "ami",
+      "setOperation": "difference",
+      "dataProviders": [
+        "dataProviders/KEXAh-z7uhU",
+        "dataProviders/NhIlS1uaAVo"
+      ],
+      "leftHandSideTargets": [
+        "dataProviders/NhIlS1uaAVo"
+      ],
+      "rightHandSideTargets": [
+        "dataProviders/KEXAh-z7uhU"
+      ],
+      "measurementResults": [
+        {
+          "reach": {
+            "value": "-12642"
+          },
+          "metric": "measurementConsumers/ONYdS_z_3xo/metrics/a81890700-9f0e-48bd-8554-055bdfb20873"
+        }
+      ]
+    },
+    {
+      "measurementPolicy": "mrc",
+      "setOperation": "difference",
+      "dataProviders": [
+        "dataProviders/KEXAh-z7uhU",
+        "dataProviders/NhIlS1uaAVo"
+      ],
+      "leftHandSideTargets": [
+        "dataProviders/NhIlS1uaAVo"
+      ],
+      "rightHandSideTargets": [
+        "dataProviders/KEXAh-z7uhU"
+      ],
+      "measurementResults": [
+        {
+          "reach": {
+            "value": "-961"
+          },
+          "metric": "measurementConsumers/ONYdS_z_3xo/metrics/a83e8c5c6-c781-4dae-a92f-71e4780015d2"
+        }
+      ]
+    },
+    {
+      "measurementPolicy": "custom",
+      "setOperation": "difference",
+      "dataProviders": [
+        "dataProviders/KEXAh-z7uhU",
+        "dataProviders/NhIlS1uaAVo"
+      ],
+      "leftHandSideTargets": [
+        "dataProviders/NhIlS1uaAVo"
+      ],
+      "rightHandSideTargets": [
+        "dataProviders/KEXAh-z7uhU"
+      ],
+      "measurementResults": [
+        {
+          "reach": {
+            "value": "5173"
+          },
+          "metric": "measurementConsumers/ONYdS_z_3xo/metrics/aed0d918e-c0f2-4626-b856-e09ed3f4183d"
+        }
+      ]
+    },
+    {
+      "measurementPolicy": "custom",
+      "setOperation": "union",
+      "dataProviders": [
+        "dataProviders/KEXAh-z7uhU",
+        "dataProviders/NhIlS1uaAVo"
+      ],
+      "leftHandSideTargets": [
+        "dataProviders/KEXAh-z7uhU",
+        "dataProviders/NhIlS1uaAVo"
+      ],
+      "measurementResults": [
+        {
+          "impressionCount": {
+            "value": "35314000"
+          },
+          "metric": "measurementConsumers/ONYdS_z_3xo/metrics/a14e6503b-499f-4889-8b9e-81a554fade0e"
+        },
+        {
+          "reach": {
+            "value": "15886054",
+            "standardDeviation": 47970.03369807774
+          },
+          "metric": "measurementConsumers/ONYdS_z_3xo/metrics/ab0d4bec2-98ad-4501-91ce-2d8d21414e9f"
+        }
+      ]
+    },
+    {
+      "measurementPolicy": "ami",
+      "setOperation": "union",
+      "dataProviders": [
+        "dataProviders/NhIlS1uaAVo"
+      ],
+      "measurementResults": [
+        {
+          "reach": {
+            "standardDeviation": 1663.765088378906
+          },
+          "metric": "measurementConsumers/ONYdS_z_3xo/metrics/a15a56e92-8fc3-48ef-b85d-8d66f1a90e86"
+        },
+        {
+          "impressionCount": {
+            "standardDeviation": 1332.2240742187498
+          },
+          "metric": "measurementConsumers/ONYdS_z_3xo/metrics/af75f3599-63a6-4db3-a7ea-f43c8b667e0d"
+        }
+      ]
+    },
+    {
+      "measurementPolicy": "ami",
+      "setOperation": "union",
+      "dataProviders": [
+        "dataProviders/KEXAh-z7uhU"
+      ],
+      "measurementResults": [
+        {
+          "reach": {
+            "value": "18961000"
+          },
+          "metric": "measurementConsumers/ONYdS_z_3xo/metrics/a34249d47-e83d-4664-bf27-fd38b56094c6"
+        },
+        {
+          "impressionCount": {
+            "value": "43753000"
+          },
+          "metric": "measurementConsumers/ONYdS_z_3xo/metrics/ac79626ce-9911-48b3-9652-7e2c07e04440"
+        }
+      ]
+    },
+    {
+      "measurementPolicy": "mrc",
+      "setOperation": "union",
+      "dataProviders": [
+        "dataProviders/KEXAh-z7uhU",
+        "dataProviders/NhIlS1uaAVo"
+      ],
+      "leftHandSideTargets": [
+        "dataProviders/KEXAh-z7uhU",
+        "dataProviders/NhIlS1uaAVo"
+      ],
+      "measurementResults": [
+        {
+          "impressionCount": {
+            "value": "43413000"
+          },
+          "metric": "measurementConsumers/ONYdS_z_3xo/metrics/a36109ec6-6cbb-456c-8c03-1b55170a6de5"
+        },
+        {
+          "reach": {
+            "value": "18867432",
+            "standardDeviation": 57792.14362594933
+          },
+          "metric": "measurementConsumers/ONYdS_z_3xo/metrics/ae7af2f62-c288-4ee1-b5a9-bf3acc5e6a34"
+        }
+      ]
+    },
+    {
+      "measurementPolicy": "ami",
+      "setOperation": "union",
+      "dataProviders": [
+        "dataProviders/KEXAh-z7uhU",
+        "dataProviders/NhIlS1uaAVo"
+      ],
+      "leftHandSideTargets": [
+        "dataProviders/KEXAh-z7uhU",
+        "dataProviders/NhIlS1uaAVo"
+      ],
+      "measurementResults": [
+        {
+          "impressionCount": {
+            "value": "43757000"
+          },
+          "metric": "measurementConsumers/ONYdS_z_3xo/metrics/a3c20f22e-ac9e-4bea-a41c-dc1900924280"
+        },
+        {
+          "reach": {
+            "value": "18987339",
+            "standardDeviation": 58192.731960604746
+          },
+          "metric": "measurementConsumers/ONYdS_z_3xo/metrics/a6d71eea8-7ba8-4b6e-b580-bd01f97db5ff"
+        }
+      ]
+    },
+    {
+      "measurementPolicy": "mrc",
+      "setOperation": "union",
+      "dataProviders": [
+        "dataProviders/KEXAh-z7uhU"
+      ],
+      "measurementResults": [
+        {
+          "impressionCount": {
+            "value": "43413000"
+          },
+          "metric": "measurementConsumers/ONYdS_z_3xo/metrics/a5385c142-dbfd-43ac-8047-d733110b7b2d"
+        },
+        {
+          "reach": {
+            "value": "18884000"
+          },
+          "metric": "measurementConsumers/ONYdS_z_3xo/metrics/acebe77d4-7657-4ba5-a440-49ae5a5119f5"
+        }
+      ]
+    },
+    {
+      "measurementPolicy": "custom",
+      "setOperation": "union",
+      "dataProviders": [
+        "dataProviders/KEXAh-z7uhU"
+      ],
+      "measurementResults": [
+        {
+          "impressionCount": {
+            "value": "35314000"
+          },
+          "metric": "measurementConsumers/ONYdS_z_3xo/metrics/a5f02132d-7978-470d-b353-6712c8961848"
+        },
+        {
+          "reach": {
+            "value": "15989000"
+          },
+          "metric": "measurementConsumers/ONYdS_z_3xo/metrics/a8003b3d4-245a-41b9-9259-a62e8de978e9"
+        }
+      ]
+    },
+    {
+      "measurementPolicy": "mrc",
+      "setOperation": "union",
+      "dataProviders": [
+        "dataProviders/NhIlS1uaAVo"
+      ],
+      "measurementResults": [
+        {
+          "reach": {
+            "standardDeviation": 1663.765088378906
+          },
+          "metric": "measurementConsumers/ONYdS_z_3xo/metrics/aa445c369-08d5-452d-8f9f-f79c265b8578"
+        },
+        {
+          "impressionCount": {
+            "standardDeviation": 1332.2240742187498
+          },
+          "metric": "measurementConsumers/ONYdS_z_3xo/metrics/abdb73672-f17a-4516-abf7-9019cebae33e"
+        }
+      ]
+    },
+    {
+      "measurementPolicy": "custom",
+      "setOperation": "union",
+      "dataProviders": [
+        "dataProviders/NhIlS1uaAVo"
+      ],
+      "measurementResults": [
+        {
+          "reach": {
+            "standardDeviation": 1663.765088378906
+          },
+          "metric": "measurementConsumers/ONYdS_z_3xo/metrics/acf17c4bd-8f26-4065-a167-85e3f75c3654"
+        },
+        {
+          "impressionCount": {
+            "standardDeviation": 1332.2240742187498
+          },
+          "metric": "measurementConsumers/ONYdS_z_3xo/metrics/ae1a5d443-266c-4401-bb5b-239006a720af"
+        }
+      ]
+    }
+  ],
+  "demographicGroups": [
+    "FEMALE_YEARS_16_TO_34",
+    "FEMALE_YEARS_35_TO_54",
+    "FEMALE_YEARS_55_PLUS",
+    "MALE_YEARS_16_TO_34",
+    "MALE_YEARS_35_TO_54",
+    "MALE_YEARS_55_PLUS"
+  ],
+  "population": "500000"
+}

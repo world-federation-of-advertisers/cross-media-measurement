@@ -81,6 +81,7 @@ class ReportSummaryProcessor:
     self._k_reach: dict[str, dict[FrozenSet[str], dict[int, Measurement]]] = {}
     self._impression: dict[str, dict[FrozenSet[str], Measurement]] = {}
     self._set_difference_map: dict[str, tuple[str, str]] = {}
+    self._uncorrected_measurements: set[str] = set()
 
   def process(self) -> ReportPostProcessorResult:
     """
@@ -182,6 +183,12 @@ class ReportSummaryProcessor:
     report_post_processor_result.updated_measurements.update(
         metric_name_to_value)
 
+    # Updates the report post processor result with the uncorrected
+    # measurements.
+    report_post_processor_result.uncorrected_measurements.extend(
+        self._uncorrected_measurements
+    )
+
     return report_post_processor_result
 
   def _process_primitive_measurements(self):
@@ -204,11 +211,11 @@ class ReportSummaryProcessor:
         "Processing primitive measurements (cumulative and union)."
     )
 
-    seen_measurement_policies = []
+    seen_measurement_policies: set[str] = set()
     for entry in self._report_summary.measurement_details:
       measurement_policy = entry.measurement_policy
       if measurement_policy not in seen_measurement_policies:
-        seen_measurement_policies.append(measurement_policy)
+        seen_measurement_policies.add(measurement_policy)
         self._cumulative_measurements[measurement_policy] = {}
         self._whole_campaign_measurements[measurement_policy] = {}
         self._k_reach[measurement_policy] = {}
@@ -377,7 +384,8 @@ class ReportSummaryProcessor:
       # exists, the total reach measurements for superset do not exist. In this
       # case, the report post-processor just skip this difference measurement.
       if superset not in self._whole_campaign_measurements[measurement_policy]:
-        logging.info(
+        self._uncorrected_measurements.add(difference_measurement.name)
+        logging.warning(
             f'The measurement {difference_measurement.name} cannot be '
             f'corrected due to missing measurement for {superset}.'
         )
