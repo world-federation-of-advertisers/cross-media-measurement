@@ -133,16 +133,22 @@ message ResultGroup {
     // Metrics for the whole reporting_unit
     ReportingUnitMetricSet reporting_unit = 2;
 
+    // Disjoint Metrics for a single component of the reporting_unit
+    message UniqueMetricSet {
+      int32 reach = 1;
+    }
+
     // Metrics for a single component of the reporting_unit.
     message ComponentMetricSet {
+      reserved 3;
       // The non-cumulative basic metrics for this component
       BasicMetricSet non_cumulative = 1;
 
       // The cumulative basic metrics for this component
       BasicMetricSet cumulative = 2;
 
-      // The component's unique reach
-      int32 unique_reach = 3;
+      UniqueMetricSet non_cumulative_unique = 4;
+      UniqueMetricSet cumulative_unique = 5;
     }
     // Entry for `DataProvider` components map.
     message DataProviderComponentMetricSetMapEntry {

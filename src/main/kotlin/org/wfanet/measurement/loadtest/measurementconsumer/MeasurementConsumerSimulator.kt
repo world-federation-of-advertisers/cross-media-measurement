@@ -19,8 +19,8 @@ import com.google.protobuf.Any as ProtoAny
 import com.google.protobuf.ByteString
 import com.google.protobuf.TypeRegistry
 import com.google.protobuf.util.Durations
-import com.google.type.interval
 import io.grpc.StatusException
+import java.lang.IllegalStateException
 import java.security.SignatureException
 import java.security.cert.CertPathValidatorException
 import java.security.cert.X509Certificate
@@ -66,15 +66,14 @@ import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.duration
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.impression
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reachAndFrequency
+import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reportingMetadata
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.vidSamplingInterval
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.PopulationKey
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig.NoiseMechanism
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec
-import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventFilter
-import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventGroupEntry
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.population
 import org.wfanet.measurement.api.v2alpha.SignedMessage
 import org.wfanet.measurement.api.v2alpha.copy
@@ -92,7 +91,6 @@ import org.wfanet.measurement.api.v2alpha.testing.MeasurementResultSubject.Compa
 import org.wfanet.measurement.api.v2alpha.unpack
 import org.wfanet.measurement.api.withAuthenticationKey
 import org.wfanet.measurement.common.ExponentialBackoff
-import org.wfanet.measurement.common.OpenEndTimeRange
 import org.wfanet.measurement.common.api.grpc.ResourceList
 import org.wfanet.measurement.common.api.grpc.flattenConcat
 import org.wfanet.measurement.common.api.grpc.listResources
@@ -103,9 +101,6 @@ import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.authorityKeyIdentifier
 import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.identity.apiIdToExternalId
-import org.wfanet.measurement.common.toInstant
-import org.wfanet.measurement.common.toInterval
-import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.consent.client.measurementconsumer.decryptResult
 import org.wfanet.measurement.consent.client.measurementconsumer.encryptRequisitionSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.signMeasurementSpec
@@ -158,10 +153,10 @@ abstract class MeasurementConsumerSimulator(
   private val certificatesClient: CertificatesCoroutineStub,
   private val trustedCertificates: Map<ByteString, X509Certificate>,
   private val expectedDirectNoiseMechanism: NoiseMechanism,
-  private val filterExpression: String,
-  private val eventRange: OpenEndTimeRange,
   private val initialResultPollingDelay: Duration,
   private val maximumResultPollingDelay: Duration,
+  private val eventGroupFilter: ((EventGroup) -> Boolean)? = null,
+  private val reportName: String = "some-report-id",
 ) {
   /** Cache of resource name to [Certificate]. */
   private val certificateCache = mutableMapOf<String, Certificate>()
@@ -246,6 +241,10 @@ abstract class MeasurementConsumerSimulator(
         protocol,
       )
     val reachTolerance = computeErrorMargin(reachVariance)
+    if (expectedResult.reach.value.toDouble() < reachTolerance) {
+      throw IllegalStateException("Expected result cannot be less than tolerance")
+    }
+
     if (requiredCapabilities.honestMajorityShareShuffleSupported) {
       assertThat(protocol.protocolCase)
         .isEqualTo(ProtocolConfig.Protocol.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE)
@@ -315,27 +314,35 @@ abstract class MeasurementConsumerSimulator(
   /**
    * A sequence of operations done in the simulator involving a direct reach and frequency
    * measurement.
+   * 1. Requisitions are all created before results are checked for any since requistions may be
+   *    grouped.
+   * 2. Poll for requisition results.
    *
    * @numMeasurements - The number of incremental measurements to request within the time period.
    */
   suspend fun testDirectReachAndFrequency(runId: String, numMeasurements: Int) {
     // Create a new measurement on behalf of the measurement consumer.
     val measurementConsumer = getMeasurementConsumer(measurementConsumerData.name)
-    (1..numMeasurements).map { measurementNumber ->
-      val measurementInfo =
-        createMeasurement(
-          measurementConsumer,
-          runId,
-          ::newReachAndFrequencyMeasurementSpec,
-          DataProviderKt.capabilities { honestMajorityShareShuffleSupported = false },
-          DEFAULT_VID_SAMPLING_INTERVAL,
-          measurementNumber.toDouble() / numMeasurements,
-          1,
-        )
+    val measurementInfos =
+      (1..numMeasurements).map { measurementNumber ->
+        val measurementInfo =
+          createMeasurement(
+            measurementConsumer,
+            runId,
+            ::newReachAndFrequencyMeasurementSpec,
+            DataProviderKt.capabilities { honestMajorityShareShuffleSupported = false },
+            DEFAULT_VID_SAMPLING_INTERVAL,
+            measurementNumber.toDouble() / numMeasurements,
+            1,
+          )
+        val measurementName = measurementInfo.measurement.name
+        logger.info("Created direct reach and frequency measurement $measurementName.")
+        measurementInfo
+      }
+    measurementInfos.forEachIndexed { measurementNumber, measurementInfo ->
       val measurementName = measurementInfo.measurement.name
-      logger.info("Created direct reach and frequency measurement $measurementName.")
-
       // Get the CMMS computed result and compare it with the expected result.
+      logger.info("Polling for result for $measurementNumber/$numMeasurements: $measurementInfo")
       val reachAndFrequencyResult = pollForResult { getReachAndFrequencyResult(measurementName) }
       logger.info("Got direct reach and frequency result from Kingdom: $reachAndFrequencyResult")
 
@@ -358,6 +365,10 @@ abstract class MeasurementConsumerSimulator(
           protocol,
         )
       val reachTolerance = computeErrorMargin(reachVariance)
+      if (expectedResult.reach.value.toDouble() < reachTolerance) {
+        throw IllegalStateException("Expected result cannot be less than tolerance")
+      }
+
       assertThat(reachAndFrequencyResult)
         .reachValue()
         .isWithin(reachTolerance)
@@ -421,9 +432,11 @@ abstract class MeasurementConsumerSimulator(
           protocol,
         )
       val reachTolerance = computeErrorMargin(reachVariance)
+      if (expectedResult.reach.value.toDouble() < reachTolerance) {
+        throw IllegalStateException("Expected result cannot be less than tolerance")
+      }
 
       assertThat(reachResult).reachValue().isWithin(reachTolerance).of(expectedResult.reach.value)
-
       assertThat(reachResult.reach.hasDeterministicCountDistinct()).isTrue()
       assertThat(reachResult.reach.noiseMechanism).isEqualTo(expectedDirectNoiseMechanism)
       assertThat(reachResult.hasFrequency()).isFalse()
@@ -523,6 +536,9 @@ abstract class MeasurementConsumerSimulator(
         protocol,
       )
     val reachTolerance = computeErrorMargin(reachVariance)
+    if (result.expectedResult.reach.value.toDouble() < reachTolerance) {
+      throw IllegalStateException("Expected result cannot be less than tolerance")
+    }
 
     if (requiredCapabilities.honestMajorityShareShuffleSupported) {
       assertThat(protocol.protocolCase)
@@ -535,7 +551,6 @@ abstract class MeasurementConsumerSimulator(
       .reachValue()
       .isWithin(reachTolerance)
       .of(result.expectedResult.reach.value)
-
     logger.info("Actual result: ${result.actualResult}")
     logger.info("Expected result: ${result.expectedResult}")
 
@@ -578,6 +593,9 @@ abstract class MeasurementConsumerSimulator(
 
       val variance = computeImpressionVariance(result, measurementInfo.measurementSpec, protocol)
       val tolerance = computeErrorMargin(variance)
+      if (expectedResult.impression.value.toDouble() < tolerance) {
+        throw IllegalStateException("Expected impressions cannot be less than tolerance")
+      }
       assertThat(result.impression.hasDeterministicCount()).isTrue()
       assertThat(result.impression.noiseMechanism).isEqualTo(expectedDirectNoiseMechanism)
       assertThat(result).impressionValue().isWithin(tolerance).of(expectedResult.impression.value)
@@ -830,6 +848,7 @@ abstract class MeasurementConsumerSimulator(
 
     val requisitions: List<RequisitionInfo> =
       eventGroups
+        .filter { eventGroupFilter?.invoke(it) ?: true }
         .groupBy { extractDataProviderKey(it.name) }
         .entries
         .filter {
@@ -1165,6 +1184,7 @@ abstract class MeasurementConsumerSimulator(
       reach = MeasurementSpecKt.reach { privacyParams = outputDpParams }
       this.vidSamplingInterval = vidSamplingInterval
       this.nonceHashes += nonceHashes
+      this.reportingMetadata = reportingMetadata { report = reportName }
     }
   }
 
@@ -1182,6 +1202,7 @@ abstract class MeasurementConsumerSimulator(
       }
       this.vidSamplingInterval = vidSamplingInterval
       this.nonceHashes += nonceHashes
+      this.reportingMetadata = reportingMetadata { report = reportName }
     }
   }
 
@@ -1301,65 +1322,13 @@ abstract class MeasurementConsumerSimulator(
     }
   }
 
-  private fun buildRequisitionInfo(
+  protected abstract fun buildRequisitionInfo(
     dataProvider: DataProvider,
     eventGroups: List<EventGroup>,
     measurementConsumer: MeasurementConsumer,
     nonce: Long,
     percentage: Double = 1.0,
-  ): RequisitionInfo {
-    val requisitionSpec = requisitionSpec {
-      for (eventGroup in eventGroups) {
-        events =
-          RequisitionSpecKt.events {
-            this.eventGroups += eventGroupEntry {
-              key = eventGroup.name
-              value =
-                RequisitionSpecKt.EventGroupEntryKt.value {
-                  if (!eventGroup.hasDataAvailabilityInterval()) {
-                    collectionInterval = eventRange.toInterval()
-                  } else {
-                    collectionInterval = interval {
-                      startTime =
-                        if (
-                          eventRange.start <
-                            eventGroup.dataAvailabilityInterval.startTime.toInstant()
-                        )
-                          eventGroup.dataAvailabilityInterval.startTime
-                        else eventRange.start.toProtoTime()
-                      val durationMillis =
-                        Duration.between(
-                            eventGroup.dataAvailabilityInterval.startTime.toInstant(),
-                            eventGroup.dataAvailabilityInterval.endTime.toInstant(),
-                          )
-                          .toMillis() * percentage
-                      val requisitionEndTime =
-                        (eventGroup.dataAvailabilityInterval.startTime
-                            .toInstant()
-                            .plusMillis(durationMillis.toLong()))
-                          .toProtoTime()
-
-                      endTime =
-                        if (eventRange.endExclusive > requisitionEndTime.toInstant())
-                          requisitionEndTime
-                        else eventRange.endExclusive.toProtoTime()
-                    }
-                  }
-                  filter = eventFilter { expression = filterExpression }
-                }
-            }
-          }
-      }
-      measurementPublicKey = measurementConsumer.publicKey.message
-      this.nonce = nonce
-    }
-    val signedRequisitionSpec =
-      signRequisitionSpec(requisitionSpec, measurementConsumerData.signingKey)
-    val dataProviderEntry =
-      dataProvider.toDataProviderEntry(signedRequisitionSpec, Hashing.hashSha256(nonce))
-
-    return RequisitionInfo(dataProviderEntry, requisitionSpec, eventGroups)
-  }
+  ): RequisitionInfo
 
   private fun buildPopulationMeasurementRequisitionInfo(
     dataProvider: DataProvider,
@@ -1380,7 +1349,7 @@ abstract class MeasurementConsumerSimulator(
     return RequisitionInfo(dataProviderEntry, requisitionSpec, listOf())
   }
 
-  private fun DataProvider.toDataProviderEntry(
+  protected fun DataProvider.toDataProviderEntry(
     signedRequisitionSpec: SignedMessage,
     nonceHash: ByteString,
   ): DataProviderEntry {

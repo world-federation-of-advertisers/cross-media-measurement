@@ -1,0 +1,20 @@
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
+
+package(
+    default_testonly = True,
+    default_visibility = [
+        "//src/main/kotlin/org/wfanet/measurement/integration/common:__subpackages__",
+        "//src/main/kotlin/org/wfanet/measurement/securecomputation/datawatcher/testing:__subpackages__",
+        "//src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/datawatcher:__subpackages__",
+        "//src/test/kotlin/org/wfanet/measurement/securecomputation:__subpackages__",
+    ],
+)
+
+kt_jvm_library(
+    name = "test_id_token_provider",
+    srcs = ["TestIdTokenProvider.kt"],
+    deps = [
+        "//imports/java/com/google/auth:credentials",
+        "//imports/java/com/google/auth:oauth_http2",
+    ],
+)
