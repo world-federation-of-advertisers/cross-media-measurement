@@ -15,6 +15,9 @@
 name: Build and push uber jar to Github packages
 
 on:
+  push:
+    branches:
+      - marcopremier/edpa_cloud_test_2
   workflow_call:
     inputs:
       package-version:
@@ -40,7 +43,8 @@ jobs:
 
       - id: get-artifact-version
         env:
-          PACKAGE_VERSION: ${{ inputs.package-version }}
+#          PACKAGE_VERSION: ${{ inputs.package-version }}
+          PACKAGE_VERSION: "6bc363d1da53e75668bebb7e50a3c926930ccd3a"
         run: |
           declare artifact_version
           if [[ "$PACKAGE_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9]+)?$ ]]; then

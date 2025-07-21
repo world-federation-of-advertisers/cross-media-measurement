@@ -101,10 +101,8 @@ class EdpAggregatorCorrectnessTest: AbstractEdpAggregatorCorrectnessTest(measure
       storageClient.delete(bucket, eventGroupObjectMapKey)
     }
     private suspend fun uploadEventGroups(eventGroup: List<EventGroup>) {
-      println("~~~~~~~~~ Uploading event group")
       val eventGroupsBlobUri =
         SelectedStorageClient.parseBlobUri(eventGroupBlobUri)
-      println("~~~~~~~~~ Uploading event group, uri: $eventGroupsBlobUri")
       MesosRecordIoStorageClient(
         SelectedStorageClient(
           blobUri = eventGroupsBlobUri,
@@ -116,7 +114,6 @@ class EdpAggregatorCorrectnessTest: AbstractEdpAggregatorCorrectnessTest(measure
     }
 
     private fun createEventGroups(): List<EventGroup> {
-      println("~~~~~~~~~~~~~~~~~ creating event group")
       return syntheticEventGroupMap.flatMap { (eventGroupReferenceId, syntheticEventGroupSpec) ->
         syntheticEventGroupSpec.dateSpecsList.map { dateSpec ->
           val dateRange = dateSpec.dateRange
