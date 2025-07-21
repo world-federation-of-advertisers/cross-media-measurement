@@ -27,6 +27,7 @@ import org.wfanet.measurement.api.v2alpha.PopulationSpecKt.subPopulation
 import org.wfanet.measurement.api.v2alpha.PopulationSpecKt.vidRange
 import org.wfanet.measurement.api.v2alpha.measurementSpec
 import org.wfanet.measurement.api.v2alpha.populationSpec
+import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.InMemoryVidIndexMap
 
 @RunWith(JUnit4::class)
 class FrequencyVectorBuilderTest {
