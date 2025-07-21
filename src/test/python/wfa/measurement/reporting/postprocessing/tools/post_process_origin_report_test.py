@@ -1130,6 +1130,7 @@ class TestOriginReport(unittest.TestCase):
             'measurementConsumers/ONYdS_z_3xo/metrics/a716ef311-3b93-4ff1-8c82-ace82320d9a2',
             'measurementConsumers/ONYdS_z_3xo/metrics/a81890700-9f0e-48bd-8554-055bdfb20873'
         ]
+    )
 
   def _assertFuzzyEqual(self, x: int, y: int, tolerance: int):
     self.assertLessEqual(abs(x - y), tolerance)
