@@ -1,0 +1,34 @@
+load("@rules_jvm_external//:defs.bzl", "maven_export")
+load("@wfa_common_jvm//build/maven:defs.bzl", "artifact_version")
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
+
+package(default_visibility = ["//visibility:public"])
+
+MAVEN_COORDINATES = "org.wfanet.measurement.eventdataprovider:requisition-trustee-v2alpha:" + artifact_version()
+
+kt_jvm_library(
+    name = "trustee",
+    srcs = ["FulfillRequisitionRequestBuilder.kt"],
+    tags = ["maven_coordinates=" + MAVEN_COORDINATES],
+    # TODO: Add dependencies when implementation is available.
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
+        "//src/main/proto/wfa/frequency_count:frequency_vector_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:api_kt_jvm_proto",
+        "@any_sketch_java//src/main/java/org/wfanet/frequencycount",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/tink",
+        "@wfa_consent_signaling_client//src/main/kotlin/org/wfanet/measurement/consent/client/dataprovider",
+    ],
+)
+
+maven_export(
+    name = "requisition_trustee_maven",
+    lib_name = "trustee",
+    maven_coordinates = MAVEN_COORDINATES,
+    tags = [
+        "no-javadocs",
+        "no-remote-cache",
+    ],
+    visibility = ["//visibility:private"],
+)
