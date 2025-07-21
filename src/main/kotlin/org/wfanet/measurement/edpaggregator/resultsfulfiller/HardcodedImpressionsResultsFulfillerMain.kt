@@ -21,6 +21,7 @@ import com.google.crypto.tink.*
 import com.google.crypto.tink.aead.AeadConfig
 import com.google.crypto.tink.streamingaead.StreamingAeadConfig
 import com.google.protobuf.Any as ProtobufAny
+import com.google.protobuf.Message
 import com.google.protobuf.TypeRegistry
 import com.google.type.interval
 import java.io.FileInputStream
@@ -72,6 +73,8 @@ import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt.requis
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
 import org.wfanet.measurement.edpaggregator.v1alpha.groupedRequisitions
 import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters
+import org.wfanet.measurement.loadtest.dataprovider.LabeledEvent
+import org.wfanet.measurement.loadtest.dataprovider.VidFilter
 import org.wfanet.sampling.VidSampler
 import picocli.CommandLine
 
@@ -168,17 +171,24 @@ class HardcodedImpressionsResultsFulfillerMain : Runnable {
   private lateinit var impressionsUri: String
 
   override fun run() {
+    println("Starting HardcodedImpressionsResultsFulfillerMain.run()")
+    
     // Initialize Tink
+    println("Initializing Tink crypto libraries...")
     AeadConfig.register()
     StreamingAeadConfig.register()
+    println("Tink initialization complete")
 
     // Create thread pool executor for parallel processing
     val corePoolSize = Runtime.getRuntime().availableProcessors()
     val maximumPoolSize = corePoolSize * 4
 
+    println("Parsing date range: $startDateStr to $endDateStr")
     val startDate = LocalDate.parse(startDateStr)
     val endDate = LocalDate.parse(endDateStr)
     val timeRange = OpenEndTimeRange.fromClosedDateRange(startDate..endDate)
+    println("Date range parsed successfully: $startDate to $endDate")
+    println("Building measurement spec...")
     val measurementSpec = measurementSpec {
       reachAndFrequency = reachAndFrequency {
         reachPrivacyParams = OUTPUT_DP_PARAMS
@@ -190,6 +200,8 @@ class HardcodedImpressionsResultsFulfillerMain : Runnable {
         width = 1.0f
       }
     }
+    println("Measurement spec built successfully")
+    println("Building requisition spec...")
     val requisitionSpec = requisitionSpec {
       events = events {
         eventGroups += eventGroupEntry {
@@ -205,9 +217,11 @@ class HardcodedImpressionsResultsFulfillerMain : Runnable {
       }
       nonce = SecureRandom.getInstance("SHA1PRNG").nextLong()
     }
+    println("Requisition spec built successfully")
 
 
     // Write requisitions proto to storage
+    println("Building grouped requisitions...")
     val groupedRequisitions = groupedRequisitions {
       modelLine = "test-model-line"
       eventGroupMap += eventGroupMapEntry {
@@ -224,8 +238,10 @@ class HardcodedImpressionsResultsFulfillerMain : Runnable {
         requisition = ProtobufAny.pack(createRequisition(requisitionSpec, timeRange))
       }
     }
+    println("Grouped requisitions built successfully")
 
     // Set up KMS
+    println("Setting up KMS client...")
     val kmsClient: FakeKmsClient? = if (masterKeyFile == null) null
     else {
       val kmsClient = FakeKmsClient()
@@ -239,18 +255,28 @@ class HardcodedImpressionsResultsFulfillerMain : Runnable {
       kmsClient.setAead(kekUri, kmsKeyHandle.getPrimitive(Aead::class.java))
       kmsClient
     }
+    if (kmsClient != null) {
+      println("KMS client set up successfully")
+    } else {
+      println("No KMS client configured (master key file not provided)")
+    }
 
     // Set up type registry
+    println("Setting up type registry...")
     val typeRegistry = TypeRegistry.newBuilder().add(TestEvent.getDescriptor()).build()
+    println("Type registry configured")
 
     // Set up event reader
+    println("Setting up event reader with impressions path: $impressionsPath")
     val impressionsFile = impressionsPath.toFile()
     val eventReader = EventReader(
       kmsClient,
       StorageConfig(rootDirectory = impressionsFile),
       StorageConfig(rootDirectory = impressionsFile),
-      impressionsUri
+      impressionsUri,
+      typeRegistry
     )
+    println("Event reader configured successfully")
 
     // Process requisitions directly without ResultsFulfiller dependencies
     println("Processing requisitions...")
@@ -267,6 +293,7 @@ class HardcodedImpressionsResultsFulfillerMain : Runnable {
 
     for (parallelism in parallelismLevels) {
       println("Testing with parallelism = $parallelism...")
+      println("  Starting impression reading stage...")
 
       // Measure time to read impressions only
       val readStartTime = System.currentTimeMillis()
@@ -288,6 +315,7 @@ class HardcodedImpressionsResultsFulfillerMain : Runnable {
       println("  Read stage completed in ${readDuration}ms (${impressionCount} impressions)")
 
       // Measure time to filter impressions
+      println("  Starting impression filtering stage...")
       val filterStartTime = System.currentTimeMillis()
 
       val allVids = filterImpressions(
@@ -319,6 +347,7 @@ class HardcodedImpressionsResultsFulfillerMain : Runnable {
       }
 
       // Measure time to compute frequency vectors
+      println("  Starting frequency vector computation stage...")
       val frequencyStartTime = System.currentTimeMillis()
 
       val vectorList = computeFrequencyVectors(vidsPerDate, parallelism)
@@ -330,6 +359,7 @@ class HardcodedImpressionsResultsFulfillerMain : Runnable {
       println("  Frequency stage completed in ${frequencyDuration}ms (${vectorCount} vectors)")
 
       // Measure time to merge frequency vectors
+      println("  Starting frequency vector merge stage...")
       val mergeStartTime = System.currentTimeMillis()
 
       val mergedVector = mergeFrequencyVectors(vectorList)
@@ -341,6 +371,7 @@ class HardcodedImpressionsResultsFulfillerMain : Runnable {
       println("  Merge stage completed in ${mergeDuration}ms (${uniqueVidsInMerged} unique VIDs)")
 
       // Measure time to compute frequency distribution
+      println("  Starting frequency distribution computation stage...")
       val distributionStartTime = System.currentTimeMillis()
 
       val averageFrequency = computeFrequencyDistribution(mergedVector)
@@ -489,8 +520,8 @@ class HardcodedImpressionsResultsFulfillerMain : Runnable {
     eventReader: EventReader,
     zoneId: ZoneId,
     parallelism: Int = 8
-  ): List<List<LabeledImpression>> {
-    val allDateImpressions = mutableListOf<List<LabeledImpression>>()
+  ): List<List<LabeledEvent<*>>> {
+    val allDateImpressions = mutableListOf<List<LabeledEvent<*>>>()
 
     for (eventGroup in requisitionSpec.events.eventGroupsList) {
       val collectionInterval = eventGroup.value.collectionInterval
@@ -515,10 +546,10 @@ class HardcodedImpressionsResultsFulfillerMain : Runnable {
       try {
         // Process dates in parallel using thread pool
         val futures = datesList.map { date ->
-          executor.submit(Callable<List<LabeledImpression>> {
+          executor.submit(Callable<List<LabeledEvent<*>>> {
             // Each thread runs its own coroutine context
             runBlocking {
-              val impressionsFlow = eventReader.getLabeledImpressions(date, eventGroupMap.getValue(eventGroup.key))
+              val impressionsFlow = eventReader.getLabeledEvents(date, eventGroupMap.getValue(eventGroup.key))
               impressionsFlow.toList()
             }
           })
@@ -530,6 +561,9 @@ class HardcodedImpressionsResultsFulfillerMain : Runnable {
         }
 
         allDateImpressions.addAll(dateImpressions)
+        
+        // Force GC after processing each batch of dates to free memory from impressions
+        System.gc()
       } finally {
         executor.shutdown()
         executor.awaitTermination(5, TimeUnit.MINUTES)
@@ -564,7 +598,7 @@ class HardcodedImpressionsResultsFulfillerMain : Runnable {
    * Filters impressions and extracts VIDs, processing dates in parallel
    */
   private fun filterImpressions(
-    impressionsByDate: List<List<LabeledImpression>>,
+    impressionsByDate: List<List<LabeledEvent<*>>>,
     requisitionSpec: RequisitionSpec,
     vidSamplingInterval: MeasurementSpec.VidSamplingInterval,
     typeRegistry: TypeRegistry,
@@ -591,8 +625,9 @@ class HardcodedImpressionsResultsFulfillerMain : Runnable {
         val futures = impressionsByDate.map { dateImpressions ->
           executor.submit(Callable<List<Long>> {
             runBlocking {
+              @Suppress("UNCHECKED_CAST")
               VidFilter.filterAndExtractVids(
-                dateImpressions.asFlow(),
+                dateImpressions.asFlow() as Flow<LabeledEvent<Message>>,
                 vidSamplingIntervalStart,
                 vidSamplingIntervalWidth,
                 eventGroup.value.filter,

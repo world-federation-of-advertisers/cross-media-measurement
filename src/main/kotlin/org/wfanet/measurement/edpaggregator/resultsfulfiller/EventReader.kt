@@ -17,15 +17,20 @@
 package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
 import com.google.crypto.tink.KmsClient
+import com.google.protobuf.DynamicMessage
+import com.google.protobuf.Message
+import com.google.protobuf.TypeRegistry
 import java.time.LocalDate
 import java.util.logging.Logger
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.common.flatten
+import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.edpaggregator.EncryptedStorage
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
+import org.wfanet.measurement.loadtest.dataprovider.LabeledEvent
 import org.wfanet.measurement.storage.MesosRecordIoStorageClient
 import org.wfanet.measurement.storage.SelectedStorageClient
 
@@ -36,26 +41,28 @@ import org.wfanet.measurement.storage.SelectedStorageClient
  * @param impressionsStorageConfig Configuration for impressions storage
  * @param impressionDekStorageConfig Configuration for impression DEK storage
  * @param labeledImpressionsDekPrefix Prefix for labeled impressions DEK
+ * @param typeRegistry Type registry for parsing protobuf messages
  */
 class EventReader(
   private val kmsClient: KmsClient?,
   private val impressionsStorageConfig: StorageConfig,
   private val impressionDekStorageConfig: StorageConfig,
   private val labeledImpressionsDekPrefix: String,
+  private val typeRegistry: TypeRegistry,
 ) {
   /**
-   * Retrieves a flow of labeled impressions for a given ds and event group ID.
+   * Retrieves a flow of labeled events for a given ds and event group ID.
    *
-   * @param ds The ds for the labeled impressions
+   * @param ds The ds for the labeled events
    * @param eventGroupReferenceId The event group reference ID of the event group
-   * @return A flow of labeled impressions
+   * @return A flow of labeled events
    */
-  suspend fun getLabeledImpressions(
+  suspend fun getLabeledEvents(
     ds: LocalDate,
     eventGroupReferenceId: String,
-  ): Flow<LabeledImpression> {
+  ): Flow<LabeledEvent<Message>> {
     val blobDetails = getBlobDetails(ds, eventGroupReferenceId)
-    return getLabeledImpressions(blobDetails)
+    return getLabeledEvents(blobDetails)
   }
 
   /**
@@ -84,12 +91,13 @@ class EventReader(
   }
 
   /**
-   * Retrieves labeled impressions from blob details.
+   * Retrieves labeled events from blob details.
    *
    * @param blobDetails The blob details with the DEK
-   * @return A flow of labeled impressions
+   * @return A flow of labeled events
    */
-  private suspend fun getLabeledImpressions(blobDetails: BlobDetails): Flow<LabeledImpression> {
+  private suspend fun getLabeledEvents(blobDetails: BlobDetails): Flow<LabeledEvent<Message>> {
+    var impressionCount = 0
     val storageClientUri = SelectedStorageClient.parseBlobUri(blobDetails.blobUri)
 
     // Create and configure storage client with encryption
@@ -120,13 +128,36 @@ class EventReader(
           ImpressionReadException.Code.BLOB_NOT_FOUND,
         )
 
-    // Parse raw data into LabeledImpression objects
+    // Parse raw data into LabeledEvent objects
     return impressionBlob.read().map { impressionByteString ->
-      LabeledImpression.parseFrom(impressionByteString)
+      val labeledImpression = LabeledImpression.parseFrom(impressionByteString)
         ?: throw ImpressionReadException(
           storageClientUri.key,
           ImpressionReadException.Code.INVALID_FORMAT,
         )
+
+      // Convert LabeledImpression to LabeledEvent
+      val eventTypeUrl = labeledImpression.event.typeUrl
+      val descriptor = typeRegistry.getDescriptorForTypeUrl(eventTypeUrl)
+        ?: throw ImpressionReadException(
+          storageClientUri.key,
+          ImpressionReadException.Code.INVALID_FORMAT,
+          "Unknown event type: $eventTypeUrl"
+        )
+
+      val eventMessage = DynamicMessage.parseFrom(descriptor, labeledImpression.event.value)
+
+      impressionCount++
+      if (impressionCount % 100000 == 0) {
+        logger.info("Processed $impressionCount impressions, running GC")
+        System.gc()
+      }
+
+      LabeledEvent(
+        timestamp = labeledImpression.eventTime.toInstant(),
+        vid = labeledImpression.vid,
+        message = eventMessage
+      )
     }
   }
 
