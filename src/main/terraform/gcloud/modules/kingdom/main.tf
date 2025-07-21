@@ -218,6 +218,16 @@ resource "google_bigquery_table" "requisitions" {
     "type": "INTEGER",
     "mode": "NULLABLE",
     "description": "For tracking purposes"
+  },
+  {  
+    "name": "build_label",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "warnings",
+    "type": "STRING",
+    "mode": "REPEATED"
   }
 ]
 EOF

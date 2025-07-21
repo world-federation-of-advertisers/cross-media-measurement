@@ -402,9 +402,9 @@ class ReachFrequencyLiquidLegionsV2Mill(
         header =
           advanceComputationHeader(
             LiquidLegionsV2.Description.EXECUTION_PHASE_ONE_INPUT,
-            token.globalComputationId,
+            nextToken.globalComputationId,
           ),
-        content = addLoggingHook(token, bytes),
+        content = addLoggingHook(nextToken, bytes),
         stub = nextDuchyStub,
       )
     }
@@ -456,9 +456,9 @@ class ReachFrequencyLiquidLegionsV2Mill(
         header =
           advanceComputationHeader(
             LiquidLegionsV2.Description.SETUP_PHASE_INPUT,
-            token.globalComputationId,
+            nextToken.globalComputationId,
           ),
-        content = addLoggingHook(token, bytes),
+        content = addLoggingHook(nextToken, bytes),
         stub = aggregatorStub,
       )
     }
@@ -519,9 +519,9 @@ class ReachFrequencyLiquidLegionsV2Mill(
         header =
           advanceComputationHeader(
             LiquidLegionsV2.Description.EXECUTION_PHASE_TWO_INPUT,
-            token.globalComputationId,
+            nextToken.globalComputationId,
           ),
-        content = addLoggingHook(token, bytes),
+        content = addLoggingHook(nextToken, bytes),
         stub = nextDuchyStub,
       )
     }
@@ -578,9 +578,9 @@ class ReachFrequencyLiquidLegionsV2Mill(
         header =
           advanceComputationHeader(
             LiquidLegionsV2.Description.EXECUTION_PHASE_ONE_INPUT,
-            token.globalComputationId,
+            nextToken.globalComputationId,
           ),
-        content = addLoggingHook(token, bytes),
+        content = addLoggingHook(nextToken, bytes),
         stub = nextDuchyStub,
       )
     }
@@ -707,9 +707,9 @@ class ReachFrequencyLiquidLegionsV2Mill(
         header =
           advanceComputationHeader(
             LiquidLegionsV2.Description.EXECUTION_PHASE_THREE_INPUT,
-            token.globalComputationId,
+            nextToken.globalComputationId,
           ),
-        content = addLoggingHook(token, bytes),
+        content = addLoggingHook(nextToken, bytes),
         stub = nextDuchyStub,
       )
     }
@@ -773,9 +773,9 @@ class ReachFrequencyLiquidLegionsV2Mill(
         header =
           advanceComputationHeader(
             LiquidLegionsV2.Description.EXECUTION_PHASE_TWO_INPUT,
-            token.globalComputationId,
+            nextToken.globalComputationId,
           ),
-        content = addLoggingHook(token, bytes),
+        content = addLoggingHook(nextToken, bytes),
         stub = nextDuchyStub,
       )
     }
@@ -831,7 +831,7 @@ class ReachFrequencyLiquidLegionsV2Mill(
         .frequencyDistributionMap
 
     sendResultToKingdom(
-      token,
+      nextToken,
       ReachAndFrequencyResult(
         llv2Details.reachEstimate.reach,
         frequencyDistributionMap,
@@ -890,9 +890,9 @@ class ReachFrequencyLiquidLegionsV2Mill(
         header =
           advanceComputationHeader(
             LiquidLegionsV2.Description.EXECUTION_PHASE_THREE_INPUT,
-            token.globalComputationId,
+            nextToken.globalComputationId,
           ),
-        content = addLoggingHook(token, bytes),
+        content = addLoggingHook(nextToken, bytes),
         stub = nextDuchyStub,
       )
     }

@@ -295,6 +295,8 @@ class OperationalMetricsExport(
             isDirect = requisition.parentMeasurement.protocolConfig.hasDirect()
             this.measurementType = measurementType
             state = requisitionState
+            buildLabel = requisition.details.fulfillmentContext.buildLabel
+            warnings += requisition.details.fulfillmentContext.warningsList
             createTime = requisition.parentMeasurement.createTime
             this.updateTime = requisition.updateTime
             completionDurationSeconds = requisitionCompletionDurationSeconds

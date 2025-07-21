@@ -141,6 +141,7 @@ import org.wfanet.measurement.internal.duchy.protocol.completeExecutionPhaseTwoR
 import org.wfanet.measurement.internal.duchy.protocol.completeExecutionPhaseTwoResponse
 import org.wfanet.measurement.internal.duchy.protocol.completeInitializationPhaseResponse
 import org.wfanet.measurement.internal.duchy.protocol.completeSetupPhaseRequest
+import org.wfanet.measurement.internal.duchy.protocol.completeSetupPhaseResponse
 import org.wfanet.measurement.internal.duchy.protocol.copy
 import org.wfanet.measurement.internal.duchy.protocol.flagCountTupleNoiseGenerationParameters
 import org.wfanet.measurement.internal.duchy.protocol.globalReachDpNoiseBaseline
@@ -640,7 +641,7 @@ class ReachFrequencyLiquidLegionsV2MillTest {
         MILL_ID,
         Duration.ZERO,
       )
-      fakeComputationDb.claimedComputationIds.clear()
+      fakeComputationDb.claimedComputations.clear()
     }
 
     nonAggregatorMill.claimAndProcessWork()
@@ -659,7 +660,7 @@ class ReachFrequencyLiquidLegionsV2MillTest {
         }
       )
 
-    assertThat(fakeComputationDb.claimedComputationIds).isEmpty()
+    assertThat(fakeComputationDb.claimedComputations).isEmpty()
   }
 
   @Test
@@ -2908,6 +2909,78 @@ class ReachFrequencyLiquidLegionsV2MillTest {
         }
       )
   }
+
+  @Test
+  fun `handleException enqueues computation when control service returns retryable error`() =
+    runBlocking {
+      val partialToken =
+        FakeComputationsDatabase.newPartialToken(
+            localId = LOCAL_ID,
+            stage = SETUP_PHASE.toProtocolStage(),
+          )
+          .build()
+      val requisitionBlobContext =
+        RequisitionBlobContext(GLOBAL_ID, REQUISITION_1.externalKey.externalRequisitionId)
+      val calculatedBlobContext =
+        ComputationBlobContext(GLOBAL_ID, SETUP_PHASE.toProtocolStage(), 1L)
+      requisitionStore.writeString(requisitionBlobContext, "local_requisition")
+      fakeComputationDb.addComputation(
+        partialToken.localComputationId,
+        partialToken.computationStage,
+        computationDetails = NON_AGGREGATOR_COMPUTATION_DETAILS,
+        requisitions = listOf(REQUISITION_1, REQUISITION_2, REQUISITION_3),
+        blobs = listOf(newEmptyOutputBlobMetadata(calculatedBlobContext.blobId)),
+      )
+      mockLiquidLegionsComputationControl.stub {
+        onBlocking { getComputationStage(any()) }
+          .thenReturn(
+            computationStage {
+              liquidLegionsV2Stage = liquidLegionsV2Stage {
+                stage = LiquidLegionsV2Stage.Stage.WAIT_SETUP_PHASE_INPUTS
+              }
+            }
+          )
+        onBlocking { advanceComputation(any()) }.thenThrow(Status.UNAVAILABLE.asRuntimeException())
+      }
+
+      var cryptoRequest = CompleteSetupPhaseRequest.getDefaultInstance()
+      whenever(mockCryptoWorker.completeSetupPhase(any())).thenAnswer {
+        cryptoRequest = it.getArgument(0)
+        val postFix = ByteString.copyFromUtf8("-completeSetupPhase-done")
+        completeSetupPhaseResponse {
+          combinedRegisterVector =
+            cryptoRequest.requisitionRegisterVector
+              .concat(cryptoRequest.combinedRegisterVector)
+              .concat(postFix)
+        }
+      }
+
+      nonAggregatorMill.claimAndProcessWork()
+
+      val blobKey = calculatedBlobContext.blobKey
+      assertThat(fakeComputationDb[LOCAL_ID])
+        .isEqualTo(
+          computationToken {
+            globalComputationId = GLOBAL_ID
+            localComputationId = LOCAL_ID
+            attempt = 1
+            computationStage = SETUP_PHASE.toProtocolStage()
+            blobs += computationStageBlobMetadata {
+              dependencyType = ComputationBlobDependency.OUTPUT
+              blobId = 1L
+              path = blobKey
+            }
+            version = 3 // claimTask + writeOutputBlob + enqueue
+            computationDetails = NON_AGGREGATOR_COMPUTATION_DETAILS
+            requisitions += listOf(REQUISITION_1, REQUISITION_2, REQUISITION_3)
+          }
+        )
+
+      assertThat(computationStore.get(blobKey)?.readToString())
+        .isEqualTo("local_requisition-completeSetupPhase-done")
+
+      assertThat(fakeComputationDb.claimedComputations).isEmpty()
+    }
 }
 
 private fun ComputationBlobContext.toMetadata(dependencyType: ComputationBlobDependency) =
