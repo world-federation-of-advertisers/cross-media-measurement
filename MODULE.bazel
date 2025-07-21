@@ -97,7 +97,7 @@ bazel_dep(
 
 # --- Bazel Central Registry modules. ---
 
-# TODO(laureanobrs): Remove this once rules_kotlin stops using version 0.0.4, which causes issues with JUnit. See: bazelbuild/bazel-worker-api/issues/10
+# TODO(bazelbuild/bazel-worker-api#10): Remove this once rules_kotlin stops using version 0.0.4
 bazel_dep(
     name = "bazel_worker_java",
     version = "0.0.5",

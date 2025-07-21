@@ -44,7 +44,7 @@ build:remote-cache --experimental_remote_cache_lease_extension=true
 build:remote-cache --experimental_remote_cache_ttl=3h
 
 # Configuration for continuous integration (CI).
-# Ignore android SDK in GHA.
+# TODO(bazelbuild/rules_kotlin#1352): Remove these two environment variable overrides once they’re no longer needed to ignore Android in GHA.
 common:ci --action_env=ANDROID_HOME=""
 common:ci --action_env=ANDROID_SDK_ROOT=""
 common:ci --lockfile_mode=error
