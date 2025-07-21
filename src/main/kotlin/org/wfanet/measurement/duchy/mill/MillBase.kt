@@ -231,7 +231,7 @@ abstract class MillBase(
     logger.info {
       val globalComputationId = token.globalComputationId
       val stage = token.computationStage
-      "Claimed work item for Computation $globalComputationId at stage $stage"
+      "@Mill $millId: Claimed work item for Computation $globalComputationId at stage $stage"
     }
     processComputation(token)
     return true
