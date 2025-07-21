@@ -113,6 +113,7 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/common/api/grpc:list_resources",
         "//src/main/kotlin/org/wfanet/measurement/dataprovider:measurement_results",
         "//src/main/kotlin/org/wfanet/measurement/dataprovider:requisition_fulfiller",
+        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/frequencyvector/v2alpha:frequency_vector",
         "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/noiser",
         "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/privacybudgetmanagement:privacy_budget_manager",
         "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/privacybudgetmanagement/api/v2alpha:privacy_query_mapper",
