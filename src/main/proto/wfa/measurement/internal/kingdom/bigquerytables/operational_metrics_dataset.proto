@@ -82,7 +82,7 @@ message RequisitionsTableRow {
 
   // Since BigQuery timestamp is microsecond precision, this is in nanoseconds
   // and is stored as an integer.
-  int64 update_time_nanoseconds = 12;
+  int64 update_time_nanoseconds = 14;
 }
 
 message ComputationParticipantStagesTableRow {
