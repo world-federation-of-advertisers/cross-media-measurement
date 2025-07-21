@@ -103,7 +103,8 @@ import org.wfanet.measurement.internal.reporting.v2.streamReportsRequest
 import org.wfanet.measurement.internal.reporting.v2.timeIntervals as internalTimeIntervals
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportScheduleInfoServerInterceptor.Companion.withReportScheduleInfo
 import org.wfanet.measurement.reporting.v2alpha.BatchCreateMetricsRequest
-import org.wfanet.measurement.reporting.v2alpha.BatchGetMetricsRequest
+import org.wfanet.measurement.reporting.v2alpha.ListMetricsRequest
+import org.wfanet.measurement.reporting.v2alpha.ListMetricsRequestKt
 import org.wfanet.measurement.reporting.v2alpha.ListReportsPageTokenKt
 import org.wfanet.measurement.reporting.v2alpha.ListReportsRequest
 import org.wfanet.measurement.reporting.v2alpha.Metric
@@ -120,12 +121,12 @@ import org.wfanet.measurement.reporting.v2alpha.ReportingSet
 import org.wfanet.measurement.reporting.v2alpha.ReportingSetKt
 import org.wfanet.measurement.reporting.v2alpha.batchCreateMetricsRequest
 import org.wfanet.measurement.reporting.v2alpha.batchCreateMetricsResponse
-import org.wfanet.measurement.reporting.v2alpha.batchGetMetricsRequest
-import org.wfanet.measurement.reporting.v2alpha.batchGetMetricsResponse
 import org.wfanet.measurement.reporting.v2alpha.copy
 import org.wfanet.measurement.reporting.v2alpha.createMetricRequest
 import org.wfanet.measurement.reporting.v2alpha.createReportRequest
 import org.wfanet.measurement.reporting.v2alpha.getReportRequest
+import org.wfanet.measurement.reporting.v2alpha.listMetricsRequest
+import org.wfanet.measurement.reporting.v2alpha.listMetricsResponse
 import org.wfanet.measurement.reporting.v2alpha.listReportsPageToken
 import org.wfanet.measurement.reporting.v2alpha.listReportsRequest
 import org.wfanet.measurement.reporting.v2alpha.listReportsResponse
@@ -141,11 +142,8 @@ private const val MAX_PAGE_SIZE = 1000
 
 private const val METRIC_ID_PREFIX = "a"
 
-// Authentication key
-private const val API_AUTHENTICATION_KEY = "nR5QPN7ptx"
-
 private const val BATCH_CREATE_METRICS_LIMIT = 1000
-private const val BATCH_GET_METRICS_LIMIT = 1000
+private const val LIST_METRICS_LIMIT = 1000
 
 private const val RANDOM_OUTPUT_INT = 0
 private const val RANDOM_OUTPUT_LONG = 0L
@@ -211,18 +209,11 @@ class ReportsServiceTest {
     onBlocking { batchCreateMetrics(any()) }
       .thenReturn(batchCreateMetricsResponse { metrics += RUNNING_REACH_METRIC })
 
-    onBlocking { batchGetMetrics(any()) }
-      .thenAnswer {
-        val request = it.arguments[0] as BatchGetMetricsRequest
-        val metricsMap =
-          mapOf(
-            RUNNING_REACH_METRIC.name to RUNNING_REACH_METRIC,
-            RUNNING_WATCH_DURATION_METRIC.name to RUNNING_WATCH_DURATION_METRIC,
-          )
-        batchGetMetricsResponse {
-          metrics += request.namesList.map { metricName -> metricsMap.getValue(metricName) }
-        }
-      }
+    onBlocking { listMetrics(any()) }
+      .thenReturn(listMetricsResponse {
+        metrics += RUNNING_REACH_METRIC
+        metrics += RUNNING_WATCH_DURATION_METRIC
+      })
   }
 
   private val internalMetricCalculationSpecsMock: MetricCalculationSpecsCoroutineImplBase =
@@ -3372,16 +3363,10 @@ class ReportsServiceTest {
   @Test
   fun `getReport returns the report with SUCCEEDED when all metrics are SUCCEEDED`() = runBlocking {
     whenever(
-        metricsMock.batchGetMetrics(
-          eq(
-            batchGetMetricsRequest {
-              parent = MEASUREMENT_CONSUMER_KEYS.first().toName()
-              names += SUCCEEDED_REACH_METRIC.name
-            }
-          )
-        )
-      )
-      .thenReturn(batchGetMetricsResponse { metrics += SUCCEEDED_REACH_METRIC })
+      metricsMock.listMetrics(any()))
+        .thenReturn(listMetricsResponse {
+          metrics += SUCCEEDED_REACH_METRIC
+        })
 
     val request = getReportRequest { name = PENDING_REACH_REPORT.name }
 
@@ -3389,6 +3374,17 @@ class ReportsServiceTest {
       withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.getReport(request) } }
 
     assertThat(report).isEqualTo(SUCCEEDED_REACH_REPORT)
+
+    verifyProtoArgument(metricsMock, MetricsCoroutineImplBase::listMetrics)
+      .isEqualTo(
+        listMetricsRequest {
+          parent = MEASUREMENT_CONSUMER_KEYS.first().toName()
+          pageSize = LIST_METRICS_LIMIT
+          filter = ListMetricsRequestKt.filter {
+            this.report = report.name
+          }
+        }
+      )
   }
 
   @Test
@@ -3501,17 +3497,13 @@ class ReportsServiceTest {
       checkPermissionsResponse {
         permissions += PermissionKey(ReportsService.Permission.GET).toName()
       }
+
     wheneverBlocking {
-        metricsMock.batchGetMetrics(
-          eq(
-            batchGetMetricsRequest {
-              parent = MEASUREMENT_CONSUMER_KEYS.first().toName()
-              names += SUCCEEDED_REACH_METRIC.name
-            }
-          )
-        )
-      }
-      .thenReturn(batchGetMetricsResponse { metrics += SUCCEEDED_REACH_METRIC })
+      metricsMock.listMetrics(any())
+    }
+      .thenReturn(listMetricsResponse {
+        metrics += SUCCEEDED_REACH_METRIC
+      })
 
     val request = getReportRequest { name = SUCCEEDED_REACH_REPORT.name }
 
@@ -3519,6 +3511,17 @@ class ReportsServiceTest {
       withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.getReport(request) } }
 
     assertThat(report).isEqualTo(SUCCEEDED_REACH_REPORT)
+
+    verifyProtoArgument(metricsMock, MetricsCoroutineImplBase::listMetrics)
+      .isEqualTo(
+        listMetricsRequest {
+          parent = MEASUREMENT_CONSUMER_KEYS.first().toName()
+          pageSize = LIST_METRICS_LIMIT
+          filter = ListMetricsRequestKt.filter {
+            this.report = report.name
+          }
+        }
+      )
   }
 
   @Test
@@ -3526,16 +3529,10 @@ class ReportsServiceTest {
     val failedReachMetric = RUNNING_REACH_METRIC.copy { state = Metric.State.FAILED }
 
     whenever(
-        metricsMock.batchGetMetrics(
-          eq(
-            batchGetMetricsRequest {
-              parent = MEASUREMENT_CONSUMER_KEYS.first().toName()
-              names += failedReachMetric.name
-            }
-          )
-        )
-      )
-      .thenReturn(batchGetMetricsResponse { metrics += failedReachMetric })
+      metricsMock.listMetrics(any()))
+      .thenReturn(listMetricsResponse {
+        metrics += failedReachMetric
+      })
 
     val request = getReportRequest { name = PENDING_REACH_REPORT.name }
 
@@ -3561,6 +3558,17 @@ class ReportsServiceTest {
             }
         }
       )
+
+    verifyProtoArgument(metricsMock, MetricsCoroutineImplBase::listMetrics)
+      .isEqualTo(
+        listMetricsRequest {
+          parent = MEASUREMENT_CONSUMER_KEYS.first().toName()
+          pageSize = LIST_METRICS_LIMIT
+          filter = ListMetricsRequestKt.filter {
+            this.report = report.name
+          }
+        }
+      )
   }
 
   @Test
@@ -3568,16 +3576,10 @@ class ReportsServiceTest {
     val invalidatedReachMetric = RUNNING_REACH_METRIC.copy { state = Metric.State.INVALID }
 
     whenever(
-        metricsMock.batchGetMetrics(
-          eq(
-            batchGetMetricsRequest {
-              parent = MEASUREMENT_CONSUMER_KEYS.first().toName()
-              names += invalidatedReachMetric.name
-            }
-          )
-        )
-      )
-      .thenReturn(batchGetMetricsResponse { metrics += invalidatedReachMetric })
+      metricsMock.listMetrics(any()))
+      .thenReturn(listMetricsResponse {
+        metrics += invalidatedReachMetric
+      })
 
     val request = getReportRequest { name = PENDING_REACH_REPORT.name }
 
@@ -3603,6 +3605,17 @@ class ReportsServiceTest {
             }
         }
       )
+
+    verifyProtoArgument(metricsMock, MetricsCoroutineImplBase::listMetrics)
+      .isEqualTo(
+        listMetricsRequest {
+          parent = MEASUREMENT_CONSUMER_KEYS.first().toName()
+          pageSize = LIST_METRICS_LIMIT
+          filter = ListMetricsRequestKt.filter {
+            this.report = report.name
+          }
+        }
+      )
   }
 
   @Test
@@ -3613,14 +3626,25 @@ class ReportsServiceTest {
       withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.getReport(request) } }
 
     assertThat(report).isEqualTo(PENDING_REACH_REPORT)
+
+    verifyProtoArgument(metricsMock, MetricsCoroutineImplBase::listMetrics)
+      .isEqualTo(
+        listMetricsRequest {
+          parent = MEASUREMENT_CONSUMER_KEYS.first().toName()
+          pageSize = LIST_METRICS_LIMIT
+          filter = ListMetricsRequestKt.filter {
+            this.report = report.name
+          }
+        }
+      )
   }
 
   @Test
-  fun `getReport returns the report with RUNNING when there are more than max batch size metrics`():
+  fun `getReport returns the report with RUNNING when there are more than max page size metrics`():
     Unit = runBlocking {
     val startSec = 1704096000L
     val incrementSec = 60 * 60 * 24
-    val intervalCount = BATCH_GET_METRICS_LIMIT + 1
+    val intervalCount = MAX_PAGE_SIZE + 1
 
     var endSec = startSec
     val intervals: List<Interval> = buildList {
@@ -3708,9 +3732,9 @@ class ReportsServiceTest {
       )
       .thenReturn(internalPendingReport)
 
-    whenever(metricsMock.batchGetMetrics(any()))
+    whenever(metricsMock.listMetrics(any()))
       .thenReturn(
-        batchGetMetricsResponse {
+        listMetricsResponse {
           metrics +=
             intervals.mapIndexed { index, interval ->
               metric {
@@ -3734,8 +3758,9 @@ class ReportsServiceTest {
 
     withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.getReport(request) } }
 
-    val batchGetMetricsCaptor: KArgumentCaptor<BatchGetMetricsRequest> = argumentCaptor()
-    verifyBlocking(metricsMock, times(2)) { batchGetMetrics(batchGetMetricsCaptor.capture()) }
+    val listMetricsCaptor: KArgumentCaptor<ListMetricsRequest> = argumentCaptor()
+
+    verifyBlocking(metricsMock, times(2)) { listMetricsCaptor.capture() }
   }
 
   @Test
@@ -4136,17 +4161,12 @@ class ReportsServiceTest {
   @Test
   fun `listReports returns reports with SUCCEEDED states when metrics are SUCCEEDED`() =
     runBlocking {
-      whenever(metricsMock.batchGetMetrics(any())).thenAnswer {
-        val request = it.arguments[0] as BatchGetMetricsRequest
-        val metricsMap =
-          mapOf(
-            SUCCEEDED_REACH_METRIC.name to SUCCEEDED_REACH_METRIC,
-            SUCCEEDED_WATCH_DURATION_METRIC.name to SUCCEEDED_WATCH_DURATION_METRIC,
-          )
-        batchGetMetricsResponse {
-          metrics += request.namesList.map { metricName -> metricsMap.getValue(metricName) }
-        }
-      }
+      whenever(
+        metricsMock.listMetrics(any()))
+        .thenReturn(listMetricsResponse {
+          metrics += SUCCEEDED_REACH_METRIC
+          metrics += SUCCEEDED_WATCH_DURATION_METRIC
+        })
 
       val request = listReportsRequest { parent = MEASUREMENT_CONSUMER_KEYS.first().toName() }
 
@@ -4194,17 +4214,12 @@ class ReportsServiceTest {
     val failedWatchDurationMetric =
       RUNNING_WATCH_DURATION_METRIC.copy { state = Metric.State.FAILED }
 
-    whenever(metricsMock.batchGetMetrics(any())).thenAnswer {
-      val request = it.arguments[0] as BatchGetMetricsRequest
-      val metricsMap =
-        mapOf(
-          failedReachMetric.name to failedReachMetric,
-          failedWatchDurationMetric.name to failedWatchDurationMetric,
-        )
-      batchGetMetricsResponse {
-        metrics += request.namesList.map { metricName -> metricsMap.getValue(metricName) }
-      }
-    }
+    whenever(
+      metricsMock.listMetrics(any()))
+      .thenReturn(listMetricsResponse {
+        metrics += failedReachMetric
+        metrics += failedWatchDurationMetric
+      })
 
     val request = listReportsRequest { parent = MEASUREMENT_CONSUMER_KEYS.first().toName() }
 

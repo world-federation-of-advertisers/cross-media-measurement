@@ -34,6 +34,8 @@ class PostgresMetricsServiceTest : MetricsServiceTest<PostgresMetricsService>() 
       PostgresReportingSetsService(idGenerator, client),
       PostgresMeasurementConsumersService(idGenerator, client),
       PostgresMeasurementsService(idGenerator, client),
+      PostgresReportsService(idGenerator, client),
+      PostgresMetricCalculationSpecsService(idGenerator, client),
     )
   }
 
