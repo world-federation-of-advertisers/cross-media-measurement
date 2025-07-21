@@ -143,9 +143,8 @@ message ListMetricsRequest {
   // fields specified as logical ANDs.
   message Filter {
     // Matches against any `Metric` that is requested by the specified `Report`.
-    string report = 1 [
-      (google.api.resource_reference).type = "reporting.halo-cmm.org/Report"
-    ];
+    string report = 1 [(google.api.resource_reference).type =
+                           "reporting.halo-cmm.org/Report"];
   }
   // Filter criteria.
   //
