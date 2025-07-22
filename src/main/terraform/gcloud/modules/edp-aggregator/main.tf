@@ -88,14 +88,14 @@ locals {
   ]...)
 
   all_secrets = merge(
-    { edpa_tee_app_tls_key       = var.edpa_tee_app_tls_key },
-    { edpa_tee_app_tls_pem       = var.edpa_tee_app_tls_pem },
-    { data_watcher_tls_key       = var.data_watcher_tls_key },
-    { data_watcher_tls_pem       = var.data_watcher_tls_pem },
-    { secure_computation_root_ca = var.secure_computation_root_ca },
-    { kingdom_root_ca            = var.kingdom_root_ca },
+    { edpa_tee_app_tls_key                          = var.edpa_tee_app_tls_key },
+    { edpa_tee_app_tls_pem                          = var.edpa_tee_app_tls_pem },
+    { data_watcher_tls_key                          = var.data_watcher_tls_key },
+    { data_watcher_tls_pem                          = var.data_watcher_tls_pem },
+    { secure_computation_root_ca                    = var.secure_computation_root_ca },
+    { kingdom_root_ca                               = var.kingdom_root_ca },
+    { results_fulfiller_event_proto_descriptors     = var.results_fulfiller_event_proto_descriptors },
     local.edps_secrets,
-    var.results_fulfiller_event_proto_descriptors,
   )
 
   data_watcher_secrets_access = [
