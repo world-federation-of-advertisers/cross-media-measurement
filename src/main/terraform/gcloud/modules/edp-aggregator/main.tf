@@ -41,7 +41,7 @@ locals {
     {
       secret_id  = var.results_fulfiller_event_proto_descriptors.secret_id
       version    = "latest"
-      mount_path = "/etc/proto/event_proto_descriptors.pb",
+      mount_path = "/usr/local/share/result-fulfiller/descriptors/event_proto_descriptors.pb",
       flag_name  = "--event-template-metadata-type"
     }
   ]
