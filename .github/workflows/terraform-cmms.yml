@@ -102,18 +102,9 @@ jobs:
         EOF
 
     - id: get-artifact-version
-      env:
-        BASE_VERSION: ${{ inputs.image-tag }}
-      run: |
-        declare artifact_version
-        if [[ "$GITHUB_EVENT_NAME" == 'release' ]]; then
-          artifact_version="${GITHUB_REF_NAME#v}"
-        else
-          # Maven requires a valid semver prefix; we use 0.0.0 for non-release builds
-          artifact_version="0.0.0-${BASE_VERSION}-SNAPSHOT"
-        fi
-
-        echo "artifact-version=${artifact_version}" >> "$GITHUB_OUTPUT"
+      uses: ./.github/actions/get-maven-artifact-version
+      with:
+        package-version: ${{ inputs.package-version }}
 
     - name: Download Uber JARs using Maven
       id: download-uber-jars

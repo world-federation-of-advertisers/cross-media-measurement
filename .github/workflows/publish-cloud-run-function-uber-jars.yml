@@ -15,6 +15,9 @@
 name: Build and push uber jar to Github packages
 
 on:
+  push:
+    branches:
+      - marcopremier/deploy_cloudfunctions_using_terraform
   workflow_call:
     inputs:
       package-version:
@@ -39,17 +42,9 @@ jobs:
           java-version: '17'
 
       - id: get-artifact-version
-        env:
-          PACKAGE_VERSION: ${{ inputs.package-version }}
-        run: |
-          declare artifact_version
-          if [[ "$PACKAGE_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9]+)?$ ]]; then
-            artifact_version="$PACKAGE_VERSION"
-          else
-            artifact_version="0.0.0-${PACKAGE_VERSION}-SNAPSHOT"
-          fi
-
-          echo "artifact-version=${artifact_version}" >> "$GITHUB_OUTPUT"
+        uses: ./.github/actions/get-maven-artifact-version
+        with:
+          package-version: ${{ inputs.package-version }}
 
       - name: Build and Deploy Data Watcher
         env:
