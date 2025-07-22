@@ -809,6 +809,9 @@ abstract class MeasurementConsumerSimulator(
           protocol.honestMajorityShareShuffle.noiseMechanism,
         )
       }
+      ProtocolConfig.Protocol.ProtocolCase.TRUS_TEE -> {
+        error("TrusTEE is not implemented.")
+      }
       ProtocolConfig.Protocol.ProtocolCase.PROTOCOL_NOT_SET -> {
         error("Protocol is not set.")
       }
