@@ -156,8 +156,9 @@ jobs:
         BAZEL_TARGET_LABEL: "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller/testing:event_template_metadata_type"
       run: |
         bazelisk build "$BAZEL_TARGET_LABEL"
-        PROTO_DESCRIPTORS_PATH=$(bazelisk cquery "$BAZEL_TARGET_LABEL" --output=files)
-        echo "event_proto_descriptors_path=$PROTO_DESCRIPTORS_PATH" >> "$GITHUB_OUTPUT"
+        RELATIVE_PROTO_DESCRIPTORS_PATH=$(bazelisk cquery "$BAZEL_TARGET_LABEL" --output=files)
+        ABSOLUTE_PROTO_DESCRIPTORS_PATH="$(realpath "$RELATIVE_PROTO_DESCRIPTORS_PATH")"
+        echo "event_proto_descriptors_path=$ABSOLUTE_PROTO_DESCRIPTORS_PATH" >> "$GITHUB_OUTPUT"
 
     - name: terraform init
       env:
@@ -226,7 +227,7 @@ jobs:
         -var="requisition_fetcher_uber_jar_path=${{ steps.download-uber-jars.outputs.requisition_fetcher_source_path }}"
         -var="event_group_uber_jar_path=${{ steps.download-uber-jars.outputs.event_group_sync_source_path }}"
         -var="image_tag=$IMAGE_TAG"
-        -var="event_template_metadata_type_path=${{ steps.build-test-event-descriptors.outputs.event_proto_descriptors_path }}"
+        -var="event_template_metadata_type_file_path=${{ steps.build-test-event-descriptors.outputs.event_proto_descriptors_path }}"
         -out=tfplan
 
     - name: terraform apply
