@@ -192,3 +192,31 @@ kt_jvm_test(
         "@wfa_consent_signaling_client//src/main/kotlin/org/wfanet/measurement/consent/client/measurementconsumer",
     ],
 )
+
+kt_jvm_test(
+    name = "ParallelBatchedPipelineTest",
+    srcs = ["ParallelBatchedPipelineTest.kt"],
+    test_class = "org.wfanet.measurement.edpaggregator.resultsfulfiller.ParallelBatchedPipelineTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:event_processing_components",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:test_event_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//imports/kotlin/org/mockito/kotlin",
+        "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:labeled_event",
+        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/shareshuffle/v2alpha:shareshuffle",
+    ],
+)
+
+kt_jvm_test(
+    name = "StripedByteFrequencyVectorTest",
+    srcs = ["StripedByteFrequencyVectorTest.kt"],
+    test_class = "org.wfanet.measurement.edpaggregator.resultsfulfiller.StripedByteFrequencyVectorTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:event_processing_components",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+    ],
+)
