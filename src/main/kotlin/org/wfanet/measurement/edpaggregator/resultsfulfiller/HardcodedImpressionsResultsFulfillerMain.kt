@@ -26,12 +26,17 @@ import com.google.protobuf.Descriptors
 import com.google.protobuf.DynamicMessage
 import com.google.type.interval
 import java.io.FileInputStream
-import java.nio.file.Path
 import java.security.SecureRandom
 import java.time.LocalDate
 import java.time.ZoneId
 import java.util.concurrent.atomic.AtomicLong
+import java.util.concurrent.Executors
+import java.util.concurrent.ThreadPoolExecutor
+import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.asCoroutineDispatcher
+import java.util.logging.Logger
+import java.util.logging.Level
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -54,14 +59,10 @@ import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventGroupEntry
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.events
 import org.wfanet.measurement.common.OpenEndTimeRange
 import org.wfanet.measurement.common.commandLineMain
-import org.wfanet.measurement.common.crypto.tink.loadPublicKey
-import org.wfanet.measurement.common.crypto.tink.testing.FakeKmsClient
 import org.wfanet.measurement.common.pack
-import org.wfanet.measurement.common.toInstant
-import org.wfanet.measurement.common.toProtoTime
-import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
-import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.Video
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt.eventGroupDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt.eventGroupMapEntry
@@ -79,22 +80,24 @@ import picocli.CommandLine
 import kotlin.system.measureTimeMillis
 
 /**
- * SIMPLIFIED DEMO PIPELINE: CEL-ONLY FILTERING WITH BATCHED PROCESSING
- * 
+ * SIMPLIFIED DEMO PIPELINE: CEL-ONLY FILTERING WITH SYNTHETIC DATA
+ *
  * This implementation demonstrates a streamlined event processing pipeline with the following architecture:
- * 
+ *
  * PIPELINE STRUCTURE:
- * [Parallel Event Readers] -> [Batching] -> [Fan Out] -> [CEL Filtering] -> [Frequency Vector Sinks]
- * 
+ * [Synthetic Event Generator] -> [Batching] -> [Fan Out] -> [CEL Filtering] -> [Frequency Vector Sinks]
+ *
  * KEY DESIGN PRINCIPLES:
  * 1. **Simplified Architecture**: Only CEL filtering, no complex masking operations
- * 2. **Batched Processing**: Events are processed in configurable batch sizes
- * 3. **Fan-Out to Multiple CEL Filters**: Each batch is processed by multiple CEL filter coroutines
- * 4. **Memory-Efficient Storage**: Striped byte arrays for frequency vectors
- * 5. **Demonstration Focus**: Two CEL filters (person.gender == 0 and person.gender == 1)
- * 
+ * 2. **Synthetic Data Generation**: Configurable synthetic event generation for load testing
+ * 3. **Batched Processing**: Events are processed in configurable batch sizes
+ * 4. **Fan-Out to Multiple CEL Filters**: Each batch is processed by multiple CEL filter coroutines
+ * 5. **Memory-Efficient Storage**: Striped byte arrays for frequency vectors
+ * 6. **Demonstration Focus**: Two CEL filters (person.gender == 1 [MALE] and person.gender == 2 [FEMALE])
+ *
  * PERFORMANCE CHARACTERISTICS:
- * - Parallel event reading from multiple date partitions
+ * - High-throughput synthetic event generation
+ * - Realistic VID frequency distribution (Zipf-like)
  * - Configurable batch sizes for optimal memory/throughput balance
  * - Multiple CEL filter coroutines processing batches concurrently
  * - Lock-striped frequency counting for high-concurrency updates
@@ -107,9 +110,9 @@ class StripedByteFrequencyVector(private val size: Int) {
     private val stripeSize = (size + stripeCount - 1) / stripeCount
     private val data = ByteArray(size)
     private val locks = Array(stripeCount) { Any() }
-    
+
     private fun getStripe(index: Int) = index / stripeSize
-    
+
     fun incrementByIndex(index: Int) {
         if (index >= 0 && index < size) {
             synchronized(locks[getStripe(index)]) {
@@ -120,11 +123,11 @@ class StripedByteFrequencyVector(private val size: Int) {
             }
         }
     }
-    
+
     fun computeStatistics(): Pair<Double, Long> {
         var totalFrequency = 0L
         var nonZeroCount = 0L
-        
+
         for (i in 0 until stripeCount) {
             synchronized(locks[i]) {
                 val start = i * stripeSize
@@ -138,11 +141,11 @@ class StripedByteFrequencyVector(private val size: Int) {
                 }
             }
         }
-        
+
         val averageFrequency = if (nonZeroCount > 0) totalFrequency.toDouble() / nonZeroCount else 0.0
         return Pair(averageFrequency, nonZeroCount)
     }
-    
+
     fun getTotalCount(): Long {
         var total = 0L
         for (i in 0 until stripeCount) {
@@ -171,7 +174,7 @@ data class EventBatch(
 
 /**
  * CEL filter processor for event filtering.
- * 
+ *
  * This processor compiles a CEL expression once and reuses it for batch processing.
  * It processes events sequentially through the CEL filter and identifies matching events.
  */
@@ -181,12 +184,15 @@ class CelFilterProcessor(
     private val eventMessageDescriptor: Descriptors.Descriptor,
     private val typeRegistry: TypeRegistry
 ) {
+    companion object {
+        private val logger = Logger.getLogger(CelFilterProcessor::class.java.name)
+    }
     private val program: Program = if (celExpression.isEmpty()) {
         Program { Program.newEvalResult(BoolT.True, null) }
     } else {
         EventFilters.compileProgram(eventMessageDescriptor, celExpression)
     }
-    
+
     /**
      * Processes a batch of events and returns the matching events.
      */
@@ -195,6 +201,7 @@ class CelFilterProcessor(
             try {
                 EventFilters.matches(event.message, program)
             } catch (e: Exception) {
+                logger.warning("CEL filter evaluation failed for event with VID ${event.vid} (filter: $filterId): ${e.message}")
                 false
             }
         }
@@ -203,7 +210,7 @@ class CelFilterProcessor(
 
 /**
  * Frequency vector sink that receives filtered events and updates frequency counts.
- * 
+ *
  * Each sink corresponds to a specific CEL filter and maintains its own frequency vector.
  */
 class FrequencyVectorSink(
@@ -211,29 +218,33 @@ class FrequencyVectorSink(
     val description: String,
     private val vidIndexMap: VidIndexMap
 ) {
+    companion object {
+        private val logger = Logger.getLogger(FrequencyVectorSink::class.java.name)
+    }
     private val frequencyVector = StripedByteFrequencyVector(vidIndexMap.size.toInt())
     private val processedCount = AtomicLong(0)
     private val matchedCount = AtomicLong(0)
     private val errorCount = AtomicLong(0)
-    
+
     suspend fun processMatchedEvents(matchedEvents: List<LabeledEvent<TestEvent>>, totalProcessed: Int) {
         processedCount.addAndGet(totalProcessed.toLong())
         matchedCount.addAndGet(matchedEvents.size.toLong())
-        
+
         matchedEvents.forEach { event ->
             try {
                 val index = vidIndexMap[event.vid]
                 frequencyVector.incrementByIndex(index)
             } catch (e: VidNotFoundException) {
                 errorCount.incrementAndGet()
+                logger.warning("VID not found in index map: ${event.vid} (sink: $sinkId)")
             }
         }
     }
-    
+
     fun getStatistics(): SinkStatistics {
         val (avgFreq, nonZeroCount) = frequencyVector.computeStatistics()
         val totalFrequency = frequencyVector.getTotalCount()
-        
+
         return SinkStatistics(
             sinkId = sinkId,
             description = description,
@@ -266,18 +277,18 @@ data class SinkStatistics(
 
 /**
  * Simplified pipeline processor that orchestrates CEL-only event processing.
- * 
+ *
  * PIPELINE FLOW:
  * 1. **Parallel Event Readers**: Read events from multiple date partitions concurrently
  * 2. **Batching**: Group events into configurable batch sizes
  * 3. **Fan Out**: Distribute batches to multiple CEL filter processors
  * 4. **CEL Filtering**: Apply CEL filters to identify matching events
  * 5. **Frequency Vector Sinks**: Update frequency counts for matching events
- * 
+ *
  * The pipeline uses channels for coordination and maintains backpressure through bounded capacities.
  */
 class SimplifiedEventProcessingPipeline {
-    
+
     /**
      * Main processing method that implements the simplified CEL-only pipeline.
      */
@@ -290,18 +301,18 @@ class SimplifiedEventProcessingPipeline {
         eventMessageDescriptor: Descriptors.Descriptor,
         typeRegistry: TypeRegistry
     ): Map<String, SinkStatistics> = coroutineScope {
-        
+
         println("Starting simplified CEL-only pipeline with:")
         println("  Batch size: $batchSize")
         println("  Channel capacity: $channelCapacity")
         println("  CEL filters: ${celFilters.values}")
         println()
-        
+
         // Create CEL filter processors
         val celProcessors = celFilters.map { (filterId, expression) ->
             CelFilterProcessor(filterId, expression, eventMessageDescriptor, typeRegistry)
         }
-        
+
         // Create frequency vector sinks (one per CEL filter)
         val sinks = celFilters.map { (filterId, expression) ->
             filterId to FrequencyVectorSink(
@@ -310,15 +321,15 @@ class SimplifiedEventProcessingPipeline {
                 vidIndexMap = vidIndexMap
             )
         }.toMap()
-        
+
         // Channel for batched events
         val batchChannel = Channel<EventBatch>(capacity = channelCapacity)
-        
+
         // Statistics tracking
         val totalBatches = AtomicLong(0)
         val totalEvents = AtomicLong(0)
         val startTime = System.currentTimeMillis()
-        
+
         // Stage 1: Parallel Event Readers -> Batching
         val batchingJob = launch(Dispatchers.IO) {
             println("Batching stage started, waiting for events...")
@@ -327,22 +338,14 @@ class SimplifiedEventProcessingPipeline {
                 .onStart {
                     println("Event flow started in batching stage")
                 }
-                .onEach { event ->
-                    // Just log without incrementing here
-                    val currentTotal = totalEvents.get() + 1
-                    if (currentTotal == 1L || currentTotal % 1000 == 0L) {
-                        println("Batching stage receiving event #$currentTotal")
-                    }
-                }
                 .chunked(batchSize)
                 .collect { eventList ->
-                    println("Creating batch $batchId with ${eventList.size} events")
                     val batch = EventBatch(eventList, batchId++)
                     batchChannel.send(batch)
                     totalBatches.incrementAndGet()
                     totalEvents.addAndGet(eventList.size.toLong())
-                    
-                    if (batchId % 100 == 0L) {
+
+                    if (batchId % 10 == 0L) {
                         val elapsed = System.currentTimeMillis() - startTime
                         val eventsPerSec = if (elapsed > 0) totalEvents.get() * 1000 / elapsed else 0
                         println("Processed ${totalEvents.get()} events in ${totalBatches.get()} batches ($eventsPerSec events/sec)")
@@ -351,7 +354,7 @@ class SimplifiedEventProcessingPipeline {
             println("Batching stage completed. Total events processed: ${totalEvents.get()}, Total batches: ${totalBatches.get()}")
             batchChannel.close()
         }
-        
+
         // Stage 2: Fan Out -> CEL Filtering -> Frequency Vector Sinks (Fully Asynchronous)
         val processingJobs = (1..3).map { workerId ->
             launch(Dispatchers.Default) {
@@ -367,44 +370,43 @@ class SimplifiedEventProcessingPipeline {
                 }
             }
         }
-        
+
         // Wait for all processing to complete
         batchingJob.join()
         processingJobs.forEach { it.join() }
-        
+
         val endTime = System.currentTimeMillis()
         val totalProcessingTime = endTime - startTime
-        
+
         println("\nPipeline completed:")
         println("  Total events: ${totalEvents.get()}")
         println("  Total batches: ${totalBatches.get()}")
         println("  Processing time: $totalProcessingTime ms")
         println("  Throughput: ${if (totalProcessingTime > 0) totalEvents.get() * 1000 / totalProcessingTime else 0} events/sec")
         println()
-        
+
         // Return statistics from all sinks
         sinks.mapValues { (_, sink) -> sink.getStatistics() }
     }
 }
 
 /**
- * Enhanced command-line tool demonstrating the simplified CEL filtering pipeline.
+ * Enhanced command-line tool demonstrating the simplified CEL filtering pipeline with synthetic data.
  */
 @CommandLine.Command(
   name = "SimplifiedEventProcessingPipeline",
-  description = ["Simplified pipeline: Parallel Event Readers -> Batching -> Fan Out -> CEL Filtering -> Frequency Vector Sinks"],
+  description = ["Simplified pipeline with synthetic data: Synthetic Generator -> Batching -> Fan Out -> CEL Filtering -> Frequency Vector Sinks"],
   mixinStandardHelpOptions = true,
   showDefaultValues = true
 )
 class HardcodedImpressionsResultsFulfillerMain : Runnable {
 
-  @CommandLine.Option(
-    names = ["--impressions-path"],
-    description = ["Path to impressions data directory"],
-    required = true
-  )
-  private lateinit var impressionsPath: Path
+  companion object {
+    private val logger = Logger.getLogger(HardcodedImpressionsResultsFulfillerMain::class.java.name)
 
+    @JvmStatic
+    fun main(args: Array<String>) = commandLineMain(HardcodedImpressionsResultsFulfillerMain(), args)
+  }
 
   @CommandLine.Option(
     names = ["--start-date"],
@@ -419,27 +421,6 @@ class HardcodedImpressionsResultsFulfillerMain : Runnable {
     defaultValue = "2025-01-02"
   )
   private lateinit var endDateStr: String
-
-  @CommandLine.Option(
-    names = ["--event-group-reference-id"],
-    description = ["Event group reference ID"],
-    defaultValue = "edpa-eg-reference-id-1"
-  )
-  private lateinit var eventGroupReferenceId: String
-
-  @CommandLine.Option(
-    names = ["--impressions-uri"],
-    description = ["URI for impressions data"],
-    defaultValue = "file://storage/impressions"
-  )
-  private lateinit var impressionsUri: String
-
-  @CommandLine.Option(
-    names = ["--parallelism"],
-    description = ["Number of parallel threads for processing"],
-    defaultValue = "4"
-  )
-  private var parallelism: Int = 4
 
   @CommandLine.Option(
     names = ["--batch-size"],
@@ -458,65 +439,183 @@ class HardcodedImpressionsResultsFulfillerMain : Runnable {
   @CommandLine.Option(
     names = ["--max-vid-range"],
     description = ["Maximum VID value for PopulationSpec"],
-    defaultValue = "100000000"
+    defaultValue = "10000000"
   )
-  private var maxVidRange: Long = 100_000_000L
+  private var maxVidRange: Long = 10_000_000L
 
   @CommandLine.Option(
     names = ["--cel-filter-1"],
     description = ["First CEL filter expression"],
-    defaultValue = "person.gender == 0"
+    defaultValue = "person.gender == 1"
   )
   private lateinit var celFilter1: String
 
   @CommandLine.Option(
     names = ["--cel-filter-2"],
     description = ["Second CEL filter expression"],
-    defaultValue = "person.gender == 1"
+    defaultValue = "person.gender == 2"
   )
   private lateinit var celFilter2: String
 
+  @CommandLine.Option(
+    names = ["--total-events"],
+    description = ["Total number of synthetic events to generate"],
+    defaultValue = "10000000"
+  )
+  private var totalEvents: Long = 10_000_000L
+
+  @CommandLine.Option(
+    names = ["--synthetic-unique-vids"],
+    description = ["Number of unique VIDs in synthetic data"],
+    defaultValue = "1000000"
+  )
+  private var syntheticUniqueVids: Int = 1_000_000
+
+  @CommandLine.Option(
+    names = ["--use-parallel-pipeline"],
+    description = ["Use parallel batched pipeline instead of single pipeline"],
+    defaultValue = "false"
+  )
+  private var useParallelPipeline: Boolean = false
+
+  @CommandLine.Option(
+    names = ["--parallel-batch-size"],
+    description = ["Batch size for parallel pipeline"],
+    defaultValue = "100000"
+  )
+  private var parallelBatchSize: Int = 100000
+
+  @CommandLine.Option(
+    names = ["--parallel-workers"],
+    description = ["Number of worker threads for parallel pipeline (0 = use all CPU cores)"],
+    defaultValue = "0"
+  )
+  private var parallelWorkers: Int = 0
+
+  @CommandLine.Option(
+    names = ["--thread-pool-size"],
+    description = ["Custom thread pool size (0 = 4x CPU cores)"],
+    defaultValue = "0"
+  )
+  private var threadPoolSize: Int = 0
+
   override fun run() = runBlocking {
+    logger.info("Starting Simplified Event Processing Pipeline")
     println("Simplified Event Processing Pipeline")
     println("Structure: Parallel Event Readers -> Batching -> Fan Out -> CEL Filtering -> Frequency Vector Sinks")
-    println("CEL Filters: '$celFilter1', '$celFilter2'")
+    println("CEL Filters: '$celFilter1' (MALE), '$celFilter2' (FEMALE)")
     println()
 
-    // Initialize Tink crypto
-    AeadConfig.register()
-    StreamingAeadConfig.register()
-    println("Tink initialization complete")
+    try {
+      // Initialize Tink crypto
+      AeadConfig.register()
+      StreamingAeadConfig.register()
+      logger.info("Tink initialization completed successfully")
+      println("Tink initialization complete")
+    } catch (e: Exception) {
+      logger.severe("Failed to initialize Tink crypto: ${e.message}")
+      throw e
+    }
+
+    // Create custom thread pool executors for maximum performance
+    val actualThreadPoolSize = if (threadPoolSize == 0) Runtime.getRuntime().availableProcessors() * 4 else threadPoolSize
+    logger.info("Creating custom thread pools: default=$actualThreadPoolSize, I/O=${actualThreadPoolSize * 2}")
+
+    val customThreadPool = try {
+      Executors.newFixedThreadPool(actualThreadPoolSize) { r ->
+        Thread(r, "CustomPool-${Thread.activeCount()}").apply {
+          isDaemon = false
+          priority = Thread.NORM_PRIORITY
+        }
+      }
+    } catch (e: Exception) {
+      logger.severe("Failed to create custom thread pool: ${e.message}")
+      throw e
+    }
+    val customDispatcher = customThreadPool.asCoroutineDispatcher()
+
+    val ioThreadPoolSize = actualThreadPoolSize * 2
+    val ioThreadPool = try {
+      Executors.newFixedThreadPool(ioThreadPoolSize) { r ->
+        Thread(r, "CustomIO-${Thread.activeCount()}").apply {
+          isDaemon = false
+          priority = Thread.NORM_PRIORITY
+        }
+      }
+    } catch (e: Exception) {
+      logger.severe("Failed to create I/O thread pool: ${e.message}")
+      customThreadPool.shutdown()
+      throw e
+    }
+    val customIODispatcher = ioThreadPool.asCoroutineDispatcher()
+
+    logger.info("Custom thread pools initialized successfully")
+    println("Custom thread pools initialized:")
+    println("  Default thread pool: $actualThreadPoolSize threads")
+    println("  I/O thread pool: $ioThreadPoolSize threads")
 
     // Parse configuration
-    val startDate = LocalDate.parse(startDateStr)
-    val endDate = LocalDate.parse(endDateStr)
+    val startDate = try {
+      LocalDate.parse(startDateStr)
+    } catch (e: Exception) {
+      logger.severe("Failed to parse start date '$startDateStr': ${e.message}")
+      throw e
+    }
+
+    val endDate = try {
+      LocalDate.parse(endDateStr)
+    } catch (e: Exception) {
+      logger.severe("Failed to parse end date '$endDateStr': ${e.message}")
+      throw e
+    }
+
     val timeRange = OpenEndTimeRange.fromClosedDateRange(startDate..endDate)
-    
+    logger.info("Time range configured: $startDate to $endDate")
+
     println("Configuration:")
     println("  Date range: $startDate to $endDate")
     println("  Max VID range: $maxVidRange")
-    println("  Parallelism: $parallelism")
     println("  Batch size: $batchSize")
     println("  Channel capacity: $channelCapacity")
+    println()
+    println("Synthetic Data Configuration:")
+    println("  Total events: $totalEvents")
+    println("  Unique VIDs: $syntheticUniqueVids")
+    println()
+    println("Pipeline Configuration:")
+    println("  Use parallel pipeline: $useParallelPipeline")
+    if (useParallelPipeline) {
+      val actualWorkers = if (parallelWorkers == 0) Runtime.getRuntime().availableProcessors() else parallelWorkers
+      println("  Parallel batch size: $parallelBatchSize")
+      println("  Parallel workers: $parallelWorkers (actual: $actualWorkers)")
+      println("  Available CPU cores: ${Runtime.getRuntime().availableProcessors()}")
+    }
     println()
 
     // Create population spec and VID index map
     println("Creating PopulationSpec and VID index map...")
-    val populationSpec = createPopulationSpec(maxVidRange)
-    val vidIndexMap = InMemoryVidIndexMap.build(populationSpec)
+    logger.info("Creating PopulationSpec with max VID range: $maxVidRange")
+
+    val populationSpec = try {
+      createPopulationSpec(maxVidRange)
+    } catch (e: Exception) {
+      logger.severe("Failed to create PopulationSpec: ${e.message}")
+      throw e
+    }
+
+    val vidIndexMap = try {
+      InMemoryVidIndexMap.build(populationSpec)
+    } catch (e: Exception) {
+      logger.severe("Failed to build VID index map: ${e.message}")
+      throw e
+    }
+
+    logger.info("VID index map created successfully with ${vidIndexMap.size} entries")
     println("VID index map created with ${vidIndexMap.size} entries")
     println()
 
     // Set up event infrastructure
     val typeRegistry = TypeRegistry.newBuilder().add(TestEvent.getDescriptor()).build()
-    val impressionsFile = impressionsPath.toFile()
-    val eventReader = EventReader(
-      null,
-      StorageConfig(rootDirectory = impressionsFile),
-      StorageConfig(rootDirectory = impressionsFile),
-      impressionsUri,
-      typeRegistry
-    )
 
     // Define CEL filters for demo
     val celFilters = mapOf(
@@ -524,46 +623,82 @@ class HardcodedImpressionsResultsFulfillerMain : Runnable {
       "filter_2" to celFilter2
     )
 
-    // Create parallel event flow
-    println("Creating parallel event reader flow...")
-    val eventFlow = createParallelEventFlow(timeRange, eventReader)
-
-    // Process through simplified pipeline
-    println("Processing through simplified CEL-only pipeline...")
-    val pipeline = SimplifiedEventProcessingPipeline()
-    
-    val sinkStatistics = pipeline.processEvents(
-      eventFlow = eventFlow,
-      batchSize = batchSize,
-      channelCapacity = channelCapacity,
-      vidIndexMap = vidIndexMap,
-      celFilters = celFilters,
-      eventMessageDescriptor = TestEvent.getDescriptor(),
-      typeRegistry = typeRegistry
+    // Create synthetic event flow with custom dispatcher
+    println("Creating synthetic event flow...")
+    val eventFlow = createSyntheticEventFlow(
+      timeRange = timeRange,
+      totalEvents = totalEvents,
+      uniqueVids = syntheticUniqueVids,
+      customDispatcher = customDispatcher
     )
 
-    // Display results
-    println("SIMPLIFIED PIPELINE RESULTS:")
-    println("=".repeat(60))
-    sinkStatistics.forEach { (filterId, stats) ->
-      println("Filter: $filterId")
-      println("  Description: ${stats.description}")
-      println("  Events: ${stats.processedEvents} processed, ${stats.matchedEvents} matched (${String.format("%.2f", stats.matchRate)}%)")
-      println("  Reach: ${stats.reach}")
-      println("  Total Frequency: ${stats.totalFrequency}")
-      println("  Average Frequency: ${String.format("%.2f", stats.averageFrequency)}")
-      println("  Errors: ${stats.errorCount} (${String.format("%.2f", stats.errorRate)}%)")
-      println()
+    // Choose pipeline based on CLI option
+    val pipelineStartTime = System.currentTimeMillis()
+
+    val statistics = if (useParallelPipeline) {
+      println("Running parallel batched pipeline with synthetic data...")
+      val actualWorkers = if (parallelWorkers == 0) Runtime.getRuntime().availableProcessors() else parallelWorkers
+      runParallelPipeline(
+        eventFlow = eventFlow,
+        vidIndexMap = vidIndexMap,
+        celFilters = celFilters,
+        batchSize = parallelBatchSize,
+        workers = actualWorkers,
+        customDispatcher = customDispatcher,
+        ioDispatcher = customIODispatcher
+      )
+    } else {
+      println("Running single end-to-end pipeline with synthetic data...")
+      runSinglePipeline(
+        eventFlow = eventFlow,
+        vidIndexMap = vidIndexMap,
+        celFilters = celFilters,
+        customDispatcher = customDispatcher
+      )
     }
 
-    // Comparison between filters
-    if (sinkStatistics.size >= 2) {
-      val stats1 = sinkStatistics["filter_1"]!!
-      val stats2 = sinkStatistics["filter_2"]!!
-      
-      println("FILTER COMPARISON:")
-      println("  Filter 1 vs Filter 2 Reach Ratio: ${if (stats2.reach > 0) "%.2f".format(stats1.reach.toDouble() / stats2.reach) else "N/A"}")
-      println("  Filter 1 vs Filter 2 Match Rate Ratio: ${if (stats2.matchRate > 0) "%.2f".format(stats1.matchRate / stats2.matchRate) else "N/A"}")
+    // Cleanup thread pools
+    logger.info("Shutting down thread pools...")
+    try {
+      customThreadPool.shutdown()
+      ioThreadPool.shutdown()
+
+      if (!customThreadPool.awaitTermination(5, TimeUnit.SECONDS)) {
+        logger.warning("Custom thread pool did not terminate gracefully, forcing shutdown")
+        customThreadPool.shutdownNow()
+      }
+
+      if (!ioThreadPool.awaitTermination(5, TimeUnit.SECONDS)) {
+        logger.warning("I/O thread pool did not terminate gracefully, forcing shutdown")
+        ioThreadPool.shutdownNow()
+      }
+
+      logger.info("Thread pools shut down successfully")
+      println("Thread pools shut down successfully")
+    } catch (e: Exception) {
+      logger.severe("Error shutting down thread pools: ${e.message}")
+      println("Error shutting down thread pools: ${e.message}")
+    }
+
+    val pipelineEndTime = System.currentTimeMillis()
+    val totalDuration = pipelineEndTime - pipelineStartTime
+
+    println("\nPipeline Execution Summary:")
+    println("===========================")
+    println("Total duration: ${totalDuration}ms")
+    println()
+
+    // Display statistics for each CEL filter
+    statistics.forEach { (filterId, stats) ->
+      println("Filter: $filterId")
+      println("  Description: ${stats.description}")
+      println("  Processed events: ${stats.processedEvents}")
+      println("  Matched events: ${stats.matchedEvents} (${String.format("%.2f", stats.matchRate)}%)")
+      println("  Errors: ${stats.errorCount} (${String.format("%.2f", stats.errorRate)}%)")
+      println("  Reach: ${stats.reach}")
+      println("  Total frequency: ${stats.totalFrequency}")
+      println("  Average frequency: ${String.format("%.2f", stats.averageFrequency)}")
+      println()
     }
 
     // Memory usage
@@ -583,64 +718,282 @@ class HardcodedImpressionsResultsFulfillerMain : Runnable {
     }
   }
 
-  private suspend fun createParallelEventFlow(
+
+  private fun createSyntheticEventFlow(
     timeRange: OpenEndTimeRange,
-    eventReader: EventReader
-  ): Flow<LabeledEvent<TestEvent>> {
-    val startDate = LocalDate.ofInstant(timeRange.start, ZoneId.systemDefault())
-    val endDate = LocalDate.ofInstant(timeRange.endExclusive, ZoneId.systemDefault())
-    
-    val datesList = generateSequence(startDate) { date ->
-      if (date < endDate) date.plusDays(1) else null
-    }.toList()
-    
-    println("Setting up parallel event readers for ${datesList.size} date partitions")
-    
-    // Parallel event readers with controlled concurrency
-    return datesList.asFlow()
-      .flatMapMerge(concurrency = parallelism) { date ->
-        println("Starting to read events for date: $date")
-        var eventCount = 0L
-        eventReader.getLabeledEvents(date, eventGroupReferenceId)
-          .onStart {
-            println("Event reader started for date: $date")
+    totalEvents: Long,
+    uniqueVids: Int,
+    customDispatcher: kotlinx.coroutines.CoroutineDispatcher
+  ): Flow<LabeledEvent<TestEvent>> = channelFlow {
+    val startTime = timeRange.start
+    val endTime = timeRange.endExclusive
+    val duration = java.time.Duration.between(startTime, endTime)
+
+    println("Generating synthetic events:")
+    println("  Start time: $startTime")
+    println("  End time: $endTime")
+    println("  Duration: ${duration.seconds} seconds")
+    println("  Total events to generate: $totalEvents")
+    println("  Unique VIDs: $uniqueVids")
+    println("  Distribution: Uniform across time range")
+
+    // Pre-compute shared data for all threads
+    val durationSecondsDouble = duration.seconds.toDouble()
+    val vidArray = LongArray(uniqueVids) { (it + 1).toLong() }
+    val genders = arrayOf(Person.Gender.MALE, Person.Gender.FEMALE)
+    val validAgeGroups = arrayOf(
+      Person.AgeGroup.YEARS_18_TO_34,
+      Person.AgeGroup.YEARS_35_TO_54,
+      Person.AgeGroup.YEARS_55_PLUS
+    )
+
+    // Parallel generation using multiple coroutines - utilize all CPU cores
+    val numThreads = Runtime.getRuntime().availableProcessors() * 10
+    val eventsPerThread = (totalEvents / numThreads).toLong()
+    val remainingEvents = (totalEvents % numThreads).toInt()
+
+    println("Using $numThreads parallel generators (${Runtime.getRuntime().availableProcessors()} CPU cores), $eventsPerThread events per thread")
+
+    // Launch parallel event generators
+    (0 until numThreads).map { threadId ->
+      launch(customDispatcher) {
+        val random = kotlin.random.Random(System.nanoTime() + threadId)
+        val eventsToGenerate = eventsPerThread + (if (threadId < remainingEvents) 1 else 0)
+        val batchSize = 10000
+        var generated = 0L
+
+        while (generated < eventsToGenerate) {
+          val currentBatchSize = minOf(batchSize, (eventsToGenerate - generated).toInt())
+
+          // Generate batch of events
+          repeat(currentBatchSize) {
+            val vid = vidArray[random.nextInt(uniqueVids)]
+            val randomSeconds = (random.nextDouble() * durationSecondsDouble).toLong()
+            val randomTimestamp = startTime.plusSeconds(randomSeconds)
+
+            val person = Person.newBuilder().apply {
+              gender = if (random.nextDouble() < 0.6) Person.Gender.MALE else Person.Gender.FEMALE
+              ageGroup = validAgeGroups[random.nextInt(validAgeGroups.size)]
+            }.build()
+
+            val event = TestEvent.newBuilder().apply {
+              this.person = person
+            }.build()
+
+            send(LabeledEvent(randomTimestamp, vid, event))
           }
-          .onEach { event ->
-            eventCount++
-            // Log every 1000th event to avoid too much output
-            if (eventCount % 1000 == 0L) {
-              println("Read $eventCount events for date: $date (VID: ${event.vid})")
-            }
+
+          generated += currentBatchSize
+
+          if (generated % 50000 == 0L) {
+            println("Thread $threadId: Generated $generated/$eventsToGenerate events")
           }
-          .onCompletion { exception ->
-            if (exception != null) {
-              println("Event reader for date $date completed with error: $exception")
-            } else {
-              println("Event reader for date $date completed successfully. Total events: $eventCount")
-            }
-          }
-          .flowOn(Dispatchers.IO)
+        }
+
+        println("Thread $threadId completed: $eventsToGenerate events")
       }
+    }.forEach { it.join() }
+
+    println("Synthetic event generation completed. Total events: $totalEvents")
   }
 
-  companion object {
-    @JvmStatic
-    fun main(args: Array<String>) = commandLineMain(HardcodedImpressionsResultsFulfillerMain(), args)
+  private fun generateVidFrequencyDistribution(
+    uniqueVids: Int,
+    averageFrequency: Int,
+    random: SecureRandom
+  ): Map<Long, Int> {
+    val distribution = mutableMapOf<Long, Int>()
+
+    // Use Zipf-like distribution for more realistic frequency patterns
+    // Some VIDs appear many times, most appear few times
+    for (i in 1..uniqueVids) {
+      val vid = i.toLong()
+      val frequency = when {
+        i <= uniqueVids * 0.01 -> averageFrequency * 10  // Top 1% are power users
+        i <= uniqueVids * 0.1 -> averageFrequency * 3   // Next 9% are regular users
+        i <= uniqueVids * 0.5 -> averageFrequency       // Next 40% are average users
+        else -> 1                                        // Remaining 50% are light users
+      }
+      distribution[vid] = frequency + random.nextInt(3) - 1 // Add some randomness
+    }
+
+    return distribution
   }
+
+  private suspend fun runParallelPipeline(
+    eventFlow: Flow<LabeledEvent<TestEvent>>,
+    vidIndexMap: VidIndexMap,
+    celFilters: Map<String, String>,
+    batchSize: Int,
+    workers: Int,
+    customDispatcher: kotlinx.coroutines.CoroutineDispatcher,
+    ioDispatcher: kotlinx.coroutines.CoroutineDispatcher
+  ): Map<String, SinkStatistics> = coroutineScope {
+    // Create CEL filter processors
+    val typeRegistry = TypeRegistry.newBuilder().add(TestEvent.getDescriptor()).build()
+    val celProcessors = celFilters.map { (filterId, expression) ->
+      CelFilterProcessor(filterId, expression, TestEvent.getDescriptor(), typeRegistry)
+    }
+
+    // Create frequency vector sinks
+    val sinks = celFilters.map { (filterId, expression) ->
+      filterId to FrequencyVectorSink(
+        sinkId = filterId,
+        description = "CEL: $expression",
+        vidIndexMap = vidIndexMap
+      )
+    }.toMap()
+
+    // Unlimited capacity channel for maximum throughput
+    val batchChannel = Channel<EventBatch>(capacity = Channel.UNLIMITED)
+
+    val totalBatches = AtomicLong(0)
+    val totalEvents = AtomicLong(0)
+    val startTime = System.currentTimeMillis()
+
+    println("Parallel pipeline configuration:")
+    println("  Batch size: $batchSize")
+    println("  Workers: $workers")
+    println("  Channel: UNLIMITED capacity")
+
+    // Stage 1: High-throughput batching
+    val batchingJob = launch(ioDispatcher) {
+      println("Parallel batching stage started...")
+      var batchId = 0L
+      eventFlow
+        .chunked(batchSize)
+        .collect { eventList ->
+          batchChannel.send(EventBatch(eventList, batchId++))
+          totalBatches.incrementAndGet()
+          totalEvents.addAndGet(eventList.size.toLong())
+
+          if (batchId % 10 == 0L) {
+            val elapsed = System.currentTimeMillis() - startTime
+            val rate = if (elapsed > 0) totalEvents.get() * 1000 / elapsed else 0
+            println("Batched ${totalEvents.get()} events in ${totalBatches.get()} batches ($rate events/sec)")
+          }
+        }
+      batchChannel.close()
+      println("Parallel batching completed: ${totalEvents.get()} events in ${totalBatches.get()} batches")
+    }
+
+    // Stage 2: Massive fan-out processing (parallel workers)
+    val processedEvents = AtomicLong(0)
+    val processingJobs = (1..workers).map { workerId ->
+      launch(customDispatcher) {
+        for (batch in batchChannel) {
+          // KEY OPTIMIZATION: No awaitAll() - fully async
+          celProcessors.map { processor ->
+            launch(customDispatcher) {
+              val matchedEvents = processor.processBatch(batch)
+              sinks[processor.filterId]?.processMatchedEvents(matchedEvents, batch.size)
+            }
+          }
+
+          val processed = processedEvents.addAndGet(batch.size.toLong())
+          if (processed % 1000000 == 0L) {
+            val elapsed = System.currentTimeMillis() - startTime
+            val rate = if (elapsed > 0) processed * 1000 / elapsed else 0
+            println("Sink processed $processed events ($rate events/sec)")
+          }
+        }
+      }
+    }
+
+    // Wait for completion
+    batchingJob.join()
+    processingJobs.forEach { it.join() }
+
+    val endTime = System.currentTimeMillis()
+    val totalTime = endTime - startTime
+
+    println("\nParallel pipeline completed:")
+    println("  Total events: ${totalEvents.get()}")
+    println("  Total batches: ${totalBatches.get()}")
+    println("  Processing time: ${totalTime} ms")
+    println("  Throughput: ${if (totalTime > 0) totalEvents.get() * 1000 / totalTime else 0} events/sec")
+
+    // Return statistics
+    sinks.mapValues { (_, sink) -> sink.getStatistics() }
+  }
+
+  private suspend fun runSinglePipeline(
+    eventFlow: Flow<LabeledEvent<TestEvent>>,
+    vidIndexMap: VidIndexMap,
+    celFilters: Map<String, String>,
+    customDispatcher: kotlinx.coroutines.CoroutineDispatcher
+  ): Map<String, SinkStatistics> = coroutineScope {
+    // Create CEL filter processors
+    val typeRegistry = TypeRegistry.newBuilder().add(TestEvent.getDescriptor()).build()
+    val celProcessors = celFilters.map { (filterId, expression) ->
+      CelFilterProcessor(filterId, expression, TestEvent.getDescriptor(), typeRegistry)
+    }
+
+    // Create frequency vector sinks
+    val sinks = celFilters.map { (filterId, expression) ->
+      filterId to FrequencyVectorSink(
+        sinkId = filterId,
+        description = "CEL: $expression",
+        vidIndexMap = vidIndexMap
+      )
+    }.toMap()
+
+    val totalEvents = AtomicLong(0)
+    val startTime = System.currentTimeMillis()
+
+    // Single pipeline: Generate -> Filter -> Count in one flow
+    eventFlow
+      .onStart { println("Single pipeline started") }
+      .flowOn(customDispatcher)
+      .collect { event ->
+        totalEvents.incrementAndGet()
+
+        // Process event through all CEL filters immediately
+        celProcessors.forEach { processor ->
+          val batch = EventBatch(listOf(event), totalEvents.get())
+          val matchedEvents = processor.processBatch(batch)
+          val sink = sinks[processor.filterId]!!
+          sink.processMatchedEvents(matchedEvents, 1)
+        }
+
+        if (totalEvents.get() % 100000 == 0L) {
+          val elapsed = System.currentTimeMillis() - startTime
+          val rate = if (elapsed > 0) totalEvents.get() * 1000 / elapsed else 0
+          println("Processed ${totalEvents.get()} events ($rate events/sec)")
+        }
+      }
+
+    val endTime = System.currentTimeMillis()
+    val totalTime = endTime - startTime
+
+    println("\nSingle pipeline completed:")
+    println("  Total events: ${totalEvents.get()}")
+    println("  Processing time: ${totalTime} ms")
+    println("  Throughput: ${if (totalTime > 0) totalEvents.get() * 1000 / totalTime else 0} events/sec")
+
+    // Return statistics
+    sinks.mapValues { (_, sink) -> sink.getStatistics() }
+  }
+
+  private fun selectVidByFrequency(
+    vidFrequencies: Map<Long, Int>,
+    random: SecureRandom
+  ): Long {
+    // Create cumulative distribution for weighted random selection
+    val totalWeight = vidFrequencies.values.sum()
+    val randomValue = random.nextInt(totalWeight)
+
+    var cumulative = 0
+    for ((vid, frequency) in vidFrequencies) {
+      cumulative += frequency
+      if (randomValue < cumulative) {
+        return vid
+      }
+    }
+
+    // Fallback (should not reach here)
+    return vidFrequencies.keys.first()
+  }
+
 }
 
-/**
- * Placeholder EventReader for demonstration purposes.
- */
-class EventReader(
-  private val kmsClient: FakeKmsClient?,
-  private val storageConfig: StorageConfig,
-  private val backupStorageConfig: StorageConfig,
-  private val impressionsUri: String,
-  private val typeRegistry: TypeRegistry
-) {
-  fun getLabeledEvents(date: LocalDate, eventGroupReferenceId: String): Flow<LabeledEvent<TestEvent>> {
-    // Implementation would read from storage, decrypt, and deserialize events
-    return emptyFlow<LabeledEvent<TestEvent>>()
-  }
-}
