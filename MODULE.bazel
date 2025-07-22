@@ -341,11 +341,18 @@ oci.pull(
     image = "gcr.io/distroless/base",
     platforms = ["linux/amd64"],
 )
+oci.pull(
+    name = "java_debug_root",
+    digest = "sha256:46b4e5494edffefed75f509f33a23a47344936a4c46ec850912ebae47163533c",
+    image = "docker.io/bellsoft/liberica-openjdk-debian:17",
+    platforms = ["linux/amd64"],
+)
 use_repo(
     oci,
     "go_image_base",
     "go_image_base_linux_amd64",
 )
+use_repo(oci, "java_debug_root", "java_debug_root_linux_amd64")
 
 http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 

@@ -2292,7 +2292,7 @@
     "@@rules_oci~//oci:extensions.bzl%oci": {
       "general": {
         "bzlTransitiveDigest": "Pwl3buD1so+kkqQIhc0set/YV3qQif9bq1U9dF30htA=",
-        "usagesDigest": "keNyJejEcOx3H8qxjN4mHxve6OHeM4lPLIFiaPhgu4c=",
+        "usagesDigest": "JjX80+8a97ZZJQTHUeFjsGbcCSh12+C+gkg47DkYgCg=",
         "recordedFileInputs": {},
         "recordedDirentsInputs": {},
         "envVariables": {},
@@ -2323,6 +2323,35 @@
                 "@@platforms//cpu:x86_64": "@go_image_base_linux_amd64"
               },
               "bzlmod_repository": "go_image_base",
+              "reproducible": true
+            }
+          },
+          "java_debug_root_linux_amd64": {
+            "bzlFile": "@@rules_oci~//oci/private:pull.bzl",
+            "ruleClassName": "oci_pull",
+            "attributes": {
+              "scheme": "https",
+              "registry": "index.docker.io",
+              "repository": "bellsoft/liberica-openjdk-debian",
+              "identifier": "sha256:46b4e5494edffefed75f509f33a23a47344936a4c46ec850912ebae47163533c",
+              "platform": "linux/amd64",
+              "target_name": "java_debug_root_linux_amd64",
+              "bazel_tags": []
+            }
+          },
+          "java_debug_root": {
+            "bzlFile": "@@rules_oci~//oci/private:pull.bzl",
+            "ruleClassName": "oci_alias",
+            "attributes": {
+              "target_name": "java_debug_root",
+              "scheme": "https",
+              "registry": "index.docker.io",
+              "repository": "bellsoft/liberica-openjdk-debian",
+              "identifier": "sha256:46b4e5494edffefed75f509f33a23a47344936a4c46ec850912ebae47163533c",
+              "platforms": {
+                "@@platforms//cpu:x86_64": "@java_debug_root_linux_amd64"
+              },
+              "bzlmod_repository": "java_debug_root",
               "reproducible": true
             }
           },
@@ -2784,7 +2813,9 @@
         "moduleExtensionMetadata": {
           "explicitRootModuleDirectDeps": [
             "go_image_base",
-            "go_image_base_linux_amd64"
+            "go_image_base_linux_amd64",
+            "java_debug_root",
+            "java_debug_root_linux_amd64"
           ],
           "explicitRootModuleDirectDevDeps": [],
           "useAllRepos": "NO",

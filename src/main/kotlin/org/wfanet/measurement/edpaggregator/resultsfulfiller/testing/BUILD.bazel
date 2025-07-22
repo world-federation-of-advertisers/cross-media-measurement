@@ -1,3 +1,4 @@
+load("@rules_proto//proto:defs.bzl", "proto_descriptor_set")
 load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
 
 package(
@@ -15,5 +16,12 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:results_fulfiller_params_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/protobuf",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+    ],
+)
+
+proto_descriptor_set(
+    name = "event_template_metadata_type",
+    deps = [
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:test_event_proto",
     ],
 )

@@ -212,3 +212,8 @@ variable "event_group_uber_jar_dir" {
   description = "Directory that contains the EventGroupSync uber jar."
   type = string
 }
+
+variable "event_template_metadata_type_path" {
+  description = "Serialized FileDescriptorSet path for EventTemplate metadata types."
+  type = string
+}

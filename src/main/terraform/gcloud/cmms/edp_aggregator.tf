@@ -100,7 +100,8 @@ locals {
         "--kingdom-public-api-target=${var.kingdom_public_api_target}",
         "--secure-computation-public-api-target=${var.secure_computation_public_api_target}",
         "--subscription-id=results-fulfiller-subscription",
-        "--google-pub-sub-project-id=${data.google_client_config.default.project}"
+        "--google-pub-sub-project-id=${data.google_client_config.default.project}",
+        "--event-template-metadata-type=${var.event_template_metadata_type_path}"
       ]
       machine_type                  = "n2d-standard-2"
       docker_image                  = "ghcr.io/world-federation-of-advertisers/edp-aggregator/results_fulfiller:${var.image_tag}"
