@@ -321,10 +321,22 @@ class SimplifiedEventProcessingPipeline {
         
         // Stage 1: Parallel Event Readers -> Batching
         val batchingJob = launch(Dispatchers.IO) {
+            println("Batching stage started, waiting for events...")
             var batchId = 0L
             eventFlow
+                .onStart {
+                    println("Event flow started in batching stage")
+                }
+                .onEach { event ->
+                    // Just log without incrementing here
+                    val currentTotal = totalEvents.get() + 1
+                    if (currentTotal == 1L || currentTotal % 1000 == 0L) {
+                        println("Batching stage receiving event #$currentTotal")
+                    }
+                }
                 .chunked(batchSize)
                 .collect { eventList ->
+                    println("Creating batch $batchId with ${eventList.size} events")
                     val batch = EventBatch(eventList, batchId++)
                     batchChannel.send(batch)
                     totalBatches.incrementAndGet()
@@ -336,6 +348,7 @@ class SimplifiedEventProcessingPipeline {
                         println("Processed ${totalEvents.get()} events in ${totalBatches.get()} batches ($eventsPerSec events/sec)")
                     }
                 }
+            println("Batching stage completed. Total events processed: ${totalEvents.get()}, Total batches: ${totalBatches.get()}")
             batchChannel.close()
         }
         
@@ -586,7 +599,26 @@ class HardcodedImpressionsResultsFulfillerMain : Runnable {
     // Parallel event readers with controlled concurrency
     return datesList.asFlow()
       .flatMapMerge(concurrency = parallelism) { date ->
+        println("Starting to read events for date: $date")
+        var eventCount = 0L
         eventReader.getLabeledEvents(date, eventGroupReferenceId)
+          .onStart {
+            println("Event reader started for date: $date")
+          }
+          .onEach { event ->
+            eventCount++
+            // Log every 1000th event to avoid too much output
+            if (eventCount % 1000 == 0L) {
+              println("Read $eventCount events for date: $date (VID: ${event.vid})")
+            }
+          }
+          .onCompletion { exception ->
+            if (exception != null) {
+              println("Event reader for date $date completed with error: $exception")
+            } else {
+              println("Event reader for date $date completed successfully. Total events: $eventCount")
+            }
+          }
           .flowOn(Dispatchers.IO)
       }
   }
