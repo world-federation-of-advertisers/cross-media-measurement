@@ -325,28 +325,51 @@ private constructor(
     }
 
     /**
-     * Distributes VID ranges across workers to balance the load
+     * Distributes VID ranges across workers to balance the load more evenly
+     * Uses a greedy algorithm to assign ranges to the worker with the least work
      */
     private fun distributeRanges(ranges: List<LongRange>, workers: Int): List<List<LongRange>> {
       val totalVids = ranges.sumOf { it.last - it.first + 1 }
-      val vidsPerWorker = (totalVids + workers - 1) / workers
+      val targetVidsPerWorker = totalVids / workers
       
-      val chunks = List(workers) { mutableListOf<LongRange>() }
-      var currentWorker = 0
-      var currentWorkerVids = 0L
+      // Use a priority queue to track workers by their current load
+      data class WorkerLoad(val workerId: Int, var currentVids: Long)
+      val workerQueue = PriorityQueue<WorkerLoad>(compareBy { it.currentVids })
+      val chunks = Array(workers) { mutableListOf<LongRange>() }
       
-      for (range in ranges) {
+      // Initialize all workers
+      repeat(workers) { workerQueue.add(WorkerLoad(it, 0)) }
+      
+      // Sort ranges by size (largest first) for better load balancing
+      val sortedRanges = ranges.sortedByDescending { it.last - it.first + 1 }
+      
+      for (range in sortedRanges) {
         val rangeSize = range.last - range.first + 1
         
-        // If adding this range would exceed the target size significantly, 
-        // move to next worker (unless this is the last worker)
-        if (currentWorkerVids > 0 && currentWorkerVids + rangeSize > vidsPerWorker && currentWorker < workers - 1) {
-          currentWorker++
-          currentWorkerVids = 0
+        // For very large ranges, consider splitting them
+        if (rangeSize > targetVidsPerWorker * 2 && workers > 1) {
+          // Split large ranges across multiple workers
+          val splitSize = (rangeSize + workers - 1) / workers
+          var start = range.first
+          
+          while (start <= range.last) {
+            val end = minOf(start + splitSize - 1, range.last)
+            val subRange = start..end
+            
+            val leastLoadedWorker = workerQueue.poll()
+            chunks[leastLoadedWorker.workerId].add(subRange)
+            leastLoadedWorker.currentVids += end - start + 1
+            workerQueue.add(leastLoadedWorker)
+            
+            start = end + 1
+          }
+        } else {
+          // Assign whole range to least loaded worker
+          val leastLoadedWorker = workerQueue.poll()
+          chunks[leastLoadedWorker.workerId].add(range)
+          leastLoadedWorker.currentVids += rangeSize
+          workerQueue.add(leastLoadedWorker)
         }
-        
-        chunks[currentWorker].add(range)
-        currentWorkerVids += rangeSize
       }
       
       return chunks.filter { it.isNotEmpty() }
@@ -393,53 +416,26 @@ private constructor(
     }
 
     /**
-     * Merges multiple sorted chunks into a single sorted list using a priority queue
+     * Merges multiple sorted chunks into a single sorted list using concatenation and Java parallel sort
      */
     private fun mergeSortedChunks(chunks: List<List<VidAndHash>>): List<VidAndHash> {
       if (chunks.isEmpty()) return emptyList()
       if (chunks.size == 1) return chunks[0]
       
-      // Use a min-heap to efficiently merge sorted chunks
-      data class ChunkElement(val vidAndHash: VidAndHash, val chunkIndex: Int, val elementIndex: Int)
-      
-      val heap = PriorityQueue<ChunkElement>(chunks.size) { a, b ->
-        a.vidAndHash.compareTo(b.vidAndHash)
-      }
-      
-      // Initialize heap with first element from each non-empty chunk
-      val indices = IntArray(chunks.size) { 0 }
-      for ((chunkIndex, chunk) in chunks.withIndex()) {
-        if (chunk.isNotEmpty()) {
-          heap.offer(ChunkElement(chunk[0], chunkIndex, 0))
-          indices[chunkIndex] = 1
-        }
-      }
-      
+      // Concatenate all chunks
       val result = mutableListOf<VidAndHash>()
-      
-      while (heap.isNotEmpty()) {
-        val element = heap.poll()
-        result.add(element.vidAndHash)
-        
-        // Add next element from the same chunk if available
-        val nextIndex = indices[element.chunkIndex]
-        if (nextIndex < chunks[element.chunkIndex].size) {
-          heap.offer(
-            ChunkElement(
-              chunks[element.chunkIndex][nextIndex],
-              element.chunkIndex,
-              nextIndex
-            )
-          )
-          indices[element.chunkIndex] = nextIndex + 1
-        }
+      for (chunk in chunks) {
+        result.addAll(chunk)
       }
       
-      return result
+      // Convert to array and use parallel sort
+      val array = result.toTypedArray()
+      java.util.Arrays.parallelSort(array, compareBy { it })
+      return array.toList()
     }
 
     /**
-     * Merges multiple sorted chunks into a single sorted list using a priority queue with progress tracking
+     * Merges multiple sorted chunks into a single sorted list using concatenation and Java parallel sort with progress tracking
      */
     private suspend fun mergeSortedChunksWithProgress(
       chunks: List<List<VidAndHash>>, 
@@ -450,66 +446,24 @@ private constructor(
       
       logger.info("Merging ${chunks.size} sorted chunks containing $totalVids total VIDs...")
       
-      // Use a min-heap to efficiently merge sorted chunks
-      data class ChunkElement(val vidAndHash: VidAndHash, val chunkIndex: Int, val elementIndex: Int)
-      
-      val heap = PriorityQueue<ChunkElement>(chunks.size) { a, b ->
-        a.vidAndHash.compareTo(b.vidAndHash)
-      }
-      
-      // Initialize heap with first element from each non-empty chunk
-      val indices = IntArray(chunks.size) { 0 }
-      for ((chunkIndex, chunk) in chunks.withIndex()) {
-        if (chunk.isNotEmpty()) {
-          heap.offer(ChunkElement(chunk[0], chunkIndex, 0))
-          indices[chunkIndex] = 1
-        }
-      }
-      
-      val result = mutableListOf<VidAndHash>()
-      val mergedCount = AtomicLong(0)
       val startTime = System.currentTimeMillis()
       
-      // Progress tracking job
-      val progressJob = launch {
-        while (mergedCount.get() < totalVids) {
-          kotlinx.coroutines.delay(PROGRESS_REPORT_INTERVAL_MILLIS)
-          val currentMerged = mergedCount.get()
-          val elapsedTime = System.currentTimeMillis() - startTime
-          val progressPercent = (currentMerged * 100.0 / totalVids)
-          val vidsPerSecond = if (elapsedTime > 0) currentMerged * 1000 / elapsedTime else 0
-          
-          logger.info("Merge Progress: ${String.format("%.1f", progressPercent)}% " +
-                     "($currentMerged/$totalVids VIDs) - " +
-                     "${String.format("%,d", vidsPerSecond)} VIDs/sec")
-        }
+      // Concatenate all chunks
+      val result = mutableListOf<VidAndHash>()
+      for (chunk in chunks) {
+        result.addAll(chunk)
       }
       
-      try {
-        while (heap.isNotEmpty()) {
-          val element = heap.poll()
-          result.add(element.vidAndHash)
-          mergedCount.incrementAndGet()
-          
-          // Add next element from the same chunk if available
-          val nextIndex = indices[element.chunkIndex]
-          if (nextIndex < chunks[element.chunkIndex].size) {
-            heap.offer(
-              ChunkElement(
-                chunks[element.chunkIndex][nextIndex],
-                element.chunkIndex,
-                nextIndex
-              )
-            )
-            indices[element.chunkIndex] = nextIndex + 1
-          }
-        }
-        
-        logger.info("Merge phase completed successfully")
-        result
-      } finally {
-        progressJob.cancel()
-      }
+      logger.info("Concatenation completed. Starting parallel sort...")
+      
+      // Convert to array and use parallel sort
+      val array = result.toTypedArray()
+      java.util.Arrays.parallelSort(array, compareBy { it })
+      
+      val elapsedTime = System.currentTimeMillis() - startTime
+      logger.info("Merge phase completed successfully in ${elapsedTime}ms")
+      
+      array.toList()
     }
 
 

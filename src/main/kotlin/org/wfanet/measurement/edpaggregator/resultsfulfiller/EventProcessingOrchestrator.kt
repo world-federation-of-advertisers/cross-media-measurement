@@ -25,6 +25,7 @@ import java.util.concurrent.ForkJoinPool
 import java.util.concurrent.TimeUnit
 import java.util.logging.Logger
 import kotlinx.coroutines.asCoroutineDispatcher
+import kotlinx.coroutines.flow.Flow
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.PopulationSpecKt.subPopulation
 import org.wfanet.measurement.api.v2alpha.PopulationSpecKt.vidRange
@@ -35,7 +36,9 @@ import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.synthetic
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.api.v2alpha.populationSpec
 import org.wfanet.measurement.common.OpenEndTimeRange
+import org.wfanet.measurement.loadtest.dataprovider.toPopulationSpec
 import org.wfanet.measurement.eventdataprovider.shareshuffle.v2alpha.InMemoryVidIndexMap
+import org.wfanet.measurement.loadtest.dataprovider.LabeledEvent
 
 /**
  * Orchestrates the entire event processing pipeline.
@@ -117,42 +120,36 @@ class EventProcessingOrchestrator {
       // Set up pipeline components
       val timeRange = OpenEndTimeRange.fromClosedDateRange(config.startDate..config.endDate)
 
-      // Create population spec from synthetic population spec for VID indexing
-      val totalVidRange = config.populationSpec.vidRange.endExclusive - config.populationSpec.vidRange.start
-      val populationSpec = createPopulationSpec(totalVidRange)
-      
       logger.info("Building VID index map using parallel processing with ${config.threadPoolSize} workers...")
       val vidIndexMapStartTime = System.currentTimeMillis()
-      
+
       val vidIndexMap = InMemoryVidIndexMap.buildParallel(
-        populationSpec, 
+        config.populationSpec!!.toPopulationSpec(),
         dispatcher = dispatcher,
         parallelism = config.threadPoolSize
       )
-      
+
       val vidIndexMapEndTime = System.currentTimeMillis()
       val vidIndexMapDuration = vidIndexMapEndTime - vidIndexMapStartTime
-      
+
       logger.info("VID index map created with ${vidIndexMap.size} entries in ${vidIndexMapDuration}ms")
 
       // Generate filter configurations
       val filters = generateFilterConfigurations(config)
 
-      // Create event generator using specs from configuration
-      val eventGenerator = SyntheticEventGenerator(
-        populationSpec = config.populationSpec,
-        eventGroupSpec = config.eventGroupSpec,
-        timeRange = timeRange,
-        zoneId = config.zoneId,
-        batchSize = config.effectiveBatchSize
-      )
+      // Create event source based on configuration
+      val eventSource = createEventSource(config, timeRange)
 
       // Create and run pipeline
       val pipeline = createPipeline(config, dispatcher)
-      val eventBatchFlow = eventGenerator.generateEventBatches(dispatcher)
+      val eventBatchFlow = eventSource.generateEventBatches(dispatcher)
+
+      // Cast the flow to the expected type
+      @Suppress("UNCHECKED_CAST")
+      val testEventBatchFlow = eventBatchFlow as Flow<List<LabeledEvent<TestEvent>>>
 
       val statistics = pipeline.processEventBatches(
-        eventBatchFlow = eventBatchFlow,
+        eventBatchFlow = testEventBatchFlow,
         vidIndexMap = vidIndexMap,
         filters = filters
       )
@@ -162,8 +159,11 @@ class EventProcessingOrchestrator {
 
       // Display results
       // Calculate total expected events from population spec VID ranges
-      val totalExpectedEvents = config.populationSpec.subPopulationsList.sumOf { subPop ->
-        subPop.vidSubRange.endExclusive - subPop.vidSubRange.start
+      val totalExpectedEvents = when (config.eventSourceType) {
+        EventSourceType.SYNTHETIC -> config.populationSpec!!.subPopulationsList.sumOf { subPop ->
+          subPop.vidSubRange.endExclusive - subPop.vidSubRange.start
+        }
+        EventSourceType.STORAGE -> -1L // Unknown for storage
       }
 
       statisticsAggregator.displayExecutionSummary(
@@ -188,14 +188,25 @@ class EventProcessingOrchestrator {
     println("  Zone ID: ${config.zoneId}")
     println("  Batch size: ${config.effectiveBatchSize}")
     println("  Channel capacity: ${config.channelCapacity}")
+    println("  Event source type: ${config.eventSourceType}")
     println()
-    println("Population Spec Configuration:")
-    println("  VID range: ${config.populationSpec.vidRange.start} to ${config.populationSpec.vidRange.endExclusive - 1}")
-    println("  Sub-populations: ${config.populationSpec.subPopulationsCount}")
-    println()
-    println("Event Group Spec Configuration:")
-    println("  Description: ${config.eventGroupSpec.description}")
-    println("  Date specs: ${config.eventGroupSpec.dateSpecsCount}")
+
+    when (config.eventSourceType) {
+      EventSourceType.SYNTHETIC -> {
+        println("Population Spec Configuration:")
+        println("  VID range: ${config.populationSpec!!.vidRange.start} to ${config.populationSpec.vidRange.endExclusive - 1}")
+        println("  Sub-populations: ${config.populationSpec.subPopulationsCount}")
+        println()
+        println("Event Group Spec Configuration:")
+        println("  Description: ${config.eventGroupSpec!!.description}")
+        println("  Date specs: ${config.eventGroupSpec.dateSpecsCount}")
+      }
+      EventSourceType.STORAGE -> {
+        println("Storage Configuration:")
+        println("  Event group reference IDs: ${config.eventGroupReferenceIds.joinToString(", ")}")
+      }
+    }
+
     println()
     println("Pipeline Configuration:")
     println("  Use parallel pipeline: ${config.useParallelPipeline}")
@@ -236,17 +247,6 @@ class EventProcessingOrchestrator {
     }
 
     logger.info("Thread pool shut down successfully")
-  }
-
-  private fun createPopulationSpec(maxVid: Long): PopulationSpec {
-    return populationSpec {
-      subpopulations += subPopulation {
-        vidRanges += vidRange {
-          startVid = 1L
-          endVidInclusive = maxVid
-        }
-      }
-    }
   }
 
   private fun createPipeline(
@@ -295,6 +295,33 @@ class EventProcessingOrchestrator {
     logger.info("Generated ${filters.size} filter combinations")
 
     return filters
+  }
+
+  private fun createEventSource(
+    config: PipelineConfiguration,
+    timeRange: OpenEndTimeRange
+  ): EventSource {
+    return when (config.eventSourceType) {
+      EventSourceType.SYNTHETIC -> {
+        logger.info("Creating SyntheticEventGenerator event source")
+        SyntheticEventGenerator(
+          populationSpec = config.populationSpec!!,
+          eventGroupSpec = config.eventGroupSpec!!,
+          timeRange = timeRange,
+          zoneId = config.zoneId,
+          batchSize = config.effectiveBatchSize
+        )
+      }
+      EventSourceType.STORAGE -> {
+        logger.info("Creating StorageEventSource event source")
+        StorageEventSource(
+          eventReader = config.eventReader!!,
+          dateRange = config.startDate..config.endDate,
+          eventGroupReferenceIds = config.eventGroupReferenceIds,
+          batchSize = config.effectiveBatchSize
+        )
+      }
+    }
   }
 
   private fun generateProgressiveWeeklyIntervals(

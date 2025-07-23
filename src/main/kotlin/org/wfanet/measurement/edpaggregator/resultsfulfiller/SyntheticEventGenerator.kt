@@ -16,6 +16,7 @@
 
 package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
+import com.google.protobuf.Message
 import java.time.Instant
 import java.time.ZoneId
 import java.util.logging.Logger
@@ -53,7 +54,7 @@ class SyntheticEventGenerator(
   private val timeRange: OpenEndTimeRange = OpenEndTimeRange(Instant.MIN, Instant.MAX),
   private val zoneId: ZoneId = ZoneId.of("UTC"),
   private val batchSize: Int = DEFAULT_BATCH_SIZE
-) {
+) : EventSource {
 
   companion object {
     private val logger = Logger.getLogger(SyntheticEventGenerator::class.java.name)
@@ -68,7 +69,7 @@ class SyntheticEventGenerator(
    * Date shards are processed in parallel using the provided dispatcher.
    * Multiple days are processed concurrently for better throughput.
    */
-  suspend fun generateEventBatches(dispatcher: CoroutineContext = Dispatchers.Default): Flow<List<LabeledEvent<TestEvent>>> {
+  override suspend fun generateEventBatches(dispatcher: CoroutineContext): Flow<List<LabeledEvent<out com.google.protobuf.Message>>> {
     logger.info("Starting parallel synthetic event generation with batching")
     
     return channelFlow {
@@ -116,7 +117,7 @@ class SyntheticEventGenerator(
    *
    * Events are generated deterministically based on population and event group specs.
    */
-  suspend fun generateEvents(): Flow<LabeledEvent<TestEvent>> {
+  override suspend fun generateEvents(): Flow<LabeledEvent<out com.google.protobuf.Message>> {
     logger.info("Starting synthetic event generation")
     
     return kotlinx.coroutines.flow.flow {

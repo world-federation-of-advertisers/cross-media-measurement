@@ -16,10 +16,13 @@
 
 package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
+import com.google.crypto.tink.KmsClient
 import com.google.crypto.tink.aead.AeadConfig
 import com.google.crypto.tink.streamingaead.StreamingAeadConfig
 import com.google.type.Interval
 import com.google.protobuf.Timestamp
+import com.google.protobuf.TypeRegistry
+import java.io.File
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -28,8 +31,10 @@ import kotlin.io.path.Path
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticPopulationSpec
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.parseTextProto
+import org.wfanet.measurement.edpaggregator.StorageConfig
 import picocli.CommandLine
 
 /**
@@ -82,18 +87,54 @@ class EventProcessingCLI(
   private var channelCapacity: Int = 100
 
   @CommandLine.Option(
-    names = ["--population-spec-resource-path"],
-    description = ["The path to the resource of the population-spec. Must be textproto format."],
-    required = true
+    names = ["--event-source-type"],
+    description = ["Type of event source: SYNTHETIC or STORAGE"],
+    defaultValue = "SYNTHETIC"
   )
-  private lateinit var populationSpecResourcePath: String
+  private lateinit var eventSourceTypeStr: String
+
+  @CommandLine.Option(
+    names = ["--population-spec-resource-path"],
+    description = ["The path to the resource of the population-spec. Must be textproto format. Required for SYNTHETIC source."],
+    required = false
+  )
+  private var populationSpecResourcePath: String? = null
 
   @CommandLine.Option(
     names = ["--data-spec-resource-path"],
-    description = ["The path to the resource of the data-spec. Must be textproto format."],
-    required = true
+    description = ["The path to the resource of the data-spec. Must be textproto format. Required for SYNTHETIC source."],
+    required = false
   )
-  private lateinit var dataSpecResourcePath: String
+  private var dataSpecResourcePath: String? = null
+
+  @CommandLine.Option(
+    names = ["--event-group-reference-ids"],
+    description = ["Comma-separated list of event group reference IDs. Required for STORAGE source."],
+    defaultValue = ""
+  )
+  private var eventGroupReferenceIdsStr: String = ""
+
+  @CommandLine.Option(
+    names = ["--impressions-storage-root"],
+    description = ["Root directory for impressions storage. Required for STORAGE source."],
+    defaultValue = ""
+  )
+  private var impressionsStorageRoot: String = ""
+
+
+  @CommandLine.Option(
+    names = ["--impression-dek-storage-root"],
+    description = ["Root directory for impression DEK storage. Required for STORAGE source."],
+    defaultValue = ""
+  )
+  private var impressionDekStorageRoot: String = ""
+
+  @CommandLine.Option(
+    names = ["--labeled-impressions-dek-prefix"],
+    description = ["Prefix for labeled impressions DEK. Required for STORAGE source."],
+    defaultValue = ""
+  )
+  private var labeledImpressionsDekPrefix: String = ""
 
   @CommandLine.Option(
     names = ["--zone-id"],
@@ -183,37 +224,109 @@ class EventProcessingCLI(
   fun buildConfiguration(): PipelineConfiguration {
     val startDate = parseDate(startDateStr, "start date")
     val endDate = parseDate(endDateStr, "end date")
-
     val collectionInterval = parseCollectionInterval()
-
-    // Load population and event group specs from textproto files
-    val populationSpec: SyntheticPopulationSpec = parseTextProto(
-      Path(populationSpecResourcePath).toFile(),
-      SyntheticPopulationSpec.getDefaultInstance()
-    )
-
-    val eventGroupSpec: SyntheticEventGroupSpec = parseTextProto(
-      Path(dataSpecResourcePath).toFile(),
-      SyntheticEventGroupSpec.getDefaultInstance()
-    )
-
     val zoneIdParsed = ZoneId.of(zoneId)
 
-    return PipelineConfiguration(
-      startDate = startDate,
-      endDate = endDate,
-      batchSize = batchSize,
-      channelCapacity = channelCapacity,
-      populationSpec = populationSpec,
-      eventGroupSpec = eventGroupSpec,
-      zoneId = zoneIdParsed,
-      useParallelPipeline = useParallelPipeline,
-      parallelBatchSize = parallelBatchSize,
-      parallelWorkers = if (parallelWorkers == 0) Runtime.getRuntime().availableProcessors() else parallelWorkers,
-      threadPoolSize = if (threadPoolSize == 0) Runtime.getRuntime().availableProcessors() * 8 else threadPoolSize,
-      collectionInterval = collectionInterval,
-      disableLogging = disableLogging
-    )
+    val eventSourceType = try {
+      EventSourceType.valueOf(eventSourceTypeStr)
+    } catch (e: IllegalArgumentException) {
+      throw IllegalArgumentException("Invalid event source type: $eventSourceTypeStr. Must be SYNTHETIC or STORAGE")
+    }
+
+    return when (eventSourceType) {
+      EventSourceType.SYNTHETIC -> {
+        requireNotNull(populationSpecResourcePath) { "--population-spec-resource-path is required for SYNTHETIC source" }
+        requireNotNull(dataSpecResourcePath) { "--data-spec-resource-path is required for SYNTHETIC source" }
+
+        val populationSpec: SyntheticPopulationSpec = parseTextProto(
+          Path(populationSpecResourcePath!!).toFile(),
+          SyntheticPopulationSpec.getDefaultInstance()
+        )
+
+        logger.info("Population spec loaded: $populationSpec")
+        println("Population spec: $populationSpec")
+
+        val eventGroupSpec: SyntheticEventGroupSpec = parseTextProto(
+          Path(dataSpecResourcePath!!).toFile(),
+          SyntheticEventGroupSpec.getDefaultInstance()
+        )
+
+        PipelineConfiguration(
+          startDate = startDate,
+          endDate = endDate,
+          batchSize = batchSize,
+          channelCapacity = channelCapacity,
+          eventSourceType = eventSourceType,
+          populationSpec = populationSpec,
+          eventGroupSpec = eventGroupSpec,
+          zoneId = zoneIdParsed,
+          useParallelPipeline = useParallelPipeline,
+          parallelBatchSize = parallelBatchSize,
+          parallelWorkers = if (parallelWorkers == 0) Runtime.getRuntime().availableProcessors() else parallelWorkers,
+          threadPoolSize = if (threadPoolSize == 0) Runtime.getRuntime().availableProcessors() * 8 else threadPoolSize,
+          collectionInterval = collectionInterval,
+          disableLogging = disableLogging
+        )
+      }
+
+      EventSourceType.STORAGE -> {
+        require(eventGroupReferenceIdsStr.isNotEmpty()) { "--event-group-reference-ids is required for STORAGE source" }
+        require(impressionsStorageRoot.isNotEmpty()) { "--impressions-storage-root is required for STORAGE source" }
+        require(impressionDekStorageRoot.isNotEmpty()) { "--impression-dek-storage-root is required for STORAGE source" }
+        require(labeledImpressionsDekPrefix.isNotEmpty()) { "--labeled-impressions-dek-prefix is required for STORAGE source" }
+        requireNotNull(populationSpecResourcePath) { "--population-spec-resource-path is required for STORAGE source" }
+
+        val populationSpec: SyntheticPopulationSpec = parseTextProto(
+          Path(populationSpecResourcePath!!).toFile(),
+          SyntheticPopulationSpec.getDefaultInstance()
+        )
+
+        val eventGroupReferenceIds = eventGroupReferenceIdsStr.split(",").map { it.trim() }.filter { it.isNotEmpty() }
+
+        // Create StorageConfig instances
+        val impressionsStorageConfig = StorageConfig(
+          rootDirectory = File(impressionsStorageRoot),
+          projectId = null // Can be null for local storage
+        )
+
+        val impressionDekStorageConfig = StorageConfig(
+          rootDirectory = File(impressionDekStorageRoot),
+          projectId = null
+        )
+
+        // Create TypeRegistry with TestEvent
+        val typeRegistry = TypeRegistry.newBuilder()
+          .add(TestEvent.getDescriptor())
+          .build()
+
+        // For now, we'll use null KmsClient (no encryption)
+        val eventReader = EventReader(
+          kmsClient = null,
+          impressionsStorageConfig = impressionsStorageConfig,
+          impressionDekStorageConfig = impressionDekStorageConfig,
+          labeledImpressionsDekPrefix = labeledImpressionsDekPrefix,
+          typeRegistry = typeRegistry
+        )
+
+        PipelineConfiguration(
+          startDate = startDate,
+          endDate = endDate,
+          batchSize = batchSize,
+          channelCapacity = channelCapacity,
+          eventSourceType = eventSourceType,
+          populationSpec = populationSpec,
+          eventReader = eventReader,
+          eventGroupReferenceIds = eventGroupReferenceIds,
+          zoneId = zoneIdParsed,
+          useParallelPipeline = useParallelPipeline,
+          parallelBatchSize = parallelBatchSize,
+          parallelWorkers = if (parallelWorkers == 0) Runtime.getRuntime().availableProcessors() else parallelWorkers,
+          threadPoolSize = if (threadPoolSize == 0) Runtime.getRuntime().availableProcessors() * 8 else threadPoolSize,
+          collectionInterval = collectionInterval,
+          disableLogging = disableLogging
+        )
+      }
+    }
   }
 
   private fun parseDate(dateStr: String, description: String): LocalDate {

@@ -4,16 +4,16 @@
 # Get the absolute path of the current directory
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-for i in 1 8 16 64 256 1024; do
-    bazel run --jvmopt=-Xmx20g //src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:ResultsFulfillerPipeline \
+bazel run --jvmopt=-Xmx20g //src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:ResultsFulfillerPipeline \
 	-- \
+	--event-source-type STORAGE \
 	--start-date 2025-01-01 \
-	--end-date 2025-03-30 \
-	--parallel-batch-size $i \
-	--disable-logging \
-	--population-spec-resource-path "${SCRIPT_DIR}/large_population_spec.textproto" \
-	--data-spec-resource-path "${SCRIPT_DIR}/large_data_spec.textproto" \
-	--use-parallel-pipeline;
-done
+	--end-date 2025-02-28 \
+	--parallel-batch-size 256 \
+	--impressions-storage-root /storage/impressions \
+	--impression-dek-storage-root /storage/impressions \
+	--labeled-impressions-dek-prefix gs://halotest \
+	--event-group-reference-ids edpa-eg-reference-id-1 \
+	--use-parallel-pipeline
 
 # --jvm_flags=-agentpath:/opt/jprofiler/bin/linux-x64/libjprofilerti.so=port=8849 \

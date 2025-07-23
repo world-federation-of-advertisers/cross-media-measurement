@@ -23,6 +23,7 @@ import com.google.protobuf.TypeRegistry
 import java.time.LocalDate
 import java.util.logging.Logger
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.toInstant
@@ -49,6 +50,7 @@ class EventReader(
   private val impressionDekStorageConfig: StorageConfig,
   private val labeledImpressionsDekPrefix: String,
   private val typeRegistry: TypeRegistry,
+  private val defaultBatchSize: Int = DEFAULT_BATCH_SIZE,
 ) {
   /**
    * Retrieves a flow of labeled events for a given ds and event group ID.
@@ -63,6 +65,23 @@ class EventReader(
   ): Flow<LabeledEvent<Message>> {
     val blobDetails = getBlobDetails(ds, eventGroupReferenceId)
     return getLabeledEvents(blobDetails)
+  }
+
+  /**
+   * Retrieves a flow of batched labeled events for a given ds and event group ID.
+   *
+   * @param ds The ds for the labeled events
+   * @param eventGroupReferenceId The event group reference ID of the event group
+   * @param batchSize The size of each batch (defaults to defaultBatchSize)
+   * @return A flow of lists of labeled events
+   */
+  suspend fun getLabeledEventsBatched(
+    ds: LocalDate,
+    eventGroupReferenceId: String,
+    batchSize: Int = defaultBatchSize,
+  ): Flow<List<LabeledEvent<out Message>>> {
+    val blobDetails = getBlobDetails(ds, eventGroupReferenceId)
+    return getLabeledEventsBatched(blobDetails, batchSize)
   }
 
   /**
@@ -88,6 +107,98 @@ class EventReader(
       impressionsDekStorageClient.getBlob(dekBlobKey)
         ?: throw ImpressionReadException(dekBlobKey, ImpressionReadException.Code.BLOB_NOT_FOUND)
     return BlobDetails.parseFrom(blob.read().flatten())
+  }
+
+  /**
+   * Retrieves labeled events from blob details in batches.
+   *
+   * @param blobDetails The blob details with the DEK
+   * @param batchSize The size of each batch
+   * @return A flow of lists of labeled events
+   */
+  private suspend fun getLabeledEventsBatched(
+    blobDetails: BlobDetails,
+    batchSize: Int
+  ): Flow<List<LabeledEvent<out Message>>> = flow {
+    val storageClientUri = SelectedStorageClient.parseBlobUri(blobDetails.blobUri)
+
+    // Create and configure storage client with encryption
+    val encryptedDek = blobDetails.encryptedDek
+    val selectedStorageClient =
+      SelectedStorageClient(
+        storageClientUri,
+        impressionsStorageConfig.rootDirectory,
+        impressionsStorageConfig.projectId,
+      )
+
+    val impressionsStorage =
+      if (kmsClient == null) {
+        MesosRecordIoStorageClient(selectedStorageClient)
+      } else {
+        EncryptedStorage.buildEncryptedMesosStorageClient(
+          selectedStorageClient,
+          kekUri = encryptedDek.kekUri,
+          kmsClient = kmsClient,
+          serializedEncryptionKey = encryptedDek.encryptedDek,
+        )
+      }
+
+    val impressionBlob =
+      impressionsStorage.getBlob(storageClientUri.key)
+        ?: throw ImpressionReadException(
+          storageClientUri.key,
+          ImpressionReadException.Code.BLOB_NOT_FOUND,
+        )
+
+    // Parse raw data into LabeledEvent objects in batches
+    val labeledImpressionBuilder = LabeledImpression.newBuilder()
+    
+    // Reusable DynamicMessage builder and descriptor - assuming all events have the same type
+    var eventMessageBuilder: DynamicMessage.Builder? = null
+    var descriptor: com.google.protobuf.Descriptors.Descriptor? = null
+    
+    val currentBatch = mutableListOf<LabeledEvent<out Message>>()
+    
+    impressionBlob.read().collect { impressionByteString ->
+      labeledImpressionBuilder.clear()
+      labeledImpressionBuilder.mergeFrom(impressionByteString)
+
+      // Initialize the reusable builder and cache descriptor on first use
+      if (eventMessageBuilder == null) {
+        val eventTypeUrl = labeledImpressionBuilder.event.typeUrl
+        descriptor = typeRegistry.getDescriptorForTypeUrl(eventTypeUrl)
+          ?: throw ImpressionReadException(
+            storageClientUri.key,
+            ImpressionReadException.Code.INVALID_FORMAT,
+            "Unknown event type: $eventTypeUrl"
+          )
+        eventMessageBuilder = DynamicMessage.newBuilder(descriptor)
+      }
+
+      val eventMessage = eventMessageBuilder!!
+        .clear()
+        .mergeFrom(labeledImpressionBuilder.event.value)
+        .build()
+
+      val labeledEvent = LabeledEvent(
+        timestamp = labeledImpressionBuilder.eventTime.toInstant(),
+        vid = labeledImpressionBuilder.vid,
+        message = eventMessage
+      )
+      
+      currentBatch.add(labeledEvent)
+      
+      // Emit batch when it reaches the desired size
+      if (currentBatch.size >= batchSize) {
+        emit(currentBatch.toList())
+        currentBatch.clear()
+      }
+    }
+    
+    // Emit any remaining events in the last batch
+    if (currentBatch.isNotEmpty()) {
+      emit(currentBatch.toList())
+    }
   }
 
   /**
@@ -165,5 +276,6 @@ class EventReader(
 
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
+    const val DEFAULT_BATCH_SIZE = 256
   }
 }

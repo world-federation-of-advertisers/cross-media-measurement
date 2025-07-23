@@ -41,14 +41,22 @@ data class PipelineConfiguration(
   val parallelWorkers: Int,
   val threadPoolSize: Int,
 
-  // Synthetic data generation configuration
-  val populationSpec: SyntheticPopulationSpec,
-  val eventGroupSpec: SyntheticEventGroupSpec,
+  // Event source configuration
+  val eventSourceType: EventSourceType,
+
+  // Synthetic data generation configuration (required if eventSourceType is SYNTHETIC)
+  val populationSpec: SyntheticPopulationSpec? = null,
+  val eventGroupSpec: SyntheticEventGroupSpec? = null,
+
+  // Storage event source configuration (required if eventSourceType is STORAGE)
+  val eventReader: EventReader? = null,
+  val eventGroupReferenceIds: List<String> = emptyList(),
+
   val zoneId: ZoneId,
 
   // Optional time filtering
   val collectionInterval: Interval? = null,
-  
+
   // Logging configuration
   val disableLogging: Boolean = false
 ) {
@@ -64,8 +72,19 @@ data class PipelineConfiguration(
     require(parallelBatchSize > 0) { "Parallel batch size must be positive" }
     require(parallelWorkers > 0) { "Parallel workers must be positive" }
     require(threadPoolSize > 0) { "Thread pool size must be positive" }
-    require(populationSpec.hasVidRange()) { "Population spec must have VID range" }
-    require(eventGroupSpec.dateSpecsCount > 0) { "Event group spec must have date specifications" }
+
+    when (eventSourceType) {
+      EventSourceType.SYNTHETIC -> {
+        requireNotNull(populationSpec) { "Population spec is required for synthetic event source" }
+        requireNotNull(eventGroupSpec) { "Event group spec is required for synthetic event source" }
+        require(populationSpec.hasVidRange()) { "Population spec must have VID range" }
+        require(eventGroupSpec.dateSpecsCount > 0) { "Event group spec must have date specifications" }
+      }
+      EventSourceType.STORAGE -> {
+        requireNotNull(eventReader) { "Event reader is required for storage event source" }
+        require(eventGroupReferenceIds.isNotEmpty()) { "Event group reference IDs must not be empty for storage event source" }
+      }
+    }
   }
 
   /**
