@@ -28,11 +28,37 @@ import org.wfanet.measurement.loadtest.dataprovider.LabeledEvent
 /**
  * Parallel batched implementation of the event processing pipeline.
  *
- * This implementation:
- * - Batches events for efficient processing
- * - Uses multiple worker coroutines for parallel processing
- * - Processes batches through all filters concurrently
- * - Provides high throughput for large-scale event processing
+ * ## Overview
+ *
+ * This pipeline implements a multi-stage parallel processing architecture:
+ *
+ * ### Stage 1: Batch Collection and Distribution
+ * - Receives pre-batched events from upstream flow
+ * - Distributes batches to worker coroutines via SharedFlow (fan-out pattern)
+ * - Tracks total events and batches for monitoring
+ *
+ * ### Stage 2: Parallel Processing Workers
+ * - Multiple worker coroutines process batches concurrently
+ * - Each worker processes a batch through ALL filters in parallel
+ * - Uses structured concurrency to ensure batch completion
+ *
+ * ### Key Components:
+ * - **FilterProcessor**: Evaluates CEL expressions and time range against events
+ * - **FrequencyVectorSink**: Aggregates matched events into frequency vectors
+ * - **SharedFlow**: Enables efficient work distribution across workers
+ *
+ * ### Processing Flow:
+ * ```
+ * EventBatchFlow -> SharedFlow -> Worker[1..N] -> FilterProcessor[1..M] -> Sink
+ *                              \-> Worker[2]    /
+ *                               \-> Worker[N]  /
+ * ```
+ *
+ * ### Performance Characteristics:
+ * - Batching reduces processing overhead
+ * - Parallel workers maximize CPU utilization
+ * - Lock-free SharedFlow minimizes contention
+ * - Concurrent filter evaluation per batch
  */
 class ParallelBatchedPipeline(
   private val batchSize: Int,
@@ -120,7 +146,7 @@ class ParallelBatchedPipeline(
               sinks[processor.filterId]?.processMatchedEvents(matchedEvents, batch.size)
             }
           }
-          
+
           // Wait for all filter processing to complete
           filterJobs.forEach { it.join() }
 
@@ -136,12 +162,12 @@ class ParallelBatchedPipeline(
 
     // Wait for batching to complete
     batchingJob.join()
-    
+
     // Wait until all batches have been processed
     while (processedBatches.get() < totalBatches.get()) {
       delay(10)
     }
-    
+
     // Cancel processing jobs since all batches are done
     processingJobs.forEach { it.cancel() }
 
