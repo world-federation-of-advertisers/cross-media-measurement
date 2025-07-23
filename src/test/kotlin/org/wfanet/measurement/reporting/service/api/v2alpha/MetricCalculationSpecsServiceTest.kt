@@ -67,7 +67,6 @@ import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.config.reporting.MetricSpecConfig
 import org.wfanet.measurement.config.reporting.measurementConsumerConfig
 import org.wfanet.measurement.config.reporting.measurementConsumerConfigs
-import org.wfanet.measurement.internal.reporting.v2.ListMetricCalculationSpecsRequestKt as InternalListMetricCalculationSpecsRequestKt
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpec as InternalMetricCalculationSpec
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpecKt as InternalMetricCalculationSpecKt
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpecsGrpcKt.MetricCalculationSpecsCoroutineImplBase
@@ -1230,10 +1229,7 @@ class MetricCalculationSpecsServiceTest {
         internalListMetricCalculationSpecsRequest {
           limit = pageSize
           cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-          filter =
-            InternalListMetricCalculationSpecsRequestKt.filter {
-              externalMetricCalculationSpecIdAfter = METRIC_CALCULATION_SPEC_ID
-            }
+          externalMetricCalculationSpecIdAfter = METRIC_CALCULATION_SPEC_ID
         }
       )
   }
@@ -1311,10 +1307,7 @@ class MetricCalculationSpecsServiceTest {
         internalListMetricCalculationSpecsRequest {
           limit = oldPageSize
           cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-          filter =
-            InternalListMetricCalculationSpecsRequestKt.filter {
-              externalMetricCalculationSpecIdAfter = METRIC_CALCULATION_SPEC_ID
-            }
+          externalMetricCalculationSpecIdAfter = METRIC_CALCULATION_SPEC_ID
         }
       )
   }
@@ -1388,10 +1381,7 @@ class MetricCalculationSpecsServiceTest {
         internalListMetricCalculationSpecsRequest {
           limit = pageSize
           cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-          filter =
-            InternalListMetricCalculationSpecsRequestKt.filter {
-              externalMetricCalculationSpecIdAfter = METRIC_CALCULATION_SPEC_ID
-            }
+          externalMetricCalculationSpecIdAfter = METRIC_CALCULATION_SPEC_ID
         }
       )
   }

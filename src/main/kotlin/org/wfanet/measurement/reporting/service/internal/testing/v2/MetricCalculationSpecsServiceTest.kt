@@ -428,11 +428,8 @@ abstract class MetricCalculationSpecsServiceTest<T : MetricCalculationSpecsCorou
         .listMetricCalculationSpecs(
           listMetricCalculationSpecsRequest {
             cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-            filter =
-              ListMetricCalculationSpecsRequestKt.filter {
-                externalMetricCalculationSpecIdAfter =
-                  createdMetricCalculationSpec.externalMetricCalculationSpecId
-              }
+            externalMetricCalculationSpecIdAfter =
+              createdMetricCalculationSpec.externalMetricCalculationSpecId
             limit = 50
           }
         )

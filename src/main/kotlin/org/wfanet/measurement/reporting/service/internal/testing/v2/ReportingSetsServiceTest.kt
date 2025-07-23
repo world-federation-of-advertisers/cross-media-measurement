@@ -2181,7 +2181,6 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
         )
         .toList()
 
-    assertThat(retrievedReportingSets).hasSize(1)
     assertThat(retrievedReportingSets).containsExactly(campaignGroup)
   }
 

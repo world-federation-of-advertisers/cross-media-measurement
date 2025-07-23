@@ -40,7 +40,6 @@ import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.config.reporting.MeasurementConsumerConfigs
 import org.wfanet.measurement.config.reporting.MetricSpecConfig
 import org.wfanet.measurement.internal.reporting.v2.ListMetricCalculationSpecsRequest as InternalListMetricCalculationSpecsRequest
-import org.wfanet.measurement.internal.reporting.v2.ListMetricCalculationSpecsRequestKt
 import org.wfanet.measurement.internal.reporting.v2.ListMetricCalculationSpecsResponse as InternalListMetricCalculationSpecsResponse
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpec as InternalMetricCalculationSpec
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpecKt as InternalMetricCalculationSpecKt
@@ -381,11 +380,8 @@ class MetricCalculationSpecsService(
         limit = pageSize
         cmmsMeasurementConsumerId = source.cmmsMeasurementConsumerId
         if (source.hasLastMetricCalculationSpec()) {
-          filter =
-            ListMetricCalculationSpecsRequestKt.filter {
-              externalMetricCalculationSpecIdAfter =
-                source.lastMetricCalculationSpec.externalMetricCalculationSpecId
-            }
+          externalMetricCalculationSpecIdAfter =
+            source.lastMetricCalculationSpec.externalMetricCalculationSpecId
         }
       }
     }
