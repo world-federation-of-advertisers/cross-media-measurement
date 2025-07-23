@@ -41,10 +41,7 @@ import org.wfanet.measurement.reporting.v2alpha.ResultGroupMetricSpec.ReportingU
 import org.wfanet.measurement.reporting.v2alpha.ResultGroupSpec
 import org.wfanet.measurement.reporting.v2alpha.reportingSet
 
-
-/**
- * [MetricCalculationSpec] fields for equality check
- */
+/** [MetricCalculationSpec] fields for equality check */
 private data class MetricCalculationSpecInfoKey(
   val filter: String,
   val groupings: List<MetricCalculationSpec.Grouping>,
@@ -52,9 +49,7 @@ private data class MetricCalculationSpecInfoKey(
   val trailingWindow: MetricCalculationSpec.TrailingWindow? = null,
 )
 
-/**
- * [MetricCalculationSpec] fields not used for equality check
- */
+/** [MetricCalculationSpec] fields not used for equality check */
 private data class MetricCalculationSpecInfo(
   var hasFrequency: Boolean = false,
   var hasReach: Boolean = false,
