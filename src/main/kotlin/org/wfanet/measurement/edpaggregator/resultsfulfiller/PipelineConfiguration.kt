@@ -47,7 +47,10 @@ data class PipelineConfiguration(
   val zoneId: ZoneId,
 
   // Optional time filtering
-  val collectionInterval: Interval? = null
+  val collectionInterval: Interval? = null,
+  
+  // Logging configuration
+  val disableLogging: Boolean = false
 ) {
 
   /**

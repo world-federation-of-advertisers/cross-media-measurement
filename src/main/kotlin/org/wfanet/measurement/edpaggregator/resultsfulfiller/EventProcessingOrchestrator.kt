@@ -257,7 +257,8 @@ class EventProcessingOrchestrator {
       ParallelBatchedPipeline(
         batchSize = config.parallelBatchSize,
         workers = config.parallelWorkers,
-        dispatcher = dispatcher
+        dispatcher = dispatcher,
+        disableLogging = config.disableLogging
       )
     } else {
       SingleThreadedPipeline(dispatcher)

@@ -112,7 +112,7 @@ class EventProcessingCLI(
   @CommandLine.Option(
     names = ["--parallel-batch-size"],
     description = ["Batch size for parallel pipeline"],
-    defaultValue = "100000"
+    defaultValue = "256"
   )
   private var parallelBatchSize: Int = 100000
 
@@ -143,6 +143,13 @@ class EventProcessingCLI(
     defaultValue = ""
   )
   private var collectionEndTime: String = ""
+
+  @CommandLine.Option(
+    names = ["--disable-logging"],
+    description = ["Disable batch progress logging"],
+    defaultValue = "false"
+  )
+  private var disableLogging: Boolean = false
 
   override fun run() = runBlocking {
     logger.info("Starting Event Processing Pipeline")
@@ -178,18 +185,18 @@ class EventProcessingCLI(
     val endDate = parseDate(endDateStr, "end date")
 
     val collectionInterval = parseCollectionInterval()
-    
+
     // Load population and event group specs from textproto files
     val populationSpec: SyntheticPopulationSpec = parseTextProto(
       Path(populationSpecResourcePath).toFile(),
       SyntheticPopulationSpec.getDefaultInstance()
     )
-    
+
     val eventGroupSpec: SyntheticEventGroupSpec = parseTextProto(
-      Path(dataSpecResourcePath).toFile(), 
+      Path(dataSpecResourcePath).toFile(),
       SyntheticEventGroupSpec.getDefaultInstance()
     )
-    
+
     val zoneIdParsed = ZoneId.of(zoneId)
 
     return PipelineConfiguration(
@@ -204,7 +211,8 @@ class EventProcessingCLI(
       parallelBatchSize = parallelBatchSize,
       parallelWorkers = if (parallelWorkers == 0) Runtime.getRuntime().availableProcessors() else parallelWorkers,
       threadPoolSize = if (threadPoolSize == 0) Runtime.getRuntime().availableProcessors() * 8 else threadPoolSize,
-      collectionInterval = collectionInterval
+      collectionInterval = collectionInterval,
+      disableLogging = disableLogging
     )
   }
 

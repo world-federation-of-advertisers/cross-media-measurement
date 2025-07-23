@@ -64,7 +64,8 @@ import org.wfanet.measurement.loadtest.dataprovider.LabeledEvent
 class ParallelBatchedPipeline(
   private val batchSize: Int,
   private val workers: Int,
-  private val dispatcher: CoroutineDispatcher
+  private val dispatcher: CoroutineDispatcher,
+  private val disableLogging: Boolean = false
 ) : EventProcessingPipeline {
 
   companion object {
@@ -129,7 +130,7 @@ class ParallelBatchedPipeline(
         totalBatches.incrementAndGet()
         totalEvents.addAndGet(eventList.size.toLong())
 
-        if (batchId % 10 == 0L) {
+        if (!disableLogging && batchId % 10 == 0L) {
           logBatchingProgress(totalEvents.get(), totalBatches.get(), startTime)
         }
       }
@@ -158,7 +159,7 @@ class ParallelBatchedPipeline(
           filterJobs.forEach { it.join() }
 
           val processed = processedBatches.incrementAndGet()
-          if (processed % 100 == 0L) {
+          if (!disableLogging && processed % 100 == 0L) {
             logProcessingProgress(processed * batchSize, startTime)
           }
         }

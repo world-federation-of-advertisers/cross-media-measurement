@@ -4,11 +4,16 @@
 # Get the absolute path of the current directory
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-bazel run --jvmopt=-Xmx20g //src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:ResultsFulfillerPipeline \
+for i in 1 8 16 64 256 1024; do
+    bazel run --jvmopt=-Xmx20g //src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:ResultsFulfillerPipeline \
 	-- \
 	--start-date 2025-01-01 \
 	--end-date 2025-03-30 \
+	--parallel-batch-size $i \
+	--disable-logging \
 	--population-spec-resource-path "${SCRIPT_DIR}/large_population_spec.textproto" \
 	--data-spec-resource-path "${SCRIPT_DIR}/large_data_spec.textproto" \
-	--use-parallel-pipeline
+	--use-parallel-pipeline;
+done
+
 # --jvm_flags=-agentpath:/opt/jprofiler/bin/linux-x64/libjprofilerti.so=port=8849 \
