@@ -180,3 +180,25 @@ java_image(
     main_class = "org.wfanet.measurement.edpaggregator.resultsfulfiller.ResultsFulfillerAppRunner",
     visibility = ["//src:docker_image_deployment"],
 )
+
+kt_jvm_library(
+    name = "test",
+    testonly = True,
+    srcs = ["Test.kt"],
+    data = ["//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller/testing:event_template_metadata_type"],
+    deps = [
+        ":results_fulfiller_app_runner",
+    ],
+)
+
+java_binary(
+    name = "test_run",
+    testonly = True,
+    data = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller/testing:event_template_metadata_type",
+    ],
+    main_class = "org.wfanet.measurement.edpaggregator.resultsfulfiller.Test",
+    runtime_deps = [
+        ":test",
+    ],
+)
