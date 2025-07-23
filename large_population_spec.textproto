@@ -1,0 +1,326 @@
+# proto-file: wfa/measurement/api/v2alpha/event_group_metadata/testing/simulator_synthetic_data_spec.proto
+# proto-message: SyntheticPopulationSpec
+
+# Large Population with 10M VIDs across 12 demographic segments
+
+vid_range {
+  start: 1
+  end_exclusive: 10000001  # 10M VIDs
+}
+event_message_type_url: "type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.TestEvent"
+population_fields: "person.gender"
+population_fields: "person.age_group"
+population_fields: "person.social_grade_group"
+non_population_fields: "video_ad.viewed_fraction"
+
+# Male 18-34, Social Grade A (833,334 VIDs)
+sub_populations {
+  vid_sub_range {
+    start: 1
+    end_exclusive: 833334
+  }
+  population_fields_values {
+    key: "person.gender"
+    value {
+      enum_value: 1  # MALE
+    }
+  }
+  population_fields_values {
+    key: "person.age_group"
+    value {
+      enum_value: 1  # YEARS_18_TO_34
+    }
+  }
+  population_fields_values {
+    key: "person.social_grade_group"
+    value {
+      enum_value: 1  # SOCIAL_GRADE_A
+    }
+  }
+}
+
+# Male 18-34, Social Grade B (833,334 VIDs)
+sub_populations {
+  vid_sub_range {
+    start: 833334
+    end_exclusive: 1666668
+  }
+  population_fields_values {
+    key: "person.gender"
+    value {
+      enum_value: 1  # MALE
+    }
+  }
+  population_fields_values {
+    key: "person.age_group"
+    value {
+      enum_value: 1  # YEARS_18_TO_34
+    }
+  }
+  population_fields_values {
+    key: "person.social_grade_group"
+    value {
+      enum_value: 2  # SOCIAL_GRADE_B
+    }
+  }
+}
+
+# Male 35-54, Social Grade A (833,334 VIDs)
+sub_populations {
+  vid_sub_range {
+    start: 1666668
+    end_exclusive: 2500002
+  }
+  population_fields_values {
+    key: "person.gender"
+    value {
+      enum_value: 1  # MALE
+    }
+  }
+  population_fields_values {
+    key: "person.age_group"
+    value {
+      enum_value: 2  # YEARS_35_TO_54
+    }
+  }
+  population_fields_values {
+    key: "person.social_grade_group"
+    value {
+      enum_value: 1  # SOCIAL_GRADE_A
+    }
+  }
+}
+
+# Male 35-54, Social Grade B (833,334 VIDs)
+sub_populations {
+  vid_sub_range {
+    start: 2500002
+    end_exclusive: 3333336
+  }
+  population_fields_values {
+    key: "person.gender"
+    value {
+      enum_value: 1  # MALE
+    }
+  }
+  population_fields_values {
+    key: "person.age_group"
+    value {
+      enum_value: 2  # YEARS_35_TO_54
+    }
+  }
+  population_fields_values {
+    key: "person.social_grade_group"
+    value {
+      enum_value: 2  # SOCIAL_GRADE_B
+    }
+  }
+}
+
+# Male 55+, Social Grade A (833,334 VIDs)
+sub_populations {
+  vid_sub_range {
+    start: 3333336
+    end_exclusive: 4166670
+  }
+  population_fields_values {
+    key: "person.gender"
+    value {
+      enum_value: 1  # MALE
+    }
+  }
+  population_fields_values {
+    key: "person.age_group"
+    value {
+      enum_value: 3  # YEARS_55_PLUS
+    }
+  }
+  population_fields_values {
+    key: "person.social_grade_group"
+    value {
+      enum_value: 1  # SOCIAL_GRADE_A
+    }
+  }
+}
+
+# Male 55+, Social Grade B (833,334 VIDs)
+sub_populations {
+  vid_sub_range {
+    start: 4166670
+    end_exclusive: 5000004
+  }
+  population_fields_values {
+    key: "person.gender"
+    value {
+      enum_value: 1  # MALE
+    }
+  }
+  population_fields_values {
+    key: "person.age_group"
+    value {
+      enum_value: 3  # YEARS_55_PLUS
+    }
+  }
+  population_fields_values {
+    key: "person.social_grade_group"
+    value {
+      enum_value: 2  # SOCIAL_GRADE_B
+    }
+  }
+}
+
+# Female 18-34, Social Grade A (833,334 VIDs)
+sub_populations {
+  vid_sub_range {
+    start: 5000004
+    end_exclusive: 5833338
+  }
+  population_fields_values {
+    key: "person.gender"
+    value {
+      enum_value: 2  # FEMALE
+    }
+  }
+  population_fields_values {
+    key: "person.age_group"
+    value {
+      enum_value: 1  # YEARS_18_TO_34
+    }
+  }
+  population_fields_values {
+    key: "person.social_grade_group"
+    value {
+      enum_value: 1  # SOCIAL_GRADE_A
+    }
+  }
+}
+
+# Female 18-34, Social Grade B (833,334 VIDs)
+sub_populations {
+  vid_sub_range {
+    start: 5833338
+    end_exclusive: 6666672
+  }
+  population_fields_values {
+    key: "person.gender"
+    value {
+      enum_value: 2  # FEMALE
+    }
+  }
+  population_fields_values {
+    key: "person.age_group"
+    value {
+      enum_value: 1  # YEARS_18_TO_34
+    }
+  }
+  population_fields_values {
+    key: "person.social_grade_group"
+    value {
+      enum_value: 2  # SOCIAL_GRADE_B
+    }
+  }
+}
+
+# Female 35-54, Social Grade A (833,334 VIDs)
+sub_populations {
+  vid_sub_range {
+    start: 6666672
+    end_exclusive: 7500006
+  }
+  population_fields_values {
+    key: "person.gender"
+    value {
+      enum_value: 2  # FEMALE
+    }
+  }
+  population_fields_values {
+    key: "person.age_group"
+    value {
+      enum_value: 2  # YEARS_35_TO_54
+    }
+  }
+  population_fields_values {
+    key: "person.social_grade_group"
+    value {
+      enum_value: 1  # SOCIAL_GRADE_A
+    }
+  }
+}
+
+# Female 35-54, Social Grade B (833,334 VIDs)
+sub_populations {
+  vid_sub_range {
+    start: 7500006
+    end_exclusive: 8333340
+  }
+  population_fields_values {
+    key: "person.gender"
+    value {
+      enum_value: 2  # FEMALE
+    }
+  }
+  population_fields_values {
+    key: "person.age_group"
+    value {
+      enum_value: 2  # YEARS_35_TO_54
+    }
+  }
+  population_fields_values {
+    key: "person.social_grade_group"
+    value {
+      enum_value: 2  # SOCIAL_GRADE_B
+    }
+  }
+}
+
+# Female 55+, Social Grade A (833,330 VIDs)
+sub_populations {
+  vid_sub_range {
+    start: 8333340
+    end_exclusive: 9166670
+  }
+  population_fields_values {
+    key: "person.gender"
+    value {
+      enum_value: 2  # FEMALE
+    }
+  }
+  population_fields_values {
+    key: "person.age_group"
+    value {
+      enum_value: 3  # YEARS_55_PLUS
+    }
+  }
+  population_fields_values {
+    key: "person.social_grade_group"
+    value {
+      enum_value: 1  # SOCIAL_GRADE_A
+    }
+  }
+}
+
+# Female 55+, Social Grade B (833,331 VIDs)
+sub_populations {
+  vid_sub_range {
+    start: 9166670
+    end_exclusive: 10000001
+  }
+  population_fields_values {
+    key: "person.gender"
+    value {
+      enum_value: 2  # FEMALE
+    }
+  }
+  population_fields_values {
+    key: "person.age_group"
+    value {
+      enum_value: 3  # YEARS_55_PLUS
+    }
+  }
+  population_fields_values {
+    key: "person.social_grade_group"
+    value {
+      enum_value: 2  # SOCIAL_GRADE_B
+    }
+  }
+}

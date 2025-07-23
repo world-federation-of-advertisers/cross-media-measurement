@@ -45,15 +45,15 @@ class ParallelBatchedPipelineTest {
   }
 
   @Test
-  fun `processEvents processes empty flow successfully`() = runBlocking {
+  fun `processEventBatches processes empty flow successfully`() = runBlocking {
     val pipeline = ParallelBatchedPipeline(
       batchSize = 10,
       workers = 2,
       dispatcher = Dispatchers.Default
     )
 
-    val result = pipeline.processEvents(
-      eventFlow = flowOf(),
+    val result = pipeline.processEventBatches(
+      eventBatchFlow = flowOf(),
       vidIndexMap = mockVidIndexMap,
       filters = listOf(
         FilterConfiguration(
@@ -68,7 +68,7 @@ class ParallelBatchedPipelineTest {
   }
 
   @Test
-  fun `processEvents handles single event`() = runBlocking {
+  fun `processEventBatches handles single event`() = runBlocking {
     val pipeline = ParallelBatchedPipeline(
       batchSize = 10,
       workers = 2,
@@ -85,8 +85,8 @@ class ParallelBatchedPipelineTest {
       message = testEvent
     )
 
-    val result = pipeline.processEvents(
-      eventFlow = flowOf(labeledEvent),
+    val result = pipeline.processEventBatches(
+      eventBatchFlow = flowOf(listOf(labeledEvent)),
       vidIndexMap = mockVidIndexMap,
       filters = listOf(
         FilterConfiguration(
@@ -103,7 +103,7 @@ class ParallelBatchedPipelineTest {
   }
 
   @Test
-  fun `processEvents handles multiple events with multiple filters`() = runBlocking {
+  fun `processEventBatches handles multiple events with multiple filters`() = runBlocking {
     val pipeline = ParallelBatchedPipeline(
       batchSize = 2,
       workers = 2,
@@ -120,8 +120,8 @@ class ParallelBatchedPipelineTest {
       )
     }
 
-    val result = pipeline.processEvents(
-      eventFlow = flowOf(*events.toTypedArray()),
+    val result = pipeline.processEventBatches(
+      eventBatchFlow = flowOf(events),
       vidIndexMap = mockVidIndexMap,
       filters = listOf(
         FilterConfiguration(
@@ -147,7 +147,7 @@ class ParallelBatchedPipelineTest {
   }
 
   @Test
-  fun `processEvents with time interval filters`() = runBlocking {
+  fun `processEventBatches with time interval filters`() = runBlocking {
     val pipeline = ParallelBatchedPipeline(
       batchSize = 5,
       workers = 1,
@@ -171,8 +171,8 @@ class ParallelBatchedPipelineTest {
         .setSeconds(System.currentTimeMillis() / 1000))
       .build()
 
-    val result = pipeline.processEvents(
-      eventFlow = flowOf(labeledEvent),
+    val result = pipeline.processEventBatches(
+      eventBatchFlow = flowOf(listOf(labeledEvent)),
       vidIndexMap = mockVidIndexMap,
       filters = listOf(
         FilterConfiguration(
@@ -199,7 +199,7 @@ class ParallelBatchedPipelineTest {
   }
 
   @Test
-  fun `processEvents with different batch sizes`() = runBlocking {
+  fun `processEventBatches with different batch sizes`() = runBlocking {
     val smallBatchPipeline = ParallelBatchedPipeline(
       batchSize = 2,
       workers = 1,
@@ -216,8 +216,8 @@ class ParallelBatchedPipelineTest {
       )
     }
 
-    val result = smallBatchPipeline.processEvents(
-      eventFlow = flowOf(*events.toTypedArray()),
+    val result = smallBatchPipeline.processEventBatches(
+      eventBatchFlow = flowOf(events),
       vidIndexMap = mockVidIndexMap,
       filters = listOf(
         FilterConfiguration(
@@ -232,7 +232,7 @@ class ParallelBatchedPipelineTest {
   }
 
   @Test
-  fun `processEvents with multiple workers`() = runBlocking {
+  fun `processEventBatches with multiple workers`() = runBlocking {
     val pipeline = ParallelBatchedPipeline(
       batchSize = 1,
       workers = 4,
@@ -249,8 +249,8 @@ class ParallelBatchedPipelineTest {
       )
     }
 
-    val result = pipeline.processEvents(
-      eventFlow = flowOf(*events.toTypedArray()),
+    val result = pipeline.processEventBatches(
+      eventBatchFlow = flowOf(events),
       vidIndexMap = mockVidIndexMap,
       filters = listOf(
         FilterConfiguration(
@@ -265,7 +265,7 @@ class ParallelBatchedPipelineTest {
   }
 
   @Test
-  fun `processEvents validates processed event count with multiple filters`() = runBlocking {
+  fun `processEventBatches validates processed event count with multiple filters`() = runBlocking {
     val pipeline = ParallelBatchedPipeline(
       batchSize = 3,
       workers = 2,
@@ -285,8 +285,8 @@ class ParallelBatchedPipelineTest {
       )
     }
 
-    val result = pipeline.processEvents(
-      eventFlow = flowOf(*events.toTypedArray()),
+    val result = pipeline.processEventBatches(
+      eventBatchFlow = flowOf(events),
       vidIndexMap = mockVidIndexMap,
       filters = listOf(
         FilterConfiguration(
@@ -323,7 +323,7 @@ class ParallelBatchedPipelineTest {
   }
 
   @Test
-  fun `processEvents with selective filters validates match counts`() = runBlocking {
+  fun `processEventBatches with selective filters validates match counts`() = runBlocking {
     val pipeline = ParallelBatchedPipeline(
       batchSize = 2,
       workers = 3,
@@ -346,8 +346,8 @@ class ParallelBatchedPipelineTest {
       )
     }
 
-    val result = pipeline.processEvents(
-      eventFlow = flowOf(*events.toTypedArray()),
+    val result = pipeline.processEventBatches(
+      eventBatchFlow = flowOf(events),
       vidIndexMap = mockVidIndexMap,
       filters = listOf(
         FilterConfiguration(

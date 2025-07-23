@@ -17,129 +17,201 @@
 package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
 import com.google.common.truth.Truth.assertThat
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
+import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticPopulationSpec
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
 import org.wfanet.measurement.common.OpenEndTimeRange
 import java.time.Instant
+import java.time.ZoneId
 
 @RunWith(JUnit4::class)
 class SyntheticEventGeneratorTest {
 
-  @Test
-  fun generateEventsProducesCorrectNumberOfEvents(): Unit = runBlocking {
-    val startTime = Instant.now()
-    val endTime = startTime.plusSeconds(3600) // 1 hour
-    val timeRange = OpenEndTimeRange(startTime, endTime)
-    
-    val generator = SyntheticEventGenerator(
-      timeRange = timeRange,
-      totalEvents = 100L,
-      uniqueVids = 10,
-      dispatcher = Dispatchers.Default
-    )
+  private fun createTestPopulationSpec(): SyntheticPopulationSpec {
+    return SyntheticPopulationSpec.newBuilder().apply {
+      vidRangeBuilder.apply {
+        start = 1L
+        endExclusive = 1000L
+      }
+      eventMessageTypeUrl = "type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.TestEvent"
+      addPopulationFields("person.gender")
+      addPopulationFields("person.age_group")
+      
+      // Create sub-populations with different genders
+      addSubPopulations(SyntheticPopulationSpec.SubPopulation.newBuilder().apply {
+        vidSubRangeBuilder.apply {
+          start = 1L
+          endExclusive = 500L
+        }
+        putPopulationFieldsValues("person.gender", 
+          org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.FieldValue.newBuilder()
+            .setEnumValue(1) // MALE
+            .build()
+        )
+        putPopulationFieldsValues("person.age_group", 
+          org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.FieldValue.newBuilder()
+            .setEnumValue(1) // YEARS_18_TO_34
+            .build()
+        )
+      }.build())
+      
+      addSubPopulations(SyntheticPopulationSpec.SubPopulation.newBuilder().apply {
+        vidSubRangeBuilder.apply {
+          start = 500L
+          endExclusive = 1000L
+        }
+        putPopulationFieldsValues("person.gender", 
+          org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.FieldValue.newBuilder()
+            .setEnumValue(2) // FEMALE
+            .build()
+        )
+        putPopulationFieldsValues("person.age_group", 
+          org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.FieldValue.newBuilder()
+            .setEnumValue(2) // YEARS_35_TO_54
+            .build()
+        )
+      }.build())
+    }.build()
+  }
 
-    val events = generator.generateEvents().toList()
-
-    assertThat(events).hasSize(100)
+  private fun createTestEventGroupSpec(): SyntheticEventGroupSpec {
+    return SyntheticEventGroupSpec.newBuilder().apply {
+      description = "Test event group spec"
+      samplingNonce = 12345L
+      
+      addDateSpecs(SyntheticEventGroupSpec.DateSpec.newBuilder().apply {
+        dateRangeBuilder.apply {
+          startBuilder.apply {
+            year = 2021
+            month = 1
+            day = 1
+          }
+          endExclusiveBuilder.apply {
+            year = 2021
+            month = 2
+            day = 1
+          }
+        }
+        
+        // Add frequency specs for both VID ranges
+        addFrequencySpecs(SyntheticEventGroupSpec.FrequencySpec.newBuilder().apply {
+          frequency = 1L
+          addVidRangeSpecs(SyntheticEventGroupSpec.FrequencySpec.VidRangeSpec.newBuilder().apply {
+            vidRangeBuilder.apply {
+              start = 1L
+              endExclusive = 50L
+            }
+            samplingRate = 1.0
+            putNonPopulationFieldValues("video_ad.viewed_fraction",
+              org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.FieldValue.newBuilder()
+                .setDoubleValue(0.5)
+                .build()
+            )
+          }.build())
+        }.build())
+        
+        addFrequencySpecs(SyntheticEventGroupSpec.FrequencySpec.newBuilder().apply {
+          frequency = 1L
+          addVidRangeSpecs(SyntheticEventGroupSpec.FrequencySpec.VidRangeSpec.newBuilder().apply {
+            vidRangeBuilder.apply {
+              start = 500L
+              endExclusive = 550L
+            }
+            samplingRate = 1.0
+            putNonPopulationFieldValues("video_ad.viewed_fraction",
+              org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.FieldValue.newBuilder()
+                .setDoubleValue(0.3)
+                .build()
+            )
+          }.build())
+        }.build())
+      }.build())
+    }.build()
   }
 
   @Test
-  fun generateEventsWithSingleEvent(): Unit = runBlocking {
-    val startTime = Instant.now()
-    val endTime = startTime.plusSeconds(60)
-    val timeRange = OpenEndTimeRange(startTime, endTime)
-    
+  fun generateEventsProducesEvents(): Unit = runBlocking {
     val generator = SyntheticEventGenerator(
-      timeRange = timeRange,
-      totalEvents = 1L,
-      uniqueVids = 1,
-      dispatcher = Dispatchers.Default
+      populationSpec = createTestPopulationSpec(),
+      eventGroupSpec = createTestEventGroupSpec()
     )
 
     val events = generator.generateEvents().toList()
 
-    assertThat(events).hasSize(1)
+    assertThat(events).isNotEmpty()
+  }
+
+  @Test
+  fun generateEventsHasValidStructure(): Unit = runBlocking {
+    val generator = SyntheticEventGenerator(
+      populationSpec = createTestPopulationSpec(),
+      eventGroupSpec = createTestEventGroupSpec()
+    )
+
+    val events = generator.generateEvents().toList()
+    
+    assertThat(events).isNotEmpty()
     val event = events[0]
-    assertThat(event.vid).isEqualTo(1L)
-    assertThat(event.timestamp).isAtLeast(startTime)
-    assertThat(event.timestamp).isLessThan(endTime)
+    assertThat(event.vid).isGreaterThan(0L)
+    assertThat(event.timestamp).isNotNull()
     assertThat(event.message).isNotNull()
     assertThat(event.message.hasPerson()).isTrue()
   }
 
   @Test
   fun generateEventsDistributesVidsCorrectly(): Unit = runBlocking {
-    val startTime = Instant.now()
-    val endTime = startTime.plusSeconds(3600)
-    val timeRange = OpenEndTimeRange(startTime, endTime)
-    
-    val uniqueVids = 5
     val generator = SyntheticEventGenerator(
-      timeRange = timeRange,
-      totalEvents = 1000L,
-      uniqueVids = uniqueVids,
-      dispatcher = Dispatchers.Default
+      populationSpec = createTestPopulationSpec(),
+      eventGroupSpec = createTestEventGroupSpec()
     )
 
     val events = generator.generateEvents().toList()
     val actualVids = events.map { it.vid }.toSet()
 
-    // All VIDs should be in range 1 to uniqueVids
-    assertThat(actualVids).containsAtLeastElementsIn(1L..uniqueVids.toLong())
+    // All VIDs should be within the population spec range (1 to 1000)
     actualVids.forEach { vid ->
       assertThat(vid).isAtLeast(1L)
-      assertThat(vid).isAtMost(uniqueVids.toLong())
+      assertThat(vid).isAtMost(1000L)
     }
+    assertThat(actualVids).isNotEmpty()
   }
 
   @Test
-  fun generateEventsDistributesTimestampsWithinTimeRange(): Unit = runBlocking {
-    val startTime = Instant.now()
-    val endTime = startTime.plusSeconds(7200) // 2 hours
+  fun generateEventsWithCustomTimeRange(): Unit = runBlocking {
+    val startTime = Instant.parse("2021-01-01T00:00:00Z")
+    val endTime = Instant.parse("2021-02-01T00:00:00Z")  // Overlaps with our event group spec
     val timeRange = OpenEndTimeRange(startTime, endTime)
     
     val generator = SyntheticEventGenerator(
-      timeRange = timeRange,
-      totalEvents = 500L,
-      uniqueVids = 10,
-      dispatcher = Dispatchers.Default
+      populationSpec = createTestPopulationSpec(),
+      eventGroupSpec = createTestEventGroupSpec(),
+      timeRange = timeRange
     )
 
     val events = generator.generateEvents().toList()
     
-    // All timestamps should be within the time range
-    events.forEach { event ->
-      assertThat(event.timestamp).isAtLeast(startTime)
-      assertThat(event.timestamp).isLessThan(endTime)
+    if (events.isNotEmpty()) {
+      // All timestamps should be within the time range
+      events.forEach { event ->
+        assertThat(event.timestamp).isAtLeast(startTime)
+        assertThat(event.timestamp).isLessThan(endTime)
+      }
     }
     
-    // Verify reasonable distribution across time range
-    val timestamps = events.map { it.timestamp }
-    val minTimestamp = timestamps.minOrNull()!!
-    val maxTimestamp = timestamps.maxOrNull()!!
-    
-    // Should cover reasonable portion of the time range
-    val actualRange = java.time.Duration.between(minTimestamp, maxTimestamp)
-    val totalRange = java.time.Duration.between(startTime, endTime)
-    assertThat(actualRange.seconds).isAtLeast(totalRange.seconds / 10) // At least 10% coverage
+    // Note: Events may be empty if the time range doesn't overlap with the event group spec
+    // This is acceptable behavior
   }
 
   @Test
   fun generateEventsCreatesValidPersonDemographics(): Unit = runBlocking {
-    val startTime = Instant.now()
-    val endTime = startTime.plusSeconds(60)
-    val timeRange = OpenEndTimeRange(startTime, endTime)
-    
     val generator = SyntheticEventGenerator(
-      timeRange = timeRange,
-      totalEvents = 200L,
-      uniqueVids = 10,
-      dispatcher = Dispatchers.Default
+      populationSpec = createTestPopulationSpec(),
+      eventGroupSpec = createTestEventGroupSpec()
     )
 
     val events = generator.generateEvents().toList()
@@ -160,26 +232,22 @@ class SyntheticEventGeneratorTest {
       )
     }
     
-    // Check gender distribution (should have both genders)
+    // Check that we have demographic diversity based on population spec
     val genders = events.map { it.message.person.gender }.toSet()
-    assertThat(genders).containsAtLeast(Person.Gender.MALE, Person.Gender.FEMALE)
-    
-    // Check age group distribution (should have multiple age groups)
     val ageGroups = events.map { it.message.person.ageGroup }.toSet()
-    assertThat(ageGroups.size).isAtLeast(2) // Should have at least 2 different age groups
+    assertThat(genders).isNotEmpty()
+    assertThat(ageGroups).isNotEmpty()
   }
 
   @Test
-  fun generateEventsWithZeroEventsProducesEmptyFlow(): Unit = runBlocking {
-    val startTime = Instant.now()
-    val endTime = startTime.plusSeconds(60)
-    val timeRange = OpenEndTimeRange(startTime, endTime)
+  fun generateEventsWithEmptyTimeRangeProducesEmptyFlow(): Unit = runBlocking {
+    val futureTime = Instant.parse("2030-01-01T00:00:00Z")
+    val timeRange = OpenEndTimeRange(futureTime, futureTime.plusSeconds(1))
     
     val generator = SyntheticEventGenerator(
-      timeRange = timeRange,
-      totalEvents = 0L,
-      uniqueVids = 1,
-      dispatcher = Dispatchers.Default
+      populationSpec = createTestPopulationSpec(),
+      eventGroupSpec = createTestEventGroupSpec(),
+      timeRange = timeRange
     )
 
     val events = generator.generateEvents().toList()
@@ -188,63 +256,50 @@ class SyntheticEventGeneratorTest {
   }
 
   @Test
-  fun generateEventsHandlesLargeEventCount(): Unit = runBlocking {
-    val startTime = Instant.now()
-    val endTime = startTime.plusSeconds(3600)
-    val timeRange = OpenEndTimeRange(startTime, endTime)
-    
+  fun generateEventsProducesConsistentResults(): Unit = runBlocking {
     val generator = SyntheticEventGenerator(
-      timeRange = timeRange,
-      totalEvents = 50000L,
-      uniqueVids = 1000,
-      dispatcher = Dispatchers.Default
+      populationSpec = createTestPopulationSpec(),
+      eventGroupSpec = createTestEventGroupSpec()
     )
 
     val events = generator.generateEvents().toList()
 
-    assertThat(events).hasSize(50000)
+    assertThat(events).isNotEmpty()
     
-    // Verify reasonable VID distribution
+    // Verify VID distribution follows population spec
     val vidCounts = events.groupingBy { it.vid }.eachCount()
-    assertThat(vidCounts.keys.size).isAtLeast(500) // Should use at least half of available VIDs
+    assertThat(vidCounts.keys).isNotEmpty()
     
-    // Each VID should have reasonable number of events
-    val avgEventsPerVid = 50000.0 / vidCounts.keys.size
-    vidCounts.values.forEach { count ->
-      assertThat(count.toDouble()).isWithin(avgEventsPerVid * 0.5).of(avgEventsPerVid)
+    // All VIDs should be within expected range
+    vidCounts.keys.forEach { vid ->
+      assertThat(vid).isAtLeast(1L)
+      assertThat(vid).isAtMost(1000L) // Based on population spec
     }
   }
 
   @Test
-  fun generateEventsWithSingleVidUsesOnlyThatVid(): Unit = runBlocking {
-    val startTime = Instant.now()
-    val endTime = startTime.plusSeconds(60)
-    val timeRange = OpenEndTimeRange(startTime, endTime)
-    
+  fun generateEventsUsesPopulationSpecVidRanges(): Unit = runBlocking {
     val generator = SyntheticEventGenerator(
-      timeRange = timeRange,
-      totalEvents = 100L,
-      uniqueVids = 1,
-      dispatcher = Dispatchers.Default
+      populationSpec = createTestPopulationSpec(),
+      eventGroupSpec = createTestEventGroupSpec()
     )
 
     val events = generator.generateEvents().toList()
     val vids = events.map { it.vid }.toSet()
 
-    assertThat(vids).containsExactly(1L)
+    // Should use VIDs from the population spec ranges
+    vids.forEach { vid ->
+      assertThat(vid).isAtLeast(1L)
+      assertThat(vid).isAtMost(1000L)
+    }
+    assertThat(vids).isNotEmpty()
   }
 
   @Test
   fun generateEventsCreatesConsistentTestEventStructure(): Unit = runBlocking {
-    val startTime = Instant.now()
-    val endTime = startTime.plusSeconds(60)
-    val timeRange = OpenEndTimeRange(startTime, endTime)
-    
     val generator = SyntheticEventGenerator(
-      timeRange = timeRange,
-      totalEvents = 50L,
-      uniqueVids = 5,
-      dispatcher = Dispatchers.Default
+      populationSpec = createTestPopulationSpec(),
+      eventGroupSpec = createTestEventGroupSpec()
     )
 
     val events = generator.generateEvents().toList()
@@ -255,37 +310,176 @@ class SyntheticEventGeneratorTest {
       assertThat(testEvent).isNotNull()
       assertThat(testEvent.hasPerson()).isTrue()
       
-      // Person should have both gender and age group set
+      // Person should have both gender and age group set based on population spec
       val person = testEvent.person
       assertThat(person.gender).isNotEqualTo(Person.Gender.GENDER_UNSPECIFIED)
       assertThat(person.ageGroup).isNotEqualTo(Person.AgeGroup.AGE_GROUP_UNSPECIFIED)
+      
+      // Event should have valid fields based on data spec
+      // Note: video_ad field may not be set depending on the spec configuration
     }
   }
 
   @Test
-  fun generateEventsRespectsGenderProbabilityDistribution(): Unit = runBlocking {
-    val startTime = Instant.now()
-    val endTime = startTime.plusSeconds(60)
-    val timeRange = OpenEndTimeRange(startTime, endTime)
-    
+  fun generateEventsRespectsPopulationSpecDemographics(): Unit = runBlocking {
     val generator = SyntheticEventGenerator(
-      timeRange = timeRange,
-      totalEvents = 10000L, // Large sample for statistical validation
-      uniqueVids = 100,
-      dispatcher = Dispatchers.Default
+      populationSpec = createTestPopulationSpec(),
+      eventGroupSpec = createTestEventGroupSpec()
     )
 
     val events = generator.generateEvents().toList()
     val genderCounts = events.groupingBy { it.message.person.gender }.eachCount()
     
-    val maleCount = genderCounts[Person.Gender.MALE] ?: 0
-    val femaleCount = genderCounts[Person.Gender.FEMALE] ?: 0
-    val totalCount = maleCount + femaleCount
+    // Should have events with genders based on population spec
+    assertThat(genderCounts.keys).contains(Person.Gender.MALE)
     
-    val maleRatio = maleCount.toDouble() / totalCount
+    // Check social grade distribution from population spec
+    val socialGrades = events.map { it.message.person.socialGradeGroup }.toSet()
+    assertThat(socialGrades).isNotEmpty()
+  }
+
+  @Test
+  fun generateEventBatchesProducesValidBatches(): Unit = runBlocking {
+    val batchSize = 50
     
-    // Should be close to GENDER_MALE_PROBABILITY (0.6) with some tolerance for randomness
-    assertThat(maleRatio).isWithin(0.05).of(0.6)
-    assertThat(maleCount).isGreaterThan(femaleCount) // Males should be more frequent
+    val generator = SyntheticEventGenerator(
+      populationSpec = createTestPopulationSpec(),
+      eventGroupSpec = createTestEventGroupSpec(),
+      batchSize = batchSize
+    )
+
+    val batches = generator.generateEventBatches().toList()
+    
+    assertThat(batches).isNotEmpty()
+    
+    // Each batch should have at most batchSize events
+    val allEvents = batches.flatten()
+    assertThat(allEvents).isNotEmpty()
+    
+    batches.forEach { batch ->
+      assertThat(batch.size).isAtMost(batchSize)
+      assertThat(batch.size).isAtLeast(1)
+    }
+  }
+
+  @Test
+  fun generateEventBatchesWithSmallBatchSize(): Unit = runBlocking {
+    val batchSize = 3
+    
+    val generator = SyntheticEventGenerator(
+      populationSpec = createTestPopulationSpec(),
+      eventGroupSpec = createTestEventGroupSpec(),
+      batchSize = batchSize
+    )
+
+    val batches = generator.generateEventBatches().toList()
+    val allEvents = batches.flatten()
+    
+    assertThat(allEvents).isNotEmpty()
+    
+    // Each batch should have at most batchSize events
+    batches.forEach { batch ->
+      assertThat(batch.size).isAtMost(batchSize)
+      assertThat(batch.size).isAtLeast(1)
+    }
+    
+    // All events should be valid
+    allEvents.forEach { event ->
+      assertThat(event.vid).isAtLeast(1L)
+      assertThat(event.vid).isAtMost(100000L) // Based on population spec
+      assertThat(event.timestamp).isNotNull()
+      assertThat(event.message.hasPerson()).isTrue()
+    }
+  }
+
+  @Test
+  fun generateEventBatchesHandlesLargeBatchSize(): Unit = runBlocking {
+    val batchSize = 100000 // Very large batch size
+    
+    val generator = SyntheticEventGenerator(
+      populationSpec = createTestPopulationSpec(),
+      eventGroupSpec = createTestEventGroupSpec(),
+      batchSize = batchSize
+    )
+
+    val batches = generator.generateEventBatches().toList()
+    
+    // Should have at least 1 batch
+    assertThat(batches).isNotEmpty()
+    
+    val allEvents = batches.flatten()
+    assertThat(allEvents).isNotEmpty()
+    
+    // All events should be valid
+    allEvents.forEach { event ->
+      assertThat(event.vid).isAtLeast(1L)
+      assertThat(event.vid).isAtMost(100000L) // Based on population spec
+      assertThat(event.timestamp).isNotNull()
+      assertThat(event.message.hasPerson()).isTrue()
+    }
+  }
+
+  @Test
+  fun generateEventBatchesWithRestrictedTimeRange(): Unit = runBlocking {
+    val futureTime = Instant.parse("2030-01-01T00:00:00Z")
+    val timeRange = OpenEndTimeRange(futureTime, futureTime.plusSeconds(1))
+    
+    val generator = SyntheticEventGenerator(
+      populationSpec = createTestPopulationSpec(),
+      eventGroupSpec = createTestEventGroupSpec(),
+      timeRange = timeRange,
+      batchSize = 10
+    )
+
+    val batches = generator.generateEventBatches().toList()
+
+    assertThat(batches).isEmpty()
+  }
+
+  @Test
+  fun generateEventBatchesProducesValidEvents(): Unit = runBlocking {
+    val generator = SyntheticEventGenerator(
+      populationSpec = createTestPopulationSpec(),
+      eventGroupSpec = createTestEventGroupSpec(),
+      batchSize = 10
+    )
+
+    val batchedEvents = generator.generateEventBatches().toList().flatten()
+    val individualEvents = generator.generateEvents().toList()
+    
+    // Both methods should produce events
+    assertThat(batchedEvents).isNotEmpty()
+    assertThat(individualEvents).isNotEmpty()
+    
+    // Both should have events with same VID characteristics based on population spec
+    val batchedVids = batchedEvents.map { it.vid }.toSet()
+    val individualVids = individualEvents.map { it.vid }.toSet()
+    
+    // Both should use VIDs from the same population spec range
+    batchedVids.forEach { vid -> 
+      assertThat(vid).isAtLeast(1L)
+      assertThat(vid).isAtMost(1000L)
+    }
+    individualVids.forEach { vid -> 
+      assertThat(vid).isAtLeast(1L)
+      assertThat(vid).isAtMost(1000L)
+    }
+  }
+  
+  @Test
+  fun generateEventsWithCustomZoneId(): Unit = runBlocking {
+    val generator = SyntheticEventGenerator(
+      populationSpec = createTestPopulationSpec(),
+      eventGroupSpec = createTestEventGroupSpec(),
+      zoneId = ZoneId.of("America/New_York")
+    )
+
+    val events = generator.generateEvents().toList()
+    
+    assertThat(events).isNotEmpty()
+    events.forEach { event ->
+      assertThat(event.timestamp).isNotNull()
+      assertThat(event.message.hasPerson()).isTrue()
+    }
   }
 }

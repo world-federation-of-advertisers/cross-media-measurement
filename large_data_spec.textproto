@@ -1,0 +1,293 @@
+# proto-file: wfa/measurement/api/v2alpha/event_group_metadata/testing/simulator_synthetic_data_spec.proto
+# proto-message: SyntheticEventGroupSpec
+
+# Large data spec configured to generate approximately 1M events from 10M VIDs
+# Uses sampling rates to achieve the target event count
+
+description: "Large scale benchmark spec with 1M events from 10M VIDs"
+sampling_nonce: 12345
+
+date_specs {
+  date_range {
+    start {
+      year: 2025
+      month: 1
+      day: 1
+    }
+    end_exclusive {
+      year: 2025
+      month: 3
+      day: 30
+    }
+  }
+
+  # Male 18-34, Social Grade A - High engagement (20K events)
+  frequency_specs {
+    frequency: 1
+    vid_range_specs {
+      vid_range {
+        start: 1
+        end_exclusive: 100001  # 100K VIDs
+      }
+      sampling_rate: 0.2  # 20% sampling = ~20K events
+      non_population_field_values {
+        key: "video_ad.viewed_fraction"
+        value {
+          double_value: 0.8
+        }
+      }
+    }
+  }
+
+  # Male 18-34, Social Grade B - Medium engagement (25K events)
+  frequency_specs {
+    frequency: 1
+    vid_range_specs {
+      vid_range {
+        start: 833334
+        end_exclusive: 958334  # 125K VIDs
+      }
+      sampling_rate: 0.2  # 20% sampling = ~25K events
+      non_population_field_values {
+        key: "video_ad.viewed_fraction"
+        value {
+          double_value: 0.6
+        }
+      }
+    }
+  }
+
+  # Male 35-54, Social Grade A - Premium segment (30K events)
+  frequency_specs {
+    frequency: 1
+    vid_range_specs {
+      vid_range {
+        start: 1666668
+        end_exclusive: 1816668  # 150K VIDs
+      }
+      sampling_rate: 0.2  # 20% sampling = ~30K events
+      non_population_field_values {
+        key: "video_ad.viewed_fraction"
+        value {
+          double_value: 0.9
+        }
+      }
+    }
+  }
+
+  # Male 35-54, Social Grade B - Standard engagement (35K events)
+  frequency_specs {
+    frequency: 1
+    vid_range_specs {
+      vid_range {
+        start: 2500002
+        end_exclusive: 2675002  # 175K VIDs
+      }
+      sampling_rate: 0.2  # 20% sampling = ~35K events
+      non_population_field_values {
+        key: "video_ad.viewed_fraction"
+        value {
+          double_value: 0.5
+        }
+      }
+    }
+  }
+
+  # Male 55+, Social Grade A - Lower digital engagement (40K events)
+  frequency_specs {
+    frequency: 1
+    vid_range_specs {
+      vid_range {
+        start: 3333336
+        end_exclusive: 3533336  # 200K VIDs
+      }
+      sampling_rate: 0.2  # 20% sampling = ~40K events
+      non_population_field_values {
+        key: "video_ad.viewed_fraction"
+        value {
+          double_value: 0.4
+        }
+      }
+    }
+  }
+
+  # Male 55+, Social Grade B - Basic engagement (45K events)
+  frequency_specs {
+    frequency: 1
+    vid_range_specs {
+      vid_range {
+        start: 4166670
+        end_exclusive: 4391670  # 225K VIDs
+      }
+      sampling_rate: 0.2  # 20% sampling = ~45K events
+      non_population_field_values {
+        key: "video_ad.viewed_fraction"
+        value {
+          double_value: 0.3
+        }
+      }
+    }
+  }
+
+  # Female 18-34, Social Grade A - High engagement (50K events)
+  frequency_specs {
+    frequency: 1
+    vid_range_specs {
+      vid_range {
+        start: 5000004
+        end_exclusive: 5250004  # 250K VIDs
+      }
+      sampling_rate: 0.2  # 20% sampling = ~50K events
+      non_population_field_values {
+        key: "video_ad.viewed_fraction"
+        value {
+          double_value: 0.85
+        }
+      }
+    }
+  }
+
+  # Female 18-34, Social Grade B - Strong engagement (55K events)
+  frequency_specs {
+    frequency: 1
+    vid_range_specs {
+      vid_range {
+        start: 5833338
+        end_exclusive: 6108338  # 275K VIDs
+      }
+      sampling_rate: 0.2  # 20% sampling = ~55K events
+      non_population_field_values {
+        key: "video_ad.viewed_fraction"
+        value {
+          double_value: 0.65
+        }
+      }
+    }
+  }
+
+  # Female 35-54, Social Grade A - Premium engagement (60K events)
+  frequency_specs {
+    frequency: 1
+    vid_range_specs {
+      vid_range {
+        start: 6666672
+        end_exclusive: 6966672  # 300K VIDs
+      }
+      sampling_rate: 0.2  # 20% sampling = ~60K events
+      non_population_field_values {
+        key: "video_ad.viewed_fraction"
+        value {
+          double_value: 0.95
+        }
+      }
+    }
+  }
+
+  # Female 35-54, Social Grade B - Good engagement (65K events)
+  frequency_specs {
+    frequency: 1
+    vid_range_specs {
+      vid_range {
+        start: 7500006
+        end_exclusive: 7825006  # 325K VIDs
+      }
+      sampling_rate: 0.2  # 20% sampling = ~65K events
+      non_population_field_values {
+        key: "video_ad.viewed_fraction"
+        value {
+          double_value: 0.7
+        }
+      }
+    }
+  }
+
+  # Female 55+, Social Grade A - Moderate engagement (70K events)
+  frequency_specs {
+    frequency: 1
+    vid_range_specs {
+      vid_range {
+        start: 8333340
+        end_exclusive: 8683340  # 350K VIDs
+      }
+      sampling_rate: 0.2  # 20% sampling = ~70K events
+      non_population_field_values {
+        key: "video_ad.viewed_fraction"
+        value {
+          double_value: 0.45
+        }
+      }
+    }
+  }
+
+  # Female 55+, Social Grade B - Basic engagement (75K events)
+  frequency_specs {
+    frequency: 1
+    vid_range_specs {
+      vid_range {
+        start: 9166670
+        end_exclusive: 9541670  # 375K VIDs
+      }
+      sampling_rate: 0.2  # 20% sampling = ~75K events
+      non_population_field_values {
+        key: "video_ad.viewed_fraction"
+        value {
+          double_value: 0.35
+        }
+      }
+    }
+  }
+
+  # High-frequency users across all demographics (additional 290K events)
+  frequency_specs {
+    frequency: 2  # 2 events per VID
+    vid_range_specs {
+      vid_range {
+        start: 100001
+        end_exclusive: 245001  # 145K VIDs * 2 events = ~290K events
+      }
+      sampling_rate: 1.0  # 100% sampling for high-frequency segment
+      non_population_field_values {
+        key: "video_ad.viewed_fraction"
+        value {
+          double_value: 0.75
+        }
+      }
+    }
+  }
+
+  # Power users - very high frequency (additional 200K events)
+  frequency_specs {
+    frequency: 4  # 4 events per VID
+    vid_range_specs {
+      vid_range {
+        start: 245001
+        end_exclusive: 295001  # 50K VIDs * 4 events = ~200K events
+      }
+      sampling_rate: 1.0  # 100% sampling for power users
+      non_population_field_values {
+        key: "video_ad.viewed_fraction"
+        value {
+          double_value: 0.9
+        }
+      }
+    }
+  }
+
+  # Super users - maximum frequency (additional 150K events)  
+  frequency_specs {
+    frequency: 5  # 5 events per VID
+    vid_range_specs {
+      vid_range {
+        start: 295001
+        end_exclusive: 325001  # 30K VIDs * 5 events = ~150K events
+      }
+      sampling_rate: 1.0  # 100% sampling for super users
+      non_population_field_values {
+        key: "video_ad.viewed_fraction"
+        value {
+          double_value: 1.0
+        }
+      }
+    }
+  }
+}

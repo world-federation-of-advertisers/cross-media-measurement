@@ -235,3 +235,44 @@ kt_jvm_test(
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
     ],
 )
+
+kt_jvm_test(
+    name = "SyntheticEventGeneratorBatchTest",
+    srcs = ["SyntheticEventGeneratorBatchTest.kt"],
+    test_class = "org.wfanet.measurement.edpaggregator.resultsfulfiller.SyntheticEventGeneratorBatchTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:event_processing_components",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+    ],
+)
+
+kt_jvm_test(
+    name = "EventProcessingOrchestratorTest",
+    srcs = ["EventProcessingOrchestratorTest.kt"],
+    test_class = "org.wfanet.measurement.edpaggregator.resultsfulfiller.EventProcessingOrchestratorTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:event_processing_components",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+    ],
+)
+
+kt_jvm_test(
+    name = "EventProcessingCLITest",
+    srcs = ["EventProcessingCLITest.kt"],
+    test_class = "org.wfanet.measurement.edpaggregator.resultsfulfiller.EventProcessingCLITest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:event_processing_components",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/java/picocli",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//imports/kotlin/org/mockito/kotlin",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+    ],
+)

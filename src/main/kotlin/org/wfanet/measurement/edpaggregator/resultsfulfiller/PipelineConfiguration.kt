@@ -18,6 +18,9 @@ package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
 import com.google.type.Interval
 import java.time.LocalDate
+import java.time.ZoneId
+import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
+import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticPopulationSpec
 
 /**
  * Configuration for the event processing pipeline.
@@ -38,12 +41,10 @@ data class PipelineConfiguration(
   val parallelWorkers: Int,
   val threadPoolSize: Int,
 
-  // VID and population configuration
-  val maxVidRange: Long,
-
-  // Synthetic data configuration
-  val totalEvents: Long,
-  val syntheticUniqueVids: Int,
+  // Synthetic data generation configuration
+  val populationSpec: SyntheticPopulationSpec,
+  val eventGroupSpec: SyntheticEventGroupSpec,
+  val zoneId: ZoneId,
 
   // Optional time filtering
   val collectionInterval: Interval? = null
@@ -60,9 +61,8 @@ data class PipelineConfiguration(
     require(parallelBatchSize > 0) { "Parallel batch size must be positive" }
     require(parallelWorkers > 0) { "Parallel workers must be positive" }
     require(threadPoolSize > 0) { "Thread pool size must be positive" }
-    require(maxVidRange > 0) { "Max VID range must be positive" }
-    require(totalEvents > 0) { "Total events must be positive" }
-    require(syntheticUniqueVids > 0) { "Synthetic unique VIDs must be positive" }
+    require(populationSpec.hasVidRange()) { "Population spec must have VID range" }
+    require(eventGroupSpec.dateSpecsCount > 0) { "Event group spec must have date specifications" }
   }
 
   /**

@@ -17,185 +17,121 @@
 package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
 import java.time.Instant
+import java.time.ZoneId
 import java.util.logging.Logger
-import kotlinx.coroutines.CoroutineDispatcher
+import kotlin.coroutines.CoroutineContext
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.buffer
 import kotlinx.coroutines.flow.channelFlow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.launch
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
+import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
+import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticPopulationSpec
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.common.OpenEndTimeRange
 import org.wfanet.measurement.loadtest.dataprovider.LabeledEvent
+import org.wfanet.measurement.loadtest.dataprovider.SyntheticDataGeneration
 
 /**
- * Generates synthetic events for testing and load evaluation.
- * 
- * This generator creates events with:
- * - Configurable total event count
- * - Configurable number of unique VIDs
- * - Uniform distribution across time range
- * - Random gender and age group attributes
+ * Generates synthetic events using SyntheticDataGeneration for testing and load evaluation.
+ *
+ * This generator creates events using population and event group specifications:
+ * - Uses SyntheticPopulationSpec for demographic distributions
+ * - Uses SyntheticEventGroupSpec for event patterns and frequencies
+ * - Supports both individual events and batched output
+ * - Deterministic generation based on specifications
  */
 class SyntheticEventGenerator(
-  private val timeRange: OpenEndTimeRange,
-  private val totalEvents: Long,
-  private val uniqueVids: Int,
-  private val dispatcher: CoroutineDispatcher
+  private val populationSpec: SyntheticPopulationSpec,
+  private val eventGroupSpec: SyntheticEventGroupSpec,
+  private val timeRange: OpenEndTimeRange = OpenEndTimeRange(Instant.MIN, Instant.MAX),
+  private val zoneId: ZoneId = ZoneId.of("UTC"),
+  private val batchSize: Int = DEFAULT_BATCH_SIZE
 ) {
-  
+
   companion object {
     private val logger = Logger.getLogger(SyntheticEventGenerator::class.java.name)
-    
-    private val GENDERS = arrayOf(Person.Gender.MALE, Person.Gender.FEMALE)
-    private val AGE_GROUPS = arrayOf(
-      Person.AgeGroup.YEARS_18_TO_34,
-      Person.AgeGroup.YEARS_35_TO_54,
-      Person.AgeGroup.YEARS_55_PLUS
-    )
-    
     const val DEFAULT_BATCH_SIZE = 10000
-    const val GENDER_MALE_PROBABILITY = 0.6
   }
-  
+
   /**
-   * Generates a flow of synthetic events.
+   * Generates a flow of synthetic event batches using SyntheticDataGeneration.
    * 
-   * Events are generated in parallel using multiple coroutines for high throughput.
-   * Each event has:
-   * - A VID randomly selected from the configured range
-   * - A timestamp uniformly distributed across the time range
-   * - Random demographic attributes (gender and age group)
+   * Events are generated deterministically based on population and event group specs.
+   * Each batch contains up to `batchSize` events.
+   * Date shards are processed in parallel using the provided dispatcher.
+   * Multiple days are processed concurrently for better throughput.
    */
-  fun generateEvents(): Flow<LabeledEvent<TestEvent>> = channelFlow {
-    val startTime = timeRange.start
-    val endTime = timeRange.endExclusive
-    val duration = java.time.Duration.between(startTime, endTime)
+  suspend fun generateEventBatches(dispatcher: CoroutineContext = Dispatchers.Default): Flow<List<LabeledEvent<TestEvent>>> {
+    logger.info("Starting parallel synthetic event generation with batching")
     
-    logGenerationParameters(startTime, endTime, duration)
-    
-    val vidArray = createVidArray()
-    val durationSeconds = duration.seconds.toDouble()
-    
-    val numGenerators = calculateOptimalGeneratorCount()
-    val eventsPerGenerator = totalEvents / numGenerators
-    val remainingEvents = (totalEvents % numGenerators).toInt()
-    
-    logger.info("Using $numGenerators parallel generators (${Runtime.getRuntime().availableProcessors()} CPU cores)")
-    
-    launchParallelGenerators(
-      numGenerators,
-      eventsPerGenerator,
-      remainingEvents,
-      vidArray,
-      startTime,
-      durationSeconds
-    ).collect { event ->
-      send(event)
+    return channelFlow {
+      // Process date shards in parallel
+      val processingJobs = mutableListOf<kotlinx.coroutines.Job>()
+      var shardCount = 0
+      
+      SyntheticDataGeneration.generateEvents(
+        TestEvent.getDefaultInstance(),
+        populationSpec,
+        eventGroupSpec,
+        timeRange,
+        zoneId
+      ).collect { dateShardedImpression ->
+        shardCount++
+        val shardId = shardCount
+        
+        // Launch parallel job for each date shard
+        val job = launch(dispatcher) {
+          logger.fine("Processing date shard $shardId for date ${dateShardedImpression.localDate}")
+          
+          val events = dateShardedImpression.impressions.toList()
+          val shardBatches = events.chunked(batchSize)
+          
+          logger.fine("Date shard $shardId generated ${events.size} events in ${shardBatches.size} batches")
+          
+          // Send batches directly through the channel
+          shardBatches.forEach { batch ->
+            send(batch)
+          }
+        }
+        
+        processingJobs.add(job)
+      }
+      
+      logger.info("Launched $shardCount date shard processing jobs")
+      
+      // Wait for all processing to complete
+      processingJobs.forEach { it.join() }
     }
+  }
+
+  /**
+   * Generates a flow of individual synthetic events using SyntheticDataGeneration.
+   *
+   * Events are generated deterministically based on population and event group specs.
+   */
+  suspend fun generateEvents(): Flow<LabeledEvent<TestEvent>> {
+    logger.info("Starting synthetic event generation")
     
-    logger.info("Synthetic event generation completed. Total events: $totalEvents")
-  }
-  
-  private fun logGenerationParameters(startTime: Instant, endTime: Instant, duration: java.time.Duration) {
-    println("Generating synthetic events:")
-    println("  Start time: $startTime")
-    println("  End time: $endTime")
-    println("  Duration: ${duration.seconds} seconds")
-    println("  Total events to generate: $totalEvents")
-    println("  Unique VIDs: $uniqueVids")
-    println("  Distribution: Uniform across time range")
-  }
-  
-  private fun createVidArray(): LongArray {
-    return LongArray(uniqueVids) { (it + 1).toLong() }
-  }
-  
-  private fun calculateOptimalGeneratorCount(): Int {
-    return Runtime.getRuntime().availableProcessors() * 10
-  }
-  
-  private suspend fun launchParallelGenerators(
-    numGenerators: Int,
-    eventsPerGenerator: Long,
-    remainingEvents: Int,
-    vidArray: LongArray,
-    startTime: Instant,
-    durationSeconds: Double
-  ): Flow<LabeledEvent<TestEvent>> = channelFlow {
-    val generators = (0 until numGenerators).map { generatorId ->
-      launch(dispatcher) {
-        generateEventsForWorker(
-          generatorId,
-          eventsPerGenerator,
-          remainingEvents,
-          vidArray,
-          startTime,
-          durationSeconds
-        ).collect { event ->
-          send(event)
+    return kotlinx.coroutines.flow.flow {
+      SyntheticDataGeneration.generateEvents(
+        TestEvent.getDefaultInstance(),
+        populationSpec,
+        eventGroupSpec,
+        timeRange,
+        zoneId
+      ).collect { dateShardedImpression ->
+        dateShardedImpression.impressions.collect { event ->
+          emit(event)
         }
       }
     }
-    
-    generators.forEach { it.join() }
   }
-  
-  private suspend fun generateEventsForWorker(
-    workerId: Int,
-    baseEventCount: Long,
-    remainingEvents: Int,
-    vidArray: LongArray,
-    startTime: Instant,
-    durationSeconds: Double
-  ): Flow<LabeledEvent<TestEvent>> = channelFlow {
-    val random = kotlin.random.Random(System.nanoTime() + workerId)
-    val eventsToGenerate = baseEventCount + (if (workerId < remainingEvents) 1 else 0)
-    var generated = 0L
-    
-    while (generated < eventsToGenerate) {
-      val batchSize = minOf(DEFAULT_BATCH_SIZE, (eventsToGenerate - generated).toInt())
-      
-      repeat(batchSize) {
-        val event = generateSingleEvent(random, vidArray, startTime, durationSeconds)
-        send(event)
-      }
-      
-      generated += batchSize
-      
-      if (generated % 50000 == 0L) {
-        logger.info("Worker $workerId: Generated $generated/$eventsToGenerate events")
-      }
-    }
-    
-    logger.info("Worker $workerId completed: $eventsToGenerate events")
-  }
-  
-  private fun generateSingleEvent(
-    random: kotlin.random.Random,
-    vidArray: LongArray,
-    startTime: Instant,
-    durationSeconds: Double
-  ): LabeledEvent<TestEvent> {
-    val vid = vidArray[random.nextInt(uniqueVids)]
-    val randomSeconds = (random.nextDouble() * durationSeconds).toLong()
-    val timestamp = startTime.plusSeconds(randomSeconds)
-    
-    val person = generatePerson(random)
-    val event = TestEvent.newBuilder()
-      .setPerson(person)
-      .build()
-    
-    return LabeledEvent(timestamp, vid, event)
-  }
-  
-  private fun generatePerson(random: kotlin.random.Random): Person {
-    return Person.newBuilder().apply {
-      gender = if (random.nextDouble() < GENDER_MALE_PROBABILITY) {
-        Person.Gender.MALE
-      } else {
-        Person.Gender.FEMALE
-      }
-      ageGroup = AGE_GROUPS[random.nextInt(AGE_GROUPS.size)]
-    }.build()
-  }
+
 }

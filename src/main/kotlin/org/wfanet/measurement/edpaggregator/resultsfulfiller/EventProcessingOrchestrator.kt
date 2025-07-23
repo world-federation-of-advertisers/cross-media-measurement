@@ -28,6 +28,10 @@ import kotlinx.coroutines.asCoroutineDispatcher
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.PopulationSpecKt.subPopulation
 import org.wfanet.measurement.api.v2alpha.PopulationSpecKt.vidRange
+import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
+import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticPopulationSpec
+import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.syntheticEventGroupSpec
+import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.syntheticPopulationSpec
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.api.v2alpha.populationSpec
 import org.wfanet.measurement.common.OpenEndTimeRange
@@ -68,7 +72,10 @@ class EventProcessingOrchestrator {
       
       // Set up pipeline components
       val timeRange = OpenEndTimeRange.fromClosedDateRange(config.startDate..config.endDate)
-      val populationSpec = createPopulationSpec(config.maxVidRange)
+      
+      // Create population spec from synthetic population spec for VID indexing
+      val totalVidRange = config.populationSpec.vidRange.endExclusive - config.populationSpec.vidRange.start
+      val populationSpec = createPopulationSpec(totalVidRange)
       val vidIndexMap = InMemoryVidIndexMap.build(populationSpec)
       
       logger.info("VID index map created with ${vidIndexMap.size} entries")
@@ -76,20 +83,21 @@ class EventProcessingOrchestrator {
       // Generate filter configurations
       val filters = generateFilterConfigurations(config)
       
-      // Create event generator
+      // Create event generator using specs from configuration
       val eventGenerator = SyntheticEventGenerator(
+        populationSpec = config.populationSpec,
+        eventGroupSpec = config.eventGroupSpec,
         timeRange = timeRange,
-        totalEvents = config.totalEvents,
-        uniqueVids = config.syntheticUniqueVids,
-        dispatcher = dispatcher
+        zoneId = config.zoneId,
+        batchSize = config.effectiveBatchSize
       )
       
       // Create and run pipeline
       val pipeline = createPipeline(config, dispatcher)
-      val eventFlow = eventGenerator.generateEvents()
+      val eventBatchFlow = eventGenerator.generateEventBatches(dispatcher)
       
-      val statistics = pipeline.processEvents(
-        eventFlow = eventFlow,
+      val statistics = pipeline.processEventBatches(
+        eventBatchFlow = eventBatchFlow,
         vidIndexMap = vidIndexMap,
         filters = filters
       )
@@ -98,9 +106,14 @@ class EventProcessingOrchestrator {
       val totalDuration = pipelineEndTime - pipelineStartTime
       
       // Display results
+      // Calculate total expected events from population spec VID ranges
+      val totalExpectedEvents = config.populationSpec.subPopulationsList.sumOf { subPop ->
+        subPop.vidSubRange.endExclusive - subPop.vidSubRange.start
+      }
+      
       statisticsAggregator.displayExecutionSummary(
         totalDuration = totalDuration,
-        totalEvents = config.totalEvents,
+        totalEvents = totalExpectedEvents,
         pipelineType = pipeline.pipelineType
       )
       
@@ -117,13 +130,17 @@ class EventProcessingOrchestrator {
   private fun displayConfiguration(config: PipelineConfiguration) {
     println("Configuration:")
     println("  Date range: ${config.startDate} to ${config.endDate}")
-    println("  Max VID range: ${config.maxVidRange}")
+    println("  Zone ID: ${config.zoneId}")
     println("  Batch size: ${config.effectiveBatchSize}")
     println("  Channel capacity: ${config.channelCapacity}")
     println()
-    println("Synthetic Data Configuration:")
-    println("  Total events: ${config.totalEvents}")
-    println("  Unique VIDs: ${config.syntheticUniqueVids}")
+    println("Population Spec Configuration:")
+    println("  VID range: ${config.populationSpec.vidRange.start} to ${config.populationSpec.vidRange.endExclusive - 1}")
+    println("  Sub-populations: ${config.populationSpec.subPopulationsCount}")
+    println()
+    println("Event Group Spec Configuration:")
+    println("  Description: ${config.eventGroupSpec.description}")
+    println("  Date specs: ${config.eventGroupSpec.dateSpecsCount}")
     println()
     println("Pipeline Configuration:")
     println("  Use parallel pipeline: ${config.useParallelPipeline}")
@@ -256,5 +273,68 @@ class EventProcessingOrchestrator {
     }
     
     return intervals
+  }
+  
+  private fun createDummyPopulationSpec(uniqueVids: Int): SyntheticPopulationSpec {
+    return SyntheticPopulationSpec.newBuilder().apply {
+      vidRangeBuilder.apply {
+        start = 1L
+        endExclusive = uniqueVids.toLong() + 1L
+      }
+      eventMessageTypeUrl = TestEvent.getDefaultInstance().descriptorForType.fullName
+      addPopulationFields("person.gender")
+      addPopulationFields("person.age_group")
+      
+      // Create a simple sub-population covering all VIDs
+      addSubPopulations(SyntheticPopulationSpec.SubPopulation.newBuilder().apply {
+        vidSubRangeBuilder.apply {
+          start = 1L
+          endExclusive = uniqueVids.toLong() + 1L
+        }
+        putPopulationFieldsValues("person.gender", 
+          org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.FieldValue.newBuilder()
+            .setEnumValue(1) // MALE
+            .build()
+        )
+        putPopulationFieldsValues("person.age_group", 
+          org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.FieldValue.newBuilder()
+            .setEnumValue(1) // YEARS_18_TO_34
+            .build()
+        )
+      }.build())
+    }.build()
+  }
+  
+  private fun createDummyEventGroupSpec(totalEvents: Long): SyntheticEventGroupSpec {
+    return SyntheticEventGroupSpec.newBuilder().apply {
+      description = "Dummy event group spec for pipeline testing"
+      samplingNonce = 12345L
+      
+      addDateSpecs(SyntheticEventGroupSpec.DateSpec.newBuilder().apply {
+        dateRangeBuilder.apply {
+          startBuilder.apply {
+            year = 2024
+            month = 1
+            day = 1
+          }
+          endExclusiveBuilder.apply {
+            year = 2024
+            month = 2
+            day = 1
+          }
+        }
+        
+        addFrequencySpecs(SyntheticEventGroupSpec.FrequencySpec.newBuilder().apply {
+          frequency = 1L // 1 event per VID
+          addVidRangeSpecs(SyntheticEventGroupSpec.FrequencySpec.VidRangeSpec.newBuilder().apply {
+            vidRangeBuilder.apply {
+              start = 1L
+              endExclusive = totalEvents + 1L
+            }
+            samplingRate = 1.0 // Include all VIDs
+          }.build())
+        }.build())
+      }.build())
+    }.build()
   }
 }

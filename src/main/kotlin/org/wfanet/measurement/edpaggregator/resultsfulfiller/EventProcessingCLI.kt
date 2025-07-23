@@ -22,9 +22,14 @@ import com.google.type.Interval
 import com.google.protobuf.Timestamp
 import java.time.Instant
 import java.time.LocalDate
+import java.time.ZoneId
 import java.util.logging.Logger
+import kotlin.io.path.Path
 import kotlinx.coroutines.runBlocking
+import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
+import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticPopulationSpec
 import org.wfanet.measurement.common.commandLineMain
+import org.wfanet.measurement.common.parseTextProto
 import picocli.CommandLine
 
 /**
@@ -37,7 +42,9 @@ import picocli.CommandLine
   mixinStandardHelpOptions = true,
   showDefaultValues = true
 )
-class EventProcessingCLI : Runnable {
+class EventProcessingCLI(
+  private val orchestrator: EventProcessingOrchestrator = EventProcessingOrchestrator()
+) : Runnable {
 
   companion object {
     private val logger = Logger.getLogger(EventProcessingCLI::class.java.name)
@@ -75,25 +82,25 @@ class EventProcessingCLI : Runnable {
   private var channelCapacity: Int = 100
 
   @CommandLine.Option(
-    names = ["--max-vid-range"],
-    description = ["Maximum VID value for PopulationSpec"],
-    defaultValue = "10000000"
+    names = ["--population-spec-resource-path"],
+    description = ["The path to the resource of the population-spec. Must be textproto format."],
+    required = true
   )
-  private var maxVidRange: Long = 10_000_000L
+  private lateinit var populationSpecResourcePath: String
 
   @CommandLine.Option(
-    names = ["--total-events"],
-    description = ["Total number of synthetic events to generate"],
-    defaultValue = "10000000"
+    names = ["--data-spec-resource-path"],
+    description = ["The path to the resource of the data-spec. Must be textproto format."],
+    required = true
   )
-  private var totalEvents: Long = 10_000_000L
+  private lateinit var dataSpecResourcePath: String
 
   @CommandLine.Option(
-    names = ["--synthetic-unique-vids"],
-    description = ["Number of unique VIDs in synthetic data"],
-    defaultValue = "1000000"
+    names = ["--zone-id"],
+    description = ["The Zone ID by which to generate the events"],
+    defaultValue = "UTC"
   )
-  private var syntheticUniqueVids: Int = 1_000_000
+  private var zoneId: String = "UTC"
 
   @CommandLine.Option(
     names = ["--use-parallel-pipeline"],
@@ -147,8 +154,6 @@ class EventProcessingCLI : Runnable {
       initializeTink()
 
       val config = buildConfiguration()
-      val orchestrator = EventProcessingOrchestrator()
-
       orchestrator.run(config)
     } catch (e: Exception) {
       logger.severe("Pipeline execution failed: ${e.message}")
@@ -164,20 +169,37 @@ class EventProcessingCLI : Runnable {
     println("Tink initialization complete")
   }
 
-  private fun buildConfiguration(): PipelineConfiguration {
+  /**
+   * Builds the pipeline configuration from command line arguments.
+   * Made public for testing purposes.
+   */
+  fun buildConfiguration(): PipelineConfiguration {
     val startDate = parseDate(startDateStr, "start date")
     val endDate = parseDate(endDateStr, "end date")
 
     val collectionInterval = parseCollectionInterval()
+    
+    // Load population and event group specs from textproto files
+    val populationSpec: SyntheticPopulationSpec = parseTextProto(
+      Path(populationSpecResourcePath).toFile(),
+      SyntheticPopulationSpec.getDefaultInstance()
+    )
+    
+    val eventGroupSpec: SyntheticEventGroupSpec = parseTextProto(
+      Path(dataSpecResourcePath).toFile(), 
+      SyntheticEventGroupSpec.getDefaultInstance()
+    )
+    
+    val zoneIdParsed = ZoneId.of(zoneId)
 
     return PipelineConfiguration(
       startDate = startDate,
       endDate = endDate,
       batchSize = batchSize,
       channelCapacity = channelCapacity,
-      maxVidRange = maxVidRange,
-      totalEvents = totalEvents,
-      syntheticUniqueVids = syntheticUniqueVids,
+      populationSpec = populationSpec,
+      eventGroupSpec = eventGroupSpec,
+      zoneId = zoneIdParsed,
       useParallelPipeline = useParallelPipeline,
       parallelBatchSize = parallelBatchSize,
       parallelWorkers = if (parallelWorkers == 0) Runtime.getRuntime().availableProcessors() else parallelWorkers,

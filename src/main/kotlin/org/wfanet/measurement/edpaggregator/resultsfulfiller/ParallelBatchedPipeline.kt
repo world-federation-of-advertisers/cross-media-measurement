@@ -46,8 +46,8 @@ class ParallelBatchedPipeline(
 
   override val pipelineType: String = "Parallel-Batched"
 
-  override suspend fun processEvents(
-    eventFlow: Flow<LabeledEvent<TestEvent>>,
+  override suspend fun processEventBatches(
+    eventBatchFlow: Flow<List<LabeledEvent<TestEvent>>>,
     vidIndexMap: VidIndexMap,
     filters: List<FilterConfiguration>
   ): Map<String, SinkStatistics> = coroutineScope {
@@ -90,23 +90,21 @@ class ParallelBatchedPipeline(
     val processedBatches = AtomicLong(0)
     val startTime = System.currentTimeMillis()
 
-    // Stage 1: Batching coroutine
+    // Stage 1: Batch forwarding coroutine (events are already batched)
     val batchingJob = launch(dispatcher) {
-      logger.info("Parallel batching stage started")
+      logger.info("Parallel batch forwarding stage started")
       var batchId = 0L
 
-      eventFlow
-        .chunked(batchSize)
-        .collect { eventList ->
-          batchSharedFlow.emit(EventBatch(eventList, batchId++))
-          totalBatches.incrementAndGet()
-          totalEvents.addAndGet(eventList.size.toLong())
+      eventBatchFlow.collect { eventList ->
+        batchSharedFlow.emit(EventBatch(eventList, batchId++))
+        totalBatches.incrementAndGet()
+        totalEvents.addAndGet(eventList.size.toLong())
 
-          if (batchId % 10 == 0L) {
-            logBatchingProgress(totalEvents.get(), totalBatches.get(), startTime)
-          }
+        if (batchId % 10 == 0L) {
+          logBatchingProgress(totalEvents.get(), totalBatches.get(), startTime)
         }
-      logger.info("Batching completed: ${totalEvents.get()} events in ${totalBatches.get()} batches")
+      }
+      logger.info("Batch forwarding completed: ${totalEvents.get()} events in ${totalBatches.get()} batches")
     }
 
     // Stage 2: Parallel processing workers using SharedFlow

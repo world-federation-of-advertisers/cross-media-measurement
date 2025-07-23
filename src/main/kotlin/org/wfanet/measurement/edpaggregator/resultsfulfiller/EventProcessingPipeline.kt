@@ -30,15 +30,15 @@ import org.wfanet.measurement.loadtest.dataprovider.LabeledEvent
 interface EventProcessingPipeline {
   
   /**
-   * Processes a flow of events through the pipeline.
+   * Processes a flow of event batches through the pipeline.
    * 
-   * @param eventFlow The flow of events to process
+   * @param eventBatchFlow The flow of event batches to process
    * @param vidIndexMap Mapping from VIDs to array indices
    * @param filters The filters to apply with their configurations
    * @return Statistics for each filter after processing
    */
-  suspend fun processEvents(
-    eventFlow: Flow<LabeledEvent<TestEvent>>,
+  suspend fun processEventBatches(
+    eventBatchFlow: Flow<List<LabeledEvent<TestEvent>>>,
     vidIndexMap: VidIndexMap,
     filters: List<FilterConfiguration>
   ): Map<String, SinkStatistics>

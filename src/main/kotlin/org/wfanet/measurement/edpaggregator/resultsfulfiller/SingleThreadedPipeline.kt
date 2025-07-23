@@ -43,8 +43,8 @@ class SingleThreadedPipeline(
   
   override val pipelineType: String = "Single-Threaded"
   
-  override suspend fun processEvents(
-    eventFlow: Flow<LabeledEvent<TestEvent>>,
+  override suspend fun processEventBatches(
+    eventBatchFlow: Flow<List<LabeledEvent<TestEvent>>>,
     vidIndexMap: VidIndexMap,
     filters: List<FilterConfiguration>
   ): Map<String, SinkStatistics> = coroutineScope {
@@ -77,18 +77,19 @@ class SingleThreadedPipeline(
     val totalEvents = AtomicLong(0)
     val startTime = System.currentTimeMillis()
     
-    // Process events
-    eventFlow
+    // Process event batches
+    eventBatchFlow
       .onStart { logger.info("Single pipeline started") }
       .flowOn(dispatcher)
-      .collect { event ->
-        totalEvents.incrementAndGet()
+      .collect { eventList ->
+        val batchSize = eventList.size
+        totalEvents.addAndGet(batchSize.toLong())
         
-        // Process event through all filters
+        // Process batch through all filters
         processors.forEach { processor ->
-          val batch = EventBatch(listOf(event), totalEvents.get())
+          val batch = EventBatch(eventList, totalEvents.get())
           val matchedEvents = processor.processBatch(batch)
-          sinks[processor.filterId]?.processMatchedEvents(matchedEvents, 1)
+          sinks[processor.filterId]?.processMatchedEvents(matchedEvents, batchSize)
         }
         
         if (totalEvents.get() % 100000 == 0L) {
