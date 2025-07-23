@@ -18,15 +18,57 @@ on:
   #WIP - for testing wihtout merging
   pull_request:
 
+env:
+  IMAGE_TAG
+
 jobs:
   test-notifications:
     runs-on: ubuntu-22.04
     steps:
+      - id: dummy-compute-tag
+        name: dummy create tag
+        run: echo "tag=nightly/20250722.1" >> "$GITHUB_OUTPUT"
+
+      - id: get-release
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const { data: release } = await github.rest.repos.getLatestRelease({
+              owner: context.repo.owner,
+              repo:  context.repo.repo
+            });
+            core.setOutput("latest_release_tag", release.tag_name);
+
       - name: Post text to a Slack channel
         uses: slackapi/slack-github-action@v2.1.1
         with:
+          errors: false #avoid failing the job if the step fails
           method: chat.postMessage
           token: ${{ secrets.SLACK_BOT_TOKEN }}
           payload: |
             channel: ${{ secrets.SLACK_HOUSEKEEPING_CHANNEL }}
-            text: "test slack notification"
+            text: "Started nightly build deployment:"
+            blocks: [
+              {
+                "type": "section",
+                "fields": [
+                  {
+                    "type": "mrkdwn",
+                    "text": "*Deploy:* <https://github.com/world-federation-of-advertisers/cross-media-measurement/actions/runs/${{github.run_id}}|${{github.workflow}} #${{github.run_number}}>"
+                  },
+                  {
+                    "type": "mrkdwn",
+                    "text": "*Author:* ${{github.triggering_actor}}"
+                  },
+                  {
+                    "type": "mrkdwn",
+                    "text": "*Tag:* <https://github.com/world-federation-of-advertisers/cross-media-measurement/tree/refs/tags/${{ steps.dummy-compute-tag.outputs.tag }}|${{ steps.dummy-compute-tag.outputs.tag }}>"
+                  },
+                  {
+                    "type": "mrkdwn",
+                    "text": "*Diff:* <https://github.com/world-federation-of-advertisers/cross-media-measurement/compare/${{ steps.get-release.outputs.latest_release_tag }}...${{ steps.dummy-compute-tag.outputs.tag }}||${{ steps.get-release.outputs.latest_release_tag }}...${{ steps.dummy-compute-tag.outputs.tag }}>"
+                  }
+                ]
+              }
+            ]
