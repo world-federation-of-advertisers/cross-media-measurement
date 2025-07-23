@@ -121,11 +121,18 @@ resource "google_compute_instance_template" "confidential_vm_template" {
           - name: ssl-secrets
             mountPath: /etc/ssl
             readOnly: true
+          - name: proto-descriptors
+            mountPath: /usr/local/share/result‑fulfiller/descriptors
+            readOnly: true
     restartPolicy: Always
     volumes:
       - name: ssl-secrets
         hostPath:
           path: /etc/ssl
+          type: DirectoryOrCreate
+      - name: proto-descriptors
+        hostPath:
+          path: /usr/local/share/result‑fulfiller/descriptors
           type: DirectoryOrCreate
   EOT
       }
