@@ -20,6 +20,7 @@ import com.google.protobuf.TypeRegistry
 import java.util.concurrent.atomic.AtomicLong
 import java.util.logging.Logger
 import kotlinx.coroutines.*
+import kotlinx.coroutines.channels.*
 import kotlinx.coroutines.flow.*
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.eventdataprovider.shareshuffle.v2alpha.VidIndexMap
@@ -34,30 +35,30 @@ import org.wfanet.measurement.loadtest.dataprovider.LabeledEvent
  *
  * ### Stage 1: Batch Collection and Distribution
  * - Receives pre-batched events from upstream flow
- * - Distributes batches to worker coroutines via SharedFlow (fan-out pattern)
+ * - Distributes batches to worker coroutines via round-robin assignment
  * - Tracks total events and batches for monitoring
  *
  * ### Stage 2: Parallel Processing Workers
- * - Multiple worker coroutines process batches concurrently
- * - Each worker processes a batch through ALL filters in parallel
+ * - Multiple worker coroutines process assigned batches sequentially
+ * - Each worker processes its assigned batch through ALL filters in parallel
  * - Uses structured concurrency to ensure batch completion
  *
  * ### Key Components:
  * - **FilterProcessor**: Evaluates CEL expressions and time range against events
  * - **FrequencyVectorSink**: Aggregates matched events into frequency vectors
- * - **SharedFlow**: Enables efficient work distribution across workers
+ * - **Channels**: Enable round-robin work distribution across workers
  *
  * ### Processing Flow:
  * ```
- * EventBatchFlow -> SharedFlow -> Worker[1..N] -> FilterProcessor[1..M] -> Sink
- *                              \-> Worker[2]    /
- *                               \-> Worker[N]  /
+ * EventBatchFlow -> RoundRobin -> Worker[1] -> FilterProcessor[1..M] -> Sink
+ *                              -> Worker[2] -> FilterProcessor[1..M] -> Sink
+ *                              -> Worker[N] -> FilterProcessor[1..M] -> Sink
  * ```
  *
  * ### Performance Characteristics:
  * - Batching reduces processing overhead
  * - Parallel workers maximize CPU utilization
- * - Lock-free SharedFlow minimizes contention
+ * - Round-robin assignment eliminates batch duplication
  * - Concurrent filter evaluation per batch
  */
 class ParallelBatchedPipeline(
@@ -106,23 +107,25 @@ class ParallelBatchedPipeline(
       )
     }
 
-    // Create SharedFlow for fan-out to multiple workers
-    val batchSharedFlow = MutableSharedFlow<EventBatch>(
-      extraBufferCapacity = Int.MAX_VALUE
-    )
+    // Create channels for round-robin distribution to workers
+    val workerChannels = (1..workers).map { Channel<EventBatch>(Channel.UNLIMITED) }
 
     val totalBatches = AtomicLong(0)
     val totalEvents = AtomicLong(0)
     val processedBatches = AtomicLong(0)
     val startTime = System.currentTimeMillis()
 
-    // Stage 1: Batch forwarding coroutine (events are already batched)
+    // Stage 1: Round-robin batch distribution coroutine
     val batchingJob = launch(dispatcher) {
-      logger.info("Parallel batch forwarding stage started")
+      logger.info("Round-robin batch distribution started")
       var batchId = 0L
+      var workerIndex = 0
 
       eventBatchFlow.collect { eventList ->
-        batchSharedFlow.emit(EventBatch(eventList, batchId++))
+        val batch = EventBatch(eventList, batchId++)
+        workerChannels[workerIndex % workers].send(batch)
+        workerIndex++
+        
         totalBatches.incrementAndGet()
         totalEvents.addAndGet(eventList.size.toLong())
 
@@ -130,15 +133,19 @@ class ParallelBatchedPipeline(
           logBatchingProgress(totalEvents.get(), totalBatches.get(), startTime)
         }
       }
-      logger.info("Batch forwarding completed: ${totalEvents.get()} events in ${totalBatches.get()} batches")
+      
+      // Close all worker channels to signal completion
+      workerChannels.forEach { it.close() }
+      logger.info("Batch distribution completed: ${totalEvents.get()} events in ${totalBatches.get()} batches")
     }
 
-    // Stage 2: Parallel processing workers using SharedFlow
-    val processingJobs = (1..workers).map { workerId ->
+    // Stage 2: Parallel processing workers using individual channels
+    val processingJobs = workerChannels.mapIndexed { index, channel ->
+      val workerId = index + 1
       launch(dispatcher) {
         logger.fine("Worker $workerId started")
 
-        batchSharedFlow.collect { batch ->
+        for (batch in channel) {
           // Process batch through all filters concurrently
           val filterJobs = processors.map { processor ->
             launch(dispatcher) {
@@ -163,13 +170,8 @@ class ParallelBatchedPipeline(
     // Wait for batching to complete
     batchingJob.join()
 
-    // Wait until all batches have been processed
-    while (processedBatches.get() < totalBatches.get()) {
-      delay(10)
-    }
-
-    // Cancel processing jobs since all batches are done
-    processingJobs.forEach { it.cancel() }
+    // Wait for all processing jobs to complete
+    processingJobs.forEach { it.join() }
 
     val endTime = System.currentTimeMillis()
     logCompletion(totalEvents.get(), totalBatches.get(), startTime, endTime)

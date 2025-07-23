@@ -1,0 +1,314 @@
+# proto-file: wfa/measurement/api/v2alpha/event_group_metadata/testing/simulator_synthetic_data_spec.proto
+# proto-message: SyntheticPopulationSpec
+
+# A synthetic population used for performance testing.
+# 60 Million individuals evenly distributed across 3 age buckets, 2 genders, and 2 social grades.
+# Enum Values
+# Age:
+#  1: 18-34
+#  2: 35-54
+#  3: 55+
+# Gender:
+#  1: MALE
+#  2: FEMALE
+# Social Grade:
+#  1: A, B, C1
+#  2: C2, D, E
+
+vid_range {
+  start: 1
+  end_exclusive: 60000000  # Age 18-64 with known social grade.
+}
+event_message_type_url: "type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.TestEvent"
+population_fields: "person.gender"
+population_fields: "person.age_group"
+population_fields: "person.social_grade_group"
+non_population_fields: "video_ad.viewed_fraction"
+sub_populations {
+  vid_sub_range {
+    start: 1
+    end_exclusive: 5000000
+  }
+  population_fields_values {
+    key: "person.age_group"
+    value {
+      enum_value: 1
+    }
+  }
+  population_fields_values {
+    key: "person.gender"
+    value {
+      enum_value: 1
+    }
+  }
+  population_fields_values {
+    key: "person.social_grade_group"
+    value {
+      enum_value: 1
+    }
+  }
+}
+sub_populations {
+  vid_sub_range {
+    start: 5000000
+    end_exclusive: 10000000
+  }
+  population_fields_values {
+    key: "person.age_group"
+    value {
+      enum_value: 1
+    }
+  }
+  population_fields_values {
+    key: "person.gender"
+    value {
+      enum_value: 1
+    }
+  }
+  population_fields_values {
+    key: "person.social_grade_group"
+    value {
+      enum_value: 2
+    }
+  }
+}
+sub_populations {
+  vid_sub_range {
+    start: 10000000
+    end_exclusive: 15000000
+  }
+  population_fields_values {
+    key: "person.age_group"
+    value {
+      enum_value: 2
+    }
+  }
+  population_fields_values {
+    key: "person.gender"
+    value {
+      enum_value: 1
+    }
+  }
+  population_fields_values {
+    key: "person.social_grade_group"
+    value {
+      enum_value: 1
+    }
+  }
+}
+sub_populations {
+  vid_sub_range {
+    start: 15000000
+    end_exclusive: 20000000
+  }
+  population_fields_values {
+    key: "person.age_group"
+    value {
+      enum_value: 2
+    }
+  }
+  population_fields_values {
+    key: "person.gender"
+    value {
+      enum_value: 1
+    }
+  }
+  population_fields_values {
+    key: "person.social_grade_group"
+    value {
+      enum_value: 2
+    }
+  }
+}
+sub_populations {
+  vid_sub_range {
+    start: 20000000
+    end_exclusive: 25000000
+  }
+  population_fields_values {
+    key: "person.age_group"
+    value {
+      enum_value: 3
+    }
+  }
+  population_fields_values {
+    key: "person.gender"
+    value {
+      enum_value: 1
+    }
+  }
+  population_fields_values {
+    key: "person.social_grade_group"
+    value {
+      enum_value: 1
+    }
+  }
+}
+sub_populations {
+  vid_sub_range {
+    start: 25000000
+    end_exclusive: 30000000
+  }
+  population_fields_values {
+    key: "person.age_group"
+    value {
+      enum_value: 3
+    }
+  }
+  population_fields_values {
+    key: "person.gender"
+    value {
+      enum_value: 1
+    }
+  }
+  population_fields_values {
+    key: "person.social_grade_group"
+    value {
+      enum_value: 2
+    }
+  }
+}
+sub_populations {
+  vid_sub_range {
+    start: 30000000
+    end_exclusive: 35000000
+  }
+  population_fields_values {
+    key: "person.age_group"
+    value {
+      enum_value: 1
+    }
+  }
+  population_fields_values {
+    key: "person.gender"
+    value {
+      enum_value: 2
+    }
+  }
+  population_fields_values {
+    key: "person.social_grade_group"
+    value {
+      enum_value: 1
+    }
+  }
+}
+sub_populations {
+  vid_sub_range {
+    start: 35000000
+    end_exclusive: 40000000
+  }
+  population_fields_values {
+    key: "person.age_group"
+    value {
+      enum_value: 1
+    }
+  }
+  population_fields_values {
+    key: "person.gender"
+    value {
+      enum_value: 2
+    }
+  }
+  population_fields_values {
+    key: "person.social_grade_group"
+    value {
+      enum_value: 2
+    }
+  }
+}
+sub_populations {
+  vid_sub_range {
+    start: 40000000
+    end_exclusive: 45000000
+  }
+  population_fields_values {
+    key: "person.age_group"
+    value {
+      enum_value: 2
+    }
+  }
+  population_fields_values {
+    key: "person.gender"
+    value {
+      enum_value: 2
+    }
+  }
+  population_fields_values {
+    key: "person.social_grade_group"
+    value {
+      enum_value: 1
+    }
+  }
+}
+sub_populations {
+  vid_sub_range {
+    start: 45000000
+    end_exclusive: 50000000
+  }
+  population_fields_values {
+    key: "person.age_group"
+    value {
+      enum_value: 2
+    }
+  }
+  population_fields_values {
+    key: "person.gender"
+    value {
+      enum_value: 2
+    }
+  }
+  population_fields_values {
+    key: "person.social_grade_group"
+    value {
+      enum_value: 2
+    }
+  }
+}
+sub_populations {
+  vid_sub_range {
+    start: 50000000
+    end_exclusive: 55000000
+  }
+  population_fields_values {
+    key: "person.age_group"
+    value {
+      enum_value: 3
+    }
+  }
+  population_fields_values {
+    key: "person.gender"
+    value {
+      enum_value: 2
+    }
+  }
+  population_fields_values {
+    key: "person.social_grade_group"
+    value {
+      enum_value: 1
+    }
+  }
+}
+sub_populations {
+  vid_sub_range {
+    start: 55000000
+    end_exclusive: 60000000
+  }
+  population_fields_values {
+    key: "person.age_group"
+    value {
+      enum_value: 3
+    }
+  }
+  population_fields_values {
+    key: "person.gender"
+    value {
+      enum_value: 2
+    }
+  }
+  population_fields_values {
+    key: "person.social_grade_group"
+    value {
+      enum_value: 2
+    }
+  }
+}

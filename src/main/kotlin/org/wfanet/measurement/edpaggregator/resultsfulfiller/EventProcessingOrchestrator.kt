@@ -120,9 +120,20 @@ class EventProcessingOrchestrator {
       // Create population spec from synthetic population spec for VID indexing
       val totalVidRange = config.populationSpec.vidRange.endExclusive - config.populationSpec.vidRange.start
       val populationSpec = createPopulationSpec(totalVidRange)
-      val vidIndexMap = InMemoryVidIndexMap.build(populationSpec)
-
-      logger.info("VID index map created with ${vidIndexMap.size} entries")
+      
+      logger.info("Building VID index map using parallel processing with ${config.threadPoolSize} workers...")
+      val vidIndexMapStartTime = System.currentTimeMillis()
+      
+      val vidIndexMap = InMemoryVidIndexMap.buildParallel(
+        populationSpec, 
+        dispatcher = dispatcher,
+        parallelism = config.threadPoolSize
+      )
+      
+      val vidIndexMapEndTime = System.currentTimeMillis()
+      val vidIndexMapDuration = vidIndexMapEndTime - vidIndexMapStartTime
+      
+      logger.info("VID index map created with ${vidIndexMap.size} entries in ${vidIndexMapDuration}ms")
 
       // Generate filter configurations
       val filters = generateFilterConfigurations(config)

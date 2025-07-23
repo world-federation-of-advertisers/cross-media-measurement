@@ -1,0 +1,200 @@
+# proto-file: wfa/measurement/api/v2alpha/event_group_metadata/testing/simulator_synthetic_data_spec.proto
+# proto-message: SyntheticEventGroupSpec
+
+# Spec for use with 60m_population_spec.textproto.
+# Generates ~1 billion events over 90 days using 60M VIDs at ~17 frequency per VID.
+
+date_specs {
+  date_range {
+    start {
+      year: 2025
+      month: 1
+      day: 1
+    }
+    end_exclusive {
+      year: 2025
+      month: 3
+      day: 30
+    }
+  }
+  frequency_specs {
+    frequency: 17
+    vid_range_specs {
+      vid_range {
+        start: 1
+        end_exclusive: 5000000
+      }
+      non_population_field_values {
+        key: "video_ad.viewed_fraction"
+        value {
+          double_value: 0.1
+        }
+      }
+    }
+  }
+  frequency_specs {
+    frequency: 17
+    vid_range_specs {
+      vid_range {
+        start: 5000000
+        end_exclusive: 10000000
+      }
+      non_population_field_values {
+        key: "video_ad.viewed_fraction"
+        value {
+          double_value: 0.2
+        }
+      }
+    }
+  }
+  frequency_specs {
+    frequency: 17
+    vid_range_specs {
+      vid_range {
+        start: 10000000
+        end_exclusive: 15000000
+      }
+      non_population_field_values {
+        key: "video_ad.viewed_fraction"
+        value {
+          double_value: 0.3
+        }
+      }
+    }
+  }
+  frequency_specs {
+    frequency: 17
+    vid_range_specs {
+      vid_range {
+        start: 15000000
+        end_exclusive: 20000000
+      }
+      non_population_field_values {
+        key: "video_ad.viewed_fraction"
+        value {
+          double_value: 0.4
+        }
+      }
+    }
+  }
+  frequency_specs {
+    frequency: 17
+    vid_range_specs {
+      vid_range {
+        start: 20000000
+        end_exclusive: 25000000
+      }
+      non_population_field_values {
+        key: "video_ad.viewed_fraction"
+        value {
+          double_value: 0.5
+        }
+      }
+    }
+  }
+  frequency_specs {
+    frequency: 17
+    vid_range_specs {
+      vid_range {
+        start: 25000000
+        end_exclusive: 30000000
+      }
+      non_population_field_values {
+        key: "video_ad.viewed_fraction"
+        value {
+          double_value: 0.6
+        }
+      }
+    }
+  }
+  frequency_specs {
+    frequency: 17
+    vid_range_specs {
+      vid_range {
+        start: 30000000
+        end_exclusive: 35000000
+      }
+      non_population_field_values {
+        key: "video_ad.viewed_fraction"
+        value {
+          double_value: 0.7
+        }
+      }
+    }
+  }
+  frequency_specs {
+    frequency: 17
+    vid_range_specs {
+      vid_range {
+        start: 35000000
+        end_exclusive: 40000000
+      }
+      non_population_field_values {
+        key: "video_ad.viewed_fraction"
+        value {
+          double_value: 0.8
+        }
+      }
+    }
+  }
+  frequency_specs {
+    frequency: 17
+    vid_range_specs {
+      vid_range {
+        start: 40000000
+        end_exclusive: 45000000
+      }
+      non_population_field_values {
+        key: "video_ad.viewed_fraction"
+        value {
+          double_value: 0.9
+        }
+      }
+    }
+  }
+  frequency_specs {
+    frequency: 17
+    vid_range_specs {
+      vid_range {
+        start: 45000000
+        end_exclusive: 50000000
+      }
+      non_population_field_values {
+        key: "video_ad.viewed_fraction"
+        value {
+          double_value: 0.95
+        }
+      }
+    }
+  }
+  frequency_specs {
+    frequency: 17
+    vid_range_specs {
+      vid_range {
+        start: 50000000
+        end_exclusive: 55000000
+      }
+      non_population_field_values {
+        key: "video_ad.viewed_fraction"
+        value {
+          double_value: 0.97
+        }
+      }
+    }
+  }
+  frequency_specs {
+    frequency: 17
+    vid_range_specs {
+      vid_range {
+        start: 55000000
+        end_exclusive: 60000000
+      }
+      non_population_field_values {
+        key: "video_ad.viewed_fraction"
+        value {
+          double_value: 0.98
+        }
+      }
+    }
+  }
+}

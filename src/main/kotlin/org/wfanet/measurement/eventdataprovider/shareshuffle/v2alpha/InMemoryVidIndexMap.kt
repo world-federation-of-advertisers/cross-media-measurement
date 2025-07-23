@@ -17,10 +17,21 @@ package org.wfanet.measurement.eventdataprovider.shareshuffle.v2alpha
 import com.google.common.hash.Hashing
 import com.google.protobuf.ByteString
 import java.nio.ByteOrder
+import java.util.PriorityQueue
+import java.util.concurrent.atomic.AtomicLong
+import java.util.logging.Logger
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.jetbrains.annotations.VisibleForTesting
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
+import org.wfanet.measurement.api.v2alpha.PopulationSpecKt
 import org.wfanet.measurement.api.v2alpha.PopulationSpecValidator
 import org.wfanet.measurement.common.toByteString
 import org.wfanet.measurement.eventdataprovider.shareshuffle.VidIndexMapEntry
@@ -106,12 +117,17 @@ private constructor(
   }
 
   companion object {
+    private val logger = Logger.getLogger(InMemoryVidIndexMap::class.java.name)
+    
     /**
      * A salt value to ensure the output of the hash used by the VidIndexMap is different from other
      * functions that hash VIDs (e.g. the labeler). These are the first several digits of phi (the
      * golden ratio) added to the date this value was created.
      */
     private val SALT = (1_618_033L + 20_240_417L).toByteString(ByteOrder.BIG_ENDIAN)
+    
+    private const val PROGRESS_REPORT_INTERVAL_MILLIS = 5000L // Report progress every 5 seconds
+    private const val MIN_VIDS_FOR_PROGRESS_TRACKING = 10_000L // Only show progress for large populations
 
     /**
      * Create a [InMemoryVidIndexMap] given a [PopulationSpec] and a hash function
@@ -209,6 +225,293 @@ private constructor(
       val hashInput = vid.toByteString(ByteOrder.BIG_ENDIAN).concat(salt)
       return Hashing.farmHashFingerprint64().hashBytes(hashInput.toByteArray()).asLong()
     }
+
+    /**
+     * Create a [InMemoryVidIndexMap] given a [PopulationSpec] using parallelized processing
+     *
+     * This method splits all VID ranges into chunks and processes them in parallel,
+     * hashing and pre-sorting VIDs, then merges the sorted chunks efficiently.
+     * Progress is reported for large populations.
+     *
+     * @param[populationSpec] The [PopulationSpec] represented by this map
+     * @param[dispatcher] The [CoroutineDispatcher] to use for parallel processing (defaults to Dispatchers.Default)
+     * @param[parallelism] The number of parallel workers to use (defaults to available processors)
+     * @throws [PopulationSpecValidationException] if the [populationSpec] is invalid
+     */
+    @JvmStatic
+    suspend fun buildParallel(
+      populationSpec: PopulationSpec,
+      dispatcher: CoroutineDispatcher = Dispatchers.Default,
+      parallelism: Int = Runtime.getRuntime().availableProcessors(),
+    ): InMemoryVidIndexMap = coroutineScope {
+      PopulationSpecValidator.validateVidRangesList(populationSpec).getOrThrow()
+      
+      // Collect all VID ranges from all subpopulations
+      val allRanges = mutableListOf<LongRange>()
+      for (subPop in populationSpec.subpopulationsList) {
+        for (range in subPop.vidRangesList) {
+          allRanges.add(range.startVid..range.endVidInclusive)
+        }
+      }
+      
+      val totalVids = allRanges.sumOf { it.last - it.first + 1 }
+      val showProgress = totalVids >= MIN_VIDS_FOR_PROGRESS_TRACKING
+      
+      if (showProgress) {
+        logger.info("Processing $totalVids VIDs using $parallelism workers...")
+      }
+      
+      // Split ranges into chunks for parallel processing
+      val chunks = distributeRanges(allRanges, parallelism)
+      
+      // Set up progress tracking
+      val processedVids = AtomicLong(0)
+      val progressJob = if (showProgress) {
+        launch {
+          val startTime = System.currentTimeMillis()
+          while (processedVids.get() < totalVids) {
+            kotlinx.coroutines.delay(PROGRESS_REPORT_INTERVAL_MILLIS)
+            val currentProcessed = processedVids.get()
+            val elapsedTime = System.currentTimeMillis() - startTime
+            val progressPercent = (currentProcessed * 100.0 / totalVids)
+            val vidsPerSecond = if (elapsedTime > 0) currentProcessed * 1000 / elapsedTime else 0
+            
+            logger.info("Progress: ${String.format("%.1f", progressPercent)}% " +
+                       "($currentProcessed/$totalVids VIDs) - " +
+                       "${String.format("%,d", vidsPerSecond)} VIDs/sec")
+          }
+        }
+      } else null
+      
+      try {
+        // Process chunks in parallel
+        val sortedChunks = withContext(dispatcher) {
+          chunks.map { chunk ->
+            async {
+              processChunkWithProgress(chunk, ::hashVidToLongWithFarmHash, processedVids)
+            }
+          }.awaitAll()
+        }
+        
+        if (showProgress) {
+          logger.info("Hashing and sorting completed. Starting merge phase...")
+        }
+        
+        // Merge sorted chunks
+        val mergedHashes = if (showProgress) {
+          mergeSortedChunksWithProgress(sortedChunks, totalVids)
+        } else {
+          mergeSortedChunks(sortedChunks)
+        }
+        
+        if (showProgress) {
+          logger.info("Building index map from ${mergedHashes.size} sorted entries...")
+        }
+        
+        // Build the index map
+        val indexMap = hashMapOf<Long, Int>()
+        for ((index, vidAndHash) in mergedHashes.withIndex()) {
+          indexMap[vidAndHash.vid] = index
+        }
+        
+        if (showProgress) {
+          logger.info("VID index map construction completed successfully")
+        }
+        
+        InMemoryVidIndexMap(populationSpec, indexMap)
+      } finally {
+        progressJob?.cancel()
+      }
+    }
+
+    /**
+     * Distributes VID ranges across workers to balance the load
+     */
+    private fun distributeRanges(ranges: List<LongRange>, workers: Int): List<List<LongRange>> {
+      val totalVids = ranges.sumOf { it.last - it.first + 1 }
+      val vidsPerWorker = (totalVids + workers - 1) / workers
+      
+      val chunks = List(workers) { mutableListOf<LongRange>() }
+      var currentWorker = 0
+      var currentWorkerVids = 0L
+      
+      for (range in ranges) {
+        val rangeSize = range.last - range.first + 1
+        
+        // If adding this range would exceed the target size significantly, 
+        // move to next worker (unless this is the last worker)
+        if (currentWorkerVids > 0 && currentWorkerVids + rangeSize > vidsPerWorker && currentWorker < workers - 1) {
+          currentWorker++
+          currentWorkerVids = 0
+        }
+        
+        chunks[currentWorker].add(range)
+        currentWorkerVids += rangeSize
+      }
+      
+      return chunks.filter { it.isNotEmpty() }
+    }
+
+    /**
+     * Processes a chunk of VID ranges by hashing and sorting
+     */
+    private fun processChunk(
+      ranges: List<LongRange>,
+      hashFunction: (Long, ByteString) -> Long
+    ): List<VidAndHash> {
+      val hashes = mutableListOf<VidAndHash>()
+      
+      for (range in ranges) {
+        for (vid in range) {
+          hashes.add(VidAndHash(vid, hashFunction(vid, SALT)))
+        }
+      }
+      
+      hashes.sortWith(compareBy { it })
+      return hashes
+    }
+
+    /**
+     * Processes a chunk of VID ranges by hashing and sorting with progress tracking
+     */
+    private fun processChunkWithProgress(
+      ranges: List<LongRange>,
+      hashFunction: (Long, ByteString) -> Long,
+      processedVids: AtomicLong
+    ): List<VidAndHash> {
+      val hashes = mutableListOf<VidAndHash>()
+      
+      for (range in ranges) {
+        for (vid in range) {
+          hashes.add(VidAndHash(vid, hashFunction(vid, SALT)))
+          processedVids.incrementAndGet()
+        }
+      }
+      
+      hashes.sortWith(compareBy { it })
+      return hashes
+    }
+
+    /**
+     * Merges multiple sorted chunks into a single sorted list using a priority queue
+     */
+    private fun mergeSortedChunks(chunks: List<List<VidAndHash>>): List<VidAndHash> {
+      if (chunks.isEmpty()) return emptyList()
+      if (chunks.size == 1) return chunks[0]
+      
+      // Use a min-heap to efficiently merge sorted chunks
+      data class ChunkElement(val vidAndHash: VidAndHash, val chunkIndex: Int, val elementIndex: Int)
+      
+      val heap = PriorityQueue<ChunkElement>(chunks.size) { a, b ->
+        a.vidAndHash.compareTo(b.vidAndHash)
+      }
+      
+      // Initialize heap with first element from each non-empty chunk
+      val indices = IntArray(chunks.size) { 0 }
+      for ((chunkIndex, chunk) in chunks.withIndex()) {
+        if (chunk.isNotEmpty()) {
+          heap.offer(ChunkElement(chunk[0], chunkIndex, 0))
+          indices[chunkIndex] = 1
+        }
+      }
+      
+      val result = mutableListOf<VidAndHash>()
+      
+      while (heap.isNotEmpty()) {
+        val element = heap.poll()
+        result.add(element.vidAndHash)
+        
+        // Add next element from the same chunk if available
+        val nextIndex = indices[element.chunkIndex]
+        if (nextIndex < chunks[element.chunkIndex].size) {
+          heap.offer(
+            ChunkElement(
+              chunks[element.chunkIndex][nextIndex],
+              element.chunkIndex,
+              nextIndex
+            )
+          )
+          indices[element.chunkIndex] = nextIndex + 1
+        }
+      }
+      
+      return result
+    }
+
+    /**
+     * Merges multiple sorted chunks into a single sorted list using a priority queue with progress tracking
+     */
+    private suspend fun mergeSortedChunksWithProgress(
+      chunks: List<List<VidAndHash>>, 
+      totalVids: Long
+    ): List<VidAndHash> = coroutineScope {
+      if (chunks.isEmpty()) return@coroutineScope emptyList()
+      if (chunks.size == 1) return@coroutineScope chunks[0]
+      
+      logger.info("Merging ${chunks.size} sorted chunks containing $totalVids total VIDs...")
+      
+      // Use a min-heap to efficiently merge sorted chunks
+      data class ChunkElement(val vidAndHash: VidAndHash, val chunkIndex: Int, val elementIndex: Int)
+      
+      val heap = PriorityQueue<ChunkElement>(chunks.size) { a, b ->
+        a.vidAndHash.compareTo(b.vidAndHash)
+      }
+      
+      // Initialize heap with first element from each non-empty chunk
+      val indices = IntArray(chunks.size) { 0 }
+      for ((chunkIndex, chunk) in chunks.withIndex()) {
+        if (chunk.isNotEmpty()) {
+          heap.offer(ChunkElement(chunk[0], chunkIndex, 0))
+          indices[chunkIndex] = 1
+        }
+      }
+      
+      val result = mutableListOf<VidAndHash>()
+      val mergedCount = AtomicLong(0)
+      val startTime = System.currentTimeMillis()
+      
+      // Progress tracking job
+      val progressJob = launch {
+        while (mergedCount.get() < totalVids) {
+          kotlinx.coroutines.delay(PROGRESS_REPORT_INTERVAL_MILLIS)
+          val currentMerged = mergedCount.get()
+          val elapsedTime = System.currentTimeMillis() - startTime
+          val progressPercent = (currentMerged * 100.0 / totalVids)
+          val vidsPerSecond = if (elapsedTime > 0) currentMerged * 1000 / elapsedTime else 0
+          
+          logger.info("Merge Progress: ${String.format("%.1f", progressPercent)}% " +
+                     "($currentMerged/$totalVids VIDs) - " +
+                     "${String.format("%,d", vidsPerSecond)} VIDs/sec")
+        }
+      }
+      
+      try {
+        while (heap.isNotEmpty()) {
+          val element = heap.poll()
+          result.add(element.vidAndHash)
+          mergedCount.incrementAndGet()
+          
+          // Add next element from the same chunk if available
+          val nextIndex = indices[element.chunkIndex]
+          if (nextIndex < chunks[element.chunkIndex].size) {
+            heap.offer(
+              ChunkElement(
+                chunks[element.chunkIndex][nextIndex],
+                element.chunkIndex,
+                nextIndex
+              )
+            )
+            indices[element.chunkIndex] = nextIndex + 1
+          }
+        }
+        
+        logger.info("Merge phase completed successfully")
+        result
+      } finally {
+        progressJob.cancel()
+      }
+    }
+
 
     /**
      * Same as the build function above that takes a populationSpec with the addition that this

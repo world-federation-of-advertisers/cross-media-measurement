@@ -179,4 +179,108 @@ class InMemoryVidIndexMapTest {
         .isEqualTo(entry.value.index.toDouble() / vidIndexMap.size)
     }
   }
+
+  @Test
+  fun `buildParallel produces same results as sequential build`() = runBlocking {
+    // Create a population spec with multiple subpopulations and ranges
+    val testPopulationSpec = populationSpec {
+      subpopulations += subPopulation {
+        vidRanges += vidRange {
+          startVid = 1
+          endVidInclusive = 1000
+        }
+        vidRanges += vidRange {
+          startVid = 2001
+          endVidInclusive = 3000
+        }
+      }
+      subpopulations += subPopulation {
+        vidRanges += vidRange {
+          startVid = 1001
+          endVidInclusive = 2000
+        }
+      }
+      subpopulations += subPopulation {
+        vidRanges += vidRange {
+          startVid = 5001
+          endVidInclusive = 6000
+        }
+        vidRanges += vidRange {
+          startVid = 7001
+          endVidInclusive = 8000
+        }
+      }
+    }
+
+    // Build using sequential method
+    val sequentialMap = InMemoryVidIndexMap.build(testPopulationSpec)
+    
+    // Build using parallel method with different parallelism levels
+    val parallelMap2 = InMemoryVidIndexMap.buildParallel(testPopulationSpec, parallelism = 2)
+    val parallelMap4 = InMemoryVidIndexMap.buildParallel(testPopulationSpec, parallelism = 4)
+    val parallelMap8 = InMemoryVidIndexMap.buildParallel(testPopulationSpec, parallelism = 8)
+    
+    // Verify sizes are the same
+    assertThat(parallelMap2.size).isEqualTo(sequentialMap.size)
+    assertThat(parallelMap4.size).isEqualTo(sequentialMap.size)
+    assertThat(parallelMap8.size).isEqualTo(sequentialMap.size)
+    
+    // Verify all VIDs have the same indices
+    val testVids = listOf(1L, 500L, 1000L, 1001L, 1500L, 2000L, 2001L, 2500L, 3000L, 
+                          5001L, 5500L, 6000L, 7001L, 7500L, 8000L)
+    
+    for (vid in testVids) {
+      assertThat(parallelMap2[vid]).isEqualTo(sequentialMap[vid])
+      assertThat(parallelMap4[vid]).isEqualTo(sequentialMap[vid])
+      assertThat(parallelMap8[vid]).isEqualTo(sequentialMap[vid])
+    }
+  }
+
+  @Test
+  fun `buildParallel handles single VID range correctly`() = runBlocking {
+    val testPopulationSpec = populationSpec {
+      subpopulations += subPopulation {
+        vidRanges += vidRange {
+          startVid = 1
+          endVidInclusive = 100
+        }
+      }
+    }
+
+    val sequentialMap = InMemoryVidIndexMap.build(testPopulationSpec)
+    val parallelMap = InMemoryVidIndexMap.buildParallel(testPopulationSpec, parallelism = 4)
+    
+    assertThat(parallelMap.size).isEqualTo(sequentialMap.size)
+    
+    // Check all VIDs
+    for (vid in 1L..100L) {
+      assertThat(parallelMap[vid]).isEqualTo(sequentialMap[vid])
+    }
+  }
+
+  @Test
+  fun `buildParallel shows progress for large populations`() = runBlocking {
+    // Create a population spec with 50,000 VIDs (above the MIN_VIDS_FOR_PROGRESS_TRACKING threshold)
+    val testPopulationSpec = populationSpec {
+      subpopulations += subPopulation {
+        vidRanges += vidRange {
+          startVid = 1
+          endVidInclusive = 50000
+        }
+      }
+    }
+
+    // Build using parallel method - this should trigger progress logging
+    val parallelMap = InMemoryVidIndexMap.buildParallel(testPopulationSpec, parallelism = 4)
+    
+    assertThat(parallelMap.size).isEqualTo(50000)
+    
+    // Verify a few sample VIDs work correctly
+    val sampleVids = listOf(1L, 1000L, 25000L, 50000L)
+    for (vid in sampleVids) {
+      assertThat(parallelMap[vid]).isAtLeast(0)
+      assertThat(parallelMap[vid]).isLessThan(50000)
+    }
+  }
+
 }
