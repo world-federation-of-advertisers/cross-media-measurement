@@ -75,7 +75,7 @@ jobs:
     - name: Set up Java & Maven
       uses: actions/setup-java@v3
       with:
-        distribution: temurin
+        distribution: zulu
         java-version: '17'
 
     - name: Write edpa cloud function configs to files
@@ -104,7 +104,7 @@ jobs:
     - id: get-artifact-version
       uses: ./.github/actions/get-maven-artifact-version
       with:
-        package-version: ${{ inputs.package-version }}
+        package-version: ${{ inputs.image-tag }}
 
     - name: Download Uber JARs using Maven
       id: download-uber-jars

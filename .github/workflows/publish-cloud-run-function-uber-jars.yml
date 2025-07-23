@@ -21,6 +21,12 @@ on:
         description: "Maven version to assign"
         type: string
         required: true
+  workflow_dispatch:
+    inputs:
+      package-version:
+        description: "Maven version to assign"
+        type: string
+        required: true
 
 jobs:
   publish-artifacts:
@@ -35,7 +41,7 @@ jobs:
       - name: Set up Java & Maven
         uses: actions/setup-java@v3
         with:
-          distribution: temurin
+          distribution: zulu
           java-version: '17'
 
       - id: get-artifact-version
