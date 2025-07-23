@@ -73,5 +73,6 @@ jobs:
             inputs: {
               environment: 'head',
               apply: true,
+              send-slack-notification: ${{ github.event_name == 'schedule' }},
             },
           });
