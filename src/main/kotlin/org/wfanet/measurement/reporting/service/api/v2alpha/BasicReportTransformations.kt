@@ -74,10 +74,10 @@ fun buildReportingSetMetricCalculationSpecDetailsMap(
   dataProviderPrimitiveReportingSetMap: Map<String, ReportingSet>,
   resultGroupSpecs: List<ResultGroupSpec>,
 ): Map<ReportingSet, List<MetricCalculationSpec>> {
-  // This intermediate map is for reducing the number of MetricCalculationSpecs created. Without
-  // this map, MetricCalculationSpecs with everything identical except for MetricSpecs can be
-  // created. If the MetricSpecs have some overlap, that will result in some Metrics being
-  // calculated multiple times.
+  // This intermediate map is for reducing the number of MetricCalculationSpecs created for a given
+  // ReportingSet. Without this map, MetricCalculationSpecs with everything identical except for
+  // MetricSpecs can be created for a given ReportingSet. If the MetricSpecs have some overlap, that
+  // will result in some Metrics being calculated multiple times.
   val reportingSetMetricCalculationSpecInfoMap:
     Map<ReportingSet, MutableMap<MetricCalculationSpecInfoKey, MetricCalculationSpecInfo>> =
     buildMap {
