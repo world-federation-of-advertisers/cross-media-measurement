@@ -18,9 +18,6 @@ on:
   #WIP - for testing wihtout merging
   pull_request:
 
-env:
-  IMAGE_TAG
-
 jobs:
   test-notifications:
     runs-on: ubuntu-22.04
