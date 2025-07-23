@@ -41,6 +41,10 @@ import org.wfanet.measurement.reporting.v2alpha.ResultGroupMetricSpec.ReportingU
 import org.wfanet.measurement.reporting.v2alpha.ResultGroupSpec
 import org.wfanet.measurement.reporting.v2alpha.reportingSet
 
+
+/**
+ * [MetricCalculationSpec] fields for equality check
+ */
 private data class MetricCalculationSpecInfoKey(
   val filter: String,
   val groupings: List<MetricCalculationSpec.Grouping>,
@@ -48,6 +52,9 @@ private data class MetricCalculationSpecInfoKey(
   val trailingWindow: MetricCalculationSpec.TrailingWindow? = null,
 )
 
+/**
+ * [MetricCalculationSpec] fields not used for equality check
+ */
 private data class MetricCalculationSpecInfo(
   var hasFrequency: Boolean = false,
   var hasReach: Boolean = false,
@@ -72,6 +79,10 @@ fun buildReportingSetMetricCalculationSpecDetailsMap(
   dataProviderPrimitiveReportingSetMap: Map<String, ReportingSet>,
   resultGroupSpecs: List<ResultGroupSpec>,
 ): Map<ReportingSet, List<MetricCalculationSpec>> {
+  // This intermediate map is for reducing the number of MetricCalculationSpecs created. Without
+  // this map, MetricCalculationSpecs with everything identical except for MetricSpecs can be
+  // created. If the MetricSpecs have some overlap, that will result in some Metrics being
+  // calculated multiple times.
   val reportingSetMetricCalculationSpecInfoMap:
     Map<ReportingSet, MutableMap<MetricCalculationSpecInfoKey, MetricCalculationSpecInfo>> =
     buildMap {
@@ -268,6 +279,8 @@ private fun MutableMap<
   if (reportingUnitMetricSetSpec.hasNonCumulative()) {
     for (filter in filters) {
       val key = createMetricCalculationSpecInfoKey(filter, groupings, false, metricFrequencySpec)
+
+      // Insert or update entry in map belonging to ReportingSet containing ReportingUnit
       metricCalculationSpecInfoMap
         .computeIfAbsent(key) { MetricCalculationSpecInfo() }
         .updateRequestedMetricSpecs(reportingUnitMetricSetSpec.nonCumulative)
@@ -277,6 +290,8 @@ private fun MutableMap<
   if (reportingUnitMetricSetSpec.hasCumulative()) {
     for (filter in filters) {
       val key = createMetricCalculationSpecInfoKey(filter, groupings, true, metricFrequencySpec)
+
+      // Insert or update entry in map belonging to ReportingSet containing ReportingUnit
       metricCalculationSpecInfoMap
         .computeIfAbsent(key) { MetricCalculationSpecInfo() }
         .updateRequestedMetricSpecs(reportingUnitMetricSetSpec.cumulative)
