@@ -121,7 +121,6 @@ resource "google_compute_instance_template" "confidential_vm_template" {
           - name: ssl-secrets
             mountPath: /etc/ssl
             readOnly: true
-        volumeMounts:
           - name: proto-descriptors
             mountPath: /var/tmp
             readOnly: true
@@ -132,9 +131,9 @@ resource "google_compute_instance_template" "confidential_vm_template" {
           path: /etc/ssl
           type: DirectoryOrCreate
       - name: proto-descriptors
-          hostPath:
-            path: /var/tmp
-            type: DirectoryOrCreate
+        hostPath:
+          path: /var/tmp
+          type: DirectoryOrCreate
   EOT
       }
     )
