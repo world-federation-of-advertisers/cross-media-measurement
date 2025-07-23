@@ -14,8 +14,10 @@
 
 package org.wfanet.measurement.duchy.mill.trustee.crypto
 
+import com.google.privacy.differentialprivacy.GaussianNoise
 import kotlin.math.min
 import kotlin.properties.Delegates
+import org.wfanet.measurement.api.v2alpha.DifferentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.duchy.utils.ComputationResult
 import org.wfanet.measurement.duchy.utils.ReachAndFrequencyResult
@@ -35,16 +37,20 @@ class TrusTeeCryptorImpl(override val measurementSpec: MeasurementSpec) : TrusTe
   private var maxFrequency by Delegates.notNull<Int>()
 
   init {
-    require(
-      measurementSpec.hasReachAndFrequency() || measurementSpec.hasReach()
-    ) { "TrusTEE only supports Reach and Reach & Frequency measurements" }
+    require(measurementSpec.hasReachAndFrequency() || measurementSpec.hasReach()) {
+      "TrusTEE only supports Reach and Reach & Frequency measurements"
+    }
 
     maxFrequency =
       if (measurementSpec.hasReachAndFrequency()) measurementSpec.reachAndFrequency.maximumFrequency
       else 1
+
+    require(maxFrequency >= 1) { "Invalid max frequency: $maxFrequency" }
   }
 
   override fun addFrequencyVector(vector: IntArray) {
+    require(vector.isNotEmpty()) { "Input frequency vector cannot be empty." }
+
     if (aggregatedFrequencyVector == null) {
       aggregatedFrequencyVector = IntArray(vector.size)
     }
@@ -64,57 +70,110 @@ class TrusTeeCryptorImpl(override val measurementSpec: MeasurementSpec) : TrusTe
       aggregatedFrequencyVector
         ?: throw IllegalStateException("addFrequencyVector must be called before computeResult.")
 
+    val rawHistogram = buildHistogram(frequencyVector)
+
     return when {
-      measurementSpec.hasReachAndFrequency() -> computeReachAndFrequency(frequencyVector)
-      measurementSpec.hasReach() -> computeReach(frequencyVector)
+      measurementSpec.hasReachAndFrequency() -> {
+        val reachAndFrequencyParams = measurementSpec.reachAndFrequency
+
+        val reachDpParams =
+          if (reachAndFrequencyParams.hasReachPrivacyParams()) {
+            reachAndFrequencyParams.reachPrivacyParams
+          } else {
+            null
+          }
+
+        val freqDpParams =
+          if (reachAndFrequencyParams.hasFrequencyPrivacyParams()) {
+            reachAndFrequencyParams.frequencyPrivacyParams
+          } else {
+            null
+          }
+
+        val reach = computeReach(rawHistogram, reachDpParams)
+        val frequency = computeFrequencyDistribution(rawHistogram, freqDpParams)
+
+        ReachAndFrequencyResult(
+          reach = reach,
+          frequency = frequency,
+          methodology = TrusTeeMethodology(frequencyVector.size.toLong()),
+        )
+      }
+      measurementSpec.hasReach() -> {
+        val reachParams = measurementSpec.reach
+        val reachDpParams = if (reachParams.hasPrivacyParams()) reachParams.privacyParams else null
+
+        val reach = computeReach(rawHistogram, reachDpParams)
+
+        ReachResult(reach = reach, methodology = TrusTeeMethodology(frequencyVector.size.toLong()))
+      }
       else -> error("Unsupported measurement spec type")
     }
   }
 
-  /** Computes a reach-and-frequency result from the aggregated data. */
-  private fun computeReachAndFrequency(frequencyVector: IntArray): ComputationResult {
-    val frequencyCounts = LongArray(maxFrequency + 1)
-    var reach = 0L
-
-    for (userFrequency in frequencyVector) {
-      if (userFrequency == 0) {
-        continue
-      }
-      reach++
-      // The userFrequency is already capped, so no min() is needed here.
-      frequencyCounts[userFrequency]++
+  /**
+   * Computes the reach, applying differential privacy noise if specified.
+   *
+   * @param rawHistogram The raw, non-DP histogram of frequencies.
+   * @param dpParams The privacy parameters for the reach computation. If null, the raw reach is
+   *   returned.
+   * @return The reach value, potentially with noise.
+   */
+  private fun computeReach(rawHistogram: LongArray, dpParams: DifferentialPrivacyParams?): Long {
+    val rawReach = rawHistogram.sum() - rawHistogram[0]
+    if (dpParams == null) {
+      return rawReach
     }
 
-    if (reach == 0L) {
-      error("Empty input data")
-    }
+    val noise = GaussianNoise()
+    val noisedReach = noise.addNoise(rawReach, 1, 1L, dpParams.epsilon, dpParams.delta)
 
-    val frequencyDistribution =
-      frequencyCounts
-        .mapIndexed { frequency, count ->
-          // The value is now the ratio of (count for this frequency) / (total reach).
-          frequency.toLong() to count.toDouble() / reach
-        }
-        // We only include frequencies that were actually observed.
-        .filter { (_, ratio) -> ratio > 0.0 }
-        .toMap()
-
-    return ReachAndFrequencyResult(
-      reach = reach,
-      frequency = frequencyDistribution,
-      methodology = TrusTeeMethodology(frequencyVector.size.toLong()),
-    )
+    return if (noisedReach < 0) 0L else noisedReach
   }
 
-  /** Computes a reach-only result from the aggregated data. */
-  private fun computeReach(frequencyVector: IntArray): ComputationResult {
-    // Since addFrequencyVector caps values at 1 for Reach measurements, the final vector
-    // will only contain 0s and 1s. The count of non-zero elements is the reach.
-    val reach = frequencyVector.count { it > 0 }.toLong()
-    return ReachResult(
-      reach = reach,
-      methodology = TrusTeeMethodology(frequencyVector.size.toLong()),
-    )
+  /**
+   * Computes the frequency distribution, applying differential privacy noise if specified.
+   *
+   * @param rawHistogram The raw, non-DP histogram of frequencies.
+   * @param dpParams The privacy parameters for the frequency computation. If null, the raw
+   *   distribution is returned.
+   * @return A map representing the frequency distribution, potentially with noise.
+   */
+  private fun computeFrequencyDistribution(
+    rawHistogram: LongArray,
+    dpParams: DifferentialPrivacyParams?,
+  ): Map<Long, Double> {
+    if (dpParams == null) {
+      val totalUsers = rawHistogram.sum()
+      if (totalUsers == 0L) return emptyMap()
+      return rawHistogram.withIndex().associate { (freq, count) ->
+        freq.toLong() to count.toDouble() / totalUsers
+      }
+    }
+
+    val noise = GaussianNoise()
+    val noisedHistogram =
+      rawHistogram.map {
+        val noisedValue = noise.addNoise(it, 1, 1L, dpParams.epsilon, dpParams.delta)
+        if (noisedValue < 0) 0L else noisedValue
+      }
+
+    val totalNoisedCount = noisedHistogram.sum()
+    if (totalNoisedCount == 0L) {
+      return emptyMap()
+    }
+
+    return noisedHistogram.withIndex().associate { (freq, count) ->
+      freq.toLong() to count.toDouble() / totalNoisedCount
+    }
+  }
+
+  private fun buildHistogram(frequencyVector: IntArray): LongArray {
+    val histogram = LongArray(maxFrequency + 1)
+    for (userFrequency in frequencyVector) {
+      histogram[userFrequency]++
+    }
+    return histogram
   }
 
   companion object Factory : TrusTeeCryptor.Factory {
