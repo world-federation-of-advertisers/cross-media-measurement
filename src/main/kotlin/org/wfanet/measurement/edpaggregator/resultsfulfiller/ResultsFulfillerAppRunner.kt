@@ -201,7 +201,8 @@ class ResultsFulfillerAppRunner : Runnable {
   ): List<DescriptorProtos.FileDescriptorSet> {
     return files.map { file ->
       file.inputStream().use { input ->
-        DescriptorProtos.FileDescriptorSet.parseFrom(input, EXTENSION_REGISTRY)
+//        DescriptorProtos.FileDescriptorSet.parseFrom(input, EXTENSION_REGISTRY)
+        DescriptorProtos.FileDescriptorSet.parseFrom(input)
       }
     }
   }
@@ -242,10 +243,10 @@ class ResultsFulfillerAppRunner : Runnable {
       (ProtoReflection.WELL_KNOWN_TYPES.asSequence() + ResultsFulfillerParams.getDescriptor().file)
         .asIterable()
 
-    private val EXTENSION_REGISTRY =
-      ExtensionRegistry.newInstance()
-        .also { EventAnnotationsProto.registerAllExtensions(it) }
-        .unmodifiable
+//    private val EXTENSION_REGISTRY =
+//      ExtensionRegistry.newInstance()
+//        .also { EventAnnotationsProto.registerAllExtensions(it) }
+//        .unmodifiable
 
     private val logger = Logger.getLogger(this::class.java.name)
 
