@@ -89,7 +89,7 @@ resource "google_compute_instance_template" "confidential_vm_template" {
             gcloud secrets versions access ${s.version} \
               --secret=${s.secret_id} \
               --project=${data.google_project.project.name} \
-          > ${s.mount_path}
+              --out-file=${s.mount_path}
           chmod 644 ${s.mount_path}
           %{ endfor }
           EOT
