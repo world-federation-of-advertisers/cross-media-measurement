@@ -1039,6 +1039,159 @@ class BasicReportTransformationsTest {
   }
 
   @Test
+  fun `duplicate resultGroupSpecs does not duplicate the entries in the map`() {
+    val impressionQualificationSpecsFilters = listOf("filter")
+    val dataProviderPrimitiveReportingSetMap = buildMap {
+      put(DATA_PROVIDER_NAME_1, PRIMITIVE_REPORTING_SET_1)
+      put(DATA_PROVIDER_NAME_2, PRIMITIVE_REPORTING_SET_2)
+    }
+    val resultGroupSpecs =
+      listOf(
+        resultGroupSpec {
+          reportingUnit = reportingUnit {
+            components += DATA_PROVIDER_NAME_1
+            components += DATA_PROVIDER_NAME_2
+          }
+          metricFrequency = metricFrequencySpec { weekly = DayOfWeek.WEDNESDAY }
+          dimensionSpec = dimensionSpec {
+            grouping = DimensionSpecKt.grouping { eventTemplateFields += "common.gender" }
+            filters += eventFilter {
+              terms += eventTemplateField {
+                path = "common.age_group"
+                value = EventTemplateFieldKt.fieldValue { enumValue = "18_TO_35" }
+              }
+            }
+            filters += eventFilter {
+              terms += eventTemplateField {
+                path = "common.gender"
+                value = EventTemplateFieldKt.fieldValue { enumValue = "MALE" }
+              }
+            }
+          }
+          resultGroupMetricSpec = resultGroupMetricSpec {
+            reportingUnit =
+              ResultGroupMetricSpecKt.reportingUnitMetricSetSpec {
+                nonCumulative =
+                  ResultGroupMetricSpecKt.basicMetricSetSpec {
+                    averageFrequency = true
+                    impressions = true
+                  }
+                cumulative =
+                  ResultGroupMetricSpecKt.basicMetricSetSpec {
+                    averageFrequency = true
+                    impressions = true
+                  }
+              }
+          }
+        }
+      )
+
+    val reportingSetMetricCalculationSpecDetailsMap =
+      buildReportingSetMetricCalculationSpecDetailsMap(
+        campaignGroupName = CAMPAIGN_GROUP_NAME,
+        impressionQualificationFilterSpecsFilters = impressionQualificationSpecsFilters,
+        dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
+        resultGroupSpecs = resultGroupSpecs,
+      )
+
+    assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(1)
+
+    assertThat(reportingSetMetricCalculationSpecDetailsMap)
+      .containsEntry(
+        reportingSet {
+          campaignGroup = CAMPAIGN_GROUP_NAME
+          composite =
+            ReportingSetKt.composite {
+              expression =
+                ReportingSetKt.setExpression {
+                  operation = ReportingSet.SetExpression.Operation.UNION
+                  lhs =
+                    ReportingSetKt.SetExpressionKt.operand {
+                      reportingSet = PRIMITIVE_REPORTING_SET_NAME_2
+                    }
+                  rhs =
+                    ReportingSetKt.SetExpressionKt.operand {
+                      expression =
+                        ReportingSetKt.setExpression {
+                          operation = ReportingSet.SetExpression.Operation.UNION
+                          lhs =
+                            ReportingSetKt.SetExpressionKt.operand {
+                              reportingSet = PRIMITIVE_REPORTING_SET_NAME_1
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        buildList {
+          add(
+            metricCalculationSpec {
+              cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
+              details =
+                MetricCalculationSpecKt.details {
+                  filter = "filter && (common.age_group == 18_TO_35 && common.gender == MALE)"
+                  metricFrequencySpec =
+                    MetricCalculationSpecKt.metricFrequencySpec {
+                      weekly =
+                        MetricCalculationSpecKt.MetricFrequencySpecKt.weekly {
+                          dayOfWeek = DayOfWeek.WEDNESDAY
+                        }
+                    }
+                  trailingWindow =
+                    MetricCalculationSpecKt.trailingWindow {
+                      count = 1
+                      increment = MetricCalculationSpec.TrailingWindow.Increment.WEEK
+                    }
+                  metricSpecs += metricSpec {
+                    reachAndFrequency = MetricSpecKt.reachAndFrequencyParams {}
+                  }
+                  metricSpecs += metricSpec {
+                    impressionCount = MetricSpecKt.impressionCountParams {}
+                  }
+                }
+            }
+          )
+
+          add(
+            metricCalculationSpec {
+              cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
+              details =
+                MetricCalculationSpecKt.details {
+                  filter = "filter && (common.age_group == 18_TO_35 && common.gender == MALE)"
+                  metricFrequencySpec =
+                    MetricCalculationSpecKt.metricFrequencySpec {
+                      weekly =
+                        MetricCalculationSpecKt.MetricFrequencySpecKt.weekly {
+                          dayOfWeek = DayOfWeek.WEDNESDAY
+                        }
+                    }
+                  metricSpecs += metricSpec {
+                    reachAndFrequency = MetricSpecKt.reachAndFrequencyParams {}
+                  }
+                  metricSpecs += metricSpec {
+                    impressionCount = MetricSpecKt.impressionCountParams {}
+                  }
+                }
+            }
+          )
+        },
+      )
+
+    val resultGroupSpecsWithDuplicates = resultGroupSpecs + resultGroupSpecs
+    val secondReportingSetMetricCalculationSpecDetailsMap =
+      buildReportingSetMetricCalculationSpecDetailsMap(
+        campaignGroupName = CAMPAIGN_GROUP_NAME,
+        impressionQualificationFilterSpecsFilters = impressionQualificationSpecsFilters,
+        dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
+        resultGroupSpecs = resultGroupSpecsWithDuplicates,
+      )
+
+    assertThat(reportingSetMetricCalculationSpecDetailsMap).isEqualTo(
+      secondReportingSetMetricCalculationSpecDetailsMap
+    )
+  }
+
+  @Test
   fun `grps transforms into impressionCount MetricSpec`() {
     val impressionQualificationSpecsFilters = listOf("filter")
     val dataProviderPrimitiveReportingSetMap = buildMap {
