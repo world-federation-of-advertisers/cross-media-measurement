@@ -83,8 +83,10 @@ resource "google_compute_instance_template" "confidential_vm_template" {
           #!/bin/bash
           set -euo pipefail
           %{ for s in var.secrets_to_mount }
-          mkdir -p $(dirname "${s.mount_path}")
+          host_dir="$(dirname "${s.mount_path}")"
+          mkdir -p "$host_dir"
           docker run --rm \
+            -v "$host_dir":"$host_dir" \
             gcr.io/google.com/cloudsdktool/cloud-sdk:slim \
             gcloud secrets versions access ${s.version} \
               --secret=${s.secret_id} \
