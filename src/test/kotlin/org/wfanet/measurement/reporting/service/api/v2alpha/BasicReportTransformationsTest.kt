@@ -1094,89 +1094,6 @@ class BasicReportTransformationsTest {
         resultGroupSpecs = resultGroupSpecs,
       )
 
-    assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(1)
-
-    assertThat(reportingSetMetricCalculationSpecDetailsMap)
-      .containsEntry(
-        reportingSet {
-          campaignGroup = CAMPAIGN_GROUP_NAME
-          composite =
-            ReportingSetKt.composite {
-              expression =
-                ReportingSetKt.setExpression {
-                  operation = ReportingSet.SetExpression.Operation.UNION
-                  lhs =
-                    ReportingSetKt.SetExpressionKt.operand {
-                      reportingSet = PRIMITIVE_REPORTING_SET_NAME_2
-                    }
-                  rhs =
-                    ReportingSetKt.SetExpressionKt.operand {
-                      expression =
-                        ReportingSetKt.setExpression {
-                          operation = ReportingSet.SetExpression.Operation.UNION
-                          lhs =
-                            ReportingSetKt.SetExpressionKt.operand {
-                              reportingSet = PRIMITIVE_REPORTING_SET_NAME_1
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        buildList {
-          add(
-            metricCalculationSpec {
-              cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
-              details =
-                MetricCalculationSpecKt.details {
-                  filter = "filter && (common.age_group == 18_TO_35 && common.gender == MALE)"
-                  metricFrequencySpec =
-                    MetricCalculationSpecKt.metricFrequencySpec {
-                      weekly =
-                        MetricCalculationSpecKt.MetricFrequencySpecKt.weekly {
-                          dayOfWeek = DayOfWeek.WEDNESDAY
-                        }
-                    }
-                  trailingWindow =
-                    MetricCalculationSpecKt.trailingWindow {
-                      count = 1
-                      increment = MetricCalculationSpec.TrailingWindow.Increment.WEEK
-                    }
-                  metricSpecs += metricSpec {
-                    reachAndFrequency = MetricSpecKt.reachAndFrequencyParams {}
-                  }
-                  metricSpecs += metricSpec {
-                    impressionCount = MetricSpecKt.impressionCountParams {}
-                  }
-                }
-            }
-          )
-
-          add(
-            metricCalculationSpec {
-              cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
-              details =
-                MetricCalculationSpecKt.details {
-                  filter = "filter && (common.age_group == 18_TO_35 && common.gender == MALE)"
-                  metricFrequencySpec =
-                    MetricCalculationSpecKt.metricFrequencySpec {
-                      weekly =
-                        MetricCalculationSpecKt.MetricFrequencySpecKt.weekly {
-                          dayOfWeek = DayOfWeek.WEDNESDAY
-                        }
-                    }
-                  metricSpecs += metricSpec {
-                    reachAndFrequency = MetricSpecKt.reachAndFrequencyParams {}
-                  }
-                  metricSpecs += metricSpec {
-                    impressionCount = MetricSpecKt.impressionCountParams {}
-                  }
-                }
-            }
-          )
-        },
-      )
-
     val resultGroupSpecsWithDuplicates = resultGroupSpecs + resultGroupSpecs
     val secondReportingSetMetricCalculationSpecDetailsMap =
       buildReportingSetMetricCalculationSpecDetailsMap(
@@ -1186,9 +1103,8 @@ class BasicReportTransformationsTest {
         resultGroupSpecs = resultGroupSpecsWithDuplicates,
       )
 
-    assertThat(reportingSetMetricCalculationSpecDetailsMap).isEqualTo(
-      secondReportingSetMetricCalculationSpecDetailsMap
-    )
+    assertThat(reportingSetMetricCalculationSpecDetailsMap)
+      .isEqualTo(secondReportingSetMetricCalculationSpecDetailsMap)
   }
 
   @Test

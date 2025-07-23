@@ -123,7 +123,8 @@ fun buildReportingSetMetricCalculationSpecDetailsMap(
  *
  * @param cmmsMeasurementConsumerId For setting the cmmsMeasurementConsumerId
  */
-private fun MutableMap.MutableEntry<MetricCalculationSpecInfoKey, MetricCalculationSpecInfo>.toMetricCalculationSpec(cmmsMeasurementConsumerId: String): MetricCalculationSpec {
+private fun MutableMap.MutableEntry<MetricCalculationSpecInfoKey, MetricCalculationSpecInfo>
+  .toMetricCalculationSpec(cmmsMeasurementConsumerId: String): MetricCalculationSpec {
   val source = this
   return metricCalculationSpec {
     this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
@@ -140,39 +141,31 @@ private fun MutableMap.MutableEntry<MetricCalculationSpecInfoKey, MetricCalculat
 
         // TODO(tristanvuong2021): Add privacy params
         if (source.value.hasFrequency) {
-          metricSpecs += metricSpec {
-            reachAndFrequency = MetricSpecKt.reachAndFrequencyParams {}
-          }
+          metricSpecs += metricSpec { reachAndFrequency = MetricSpecKt.reachAndFrequencyParams {} }
         } else if (source.value.hasReach) {
           metricSpecs += metricSpec { reach = MetricSpecKt.reachParams {} }
         }
 
         if (source.value.hasImpressionCount) {
-          metricSpecs += metricSpec {
-            impressionCount = MetricSpecKt.impressionCountParams {}
-          }
+          metricSpecs += metricSpec { impressionCount = MetricSpecKt.impressionCountParams {} }
         }
       }
   }
 }
 
-
 /**
- *  Creates a List of CEL strings
+ * Creates a List of CEL strings
  *
- *  @param impressionQualificationFilterSpecsFilters List of CEL strings created from [ReportingImpressionQualificationFilter]s
- *  @param dimensionSpecFilters List of [EventFilter]s from [DimensionSpec]
+ * @param impressionQualificationFilterSpecsFilters List of CEL strings created from
+ *   [ReportingImpressionQualificationFilter]s
+ * @param dimensionSpecFilters List of [EventFilter]s from [DimensionSpec]
  */
 private fun createMetricCalculationSpecFilters(
   impressionQualificationFilterSpecsFilters: List<String>,
   dimensionSpecFilters: List<EventFilter>,
 ): List<String> {
   val dimensionSpecFilter =
-    dimensionSpecFilters.joinToString(
-      prefix = "(",
-      postfix = ")",
-      separator = " && ",
-    ) {
+    dimensionSpecFilters.joinToString(prefix = "(", postfix = ")", separator = " && ") {
       val term = it.termsList.first()
       val termValue =
         @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
@@ -194,11 +187,11 @@ private fun createMetricCalculationSpecFilters(
   }
 }
 
-
 /**
  * Transforms each field of the [ResultGroupMetricSpec] in the [ResultGroupSpec]
  *
- * @param primitiveReportingSets List of Primitive [ReportingSet]s in order of [ReportingUnit] components
+ * @param primitiveReportingSets List of Primitive [ReportingSet]s in order of [ReportingUnit]
+ *   components
  * @param campaignGroupName Resource name of the CampaignGrouop [ReportingSet]
  * @param primitiveReportingSetNames Resource names of the Primitive [ReportingSet]s
  * @param resultGroupSpec [ResultGroupSpec] to transform
@@ -208,7 +201,7 @@ private fun createMetricCalculationSpecFilters(
 private fun MutableMap<
   ReportingSet,
   MutableMap<MetricCalculationSpecInfoKey, MetricCalculationSpecInfo>,
-  >
+>
   .computeResultGroupSpecTransformation(
   primitiveReportingSets: List<ReportingSet>,
   campaignGroupName: String,
@@ -270,8 +263,7 @@ private fun MutableMap<
   primitiveReportingSetNames: List<String>,
   campaignGroupName: String,
 ) {
-  val metricCalculationSpecInfoMap =
-    computeIfAbsent(reportingUnitReportingSet) { mutableMapOf() }
+  val metricCalculationSpecInfoMap = computeIfAbsent(reportingUnitReportingSet) { mutableMapOf() }
 
   if (reportingUnitMetricSetSpec.hasNonCumulative()) {
     for (filter in filters) {
@@ -296,12 +288,7 @@ private fun MutableMap<
   // Then the second ReportingSet including the first two components, and so on.
   if (reportingUnitMetricSetSpec.stackedIncrementalReach) {
     // First ReportingSet
-    val firstMetricCalculationSpecInfoMap =
-      computeIfAbsent(
-        firstReportingSet
-      ) {
-        mutableMapOf()
-      }
+    val firstMetricCalculationSpecInfoMap = computeIfAbsent(firstReportingSet) { mutableMapOf() }
 
     for (filter in filters) {
       val firstKey =
@@ -325,8 +312,7 @@ private fun MutableMap<
           computeIfAbsent(partialReportingUnitCompositeReportingSet) { mutableMapOf() }
 
         for (filter in filters) {
-          val key =
-            createMetricCalculationSpecInfoKey(filter, groupings, true, metricFrequencySpec)
+          val key = createMetricCalculationSpecInfoKey(filter, groupings, true, metricFrequencySpec)
 
           // Insert or update entry in map belonging to subsequent ReportingSets
           partialMetricCalculationSpecInfoMap
@@ -453,8 +439,7 @@ private fun MutableMap<
       }
     } else {
       for (primitiveReportingSet in primitiveReportingSets) {
-        val metricCalculationSpecInfoMap =
-          computeIfAbsent(primitiveReportingSet) { mutableMapOf() }
+        val metricCalculationSpecInfoMap = computeIfAbsent(primitiveReportingSet) { mutableMapOf() }
 
         if (componentMetricSetSpec.hasNonCumulativeUnique()) {
           for (filter in filters) {
