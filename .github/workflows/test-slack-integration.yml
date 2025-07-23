@@ -22,6 +22,9 @@ jobs:
   test-notifications:
     runs-on: ubuntu-22.04
     steps:
+      - name: Check out revision
+        uses: actions/checkout@v4
+
       - id: dummy-compute-tag
         name: dummy create tag
         run: echo "tag=nightly/20250722.1" >> "$GITHUB_OUTPUT"
@@ -37,35 +40,11 @@ jobs:
             });
             core.setOutput("latest_release_tag", release.tag_name);
 
-      - name: Post text to a Slack channel
-        uses: slackapi/slack-github-action@v2.1.1
+      - name: Post message to Slack channel
+        uses: ./.github/actions/send-nightly-build-notification
         with:
-          errors: false #avoid failing the job if the step fails
-          method: chat.postMessage
-          token: ${{ secrets.SLACK_BOT_TOKEN }}
-          payload: |
-            channel: ${{ secrets.SLACK_HOUSEKEEPING_CHANNEL }}
-            text: "Started nightly build deployment:"
-            blocks: [
-              {
-                "type": "section",
-                "fields": [
-                  {
-                    "type": "mrkdwn",
-                    "text": "*Deploy:* <https://github.com/world-federation-of-advertisers/cross-media-measurement/actions/runs/${{github.run_id}}|${{github.workflow}} #${{github.run_number}}>"
-                  },
-                  {
-                    "type": "mrkdwn",
-                    "text": "*Author:* ${{github.triggering_actor}}"
-                  },
-                  {
-                    "type": "mrkdwn",
-                    "text": "*Tag:* <https://github.com/world-federation-of-advertisers/cross-media-measurement/tree/refs/tags/${{ steps.dummy-compute-tag.outputs.tag }}|${{ steps.dummy-compute-tag.outputs.tag }}>"
-                  },
-                  {
-                    "type": "mrkdwn",
-                    "text": "*Diff:* <https://github.com/world-federation-of-advertisers/cross-media-measurement/compare/${{ steps.get-release.outputs.latest_release_tag }}...${{ steps.dummy-compute-tag.outputs.tag }}||${{ steps.get-release.outputs.latest_release_tag }}...${{ steps.dummy-compute-tag.outputs.tag }}>"
-                  }
-                ]
-              }
-            ]
+          slack_bot_token: ${{ secrets.SLACK_BOT_TOKEN }}
+          housekeeping_channel_id: ${{ secrets.SLACK_HOUSEKEEPING_CHANNEL }}
+          title: "Started nightly build deployment V2"
+          nightly_build_tag: ${{ steps.dummy-compute-tag.outputs.tag }}
+          latest_release_tag: ${{ steps.get-release.outputs.latest_release_tag }}
