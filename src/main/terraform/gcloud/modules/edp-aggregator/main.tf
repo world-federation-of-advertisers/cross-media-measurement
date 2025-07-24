@@ -258,6 +258,8 @@ resource "google_kms_crypto_key" "edp_aggregator_kek" {
 module "result_fulfiller_tee_app" {
   source   = "../mig"
 
+  depends_on = [module.secrets]
+
   instance_template_name        = var.requisition_fulfiller_config.worker.instance_template_name
   base_instance_name            = var.requisition_fulfiller_config.worker.base_instance_name
   managed_instance_group_name   = var.requisition_fulfiller_config.worker.managed_instance_group_name
