@@ -40,11 +40,49 @@ jobs:
             });
             core.setOutput("latest_release_tag", release.tag_name);
 
-      - name: Post message to Slack channel
+      - name: Post deployment start message to Slack channel
         uses: ./.github/actions/send-nightly-build-notification
         with:
           slack_bot_token: ${{ secrets.SLACK_BOT_TOKEN }}
           housekeeping_channel_id: ${{ secrets.SLACK_HOUSEKEEPING_CHANNEL }}
-          title: "Started nightly build deployment V2"
+          title: "Started nightly build deployment"
           nightly_build_tag: ${{ steps.dummy-compute-tag.outputs.tag }}
           latest_release_tag: ${{ steps.get-release.outputs.latest_release_tag }}
+
+      - name: Sleep
+        shell: bash
+        run: sleep 5
+
+      - name: Post message to a Slack channel
+        uses: slackapi/slack-github-action@v2.1.1
+        with:
+          errors: false #avoid failing the job if the step fails
+          method: chat.postMessage
+          token: ${{ secrets.SLACK_BOT_TOKEN }}
+          payload: |
+            channel: ${{ secrets.SLACK_HOUSEKEEPING_CHANNEL }}
+            text: ":white_check_mark: Successfully deployed nightly build: <https://github.com/world-federation-of-advertisers/cross-media-measurement/actions/runs/${{github.run_id}}|${{github.workflow}} #${{github.run_number}}> for tag *${{ steps.dummy-compute-tag.outputs.tag }}*"
+
+      - name: Sleep
+        shell: bash
+        run: sleep 5
+
+      - name: Force a failure (for testing)
+        run: |
+          echo "This step is going to fail on purpose"
+          exit 1        
+
+      - name: Dummy step that should be skipped when the previous one fails (for testing)
+        run: |
+          echo "Dummy step"
+
+      - name: Post message to a Slack channel
+        if: ${{ failure() }}
+        uses: slackapi/slack-github-action@v2.1.1
+        with:
+          errors: false #avoid failing the job if the step fails
+          method: chat.postMessage
+          token: ${{ secrets.SLACK_BOT_TOKEN }}
+          payload: |
+            channel: ${{ secrets.SLACK_HOUSEKEEPING_CHANNEL }}
+            text: ":x: Nightly build deployment failed: <https://github.com/world-federation-of-advertisers/cross-media-measurement/actions/runs/${{github.run_id}}|${{github.workflow}} #${{github.run_number}}> for tag *${{ steps.dummy-compute-tag.outputs.tag }}*"

@@ -68,7 +68,7 @@ runs:
                 },
                 {
                   "type": "mrkdwn",
-                  "text": "*Diff:* <https://github.com/world-federation-of-advertisers/cross-media-measurement/compare/${{ inputs.latest_release_tag }}...${{ inputs.nightly_build_tag }}|${{ inputs.latest_release_tag }}...${{ inputs.nightly_build_tag }}>"
+                  "text": "*Diff with latest release:* <https://github.com/world-federation-of-advertisers/cross-media-measurement/compare/${{ inputs.latest_release_tag }}...${{ inputs.nightly_build_tag }}|${{ inputs.latest_release_tag }}...${{ inputs.nightly_build_tag }}>"
                 }
               ]
             }
