@@ -15,6 +15,9 @@
 name: Build and push uber jar to Github packages
 
 on:
+  push:
+    branches:
+      - marcopremier/edpa_cloud_test_2
   workflow_call:
     inputs:
       package-version:
@@ -47,15 +50,16 @@ jobs:
       - id: get-artifact-version
         uses: ./.github/actions/get-maven-artifact-version
         with:
-          package-version: ${{ inputs.package-version }}
-
+#          package-version: ${{ inputs.package-version }}
+          package-version: "d048cee2de4951689e01acb193024df3c59bc668"
       - name: Build and Deploy Data Watcher
         env:
           MAVEN_USERNAME: ${{ github.actor }}
           MAVEN_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
         uses: ./.github/actions/build-and-push-uber-jar
         with:
-          package-version: ${{ steps.get-artifact-version.outputs.artifact-version }}
+#          package-version: ${{ steps.get-artifact-version.outputs.artifact-version }}
+          package-version: "d048cee2de4951689e01acb193024df3c59bc668"
           artifact-id: data-watcher
           artifact-group-id: org.wfanet.measurement.securecomputation.deploy.gcloud.datawatcher
           bazel_target_label: //src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/datawatcher:DataWatcherFunction_deploy.jar
