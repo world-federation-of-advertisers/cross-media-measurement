@@ -58,8 +58,7 @@ jobs:
           MAVEN_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
         uses: ./.github/actions/build-and-push-uber-jar
         with:
-#          package-version: ${{ steps.get-artifact-version.outputs.artifact-version }}
-          package-version: "d048cee2de4951689e01acb193024df3c59bc668"
+          package-version: ${{ steps.get-artifact-version.outputs.artifact-version }}
           artifact-id: data-watcher
           artifact-group-id: org.wfanet.measurement.securecomputation.deploy.gcloud.datawatcher
           bazel_target_label: //src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/datawatcher:DataWatcherFunction_deploy.jar
