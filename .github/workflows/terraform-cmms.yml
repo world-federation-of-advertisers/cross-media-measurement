@@ -110,7 +110,7 @@ jobs:
       id: download-uber-jars
       env:
 #        IMAGE_TAG: ${{ steps.get-artifact-version.outputs.artifact-version }}
-        IMAGE_TAG: "d048cee2de4951689e01acb193024df3c59bc668"
+        IMAGE_TAG: "0.0.0-d048cee2de4951689e01acb193024df3c59bc668-SNAPSHOT"
       run: |
         set -euo pipefail
         TEMP_DIR="${RUNNER_TEMP}/uber-jars"
