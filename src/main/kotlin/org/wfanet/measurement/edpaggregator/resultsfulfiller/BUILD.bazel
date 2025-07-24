@@ -11,6 +11,23 @@ package(
 )
 
 kt_jvm_library(
+    name = "pipeline_orchestrator",
+    srcs = ["PipelineOrchestrator.kt"],
+    deps = [
+        ":frequency_vector",
+        ":labeled_event",
+        ":filter_spec",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller/fulfillers:direct_measurement_fulfiller",
+        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/shareshuffle/v2alpha:shareshuffle",
+        "//src/main/proto/wfa/measurement/api/v2alpha:requisitions_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:data_provider_kt_jvm_proto",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/tink",
+        "@wfa_consent_signaling_client//src/main/kotlin/org/wfanet/measurement/consent/client/dataprovider",
+    ],
+)
+
+kt_jvm_library(
     name = "results_fulfiller",
     srcs = ["ResultsFulfiller.kt"],
     deps = [
