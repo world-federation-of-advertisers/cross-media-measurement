@@ -27,6 +27,7 @@ import org.wfanet.measurement.duchy.db.computation.ComputationStatMetric
 import org.wfanet.measurement.duchy.db.computation.ComputationsDatabase
 import org.wfanet.measurement.duchy.db.computation.EndComputationReason
 import org.wfanet.measurement.duchy.db.computation.toCompletedReason
+import org.wfanet.measurement.duchy.service.internal.ComputationLockOwnerMismatchException
 import org.wfanet.measurement.duchy.service.internal.ComputationTokenVersionMismatchException
 import org.wfanet.measurement.duchy.service.internal.computations.newEmptyOutputBlobMetadata
 import org.wfanet.measurement.duchy.service.internal.computations.newInputBlobMetadata
@@ -62,7 +63,8 @@ private constructor(
 
   constructor() : this(tokens = mutableMapOf(), requisitionMap = mutableMapOf())
 
-  val claimedComputationIds = mutableSetOf<String>()
+  /** Map of global computation ID to the owner of the lock. */
+  val claimedComputations = mutableMapOf<String, String>()
 
   fun remove(localId: Long) = tokens.remove(localId)
 
@@ -225,15 +227,14 @@ private constructor(
       when (afterTransition) {
         AfterTransition.ADD_UNCLAIMED_TO_QUEUE -> {
           attempt = 0
-          claimedComputationIds.remove(globalComputationId)
+          claimedComputations.remove(globalComputationId)
         }
         AfterTransition.DO_NOT_ADD_TO_QUEUE -> {
           attempt = 1
-          claimedComputationIds.remove(globalComputationId)
+          claimedComputations.remove(globalComputationId)
         }
         AfterTransition.CONTINUE_WORKING -> {
           attempt = 1
-          claimedComputationIds.add(globalComputationId)
         }
       }
     }
@@ -270,7 +271,7 @@ private constructor(
   ) {
     require(validTerminalStage(token.protocol, endingStage))
     updateToken(token) {
-      claimedComputationIds.remove(globalComputationId)
+      claimedComputations.remove(globalComputationId)
       computationStage = endingStage
       this.computationDetails =
         computationDetails.copy { endingState = endComputationReason.toCompletedReason() }
@@ -325,9 +326,14 @@ private constructor(
   override suspend fun enqueue(
     token: ComputationEditToken<ComputationType, ComputationStage>,
     delaySecond: Int,
+    expectedOwner: String,
   ) {
+    val currentOwner = claimedComputations[token.globalId]
+    if (currentOwner != null && currentOwner != expectedOwner) {
+      throw ComputationLockOwnerMismatchException(token.localId, expectedOwner, currentOwner)
+    }
     // ignore the delaySecond in the fake
-    updateToken(token) { claimedComputationIds.remove(globalComputationId) }
+    updateToken(token) { claimedComputations.remove(globalComputationId) }
   }
 
   override suspend fun claimTask(
@@ -339,7 +345,7 @@ private constructor(
     val editTokens =
       tokens.values
         .asSequence()
-        .filter { it.globalComputationId !in claimedComputationIds }
+        .filter { !claimedComputations.containsKey(it.globalComputationId) }
         .map {
           ComputationEditToken(
             localId = it.localComputationId,
@@ -370,7 +376,7 @@ private constructor(
       }
 
     updateToken(claimed) {
-      claimedComputationIds.add(globalComputationId)
+      claimedComputations[globalComputationId] = ownerId
       this.attempt = claimed.attempt + 1
     }
     return claimed.localId.toString()

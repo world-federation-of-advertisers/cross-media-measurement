@@ -139,7 +139,8 @@ class StreamEventGroups(
               """
                 .trimIndent()
             )
-            bind(After.DATA_AVAILABILITY_START_TIME).to(filter.after.dataAvailabilityStartTime)
+            bind(After.DATA_AVAILABILITY_START_TIME)
+              .to(filter.after.dataAvailabilityStartTime.toGcloudTimestamp())
             Unit
           }
           StreamEventGroupsRequest.OrderBy.Field.UNRECOGNIZED -> error("Unrecognized field")

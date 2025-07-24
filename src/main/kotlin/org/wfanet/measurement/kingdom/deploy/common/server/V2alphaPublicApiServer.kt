@@ -54,6 +54,7 @@ import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.Measur
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCoroutineStub as InternalMeasurementsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.ModelLinesGrpcKt.ModelLinesCoroutineStub as InternalModelLinesCoroutineStub
 import org.wfanet.measurement.internal.kingdom.ModelOutagesGrpcKt.ModelOutagesCoroutineStub as InternalModelOutagesCoroutineStub
+import org.wfanet.measurement.internal.kingdom.ModelProvidersGrpcKt.ModelProvidersCoroutineStub as InternalModelProviderCoroutineStub
 import org.wfanet.measurement.internal.kingdom.ModelReleasesGrpcKt.ModelReleasesCoroutineStub as InternalModelReleasesCoroutineStub
 import org.wfanet.measurement.internal.kingdom.ModelRolloutsGrpcKt.ModelRolloutsCoroutineStub as InternalModelRolloutsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.ModelShardsGrpcKt.ModelShardsCoroutineStub as InternalModelShardsCoroutineStub
@@ -83,6 +84,7 @@ import org.wfanet.measurement.kingdom.service.api.v2alpha.MeasurementConsumersSe
 import org.wfanet.measurement.kingdom.service.api.v2alpha.MeasurementsService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.ModelLinesService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.ModelOutagesService
+import org.wfanet.measurement.kingdom.service.api.v2alpha.ModelProvidersService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.ModelReleasesService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.ModelRolloutsService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.ModelShardsService
@@ -255,6 +257,13 @@ private fun run(
           serviceDispatcher,
         )
         .withInterceptors(akidPrincipalInterceptor, rateLimitingInterceptor, akidInterceptor),
+      ModelProvidersService(InternalModelProviderCoroutineStub(channel), serviceDispatcher)
+        .withInterceptors(
+          apiKeyPrincipalInterceptor,
+          akidPrincipalInterceptor,
+          rateLimitingInterceptor,
+          akidInterceptor,
+        ),
       ModelLinesService(InternalModelLinesCoroutineStub(channel), serviceDispatcher)
         .withInterceptors(
           apiKeyPrincipalInterceptor,

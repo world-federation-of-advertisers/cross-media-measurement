@@ -37,7 +37,7 @@ bazel_dep(
 )
 bazel_dep(
     name = "common-jvm",
-    version = "0.108.0",
+    version = "0.111.0",
     repo_name = "wfa_common_jvm",
 )
 bazel_dep(
@@ -86,7 +86,7 @@ bazel_dep(
 )
 bazel_dep(
     name = "cloud-spanner-emulator-bin",
-    version = "1.5.32",
+    version = "1.5.37.libcxx.1",
     repo_name = "cloud_spanner_emulator",
 )
 bazel_dep(
@@ -234,6 +234,8 @@ maven.install(
         # TODO(googleapis/java-cloud-bom#5279): Remove when managed by BOM.
         "com.google.apis:google-api-services-storage:v1-rev20240706-2.0.0",
         "com.google.cloud.functions.invoker:java-function-invoker:1.4.0",
+        "com.google.auth:google-auth-library-credentials",
+        "com.google.auth:google-auth-library-oauth2-http",
 
         # AWS
         "software.amazon.awssdk:acmpca",
