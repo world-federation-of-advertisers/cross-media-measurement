@@ -26,6 +26,11 @@ import java.time.ZoneId
 import java.util.logging.Logger
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.toList
+import org.wfanet.measurement.eventdataprovider.shareshuffle.v2alpha.InMemoryVidIndexMap
+import org.wfanet.measurement.api.v2alpha.PopulationSpec
+import org.wfanet.measurement.api.v2alpha.PopulationSpecKt.subPopulation
+import org.wfanet.measurement.api.v2alpha.PopulationSpecKt.vidRange
+import org.wfanet.measurement.api.v2alpha.populationSpec
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.Measurement
@@ -105,6 +110,10 @@ class ResultsFulfiller(
           eventReader,
           zoneId,
         )
+      
+      // Convert Flow<Long> to FrequencyVector for the new architecture
+      val vidList = sampledVids.toList()
+      val frequencyVector = SimpleFrequencyVector(vidList)
 
       val protocols: List<ProtocolConfig.Protocol> = requisition.protocolConfig.protocolsList
 
@@ -117,7 +126,7 @@ class ResultsFulfiller(
           directProtocolConfig,
           directNoiseMechanism,
           measurementSpec,
-          sampledVids,
+          frequencyVector,
           random,
         )
         
@@ -127,7 +136,7 @@ class ResultsFulfiller(
             measurementSpec,
             requisitionSpec,
             result,
-            sampledVids,
+            frequencyVector,
           )
           fulfiller.fulfillRequisition()
         } else {
@@ -179,13 +188,13 @@ class ResultsFulfiller(
     directProtocolConfig: ProtocolConfig.Direct,
     directNoiseMechanism: DirectNoiseMechanism,
     measurementSpec: MeasurementSpec,
-    sampledVids: Flow<Long>,
+    frequencyVector: FrequencyVector,
     random: SecureRandom,
   ): Measurement.Result = DirectMeasurementResultFactory.buildMeasurementResult(
     directProtocolConfig,
     directNoiseMechanism,
     measurementSpec,
-    sampledVids,
+    frequencyVector,
     random,
   )
 
@@ -195,7 +204,7 @@ class ResultsFulfiller(
     measurementSpec: MeasurementSpec,
     requisitionSpec: RequisitionSpec,
     result: Measurement.Result,
-    sampledVids: Flow<Long>,
+    frequencyVector: FrequencyVector,
   ): DirectMeasurementFulfiller {
     val measurementEncryptionPublicKey: EncryptionPublicKey =
       measurementSpec.measurementPublicKey.unpack()
@@ -209,7 +218,7 @@ class ResultsFulfiller(
       result,
       requisitionSpec.nonce,
       measurementEncryptionPublicKey,
-      sampledVids,
+      frequencyVector,
       directProtocolConfig,
       directNoiseMechanism,
       dataProviderSigningKeyHandle,

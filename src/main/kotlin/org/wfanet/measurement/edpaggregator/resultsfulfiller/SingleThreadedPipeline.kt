@@ -47,7 +47,7 @@ class SingleThreadedPipeline(
     vidIndexMap: VidIndexMap,
     filters: List<FilterConfiguration>,
     typeRegistry: TypeRegistry
-  ): Map<String, SinkStatistics> = coroutineScope {
+  ): Map<FilterSpec, FrequencyVector> = coroutineScope {
     
     logger.info("Starting single-threaded pipeline with ${filters.size} filters")
     
@@ -57,11 +57,16 @@ class SingleThreadedPipeline(
     var processorsInitialized = false
     
     val sinks = filters.associate { config ->
-      config.filterId to FrequencyVectorSink(
-        sinkId = config.filterId,
-        description = config.description,
-        vidIndexMap = vidIndexMap
+      config.filterSpec to FrequencyVectorSink(
+        filterSpec = config.filterSpec,
+        vectorBuilder = StripedFrequencyVectorBuilder(vidIndexMap)
       )
+    }
+    
+    // Create a lookup map for easier access by CEL expression
+    val sinksByFilter = mutableMapOf<String, FrequencyVectorSink>()
+    filters.forEach { config ->
+      sinksByFilter[config.filterSpec.celExpression] = sinks[config.filterSpec]!!
     }
     
     val totalEvents = AtomicLong(0)
@@ -83,11 +88,12 @@ class SingleThreadedPipeline(
           filters.forEach { config ->
             processors.add(
               FilterProcessor(
-                filterId = config.filterId,
-                celExpression = config.celExpression,
+                filterId = config.filterSpec.celExpression,
+                celExpression = config.filterSpec.celExpression,
                 eventMessageDescriptor = eventTemplateDescriptor!!,
                 typeRegistry = typeRegistry,
-                collectionInterval = config.timeInterval
+                collectionInterval = config.filterSpec.collectionInterval,
+                eventGroupReferenceId = config.filterSpec.eventGroupReferenceId
               )
             )
           }
@@ -102,7 +108,9 @@ class SingleThreadedPipeline(
         processors.forEach { processor ->
           val batch = EventBatch(eventList, totalEvents.get())
           val matchedEvents = processor.processBatch(batch)
-          sinks[processor.filterId]?.processMatchedEvents(matchedEvents, batchSize)
+          // Use simplified lookup by CEL expression for debugging
+          val matchingSink = sinksByFilter[processor.celExpression]
+          matchingSink?.processMatchedEvents(matchedEvents, batchSize)
         }
         
         if (totalEvents.get() % 100000 == 0L) {
@@ -113,8 +121,8 @@ class SingleThreadedPipeline(
     val endTime = System.currentTimeMillis()
     logCompletion(totalEvents.get(), startTime, endTime)
     
-    // Return statistics
-    sinks.mapValues { (_, sink) -> sink.getStatistics() }
+    // Return frequency vectors
+    sinks.mapValues { (_, sink) -> sink.getFrequencyVector() }
   }
   
   private fun logProgress(eventCount: Long, startTime: Long) {

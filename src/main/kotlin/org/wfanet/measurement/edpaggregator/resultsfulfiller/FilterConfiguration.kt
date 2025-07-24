@@ -1,5 +1,5 @@
 /*
- * Copyright 2023 The Cross-Media Measurement Authors
+ * Copyright 2025 The Cross-Media Measurement Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,20 +16,13 @@
 
 package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
-import com.google.protobuf.Message
-import java.time.Instant
-
-/** 
- * An event [message] with labels for processing.
+/**
+ * Configuration for event filtering in the pipeline.
  * 
- * @property timestamp The event timestamp
- * @property vid The virtual person ID
- * @property message The event data
- * @property eventGroupReferenceId The reference ID for event group filtering
+ * @property filterSpec The filter specification that defines the filtering criteria
+ * @property requisitionNames Set of requisition names that use this filter
  */
-data class LabeledEvent<T : Message>(
-  val timestamp: Instant, 
-  val vid: Long, 
-  val message: T,
-  val eventGroupReferenceId: String = "reference-id-1" // Default for backwards compatibility
+data class FilterConfiguration(
+  val filterSpec: FilterSpec,
+  val requisitionNames: Set<String>
 )

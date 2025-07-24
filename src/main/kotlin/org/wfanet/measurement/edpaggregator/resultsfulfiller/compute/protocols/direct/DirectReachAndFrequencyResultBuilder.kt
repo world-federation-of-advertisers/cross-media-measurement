@@ -18,7 +18,6 @@ package org.wfanet.measurement.edpaggregator.resultsfulfiller.compute.protocols.
 
 import java.security.SecureRandom
 import java.util.logging.Logger
-import kotlinx.coroutines.flow.Flow
 import org.wfanet.measurement.api.v2alpha.DeterministicCountDistinct
 import org.wfanet.measurement.api.v2alpha.DeterministicDistribution
 import org.wfanet.measurement.api.v2alpha.DifferentialPrivacyParams
@@ -29,8 +28,8 @@ import org.wfanet.measurement.api.v2alpha.MeasurementKt.ResultKt.reach
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig.NoiseMechanism
 import org.wfanet.measurement.api.v2alpha.Requisition
-import org.wfanet.measurement.dataprovider.MeasurementResults
 import org.wfanet.measurement.dataprovider.RequisitionRefusalException
+import org.wfanet.measurement.edpaggregator.resultsfulfiller.FrequencyVector
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.compute.MeasurementResultBuilder
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.noise.Noiser
 import org.wfanet.measurement.eventdataprovider.noiser.DirectNoiseMechanism
@@ -39,7 +38,7 @@ import org.wfanet.measurement.eventdataprovider.noiser.DirectNoiseMechanism
  * Builder for direct reach and frequency measurement results.
  *
  * @param directProtocolConfig The direct protocol configuration.
- * @param sampledVids The sampled vids.
+ * @param frequencyVector The frequency vector containing measurement data.
  * @param maxFrequency The maximum frequency to consider.
  * @param reachPrivacyParams The differential privacy parameters for reach.
  * @param frequencyPrivacyParams The differential privacy parameters for frequency.
@@ -49,7 +48,7 @@ import org.wfanet.measurement.eventdataprovider.noiser.DirectNoiseMechanism
  */
 class DirectReachAndFrequencyResultBuilder(
   private val directProtocolConfig: ProtocolConfig.Direct,
-  private val sampledVids: Flow<Long>,
+  private val frequencyVector: FrequencyVector,
   private val maxFrequency: Int,
   private val reachPrivacyParams: DifferentialPrivacyParams,
   private val frequencyPrivacyParams: DifferentialPrivacyParams,
@@ -78,8 +77,10 @@ class DirectReachAndFrequencyResultBuilder(
       )
     }
 
-    var (sampledReachValue, frequencyMap) =
-      MeasurementResults.computeReachAndFrequency(sampledVids, maxFrequency)
+    var sampledReachValue = frequencyVector.getReach().toInt()
+    var frequencyMap = frequencyVector.getFrequencyDistribution()
+      .filter { it.key <= maxFrequency }
+      .mapValues { it.value.toDouble() }
 
     if (directNoiseMechanism != DirectNoiseMechanism.NONE) {
       logger.info("Adding $directNoiseMechanism publisher noise to direct reach and frequency...")
@@ -109,7 +110,7 @@ class DirectReachAndFrequencyResultBuilder(
         deterministicCountDistinct = DeterministicCountDistinct.getDefaultInstance()
       }
       frequency = frequency {
-        relativeFrequencyDistribution.putAll(frequencyMap.mapKeys { it.key.toLong() })
+        relativeFrequencyDistribution.putAll(frequencyMap.mapKeys { it.key.toLong() }.mapValues { it.value })
         this.noiseMechanism = protocolConfigNoiseMechanism
         deterministicDistribution = DeterministicDistribution.getDefaultInstance()
       }

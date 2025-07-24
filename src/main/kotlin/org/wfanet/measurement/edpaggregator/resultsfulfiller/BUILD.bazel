@@ -78,6 +78,20 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
+    name = "frequency_vector",
+    srcs = [
+        "FrequencyVector.kt",
+        "StripedFrequencyVector.kt",
+        "FrequencyVectorBuilder.kt",
+        "StripedByteFrequencyVector.kt",
+        "SimpleFrequencyVector.kt",
+    ],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/shareshuffle/v2alpha:shareshuffle",
+    ],
+)
+
+kt_jvm_library(
     name = "vid_filter",
     srcs = ["VidFilter.kt"],
     deps = [
@@ -90,7 +104,6 @@ kt_jvm_library(
 
 kt_jvm_library(
     name = "event_reader",
-    testonly = True,
     srcs = ["EventReader.kt"],
     deps = [
         ":impression_read_exception",
@@ -137,7 +150,6 @@ kt_jvm_library(
 
 kt_jvm_library(
     name = "requisition_specs",
-    testonly = True,
     srcs = ["RequisitionSpecs.kt"],
     deps = [
         ":event_reader",
@@ -158,6 +170,8 @@ kt_jvm_library(
         "EventSource.kt",
         "EventSourceType.kt",
         "FilterProcessor.kt",
+        "FilterSpec.kt",
+        "FilterConfiguration.kt",
         "FrequencyVectorSink.kt",
         "ParallelBatchedPipeline.kt",
         "PipelineConfiguration.kt",
@@ -165,13 +179,13 @@ kt_jvm_library(
         "SingleThreadedPipeline.kt",
         "SinkStatistics.kt",
         "StorageEventSource.kt",
-        "StripedByteFrequencyVector.kt",
         "SyntheticEventGenerator.kt",
     ],
     deps = [
         ":event_reader",
         ":vid_filter",
         ":labeled_event",
+        ":frequency_vector",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:population_spec_converter",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:synthetic_data_generation",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:vid_filter",

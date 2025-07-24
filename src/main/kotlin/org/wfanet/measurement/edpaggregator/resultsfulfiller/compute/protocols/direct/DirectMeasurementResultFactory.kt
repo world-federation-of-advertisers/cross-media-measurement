@@ -18,8 +18,8 @@ package org.wfanet.measurement.edpaggregator.resultsfulfiller.compute.protocols.
 
 import java.security.SecureRandom
 import java.util.logging.Logger
-import kotlinx.coroutines.flow.Flow
 import org.wfanet.measurement.api.v2alpha.Measurement
+import org.wfanet.measurement.edpaggregator.resultsfulfiller.FrequencyVector
 import org.wfanet.measurement.api.v2alpha.MeasurementKt
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
@@ -35,7 +35,7 @@ object DirectMeasurementResultFactory {
    * @param directProtocolConfig The direct protocol configuration.
    * @param directNoiseMechanism The direct noise mechanism to use.
    * @param measurementSpec The measurement specification.
-   * @param sampledVids The sampled VIDs.
+   * @param frequencyVector The frequency vector containing measurement data.
    * @param random The random number generator to use.
    * @return The measurement result.
    */
@@ -43,7 +43,7 @@ object DirectMeasurementResultFactory {
     directProtocolConfig: ProtocolConfig.Direct,
     directNoiseMechanism: DirectNoiseMechanism,
     measurementSpec: MeasurementSpec,
-    sampledVids: Flow<Long>,
+    frequencyVector: FrequencyVector,
     random: SecureRandom = SecureRandom(),
   ): Measurement.Result {
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf enum fields cannot be null.
@@ -52,7 +52,7 @@ object DirectMeasurementResultFactory {
         val reachAndFrequencyResultBuilder =
           DirectReachAndFrequencyResultBuilder(
             directProtocolConfig,
-            sampledVids,
+            frequencyVector,
             measurementSpec.reachAndFrequency.maximumFrequency,
             measurementSpec.reachAndFrequency.reachPrivacyParams,
             measurementSpec.reachAndFrequency.frequencyPrivacyParams,

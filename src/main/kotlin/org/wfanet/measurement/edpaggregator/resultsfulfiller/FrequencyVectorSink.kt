@@ -23,28 +23,26 @@ import org.wfanet.measurement.eventdataprovider.shareshuffle.v2alpha.VidIndexMap
 import org.wfanet.measurement.eventdataprovider.shareshuffle.v2alpha.VidNotFoundException
 
 /**
- * Frequency vector sink that receives filtered events and updates frequency counts.
+ * Frequency vector sink that receives filtered events and builds frequency vectors.
  *
- * Each sink corresponds to a specific CEL filter and maintains its own frequency vector.
+ * Each sink corresponds to a specific filter specification and maintains its own frequency vector.
  * Thread-safe for concurrent access.
  */
 class FrequencyVectorSink(
-  val sinkId: String,
-  val description: String,
-  private val vidIndexMap: VidIndexMap
+  val filterSpec: FilterSpec,
+  private val vectorBuilder: FrequencyVectorBuilder
 ) {
   
   companion object {
     private val logger = Logger.getLogger(FrequencyVectorSink::class.java.name)
   }
   
-  private val frequencyVector = StripedByteFrequencyVector(vidIndexMap.size.toInt())
   private val processedCount = AtomicLong(0)
   private val matchedCount = AtomicLong(0)
   private val errorCount = AtomicLong(0)
   
   /**
-   * Processes matched events by updating the frequency vector.
+   * Processes matched events by updating the frequency vector builder.
    * 
    * @param matchedEvents Events that matched the filter
    * @param totalProcessed Total number of events that were processed (including non-matches)
@@ -58,31 +56,37 @@ class FrequencyVectorSink(
     
     matchedEvents.forEach { event ->
       try {
-        val index = vidIndexMap[event.vid]
-        frequencyVector.incrementByIndex(index)
-      } catch (e: VidNotFoundException) {
+        vectorBuilder.addEvent(event.vid)
+      } catch (e: Exception) {
         errorCount.incrementAndGet()
-        logger.warning("VID not found in index map: ${event.vid} (sink: $sinkId)")
+        logger.warning("Failed to add event for VID ${event.vid} (filter: ${filterSpec.eventGroupReferenceId}): ${e.message}")
       }
     }
+  }
+  
+  /**
+   * Returns the built frequency vector.
+   */
+  fun getFrequencyVector(): FrequencyVector {
+    return vectorBuilder.build()
   }
   
   /**
    * Returns current statistics for this sink.
    */
   fun getStatistics(): SinkStatistics {
-    val (avgFreq, nonZeroCount) = frequencyVector.computeStatistics()
-    val totalFrequency = frequencyVector.getTotalCount()
+    val frequencyVector = getFrequencyVector()
     
     return SinkStatistics(
-      sinkId = sinkId,
-      description = description,
+      sinkId = filterSpec.eventGroupReferenceId,
+      description = "Filter: ${filterSpec.celExpression}",
       processedEvents = processedCount.get(),
       matchedEvents = matchedCount.get(),
       errorCount = errorCount.get(),
-      reach = nonZeroCount,
-      totalFrequency = totalFrequency,
-      averageFrequency = avgFreq
+      reach = frequencyVector.getReach(),
+      totalFrequency = frequencyVector.getTotalFrequency(),
+      averageFrequency = if (frequencyVector.getReach() > 0) 
+        frequencyVector.getTotalFrequency().toDouble() / frequencyVector.getReach() else 0.0
     )
   }
 }

@@ -19,6 +19,7 @@ package org.wfanet.measurement.edpaggregator.resultsfulfiller
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.DynamicMessage
 import com.google.protobuf.TypeRegistry
+import com.google.type.Interval
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
@@ -39,7 +40,8 @@ import java.util.concurrent.atomic.AtomicInteger
 class ParallelBatchedPipelineRoundRobinTest {
 
   private val mockVidIndexMap = mock<VidIndexMap> {
-    on { get(any()) } doReturn 1
+    on { get(any()) } doReturn 0  // Use index 0 instead of 1
+    on { size } doReturn 10  // Mock size to ensure the vector is large enough
   }
 
   private val typeRegistry = TypeRegistry.newBuilder()
@@ -83,8 +85,14 @@ class ParallelBatchedPipelineRoundRobinTest {
       vidIndexMap = mockVidIndexMap,
       filters = listOf(
         FilterConfiguration(
-          filterId = "filter1",
-          celExpression = "" // Empty expression evaluates to true
+          filterSpec = FilterSpec(
+            celExpression = "", // Empty expression evaluates to true
+            collectionInterval = Interval.getDefaultInstance(),
+            vidSamplingStart = 0L,
+            vidSamplingWidth = 1000000L,
+            eventGroupReferenceId = "reference-id-1"
+          ),
+          requisitionNames = setOf("filter1")
         )
       ),
       typeRegistry = typeRegistry
@@ -92,9 +100,8 @@ class ParallelBatchedPipelineRoundRobinTest {
 
     // Verify that events were processed
     assertThat(result).hasSize(1)
-    assertThat(result).containsKey("filter1")
-    val stats = result["filter1"]!!
-    assertThat(stats.processedEvents).isEqualTo(18) // 9 batches * 2 events each
+    val frequencyVector = result.values.first()
+    assertThat(frequencyVector.getTotalFrequency()).isEqualTo(18) // 9 batches * 2 events each
     
     // Note: We can't directly verify round-robin distribution without modifying
     // the pipeline to expose worker assignments, but the test verifies that
@@ -125,16 +132,22 @@ class ParallelBatchedPipelineRoundRobinTest {
       vidIndexMap = mockVidIndexMap,
       filters = listOf(
         FilterConfiguration(
-          filterId = "singleWorkerFilter",
-          celExpression = ""
+          filterSpec = FilterSpec(
+            celExpression = "",
+            collectionInterval = Interval.getDefaultInstance(),
+            vidSamplingStart = 0L,
+            vidSamplingWidth = 1000000L,
+            eventGroupReferenceId = "reference-id-1"
+          ),
+          requisitionNames = setOf("singleWorkerFilter")
         )
       ),
       typeRegistry = typeRegistry
     )
 
     assertThat(result).hasSize(1)
-    val stats = result["singleWorkerFilter"]!!
-    assertThat(stats.processedEvents).isEqualTo(10) // All 10 events were provided in batches (3+3+4)
+    val frequencyVector = result.values.first()
+    assertThat(frequencyVector.getTotalFrequency()).isEqualTo(10) // All 10 events were provided in batches (3+3+4)
   }
 
   @Test
@@ -150,15 +163,21 @@ class ParallelBatchedPipelineRoundRobinTest {
       vidIndexMap = mockVidIndexMap,
       filters = listOf(
         FilterConfiguration(
-          filterId = "emptyFilter",
-          celExpression = ""
+          filterSpec = FilterSpec(
+            celExpression = "",
+            collectionInterval = Interval.getDefaultInstance(),
+            vidSamplingStart = 0L,
+            vidSamplingWidth = 1000000L,
+            eventGroupReferenceId = "reference-id-1"
+          ),
+          requisitionNames = setOf("emptyFilter")
         )
       ),
       typeRegistry = typeRegistry
     )
 
     assertThat(result).hasSize(1)
-    val stats = result["emptyFilter"]!!
-    assertThat(stats.processedEvents).isEqualTo(0)
+    val frequencyVector = result.values.first()
+    assertThat(frequencyVector.getTotalFrequency()).isEqualTo(0)
   }
 }

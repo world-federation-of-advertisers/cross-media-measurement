@@ -109,4 +109,82 @@ class StripedByteFrequencyVector(private val size: Int) {
     }
     return total
   }
+  
+  /**
+   * Gets the frequency count for a specific index.
+   * 
+   * @param index The index to query
+   * @return Frequency count at the index
+   */
+  fun getFrequencyByIndex(index: Int): Int {
+    if (index < 0 || index >= size) return 0
+    synchronized(locks[getStripe(index)]) {
+      return data[index].toInt() and 0xFF
+    }
+  }
+  
+  /**
+   * Gets all indices with non-zero frequency.
+   * 
+   * @return List of indices with frequency > 0
+   */
+  fun getNonZeroIndices(): List<Int> {
+    val indices = mutableListOf<Int>()
+    for (i in 0 until stripeCount) {
+      synchronized(locks[i]) {
+        val start = i * stripeSize
+        val end = minOf(start + stripeSize, size)
+        for (j in start until end) {
+          if ((data[j].toInt() and 0xFF) > 0) {
+            indices.add(j)
+          }
+        }
+      }
+    }
+    return indices
+  }
+  
+  /**
+   * Gets the frequency distribution (frequency value -> count).
+   * 
+   * @return Map of frequency values to their counts
+   */
+  fun getFrequencyDistribution(): Map<Int, Long> {
+    val distribution = mutableMapOf<Int, Long>()
+    for (i in 0 until stripeCount) {
+      synchronized(locks[i]) {
+        val start = i * stripeSize
+        val end = minOf(start + stripeSize, size)
+        for (j in start until end) {
+          val freq = data[j].toInt() and 0xFF
+          if (freq > 0) {
+            distribution[freq] = distribution.getOrDefault(freq, 0L) + 1L
+          }
+        }
+      }
+    }
+    return distribution
+  }
+  
+  /**
+   * Gets the maximum frequency value.
+   * 
+   * @return Maximum frequency across all VIDs
+   */
+  fun getMaxFrequency(): Int {
+    var max = 0
+    for (i in 0 until stripeCount) {
+      synchronized(locks[i]) {
+        val start = i * stripeSize
+        val end = minOf(start + stripeSize, size)
+        for (j in start until end) {
+          val freq = data[j].toInt() and 0xFF
+          if (freq > max) {
+            max = freq
+          }
+        }
+      }
+    }
+    return max
+  }
 }

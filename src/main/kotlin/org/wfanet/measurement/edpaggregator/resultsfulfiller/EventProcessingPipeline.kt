@@ -35,14 +35,15 @@ interface EventProcessingPipeline {
    * @param eventBatchFlow The flow of event batches to process
    * @param vidIndexMap Mapping from VIDs to array indices
    * @param filters The filters to apply with their configurations
-   * @return Statistics for each filter after processing
+   * @param typeRegistry Registry for event message types
+   * @return Frequency vectors for each filter specification after processing
    */
   suspend fun processEventBatches(
     eventBatchFlow: Flow<List<LabeledEvent<DynamicMessage>>>,
     vidIndexMap: VidIndexMap,
     filters: List<FilterConfiguration>,
     typeRegistry: TypeRegistry
-  ): Map<String, SinkStatistics>
+  ): Map<FilterSpec, FrequencyVector>
   
   /**
    * Returns the pipeline type for logging/monitoring.

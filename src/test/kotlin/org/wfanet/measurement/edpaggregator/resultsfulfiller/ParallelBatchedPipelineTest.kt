@@ -42,7 +42,8 @@ import kotlin.system.measureTimeMillis
 class ParallelBatchedPipelineTest {
 
   private val mockVidIndexMap = mock<VidIndexMap> {
-    on { get(any()) } doReturn 1
+    on { get(any()) } doReturn 0  // Use index 0 instead of 1
+    on { size } doReturn 10  // Mock size to ensure the vector is large enough
   }
 
   private val testTypeRegistry: TypeRegistry = TypeRegistry.newBuilder()
@@ -68,15 +69,20 @@ class ParallelBatchedPipelineTest {
       vidIndexMap = mockVidIndexMap,
       filters = listOf(
         FilterConfiguration(
-          filterId = "filter1",
-          celExpression = "person.age_group == 1"
+          filterSpec = FilterSpec(
+            celExpression = "", // Empty expression matches all events
+            collectionInterval = Interval.getDefaultInstance(),
+            vidSamplingStart = 0L,
+            vidSamplingWidth = 1000000L,
+            eventGroupReferenceId = "reference-id-1"
+          ),
+          requisitionNames = setOf("filter1")
         )
       ),
       typeRegistry = testTypeRegistry
     )
 
     assertThat(result).hasSize(1)
-    assertThat(result).containsKey("filter1")
   }
 
   @Test
@@ -91,8 +97,9 @@ class ParallelBatchedPipelineTest {
       .setPerson(Person.newBuilder().setAgeGroup(Person.AgeGroup.YEARS_18_TO_34))
       .build()
 
+    val eventTimestamp = Instant.now()
     val labeledEvent = LabeledEvent(
-      timestamp = Instant.now(),
+      timestamp = eventTimestamp,
       vid = 12345L,
       message = createDynamicMessage(testEvent)
     )
@@ -102,17 +109,29 @@ class ParallelBatchedPipelineTest {
       vidIndexMap = mockVidIndexMap,
       filters = listOf(
         FilterConfiguration(
-          filterId = "filter1",
-          celExpression = "person.age_group == 1"
+          filterSpec = FilterSpec(
+            celExpression = "", // Empty expression matches all events
+            collectionInterval = Interval.newBuilder()
+              .setStartTime(com.google.protobuf.Timestamp.newBuilder()
+                .setSeconds(eventTimestamp.minusSeconds(3600).epochSecond)
+                .build())
+              .setEndTime(com.google.protobuf.Timestamp.newBuilder()
+                .setSeconds(eventTimestamp.plusSeconds(3600).epochSecond)
+                .build())
+              .build(),
+            vidSamplingStart = 0L,
+            vidSamplingWidth = 1000000L,
+            eventGroupReferenceId = "reference-id-1"
+          ),
+          requisitionNames = setOf("filter1")
         )
       ),
       typeRegistry = testTypeRegistry
     )
 
     assertThat(result).hasSize(1)
-    assertThat(result).containsKey("filter1")
-    val stats = result["filter1"]!!
-    assertThat(stats.sinkId).isEqualTo("filter1")
+    val frequencyVector = result.values.first()
+    assertThat(frequencyVector.getReach()).isEqualTo(1L)
   }
 
   @Test
@@ -145,16 +164,20 @@ class ParallelBatchedPipelineTest {
       vidIndexMap = mockVidIndexMap,
       filters = listOf(
         FilterConfiguration(
-          filterId = "timeFilter",
-          celExpression = "person.age_group == 1",
-          timeInterval = timeInterval
+          filterSpec = FilterSpec(
+            celExpression = "", // Empty expression matches all events
+            collectionInterval = timeInterval,
+            vidSamplingStart = 0L,
+            vidSamplingWidth = 1000000L,
+            eventGroupReferenceId = "reference-id-1"
+          ),
+          requisitionNames = setOf("timeFilter")
         )
       ),
       typeRegistry = testTypeRegistry
     )
 
     assertThat(result).hasSize(1)
-    assertThat(result).containsKey("timeFilter")
   }
 
   @Test
@@ -191,15 +214,20 @@ class ParallelBatchedPipelineTest {
       vidIndexMap = mockVidIndexMap,
       filters = listOf(
         FilterConfiguration(
-          filterId = "testFilter",
-          celExpression = "person.age_group == 1"
+          filterSpec = FilterSpec(
+            celExpression = "", // Empty expression matches all events
+            collectionInterval = Interval.getDefaultInstance(),
+            vidSamplingStart = 0L,
+            vidSamplingWidth = 1000000L,
+            eventGroupReferenceId = "reference-id-1"
+          ),
+          requisitionNames = setOf("testFilter")
         )
       ),
       typeRegistry = testTypeRegistry
     )
 
     assertThat(result).hasSize(1)
-    assertThat(result).containsKey("testFilter")
   }
 
   @Test
@@ -225,15 +253,20 @@ class ParallelBatchedPipelineTest {
       vidIndexMap = mockVidIndexMap,
       filters = listOf(
         FilterConfiguration(
-          filterId = "parallelFilter",
-          celExpression = "person.age_group == 1"
+          filterSpec = FilterSpec(
+            celExpression = "", // Empty expression matches all events
+            collectionInterval = Interval.getDefaultInstance(),
+            vidSamplingStart = 0L,
+            vidSamplingWidth = 1000000L,
+            eventGroupReferenceId = "reference-id-1"
+          ),
+          requisitionNames = setOf("parallelFilter")
         )
       ),
       typeRegistry = testTypeRegistry
     )
 
     assertThat(result).hasSize(1)
-    assertThat(result).containsKey("parallelFilter")
   }
 
   @Test

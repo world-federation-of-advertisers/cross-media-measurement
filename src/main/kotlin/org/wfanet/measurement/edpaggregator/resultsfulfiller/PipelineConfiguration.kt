@@ -94,14 +94,3 @@ data class PipelineConfiguration(
     get() = if (useParallelPipeline) parallelBatchSize else batchSize
 }
 
-/**
- * Configuration for CEL filters with optional time intervals.
- */
-data class FilterConfiguration(
-  val filterId: String,
-  val celExpression: String,
-  val timeInterval: Interval? = null
-) {
-  val description: String
-    get() = "CEL: $celExpression (${if (timeInterval != null) "time-filtered" else "no time filter"})"
-}

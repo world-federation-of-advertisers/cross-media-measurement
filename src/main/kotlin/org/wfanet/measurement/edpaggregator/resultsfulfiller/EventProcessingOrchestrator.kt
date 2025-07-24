@@ -173,10 +173,23 @@ class EventProcessingOrchestrator {
         pipelineType = pipeline.pipelineType
       )
 
-      statisticsAggregator.displayFilterStatistics(statistics)
+      // Convert Map<FilterSpec, FrequencyVector> to Map<String, SinkStatistics> for backward compatibility
+      val legacyStatistics = statistics.map { (filterSpec, frequencyVector) ->
+        "${filterSpec.celExpression}_${filterSpec.collectionInterval}" to SinkStatistics(
+          sinkId = "${filterSpec.celExpression}_${filterSpec.collectionInterval}",
+          description = "CEL: ${filterSpec.celExpression}",
+          processedEvents = frequencyVector.getTotalFrequency(),
+          matchedEvents = frequencyVector.getTotalFrequency(),
+          errorCount = 0L,
+          reach = frequencyVector.getReach(),
+          totalFrequency = frequencyVector.getTotalFrequency(),
+          averageFrequency = if (frequencyVector.getReach() > 0) frequencyVector.getTotalFrequency().toDouble() / frequencyVector.getReach() else 0.0
+        )
+      }.toMap()
+      statisticsAggregator.displayFilterStatistics(legacyStatistics)
 
       val weeklyIntervals = generateProgressiveWeeklyIntervals(config.startDate, config.endDate)
-      statisticsAggregator.displayAggregatedMetrics(statistics, weeklyIntervals.size)
+      statisticsAggregator.displayAggregatedMetrics(legacyStatistics, weeklyIntervals.size)
 
     } finally {
       shutdownThreadPool(threadPool)
@@ -283,11 +296,17 @@ class EventProcessingOrchestrator {
     for ((demographicId, celExpression) in baseCelFilters) {
       weeklyIntervals.forEachIndexed { weekIndex, interval ->
         val filterId = "${demographicId}_week${weekIndex + 1}"
+        val filterSpec = FilterSpec(
+          celExpression = celExpression,
+          collectionInterval = interval,
+          vidSamplingStart = 0L,
+          vidSamplingWidth = 1000000L,
+          eventGroupReferenceId = "reference-id-1"
+        )
         filters.add(
           FilterConfiguration(
-            filterId = filterId,
-            celExpression = celExpression,
-            timeInterval = interval
+            filterSpec = filterSpec,
+            requisitionNames = setOf(filterId)
           )
         )
       }

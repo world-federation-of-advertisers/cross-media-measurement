@@ -37,7 +37,8 @@ class FilterProcessor(
   val celExpression: String,
   private val eventMessageDescriptor: Descriptors.Descriptor,
   private val typeRegistry: TypeRegistry,
-  private val collectionInterval: Interval? = null
+  val collectionInterval: Interval? = null,
+  val eventGroupReferenceId: String? = null
 ) {
   
   companion object {
@@ -60,11 +61,16 @@ class FilterProcessor(
   
   /**
    * Processes a batch of events and returns the matching events.
-   * Applies both CEL filtering and time range filtering based on collection interval.
+   * Applies reference ID, time range, and CEL filtering.
    */
   suspend fun processBatch(batch: EventBatch): List<LabeledEvent<DynamicMessage>> {
     return batch.events.filter { event ->
-      // First apply time range filter if collection interval is specified
+      // First check reference ID match if specified
+      if (eventGroupReferenceId != null && event.eventGroupReferenceId != eventGroupReferenceId) {
+        return@filter false
+      }
+      
+      // Then apply time range filter if collection interval is specified
       val timeMatches = if (collectionInterval != null) {
         isEventInTimeRange(event, collectionInterval)
       } else {
@@ -75,7 +81,7 @@ class FilterProcessor(
         return@filter false
       }
       
-      // Then apply CEL filter - event.message is already a DynamicMessage
+      // Finally apply CEL filter - event.message is already a DynamicMessage
       try {
         EventFilters.matches(event.message, program)
       } catch (e: Exception) {

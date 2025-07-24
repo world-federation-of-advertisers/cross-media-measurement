@@ -78,7 +78,7 @@ class ParallelBatchedPipeline(
     vidIndexMap: VidIndexMap,
     filters: List<FilterConfiguration>,
     typeRegistry: TypeRegistry
-  ): Map<String, SinkStatistics> = coroutineScope {
+  ): Map<FilterSpec, FrequencyVector> = coroutineScope {
 
     logger.info("Starting parallel pipeline with:")
     logger.info("  Batch size: $batchSize")
@@ -93,11 +93,16 @@ class ParallelBatchedPipeline(
     var processorsInitialized = false
 
     val sinks = filters.associate { config ->
-      config.filterId to FrequencyVectorSink(
-        sinkId = config.filterId,
-        description = config.description,
-        vidIndexMap = vidIndexMap
+      config.filterSpec to FrequencyVectorSink(
+        filterSpec = config.filterSpec,
+        vectorBuilder = StripedFrequencyVectorBuilder(vidIndexMap)
       )
+    }
+    
+    // Create a lookup map for easier access by CEL expression
+    val sinksByFilter = mutableMapOf<String, FrequencyVectorSink>()
+    filters.forEach { config ->
+      sinksByFilter[config.filterSpec.celExpression] = sinks[config.filterSpec]!!
     }
 
     // Create channels for round-robin distribution to workers
@@ -128,11 +133,12 @@ class ParallelBatchedPipeline(
           filters.forEach { config ->
             processors.add(
               FilterProcessor(
-                filterId = config.filterId,
-                celExpression = config.celExpression,
+                filterId = config.filterSpec.celExpression,
+                celExpression = config.filterSpec.celExpression,
                 eventMessageDescriptor = eventTemplateDescriptor!!,
                 typeRegistry = typeRegistry,
-                collectionInterval = config.timeInterval
+                collectionInterval = config.filterSpec.collectionInterval,
+                eventGroupReferenceId = config.filterSpec.eventGroupReferenceId
               )
             )
           }
@@ -167,7 +173,15 @@ class ParallelBatchedPipeline(
           val filterJobs = processors.map { processor ->
             launch(dispatcher) {
               val matchedEvents = processor.processBatch(batch)
-              sinks[processor.filterId]?.processMatchedEvents(matchedEvents, batch.size)
+              // Use simplified lookup by CEL expression for debugging
+              val matchingSink = sinksByFilter[processor.celExpression]
+              
+              if (matchingSink != null) {
+                logger.fine("Processing ${matchedEvents.size} matched events for processor ${processor.filterId}")
+                matchingSink.processMatchedEvents(matchedEvents, batch.size)
+              } else {
+                logger.warning("No matching sink found for processor ${processor.filterId} with CEL: '${processor.celExpression}'")
+              }
             }
           }
 
@@ -193,8 +207,8 @@ class ParallelBatchedPipeline(
     val endTime = System.currentTimeMillis()
     logCompletion(totalEvents.get(), totalBatches.get(), startTime, endTime)
 
-    // Return statistics
-    sinks.mapValues { (_, sink) -> sink.getStatistics() }
+    // Return frequency vectors
+    sinks.mapValues { (_, sink) -> sink.getFrequencyVector() }
   }
 
   private fun logBatchingProgress(events: Long, batches: Long, startTime: Long) {
