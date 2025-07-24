@@ -109,8 +109,7 @@ jobs:
     - name: Download Uber JARs using Maven
       id: download-uber-jars
       env:
-#        IMAGE_TAG: ${{ steps.get-artifact-version.outputs.artifact-version }}
-        IMAGE_TAG: "0.0.0-d048cee2de4951689e01acb193024df3c59bc668-SNAPSHOT"
+        ARTIFACT_VERSION: ${{ steps.get-artifact-version.outputs.artifact-version }}
       run: |
         set -euo pipefail
         TEMP_DIR="${RUNNER_TEMP}/uber-jars"
@@ -118,9 +117,9 @@ jobs:
         echo "Maven repo: $(mvn help:evaluate -Dexpression=settings.localRepository -q -DforceStdout)"
 
         declare -A coords
-        coords[data-watcher]="org.wfanet.measurement.securecomputation.deploy.gcloud.datawatcher:data-watcher:$IMAGE_TAG:jar"
-        coords[requisition-fetcher]="org.wfanet.measurement.edpaggregator.deploy.gcloud.requisitionfetcher:requisition-fetcher:$IMAGE_TAG:jar"
-        coords[event-group-sync]="org.wfanet.measurement.edpaggregator.deploy.gcloud.eventgroups:event-group-sync:$IMAGE_TAG:jar"
+        coords[data-watcher]="org.wfanet.measurement.securecomputation.deploy.gcloud.datawatcher:data-watcher:$ARTIFACT_VERSION:jar"
+        coords[requisition-fetcher]="org.wfanet.measurement.edpaggregator.deploy.gcloud.requisitionfetcher:requisition-fetcher:$ARTIFACT_VERSION:jar"
+        coords[event-group-sync]="org.wfanet.measurement.edpaggregator.deploy.gcloud.eventgroups:event-group-sync:$ARTIFACT_VERSION:jar"
         
         LOCAL_REPO=$(mvn help:evaluate -Dexpression=settings.localRepository -q -DforceStdout)
 
