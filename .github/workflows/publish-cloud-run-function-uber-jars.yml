@@ -15,9 +15,9 @@
 name: Build and push uber jar to Github packages
 
 on:
-#  push:
-#    branches:
-#      - marcopremier/edpa_cloud_test_2
+  push:
+    branches:
+      - marcopremier/edpa_cloud_test_2
   workflow_call:
     inputs:
       package-version:
@@ -51,7 +51,7 @@ jobs:
         uses: ./.github/actions/get-maven-artifact-version
         with:
 #          package-version: ${{ inputs.package-version }}
-          package-version: "09f9dc7f9f6682da5d197f350e485474d7ff85fc"
+          package-version: "373c604288ffdf528bf8369acc3ff663d434807d"
       - name: Build and Deploy Data Watcher
         env:
           MAVEN_USERNAME: ${{ github.actor }}
