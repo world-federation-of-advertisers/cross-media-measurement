@@ -16,9 +16,9 @@
 
 package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
+import com.google.protobuf.DynamicMessage
 import java.util.concurrent.atomic.AtomicLong
 import java.util.logging.Logger
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.eventdataprovider.shareshuffle.v2alpha.VidIndexMap
 import org.wfanet.measurement.eventdataprovider.shareshuffle.v2alpha.VidNotFoundException
 import org.wfanet.measurement.loadtest.dataprovider.LabeledEvent
@@ -51,7 +51,7 @@ class FrequencyVectorSink(
    * @param totalProcessed Total number of events that were processed (including non-matches)
    */
   suspend fun processMatchedEvents(
-    matchedEvents: List<LabeledEvent<TestEvent>>,
+    matchedEvents: List<LabeledEvent<DynamicMessage>>,
     totalProcessed: Int
   ) {
     processedCount.addAndGet(totalProcessed.toLong())

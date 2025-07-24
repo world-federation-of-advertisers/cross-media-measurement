@@ -16,13 +16,13 @@
 
 package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
+import com.google.protobuf.DynamicMessage
 import com.google.protobuf.TypeRegistry
 import java.util.concurrent.atomic.AtomicLong
 import java.util.logging.Logger
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.*
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.eventdataprovider.shareshuffle.v2alpha.VidIndexMap
 import org.wfanet.measurement.loadtest.dataprovider.LabeledEvent
 
@@ -44,27 +44,18 @@ class SingleThreadedPipeline(
   override val pipelineType: String = "Single-Threaded"
   
   override suspend fun processEventBatches(
-    eventBatchFlow: Flow<List<LabeledEvent<TestEvent>>>,
+    eventBatchFlow: Flow<List<LabeledEvent<DynamicMessage>>>,
     vidIndexMap: VidIndexMap,
-    filters: List<FilterConfiguration>
+    filters: List<FilterConfiguration>,
+    typeRegistry: TypeRegistry
   ): Map<String, SinkStatistics> = coroutineScope {
     
     logger.info("Starting single-threaded pipeline with ${filters.size} filters")
     
-    val typeRegistry = TypeRegistry.newBuilder()
-      .add(TestEvent.getDescriptor())
-      .build()
-    
-    // Create processors and sinks
-    val processors = filters.map { config ->
-      FilterProcessor(
-        filterId = config.filterId,
-        celExpression = config.celExpression,
-        eventMessageDescriptor = TestEvent.getDescriptor(),
-        typeRegistry = typeRegistry,
-        collectionInterval = config.timeInterval
-      )
-    }
+    // We'll need to get the descriptor from the first event
+    var eventTemplateDescriptor: com.google.protobuf.Descriptors.Descriptor? = null
+    val processors = mutableListOf<FilterProcessor>()
+    var processorsInitialized = false
     
     val sinks = filters.associate { config ->
       config.filterId to FrequencyVectorSink(
@@ -82,6 +73,29 @@ class SingleThreadedPipeline(
       .onStart { logger.info("Single pipeline started") }
       .flowOn(dispatcher)
       .collect { eventList ->
+        // Initialize processors on first batch
+        if (!processorsInitialized && eventList.isNotEmpty()) {
+          val firstEvent = eventList.first()
+          val eventMessage = firstEvent.message
+          eventTemplateDescriptor = eventMessage.descriptorForType
+          
+          // Now create the processors with the actual descriptor
+          processors.clear()
+          filters.forEach { config ->
+            processors.add(
+              FilterProcessor(
+                filterId = config.filterId,
+                celExpression = config.celExpression,
+                eventMessageDescriptor = eventTemplateDescriptor!!,
+                typeRegistry = typeRegistry,
+                collectionInterval = config.timeInterval
+              )
+            )
+          }
+          processorsInitialized = true
+          logger.info("Initialized processors with event type: ${eventTemplateDescriptor!!.fullName}")
+        }
+        
         val batchSize = eventList.size
         totalEvents.addAndGet(batchSize.toLong())
         

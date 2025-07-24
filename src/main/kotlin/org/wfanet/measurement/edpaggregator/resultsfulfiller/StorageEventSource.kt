@@ -17,7 +17,7 @@
 package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
 import com.google.crypto.tink.KmsClient
-import com.google.protobuf.Message
+import com.google.protobuf.Any
 import com.google.protobuf.TypeRegistry
 import java.time.LocalDate
 import java.util.logging.Logger
@@ -83,7 +83,7 @@ class StorageEventSource(
 
   override suspend fun generateEventBatches(
     dispatcher: CoroutineContext
-  ): Flow<List<LabeledEvent<out Message>>> {
+  ): Flow<List<LabeledEvent<Any>>> {
     logger.info("Starting storage-based event generation with batching")
 
     return channelFlow {
@@ -110,9 +110,12 @@ class StorageEventSource(
               var batchCount = 0
               var eventCount = 0
               
-              // Use the new batched API from EventReader
+              // Use the new batched API from EventReader  
               eventReader.getLabeledEventsBatched(date, eventGroupReferenceId, batchSize).collect { batch ->
-                send(batch)
+                // Convert events to Any if needed
+                @Suppress("UNCHECKED_CAST")
+                val anyBatch = batch as List<LabeledEvent<Any>>
+                send(anyBatch)
                 batchCount++
                 eventCount += batch.size
               }
@@ -154,7 +157,7 @@ class StorageEventSource(
     }
   }
 
-  override suspend fun generateEvents(): Flow<LabeledEvent<out Message>> {
+  override suspend fun generateEvents(): Flow<LabeledEvent<Any>> {
     logger.info("Starting storage-based event generation")
 
     return kotlinx.coroutines.flow.flow {
@@ -164,7 +167,10 @@ class StorageEventSource(
         for (eventGroupReferenceId in eventGroupReferenceIds) {
           try {
             eventReader.getLabeledEvents(date, eventGroupReferenceId).collect { event ->
-              emit(event)
+              // Convert to Any if needed
+              @Suppress("UNCHECKED_CAST")
+              val anyEvent = event as LabeledEvent<Any>
+              emit(anyEvent)
             }
           } catch (e: ImpressionReadException) {
             logger.warning("Failed to read events for date $date and event group $eventGroupReferenceId: ${e.message}")

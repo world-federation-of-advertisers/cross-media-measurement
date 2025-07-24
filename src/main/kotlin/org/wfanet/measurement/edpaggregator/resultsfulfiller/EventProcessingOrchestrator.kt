@@ -33,6 +33,7 @@ import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.Synthetic
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticPopulationSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.syntheticEventGroupSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.syntheticPopulationSpec
+import com.google.protobuf.DynamicMessage
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.api.v2alpha.populationSpec
 import org.wfanet.measurement.common.OpenEndTimeRange
@@ -106,7 +107,7 @@ class EventProcessingOrchestrator {
   /**
    * Runs the event processing pipeline with the given configuration.
    */
-  suspend fun run(config: PipelineConfiguration) {
+  suspend fun run(config: PipelineConfiguration, typeRegistry: TypeRegistry) {
     config.validate()
 
     displayConfiguration(config)
@@ -146,12 +147,13 @@ class EventProcessingOrchestrator {
 
       // Cast the flow to the expected type
       @Suppress("UNCHECKED_CAST")
-      val testEventBatchFlow = eventBatchFlow as Flow<List<LabeledEvent<TestEvent>>>
+      val dynamicMessageEventBatchFlow = eventBatchFlow as Flow<List<LabeledEvent<DynamicMessage>>>
 
       val statistics = pipeline.processEventBatches(
-        eventBatchFlow = testEventBatchFlow,
+        eventBatchFlow = dynamicMessageEventBatchFlow,
         vidIndexMap = vidIndexMap,
-        filters = filters
+        filters = filters,
+        typeRegistry = typeRegistry
       )
 
       val pipelineEndTime = System.currentTimeMillis()

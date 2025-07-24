@@ -224,7 +224,17 @@ object EventFilterValidator {
         )
       }
     failOnInvalidExpression(astAndIssues.issues)
-    return astAndIssues.ast
+    
+    // Check if AST is null before returning
+    val ast = astAndIssues.ast
+    if (ast == null) {
+      throw EventFilterValidationException(
+        EventFilterValidationException.Code.INVALID_CEL_EXPRESSION,
+        "CEL compilation returned null AST for expression: '$celExpression'",
+      )
+    }
+    
+    return ast
   }
 
   fun compile(env: Env, celExpression: String, operativeFields: Set<String>): Ast {

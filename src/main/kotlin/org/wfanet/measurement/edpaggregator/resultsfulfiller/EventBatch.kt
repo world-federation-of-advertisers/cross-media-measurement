@@ -16,7 +16,7 @@
 
 package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
+import com.google.protobuf.DynamicMessage
 import org.wfanet.measurement.loadtest.dataprovider.LabeledEvent
 
 /**
@@ -26,7 +26,7 @@ import org.wfanet.measurement.loadtest.dataprovider.LabeledEvent
  * reducing overhead and improving throughput.
  */
 data class EventBatch(
-  val events: List<LabeledEvent<TestEvent>>,
+  val events: List<LabeledEvent<DynamicMessage>>,
   val batchId: Long,
   val timestamp: Long = System.currentTimeMillis()
 ) {

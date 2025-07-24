@@ -20,6 +20,9 @@ import com.google.crypto.tink.KmsClient
 import com.google.crypto.tink.aead.AeadConfig
 import com.google.crypto.tink.streamingaead.StreamingAeadConfig
 import com.google.type.Interval
+import com.google.protobuf.DescriptorProtos
+import com.google.protobuf.Descriptors
+import com.google.protobuf.ExtensionRegistry
 import com.google.protobuf.Timestamp
 import com.google.protobuf.TypeRegistry
 import java.io.File
@@ -29,9 +32,11 @@ import java.time.ZoneId
 import java.util.logging.Logger
 import kotlin.io.path.Path
 import kotlinx.coroutines.runBlocking
+import org.wfanet.measurement.api.v2alpha.EventAnnotationsProto
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticPopulationSpec
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
+import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.edpaggregator.StorageConfig
@@ -51,8 +56,47 @@ class EventProcessingCLI(
   private val orchestrator: EventProcessingOrchestrator = EventProcessingOrchestrator()
 ) : Runnable {
 
+  private fun loadFileDescriptorSets(
+    files: Iterable<File>
+  ): List<DescriptorProtos.FileDescriptorSet> {
+    return files.map { file ->
+      file.inputStream().use { input ->
+        DescriptorProtos.FileDescriptorSet.parseFrom(input, EXTENSION_REGISTRY)
+      }
+    }
+  }
+
+  private fun buildTypeRegistry(): TypeRegistry {
+    return TypeRegistry.newBuilder()
+      .apply {
+        add(COMPILED_PROTOBUF_TYPES.flatMap { it.messageTypes })
+        if (eventTemplateDescriptorSetFiles.isNotEmpty()) {
+          add(
+            ProtoReflection.buildDescriptors(
+              loadFileDescriptorSets(eventTemplateDescriptorSetFiles),
+              COMPILED_PROTOBUF_TYPES,
+            )
+          )
+        }
+      }
+      .build()
+  }
+
   companion object {
     private val logger = Logger.getLogger(EventProcessingCLI::class.java.name)
+
+    /**
+     * [Descriptors.FileDescriptor]s of protobuf types known at compile-time that may be loaded from
+     * a [DescriptorProtos.FileDescriptorSet].
+     */
+    private val COMPILED_PROTOBUF_TYPES: Iterable<Descriptors.FileDescriptor> =
+      (ProtoReflection.WELL_KNOWN_TYPES.asSequence() + TestEvent.getDescriptor().file)
+        .asIterable()
+
+    private val EXTENSION_REGISTRY =
+      ExtensionRegistry.newInstance()
+        .also { EventAnnotationsProto.registerAllExtensions(it) }
+        .unmodifiable
 
     @JvmStatic
     fun main(args: Array<String>) = commandLineMain(EventProcessingCLI(), args)
@@ -192,6 +236,16 @@ class EventProcessingCLI(
   )
   private var disableLogging: Boolean = false
 
+  @CommandLine.Option(
+    names = ["--event-template-metadata-type"],
+    description = [
+      "Serialized FileDescriptorSet for EventTemplate metadata types.",
+      "This can be specified multiple times."
+    ],
+    required = false
+  )
+  private var eventTemplateDescriptorSetFiles: List<File> = emptyList()
+
   override fun run() = runBlocking {
     logger.info("Starting Event Processing Pipeline")
     println("Event Processing Pipeline")
@@ -202,7 +256,8 @@ class EventProcessingCLI(
       initializeTink()
 
       val config = buildConfiguration()
-      orchestrator.run(config)
+      val typeRegistry = buildTypeRegistry()
+      orchestrator.run(config, typeRegistry)
     } catch (e: Exception) {
       logger.severe("Pipeline execution failed: ${e.message}")
       throw e

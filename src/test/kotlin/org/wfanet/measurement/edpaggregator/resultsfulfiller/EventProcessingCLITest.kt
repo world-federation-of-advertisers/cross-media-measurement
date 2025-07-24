@@ -17,6 +17,7 @@
 package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
 import com.google.common.truth.Truth.assertThat
+import com.google.protobuf.TypeRegistry
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.PrintStream
@@ -79,7 +80,7 @@ class EventProcessingCLITest {
     
     // Create a mock orchestrator to capture the configuration and return expected statistics
     val mockOrchestrator = mock<EventProcessingOrchestrator>()
-    whenever(mockOrchestrator.run(any())).thenAnswer { invocation ->
+    whenever(mockOrchestrator.run(any(), any())).thenAnswer { invocation ->
       capturedConfig = invocation.getArgument<PipelineConfiguration>(0)
       
       // Create statistics that represent our expected measurements:
@@ -130,14 +131,14 @@ class EventProcessingCLITest {
     val config = cli.buildConfiguration()
     
     // Verify the configuration is set up correctly for our test scenario
-    assertThat(config.populationSpec.vidRange.endExclusive - config.populationSpec.vidRange.start).isEqualTo(100L)
+    assertThat(config.populationSpec!!.vidRange.endExclusive - config.populationSpec!!.vidRange.start).isEqualTo(100L)
     
     // Run the CLI to trigger the orchestrator
     cli.run()
     
     // Verify the orchestrator was called with the correct configuration
     assertThat(capturedConfig).isNotNull()
-    assertThat(capturedConfig!!.populationSpec.vidRange.endExclusive - capturedConfig!!.populationSpec.vidRange.start).isEqualTo(100L)
+    assertThat(capturedConfig!!.populationSpec!!.vidRange.endExclusive - capturedConfig!!.populationSpec!!.vidRange.start).isEqualTo(100L)
     
     // Verify the measurement results are as expected
     assertThat(capturedStatistics).isNotNull()
@@ -162,7 +163,7 @@ class EventProcessingCLITest {
     
     // Create a mock orchestrator to capture the configuration and return multi-week statistics
     val mockOrchestrator = mock<EventProcessingOrchestrator>()
-    whenever(mockOrchestrator.run(any())).thenAnswer { invocation ->
+    whenever(mockOrchestrator.run(any(), any())).thenAnswer { invocation ->
       capturedConfig = invocation.getArgument<PipelineConfiguration>(0)
       
       // Create statistics that represent measurements for individual weeks WITHOUT double counting:
@@ -292,7 +293,7 @@ class EventProcessingCLITest {
   @Test
   fun `CLI validates configuration correctly`(): Unit = runBlocking {
     val mockOrchestrator = mock<EventProcessingOrchestrator>()
-    whenever(mockOrchestrator.run(any())).thenThrow(
+    whenever(mockOrchestrator.run(any(), any())).thenThrow(
       IllegalArgumentException("End date must be after or equal to start date")
     )
     

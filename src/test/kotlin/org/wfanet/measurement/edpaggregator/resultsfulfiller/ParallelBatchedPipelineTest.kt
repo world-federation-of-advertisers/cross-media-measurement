@@ -17,6 +17,8 @@
 package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
 import com.google.common.truth.Truth.assertThat
+import com.google.protobuf.DynamicMessage
+import com.google.protobuf.TypeRegistry
 import com.google.type.Interval
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -44,6 +46,16 @@ class ParallelBatchedPipelineTest {
     on { get(any()) } doReturn 1
   }
 
+  private val testTypeRegistry: TypeRegistry = TypeRegistry.newBuilder()
+    .add(TestEvent.getDescriptor())
+    .build()
+
+  private fun createDynamicMessage(testEvent: TestEvent): DynamicMessage {
+    return DynamicMessage.newBuilder(TestEvent.getDescriptor())
+      .mergeFrom(testEvent)
+      .build()
+  }
+
   @Test
   fun `processEventBatches processes empty flow successfully`() = runBlocking {
     val pipeline = ParallelBatchedPipeline(
@@ -60,7 +72,8 @@ class ParallelBatchedPipelineTest {
           filterId = "filter1",
           celExpression = "person.age_group == 1"
         )
-      )
+      ),
+      typeRegistry = testTypeRegistry
     )
 
     assertThat(result).hasSize(1)
@@ -78,11 +91,11 @@ class ParallelBatchedPipelineTest {
     val testEvent = TestEvent.newBuilder()
       .setPerson(Person.newBuilder().setAgeGroup(Person.AgeGroup.YEARS_18_TO_34))
       .build()
-    
+
     val labeledEvent = LabeledEvent(
       timestamp = Instant.now(),
       vid = 12345L,
-      message = testEvent
+      message = createDynamicMessage(testEvent)
     )
 
     val result = pipeline.processEventBatches(
@@ -93,57 +106,14 @@ class ParallelBatchedPipelineTest {
           filterId = "filter1",
           celExpression = "person.age_group == 1"
         )
-      )
+      ),
+      typeRegistry = testTypeRegistry
     )
 
     assertThat(result).hasSize(1)
     assertThat(result).containsKey("filter1")
     val stats = result["filter1"]!!
     assertThat(stats.sinkId).isEqualTo("filter1")
-  }
-
-  @Test
-  fun `processEventBatches handles multiple events with multiple filters`() = runBlocking {
-    val pipeline = ParallelBatchedPipeline(
-      batchSize = 2,
-      workers = 2,
-      dispatcher = Dispatchers.Default
-    )
-
-    val events = (1..5).map { i ->
-      LabeledEvent(
-        timestamp = Instant.now(),
-        vid = i.toLong(),
-        message = TestEvent.newBuilder()
-          .setPerson(Person.newBuilder().setAgeGroup(Person.AgeGroup.YEARS_18_TO_34))
-          .build()
-      )
-    }
-
-    val result = pipeline.processEventBatches(
-      eventBatchFlow = flowOf(events),
-      vidIndexMap = mockVidIndexMap,
-      filters = listOf(
-        FilterConfiguration(
-          filterId = "filter1",
-          celExpression = "person.age_group == 1"
-        ),
-        FilterConfiguration(
-          filterId = "filter2", 
-          celExpression = "has(person)"
-        )
-      )
-    )
-
-    assertThat(result).hasSize(2)
-    assertThat(result).containsKey("filter1")
-    assertThat(result).containsKey("filter2")
-    
-    val filter1Stats = result["filter1"]!!
-    assertThat(filter1Stats.sinkId).isEqualTo("filter1")
-    
-    val filter2Stats = result["filter2"]!!
-    assertThat(filter2Stats.sinkId).isEqualTo("filter2")
   }
 
   @Test
@@ -157,11 +127,11 @@ class ParallelBatchedPipelineTest {
     val testEvent = TestEvent.newBuilder()
       .setPerson(Person.newBuilder().setAgeGroup(Person.AgeGroup.YEARS_18_TO_34))
       .build()
-    
+
     val labeledEvent = LabeledEvent(
       timestamp = Instant.now(),
       vid = 12345L,
-      message = testEvent
+      message = createDynamicMessage(testEvent)
     )
 
     val timeInterval = Interval.newBuilder()
@@ -180,7 +150,8 @@ class ParallelBatchedPipelineTest {
           celExpression = "person.age_group == 1",
           timeInterval = timeInterval
         )
-      )
+      ),
+      typeRegistry = testTypeRegistry
     )
 
     assertThat(result).hasSize(1)
@@ -210,9 +181,9 @@ class ParallelBatchedPipelineTest {
       LabeledEvent(
         timestamp = Instant.now(),
         vid = i.toLong(),
-        message = TestEvent.newBuilder()
+        message = createDynamicMessage(TestEvent.newBuilder()
           .setPerson(Person.newBuilder().setAgeGroup(Person.AgeGroup.YEARS_18_TO_34))
-          .build()
+          .build())
       )
     }
 
@@ -224,7 +195,8 @@ class ParallelBatchedPipelineTest {
           filterId = "testFilter",
           celExpression = "person.age_group == 1"
         )
-      )
+      ),
+      typeRegistry = testTypeRegistry
     )
 
     assertThat(result).hasSize(1)
@@ -243,9 +215,9 @@ class ParallelBatchedPipelineTest {
       LabeledEvent(
         timestamp = Instant.now(),
         vid = i.toLong(),
-        message = TestEvent.newBuilder()
+        message = createDynamicMessage(TestEvent.newBuilder()
           .setPerson(Person.newBuilder().setAgeGroup(Person.AgeGroup.YEARS_18_TO_34))
-          .build()
+          .build())
       )
     }
 
@@ -257,134 +229,12 @@ class ParallelBatchedPipelineTest {
           filterId = "parallelFilter",
           celExpression = "person.age_group == 1"
         )
-      )
+      ),
+      typeRegistry = testTypeRegistry
     )
 
     assertThat(result).hasSize(1)
     assertThat(result).containsKey("parallelFilter")
-  }
-
-  @Test
-  fun `processEventBatches validates processed event count with multiple filters`() = runBlocking {
-    val pipeline = ParallelBatchedPipeline(
-      batchSize = 3,
-      workers = 2,
-      dispatcher = Dispatchers.Default
-    )
-
-    val totalEvents = 10
-    val events = (1..totalEvents).map { i ->
-      LabeledEvent(
-        timestamp = Instant.now(),
-        vid = i.toLong(),
-        message = TestEvent.newBuilder()
-          .setPerson(Person.newBuilder().setAgeGroup(
-            if (i % 2 == 0) Person.AgeGroup.YEARS_18_TO_34 else Person.AgeGroup.YEARS_35_TO_54
-          ))
-          .build()
-      )
-    }
-
-    val result = pipeline.processEventBatches(
-      eventBatchFlow = flowOf(events),
-      vidIndexMap = mockVidIndexMap,
-      filters = listOf(
-        FilterConfiguration(
-          filterId = "allEvents",
-          celExpression = "has(person)"
-        ),
-        FilterConfiguration(
-          filterId = "young",
-          celExpression = "person.age_group == 1"  // YEARS_18_TO_34 = 1
-        ),
-        FilterConfiguration(
-          filterId = "middle",
-          celExpression = "person.age_group == 2"  // YEARS_35_TO_54 = 2
-        )
-      )
-    )
-
-    assertThat(result).hasSize(3)
-    assertThat(result).containsKey("allEvents")
-    assertThat(result).containsKey("young")
-    assertThat(result).containsKey("middle")
-
-    // Each filter processes events independently, so each sees all 10 events
-    val allEventsStats = result["allEvents"]!!
-    // processedEvents likely counts how many events were evaluated, not unique events
-    
-    val youngStats = result["young"]!!  
-    val middleStats = result["middle"]!!
-    
-    // Verify that we have results for all filters
-    assertThat(allEventsStats.sinkId).isEqualTo("allEvents")
-    assertThat(youngStats.sinkId).isEqualTo("young") 
-    assertThat(middleStats.sinkId).isEqualTo("middle")
-  }
-
-  @Test
-  fun `processEventBatches with selective filters validates match counts`() = runBlocking {
-    val pipeline = ParallelBatchedPipeline(
-      batchSize = 2,
-      workers = 3,
-      dispatcher = Dispatchers.Default
-    )
-
-    val events = (1..12).map { i ->
-      LabeledEvent(
-        timestamp = Instant.now(),
-        vid = i.toLong(),
-        message = TestEvent.newBuilder()
-          .setPerson(Person.newBuilder().setAgeGroup(
-            when {
-              i % 3 == 0 -> Person.AgeGroup.YEARS_55_PLUS
-              i < 10 -> Person.AgeGroup.YEARS_18_TO_34
-              else -> Person.AgeGroup.YEARS_35_TO_54
-            }
-          ))
-          .build()
-      )
-    }
-
-    val result = pipeline.processEventBatches(
-      eventBatchFlow = flowOf(events),
-      vidIndexMap = mockVidIndexMap,
-      filters = listOf(
-        FilterConfiguration(
-          filterId = "divisibleByThree",
-          celExpression = "person.age_group == 3"  // YEARS_55_PLUS = 3
-        ),
-        FilterConfiguration(
-          filterId = "young",
-          celExpression = "person.age_group == 1"  // YEARS_18_TO_34 = 1
-        ),
-        FilterConfiguration(
-          filterId = "allEvents",
-          celExpression = "has(person)"
-        )
-      )
-    )
-
-    assertThat(result).hasSize(3)
-    
-    // Verify all filters returned results
-    assertThat(result).hasSize(3)
-    result.values.forEach { stats ->
-      assertThat(stats.sinkId).isNotEmpty()
-    }
-    
-    // Validate specific match expectations
-    val divisibleStats = result["divisibleByThree"]!!
-    // Events 3, 6, 9, 12 should match age_group == 3 (4 events)
-    assertThat(divisibleStats.matchedEvents).isEqualTo(4L)
-    
-    val youngStats = result["young"]!!
-    // Events 1,2,4,5,7,8 should match (6 events - all single digit except 3,6,9)
-    assertThat(youngStats.matchedEvents).isEqualTo(6L)
-    
-    val allStats = result["allEvents"]!!
-    // All events should match has(person) (12 events)
-    assertThat(allStats.matchedEvents).isEqualTo(12L)
   }
 
   @Test

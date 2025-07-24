@@ -16,7 +16,7 @@
 
 package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
-import com.google.protobuf.Message
+import com.google.protobuf.Any
 import kotlin.coroutines.CoroutineContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -37,12 +37,12 @@ interface EventSource {
    */
   suspend fun generateEventBatches(
     dispatcher: CoroutineContext = Dispatchers.Default
-  ): Flow<List<LabeledEvent<out Message>>>
+  ): Flow<List<LabeledEvent<Any>>>
   
   /**
    * Generates a flow of individual events.
    * 
    * @return A flow of individual labeled events
    */
-  suspend fun generateEvents(): Flow<LabeledEvent<out Message>>
+  suspend fun generateEvents(): Flow<LabeledEvent<Any>>
 }

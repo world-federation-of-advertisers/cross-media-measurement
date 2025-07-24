@@ -16,7 +16,7 @@
 
 package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
-import com.google.protobuf.Message
+import com.google.protobuf.Any
 import java.time.Instant
 import java.time.ZoneId
 import java.util.logging.Logger
@@ -69,7 +69,7 @@ class SyntheticEventGenerator(
    * Date shards are processed in parallel using the provided dispatcher.
    * Multiple days are processed concurrently for better throughput.
    */
-  override suspend fun generateEventBatches(dispatcher: CoroutineContext): Flow<List<LabeledEvent<out com.google.protobuf.Message>>> {
+  override suspend fun generateEventBatches(dispatcher: CoroutineContext): Flow<List<LabeledEvent<Any>>> {
     logger.info("Starting parallel synthetic event generation with batching")
     
     return channelFlow {
@@ -96,9 +96,16 @@ class SyntheticEventGenerator(
           
           logger.fine("Date shard $shardId generated ${events.size} events in ${shardBatches.size} batches")
           
-          // Send batches directly through the channel
+          // Send batches directly through the channel, converting TestEvent to Any
           shardBatches.forEach { batch ->
-            send(batch)
+            val anyBatch = batch.map { event ->
+              LabeledEvent(
+                timestamp = event.timestamp,
+                vid = event.vid,
+                message = Any.pack(event.message)
+              )
+            }
+            send(anyBatch)
           }
         }
         
@@ -117,7 +124,7 @@ class SyntheticEventGenerator(
    *
    * Events are generated deterministically based on population and event group specs.
    */
-  override suspend fun generateEvents(): Flow<LabeledEvent<out com.google.protobuf.Message>> {
+  override suspend fun generateEvents(): Flow<LabeledEvent<Any>> {
     logger.info("Starting synthetic event generation")
     
     return kotlinx.coroutines.flow.flow {
@@ -129,7 +136,13 @@ class SyntheticEventGenerator(
         zoneId
       ).collect { dateShardedImpression ->
         dateShardedImpression.impressions.collect { event ->
-          emit(event)
+          // Convert TestEvent to Any
+          val anyEvent = LabeledEvent(
+            timestamp = event.timestamp,
+            vid = event.vid,
+            message = Any.pack(event.message)
+          )
+          emit(anyEvent)
         }
       }
     }

@@ -17,6 +17,8 @@
 package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
 import com.google.common.truth.Truth.assertThat
+import com.google.protobuf.DynamicMessage
+import com.google.protobuf.TypeRegistry
 import java.time.LocalDate
 import java.time.ZoneId
 import kotlinx.coroutines.runBlocking
@@ -25,9 +27,14 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticPopulationSpec
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 
 @RunWith(JUnit4::class)
 class EventProcessingOrchestratorTest {
+
+  private val testTypeRegistry: TypeRegistry = TypeRegistry.newBuilder()
+    .add(TestEvent.getDescriptor())
+    .build()
 
   private fun createTestPopulationSpec(): SyntheticPopulationSpec {
     return SyntheticPopulationSpec.newBuilder().apply {
@@ -134,6 +141,7 @@ class EventProcessingOrchestratorTest {
       parallelBatchSize = 10,
       parallelWorkers = 2,
       threadPoolSize = 4,
+      eventSourceType = EventSourceType.SYNTHETIC,
       populationSpec = createTestPopulationSpec(),
       eventGroupSpec = createTestEventGroupSpec(),
       zoneId = ZoneId.of("UTC")
@@ -142,7 +150,7 @@ class EventProcessingOrchestratorTest {
     val orchestrator = EventProcessingOrchestrator()
     
     // This should complete without throwing
-    orchestrator.run(config)
+    orchestrator.run(config, testTypeRegistry)
     
     // If we reach here, the test passed
     assertThat(true).isTrue()
@@ -159,6 +167,7 @@ class EventProcessingOrchestratorTest {
       parallelBatchSize = 20,
       parallelWorkers = 3,
       threadPoolSize = 6,
+      eventSourceType = EventSourceType.SYNTHETIC,
       populationSpec = createTestPopulationSpec(),
       eventGroupSpec = createTestEventGroupSpec(),
       zoneId = ZoneId.of("UTC")
@@ -167,7 +176,7 @@ class EventProcessingOrchestratorTest {
     val orchestrator = EventProcessingOrchestrator()
     
     // This should complete without throwing
-    orchestrator.run(config)
+    orchestrator.run(config, testTypeRegistry)
     
     // If we reach here, the test passed
     assertThat(true).isTrue()
@@ -214,6 +223,7 @@ class EventProcessingOrchestratorTest {
       parallelBatchSize = 10,
       parallelWorkers = 2,
       threadPoolSize = 4,
+      eventSourceType = EventSourceType.SYNTHETIC,
       populationSpec = emptyPopulationSpec,
       eventGroupSpec = emptyEventGroupSpec,
       zoneId = ZoneId.of("UTC")
@@ -222,7 +232,7 @@ class EventProcessingOrchestratorTest {
     val orchestrator = EventProcessingOrchestrator()
     
     // Should handle empty event generation gracefully
-    orchestrator.run(config)
+    orchestrator.run(config, testTypeRegistry)
     
     assertThat(true).isTrue()
   }
@@ -238,6 +248,7 @@ class EventProcessingOrchestratorTest {
       parallelBatchSize = 10,
       parallelWorkers = 2,
       threadPoolSize = 4,
+      eventSourceType = EventSourceType.SYNTHETIC,
       populationSpec = createTestPopulationSpec(),
       eventGroupSpec = createTestEventGroupSpec(),
       zoneId = ZoneId.of("UTC")
@@ -246,7 +257,7 @@ class EventProcessingOrchestratorTest {
     val orchestrator = EventProcessingOrchestrator()
     
     try {
-      orchestrator.run(invalidConfig)
+      orchestrator.run(invalidConfig, testTypeRegistry)
       assertThat(false).isTrue() // Should not reach here
     } catch (e: IllegalArgumentException) {
       assertThat(e.message).contains("End date must be after or equal to start date")
@@ -264,6 +275,7 @@ class EventProcessingOrchestratorTest {
       parallelBatchSize = 5,
       parallelWorkers = 2,
       threadPoolSize = 4,
+      eventSourceType = EventSourceType.SYNTHETIC,
       populationSpec = createTestPopulationSpec(),
       eventGroupSpec = createTestEventGroupSpec(),
       zoneId = ZoneId.of("UTC")
@@ -277,8 +289,8 @@ class EventProcessingOrchestratorTest {
     val orchestrator = EventProcessingOrchestrator()
     
     // Both should complete successfully
-    orchestrator.run(smallBatchConfig)
-    orchestrator.run(largeBatchConfig)
+    orchestrator.run(smallBatchConfig, testTypeRegistry)
+    orchestrator.run(largeBatchConfig, testTypeRegistry)
     
     assertThat(true).isTrue()
   }

@@ -16,8 +16,9 @@
 
 package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
+import com.google.protobuf.DynamicMessage
+import com.google.protobuf.TypeRegistry
 import kotlinx.coroutines.flow.Flow
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.eventdataprovider.shareshuffle.v2alpha.VidIndexMap
 import org.wfanet.measurement.loadtest.dataprovider.LabeledEvent
 
@@ -38,9 +39,10 @@ interface EventProcessingPipeline {
    * @return Statistics for each filter after processing
    */
   suspend fun processEventBatches(
-    eventBatchFlow: Flow<List<LabeledEvent<TestEvent>>>,
+    eventBatchFlow: Flow<List<LabeledEvent<DynamicMessage>>>,
     vidIndexMap: VidIndexMap,
-    filters: List<FilterConfiguration>
+    filters: List<FilterConfiguration>,
+    typeRegistry: TypeRegistry
   ): Map<String, SinkStatistics>
   
   /**

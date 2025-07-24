@@ -17,13 +17,13 @@
 package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
 import com.google.protobuf.Descriptors
+import com.google.protobuf.DynamicMessage
 import com.google.protobuf.TypeRegistry
 import com.google.type.Interval
 import java.time.Instant
 import java.util.logging.Logger
 import org.projectnessie.cel.Program
 import org.projectnessie.cel.common.types.BoolT
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters
 import org.wfanet.measurement.loadtest.dataprovider.LabeledEvent
 
@@ -63,7 +63,7 @@ class FilterProcessor(
    * Processes a batch of events and returns the matching events.
    * Applies both CEL filtering and time range filtering based on collection interval.
    */
-  suspend fun processBatch(batch: EventBatch): List<LabeledEvent<TestEvent>> {
+  suspend fun processBatch(batch: EventBatch): List<LabeledEvent<DynamicMessage>> {
     return batch.events.filter { event ->
       // First apply time range filter if collection interval is specified
       val timeMatches = if (collectionInterval != null) {
@@ -76,7 +76,7 @@ class FilterProcessor(
         return@filter false
       }
       
-      // Then apply CEL filter
+      // Then apply CEL filter - event.message is already a DynamicMessage
       try {
         EventFilters.matches(event.message, program)
       } catch (e: Exception) {
@@ -89,7 +89,7 @@ class FilterProcessor(
   /**
    * Checks if an event's timestamp falls within the collection interval.
    */
-  private fun isEventInTimeRange(event: LabeledEvent<TestEvent>, interval: Interval): Boolean {
+  private fun isEventInTimeRange(event: LabeledEvent<DynamicMessage>, interval: Interval): Boolean {
     try {
       val eventTime = event.timestamp
       val startTime = cachedStartInstant ?: return false
