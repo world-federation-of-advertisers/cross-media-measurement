@@ -44,7 +44,7 @@ resource "terraform_data" "deploy_http_cloud_function" {
       RUN_SERVICE_ACCOUNT     = google_service_account.http_cloud_function_service_account.email
       EXTRA_ENV_VARS          = var.extra_env_vars
       SECRET_MAPPINGS         = var.secret_mappings
-      UBER_JAR_DIRECTORY      = var.uber_jar_dir
+      UBER_JAR_DIRECTORY      = dirname(var.uber_jar_path)
     }
     command = <<-EOT
       #!/bin/bash

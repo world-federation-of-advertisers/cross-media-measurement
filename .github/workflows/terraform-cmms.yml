@@ -137,7 +137,6 @@ jobs:
           cp "$jar_path" "$dest_dir/$filename"
           
           safe_key=${key//-/_}
-          echo "${safe_key}_source_dir=$dest_dir" >> "$GITHUB_OUTPUT"
           echo "${safe_key}_source_path=$dest_dir/$filename" >> "$GITHUB_OUTPUT"
         done
 
@@ -201,9 +200,6 @@ jobs:
         -var="requisition_fetcher_secret_mapping=$REQUISITION_FETCHER_SECRET_MAPPING"
         -var="event_group_env_var=$EVENT_GROUP_ENV_VAR"
         -var="event_group_secret_mapping=$EVENT_GROUP_SECRET_MAPPING"
-        -var="data_watcher_uber_jar_dir=${{ steps.download-uber-jars.outputs.data_watcher_source_dir }}"
-        -var="requisition_fetcher_uber_jar_dir=${{ steps.download-uber-jars.outputs.requisition_fetcher_source_dir }}"
-        -var="event_group_uber_jar_dir=${{ steps.download-uber-jars.outputs.event_group_sync_source_dir }}"
         -var="data_watcher_uber_jar_path=${{ steps.download-uber-jars.outputs.data_watcher_source_path }}"
         -var="requisition_fetcher_uber_jar_path=${{ steps.download-uber-jars.outputs.requisition_fetcher_source_path }}"
         -var="event_group_uber_jar_path=${{ steps.download-uber-jars.outputs.event_group_sync_source_path }}"
