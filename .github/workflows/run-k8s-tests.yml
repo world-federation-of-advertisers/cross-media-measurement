@@ -15,9 +15,9 @@
 name: Run Kubernetes tests
 
 on:
-  push:
-    branches:
-      - marcopremier/edpa_cloud_test_2
+#  push:
+#    branches:
+#      - marcopremier/edpa_cloud_test_2
   workflow_call:
     inputs:
       environment:
