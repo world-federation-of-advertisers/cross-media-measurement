@@ -320,9 +320,10 @@ abstract class MeasurementConsumerSimulator(
    *
    * @numMeasurements - The number of incremental measurements to request within the time period.
    */
-  suspend fun testDirectReachAndFrequency(runId: String, numMeasurements: Int) {
+  suspend fun testDirectReachAndFrequency(runId: String, numMeasurements: Int, getRequisitions: (() -> Unit)? = null) {
     // Create a new measurement on behalf of the measurement consumer.
     val measurementConsumer = getMeasurementConsumer(measurementConsumerData.name)
+    logger.info("Creating measurements...")
     val measurementInfos =
       (1..numMeasurements).map { measurementNumber ->
         val measurementInfo =
@@ -339,6 +340,9 @@ abstract class MeasurementConsumerSimulator(
         logger.info("Created direct reach and frequency measurement $measurementName.")
         measurementInfo
       }
+
+    getRequisitions?.invoke()
+
     measurementInfos.forEachIndexed { measurementNumber, measurementInfo ->
       val measurementName = measurementInfo.measurement.name
       // Get the CMMS computed result and compare it with the expected result.
