@@ -106,7 +106,8 @@ object Covariances {
           return 0.0
         }
         is DeterministicMethodology,
-        is HonestMajorityShareShuffleMethodology -> {
+        is HonestMajorityShareShuffleMethodology,
+        is TrusTeeMethodology -> {
           return computeDeterministicCovariance(
             ReachMeasurementCovarianceParams(
               reach = weightedMeasurementVarianceParams.measurementVarianceParams.reach,
@@ -139,7 +140,8 @@ object Covariances {
         return 0.0
       }
       is DeterministicMethodology,
-      is HonestMajorityShareShuffleMethodology -> {
+      is HonestMajorityShareShuffleMethodology,
+      is TrusTeeMethodology -> {
         return computeDeterministicCovariance(
           ReachMeasurementCovarianceParams(
             reach = weightedMeasurementVarianceParams.measurementVarianceParams.reach,
