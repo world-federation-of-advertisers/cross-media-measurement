@@ -24,7 +24,6 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.*
 import org.wfanet.measurement.eventdataprovider.shareshuffle.v2alpha.VidIndexMap
-import org.wfanet.measurement.loadtest.dataprovider.LabeledEvent
 
 /**
  * Single-threaded implementation of the event processing pipeline.

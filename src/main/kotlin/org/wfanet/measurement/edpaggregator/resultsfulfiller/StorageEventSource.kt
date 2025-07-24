@@ -30,7 +30,6 @@ import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.launch
 import org.wfanet.measurement.common.OpenEndTimeRange
 import org.wfanet.measurement.edpaggregator.StorageConfig
-import org.wfanet.measurement.loadtest.dataprovider.LabeledEvent
 
 /**
  * Event source implementation that reads events from storage using EventReader.

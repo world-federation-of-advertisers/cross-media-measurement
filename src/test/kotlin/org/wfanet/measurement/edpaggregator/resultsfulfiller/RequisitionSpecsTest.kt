@@ -26,6 +26,7 @@ import java.time.ZoneOffset
 import kotlin.random.Random
 import kotlinx.coroutines.flow.count
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertThrows
 import org.junit.Test
@@ -48,11 +49,25 @@ import org.wfanet.measurement.api.v2alpha.requisitionSpec
 import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.common.toProtoTime
+import com.google.protobuf.Message
+import java.time.Instant
 import org.wfanet.measurement.edpaggregator.v1alpha.copy
 import org.wfanet.measurement.edpaggregator.v1alpha.labeledImpression
 
 @RunWith(JUnit4::class)
 class RequisitionSpecsTest {
+
+  /**
+   * Helper function to convert LabeledImpression protobuf to LabeledEvent data class.
+   */
+  private fun convertToLabeledEvent(labeledImpression: org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression): LabeledEvent<Message> {
+    val event = labeledImpression.event.unpack<TestEvent>()
+    return LabeledEvent(
+      timestamp = labeledImpression.eventTime.toInstant(),
+      vid = labeledImpression.vid,
+      message = event
+    )
+  }
 
   @Test
   fun `getSampledVids filters per cel filter`() = runBlocking {
@@ -79,7 +94,7 @@ class RequisitionSpecsTest {
           }
           .pack()
     }
-    val impressions =
+    val labeledImpressions =
       flowOf(
         labeledImpression,
         labeledImpression.copy {
@@ -94,9 +109,10 @@ class RequisitionSpecsTest {
               .pack()
         },
       )
+    val impressions = labeledImpressions.map { convertToLabeledEvent(it) }
     val eventReader: EventReader =
       mock<EventReader> {
-        onBlocking { getLabeledImpressions(any(), any()) }.thenReturn(impressions)
+        onBlocking { getLabeledEvents(any(), any()) }.thenReturn(impressions)
       }
 
     val result =
@@ -137,10 +153,11 @@ class RequisitionSpecsTest {
           }
           .pack()
     }
-    val impressions = flowOf(labeledImpression, labeledImpression.copy { this.vid = 10 })
+    val labeledImpressions = flowOf(labeledImpression, labeledImpression.copy { this.vid = 10 })
+    val impressions = labeledImpressions.map { convertToLabeledEvent(it) }
     val eventReader: EventReader =
       mock<EventReader> {
-        onBlocking { getLabeledImpressions(any(), any()) }.thenReturn(impressions)
+        onBlocking { getLabeledEvents(any(), any()) }.thenReturn(impressions)
       }
 
     val result =
@@ -180,7 +197,7 @@ class RequisitionSpecsTest {
           }
           .pack()
     }
-    val impressions =
+    val labeledImpressions =
       flowOf(
         labeledImpression,
         labeledImpression.copy {
@@ -188,9 +205,10 @@ class RequisitionSpecsTest {
             FIRST_EVENT_DATE.plusDays(1).atTime(1, 1, 1).toInstant(ZoneOffset.UTC).toProtoTime()
         },
       )
+    val impressions = labeledImpressions.map { convertToLabeledEvent(it) }
     val eventReader: EventReader =
       mock<EventReader> {
-        onBlocking { getLabeledImpressions(any(), any()) }.thenReturn(impressions)
+        onBlocking { getLabeledEvents(any(), any()) }.thenReturn(impressions)
       }
 
     val result =
@@ -204,7 +222,7 @@ class RequisitionSpecsTest {
       )
 
     assertThat(result.count()).isEqualTo(1)
-    verifyBlocking(eventReader, times(1)) { getLabeledImpressions(any(), any()) }
+    verifyBlocking(eventReader, times(1)) { getLabeledEvents(any(), any()) }
   }
 
   fun `throws exception for invalid vid interval`() = runBlocking {
@@ -237,10 +255,11 @@ class RequisitionSpecsTest {
           }
           .pack()
     }
-    val impressions = flowOf(labeledImpression)
+    val labeledImpressions = flowOf(labeledImpression)
+    val impressions = labeledImpressions.map { convertToLabeledEvent(it) }
     val eventReader: EventReader =
       mock<EventReader> {
-        onBlocking { getLabeledImpressions(any(), any()) }.thenReturn(impressions)
+        onBlocking { getLabeledEvents(any(), any()) }.thenReturn(impressions)
       }
 
     assertThrows(IllegalArgumentException::class.java) {

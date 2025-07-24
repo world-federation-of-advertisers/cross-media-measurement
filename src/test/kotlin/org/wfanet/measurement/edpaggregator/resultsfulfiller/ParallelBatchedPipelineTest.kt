@@ -35,7 +35,6 @@ import org.mockito.kotlin.mock
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
 import org.wfanet.measurement.eventdataprovider.shareshuffle.v2alpha.VidIndexMap
-import org.wfanet.measurement.loadtest.dataprovider.LabeledEvent
 import java.time.Instant
 import kotlin.system.measureTimeMillis
 

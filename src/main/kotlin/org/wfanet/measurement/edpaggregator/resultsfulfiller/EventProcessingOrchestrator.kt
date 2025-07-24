@@ -39,7 +39,6 @@ import org.wfanet.measurement.api.v2alpha.populationSpec
 import org.wfanet.measurement.common.OpenEndTimeRange
 import org.wfanet.measurement.loadtest.dataprovider.toPopulationSpec
 import org.wfanet.measurement.eventdataprovider.shareshuffle.v2alpha.InMemoryVidIndexMap
-import org.wfanet.measurement.loadtest.dataprovider.LabeledEvent
 
 /**
  * Orchestrates the entire event processing pipeline.

@@ -20,7 +20,6 @@ import com.google.protobuf.DynamicMessage
 import com.google.protobuf.TypeRegistry
 import kotlinx.coroutines.flow.Flow
 import org.wfanet.measurement.eventdataprovider.shareshuffle.v2alpha.VidIndexMap
-import org.wfanet.measurement.loadtest.dataprovider.LabeledEvent
 
 /**
  * Interface for event processing pipelines.

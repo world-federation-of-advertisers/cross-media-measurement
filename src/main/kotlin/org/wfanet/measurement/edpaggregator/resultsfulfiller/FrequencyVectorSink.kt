@@ -21,7 +21,6 @@ import java.util.concurrent.atomic.AtomicLong
 import java.util.logging.Logger
 import org.wfanet.measurement.eventdataprovider.shareshuffle.v2alpha.VidIndexMap
 import org.wfanet.measurement.eventdataprovider.shareshuffle.v2alpha.VidNotFoundException
-import org.wfanet.measurement.loadtest.dataprovider.LabeledEvent
 
 /**
  * Frequency vector sink that receives filtered events and updates frequency counts.

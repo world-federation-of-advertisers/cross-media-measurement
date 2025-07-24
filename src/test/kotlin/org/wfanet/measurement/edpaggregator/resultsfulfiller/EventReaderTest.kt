@@ -21,6 +21,7 @@ import com.google.crypto.tink.KmsClient
 import com.google.crypto.tink.aead.AeadConfig
 import com.google.crypto.tink.streamingaead.StreamingAeadConfig
 import com.google.protobuf.ByteString
+import com.google.protobuf.TypeRegistry
 import java.nio.file.Files
 import java.time.LocalDate
 import java.time.ZoneId
@@ -35,6 +36,7 @@ import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.person
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.testEvent
 import org.wfanet.measurement.common.OpenEndTimeRange
@@ -57,6 +59,7 @@ class EventReaderTest {
   private lateinit var kmsClient: KmsClient
   private lateinit var kekUri: String
   private lateinit var serializedEncryptionKey: ByteString
+  private lateinit var typeRegistry: TypeRegistry
 
   init {
     AeadConfig.register()
@@ -80,10 +83,15 @@ class EventReaderTest {
         kekUri,
         tinkKeyTemplateType = "AES128_GCM_HKDF_1MB",
       )
+
+    // Set up TypeRegistry
+    typeRegistry = TypeRegistry.newBuilder()
+      .add(TestEvent.getDescriptor())
+      .build()
   }
 
   @Test
-  fun `getLabeledImpressionsFlow returns labeled impressions`() = runBlocking {
+  fun `getLabeledEventsFlow returns labeled impressions`() = runBlocking {
     // Create impressions storage client
     val impressionsTmpPath = Files.createTempDirectory(null).toFile()
     val impressionsBucketDir = impressionsTmpPath.resolve(IMPRESSIONS_BUCKET)
@@ -143,10 +151,11 @@ class EventReaderTest {
         StorageConfig(rootDirectory = impressionsTmpPath),
         StorageConfig(rootDirectory = dekTmpPath),
         IMPRESSIONS_DEK_FILE_URI_PREFIX,
+        typeRegistry,
       )
 
     // Get labeled impressions
-    val result = eventReader.getLabeledImpressions(DS, EVENT_GROUP_REFERENCE_ID).toList()
+    val result = eventReader.getLabeledEvents(DS, EVENT_GROUP_REFERENCE_ID).toList()
 
     // Verify the result
     assertThat(result).hasSize(impressionCount)
@@ -156,7 +165,7 @@ class EventReaderTest {
   }
 
   @Test
-  fun `getLabeledImpressionsFlow throws exception if impressions blob not found`() {
+  fun `getLabeledEventsFlow throws exception if impressions blob not found`() {
     // Create impressions storage client
     val impressionsTmpPath = Files.createTempDirectory(null).toFile()
     val impressionsBucketDir = impressionsTmpPath.resolve(IMPRESSIONS_BUCKET)
@@ -190,10 +199,11 @@ class EventReaderTest {
         StorageConfig(rootDirectory = impressionsTmpPath),
         StorageConfig(rootDirectory = dekTmpPath),
         IMPRESSIONS_DEK_FILE_URI_PREFIX,
+        typeRegistry,
       )
     // Get labeled impressions
     assertFailsWith<ImpressionReadException> {
-      runBlocking { eventReader.getLabeledImpressions(DS, EVENT_GROUP_REFERENCE_ID).toList() }
+      runBlocking { eventReader.getLabeledEvents(DS, EVENT_GROUP_REFERENCE_ID).toList() }
     }
   }
 

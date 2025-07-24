@@ -17,6 +17,8 @@
 package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
 import com.google.common.truth.Truth.assertThat
+import com.google.protobuf.Any
+import com.google.protobuf.kotlin.unpack
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
@@ -25,12 +27,17 @@ import org.junit.runners.JUnit4
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticPopulationSpec
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.common.OpenEndTimeRange
 import java.time.Instant
 import java.time.ZoneId
 
 @RunWith(JUnit4::class)
 class SyntheticEventGeneratorTest {
+
+  private fun getTestEvent(message: Any): TestEvent {
+    return message.unpack<TestEvent>()
+  }
 
   private fun createTestPopulationSpec(): SyntheticPopulationSpec {
     return SyntheticPopulationSpec.newBuilder().apply {
@@ -160,7 +167,7 @@ class SyntheticEventGeneratorTest {
     assertThat(event.vid).isGreaterThan(0L)
     assertThat(event.timestamp).isNotNull()
     assertThat(event.message).isNotNull()
-    assertThat(event.message.hasPerson()).isTrue()
+    assertThat(getTestEvent(event.message).hasPerson()).isTrue()
   }
 
   @Test
@@ -218,8 +225,8 @@ class SyntheticEventGeneratorTest {
     
     // All events should have valid person data
     events.forEach { event ->
-      assertThat(event.message.hasPerson()).isTrue()
-      val person = event.message.person
+      assertThat(getTestEvent(event.message).hasPerson()).isTrue()
+      val person = getTestEvent(event.message).person
       
       // Gender should be either MALE or FEMALE (not UNSPECIFIED)
       assertThat(person.gender).isAnyOf(Person.Gender.MALE, Person.Gender.FEMALE)
@@ -233,8 +240,8 @@ class SyntheticEventGeneratorTest {
     }
     
     // Check that we have demographic diversity based on population spec
-    val genders = events.map { it.message.person.gender }.toSet()
-    val ageGroups = events.map { it.message.person.ageGroup }.toSet()
+    val genders = events.map { getTestEvent(it.message).person.gender }.toSet()
+    val ageGroups = events.map { getTestEvent(it.message).person.ageGroup }.toSet()
     assertThat(genders).isNotEmpty()
     assertThat(ageGroups).isNotEmpty()
   }
@@ -306,7 +313,7 @@ class SyntheticEventGeneratorTest {
     
     events.forEach { event ->
       // Each event should be a properly structured TestEvent
-      val testEvent = event.message
+      val testEvent = getTestEvent(event.message)
       assertThat(testEvent).isNotNull()
       assertThat(testEvent.hasPerson()).isTrue()
       
@@ -328,13 +335,13 @@ class SyntheticEventGeneratorTest {
     )
 
     val events = generator.generateEvents().toList()
-    val genderCounts = events.groupingBy { it.message.person.gender }.eachCount()
+    val genderCounts = events.groupingBy { getTestEvent(it.message).person.gender }.eachCount()
     
     // Should have events with genders based on population spec
     assertThat(genderCounts.keys).contains(Person.Gender.MALE)
     
     // Check social grade distribution from population spec
-    val socialGrades = events.map { it.message.person.socialGradeGroup }.toSet()
+    val socialGrades = events.map { getTestEvent(it.message).person.socialGradeGroup }.toSet()
     assertThat(socialGrades).isNotEmpty()
   }
 
@@ -388,7 +395,7 @@ class SyntheticEventGeneratorTest {
       assertThat(event.vid).isAtLeast(1L)
       assertThat(event.vid).isAtMost(100000L) // Based on population spec
       assertThat(event.timestamp).isNotNull()
-      assertThat(event.message.hasPerson()).isTrue()
+      assertThat(getTestEvent(event.message).hasPerson()).isTrue()
     }
   }
 
@@ -415,7 +422,7 @@ class SyntheticEventGeneratorTest {
       assertThat(event.vid).isAtLeast(1L)
       assertThat(event.vid).isAtMost(100000L) // Based on population spec
       assertThat(event.timestamp).isNotNull()
-      assertThat(event.message.hasPerson()).isTrue()
+      assertThat(getTestEvent(event.message).hasPerson()).isTrue()
     }
   }
 
@@ -479,7 +486,7 @@ class SyntheticEventGeneratorTest {
     assertThat(events).isNotEmpty()
     events.forEach { event ->
       assertThat(event.timestamp).isNotNull()
-      assertThat(event.message.hasPerson()).isTrue()
+      assertThat(getTestEvent(event.message).hasPerson()).isTrue()
     }
   }
 }

@@ -20,7 +20,6 @@ import com.google.protobuf.Any
 import kotlin.coroutines.CoroutineContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
-import org.wfanet.measurement.loadtest.dataprovider.LabeledEvent
 
 /**
  * Interface for event sources that provide events for processing.

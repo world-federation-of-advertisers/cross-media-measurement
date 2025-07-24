@@ -36,7 +36,6 @@ import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.Synthetic
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticPopulationSpec
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.common.OpenEndTimeRange
-import org.wfanet.measurement.loadtest.dataprovider.LabeledEvent
 import org.wfanet.measurement.loadtest.dataprovider.SyntheticDataGeneration
 
 /**

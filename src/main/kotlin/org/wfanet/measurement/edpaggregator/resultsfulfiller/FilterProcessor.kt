@@ -25,7 +25,6 @@ import java.util.logging.Logger
 import org.projectnessie.cel.Program
 import org.projectnessie.cel.common.types.BoolT
 import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters
-import org.wfanet.measurement.loadtest.dataprovider.LabeledEvent
 
 /**
  * Filter processor for event filtering with CEL expressions and time ranges.

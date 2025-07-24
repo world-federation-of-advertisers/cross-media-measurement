@@ -25,12 +25,30 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.flatMapConcat
+import kotlinx.coroutines.flow.map
+import com.google.protobuf.Message
+import com.google.protobuf.Any
+import org.wfanet.measurement.common.pack
+import org.wfanet.measurement.common.toProtoTime
+import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
+import org.wfanet.measurement.edpaggregator.v1alpha.labeledImpression
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec
 import org.wfanet.measurement.common.toInstant
 
 /** Utility functions for working with VIDs (Virtual IDs) in the EDP Aggregator. */
 object RequisitionSpecs {
+
+  /**
+   * Converts a LabeledEvent to a LabeledImpression protobuf message.
+   */
+  private fun convertToLabeledImpression(labeledEvent: LabeledEvent<Message>): LabeledImpression {
+    return labeledImpression {
+      vid = labeledEvent.vid
+      eventTime = labeledEvent.timestamp.toProtoTime()
+      event = Any.pack(labeledEvent.message)
+    }
+  }
 
   /**
    * Retrieves sampled VIDs from a requisition specification based on a sampling interval.
@@ -73,10 +91,12 @@ object RequisitionSpecs {
       )
       val dates = startDate.datesUntil(endDate.plusDays(1)).asSequence()
       // Iterates through all dates up to the end date in the collection interval(inclusive)
-      val impressions =
+      val labeledEvents: Flow<LabeledEvent<Message>> =
         dates.asFlow().flatMapConcat { date ->
-          eventReader.getLabeledImpressions(date, eventGroupMap.getValue(eventGroup.key))
+          eventReader.getLabeledEvents(date, eventGroupMap.getValue(eventGroup.key))
         }
+
+      val impressions: Flow<LabeledImpression> = labeledEvents.map { convertToLabeledImpression(it) }
 
       VidFilter.filterAndExtractVids(
         impressions,

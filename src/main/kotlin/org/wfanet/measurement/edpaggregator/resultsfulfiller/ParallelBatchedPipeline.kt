@@ -24,7 +24,6 @@ import kotlinx.coroutines.channels.*
 import kotlinx.coroutines.flow.*
 import com.google.protobuf.DynamicMessage
 import org.wfanet.measurement.eventdataprovider.shareshuffle.v2alpha.VidIndexMap
-import org.wfanet.measurement.loadtest.dataprovider.LabeledEvent
 
 /**
  * Parallel batched implementation of the event processing pipeline.

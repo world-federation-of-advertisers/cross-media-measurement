@@ -17,6 +17,8 @@
 package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
 import com.google.common.truth.Truth.assertThat
+import com.google.protobuf.DynamicMessage
+import com.google.protobuf.TypeRegistry
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
@@ -29,7 +31,6 @@ import org.mockito.kotlin.mock
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
 import org.wfanet.measurement.eventdataprovider.shareshuffle.v2alpha.VidIndexMap
-import org.wfanet.measurement.loadtest.dataprovider.LabeledEvent
 import java.time.Instant
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicInteger
@@ -39,6 +40,16 @@ class ParallelBatchedPipelineRoundRobinTest {
 
   private val mockVidIndexMap = mock<VidIndexMap> {
     on { get(any()) } doReturn 1
+  }
+
+  private val typeRegistry = TypeRegistry.newBuilder()
+    .add(TestEvent.getDescriptor())
+    .build()
+
+  private fun createDynamicMessage(testEvent: TestEvent): DynamicMessage {
+    return DynamicMessage.newBuilder(TestEvent.getDescriptor())
+      .mergeFrom(testEvent.toByteArray())
+      .build()
   }
 
   @Test
@@ -55,12 +66,13 @@ class ParallelBatchedPipelineRoundRobinTest {
     // Create 9 batches of events
     val batches = (0..8).map { batchIndex ->
       (1..2).map { eventIndex ->
+        val testEvent = TestEvent.newBuilder()
+          .setPerson(Person.newBuilder().setAgeGroup(Person.AgeGroup.YEARS_18_TO_34))
+          .build()
         LabeledEvent(
           timestamp = Instant.now(),
           vid = (batchIndex * 2 + eventIndex).toLong(),
-          message = TestEvent.newBuilder()
-            .setPerson(Person.newBuilder().setAgeGroup(Person.AgeGroup.YEARS_18_TO_34))
-            .build()
+          message = createDynamicMessage(testEvent)
         )
       }
     }
@@ -74,7 +86,8 @@ class ParallelBatchedPipelineRoundRobinTest {
           filterId = "filter1",
           celExpression = "" // Empty expression evaluates to true
         )
-      )
+      ),
+      typeRegistry = typeRegistry
     )
 
     // Verify that events were processed
@@ -97,12 +110,13 @@ class ParallelBatchedPipelineRoundRobinTest {
     )
 
     val events = (1..10).map { i ->
+      val testEvent = TestEvent.newBuilder()
+        .setPerson(Person.newBuilder().setAgeGroup(Person.AgeGroup.YEARS_35_TO_54))
+        .build()
       LabeledEvent(
         timestamp = Instant.now(),
         vid = i.toLong(),
-        message = TestEvent.newBuilder()
-          .setPerson(Person.newBuilder().setAgeGroup(Person.AgeGroup.YEARS_35_TO_54))
-          .build()
+        message = createDynamicMessage(testEvent)
       )
     }
 
@@ -114,7 +128,8 @@ class ParallelBatchedPipelineRoundRobinTest {
           filterId = "singleWorkerFilter",
           celExpression = ""
         )
-      )
+      ),
+      typeRegistry = typeRegistry
     )
 
     assertThat(result).hasSize(1)
@@ -138,7 +153,8 @@ class ParallelBatchedPipelineRoundRobinTest {
           filterId = "emptyFilter",
           celExpression = ""
         )
-      )
+      ),
+      typeRegistry = typeRegistry
     )
 
     assertThat(result).hasSize(1)
