@@ -323,6 +323,7 @@ abstract class MeasurementConsumerSimulator(
   suspend fun testDirectReachAndFrequency(runId: String, numMeasurements: Int, getRequisitions: (() -> Unit)? = null) {
     // Create a new measurement on behalf of the measurement consumer.
     val measurementConsumer = getMeasurementConsumer(measurementConsumerData.name)
+    logger.info("Creating measurements...")
     val measurementInfos =
       (1..numMeasurements).map { measurementNumber ->
         val measurementInfo =
