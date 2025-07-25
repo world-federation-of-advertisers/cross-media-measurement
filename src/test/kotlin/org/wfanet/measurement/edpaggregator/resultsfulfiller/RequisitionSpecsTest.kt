@@ -49,7 +49,7 @@ import org.wfanet.measurement.api.v2alpha.requisitionSpec
 import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.common.toProtoTime
-import org.wfanet.measurement.edpaggregator.v1alpha.copy
+import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
 import org.wfanet.measurement.edpaggregator.v1alpha.labeledImpression
 
 @RunWith(JUnit4::class)
@@ -91,24 +91,22 @@ class RequisitionSpecsTest {
     val dynamicTestEvent1 = DynamicMessage.newBuilder(testEventDescriptor).mergeFrom(testEvent1.toByteString()).build()
     val dynamicTestEvent2 = DynamicMessage.newBuilder(testEventDescriptor).mergeFrom(testEvent2.toByteString()).build()
     
-    val labeledEvents = listOf(
-      LabeledEvent(
-        timestamp = FIRST_EVENT_DATE.atTime(1, 1, 1).toInstant(ZoneOffset.UTC),
-        vid = 1,
-        message = dynamicTestEvent1,
-        eventGroupReferenceId = ""
-      ),
-      LabeledEvent(
-        timestamp = FIRST_EVENT_DATE.atTime(1, 1, 1).toInstant(ZoneOffset.UTC),
-        vid = 1,
-        message = dynamicTestEvent2,
-        eventGroupReferenceId = ""
-      )
+    val labeledImpressions = listOf(
+      labeledImpression {
+        vid = 1
+        eventTime = FIRST_EVENT_DATE.atTime(1, 1, 1).toInstant(ZoneOffset.UTC).toProtoTime()
+        event = testEvent1.pack()
+      },
+      labeledImpression {
+        vid = 1
+        eventTime = FIRST_EVENT_DATE.atTime(1, 1, 1).toInstant(ZoneOffset.UTC).toProtoTime()
+        event = testEvent2.pack()
+      }
     )
     
-    val eventReader: EventReader =
-      mock<EventReader> {
-        onBlocking { readEvents() }.thenReturn(flow { emit(labeledEvents) })
+    val eventReader: LegacyEventReader =
+      mock<LegacyEventReader> {
+        onBlocking { getLabeledImpressions(any(), any()) }.thenReturn(flowOf(*labeledImpressions.toTypedArray()))
       }
 
     val result =

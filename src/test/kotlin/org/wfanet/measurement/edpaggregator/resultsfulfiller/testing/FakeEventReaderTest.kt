@@ -83,8 +83,8 @@ class FakeEventReaderTest {
     val fakeReader = FakeEventReader.withEventCount(5)
     val factory = FakeEventReaderFactory.withDefault(fakeReader)
     
-    val reader1 = factory.createEventReader("path1/blob", "path1/metadata")
-    val reader2 = factory.createEventReader("path2/blob", "path2/metadata")
+    val reader1 = factory.createEventReader("path1/metadata")
+    val reader2 = factory.createEventReader("path2/metadata")
     
     assertThat(reader1).isSameInstanceAs(fakeReader)
     assertThat(reader2).isSameInstanceAs(fakeReader)
@@ -96,21 +96,21 @@ class FakeEventReaderTest {
     val reader2 = FakeEventReader.withEventCount(2)
     
     val mappings = mapOf(
-      Pair("blob1", "meta1") to reader1,
-      Pair("blob2", "meta2") to reader2
+      "meta1" to reader1,
+      "meta2" to reader2
     )
     val factory = FakeEventReaderFactory.withMappings(mappings)
     
-    assertThat(factory.createEventReader("blob1", "meta1")).isSameInstanceAs(reader1)
-    assertThat(factory.createEventReader("blob2", "meta2")).isSameInstanceAs(reader2)
-    assertThat(factory.createEventReader("unknown", "unknown")).isInstanceOf(FakeEventReader::class.java)
+    assertThat(factory.createEventReader("meta1")).isSameInstanceAs(reader1)
+    assertThat(factory.createEventReader("meta2")).isSameInstanceAs(reader2)
+    assertThat(factory.createEventReader("unknown")).isInstanceOf(FakeEventReader::class.java)
   }
 
   @Test
   fun `StorageEventSource works with FakeEventReaderFactory`(): Unit = runBlocking {
     val fakePathResolver = object : EventPathResolver {
       override suspend fun resolvePaths(date: LocalDate, eventGroupReferenceId: String): EventPathResolver.EventPaths {
-        return EventPathResolver.EventPaths("blob-$date", "meta-$date", eventGroupReferenceId)
+        return EventPathResolver.EventPaths("meta-$date", eventGroupReferenceId)
       }
     }
 
