@@ -16,76 +16,135 @@
 
 package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
-import com.google.protobuf.DynamicMessage
+import com.google.protobuf.Any
+import java.time.Instant
+import java.time.ZoneId
+import java.util.logging.Logger
+import kotlin.coroutines.CoroutineContext
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.flow
-import java.time.LocalDate
-import kotlin.random.Random
+import kotlinx.coroutines.flow.buffer
+import kotlinx.coroutines.flow.channelFlow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.launch
+import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
+import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticPopulationSpec
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
+import org.wfanet.measurement.common.OpenEndTimeRange
+import org.wfanet.measurement.loadtest.dataprovider.SyntheticDataGeneration
 
 /**
- * Event source that generates synthetic events for testing and simulation.
- * 
- * This implementation creates synthetic event data based on population
- * specifications and event group configurations, useful for testing
- * and load testing scenarios.
+ * Generates synthetic events using SyntheticDataGeneration for testing and load evaluation.
+ *
+ * This generator creates events using population and event group specifications:
+ * - Uses SyntheticPopulationSpec for demographic distributions
+ * - Uses SyntheticEventGroupSpec for event patterns and frequencies
+ * - Supports both individual events and batched output
+ * - Deterministic generation based on specifications
  */
 class SyntheticEventGenerator(
-  private val startDate: LocalDate,
-  private val endDate: LocalDate,
-  private val eventsPerDay: Long = 1000,
-  private val vidRange: LongRange = 1L..10000L
+  private val populationSpec: SyntheticPopulationSpec,
+  private val eventGroupSpec: SyntheticEventGroupSpec,
+  private val timeRange: OpenEndTimeRange = OpenEndTimeRange(Instant.MIN, Instant.MAX),
+  private val zoneId: ZoneId = ZoneId.of("UTC"),
+  private val batchSize: Int = DEFAULT_BATCH_SIZE
 ) : EventSource {
-  
-  private val random = Random.Default
-  
-  override suspend fun getEvents(): Flow<LabeledEvent<DynamicMessage>> = flow {
-    var currentDate = startDate
+
+  companion object {
+    private val logger = Logger.getLogger(SyntheticEventGenerator::class.java.name)
+    const val DEFAULT_BATCH_SIZE = 10000
+  }
+
+  /**
+   * Generates a flow of synthetic event batches using SyntheticDataGeneration.
+   * 
+   * Events are generated deterministically based on population and event group specs.
+   * Each batch contains up to `batchSize` events.
+   * Date shards are processed in parallel using the provided dispatcher.
+   * Multiple days are processed concurrently for better throughput.
+   */
+  override suspend fun generateEventBatches(dispatcher: CoroutineContext): Flow<List<LabeledEvent<Any>>> {
+    logger.info("Starting parallel synthetic event generation with batching")
     
-    while (!currentDate.isAfter(endDate)) {
-      // Generate events for current date
-      repeat(eventsPerDay.toInt()) {
-        val vid = vidRange.random(random)
+    return channelFlow {
+      // Process date shards in parallel
+      val processingJobs = mutableListOf<kotlinx.coroutines.Job>()
+      var shardCount = 0
+      
+      SyntheticDataGeneration.generateEvents(
+        TestEvent.getDefaultInstance(),
+        populationSpec,
+        eventGroupSpec,
+        timeRange,
+        zoneId
+      ).collect { dateShardedImpression ->
+        shardCount++
+        val shardId = shardCount
         
-        // Create a simple synthetic event
-        // In a real implementation, this would use actual protobuf message types
-        // and synthetic data generation based on population specs
-        val syntheticEvent = createSyntheticEvent(vid, currentDate)
+        // Launch parallel job for each date shard
+        val job = launch(dispatcher) {
+          logger.fine("Processing date shard $shardId for date ${dateShardedImpression.localDate}")
+          
+          val events = dateShardedImpression.impressions.toList()
+          val shardBatches = events.chunked(batchSize)
+          
+          logger.fine("Date shard $shardId generated ${events.size} events in ${shardBatches.size} batches")
+          
+          // Send batches directly through the channel, converting TestEvent to Any
+          shardBatches.forEach { batch ->
+            val anyBatch = batch.map { event ->
+              LabeledEvent(
+                timestamp = event.timestamp,
+                vid = event.vid,
+                message = Any.pack(event.message)
+              )
+            }
+            send(anyBatch)
+          }
+        }
         
-        emit(LabeledEvent(
-          event = syntheticEvent,
-          vid = vid,
-          labels = mapOf(
-            "date" to currentDate.toString(),
-            "source" to "synthetic"
-          )
-        ))
+        processingJobs.add(job)
       }
       
-      currentDate = currentDate.plusDays(1)
+      logger.info("Launched $shardCount date shard processing jobs")
+      
+      // Wait for all processing to complete
+      processingJobs.forEach { it.join() }
     }
   }
-  
-  override fun getEstimatedEventCount(): Long {
-    val days = java.time.temporal.ChronoUnit.DAYS.between(startDate, endDate.plusDays(1))
-    return days * eventsPerDay
-  }
-  
-  override suspend fun close() {
-    // No resources to clean up for synthetic generation
-  }
-  
-  private fun createSyntheticEvent(vid: Long, date: LocalDate): DynamicMessage {
-    // This is a placeholder - in real implementation this would create
-    // proper DynamicMessage instances based on event templates
-    // For now, we'll create a minimal DynamicMessage using the builder pattern
+
+  /**
+   * Generates a flow of individual synthetic events using SyntheticDataGeneration.
+   *
+   * Events are generated deterministically based on population and event group specs.
+   */
+  override suspend fun generateEvents(): Flow<LabeledEvent<Any>> {
+    logger.info("Starting synthetic event generation")
     
-    // Create a simple Any message as a placeholder
-    val anyMessage = com.google.protobuf.Any.newBuilder()
-      .setTypeUrl("type.googleapis.com/synthetic.Event")
-      .setValue(com.google.protobuf.ByteString.copyFromUtf8("synthetic_event_$vid"))
-      .build()
-    
-    // Convert to DynamicMessage
-    return DynamicMessage.parseFrom(anyMessage.descriptorForType, anyMessage.toByteString())
+    return kotlinx.coroutines.flow.flow {
+      SyntheticDataGeneration.generateEvents(
+        TestEvent.getDefaultInstance(),
+        populationSpec,
+        eventGroupSpec,
+        timeRange,
+        zoneId
+      ).collect { dateShardedImpression ->
+        dateShardedImpression.impressions.collect { event ->
+          // Convert TestEvent to Any
+          val anyEvent = LabeledEvent(
+            timestamp = event.timestamp,
+            vid = event.vid,
+            message = Any.pack(event.message)
+          )
+          emit(anyEvent)
+        }
+      }
+    }
   }
+
 }

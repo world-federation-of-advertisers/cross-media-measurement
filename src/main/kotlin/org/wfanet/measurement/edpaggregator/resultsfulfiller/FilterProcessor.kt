@@ -16,45 +16,94 @@
 
 package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
+import com.google.protobuf.Descriptors
 import com.google.protobuf.DynamicMessage
+import com.google.protobuf.TypeRegistry
+import com.google.type.Interval
+import java.time.Instant
+import java.util.logging.Logger
+import org.projectnessie.cel.Program
+import org.projectnessie.cel.common.types.BoolT
+import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters
 
 /**
- * Processor for applying filters to events.
- * 
- * This class handles the application of filter specifications to events,
- * determining which events should be included in measurements based on
- * CEL expressions and other criteria.
+ * Filter processor for event filtering with CEL expressions and time ranges.
+ *
+ * This processor compiles a CEL expression once and reuses it for batch processing.
+ * It processes events sequentially through the CEL filter and identifies matching events.
  */
 class FilterProcessor(
-  private val filterSpecs: List<FilterSpec>
+  val filterId: String,
+  val celExpression: String,
+  private val eventMessageDescriptor: Descriptors.Descriptor,
+  private val typeRegistry: TypeRegistry,
+  val collectionInterval: Interval? = null,
+  val eventGroupReferenceId: String? = null
 ) {
   
+  companion object {
+    private val logger = Logger.getLogger(FilterProcessor::class.java.name)
+  }
+  
+  private val program: Program = if (celExpression.isEmpty()) {
+    Program { Program.newEvalResult(BoolT.True, null) }
+  } else {
+    EventFilters.compileProgram(eventMessageDescriptor, celExpression)
+  }
+  
+  private val cachedStartInstant: Instant? = collectionInterval?.let { 
+    Instant.ofEpochSecond(it.startTime.seconds, it.startTime.nanos.toLong())
+  }
+  
+  private val cachedEndInstant: Instant? = collectionInterval?.let {
+    Instant.ofEpochSecond(it.endTime.seconds, it.endTime.nanos.toLong())
+  }
+  
   /**
-   * Applies all filter specifications to an event.
-   * 
-   * @param event The labeled event to filter
-   * @return true if the event passes all filters, false otherwise
+   * Processes a batch of events and returns the matching events.
+   * Applies reference ID, time range, and CEL filtering.
    */
-  fun matches(event: LabeledEvent<DynamicMessage>): Boolean {
-    return filterSpecs.all { spec ->
-      spec.matches(event.event)
+  suspend fun processBatch(batch: EventBatch): List<LabeledEvent<DynamicMessage>> {
+    return batch.events.filter { event ->
+      // First check reference ID match if specified
+      if (eventGroupReferenceId != null && event.eventGroupReferenceId != eventGroupReferenceId) {
+        return@filter false
+      }
+      
+      // Then apply time range filter if collection interval is specified
+      val timeMatches = if (collectionInterval != null) {
+        isEventInTimeRange(event, collectionInterval)
+      } else {
+        true
+      }
+      
+      if (!timeMatches) {
+        return@filter false
+      }
+      
+      // Finally apply CEL filter - event.message is already a DynamicMessage
+      try {
+        EventFilters.matches(event.message, program)
+      } catch (e: Exception) {
+        logger.warning("CEL filter evaluation failed for event with VID ${event.vid} (filter: $filterId): ${e.message}")
+        false
+      }
     }
   }
   
   /**
-   * Gets the filter specifications this processor uses.
-   * 
-   * @return The list of filter specifications
+   * Checks if an event's timestamp falls within the collection interval.
    */
-  fun getFilterSpecs(): List<FilterSpec> = filterSpecs
-  
-  /**
-   * Creates a new FilterProcessor with additional filter specifications.
-   * 
-   * @param additionalSpecs Additional filter specifications to include
-   * @return A new FilterProcessor instance
-   */
-  fun withAdditionalFilters(additionalSpecs: List<FilterSpec>): FilterProcessor {
-    return FilterProcessor(filterSpecs + additionalSpecs)
+  private fun isEventInTimeRange(event: LabeledEvent<DynamicMessage>, interval: Interval): Boolean {
+    try {
+      val eventTime = event.timestamp
+      val startTime = cachedStartInstant ?: return false
+      val endTime = cachedEndInstant ?: return false
+      
+      return !eventTime.isBefore(startTime) && eventTime.isBefore(endTime)
+    } catch (e: Exception) {
+      logger.warning("Time range evaluation failed for event with VID ${event.vid} (filter: $filterId): ${e.message}")
+      return false
+    }
   }
 }

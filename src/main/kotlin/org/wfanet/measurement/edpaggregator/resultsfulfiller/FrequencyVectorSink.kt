@@ -17,74 +17,76 @@
 package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
 import com.google.protobuf.DynamicMessage
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.fold
+import java.util.concurrent.atomic.AtomicLong
+import java.util.logging.Logger
+import org.wfanet.measurement.eventdataprovider.shareshuffle.v2alpha.VidIndexMap
+import org.wfanet.measurement.eventdataprovider.shareshuffle.v2alpha.VidNotFoundException
 
 /**
- * Sink that collects events into frequency vectors.
- * 
- * This class consumes streams of filtered events and builds frequency vectors
- * for reach and frequency measurements, applying any necessary noise or
- * differential privacy mechanisms.
+ * Frequency vector sink that receives filtered events and builds frequency vectors.
+ *
+ * Each sink corresponds to a specific filter specification and maintains its own frequency vector.
+ * Thread-safe for concurrent access.
  */
 class FrequencyVectorSink(
-  private val filterConfiguration: FilterConfiguration
+  val filterSpec: FilterSpec,
+  private val vectorBuilder: FrequencyVectorBuilder
 ) {
   
-  private val builder = FrequencyVectorBuilder()
-  private var statistics = SinkStatistics()
+  companion object {
+    private val logger = Logger.getLogger(FrequencyVectorSink::class.java.name)
+  }
+  
+  private val processedCount = AtomicLong(0)
+  private val matchedCount = AtomicLong(0)
+  private val errorCount = AtomicLong(0)
   
   /**
-   * Processes a flow of events and builds a frequency vector.
+   * Processes matched events by updating the frequency vector builder.
    * 
-   * @param events The flow of labeled events to process
-   * @return The resulting frequency vector
+   * @param matchedEvents Events that matched the filter
+   * @param totalProcessed Total number of events that were processed (including non-matches)
    */
-  suspend fun process(events: Flow<LabeledEvent<DynamicMessage>>): FrequencyVector {
-    val startTime = System.currentTimeMillis()
-    val processor = filterConfiguration.createProcessor()
+  suspend fun processMatchedEvents(
+    matchedEvents: List<LabeledEvent<DynamicMessage>>,
+    totalProcessed: Int
+  ) {
+    processedCount.addAndGet(totalProcessed.toLong())
+    matchedCount.addAndGet(matchedEvents.size.toLong())
     
-    val processedCount = events.fold(0L) { count, event ->
-      val passed = if (filterConfiguration.isFilteringEnabled()) {
-        processor.matches(event)
-      } else {
-        true
-      }
-      
-      if (passed) {
-        builder.addVid(event.vid)
-        count + 1
-      } else {
-        statistics = statistics.copy(eventsFiltered = statistics.eventsFiltered + 1)
-        count
+    matchedEvents.forEach { event ->
+      try {
+        vectorBuilder.addEvent(event.vid)
+      } catch (e: Exception) {
+        errorCount.incrementAndGet()
+        logger.warning("Failed to add event for VID ${event.vid} (filter: ${filterSpec.eventGroupReferenceId}): ${e.message}")
       }
     }
-    
-    val endTime = System.currentTimeMillis()
-    val frequencyVector = builder.buildOptimal()
-    
-    statistics = statistics.copy(
-      eventsProcessed = processedCount,
-      processingTimeMs = endTime - startTime,
-      reach = frequencyVector.getReach(),
-      maxFrequency = frequencyVector.getMaxFrequency()
-    )
-    
-    return frequencyVector
   }
   
   /**
-   * Gets the processing statistics for this sink.
-   * 
-   * @return The current sink statistics
+   * Returns the built frequency vector.
    */
-  fun getStatistics(): SinkStatistics = statistics
+  fun getFrequencyVector(): FrequencyVector {
+    return vectorBuilder.build()
+  }
   
   /**
-   * Resets the sink for reuse.
+   * Returns current statistics for this sink.
    */
-  fun reset() {
-    builder.clear()
-    statistics = SinkStatistics()
+  fun getStatistics(): SinkStatistics {
+    val frequencyVector = getFrequencyVector()
+    
+    return SinkStatistics(
+      sinkId = filterSpec.eventGroupReferenceId,
+      description = "Filter: ${filterSpec.celExpression}",
+      processedEvents = processedCount.get(),
+      matchedEvents = matchedCount.get(),
+      errorCount = errorCount.get(),
+      reach = frequencyVector.getReach(),
+      totalFrequency = frequencyVector.getTotalFrequency(),
+      averageFrequency = if (frequencyVector.getReach() > 0) 
+        frequencyVector.getTotalFrequency().toDouble() / frequencyVector.getReach() else 0.0
+    )
   }
 }
