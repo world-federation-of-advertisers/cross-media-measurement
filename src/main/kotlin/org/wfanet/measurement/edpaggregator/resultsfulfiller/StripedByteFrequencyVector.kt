@@ -1,0 +1,106 @@
+/*
+ * Copyright 2025 The Cross-Media Measurement Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.wfanet.measurement.edpaggregator.resultsfulfiller
+
+
+/**
+ * Thread-safe, memory-efficient frequency vector using striped byte arrays.
+ *
+ * This implementation:
+ * - Uses byte arrays for memory efficiency (max count 255 per VID)
+ * - Implements lock striping for high-concurrency performance
+ * - Provides O(1) increment operations
+ * - Supports concurrent access from multiple threads
+ *
+ * @param size The total number of VIDs to track
+ */
+class StripedByteFrequencyVector(private val size: Int, private val maxValue: Int = 127) : FrequencyVector {
+
+  companion object {
+    private const val DEFAULT_STRIPE_COUNT = 1024
+  }
+
+  private val stripeCount = DEFAULT_STRIPE_COUNT
+  private val stripeSize = (size + stripeCount - 1) / stripeCount
+  private val data = ByteArray(size)
+  private val locks = Array(stripeCount) { Any() }
+
+  private fun getStripe(index: Int) = index / stripeSize
+
+  /**
+   * Increments the frequency count for a given VID index.
+   *
+   * Note: Frequency counts are capped at 255 to fit in a byte.
+   *
+   * @param index The VID index to increment
+   */
+  override fun incrementByIndex(index: Int) {
+    if (index >= 0 && index < size) {
+      synchronized(locks[getStripe(index)]) {
+        val current = data[index].toInt() and 0xFF
+        if (current < maxValue) {
+          data[index] = (current + 1).toByte()
+        }
+      }
+    }
+  }
+
+  override fun getArray(): IntArray {
+    val result = IntArray(size)
+    for (stripe in 0 until stripeCount) {
+      synchronized(locks[stripe]) {
+        val start = stripe * stripeSize
+        val end = minOf(start + stripeSize, size)
+        var j = start
+        while (j < end) {
+          result[j] = data[j].toInt() and 0xFF
+          j++
+        }
+      }
+    }
+    return result
+  }
+
+  /**
+   * Merges another StripedByteFrequencyVector into this one WITHOUT thread safety.
+   *
+   * WARNING: This method is NOT thread-safe. It should only be called when you are
+   * certain that no other threads are accessing either frequency vector.
+   *
+   * This method efficiently combines two frequency vectors by adding their counts
+   * per VID, with saturation at the maximum value. The lack of synchronization
+   * makes it significantly faster than a thread-safe version.
+   *
+   * @param other The other frequency vector to merge into this one
+   * @return This frequency vector after merging
+   * @throws IllegalArgumentException if the vectors have different sizes
+   */
+  fun mergeUnsafe(other: StripedByteFrequencyVector): StripedByteFrequencyVector {
+    require(size == other.size) {
+      "Cannot merge frequency vectors of different sizes: $size != ${other.size}"
+    }
+
+    // Simple loop - let JVM optimize this for best performance
+    for (i in 0 until size) {
+      val sum = (data[i].toInt() and 0xFF) + (other.data[i].toInt() and 0xFF)
+      data[i] = minOf(sum, maxValue).toByte()
+    }
+
+    return this
+  }
+
+}
