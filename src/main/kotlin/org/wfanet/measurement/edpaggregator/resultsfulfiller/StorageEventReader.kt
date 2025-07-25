@@ -84,10 +84,6 @@ class StorageEventReader(
    * 4. **Batching**: Accumulates events until [batchSize] is reached
    * 5. **Emission**: Emits complete batches through the flow
    *
-   * ## Optimization Strategies
-   * - **Streaming Processing**: Never loads entire blob into memory
-   * - **Batch Buffering**: Minimizes flow emissions for efficiency
-   *
    * @param blobDetails metadata containing encryption keys and blob configuration
    * @return cold [Flow] emitting batched lists of [LabeledEvent] instances
    * @throws ImpressionReadException with [ImpressionReadException.Code.BLOB_NOT_FOUND] if the data
