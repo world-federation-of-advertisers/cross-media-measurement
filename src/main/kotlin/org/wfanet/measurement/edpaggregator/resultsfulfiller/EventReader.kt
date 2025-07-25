@@ -25,7 +25,7 @@ import kotlinx.coroutines.flow.Flow
  * @see StorageEventReader for the primary implementation using cloud storage
  * @see LabeledEvent for the event data structure
  */
-interface EventReader {
+interface EventReader<T : Message> {
   /**
    * Reads labeled events from the configured source and emits them as batched flows.
    *
@@ -47,5 +47,5 @@ interface EventReader {
    *   the data format is invalid
    * @throws IllegalStateException if the reader is not properly configured
    */
-  suspend fun readEvents(): Flow<List<LabeledEvent<Message>>>
+  suspend fun readEvents(): Flow<List<LabeledEvent<T>>>
 }
