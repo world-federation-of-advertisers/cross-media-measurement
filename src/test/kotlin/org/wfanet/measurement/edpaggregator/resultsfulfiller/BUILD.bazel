@@ -122,19 +122,6 @@ kt_jvm_test(
     ],
 )
 
-kt_jvm_test(
-    name = "VidFilterTest",
-    srcs = ["VidFilterTest.kt"],
-    test_class = "org.wfanet.measurement.edpaggregator.resultsfulfiller.VidFilterTest",
-    deps = [
-        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:vid_filter",
-        "//src/main/proto/wfa/measurement/api/v2alpha:requisition_spec_kt_jvm_proto",
-        "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:test_event_kt_jvm_proto",
-        "@wfa_common_jvm//imports/java/com/google/common/truth",
-        "@wfa_common_jvm//imports/java/org/junit",
-        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
-    ],
-)
 
 kt_jvm_test(
     name = "EventReaderTest",
@@ -159,13 +146,22 @@ kt_jvm_test(
     srcs = ["ParallelBatchedPipelineTest.kt"],
     test_class = "org.wfanet.measurement.edpaggregator.resultsfulfiller.ParallelBatchedPipelineTest",
     deps = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator:encrypted_storage",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator:storage_config",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:event_processing_components",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:event_reader",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/testing:test_encrypted_storage",
+        "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:labeled_event",
         "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:test_event_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:encrypted_dek_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:labeled_impression_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/java/org/junit",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
         "@wfa_common_jvm//imports/kotlin/org/mockito/kotlin",
-        "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:labeled_event",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/tink/testing",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:selected_storage_client",
         "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/shareshuffle/v2alpha:shareshuffle",
     ],
 )
@@ -210,33 +206,7 @@ kt_jvm_test(
     ],
 )
 
-kt_jvm_test(
-    name = "EventProcessingOrchestratorTest",
-    srcs = ["EventProcessingOrchestratorTest.kt"],
-    test_class = "org.wfanet.measurement.edpaggregator.resultsfulfiller.EventProcessingOrchestratorTest",
-    deps = [
-        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:event_processing_components",
-        "@wfa_common_jvm//imports/java/com/google/common/truth",
-        "@wfa_common_jvm//imports/java/org/junit",
-        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
-    ],
-)
 
-kt_jvm_test(
-    name = "EventProcessingCLITest",
-    srcs = ["EventProcessingCLITest.kt"],
-    test_class = "org.wfanet.measurement.edpaggregator.resultsfulfiller.EventProcessingCLITest",
-    deps = [
-        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:event_processing_components",
-        "@wfa_common_jvm//imports/java/com/google/common/truth",
-        "@wfa_common_jvm//imports/java/org/junit",
-        "@wfa_common_jvm//imports/java/picocli",
-        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
-        "@wfa_common_jvm//imports/kotlin/org/mockito/kotlin",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
-    ],
-)
 
 kt_jvm_test(
     name = "EventReaderBatchedTest",
@@ -260,6 +230,64 @@ kt_jvm_test(
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/tink/testing",
+    ],
+)
+
+kt_jvm_test(
+    name = "EventProcessingIntegrationTest",
+    srcs = ["EventProcessingIntegrationTest.kt"],
+    test_class = "org.wfanet.measurement.edpaggregator.resultsfulfiller.EventProcessingIntegrationTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator:encrypted_storage",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator:storage_config",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:event_processing_components",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:event_reader",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/testing:test_encrypted_storage",
+        "//src/main/proto/wfa/measurement/api/v2alpha:certificates_service_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:differential_privacy_kt_jvm_proto",  
+        "//src/main/proto/wfa/measurement/api/v2alpha:measurement_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:measurement_spec_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:population_spec_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:protocol_config_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:requisition_spec_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:requisitions_service_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:test_event_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:encrypted_dek_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:labeled_impression_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/tink/testing",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:selected_storage_client",
+    ],
+)
+
+kt_jvm_test(
+    name = "EventProcessingIntegrationSimpleTest",
+    srcs = ["EventProcessingIntegrationSimpleTest.kt"],
+    test_class = "org.wfanet.measurement.edpaggregator.resultsfulfiller.EventProcessingIntegrationSimpleTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator:encrypted_storage",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator:storage_config",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:event_processing_components",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:event_reader",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/testing:test_encrypted_storage",
+        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/shareshuffle/v2alpha:shareshuffle",
+        "//src/main/proto/wfa/measurement/api/v2alpha:population_spec_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:test_event_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:encrypted_dek_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:labeled_impression_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//imports/kotlin/org/mockito/kotlin",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/tink/testing",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:selected_storage_client",
     ],
 )
 

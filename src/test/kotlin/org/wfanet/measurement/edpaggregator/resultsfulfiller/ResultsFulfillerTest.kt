@@ -261,6 +261,8 @@ class ResultsFulfillerTest {
         typeRegistry,
       )
 
+    val eventProcessingOrchestrator = EventProcessingOrchestrator()
+
     val resultsFulfiller =
       ResultsFulfiller(
         PRIVATE_ENCRYPTION_KEY,
@@ -274,6 +276,7 @@ class ResultsFulfillerTest {
         ZoneOffset.UTC,
         ContinuousGaussianNoiseSelector(),
         eventReader,
+        eventProcessingOrchestrator,
       )
 
     resultsFulfiller.fulfillRequisitions()

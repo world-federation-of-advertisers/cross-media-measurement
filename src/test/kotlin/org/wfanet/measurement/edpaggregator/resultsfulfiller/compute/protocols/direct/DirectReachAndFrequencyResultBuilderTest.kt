@@ -28,7 +28,7 @@ import org.junit.runners.JUnit4
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig.NoiseMechanism
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt.direct
-import org.wfanet.measurement.edpaggregator.resultsfulfiller.SimpleFrequencyVector
+import org.wfanet.measurement.edpaggregator.resultsfulfiller.BasicFrequencyVector
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.eventdataprovider.noiser.DirectNoiseMechanism
 
@@ -49,7 +49,7 @@ class DirectReachAndFrequencyResultBuilderTest {
         }
       }
 
-      val frequencyVector = SimpleFrequencyVector(sampledVids.toList())
+      val frequencyVector = BasicFrequencyVector(sampledVids.toList())
       val directReachAndFrequencyResultBuilder =
         DirectReachAndFrequencyResultBuilder(
           directProtocolConfig = DIRECT_PROTOCOL,
@@ -92,7 +92,7 @@ class DirectReachAndFrequencyResultBuilderTest {
       val directReachAndFrequencyResultBuilder =
         DirectReachAndFrequencyResultBuilder(
           directProtocolConfig = DIRECT_PROTOCOL,
-          frequencyVector = SimpleFrequencyVector(sampledVids.toList()),
+          frequencyVector = BasicFrequencyVector(sampledVids.toList()),
           maxFrequency = MAX_FREQUENCY,
           reachPrivacyParams = REACH_PRIVACY_PARAMS,
           frequencyPrivacyParams = FREQUENCY_PRIVACY_PARAMS,
@@ -129,7 +129,7 @@ class DirectReachAndFrequencyResultBuilderTest {
         val directReachAndFrequencyResultBuilder =
           DirectReachAndFrequencyResultBuilder(
             directProtocolConfig = DIRECT_PROTOCOL,
-            frequencyVector = SimpleFrequencyVector(sampledVids.toList()),
+            frequencyVector = BasicFrequencyVector(sampledVids.toList()),
             maxFrequency = MAX_FREQUENCY,
             reachPrivacyParams = REACH_PRIVACY_PARAMS,
             frequencyPrivacyParams = FREQUENCY_PRIVACY_PARAMS,

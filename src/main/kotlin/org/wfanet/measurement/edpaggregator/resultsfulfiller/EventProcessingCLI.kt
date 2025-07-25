@@ -257,7 +257,8 @@ class EventProcessingCLI(
 
       val config = buildConfiguration()
       val typeRegistry = buildTypeRegistry()
-      orchestrator.run(config, typeRegistry)
+      // CLI mode not supported - EventProcessingOrchestrator is now requisition-focused
+      throw UnsupportedOperationException("CLI mode removed - use runWithRequisitions() for production fulfillment")
     } catch (e: Exception) {
       logger.severe("Pipeline execution failed: ${e.message}")
       throw e

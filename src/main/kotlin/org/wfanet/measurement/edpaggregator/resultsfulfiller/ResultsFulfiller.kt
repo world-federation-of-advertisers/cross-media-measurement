@@ -24,6 +24,9 @@ import java.security.GeneralSecurityException
 import java.security.SecureRandom
 import java.time.ZoneId
 import java.util.logging.Logger
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.eventdataprovider.shareshuffle.v2alpha.InMemoryVidIndexMap
@@ -81,73 +84,29 @@ class ResultsFulfiller(
   private val zoneId: ZoneId,
   private val noiserSelector: NoiserSelector,
   private val eventReader: EventReader,
+  private val eventProcessingOrchestrator: EventProcessingOrchestrator,
 ) {
   suspend fun fulfillRequisitions() {
     val groupedRequisitions = getRequisitions()
     val requisitions =
       groupedRequisitions.requisitionsList.map { it.requisition.unpack(Requisition::class.java) }
-    val eventGroupMap =
-      groupedRequisitions.eventGroupMapList
-        .map { Pair(it.eventGroup, it.details.eventGroupReferenceId) }
-        .toMap()
-    for (requisition in requisitions) {
-      logger.info("Processing requisition: ${requisition.name}")
-      val signedRequisitionSpec: SignedMessage =
-        try {
-          decryptRequisitionSpec(requisition.encryptedRequisitionSpec, privateEncryptionKey)
-        } catch (e: GeneralSecurityException) {
-          throw Exception("RequisitionSpec decryption failed", e)
+    
+    // NEW: Single pipeline run for all requisitions  
+    val frequencyVectors = eventProcessingOrchestrator.runWithRequisitions(
+      requisitions,
+      buildPipelineConfig(), 
+      typeRegistry
+    )
+    
+    // NEW: Concurrent fulfillment
+    coroutineScope {
+      val fulfillmentJobs = requisitions.map { requisition ->
+        async {
+          fulfillSingleRequisition(requisition, frequencyVectors[requisition.name]!!)
         }
-      val requisitionSpec: RequisitionSpec = signedRequisitionSpec.unpack()
-      val measurementSpec: MeasurementSpec = requisition.measurementSpec.message.unpack()
-
-      val sampledVids: Flow<Long> =
-        RequisitionSpecs.getSampledVids(
-          requisitionSpec,
-          eventGroupMap,
-          measurementSpec.vidSamplingInterval,
-          typeRegistry,
-          eventReader,
-          zoneId,
-        )
-      
-      // Convert Flow<Long> to FrequencyVector for the new architecture
-      val vidList = sampledVids.toList()
-      val frequencyVector = BasicFrequencyVector(vidList)
-
-      val protocols: List<ProtocolConfig.Protocol> = requisition.protocolConfig.protocolsList
-
-      if (protocols.any { it.hasDirect() }) {
-        val directProtocolConfig =
-          requisition.protocolConfig.protocolsList.first { it.hasDirect() }.direct
-        val directNoiseMechanism =
-          noiserSelector.selectNoiseMechanism(directProtocolConfig.noiseMechanismsList)
-        val result = buildDirectMeasurementResult(
-          directProtocolConfig,
-          directNoiseMechanism,
-          measurementSpec,
-          frequencyVector,
-          random,
-        )
-        
-        if (requisitionsStub != null) {
-          val fulfiller = buildDirectMeasurementFulfiller(
-            requisition,
-            measurementSpec,
-            requisitionSpec,
-            result,
-            frequencyVector,
-          )
-          fulfiller.fulfillRequisition()
-        } else {
-          logger.info("No requisitionsStub provided, printing result instead of fulfilling:")
-          logger.info("Measurement result: $result")
-        }
-      } else if (protocols.any { it.hasHonestMajorityShareShuffle() }) {
-        TODO("Not yet implemented")
-      } else {
-        throw Exception("Protocol not supported")
       }
+      
+      fulfillmentJobs.awaitAll()
     }
   }
 
@@ -227,6 +186,108 @@ class ResultsFulfiller(
     )
   }
 
+
+  /**
+   * Builds pipeline configuration for requisition processing.
+   */
+  private fun buildPipelineConfig(): PipelineConfiguration {
+    return PipelineConfiguration(
+      startDate = java.time.LocalDate.now().minusDays(30), // Default 30-day window
+      endDate = java.time.LocalDate.now(),
+      batchSize = 1000,
+      channelCapacity = 100,
+      useParallelPipeline = true,
+      parallelBatchSize = 1000,
+      parallelWorkers = 4,
+      threadPoolSize = 4,
+      eventSourceType = EventSourceType.STORAGE,
+      eventReader = eventReader,
+      eventGroupReferenceIds = listOf("default-reference-id"), // TODO: Extract from requisitions
+      zoneId = zoneId,
+      disableLogging = false
+    )
+  }
+
+  /**
+   * Fulfills a single requisition using the provided frequency vector.
+   */
+  private suspend fun fulfillSingleRequisition(
+    requisition: Requisition,
+    frequencyVector: FrequencyVector
+  ) {
+    logger.info("Processing requisition: ${requisition.name}")
+    
+    val signedRequisitionSpec: SignedMessage =
+      try {
+        decryptRequisitionSpec(requisition.encryptedRequisitionSpec, privateEncryptionKey)
+      } catch (e: GeneralSecurityException) {
+        throw Exception("RequisitionSpec decryption failed", e)
+      }
+    val requisitionSpec: RequisitionSpec = signedRequisitionSpec.unpack()
+    val measurementSpec: MeasurementSpec = requisition.measurementSpec.message.unpack()
+
+    // Apply sampling if needed
+    val sampledVector = if (needsSampling(requisition)) {
+      val samplingRate = calculateSamplingRate(measurementSpec)
+      frequencyVector.sample(samplingRate, random)
+    } else {
+      frequencyVector
+    }
+
+    val protocols: List<ProtocolConfig.Protocol> = requisition.protocolConfig.protocolsList
+
+    if (protocols.any { it.hasDirect() }) {
+      val directProtocolConfig =
+        requisition.protocolConfig.protocolsList.first { it.hasDirect() }.direct
+      val directNoiseMechanism =
+        noiserSelector.selectNoiseMechanism(directProtocolConfig.noiseMechanismsList)
+      val result = buildDirectMeasurementResult(
+        directProtocolConfig,
+        directNoiseMechanism,
+        measurementSpec,
+        sampledVector,
+        random,
+      )
+      
+      if (requisitionsStub != null) {
+        val fulfiller = buildDirectMeasurementFulfiller(
+          requisition,
+          measurementSpec,
+          requisitionSpec,
+          result,
+          sampledVector,
+        )
+        fulfiller.fulfillRequisition()
+      } else {
+        logger.info("No requisitionsStub provided, printing result instead of fulfilling:")
+        logger.info("Measurement result: $result")
+      }
+    } else if (protocols.any { it.hasHonestMajorityShareShuffle() }) {
+      TODO("Not yet implemented")
+    } else {
+      throw Exception("Protocol not supported")
+    }
+  }
+
+  /**
+   * Determines if sampling is needed for the requisition.
+   */
+  private fun needsSampling(requisition: Requisition): Boolean {
+    val measurementSpec: MeasurementSpec = requisition.measurementSpec.message.unpack()
+    return measurementSpec.hasVidSamplingInterval() && 
+           measurementSpec.vidSamplingInterval.width < Long.MAX_VALUE
+  }
+
+  /**
+   * Calculates the sampling rate from the measurement spec.
+   */
+  private fun calculateSamplingRate(measurementSpec: MeasurementSpec): Double {
+    return if (measurementSpec.hasVidSamplingInterval()) {
+      measurementSpec.vidSamplingInterval.width.toDouble() / Long.MAX_VALUE
+    } else {
+      1.0
+    }
+  }
 
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)

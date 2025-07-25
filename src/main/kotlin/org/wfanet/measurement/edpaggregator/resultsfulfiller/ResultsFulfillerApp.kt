@@ -148,6 +148,8 @@ abstract class ResultsFulfillerApp(
         typeRegistry = typeRegistry,
       )
 
+    val eventProcessingOrchestrator = EventProcessingOrchestrator()
+
     ResultsFulfiller(
         loadPrivateKey(encryptionPrivateKeyFile),
         requisitionsStub,
@@ -160,6 +162,7 @@ abstract class ResultsFulfillerApp(
         zoneId = ZoneOffset.UTC,
         noiserSelector = ContinuousGaussianNoiseSelector(),
         eventReader = eventReader,
+        eventProcessingOrchestrator = eventProcessingOrchestrator,
       )
       .fulfillRequisitions()
   }

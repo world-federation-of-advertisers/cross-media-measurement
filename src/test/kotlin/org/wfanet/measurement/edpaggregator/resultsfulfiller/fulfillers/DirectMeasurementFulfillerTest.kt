@@ -22,7 +22,7 @@ import kotlin.random.Random
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
-import org.wfanet.measurement.edpaggregator.resultsfulfiller.SimpleFrequencyVector
+import org.wfanet.measurement.edpaggregator.resultsfulfiller.BasicFrequencyVector
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -71,7 +71,7 @@ class DirectMeasurementFulfillerTest {
           emit(i.toLong())
         }
       }
-      val frequencyVector = SimpleFrequencyVector(sampledVids.toList())
+      val frequencyVector = BasicFrequencyVector(sampledVids.toList())
       val directMeasurementFulfiller =
         DirectMeasurementFulfiller(
           requisitionName = REQUISITION_NAME,

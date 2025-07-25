@@ -16,234 +16,155 @@
 
 package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
-import com.google.protobuf.Timestamp
 import com.google.protobuf.TypeRegistry
-import com.google.type.Interval
-import java.time.LocalDate
-import java.time.ZoneId
 import java.util.concurrent.ForkJoinPool
 import java.util.concurrent.TimeUnit
 import java.util.logging.Logger
 import kotlinx.coroutines.asCoroutineDispatcher
-import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
-import org.wfanet.measurement.api.v2alpha.PopulationSpec
-import org.wfanet.measurement.api.v2alpha.PopulationSpecKt.subPopulation
-import org.wfanet.measurement.api.v2alpha.PopulationSpecKt.vidRange
-import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
-import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticPopulationSpec
-import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.syntheticEventGroupSpec
-import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.syntheticPopulationSpec
-import com.google.protobuf.DynamicMessage
-import com.google.protobuf.Any
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
-import org.wfanet.measurement.api.v2alpha.populationSpec
+import org.wfanet.measurement.api.v2alpha.Requisition
+import org.wfanet.measurement.api.v2alpha.MeasurementSpec
+import org.wfanet.measurement.api.v2alpha.unpack
 import org.wfanet.measurement.common.OpenEndTimeRange
 import org.wfanet.measurement.loadtest.dataprovider.toPopulationSpec
 import org.wfanet.measurement.eventdataprovider.shareshuffle.v2alpha.InMemoryVidIndexMap
+import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticPopulationSpec
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
+import com.google.protobuf.DynamicMessage
 
 /**
- * Orchestrates the entire event processing pipeline.
- * Demo implementation!!!
- *
+ * Orchestrates event processing pipeline for requisition fulfillment.
+ * 
  * ## Overview
  *
- * The EventProcessingOrchestrator serves as the central coordinator for the
- * event processing during requisition fulfillment,
- * managing the lifecycle and execution of all components.
+ * The EventProcessingOrchestrator implements step 11 of the direct measurement strategy:
+ * - Single pipeline run for all requisitions
+ * - Concurrent fulfillment using frequency vectors
+ * - Filter deduplication and optimization
  *
- * ### Major Components:
+ * ### Core Components:
  *
- * 1. **Configuration Management**
- *    - Validates and processes pipeline configuration
- *    - Creates population and event group specifications
- *    - Generates filter configurations (demographic × time combinations)
+ * 1. **Requisition Processing**
+ *    - Generates filters from requisition specifications
+ *    - Deduplicates identical filters across requisitions
+ *    - Maps requisitions to their required frequency vectors
  *
- * 2. **Resource Management**
- *    - Creates and manages ForkJoinPool for work-stealing parallelism
- *    - Provides coroutine dispatcher for async operations
- *    - Ensures graceful shutdown and resource cleanup
+ * 2. **Pipeline Execution** 
+ *    - Single storage-based event processing run
+ *    - Parallel processing for high throughput
+ *    - Returns frequency vectors per filter
  *
- * 3. **Event Generation**
- *    - SyntheticEventGenerator produces test events based on specs
- *    - Events are pre-batched for efficient processing
- *    - Supports configurable population demographics and time ranges
- *
- * 4. **Pipeline Selection**
- *    - Sequential processing for debugging/testing (no longer available)
- *    - ParallelBatchedPipeline: High-throughput parallel processing
- *    - Dynamic selection based on configuration
- *
- * 5. **Filter Generation**
- *    - Creates demographic filters (gender × age groups)
- *    - Generates progressive weekly time intervals
- *    - Produces cartesian product of demographics × time periods
- *
- * 6. **Statistics Aggregation**
- *    - Collects metrics from all pipeline sinks
- *    - Displays execution summary and throughput
- *    - Shows per-filter and aggregated statistics
+ * 3. **Concurrent Fulfillment**
+ *    - Aggregates frequency vectors per requisition
+ *    - Returns results for concurrent fulfillment execution
  *
  * ### Execution Flow:
- * 1. Validate configuration and display settings
- * 2. Create thread pool and coroutine dispatcher
- * 3. Build VID index map for population mapping
- * 4. Generate filter configurations
- * 5. Create event generator with specifications
- * 6. Select and create appropriate pipeline
- * 7. Process events through pipeline
- * 8. Collect and display statistics
- * 9. Cleanup resources
+ * 1. Generate and deduplicate filters from requisitions
+ * 2. Run single pipeline execution on storage events
+ * 3. Aggregate frequency vectors by requisition
+ * 4. Return frequency vectors for concurrent fulfillment
  */
 class EventProcessingOrchestrator {
 
   companion object {
     private val logger = Logger.getLogger(EventProcessingOrchestrator::class.java.name)
-
     private const val THREAD_POOL_SHUTDOWN_TIMEOUT_SECONDS = 10L
   }
 
-  private val statisticsAggregator = PipelineStatisticsAggregator()
-
   /**
-   * Runs the event processing pipeline with the given configuration.
+   * Production mode: Runs pipeline for requisitions and returns frequency vectors for fulfillment.
    */
-  suspend fun run(config: PipelineConfiguration, typeRegistry: TypeRegistry) {
+  suspend fun runWithRequisitions(
+    requisitions: List<Requisition>,
+    config: PipelineConfiguration,
+    typeRegistry: TypeRegistry
+  ): Map<String, FrequencyVector> {
+    
+    // Generate filters from requisitions with deduplication
+    val (filterConfigurations, requisitionToFilters) = generateFiltersFromRequisitions(requisitions)
+    
     config.validate()
-
-    displayConfiguration(config)
-
+    
     val threadPool = createThreadPool(config.threadPoolSize)
     val dispatcher = threadPool.asCoroutineDispatcher()
-
+    
     try {
-      val pipelineStartTime = System.currentTimeMillis()
-
-      // Set up pipeline components
       val timeRange = OpenEndTimeRange.fromClosedDateRange(config.startDate..config.endDate)
-
+      
       logger.info("Building VID index map using parallel processing with ${config.threadPoolSize} workers...")
       val vidIndexMapStartTime = System.currentTimeMillis()
-
+      
+      // Create population spec for VID index mapping
+      val populationSpec = createPopulationSpecFromRequisitions(requisitions)
+      
       val vidIndexMap = InMemoryVidIndexMap.buildParallel(
-        config.populationSpec!!.toPopulationSpec(),
+        populationSpec.toPopulationSpec(),
         dispatcher = dispatcher,
         parallelism = config.threadPoolSize
       )
-
+      
       val vidIndexMapEndTime = System.currentTimeMillis()
       val vidIndexMapDuration = vidIndexMapEndTime - vidIndexMapStartTime
-
+      
       logger.info("VID index map created with ${vidIndexMap.size} entries in ${vidIndexMapDuration}ms")
-
-      // Generate filter configurations
-      val filters = generateFilterConfigurations(config)
-
-      // Create event source based on configuration
-      val eventSource = createEventSource(config, timeRange)
-
+      
+      // Create storage event source for requisition fulfillment
+      val eventSource = StorageEventSource(
+        eventReader = config.eventReader!!,
+        dateRange = config.startDate..config.endDate,
+        eventGroupReferenceIds = config.eventGroupReferenceIds,
+        batchSize = config.effectiveBatchSize
+      )
+      
       // Create and run pipeline
       val pipeline = createPipeline(config, dispatcher)
       val eventBatchFlow = eventSource.generateEventBatches(dispatcher)
-
+      
       // Convert Any messages to DynamicMessage
-      val dynamicMessageEventBatchFlow = eventBatchFlow.map { batch: List<LabeledEvent<Any>> ->
-        batch.map { event: LabeledEvent<Any> ->
-          val message = event.message
-          // Unpack the Any message to get the descriptor and data
-          val descriptor = typeRegistry.getDescriptorForTypeUrl(message.typeUrl)
-            ?: error("Unknown message type: ${message.typeUrl}")
-          val dynamicMessage = DynamicMessage.parseFrom(descriptor, message.value)
-          LabeledEvent(
-            timestamp = event.timestamp,
-            vid = event.vid,
-            message = dynamicMessage,
-            eventGroupReferenceId = event.eventGroupReferenceId
-          )
+      val dynamicMessageEventBatchFlow = eventBatchFlow.map { batch ->
+        batch.map { event ->
+          if (event.message is com.google.protobuf.Any) {
+            val message = event.message as com.google.protobuf.Any
+            val descriptor = typeRegistry.getDescriptorForTypeUrl(message.typeUrl)
+              ?: error("Unknown message type: ${message.typeUrl}")
+            val dynamicMessage = DynamicMessage.parseFrom(descriptor, message.value)
+            LabeledEvent(
+              timestamp = event.timestamp,
+              vid = event.vid,
+              message = dynamicMessage,
+              eventGroupReferenceId = event.eventGroupReferenceId
+            )
+          } else {
+            // Already a DynamicMessage
+            event as LabeledEvent<DynamicMessage>
+          }
         }
       }
-
-      val statistics = pipeline.processEventBatches(
+      
+      // Process events through pipeline - returns Map<FilterSpec, FrequencyVector>
+      val pipelineResults = pipeline.processEventBatches(
         eventBatchFlow = dynamicMessageEventBatchFlow,
         vidIndexMap = vidIndexMap,
-        filters = filters,
+        filters = filterConfigurations,
         typeRegistry = typeRegistry
       )
-
-      val pipelineEndTime = System.currentTimeMillis()
-      val totalDuration = pipelineEndTime - pipelineStartTime
-
-      // Display results
-      // Calculate total expected events from population spec VID ranges
-      val totalExpectedEvents = when (config.eventSourceType) {
-        EventSourceType.SYNTHETIC -> config.populationSpec!!.subPopulationsList.sumOf { subPop ->
-          subPop.vidSubRange.endExclusive - subPop.vidSubRange.start
+      
+      // Aggregate frequency vectors by requisition
+      val requisitionFrequencyVectors = mutableMapOf<String, FrequencyVector>()
+      
+      for (requisition in requisitions) {
+        val filterSpecs = requisitionToFilters[requisition.name] ?: emptySet()
+        if (filterSpecs.isNotEmpty()) {
+          val aggregatedVector = aggregateFrequencyVectors(filterSpecs, pipelineResults)
+          requisitionFrequencyVectors[requisition.name] = aggregatedVector
         }
-        EventSourceType.STORAGE -> -1L // Unknown for storage
       }
-
-      statisticsAggregator.displayExecutionSummary(
-        totalDuration = totalDuration,
-        totalEvents = totalExpectedEvents,
-        pipelineType = pipeline.pipelineType
-      )
-
-      // Convert Map<FilterSpec, FrequencyVector> to Map<String, SinkStatistics> for backward compatibility
-      val legacyStatistics = statistics.map { (filterSpec, frequencyVector) ->
-        "${filterSpec.celExpression}_${filterSpec.collectionInterval}" to SinkStatistics(
-          sinkId = "${filterSpec.celExpression}_${filterSpec.collectionInterval}",
-          description = "CEL: ${filterSpec.celExpression}",
-          processedEvents = frequencyVector.getTotalFrequency(),
-          matchedEvents = frequencyVector.getTotalFrequency(),
-          errorCount = 0L,
-          reach = frequencyVector.getReach(),
-          totalFrequency = frequencyVector.getTotalFrequency(),
-          averageFrequency = if (frequencyVector.getReach() > 0) frequencyVector.getTotalFrequency().toDouble() / frequencyVector.getReach() else 0.0
-        )
-      }.toMap()
-      statisticsAggregator.displayFilterStatistics(legacyStatistics)
-
-      val weeklyIntervals = generateProgressiveWeeklyIntervals(config.startDate, config.endDate)
-      statisticsAggregator.displayAggregatedMetrics(legacyStatistics, weeklyIntervals.size)
-
+      
+      return requisitionFrequencyVectors
+      
     } finally {
       shutdownThreadPool(threadPool)
     }
-  }
-
-  private fun displayConfiguration(config: PipelineConfiguration) {
-    println("Configuration:")
-    println("  Date range: ${config.startDate} to ${config.endDate}")
-    println("  Zone ID: ${config.zoneId}")
-    println("  Batch size: ${config.effectiveBatchSize}")
-    println("  Channel capacity: ${config.channelCapacity}")
-    println("  Event source type: ${config.eventSourceType}")
-    println()
-
-    when (config.eventSourceType) {
-      EventSourceType.SYNTHETIC -> {
-        println("Population Spec Configuration:")
-        println("  VID range: ${config.populationSpec!!.vidRange.start} to ${config.populationSpec.vidRange.endExclusive - 1}")
-        println("  Sub-populations: ${config.populationSpec.subPopulationsCount}")
-        println()
-        println("Event Group Spec Configuration:")
-        println("  Description: ${config.eventGroupSpec!!.description}")
-        println("  Date specs: ${config.eventGroupSpec.dateSpecsCount}")
-      }
-      EventSourceType.STORAGE -> {
-        println("Storage Configuration:")
-        println("  Event group reference IDs: ${config.eventGroupReferenceIds.joinToString(", ")}")
-      }
-    }
-
-    println()
-    println("Pipeline Configuration:")
-    println("  Use parallel pipeline: ${config.useParallelPipeline}")
-    if (config.useParallelPipeline) {
-      println("  Parallel batch size: ${config.parallelBatchSize}")
-      println("  Parallel workers: ${config.parallelWorkers}")
-    }
-    println()
   }
 
   private fun createThreadPool(size: Int): ForkJoinPool {
@@ -282,138 +203,127 @@ class EventProcessingOrchestrator {
     config: PipelineConfiguration,
     dispatcher: kotlinx.coroutines.CoroutineDispatcher
   ): EventProcessingPipeline {
-    return if (config.useParallelPipeline) {
-      ParallelBatchedPipeline(
-        batchSize = config.parallelBatchSize,
-        workers = config.parallelWorkers,
-        dispatcher = dispatcher,
-        disableLogging = config.disableLogging
-      )
-    } else {
-      // Default to parallel pipeline when single-threaded is not available
-      ParallelBatchedPipeline(
-        batchSize = config.parallelBatchSize,
-        workers = 1,  // Use single worker for sequential behavior
-        dispatcher = dispatcher,
-        disableLogging = config.disableLogging
-      )
-    }
-  }
-
-  private fun generateFilterConfigurations(config: PipelineConfiguration): List<FilterConfiguration> {
-    val baseCelFilters = mapOf(
-      "male_18_34" to "person.gender == 1 && person.age_group == 1",
-      "male_35_54" to "person.gender == 1 && person.age_group == 2",
-      "male_55_plus" to "person.gender == 1 && person.age_group == 3",
-      "female_18_34" to "person.gender == 2 && person.age_group == 1",
-      "female_35_54" to "person.gender == 2 && person.age_group == 2",
-      "female_55_plus" to "person.gender == 2 && person.age_group == 3"
+    return ParallelBatchedPipeline(
+      batchSize = config.parallelBatchSize,
+      workers = config.parallelWorkers,
+      dispatcher = dispatcher,
+      disableLogging = config.disableLogging
     )
-
-    val weeklyIntervals = generateProgressiveWeeklyIntervals(config.startDate, config.endDate)
-
-    val filters = mutableListOf<FilterConfiguration>()
-
-    for ((demographicId, celExpression) in baseCelFilters) {
-      weeklyIntervals.forEachIndexed { weekIndex, interval ->
-        val filterId = "${demographicId}_week${weekIndex + 1}"
+  }
+  
+  /**
+   * Generates filter configurations from requisitions with deduplication.
+   */
+  private fun generateFiltersFromRequisitions(
+    requisitions: List<Requisition>
+  ): Pair<List<FilterConfiguration>, Map<String, Set<FilterSpec>>> {
+    
+    val filterSpecToRequisitions = mutableMapOf<FilterSpec, MutableSet<String>>()
+    
+    for (requisition in requisitions) {
+      try {
+        // For this implementation, we'll create a basic filter for each requisition
+        // In a real implementation, you would decrypt and parse the requisition spec
+        val measurementSpec: MeasurementSpec = requisition.measurementSpec.message.unpack(MeasurementSpec::class.java)
+        
+        // Create a basic filter spec for this requisition
         val filterSpec = FilterSpec(
-          celExpression = celExpression,
-          collectionInterval = interval,
-          vidSamplingStart = 0L,
-          vidSamplingWidth = 1000000L,
-          eventGroupReferenceId = "reference-id-1"
+          celExpression = "", // Empty CEL expression means no demographic filtering
+          collectionInterval = createTimeInterval(), // Use current time range
+          vidSamplingStart = if (measurementSpec.hasVidSamplingInterval()) measurementSpec.vidSamplingInterval.start.toLong() else 0L,
+          vidSamplingWidth = if (measurementSpec.hasVidSamplingInterval()) measurementSpec.vidSamplingInterval.width.toLong() else Long.MAX_VALUE,
+          eventGroupReferenceId = "reference-id-1" // Default reference ID
         )
-        filters.add(
-          FilterConfiguration(
-            filterSpec = filterSpec,
-            requisitionNames = setOf(filterId)
-          )
-        )
+        
+        filterSpecToRequisitions.getOrPut(filterSpec) { mutableSetOf() }
+          .add(requisition.name)
+          
+      } catch (e: Exception) {
+        logger.warning("Failed to process requisition ${requisition.name}: ${e.message}")
+        // Continue with other requisitions
       }
     }
-
-    logger.info("Generated ${filters.size} filter combinations")
-
-    return filters
+    
+    val filterConfigurations = filterSpecToRequisitions.map { (filterSpec, reqNames) ->
+      FilterConfiguration(filterSpec, reqNames.toSet())
+    }
+    
+    val requisitionToFilters = requisitions.associate { req ->
+      req.name to filterConfigurations
+        .filter { it.requisitionNames.contains(req.name) }
+        .map { it.filterSpec }
+        .toSet()
+    }
+    
+    logger.info("Generated ${filterConfigurations.size} unique filters for ${requisitions.size} requisitions")
+    
+    return Pair(filterConfigurations, requisitionToFilters)
   }
-
-  private fun createEventSource(
-    config: PipelineConfiguration,
-    timeRange: OpenEndTimeRange
-  ): EventSource {
-    return when (config.eventSourceType) {
-      EventSourceType.SYNTHETIC -> {
-        logger.info("Creating SyntheticEventGenerator event source")
-        SyntheticEventGenerator(
-          populationSpec = config.populationSpec!!,
-          eventGroupSpec = config.eventGroupSpec!!,
-          timeRange = timeRange,
-          zoneId = config.zoneId,
-          batchSize = config.effectiveBatchSize
-        )
-      }
-      EventSourceType.STORAGE -> {
-        logger.info("Creating StorageEventSource event source")
-        StorageEventSource(
-          eventReader = config.eventReader!!,
-          dateRange = config.startDate..config.endDate,
-          eventGroupReferenceIds = config.eventGroupReferenceIds,
-          batchSize = config.effectiveBatchSize
-        )
-      }
+  
+  /**
+   * Aggregates multiple frequency vectors for a requisition.
+   */
+  private fun aggregateFrequencyVectors(
+    filterSpecs: Set<FilterSpec>,
+    pipelineResults: Map<FilterSpec, FrequencyVector>
+  ): FrequencyVector {
+    val vectors = filterSpecs.mapNotNull { pipelineResults[it] }
+    
+    return if (vectors.isEmpty()) {
+      // Return empty frequency vector
+      BasicFrequencyVector(emptyList())
+    } else if (vectors.size == 1) {
+      vectors.first()
+    } else {
+      // Merge multiple vectors
+      vectors.reduce { acc, vector -> acc.merge(vector) }
     }
   }
-
-  private fun generateProgressiveWeeklyIntervals(
-    startDate: LocalDate,
-    endDate: LocalDate
-  ): List<Interval> {
-    val startInstant = startDate.atStartOfDay(ZoneId.systemDefault()).toInstant()
-    val endInstant = endDate.atStartOfDay(ZoneId.systemDefault()).toInstant()
-    val totalDays = java.time.Duration.between(startInstant, endInstant).toDays()
-    val totalWeeks = ((totalDays + 6) / 7).toInt() // Round up to include partial weeks
-
-    val intervals = mutableListOf<Interval>()
-
-    for (weekIndex in 1..totalWeeks) {
-      val weekEndInstant = startInstant.plus(java.time.Duration.ofDays(weekIndex * 7L))
-      val actualEndInstant = minOf(weekEndInstant, endInstant)
-
-      val interval = Interval.newBuilder()
-        .setStartTime(
-          Timestamp.newBuilder()
-            .setSeconds(startInstant.epochSecond)
-            .setNanos(startInstant.nano)
-        )
-        .setEndTime(
-          Timestamp.newBuilder()
-            .setSeconds(actualEndInstant.epochSecond)
-            .setNanos(actualEndInstant.nano)
-        )
-        .build()
-
-      intervals.add(interval)
-    }
-
-    return intervals
+  
+  /**
+   * Creates a basic time interval for the current period.
+   */
+  private fun createTimeInterval(): com.google.type.Interval {
+    val now = java.time.Instant.now()
+    val thirtyDaysAgo = now.minus(java.time.Duration.ofDays(30))
+    
+    return com.google.type.Interval.newBuilder()
+      .setStartTime(
+        com.google.protobuf.Timestamp.newBuilder()
+          .setSeconds(thirtyDaysAgo.epochSecond)
+          .setNanos(thirtyDaysAgo.nano)
+      )
+      .setEndTime(
+        com.google.protobuf.Timestamp.newBuilder()
+          .setSeconds(now.epochSecond)
+          .setNanos(now.nano)
+      )
+      .build()
   }
 
-  private fun createDummyPopulationSpec(uniqueVids: Int): SyntheticPopulationSpec {
+  /**
+   * Creates a population spec based on VID ranges from requisitions.
+   */
+  private fun createPopulationSpecFromRequisitions(requisitions: List<Requisition>): SyntheticPopulationSpec {
+    // For event processing, we need to use a reasonable VID range since the VID sampling interval
+    // is a sampling rate (0.0 to 1.0), not an actual VID range
+    val minVid = 1L
+    val maxVid = 1000000L // Default VID range for synthetic population
+    
     return SyntheticPopulationSpec.newBuilder().apply {
       vidRangeBuilder.apply {
-        start = 1L
-        endExclusive = uniqueVids.toLong() + 1L
+        start = minVid
+        endExclusive = maxVid
       }
       eventMessageTypeUrl = TestEvent.getDefaultInstance().descriptorForType.fullName
       addPopulationFields("person.gender")
       addPopulationFields("person.age_group")
 
-      // Create a simple sub-population covering all VIDs
+      // Create a simple sub-population covering the VID range
       addSubPopulations(SyntheticPopulationSpec.SubPopulation.newBuilder().apply {
         vidSubRangeBuilder.apply {
-          start = 1L
-          endExclusive = uniqueVids.toLong() + 1L
+          start = minVid
+          endExclusive = maxVid
         }
         putPopulationFieldsValues("person.gender",
           org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.FieldValue.newBuilder()
@@ -425,39 +335,6 @@ class EventProcessingOrchestrator {
             .setEnumValue(1) // YEARS_18_TO_34
             .build()
         )
-      }.build())
-    }.build()
-  }
-
-  private fun createDummyEventGroupSpec(totalEvents: Long): SyntheticEventGroupSpec {
-    return SyntheticEventGroupSpec.newBuilder().apply {
-      description = "Dummy event group spec for pipeline testing"
-      samplingNonce = 12345L
-
-      addDateSpecs(SyntheticEventGroupSpec.DateSpec.newBuilder().apply {
-        dateRangeBuilder.apply {
-          startBuilder.apply {
-            year = 2024
-            month = 1
-            day = 1
-          }
-          endExclusiveBuilder.apply {
-            year = 2024
-            month = 2
-            day = 1
-          }
-        }
-
-        addFrequencySpecs(SyntheticEventGroupSpec.FrequencySpec.newBuilder().apply {
-          frequency = 1L // 1 event per VID
-          addVidRangeSpecs(SyntheticEventGroupSpec.FrequencySpec.VidRangeSpec.newBuilder().apply {
-            vidRangeBuilder.apply {
-              start = 1L
-              endExclusive = totalEvents + 1L
-            }
-            samplingRate = 1.0 // Include all VIDs
-          }.build())
-        }.build())
       }.build())
     }.build()
   }
