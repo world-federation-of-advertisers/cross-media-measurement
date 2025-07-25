@@ -223,12 +223,14 @@ class ResultsFulfillerTest {
 
     val typeRegistry = TypeRegistry.newBuilder().add(TestEvent.getDescriptor()).build()
 
-    val eventReader =
-      EventReader(
-        kmsClient,
-        StorageConfig(rootDirectory = impressionsTmpPath),
-        StorageConfig(rootDirectory = metadataTmpPath),
-        IMPRESSIONS_METADATA_FILE_URI_PREFIX,
+    val eventReader: EventReader =
+      StorageEventReader(
+        blobPath = IMPRESSIONS_FILE_URI,
+        metadataPath = "file:///$IMPRESSIONS_METADATA_BUCKET/ds/$FIRST_EVENT_DATE/event-group-reference-id/some-event-group-reference-id/metadata",
+        kmsClient = kmsClient,
+        impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
+        impressionDekStorageConfig = StorageConfig(rootDirectory = metadataTmpPath),
+        typeRegistry = typeRegistry,
       )
 
     val resultsFulfiller =
@@ -313,12 +315,14 @@ class ResultsFulfillerTest {
 
     val typeRegistry = TypeRegistry.newBuilder().add(TestEvent.getDescriptor()).build()
 
-    val eventReader =
-      EventReader(
-        kmsClient,
-        StorageConfig(rootDirectory = impressionsTmpPath),
-        StorageConfig(rootDirectory = metadataTmpPath),
-        IMPRESSIONS_METADATA_FILE_URI_PREFIX,
+    val eventReader: EventReader =
+      StorageEventReader(
+        blobPath = IMPRESSIONS_FILE_URI,
+        metadataPath = "file:///$IMPRESSIONS_METADATA_BUCKET/ds/$FIRST_EVENT_DATE/event-group-reference-id/some-event-group-reference-id/metadata",
+        kmsClient = kmsClient,
+        impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
+        impressionDekStorageConfig = StorageConfig(rootDirectory = metadataTmpPath),
+        typeRegistry = typeRegistry,
       )
 
     val resultsFulfiller =
