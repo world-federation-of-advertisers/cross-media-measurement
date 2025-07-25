@@ -223,12 +223,12 @@ class ResultsFulfillerTest {
 
     val typeRegistry = TypeRegistry.newBuilder().add(TestEvent.getDescriptor()).build()
 
-    val eventReader =
-      EventReader(
-        kmsClient,
-        StorageConfig(rootDirectory = impressionsTmpPath),
-        StorageConfig(rootDirectory = metadataTmpPath),
-        IMPRESSIONS_METADATA_FILE_URI_PREFIX,
+    val eventReader: LegacyEventReader =
+      LegacyEventReader(
+        kmsClient = kmsClient,
+        impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
+        impressionDekStorageConfig = StorageConfig(rootDirectory = metadataTmpPath),
+        labeledImpressionsDekPrefix = IMPRESSIONS_METADATA_FILE_URI_PREFIX,
       )
 
     val resultsFulfiller =
@@ -313,12 +313,12 @@ class ResultsFulfillerTest {
 
     val typeRegistry = TypeRegistry.newBuilder().add(TestEvent.getDescriptor()).build()
 
-    val eventReader =
-      EventReader(
-        kmsClient,
-        StorageConfig(rootDirectory = impressionsTmpPath),
-        StorageConfig(rootDirectory = metadataTmpPath),
-        IMPRESSIONS_METADATA_FILE_URI_PREFIX,
+    val eventReader: LegacyEventReader =
+      LegacyEventReader(
+        kmsClient = kmsClient,
+        impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
+        impressionDekStorageConfig = StorageConfig(rootDirectory = metadataTmpPath),
+        labeledImpressionsDekPrefix = IMPRESSIONS_METADATA_FILE_URI_PREFIX,
       )
 
     val resultsFulfiller =

@@ -21,6 +21,7 @@ import com.google.crypto.tink.KmsClient
 import com.google.crypto.tink.aead.AeadConfig
 import com.google.crypto.tink.streamingaead.StreamingAeadConfig
 import com.google.protobuf.ByteString
+import com.google.protobuf.TypeRegistry
 import java.nio.file.Files
 import java.time.LocalDate
 import java.time.ZoneId
@@ -35,6 +36,7 @@ import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.person
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.testEvent
 import org.wfanet.measurement.common.OpenEndTimeRange
@@ -83,7 +85,7 @@ class EventReaderTest {
   }
 
   @Test
-  fun `getLabeledImpressionsFlow returns labeled impressions`() = runBlocking {
+  fun `readEvents returns labeled events and correct impression count`() = runBlocking {
     // Create impressions storage client
     val impressionsTmpPath = Files.createTempDirectory(null).toFile()
     val impressionsBucketDir = impressionsTmpPath.resolve(IMPRESSIONS_BUCKET)
@@ -107,6 +109,7 @@ class EventReaderTest {
           eventTime = TIME_RANGE.start.toProtoTime()
           vid = index.toLong()
           event = TEST_EVENT.pack()
+          eventGroupReferenceId = EVENT_GROUP_REFERENCE_ID
         }
       }
 
@@ -136,27 +139,30 @@ class EventReaderTest {
       blobDetails.toByteString(),
     )
 
-    // Create EventReader
-    val eventReader =
-      EventReader(
-        kmsClient,
-        StorageConfig(rootDirectory = impressionsTmpPath),
-        StorageConfig(rootDirectory = dekTmpPath),
-        IMPRESSIONS_DEK_FILE_URI_PREFIX,
+    // Create EventReader with paths
+    val metadataPath = "$IMPRESSIONS_DEK_FILE_URI_PREFIX/ds/$DS/event-group-reference-id/$EVENT_GROUP_REFERENCE_ID/metadata"
+    val eventReader: EventReader =
+      StorageEventReader(
+        metadataPath = metadataPath,
+        kmsClient = kmsClient,
+        impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
+        impressionDekStorageConfig = StorageConfig(rootDirectory = dekTmpPath),
+        descriptor = TestEvent.getDescriptor(),
       )
 
-    // Get labeled impressions
-    val result = eventReader.getLabeledImpressions(DS, EVENT_GROUP_REFERENCE_ID).toList()
+    // Read events
+    val result = eventReader.readEvents().toList()
 
     // Verify the result
-    assertThat(result).hasSize(impressionCount)
+    val flattenedResult = result.flatten()
+    assertThat(flattenedResult).hasSize(impressionCount)
     for (i in 0 until impressionCount) {
-      assertThat(result[i].vid).isEqualTo(i.toLong())
+      assertThat(flattenedResult[i].vid).isEqualTo(i.toLong())
     }
   }
 
   @Test
-  fun `getLabeledImpressionsFlow throws exception if impressions blob not found`() {
+  fun `readEvents throws exception if impressions blob not found`() {
     // Create impressions storage client
     val impressionsTmpPath = Files.createTempDirectory(null).toFile()
     val impressionsBucketDir = impressionsTmpPath.resolve(IMPRESSIONS_BUCKET)
@@ -183,17 +189,19 @@ class EventReaderTest {
       )
     }
 
-    // Create EventReader
-    val eventReader =
-      EventReader(
-        kmsClient,
-        StorageConfig(rootDirectory = impressionsTmpPath),
-        StorageConfig(rootDirectory = dekTmpPath),
-        IMPRESSIONS_DEK_FILE_URI_PREFIX,
+    // Create EventReader with paths
+    val metadataPath = "$IMPRESSIONS_DEK_FILE_URI_PREFIX/ds/$DS/event-group-reference-id/$EVENT_GROUP_REFERENCE_ID/metadata"
+    val eventReader: EventReader =
+      StorageEventReader(
+        metadataPath = metadataPath,
+        kmsClient = kmsClient,
+        impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
+        impressionDekStorageConfig = StorageConfig(rootDirectory = dekTmpPath),
+        descriptor = TestEvent.getDescriptor(),
       )
-    // Get labeled impressions
+    // Read events
     assertFailsWith<ImpressionReadException> {
-      runBlocking { eventReader.getLabeledImpressions(DS, EVENT_GROUP_REFERENCE_ID).toList() }
+      runBlocking { eventReader.readEvents().toList() }
     }
   }
 
