@@ -72,73 +72,13 @@ jobs:
         workload_identity_provider: ${{ vars.WORKLOAD_IDENTITY_PROVIDER }}
         service_account: ${{ vars.TF_SERVICE_ACCOUNT }}
 
-    - name: Set up Java & Maven
-      uses: actions/setup-java@v3
-      with:
-        distribution: zulu
-        java-version: '17'
-
-    - name: Write edpa cloud function configs to files
+    - name: Write data-watcher config to file
       env:
         CONFIG_DIR: ${{ runner.temp }}/configs
       run: |
         mkdir -p "$CONFIG_DIR"
         echo "$DATA_WATCHER_CONFIG_CONTENT" > "$CONFIG_DIR/data-watcher-config.textproto"
         echo "$REQUISITION_FETCHER_CONFIG_CONTENT" > "$CONFIG_DIR/requisition-fetcher-config.textproto"
-
-    - name: Set up Maven GitHub Packages auth
-      run: |
-        mkdir -p ~/.m2
-        cat > ~/.m2/settings.xml <<EOF
-        <settings>
-          <servers>
-            <server>
-              <id>github</id>
-              <username>${{ github.actor }}</username>
-              <password>${{ secrets.GITHUB_TOKEN }}</password>
-            </server>
-          </servers>
-        </settings>
-        EOF
-
-    - id: get-artifact-version
-      uses: ./.github/actions/get-maven-artifact-version
-      with:
-        package-version: ${{ inputs.image-tag }}
-
-    - name: Download Uber JARs using Maven
-      id: download-uber-jars
-      env:
-        ARTIFACT_VERSION: ${{ steps.get-artifact-version.outputs.artifact-version }}
-      run: |
-        set -euo pipefail
-        TEMP_DIR="${RUNNER_TEMP}/uber-jars"
-        mkdir -p "$TEMP_DIR"
-        echo "Maven repo: $(mvn help:evaluate -Dexpression=settings.localRepository -q -DforceStdout)"
-
-        declare -A coords
-        coords[data-watcher]="org.wfanet.measurement.securecomputation.deploy.gcloud.datawatcher:data-watcher:$ARTIFACT_VERSION:jar"
-        coords[requisition-fetcher]="org.wfanet.measurement.edpaggregator.deploy.gcloud.requisitionfetcher:requisition-fetcher:$ARTIFACT_VERSION:jar"
-        coords[event-group-sync]="org.wfanet.measurement.edpaggregator.deploy.gcloud.eventgroups:event-group-sync:$ARTIFACT_VERSION:jar"
-        
-        LOCAL_REPO=$(mvn help:evaluate -Dexpression=settings.localRepository -q -DforceStdout)
-
-        for key in "${!coords[@]}"; do
-          dest_dir="$TEMP_DIR/$key"
-          mkdir -p "$dest_dir"
-          mvn -U dependency:get \
-            -DremoteRepositories=github::default::https://maven.pkg.github.com/world-federation-of-advertisers/cross-media-measurement \
-            -Dartifact="${coords[$key]}" 
-        
-          IFS=':' read -r groupId artifactId version type <<<"${coords[$key]}"
-          jar_dir="$LOCAL_REPO/${groupId//./\/}/$artifactId/$version"
-          jar_path=$(find "$jar_dir" -maxdepth 1 -type f -name "$artifactId-*.jar" ! -name "*sources*" | head -n1)
-          filename="${version}-function.jar"
-          cp "$jar_path" "$dest_dir/$filename"
-          
-          safe_key=${key//-/_}
-          echo "${safe_key}_source_path=$dest_dir/$filename" >> "$GITHUB_OUTPUT"
-        done
 
     - name: terraform init
       env:
@@ -165,15 +105,6 @@ jobs:
         KINGDOM_PUBLIC_API_TARGET: ${{ vars.KINGDOM_PUBLIC_API_TARGET }}
         SECURE_COMPUTATION_PUBLIC_API_TARGET: ${{ vars.SECURE_COMPUTATION_PUBLIC_API_TARGET }}
         IMAGE_TAG: ${{ inputs.image-tag }}
-        DATA_WATCHER_FUNCTION_NAME: ${{ vars.DATA_WATCHER_FUNCTION_NAME }}
-        REQUISITION_FETCHER_FUNCTION_NAME: ${{ vars.REQUISITION_FETCHER_FUNCTION_NAME }}
-        EVENT_GROUP_FUNCTION_NAME: ${{ vars.EVENT_GROUP_FUNCTION_NAME }}
-        DATA_WATCHER_ENV_VAR: ${{ vars.DATA_WATCHER_ENV_VAR }}
-        DATA_WATCHER_SECRET_MAPPING: ${{ vars.DATA_WATCHER_SECRET_MAPPING }}
-        REQUISITION_FETCHER_ENV_VAR: ${{ vars.REQUISITION_FETCHER_ENV_VAR }}
-        REQUISITION_FETCHER_SECRET_MAPPING: ${{ vars.REQUISITION_FETCHER_SECRET_MAPPING }}
-        EVENT_GROUP_ENV_VAR: ${{ vars.EVENT_GROUP_ENV_VAR }}
-        EVENT_GROUP_SECRET_MAPPING: ${{ vars.EVENT_GROUP_SECRET_MAPPING }}
       working-directory: ${{ env.GCLOUD_MODULE_PATH }}
       run: >
         terraform plan
@@ -191,18 +122,6 @@ jobs:
         -var="requisition_fetcher_config_file_path=$CONFIG_DIR/requisition-fetcher-config.textproto"
         -var="kingdom_public_api_target=$KINGDOM_PUBLIC_API_TARGET"
         -var="secure_computation_public_api_target=$SECURE_COMPUTATION_PUBLIC_API_TARGET"
-        -var="data_watcher_function_name=$DATA_WATCHER_FUNCTION_NAME"
-        -var="requisition_fetcher_function_name=$REQUISITION_FETCHER_FUNCTION_NAME"
-        -var="event_group_sync_function_name=$EVENT_GROUP_FUNCTION_NAME"
-        -var="data_watcher_env_var=$DATA_WATCHER_ENV_VAR"
-        -var="data_watcher_secret_mapping=$DATA_WATCHER_SECRET_MAPPING"
-        -var="requisition_fetcher_env_var=$REQUISITION_FETCHER_ENV_VAR"
-        -var="requisition_fetcher_secret_mapping=$REQUISITION_FETCHER_SECRET_MAPPING"
-        -var="event_group_env_var=$EVENT_GROUP_ENV_VAR"
-        -var="event_group_secret_mapping=$EVENT_GROUP_SECRET_MAPPING"
-        -var="data_watcher_uber_jar_path=${{ steps.download-uber-jars.outputs.data_watcher_source_path }}"
-        -var="requisition_fetcher_uber_jar_path=${{ steps.download-uber-jars.outputs.requisition_fetcher_source_path }}"
-        -var="event_group_uber_jar_path=${{ steps.download-uber-jars.outputs.event_group_sync_source_path }}"
         -var="image_tag=$IMAGE_TAG"
         -out=tfplan
 
