@@ -42,24 +42,3 @@ interface EventPathResolver {
    */
   suspend fun resolvePaths(date: LocalDate, eventGroupReferenceId: String): EventPaths
 }
-
-/**
- * Default implementation using the current path convention.
- * This will be replaced by the Impression Metadata Service in the future.
- */
-class DefaultEventPathResolver(
-  private val impressionsMetadataBucketUri: String
-) : EventPathResolver {
-
-  override suspend fun resolvePaths(
-    date: LocalDate,
-    eventGroupReferenceId: String
-  ): EventPathResolver.EventPaths {
-    val metadataPath = "$impressionsMetadataBucketUri/ds/$date/event-group-reference-id/$eventGroupReferenceId/metadata"
-
-    return EventPathResolver.EventPaths(
-      metadataPath = metadataPath,
-      eventGroupReferenceId = eventGroupReferenceId
-    )
-  }
-}
