@@ -28,6 +28,8 @@ import kotlinx.coroutines.flow.flatMapConcat
 import kotlinx.coroutines.flow.map
 import com.google.protobuf.Message
 import com.google.protobuf.Any
+import org.wfanet.measurement.loadtest.dataprovider.VidFilter
+import org.wfanet.measurement.loadtest.dataprovider.LabeledEvent as LoadtestLabeledEvent
 import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
@@ -96,10 +98,17 @@ object RequisitionSpecs {
           eventReader.getLabeledEvents(date, eventGroupMap.getValue(eventGroup.key))
         }
 
-      val impressions: Flow<LabeledImpression> = labeledEvents.map { convertToLabeledImpression(it) }
-
+      // Convert LabeledEvent types to match loadtest VidFilter expectations
+      val loadtestLabeledEvents = labeledEvents.map { event ->
+        LoadtestLabeledEvent(
+          timestamp = event.timestamp,
+          vid = event.vid,
+          message = event.message
+        )
+      }
+      
       VidFilter.filterAndExtractVids(
-        impressions,
+        loadtestLabeledEvents,
         vidSamplingIntervalStart,
         vidSamplingIntervalWidth,
         eventGroup.value.filter,

@@ -16,6 +16,8 @@
 
 package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
+import java.security.SecureRandom
+
 /**
  * Thread-safe, memory-efficient frequency vector using striped byte arrays.
  * 
@@ -27,7 +29,7 @@ package org.wfanet.measurement.edpaggregator.resultsfulfiller
  * 
  * @param size The total number of VIDs to track
  */
-class StripedByteFrequencyVector(private val size: Int) {
+class StripedByteFrequencyVector(private val size: Int) : FrequencyVector {
   
   companion object {
     private const val DEFAULT_STRIPE_COUNT = 1024
@@ -149,7 +151,7 @@ class StripedByteFrequencyVector(private val size: Int) {
    * 
    * @return Map of frequency values to their counts
    */
-  fun getFrequencyDistribution(): Map<Int, Long> {
+  override fun getFrequencyDistribution(): Map<Int, Long> {
     val distribution = mutableMapOf<Int, Long>()
     for (i in 0 until stripeCount) {
       synchronized(locks[i]) {
@@ -171,7 +173,7 @@ class StripedByteFrequencyVector(private val size: Int) {
    * 
    * @return Maximum frequency across all VIDs
    */
-  fun getMaxFrequency(): Int {
+  override fun getMaxFrequency(): Int {
     var max = 0
     for (i in 0 until stripeCount) {
       synchronized(locks[i]) {
@@ -186,5 +188,81 @@ class StripedByteFrequencyVector(private val size: Int) {
       }
     }
     return max
+  }
+
+  // FrequencyVector interface implementation
+  override fun getFrequency(vid: Long): Int {
+    // Note: This implementation assumes VID == index
+    // For proper VID mapping, use with a VidIndexMap wrapper
+    val index = vid.toInt()
+    return getFrequencyByIndex(index)
+  }
+
+  override fun getReach(): Long {
+    val (_, reach) = computeStatistics()
+    return reach
+  }
+
+  override fun getTotalFrequency(): Long {
+    return getTotalCount()
+  }
+
+  override fun getVids(): Set<Long> {
+    // Return indices as VIDs for this simple implementation
+    return getNonZeroIndices().map { it.toLong() }.toSet()
+  }
+
+  override fun merge(other: FrequencyVector): FrequencyVector {
+    require(other is StripedByteFrequencyVector) {
+      "Can only merge with another StripedByteFrequencyVector"
+    }
+    require(size == other.size) {
+      "Cannot merge frequency vectors with different sizes"
+    }
+
+    val mergedVector = StripedByteFrequencyVector(size)
+
+    // Copy this vector's data
+    for (index in getNonZeroIndices()) {
+      val freq = getFrequencyByIndex(index)
+      for (i in 0 until freq) {
+        mergedVector.incrementByIndex(index)
+      }
+    }
+
+    // Add other vector's data
+    for (index in other.getNonZeroIndices()) {
+      val freq = other.getFrequencyByIndex(index)
+      for (i in 0 until freq) {
+        mergedVector.incrementByIndex(index)
+      }
+    }
+
+    return mergedVector
+  }
+
+  override fun sample(rate: Double, random: SecureRandom): FrequencyVector {
+    require(rate in 0.0..1.0) { "Sampling rate must be between 0 and 1" }
+
+    val sampledVector = StripedByteFrequencyVector(size)
+
+    for (index in getNonZeroIndices()) {
+      val freq = getFrequencyByIndex(index)
+      var sampledFreq = 0
+
+      // Sample each impression independently
+      for (i in 0 until freq) {
+        if (random.nextDouble() < rate) {
+          sampledFreq++
+        }
+      }
+
+      // Add sampled frequency
+      for (i in 0 until sampledFreq) {
+        sampledVector.incrementByIndex(index)
+      }
+    }
+
+    return sampledVector
   }
 }

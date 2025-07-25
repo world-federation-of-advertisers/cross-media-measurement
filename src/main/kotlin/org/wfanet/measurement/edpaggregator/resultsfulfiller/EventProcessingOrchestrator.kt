@@ -70,7 +70,7 @@ import org.wfanet.measurement.eventdataprovider.shareshuffle.v2alpha.InMemoryVid
  *    - Supports configurable population demographics and time ranges
  *
  * 4. **Pipeline Selection**
- *    - SingleThreadedPipeline: Sequential processing for debugging/testing
+ *    - Sequential processing for debugging/testing (no longer available)
  *    - ParallelBatchedPipeline: High-throughput parallel processing
  *    - Dynamic selection based on configuration
  *
@@ -290,7 +290,13 @@ class EventProcessingOrchestrator {
         disableLogging = config.disableLogging
       )
     } else {
-      SingleThreadedPipeline(dispatcher)
+      // Default to parallel pipeline when single-threaded is not available
+      ParallelBatchedPipeline(
+        batchSize = config.parallelBatchSize,
+        workers = 1,  // Use single worker for sequential behavior
+        dispatcher = dispatcher,
+        disableLogging = config.disableLogging
+      )
     }
   }
 

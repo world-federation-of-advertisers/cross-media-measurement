@@ -113,7 +113,7 @@ class ResultsFulfiller(
       
       // Convert Flow<Long> to FrequencyVector for the new architecture
       val vidList = sampledVids.toList()
-      val frequencyVector = SimpleFrequencyVector(vidList)
+      val frequencyVector = BasicFrequencyVector(vidList)
 
       val protocols: List<ProtocolConfig.Protocol> = requisition.protocolConfig.protocolsList
 

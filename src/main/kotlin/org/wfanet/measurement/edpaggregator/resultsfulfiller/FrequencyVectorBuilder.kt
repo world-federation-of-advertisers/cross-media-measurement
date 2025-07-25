@@ -31,7 +31,7 @@ interface FrequencyVectorBuilder {
 }
 
 /**
- * Builder implementation for StripedFrequencyVector.
+ * Builder implementation for StripedByteFrequencyVector.
  * 
  * @property vidIndexMap The VID to index mapping
  */
@@ -51,6 +51,6 @@ class StripedFrequencyVectorBuilder(
   }
   
   override fun build(): FrequencyVector {
-    return StripedFrequencyVector(stripedVector, vidIndexMap)
+    return stripedVector
   }
 }
