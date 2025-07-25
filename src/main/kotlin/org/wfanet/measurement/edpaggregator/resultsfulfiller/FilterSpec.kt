@@ -27,14 +27,14 @@ import com.google.type.Interval
  *
  * @property celExpression The CEL expression for filtering events
  * @property collectionInterval The time interval for event collection
- * @property eventGroupReferenceId The reference ID for the event group
+ * @property eventGroupReferenceIds The reference IDs of the event groups to be filtered
  */
 data class FilterSpec(
   val celExpression: String,
   val collectionInterval: Interval,
-  val eventGroupReferenceId: String
+  val eventGroupReferenceIds: List<String>
 ) {
   init {
-    require(eventGroupReferenceId.isNotBlank()) { "Event group reference ID must not be blank" }
+    require(eventGroupReferenceIds.isNotEmpty())
   }
 }
