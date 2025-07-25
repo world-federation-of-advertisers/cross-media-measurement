@@ -86,7 +86,7 @@ class FilterProcessorTest {
    */
   private fun createEventBatch(
     events: List<LabeledEvent<Message>>
-  ): EventBatch {
+  ): EventBatch<Message> {
     val timestamps = events.map { it.timestamp }
     val minTime = timestamps.minOrNull() ?: Instant.now()
     val maxTime = timestamps.maxOrNull() ?: Instant.now()
@@ -125,7 +125,7 @@ class FilterProcessorTest {
   fun `processBatch filters events with CEL expression`() { runBlocking {
     val celExpression = "person.age_group == 1" // YEARS_18_TO_34
     val filterSpec = createTestFilterSpec(celExpression = celExpression)
-    val filterProcessor = FilterProcessor(filterSpec, testEventDescriptor)
+    val filterProcessor = FilterProcessor<Message>(filterSpec, testEventDescriptor)
 
     val events = listOf(
       createTestLabeledEvent(vid = 1, ageGroup = Person.AgeGroup.YEARS_18_TO_34),
@@ -143,7 +143,7 @@ class FilterProcessorTest {
   @Test
   fun `processBatch with empty CEL expression matches all events`() { runBlocking {
     val filterSpec = createTestFilterSpec(celExpression = "")
-    val filterProcessor = FilterProcessor(filterSpec, testEventDescriptor)
+    val filterProcessor = FilterProcessor<Message>(filterSpec, testEventDescriptor)
 
     val events = listOf(
       createTestLabeledEvent(1, ageGroup = Person.AgeGroup.YEARS_18_TO_34),
@@ -172,7 +172,7 @@ class FilterProcessorTest {
       celExpression = "",
       collectionInterval = interval
     )
-    val filterProcessor = FilterProcessor(filterSpec, testEventDescriptor)
+    val filterProcessor = FilterProcessor<Message>(filterSpec, testEventDescriptor)
 
     val events = listOf(
       createTestLabeledEvent(1, timestamp = Instant.parse("2024-12-31T23:59:59Z")), // Before range
@@ -196,7 +196,7 @@ class FilterProcessorTest {
       celExpression = "",
       eventGroupReferenceIds = listOf(targetEventGroupId)
     )
-    val filterProcessor = FilterProcessor(filterSpec, testEventDescriptor)
+    val filterProcessor = FilterProcessor<Message>(filterSpec, testEventDescriptor)
 
     val events = listOf(
       createTestLabeledEvent(1, eventGroupReferenceId = "event-group-1"),
@@ -228,7 +228,7 @@ class FilterProcessorTest {
       collectionInterval = interval,
       eventGroupReferenceIds = listOf(targetEventGroupId)
     )
-    val filterProcessor = FilterProcessor(filterSpec, testEventDescriptor)
+    val filterProcessor = FilterProcessor<Message>(filterSpec, testEventDescriptor)
 
     val events = listOf(
       createTestLabeledEvent(1, gender = Person.Gender.MALE, timestamp = Instant.parse("2025-01-15T12:00:00Z"), eventGroupReferenceId = "event-group-1"),
@@ -249,7 +249,7 @@ class FilterProcessorTest {
   fun `processBatch with complex CEL expression`() { runBlocking {
     val celExpression = "person.age_group == 1 && person.gender == 1" // YEARS_18_TO_34 && MALE
     val filterSpec = createTestFilterSpec(celExpression = celExpression)
-    val filterProcessor = FilterProcessor(filterSpec, testEventDescriptor)
+    val filterProcessor = FilterProcessor<Message>(filterSpec, testEventDescriptor)
 
     val events = listOf(
       createTestLabeledEvent(1, ageGroup = Person.AgeGroup.YEARS_18_TO_34, gender = Person.Gender.MALE),
@@ -279,7 +279,7 @@ class FilterProcessorTest {
       celExpression = "",
       collectionInterval = interval
     )
-    val filterProcessor = FilterProcessor(filterSpec, testEventDescriptor)
+    val filterProcessor = FilterProcessor<Message>(filterSpec, testEventDescriptor)
 
     // All events are outside the collection interval (before it starts)
     val events = listOf(
@@ -309,7 +309,7 @@ class FilterProcessorTest {
       celExpression = "",
       collectionInterval = interval
     )
-    val filterProcessor = FilterProcessor(filterSpec, testEventDescriptor)
+    val filterProcessor = FilterProcessor<Message>(filterSpec, testEventDescriptor)
 
     // Batch spans across filter interval (some events before, some during, some after)
     val events = listOf(
@@ -340,7 +340,7 @@ class FilterProcessorTest {
       celExpression = "",
       collectionInterval = interval
     )
-    val filterProcessor = FilterProcessor(filterSpec, testEventDescriptor)
+    val filterProcessor = FilterProcessor<Message>(filterSpec, testEventDescriptor)
 
     // All events are after the collection interval
     val events = listOf(
@@ -370,7 +370,7 @@ class FilterProcessorTest {
       celExpression = "",
       collectionInterval = interval
     )
-    val filterProcessor = FilterProcessor(filterSpec, testEventDescriptor)
+    val filterProcessor = FilterProcessor<Message>(filterSpec, testEventDescriptor)
 
     val events = listOf(
       createTestLabeledEvent(1, timestamp = Instant.parse("2024-12-31T23:59:59.999Z")), // Just before start
