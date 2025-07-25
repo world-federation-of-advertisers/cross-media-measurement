@@ -16,71 +16,41 @@
 
 package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
+import org.wfanet.measurement.eventdataprovider.shareshuffle.v2alpha.VidIndexMap
+import org.wfanet.measurement.eventdataprovider.shareshuffle.v2alpha.VidNotFoundException
+
 /**
- * Builder for creating FrequencyVector instances.
- * 
- * Provides a unified interface for constructing different types of frequency vectors
- * based on the data size and performance requirements.
+ * Builder interface for constructing frequency vectors during event processing.
  */
-class FrequencyVectorBuilder {
+interface FrequencyVectorBuilder {
+  /** Adds an event occurrence for the specified VID. */
+  fun addEvent(vid: Long)
   
-  private val vids = mutableListOf<Long>()
+  /** Builds and returns the final FrequencyVector. */
+  fun build(): FrequencyVector
+}
+
+/**
+ * Builder implementation for StripedByteFrequencyVector.
+ * 
+ * @property vidIndexMap The VID to index mapping
+ */
+class StripedFrequencyVectorBuilder(
+  private val vidIndexMap: VidIndexMap
+) : FrequencyVectorBuilder {
   
-  /**
-   * Adds a VID to the frequency vector being built.
-   * 
-   * @param vid The virtual ID to add
-   */
-  fun addVid(vid: Long): FrequencyVectorBuilder {
-    vids.add(vid)
-    return this
+  private val stripedVector = StripedByteFrequencyVector(vidIndexMap.size.toInt())
+  
+  override fun addEvent(vid: Long) {
+    try {
+      val index = vidIndexMap[vid]
+      stripedVector.incrementByIndex(index)
+    } catch (e: VidNotFoundException) {
+      // Ignore VIDs not in the index map
+    }
   }
   
-  /**
-   * Adds multiple VIDs to the frequency vector being built.
-   * 
-   * @param vids The virtual IDs to add
-   */
-  fun addVids(vids: Collection<Long>): FrequencyVectorBuilder {
-    this.vids.addAll(vids)
-    return this
+  override fun build(): FrequencyVector {
+    return stripedVector
   }
-  
-  
-  /**
-   * Builds a StripedByteFrequencyVector from the accumulated VIDs.
-   * 
-   * This method is more memory-efficient for large datasets.
-   * 
-   * @return A new StripedByteFrequencyVector instance
-   */
-  fun buildStriped(): FrequencyVector {
-    return StripedByteFrequencyVector(vids.toList())
-  }
-  
-  /**
-   * Builds a FrequencyVector from the accumulated VIDs.
-   * 
-   * Uses StripedByteFrequencyVector for optimal performance.
-   * 
-   * @return A new StripedByteFrequencyVector instance
-   */
-  fun build(): FrequencyVector {
-    return buildStriped()
-  }
-  
-  /**
-   * Clears all accumulated VIDs.
-   */
-  fun clear(): FrequencyVectorBuilder {
-    vids.clear()
-    return this
-  }
-  
-  /**
-   * Gets the current number of VIDs in the builder.
-   * 
-   * @return The number of VIDs that have been added
-   */
-  fun size(): Int = vids.size
 }
