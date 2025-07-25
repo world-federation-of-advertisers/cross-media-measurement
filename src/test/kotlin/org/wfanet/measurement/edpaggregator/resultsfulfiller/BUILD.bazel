@@ -188,8 +188,9 @@ kt_jvm_test(
     srcs = ["FilterProcessorTest.kt"],
     test_class = "org.wfanet.measurement.edpaggregator.resultsfulfiller.FilterProcessorTest",
     deps = [
-        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:event_batch",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:filter_processor",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:filter_spec",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:event_batch",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:labeled_event",
         "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:test_event_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
@@ -220,6 +221,27 @@ kt_jvm_test(
         "@wfa_common_jvm//imports/kotlin/org/mockito/kotlin",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:selected_storage_client",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage/testing",
+    ],
+)
+
+kt_jvm_test(
+    name = "FrequencyVectorSinkTest",
+    srcs = ["FrequencyVectorSinkTest.kt"],
+    test_class = "org.wfanet.measurement.edpaggregator.resultsfulfiller.FrequencyVectorSinkTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:event_batch",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:filter_processor",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:filter_spec",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:frequency_vector",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:frequency_vector_sink",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:labeled_event",
+        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/requisition/v2alpha/common",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/java/com/google/protobuf/util",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//imports/kotlin/org/mockito/kotlin",
     ],
 )
 
