@@ -60,7 +60,6 @@ resource "terraform_data" "deploy_http_cloud_function" {
         "--run-service-account=$RUN_SERVICE_ACCOUNT"
         "--source=$UBER_JAR_DIRECTORY"
         "--trigger-http"
-        "--no-allow-unauthenticated"
       )
 
       if [[ -n "$EXTRA_ENV_VARS" ]]; then
