@@ -98,6 +98,15 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
+    name = "frequency_vector",
+    srcs = [
+        "FrequencyVector.kt",
+        "StripedByteFrequencyVector.kt",
+    ],
+    deps = [],
+)
+
+kt_jvm_library(
     name = "event_reader",
     srcs = ["EventReader.kt"],
     deps = [
