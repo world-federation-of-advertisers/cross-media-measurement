@@ -16,6 +16,7 @@
 
 package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
+import com.google.protobuf.Message
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.VidIndexMap
 
 /**
@@ -24,10 +25,10 @@ import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.VidIn
  * Each sink corresponds to a specific filter specification and maintains its own frequency vector.
  * Thread-safe for concurrent access.
  */
-class FrequencyVectorSink(
-  private val filterProcessor: FilterProcessor,
+class FrequencyVectorSink<T : Message>(
+  private val filterProcessor: FilterProcessor<T>,
   private val frequencyVector: StripedByteFrequencyVector,
-  private val vidIndexMap: VidIndexMap
+  private val vidIndexMap: VidIndexMap,
 ) {
 
   /**
@@ -35,23 +36,19 @@ class FrequencyVectorSink(
    *
    * @param batch
    */
-  fun processBatch(batch: EventBatch) {
+  fun processBatch(batch: EventBatch<T>) {
     filterProcessor.processBatch(batch).events.forEach { event ->
       val index = vidIndexMap[event.vid]
       frequencyVector.increment(index)
     }
   }
 
-  /**
-   * Returns the filter spec
-   */
+  /** Returns the filter spec */
   fun getFilterSpec(): FilterSpec {
     return filterProcessor.filterSpec
   }
 
-  /**
-   * Returns the frequency vector.
-   */
+  /** Returns the frequency vector. */
   fun getFrequencyVector(): StripedByteFrequencyVector {
     return frequencyVector
   }
