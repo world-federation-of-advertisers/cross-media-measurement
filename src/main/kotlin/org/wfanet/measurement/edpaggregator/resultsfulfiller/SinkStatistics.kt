@@ -17,29 +17,35 @@
 package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
 /**
- * Statistics collected during event sink processing.
- * 
- * Tracks various metrics about event processing for monitoring
- * and debugging purposes.
+ * Statistics for a frequency vector sink.
+ *
+ * Contains all metrics collected during pipeline processing for a single filter.
  */
 data class SinkStatistics(
-  val eventsProcessed: Long = 0,
-  val eventsFiltered: Long = 0,
-  val processingTimeMs: Long = 0,
-  val reach: Long = 0,
-  val maxFrequency: Int = 0
+  val sinkId: String,
+  val description: String,
+  val processedEvents: Long,
+  val matchedEvents: Long,
+  val errorCount: Long,
+  val reach: Long,
+  val totalFrequency: Long,
+  val averageFrequency: Double
 ) {
-  
   /**
-   * Merges this statistics object with another.
+   * Percentage of events that matched the filter.
    */
-  fun merge(other: SinkStatistics): SinkStatistics {
-    return SinkStatistics(
-      eventsProcessed = eventsProcessed + other.eventsProcessed,
-      eventsFiltered = eventsFiltered + other.eventsFiltered,
-      processingTimeMs = processingTimeMs + other.processingTimeMs,
-      reach = reach + other.reach,
-      maxFrequency = maxOf(maxFrequency, other.maxFrequency)
-    )
+  val matchRate: Double = if (processedEvents > 0) {
+    matchedEvents * 100.0 / processedEvents
+  } else {
+    0.0
+  }
+
+  /**
+   * Percentage of events that resulted in errors.
+   */
+  val errorRate: Double = if (processedEvents > 0) {
+    errorCount * 100.0 / processedEvents
+  } else {
+    0.0
   }
 }
