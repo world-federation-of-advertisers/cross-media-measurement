@@ -25,6 +25,7 @@ import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpec
 import org.wfanet.measurement.internal.reporting.v2.copy
 import org.wfanet.measurement.reporting.deploy.v2.postgres.readers.MeasurementConsumerReader
 import org.wfanet.measurement.reporting.deploy.v2.postgres.readers.MetricCalculationSpecReader
+import org.wfanet.measurement.reporting.deploy.v2.postgres.readers.ReportingSetReader
 import org.wfanet.measurement.reporting.service.internal.MeasurementConsumerNotFoundException
 import org.wfanet.measurement.reporting.service.internal.MetricCalculationSpecAlreadyExistsException
 
@@ -62,6 +63,15 @@ class CreateMetricCalculationSpec(private val request: CreateMetricCalculationSp
       )
     }
 
+    val campaignGroupId: InternalId? =
+      if (metricCalculationSpec.externalCampaignGroupId.isNotEmpty()) {
+        ReportingSetReader(transactionContext)
+          .readCampaignGroup(measurementConsumerId, metricCalculationSpec.externalCampaignGroupId)
+          ?.reportingSetId
+      } else {
+        null
+      }
+
     val metricCalculationSpecId: InternalId = idGenerator.generateInternalId()
 
     val statement =
@@ -74,9 +84,10 @@ class CreateMetricCalculationSpec(private val request: CreateMetricCalculationSp
           ExternalMetricCalculationSpecId,
           MetricCalculationSpecDetails,
           MetricCalculationSpecDetailsJson,
-          CmmsModelLineName
+          CmmsModelLineName,
+          CampaignGroupId
         )
-        VALUES ($1, $2, $3, $4, $5, $6)
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
       """
       ) {
         bind("$1", measurementConsumerId)
@@ -89,6 +100,7 @@ class CreateMetricCalculationSpec(private val request: CreateMetricCalculationSp
         } else {
           bind<String?>("$6", null)
         }
+        bind("$7", campaignGroupId)
       }
 
     transactionContext.run { executeStatement(statement) }

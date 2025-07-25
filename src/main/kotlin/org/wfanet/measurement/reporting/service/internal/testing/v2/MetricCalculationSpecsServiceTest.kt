@@ -32,18 +32,23 @@ import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.RandomIdGenerator
+import org.wfanet.measurement.internal.reporting.v2.ListMetricCalculationSpecsRequestKt
 import org.wfanet.measurement.internal.reporting.v2.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpec
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpecKt
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpecsGrpcKt.MetricCalculationSpecsCoroutineImplBase
 import org.wfanet.measurement.internal.reporting.v2.MetricSpecKt
+import org.wfanet.measurement.internal.reporting.v2.ReportingSetKt
+import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt.ReportingSetsCoroutineImplBase
 import org.wfanet.measurement.internal.reporting.v2.batchGetMetricCalculationSpecsRequest
 import org.wfanet.measurement.internal.reporting.v2.copy
 import org.wfanet.measurement.internal.reporting.v2.createMetricCalculationSpecRequest
+import org.wfanet.measurement.internal.reporting.v2.createReportingSetRequest
 import org.wfanet.measurement.internal.reporting.v2.getMetricCalculationSpecRequest
 import org.wfanet.measurement.internal.reporting.v2.listMetricCalculationSpecsRequest
 import org.wfanet.measurement.internal.reporting.v2.metricCalculationSpec
 import org.wfanet.measurement.internal.reporting.v2.metricSpec
+import org.wfanet.measurement.internal.reporting.v2.reportingSet
 import org.wfanet.measurement.reporting.service.internal.Errors
 
 @RunWith(JUnit4::class)
@@ -53,12 +58,14 @@ abstract class MetricCalculationSpecsServiceTest<T : MetricCalculationSpecsCorou
   protected data class Services<T>(
     val metricCalculationSpecsService: T,
     val measurementConsumersService: MeasurementConsumersCoroutineImplBase,
+    val reportingSetsService: ReportingSetsCoroutineImplBase,
   )
 
   /** Instance of the service under test. */
   private lateinit var service: T
 
   private lateinit var measurementConsumersService: MeasurementConsumersCoroutineImplBase
+  private lateinit var reportingSetsService: ReportingSetsCoroutineImplBase
 
   /** Constructs the services being tested. */
   protected abstract fun newServices(idGenerator: IdGenerator): Services<T>
@@ -68,6 +75,7 @@ abstract class MetricCalculationSpecsServiceTest<T : MetricCalculationSpecsCorou
     val services = newServices(idGenerator)
     service = services.metricCalculationSpecsService
     measurementConsumersService = services.measurementConsumersService
+    reportingSetsService = services.reportingSetsService
   }
 
   @Test
@@ -108,6 +116,48 @@ abstract class MetricCalculationSpecsServiceTest<T : MetricCalculationSpecsCorou
     assertThat(createdMetricCalculationSpec.externalMetricCalculationSpecId)
       .isEqualTo(request.externalMetricCalculationSpecId)
   }
+
+  @Test
+  fun `createMetricCalculationSpec with external_cammpaign_group_id returns successfully`() =
+    runBlocking {
+      createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
+
+      val campaignGroup =
+        reportingSetsService.createReportingSet(
+          createReportingSetRequest {
+            externalReportingSetId = "campaign-group-reporting-set"
+            this.reportingSet = reportingSet {
+              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+              externalCampaignGroupId = this@createReportingSetRequest.externalReportingSetId
+              primitive =
+                ReportingSetKt.primitive {
+                  eventGroupKeys +=
+                    ReportingSetKt.PrimitiveKt.eventGroupKey {
+                      cmmsDataProviderId = "1235"
+                      cmmsEventGroupId = "1236"
+                    }
+                }
+            }
+          }
+        )
+
+      val metricCalculationSpec =
+        createMetricCalculationSpecForRequest().copy {
+          externalCampaignGroupId = campaignGroup.externalCampaignGroupId
+        }
+
+      val request = createMetricCalculationSpecRequest {
+        this.metricCalculationSpec = metricCalculationSpec
+        externalMetricCalculationSpecId = "external-metric-calculation-spec-id"
+      }
+      val createdMetricCalculationSpec = service.createMetricCalculationSpec(request)
+
+      assertThat(metricCalculationSpec)
+        .ignoringFields(MetricCalculationSpec.EXTERNAL_METRIC_CALCULATION_SPEC_ID_FIELD_NUMBER)
+        .isEqualTo(createdMetricCalculationSpec)
+      assertThat(createdMetricCalculationSpec.externalMetricCalculationSpecId)
+        .isEqualTo(request.externalMetricCalculationSpecId)
+    }
 
   @Test
   fun `createMetricCalculationSpec throws ALREADY_EXISTS when same external ID used 2x`() =
@@ -389,6 +439,67 @@ abstract class MetricCalculationSpecsServiceTest<T : MetricCalculationSpecsCorou
     assertThat(retrievedMetricCalculationSpecs[0].externalMetricCalculationSpecId)
       .isEqualTo(createdMetricCalculationSpec2.externalMetricCalculationSpecId)
   }
+
+  @Test
+  fun `listMetricCalculationSpecs filters by external_campaign_group_id when specified`() =
+    runBlocking {
+      createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
+
+      val campaignGroup =
+        reportingSetsService.createReportingSet(
+          createReportingSetRequest {
+            externalReportingSetId = "campaign-group-reporting-set"
+            this.reportingSet = reportingSet {
+              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+              externalCampaignGroupId = this@createReportingSetRequest.externalReportingSetId
+              primitive =
+                ReportingSetKt.primitive {
+                  eventGroupKeys +=
+                    ReportingSetKt.PrimitiveKt.eventGroupKey {
+                      cmmsDataProviderId = "1235"
+                      cmmsEventGroupId = "1236"
+                    }
+                }
+            }
+          }
+        )
+
+      val metricCalculationSpec = createMetricCalculationSpecForRequest()
+
+      val request = createMetricCalculationSpecRequest {
+        this.metricCalculationSpec = metricCalculationSpec
+        externalMetricCalculationSpecId = "external-metric-calculation-spec-id"
+      }
+
+      service.createMetricCalculationSpec(request)
+      val createdMetricCalculationSpec2 =
+        service.createMetricCalculationSpec(
+          request.copy {
+            externalMetricCalculationSpecId = "external-metric-calculation-spec-id-2"
+            this.metricCalculationSpec =
+              metricCalculationSpec.copy {
+                externalCampaignGroupId = campaignGroup.externalCampaignGroupId
+              }
+          }
+        )
+
+      val retrievedMetricCalculationSpecs =
+        service
+          .listMetricCalculationSpecs(
+            listMetricCalculationSpecsRequest {
+              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+              limit = 50
+              filter =
+                ListMetricCalculationSpecsRequestKt.filter {
+                  externalCampaignGroupId = campaignGroup.externalCampaignGroupId
+                }
+            }
+          )
+          .metricCalculationSpecsList
+
+      assertThat(retrievedMetricCalculationSpecs).hasSize(1)
+      assertThat(retrievedMetricCalculationSpecs[0]).isEqualTo(createdMetricCalculationSpec2)
+    }
 
   @Test
   fun `listMetricCalculationSpecs throws INVALID_ARGUMENT when cmms mc id missing`() = runBlocking {

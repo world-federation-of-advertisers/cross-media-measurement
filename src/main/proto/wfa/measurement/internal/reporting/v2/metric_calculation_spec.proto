@@ -32,6 +32,8 @@ message MetricCalculationSpec {
   string cmms_model_line = 4
       [(google.api.resource_reference).type = "halo.wfanet.org/ModelLine"];
 
+  string external_campaign_group_id = 5;
+
   message Grouping {
     repeated string predicates = 1;
   }
