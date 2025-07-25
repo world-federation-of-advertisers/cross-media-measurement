@@ -145,6 +145,7 @@ abstract class ResultsFulfillerApp(
         impressionsStorageConfig = impressionsStorageConfig,
         labeledImpressionsDekPrefix =
           fulfillerParams.storageParams.labeledImpressionsBlobDetailsUriPrefix,
+        typeRegistry = typeRegistry,
       )
 
     ResultsFulfiller(

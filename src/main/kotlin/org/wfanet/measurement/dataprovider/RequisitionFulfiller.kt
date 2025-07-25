@@ -247,6 +247,7 @@ abstract class RequisitionFulfiller(
     }
   }
 
+
   companion object {
     val logger: Logger = Logger.getLogger(this::class.java.name)
   }

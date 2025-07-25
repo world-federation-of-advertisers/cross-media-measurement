@@ -26,6 +26,7 @@ import java.util.concurrent.TimeUnit
 import java.util.logging.Logger
 import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.PopulationSpecKt.subPopulation
 import org.wfanet.measurement.api.v2alpha.PopulationSpecKt.vidRange
@@ -34,6 +35,7 @@ import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.Synthetic
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.syntheticEventGroupSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.syntheticPopulationSpec
 import com.google.protobuf.DynamicMessage
+import com.google.protobuf.Any
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.api.v2alpha.populationSpec
 import org.wfanet.measurement.common.OpenEndTimeRange
@@ -144,9 +146,22 @@ class EventProcessingOrchestrator {
       val pipeline = createPipeline(config, dispatcher)
       val eventBatchFlow = eventSource.generateEventBatches(dispatcher)
 
-      // Cast the flow to the expected type
-      @Suppress("UNCHECKED_CAST")
-      val dynamicMessageEventBatchFlow = eventBatchFlow as Flow<List<LabeledEvent<DynamicMessage>>>
+      // Convert Any messages to DynamicMessage
+      val dynamicMessageEventBatchFlow = eventBatchFlow.map { batch: List<LabeledEvent<Any>> ->
+        batch.map { event: LabeledEvent<Any> ->
+          val message = event.message
+          // Unpack the Any message to get the descriptor and data
+          val descriptor = typeRegistry.getDescriptorForTypeUrl(message.typeUrl)
+            ?: error("Unknown message type: ${message.typeUrl}")
+          val dynamicMessage = DynamicMessage.parseFrom(descriptor, message.value)
+          LabeledEvent(
+            timestamp = event.timestamp,
+            vid = event.vid,
+            message = dynamicMessage,
+            eventGroupReferenceId = event.eventGroupReferenceId
+          )
+        }
+      }
 
       val statistics = pipeline.processEventBatches(
         eventBatchFlow = dynamicMessageEventBatchFlow,

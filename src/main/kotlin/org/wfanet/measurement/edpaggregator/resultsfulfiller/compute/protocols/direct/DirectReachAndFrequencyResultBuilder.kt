@@ -110,7 +110,13 @@ class DirectReachAndFrequencyResultBuilder(
         deterministicCountDistinct = DeterministicCountDistinct.getDefaultInstance()
       }
       frequency = frequency {
-        relativeFrequencyDistribution.putAll(frequencyMap.mapKeys { it.key.toLong() }.mapValues { it.value })
+        val totalReach = frequencyMap.values.sum()
+        val relativeFrequencyMap = if (totalReach > 0) {
+          frequencyMap.mapValues { it.value / totalReach }
+        } else {
+          frequencyMap
+        }
+        relativeFrequencyDistribution.putAll(relativeFrequencyMap.mapKeys { it.key.toLong() })
         this.noiseMechanism = protocolConfigNoiseMechanism
         deterministicDistribution = DeterministicDistribution.getDefaultInstance()
       }

@@ -20,7 +20,9 @@ import java.nio.file.Path
 import java.nio.file.Paths
 import kotlin.random.Random
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
+import org.wfanet.measurement.edpaggregator.resultsfulfiller.SimpleFrequencyVector
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -64,6 +66,12 @@ class DirectMeasurementFulfillerTest {
   fun `fulfillRequisition creates correct proto for direct reach requisition fulfillment`() =
     runBlocking {
       val result = result { MeasurementKt.ResultKt.reach { value = 100L } }
+      val sampledVids = flow {
+        for (i in 1..100) {
+          emit(i.toLong())
+        }
+      }
+      val frequencyVector = SimpleFrequencyVector(sampledVids.toList())
       val directMeasurementFulfiller =
         DirectMeasurementFulfiller(
           requisitionName = REQUISITION_NAME,
@@ -71,12 +79,7 @@ class DirectMeasurementFulfillerTest {
           measurementResult = result,
           requisitionNonce = NONCE,
           measurementEncryptionPublicKey = MC_PUBLIC_KEY,
-          sampledVids =
-            flow {
-              for (i in 1..100) {
-                emit(i.toLong())
-              }
-            },
+          frequencyVector = frequencyVector,
           directProtocolConfig = DIRECT_PROTOCOL,
           directNoiseMechanism = DirectNoiseMechanism.CONTINUOUS_GAUSSIAN,
           dataProviderSigningKeyHandle = EDP_SIGNING_KEY,

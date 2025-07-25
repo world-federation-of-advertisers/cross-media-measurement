@@ -19,7 +19,9 @@ package org.wfanet.measurement.edpaggregator.resultsfulfiller.compute.protocols.
 import com.google.common.truth.Truth.assertThat
 import java.security.SecureRandom
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
+import org.wfanet.measurement.edpaggregator.resultsfulfiller.SimpleFrequencyVector
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
@@ -64,12 +66,13 @@ class DirectMeasurementResultFactoryTest {
       }
 
       // Execute
+      val frequencyVector = SimpleFrequencyVector(sampledVids.toList())
       val result =
         DirectMeasurementResultFactory.buildMeasurementResult(
           directProtocolConfig = DIRECT_PROTOCOL,
           directNoiseMechanism = DirectNoiseMechanism.NONE,
           measurementSpec = measurementSpec,
-          sampledVids = sampledVids,
+          frequencyVector = frequencyVector,
           random = SecureRandom(),
         )
 

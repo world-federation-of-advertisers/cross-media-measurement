@@ -258,6 +258,7 @@ class ResultsFulfillerTest {
         StorageConfig(rootDirectory = impressionsTmpPath),
         StorageConfig(rootDirectory = metadataTmpPath),
         IMPRESSIONS_METADATA_FILE_URI_PREFIX,
+        typeRegistry,
       )
 
     val resultsFulfiller =
