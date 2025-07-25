@@ -78,9 +78,14 @@ class StreamEventGroups(
         add(
           """
           EXISTS(
-            SELECT MediaType
-            FROM UNNEST(EventGroups.MediaTypes) AS MediaType
-            WHERE MediaType IN UNNEST(@$MEDIA_TYPES)
+            SELECT
+              MediaType
+            FROM
+              EventGroupMediaTypes
+            WHERE
+              EventGroupMediaTypes.DataProviderId = EventGroups.DataProviderId
+              AND EventGroupMediaTypes.EventGroupId = EventGroups.EventGroupId
+              AND MediaType IN UNNEST(@$MEDIA_TYPES)
           )
           """
             .trimIndent()
