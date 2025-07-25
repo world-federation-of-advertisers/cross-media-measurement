@@ -24,7 +24,6 @@ import java.security.GeneralSecurityException
 import java.time.ZoneId
 import java.util.logging.Logger
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
@@ -62,8 +61,7 @@ import org.wfanet.measurement.storage.SelectedStorageClient
  * @param zoneId Zone ID instance.
  * @param noiserSelector Selector for noise addition.
  * @param eventReader the [EventReader] to read in impressions data
- * @param modelLineInfoMap map of model line to [ModelLineInfo]
- * @param kAnonymityParams [KAnonymityParams] for this measurement
+ * @param populationSpecMap map of model line to population spec
  *
  * TODO(2347) - Support additional differential privacy and k-anonymization.
  */
@@ -78,7 +76,7 @@ class ResultsFulfiller(
   private val requisitionsStorageConfig: StorageConfig,
   private val zoneId: ZoneId,
   private val noiserSelector: NoiserSelector,
-  private val eventReader: EventReader,
+  private val eventReader: LegacyEventReader,
   private val modelLineInfoMap: Map<String, ModelLineInfo>,
   private val kAnonymityParams: KAnonymityParams?,
 ) {
