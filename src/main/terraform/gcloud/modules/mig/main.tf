@@ -83,12 +83,15 @@ resource "google_compute_instance_template" "confidential_vm_template" {
           #!/bin/bash
           set -euo pipefail
           %{ for s in var.secrets_to_mount }
+          host_dir="$(dirname "${s.mount_path}")"
+          mkdir -p "$host_dir"
           docker run --rm \
+            -v "$host_dir":"$host_dir" \
             gcr.io/google.com/cloudsdktool/cloud-sdk:slim \
             gcloud secrets versions access ${s.version} \
               --secret=${s.secret_id} \
               --project=${data.google_project.project.name} \
-          > ${s.mount_path}
+              --out-file=${s.mount_path}
           chmod 644 ${s.mount_path}
           %{ endfor }
           EOT
@@ -120,11 +123,18 @@ resource "google_compute_instance_template" "confidential_vm_template" {
           - name: ssl-secrets
             mountPath: /etc/ssl
             readOnly: true
+          - name: proto-descriptors
+            mountPath: /var/tmp
+            readOnly: true
     restartPolicy: Always
     volumes:
       - name: ssl-secrets
         hostPath:
           path: /etc/ssl
+          type: DirectoryOrCreate
+      - name: proto-descriptors
+        hostPath:
+          path: /var/tmp
           type: DirectoryOrCreate
   EOT
       }
