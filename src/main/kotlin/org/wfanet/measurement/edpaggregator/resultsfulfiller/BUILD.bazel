@@ -120,6 +120,7 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
+<<<<<<< HEAD
     name = "filter_processor",
     srcs = ["FilterProcessor.kt"],
     deps = [
@@ -132,6 +133,8 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
+=======
+>>>>>>> 2270e9dbe (Add frequency vector system for reach and frequency measurements)
     name = "event_reader",
     srcs = ["EventReader.kt"],
     deps = [
