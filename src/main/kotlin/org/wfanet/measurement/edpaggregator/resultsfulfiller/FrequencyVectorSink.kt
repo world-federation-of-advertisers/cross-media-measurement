@@ -24,7 +24,7 @@ import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.VidIn
  * Each sink corresponds to a specific filter specification and maintains its own frequency vector.
  * Thread-safe for concurrent access.
  */
-class FrequencyVectorSink(
+open class FrequencyVectorSink(
   private val filterProcessor: FilterProcessor,
   private val frequencyVector: StripedByteFrequencyVector,
   private val vidIndexMap: VidIndexMap
@@ -35,7 +35,7 @@ class FrequencyVectorSink(
    *
    * @param batch
    */
-  fun processBatch(batch: EventBatch) {
+  open fun processBatch(batch: EventBatch) {
     filterProcessor.processBatch(batch).events.forEach { event ->
       val index = vidIndexMap[event.vid]
       frequencyVector.increment(index)
