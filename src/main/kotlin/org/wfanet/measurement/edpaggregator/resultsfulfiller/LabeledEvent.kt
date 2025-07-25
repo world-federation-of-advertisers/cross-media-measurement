@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 The Cross-Media Measurement Authors
+ * Copyright 2023 The Cross-Media Measurement Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,20 +17,19 @@
 package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
 import com.google.protobuf.Message
+import java.time.Instant
 
 /**
- * Represents an event with associated labels for processing.
- * 
- * This is a foundational data structure that wraps events with their metadata
- * for use throughout the processing pipeline.
- * 
- * @param T The protobuf message type of the event
- * @param event The actual event data
- * @param vid The virtual ID associated with this event
- * @param labels Additional labels associated with the event
+ * An event [message] with labels for processing.
+ *
+ * @property timestamp The event timestamp
+ * @property vid The virtual person ID
+ * @property message The event data
+ * @property eventGroupReferenceId The reference ID for event group filtering
  */
 data class LabeledEvent<T : Message>(
-  val event: T,
+  val timestamp: Instant,
   val vid: Long,
-  val labels: Map<String, String> = emptyMap()
+  val message: T,
+  val eventGroupReferenceId: String
 )
