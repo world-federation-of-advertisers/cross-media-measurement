@@ -16,9 +16,11 @@ kt_jvm_library(
     deps = [
         ":continuous_gaussian_noiser_selector",
         ":event_reader",
+        ":impression_read_exception",
         ":noiser_selector",
         ":requisition_specs",
         ":vid_filter",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator:storage_config",
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:packed_messages",
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
         "//src/main/kotlin/org/wfanet/measurement/dataprovider:requisition_refusal_exception",
@@ -33,6 +35,7 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/api/v2alpha:requisitions_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:grouped_requisitions_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:labeled_impression_kt_jvm_proto",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:selected_storage_client",
         "@wfa_consent_signaling_client//src/main/kotlin/org/wfanet/measurement/consent/client/dataprovider",
     ],
 )
@@ -113,17 +116,35 @@ kt_jvm_library(
     ],
 )
 
+
+kt_jvm_library(
+    name = "event_path_resolver",
+    srcs = ["EventPathResolver.kt"],
+    deps = [],
+)
+
 kt_jvm_library(
     name = "event_reader",
     srcs = ["EventReader.kt"],
     deps = [
+        ":labeled_event",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+    ],
+)
+
+kt_jvm_library(
+    name = "storage_event_reader",
+    srcs = ["StorageEventReader.kt"],
+    deps = [
+        ":event_reader",
         ":impression_read_exception",
+        ":labeled_event",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator:encrypted_storage",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator:storage_config",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:blob_details_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:labeled_impression_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/crypto/tink",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/tink",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:mesos_recordio_storage_client",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:selected_storage_client",
     ],
@@ -134,9 +155,11 @@ kt_jvm_library(
     srcs = ["ResultsFulfillerApp.kt"],
     deps = [
         ":continuous_gaussian_noiser_selector",
+        ":event_reader",
         ":no_noiser_selector",
         ":requisition_stub_factory",
         ":results_fulfiller",
+        ":storage_event_reader",
         "//src/main/kotlin/org/wfanet/measurement/securecomputation/controlplane/v1alpha:work_item_attempts_service",
         "//src/main/kotlin/org/wfanet/measurement/securecomputation/controlplane/v1alpha:work_items_service",
         "//src/main/kotlin/org/wfanet/measurement/securecomputation/teesdk:base_tee_application",
