@@ -64,7 +64,7 @@ class ReportProcessorTest {
   }
 
   @Test
-  fun `run correct report with logging with custom policy_successfully`() = runBlocking {
+  fun `run correct report with logging with custom policy successfully`() = runBlocking {
     val reportFile = TEST_DATA_RUNTIME_DIR.resolve("sample_report_with_custom_policy.json").toFile()
     val reportAsJson = reportFile.readText()
 
@@ -87,6 +87,33 @@ class ReportProcessorTest {
       )
       .isEqualTo(reportProcessingOutput.reportPostProcessorLog)
   }
+
+  @Test
+  fun `run correct report with logging without cumulative measurements successfully`() =
+    runBlocking {
+      val reportFile =
+        TEST_DATA_RUNTIME_DIR.resolve("sample_report_without_cumulative_measurements.json").toFile()
+      val reportAsJson = reportFile.readText()
+
+      val report = ReportConversion.getReportFromJsonString(reportAsJson)
+      assertThat(report.hasConsistentMeasurements()).isFalse()
+
+      val reportProcessingOutput: ReportProcessingOutput =
+        ReportProcessor.processReportJsonAndLogResult(reportAsJson, "projectId", "bucketName")
+      val updatedReport =
+        ReportConversion.getReportFromJsonString(reportProcessingOutput.updatedReportJson)
+      assertThat(updatedReport.hasConsistentMeasurements()).isTrue()
+
+      val expectedBlobKey = "20250620/20250620111829_e250ee4dd864ce99f1fe1df77944b48.textproto"
+      assertThat(inMemoryStorageClient.contents).containsKey(expectedBlobKey)
+
+      assertThat(
+          ReportPostProcessorLog.parseFrom(
+            inMemoryStorageClient.getBlob(expectedBlobKey)!!.read().flatten()
+          )
+        )
+        .isEqualTo(reportProcessingOutput.reportPostProcessorLog)
+    }
 
   @Test
   fun `run correct report with logging with demographic slicing successfully`() = runBlocking {
@@ -154,6 +181,22 @@ class ReportProcessorTest {
 
     val updatedReportAsJson = ReportProcessor.processReportJson(reportAsJson)
     val updatedReport = ReportConversion.getReportFromJsonString(updatedReportAsJson)
+    assertThat(updatedReport.hasConsistentMeasurements()).isTrue()
+  }
+
+  @Test
+  fun `run correct report without cumulative measurements successfully`() = runBlocking {
+    val reportFile =
+      TEST_DATA_RUNTIME_DIR.resolve("sample_report_without_cumulative_measurements.json").toFile()
+    val reportAsJson = reportFile.readText()
+
+    val report = ReportConversion.getReportFromJsonString(reportAsJson)
+    assertThat(report.hasConsistentMeasurements()).isFalse()
+
+    val reportProcessingOutput: ReportProcessingOutput =
+      ReportProcessor.processReportJsonAndLogResult(reportAsJson, "projectId", "bucketName")
+    val updatedReport =
+      ReportConversion.getReportFromJsonString(reportProcessingOutput.updatedReportJson)
     assertThat(updatedReport.hasConsistentMeasurements()).isTrue()
   }
 
@@ -290,17 +333,15 @@ class ReportProcessorTest {
     }
 
     private fun MetricReport.hasConsistentMeasurements(): Boolean {
-      if (cumulativeMeasurements.isEmpty()) {
-        return true
-      }
-
       // Verifies that cumulative measurements are consistent.
-      for ((_, measurements) in cumulativeMeasurements) {
-        if (measurements.any { it < 0 }) {
-          return false
-        }
-        if (measurements.zipWithNext().any { (a, b) -> a > b }) {
-          return false
+      if (cumulativeMeasurements.isNotEmpty()) {
+        for ((_, measurements) in cumulativeMeasurements) {
+          if (measurements.any { it < 0 }) {
+            return false
+          }
+          if (measurements.zipWithNext().any { (a, b) -> a > b }) {
+            return false
+          }
         }
       }
 

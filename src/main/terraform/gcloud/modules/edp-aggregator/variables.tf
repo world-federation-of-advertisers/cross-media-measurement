@@ -216,8 +216,12 @@ variable "event_group_sync_function_name" {
   nullable    = false
 }
 
-variable "event_group_sync_function_location" {
-  description = "The location of the EventGroupSync cloud function."
-  type        = string
-  nullable    = false
+variable "cloud_function_configs" {
+  type = map(object({
+    function_name       = string
+    entry_point         = string
+    extra_env_vars      = string
+    secret_mappings     = string
+    uber_jar_path       = string
+  }))
 }
