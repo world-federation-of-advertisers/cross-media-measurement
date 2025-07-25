@@ -97,6 +97,27 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
+    name = "event_processing_core",
+    srcs = [
+        "EventSource.kt",
+        "FilterProcessor.kt",
+        "FilterConfiguration.kt",
+        "FrequencyVectorSink.kt",
+        "StorageEventSource.kt",
+        "SyntheticEventGenerator.kt",
+        "SinkStatistics.kt",
+    ],
+    deps = [
+        ":labeled_event",
+        ":filter_spec",
+        ":frequency_vector",
+        ":event_reader",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+    ],
+)
+
+kt_jvm_library(
     name = "vid_filter",
     srcs = ["VidFilter.kt"],
     deps = [
