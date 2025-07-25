@@ -16,21 +16,16 @@
 
 package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
-import com.google.protobuf.Message
-
 /**
- * Represents an event with associated labels for processing.
+ * Enumeration of supported event source types.
  * 
- * This is a foundational data structure that wraps events with their metadata
- * for use throughout the processing pipeline.
- * 
- * @param T The protobuf message type of the event
- * @param event The actual event data
- * @param vid The virtual ID associated with this event
- * @param labels Additional labels associated with the event
+ * Defines the different sources from which events can be read
+ * for processing in the pipeline.
  */
-data class LabeledEvent<T : Message>(
-  val event: T,
-  val vid: Long,
-  val labels: Map<String, String> = emptyMap()
-)
+enum class EventSourceType {
+  /** Generate synthetic events for testing and simulation */
+  SYNTHETIC,
+  
+  /** Read events from storage (e.g., cloud storage, local files) */
+  STORAGE
+}

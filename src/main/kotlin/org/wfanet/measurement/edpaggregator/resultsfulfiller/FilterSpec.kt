@@ -16,29 +16,28 @@
 
 package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
-import com.google.type.Interval
+import com.google.protobuf.Message
+import org.wfanet.measurement.api.v2alpha.RequisitionSpec
 
 /**
- * Immutable specification for event filtering.
- *
- * This data class serves as a unique key for deduplicating event groups across requisitions
- * and for looking up frequency vector sinks in the pipeline.
- *
- * @property celExpression The CEL expression for filtering events
- * @property collectionInterval The time interval for event collection
- * @property vidSamplingStart The starting VID for sampling (inclusive)
- * @property vidSamplingWidth The width of the VID sampling interval
- * @property eventGroupReferenceId The reference ID for the event group
+ * Specification for filtering events using CEL expressions.
+ * 
+ * This class encapsulates the filtering logic for events based on
+ * CEL (Common Expression Language) expressions from requisition specs.
  */
 data class FilterSpec(
   val celExpression: String,
-  val collectionInterval: Interval,
-  val vidSamplingStart: Long,
-  val vidSamplingWidth: Long,
-  val eventGroupReferenceId: String
+  val requisitionSpec: RequisitionSpec
 ) {
-  init {
-    require(eventGroupReferenceId.isNotBlank()) { "Event group reference ID must not be blank" }
-    require(vidSamplingWidth > 0) { "VID sampling width must be positive" }
+  
+  /**
+   * Checks if this filter spec matches the given event.
+   * 
+   * @param event The event to evaluate
+   * @return true if the event matches the filter criteria
+   */
+  fun matches(event: Message): Boolean {
+    // Basic implementation - will be enhanced in later PRs
+    return celExpression.isNotEmpty()
   }
 }
