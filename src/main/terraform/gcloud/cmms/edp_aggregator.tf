@@ -91,7 +91,7 @@ locals {
     worker = {
       instance_template_name        = "requisition-fulfiller-template"
       base_instance_name            = "secure-computation"
-      managed_instance_group_name   = "results-fulfiller-mig"
+      managed_instance_group_name   = "results-fulfiller-mig-private"
       mig_service_account_name      = "results-fulfiller-sa"
       single_instance_assignment    = 1
       min_replicas                  = 1
@@ -147,4 +147,6 @@ module "edp_aggregator" {
   secure_computation_root_ca                = local.secure_computation_root_ca
   kingdom_root_ca                           = local.kingdom_root_ca
   edps_certs                                = local.edps_certs
+  private_network_location                  = data.google_client_config.default.region
+  bastion_zone                              = data.google_client_config.default.zone
 }
