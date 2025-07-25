@@ -32,7 +32,10 @@ import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters
  *
  * @param filterSpec immutable specification containing all filtering criteria
  */
-class FilterProcessor(val filterSpec: FilterSpec, val eventDescriptor: Descriptors.Descriptor) {
+class FilterProcessor<T : Message>(
+  val filterSpec: FilterSpec,
+  val eventDescriptor: Descriptors.Descriptor,
+) {
 
   /** Compiled CEL program for event filtering. */
   private val program: Program =
@@ -81,7 +84,7 @@ class FilterProcessor(val filterSpec: FilterSpec, val eventDescriptor: Descripto
    * @throws Exception if there are issues with event processing, though individual event failures
    *   are logged and do not stop batch processing.
    */
-  fun processBatch(batch: EventBatch): EventBatch {
+  fun processBatch(batch: EventBatch<T>): EventBatch<T> {
     if (batch.events.isEmpty()) {
       return batch
     }
@@ -116,7 +119,7 @@ class FilterProcessor(val filterSpec: FilterSpec, val eventDescriptor: Descripto
    * @param batch the batch to check
    * @return `true` if the batch time range overlaps with the collection interval, `false` otherwise
    */
-  private fun batchTimeRangeOverlaps(batch: EventBatch): Boolean {
+  private fun batchTimeRangeOverlaps(batch: EventBatch<T>): Boolean {
     // Check if batch [minTime, maxTime] overlaps with filter [startInstant, endInstant)
     // For the collection interval [start, end), events at exactly start time should be included
     // Overlap exists if: batch.maxTime >= startInstant AND batch.minTime < endInstant
@@ -132,7 +135,7 @@ class FilterProcessor(val filterSpec: FilterSpec, val eventDescriptor: Descripto
    * @param event the event to check
    * @return `true` if the event timestamp is within the interval, `false` otherwise
    */
-  private fun isEventInTimeRange(event: LabeledEvent<Message>): Boolean {
+  private fun isEventInTimeRange(event: LabeledEvent<T>): Boolean {
     val eventTime = event.timestamp
     return !eventTime.isBefore(startInstant) && eventTime.isBefore(endInstant)
   }
