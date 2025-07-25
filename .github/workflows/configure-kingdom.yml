@@ -133,6 +133,12 @@ jobs:
           echo "$AKID_TO_PRINCIPAL_MAP" | sed $'s/\r$//'  >
           "$KUSTOMIZATION_PATH/src/main/k8s/dev/config_files/authority_key_identifier_to_principal_map.textproto"
 
+      - name: Copy rate limit config
+        run: >
+          cp
+          src/main/k8s/testing/secretfiles/kingdom_rate_limit_config.textproto
+          "$KUSTOMIZATION_PATH/src/main/k8s/dev/config_files/rate_limit_config.textproto"
+
       # Run kubectl diff, treating the command as succeeded even if the exit
       # code is 1 as kubectl uses this code to indicate there's a diff.
       - name: kubectl diff
