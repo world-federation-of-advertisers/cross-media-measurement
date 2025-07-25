@@ -47,6 +47,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub as PublicKingdomMeasurementConsumersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub as PublicKingdomMeasurementsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt.ModelLinesCoroutineStub as PublicKingdomModelLinesCoroutineStub
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.api.withAuthenticationKey
 import org.wfanet.measurement.common.crypto.tink.loadPrivateKey
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
@@ -299,6 +300,7 @@ class InProcessReportingServer(
                 internalBasicReportsClient,
                 internalImpressionQualificationFiltersClient,
                 internalReportingSetsClient,
+                BasicReportsService.buildEventTemplateFieldsMap(TestEvent.getDescriptor()),
                 authorization,
               )
               .withTrustedPrincipalAuthentication(),
