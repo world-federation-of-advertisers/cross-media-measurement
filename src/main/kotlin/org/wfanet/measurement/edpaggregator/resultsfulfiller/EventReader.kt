@@ -16,116 +16,36 @@
 
 package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
-import com.google.crypto.tink.KmsClient
-import java.time.LocalDate
-import java.util.logging.Logger
+import com.google.protobuf.Message
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.map
-import org.wfanet.measurement.common.flatten
-import org.wfanet.measurement.edpaggregator.EncryptedStorage
-import org.wfanet.measurement.edpaggregator.StorageConfig
-import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
-import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
-import org.wfanet.measurement.storage.SelectedStorageClient
 
 /**
- * Reads labeled impressions from storage.
+ * Reads labeled events from a data source.
  *
- * @param kmsClient The KMS client for encryption operations
- * @param impressionsStorageConfig Configuration for impressions storage
- * @param impressionDekStorageConfig Configuration for impression DEK storage
- * @param labeledImpressionsDekPrefix Prefix for labeled impressions DEK
+ * @see StorageEventReader for the primary implementation using cloud storage
+ * @see LabeledEvent for the event data structure
  */
-class EventReader(
-  private val kmsClient: KmsClient,
-  private val impressionsStorageConfig: StorageConfig,
-  private val impressionDekStorageConfig: StorageConfig,
-  private val labeledImpressionsDekPrefix: String,
-) {
+interface EventReader {
   /**
-   * Retrieves a flow of labeled impressions for a given ds and event group ID.
+   * Reads labeled events from the configured source and emits them as batched flows.
    *
-   * @param ds The ds for the labeled impressions
-   * @param eventGroupReferenceId The event group reference ID of the event group
-   * @return A flow of labeled impressions
-   */
-  suspend fun getLabeledImpressions(
-    ds: LocalDate,
-    eventGroupReferenceId: String,
-  ): Flow<LabeledImpression> {
-    val blobDetails = getBlobDetails(ds, eventGroupReferenceId)
-    return getLabeledImpressions(blobDetails)
-  }
-
-  /**
-   * Retrieves blob details for a given ds and event group ID.
+   * This suspend function initiates the event reading process and returns a [Flow] that
+   * emits batches of [LabeledEvent] instances.
    *
-   * @param ds The ds of the encrypted dek
-   * @param eventGroupId The ID of the event group
-   * @return The blob details with the DEK
-   */
-  private suspend fun getBlobDetails(ds: LocalDate, eventGroupReferenceId: String): BlobDetails {
-    val dekBlobKey = "ds/$ds/event-group-reference-id/$eventGroupReferenceId/metadata"
-    val dekBlobUri = "$labeledImpressionsDekPrefix/$dekBlobKey"
-
-    val storageClientUri = SelectedStorageClient.parseBlobUri(dekBlobUri)
-    val impressionsDekStorageClient =
-      SelectedStorageClient(
-        storageClientUri,
-        impressionDekStorageConfig.rootDirectory,
-        impressionDekStorageConfig.projectId,
-      )
-    // Get EncryptedDek message from storage using the blobKey made up of the ds and eventGroupId
-    logger.info("Reading blob $dekBlobKey")
-    val blob =
-      impressionsDekStorageClient.getBlob(dekBlobKey)
-        ?: throw ImpressionReadException(dekBlobKey, ImpressionReadException.Code.BLOB_NOT_FOUND)
-    return BlobDetails.parseFrom(blob.read().flatten())
-  }
-
-  /**
-   * Retrieves labeled impressions from blob details.
+   * The returned flow is cold, meaning the reading operation starts when collection begins
+   * and can be collected multiple times if needed.
    *
-   * @param blobDetails The blob details with the DEK
-   * @return A flow of labeled impressions
+   * ## Error Handling
+   *
+   * Implementations must throw [ImpressionReadException] with appropriate error codes:
+   * - [ImpressionReadException.Code.BLOB_NOT_FOUND] when the data source doesn't exist
+   * - [ImpressionReadException.Code.INVALID_FORMAT] when data cannot be parsed
+   *
+   * @return a cold [Flow] that emits lists of [LabeledEvent] instances. Each list represents
+   *   a batch of events, with batch size determined by the implementation's batching strategy.
+   * @throws ImpressionReadException if the data source cannot be accessed, authentication fails,
+   *   or the data format is invalid
+   * @throws IllegalStateException if the reader is not properly configured
    */
-  private suspend fun getLabeledImpressions(blobDetails: BlobDetails): Flow<LabeledImpression> {
-    val storageClientUri = SelectedStorageClient.parseBlobUri(blobDetails.blobUri)
-
-    // Create and configure storage client with encryption
-    val encryptedDek = blobDetails.encryptedDek
-    val selectedStorageClient =
-      SelectedStorageClient(
-        storageClientUri,
-        impressionsStorageConfig.rootDirectory,
-        impressionsStorageConfig.projectId,
-      )
-
-    val impressionsStorage =
-      EncryptedStorage.buildEncryptedMesosStorageClient(
-        selectedStorageClient,
-        kekUri = encryptedDek.kekUri,
-        kmsClient = kmsClient,
-        serializedEncryptionKey = encryptedDek.encryptedDek,
-      )
-    val impressionBlob =
-      impressionsStorage.getBlob(storageClientUri.key)
-        ?: throw ImpressionReadException(
-          storageClientUri.key,
-          ImpressionReadException.Code.BLOB_NOT_FOUND,
-        )
-
-    // Parse raw data into LabeledImpression objects
-    return impressionBlob.read().map { impressionByteString ->
-      LabeledImpression.parseFrom(impressionByteString)
-        ?: throw ImpressionReadException(
-          storageClientUri.key,
-          ImpressionReadException.Code.INVALID_FORMAT,
-        )
-    }
-  }
-
-  companion object {
-    private val logger: Logger = Logger.getLogger(this::class.java.name)
-  }
+  suspend fun readEvents(): Flow<List<LabeledEvent<Message>>>
 }
