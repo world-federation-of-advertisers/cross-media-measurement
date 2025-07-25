@@ -33,12 +33,13 @@ import com.google.type.Interval
 data class FilterSpec(
   val celExpression: String,
   val collectionInterval: Interval,
-  val vidSamplingStart: Float,
-  val vidSamplingWidth: Float,
+  val vidSamplingStart: Int,
+  val vidSamplingWidth: Int,
   val eventGroupReferenceId: String
 ) {
   init {
     require(eventGroupReferenceId.isNotBlank()) { "Event group reference ID must not be blank" }
+    require(vidSamplingStart > 0) { "VID sampling start must be positive" }
     require(vidSamplingWidth > 0) { "VID sampling width must be positive" }
   }
 }
