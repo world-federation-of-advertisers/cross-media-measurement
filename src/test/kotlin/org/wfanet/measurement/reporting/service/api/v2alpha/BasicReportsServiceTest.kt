@@ -96,6 +96,7 @@ import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.testing.Schemat
 import org.wfanet.measurement.reporting.deploy.v2.postgres.PostgresMeasurementConsumersService
 import org.wfanet.measurement.reporting.deploy.v2.postgres.PostgresReportingSetsService
 import org.wfanet.measurement.reporting.deploy.v2.postgres.testing.Schemata as PostgresSchemata
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.reporting.service.api.Errors
 import org.wfanet.measurement.reporting.service.internal.ImpressionQualificationFilterMapping
 import org.wfanet.measurement.reporting.v2alpha.BasicReport
@@ -181,6 +182,7 @@ class BasicReportsServiceTest {
         internalBasicReportsService,
         internalImpressionQualificationFiltersService,
         internalReportingSetsService,
+        BasicReportsService.buildEventTemplateFieldsMap(TestEvent.getDescriptor()),
         authorization,
       )
   }
@@ -2076,6 +2078,122 @@ class BasicReportsServiceTest {
     }
 
   @Test
+  fun `createBasicReport throws INVALID_ARGUMENT when dimension spec template field nonexistent`() =
+    runBlocking {
+      val measurementConsumerKey = MeasurementConsumerKey("1234")
+      val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
+
+      measurementConsumersService.createMeasurementConsumer(
+        measurementConsumer {
+          cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+        }
+      )
+
+      internalReportingSetsService.createReportingSet(
+        createReportingSetRequest {
+          reportingSet =
+            INTERNAL_CAMPAIGN_GROUP.copy {
+              cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+              externalCampaignGroupId = campaignGroupKey.reportingSetId
+            }
+          externalReportingSetId = campaignGroupKey.reportingSetId
+        }
+      )
+
+      val request = createBasicReportRequest {
+        parent = measurementConsumerKey.toName()
+        basicReport =
+          BASIC_REPORT.copy {
+            campaignGroup = campaignGroupKey.toName()
+            resultGroupSpecs[0] =
+              resultGroupSpecs[0].copy {
+                dimensionSpec =
+                  BASIC_REPORT.resultGroupSpecsList[0].dimensionSpec.copy {
+                    grouping = DimensionSpecKt.grouping {
+                      eventTemplateFields += "person.height"
+                    }
+                  }
+              }
+          }
+        basicReportId = "a1234"
+      }
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.message).contains("exist")
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.INVALID_FIELD_VALUE.name
+            metadata[Errors.Metadata.FIELD_NAME.key] =
+              "basic_report.result_group_specs.dimension_spec.grouping.event_template_fields"
+          }
+        )
+    }
+
+  @Test
+  fun `createBasicReport throws INVALID_ARGUMENT when dimensionspec templatefield not groupable`() =
+    runBlocking {
+      val measurementConsumerKey = MeasurementConsumerKey("1234")
+      val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
+
+      measurementConsumersService.createMeasurementConsumer(
+        measurementConsumer {
+          cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+        }
+      )
+
+      internalReportingSetsService.createReportingSet(
+        createReportingSetRequest {
+          reportingSet =
+            INTERNAL_CAMPAIGN_GROUP.copy {
+              cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+              externalCampaignGroupId = campaignGroupKey.reportingSetId
+            }
+          externalReportingSetId = campaignGroupKey.reportingSetId
+        }
+      )
+
+      val request = createBasicReportRequest {
+        parent = measurementConsumerKey.toName()
+        basicReport =
+          BASIC_REPORT.copy {
+            campaignGroup = campaignGroupKey.toName()
+            resultGroupSpecs[0] =
+              resultGroupSpecs[0].copy {
+                dimensionSpec =
+                  BASIC_REPORT.resultGroupSpecsList[0].dimensionSpec.copy {
+                    grouping = DimensionSpecKt.grouping {
+                      eventTemplateFields += "banner_ad.viewable"
+                    }
+                  }
+              }
+          }
+        basicReportId = "a1234"
+      }
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.message).contains("groupable")
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.INVALID_FIELD_VALUE.name
+            metadata[Errors.Metadata.FIELD_NAME.key] =
+              "basic_report.result_group_specs.dimension_spec.grouping.event_template_fields"
+          }
+        )
+    }
+
+  @Test
   fun `createBasicReport throws INVALID_ARGUMENT when dimension spec filter 0 terms`() =
     runBlocking {
       val measurementConsumerKey = MeasurementConsumerKey("1234")
@@ -2164,12 +2282,12 @@ class BasicReportsServiceTest {
                   BASIC_REPORT.resultGroupSpecsList[0].dimensionSpec.copy {
                     filters += eventFilter {
                       terms += eventTemplateField {
-                        path = "common.age_group"
-                        value = EventTemplateFieldKt.fieldValue { enumValue = "18_TO_35" }
+                        path = "person.age_group"
+                        value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_TO_18_TO_34" }
                       }
                       terms += eventTemplateField {
-                        path = "common.age_group"
-                        value = EventTemplateFieldKt.fieldValue { enumValue = "35_TO_54" }
+                        path = "person.gender"
+                        value = EventTemplateFieldKt.fieldValue { enumValue = "MALE" }
                       }
                     }
                   }
@@ -2254,6 +2372,252 @@ class BasicReportsServiceTest {
     }
 
   @Test
+  fun `createBasicReport throws INVALID_ARGUMENT when dimension spec filter term path not exist`() =
+    runBlocking {
+      val measurementConsumerKey = MeasurementConsumerKey("1234")
+      val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
+
+      measurementConsumersService.createMeasurementConsumer(
+        measurementConsumer {
+          cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+        }
+      )
+
+      internalReportingSetsService.createReportingSet(
+        createReportingSetRequest {
+          reportingSet =
+            INTERNAL_CAMPAIGN_GROUP.copy {
+              cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+              externalCampaignGroupId = campaignGroupKey.reportingSetId
+            }
+          externalReportingSetId = campaignGroupKey.reportingSetId
+        }
+      )
+
+      val request = createBasicReportRequest {
+        parent = measurementConsumerKey.toName()
+        basicReport =
+          BASIC_REPORT.copy {
+            campaignGroup = campaignGroupKey.toName()
+            resultGroupSpecs[0] =
+              resultGroupSpecs[0].copy {
+                dimensionSpec =
+                  BASIC_REPORT.resultGroupSpecsList[0].dimensionSpec.copy {
+                    filters += eventFilter {
+                      terms += eventTemplateField {
+                        path = "person.height"
+                        value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
+                      }
+                    }
+                  }
+              }
+          }
+        basicReportId = "a1234"
+      }
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.message).contains("exist")
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.INVALID_FIELD_VALUE.name
+            metadata[Errors.Metadata.FIELD_NAME.key] =
+              "basic_report.result_group_specs.dimension_spec.filters.terms.path"
+          }
+        )
+    }
+
+  @Test
+  fun `createBasicReport throws INVALID_ARGUMENT when dimensionspec filter term not filterable`() =
+    runBlocking {
+      val measurementConsumerKey = MeasurementConsumerKey("1234")
+      val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
+
+      measurementConsumersService.createMeasurementConsumer(
+        measurementConsumer {
+          cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+        }
+      )
+
+      internalReportingSetsService.createReportingSet(
+        createReportingSetRequest {
+          reportingSet =
+            INTERNAL_CAMPAIGN_GROUP.copy {
+              cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+              externalCampaignGroupId = campaignGroupKey.reportingSetId
+            }
+          externalReportingSetId = campaignGroupKey.reportingSetId
+        }
+      )
+
+      val request = createBasicReportRequest {
+        parent = measurementConsumerKey.toName()
+        basicReport =
+          BASIC_REPORT.copy {
+            campaignGroup = campaignGroupKey.toName()
+            resultGroupSpecs[0] =
+              resultGroupSpecs[0].copy {
+                dimensionSpec =
+                  BASIC_REPORT.resultGroupSpecsList[0].dimensionSpec.copy {
+                    filters += eventFilter {
+                      terms += eventTemplateField {
+                        path = "banner_ad.viewable"
+                        value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
+                      }
+                    }
+                  }
+              }
+          }
+        basicReportId = "a1234"
+      }
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.message).contains("filterable")
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.INVALID_FIELD_VALUE.name
+            metadata[Errors.Metadata.FIELD_NAME.key] =
+              "basic_report.result_group_specs.dimension_spec.filters.terms.path"
+          }
+        )
+    }
+
+  @Test
+  fun `createBasicReport throws INVALID_ARGUMENT when dimensionspec filter term not pop attr`() =
+    runBlocking {
+      val measurementConsumerKey = MeasurementConsumerKey("1234")
+      val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
+
+      measurementConsumersService.createMeasurementConsumer(
+        measurementConsumer {
+          cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+        }
+      )
+
+      internalReportingSetsService.createReportingSet(
+        createReportingSetRequest {
+          reportingSet =
+            INTERNAL_CAMPAIGN_GROUP.copy {
+              cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+              externalCampaignGroupId = campaignGroupKey.reportingSetId
+            }
+          externalReportingSetId = campaignGroupKey.reportingSetId
+        }
+      )
+
+      val request = createBasicReportRequest {
+        parent = measurementConsumerKey.toName()
+        basicReport =
+          BASIC_REPORT.copy {
+            campaignGroup = campaignGroupKey.toName()
+            resultGroupSpecs[0] =
+              resultGroupSpecs[0].copy {
+                dimensionSpec =
+                  BASIC_REPORT.resultGroupSpecsList[0].dimensionSpec.copy {
+                    filters += eventFilter {
+                      terms += eventTemplateField {
+                        path = "video.length"
+                        value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
+                      }
+                    }
+                  }
+              }
+          }
+        basicReportId = "a1234"
+      }
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.message).contains("population")
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.INVALID_FIELD_VALUE.name
+            metadata[Errors.Metadata.FIELD_NAME.key] =
+              "basic_report.result_group_specs.dimension_spec.filters.terms.path"
+          }
+        )
+    }
+
+  @Test
+  fun `createBasicReport throws INVALID_ARGUMENT when dimensionspec filter term in grouping`() =
+    runBlocking {
+      val measurementConsumerKey = MeasurementConsumerKey("1234")
+      val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
+
+      measurementConsumersService.createMeasurementConsumer(
+        measurementConsumer {
+          cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+        }
+      )
+
+      internalReportingSetsService.createReportingSet(
+        createReportingSetRequest {
+          reportingSet =
+            INTERNAL_CAMPAIGN_GROUP.copy {
+              cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+              externalCampaignGroupId = campaignGroupKey.reportingSetId
+            }
+          externalReportingSetId = campaignGroupKey.reportingSetId
+        }
+      )
+
+      val request = createBasicReportRequest {
+        parent = measurementConsumerKey.toName()
+        basicReport =
+          BASIC_REPORT.copy {
+            campaignGroup = campaignGroupKey.toName()
+            resultGroupSpecs[0] =
+              resultGroupSpecs[0].copy {
+                dimensionSpec =
+                  BASIC_REPORT.resultGroupSpecsList[0].dimensionSpec.copy {
+                    grouping = DimensionSpecKt.grouping {
+                      eventTemplateFields += "person.age_group"
+                    }
+                    filters += eventFilter {
+                      terms += eventTemplateField {
+                        path = "person.age_group"
+                        value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
+                      }
+                    }
+                  }
+              }
+          }
+        basicReportId = "a1234"
+      }
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.INVALID_FIELD_VALUE.name
+            metadata[Errors.Metadata.FIELD_NAME.key] =
+              "basic_report.result_group_specs.dimension_spec.filters.terms.path"
+          }
+        )
+    }
+
+  @Test
   fun `createBasicReport throws INVALID_ARGUMENT when dimension spec filter term no value`() =
     runBlocking {
       val measurementConsumerKey = MeasurementConsumerKey("1234")
@@ -2286,7 +2650,7 @@ class BasicReportsServiceTest {
                 dimensionSpec =
                   BASIC_REPORT.resultGroupSpecsList[0].dimensionSpec.copy {
                     filters += eventFilter {
-                      terms += eventTemplateField { path = "common.age_group" }
+                      terms += eventTemplateField { path = "person.age_group" }
                     }
                   }
               }
@@ -3120,21 +3484,21 @@ class BasicReportsServiceTest {
                   dimensionSpecSummary =
                     InternalResultGroupKt.MetricMetadataKt.dimensionSpecSummary {
                       groupings += internalEventTemplateField {
-                        path = "common.gender"
+                        path = "person.gender"
                         value = InternalEventTemplateFieldKt.fieldValue { enumValue = "MALE" }
                       }
 
                       filters += internalEventFilter {
                         terms += internalEventTemplateField {
-                          path = "common.age_group"
-                          value = InternalEventTemplateFieldKt.fieldValue { enumValue = "18_TO_35" }
+                          path = "person.age_group"
+                          value = InternalEventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
                         }
                       }
 
                       filters += internalEventFilter {
                         terms += internalEventTemplateField {
-                          path = "common.age_group"
-                          value = InternalEventTemplateFieldKt.fieldValue { enumValue = "18_TO_35" }
+                          path = "person.social_grade_group"
+                          value = InternalEventTemplateFieldKt.fieldValue { enumValue = "A_B_C1" }
                         }
                       }
                     }
@@ -3330,14 +3694,14 @@ class BasicReportsServiceTest {
                   dimensionSpecSummary =
                     InternalResultGroupKt.MetricMetadataKt.dimensionSpecSummary {
                       groupings += internalEventTemplateField {
-                        path = "common.gender"
+                        path = "person.gender"
                         value = InternalEventTemplateFieldKt.fieldValue { enumValue = "MALE" }
                       }
 
                       filters += internalEventFilter {
                         terms += internalEventTemplateField {
-                          path = "common.age_group"
-                          value = InternalEventTemplateFieldKt.fieldValue { enumValue = "18_TO_35" }
+                          path = "person.age_group"
+                          value = InternalEventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
                         }
                       }
                     }
@@ -3482,14 +3846,14 @@ class BasicReportsServiceTest {
                   dimensionSpecSummary =
                     InternalResultGroupKt.MetricMetadataKt.dimensionSpecSummary {
                       groupings += internalEventTemplateField {
-                        path = "common.gender"
+                        path = "person.gender"
                         value = InternalEventTemplateFieldKt.fieldValue { enumValue = "MALE" }
                       }
 
                       filters += internalEventFilter {
                         terms += internalEventTemplateField {
-                          path = "common.age_group"
-                          value = InternalEventTemplateFieldKt.fieldValue { enumValue = "18_TO_35" }
+                          path = "person.age_group"
+                          value = InternalEventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
                         }
                       }
                     }
@@ -3653,14 +4017,14 @@ class BasicReportsServiceTest {
 
                   filters += eventFilter {
                     terms += eventTemplateField {
-                      path = "common.age_group"
-                      value = EventTemplateFieldKt.fieldValue { enumValue = "18_TO_35" }
+                      path = "person.age_group"
+                      value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
                     }
                   }
 
                   filters += eventFilter {
                     terms += eventTemplateField {
-                      path = "common.gender"
+                      path = "person.gender"
                       value = EventTemplateFieldKt.fieldValue { enumValue = "MALE" }
                     }
                   }
@@ -3746,21 +4110,21 @@ class BasicReportsServiceTest {
                     dimensionSpecSummary =
                       ResultGroupKt.MetricMetadataKt.dimensionSpecSummary {
                         groupings += eventTemplateField {
-                          path = "common.gender"
+                          path = "person.gender"
                           value = EventTemplateFieldKt.fieldValue { enumValue = "MALE" }
                         }
 
                         filters += eventFilter {
                           terms += eventTemplateField {
-                            path = "common.age_group"
-                            value = EventTemplateFieldKt.fieldValue { enumValue = "18_TO_35" }
+                            path = "person.age_group"
+                            value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
                           }
                         }
 
                         filters += eventFilter {
                           terms += eventTemplateField {
-                            path = "common.age_group"
-                            value = EventTemplateFieldKt.fieldValue { enumValue = "18_TO_35" }
+                            path = "person.social_grade_group"
+                            value = EventTemplateFieldKt.fieldValue { enumValue = "A_B_C1" }
                           }
                         }
                       }
@@ -3961,14 +4325,14 @@ class BasicReportsServiceTest {
                     dimensionSpecSummary =
                       ResultGroupKt.MetricMetadataKt.dimensionSpecSummary {
                         groupings += eventTemplateField {
-                          path = "common.gender"
+                          path = "person.gender"
                           value = EventTemplateFieldKt.fieldValue { enumValue = "MALE" }
                         }
 
                         filters += eventFilter {
                           terms += eventTemplateField {
-                            path = "common.age_group"
-                            value = EventTemplateFieldKt.fieldValue { enumValue = "18_TO_35" }
+                            path = "person.age_group"
+                            value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
                           }
                         }
                       }
@@ -4121,14 +4485,14 @@ class BasicReportsServiceTest {
                     dimensionSpecSummary =
                       ResultGroupKt.MetricMetadataKt.dimensionSpecSummary {
                         groupings += eventTemplateField {
-                          path = "common.gender"
+                          path = "person.gender"
                           value = EventTemplateFieldKt.fieldValue { enumValue = "MALE" }
                         }
 
                         filters += eventFilter {
                           terms += eventTemplateField {
-                            path = "common.age_group"
-                            value = EventTemplateFieldKt.fieldValue { enumValue = "18_TO_35" }
+                            path = "person.age_group"
+                            value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_TO_18_TO_34" }
                           }
                         }
                       }
@@ -5014,11 +5378,11 @@ class BasicReportsServiceTest {
         reportingUnit = reportingUnit { components += DATA_PROVIDER_KEY.toName() }
         metricFrequency = metricFrequencySpec { weekly = DayOfWeek.MONDAY }
         dimensionSpec = dimensionSpec {
-          grouping = DimensionSpecKt.grouping { eventTemplateFields += "common.gender" }
+          grouping = DimensionSpecKt.grouping { eventTemplateFields += "person.gender" }
           filters += eventFilter {
             terms += eventTemplateField {
-              path = "common.age_group"
-              value = EventTemplateFieldKt.fieldValue { enumValue = "18_TO_35" }
+              path = "person.age_group"
+              value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_TO_18_TO_34" }
             }
           }
         }

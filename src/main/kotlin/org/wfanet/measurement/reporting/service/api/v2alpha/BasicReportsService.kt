@@ -57,6 +57,11 @@ import org.wfanet.measurement.reporting.service.api.ReportingSetNotFoundExceptio
 import org.wfanet.measurement.reporting.service.api.RequiredFieldNotSetException
 import org.wfanet.measurement.reporting.service.api.ServiceException
 import org.wfanet.measurement.reporting.service.internal.Errors as InternalErrors
+import com.google.protobuf.Descriptors
+import com.google.protobuf.Descriptors.FieldDescriptor
+import org.wfanet.measurement.api.v2alpha.EventAnnotationsProto
+import org.wfanet.measurement.api.v2alpha.EventFieldDescriptor
+import org.wfanet.measurement.api.v2alpha.EventTemplateDescriptor
 import org.wfanet.measurement.reporting.service.internal.ReportingInternalException
 import org.wfanet.measurement.reporting.v2alpha.BasicReport
 import org.wfanet.measurement.reporting.v2alpha.BasicReportsGrpcKt.BasicReportsCoroutineImplBase
@@ -76,6 +81,7 @@ class BasicReportsService(
   private val internalImpressionQualificationFiltersStub:
     ImpressionQualificationFiltersCoroutineStub,
   private val internalReportingSetsStub: InternalReportingSetsCoroutineStub,
+  private val eventTemplateFieldsMap: Map<String, EventTemplateFieldInfo.EventTemplateFieldInfo>,
   private val authorization: Authorization,
   coroutineContext: CoroutineContext = EmptyCoroutineContext,
 ) : BasicReportsCoroutineImplBase(coroutineContext) {
@@ -107,7 +113,7 @@ class BasicReportsService(
     val campaignGroup: ReportingSet = getReportingSet(request.basicReport.campaignGroup)
 
     try {
-      validateCreateBasicReportRequest(request, campaignGroup)
+      validateCreateBasicReportRequest(request, campaignGroup, eventTemplateFieldsMap)
     } catch (e: ServiceException) {
       throw when (e.reason) {
         Errors.Reason.REQUIRED_FIELD_NOT_SET,
@@ -481,5 +487,70 @@ class BasicReportsService(
   companion object {
     private const val DEFAULT_PAGE_SIZE = 10
     private const val MAX_PAGE_SIZE = 25
+
+    /**
+     * Builds Map of EventTemplateField name with respect to Event message to object containing info relevant to [BasicReport]
+     *
+     * @param eventDescriptor [Descriptors.Descriptor] for Event message
+     */
+    fun buildEventTemplateFieldsMap(eventDescriptor: Descriptors.Descriptor): Map<String, EventTemplateFieldInfo.EventTemplateFieldInfo> {
+      return buildMap {
+        for (field in eventDescriptor.fields) {
+          if (field.messageType.options.hasExtension(EventAnnotationsProto.eventTemplate)) {
+            val templateAnnotation: EventTemplateDescriptor =
+              field.messageType.options.getExtension(EventAnnotationsProto.eventTemplate)
+            val mediaType = templateAnnotation.mediaType
+
+            for (templateField in field.messageType.fields) {
+              if (!templateField.options.hasExtension(EventAnnotationsProto.templateField)) {
+                val eventTemplateFieldName = "${templateAnnotation.name}.${templateField.name}"
+
+                val templateFieldAnnotation: EventFieldDescriptor =
+                  templateField.options.getExtension(EventAnnotationsProto.templateField)
+
+                val isPopulationAttribute = templateFieldAnnotation.populationAttribute
+
+                val supportedReportingFeatures = EventTemplateFieldInfo.SupportedReportingFeatures()
+                for (reportingFeature in templateFieldAnnotation.reportingFeaturesList) {
+                  @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields cannot be null.
+                  when (reportingFeature) {
+                    EventFieldDescriptor.ReportingFeature.GROUPABLE -> {
+                      supportedReportingFeatures.groupable = true
+                    }
+                    EventFieldDescriptor.ReportingFeature.FILTERABLE -> {
+                      supportedReportingFeatures.filterable = true
+                    }
+                    EventFieldDescriptor.ReportingFeature.IMPRESSION_QUALIFICATION -> {
+                      supportedReportingFeatures.impressionQualification = true
+                    }
+                    EventFieldDescriptor.ReportingFeature.REPORTING_FEATURE_UNSPECIFIED,
+                    EventFieldDescriptor.ReportingFeature.UNRECOGNIZED -> {}
+                  }
+                }
+
+                val groupingValuesMap = buildMap {
+                  if (templateField.type == FieldDescriptor.Type.ENUM) {
+                    templateField.enumType.values.forEach {
+                      put(it.name, it.number)
+                    }
+                  }
+                }
+
+                put(
+                  eventTemplateFieldName,
+                  EventTemplateFieldInfo.EventTemplateFieldInfo(
+                    mediaType = mediaType,
+                    isPopulationAttribute = isPopulationAttribute,
+                    supportedReportingFeatures = supportedReportingFeatures,
+                    type = templateField.type,
+                    groupingValuesMap = groupingValuesMap,
+                  )
+                )
+              }
+            }
+          }
+        }
+      }
+    }
   }
 }

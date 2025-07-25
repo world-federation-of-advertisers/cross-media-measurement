@@ -46,12 +46,15 @@ private val RESOURCE_ID_REGEX = ResourceIds.AIP_122_REGEX
  * calls
  *
  * @param request
+ * @param campaignGroup
+ * @param eventTemplateFieldsMap for validating [EventTemplateField]
  * @throws [RequiredFieldNotSetException] when validation fails
  * @throws [InvalidFieldValueException] when validation fails
  */
 fun validateCreateBasicReportRequest(
   request: CreateBasicReportRequest,
   campaignGroup: ReportingSet,
+  eventTemplateFieldsMap: Map<String, EventTemplateFieldInfo.EventTemplateFieldInfo>,
 ) {
   if (request.basicReportId.isEmpty()) {
     throw RequiredFieldNotSetException("basic_report_id")
@@ -82,7 +85,7 @@ fun validateCreateBasicReportRequest(
   validateReportingImpressionQualificationFilters(
     request.basicReport.impressionQualificationFiltersList
   )
-  validateResultGroupSpecs(request.basicReport.resultGroupSpecsList, campaignGroup)
+  validateResultGroupSpecs(request.basicReport.resultGroupSpecsList, campaignGroup, eventTemplateFieldsMap)
 }
 
 /**
@@ -90,10 +93,11 @@ fun validateCreateBasicReportRequest(
  *
  * @param resultGroupSpecs [List] of [ResultGroupSpec] to validate
  * @param campaignGroup [ReportingSet] to validate against
+ * @param eventTemplateFieldsMap for validating [EventTemplateField]
  * @throws [RequiredFieldNotSetException] when validation fails
  * @throws [InvalidFieldValueException] when validation fails
  */
-fun validateResultGroupSpecs(resultGroupSpecs: List<ResultGroupSpec>, campaignGroup: ReportingSet) {
+fun validateResultGroupSpecs(resultGroupSpecs: List<ResultGroupSpec>, campaignGroup: ReportingSet, eventTemplateFieldsMap: Map<String, EventTemplateFieldInfo.EventTemplateFieldInfo>) {
   if (resultGroupSpecs.isEmpty()) {
     throw RequiredFieldNotSetException("basic_report.result_group_specs")
   }
@@ -120,7 +124,7 @@ fun validateResultGroupSpecs(resultGroupSpecs: List<ResultGroupSpec>, campaignGr
     }
 
     if (resultGroupSpec.hasDimensionSpec()) {
-      validateDimensionSpec(resultGroupSpec.dimensionSpec)
+      validateDimensionSpec(resultGroupSpec.dimensionSpec, eventTemplateFieldsMap)
     } else {
       throw RequiredFieldNotSetException("basic_report.result_group_specs.dimension_spec")
     }
@@ -170,14 +174,46 @@ fun validateReportingUnit(reportingUnit: ReportingUnit, dataProviderNameSet: Set
  * Validates a [DimensionSpec]
  *
  * @param dimensionSpec [DimensionSpec] to validate
+ * @param eventTemplateFieldsMap for validating [EventTemplateField]
  * @throws [RequiredFieldNotSetException] when validation fails
  * @throws [InvalidFieldValueException] when validation fails
  */
-fun validateDimensionSpec(dimensionSpec: DimensionSpec) {
-  if (dimensionSpec.hasGrouping() && dimensionSpec.grouping.eventTemplateFieldsList.isEmpty()) {
-    throw RequiredFieldNotSetException(
-      "basic_report.result_group_specs.dimension_spec.grouping.event_template_fields"
-    )
+fun validateDimensionSpec(dimensionSpec: DimensionSpec, eventTemplateFieldsMap: Map<String, EventTemplateFieldInfo.EventTemplateFieldInfo>) {
+  val groupingEventTemplateFieldsSet: Set<String> = buildSet {
+    if (dimensionSpec.hasGrouping()) {
+      if (dimensionSpec.grouping.eventTemplateFieldsList.isEmpty()) {
+        throw RequiredFieldNotSetException(
+          "basic_report.result_group_specs.dimension_spec.grouping.event_template_fields"
+        )
+      }
+
+      for (eventTemplateFieldPath in dimensionSpec.grouping.eventTemplateFieldsList) {
+        val eventTemplateFieldInfo = eventTemplateFieldsMap[eventTemplateFieldPath]
+          ?: throw InvalidFieldValueException(
+            "basic_report.result_group_specs.dimension_spec.grouping.event_template_fields"
+          ) { fieldName ->
+            "$fieldName contains event template field that doesn't exist"
+          }
+
+        if (!eventTemplateFieldInfo.supportedReportingFeatures.groupable) {
+          throw InvalidFieldValueException(
+            "basic_report.result_group_specs.dimension_spec.grouping.event_template_fields"
+          ) { fieldName ->
+            "$fieldName contains event template field that is not groupable"
+          }
+        }
+
+        if (eventTemplateFieldInfo.isPopulationAttribute) {
+          throw InvalidFieldValueException(
+            "basic_report.result_group_specs.dimension_spec.grouping.event_template_fields"
+          ) { fieldName ->
+            "$fieldName contains event template field that is not a population attribute"
+          }
+        }
+
+        add(eventTemplateFieldPath)
+      }
+    }
   }
 
   for (eventFilter in dimensionSpec.filtersList) {
@@ -187,21 +223,51 @@ fun validateDimensionSpec(dimensionSpec: DimensionSpec) {
       )
     }
 
-    // TODO(@tristanvuong2021): Need to verify against eventTemplate descriptor
     for (eventTemplateField in eventFilter.termsList) {
       if (eventTemplateField.path.isEmpty()) {
         throw RequiredFieldNotSetException(
           "basic_report.result_group_specs.dimension_spec.filters.terms.path"
         )
-      }
+      } else {
+        val eventTemplateFieldInfo = eventTemplateFieldsMap[eventTemplateField.path]
+          ?: throw InvalidFieldValueException(
+            "basic_report.result_group_specs.dimension_spec.filters.terms.path"
+          ) { fieldName ->
+            "$fieldName doesn't exist"
+          }
 
-      if (
-        eventTemplateField.value.selectorCase ==
+        if (!eventTemplateFieldInfo.supportedReportingFeatures.filterable) {
+          throw InvalidFieldValueException(
+            "basic_report.result_group_specs.dimension_spec.filters.terms.path"
+          ) { fieldName ->
+            "$fieldName is not filterable"
+          }
+        }
+
+        if (!eventTemplateFieldInfo.isPopulationAttribute) {
+          throw InvalidFieldValueException(
+            "basic_report.result_group_specs.dimension_spec.filters.terms.path"
+          ) { fieldName ->
+            "$fieldName is not a population attribute"
+          }
+        }
+
+        if (groupingEventTemplateFieldsSet.contains(eventTemplateField.path)) {
+          throw InvalidFieldValueException(
+            "basic_report.result_group_specs.dimension_spec.filters.terms.path"
+          ) { fieldName ->
+            "$fieldName is already in basic_report.result_group_specs.dimension_spec.grouping.event_template_fields for the same dimension_spec"
+          }
+        }
+
+        if (
+          eventTemplateField.value.selectorCase ==
           EventTemplateField.FieldValue.SelectorCase.SELECTOR_NOT_SET
-      ) {
-        throw RequiredFieldNotSetException(
-          "basic_report.result_group_specs.dimension_spec.filters.terms.value"
-        )
+        ) {
+          throw RequiredFieldNotSetException(
+            "basic_report.result_group_specs.dimension_spec.filters.terms.value"
+          )
+        }
       }
     }
   }
