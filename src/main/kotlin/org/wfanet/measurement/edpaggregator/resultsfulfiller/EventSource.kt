@@ -16,34 +16,32 @@
 
 package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
-import com.google.protobuf.DynamicMessage
+import com.google.protobuf.Any
+import kotlin.coroutines.CoroutineContext
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 
 /**
- * Interface for event sources that provide streams of labeled events.
+ * Interface for event sources that provide events for processing.
  * 
- * Event sources are responsible for reading events from various sources
- * (synthetic generators, storage, etc.) and providing them as a flow
- * for processing by the pipeline.
+ * This interface abstracts the source of events, allowing for different implementations
+ * such as synthetic generation or reading from storage.
  */
 interface EventSource {
-  
   /**
-   * Produces a flow of labeled events for processing.
+   * Generates a flow of event batches.
    * 
-   * @return A flow of LabeledEvent instances
+   * @param dispatcher The coroutine context for parallel processing
+   * @return A flow of event batches, where each batch is a list of labeled events
    */
-  suspend fun getEvents(): Flow<LabeledEvent<DynamicMessage>>
+  suspend fun generateEventBatches(
+    dispatcher: CoroutineContext = Dispatchers.Default
+  ): Flow<List<LabeledEvent<Any>>>
   
   /**
-   * Gets the estimated total number of events this source will produce.
+   * Generates a flow of individual events.
    * 
-   * @return The estimated event count, or -1 if unknown
+   * @return A flow of individual labeled events
    */
-  fun getEstimatedEventCount(): Long
-  
-  /**
-   * Closes the event source and releases any resources.
-   */
-  suspend fun close()
+  suspend fun generateEvents(): Flow<LabeledEvent<Any>>
 }

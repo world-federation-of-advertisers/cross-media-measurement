@@ -17,30 +17,12 @@
 package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
 /**
- * Configuration for event filtering within the processing pipeline.
+ * Configuration for event filtering in the pipeline.
  * 
- * This class encapsulates the settings and specifications needed to
- * configure how events are filtered during processing.
+ * @property filterSpec The filter specification that defines the filtering criteria
+ * @property requisitionNames Set of requisition names that use this filter
  */
 data class FilterConfiguration(
-  val filterSpecs: List<FilterSpec>,
-  val enableParallelFiltering: Boolean = true,
-  val filteringThreadPoolSize: Int = 4
-) {
-  
-  /**
-   * Creates a FilterProcessor from this configuration.
-   * 
-   * @return A new FilterProcessor configured with these specifications
-   */
-  fun createProcessor(): FilterProcessor {
-    return FilterProcessor(filterSpecs)
-  }
-  
-  /**
-   * Checks if filtering is enabled (has any filter specifications).
-   * 
-   * @return true if there are filter specifications to apply
-   */
-  fun isFilteringEnabled(): Boolean = filterSpecs.isNotEmpty()
-}
+  val filterSpec: FilterSpec,
+  val requisitionNames: Set<String>
+)
