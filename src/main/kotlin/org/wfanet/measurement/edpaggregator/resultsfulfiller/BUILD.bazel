@@ -81,7 +81,6 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
-<<<<<<< HEAD
     name = "event_batch",
     srcs = ["EventBatch.kt"],
     deps = [
@@ -121,6 +120,9 @@ kt_jvm_library(
 
 kt_jvm_library(
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> 1a4596190 (FilterProcessor)
     name = "filter_processor",
     srcs = ["FilterProcessor.kt"],
     deps = [
@@ -133,8 +135,11 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
+<<<<<<< HEAD
 =======
 >>>>>>> 2270e9dbe (Add frequency vector system for reach and frequency measurements)
+=======
+>>>>>>> 1a4596190 (FilterProcessor)
     name = "event_reader",
     srcs = ["EventReader.kt"],
     deps = [
