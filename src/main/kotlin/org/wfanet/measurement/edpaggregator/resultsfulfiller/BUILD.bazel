@@ -85,8 +85,8 @@ kt_jvm_library(
     name = "filter_spec",
     srcs = ["FilterSpec.kt"],
     deps = [
-        "@wfa_common_jvm//imports/java/com/google/protobuf",
         "//src/main/proto/wfa/measurement/api/v2alpha:requisition_spec_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
     ],
 )
 
@@ -115,8 +115,41 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
+    name = "event_path_resolver",
+    srcs = ["EventPathResolver.kt"],
+    deps = [],
+)
+
+kt_jvm_library(
     name = "event_reader",
     srcs = ["EventReader.kt"],
+    deps = [
+        ":labeled_event",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+    ],
+)
+
+kt_jvm_library(
+    name = "storage_event_reader",
+    srcs = ["StorageEventReader.kt"],
+    deps = [
+        ":event_reader",
+        ":impression_read_exception",
+        ":labeled_event",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator:encrypted_storage",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator:storage_config",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:blob_details_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:labeled_impression_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/crypto/tink",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:mesos_recordio_storage_client",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:selected_storage_client",
+    ],
+)
+
+kt_jvm_library(
+    name = "legacy_event_reader",
+    srcs = ["LegacyEventReader.kt"],
     deps = [
         ":impression_read_exception",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator:encrypted_storage",
@@ -124,8 +157,7 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:blob_details_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:labeled_impression_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/crypto/tink",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/tink",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:mesos_recordio_storage_client",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:selected_storage_client",
     ],
 )
@@ -190,6 +222,7 @@ kt_jvm_library(
     srcs = ["RequisitionSpecs.kt"],
     deps = [
         ":event_reader",
+        ":legacy_event_reader",
         ":vid_filter",
         "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/eventfiltration:event_filters",
         "//src/main/proto/wfa/measurement/api/v2alpha:measurement_spec_kt_jvm_proto",
