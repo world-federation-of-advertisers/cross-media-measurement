@@ -18,6 +18,8 @@ package org.wfanet.measurement.reporting.service.api.v2alpha
 
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
+import com.google.protobuf.ExtensionRegistry
+import com.google.protobuf.TypeRegistry
 import com.google.protobuf.timestamp
 import com.google.rpc.errorInfo
 import com.google.type.DayOfWeek
@@ -48,6 +50,7 @@ import org.wfanet.measurement.access.v1alpha.checkPermissionsResponse
 import org.wfanet.measurement.access.v1alpha.copy
 import org.wfanet.measurement.access.v1alpha.principal
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
+import org.wfanet.measurement.api.v2alpha.EventAnnotationsProto
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.common.base64UrlEncode
@@ -97,9 +100,6 @@ import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.testing.Schemat
 import org.wfanet.measurement.reporting.deploy.v2.postgres.PostgresMeasurementConsumersService
 import org.wfanet.measurement.reporting.deploy.v2.postgres.PostgresReportingSetsService
 import org.wfanet.measurement.reporting.deploy.v2.postgres.testing.Schemata as PostgresSchemata
-import com.google.protobuf.ExtensionRegistry
-import com.google.protobuf.TypeRegistry
-import org.wfanet.measurement.api.v2alpha.EventAnnotationsProto
 import org.wfanet.measurement.reporting.service.api.Errors
 import org.wfanet.measurement.reporting.service.internal.ImpressionQualificationFilterMapping
 import org.wfanet.measurement.reporting.v2alpha.BasicReport
@@ -4494,8 +4494,7 @@ class BasicReportsServiceTest {
                         filters += eventFilter {
                           terms += eventTemplateField {
                             path = "person.age_group"
-                            value =
-                              EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
+                            value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
                           }
                         }
                       }
@@ -5281,11 +5280,18 @@ class BasicReportsServiceTest {
 
     private val TYPE_REGISTRY =
       TypeRegistry.newBuilder()
-        .add(listOf(TestEvent.parseFrom(TestEvent.getDefaultInstance().toByteString(), EXTENSION_REGISTRY).descriptorForType))
+        .add(
+          listOf(
+            TestEvent.parseFrom(TestEvent.getDefaultInstance().toByteString(), EXTENSION_REGISTRY)
+              .descriptorForType
+          )
+        )
         .build()
 
     private val TEST_EVENT_DESCRIPTOR =
-      BasicReportsService.buildEventTemplateFieldsMap(TYPE_REGISTRY.find(TestEvent.getDescriptor().fullName))
+      BasicReportsService.buildEventTemplateFieldsMap(
+        TYPE_REGISTRY.find(TestEvent.getDescriptor().fullName)
+      )
 
     private const val DEFAULT_PAGE_SIZE = 10
     private const val MAX_PAGE_SIZE = 25
