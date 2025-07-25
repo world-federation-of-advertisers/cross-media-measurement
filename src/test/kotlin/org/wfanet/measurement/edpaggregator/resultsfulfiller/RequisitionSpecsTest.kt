@@ -50,10 +50,6 @@ import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
 import org.wfanet.measurement.edpaggregator.v1alpha.labeledImpression
-import com.google.protobuf.timestamp
-import org.wfanet.measurement.common.toProtoTime
-import org.wfanet.measurement.edpaggregator.v1alpha.copy
-import org.wfanet.measurement.edpaggregator.v1alpha.labeledImpression
 
 @RunWith(JUnit4::class)
 class RequisitionSpecsTest {
@@ -96,22 +92,14 @@ class RequisitionSpecsTest {
     
     val labeledImpressions = listOf(
       labeledImpression {
-        eventTime = timestamp {
-          val instant = FIRST_EVENT_DATE.atTime(1, 1, 1).toInstant(ZoneOffset.UTC)
-          seconds = instant.epochSecond
-          nanos = instant.nano
-        }
         vid = 1
-        event = dynamicTestEvent1.pack()
+        eventTime = FIRST_EVENT_DATE.atTime(1, 1, 1).toInstant(ZoneOffset.UTC).toProtoTime()
+        event = testEvent1.pack()
       },
       labeledImpression {
-        eventTime = timestamp {
-          val instant = FIRST_EVENT_DATE.atTime(1, 1, 1).toInstant(ZoneOffset.UTC)
-          seconds = instant.epochSecond
-          nanos = instant.nano
-        }
         vid = 1
-        event = dynamicTestEvent2.pack()
+        eventTime = FIRST_EVENT_DATE.atTime(1, 1, 1).toInstant(ZoneOffset.UTC).toProtoTime()
+        event = testEvent2.pack()
       }
     )
     
@@ -163,22 +151,14 @@ class RequisitionSpecsTest {
     
     val labeledImpressions = listOf(
       labeledImpression {
-        eventTime = timestamp {
-          val instant = FIRST_EVENT_DATE.atTime(1, 1, 1).toInstant(ZoneOffset.UTC)
-          seconds = instant.epochSecond
-          nanos = instant.nano
-        }
         vid = 1
-        event = dynamicTestEvent1.pack()
+        eventTime = FIRST_EVENT_DATE.atTime(1, 1, 1).toInstant(ZoneOffset.UTC).toProtoTime()
+        event = testEvent1.pack()
       },
       labeledImpression {
-        eventTime = timestamp {
-          val instant = FIRST_EVENT_DATE.plusDays(1).atTime(1, 1, 1).toInstant(ZoneOffset.UTC)
-          seconds = instant.epochSecond
-          nanos = instant.nano
-        }
         vid = 1
-        event = dynamicTestEvent1.pack()
+        eventTime = FIRST_EVENT_DATE.plusDays(1).atTime(1, 1, 1).toInstant(ZoneOffset.UTC).toProtoTime()
+        event = testEvent1.pack()
       }
     )
     
@@ -200,6 +180,7 @@ class RequisitionSpecsTest {
     verifyBlocking(eventReader, times(1)) { getLabeledImpressions(any(), any()) }
   }
 
+@Test
   fun `throws exception for invalid vid interval`() = runBlocking {
     // Set up test environment
     val testEventDescriptor = TestEvent.getDescriptor()
@@ -236,13 +217,9 @@ class RequisitionSpecsTest {
     
     val labeledImpressions = listOf(
       labeledImpression {
-        eventTime = timestamp {
-          val instant = FIRST_EVENT_DATE.plusDays(1).atStartOfDay().minusSeconds(1).toInstant(ZoneOffset.UTC)
-          seconds = instant.epochSecond
-          nanos = instant.nano
-        }
         vid = 1
-        event = dynamicTestEvent1.pack()
+        eventTime = FIRST_EVENT_DATE.plusDays(1).atStartOfDay().minusSeconds(1).toInstant(ZoneOffset.UTC).toProtoTime()
+        event = testEvent1.pack()
       }
     )
     
