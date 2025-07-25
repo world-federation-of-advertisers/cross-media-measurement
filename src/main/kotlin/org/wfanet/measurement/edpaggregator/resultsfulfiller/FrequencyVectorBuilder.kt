@@ -46,14 +46,6 @@ class FrequencyVectorBuilder {
     return this
   }
   
-  /**
-   * Builds a BasicFrequencyVector from the accumulated VIDs.
-   * 
-   * @return A new BasicFrequencyVector instance
-   */
-  fun buildBasic(): FrequencyVector {
-    return BasicFrequencyVector(vids.toList())
-  }
   
   /**
    * Builds a StripedByteFrequencyVector from the accumulated VIDs.
@@ -67,20 +59,14 @@ class FrequencyVectorBuilder {
   }
   
   /**
-   * Builds an optimal FrequencyVector based on the data size.
+   * Builds a FrequencyVector from the accumulated VIDs.
    * 
-   * Automatically chooses between BasicFrequencyVector and StripedByteFrequencyVector
-   * based on the number of VIDs.
+   * Uses StripedByteFrequencyVector for optimal performance.
    * 
-   * @param threshold The threshold above which to use striped implementation
-   * @return A new FrequencyVector instance
+   * @return A new StripedByteFrequencyVector instance
    */
-  fun buildOptimal(threshold: Int = 10000): FrequencyVector {
-    return if (vids.size > threshold) {
-      buildStriped()
-    } else {
-      buildBasic()
-    }
+  fun build(): FrequencyVector {
+    return buildStriped()
   }
   
   /**

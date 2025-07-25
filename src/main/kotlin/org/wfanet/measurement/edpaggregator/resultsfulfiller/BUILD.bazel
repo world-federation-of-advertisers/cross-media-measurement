@@ -92,7 +92,6 @@ kt_jvm_library(
         "FrequencyVector.kt",
         "FrequencyVectorBuilder.kt",
         "StripedByteFrequencyVector.kt",
-        "BasicFrequencyVector.kt",
     ],
     deps = [],
 )
