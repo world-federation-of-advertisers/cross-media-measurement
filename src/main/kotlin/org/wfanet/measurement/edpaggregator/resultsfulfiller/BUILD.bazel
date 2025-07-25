@@ -81,6 +81,7 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
+<<<<<<< HEAD
     name = "event_batch",
     srcs = ["EventBatch.kt"],
     deps = [
