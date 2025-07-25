@@ -184,13 +184,30 @@ kt_jvm_test(
 )
 
 kt_jvm_test(
+    name = "FilterProcessorTest",
+    srcs = ["FilterProcessorTest.kt"],
+    test_class = "org.wfanet.measurement.edpaggregator.resultsfulfiller.FilterProcessorTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:event_batch",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:filter_processor",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:filter_spec",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:labeled_event",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:test_event_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/java/com/google/protobuf/util",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+    ],
+)
+
+kt_jvm_test(
     name = "StorageEventSourceTest",
     srcs = ["StorageEventSourceTest.kt"],
     test_class = "org.wfanet.measurement.edpaggregator.resultsfulfiller.StorageEventSourceTest",
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator:storage_config",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:event_path_resolver",
-        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller/testing:path_echo_impression_metadata_service",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:event_reader",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:labeled_event",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:storage_event_source",
@@ -208,19 +225,22 @@ kt_jvm_test(
 )
 
 kt_jvm_test(
-    name = "ImpressionMetadataServiceTest",
-    srcs = ["ImpressionMetadataServiceTest.kt"],
-    test_class = "org.wfanet.measurement.edpaggregator.resultsfulfiller.ImpressionMetadataServiceTest",
+    name = "FrequencyVectorSinkTest",
+    srcs = ["FrequencyVectorSinkTest.kt"],
+    test_class = "org.wfanet.measurement.edpaggregator.resultsfulfiller.FrequencyVectorSinkTest",
     deps = [
-        "//src/main/kotlin/org/wfanet/measurement/edpaggregator:storage_config",
-        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:event_path_resolver",
-        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:impression_metadata_service",
-        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:blob_details_kt_jvm_proto",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:event_batch",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:filter_processor",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:filter_spec",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:frequency_vector",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:frequency_vector_sink",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:labeled_event",
+        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/requisition/v2alpha/common",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/java/com/google/protobuf/util",
         "@wfa_common_jvm//imports/java/org/junit",
-        "@wfa_common_jvm//imports/kotlin/kotlin/test",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage/filesystem:client",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//imports/kotlin/org/mockito/kotlin",
     ],
 )
