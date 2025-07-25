@@ -505,7 +505,7 @@ class BasicReportsService(
             val mediaType = templateAnnotation.mediaType
 
             for (templateField in field.messageType.fields) {
-              if (!templateField.options.hasExtension(EventAnnotationsProto.templateField)) {
+              if (templateField.options.hasExtension(EventAnnotationsProto.templateField)) {
                 val eventTemplateFieldName = "${templateAnnotation.name}.${templateField.name}"
 
                 val templateFieldAnnotation: EventFieldDescriptor =

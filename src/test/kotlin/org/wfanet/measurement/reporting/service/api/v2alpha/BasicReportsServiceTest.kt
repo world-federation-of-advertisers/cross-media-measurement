@@ -97,10 +97,9 @@ import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.testing.Schemat
 import org.wfanet.measurement.reporting.deploy.v2.postgres.PostgresMeasurementConsumersService
 import org.wfanet.measurement.reporting.deploy.v2.postgres.PostgresReportingSetsService
 import org.wfanet.measurement.reporting.deploy.v2.postgres.testing.Schemata as PostgresSchemata
+import com.google.protobuf.ExtensionRegistry
 import com.google.protobuf.TypeRegistry
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.Banner
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.Video
+import org.wfanet.measurement.api.v2alpha.EventAnnotationsProto
 import org.wfanet.measurement.reporting.service.api.Errors
 import org.wfanet.measurement.reporting.service.internal.ImpressionQualificationFilterMapping
 import org.wfanet.measurement.reporting.v2alpha.BasicReport
@@ -180,14 +179,13 @@ class BasicReportsServiceTest {
     internalBasicReportsService = InternalBasicReportsCoroutineStub(grpcTestServerRule.channel)
     authorization =
       Authorization(PermissionsGrpcKt.PermissionsCoroutineStub(grpcTestServerRule.channel))
-    val typeRegistry = TypeRegistry.newBuilder().add(listOf(TestEvent.getDescriptor(), Person.getDescriptor(), Banner.getDescriptor(), Video.getDescriptor())).build()
 
     service =
       BasicReportsService(
         internalBasicReportsService,
         internalImpressionQualificationFiltersService,
         internalReportingSetsService,
-        BasicReportsService.buildEventTemplateFieldsMap(typeRegistry.find(TestEvent.getDescriptor().fullName)),
+        TEST_EVENT_DESCRIPTOR,
         authorization,
       )
   }
@@ -2529,7 +2527,7 @@ class BasicReportsServiceTest {
                   BASIC_REPORT.resultGroupSpecsList[0].dimensionSpec.copy {
                     filters += eventFilter {
                       terms += eventTemplateField {
-                        path = "video.length"
+                        path = "video_ad.length"
                         value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
                       }
                     }
@@ -4021,14 +4019,14 @@ class BasicReportsServiceTest {
 
                   filters += eventFilter {
                     terms += eventTemplateField {
-                      path = "person.age_group"
-                      value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
+                      path = "common.age_group"
+                      value = EventTemplateFieldKt.fieldValue { enumValue = "18_TO_35" }
                     }
                   }
 
                   filters += eventFilter {
                     terms += eventTemplateField {
-                      path = "person.gender"
+                      path = "common.gender"
                       value = EventTemplateFieldKt.fieldValue { enumValue = "MALE" }
                     }
                   }
@@ -4497,7 +4495,7 @@ class BasicReportsServiceTest {
                           terms += eventTemplateField {
                             path = "person.age_group"
                             value =
-                              EventTemplateFieldKt.fieldValue { enumValue = "YEARS_TO_18_TO_34" }
+                              EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
                           }
                         }
                       }
@@ -5272,6 +5270,22 @@ class BasicReportsServiceTest {
     @JvmStatic
     val postgresDatabaseProvider =
       PostgresDatabaseProviderRule(PostgresSchemata.REPORTING_CHANGELOG_PATH)
+
+    private val EXTENSION_REGISTRY =
+      ExtensionRegistry.newInstance()
+        .apply {
+          add(EventAnnotationsProto.eventTemplate)
+          add(EventAnnotationsProto.templateField)
+        }
+        .unmodifiable
+
+    private val TYPE_REGISTRY =
+      TypeRegistry.newBuilder()
+        .add(listOf(TestEvent.parseFrom(TestEvent.getDefaultInstance().toByteString(), EXTENSION_REGISTRY).descriptorForType))
+        .build()
+
+    private val TEST_EVENT_DESCRIPTOR =
+      BasicReportsService.buildEventTemplateFieldsMap(TYPE_REGISTRY.find(TestEvent.getDescriptor().fullName))
 
     private const val DEFAULT_PAGE_SIZE = 10
     private const val MAX_PAGE_SIZE = 25

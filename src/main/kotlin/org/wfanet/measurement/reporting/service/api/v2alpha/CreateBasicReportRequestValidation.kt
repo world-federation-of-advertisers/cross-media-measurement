@@ -215,7 +215,7 @@ fun validateDimensionSpec(
           }
         }
 
-        if (eventTemplateFieldInfo.isPopulationAttribute) {
+        if (!eventTemplateFieldInfo.isPopulationAttribute) {
           throw InvalidFieldValueException(
             "basic_report.result_group_specs.dimension_spec.grouping.event_template_fields"
           ) { fieldName ->
