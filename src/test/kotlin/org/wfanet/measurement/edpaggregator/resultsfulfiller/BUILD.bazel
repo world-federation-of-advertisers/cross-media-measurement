@@ -162,13 +162,10 @@ kt_jvm_test(
 )
 
 kt_jvm_test(
-    name = "ResultsFulfillerAppRunnerTest",
-    srcs = ["ResultsFulfillerAppRunnerTest.kt"],
-    test_class = "org.wfanet.measurement.edpaggregator.resultsfulfiller.ResultsFulfillerAppRunnerTest",
+    srcs = ["StripedByteFrequencyVectorTest.kt"],
+    test_class = "org.wfanet.measurement.edpaggregator.resultsfulfiller.StripedByteFrequencyVectorTest",
     deps = [
-        "//imports/java/com/google/cloud/secretmanager",
-        "//src/main/kotlin/org/wfanet/measurement/common/edpaggregator:tee_app_config",
-        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:results_fulfiller_app_runner",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:frequency_vector",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/java/org/junit",
         "@wfa_common_jvm//imports/kotlin/kotlin/test",
