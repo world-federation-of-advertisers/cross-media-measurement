@@ -134,6 +134,10 @@ You can customize this generated object configuration with your own settings
 such as the number of replicas per deployment, the memory and CPU requirements
 of each container, and the JVM options of each container.
 
+Note that the `dev` configuration uses a very low value for the
+`--max-event-group-read-staleness` option on the Kingdom internal API server to
+reduce test flakiness. You will likely want to adjust this.
+
 ## Customize the K8s secret
 
 We use a K8s secret to hold sensitive information, such as private keys.
