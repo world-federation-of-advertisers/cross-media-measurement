@@ -128,8 +128,6 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
-=======
->>>>>>> 14df69e47 (Add core data models and infrastructure for event processing)
     name = "filter_spec",
     srcs = ["FilterSpec.kt"],
     deps = [
@@ -159,6 +157,7 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
+<<<<<<< HEAD
     name = "filter_processor",
     srcs = ["FilterProcessor.kt"],
     deps = [
