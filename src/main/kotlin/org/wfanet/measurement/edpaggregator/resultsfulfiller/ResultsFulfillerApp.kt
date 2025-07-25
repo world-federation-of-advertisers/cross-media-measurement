@@ -132,13 +132,14 @@ class ResultsFulfillerApp(
     val kmsClient = kmsClients[fulfillerParams.dataProvider]
     requireNotNull(kmsClient) { "KMS client not found for ${fulfillerParams.dataProvider}" }
 
-    val eventReader =
-      EventReader(
+    val eventReader: EventReader =
+      StorageEventReader(
+        blobPath = fulfillerParams.storageParams.labeledImpressionsBlobDetailsUriPrefix,
+        metadataPath = fulfillerParams.storageParams.labeledImpressionsBlobDetailsUriPrefix,
         kmsClient = kmsClient,
-        impressionDekStorageConfig = impressionsMetadataStorageConfig,
         impressionsStorageConfig = impressionsStorageConfig,
-        labeledImpressionsDekPrefix =
-          fulfillerParams.storageParams.labeledImpressionsBlobDetailsUriPrefix,
+        impressionDekStorageConfig = impressionsMetadataStorageConfig,
+        typeRegistry = typeRegistry,
       )
     val noiseSelector =
       when (fulfillerParams.noiseParams.noiseType) {
