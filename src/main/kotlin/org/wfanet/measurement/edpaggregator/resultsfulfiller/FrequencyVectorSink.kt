@@ -33,10 +33,6 @@ class FrequencyVectorSink(
   private val vidIndexMap: VidIndexMap
 ) {
 
-  companion object {
-    private val logger = Logger.getLogger(FrequencyVectorSink::class.java.name)
-  }
-
   /**
    * Processes a batch of events and updates frequency vector for matched events.
    *

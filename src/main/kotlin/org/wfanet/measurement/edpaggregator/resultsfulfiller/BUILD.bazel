@@ -114,15 +114,6 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
-    name = "event_batch",
-    srcs = ["EventBatch.kt"],
-    deps = [
-        ":labeled_event",
-        "@wfa_common_jvm//imports/java/com/google/protobuf",
-    ],
-)
-
-kt_jvm_library(
     name = "filter_spec",
     srcs = ["FilterSpec.kt"],
     deps = [
@@ -150,9 +141,17 @@ kt_jvm_library(
     ],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:population_spec_validator",
-        "//src/main/kotlin/org/wfanet/measurement/computation:k_anonymity_params",
         "//src/main/proto/wfa/measurement/api/v2alpha:measurement_spec_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:population_spec_kt_jvm_proto",
+    ],
+)
+
+kt_jvm_library(
+    name = "event_batch",
+    srcs = ["EventBatch.kt"],
+    deps = [
+        ":labeled_event",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
     ],
 )
 
@@ -160,19 +159,6 @@ kt_jvm_library(
     name = "event_path_resolver",
     srcs = ["EventPathResolver.kt"],
     deps = [],
-)
-
-kt_jvm_library(
-    name = "filter_processor",
-    srcs = ["FilterProcessor.kt"],
-    deps = [
-        ":event_batch",
-        ":filter_spec",
-        ":labeled_event",
-        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/eventfiltration:event_filters",
-        "@wfa_common_jvm//imports/java/com/google/protobuf",
-        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
-    ],
 )
 
 kt_jvm_library(
@@ -285,7 +271,6 @@ kt_jvm_library(
         ":filter_spec",
         ":frequency_vector",
         ":labeled_event",
-        ":sink_statistics",
         "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/requisition/v2alpha/common",
         "@wfa_common_jvm//imports/java/com/google/protobuf",
     ],
