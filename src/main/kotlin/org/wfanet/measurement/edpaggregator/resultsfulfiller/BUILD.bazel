@@ -118,6 +118,26 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
+    name = "pipeline_architecture",
+    srcs = [
+        "EventProcessingPipeline.kt",
+        "ParallelBatchedPipeline.kt",
+        "PipelineConfiguration.kt",
+        "PipelineStatisticsAggregator.kt",
+        "EventBatch.kt",
+        "EventSourceType.kt",
+    ],
+    deps = [
+        ":event_processing_core",
+        ":labeled_event",
+        ":filter_spec",
+        ":frequency_vector",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+    ],
+)
+
+kt_jvm_library(
     name = "vid_filter",
     srcs = ["VidFilter.kt"],
     deps = [
