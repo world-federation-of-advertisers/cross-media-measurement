@@ -27,7 +27,7 @@ import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.VidIn
 class FrequencyVectorSink(
   private val filterProcessor: FilterProcessor,
   private val frequencyVector: StripedByteFrequencyVector,
-  private val vidIndexMap: VidIndexMap
+  private val vidIndexMap: VidIndexMap,
 ) {
 
   /**
@@ -42,16 +42,12 @@ class FrequencyVectorSink(
     }
   }
 
-  /**
-   * Returns the filter spec
-   */
+  /** Returns the filter spec */
   fun getFilterSpec(): FilterSpec {
     return filterProcessor.filterSpec
   }
 
-  /**
-   * Returns the frequency vector.
-   */
+  /** Returns the frequency vector. */
   fun getFrequencyVector(): StripedByteFrequencyVector {
     return frequencyVector
   }
