@@ -162,6 +162,7 @@ kt_jvm_test(
 )
 
 kt_jvm_test(
+    name = "StripedByteFrequencyVectorTest",
     srcs = ["StripedByteFrequencyVectorTest.kt"],
     test_class = "org.wfanet.measurement.edpaggregator.resultsfulfiller.StripedByteFrequencyVectorTest",
     deps = [
