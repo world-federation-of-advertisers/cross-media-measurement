@@ -1,0 +1,101 @@
+# Copyright 2025 The Cross-Media Measurement Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: Test slack notification
+
+on:
+  #WIP - for testing wihtout merging
+  pull_request:
+
+jobs:
+  previous-job-ok:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Check out revision
+        uses: actions/checkout@v4
+
+  previous-job-skipped:
+    runs-on: ubuntu-22.04
+    if: false
+    steps:
+      - name: Check out revision
+        uses: actions/checkout@v4
+
+  previous-job-failure:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Force a failure (for testing)
+        run: |
+          sleep 20
+          echo "This step is going to fail on purpose"
+          exit 0
+
+  test-notifications:
+    runs-on: ubuntu-22.04
+    needs: [ previous-job-ok, previous-job-skipped, previous-job-failure ]
+    if: always()
+    steps:
+      - name: Check out revision
+        uses: actions/checkout@v4
+
+      - id: dummy-compute-tag
+        name: dummy create tag
+        run: echo "tag=nightly/20250722.1" >> "$GITHUB_OUTPUT"
+
+      - id: get-latest-release-tag
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const { data: release } = await github.rest.repos.getLatestRelease({
+              owner: context.repo.owner,
+              repo:  context.repo.repo
+            });
+            core.setOutput("latest_release_tag", release.tag_name);
+
+      - id: compute-workflow-conclusion
+        shell: bash
+        name: Compute workflow conclusion
+        run: |
+          conclusion="success"
+          if [[ ${{ contains(needs.*.result, 'failure') }} == "true" ]]; then
+            conclusion="failure"
+          elif [[ ${{ contains(needs.*.result, 'cancelled') }} == "true" ]]; then
+            conclusion="cancelled"
+          fi
+          echo "conclusion=${conclusion}" >> "$GITHUB_OUTPUT"
+
+      - id: compute-notification-title
+        shell: bash
+        name: Compute notification title
+        run: |
+          workflow_conclusion=${{ steps.compute-workflow-conclusion.outputs.conclusion }}
+          if [[ ${workflow_conclusion} == "success" ]]; then
+            title=":white_check_mark: Successfully deployed nightly build"
+          elif [[ ${workflow_conclusion} == "failure" ]]; then
+            title=":x: Nightly build deployment failed"
+          else
+            title=":warning: Nightly build deployment finished with status: ${workflow_conclusion}"
+          fi
+          echo "title=${title}." >> "$GITHUB_OUTPUT"
+
+      - name: Post deployment start message to Slack channel
+        uses: ./.github/actions/send-nightly-build-notification
+        with:
+          slack_bot_token: ${{ secrets.SLACK_BOT_TOKEN }}
+          housekeeping_channel_id: ${{ secrets.SLACK_HOUSEKEEPING_CHANNEL }}
+          title: ${{ steps.compute-notification-title.outputs.title }}
+          nightly_build_tag: ${{ steps.dummy-compute-tag.outputs.tag }}
+          latest_release_tag: ${{ steps.get-latest-release-tag.outputs.latest_release_tag }}
+
