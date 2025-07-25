@@ -28,6 +28,7 @@ import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.VidIn
  * Thread-safe for concurrent access.
  */
 class FrequencyVectorSink(
+  private val filterProcessor: FilterProcessor,
   private val frequencyVector: FrequencyVector,
   private val vidIndexMap: VidIndexMap
 ) {
@@ -37,14 +38,12 @@ class FrequencyVectorSink(
   }
 
   /**
-   * Processes matched events by updating the frequency vector.
+   * Processes a batch of events and updates frequency vector for matched events.
    *
-   * @param matchedEvents Events that matched the filter
+   * @param batch
    */
-  suspend fun processMatchedEvents(
-    matchedEvents: List<LabeledEvent<DynamicMessage>>
-  ) {
-    matchedEvents.forEach { event ->
+  suspend fun processBatch(batch: EventBatch) {
+    filterProcessor.processBatch(batch).events.forEach { event ->
       val index = vidIndexMap[event.vid]
       frequencyVector.incrementByIndex(index)
     }

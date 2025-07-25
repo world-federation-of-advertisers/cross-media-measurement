@@ -20,10 +20,10 @@ kt_jvm_library(
         ":noiser_selector",
         ":requisition_specs",
         ":vid_filter",
-        "//src/main/kotlin/org/wfanet/measurement/edpaggregator:storage_config",
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:packed_messages",
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
         "//src/main/kotlin/org/wfanet/measurement/dataprovider:requisition_refusal_exception",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator:storage_config",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller/compute/protocols/direct:direct_measurement_result_factory",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller/fulfillers:direct_measurement_fulfiller",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller/fulfillers:hmshuffle_measurement_fulfiller",
@@ -110,7 +110,7 @@ kt_jvm_library(
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/tink",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:selected_storage_client",
-    ]
+    ],
 )
 
 kt_jvm_library(
@@ -150,6 +150,7 @@ kt_jvm_library(
     ],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:population_spec_validator",
+        "//src/main/kotlin/org/wfanet/measurement/computation:k_anonymity_params",
         "//src/main/proto/wfa/measurement/api/v2alpha:measurement_spec_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:population_spec_kt_jvm_proto",
     ],
@@ -166,9 +167,55 @@ kt_jvm_library(
     srcs = ["FilterProcessor.kt"],
     deps = [
         ":event_batch",
+        ":event_source",
         ":filter_spec",
         ":labeled_event",
+        "//imports/java/org/projectnessie/cel",
         "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/eventfiltration:event_filters",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+    ],
+)
+
+kt_jvm_library(
+    name = "filter_configuration",
+    srcs = ["FilterConfiguration.kt"],
+    deps = [
+        ":filter_spec",
+    ],
+)
+
+kt_jvm_library(
+    name = "event_processing_pipeline",
+    srcs = ["EventProcessingPipeline.kt"],
+    deps = [
+        ":event_source",
+        ":filter_configuration",
+        ":filter_spec",
+        ":frequency_vector",
+        ":frequency_vector_sink",
+        ":labeled_event",
+        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/requisition/v2alpha/common",
+        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/requisition/v2alpha/shareshuffle",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+    ],
+)
+
+kt_jvm_library(
+    name = "parallel_batched_pipeline",
+    srcs = ["ParallelBatchedPipeline.kt"],
+    deps = [
+        ":event_batch",
+        ":event_processing_pipeline",
+        ":filter_configuration",
+        ":filter_processor",
+        ":filter_spec",
+        ":frequency_vector",
+        ":frequency_vector_sink",
+        ":labeled_event",
+        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/requisition/v2alpha/common",
+        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/requisition/v2alpha/shareshuffle",
         "@wfa_common_jvm//imports/java/com/google/protobuf",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
     ],
@@ -279,19 +326,15 @@ kt_jvm_library(
     name = "frequency_vector_sink",
     srcs = ["FrequencyVectorSink.kt"],
     deps = [
+        ":event_batch",
+        ":filter_processor",
         ":filter_spec",
         ":frequency_vector",
         ":labeled_event",
-        ":sink_statistics",
-        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/shareshuffle/v2alpha:shareshuffle",
+        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/requisition/v2alpha/common",
+        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/requisition/v2alpha/shareshuffle",
         "@wfa_common_jvm//imports/java/com/google/protobuf",
     ],
-)
-
-kt_jvm_library(
-    name = "sink_statistics",
-    srcs = ["SinkStatistics.kt"],
-    deps = [],
 )
 
 kt_jvm_library(
