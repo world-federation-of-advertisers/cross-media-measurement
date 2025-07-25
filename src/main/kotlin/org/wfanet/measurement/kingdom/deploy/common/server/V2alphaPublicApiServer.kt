@@ -28,7 +28,8 @@ import org.wfanet.measurement.common.api.grpc.AkidPrincipalServerInterceptor
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.grpc.CommonServer
-import org.wfanet.measurement.common.grpc.PrincipalRateLimitingServerInterceptor
+import org.wfanet.measurement.common.grpc.RateLimiterProvider
+import org.wfanet.measurement.common.grpc.RateLimitingServerInterceptor
 import org.wfanet.measurement.common.grpc.ServiceFlags
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withDefaultDeadline
@@ -155,11 +156,13 @@ private fun run(
   val apiKeyPrincipalInterceptor =
     ApiKeyAuthenticationServerInterceptor(internalApiKeysCoroutineStub)
   val rateLimitingInterceptor =
-    PrincipalRateLimitingServerInterceptor.fromConfig(v2alphaFlags.rateLimitConfig) { context ->
-      AuthorityKeyServerInterceptor.CLIENT_AUTHORITY_KEY_IDENTIFIER_CONTEXT_KEY.get(context)
-        ?.toByteArray()
-        ?.toHexString(KEY_ID_FORMAT)
-    }
+    RateLimitingServerInterceptor(
+      RateLimiterProvider(v2alphaFlags.rateLimitConfig) { context ->
+        AuthorityKeyServerInterceptor.CLIENT_AUTHORITY_KEY_IDENTIFIER_CONTEXT_KEY.get(context)
+          ?.toByteArray()
+          ?.toHexString(KEY_ID_FORMAT)
+      }::getRateLimiter
+    )
 
   val serviceDispatcher: CoroutineDispatcher = serviceFlags.executor.asCoroutineDispatcher()
   val services: List<ServerServiceDefinition> =
@@ -410,10 +413,13 @@ private class V2alphaFlags {
 
   companion object {
     private val DEFAULT_RATE_LIMIT_CONFIG = rateLimitConfig {
-      defaultRateLimit =
+      rateLimit =
         RateLimitConfigKt.rateLimit {
-          maximumRequestCount = -1 // Unlimited.
-          averageRequestRate = 1.0
+          defaultRateLimit =
+            RateLimitConfigKt.methodRateLimit {
+              maximumRequestCount = -1 // Unlimited.
+              averageRequestRate = 1.0
+            }
         }
     }
   }
