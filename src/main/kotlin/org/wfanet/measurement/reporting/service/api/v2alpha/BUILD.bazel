@@ -333,6 +333,22 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
+    name = "basic_report_transformations",
+    srcs = ["BasicReportTransformations.kt"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha:resource_key",
+        "//src/main/proto/wfa/measurement/api/v2alpha:data_provider_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:event_group_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/reporting/v2:metric_calculation_spec_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/reporting/v2:metric_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/reporting/v2alpha:impression_qualification_filter_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/reporting/v2alpha:report_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/reporting/v2alpha:reporting_set_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/reporting/v2alpha:result_group_kt_jvm_proto",
+    ],
+)
+
+kt_jvm_library(
     name = "create_basic_report_request_validation",
     srcs = ["CreateBasicReportRequestValidation.kt"],
     deps = [
