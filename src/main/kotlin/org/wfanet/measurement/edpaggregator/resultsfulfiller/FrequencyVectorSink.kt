@@ -50,6 +50,13 @@ class FrequencyVectorSink(
   }
 
   /**
+   * Returns the filter spec
+   */
+  fun getFilterSpec(): FilterSpec {
+    return filterProcessor.filterSpec
+  }
+
+  /**
    * Returns the frequency vector.
    */
   fun getFrequencyVector(): FrequencyVector {
