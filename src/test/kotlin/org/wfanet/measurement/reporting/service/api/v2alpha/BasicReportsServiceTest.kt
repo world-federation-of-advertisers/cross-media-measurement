@@ -97,6 +97,10 @@ import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.testing.Schemat
 import org.wfanet.measurement.reporting.deploy.v2.postgres.PostgresMeasurementConsumersService
 import org.wfanet.measurement.reporting.deploy.v2.postgres.PostgresReportingSetsService
 import org.wfanet.measurement.reporting.deploy.v2.postgres.testing.Schemata as PostgresSchemata
+import com.google.protobuf.TypeRegistry
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.Banner
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.Video
 import org.wfanet.measurement.reporting.service.api.Errors
 import org.wfanet.measurement.reporting.service.internal.ImpressionQualificationFilterMapping
 import org.wfanet.measurement.reporting.v2alpha.BasicReport
@@ -176,13 +180,14 @@ class BasicReportsServiceTest {
     internalBasicReportsService = InternalBasicReportsCoroutineStub(grpcTestServerRule.channel)
     authorization =
       Authorization(PermissionsGrpcKt.PermissionsCoroutineStub(grpcTestServerRule.channel))
+    val typeRegistry = TypeRegistry.newBuilder().add(listOf(TestEvent.getDescriptor(), Person.getDescriptor(), Banner.getDescriptor(), Video.getDescriptor())).build()
 
     service =
       BasicReportsService(
         internalBasicReportsService,
         internalImpressionQualificationFiltersService,
         internalReportingSetsService,
-        BasicReportsService.buildEventTemplateFieldsMap(TestEvent.getDescriptor()),
+        BasicReportsService.buildEventTemplateFieldsMap(typeRegistry.find(TestEvent.getDescriptor().fullName)),
         authorization,
       )
   }
