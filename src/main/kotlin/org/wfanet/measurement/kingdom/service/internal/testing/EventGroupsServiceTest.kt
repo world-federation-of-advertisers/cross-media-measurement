@@ -26,6 +26,7 @@ import java.time.Instant
 import java.time.temporal.ChronoUnit
 import kotlin.random.Random
 import kotlin.test.assertFailsWith
+import kotlinx.coroutines.flow.single
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
@@ -897,6 +898,65 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
             .thenBy { it.externalDataProviderId }
             .thenBy { it.externalEventGroupId }
         )
+      )
+      .inOrder()
+  }
+
+  @Test
+  fun `streamEventGroups returns subsequent page with orderBy`(): Unit = runBlocking {
+    val now: Instant = testClock.instant()
+    val measurementConsumer: MeasurementConsumer =
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
+    val dataProvider1: DataProvider = population.createDataProvider(dataProvidersService)
+    val dataProvider2: DataProvider = population.createDataProvider(dataProvidersService)
+    val eventGroups: List<EventGroup> =
+      populateTestEventGroups(now, measurementConsumer, dataProvider1, dataProvider2)
+    val orderBy = orderBy {
+      field = StreamEventGroupsRequest.OrderBy.Field.DATA_AVAILABILITY_START_TIME
+      descending = true
+    }
+    val endOfPage: EventGroup =
+      eventGroupsService
+        .streamEventGroups(
+          streamEventGroupsRequest {
+            filter = filter {
+              externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+            }
+            this.orderBy = orderBy
+            limit = 1
+          }
+        )
+        .single()
+    val request = streamEventGroupsRequest {
+      filter = filter {
+        externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+        after =
+          StreamEventGroupsRequestKt.FilterKt.after {
+            dataAvailabilityStartTime = endOfPage.dataAvailabilityInterval.startTime
+            eventGroupKey = eventGroupKey {
+              externalDataProviderId = endOfPage.externalDataProviderId
+              externalEventGroupId = endOfPage.externalEventGroupId
+            }
+          }
+      }
+      this.orderBy = orderBy
+    }
+
+    val response: List<EventGroup> = eventGroupsService.streamEventGroups(request).toList()
+
+    assertThat(response)
+      .ignoringRepeatedFieldOrderOfFields(EventGroup.MEDIA_TYPES_FIELD_NUMBER)
+      .containsExactlyElementsIn(
+        eventGroups
+          .filter {
+            !(it.externalDataProviderId == endOfPage.externalDataProviderId &&
+              it.externalEventGroupId == endOfPage.externalEventGroupId)
+          }
+          .sortedWith(
+            compareByDescending<EventGroup> { it.dataAvailabilityInterval.startTime.toInstant() }
+              .thenBy { it.externalDataProviderId }
+              .thenBy { it.externalEventGroupId }
+          )
       )
       .inOrder()
   }
