@@ -105,6 +105,7 @@ resource "terraform_data" "deploy_gcs_cloud_function" {
         "--trigger-event-filters=type=google.cloud.storage.object.v1.finalized"
         "--trigger-event-filters=bucket=$TRIGGER_BUCKET"
         "--trigger-service-account=$TRIGGER_SERVICE_ACCOUNT"
+        "--no-allow-unauthenticated"
       )
 
       if [[ -n "$EXTRA_ENV_VARS" ]]; then
