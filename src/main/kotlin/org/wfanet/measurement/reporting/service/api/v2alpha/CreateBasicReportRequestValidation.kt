@@ -85,7 +85,11 @@ fun validateCreateBasicReportRequest(
   validateReportingImpressionQualificationFilters(
     request.basicReport.impressionQualificationFiltersList
   )
-  validateResultGroupSpecs(request.basicReport.resultGroupSpecsList, campaignGroup, eventTemplateFieldsMap)
+  validateResultGroupSpecs(
+    request.basicReport.resultGroupSpecsList,
+    campaignGroup,
+    eventTemplateFieldsMap,
+  )
 }
 
 /**
@@ -97,7 +101,11 @@ fun validateCreateBasicReportRequest(
  * @throws [RequiredFieldNotSetException] when validation fails
  * @throws [InvalidFieldValueException] when validation fails
  */
-fun validateResultGroupSpecs(resultGroupSpecs: List<ResultGroupSpec>, campaignGroup: ReportingSet, eventTemplateFieldsMap: Map<String, EventTemplateFieldInfo.EventTemplateFieldInfo>) {
+fun validateResultGroupSpecs(
+  resultGroupSpecs: List<ResultGroupSpec>,
+  campaignGroup: ReportingSet,
+  eventTemplateFieldsMap: Map<String, EventTemplateFieldInfo.EventTemplateFieldInfo>,
+) {
   if (resultGroupSpecs.isEmpty()) {
     throw RequiredFieldNotSetException("basic_report.result_group_specs")
   }
@@ -178,7 +186,10 @@ fun validateReportingUnit(reportingUnit: ReportingUnit, dataProviderNameSet: Set
  * @throws [RequiredFieldNotSetException] when validation fails
  * @throws [InvalidFieldValueException] when validation fails
  */
-fun validateDimensionSpec(dimensionSpec: DimensionSpec, eventTemplateFieldsMap: Map<String, EventTemplateFieldInfo.EventTemplateFieldInfo>) {
+fun validateDimensionSpec(
+  dimensionSpec: DimensionSpec,
+  eventTemplateFieldsMap: Map<String, EventTemplateFieldInfo.EventTemplateFieldInfo>,
+) {
   val groupingEventTemplateFieldsSet: Set<String> = buildSet {
     if (dimensionSpec.hasGrouping()) {
       if (dimensionSpec.grouping.eventTemplateFieldsList.isEmpty()) {
@@ -188,12 +199,13 @@ fun validateDimensionSpec(dimensionSpec: DimensionSpec, eventTemplateFieldsMap: 
       }
 
       for (eventTemplateFieldPath in dimensionSpec.grouping.eventTemplateFieldsList) {
-        val eventTemplateFieldInfo = eventTemplateFieldsMap[eventTemplateFieldPath]
-          ?: throw InvalidFieldValueException(
-            "basic_report.result_group_specs.dimension_spec.grouping.event_template_fields"
-          ) { fieldName ->
-            "$fieldName contains event template field that doesn't exist"
-          }
+        val eventTemplateFieldInfo =
+          eventTemplateFieldsMap[eventTemplateFieldPath]
+            ?: throw InvalidFieldValueException(
+              "basic_report.result_group_specs.dimension_spec.grouping.event_template_fields"
+            ) { fieldName ->
+              "$fieldName contains event template field that doesn't exist"
+            }
 
         if (!eventTemplateFieldInfo.supportedReportingFeatures.groupable) {
           throw InvalidFieldValueException(
@@ -229,12 +241,13 @@ fun validateDimensionSpec(dimensionSpec: DimensionSpec, eventTemplateFieldsMap: 
           "basic_report.result_group_specs.dimension_spec.filters.terms.path"
         )
       } else {
-        val eventTemplateFieldInfo = eventTemplateFieldsMap[eventTemplateField.path]
-          ?: throw InvalidFieldValueException(
-            "basic_report.result_group_specs.dimension_spec.filters.terms.path"
-          ) { fieldName ->
-            "$fieldName doesn't exist"
-          }
+        val eventTemplateFieldInfo =
+          eventTemplateFieldsMap[eventTemplateField.path]
+            ?: throw InvalidFieldValueException(
+              "basic_report.result_group_specs.dimension_spec.filters.terms.path"
+            ) { fieldName ->
+              "$fieldName doesn't exist"
+            }
 
         if (!eventTemplateFieldInfo.supportedReportingFeatures.filterable) {
           throw InvalidFieldValueException(
@@ -262,7 +275,7 @@ fun validateDimensionSpec(dimensionSpec: DimensionSpec, eventTemplateFieldsMap: 
 
         if (
           eventTemplateField.value.selectorCase ==
-          EventTemplateField.FieldValue.SelectorCase.SELECTOR_NOT_SET
+            EventTemplateField.FieldValue.SelectorCase.SELECTOR_NOT_SET
         ) {
           throw RequiredFieldNotSetException(
             "basic_report.result_group_specs.dimension_spec.filters.terms.value"

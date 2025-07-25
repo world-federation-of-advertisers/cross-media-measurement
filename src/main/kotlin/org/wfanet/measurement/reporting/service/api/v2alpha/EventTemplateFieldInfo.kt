@@ -25,6 +25,7 @@ object EventTemplateFieldInfo {
     var filterable: Boolean = false,
     var impressionQualification: Boolean = false,
   )
+
   data class EventTemplateFieldInfo(
     val mediaType: MediaType,
     val isPopulationAttribute: Boolean,

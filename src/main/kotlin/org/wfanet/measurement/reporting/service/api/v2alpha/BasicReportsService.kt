@@ -18,6 +18,8 @@ package org.wfanet.measurement.reporting.service.api.v2alpha
 
 import com.google.longrunning.Operation
 import com.google.protobuf.ByteString
+import com.google.protobuf.Descriptors
+import com.google.protobuf.Descriptors.FieldDescriptor
 import com.google.protobuf.InvalidProtocolBufferException
 import io.grpc.Status
 import io.grpc.StatusException
@@ -27,7 +29,10 @@ import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
 import org.wfanet.measurement.access.client.v1alpha.Authorization
 import org.wfanet.measurement.access.client.v1alpha.check
+import org.wfanet.measurement.api.v2alpha.EventAnnotationsProto
+import org.wfanet.measurement.api.v2alpha.EventFieldDescriptor
 import org.wfanet.measurement.api.v2alpha.EventGroupKey
+import org.wfanet.measurement.api.v2alpha.EventTemplateDescriptor
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
@@ -57,11 +62,6 @@ import org.wfanet.measurement.reporting.service.api.ReportingSetNotFoundExceptio
 import org.wfanet.measurement.reporting.service.api.RequiredFieldNotSetException
 import org.wfanet.measurement.reporting.service.api.ServiceException
 import org.wfanet.measurement.reporting.service.internal.Errors as InternalErrors
-import com.google.protobuf.Descriptors
-import com.google.protobuf.Descriptors.FieldDescriptor
-import org.wfanet.measurement.api.v2alpha.EventAnnotationsProto
-import org.wfanet.measurement.api.v2alpha.EventFieldDescriptor
-import org.wfanet.measurement.api.v2alpha.EventTemplateDescriptor
 import org.wfanet.measurement.reporting.service.internal.ReportingInternalException
 import org.wfanet.measurement.reporting.v2alpha.BasicReport
 import org.wfanet.measurement.reporting.v2alpha.BasicReportsGrpcKt.BasicReportsCoroutineImplBase
@@ -489,11 +489,14 @@ class BasicReportsService(
     private const val MAX_PAGE_SIZE = 25
 
     /**
-     * Builds Map of EventTemplateField name with respect to Event message to object containing info relevant to [BasicReport]
+     * Builds Map of EventTemplateField name with respect to Event message to object containing info
+     * relevant to [BasicReport]
      *
      * @param eventDescriptor [Descriptors.Descriptor] for Event message
      */
-    fun buildEventTemplateFieldsMap(eventDescriptor: Descriptors.Descriptor): Map<String, EventTemplateFieldInfo.EventTemplateFieldInfo> {
+    fun buildEventTemplateFieldsMap(
+      eventDescriptor: Descriptors.Descriptor
+    ): Map<String, EventTemplateFieldInfo.EventTemplateFieldInfo> {
       return buildMap {
         for (field in eventDescriptor.fields) {
           if (field.messageType.options.hasExtension(EventAnnotationsProto.eventTemplate)) {
@@ -530,9 +533,7 @@ class BasicReportsService(
 
                 val groupingValuesMap = buildMap {
                   if (templateField.type == FieldDescriptor.Type.ENUM) {
-                    templateField.enumType.values.forEach {
-                      put(it.name, it.number)
-                    }
+                    templateField.enumType.values.forEach { put(it.name, it.number) }
                   }
                 }
 
@@ -544,7 +545,7 @@ class BasicReportsService(
                     supportedReportingFeatures = supportedReportingFeatures,
                     type = templateField.type,
                     groupingValuesMap = groupingValuesMap,
-                  )
+                  ),
                 )
               }
             }

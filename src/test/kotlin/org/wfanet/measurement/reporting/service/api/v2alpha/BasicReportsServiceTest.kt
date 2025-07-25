@@ -49,6 +49,7 @@ import org.wfanet.measurement.access.v1alpha.copy
 import org.wfanet.measurement.access.v1alpha.principal
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.db.r2dbc.postgres.testing.PostgresDatabaseProviderRule
 import org.wfanet.measurement.common.grpc.errorInfo
@@ -96,7 +97,6 @@ import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.testing.Schemat
 import org.wfanet.measurement.reporting.deploy.v2.postgres.PostgresMeasurementConsumersService
 import org.wfanet.measurement.reporting.deploy.v2.postgres.PostgresReportingSetsService
 import org.wfanet.measurement.reporting.deploy.v2.postgres.testing.Schemata as PostgresSchemata
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.reporting.service.api.Errors
 import org.wfanet.measurement.reporting.service.internal.ImpressionQualificationFilterMapping
 import org.wfanet.measurement.reporting.v2alpha.BasicReport
@@ -2109,9 +2109,7 @@ class BasicReportsServiceTest {
               resultGroupSpecs[0].copy {
                 dimensionSpec =
                   BASIC_REPORT.resultGroupSpecsList[0].dimensionSpec.copy {
-                    grouping = DimensionSpecKt.grouping {
-                      eventTemplateFields += "person.height"
-                    }
+                    grouping = DimensionSpecKt.grouping { eventTemplateFields += "person.height" }
                   }
               }
           }
@@ -2167,9 +2165,8 @@ class BasicReportsServiceTest {
               resultGroupSpecs[0].copy {
                 dimensionSpec =
                   BASIC_REPORT.resultGroupSpecsList[0].dimensionSpec.copy {
-                    grouping = DimensionSpecKt.grouping {
-                      eventTemplateFields += "banner_ad.viewable"
-                    }
+                    grouping =
+                      DimensionSpecKt.grouping { eventTemplateFields += "banner_ad.viewable" }
                   }
               }
           }
@@ -2586,9 +2583,8 @@ class BasicReportsServiceTest {
               resultGroupSpecs[0].copy {
                 dimensionSpec =
                   BASIC_REPORT.resultGroupSpecsList[0].dimensionSpec.copy {
-                    grouping = DimensionSpecKt.grouping {
-                      eventTemplateFields += "person.age_group"
-                    }
+                    grouping =
+                      DimensionSpecKt.grouping { eventTemplateFields += "person.age_group" }
                     filters += eventFilter {
                       terms += eventTemplateField {
                         path = "person.age_group"
@@ -3491,7 +3487,8 @@ class BasicReportsServiceTest {
                       filters += internalEventFilter {
                         terms += internalEventTemplateField {
                           path = "person.age_group"
-                          value = InternalEventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
+                          value =
+                            InternalEventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
                         }
                       }
 
@@ -3701,7 +3698,8 @@ class BasicReportsServiceTest {
                       filters += internalEventFilter {
                         terms += internalEventTemplateField {
                           path = "person.age_group"
-                          value = InternalEventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
+                          value =
+                            InternalEventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
                         }
                       }
                     }
@@ -3853,7 +3851,8 @@ class BasicReportsServiceTest {
                       filters += internalEventFilter {
                         terms += internalEventTemplateField {
                           path = "person.age_group"
-                          value = InternalEventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
+                          value =
+                            InternalEventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
                         }
                       }
                     }
@@ -4492,7 +4491,8 @@ class BasicReportsServiceTest {
                         filters += eventFilter {
                           terms += eventTemplateField {
                             path = "person.age_group"
-                            value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_TO_18_TO_34" }
+                            value =
+                              EventTemplateFieldKt.fieldValue { enumValue = "YEARS_TO_18_TO_34" }
                           }
                         }
                       }

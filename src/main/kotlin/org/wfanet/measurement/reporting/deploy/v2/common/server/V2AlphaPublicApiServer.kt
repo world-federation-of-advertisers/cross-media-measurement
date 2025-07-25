@@ -329,13 +329,13 @@ private object V2AlphaPublicApiServer {
           )
           .withInterceptor(principalAuthInterceptor),
         BasicReportsService(
-          InternalBasicReportsCoroutineStub(channel),
-          InternalImpressionQualificationFiltersCoroutineStub(channel),
-          InternalReportingSetsCoroutineStub(channel),
-          // TODO(@tristanvuong2021): Switch to non-empty map when ready to deploy
-          emptyMap(),
-          authorization,
-          serviceDispatcher,
+            InternalBasicReportsCoroutineStub(channel),
+            InternalImpressionQualificationFiltersCoroutineStub(channel),
+            InternalReportingSetsCoroutineStub(channel),
+            // TODO(@tristanvuong2021): Switch to non-empty map when ready to deploy
+            emptyMap(),
+            authorization,
+            serviceDispatcher,
           )
           .withInterceptor(principalAuthInterceptor),
         ModelLinesService(
