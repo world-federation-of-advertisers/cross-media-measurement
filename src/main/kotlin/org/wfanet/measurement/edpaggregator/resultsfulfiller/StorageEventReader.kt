@@ -35,13 +35,13 @@ import org.wfanet.measurement.storage.SelectedStorageClient
  * Reads labeled events from impression blobs in storage.
  *
  * Streams [LabeledImpression] records from a storage blob and parses them into [LabeledEvent]
- * messages of the provided [descriptor]. When [kmsClient] is present, data is decrypted using the
- * DEK in [blobDetails].
+ * messages by decoding the embedded event with the provided dynamic [descriptor]. When [kmsClient]
+ * is present, data is decrypted using the DEK in [blobDetails].
  *
  * @property blobDetails metadata describing how to access and decrypt the blob.
  * @property kmsClient KMS client for DEK decryption. If null, reads unencrypted data.
  * @property impressionsStorageConfig configuration for accessing impression blobs.
- * @property descriptor protobuf descriptor for the event message contained in each impression.
+ * @property descriptor protobuf descriptor for dynamic parsing of the embedded event.
  * @property batchSize maximum number of events per emitted batch.
  * @property bufferCapacity number of upstream records to prefetch and buffer between I/O and
  *   parsing.
@@ -54,7 +54,7 @@ class StorageEventReader(
   private val descriptor: Descriptors.Descriptor,
   private val batchSize: Int = DEFAULT_BATCH_SIZE,
   private val bufferCapacity: Int = DEFAULT_BUFFER_CAPACITY,
-) : EventReader {
+) : EventReader<Message> {
 
   /** Returns the underlying blob details. */
   fun getBlobDetails(): BlobDetails {
@@ -80,7 +80,7 @@ class StorageEventReader(
    * ## Processing Pipeline
    * 1. **Storage Setup**: Configures encrypted or plain storage based on [kmsClient]
    * 2. **Streaming**: Reads [LabeledImpression] messages as a stream
-   * 3. **Parsing**: Converts impressions to [LabeledEvent] with [DynamicMessage]
+   * 3. **Parsing**: Converts impressions to [LabeledEvent] using [descriptor]
    * 4. **Batching**: Accumulates events until [batchSize] is reached
    * 5. **Emission**: Emits complete batches through the flow
    *
@@ -91,65 +91,66 @@ class StorageEventReader(
    * @throws ImpressionReadException with [ImpressionReadException.Code.INVALID_FORMAT] if an event
    *   type URL is not found in [typeRegistry]
    */
-  private fun readEventsFromBlob(blobDetails: BlobDetails): Flow<List<LabeledEvent<Message>>> =
-    flow {
-      val storageClientUri = SelectedStorageClient.parseBlobUri(blobDetails.blobUri)
+  private fun readEventsFromBlob(
+    blobDetails: BlobDetails
+  ): Flow<List<LabeledEvent<Message>>> = flow {
+    val storageClientUri = SelectedStorageClient.parseBlobUri(blobDetails.blobUri)
 
-      // Create and configure storage client with encryption
-      val encryptedDek = blobDetails.encryptedDek
-      val selectedStorageClient =
-        SelectedStorageClient(
-          storageClientUri,
-          impressionsStorageConfig.rootDirectory,
-          impressionsStorageConfig.projectId,
+    // Create and configure storage client with encryption
+    val encryptedDek = blobDetails.encryptedDek
+    val selectedStorageClient =
+      SelectedStorageClient(
+        storageClientUri,
+        impressionsStorageConfig.rootDirectory,
+        impressionsStorageConfig.projectId,
+      )
+
+    val impressionsStorage =
+      if (kmsClient == null) {
+        MesosRecordIoStorageClient(selectedStorageClient)
+      } else {
+        EncryptedStorage.buildEncryptedMesosStorageClient(
+          selectedStorageClient,
+          kekUri = encryptedDek.kekUri,
+          kmsClient = kmsClient,
+          serializedEncryptionKey = encryptedDek.encryptedDek,
+        )
+      }
+
+    val impressionBlob =
+      impressionsStorage.getBlob(storageClientUri.key)
+        ?: throw ImpressionReadException(
+          storageClientUri.key,
+          ImpressionReadException.Code.BLOB_NOT_FOUND,
         )
 
-      val impressionsStorage =
-        if (kmsClient == null) {
-          MesosRecordIoStorageClient(selectedStorageClient)
-        } else {
-          EncryptedStorage.buildEncryptedMesosStorageClient(
-            selectedStorageClient,
-            kekUri = encryptedDek.kekUri,
-            kmsClient = kmsClient,
-            serializedEncryptionKey = encryptedDek.encryptedDek,
-          )
-        }
+    val currentBatch = mutableListOf<LabeledEvent<Message>>()
 
-      val impressionBlob =
-        impressionsStorage.getBlob(storageClientUri.key)
-          ?: throw ImpressionReadException(
-            storageClientUri.key,
-            ImpressionReadException.Code.BLOB_NOT_FOUND,
-          )
+    impressionBlob.read().buffer(bufferCapacity).collect { impressionByteString ->
+      val impression: LabeledImpression = LabeledImpression.parseFrom(impressionByteString)
+      val eventMessage: Message = DynamicMessage.parseFrom(descriptor, impression.event.value)
+      val labeledEvent =
+        LabeledEvent(
+          timestamp = impression.eventTime.toInstant(),
+          vid = impression.vid,
+          message = eventMessage,
+          eventGroupReferenceId = impression.eventGroupReferenceId,
+        )
 
-      val currentBatch = mutableListOf<LabeledEvent<Message>>()
+      currentBatch.add(labeledEvent)
 
-      impressionBlob.read().buffer(bufferCapacity).collect { impressionByteString ->
-        val impression: LabeledImpression = LabeledImpression.parseFrom(impressionByteString)
-        val eventMessage: Message = DynamicMessage.parseFrom(descriptor, impression.event.value)
-        val labeledEvent =
-          LabeledEvent(
-            timestamp = impression.eventTime.toInstant(),
-            vid = impression.vid,
-            message = eventMessage,
-            eventGroupReferenceId = impression.eventGroupReferenceId,
-          )
-
-        currentBatch.add(labeledEvent)
-
-        // Emit batch when it reaches the desired size
-        if (currentBatch.size >= batchSize) {
-          emit(currentBatch.toList())
-          currentBatch.clear()
-        }
-      }
-
-      // Emit any remaining events in the last batch
-      if (currentBatch.isNotEmpty()) {
+      // Emit batch when it reaches the desired size
+      if (currentBatch.size >= batchSize) {
         emit(currentBatch.toList())
+        currentBatch.clear()
       }
     }
+
+    // Emit any remaining events in the last batch
+    if (currentBatch.isNotEmpty()) {
+      emit(currentBatch.toList())
+    }
+  }
 
   companion object {
     /**

@@ -200,15 +200,26 @@ class StorageEventSource(
     logger.fine("Reading events from ${blobDetails.blobUri}")
 
     eventReader.readEvents().collect { events ->
+      // Upcast events to Message to build EventBatch<Message>
+      val eventsAsMessage: List<LabeledEvent<Message>> =
+        events.map { e ->
+          LabeledEvent(
+            timestamp = e.timestamp,
+            vid = e.vid,
+            message = e.message,
+            eventGroupReferenceId = e.eventGroupReferenceId,
+          )
+        }
+
       val eventBatch =
         EventBatch<Message>(
-          events = events,
-          minTime = events.minOf { it.timestamp },
-          maxTime = events.maxOf { it.timestamp },
+          events = eventsAsMessage,
+          minTime = eventsAsMessage.minOf { it.timestamp },
+          maxTime = eventsAsMessage.maxOf { it.timestamp },
         )
       sendEventBatch(eventBatch)
       batchCount++
-      eventCount += events.size
+      eventCount += eventsAsMessage.size
     }
 
     logger.fine("Read $eventCount events in $batchCount batches for ${blobDetails.blobUri}")
