@@ -239,4 +239,5 @@ class StripedByteFrequencyVector(private val size: Int) : FrequencyVector {
 
     return mergedVector
   }
+
 }
