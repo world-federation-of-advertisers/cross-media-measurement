@@ -18,60 +18,29 @@ package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
 /**
  * Interface for frequency vectors used in reach and frequency measurements.
- * 
- * Provides operations for managing and analyzing frequency data, including
- * getting frequency counts and computing reach metrics.
+ *
+ * Provides operations for getting reach, average frequency, and total count metrics.
  */
 interface FrequencyVector {
-  
-  /**
-   * Gets the frequency for a specific VID.
-   * 
-   * @param vid The virtual ID to query
-   * @return The frequency count for the VID, or 0 if not present
-   */
-  fun getFrequency(vid: Long): Int
-  
+
   /**
    * Gets the total reach (unique VID count).
-   * 
+   *
    * @return The number of unique VIDs in this frequency vector
    */
   fun getReach(): Long
-  
+
   /**
-   * Gets the frequency distribution.
-   * 
-   * @return A map from frequency values to counts of VIDs with that frequency
+   * Gets the average frequency per VID.
+   *
+   * @return The average frequency (total frequency / reach)
    */
-  fun getFrequencyDistribution(): Map<Int, Long>
-  
+  fun getAverageFrequency(): Double
+
   /**
-   * Gets the total frequency across all VIDs.
-   * 
-   * @return The sum of all frequencies
+   * Gets the total count of all impressions.
+   *
+   * @return The total count across all VIDs
    */
-  fun getTotalFrequency(): Long
-  
-  /**
-   * Gets the maximum frequency in this vector.
-   * 
-   * @return The highest frequency value, or 0 if empty
-   */
-  fun getMaxFrequency(): Int
-  
-  /**
-   * Gets all VIDs in this frequency vector.
-   * 
-   * @return A set of all VIDs that have non-zero frequency
-   */
-  fun getVids(): Set<Long>
-  
-  /**
-   * Merges this frequency vector with another.
-   * 
-   * @param other The frequency vector to merge with
-   * @return A new frequency vector containing the combined data
-   */
-  fun merge(other: FrequencyVector): FrequencyVector
+  fun getTotalCount(): Long
 }

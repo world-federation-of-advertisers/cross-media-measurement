@@ -97,7 +97,7 @@ class StripedByteFrequencyVector(private val size: Int) : FrequencyVector {
    * 
    * @return Total frequency count
    */
-  fun getTotalCount(): Long {
+  private fun getTotalCountInternal(): Long {
     var total = 0L
     for (i in 0 until stripeCount) {
       synchronized(locks[i]) {
@@ -145,99 +145,19 @@ class StripedByteFrequencyVector(private val size: Int) : FrequencyVector {
     return indices
   }
   
-  /**
-   * Gets the frequency distribution (frequency value -> count).
-   * 
-   * @return Map of frequency values to their counts
-   */
-  override fun getFrequencyDistribution(): Map<Int, Long> {
-    val distribution = mutableMapOf<Int, Long>()
-    for (i in 0 until stripeCount) {
-      synchronized(locks[i]) {
-        val start = i * stripeSize
-        val end = minOf(start + stripeSize, size)
-        for (j in start until end) {
-          val freq = data[j].toInt() and 0xFF
-          if (freq > 0) {
-            distribution[freq] = distribution.getOrDefault(freq, 0L) + 1L
-          }
-        }
-      }
-    }
-    return distribution
-  }
-  
-  /**
-   * Gets the maximum frequency value.
-   * 
-   * @return Maximum frequency across all VIDs
-   */
-  override fun getMaxFrequency(): Int {
-    var max = 0
-    for (i in 0 until stripeCount) {
-      synchronized(locks[i]) {
-        val start = i * stripeSize
-        val end = minOf(start + stripeSize, size)
-        for (j in start until end) {
-          val freq = data[j].toInt() and 0xFF
-          if (freq > max) {
-            max = freq
-          }
-        }
-      }
-    }
-    return max
-  }
-
   // FrequencyVector interface implementation
-  override fun getFrequency(vid: Long): Int {
-    // Note: This implementation assumes VID == index
-    // For proper VID mapping, use with a VidIndexMap wrapper
-    val index = vid.toInt()
-    return getFrequencyByIndex(index)
-  }
-
   override fun getReach(): Long {
     val (_, reach) = computeStatistics()
     return reach
   }
 
-  override fun getTotalFrequency(): Long {
-    return getTotalCount()
+  override fun getAverageFrequency(): Double {
+    val (avgFreq, _) = computeStatistics()
+    return avgFreq
   }
 
-  override fun getVids(): Set<Long> {
-    // Return indices as VIDs for this simple implementation
-    return getNonZeroIndices().map { it.toLong() }.toSet()
-  }
-
-  override fun merge(other: FrequencyVector): FrequencyVector {
-    require(other is StripedByteFrequencyVector) {
-      "Can only merge with another StripedByteFrequencyVector"
-    }
-    require(size == other.size) {
-      "Cannot merge frequency vectors with different sizes"
-    }
-
-    val mergedVector = StripedByteFrequencyVector(size)
-
-    // Copy this vector's data
-    for (index in getNonZeroIndices()) {
-      val freq = getFrequencyByIndex(index)
-      for (i in 0 until freq) {
-        mergedVector.incrementByIndex(index)
-      }
-    }
-
-    // Add other vector's data
-    for (index in other.getNonZeroIndices()) {
-      val freq = other.getFrequencyByIndex(index)
-      for (i in 0 until freq) {
-        mergedVector.incrementByIndex(index)
-      }
-    }
-
-    return mergedVector
+  override fun getTotalCount(): Long {
+    return getTotalCountInternal()
   }
 
 }

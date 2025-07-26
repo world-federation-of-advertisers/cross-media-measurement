@@ -242,4 +242,41 @@ class StripedByteFrequencyVectorTest {
     assertThat(stats1.second).isEqualTo(3L) // Unique indices
     assertThat(stats1.first).isWithin(0.001).of(2.0) // 6 total / 3 unique
   }
+
+  @Test
+  fun `interface methods return correct values`() {
+    val vector = StripedByteFrequencyVector(100)
+    
+    // Add various frequencies
+    vector.incrementByIndex(10)
+    vector.incrementByIndex(10)
+    vector.incrementByIndex(20)
+    vector.incrementByIndex(20)
+    vector.incrementByIndex(20)
+    vector.incrementByIndex(30)
+    
+    // Test interface methods
+    assertThat(vector.getReach()).isEqualTo(3L)
+    assertThat(vector.getTotalCount()).isEqualTo(6L)
+    assertThat(vector.getAverageFrequency()).isWithin(0.001).of(2.0)
+  }
+
+  @Test
+  fun `interface methods work correctly with empty vector`() {
+    val vector = StripedByteFrequencyVector(100)
+    
+    assertThat(vector.getReach()).isEqualTo(0L)
+    assertThat(vector.getTotalCount()).isEqualTo(0L)
+    assertThat(vector.getAverageFrequency()).isEqualTo(0.0)
+  }
+
+  @Test
+  fun `interface methods work correctly with single element`() {
+    val vector = StripedByteFrequencyVector(100)
+    vector.incrementByIndex(42)
+    
+    assertThat(vector.getReach()).isEqualTo(1L)
+    assertThat(vector.getTotalCount()).isEqualTo(1L)
+    assertThat(vector.getAverageFrequency()).isEqualTo(1.0)
+  }
 }
