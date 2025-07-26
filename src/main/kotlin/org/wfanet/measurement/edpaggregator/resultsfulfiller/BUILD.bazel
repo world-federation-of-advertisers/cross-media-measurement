@@ -1,21 +1,26 @@
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_binary", "kt_jvm_library")
 load("@rules_java//java:defs.bzl", "java_binary")
-load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
 load("//src/main/docker:macros.bzl", "java_image")
 
 package(
     default_visibility = [
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator:__subpackages__",
         "//src/main/kotlin/org/wfanet/measurement/integration/common:__subpackages__",
+        "//src/main/kotlin/org/wfanet/measurement/loadtest:__subpackages__",
         "//src/test/kotlin/org/wfanet/measurement/edpaggregator:__subpackages__",
+        "//src/test/kotlin/org/wfanet/measurement/loadtest:__subpackages__",
     ],
 )
 
+
 kt_jvm_library(
     name = "results_fulfiller",
+    testonly = True,
     srcs = ["ResultsFulfiller.kt"],
     deps = [
         ":continuous_gaussian_noiser_selector",
         ":event_reader",
+        ":frequency_vector",
         ":noiser_selector",
         ":requisition_specs",
         ":vid_filter",
@@ -98,6 +103,7 @@ kt_jvm_library(
     ],
 )
 
+
 kt_jvm_library(
     name = "vid_filter",
     srcs = ["VidFilter.kt"],
@@ -116,9 +122,12 @@ kt_jvm_library(
         ":impression_read_exception",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator:encrypted_storage",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator:storage_config",
+        ":labeled_event",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:blob_details_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:labeled_impression_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/crypto/tink",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/tink",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:mesos_recordio_storage_client",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:selected_storage_client",
@@ -127,6 +136,7 @@ kt_jvm_library(
 
 kt_jvm_library(
     name = "results_fulfiller_app",
+    testonly = True,
     srcs = ["ResultsFulfillerApp.kt"],
     deps = [
         ":continuous_gaussian_noiser_selector",
@@ -169,19 +179,10 @@ kt_jvm_library(
     ],
 )
 
-kt_jvm_library(
-    name = "requisition_specs",
-    srcs = ["RequisitionSpecs.kt"],
-    deps = [
-        ":event_reader",
-        ":vid_filter",
-        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/eventfiltration:event_filters",
-        "//src/main/proto/wfa/measurement/api/v2alpha:measurement_spec_kt_jvm_proto",
-    ],
-)
 
 kt_jvm_library(
     name = "results_fulfiller_app_runner",
+    testonly = True,
     srcs = ["ResultsFulfillerAppRunner.kt"],
     deps = [
         ":requisition_stub_factory_impl",
@@ -193,8 +194,25 @@ kt_jvm_library(
     ],
 )
 
+kt_jvm_library(
+    name = "requisition_specs",
+    testonly = True,
+    srcs = ["RequisitionSpecs.kt"],
+    deps = [
+        ":event_reader",
+        ":vid_filter",
+        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/eventfiltration:event_filters",
+        "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:labeled_event",
+        "//src/main/proto/wfa/measurement/api/v2alpha:measurement_spec_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:requisition_spec_kt_jvm_proto",
+    ],
+)
+
+
+
 java_binary(
     name = "ResultsFulfiller",
+    testonly = True,
     main_class = "org.wfanet.measurement.edpaggregator.resultsfulfiller.ResultsFulfillerAppRunner",
     runtime_deps = [
         ":results_fulfiller_app_runner",
@@ -203,6 +221,7 @@ java_binary(
 
 java_image(
     name = "results_fulfiller_image",
+    testonly = True,
     binary = ":ResultsFulfiller",
     main_class = "org.wfanet.measurement.edpaggregator.resultsfulfiller.ResultsFulfillerAppRunner",
     visibility = ["//src:docker_image_deployment"],
