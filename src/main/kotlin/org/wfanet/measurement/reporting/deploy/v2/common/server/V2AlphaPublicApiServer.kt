@@ -207,10 +207,14 @@ private object V2AlphaPublicApiServer {
     metricSpecConfig.validate()
 
     val basicReportMetricSpecConfig =
-      parseTextProto(
-        v2AlphaFlags.basicReportMetricSpecConfigFile,
-        MetricSpecConfig.getDefaultInstance(),
-      )
+      if (v2AlphaFlags.basicReportMetricSpecConfigFile == null) {
+        metricSpecConfig
+      } else {
+        parseTextProto(
+          v2AlphaFlags.basicReportMetricSpecConfigFile!!,
+          MetricSpecConfig.getDefaultInstance(),
+        )
+      }
     basicReportMetricSpecConfig.validate()
 
     val apiKey = measurementConsumerConfigs.configsMap.values.first().apiKey
