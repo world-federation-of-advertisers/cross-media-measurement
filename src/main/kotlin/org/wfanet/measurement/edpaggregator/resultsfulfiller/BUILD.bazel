@@ -87,6 +87,18 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
+    name = "frequency_vector",
+    srcs = [
+        "FrequencyVector.kt",
+        "FrequencyVectorBuilder.kt",
+        "StripedByteFrequencyVector.kt",
+    ],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/shareshuffle/v2alpha:shareshuffle",
+    ],
+)
+
+kt_jvm_library(
     name = "vid_filter",
     srcs = ["VidFilter.kt"],
     deps = [
