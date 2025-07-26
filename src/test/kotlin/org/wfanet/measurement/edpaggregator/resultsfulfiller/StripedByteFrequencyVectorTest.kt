@@ -32,10 +32,8 @@ class StripedByteFrequencyVectorTest {
   fun `empty vector has zero statistics`() {
     val vector = StripedByteFrequencyVector(100)
     
-    val (averageFreq, reach) = vector.computeStatistics()
-    
-    assertThat(averageFreq).isEqualTo(0.0)
-    assertThat(reach).isEqualTo(0L)
+    assertThat(vector.getAverageFrequency()).isEqualTo(0.0)
+    assertThat(vector.getReach()).isEqualTo(0L)
     assertThat(vector.getTotalCount()).isEqualTo(0L)
   }
 
@@ -45,9 +43,8 @@ class StripedByteFrequencyVectorTest {
     
     vector.incrementByIndex(5)
     
-    val (averageFreq, reach) = vector.computeStatistics()
-    assertThat(averageFreq).isEqualTo(1.0)
-    assertThat(reach).isEqualTo(1L)
+    assertThat(vector.getAverageFrequency()).isEqualTo(1.0)
+    assertThat(vector.getReach()).isEqualTo(1L)
     assertThat(vector.getTotalCount()).isEqualTo(1L)
   }
 
@@ -60,9 +57,8 @@ class StripedByteFrequencyVectorTest {
       vector.incrementByIndex(index)
     }
     
-    val (averageFreq, reach) = vector.computeStatistics()
-    assertThat(averageFreq).isEqualTo(5.0)
-    assertThat(reach).isEqualTo(1L)
+    assertThat(vector.getAverageFrequency()).isEqualTo(5.0)
+    assertThat(vector.getReach()).isEqualTo(1L)
     assertThat(vector.getTotalCount()).isEqualTo(5L)
   }
 
@@ -75,10 +71,9 @@ class StripedByteFrequencyVectorTest {
     vector.incrementByIndex(30)
     vector.incrementByIndex(10) // Second increment at index 10
     
-    val (averageFreq, reach) = vector.computeStatistics()
-    assertThat(reach).isEqualTo(3L) // Three unique indices
+    assertThat(vector.getReach()).isEqualTo(3L) // Three unique indices
     assertThat(vector.getTotalCount()).isEqualTo(4L) // Four total increments
-    assertThat(averageFreq).isWithin(0.001).of(4.0 / 3.0) // 4 total / 3 unique
+    assertThat(vector.getAverageFrequency()).isWithin(0.001).of(4.0 / 3.0) // 4 total / 3 unique
   }
 
   @Test
@@ -90,9 +85,8 @@ class StripedByteFrequencyVectorTest {
     vector.incrementByIndex(100)
     vector.incrementByIndex(5) // Valid index
     
-    val (averageFreq, reach) = vector.computeStatistics()
-    assertThat(averageFreq).isEqualTo(1.0)
-    assertThat(reach).isEqualTo(1L)
+    assertThat(vector.getAverageFrequency()).isEqualTo(1.0)
+    assertThat(vector.getReach()).isEqualTo(1L)
     assertThat(vector.getTotalCount()).isEqualTo(1L)
   }
 
@@ -106,9 +100,8 @@ class StripedByteFrequencyVectorTest {
       vector.incrementByIndex(index)
     }
     
-    val (averageFreq, reach) = vector.computeStatistics()
-    assertThat(averageFreq).isEqualTo(255.0)
-    assertThat(reach).isEqualTo(1L)
+    assertThat(vector.getAverageFrequency()).isEqualTo(255.0)
+    assertThat(vector.getReach()).isEqualTo(1L)
     assertThat(vector.getTotalCount()).isEqualTo(255L)
   }
 
@@ -152,11 +145,10 @@ class StripedByteFrequencyVectorTest {
     
     jobs.awaitAll()
     
-    val (averageFreq, reach) = vector.computeStatistics()
     val expectedTotal = concurrency * incrementsPerThread
     
-    assertThat(reach).isEqualTo(1L)
-    assertThat(averageFreq).isEqualTo(expectedTotal.toDouble())
+    assertThat(vector.getReach()).isEqualTo(1L)
+    assertThat(vector.getAverageFrequency()).isEqualTo(expectedTotal.toDouble())
     assertThat(vector.getTotalCount()).isEqualTo(expectedTotal.toLong())
   }
 
@@ -178,13 +170,12 @@ class StripedByteFrequencyVectorTest {
     jobs.awaitAll()
     
     val totalCount = vector.getTotalCount()
-    val (averageFreq, reach) = vector.computeStatistics()
     
     assertThat(totalCount).isEqualTo(2000L) // 20 threads * 100 increments
-    assertThat(reach).isAtLeast(1L)
-    assertThat(reach).isAtMost(1000L)
-    assertThat(averageFreq).isAtLeast(1.0)
-    assertThat(averageFreq).isAtMost(255.0)
+    assertThat(vector.getReach()).isAtLeast(1L)
+    assertThat(vector.getReach()).isAtMost(1000L)
+    assertThat(vector.getAverageFrequency()).isAtLeast(1.0)
+    assertThat(vector.getAverageFrequency()).isAtMost(255.0)
   }
 
   @Test
@@ -194,9 +185,8 @@ class StripedByteFrequencyVectorTest {
     vector.incrementByIndex(0)
     vector.incrementByIndex(0)
     
-    val (averageFreq, reach) = vector.computeStatistics()
-    assertThat(averageFreq).isEqualTo(2.0)
-    assertThat(reach).isEqualTo(1L)
+    assertThat(vector.getAverageFrequency()).isEqualTo(2.0)
+    assertThat(vector.getReach()).isEqualTo(1L)
     assertThat(vector.getTotalCount()).isEqualTo(2L)
   }
 
@@ -210,11 +200,10 @@ class StripedByteFrequencyVectorTest {
       vector.incrementByIndex(i)
     }
     
-    val (averageFreq, reach) = vector.computeStatistics()
     val expectedReach = size / 1000
     
-    assertThat(reach).isEqualTo(expectedReach.toLong())
-    assertThat(averageFreq).isEqualTo(1.0)
+    assertThat(vector.getReach()).isEqualTo(expectedReach.toLong())
+    assertThat(vector.getAverageFrequency()).isEqualTo(1.0)
     assertThat(vector.getTotalCount()).isEqualTo(expectedReach.toLong())
   }
 
@@ -231,16 +220,19 @@ class StripedByteFrequencyVectorTest {
     vector.incrementByIndex(30)
     
     // Multiple calls should return same results
-    val stats1 = vector.computeStatistics()
-    val stats2 = vector.computeStatistics()
+    val reach1 = vector.getReach()
+    val reach2 = vector.getReach()
+    val avgFreq1 = vector.getAverageFrequency()
+    val avgFreq2 = vector.getAverageFrequency()
     val count1 = vector.getTotalCount()
     val count2 = vector.getTotalCount()
     
-    assertThat(stats1).isEqualTo(stats2)
+    assertThat(reach1).isEqualTo(reach2)
+    assertThat(avgFreq1).isEqualTo(avgFreq2)
     assertThat(count1).isEqualTo(count2)
     assertThat(count1).isEqualTo(6L) // Total increments
-    assertThat(stats1.second).isEqualTo(3L) // Unique indices
-    assertThat(stats1.first).isWithin(0.001).of(2.0) // 6 total / 3 unique
+    assertThat(reach1).isEqualTo(3L) // Unique indices
+    assertThat(avgFreq1).isWithin(0.001).of(2.0) // 6 total / 3 unique
   }
 
   @Test

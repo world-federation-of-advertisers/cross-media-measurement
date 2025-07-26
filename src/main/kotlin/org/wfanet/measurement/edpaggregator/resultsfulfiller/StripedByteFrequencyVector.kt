@@ -65,7 +65,7 @@ class StripedByteFrequencyVector(private val size: Int) : FrequencyVector {
    * 
    * @return Pair of (average frequency, reach count)
    */
-  fun computeStatistics(): Pair<Double, Long> {
+  private fun computeStatistics(): Pair<Double, Long> {
     var totalFrequency = 0L
     var nonZeroCount = 0L
     
@@ -111,39 +111,6 @@ class StripedByteFrequencyVector(private val size: Int) : FrequencyVector {
     return total
   }
   
-  /**
-   * Gets the frequency count for a specific index.
-   * 
-   * @param index The index to query
-   * @return Frequency count at the index
-   */
-  fun getFrequencyByIndex(index: Int): Int {
-    if (index < 0 || index >= size) return 0
-    synchronized(locks[getStripe(index)]) {
-      return data[index].toInt() and 0xFF
-    }
-  }
-  
-  /**
-   * Gets all indices with non-zero frequency.
-   * 
-   * @return List of indices with frequency > 0
-   */
-  fun getNonZeroIndices(): List<Int> {
-    val indices = mutableListOf<Int>()
-    for (i in 0 until stripeCount) {
-      synchronized(locks[i]) {
-        val start = i * stripeSize
-        val end = minOf(start + stripeSize, size)
-        for (j in start until end) {
-          if ((data[j].toInt() and 0xFF) > 0) {
-            indices.add(j)
-          }
-        }
-      }
-    }
-    return indices
-  }
   
   // FrequencyVector interface implementation
   override fun getReach(): Long {
