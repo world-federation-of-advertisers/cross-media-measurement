@@ -16,7 +16,6 @@
 
 package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
-import java.security.SecureRandom
 
 /**
  * Thread-safe, memory-efficient frequency vector using striped byte arrays.
@@ -239,30 +238,5 @@ class StripedByteFrequencyVector(private val size: Int) : FrequencyVector {
     }
 
     return mergedVector
-  }
-
-  override fun sample(rate: Double, random: SecureRandom): FrequencyVector {
-    require(rate in 0.0..1.0) { "Sampling rate must be between 0 and 1" }
-
-    val sampledVector = StripedByteFrequencyVector(size)
-
-    for (index in getNonZeroIndices()) {
-      val freq = getFrequencyByIndex(index)
-      var sampledFreq = 0
-
-      // Sample each impression independently
-      for (i in 0 until freq) {
-        if (random.nextDouble() < rate) {
-          sampledFreq++
-        }
-      }
-
-      // Add sampled frequency
-      for (i in 0 until sampledFreq) {
-        sampledVector.incrementByIndex(index)
-      }
-    }
-
-    return sampledVector
   }
 }

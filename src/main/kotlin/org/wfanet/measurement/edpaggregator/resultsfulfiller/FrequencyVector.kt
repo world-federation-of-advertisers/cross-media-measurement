@@ -16,13 +16,11 @@
 
 package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
-import java.security.SecureRandom
-
 /**
  * Interface for frequency vectors used in reach and frequency measurements.
  * 
  * Provides operations for managing and analyzing frequency data, including
- * getting frequency counts, computing reach metrics, and handling sampling.
+ * getting frequency counts and computing reach metrics.
  */
 interface FrequencyVector {
   
@@ -76,13 +74,4 @@ interface FrequencyVector {
    * @return A new frequency vector containing the combined data
    */
   fun merge(other: FrequencyVector): FrequencyVector
-  
-  /**
-   * Samples this frequency vector at the given rate.
-   * 
-   * @param rate The sampling rate (0.0 to 1.0)
-   * @param random The random number generator to use
-   * @return A new frequency vector containing the sampled data
-   */
-  fun sample(rate: Double, random: SecureRandom): FrequencyVector
 }

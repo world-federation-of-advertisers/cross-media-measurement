@@ -93,7 +93,9 @@ kt_jvm_library(
         "FrequencyVectorBuilder.kt",
         "StripedByteFrequencyVector.kt",
     ],
-    deps = [],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/shareshuffle/v2alpha:shareshuffle",
+    ],
 )
 
 kt_jvm_library(
