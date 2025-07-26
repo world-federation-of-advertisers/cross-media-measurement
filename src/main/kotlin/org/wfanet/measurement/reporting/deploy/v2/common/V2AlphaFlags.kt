@@ -44,4 +44,12 @@ class V2AlphaFlags {
   )
   lateinit var metricSpecConfigFile: File
     private set
+
+  @CommandLine.Option(
+    names = ["--basic-report-metric-spec-config-file"],
+    description = ["File path to a MetricSpecConfig textproto for BasicReports"],
+    required = true,
+  )
+  lateinit var basicReportMetricSpecConfigFile: File
+    private set
 }

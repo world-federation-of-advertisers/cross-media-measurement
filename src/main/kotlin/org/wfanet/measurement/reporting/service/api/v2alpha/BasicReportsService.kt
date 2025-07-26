@@ -57,6 +57,7 @@ import org.wfanet.measurement.reporting.service.api.ReportingSetNotFoundExceptio
 import org.wfanet.measurement.reporting.service.api.RequiredFieldNotSetException
 import org.wfanet.measurement.reporting.service.api.ServiceException
 import org.wfanet.measurement.reporting.service.internal.Errors as InternalErrors
+import org.wfanet.measurement.config.reporting.MetricSpecConfig
 import org.wfanet.measurement.reporting.service.internal.ReportingInternalException
 import org.wfanet.measurement.reporting.v2alpha.BasicReport
 import org.wfanet.measurement.reporting.v2alpha.BasicReportsGrpcKt.BasicReportsCoroutineImplBase
@@ -76,6 +77,7 @@ class BasicReportsService(
   private val internalImpressionQualificationFiltersStub:
     ImpressionQualificationFiltersCoroutineStub,
   private val internalReportingSetsStub: InternalReportingSetsCoroutineStub,
+  private val metricSpecConfig: MetricSpecConfig,
   private val authorization: Authorization,
   coroutineContext: CoroutineContext = EmptyCoroutineContext,
 ) : BasicReportsCoroutineImplBase(coroutineContext) {

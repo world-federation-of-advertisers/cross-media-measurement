@@ -96,6 +96,10 @@ import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.testing.Schemat
 import org.wfanet.measurement.reporting.deploy.v2.postgres.PostgresMeasurementConsumersService
 import org.wfanet.measurement.reporting.deploy.v2.postgres.PostgresReportingSetsService
 import org.wfanet.measurement.reporting.deploy.v2.postgres.testing.Schemata as PostgresSchemata
+import java.nio.file.Paths
+import org.wfanet.measurement.common.getRuntimePath
+import org.wfanet.measurement.common.parseTextProto
+import org.wfanet.measurement.config.reporting.MetricSpecConfig
 import org.wfanet.measurement.reporting.service.api.Errors
 import org.wfanet.measurement.reporting.service.internal.ImpressionQualificationFilterMapping
 import org.wfanet.measurement.reporting.v2alpha.BasicReport
@@ -181,6 +185,7 @@ class BasicReportsServiceTest {
         internalBasicReportsService,
         internalImpressionQualificationFiltersService,
         internalReportingSetsService,
+        METRIC_SPEC_CONFIG,
         authorization,
       )
   }
@@ -4903,6 +4908,18 @@ class BasicReportsServiceTest {
     @JvmStatic
     val postgresDatabaseProvider =
       PostgresDatabaseProviderRule(PostgresSchemata.REPORTING_CHANGELOG_PATH)
+
+    private val SECRETS_DIR =
+      getRuntimePath(
+        Paths.get("wfa_measurement_system", "src", "main", "k8s", "testing", "secretfiles")
+      )!!
+        .toFile()
+
+    private val METRIC_SPEC_CONFIG: MetricSpecConfig =
+      parseTextProto(
+        SECRETS_DIR.resolve("metric_spec_config.textproto"),
+        MetricSpecConfig.getDefaultInstance(),
+      )
 
     private const val DEFAULT_PAGE_SIZE = 10
     private const val MAX_PAGE_SIZE = 25

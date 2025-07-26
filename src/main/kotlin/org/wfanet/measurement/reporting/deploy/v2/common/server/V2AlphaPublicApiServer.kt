@@ -206,6 +206,10 @@ private object V2AlphaPublicApiServer {
       parseTextProto(v2AlphaFlags.metricSpecConfigFile, MetricSpecConfig.getDefaultInstance())
     metricSpecConfig.validate()
 
+    val basicReportMetricSpecConfig =
+      parseTextProto(v2AlphaFlags.basicReportMetricSpecConfigFile, MetricSpecConfig.getDefaultInstance())
+    basicReportMetricSpecConfig.validate()
+
     val apiKey = measurementConsumerConfigs.configsMap.values.first().apiKey
     val celEnvCacheProvider =
       CelEnvCacheProvider(
@@ -332,6 +336,7 @@ private object V2AlphaPublicApiServer {
             InternalBasicReportsCoroutineStub(channel),
             InternalImpressionQualificationFiltersCoroutineStub(channel),
             InternalReportingSetsCoroutineStub(channel),
+            basicReportMetricSpecConfig,
             authorization,
             serviceDispatcher,
           )
