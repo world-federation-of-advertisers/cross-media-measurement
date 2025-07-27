@@ -260,7 +260,8 @@ private fun MutableMap<
  * Helper method for [buildReportingSetMetricCalculationSpecDetailsMap]. Transforms
  * [ReportingUnitMetricSetSpec] into entries for the map
  *
- * @param reportingUnitReportingSet [ReportingSet] that is union of all Primitive [ReportingSet]s for each component in the [ReportingUnit]
+ * @param reportingUnitReportingSet [ReportingSet] that is union of all Primitive [ReportingSet]s
+ *   for each component in the [ReportingUnit]
  * @param reportingUnitMetricSetSpec [ReportingUnitMetricSetSpec] to transform
  * @param metricFrequencySpec [MetricFrequencySpec]
  * @param groupings list of [MetricCalculationSpec.Grouping]
@@ -355,12 +356,14 @@ private fun MutableMap<
  * Helper method for [buildReportingSetMetricCalculationSpecDetailsMap]. Transforms
  * [ComponentMetricSetSpec] into entries for the map
  *
- * @param reportingUnitReportingSet [ReportingSet] that is union of all Primitive [ReportingSet]s for each component in the [ReportingUnit]
+ * @param reportingUnitReportingSet [ReportingSet] that is union of all Primitive [ReportingSet]s
+ *   for each component in the [ReportingUnit]
  * @param componentMetricSetSpec [ComponentMetricSetSpec] to transform
  * @param metricFrequencySpec [MetricFrequencySpec]
  * @param groupings list of [MetricCalculationSpec.Grouping]
  * @param filters list of [String] CEL filters
- * @param primitiveReportingSets List of Primitive [ReportingSet]s in order of [ReportingUnit] components
+ * @param primitiveReportingSets List of Primitive [ReportingSet]s in order of [ReportingUnit]
+ *   components
  * @param primitiveReportingSetNames List of Primitive [ReportingSet] names
  * @param campaignGroupName resource name of CampaignGroup [ReportingSet]
  * @param includePopulation whether to include the population
