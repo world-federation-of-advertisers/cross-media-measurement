@@ -225,6 +225,25 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
+    name = "frequency_vector_sink",
+    srcs = ["FrequencyVectorSink.kt"],
+    deps = [
+        ":filter_spec",
+        ":frequency_vector",
+        ":labeled_event",
+        ":sink_statistics",
+        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/shareshuffle/v2alpha:shareshuffle",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+    ],
+)
+
+kt_jvm_library(
+    name = "sink_statistics",
+    srcs = ["SinkStatistics.kt"],
+    deps = [],
+)
+
+kt_jvm_library(
     name = "results_fulfiller_app_runner",
     srcs = ["ResultsFulfillerAppRunner.kt"],
     deps = [
