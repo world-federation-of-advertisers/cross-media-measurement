@@ -174,19 +174,19 @@ private fun createMetricCalculationSpecFilters(
     dimensionSpecFilters
       .sortedBy { it.termsList.first().path }
       .joinToString(prefix = "(", postfix = ")", separator = " && ") {
-      val term = it.termsList.first()
-      val termValue =
-        @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
-        when (term.value.selectorCase) {
-          EventTemplateField.FieldValue.SelectorCase.STRING_VALUE -> term.value.stringValue
-          EventTemplateField.FieldValue.SelectorCase.ENUM_VALUE -> term.value.enumValue
-          EventTemplateField.FieldValue.SelectorCase.FLOAT_VALUE -> term.value.floatValue
-          EventTemplateField.FieldValue.SelectorCase.BOOL_VALUE -> term.value.boolValue
-          EventTemplateField.FieldValue.SelectorCase.SELECTOR_NOT_SET ->
-            IllegalArgumentException("Selector not set")
-        }
-      "${term.path} == $termValue"
-    }
+        val term = it.termsList.first()
+        val termValue =
+          @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
+          when (term.value.selectorCase) {
+            EventTemplateField.FieldValue.SelectorCase.STRING_VALUE -> term.value.stringValue
+            EventTemplateField.FieldValue.SelectorCase.ENUM_VALUE -> term.value.enumValue
+            EventTemplateField.FieldValue.SelectorCase.FLOAT_VALUE -> term.value.floatValue
+            EventTemplateField.FieldValue.SelectorCase.BOOL_VALUE -> term.value.boolValue
+            EventTemplateField.FieldValue.SelectorCase.SELECTOR_NOT_SET ->
+              IllegalArgumentException("Selector not set")
+          }
+        "${term.path} == $termValue"
+      }
 
   return buildList {
     for (impressionQualificationSpecsFilter in impressionQualificationFilterSpecsFilters) {
@@ -304,7 +304,8 @@ private fun MutableMap<
   // Then the second ReportingSet including the first two components, and so on.
   if (reportingUnitMetricSetSpec.stackedIncrementalReach) {
     // First ReportingSet
-    val firstMetricCalculationSpecInfoMap = computeIfAbsent(firstComponentReportingSet) { mutableMapOf() }
+    val firstMetricCalculationSpecInfoMap =
+      computeIfAbsent(firstComponentReportingSet) { mutableMapOf() }
 
     for (filter in filters) {
       val firstKey =
@@ -454,7 +455,7 @@ private fun MutableMap<
           }
         }
       }
-    } else if (primitiveReportingSets.size == 2){
+    } else if (primitiveReportingSets.size == 2) {
       for (primitiveReportingSet in primitiveReportingSets) {
         val metricCalculationSpecInfoMap = computeIfAbsent(primitiveReportingSet) { mutableMapOf() }
 

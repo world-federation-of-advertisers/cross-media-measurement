@@ -1164,7 +1164,9 @@ class BasicReportTransformationsTest {
                 MetricCalculationSpecKt.details {
                   filter = "filter && (person.age_group == 18_TO_35 && person.gender == MALE)"
                   metricSpecs += metricSpec { reach = MetricSpecKt.reachParams {} }
-                  metricSpecs += metricSpec { populationCount = MetricSpecKt.populationCountParams {} }
+                  metricSpecs += metricSpec {
+                    populationCount = MetricSpecKt.populationCountParams {}
+                  }
                 }
             }
           )
@@ -1291,7 +1293,9 @@ class BasicReportTransformationsTest {
                 MetricCalculationSpecKt.details {
                   filter = "filter && (person.age_group == 18_TO_35 && person.gender == MALE)"
                   metricSpecs += metricSpec { reach = MetricSpecKt.reachParams {} }
-                  metricSpecs += metricSpec { populationCount = MetricSpecKt.populationCountParams {} }
+                  metricSpecs += metricSpec {
+                    populationCount = MetricSpecKt.populationCountParams {}
+                  }
                 }
             }
           )
@@ -1419,8 +1423,12 @@ class BasicReportTransformationsTest {
               details =
                 MetricCalculationSpecKt.details {
                   filter = "filter && (person.age_group == 18_TO_35 && person.gender == MALE)"
-                  metricSpecs += metricSpec { reachAndFrequency = MetricSpecKt.reachAndFrequencyParams {} }
-                  metricSpecs += metricSpec { populationCount = MetricSpecKt.populationCountParams {} }
+                  metricSpecs += metricSpec {
+                    reachAndFrequency = MetricSpecKt.reachAndFrequencyParams {}
+                  }
+                  metricSpecs += metricSpec {
+                    populationCount = MetricSpecKt.populationCountParams {}
+                  }
                 }
             }
           )
@@ -1483,7 +1491,9 @@ class BasicReportTransformationsTest {
               details =
                 MetricCalculationSpecKt.details {
                   filter = "filter && (person.age_group == 18_TO_35 && person.gender == MALE)"
-                  metricSpecs += metricSpec { reachAndFrequency = MetricSpecKt.reachAndFrequencyParams {} }
+                  metricSpecs += metricSpec {
+                    reachAndFrequency = MetricSpecKt.reachAndFrequencyParams {}
+                  }
                 }
             }
           )
@@ -1546,7 +1556,9 @@ class BasicReportTransformationsTest {
               details =
                 MetricCalculationSpecKt.details {
                   filter = "filter && (person.age_group == 18_TO_35 && person.gender == MALE)"
-                  metricSpecs += metricSpec { impressionCount = MetricSpecKt.impressionCountParams {} }
+                  metricSpecs += metricSpec {
+                    impressionCount = MetricSpecKt.impressionCountParams {}
+                  }
                 }
             }
           )
@@ -1609,8 +1621,12 @@ class BasicReportTransformationsTest {
               details =
                 MetricCalculationSpecKt.details {
                   filter = "filter && (person.age_group == 18_TO_35 && person.gender == MALE)"
-                  metricSpecs += metricSpec { reachAndFrequency = MetricSpecKt.reachAndFrequencyParams {} }
-                  metricSpecs += metricSpec {populationCount = MetricSpecKt.populationCountParams {} }
+                  metricSpecs += metricSpec {
+                    reachAndFrequency = MetricSpecKt.reachAndFrequencyParams {}
+                  }
+                  metricSpecs += metricSpec {
+                    populationCount = MetricSpecKt.populationCountParams {}
+                  }
                 }
             }
           )
