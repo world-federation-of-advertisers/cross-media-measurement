@@ -16,7 +16,6 @@
 
 package org.wfanet.measurement.reporting.service.api.v2alpha
 
-import com.google.type.DayOfWeek
 import org.wfanet.measurement.api.v2alpha.DataProvider
 import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpec
@@ -51,9 +50,10 @@ private data class MetricCalculationSpecInfoKey(
 
 /** [MetricCalculationSpec] fields not used for equality check */
 private data class MetricCalculationSpecInfo(
-  var hasFrequency: Boolean = false,
-  var hasReach: Boolean = false,
-  var hasImpressionCount: Boolean = false,
+  var includeFrequency: Boolean = false,
+  var includeReach: Boolean = false,
+  var includeImpressionCount: Boolean = false,
+  var includePopulation: Boolean = false,
 )
 
 /**
@@ -99,14 +99,10 @@ fun buildReportingSetMetricCalculationSpecDetailsMap(
             dataProviderPrimitiveReportingSetMap.getValue(it)
           }
 
-        // Composite ReportingSets are made from Primitive ReportingSet names
-        val primitiveReportingSetNames: List<String> = primitiveReportingSets.map { it.name }
-
         // Adds or updates entries in the map
         computeResultGroupSpecTransformation(
           primitiveReportingSets,
           campaignGroupName,
-          primitiveReportingSetNames,
           resultGroupSpec,
           groupings,
           metricCalculationSpecFilters,
@@ -146,14 +142,18 @@ private fun MutableMap.MutableEntry<MetricCalculationSpecInfoKey, MetricCalculat
         }
 
         // TODO(tristanvuong2021): Add privacy params
-        if (source.value.hasFrequency) {
+        if (source.value.includeFrequency) {
           metricSpecs += metricSpec { reachAndFrequency = MetricSpecKt.reachAndFrequencyParams {} }
-        } else if (source.value.hasReach) {
+        } else if (source.value.includeReach) {
           metricSpecs += metricSpec { reach = MetricSpecKt.reachParams {} }
         }
 
-        if (source.value.hasImpressionCount) {
+        if (source.value.includeImpressionCount) {
           metricSpecs += metricSpec { impressionCount = MetricSpecKt.impressionCountParams {} }
+        }
+
+        if (source.value.includePopulation) {
+          metricSpecs += metricSpec { populationCount = MetricSpecKt.populationCountParams {} }
         }
       }
   }
@@ -171,7 +171,9 @@ private fun createMetricCalculationSpecFilters(
   dimensionSpecFilters: List<EventFilter>,
 ): List<String> {
   val dimensionSpecFilter =
-    dimensionSpecFilters.joinToString(prefix = "(", postfix = ")", separator = " && ") {
+    dimensionSpecFilters
+      .sortedBy { it.termsList.first().path }
+      .joinToString(prefix = "(", postfix = ")", separator = " && ") {
       val term = it.termsList.first()
       val termValue =
         @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
@@ -198,8 +200,7 @@ private fun createMetricCalculationSpecFilters(
  *
  * @param primitiveReportingSets List of Primitive [ReportingSet]s in order of [ReportingUnit]
  *   components
- * @param campaignGroupName Resource name of the CampaignGrouop [ReportingSet]
- * @param primitiveReportingSetNames Resource names of the Primitive [ReportingSet]s
+ * @param campaignGroupName Resource name of the CampaignGroup [ReportingSet]
  * @param resultGroupSpec [ResultGroupSpec] to transform
  * @param groupings: List of [MetricCalculationSpec.Grouping] to use
  * @param metricCalculationSpecFilters: List of CEL filters to use
@@ -211,11 +212,13 @@ private fun MutableMap<
   .computeResultGroupSpecTransformation(
   primitiveReportingSets: List<ReportingSet>,
   campaignGroupName: String,
-  primitiveReportingSetNames: List<String>,
   resultGroupSpec: ResultGroupSpec,
   groupings: List<MetricCalculationSpec.Grouping>,
   metricCalculationSpecFilters: List<String>,
 ) {
+  // Composite ReportingSets are made from Primitive ReportingSet names
+  val primitiveReportingSetNames: List<String> = primitiveReportingSets.map { it.name }
+
   // ReportingSet that represents the entire ReportingUnit
   val reportingUnitReportingSet =
     if (primitiveReportingSets.size == 1) {
@@ -234,6 +237,7 @@ private fun MutableMap<
       primitiveReportingSets.first(),
       primitiveReportingSetNames,
       campaignGroupName,
+      resultGroupSpec.resultGroupMetricSpec.populationSize,
     )
   }
 
@@ -247,6 +251,7 @@ private fun MutableMap<
       primitiveReportingSets,
       primitiveReportingSetNames,
       campaignGroupName,
+      resultGroupSpec.resultGroupMetricSpec.populationSize,
     )
   }
 }
@@ -265,9 +270,10 @@ private fun MutableMap<
   metricFrequencySpec: MetricFrequencySpec,
   groupings: List<MetricCalculationSpec.Grouping>,
   filters: List<String>,
-  firstReportingSet: ReportingSet,
+  firstComponentReportingSet: ReportingSet,
   primitiveReportingSetNames: List<String>,
   campaignGroupName: String,
+  includePopulation: Boolean,
 ) {
   val metricCalculationSpecInfoMap = computeIfAbsent(reportingUnitReportingSet) { mutableMapOf() }
 
@@ -278,7 +284,7 @@ private fun MutableMap<
       // Insert or update entry in map belonging to ReportingSet containing ReportingUnit
       metricCalculationSpecInfoMap
         .computeIfAbsent(key) { MetricCalculationSpecInfo() }
-        .updateRequestedMetricSpecs(reportingUnitMetricSetSpec.nonCumulative)
+        .updateRequestedMetricSpecs(reportingUnitMetricSetSpec.nonCumulative, includePopulation)
     }
   }
 
@@ -289,7 +295,7 @@ private fun MutableMap<
       // Insert or update entry in map belonging to ReportingSet containing ReportingUnit
       metricCalculationSpecInfoMap
         .computeIfAbsent(key) { MetricCalculationSpecInfo() }
-        .updateRequestedMetricSpecs(reportingUnitMetricSetSpec.cumulative)
+        .updateRequestedMetricSpecs(reportingUnitMetricSetSpec.cumulative, includePopulation)
     }
   }
 
@@ -298,7 +304,7 @@ private fun MutableMap<
   // Then the second ReportingSet including the first two components, and so on.
   if (reportingUnitMetricSetSpec.stackedIncrementalReach) {
     // First ReportingSet
-    val firstMetricCalculationSpecInfoMap = computeIfAbsent(firstReportingSet) { mutableMapOf() }
+    val firstMetricCalculationSpecInfoMap = computeIfAbsent(firstComponentReportingSet) { mutableMapOf() }
 
     for (filter in filters) {
       val firstKey =
@@ -307,7 +313,7 @@ private fun MutableMap<
       // Insert or update entry in map belonging to first ReportingSet
       firstMetricCalculationSpecInfoMap
         .computeIfAbsent(firstKey) { MetricCalculationSpecInfo() }
-        .hasReach = true
+        .includeReach = true
     }
 
     // Second ReportingSet and so on if there are at least two components.
@@ -327,7 +333,7 @@ private fun MutableMap<
           // Insert or update entry in map belonging to subsequent ReportingSets
           partialMetricCalculationSpecInfoMap
             .computeIfAbsent(key) { MetricCalculationSpecInfo() }
-            .hasReach = true
+            .includeReach = true
         }
       }
     }
@@ -351,6 +357,7 @@ private fun MutableMap<
   primitiveReportingSets: List<ReportingSet>,
   primitiveReportingSetNames: List<String>,
   campaignGroupName: String,
+  includePopulation: Boolean,
 ) {
   for (primitiveReportingSet in primitiveReportingSets) {
     val metricCalculationSpecInfoMap = computeIfAbsent(primitiveReportingSet) { mutableMapOf() }
@@ -362,7 +369,7 @@ private fun MutableMap<
         // Insert or update entry in map belonging to Primitive ReportingSet
         metricCalculationSpecInfoMap
           .computeIfAbsent(key) { MetricCalculationSpecInfo() }
-          .updateRequestedMetricSpecs(componentMetricSetSpec.nonCumulative)
+          .updateRequestedMetricSpecs(componentMetricSetSpec.nonCumulative, includePopulation)
       }
     }
 
@@ -373,7 +380,7 @@ private fun MutableMap<
         // Insert or update entry in map belonging to Primitive ReportingSet
         metricCalculationSpecInfoMap
           .computeIfAbsent(key) { MetricCalculationSpecInfo() }
-          .updateRequestedMetricSpecs(componentMetricSetSpec.cumulative)
+          .updateRequestedMetricSpecs(componentMetricSetSpec.cumulative, includePopulation)
       }
     }
   }
@@ -447,7 +454,7 @@ private fun MutableMap<
           }
         }
       }
-    } else {
+    } else if (primitiveReportingSets.size == 2){
       for (primitiveReportingSet in primitiveReportingSets) {
         val metricCalculationSpecInfoMap = computeIfAbsent(primitiveReportingSet) { mutableMapOf() }
 
@@ -483,19 +490,38 @@ private fun MutableMap<
  * Set which [MetricSpec]s will be needed
  *
  * @param basicMetricSetSpec [ResultGroupMetricSpec.BasicMetricSetSpec]
+ * @param includePopulation whether to include the population
  */
 private fun MetricCalculationSpecInfo.updateRequestedMetricSpecs(
-  basicMetricSetSpec: ResultGroupMetricSpec.BasicMetricSetSpec
+  basicMetricSetSpec: ResultGroupMetricSpec.BasicMetricSetSpec,
+  includePopulation: Boolean,
 ) {
-  if (basicMetricSetSpec.averageFrequency || basicMetricSetSpec.kPlusReach > 0) {
-    this.hasFrequency = true
-    this.hasReach = true
-  } else if (basicMetricSetSpec.reach || basicMetricSetSpec.percentReach) {
-    this.hasReach = true
+  if (basicMetricSetSpec.reach) {
+    this.includeReach = true
   }
 
-  if (basicMetricSetSpec.impressions || basicMetricSetSpec.grps) {
-    this.hasImpressionCount = true
+  if (basicMetricSetSpec.percentReach) {
+    this.includeReach = true
+    this.includePopulation = true
+  }
+
+  if (basicMetricSetSpec.averageFrequency || basicMetricSetSpec.kPlusReach > 0) {
+    this.includeFrequency = true
+    this.includeReach = true
+  }
+
+  if (basicMetricSetSpec.percentKPlusReach || basicMetricSetSpec.grps) {
+    this.includeFrequency = true
+    this.includeReach = true
+    this.includePopulation = true
+  }
+
+  if (basicMetricSetSpec.impressions) {
+    this.includeImpressionCount = true
+  }
+
+  if (includePopulation) {
+    this.includePopulation = true
   }
 }
 
@@ -508,7 +534,7 @@ private fun MetricCalculationSpecInfo.updateRequestedMetricSpecs(
   uniqueMetricSetSpec: ResultGroupMetricSpec.UniqueMetricSetSpec
 ) {
   if (uniqueMetricSetSpec.reach) {
-    this.hasReach = true
+    this.includeReach = true
   }
 }
 
@@ -518,8 +544,6 @@ private fun MetricCalculationSpecInfo.updateRequestedMetricSpecs(
  * @param metricCalculationSpecFilter filter for [MetricCalculationSpec]
  * @param groupings list of [MetricCalculationSpec.Grouping]
  * @param cumulative determines whether [MetricCalculationSpec.TrailingWindow] is set
- * @param dayOfWeek [DayOfWeek] if applicable. Determines whether
- *   [MetricCalculationSpec.MetricFrequencySpec] is set
  * @return [MetricCalculationSpecInfoKey] for use as a key in a map
  */
 private fun createMetricCalculationSpecInfoKey(
