@@ -18,6 +18,7 @@ package org.wfanet.measurement.reporting.service.api.v2alpha
 
 import com.google.common.truth.Truth.assertThat
 import com.google.type.DayOfWeek
+import kotlin.test.assertFailsWith
 import org.junit.Test
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpec
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpecKt
@@ -1770,6 +1771,116 @@ class BasicReportTransformationsTest {
           )
         },
       )
+  }
+
+  @Test
+  fun `any value in dimensionSpec filter can be processed`() {
+    val impressionQualificationSpecsFilters = listOf("filter")
+    val dataProviderPrimitiveReportingSetMap = buildMap {
+      put(DATA_PROVIDER_NAME_1, PRIMITIVE_REPORTING_SET_1)
+      put(DATA_PROVIDER_NAME_2, PRIMITIVE_REPORTING_SET_2)
+    }
+    val resultGroupSpecs =
+      listOf(
+        resultGroupSpec {
+          reportingUnit = reportingUnit { components += DATA_PROVIDER_NAME_1 }
+          metricFrequency = metricFrequencySpec { total = true }
+          dimensionSpec = dimensionSpec {
+            grouping = DimensionSpecKt.grouping { eventTemplateFields += "person.gender" }
+            filters += eventFilter {
+              terms += eventTemplateField {
+                path = "person.age_group"
+                value = EventTemplateFieldKt.fieldValue { enumValue = "18_TO_35" }
+              }
+            }
+            filters += eventFilter {
+              terms += eventTemplateField {
+                path = "person.gender"
+                value = EventTemplateFieldKt.fieldValue { stringValue = "MALE" }
+              }
+            }
+            filters += eventFilter {
+              terms += eventTemplateField {
+                path = "banner_ad.viewable"
+                value = EventTemplateFieldKt.fieldValue { boolValue = true }
+              }
+            }
+            filters += eventFilter {
+              terms += eventTemplateField {
+                path = "video_ad.viewed_fraction"
+                value = EventTemplateFieldKt.fieldValue { floatValue = 0.5f }
+              }
+            }
+          }
+          resultGroupMetricSpec = resultGroupMetricSpec {
+            reportingUnit =
+              ResultGroupMetricSpecKt.reportingUnitMetricSetSpec { stackedIncrementalReach = true }
+          }
+        }
+      )
+
+    val reportingSetMetricCalculationSpecDetailsMap =
+      buildReportingSetMetricCalculationSpecDetailsMap(
+        campaignGroupName = CAMPAIGN_GROUP_NAME,
+        impressionQualificationFilterSpecsFilters = impressionQualificationSpecsFilters,
+        dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
+        resultGroupSpecs = resultGroupSpecs,
+      )
+
+    assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(1)
+    assertThat(reportingSetMetricCalculationSpecDetailsMap)
+      .containsEntry(
+        PRIMITIVE_REPORTING_SET_1,
+        buildList {
+          add(
+            metricCalculationSpec {
+              cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
+              details =
+                MetricCalculationSpecKt.details {
+                  filter = "filter && (banner_ad.viewable == true && person.age_group == 18_TO_35 && person.gender == MALE && video_ad.viewed_fraction == 0.5)"
+                  metricSpecs += metricSpec { reach = MetricSpecKt.reachParams {} }
+                }
+            }
+          )
+        },
+      )
+  }
+
+  @Test
+  fun `dimensionSpec filter missing value throws IllegalArgumentException`() {
+    val impressionQualificationSpecsFilters = listOf("filter")
+    val dataProviderPrimitiveReportingSetMap = buildMap {
+      put(DATA_PROVIDER_NAME_1, PRIMITIVE_REPORTING_SET_1)
+      put(DATA_PROVIDER_NAME_2, PRIMITIVE_REPORTING_SET_2)
+    }
+    val resultGroupSpecs =
+      listOf(
+        resultGroupSpec {
+          reportingUnit = reportingUnit { components += DATA_PROVIDER_NAME_1 }
+          metricFrequency = metricFrequencySpec { total = true }
+          dimensionSpec = dimensionSpec {
+            grouping = DimensionSpecKt.grouping { eventTemplateFields += "person.gender" }
+            filters += eventFilter {
+              terms += eventTemplateField {
+                path = "person.age_group"
+              }
+            }
+          }
+          resultGroupMetricSpec = resultGroupMetricSpec {
+            reportingUnit =
+              ResultGroupMetricSpecKt.reportingUnitMetricSetSpec { stackedIncrementalReach = true }
+          }
+        }
+      )
+
+    assertFailsWith<IllegalArgumentException> {
+      buildReportingSetMetricCalculationSpecDetailsMap(
+        campaignGroupName = CAMPAIGN_GROUP_NAME,
+        impressionQualificationFilterSpecsFilters = impressionQualificationSpecsFilters,
+        dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
+        resultGroupSpecs = resultGroupSpecs,
+      )
+    }
   }
 
   @Test

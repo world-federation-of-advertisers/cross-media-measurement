@@ -183,7 +183,7 @@ private fun createMetricCalculationSpecFilters(
             EventTemplateField.FieldValue.SelectorCase.FLOAT_VALUE -> term.value.floatValue
             EventTemplateField.FieldValue.SelectorCase.BOOL_VALUE -> term.value.boolValue
             EventTemplateField.FieldValue.SelectorCase.SELECTOR_NOT_SET ->
-              IllegalArgumentException("Selector not set")
+              throw IllegalArgumentException("Selector not set")
           }
         "${term.path} == $termValue"
       }
