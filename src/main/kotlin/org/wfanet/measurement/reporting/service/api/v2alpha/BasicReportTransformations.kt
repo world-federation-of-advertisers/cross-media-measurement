@@ -409,8 +409,8 @@ private fun MutableMap<
   }
 
   if (
-    (componentMetricSetSpec.hasNonCumulativeUnique() || componentMetricSetSpec.hasCumulativeUnique())
-    && primitiveReportingSets.size >= 2
+    (componentMetricSetSpec.hasNonCumulativeUnique() ||
+      componentMetricSetSpec.hasCumulativeUnique()) && primitiveReportingSets.size >= 2
   ) {
     val firstMetricCalculationSpecInfoMap =
       computeIfAbsent(reportingUnitReportingSet) { mutableMapOf() }

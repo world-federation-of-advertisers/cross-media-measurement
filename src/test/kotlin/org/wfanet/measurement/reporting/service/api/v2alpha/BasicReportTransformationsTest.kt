@@ -847,9 +847,7 @@ class BasicReportTransformationsTest {
                       count = 1
                       increment = MetricCalculationSpec.TrailingWindow.Increment.WEEK
                     }
-                  metricSpecs += metricSpec {
-                    reach = MetricSpecKt.reachParams {}
-                  }
+                  metricSpecs += metricSpec { reach = MetricSpecKt.reachParams {} }
                 }
             }
           )
@@ -878,9 +876,7 @@ class BasicReportTransformationsTest {
                       count = 1
                       increment = MetricCalculationSpec.TrailingWindow.Increment.WEEK
                     }
-                  metricSpecs += metricSpec {
-                    reach = MetricSpecKt.reachParams {}
-                  }
+                  metricSpecs += metricSpec { reach = MetricSpecKt.reachParams {} }
                 }
             }
           )
@@ -952,9 +948,7 @@ class BasicReportTransformationsTest {
     val resultGroupSpecs =
       listOf(
         resultGroupSpec {
-          reportingUnit = reportingUnit {
-            components += DATA_PROVIDER_NAME_1
-          }
+          reportingUnit = reportingUnit { components += DATA_PROVIDER_NAME_1 }
           metricFrequency = metricFrequencySpec { weekly = DayOfWeek.WEDNESDAY }
           dimensionSpec = dimensionSpec {
             grouping = DimensionSpecKt.grouping { eventTemplateFields += "person.gender" }
