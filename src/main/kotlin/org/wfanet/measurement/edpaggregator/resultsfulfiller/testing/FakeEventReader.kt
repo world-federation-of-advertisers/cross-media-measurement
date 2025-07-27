@@ -1,0 +1,135 @@
+/*
+ * Copyright 2025 The Cross-Media Measurement Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.wfanet.measurement.edpaggregator.resultsfulfiller.testing
+
+import com.google.protobuf.DynamicMessage
+import com.google.protobuf.Empty
+import com.google.protobuf.Message
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOf
+import org.wfanet.measurement.edpaggregator.resultsfulfiller.EventReader
+import org.wfanet.measurement.edpaggregator.resultsfulfiller.EventReaderFactory
+import org.wfanet.measurement.edpaggregator.resultsfulfiller.LabeledEvent
+import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
+import java.time.Instant
+
+/**
+ * Fake implementation of EventReader for testing purposes.
+ *
+ * Provides configurable behavior for testing different scenarios:
+ * - Normal event reading with predefined batches
+ * - Error scenarios with exceptions
+ * - Empty results
+ *
+ * @param eventBatches List of event batches to emit. Each list represents a batch of events.
+ * @param exception Optional exception to throw when readEvents() is called
+ */
+class FakeEventReader(
+  private val eventBatches: List<List<LabeledEvent<Message>>> = emptyList(),
+  private val exception: Exception? = null
+) : EventReader {
+
+  override suspend fun readEvents(): Flow<List<LabeledEvent<Message>>> {
+    exception?.let { throw it }
+    return flowOf(*eventBatches.toTypedArray())
+  }
+
+  companion object {
+    /**
+     * Creates a FakeEventReader that returns empty results.
+     */
+    fun empty(): FakeEventReader = FakeEventReader()
+
+    /**
+     * Creates a FakeEventReader that throws an exception when readEvents() is called.
+     */
+    fun withException(exception: Exception): FakeEventReader = FakeEventReader(exception = exception)
+
+    /**
+     * Creates a FakeEventReader with a single batch containing the specified number of fake events.
+     */
+    fun withEventCount(eventCount: Int): FakeEventReader {
+      val events = (1..eventCount).map { createFakeLabeledEvent("event-$it") }
+      return FakeEventReader(listOf(events))
+    }
+
+    /**
+     * Creates a FakeEventReader with multiple batches.
+     */
+    fun withBatches(vararg batchSizes: Int): FakeEventReader {
+      val batches = batchSizes.mapIndexed { batchIndex, size ->
+        (1..size).map { eventIndex ->
+          createFakeLabeledEvent("batch-$batchIndex-event-$eventIndex")
+        }
+      }
+      return FakeEventReader(batches)
+    }
+
+    /**
+     * Creates a fake LabeledEvent for testing.
+     */
+    private fun createFakeLabeledEvent(id: String): LabeledEvent<Message> {
+      // Create a minimal DynamicMessage for testing
+      val fakeMessage: Message = DynamicMessage.getDefaultInstance(
+        Empty.getDescriptor()
+      )
+
+      return LabeledEvent(
+        timestamp = Instant.now(),
+        vid = id.hashCode().toLong(),
+        message = fakeMessage,
+        eventGroupReferenceId = "test-group-$id"
+      )
+    }
+  }
+}
+
+/**
+ * Fake implementation of EventReaderFactory for testing purposes.
+ *
+ * Allows configuring different EventReader instances for different paths
+ * or providing a default EventReader for all requests.
+ */
+class FakeEventReaderFactory(
+  private val defaultEventReader: EventReader? = null,
+  private val eventReaderMap: Map<String, EventReader> = emptyMap()
+) : EventReaderFactory {
+
+  override fun createEventReader(blobDetails: BlobDetails): EventReader {
+    // Use blobUri as the key to allow tests to map readers to paths.
+    val key = blobDetails.blobUri
+    return eventReaderMap[key]
+      ?: defaultEventReader
+      ?: FakeEventReader.empty()
+  }
+
+  companion object {
+    /**
+     * Creates a factory that always returns the same EventReader.
+     */
+    fun withDefault(eventReader: EventReader): FakeEventReaderFactory {
+      return FakeEventReaderFactory(defaultEventReader = eventReader)
+    }
+
+    /**
+     * Creates a factory with path-specific EventReader mappings.
+     */
+    fun withMappings(mappings: Map<String, EventReader>): FakeEventReaderFactory {
+      return FakeEventReaderFactory(eventReaderMap = mappings)
+    }
+  }
+}
