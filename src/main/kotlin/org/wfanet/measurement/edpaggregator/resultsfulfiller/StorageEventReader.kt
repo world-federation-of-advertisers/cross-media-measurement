@@ -57,6 +57,13 @@ class StorageEventReader(
 ) : EventReader {
 
   /**
+   * Returns the underlying blob details.
+   */
+  fun getBlobDetails(): BlobDetails {
+    return blobDetails
+  }
+
+  /**
    * Reads events from the configured blob and emits batches.
    *
    * The returned flow is cold. Each collection performs a fresh read of the underlying blob.
