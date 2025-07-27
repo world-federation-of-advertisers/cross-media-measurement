@@ -132,7 +132,8 @@ class ResultsFulfillerApp(
         kmsClient = kmsClient,
         impressionsStorageConfig = impressionsStorageConfig,
         impressionDekStorageConfig = impressionsMetadataStorageConfig,
-        labeledImpressionsDekPrefix = fulfillerParams.storageParams.labeledImpressionsBlobDetailsUriPrefix,
+        labeledImpressionsDekPrefix =
+          fulfillerParams.storageParams.labeledImpressionsBlobDetailsUriPrefix,
       )
     val noiseSelector =
       when (fulfillerParams.noiseParams.noiseType) {

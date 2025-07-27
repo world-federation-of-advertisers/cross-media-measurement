@@ -22,20 +22,20 @@ import java.time.Instant
 /**
  * Represents a single event with associated metadata for processing.
  *
- * This data class encapsulates an event message along with the metadata required
- * for filtering, grouping, and processing in the measurement system. It serves as
- * the primary data structure for event processing pipelines.
+ * This data class encapsulates an event message along with the metadata required for filtering,
+ * grouping, and processing in the measurement system. It serves as the primary data structure for
+ * event processing pipelines.
  *
- * @param T the type of Protocol Buffer message containing the event data. Must extend
- *   [Message] to ensure compatibility with the protobuf framework.
- * @property timestamp the exact time when the event occurred. Used for temporal filtering
- *   and time-based aggregations.
- * @property vid the Virtual Person ID, a unique identifier for the virtual person associated
- *   with this event. Used for sampling and deduplication.
+ * @param T the type of Protocol Buffer message containing the event data. Must extend [Message] to
+ *   ensure compatibility with the protobuf framework.
+ * @property timestamp the exact time when the event occurred. Used for temporal filtering and
+ *   time-based aggregations.
+ * @property vid the Virtual Person ID, a unique identifier for the virtual person associated with
+ *   this event. Used for sampling and deduplication.
  * @property message the actual event data as a Protocol Buffer message. Contains the
  *   domain-specific event information.
- * @property eventGroupReferenceId identifier linking this event to a specific event group
- *   or campaign. Used for filtering events by group membership.
+ * @property eventGroupReferenceId identifier linking this event to a specific event group or
+ *   campaign. Used for filtering events by group membership.
  */
 data class LabeledEvent<T : Message>(
   val timestamp: Instant,

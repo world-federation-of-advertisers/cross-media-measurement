@@ -17,8 +17,8 @@ package org.wfanet.measurement.edpaggregator.resultsfulfiller
 /**
  * Exception thrown when event reading operations fail.
  *
- * This exception provides structured error reporting for failures in the event reading
- * pipeline, particularly when accessing or parsing impression data from storage blobs.
+ * This exception provides structured error reporting for failures in the event reading pipeline,
+ * particularly when accessing or parsing impression data from storage blobs.
  *
  * ## Error Codes
  *
@@ -26,40 +26,34 @@ package org.wfanet.measurement.edpaggregator.resultsfulfiller
  * - [Code.BLOB_NOT_FOUND]: The requested blob does not exist in storage
  * - [Code.INVALID_FORMAT]: The blob exists but contains malformed or unparseable data
  *
- * @property blobKey the storage key or URI of the blob that caused the failure. This helps
- *   identify the specific resource that couldn't be accessed or parsed.
- * @property code the error code indicating the type of failure. Used for programmatic
- *   error handling and recovery strategies.
- * @property message optional human-readable description providing additional context about
- *   the failure. If null, only the error code and blob key are available.
+ * @property blobKey the storage key or URI of the blob that caused the failure. This helps identify
+ *   the specific resource that couldn't be accessed or parsed.
+ * @property code the error code indicating the type of failure. Used for programmatic error
+ *   handling and recovery strategies.
+ * @property message optional human-readable description providing additional context about the
+ *   failure. If null, only the error code and blob key are available.
  * @constructor Creates a new impression read exception with the specified error details.
  */
-class ImpressionReadException(
-  val blobKey: String,
-  val code: Code,
-  message: String? = null
-) : Exception(message) {
+class ImpressionReadException(val blobKey: String, val code: Code, message: String? = null) :
+  Exception(message) {
 
   /**
    * Categorizes impression reading failures.
    *
-   * These codes enable consistent error handling across the event reading pipeline
-   * and help determine appropriate recovery strategies.
+   * These codes enable consistent error handling across the event reading pipeline and help
+   * determine appropriate recovery strategies.
    */
   enum class Code {
-    /**
-     * The specified blob does not exist in storage.
-     */
+    /** The specified blob does not exist in storage. */
     BLOB_NOT_FOUND,
 
-    /**
-     * The blob exists but contains invalid or unparseable data.
-     */
+    /** The blob exists but contains invalid or unparseable data. */
     INVALID_FORMAT,
   }
 
   override fun toString(): String {
     return "ImpressionReadException(blobKey='$blobKey', code=$code" +
-      (message?.let { ", message='$it'" } ?: "") + ")"
+      (message?.let { ", message='$it'" } ?: "") +
+      ")"
   }
 }

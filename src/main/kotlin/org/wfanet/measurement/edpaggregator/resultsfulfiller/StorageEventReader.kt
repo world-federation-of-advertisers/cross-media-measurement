@@ -56,6 +56,11 @@ class StorageEventReader(
   private val bufferCapacity: Int = DEFAULT_BUFFER_CAPACITY,
 ) : EventReader {
 
+  /** Returns the underlying blob details. */
+  fun getBlobDetails(): BlobDetails {
+    return blobDetails
+  }
+
   /**
    * Reads events from the configured blob and emits batches.
    *

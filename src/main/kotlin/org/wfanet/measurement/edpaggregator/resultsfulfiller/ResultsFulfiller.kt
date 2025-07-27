@@ -69,7 +69,7 @@ class ResultsFulfiller(
   private val privateEncryptionKey: PrivateKeyHandle,
   private val requisitionsStub: RequisitionsGrpcKt.RequisitionsCoroutineStub,
   private val requisitionFulfillmentStubMap:
-  Map<String, RequisitionFulfillmentGrpcKt.RequisitionFulfillmentCoroutineStub>,
+    Map<String, RequisitionFulfillmentGrpcKt.RequisitionFulfillmentCoroutineStub>,
   private val dataProviderCertificateKey: DataProviderCertificateKey,
   private val dataProviderSigningKeyHandle: SigningKeyHandle,
   private val requisitionsBlobUri: String,
