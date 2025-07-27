@@ -153,12 +153,41 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
-    name = "filter_processor",
-    srcs = ["FilterProcessor.kt"],
+    name = "filter_configuration",
+    srcs = ["FilterConfiguration.kt"],
+    deps = [
+        ":filter_spec",
+    ],
+)
+
+kt_jvm_library(
+    name = "event_processing_pipeline",
+    srcs = ["EventProcessingPipeline.kt"],
+    deps = [
+        ":event_source",
+        ":filter_configuration",
+        ":filter_spec",
+        ":frequency_vector",
+        ":labeled_event",
+        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/shareshuffle/v2alpha:shareshuffle",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+    ],
+)
+
+kt_jvm_library(
+    name = "parallel_batched_pipeline",
+    srcs = ["ParallelBatchedPipeline.kt"],
     deps = [
         ":event_batch",
+        ":event_processing_pipeline",
+        ":filter_configuration",
+        ":filter_processor",
+        ":filter_spec",
+        ":frequency_vector",
+        ":frequency_vector_sink",
         ":labeled_event",
-        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/eventfiltration:event_filters",
+        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/shareshuffle/v2alpha:shareshuffle",
         "@wfa_common_jvm//imports/java/com/google/protobuf",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
     ],
