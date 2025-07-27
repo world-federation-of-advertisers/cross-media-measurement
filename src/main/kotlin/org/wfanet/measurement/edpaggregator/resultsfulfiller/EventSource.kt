@@ -17,22 +17,24 @@
 package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
 import com.google.protobuf.Message
+import kotlin.coroutines.CoroutineContext
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.Flow
 
 /**
- * Simple event batch container for efficient processing.
+ * Interface for event sources that provide events for processing.
  *
- * Groups events together for batch processing through the pipeline,
- * reducing overhead and improving throughput.
- *
- * @param events A batch of parsed events
- * @param batchId Unique ID for logging
- * @param minTime The earliest event time in the batch, used for fast filtering.
- * @param maxTime The latest event time in the batch, used for filtering.
+ * This interface abstracts the source of events, allowing for different implementations
+ * such as synthetic generation or reading from storage.
  */
-data class EventBatch(
-  val events: List<LabeledEvent<Message>>,
-  val minTime: java.time.Instant,
-  val maxTime: java.time.Instant,
-) {
-  val size: Int get() = events.size
+interface EventSource {
+  /**
+   * Generates a flow of event batches.
+   *
+   * @param dispatcher The coroutine context for parallel processing
+   * @return A flow of event batches, where each batch is a list of labeled events
+   */
+  suspend fun generateEventBatches(
+    dispatcher: CoroutineContext = Dispatchers.Default
+  ): Flow<EventBatch>
 }
