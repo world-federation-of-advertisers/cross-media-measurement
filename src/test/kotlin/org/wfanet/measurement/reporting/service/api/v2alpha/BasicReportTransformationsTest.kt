@@ -681,18 +681,11 @@ class BasicReportTransformationsTest {
   }
 
   @Test
-  fun `uniqueMetricSetSpec with 3 component reporting unit transforms into correct map`() {
+  fun `componentMetricSetSpec without uniqueMetricSetSpec transforms into correct map`() {
     val impressionQualificationSpecsFilters = listOf("filter")
-
-    val dataProviderName3 = "$MEASUREMENT_CONSUMER_NAME/dataProviders/CCCCCCCCCHs"
-    val primitiveReportingSetName3 =
-      "$MEASUREMENT_CONSUMER_NAME/reportingSets/primitive-reporting-set-3"
-    val primitiveReportingSet3 = reportingSet { name = primitiveReportingSetName3 }
-
     val dataProviderPrimitiveReportingSetMap = buildMap {
       put(DATA_PROVIDER_NAME_1, PRIMITIVE_REPORTING_SET_1)
       put(DATA_PROVIDER_NAME_2, PRIMITIVE_REPORTING_SET_2)
-      put(dataProviderName3, primitiveReportingSet3)
     }
     val resultGroupSpecs =
       listOf(
@@ -700,7 +693,595 @@ class BasicReportTransformationsTest {
           reportingUnit = reportingUnit {
             components += DATA_PROVIDER_NAME_1
             components += DATA_PROVIDER_NAME_2
-            components += dataProviderName3
+          }
+          metricFrequency = metricFrequencySpec { total = true }
+          dimensionSpec = dimensionSpec {
+            grouping = DimensionSpecKt.grouping { eventTemplateFields += "person.gender" }
+            filters += eventFilter {
+              terms += eventTemplateField {
+                path = "person.age_group"
+                value = EventTemplateFieldKt.fieldValue { enumValue = "18_TO_35" }
+              }
+            }
+            filters += eventFilter {
+              terms += eventTemplateField {
+                path = "person.gender"
+                value = EventTemplateFieldKt.fieldValue { enumValue = "MALE" }
+              }
+            }
+          }
+          resultGroupMetricSpec = resultGroupMetricSpec {
+            component =
+              ResultGroupMetricSpecKt.componentMetricSetSpec {
+                cumulative =
+                  ResultGroupMetricSpecKt.basicMetricSetSpec {
+                    averageFrequency = true
+                    impressions = true
+                  }
+              }
+          }
+        }
+      )
+
+    val reportingSetMetricCalculationSpecDetailsMap =
+      buildReportingSetMetricCalculationSpecDetailsMap(
+        campaignGroupName = CAMPAIGN_GROUP_NAME,
+        impressionQualificationFilterSpecsFilters = impressionQualificationSpecsFilters,
+        dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
+        resultGroupSpecs = resultGroupSpecs,
+      )
+
+    assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(2)
+    assertThat(reportingSetMetricCalculationSpecDetailsMap)
+      .containsEntry(
+        PRIMITIVE_REPORTING_SET_1,
+        buildList {
+          add(
+            metricCalculationSpec {
+              cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
+              details =
+                MetricCalculationSpecKt.details {
+                  filter = "filter && (person.age_group == 18_TO_35 && person.gender == MALE)"
+                  metricSpecs += metricSpec {
+                    reachAndFrequency = MetricSpecKt.reachAndFrequencyParams {}
+                  }
+                  metricSpecs += metricSpec {
+                    impressionCount = MetricSpecKt.impressionCountParams {}
+                  }
+                }
+            }
+          )
+        },
+      )
+
+    assertThat(reportingSetMetricCalculationSpecDetailsMap)
+      .containsEntry(
+        PRIMITIVE_REPORTING_SET_2,
+        buildList {
+          add(
+            metricCalculationSpec {
+              cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
+              details =
+                MetricCalculationSpecKt.details {
+                  filter = "filter && (person.age_group == 18_TO_35 && person.gender == MALE)"
+                  metricSpecs += metricSpec {
+                    reachAndFrequency = MetricSpecKt.reachAndFrequencyParams {}
+                  }
+                  metricSpecs += metricSpec {
+                    impressionCount = MetricSpecKt.impressionCountParams {}
+                  }
+                }
+            }
+          )
+        },
+      )
+  }
+
+  @Test
+  fun `noncumulative uniqueMetricSetSpec only transforms into correct map`() {
+    val impressionQualificationSpecsFilters = listOf("filter")
+    val dataProviderPrimitiveReportingSetMap = buildMap {
+      put(DATA_PROVIDER_NAME_1, PRIMITIVE_REPORTING_SET_1)
+      put(DATA_PROVIDER_NAME_2, PRIMITIVE_REPORTING_SET_2)
+    }
+    val resultGroupSpecs =
+      listOf(
+        resultGroupSpec {
+          reportingUnit = reportingUnit {
+            components += DATA_PROVIDER_NAME_1
+            components += DATA_PROVIDER_NAME_2
+          }
+          metricFrequency = metricFrequencySpec { weekly = DayOfWeek.WEDNESDAY }
+          dimensionSpec = dimensionSpec {
+            grouping = DimensionSpecKt.grouping { eventTemplateFields += "person.gender" }
+            filters += eventFilter {
+              terms += eventTemplateField {
+                path = "person.age_group"
+                value = EventTemplateFieldKt.fieldValue { enumValue = "18_TO_35" }
+              }
+            }
+            filters += eventFilter {
+              terms += eventTemplateField {
+                path = "person.gender"
+                value = EventTemplateFieldKt.fieldValue { enumValue = "MALE" }
+              }
+            }
+          }
+          resultGroupMetricSpec = resultGroupMetricSpec {
+            component =
+              ResultGroupMetricSpecKt.componentMetricSetSpec {
+                nonCumulativeUnique = ResultGroupMetricSpecKt.uniqueMetricSetSpec { reach = true }
+              }
+          }
+        }
+      )
+
+    val reportingSetMetricCalculationSpecDetailsMap =
+      buildReportingSetMetricCalculationSpecDetailsMap(
+        campaignGroupName = CAMPAIGN_GROUP_NAME,
+        impressionQualificationFilterSpecsFilters = impressionQualificationSpecsFilters,
+        dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
+        resultGroupSpecs = resultGroupSpecs,
+      )
+
+    assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(3)
+    assertThat(reportingSetMetricCalculationSpecDetailsMap)
+      .containsEntry(
+        PRIMITIVE_REPORTING_SET_1,
+        buildList {
+          add(
+            metricCalculationSpec {
+              cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
+              details =
+                MetricCalculationSpecKt.details {
+                  filter = "filter && (person.age_group == 18_TO_35 && person.gender == MALE)"
+                  metricFrequencySpec =
+                    MetricCalculationSpecKt.metricFrequencySpec {
+                      weekly =
+                        MetricCalculationSpecKt.MetricFrequencySpecKt.weekly {
+                          dayOfWeek = DayOfWeek.WEDNESDAY
+                        }
+                    }
+                  trailingWindow =
+                    MetricCalculationSpecKt.trailingWindow {
+                      count = 1
+                      increment = MetricCalculationSpec.TrailingWindow.Increment.WEEK
+                    }
+                  metricSpecs += metricSpec {
+                    reach = MetricSpecKt.reachParams {}
+                  }
+                }
+            }
+          )
+        },
+      )
+
+    assertThat(reportingSetMetricCalculationSpecDetailsMap)
+      .containsEntry(
+        PRIMITIVE_REPORTING_SET_2,
+        buildList {
+          add(
+            metricCalculationSpec {
+              cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
+              details =
+                MetricCalculationSpecKt.details {
+                  filter = "filter && (person.age_group == 18_TO_35 && person.gender == MALE)"
+                  metricFrequencySpec =
+                    MetricCalculationSpecKt.metricFrequencySpec {
+                      weekly =
+                        MetricCalculationSpecKt.MetricFrequencySpecKt.weekly {
+                          dayOfWeek = DayOfWeek.WEDNESDAY
+                        }
+                    }
+                  trailingWindow =
+                    MetricCalculationSpecKt.trailingWindow {
+                      count = 1
+                      increment = MetricCalculationSpec.TrailingWindow.Increment.WEEK
+                    }
+                  metricSpecs += metricSpec {
+                    reach = MetricSpecKt.reachParams {}
+                  }
+                }
+            }
+          )
+        },
+      )
+
+    assertThat(reportingSetMetricCalculationSpecDetailsMap)
+      .containsEntry(
+        reportingSet {
+          campaignGroup = CAMPAIGN_GROUP_NAME
+          composite =
+            ReportingSetKt.composite {
+              expression =
+                ReportingSetKt.setExpression {
+                  operation = ReportingSet.SetExpression.Operation.UNION
+                  lhs =
+                    ReportingSetKt.SetExpressionKt.operand {
+                      reportingSet = PRIMITIVE_REPORTING_SET_NAME_2
+                    }
+                  rhs =
+                    ReportingSetKt.SetExpressionKt.operand {
+                      expression =
+                        ReportingSetKt.setExpression {
+                          operation = ReportingSet.SetExpression.Operation.UNION
+                          lhs =
+                            ReportingSetKt.SetExpressionKt.operand {
+                              reportingSet = PRIMITIVE_REPORTING_SET_NAME_1
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        buildList {
+          add(
+            metricCalculationSpec {
+              cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
+              details =
+                MetricCalculationSpecKt.details {
+                  filter = "filter && (person.age_group == 18_TO_35 && person.gender == MALE)"
+                  metricFrequencySpec =
+                    MetricCalculationSpecKt.metricFrequencySpec {
+                      weekly =
+                        MetricCalculationSpecKt.MetricFrequencySpecKt.weekly {
+                          dayOfWeek = DayOfWeek.WEDNESDAY
+                        }
+                    }
+                  trailingWindow =
+                    MetricCalculationSpecKt.trailingWindow {
+                      count = 1
+                      increment = MetricCalculationSpec.TrailingWindow.Increment.WEEK
+                    }
+                  metricSpecs += metricSpec { reach = MetricSpecKt.reachParams {} }
+                }
+            }
+          )
+        },
+      )
+  }
+
+  @Test
+  fun `uniqueMetricSetSpec with 1 component transforms into empty map`() {
+    val impressionQualificationSpecsFilters = listOf("filter")
+
+    val dataProviderPrimitiveReportingSetMap = buildMap {
+      put(DATA_PROVIDER_NAME_1, PRIMITIVE_REPORTING_SET_1)
+      put(DATA_PROVIDER_NAME_2, PRIMITIVE_REPORTING_SET_2)
+    }
+    val resultGroupSpecs =
+      listOf(
+        resultGroupSpec {
+          reportingUnit = reportingUnit {
+            components += DATA_PROVIDER_NAME_1
+          }
+          metricFrequency = metricFrequencySpec { weekly = DayOfWeek.WEDNESDAY }
+          dimensionSpec = dimensionSpec {
+            grouping = DimensionSpecKt.grouping { eventTemplateFields += "person.gender" }
+            filters += eventFilter {
+              terms += eventTemplateField {
+                path = "person.age_group"
+                value = EventTemplateFieldKt.fieldValue { enumValue = "18_TO_35" }
+              }
+            }
+            filters += eventFilter {
+              terms += eventTemplateField {
+                path = "person.gender"
+                value = EventTemplateFieldKt.fieldValue { enumValue = "MALE" }
+              }
+            }
+          }
+          resultGroupMetricSpec = resultGroupMetricSpec {
+            component =
+              ResultGroupMetricSpecKt.componentMetricSetSpec {
+                nonCumulativeUnique = ResultGroupMetricSpecKt.uniqueMetricSetSpec { reach = true }
+              }
+          }
+        }
+      )
+
+    val reportingSetMetricCalculationSpecDetailsMap =
+      buildReportingSetMetricCalculationSpecDetailsMap(
+        campaignGroupName = CAMPAIGN_GROUP_NAME,
+        impressionQualificationFilterSpecsFilters = impressionQualificationSpecsFilters,
+        dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
+        resultGroupSpecs = resultGroupSpecs,
+      )
+
+    assertThat(reportingSetMetricCalculationSpecDetailsMap).isEmpty()
+  }
+
+  @Test
+  fun `noncumulative uniqueMetricSetSpec with 3 components transforms into correct map`() {
+    val impressionQualificationSpecsFilters = listOf("filter")
+
+    val dataProviderPrimitiveReportingSetMap = buildMap {
+      put(DATA_PROVIDER_NAME_1, PRIMITIVE_REPORTING_SET_1)
+      put(DATA_PROVIDER_NAME_2, PRIMITIVE_REPORTING_SET_2)
+      put(DATA_PROVIDER_NAME_3, PRIMITIVE_REPORTING_SET_3)
+    }
+    val resultGroupSpecs =
+      listOf(
+        resultGroupSpec {
+          reportingUnit = reportingUnit {
+            components += DATA_PROVIDER_NAME_1
+            components += DATA_PROVIDER_NAME_2
+            components += DATA_PROVIDER_NAME_3
+          }
+          metricFrequency = metricFrequencySpec { weekly = DayOfWeek.WEDNESDAY }
+          dimensionSpec = dimensionSpec {
+            grouping = DimensionSpecKt.grouping { eventTemplateFields += "person.gender" }
+            filters += eventFilter {
+              terms += eventTemplateField {
+                path = "person.age_group"
+                value = EventTemplateFieldKt.fieldValue { enumValue = "18_TO_35" }
+              }
+            }
+            filters += eventFilter {
+              terms += eventTemplateField {
+                path = "person.gender"
+                value = EventTemplateFieldKt.fieldValue { enumValue = "MALE" }
+              }
+            }
+          }
+          resultGroupMetricSpec = resultGroupMetricSpec {
+            component =
+              ResultGroupMetricSpecKt.componentMetricSetSpec {
+                nonCumulativeUnique = ResultGroupMetricSpecKt.uniqueMetricSetSpec { reach = true }
+              }
+          }
+        }
+      )
+
+    val reportingSetMetricCalculationSpecDetailsMap =
+      buildReportingSetMetricCalculationSpecDetailsMap(
+        campaignGroupName = CAMPAIGN_GROUP_NAME,
+        impressionQualificationFilterSpecsFilters = impressionQualificationSpecsFilters,
+        dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
+        resultGroupSpecs = resultGroupSpecs,
+      )
+
+    assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(4)
+    assertThat(reportingSetMetricCalculationSpecDetailsMap)
+      .containsEntry(
+        reportingSet {
+          campaignGroup = CAMPAIGN_GROUP_NAME
+          composite =
+            ReportingSetKt.composite {
+              expression =
+                ReportingSetKt.setExpression {
+                  operation = ReportingSet.SetExpression.Operation.UNION
+                  lhs =
+                    ReportingSetKt.SetExpressionKt.operand {
+                      reportingSet = PRIMITIVE_REPORTING_SET_NAME_2
+                    }
+                  rhs =
+                    ReportingSetKt.SetExpressionKt.operand {
+                      expression =
+                        ReportingSetKt.setExpression {
+                          operation = ReportingSet.SetExpression.Operation.UNION
+                          lhs =
+                            ReportingSetKt.SetExpressionKt.operand {
+                              reportingSet = PRIMITIVE_REPORTING_SET_NAME_1
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        buildList {
+          add(
+            metricCalculationSpec {
+              cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
+              details =
+                MetricCalculationSpecKt.details {
+                  metricFrequencySpec =
+                    MetricCalculationSpecKt.metricFrequencySpec {
+                      weekly =
+                        MetricCalculationSpecKt.MetricFrequencySpecKt.weekly {
+                          dayOfWeek = DayOfWeek.WEDNESDAY
+                        }
+                    }
+                  trailingWindow =
+                    MetricCalculationSpecKt.trailingWindow {
+                      count = 1
+                      increment = MetricCalculationSpec.TrailingWindow.Increment.WEEK
+                    }
+                  filter = "filter && (person.age_group == 18_TO_35 && person.gender == MALE)"
+                  metricSpecs += metricSpec { reach = MetricSpecKt.reachParams {} }
+                }
+            }
+          )
+        },
+      )
+
+    assertThat(reportingSetMetricCalculationSpecDetailsMap)
+      .containsEntry(
+        reportingSet {
+          campaignGroup = CAMPAIGN_GROUP_NAME
+          composite =
+            ReportingSetKt.composite {
+              expression =
+                ReportingSetKt.setExpression {
+                  operation = ReportingSet.SetExpression.Operation.UNION
+                  lhs =
+                    ReportingSetKt.SetExpressionKt.operand {
+                      reportingSet = PRIMITIVE_REPORTING_SET_NAME_3
+                    }
+                  rhs =
+                    ReportingSetKt.SetExpressionKt.operand {
+                      expression =
+                        ReportingSetKt.setExpression {
+                          operation = ReportingSet.SetExpression.Operation.UNION
+                          lhs =
+                            ReportingSetKt.SetExpressionKt.operand {
+                              reportingSet = PRIMITIVE_REPORTING_SET_NAME_1
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        buildList {
+          add(
+            metricCalculationSpec {
+              cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
+              details =
+                MetricCalculationSpecKt.details {
+                  metricFrequencySpec =
+                    MetricCalculationSpecKt.metricFrequencySpec {
+                      weekly =
+                        MetricCalculationSpecKt.MetricFrequencySpecKt.weekly {
+                          dayOfWeek = DayOfWeek.WEDNESDAY
+                        }
+                    }
+                  trailingWindow =
+                    MetricCalculationSpecKt.trailingWindow {
+                      count = 1
+                      increment = MetricCalculationSpec.TrailingWindow.Increment.WEEK
+                    }
+                  filter = "filter && (person.age_group == 18_TO_35 && person.gender == MALE)"
+                  metricSpecs += metricSpec { reach = MetricSpecKt.reachParams {} }
+                }
+            }
+          )
+        },
+      )
+
+    assertThat(reportingSetMetricCalculationSpecDetailsMap)
+      .containsEntry(
+        reportingSet {
+          campaignGroup = CAMPAIGN_GROUP_NAME
+          composite =
+            ReportingSetKt.composite {
+              expression =
+                ReportingSetKt.setExpression {
+                  operation = ReportingSet.SetExpression.Operation.UNION
+                  lhs =
+                    ReportingSetKt.SetExpressionKt.operand {
+                      reportingSet = PRIMITIVE_REPORTING_SET_NAME_3
+                    }
+                  rhs =
+                    ReportingSetKt.SetExpressionKt.operand {
+                      expression =
+                        ReportingSetKt.setExpression {
+                          operation = ReportingSet.SetExpression.Operation.UNION
+                          lhs =
+                            ReportingSetKt.SetExpressionKt.operand {
+                              reportingSet = PRIMITIVE_REPORTING_SET_NAME_2
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        buildList {
+          add(
+            metricCalculationSpec {
+              cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
+              details =
+                MetricCalculationSpecKt.details {
+                  metricFrequencySpec =
+                    MetricCalculationSpecKt.metricFrequencySpec {
+                      weekly =
+                        MetricCalculationSpecKt.MetricFrequencySpecKt.weekly {
+                          dayOfWeek = DayOfWeek.WEDNESDAY
+                        }
+                    }
+                  trailingWindow =
+                    MetricCalculationSpecKt.trailingWindow {
+                      count = 1
+                      increment = MetricCalculationSpec.TrailingWindow.Increment.WEEK
+                    }
+                  filter = "filter && (person.age_group == 18_TO_35 && person.gender == MALE)"
+                  metricSpecs += metricSpec { reach = MetricSpecKt.reachParams {} }
+                }
+            }
+          )
+        },
+      )
+
+    assertThat(reportingSetMetricCalculationSpecDetailsMap)
+      .containsEntry(
+        reportingSet {
+          campaignGroup = CAMPAIGN_GROUP_NAME
+          composite =
+            ReportingSetKt.composite {
+              expression =
+                ReportingSetKt.setExpression {
+                  operation = ReportingSet.SetExpression.Operation.UNION
+                  lhs =
+                    ReportingSetKt.SetExpressionKt.operand {
+                      reportingSet = PRIMITIVE_REPORTING_SET_NAME_3
+                    }
+                  rhs =
+                    ReportingSetKt.SetExpressionKt.operand {
+                      expression =
+                        ReportingSetKt.setExpression {
+                          operation = ReportingSet.SetExpression.Operation.UNION
+                          lhs =
+                            ReportingSetKt.SetExpressionKt.operand {
+                              reportingSet = PRIMITIVE_REPORTING_SET_NAME_2
+                            }
+                          rhs =
+                            ReportingSetKt.SetExpressionKt.operand {
+                              expression =
+                                ReportingSetKt.setExpression {
+                                  operation = ReportingSet.SetExpression.Operation.UNION
+                                  lhs =
+                                    ReportingSetKt.SetExpressionKt.operand {
+                                      reportingSet = PRIMITIVE_REPORTING_SET_NAME_1
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        buildList {
+          add(
+            metricCalculationSpec {
+              cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
+              details =
+                MetricCalculationSpecKt.details {
+                  metricFrequencySpec =
+                    MetricCalculationSpecKt.metricFrequencySpec {
+                      weekly =
+                        MetricCalculationSpecKt.MetricFrequencySpecKt.weekly {
+                          dayOfWeek = DayOfWeek.WEDNESDAY
+                        }
+                    }
+                  trailingWindow =
+                    MetricCalculationSpecKt.trailingWindow {
+                      count = 1
+                      increment = MetricCalculationSpec.TrailingWindow.Increment.WEEK
+                    }
+                  filter = "filter && (person.age_group == 18_TO_35 && person.gender == MALE)"
+                  metricSpecs += metricSpec { reach = MetricSpecKt.reachParams {} }
+                }
+            }
+          )
+        },
+      )
+  }
+
+  @Test
+  fun `cumulative uniqueMetricSetSpec with 3 components transforms into correct map`() {
+    val impressionQualificationSpecsFilters = listOf("filter")
+
+    val dataProviderPrimitiveReportingSetMap = buildMap {
+      put(DATA_PROVIDER_NAME_1, PRIMITIVE_REPORTING_SET_1)
+      put(DATA_PROVIDER_NAME_2, PRIMITIVE_REPORTING_SET_2)
+      put(DATA_PROVIDER_NAME_3, PRIMITIVE_REPORTING_SET_3)
+    }
+    val resultGroupSpecs =
+      listOf(
+        resultGroupSpec {
+          reportingUnit = reportingUnit {
+            components += DATA_PROVIDER_NAME_1
+            components += DATA_PROVIDER_NAME_2
+            components += DATA_PROVIDER_NAME_3
           }
           metricFrequency = metricFrequencySpec { total = true }
           dimensionSpec = dimensionSpec {
@@ -788,7 +1369,7 @@ class BasicReportTransformationsTest {
                   operation = ReportingSet.SetExpression.Operation.UNION
                   lhs =
                     ReportingSetKt.SetExpressionKt.operand {
-                      reportingSet = primitiveReportingSetName3
+                      reportingSet = PRIMITIVE_REPORTING_SET_NAME_3
                     }
                   rhs =
                     ReportingSetKt.SetExpressionKt.operand {
@@ -829,7 +1410,7 @@ class BasicReportTransformationsTest {
                   operation = ReportingSet.SetExpression.Operation.UNION
                   lhs =
                     ReportingSetKt.SetExpressionKt.operand {
-                      reportingSet = primitiveReportingSetName3
+                      reportingSet = PRIMITIVE_REPORTING_SET_NAME_3
                     }
                   rhs =
                     ReportingSetKt.SetExpressionKt.operand {
@@ -870,7 +1451,7 @@ class BasicReportTransformationsTest {
                   operation = ReportingSet.SetExpression.Operation.UNION
                   lhs =
                     ReportingSetKt.SetExpressionKt.operand {
-                      reportingSet = primitiveReportingSetName3
+                      reportingSet = PRIMITIVE_REPORTING_SET_NAME_3
                     }
                   rhs =
                     ReportingSetKt.SetExpressionKt.operand {
@@ -1023,6 +1604,165 @@ class BasicReportTransformationsTest {
     assertThat(reportingSetMetricCalculationSpecDetailsMap)
       .containsEntry(
         PRIMITIVE_REPORTING_SET_1,
+        buildList {
+          add(
+            metricCalculationSpec {
+              cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
+              details =
+                MetricCalculationSpecKt.details {
+                  filter = "filter && (person.age_group == 18_TO_35 && person.gender == MALE)"
+                  metricSpecs += metricSpec { reach = MetricSpecKt.reachParams {} }
+                }
+            }
+          )
+        },
+      )
+  }
+
+  @Test
+  fun `stackedIncrementalReach with 3 reportingUnit components transforms into correct map`() {
+    val impressionQualificationSpecsFilters = listOf("filter")
+    val dataProviderPrimitiveReportingSetMap = buildMap {
+      put(DATA_PROVIDER_NAME_1, PRIMITIVE_REPORTING_SET_1)
+      put(DATA_PROVIDER_NAME_2, PRIMITIVE_REPORTING_SET_2)
+      put(DATA_PROVIDER_NAME_3, PRIMITIVE_REPORTING_SET_3)
+    }
+    val resultGroupSpecs =
+      listOf(
+        resultGroupSpec {
+          reportingUnit = reportingUnit {
+            components += DATA_PROVIDER_NAME_1
+            components += DATA_PROVIDER_NAME_2
+            components += DATA_PROVIDER_NAME_3
+          }
+          metricFrequency = metricFrequencySpec { total = true }
+          dimensionSpec = dimensionSpec {
+            grouping = DimensionSpecKt.grouping { eventTemplateFields += "person.gender" }
+            filters += eventFilter {
+              terms += eventTemplateField {
+                path = "person.age_group"
+                value = EventTemplateFieldKt.fieldValue { enumValue = "18_TO_35" }
+              }
+            }
+            filters += eventFilter {
+              terms += eventTemplateField {
+                path = "person.gender"
+                value = EventTemplateFieldKt.fieldValue { enumValue = "MALE" }
+              }
+            }
+          }
+          resultGroupMetricSpec = resultGroupMetricSpec {
+            reportingUnit =
+              ResultGroupMetricSpecKt.reportingUnitMetricSetSpec { stackedIncrementalReach = true }
+          }
+        }
+      )
+
+    val reportingSetMetricCalculationSpecDetailsMap =
+      buildReportingSetMetricCalculationSpecDetailsMap(
+        campaignGroupName = CAMPAIGN_GROUP_NAME,
+        impressionQualificationFilterSpecsFilters = impressionQualificationSpecsFilters,
+        dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
+        resultGroupSpecs = resultGroupSpecs,
+      )
+
+    assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(3)
+    assertThat(reportingSetMetricCalculationSpecDetailsMap)
+      .containsEntry(
+        PRIMITIVE_REPORTING_SET_1,
+        buildList {
+          add(
+            metricCalculationSpec {
+              cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
+              details =
+                MetricCalculationSpecKt.details {
+                  filter = "filter && (person.age_group == 18_TO_35 && person.gender == MALE)"
+                  metricSpecs += metricSpec { reach = MetricSpecKt.reachParams {} }
+                }
+            }
+          )
+        },
+      )
+
+    assertThat(reportingSetMetricCalculationSpecDetailsMap)
+      .containsEntry(
+        reportingSet {
+          campaignGroup = CAMPAIGN_GROUP_NAME
+          composite =
+            ReportingSetKt.composite {
+              expression =
+                ReportingSetKt.setExpression {
+                  operation = ReportingSet.SetExpression.Operation.UNION
+                  lhs =
+                    ReportingSetKt.SetExpressionKt.operand {
+                      reportingSet = PRIMITIVE_REPORTING_SET_NAME_2
+                    }
+                  rhs =
+                    ReportingSetKt.SetExpressionKt.operand {
+                      expression =
+                        ReportingSetKt.setExpression {
+                          operation = ReportingSet.SetExpression.Operation.UNION
+                          lhs =
+                            ReportingSetKt.SetExpressionKt.operand {
+                              reportingSet = PRIMITIVE_REPORTING_SET_NAME_1
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        buildList {
+          add(
+            metricCalculationSpec {
+              cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
+              details =
+                MetricCalculationSpecKt.details {
+                  filter = "filter && (person.age_group == 18_TO_35 && person.gender == MALE)"
+                  metricSpecs += metricSpec { reach = MetricSpecKt.reachParams {} }
+                }
+            }
+          )
+        },
+      )
+
+    assertThat(reportingSetMetricCalculationSpecDetailsMap)
+      .containsEntry(
+        reportingSet {
+          campaignGroup = CAMPAIGN_GROUP_NAME
+          composite =
+            ReportingSetKt.composite {
+              expression =
+                ReportingSetKt.setExpression {
+                  operation = ReportingSet.SetExpression.Operation.UNION
+                  lhs =
+                    ReportingSetKt.SetExpressionKt.operand {
+                      reportingSet = PRIMITIVE_REPORTING_SET_NAME_3
+                    }
+                  rhs =
+                    ReportingSetKt.SetExpressionKt.operand {
+                      expression =
+                        ReportingSetKt.setExpression {
+                          operation = ReportingSet.SetExpression.Operation.UNION
+                          lhs =
+                            ReportingSetKt.SetExpressionKt.operand {
+                              reportingSet = PRIMITIVE_REPORTING_SET_NAME_2
+                            }
+                          rhs =
+                            ReportingSetKt.SetExpressionKt.operand {
+                              expression =
+                                ReportingSetKt.setExpression {
+                                  operation = ReportingSet.SetExpression.Operation.UNION
+                                  lhs =
+                                    ReportingSetKt.SetExpressionKt.operand {
+                                      reportingSet = PRIMITIVE_REPORTING_SET_NAME_1
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
         buildList {
           add(
             metricCalculationSpec {
@@ -1641,11 +2381,16 @@ class BasicReportTransformationsTest {
       "$MEASUREMENT_CONSUMER_NAME/reportingSets/campaign-group-1"
     private const val DATA_PROVIDER_NAME_1 = "$MEASUREMENT_CONSUMER_NAME/dataProviders/AAAAAAAAAHs"
     private const val DATA_PROVIDER_NAME_2 = "$MEASUREMENT_CONSUMER_NAME/dataProviders/BBBBBBBBBHs"
+    private const val DATA_PROVIDER_NAME_3 = "$MEASUREMENT_CONSUMER_NAME/dataProviders/CCCCCCCCCHs"
+
     private const val PRIMITIVE_REPORTING_SET_NAME_1 =
       "$MEASUREMENT_CONSUMER_NAME/reportingSets/primitive-reporting-set-1"
     private const val PRIMITIVE_REPORTING_SET_NAME_2 =
       "$MEASUREMENT_CONSUMER_NAME/reportingSets/primitive-reporting-set-2"
+    private const val PRIMITIVE_REPORTING_SET_NAME_3 =
+      "$MEASUREMENT_CONSUMER_NAME/reportingSets/primitive-reporting-set-3"
     private val PRIMITIVE_REPORTING_SET_1 = reportingSet { name = PRIMITIVE_REPORTING_SET_NAME_1 }
     private val PRIMITIVE_REPORTING_SET_2 = reportingSet { name = PRIMITIVE_REPORTING_SET_NAME_2 }
+    private val PRIMITIVE_REPORTING_SET_3 = reportingSet { name = PRIMITIVE_REPORTING_SET_NAME_3 }
   }
 }

@@ -44,8 +44,8 @@ import org.wfanet.measurement.reporting.v2alpha.reportingSet
 private data class MetricCalculationSpecInfoKey(
   val filter: String,
   val groupings: List<MetricCalculationSpec.Grouping>,
-  val metricFrequencySpec: MetricCalculationSpec.MetricFrequencySpec? = null,
-  val trailingWindow: MetricCalculationSpec.TrailingWindow? = null,
+  val metricFrequencySpec: MetricCalculationSpec.MetricFrequencySpec?,
+  val trailingWindow: MetricCalculationSpec.TrailingWindow?,
 )
 
 /** [MetricCalculationSpec] fields not used for equality check */
@@ -329,24 +329,23 @@ private fun MutableMap<
     }
 
     // Second ReportingSet and so on if there are at least two components.
-    if (primitiveReportingSetNames.size >= 2) {
-      for (i in 2..primitiveReportingSetNames.size) {
-        val partialList = primitiveReportingSetNames.subList(0, i)
+    // sublist end index is exclusive
+    for (i in 2..primitiveReportingSetNames.size) {
+      val partialList = primitiveReportingSetNames.subList(0, i)
 
-        val partialReportingUnitCompositeReportingSet =
-          buildUnionCompositeReportingSet(campaignGroupName, partialList)
+      val partialReportingUnitCompositeReportingSet =
+        buildUnionCompositeReportingSet(campaignGroupName, partialList)
 
-        val partialMetricCalculationSpecInfoMap =
-          computeIfAbsent(partialReportingUnitCompositeReportingSet) { mutableMapOf() }
+      val partialMetricCalculationSpecInfoMap =
+        computeIfAbsent(partialReportingUnitCompositeReportingSet) { mutableMapOf() }
 
-        for (filter in filters) {
-          val key = createMetricCalculationSpecInfoKey(filter, groupings, true, metricFrequencySpec)
+      for (filter in filters) {
+        val key = createMetricCalculationSpecInfoKey(filter, groupings, true, metricFrequencySpec)
 
-          // Insert or update entry in map belonging to subsequent ReportingSets
-          partialMetricCalculationSpecInfoMap
-            .computeIfAbsent(key) { MetricCalculationSpecInfo() }
-            .includeReach = true
-        }
+        // Insert or update entry in map belonging to subsequent ReportingSets
+        partialMetricCalculationSpecInfoMap
+          .computeIfAbsent(key) { MetricCalculationSpecInfo() }
+          .includeReach = true
       }
     }
   }
@@ -410,7 +409,8 @@ private fun MutableMap<
   }
 
   if (
-    componentMetricSetSpec.hasNonCumulativeUnique() || componentMetricSetSpec.hasCumulativeUnique()
+    (componentMetricSetSpec.hasNonCumulativeUnique() || componentMetricSetSpec.hasCumulativeUnique())
+    && primitiveReportingSets.size >= 2
   ) {
     val firstMetricCalculationSpecInfoMap =
       computeIfAbsent(reportingUnitReportingSet) { mutableMapOf() }
@@ -478,7 +478,7 @@ private fun MutableMap<
           }
         }
       }
-    } else if (primitiveReportingSets.size == 2) {
+    } else {
       for (primitiveReportingSet in primitiveReportingSets) {
         val metricCalculationSpecInfoMap = computeIfAbsent(primitiveReportingSet) { mutableMapOf() }
 
