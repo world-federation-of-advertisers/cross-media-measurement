@@ -84,11 +84,41 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
+    name = "event_source",
+    srcs = ["EventSource.kt"],
+    deps = [
+        ":event_batch",
+        ":labeled_event",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+    ],
+)
+
+kt_jvm_library(
+    name = "storage_event_source",
+    srcs = ["StorageEventSource.kt"],
+    deps = [
+        ":event_batch",
+        ":event_path_resolver",
+        ":event_reader",
+        ":event_source",
+        ":labeled_event",
+        ":storage_event_reader",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator:storage_config",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:grouped_requisitions_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/tink",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:selected_storage_client",
+    ],
+)
+
+kt_jvm_library(
     name = "filter_spec",
     srcs = ["FilterSpec.kt"],
     deps = [
-        "@wfa_common_jvm//imports/java/com/google/protobuf",
         "//src/main/proto/wfa/measurement/api/v2alpha:requisition_spec_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
     ],
 )
 
@@ -116,6 +146,14 @@ kt_jvm_library(
     ],
 )
 
+kt_jvm_library(
+    name = "event_batch",
+    srcs = ["EventBatch.kt"],
+    deps = [
+        ":labeled_event",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+    ],
+)
 
 kt_jvm_library(
     name = "event_path_resolver",

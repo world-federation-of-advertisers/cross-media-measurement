@@ -31,7 +31,6 @@ import com.google.protobuf.DynamicMessage
  */
 data class EventBatch(
   val events: List<LabeledEvent<DynamicMessage>>,
-  val batchId: Long,
   val minTime: java.time.Instant,
   val maxTime: java.time.Instant,
 ) {
