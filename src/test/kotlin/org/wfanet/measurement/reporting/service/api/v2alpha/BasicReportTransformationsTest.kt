@@ -1837,7 +1837,8 @@ class BasicReportTransformationsTest {
               cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
               details =
                 MetricCalculationSpecKt.details {
-                  filter = "filter && (banner_ad.viewable == true && person.age_group == 18_TO_35 && person.gender == MALE && video_ad.viewed_fraction == 0.5)"
+                  filter =
+                    "filter && (banner_ad.viewable == true && person.age_group == 18_TO_35 && person.gender == MALE && video_ad.viewed_fraction == 0.5)"
                   metricSpecs += metricSpec { reach = MetricSpecKt.reachParams {} }
                 }
             }
@@ -1860,11 +1861,7 @@ class BasicReportTransformationsTest {
           metricFrequency = metricFrequencySpec { total = true }
           dimensionSpec = dimensionSpec {
             grouping = DimensionSpecKt.grouping { eventTemplateFields += "person.gender" }
-            filters += eventFilter {
-              terms += eventTemplateField {
-                path = "person.age_group"
-              }
-            }
+            filters += eventFilter { terms += eventTemplateField { path = "person.age_group" } }
           }
           resultGroupMetricSpec = resultGroupMetricSpec {
             reportingUnit =
