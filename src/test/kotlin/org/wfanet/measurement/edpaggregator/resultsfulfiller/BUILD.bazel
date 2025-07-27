@@ -182,3 +182,65 @@ kt_jvm_test(
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/testing",
     ],
 )
+
+kt_jvm_test(
+    name = "FilterProcessorTest",
+    srcs = ["FilterProcessorTest.kt"],
+    test_class = "org.wfanet.measurement.edpaggregator.resultsfulfiller.FilterProcessorTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:event_batch",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:filter_processor",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:labeled_event",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:test_event_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/java/com/google/protobuf/util",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+    ],
+)
+
+kt_jvm_test(
+    name = "StorageEventSourceTest",
+    srcs = [
+        "StorageEventSourceTest.kt",
+        "MockEventReader.kt",
+    ],
+    test_class = "org.wfanet.measurement.edpaggregator.resultsfulfiller.StorageEventSourceTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator:storage_config",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:event_path_resolver",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:event_reader",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:labeled_event",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:storage_event_source",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:test_event_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:grouped_requisitions_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//imports/kotlin/org/mockito/kotlin",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:selected_storage_client",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage/testing",
+    ],
+)
+
+kt_jvm_test(
+    name = "MockEventReaderTest",
+    srcs = [
+        "MockEventReaderTest.kt",
+        "MockEventReader.kt",
+    ],
+    test_class = "org.wfanet.measurement.edpaggregator.resultsfulfiller.MockEventReaderTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:event_path_resolver",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:event_reader",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:labeled_event",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:storage_event_source",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:grouped_requisitions_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+    ],
+)
