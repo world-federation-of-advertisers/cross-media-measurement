@@ -66,6 +66,14 @@ jobs:
       image-repo-prefix: ${{ github.repository_owner }}
       image-tag: ${{ needs.publish-images.outputs.image-tag }}
 
+  publish-edpa-cloud-function-images:
+    uses: ./.github/workflows/publish-cloud-run-function-uber-jars.yml
+    secrets: inherit
+    with:
+      environment: ${{ inputs.environment }}
+      apply: ${{ inputs.apply }}
+      image-tag: ${{ needs.publish-images.outputs.image-tag }}
+
   terraform:
     uses: ./.github/workflows/terraform-cmms.yml
     secrets: inherit
