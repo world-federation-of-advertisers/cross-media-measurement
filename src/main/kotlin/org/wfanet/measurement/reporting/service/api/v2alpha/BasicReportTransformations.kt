@@ -172,6 +172,7 @@ private fun createMetricCalculationSpecFilters(
 ): List<String> {
   val dimensionSpecFilter =
     dimensionSpecFilters
+      // To normalize the filter string
       .sortedBy { it.termsList.first().path }
       .joinToString(prefix = "(", postfix = ")", separator = " && ") {
         val term = it.termsList.first()
