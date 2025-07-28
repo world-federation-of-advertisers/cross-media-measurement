@@ -68,6 +68,7 @@ jobs:
 
   publish-edpa-cloud-function-images:
     uses: ./.github/workflows/publish-cloud-run-function-uber-jars.yml
+    needs: [publish-images]
     secrets: inherit
     with:
       package-version: ${{ needs.publish-images.outputs.image-tag }}
