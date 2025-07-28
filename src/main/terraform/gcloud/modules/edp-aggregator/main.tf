@@ -251,6 +251,8 @@ module "result_fulfiller_tee_app" {
   mig_distribution_policy_zones = var.requisition_fulfiller_config.worker.mig_distribution_policy_zones
   terraform_service_account     = var.terraform_service_account
   secrets_to_mount              = local.result_fulfiller_secrets_to_mount
+  network_name                  = google_compute_network.private_network.name
+  subnetwork_name               = google_compute_subnetwork.private_subnetwork.name
 }
 
 resource "google_storage_bucket_iam_member" "result_fulfiller_storage_viewer" {
@@ -284,4 +286,71 @@ resource "google_storage_bucket_iam_member" "data_watcher_config_storage_viewer"
   bucket = module.config_files_bucket.storage_bucket.name
   role   = "roles/storage.objectViewer"
   member = "serviceAccount:${module.data_watcher_function_service_accounts.cloud_function_service_account.email}"
+}
+
+resource "google_storage_bucket_iam_member" "requisition_fetcher_storage_creator" {
+  bucket = module.edp_aggregator_bucket.storage_bucket.name
+  role   = "roles/storage.objectCreator"
+  member = "serviceAccount:${module.requisition_fetcher_function_service_account.cloud_function_service_account.email}"
+}
+
+# Network configuration for private VPC with internet and Google API access
+resource "google_compute_network" "private_network" {
+  name                    = var.private_network_name
+  auto_create_subnetworks = false
+}
+
+resource "google_compute_subnetwork" "private_subnetwork" {
+  name                     = var.private_subnetwork_name
+  region                   = var.private_network_location
+  network                  = google_compute_network.private_network.id
+  ip_cidr_range            = "10.0.0.0/24"
+  private_ip_google_access = true
+}
+
+resource "google_compute_subnetwork" "public_subnetwork" {
+  name                     = var.public_subnetwork_name
+  region                   = var.private_network_location
+  network                  = google_compute_network.private_network.id
+  ip_cidr_range            = "10.0.1.0/24"
+  private_ip_google_access = true
+}
+
+# Cloud Router for NAT gateway
+resource "google_compute_router" "router" {
+  name    = var.private_router_name
+  region  = var.private_network_location
+  network = google_compute_network.private_network.id
+}
+
+# Cloud NAT configuration
+resource "google_compute_router_nat" "nat_gateway" {
+  name                               = var.nat_name
+  router                             = google_compute_router.router.name
+  region                             = google_compute_router.router.region
+  nat_ip_allocate_option             = "AUTO_ONLY"
+  source_subnetwork_ip_ranges_to_nat = "LIST_OF_SUBNETWORKS"
+
+  subnetwork {
+    name                    = google_compute_subnetwork.private_subnetwork.self_link
+    source_ip_ranges_to_nat = ["ALL_IP_RANGES"]
+  }
+
+  log_config {
+    enable = true
+    filter = "ERRORS_ONLY"
+  }
+}
+
+# Bastion host for SSH access to private instances
+module "bastion" {
+  source = "../bastion"
+
+  bastion_name             = var.bastion_name
+  zone                     = var.bastion_zone
+  network_name             = google_compute_network.private_network.name
+  subnetwork_name          = google_compute_subnetwork.public_subnetwork.name
+  service_account_email    = module.result_fulfiller_tee_app.mig_service_account.email
+  private_instance_tags    = ["worker"]
+  allowed_ssh_source_ranges = var.bastion_allowed_ssh_ranges
 }
