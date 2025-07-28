@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+data "google_project" "project" {}
+
 locals {
   common_secrets_to_mount = [
     {
@@ -169,6 +171,18 @@ resource "google_storage_bucket_object" "uploaded_requisition_fetcher_config" {
   name   = var.requisition_fetcher_config.destination
   bucket = module.config_files_bucket.storage_bucket.name
   source = var.requisition_fetcher_config.local_path
+}
+
+resource "google_project_iam_member" "eventarc_service_agent" {
+  project = data.google_project.project.project_id
+  role    = "roles/eventarc.serviceAgent"
+  member  = "serviceAccount:service-${data.google_project.project.number}@gcp-sa-eventarc.iam.gserviceaccount.com"
+}
+
+resource "google_project_iam_member" "storage_service_agent" {
+  project = data.google_project.project.project_id
+  role    = "roles/pubsub.publisher"
+  member  = "serviceAccount:service-${data.google_project.project.number}@gs-project-accounts.iam.gserviceaccount.com"
 }
 
 module "secrets" {
