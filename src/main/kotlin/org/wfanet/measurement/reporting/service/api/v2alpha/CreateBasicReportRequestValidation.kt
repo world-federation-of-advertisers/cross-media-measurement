@@ -283,28 +283,29 @@ fun validateDimensionSpec(
               if (eventTemplateFieldInfo.type != Descriptors.FieldDescriptor.Type.MESSAGE ||
                 eventTemplateFieldInfo.fullName != Timestamp.getDescriptor().fullName) {
                 throw InvalidFieldValueException(
-                  "basic_report.result_group_specs.dimension_spec.filters.terms.value"
+                  "basic_report.result_group_specs.dimension_spec.filters.terms.value.string_value"
                 ) { fieldName ->
-                  "$fieldName cannot be a string_value for ${eventTemplateField.path}"
+                  "$fieldName is invalid for ${eventTemplateField.path}"
                 }
               }
             }
           }
           EventTemplateField.FieldValue.SelectorCase.ENUM_VALUE -> {
-            if (eventTemplateFieldInfo.type != Descriptors.FieldDescriptor.Type.ENUM) {
+            if (eventTemplateFieldInfo.type != Descriptors.FieldDescriptor.Type.ENUM ||
+              !eventTemplateFieldInfo.enumValuesMap.containsKey(eventTemplateField.value.enumValue)) {
               throw InvalidFieldValueException(
-                "basic_report.result_group_specs.dimension_spec.filters.terms.value"
+                "basic_report.result_group_specs.dimension_spec.filters.terms.value.enum_value"
               ) { fieldName ->
-                "$fieldName cannot be an enum_value for ${eventTemplateField.path}"
+                "$fieldName is invalid for for ${eventTemplateField.path}"
               }
             }
           }
           EventTemplateField.FieldValue.SelectorCase.BOOL_VALUE ->
             if (eventTemplateFieldInfo.type != Descriptors.FieldDescriptor.Type.BOOL) {
               throw InvalidFieldValueException(
-                "basic_report.result_group_specs.dimension_spec.filters.terms.value"
+                "basic_report.result_group_specs.dimension_spec.filters.terms.value.bool_value"
               ) { fieldName ->
-                "$fieldName cannot be a bool_value for ${eventTemplateField.path}"
+                "$fieldName is invalid for ${eventTemplateField.path}"
               }
             }
           EventTemplateField.FieldValue.SelectorCase.FLOAT_VALUE -> {
@@ -314,9 +315,9 @@ fun validateDimensionSpec(
               (eventTemplateFieldInfo.type == Descriptors.FieldDescriptor.Type.MESSAGE &&
               eventTemplateFieldInfo.fullName != Duration.getDescriptor().fullName)) {
               throw InvalidFieldValueException(
-                "basic_report.result_group_specs.dimension_spec.filters.terms.value"
+                "basic_report.result_group_specs.dimension_spec.filters.terms.value.float_value"
               ) { fieldName ->
-                "$fieldName cannot be a float_value for ${eventTemplateField.path}"
+                "$fieldName is invalid for ${eventTemplateField.path}"
               }
             }
           }
