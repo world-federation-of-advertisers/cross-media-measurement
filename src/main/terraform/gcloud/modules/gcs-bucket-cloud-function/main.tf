@@ -61,6 +61,12 @@ resource "google_project_iam_member" "trigger_run_invoker" {
   member  = "serviceAccount:${google_service_account.cloud_function_trigger_service_account.email}"
 }
 
+resource "google_project_iam_member" "eventarc_service_agent" {
+  project = data.google_project.project.project_id
+  role    = "roles/eventarc.serviceAgent"
+  member  = "serviceAccount:service-${data.google_project.project.number}@gcp-sa-eventarc.iam.gserviceaccount.com"
+}
+
 resource "terraform_data" "deploy_gcs_cloud_function" {
 
   depends_on = [
@@ -105,6 +111,7 @@ resource "terraform_data" "deploy_gcs_cloud_function" {
         "--trigger-event-filters=type=google.cloud.storage.object.v1.finalized"
         "--trigger-event-filters=bucket=$TRIGGER_BUCKET"
         "--trigger-service-account=$TRIGGER_SERVICE_ACCOUNT"
+        "--no-allow-unauthenticated"
       )
 
       if [[ -n "$EXTRA_ENV_VARS" ]]; then
