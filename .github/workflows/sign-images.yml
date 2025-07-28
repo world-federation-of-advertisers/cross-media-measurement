@@ -25,6 +25,14 @@ on:
         description: "GCP KMS key resource name for image signing"
         type: string
         required: true
+      service-account:
+        description: "Service account to access the key"
+        type: string
+        required: true
+      workload-identity-provider:
+        description: "Workload identity provider to impersonate the service account"
+        type: string
+        required: true
 
 jobs:
   sign-images:
@@ -66,8 +74,8 @@ jobs:
       - name: Authenticate to Google Cloud for image signing
         uses: google-github-actions/auth@v2
         with:
-          workload_identity_provider: ${{ vars.IMAGE_SIGNING_WORKLOAD_IDENTITY_PROVIDER }}
-          service_account: ${{ vars.IMAGE_SIGNING_SA }}
+          workload_identity_provider: ${{ inputs.workload-identity-provider }}
+          service_account: ${{ inputs.service-account }}
 
       - name: Build image signing script
         run: |
