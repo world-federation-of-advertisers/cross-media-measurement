@@ -12,7 +12,7 @@
  * the License.
  */
 
-package org.wfanet.measurement.eventdataprovider.requisition.v2alpha
+package org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common
 
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.ByteString
@@ -30,8 +30,6 @@ import org.wfanet.measurement.api.v2alpha.PopulationSpecValidationException.EndV
 import org.wfanet.measurement.api.v2alpha.PopulationSpecValidationException.VidRangeIndex
 import org.wfanet.measurement.api.v2alpha.populationSpec
 import org.wfanet.measurement.common.toLong
-import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.InMemoryVidIndexMap
-import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.InconsistentIndexMapAndPopulationSpecException
 import org.wfanet.measurement.eventdataprovider.shareshuffle.VidIndexMapEntryKt.value
 import org.wfanet.measurement.eventdataprovider.shareshuffle.vidIndexMapEntry
 
