@@ -31,5 +31,4 @@ maven_export(
         "no-javadocs",
         "no-remote-cache",
     ],
-    visibility = ["//visibility:private"],
 )

@@ -9,12 +9,14 @@ MAVEN_COORDINATES = "org.wfanet.measurement.eventdataprovider:requisition-common
 kt_jvm_library(
     name = "common",
     srcs = [
+        "FrequencyVectorBuilder.kt",
         "InMemoryVidIndexMap.kt",
         "VidIndexMap.kt",
     ],
     tags = ["maven_coordinates=" + MAVEN_COORDINATES],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:population_spec_validator",
+        "//src/main/proto/wfa/frequency_count:frequency_vector_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:api_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/eventdataprovider/shareshuffle:vid_index_map_entry_kt_jvm_proto",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
@@ -29,5 +31,4 @@ maven_export(
         "no-javadocs",
         "no-remote-cache",
     ],
-    visibility = ["//visibility:private"],
 )
