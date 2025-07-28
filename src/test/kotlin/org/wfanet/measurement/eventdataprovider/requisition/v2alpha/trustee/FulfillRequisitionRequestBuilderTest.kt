@@ -18,22 +18,26 @@ import com.google.crypto.tink.Aead
 import com.google.crypto.tink.BinaryKeysetReader
 import com.google.crypto.tink.KeyTemplates
 import com.google.crypto.tink.KeysetHandle
+import com.google.crypto.tink.KmsClient
 import com.google.crypto.tink.aead.AeadConfig
 import com.google.protobuf.ByteString
+import io.grpc.Status
 import java.security.GeneralSecurityException
 import kotlin.test.assertFailsWith
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.wfanet.frequencycount.FrequencyVector
+import org.mockito.Mockito.mock
+import org.mockito.kotlin.any
+import org.mockito.kotlin.whenever
 import org.wfanet.frequencycount.frequencyVector
+import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt
 import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.protocolConfig
 import org.wfanet.measurement.api.v2alpha.requisition
 import org.wfanet.measurement.common.crypto.tink.testing.FakeKmsClient
 import org.wfanet.measurement.consent.client.dataprovider.computeRequisitionFingerprint
-import org.wfanet.measurement.eventdataprovider.trustee.v2alpha.FulfillRequisitionRequestBuilder
 
 @RunWith(JUnit4::class)
 class FulfillRequisitionRequestBuilderTest {
@@ -84,7 +88,7 @@ class FulfillRequisitionRequestBuilderTest {
       assertFailsWith<IllegalArgumentException>("expected exception") {
         FulfillRequisitionRequestBuilder.build(
           REQUISITION,
-          requisitionNonce = 123L,
+          NONCE,
           frequencyVector {},
           KMS_CLIENT,
           KEK_URI,
@@ -96,11 +100,45 @@ class FulfillRequisitionRequestBuilderTest {
   }
 
   @Test
-  fun `build fails with IllegalStateException for crypto error`() {
+  fun `build throws IllegalArgumentException when frequency vector has negative value`() {
+    val exception =
+      assertFailsWith<IllegalArgumentException> {
+        FulfillRequisitionRequestBuilder.build(
+          REQUISITION,
+          NONCE,
+          frequencyVector { data += -1 },
+          KMS_CLIENT,
+          KEK_URI,
+          "idProvider",
+          "serviceAccount",
+        )
+      }
+    assertThat(exception.message).contains("FrequencyVector value")
+  }
+
+  @Test
+  fun `build throws IllegalArgumentException when frequency vector has value over 255`() {
+    val exception =
+      assertFailsWith<IllegalArgumentException> {
+        FulfillRequisitionRequestBuilder.build(
+          REQUISITION,
+          NONCE,
+          frequencyVector { data += 256 },
+          KMS_CLIENT,
+          KEK_URI,
+          "idProvider",
+          "serviceAccount",
+        )
+      }
+    assertThat(exception.message).contains("FrequencyVector value")
+  }
+
+  @Test
+  fun `build fails with RuntimeException for invalid kek uri`() {
     val invalidKekUri = "gcp-kms://unregistered/key/uri"
 
     val exception =
-      assertFailsWith<IllegalStateException> {
+      assertFailsWith<RuntimeException> {
         FulfillRequisitionRequestBuilder.build(
           REQUISITION,
           NONCE,
@@ -117,6 +155,83 @@ class FulfillRequisitionRequestBuilderTest {
   }
 
   @Test
+  fun `build fails with RuntimeException for kms client getAead failure`() {
+    val kmsClientMock: KmsClient = mock()
+    val rpcException = Status.DEADLINE_EXCEEDED.asRuntimeException()
+    val kmsException = GeneralSecurityException("KMS client error", rpcException)
+    whenever(kmsClientMock.getAead(any())).thenThrow(kmsException)
+
+    val exception =
+      assertFailsWith<RuntimeException> {
+        FulfillRequisitionRequestBuilder.build(
+          REQUISITION,
+          NONCE,
+          frequencyVector { data += 1 },
+          kmsClientMock,
+          KEK_URI,
+          "idProvider",
+          "serviceAccount",
+        )
+      }
+
+    assertThat(exception.message).contains("cryptographic error")
+    assertThat(exception.cause).isEqualTo(kmsException)
+  }
+
+  @Test
+  fun `build fails with RuntimeException for dek encryption rpc failure`() {
+    val aeadMock: Aead = mock()
+    val rpcCause = Status.DEADLINE_EXCEEDED.asRuntimeException()
+    val dekEncryptionException =
+      GeneralSecurityException("DEK encryption failed due to RPC error", rpcCause)
+    whenever(aeadMock.encrypt(any(), any())).thenThrow(dekEncryptionException)
+
+    val kmsClientMock: KmsClient = mock()
+    whenever(kmsClientMock.getAead(KEK_URI)).thenReturn(aeadMock)
+
+    val exception =
+      assertFailsWith<RuntimeException> {
+        FulfillRequisitionRequestBuilder.build(
+          REQUISITION,
+          NONCE,
+          frequencyVector { data += 1 },
+          kmsClientMock,
+          KEK_URI,
+          "idProvider",
+          "serviceAccount",
+        )
+      }
+
+    assertThat(exception.message).contains("cryptographic error")
+    assertThat(exception.cause).isEqualTo(dekEncryptionException)
+  }
+
+  @Test
+  fun `build fails with RuntimeException for dek encryption failure`() {
+    val aeadMock: Aead = mock()
+    KMS_CLIENT.setAead(KEK_URI, aeadMock)
+    whenever(aeadMock.encrypt(any(), any()))
+      .thenThrow(GeneralSecurityException("Mocked KEK AEAD encryption failure"))
+
+    val exception =
+      assertFailsWith<RuntimeException> {
+        FulfillRequisitionRequestBuilder.build(
+          REQUISITION,
+          NONCE,
+          frequencyVector { data += 1 },
+          KMS_CLIENT,
+          KEK_URI,
+          "idProvider",
+          "serviceAccount",
+        )
+      }
+
+    assertThat(exception.message).contains("cryptographic error")
+    assertThat(exception.cause).isInstanceOf(GeneralSecurityException::class.java)
+    assertThat(exception.cause).hasMessageThat().contains("encryption failure")
+  }
+
+  @Test
   fun `build returns requests with correctly encrypted payload`() {
     val inputFrequencyVector = frequencyVector { data += listOf(1, 8, 27) }
 
@@ -127,8 +242,8 @@ class FulfillRequisitionRequestBuilderTest {
           inputFrequencyVector,
           KMS_CLIENT,
           KEK_URI,
-          "workload-id-provider",
-          "impersonated-sa",
+          WORKLOAD_ID_PROVIDER,
+          IMPERSONATED_SERVICE_ACCOUNT,
         )
         .toList()
 
@@ -136,39 +251,57 @@ class FulfillRequisitionRequestBuilderTest {
     val headerRequest = requests[0]
     val bodyRequest = requests[1]
 
+    assertThat(headerRequest.hasHeader()).isTrue()
+    assertThat(bodyRequest.hasBodyChunk()).isTrue()
+
     val header = headerRequest.header
     assertThat(header.name).isEqualTo(REQUISITION.name)
     assertThat(header.requisitionFingerprint).isEqualTo(computeRequisitionFingerprint(REQUISITION))
     assertThat(header.nonce).isEqualTo(NONCE)
 
+    val trusteeHeader = header.trusTee
+    assertThat(trusteeHeader.dataFormat)
+      .isEqualTo(FulfillRequisitionRequest.Header.TrusTee.DataFormat.ENCRYPTED_FREQUENCY_VECTOR)
+    val envelope = trusteeHeader.envelopeEncryption
+    assertThat(envelope.kmsKekUri).isEqualTo(KEK_URI)
+    assertThat(envelope.workloadIdentityProvider).isEqualTo(WORKLOAD_ID_PROVIDER)
+    assertThat(envelope.impersonatedServiceAccount).isEqualTo(IMPERSONATED_SERVICE_ACCOUNT)
+    assertThat(envelope.hasEncryptedDek()).isTrue()
+
     val kekAead = KMS_CLIENT.getAead(KEK_URI)
-    val encryptedDekBytes: ByteString = header.trusTee.envelopeEncryption.encryptedDek.data
+    val encryptedDek: ByteString = header.trusTee.envelopeEncryption.encryptedDek.data
     val dekKeysetHandle =
-      KeysetHandle.read(BinaryKeysetReader.withInputStream(encryptedDekBytes.newInput()), kekAead)
+      KeysetHandle.read(BinaryKeysetReader.withInputStream(encryptedDek.newInput()), kekAead)
     val dekAead = dekKeysetHandle.getPrimitive(Aead::class.java)
+
     val decryptedFrequencyVectorData =
       dekAead.decrypt(bodyRequest.bodyChunk.data.toByteArray(), null)
-    val decryptedFrequencyVector = FrequencyVector.parseFrom(decryptedFrequencyVectorData)
-
-    assertThat(decryptedFrequencyVector).isEqualTo(inputFrequencyVector)
+    val decryptedIntegers = bigEndianBytesToIntegers(decryptedFrequencyVectorData)
+    assertThat(decryptedIntegers).isEqualTo(inputFrequencyVector.dataList)
   }
 
   companion object {
     private val KMS_CLIENT = FakeKmsClient()
-    private const val KEK_URI = FakeKmsClient.KEY_URI_PREFIX + "kmk"
+    private const val KEK_URI = FakeKmsClient.KEY_URI_PREFIX + "kek"
 
     init {
       AeadConfig.register()
-      val kmsKeyHandle = KeysetHandle.generateNew(KeyTemplates.get("AES128_GCM"))
+      val kmsKeyHandle = KeysetHandle.generateNew(KeyTemplates.get("AES256_GCM"))
       KMS_CLIENT.setAead(KEK_URI, kmsKeyHandle.getPrimitive(Aead::class.java))
     }
 
     private const val NONCE = 12345L
+    private const val WORKLOAD_ID_PROVIDER = "workload-id-provider"
+    private const val IMPERSONATED_SERVICE_ACCOUNT = "impersonated-sa"
     private val REQUISITION = requisition {
       name = "requisitions/test"
       protocolConfig = protocolConfig {
         protocols += ProtocolConfigKt.protocol { trusTee = ProtocolConfigKt.trusTee {} }
       }
+    }
+
+    private fun bigEndianBytesToIntegers(bytes: ByteArray): List<Int> {
+      return bytes.map { it.toInt() and 0XFF }
     }
   }
 }
