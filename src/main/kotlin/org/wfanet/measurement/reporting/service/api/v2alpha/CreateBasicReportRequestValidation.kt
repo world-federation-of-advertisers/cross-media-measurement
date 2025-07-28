@@ -280,8 +280,10 @@ fun validateDimensionSpec(
         when (eventTemplateField.value.selectorCase) {
           EventTemplateField.FieldValue.SelectorCase.STRING_VALUE -> {
             if (eventTemplateFieldInfo.type != Descriptors.FieldDescriptor.Type.STRING) {
-              if (eventTemplateFieldInfo.type != Descriptors.FieldDescriptor.Type.MESSAGE ||
-                eventTemplateFieldInfo.fullName != Timestamp.getDescriptor().fullName) {
+              if (
+                eventTemplateFieldInfo.type != Descriptors.FieldDescriptor.Type.MESSAGE ||
+                  eventTemplateFieldInfo.fullName != Timestamp.getDescriptor().fullName
+              ) {
                 throw InvalidFieldValueException(
                   "basic_report.result_group_specs.dimension_spec.filters.terms.value.string_value"
                 ) { fieldName ->
@@ -291,8 +293,12 @@ fun validateDimensionSpec(
             }
           }
           EventTemplateField.FieldValue.SelectorCase.ENUM_VALUE -> {
-            if (eventTemplateFieldInfo.type != Descriptors.FieldDescriptor.Type.ENUM ||
-              !eventTemplateFieldInfo.enumValuesMap.containsKey(eventTemplateField.value.enumValue)) {
+            if (
+              eventTemplateFieldInfo.type != Descriptors.FieldDescriptor.Type.ENUM ||
+                !eventTemplateFieldInfo.enumValuesMap.containsKey(
+                  eventTemplateField.value.enumValue
+                )
+            ) {
               throw InvalidFieldValueException(
                 "basic_report.result_group_specs.dimension_spec.filters.terms.value.enum_value"
               ) { fieldName ->
@@ -309,11 +315,13 @@ fun validateDimensionSpec(
               }
             }
           EventTemplateField.FieldValue.SelectorCase.FLOAT_VALUE -> {
-            if (eventTemplateFieldInfo.type == Descriptors.FieldDescriptor.Type.ENUM ||
-              eventTemplateFieldInfo.type == Descriptors.FieldDescriptor.Type.STRING ||
-              eventTemplateFieldInfo.type == Descriptors.FieldDescriptor.Type.BOOL ||
-              (eventTemplateFieldInfo.type == Descriptors.FieldDescriptor.Type.MESSAGE &&
-              eventTemplateFieldInfo.fullName != Duration.getDescriptor().fullName)) {
+            if (
+              eventTemplateFieldInfo.type == Descriptors.FieldDescriptor.Type.ENUM ||
+                eventTemplateFieldInfo.type == Descriptors.FieldDescriptor.Type.STRING ||
+                eventTemplateFieldInfo.type == Descriptors.FieldDescriptor.Type.BOOL ||
+                (eventTemplateFieldInfo.type == Descriptors.FieldDescriptor.Type.MESSAGE &&
+                  eventTemplateFieldInfo.fullName != Duration.getDescriptor().fullName)
+            ) {
               throw InvalidFieldValueException(
                 "basic_report.result_group_specs.dimension_spec.filters.terms.value.float_value"
               ) { fieldName ->
