@@ -61,12 +61,6 @@ resource "google_project_iam_member" "trigger_run_invoker" {
   member  = "serviceAccount:${google_service_account.cloud_function_trigger_service_account.email}"
 }
 
-resource "google_project_iam_member" "eventarc_service_agent" {
-  project = data.google_project.project.project_id
-  role    = "roles/eventarc.serviceAgent"
-  member  = "serviceAccount:service-${data.google_project.project.number}@gcp-sa-eventarc.iam.gserviceaccount.com"
-}
-
 resource "terraform_data" "deploy_gcs_cloud_function" {
 
   depends_on = [
@@ -80,10 +74,7 @@ resource "terraform_data" "deploy_gcs_cloud_function" {
     google_project_iam_member.trigger_run_invoker,
   ]
 
-  triggers_replace = [
-    var.uber_jar_path,
-    timestamp()
-  ]
+  triggers_replace = [var.uber_jar_path]
 
   provisioner "local-exec" {
     interpreter = ["/bin/bash", "-c"]
