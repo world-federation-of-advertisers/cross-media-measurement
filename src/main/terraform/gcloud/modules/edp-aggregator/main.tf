@@ -172,7 +172,7 @@ resource "google_project_iam_member" "eventarc_service_agent" {
   member  = "serviceAccount:service-${data.google_project.project.number}@gcp-sa-eventarc.iam.gserviceaccount.com"
 }
 
-resource "google_project_iam_member" "eventarc_service_agent" {
+resource "google_project_iam_member" "storage_service_agent" {
   project = data.google_project.project.project_id
   role    = "roles/pubsub.publisher"
   member  = "serviceAccount:service-${data.google_project.project.number}@gs-project-accounts.iam.gserviceaccount.com"
