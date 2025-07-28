@@ -31,6 +31,8 @@ object EventTemplateFieldInfo {
     val isPopulationAttribute: Boolean,
     val supportedReportingFeatures: SupportedReportingFeatures,
     val type: Descriptors.FieldDescriptor.Type,
-    val groupingValuesMap: Map<String, Int>,
+    val fullName: String,
+    // Map of Enum name to Enum number
+    val enumValuesMap: Map<String, Int>,
   )
 }

@@ -531,7 +531,7 @@ class BasicReportsService(
                   }
                 }
 
-                val groupingValuesMap = buildMap {
+                val enumValuesMap = buildMap {
                   if (templateField.type == FieldDescriptor.Type.ENUM) {
                     templateField.enumType.values.forEach { put(it.name, it.number) }
                   }
@@ -544,7 +544,8 @@ class BasicReportsService(
                     isPopulationAttribute = isPopulationAttribute,
                     supportedReportingFeatures = supportedReportingFeatures,
                     type = templateField.type,
-                    groupingValuesMap = groupingValuesMap,
+                    fullName = templateField.fullName,
+                    enumValuesMap = enumValuesMap,
                   ),
                 )
               }

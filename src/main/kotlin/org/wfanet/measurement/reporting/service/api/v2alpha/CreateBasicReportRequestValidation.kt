@@ -16,6 +16,9 @@
 
 package org.wfanet.measurement.reporting.service.api.v2alpha
 
+import com.google.protobuf.Descriptors
+import com.google.protobuf.Duration
+import com.google.protobuf.Timestamp
 import java.util.UUID
 import kotlin.collections.List
 import kotlin.collections.Set
@@ -273,13 +276,55 @@ fun validateDimensionSpec(
           }
         }
 
-        if (
-          eventTemplateField.value.selectorCase ==
-            EventTemplateField.FieldValue.SelectorCase.SELECTOR_NOT_SET
-        ) {
-          throw RequiredFieldNotSetException(
-            "basic_report.result_group_specs.dimension_spec.filters.terms.value"
-          )
+        @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf enum fields cannot be null.
+        when (eventTemplateField.value.selectorCase) {
+          EventTemplateField.FieldValue.SelectorCase.STRING_VALUE -> {
+            if (eventTemplateFieldInfo.type != Descriptors.FieldDescriptor.Type.STRING) {
+              if (eventTemplateFieldInfo.type != Descriptors.FieldDescriptor.Type.MESSAGE ||
+                eventTemplateFieldInfo.fullName != Timestamp.getDescriptor().fullName) {
+                throw InvalidFieldValueException(
+                  "basic_report.result_group_specs.dimension_spec.filters.terms.value"
+                ) { fieldName ->
+                  "$fieldName cannot be a string_value for ${eventTemplateField.path}"
+                }
+              }
+            }
+          }
+          EventTemplateField.FieldValue.SelectorCase.ENUM_VALUE -> {
+            if (eventTemplateFieldInfo.type != Descriptors.FieldDescriptor.Type.ENUM) {
+              throw InvalidFieldValueException(
+                "basic_report.result_group_specs.dimension_spec.filters.terms.value"
+              ) { fieldName ->
+                "$fieldName cannot be an enum_value for ${eventTemplateField.path}"
+              }
+            }
+          }
+          EventTemplateField.FieldValue.SelectorCase.BOOL_VALUE ->
+            if (eventTemplateFieldInfo.type != Descriptors.FieldDescriptor.Type.BOOL) {
+              throw InvalidFieldValueException(
+                "basic_report.result_group_specs.dimension_spec.filters.terms.value"
+              ) { fieldName ->
+                "$fieldName cannot be a bool_value for ${eventTemplateField.path}"
+              }
+            }
+          EventTemplateField.FieldValue.SelectorCase.FLOAT_VALUE -> {
+            if (eventTemplateFieldInfo.type == Descriptors.FieldDescriptor.Type.ENUM ||
+              eventTemplateFieldInfo.type == Descriptors.FieldDescriptor.Type.STRING ||
+              eventTemplateFieldInfo.type == Descriptors.FieldDescriptor.Type.BOOL ||
+              (eventTemplateFieldInfo.type == Descriptors.FieldDescriptor.Type.MESSAGE &&
+              eventTemplateFieldInfo.fullName != Duration.getDescriptor().fullName)) {
+              throw InvalidFieldValueException(
+                "basic_report.result_group_specs.dimension_spec.filters.terms.value"
+              ) { fieldName ->
+                "$fieldName cannot be a float_value for ${eventTemplateField.path}"
+              }
+            }
+          }
+          EventTemplateField.FieldValue.SelectorCase.SELECTOR_NOT_SET -> {
+            throw RequiredFieldNotSetException(
+              "basic_report.result_group_specs.dimension_spec.filters.terms.value"
+            )
+          }
         }
       }
     }
