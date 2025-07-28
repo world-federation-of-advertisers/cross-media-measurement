@@ -30,7 +30,7 @@ locals {
 
   data_watcher_tls_key = {
     secret_id         = "edpa-data-watcher-tls-key"
-    secret_local_path = abspath("${path.root}/../../../k8s/testing/secretfiles/edpa_tee_app_tls.key"),
+    secret_local_path = abspath("${path.root}/../../../k8s/testing/secretfiles/data_watcher_tls.key"),
     is_binary_format  = false
   }
 
@@ -99,7 +99,7 @@ locals {
       app_args = [
         "--kingdom-public-api-target=${var.kingdom_public_api_target}",
         "--secure-computation-public-api-target=${var.secure_computation_public_api_target}",
-        "--subscription-id=requisition-fulfiller-subscription",
+        "--subscription-id=results-fulfiller-subscription",
         "--google-pub-sub-project-id=${data.google_client_config.default.project}"
       ]
       machine_type                  = "n2d-standard-2"
