@@ -22,6 +22,8 @@ import com.google.crypto.tink.KmsClient
 import com.google.crypto.tink.aead.AeadConfig
 import com.google.protobuf.ByteString
 import com.google.protobuf.kotlin.toByteString
+import io.grpc.Status
+import io.grpc.StatusException
 import java.io.ByteArrayOutputStream
 import java.security.GeneralSecurityException
 import org.wfanet.frequencycount.FrequencyVector
@@ -89,6 +91,15 @@ class FulfillRequisitionRequestBuilder(
       encryptedDek = outputStream.toByteArray().toByteString()
     } catch (e: GeneralSecurityException) {
       throw RuntimeException("Failed to build trustee request due to a cryptographic error", e)
+    } catch (e: StatusException) {
+      throw when (e.status.code) {
+          Status.Code.UNAVAILABLE -> Status.UNAVAILABLE
+          Status.Code.ABORTED -> Status.ABORTED
+          Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
+          else -> Status.UNKNOWN
+        }
+        .withCause(e)
+        .asRuntimeException()
     }
   }
 

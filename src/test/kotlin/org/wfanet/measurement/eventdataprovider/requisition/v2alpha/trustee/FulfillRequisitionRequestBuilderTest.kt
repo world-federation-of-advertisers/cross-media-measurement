@@ -158,8 +158,7 @@ class FulfillRequisitionRequestBuilderTest {
   fun `build fails with RuntimeException for kms client getAead failure`() {
     val kmsClientMock: KmsClient = mock()
     val rpcException = Status.DEADLINE_EXCEEDED.asRuntimeException()
-    val kmsException = GeneralSecurityException("KMS client error", rpcException)
-    whenever(kmsClientMock.getAead(any())).thenThrow(kmsException)
+    whenever(kmsClientMock.getAead(any())).thenThrow(rpcException)
 
     val exception =
       assertFailsWith<RuntimeException> {
@@ -174,17 +173,14 @@ class FulfillRequisitionRequestBuilderTest {
         )
       }
 
-    assertThat(exception.message).contains("cryptographic error")
-    assertThat(exception.cause).isEqualTo(kmsException)
+    assertThat(exception.message).contains(Status.Code.DEADLINE_EXCEEDED.toString())
   }
 
   @Test
   fun `build fails with RuntimeException for dek encryption rpc failure`() {
     val aeadMock: Aead = mock()
-    val rpcCause = Status.DEADLINE_EXCEEDED.asRuntimeException()
-    val dekEncryptionException =
-      GeneralSecurityException("DEK encryption failed due to RPC error", rpcCause)
-    whenever(aeadMock.encrypt(any(), any())).thenThrow(dekEncryptionException)
+    val rpcException = Status.ABORTED.asRuntimeException()
+    whenever(aeadMock.encrypt(any(), any())).thenThrow(rpcException)
 
     val kmsClientMock: KmsClient = mock()
     whenever(kmsClientMock.getAead(KEK_URI)).thenReturn(aeadMock)
@@ -202,8 +198,7 @@ class FulfillRequisitionRequestBuilderTest {
         )
       }
 
-    assertThat(exception.message).contains("cryptographic error")
-    assertThat(exception.cause).isEqualTo(dekEncryptionException)
+    assertThat(exception.message).contains(Status.Code.ABORTED.toString())
   }
 
   @Test
@@ -301,7 +296,7 @@ class FulfillRequisitionRequestBuilderTest {
     }
 
     private fun bigEndianBytesToIntegers(bytes: ByteArray): List<Int> {
-      return bytes.map { it.toInt() and 0XFF }
+      return bytes.map { it.toInt() and 0xFF }
     }
   }
 }
