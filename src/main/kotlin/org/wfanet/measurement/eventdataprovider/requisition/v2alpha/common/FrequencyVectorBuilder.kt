@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.eventdataprovider.frequencyvector.v2alpha
+package org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common
 
 import org.wfanet.frequencycount.FrequencyVector
 import org.wfanet.frequencycount.frequencyVector

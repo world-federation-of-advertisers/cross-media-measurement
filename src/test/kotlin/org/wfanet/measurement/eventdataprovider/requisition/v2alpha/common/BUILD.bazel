@@ -15,3 +15,18 @@ kt_jvm_test(
         "@wfa_common_jvm//imports/kotlin/org/mockito/kotlin",
     ],
 )
+
+kt_jvm_test(
+    name = "FrequencyVectorBuilderTest",
+    srcs = ["FrequencyVectorBuilderTest.kt"],
+    test_class = "org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.FrequencyVectorBuilderTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/requisition/v2alpha/common",
+        "//src/main/proto/wfa/any_sketch:frequency_vector_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:measurement_spec_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:population_spec_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+    ],
+)
