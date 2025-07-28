@@ -26,6 +26,8 @@ option go_package = "github.com/world-federation-of-advertisers/cross-media-meas
 
 // The resource name of a reporting set.
 message ReportingSet {
+  reserved 3;
+
   option (google.api.resource) = {
     type: "reporting.halo-cmm.org/ReportingSet"
     pattern: "measurementConsumers/{measurement_consumer}/reportingSets/{reporting_set}"
@@ -55,10 +57,6 @@ message ReportingSet {
   // for upstream use by UIs and other rich clients.
   map<string, string> tags = 8 [(google.api.field_behavior) = IMMUTABLE];
 
-  // CEL filter predicate that applies to this reporting set.
-  // If unspecified, evaluates to `true`.
-  string filter = 3 [(google.api.field_behavior) = IMMUTABLE];
-
   // Describes a set of events that share a common filter.
   //
   // It's the minimum building block of a set expression.
@@ -69,6 +67,10 @@ message ReportingSet {
       (google.api.field_behavior) = REQUIRED,
       (google.api.field_behavior) = IMMUTABLE
     ];
+
+    // CEL filter predicate that applies to this primitive reporting set.
+    // If unspecified, evaluates to `true`.
+    string filter = 2 [(google.api.field_behavior) = IMMUTABLE];
   }
 
   // Represents a binary set expression.
