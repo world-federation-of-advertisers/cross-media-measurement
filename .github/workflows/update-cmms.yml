@@ -70,9 +70,7 @@ jobs:
     uses: ./.github/workflows/publish-cloud-run-function-uber-jars.yml
     secrets: inherit
     with:
-      environment: ${{ inputs.environment }}
-      apply: ${{ inputs.apply }}
-      image-tag: ${{ needs.publish-images.outputs.image-tag }}
+      package-version: ${{ needs.publish-images.outputs.image-tag }}
 
   terraform:
     uses: ./.github/workflows/terraform-cmms.yml
