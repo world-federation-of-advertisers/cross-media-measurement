@@ -35,6 +35,7 @@ class PostgresMetricCalculationSpecsServiceTest :
     return Services(
       PostgresMetricCalculationSpecsService(idGenerator, client),
       PostgresMeasurementConsumersService(idGenerator, client),
+      PostgresReportingSetsService(idGenerator, client),
     )
   }
 
