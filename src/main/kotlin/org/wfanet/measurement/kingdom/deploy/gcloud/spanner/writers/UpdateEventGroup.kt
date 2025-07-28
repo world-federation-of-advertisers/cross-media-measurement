@@ -17,6 +17,8 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 import com.google.cloud.spanner.Key
 import com.google.cloud.spanner.KeySet
 import com.google.cloud.spanner.Mutation
+import com.google.cloud.spanner.Options
+import com.google.cloud.spanner.Struct
 import com.google.cloud.spanner.Value
 import com.google.type.endTimeOrNull
 import com.google.type.startTimeOrNull
@@ -24,19 +26,23 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.toSet
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
+import org.wfanet.measurement.common.singleOrNullIfEmpty
 import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
 import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
+import org.wfanet.measurement.gcloud.spanner.getExternalId
+import org.wfanet.measurement.gcloud.spanner.getInternalId
 import org.wfanet.measurement.gcloud.spanner.set
+import org.wfanet.measurement.gcloud.spanner.statement
 import org.wfanet.measurement.gcloud.spanner.to
 import org.wfanet.measurement.internal.kingdom.EventGroup
+import org.wfanet.measurement.internal.kingdom.EventGroupDetails
 import org.wfanet.measurement.internal.kingdom.MediaType
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.EventGroupInvalidArgsException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.EventGroupNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.EventGroupStateIllegalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.EventGroupReader
 
 /**
  * Update [EventGroup] in the database.
@@ -51,43 +57,47 @@ class UpdateEventGroup(private val eventGroup: EventGroup) :
   override suspend fun TransactionScope.runTransaction(): EventGroup {
     val externalDataProviderId = ExternalId(eventGroup.externalDataProviderId)
     val externalEventGroupId = ExternalId(eventGroup.externalEventGroupId)
+    val externalMeasurementConsumerId = ExternalId(eventGroup.externalMeasurementConsumerId)
     val internalEventGroupResult =
-      EventGroupReader()
-        .readByDataProvider(transactionContext, externalDataProviderId, externalEventGroupId)
+      transactionContext.readEventGroup(externalDataProviderId, externalEventGroupId)
         ?: throw EventGroupNotFoundException(externalDataProviderId, externalEventGroupId)
-    if (internalEventGroupResult.eventGroup.state == EventGroup.State.DELETED) {
+    if (internalEventGroupResult.state == EventGroup.State.DELETED) {
       throw EventGroupStateIllegalException(
         externalEventGroupId,
         externalEventGroupId,
-        internalEventGroupResult.eventGroup.state,
+        internalEventGroupResult.state,
       )
     }
-    if (
-      internalEventGroupResult.eventGroup.externalMeasurementConsumerId !=
-        eventGroup.externalMeasurementConsumerId
-    ) {
+    if (internalEventGroupResult.externalMeasurementConsumerId != externalMeasurementConsumerId) {
       throw EventGroupInvalidArgsException(
-        ExternalId(internalEventGroupResult.eventGroup.externalMeasurementConsumerId),
-        ExternalId(eventGroup.externalMeasurementConsumerId),
+        internalEventGroupResult.externalMeasurementConsumerId,
+        externalMeasurementConsumerId,
       )
     }
     val providedEventGroupId: String? = eventGroup.providedEventGroupId.ifBlank { null }
 
     transactionContext.bufferUpdateMutation(Table.EVENT_GROUPS) {
-      set("DataProviderId" to internalEventGroupResult.internalDataProviderId.value)
-      set("EventGroupId" to internalEventGroupResult.internalEventGroupId.value)
+      set("DataProviderId").to(internalEventGroupResult.dataProviderId)
+      set("EventGroupId").to(internalEventGroupResult.eventGroupId)
       set("ProvidedEventGroupId" to providedEventGroupId)
       set("UpdateTime" to Value.COMMIT_TIMESTAMP)
       set("DataAvailabilityStartTime")
         .to(eventGroup.dataAvailabilityInterval.startTimeOrNull?.toGcloudTimestamp())
       set("DataAvailabilityEndTime")
         .to(eventGroup.dataAvailabilityInterval.endTimeOrNull?.toGcloudTimestamp())
-      set("EventGroupDetails").to(eventGroup.details)
+
+      val detailsValue =
+        if (eventGroup.hasDetails()) {
+          Value.protoMessage(eventGroup.details)
+        } else {
+          Value.protoMessage(null, EventGroupDetails.getDescriptor())
+        }
+      set("EventGroupDetails").to(detailsValue)
     }
 
     transactionContext.syncMediaTypes(
-      internalEventGroupResult.internalDataProviderId,
-      internalEventGroupResult.internalEventGroupId,
+      internalEventGroupResult.dataProviderId,
+      internalEventGroupResult.eventGroupId,
       eventGroup.mediaTypesList.toSet(),
     )
 
@@ -132,6 +142,50 @@ class UpdateEventGroup(private val eventGroup: EventGroup) :
   override fun ResultScope<EventGroup>.buildResult(): EventGroup {
     return eventGroup.toBuilder().apply { updateTime = commitTimestamp.toProto() }.build()
   }
+
+  private suspend fun AsyncDatabaseClient.ReadContext.readEventGroup(
+    externalDataProviderId: ExternalId,
+    externalEventGroupId: ExternalId,
+  ): EventGroupResult? {
+    val sql =
+      """
+      SELECT
+        DataProviderId,
+        EventGroupId,
+        ExternalMeasurementConsumerId,
+        State,
+      FROM
+        ${Table.EVENT_GROUPS}
+        JOIN DataProviders USING (DataProviderId)
+        JOIN MeasurementConsumers USING (MeasurementConsumerId)
+      WHERE
+        ExternalDataProviderId = @externalDataProviderId
+        AND ExternalEventGroupId = @externalEventGroupId
+      """
+        .trimIndent()
+    val query =
+      statement(sql) {
+        bind("externalDataProviderId").to(externalDataProviderId)
+        bind("externalEventGroupId").to(externalEventGroupId)
+      }
+
+    val row: Struct =
+      executeQuery(query, Options.tag("writer=$writerName,action=readEventGroup"))
+        .singleOrNullIfEmpty() ?: return null
+    return EventGroupResult(
+      row.getInternalId("DataProviderId"),
+      row.getInternalId("EventGroupId"),
+      row.getExternalId("ExternalMeasurementConsumerId"),
+      row.getProtoEnum("State", EventGroup.State::forNumber),
+    )
+  }
+
+  private data class EventGroupResult(
+    val dataProviderId: InternalId,
+    val eventGroupId: InternalId,
+    val externalMeasurementConsumerId: ExternalId,
+    val state: EventGroup.State,
+  )
 
   private object Table {
     const val EVENT_GROUPS = "EventGroups"

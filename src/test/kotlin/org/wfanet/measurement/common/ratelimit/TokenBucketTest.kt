@@ -29,71 +29,71 @@ class TokenBucketTest {
   private val testTimeSource = TestTimeSource()
 
   @Test
-  fun `tryAcquire returns permit up to size`() {
+  fun `tryAcquire returns true up to size`() {
     val size = 5
     val tokenBucket = TokenBucket(size, 1.0, testTimeSource)
 
-    repeat(size) { assertThat(tokenBucket.tryAcquire()).isNotNull() }
+    repeat(size) { assertThat(tokenBucket.tryAcquire()).isTrue() }
   }
 
   @Test
-  fun `tryAcquire returns permit up to size when cost is specified`() {
+  fun `tryAcquire returns true up to size when cost is specified`() {
     val size = 5
     val tokenBucket = TokenBucket(size, 1.0, testTimeSource)
 
-    assertThat(tokenBucket.tryAcquire(size)).isNotNull()
+    assertThat(tokenBucket.tryAcquire(size)).isTrue()
   }
 
   @Test
-  fun `tryAcquire returns null after tokens exhausted`() {
+  fun `tryAcquire returns false after tokens exhausted`() {
     val size = 5
     val tokenBucket = TokenBucket(size, 1.0, testTimeSource)
     repeat(size) { tokenBucket.tryAcquire() }
 
-    assertThat(tokenBucket.tryAcquire()).isNull()
+    assertThat(tokenBucket.tryAcquire()).isFalse()
   }
 
   @Test
-  fun `tryAcquire returns null when cost exceeds token count`() {
+  fun `tryAcquire returns false when cost exceeds token count`() {
     val size = 5
     val tokenBucket = TokenBucket(size, 1.0, testTimeSource)
     tokenBucket.tryAcquire()
 
-    assertThat(tokenBucket.tryAcquire(size)).isNull()
+    assertThat(tokenBucket.tryAcquire(size)).isFalse()
   }
 
   @Test
-  fun `tryAcquire returns permit after token refill`() {
+  fun `tryAcquire returns true after token refill`() {
     val size = 5
     val tokenBucket = TokenBucket(size, 1.0, testTimeSource)
     tokenBucket.tryAcquire(5)
     testTimeSource += 1.seconds // Refill one token.
 
-    assertThat(tokenBucket.tryAcquire()).isNotNull()
+    assertThat(tokenBucket.tryAcquire()).isTrue()
   }
 
   @Test
-  fun `tryAcquire returns null after refilled tokens exhausted`() {
+  fun `tryAcquire returns false after refilled tokens exhausted`() {
     val size = 5
     val tokenBucket = TokenBucket(size, 1.0, testTimeSource)
     tokenBucket.tryAcquire(size)
     testTimeSource += 1.seconds
     tokenBucket.tryAcquire()
 
-    assertThat(tokenBucket.tryAcquire()).isNull()
+    assertThat(tokenBucket.tryAcquire()).isFalse()
   }
 
   @Test
-  fun `tryAcquire returns null after max refilled tokens exhausted`() {
+  fun `tryAcquire returns false after max refilled tokens exhausted`() {
     val size = 5
     val tokenBucket = TokenBucket(size, 1.0, testTimeSource)
     tokenBucket.tryAcquire(size)
     testTimeSource += 10.seconds // Refill tokens up to size.
     repeat(size) {
-      assertThat(tokenBucket.tryAcquire()).isNotNull() // Consume all refilled tokens.
+      assertThat(tokenBucket.tryAcquire()).isTrue() // Consume all refilled tokens.
     }
 
-    assertThat(tokenBucket.tryAcquire()).isNull()
+    assertThat(tokenBucket.tryAcquire()).isFalse()
   }
 
   @Test

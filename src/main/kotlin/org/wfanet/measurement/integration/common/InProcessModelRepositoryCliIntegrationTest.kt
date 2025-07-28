@@ -34,6 +34,7 @@ import org.junit.Test
 import org.junit.rules.TestRule
 import org.wfanet.measurement.api.v2alpha.AkidPrincipalLookup
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
+import org.wfanet.measurement.api.v2alpha.ListModelLinesResponse
 import org.wfanet.measurement.api.v2alpha.ListModelProvidersResponse
 import org.wfanet.measurement.api.v2alpha.ListModelSuitesPageTokenKt
 import org.wfanet.measurement.api.v2alpha.ListModelSuitesResponse
@@ -426,7 +427,7 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
       .isEqualTo(
         population {
           description = DESCRIPTION
-          populationBlob = populationBlob { modelBlobUri = MODEL_BLOB_URI }
+          populationBlob = populationBlob { blobUri = MODEL_BLOB_URI }
           eventTemplate = eventTemplate { type = EVENT_TEMPLATE_TYPE }
         }
       )
@@ -501,6 +502,52 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
   }
 
   @Test
+  fun `model-lines get prints ModelLine`() {
+    val modelLine = createModelLine()
+
+    val args = modelProviderArgs + arrayOf("model-lines", "get", modelLine.name)
+    val output = callCli(args)
+
+    assertThat(parseTextProto(output.reader(), ModelLine.getDefaultInstance())).isEqualTo(modelLine)
+  }
+
+  @Test
+  fun `model-lines list prints ModelLines`() {
+    val modelLine1 = createModelLine()
+    val modelLine2 = createModelLine()
+
+    val args =
+      modelProviderArgs +
+        arrayOf(
+          "model-lines",
+          "list",
+          "--parent=${modelSuite.name}",
+          "--page-size=1",
+          "--type=PROD",
+        )
+    val output = callCli(args)
+
+    val response = parseTextProto(output.reader(), ListModelLinesResponse.getDefaultInstance())
+    assertThat(response.modelLinesList).containsExactly(modelLine1)
+    assertThat(response.nextPageToken).isNotEmpty()
+
+    val args2 =
+      modelProviderArgs +
+        arrayOf(
+          "model-lines",
+          "list",
+          "--parent=${modelSuite.name}",
+          "--page-size=1",
+          "--page-token=${response.nextPageToken}",
+          "--type=PROD",
+        )
+    val output2 = callCli(args2)
+    val response2 = parseTextProto(output2.reader(), ListModelLinesResponse.getDefaultInstance())
+    assertThat(response2.modelLinesList).containsExactly(modelLine2)
+    assertThat(response2.nextPageToken).isEmpty()
+  }
+
+  @Test
   fun `model-lines set-active-end-time prints ModelLine`() {
     val modelLine = createModelLine()
     val newEndTime = "2099-04-15T10:00:00Z"
@@ -549,7 +596,7 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
         parent = dataProviderName
         population = population {
           description = DESCRIPTION
-          populationBlob = populationBlob { modelBlobUri = MODEL_BLOB_URI }
+          populationBlob = populationBlob { blobUri = MODEL_BLOB_URI }
           eventTemplate = eventTemplate { type = EVENT_TEMPLATE_TYPE }
         }
       }

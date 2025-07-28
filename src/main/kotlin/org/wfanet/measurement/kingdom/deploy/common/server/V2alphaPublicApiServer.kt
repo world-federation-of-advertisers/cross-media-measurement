@@ -28,7 +28,8 @@ import org.wfanet.measurement.common.api.grpc.AkidPrincipalServerInterceptor
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.grpc.CommonServer
-import org.wfanet.measurement.common.grpc.PrincipalRateLimitingServerInterceptor
+import org.wfanet.measurement.common.grpc.RateLimiterProvider
+import org.wfanet.measurement.common.grpc.RateLimitingServerInterceptor
 import org.wfanet.measurement.common.grpc.ServiceFlags
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withDefaultDeadline
@@ -54,6 +55,7 @@ import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.Measur
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCoroutineStub as InternalMeasurementsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.ModelLinesGrpcKt.ModelLinesCoroutineStub as InternalModelLinesCoroutineStub
 import org.wfanet.measurement.internal.kingdom.ModelOutagesGrpcKt.ModelOutagesCoroutineStub as InternalModelOutagesCoroutineStub
+import org.wfanet.measurement.internal.kingdom.ModelProvidersGrpcKt.ModelProvidersCoroutineStub as InternalModelProviderCoroutineStub
 import org.wfanet.measurement.internal.kingdom.ModelReleasesGrpcKt.ModelReleasesCoroutineStub as InternalModelReleasesCoroutineStub
 import org.wfanet.measurement.internal.kingdom.ModelRolloutsGrpcKt.ModelRolloutsCoroutineStub as InternalModelRolloutsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.ModelShardsGrpcKt.ModelShardsCoroutineStub as InternalModelShardsCoroutineStub
@@ -83,6 +85,7 @@ import org.wfanet.measurement.kingdom.service.api.v2alpha.MeasurementConsumersSe
 import org.wfanet.measurement.kingdom.service.api.v2alpha.MeasurementsService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.ModelLinesService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.ModelOutagesService
+import org.wfanet.measurement.kingdom.service.api.v2alpha.ModelProvidersService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.ModelReleasesService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.ModelRolloutsService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.ModelShardsService
@@ -153,11 +156,13 @@ private fun run(
   val apiKeyPrincipalInterceptor =
     ApiKeyAuthenticationServerInterceptor(internalApiKeysCoroutineStub)
   val rateLimitingInterceptor =
-    PrincipalRateLimitingServerInterceptor.fromConfig(v2alphaFlags.rateLimitConfig) { context ->
-      AuthorityKeyServerInterceptor.CLIENT_AUTHORITY_KEY_IDENTIFIER_CONTEXT_KEY.get(context)
-        ?.toByteArray()
-        ?.toHexString(KEY_ID_FORMAT)
-    }
+    RateLimitingServerInterceptor(
+      RateLimiterProvider(v2alphaFlags.rateLimitConfig) { context ->
+        AuthorityKeyServerInterceptor.CLIENT_AUTHORITY_KEY_IDENTIFIER_CONTEXT_KEY.get(context)
+          ?.toByteArray()
+          ?.toHexString(KEY_ID_FORMAT)
+      }::getRateLimiter
+    )
 
   val serviceDispatcher: CoroutineDispatcher = serviceFlags.executor.asCoroutineDispatcher()
   val services: List<ServerServiceDefinition> =
@@ -255,6 +260,13 @@ private fun run(
           serviceDispatcher,
         )
         .withInterceptors(akidPrincipalInterceptor, rateLimitingInterceptor, akidInterceptor),
+      ModelProvidersService(InternalModelProviderCoroutineStub(channel), serviceDispatcher)
+        .withInterceptors(
+          apiKeyPrincipalInterceptor,
+          akidPrincipalInterceptor,
+          rateLimitingInterceptor,
+          akidInterceptor,
+        ),
       ModelLinesService(InternalModelLinesCoroutineStub(channel), serviceDispatcher)
         .withInterceptors(
           apiKeyPrincipalInterceptor,
@@ -401,10 +413,13 @@ private class V2alphaFlags {
 
   companion object {
     private val DEFAULT_RATE_LIMIT_CONFIG = rateLimitConfig {
-      defaultRateLimit =
+      rateLimit =
         RateLimitConfigKt.rateLimit {
-          maximumRequestCount = -1 // Unlimited.
-          averageRequestRate = 1.0
+          defaultRateLimit =
+            RateLimitConfigKt.methodRateLimit {
+              maximumRequestCount = -1 // Unlimited.
+              averageRequestRate = 1.0
+            }
         }
     }
   }

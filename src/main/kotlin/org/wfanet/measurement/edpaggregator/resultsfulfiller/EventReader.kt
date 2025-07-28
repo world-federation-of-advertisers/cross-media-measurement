@@ -18,6 +18,7 @@ package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
 import com.google.crypto.tink.KmsClient
 import java.time.LocalDate
+import java.util.logging.Logger
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.common.flatten
@@ -45,11 +46,14 @@ class EventReader(
    * Retrieves a flow of labeled impressions for a given ds and event group ID.
    *
    * @param ds The ds for the labeled impressions
-   * @param eventGroupId The ID of the event group
+   * @param eventGroupReferenceId The event group reference ID of the event group
    * @return A flow of labeled impressions
    */
-  suspend fun getLabeledImpressions(ds: LocalDate, eventGroupId: String): Flow<LabeledImpression> {
-    val blobDetails = getBlobDetails(ds, eventGroupId)
+  suspend fun getLabeledImpressions(
+    ds: LocalDate,
+    eventGroupReferenceId: String,
+  ): Flow<LabeledImpression> {
+    val blobDetails = getBlobDetails(ds, eventGroupReferenceId)
     return getLabeledImpressions(blobDetails)
   }
 
@@ -60,8 +64,8 @@ class EventReader(
    * @param eventGroupId The ID of the event group
    * @return The blob details with the DEK
    */
-  private suspend fun getBlobDetails(ds: LocalDate, eventGroupId: String): BlobDetails {
-    val dekBlobKey = "ds/$ds/event-group-id/$eventGroupId/metadata"
+  private suspend fun getBlobDetails(ds: LocalDate, eventGroupReferenceId: String): BlobDetails {
+    val dekBlobKey = "ds/$ds/event-group-reference-id/$eventGroupReferenceId/metadata"
     val dekBlobUri = "$labeledImpressionsDekPrefix/$dekBlobKey"
 
     val storageClientUri = SelectedStorageClient.parseBlobUri(dekBlobUri)
@@ -72,6 +76,7 @@ class EventReader(
         impressionDekStorageConfig.projectId,
       )
     // Get EncryptedDek message from storage using the blobKey made up of the ds and eventGroupId
+    logger.info("Reading blob $dekBlobKey")
     val blob =
       impressionsDekStorageClient.getBlob(dekBlobKey)
         ?: throw ImpressionReadException(dekBlobKey, ImpressionReadException.Code.BLOB_NOT_FOUND)
@@ -118,5 +123,9 @@ class EventReader(
           ImpressionReadException.Code.INVALID_FORMAT,
         )
     }
+  }
+
+  companion object {
+    private val logger: Logger = Logger.getLogger(this::class.java.name)
   }
 }

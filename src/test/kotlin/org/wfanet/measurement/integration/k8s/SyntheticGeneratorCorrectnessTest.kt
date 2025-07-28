@@ -31,21 +31,21 @@ import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
+import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
+import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticPopulationSpec
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.integration.common.SyntheticGenerationSpecs
-import org.wfanet.measurement.loadtest.dataprovider.SyntheticGeneratorEventQuery
 import org.wfanet.measurement.loadtest.measurementconsumer.EventQueryMeasurementConsumerSimulator
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
-import org.wfanet.measurement.loadtest.measurementconsumer.MetadataSyntheticGeneratorEventQuery
 import org.wfanet.measurement.loadtest.reporting.ReportingUserSimulator
 import org.wfanet.measurement.reporting.v2alpha.MetricCalculationSpecsGrpcKt
 import org.wfanet.measurement.reporting.v2alpha.ReportsGrpcKt
 
 /**
- * Test for correctness of an existing CMMS on Kubernetes where the EDP simulators use
- * [SyntheticGeneratorEventQuery] with [SyntheticGenerationSpecs.SYNTHETIC_POPULATION_SPEC_LARGE].
+ * Test for correctness of an existing CMMS on Kubernetes with EDP simulators.
+ *
  * The computation composition is using ACDP by assumption.
  *
  * This currently assumes that the CMMS instance is using the certificates and keys from this Bazel
@@ -53,6 +53,11 @@ import org.wfanet.measurement.reporting.v2alpha.ReportsGrpcKt
  */
 class SyntheticGeneratorCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
   private class RunningMeasurementSystem : MeasurementSystem, TestRule {
+    override val syntheticPopulationSpec: SyntheticPopulationSpec =
+      SyntheticGenerationSpecs.SYNTHETIC_POPULATION_SPEC_LARGE
+    override val syntheticEventGroupSpecs: List<SyntheticEventGroupSpec> =
+      SyntheticGenerationSpecs.SYNTHETIC_DATA_SPECS_LARGE_2M
+
     override val runId: String by lazy { UUID.randomUUID().toString() }
 
     private lateinit var _testHarness: EventQueryMeasurementConsumerSimulator
@@ -97,11 +102,6 @@ class SyntheticGeneratorCorrectnessTest : AbstractCorrectnessTest(measurementSys
           )
           .also { channels.add(it) }
 
-      val eventQuery: SyntheticGeneratorEventQuery =
-        MetadataSyntheticGeneratorEventQuery(
-          SyntheticGenerationSpecs.SYNTHETIC_POPULATION_SPEC_LARGE,
-          MC_ENCRYPTION_PRIVATE_KEY,
-        )
       return EventQueryMeasurementConsumerSimulator(
         measurementConsumerData,
         OUTPUT_DP_PARAMS,
@@ -111,7 +111,7 @@ class SyntheticGeneratorCorrectnessTest : AbstractCorrectnessTest(measurementSys
         MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub(publicApiChannel),
         CertificatesGrpcKt.CertificatesCoroutineStub(publicApiChannel),
         MEASUREMENT_CONSUMER_SIGNING_CERTS.trustedCertificates,
-        eventQuery,
+        buildEventQuery(TEST_CONFIG.dataProvidersList),
         ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN,
       )
     }
