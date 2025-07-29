@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.eventdataprovider.shareshuffle.v2alpha
+package org.wfanet.measurement.eventdataprovider.requisition.v2alpha.shareshuffle
 
 import org.wfanet.frequencycount.FrequencyVector
 import org.wfanet.frequencycount.SecretShare
@@ -161,7 +161,7 @@ class FulfillRequisitionRequestBuilder(
     private const val RPC_CHUNK_SIZE_BYTES = 32 * 1024 // 32 KiB
     private const val NATIVE_LIB_NAME = "secret_share_generator_adapter"
     private const val NATIVE_LOADER_OBJECT_NAME =
-      "org.wfanet.measurement.eventdataprovider.shareshuffle.Native"
+      "org.wfanet.measurement.eventdataprovider.requisition.v2alpha.shareshuffle.Native"
 
     init {
       // This is required to create secret shares out of the frequency vector
