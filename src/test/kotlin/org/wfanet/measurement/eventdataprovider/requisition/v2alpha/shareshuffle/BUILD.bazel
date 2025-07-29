@@ -1,30 +1,26 @@
-load("@rules_java//java:java_test.bzl", "java_test")
-load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library", "kt_jvm_test")
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_test")
 
-kt_jvm_library(
-    name = "fulfill_requisition_request_builder_test",
-    testonly = True,
+kt_jvm_test(
+    name = "FulfillRequisitionRequestBuilderTest",
     srcs = ["FulfillRequisitionRequestBuilderTest.kt"],
+    test_class = "org.wfanet.measurement.eventdataprovider.requisition.v2alpha.shareshuffle.FulfillRequisitionRequestBuilderTest",
     deps = [
+        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/requisition/v2alpha/common",
         "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/requisition/v2alpha/shareshuffle",
+        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/requisition/v2alpha/shareshuffle:native",
         "//src/main/kotlin/org/wfanet/measurement/testing:requisitions",
         "//src/main/proto/wfa/any_sketch:frequency_vector_kt_jvm_proto",
+        "//src/main/proto/wfa/frequency_count:frequency_vector_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:measurement_spec_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:protocol_config_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:requisition_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/java/org/junit",
         "@wfa_common_jvm//imports/kotlin/kotlin/test",
         "@wfa_common_jvm//imports/kotlin/org/mockito/kotlin",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/testing",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/identity",
-    ],
-)
-
-java_test(
-    name = "FulfillRequisitionRequestBuilderTest",
-    test_class = "org.wfanet.measurement.eventdataprovider.requisition.v2alpha.shareshuffle.FulfillRequisitionRequestBuilderTest",
-    runtime_deps = [
-        ":fulfill_requisition_request_builder_test",
+        "@wfa_consent_signaling_client//src/main/kotlin/org/wfanet/measurement/consent/client/dataprovider",
     ],
 )
 
