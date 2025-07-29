@@ -325,7 +325,7 @@ spanner_emulator_test(
     name = "BasicReportsServiceTest",
     srcs = ["BasicReportsServiceTest.kt"],
     data = [
-        "//src/main/k8s/testing/secretfiles:all_configs",
+        "//src/main/k8s/testing/secretfiles:basic_report_metric_spec_config.textproto",
     ],
     tags = [
         "cpu:2",

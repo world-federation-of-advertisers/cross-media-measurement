@@ -4917,7 +4917,7 @@ class BasicReportsServiceTest {
 
     private val METRIC_SPEC_CONFIG: MetricSpecConfig =
       parseTextProto(
-        SECRETS_DIR.resolve("metric_spec_config.textproto"),
+        SECRETS_DIR.resolve("basic_report_metric_spec_config.textproto"),
         MetricSpecConfig.getDefaultInstance(),
       )
 
