@@ -7,6 +7,10 @@ fi
 
 kms_key=$1
 
+# WIP - DELETE THIS
+kms_key=$(echo "${kms_key}" | sed 's#3$#cryptoKeyVersions/3#' | sed 's#332250267344#halo-cmm-poc#')
+echo "Using key: ${kms_key}"
+
 # install cosign
 COSIGN_VERSION="2.5.0"
 wget -nv -O cosign "https://github.com/sigstore/cosign/releases/download/v${COSIGN_VERSION}/cosign-linux-amd64"
