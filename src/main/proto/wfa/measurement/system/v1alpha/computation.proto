@@ -186,6 +186,7 @@ message Computation {
 
     // Configuration for the TrusTEE protocol.
     message TrusTee {
+      // The mechanism to generate noise during computation.
       NoiseMechanism noise_mechanism = 1
           [(google.api.field_behavior) = REQUIRED];
     }
