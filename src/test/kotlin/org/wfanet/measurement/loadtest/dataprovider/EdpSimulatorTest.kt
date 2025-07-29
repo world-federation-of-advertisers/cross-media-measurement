@@ -103,8 +103,6 @@ import org.wfanet.measurement.consent.client.measurementconsumer.signMeasurement
 import org.wfanet.measurement.consent.client.measurementconsumer.signRequisitionSpec
 import org.wfanet.measurement.dataprovider.MeasurementResults
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.AcdpCharge
-import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.AgeGroup as PrivacyLandscapeAge
-import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.Gender as PrivacyLandscapeGender
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBucketGroup
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
 import org.wfanet.measurement.integration.common.SyntheticGenerationSpecs
