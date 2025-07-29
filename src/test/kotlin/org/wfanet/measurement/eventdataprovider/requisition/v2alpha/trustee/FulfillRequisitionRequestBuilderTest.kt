@@ -22,6 +22,7 @@ import com.google.crypto.tink.KmsClient
 import com.google.crypto.tink.aead.AeadConfig
 import com.google.protobuf.ByteString
 import io.grpc.Status
+import io.grpc.StatusRuntimeException
 import java.security.GeneralSecurityException
 import kotlin.test.assertFailsWith
 import org.junit.Test
@@ -100,7 +101,7 @@ class FulfillRequisitionRequestBuilderTest {
   }
 
   @Test
-  fun `build throws IllegalArgumentException when frequency vector has negative value`() {
+  fun `build fails when frequency vector has negative value`() {
     val exception =
       assertFailsWith<IllegalArgumentException> {
         FulfillRequisitionRequestBuilder.build(
@@ -117,7 +118,7 @@ class FulfillRequisitionRequestBuilderTest {
   }
 
   @Test
-  fun `build throws IllegalArgumentException when frequency vector has value over 255`() {
+  fun `build fails when frequency vector has value over 255`() {
     val exception =
       assertFailsWith<IllegalArgumentException> {
         FulfillRequisitionRequestBuilder.build(
@@ -134,11 +135,11 @@ class FulfillRequisitionRequestBuilderTest {
   }
 
   @Test
-  fun `build fails with RuntimeException for invalid kek uri`() {
+  fun `build fails for invalid kek uri`() {
     val invalidKekUri = "gcp-kms://unregistered/key/uri"
 
     val exception =
-      assertFailsWith<RuntimeException> {
+      assertFailsWith<GeneralSecurityException> {
         FulfillRequisitionRequestBuilder.build(
           REQUISITION,
           NONCE,
@@ -150,18 +151,17 @@ class FulfillRequisitionRequestBuilderTest {
         )
       }
 
-    assertThat(exception.message).contains("cryptographic error")
-    assertThat(exception.cause).isInstanceOf(GeneralSecurityException::class.java)
+    assertThat(exception.message).contains("URI")
   }
 
   @Test
-  fun `build fails with RuntimeException for kms client getAead failure`() {
+  fun `build fails for kms client getAead failure`() {
     val kmsClientMock: KmsClient = mock()
     val rpcException = Status.DEADLINE_EXCEEDED.asRuntimeException()
     whenever(kmsClientMock.getAead(any())).thenThrow(rpcException)
 
     val exception =
-      assertFailsWith<RuntimeException> {
+      assertFailsWith<StatusRuntimeException> {
         FulfillRequisitionRequestBuilder.build(
           REQUISITION,
           NONCE,
@@ -173,11 +173,11 @@ class FulfillRequisitionRequestBuilderTest {
         )
       }
 
-    assertThat(exception.message).contains(Status.Code.DEADLINE_EXCEEDED.toString())
+    assertThat(exception.status.code).isEqualTo(Status.Code.DEADLINE_EXCEEDED)
   }
 
   @Test
-  fun `build fails with RuntimeException for dek encryption rpc failure`() {
+  fun `build fails for dek encryption rpc failure`() {
     val aeadMock: Aead = mock()
     val rpcException = Status.ABORTED.asRuntimeException()
     whenever(aeadMock.encrypt(any(), any())).thenThrow(rpcException)
@@ -186,7 +186,7 @@ class FulfillRequisitionRequestBuilderTest {
     whenever(kmsClientMock.getAead(KEK_URI)).thenReturn(aeadMock)
 
     val exception =
-      assertFailsWith<RuntimeException> {
+      assertFailsWith<StatusRuntimeException> {
         FulfillRequisitionRequestBuilder.build(
           REQUISITION,
           NONCE,
@@ -198,18 +198,18 @@ class FulfillRequisitionRequestBuilderTest {
         )
       }
 
-    assertThat(exception.message).contains(Status.Code.ABORTED.toString())
+    assertThat(exception.status.code).isEqualTo(Status.Code.ABORTED)
   }
 
   @Test
-  fun `build fails with RuntimeException for dek encryption failure`() {
+  fun `build fails for dek encryption failure`() {
     val aeadMock: Aead = mock()
     KMS_CLIENT.setAead(KEK_URI, aeadMock)
     whenever(aeadMock.encrypt(any(), any()))
       .thenThrow(GeneralSecurityException("Mocked KEK AEAD encryption failure"))
 
     val exception =
-      assertFailsWith<RuntimeException> {
+      assertFailsWith<GeneralSecurityException> {
         FulfillRequisitionRequestBuilder.build(
           REQUISITION,
           NONCE,
@@ -221,9 +221,7 @@ class FulfillRequisitionRequestBuilderTest {
         )
       }
 
-    assertThat(exception.message).contains("cryptographic error")
-    assertThat(exception.cause).isInstanceOf(GeneralSecurityException::class.java)
-    assertThat(exception.cause).hasMessageThat().contains("encryption failure")
+    assertThat(exception.message).isEqualTo("Mocked KEK AEAD encryption failure")
   }
 
   @Test
