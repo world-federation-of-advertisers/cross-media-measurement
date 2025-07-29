@@ -34,6 +34,7 @@ import org.wfanet.measurement.duchy.db.computation.EndComputationReason
 import org.wfanet.measurement.duchy.db.computation.toDatabaseEditToken
 import org.wfanet.measurement.duchy.name
 import org.wfanet.measurement.duchy.number
+import org.wfanet.measurement.duchy.service.internal.ComputationLockOwnerMismatchException
 import org.wfanet.measurement.duchy.service.internal.ComputationNotFoundException
 import org.wfanet.measurement.duchy.service.internal.ComputationTokenVersionMismatchException
 import org.wfanet.measurement.duchy.storage.ComputationStore
@@ -350,10 +351,16 @@ class ComputationsService(
       "DelaySecond ${request.delaySecond} should be non-negative."
     }
     try {
-      computationsDatabase.enqueue(request.token.toDatabaseEditToken(), request.delaySecond)
+      computationsDatabase.enqueue(
+        request.token.toDatabaseEditToken(),
+        request.delaySecond,
+        request.expectedOwner,
+      )
     } catch (e: ComputationNotFoundException) {
       throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
     } catch (e: ComputationTokenVersionMismatchException) {
+      throw e.asStatusRuntimeException(Status.Code.ABORTED)
+    } catch (e: ComputationLockOwnerMismatchException) {
       throw e.asStatusRuntimeException(Status.Code.ABORTED)
     }
     return EnqueueComputationResponse.getDefaultInstance()

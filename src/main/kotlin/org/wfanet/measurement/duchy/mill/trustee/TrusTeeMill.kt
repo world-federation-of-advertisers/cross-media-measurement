@@ -175,7 +175,7 @@ class TrusTeeMill(
       val kekAead = kmsClient.getAead(protocol.kmsKekUri)
 
       return KeysetHandle.read(
-        BinaryKeysetReader.withBytes(protocol.encryptedSymmetricKey.toByteArray()),
+        BinaryKeysetReader.withBytes(protocol.encryptedDekCiphertext.toByteArray()),
         kekAead,
       )
     } catch (e: StatusRuntimeException) {

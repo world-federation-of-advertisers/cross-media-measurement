@@ -1,5 +1,5 @@
 /*
- * Copyright 2023 The Cross-Media Measurement Authors
+ * Copyright 2025 The Cross-Media Measurement Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -33,6 +33,8 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
 import org.mockito.kotlin.mock
+import org.mockito.kotlin.times
+import org.mockito.kotlin.verifyBlocking
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.vidSamplingInterval
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventFilter
@@ -43,7 +45,6 @@ import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.person
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.testEvent
 import org.wfanet.measurement.api.v2alpha.requisitionSpec
-import org.wfanet.measurement.common.OpenEndTimeRange
 import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.common.toProtoTime
@@ -101,9 +102,11 @@ class RequisitionSpecsTest {
     val result =
       RequisitionSpecs.getSampledVids(
         REQUISITION_SPEC,
+        EVENT_GROUP_MAP,
         vidSamplingInterval,
         typeRegistry,
         eventReader,
+        ZoneOffset.UTC,
       )
 
     assertThat(result.count()).isEqualTo(1)
@@ -143,16 +146,17 @@ class RequisitionSpecsTest {
     val result =
       RequisitionSpecs.getSampledVids(
         REQUISITION_SPEC,
+        EVENT_GROUP_MAP,
         vidSamplingInterval,
         typeRegistry,
         eventReader,
+        ZoneOffset.UTC,
       )
-
     assertThat(result.count()).isEqualTo(1)
   }
 
   @Test
-  fun `getSampledVids filters by collection interval`() = runBlocking {
+  fun `getSampledVids filters by collection interval for a single day`() = runBlocking {
     // Set up test environment
     val testEventDescriptor = TestEvent.getDescriptor()
 
@@ -181,7 +185,7 @@ class RequisitionSpecsTest {
         labeledImpression,
         labeledImpression.copy {
           eventTime =
-            FIRST_EVENT_DATE.minusDays(1).atStartOfDay().toInstant(ZoneOffset.UTC).toProtoTime()
+            FIRST_EVENT_DATE.plusDays(1).atTime(1, 1, 1).toInstant(ZoneOffset.UTC).toProtoTime()
         },
       )
     val eventReader: EventReader =
@@ -192,12 +196,15 @@ class RequisitionSpecsTest {
     val result =
       RequisitionSpecs.getSampledVids(
         REQUISITION_SPEC,
+        EVENT_GROUP_MAP,
         vidSamplingInterval,
         typeRegistry,
         eventReader,
+        ZoneOffset.UTC,
       )
 
     assertThat(result.count()).isEqualTo(1)
+    verifyBlocking(eventReader, times(1)) { getLabeledImpressions(any(), any()) }
   }
 
   fun `throws exception for invalid vid interval`() = runBlocking {
@@ -212,9 +219,15 @@ class RequisitionSpecsTest {
       start = 0.5f
       width = 0.6f
     }
+    // This event gets filters out since event interval end is at 11PM.
     val labeledImpression = labeledImpression {
       vid = 1
-      eventTime = FIRST_EVENT_DATE.atTime(1, 1, 1).toInstant(ZoneOffset.UTC).toProtoTime()
+      eventTime =
+        FIRST_EVENT_DATE.plusDays(1)
+          .atStartOfDay()
+          .minusSeconds(1)
+          .toInstant(ZoneOffset.UTC)
+          .toProtoTime()
       event =
         testEvent {
             this.person = person {
@@ -234,9 +247,11 @@ class RequisitionSpecsTest {
       runBlocking {
         RequisitionSpecs.getSampledVids(
           REQUISITION_SPEC,
+          EVENT_GROUP_MAP,
           vidSamplingInterval,
           typeRegistry,
           eventReader,
+          ZoneOffset.UTC,
         )
       }
     }
@@ -245,8 +260,7 @@ class RequisitionSpecsTest {
   companion object {
     private val ZONE_ID = ZoneId.of("UTC")
     private val FIRST_EVENT_DATE = LocalDate.now(ZONE_ID)
-    private val LAST_EVENT_DATE = FIRST_EVENT_DATE.plusDays(0) // Subtracts 1 day
-    private val TIME_RANGE = OpenEndTimeRange.fromClosedDateRange(FIRST_EVENT_DATE..LAST_EVENT_DATE)
+    private val LAST_EVENT_DATE = FIRST_EVENT_DATE
     private const val EVENT_GROUP_NAME = "dataProviders/someDataProvider/eventGroups/name"
     private val REQUISITION_SPEC = requisitionSpec {
       events =
@@ -257,8 +271,14 @@ class RequisitionSpecsTest {
               value =
                 RequisitionSpecKt.EventGroupEntryKt.value {
                   collectionInterval = interval {
-                    startTime = TIME_RANGE.start.toProtoTime()
-                    endTime = TIME_RANGE.endExclusive.toProtoTime()
+                    startTime =
+                      FIRST_EVENT_DATE.atStartOfDay().toInstant(ZoneOffset.UTC).toProtoTime()
+                    endTime =
+                      LAST_EVENT_DATE.plusDays(1)
+                        .atStartOfDay()
+                        .minusHours(1)
+                        .toInstant(ZoneOffset.UTC)
+                        .toProtoTime()
                   }
                   filter =
                     RequisitionSpecKt.eventFilter {
@@ -271,5 +291,7 @@ class RequisitionSpecsTest {
         }
       nonce = Random.nextLong()
     }
+    private val EVENT_GROUP_MAP: Map<String, String> =
+      mapOf(EVENT_GROUP_NAME to "some-event-group-reference-id")
   }
 }

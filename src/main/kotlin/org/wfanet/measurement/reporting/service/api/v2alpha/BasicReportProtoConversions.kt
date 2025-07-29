@@ -221,7 +221,9 @@ fun InternalMetricMetadata.toMetricMetadata(): MetricMetadata {
     metricFrequency = source.metricFrequencySpec.toMetricFrequencySpec()
 
     dimensionSpecSummary = dimensionSpecSummary {
-      grouping = source.dimensionSpecSummary.grouping.toEventTemplateField()
+      for (grouping in source.dimensionSpecSummary.groupingsList) {
+        groupings += grouping.toEventTemplateField()
+      }
       for (internalEventFilter in source.dimensionSpecSummary.filtersList) {
         filters += internalEventFilter.toEventFilter()
       }
@@ -260,7 +262,20 @@ fun InternalMetricSet.toMetricSet(): MetricSet {
                 cumulative =
                   internalDataProviderComponentMetricSetMapEntry.value.cumulative.toBasicMetricSet()
               }
-              uniqueReach = internalDataProviderComponentMetricSetMapEntry.value.uniqueReach
+              if (internalDataProviderComponentMetricSetMapEntry.value.hasNonCumulativeUnique()) {
+                nonCumulativeUnique =
+                  ResultGroupKt.MetricSetKt.uniqueMetricSet {
+                    reach =
+                      internalDataProviderComponentMetricSetMapEntry.value.nonCumulativeUnique.reach
+                  }
+              }
+              if (internalDataProviderComponentMetricSetMapEntry.value.hasCumulativeUnique()) {
+                cumulativeUnique =
+                  ResultGroupKt.MetricSetKt.uniqueMetricSet {
+                    reach =
+                      internalDataProviderComponentMetricSetMapEntry.value.cumulativeUnique.reach
+                  }
+              }
             }
         }
     }
