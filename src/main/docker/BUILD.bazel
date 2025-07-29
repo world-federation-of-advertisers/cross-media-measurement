@@ -137,5 +137,5 @@ container_push_all(
 )
 
 sign_images(
-    name = "sign_all_images"
+    name = "sign_all_images",
 )
