@@ -1,9 +1,7 @@
 load("@rules_jvm_external//:defs.bzl", "maven_export")
-load("@wfa_common_jvm//build:defs.bzl", "java_native_libraries", "test_target")
+load("@wfa_common_jvm//build:defs.bzl", "java_native_libraries")
 load("@wfa_common_jvm//build/maven:defs.bzl", "artifact_version")
 load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
-
-package(default_visibility = ["//visibility:public"])
 
 MAVEN_COORDINATES = "org.wfanet.measurement.eventdataprovider:requisition-shareshuffle-v2alpha:" + artifact_version()
 
@@ -11,6 +9,10 @@ kt_jvm_library(
     name = "shareshuffle",
     srcs = ["FulfillRequisitionRequestBuilder.kt"],
     tags = ["maven_coordinates=" + MAVEN_COORDINATES],
+    visibility = [
+        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/requisition/v2alpha:__pkg__",
+        "//src/test/kotlin/org/wfanet/measurement/eventdataprovider/requisition/v2alpha/shareshuffle:__pkg__",
+    ],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:packed_messages",
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
@@ -34,6 +36,10 @@ kt_jvm_library(
     srcs = ["Native.kt"],
     resources = [":native_deps"],
     tags = ["maven_coordinates=" + MAVEN_COORDINATES],
+    visibility = [
+        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/requisition/v2alpha:__pkg__",
+        "//src/test/kotlin/org/wfanet/measurement/eventdataprovider/requisition/v2alpha/shareshuffle:__pkg__",
+    ],
     deps = ["@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common"],
 )
 
@@ -45,7 +51,7 @@ maven_export(
         "no-javadocs",
         "no-remote-cache",
     ],
-    visibility = ["//visibility:private"],
+    visibility = ["//src/main/kotlin/org/wfanet/measurement/eventdataprovider/requisition/v2alpha:__pkg__"],
 )
 
 maven_export(
@@ -56,4 +62,5 @@ maven_export(
         "no-javadocs",
         "no-remote-cache",
     ],
+    visibility = ["//src/main/kotlin/org/wfanet/measurement/eventdataprovider/requisition/v2alpha:__pkg__"],
 )
