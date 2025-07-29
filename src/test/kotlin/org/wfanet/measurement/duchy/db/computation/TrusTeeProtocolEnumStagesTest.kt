@@ -27,26 +27,10 @@ import org.wfanet.measurement.internal.duchy.protocol.TrusTee
 class TrusTeeProtocolEnumStagesTest {
   @Test
   fun `verify initial stage`() {
-    assertTrue {
-      TrusTeeProtocol.EnumStages.validInitialStage(
-        TrusTee.Stage.INITIALIZED
-      )
-    }
-    assertFalse {
-      TrusTeeProtocol.EnumStages.validInitialStage(
-        TrusTee.Stage.WAIT_TO_START
-      )
-    }
-    assertFalse {
-      TrusTeeProtocol.EnumStages.validInitialStage(
-        TrusTee.Stage.COMPUTING
-      )
-    }
-    assertFalse {
-      TrusTeeProtocol.EnumStages.validInitialStage(
-        TrusTee.Stage.COMPLETE
-      )
-    }
+    assertTrue { TrusTeeProtocol.EnumStages.validInitialStage(TrusTee.Stage.INITIALIZED) }
+    assertFalse { TrusTeeProtocol.EnumStages.validInitialStage(TrusTee.Stage.WAIT_TO_START) }
+    assertFalse { TrusTeeProtocol.EnumStages.validInitialStage(TrusTee.Stage.COMPUTING) }
+    assertFalse { TrusTeeProtocol.EnumStages.validInitialStage(TrusTee.Stage.COMPLETE) }
   }
 
   @Test
@@ -57,9 +41,7 @@ class TrusTeeProtocolEnumStagesTest {
       } else {
         assertEquals(
           stage,
-          TrusTeeProtocol.EnumStages.longToEnum(
-            TrusTeeProtocol.EnumStages.enumToLong(stage)
-          ),
+          TrusTeeProtocol.EnumStages.longToEnum(TrusTeeProtocol.EnumStages.enumToLong(stage)),
           "enumToLong and longToEnum were not inverses for $stage",
         )
       }
@@ -68,14 +50,8 @@ class TrusTeeProtocolEnumStagesTest {
 
   @Test
   fun `longToEnum with invalid numbers`() {
-    assertEquals(
-      TrusTee.Stage.UNRECOGNIZED,
-      TrusTeeProtocol.EnumStages.longToEnum(-1),
-    )
-    assertEquals(
-      TrusTee.Stage.UNRECOGNIZED,
-      TrusTeeProtocol.EnumStages.longToEnum(1000),
-    )
+    assertEquals(TrusTee.Stage.UNRECOGNIZED, TrusTeeProtocol.EnumStages.longToEnum(-1))
+    assertEquals(TrusTee.Stage.UNRECOGNIZED, TrusTeeProtocol.EnumStages.longToEnum(1000))
   }
 
   @Test
@@ -95,10 +71,7 @@ class TrusTeeProtocolEnumStagesTest {
     }
 
     assertTrue {
-      TrusTeeProtocol.EnumStages.validTransition(
-        TrusTee.Stage.COMPUTING,
-        TrusTee.Stage.COMPLETE,
-      )
+      TrusTeeProtocol.EnumStages.validTransition(TrusTee.Stage.COMPUTING, TrusTee.Stage.COMPLETE)
     }
 
     assertFalse {
@@ -109,10 +82,7 @@ class TrusTeeProtocolEnumStagesTest {
     }
 
     assertFalse {
-      TrusTeeProtocol.EnumStages.validTransition(
-        TrusTee.Stage.INITIALIZED,
-        TrusTee.Stage.COMPLETE,
-      )
+      TrusTeeProtocol.EnumStages.validTransition(TrusTee.Stage.INITIALIZED, TrusTee.Stage.COMPLETE)
     }
 
     assertFalse {

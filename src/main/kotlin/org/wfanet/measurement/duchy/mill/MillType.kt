@@ -47,7 +47,7 @@ val ComputationType.prioritizedStages: List<ComputationStage>
         REACH_ONLY_LIQUID_LEGIONS_V2_PRIORITIZED_STAGES
       ComputationType.HONEST_MAJORITY_SHARE_SHUFFLE ->
         HONEST_MAJORITY_SHARE_SHUFFLE_PRIORITIZED_STAGES
-      ComputationType.TRUS_TEE -> error("Unsupported protocol: TRUS_TEE")
+      ComputationType.TRUS_TEE -> error("Unsupported protocol: $this")
       ComputationType.UNSPECIFIED,
       ComputationType.UNRECOGNIZED -> error("Not a real computation type")
     }
