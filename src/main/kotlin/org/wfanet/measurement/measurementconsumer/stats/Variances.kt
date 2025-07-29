@@ -534,6 +534,30 @@ object VariancesImpl : Variances {
   }
 
   /**
+   * Computes [ReachVariance] of a reach-and-frequency measurement that is computed using TrusTEE
+   * methodology.
+   */
+  private fun computeHonestTrusTeeVariance(
+    frequencyVectorSize: Long,
+    reachParams: ReachMeasurementVarianceParams,
+  ): Double {
+    val reachNoiseVariance: Double =
+      computeDistributedNoiseVariance(
+        reachParams.measurementParams.dpParams,
+        reachParams.measurementParams.noiseMechanism,
+      )
+
+    val variance =
+      TrusTee.reachVariance(
+        frequencyVectorSize = frequencyVectorSize,
+        vidSamplingIntervalWidth = reachParams.measurementParams.vidSamplingInterval.width,
+        reach = reachParams.reach,
+        reachNoiseVariance = reachNoiseVariance,
+      )
+    return max(0.0, variance)
+  }
+
+  /**
    * Computes [FrequencyVariances] of a reach-and-frequency measurement that is computed using the
    * Honest Majority Share Shuffle methodology.
    */
@@ -943,6 +967,12 @@ object VariancesImpl : Variances {
           IllegalArgumentException("Invalid methodology"),
         )
       }
+      is TrusTeeMethodology -> {
+        throw UnsupportedMethodologyUsageException(
+          "Methodology HONEST_MAJORITY_SHARE_SHUFFLE is not supported for impression.",
+          IllegalArgumentException("Invalid methodology"),
+        )
+      }
     }
   }
 
@@ -1002,6 +1032,12 @@ object VariancesImpl : Variances {
         )
       }
       is HonestMajorityShareShuffleMethodology -> {
+        throw UnsupportedMethodologyUsageException(
+          "Methodology HONEST_MAJORITY_SHARE_SHUFFLE is not supported for watch duration.",
+          IllegalArgumentException("Invalid methodology"),
+        )
+      }
+      is TrusTeeMethodology -> {
         throw UnsupportedMethodologyUsageException(
           "Methodology HONEST_MAJORITY_SHARE_SHUFFLE is not supported for watch duration.",
           IllegalArgumentException("Invalid methodology"),

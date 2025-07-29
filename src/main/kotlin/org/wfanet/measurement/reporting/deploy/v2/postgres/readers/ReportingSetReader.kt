@@ -204,6 +204,18 @@ class ReportingSetReader(private val readContext: ReadContext) {
   }
 
   fun readReportingSets(request: StreamReportingSetsRequest): Flow<Result> {
+    val whereClause = buildString {
+      append(
+        "WHERE MeasurementConsumerId IN (SELECT MeasurementConsumerId FROM MeasurementConsumers WHERE CmmsMeasurementConsumerId = $1)"
+      )
+      if (request.filter.externalCampaignGroupId.isNotEmpty()) {
+        append(
+          "AND CampaignGroupId IN (SELECT ReportingSetId FROM ReportingSets WHERE ExternalReportingSetId = $4)"
+        )
+      }
+      append("AND ExternalReportingSetId > $2")
+    }
+
     val sql =
       """
         $baseSqlSelect
@@ -211,8 +223,7 @@ class ReportingSetReader(private val readContext: ReadContext) {
             SELECT *
             FROM MeasurementConsumers
               JOIN ReportingSets USING (MeasurementConsumerId)
-            WHERE CmmsMeasurementConsumerId = $1
-              AND ExternalReportingSetId > $2
+            $whereClause
             ORDER BY ExternalReportingSetId ASC
             LIMIT $3
           ) AS ReportingSets
@@ -229,6 +240,9 @@ class ReportingSetReader(private val readContext: ReadContext) {
           bind("$3", request.limit)
         } else {
           bind("$3", 50)
+        }
+        if (request.filter.externalCampaignGroupId.isNotEmpty()) {
+          bind("$4", request.filter.externalCampaignGroupId)
         }
       }
 

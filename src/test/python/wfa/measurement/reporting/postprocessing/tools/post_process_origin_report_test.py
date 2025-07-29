@@ -29,6 +29,7 @@ from src.main.proto.wfa.measurement.reporting.postprocessing.v2alpha import \
 from google.protobuf import json_format
 
 StatusCode = report_post_processor_result_pb2.ReportPostProcessorStatus.StatusCode
+ReportPostProcessorResult = report_post_processor_result_pb2.ReportPostProcessorResult()
 
 TOLERANCE = 1
 NOISE_CORRECTION_TOLETANCE = 0.1
@@ -353,7 +354,7 @@ class TestOriginReport(unittest.TestCase):
   def test_report_summary_is_corrected_successfully(self):
     report_summary = get_report_summary(
         'src/test/python/wfa/measurement/reporting/postprocessing/tools/sample_report_summary.json')
-    noise_correction_result = ReportSummaryProcessor(
+    noise_correction_result: ReportPostProcessorResult = ReportSummaryProcessor(
         report_summary).process()
 
     primitive_edp_combinations = ['edp1', 'edp2', 'edp1_edp2']
@@ -369,6 +370,7 @@ class TestOriginReport(unittest.TestCase):
                     NOISE_CORRECTION_TOLETANCE)
     self.assertLess(noise_correction_result.status.primal_inequality_residual,
                     NOISE_CORRECTION_TOLETANCE)
+    self.assertFalse(noise_correction_result.uncorrected_measurements)
 
     # Verifies that the updated reach values are non-negative.
     for value in corrected_measurements_map.values():
@@ -656,10 +658,11 @@ class TestOriginReport(unittest.TestCase):
           TOLERANCE
       )
 
-  def test_report_summary_without_whole_campaign_reach_is_corrected_successfully(self):
+  def test_report_summary_without_whole_campaign_reach_is_corrected_successfully(
+      self):
     report_summary = get_report_summary(
         'src/test/python/wfa/measurement/reporting/postprocessing/tools/sample_report_summary_without_whole_campaign_reach.json')
-    noise_correction_result = ReportSummaryProcessor(
+    noise_correction_result: ReportPostProcessorResult = ReportSummaryProcessor(
         report_summary).process()
 
     primitive_edp_combinations = ['edp1', 'edp2', 'edp1_edp2']
@@ -675,6 +678,7 @@ class TestOriginReport(unittest.TestCase):
                     NOISE_CORRECTION_TOLETANCE)
     self.assertLess(noise_correction_result.status.primal_inequality_residual,
                     NOISE_CORRECTION_TOLETANCE)
+    self.assertFalse(noise_correction_result.uncorrected_measurements)
 
     # Verifies that the updated reach values are non-negative.
     for value in corrected_measurements_map.values():
@@ -933,6 +937,200 @@ class TestOriginReport(unittest.TestCase):
           corrected_measurements_map['difference/ami/' + edp_combination],
           TOLERANCE
       )
+
+  def test_report_summary_without_cumulative_reaches_is_corrected_successfully(
+      self):
+    report_summary = get_report_summary(
+        'src/test/python/wfa/measurement/reporting/postprocessing/tools/sample_report_summary_without_cumulative_reaches.json')
+    noise_correction_result: ReportPostProcessorResult = ReportSummaryProcessor(
+        report_summary).process()
+
+    primitive_edp_combinations = ['edp1', 'edp2', 'edp1_edp2']
+    composite_edp_combinations = ['edp1_minus_edp2', 'edp2_minus_edp1']
+
+    num_periods = 2
+    num_frequencies = 5
+
+    corrected_measurements_map = noise_correction_result.updated_measurements
+    self.assertEqual(noise_correction_result.status.status_code,
+                     StatusCode.SOLUTION_FOUND_WITH_HIGHS)
+    self.assertLess(noise_correction_result.status.primal_equality_residual,
+                    NOISE_CORRECTION_TOLETANCE)
+    self.assertLess(noise_correction_result.status.primal_inequality_residual,
+                    NOISE_CORRECTION_TOLETANCE)
+    self.assertFalse(noise_correction_result.uncorrected_measurements)
+
+    # Verifies that the updated reach values are non-negative.
+    for value in corrected_measurements_map.values():
+      self._assertFuzzyLessEqual(0, value, TOLERANCE)
+
+    self._assertFuzzyLessEqual(
+        corrected_measurements_map['derived_reach/ami/edp1'],
+        corrected_measurements_map['derived_reach/ami/edp1_edp2'],
+        TOLERANCE
+    )
+    self._assertFuzzyLessEqual(
+        corrected_measurements_map['derived_reach/ami/edp2'],
+        corrected_measurements_map['derived_reach/ami/edp1_edp2'],
+        TOLERANCE
+    )
+    self._assertFuzzyLessEqual(
+        corrected_measurements_map['derived_reach/mrc/edp1'],
+        corrected_measurements_map['derived_reach/mrc/edp1_edp2'],
+        TOLERANCE
+    )
+    self._assertFuzzyLessEqual(
+        corrected_measurements_map['derived_reach/mrc/edp2'],
+        corrected_measurements_map['derived_reach/mrc/edp1_edp2'],
+        TOLERANCE
+    )
+    self._assertFuzzyLessEqual(
+        corrected_measurements_map['derived_reach/custom/edp1'],
+        corrected_measurements_map['derived_reach/custom/edp1_edp2'],
+        TOLERANCE
+    )
+    self._assertFuzzyLessEqual(
+        corrected_measurements_map['derived_reach/custom/edp2'],
+        corrected_measurements_map['derived_reach/custom/edp1_edp2'],
+        TOLERANCE
+    )
+
+    # Verifies that cover set measurements are less than the sum of child set
+    # measurements.
+    self._assertFuzzyLessEqual(
+        corrected_measurements_map['derived_reach/ami/edp1_edp2'],
+        corrected_measurements_map['derived_reach/ami/edp1'] +
+        corrected_measurements_map['derived_reach/ami/edp2'],
+        TOLERANCE
+    )
+    self._assertFuzzyLessEqual(
+        corrected_measurements_map['derived_reach/mrc/edp1_edp2'],
+        corrected_measurements_map['derived_reach/mrc/edp1'] +
+        corrected_measurements_map['derived_reach/mrc/edp2'],
+        TOLERANCE
+    )
+    self._assertFuzzyLessEqual(
+        corrected_measurements_map['derived_reach/custom/edp1_edp2'],
+        corrected_measurements_map['derived_reach/custom/edp1'] +
+        corrected_measurements_map['derived_reach/custom/edp2'],
+        TOLERANCE
+    )
+
+    # Verifies that the relationship between impression counts holds.
+    for measurement_policy in ['ami', 'mrc', 'custom']:
+      self._assertFuzzyEqual(
+          corrected_measurements_map[
+            'impression_count/' + measurement_policy + '/edp1_edp2'],
+          corrected_measurements_map[
+            'impression_count/' + measurement_policy + '/edp1'] +
+          corrected_measurements_map[
+            'impression_count/' + measurement_policy + '/edp2'],
+          TOLERANCE
+      )
+
+    # Verifies that difference measurements are mapped correctly to primitive
+    # measurements.
+    self._assertFuzzyEqual(
+        corrected_measurements_map['difference/ami/edp2_minus_edp1'],
+        corrected_measurements_map['derived_reach/ami/edp1_edp2'] -
+        corrected_measurements_map['derived_reach/ami/edp1'],
+        TOLERANCE
+    )
+    self._assertFuzzyEqual(
+        corrected_measurements_map['difference/ami/edp1_minus_edp2'],
+        corrected_measurements_map['derived_reach/ami/edp1_edp2'] -
+        corrected_measurements_map['derived_reach/ami/edp2'],
+        TOLERANCE
+    )
+    self._assertFuzzyEqual(
+        corrected_measurements_map['difference/mrc/edp2_minus_edp1'],
+        corrected_measurements_map['derived_reach/mrc/edp1_edp2'] -
+        corrected_measurements_map['derived_reach/mrc/edp1'],
+        TOLERANCE
+    )
+    self._assertFuzzyEqual(
+        corrected_measurements_map['difference/mrc/edp1_minus_edp2'],
+        corrected_measurements_map['derived_reach/mrc/edp1_edp2'] -
+        corrected_measurements_map['derived_reach/mrc/edp2'],
+        TOLERANCE
+    )
+    self._assertFuzzyEqual(
+        corrected_measurements_map['difference/custom/edp2_minus_edp1'],
+        corrected_measurements_map['derived_reach/custom/edp1_edp2'] -
+        corrected_measurements_map['derived_reach/custom/edp1'],
+        TOLERANCE
+    )
+    self._assertFuzzyEqual(
+        corrected_measurements_map['difference/custom/edp1_minus_edp2'],
+        corrected_measurements_map['derived_reach/custom/edp1_edp2'] -
+        corrected_measurements_map['derived_reach/custom/edp2'],
+        TOLERANCE
+    )
+
+    for edp_combination in primitive_edp_combinations:
+      self._assertFuzzyLessEqual(
+          corrected_measurements_map[
+            'derived_reach/mrc/' + edp_combination],
+          corrected_measurements_map[
+            'derived_reach/ami/' + edp_combination],
+          TOLERANCE
+      )
+      self._assertFuzzyLessEqual(
+          corrected_measurements_map[
+            'derived_reach/custom/' + edp_combination],
+          corrected_measurements_map[
+            'derived_reach/ami/' + edp_combination],
+          TOLERANCE
+      )
+      self._assertFuzzyLessEqual(
+          corrected_measurements_map[
+            'impression_count/mrc/' + edp_combination],
+          corrected_measurements_map[
+            'impression_count/ami/' + edp_combination],
+          TOLERANCE
+      )
+      self._assertFuzzyLessEqual(
+          corrected_measurements_map[
+            'impression_count/custom/' + edp_combination],
+          corrected_measurements_map[
+            'impression_count/ami/' + edp_combination],
+          TOLERANCE
+      )
+    for edp_combination in composite_edp_combinations:
+      self._assertFuzzyLessEqual(
+          corrected_measurements_map['difference/mrc/' + edp_combination],
+          corrected_measurements_map['difference/ami/' + edp_combination],
+          TOLERANCE
+      )
+      self._assertFuzzyLessEqual(
+          corrected_measurements_map['difference/custom/' + edp_combination],
+          corrected_measurements_map['difference/ami/' + edp_combination],
+          TOLERANCE
+      )
+
+  def test_report_summary_with_unreferenced_unique_reaches(self):
+    report_summary = get_report_summary(
+        'src/test/python/wfa/measurement/reporting/postprocessing/tools/sample_report_summary_with_unreferenced_unique_reaches.json'
+    )
+    noise_correction_result: ReportPostProcessorResult = ReportSummaryProcessor(
+        report_summary).process()
+
+    corrected_measurements_map = noise_correction_result.updated_measurements
+    self.assertEqual(noise_correction_result.status.status_code,
+                     StatusCode.SOLUTION_FOUND_WITH_HIGHS)
+    self.assertLess(noise_correction_result.status.primal_equality_residual,
+                    NOISE_CORRECTION_TOLETANCE)
+    self.assertLess(noise_correction_result.status.primal_inequality_residual,
+                    NOISE_CORRECTION_TOLETANCE)
+    self.assertEqual(
+        sorted(noise_correction_result.uncorrected_measurements),
+        [
+            'measurementConsumers/ONYdS_z_3xo/metrics/a29783908-e0ee-4667-9647-6386bdf034b9',
+            'measurementConsumers/ONYdS_z_3xo/metrics/a609869b8-fff7-4080-ba46-0c5a28d9efad',
+            'measurementConsumers/ONYdS_z_3xo/metrics/a716ef311-3b93-4ff1-8c82-ace82320d9a2',
+            'measurementConsumers/ONYdS_z_3xo/metrics/a81890700-9f0e-48bd-8554-055bdfb20873'
+        ]
+    )
 
   def _assertFuzzyEqual(self, x: int, y: int, tolerance: int):
     self.assertLessEqual(abs(x - y), tolerance)

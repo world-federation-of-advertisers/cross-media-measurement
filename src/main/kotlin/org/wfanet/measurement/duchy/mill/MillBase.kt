@@ -287,19 +287,12 @@ abstract class MillBase(
       return
     }
 
-    if (token.attempt > maximumAttempts) {
+    if (latestToken.attempt > maximumAttempts) {
       failComputation(
-        token,
+        latestToken,
         message = "Failing computation due to too many failed attempts. Last message: ${e.message}",
         cause = e,
       )
-      return
-    }
-
-    if (latestToken.version != token.version) {
-      logger.log(Level.WARNING, e) {
-        "$globalId@$millId: Skip exception handling as token has been outdated."
-      }
       return
     }
 
@@ -309,18 +302,18 @@ abstract class MillBase(
         sendStatusUpdateToKingdom(
           globalId,
           buildErrorLogEntry(
-            token,
-            "Transient error processing Computation $globalId at attempt ${token.attempt} of " +
-              "stage ${token.computationStage}: ${e.message}",
+            latestToken,
+            "Transient error processing Computation $globalId at attempt ${latestToken.attempt} of " +
+              "stage ${latestToken.computationStage}: ${e.message}",
           ),
         )
         // Enqueue the computation again for future retry
-        enqueueComputation(token)
+        enqueueComputation(latestToken)
       }
       is StatusException -> throw IllegalStateException("Programming bug: uncaught gRPC error", e)
       else -> {
         // Treat any other exception type as a permanent computation error.
-        failComputation(token, cause = e)
+        failComputation(latestToken, cause = e)
       }
     }
   }
@@ -784,6 +777,7 @@ abstract class MillBase(
         enqueueComputationRequest {
           this.token = token
           this.delaySecond = delaySecond
+          this.expectedOwner = millId
         }
       )
     } catch (e: StatusException) {

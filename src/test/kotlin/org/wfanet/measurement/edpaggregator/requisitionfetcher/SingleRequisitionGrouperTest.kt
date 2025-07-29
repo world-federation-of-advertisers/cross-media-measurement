@@ -21,7 +21,6 @@ import com.google.type.interval
 import java.time.Clock
 import java.time.Duration
 import kotlinx.coroutines.runBlocking
-import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
@@ -31,8 +30,6 @@ import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutine
 import org.wfanet.measurement.api.v2alpha.GetEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt
-import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineImplBase
-import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.eventGroup
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
@@ -71,10 +68,7 @@ class SingleRequisitionGrouperTest : AbstractRequisitionGrouperTest() {
   private val throttler = MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofSeconds(1L))
 
   private val requisitionValidator by lazy {
-    RequisitionsValidator(
-      privateEncryptionKey = TestRequisitionData.EDP_DATA.privateEncryptionKey,
-      fatalRequisitionErrorPredicate = ::incrementCounter,
-    )
+    RequisitionsValidator(privateEncryptionKey = TestRequisitionData.EDP_DATA.privateEncryptionKey)
   }
 
   override val requisitionGrouper: RequisitionGrouper by lazy {
@@ -84,17 +78,6 @@ class SingleRequisitionGrouperTest : AbstractRequisitionGrouperTest() {
       requisitionsClient = requisitionsStub,
       throttler = throttler,
     )
-  }
-
-  private var errorCounter = 0
-
-  @Before
-  fun setUp() {
-    errorCounter = 0
-  }
-
-  private fun incrementCounter(requisition: Requisition, refusal: Requisition.Refusal) {
-    errorCounter++
   }
 
   private val requisitionsStub: RequisitionsGrpcKt.RequisitionsCoroutineStub by lazy {
@@ -136,7 +119,6 @@ class SingleRequisitionGrouperTest : AbstractRequisitionGrouperTest() {
             .single()
         )
         .isEqualTo(TestRequisitionData.REQUISITION)
-      assertThat(errorCounter).isEqualTo(0)
     }
   }
 }

@@ -18,6 +18,18 @@ package org.wfanet.measurement.loadtest.dataprovider
 
 import com.google.protobuf.Message
 import java.time.Instant
+import java.time.LocalDate
 
 /** An event [message] with [timestamp] and [vid] labels. */
 data class LabeledEvent<T : Message>(val timestamp: Instant, val vid: Long, val message: T)
+
+/**
+ * A single shard of [LabeledEvent]s for a specific date.
+ *
+ * @param localDate the date associated with this shard
+ * @param labeledEvents labeled events for this shard
+ */
+data class LabeledEventDateShard<T : Message>(
+  val localDate: LocalDate,
+  val labeledEvents: Sequence<LabeledEvent<T>>,
+)

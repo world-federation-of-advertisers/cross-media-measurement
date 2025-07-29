@@ -30,10 +30,12 @@ object Errors {
 
   enum class Reason {
     BASIC_REPORT_NOT_FOUND,
+    REPORTING_SET_NOT_FOUND,
     METRIC_NOT_FOUND,
     CAMPAIGN_GROUP_INVALID,
     REQUIRED_FIELD_NOT_SET,
     INVALID_FIELD_VALUE,
+    FIELD_UNIMPLEMENTED,
     INVALID_METRIC_STATE_TRANSITION,
     ARGUMENT_CHANGED_IN_REQUEST_FOR_NEXT_PAGE,
     IMPRESSION_QUALIFICATION_FILTER_NOT_FOUND,
@@ -57,7 +59,7 @@ object Errors {
 }
 
 sealed class ServiceException(
-  private val reason: Errors.Reason,
+  val reason: Errors.Reason,
   message: String,
   private val metadata: Map<Errors.Metadata, String>,
   cause: Throwable?,
@@ -95,8 +97,16 @@ sealed class ServiceException(
 class BasicReportNotFoundException(name: String, cause: Throwable? = null) :
   ServiceException(
     Errors.Reason.BASIC_REPORT_NOT_FOUND,
-    "Basic Report $name not found",
+    "BasicReport $name not found",
     mapOf(Errors.Metadata.BASIC_REPORT to name),
+    cause,
+  )
+
+class ReportingSetNotFoundException(name: String, cause: Throwable? = null) :
+  ServiceException(
+    Errors.Reason.REPORTING_SET_NOT_FOUND,
+    "ReportingSet $name not found",
+    mapOf(Errors.Metadata.REPORTING_SET to name),
     cause,
   )
 
@@ -136,6 +146,18 @@ class InvalidFieldValueException(
     cause,
   )
 
+class FieldUnimplementedException(
+  fieldName: String,
+  cause: Throwable? = null,
+  buildMessage: (fieldName: String) -> String = { "$fieldName is currently unimplemented" },
+) :
+  ServiceException(
+    Errors.Reason.FIELD_UNIMPLEMENTED,
+    buildMessage(fieldName),
+    mapOf(Errors.Metadata.FIELD_NAME to fieldName),
+    cause,
+  )
+
 class ArgumentChangedInRequestForNextPageException(
   fieldName: String,
   cause: Throwable? = null,
@@ -170,7 +192,7 @@ class InvalidMetricStateTransitionException(
 class ImpressionQualificationFilterNotFoundException(name: String, cause: Throwable? = null) :
   ServiceException(
     Errors.Reason.IMPRESSION_QUALIFICATION_FILTER_NOT_FOUND,
-    "Impression Qualification Filter $name not found",
+    "ImpressionQualificationFilter $name not found",
     mapOf(Errors.Metadata.IMPRESSION_QUALIFICATION_FILTER to name),
     cause,
   ) {}

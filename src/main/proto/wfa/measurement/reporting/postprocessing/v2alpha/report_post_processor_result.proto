@@ -130,6 +130,11 @@ message ReportPostProcessorResult {
   // (i.e. when the status.status_code is not SOLUTION_NOT_FOUND).
   map<string, int64> updated_measurements = 1;
 
+  // Contains the measurements that are not corrected by the report post
+  // post processor. These measurements may be inconsistent. This field is only
+  // set when the solution or partial solution exists.
+  repeated string uncorrected_measurements = 6;
+
   // Contains the detailed status and metrics from the QP solver step. The
   // status indicates if the report post processor found a solution, a partial
   // solution, or fail to find any. It also provides metrics such as the primal

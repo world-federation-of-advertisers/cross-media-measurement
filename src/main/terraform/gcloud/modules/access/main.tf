@@ -22,6 +22,12 @@ module "access_internal" {
   iam_service_account_description = "Access internal API server."
 }
 
+resource "google_project_iam_member" "access_internal_metric_writer" {
+  project = data.google_project.project.name
+  role    = "roles/monitoring.metricWriter"
+  member  = module.access_internal.iam_service_account.member
+}
+
 resource "google_spanner_database" "access" {
   instance         = var.spanner_instance.name
   name             = var.spanner_database_name

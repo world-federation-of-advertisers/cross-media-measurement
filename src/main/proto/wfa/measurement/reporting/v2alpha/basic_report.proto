@@ -51,6 +51,7 @@ message BasicReport {
     (google.api.resource_reference) = {
       type: "reporting.halo-cmm.org/ReportingSet"
     },
+    (google.api.field_behavior) = REQUIRED,
     (google.api.field_behavior) = IMMUTABLE
   ];
 

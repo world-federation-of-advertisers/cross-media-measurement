@@ -17,7 +17,8 @@
 package org.wfanet.measurement.reporting.deploy.v2.common
 
 import java.time.Duration
-import org.wfanet.measurement.gcloud.spanner.SpannerDatabaseConnector
+import kotlin.properties.Delegates
+import org.wfanet.measurement.gcloud.spanner.SpannerParams
 import picocli.CommandLine
 
 /**
@@ -25,16 +26,14 @@ import picocli.CommandLine
  *
  * Copy of [org.wfanet.measurement.gcloud.spanner.SpannerFlags] except there are no required
  * options.
- *
- * TODO(tristanvuong2021): This should share a common interface with the original one.
  */
-class SpannerFlags {
+class SpannerFlags : SpannerParams {
   @CommandLine.Option(
     names = ["--spanner-project"],
     description = ["Name of the Spanner project. Required if --basic-reports-enabled is true."],
     required = false,
   )
-  lateinit var projectName: String
+  override lateinit var projectName: String
     private set
 
   @CommandLine.Option(
@@ -42,7 +41,7 @@ class SpannerFlags {
     description = ["Name of the Spanner instance. Required if --basic-reports-enabled is true."],
     required = false,
   )
-  lateinit var instanceName: String
+  override lateinit var instanceName: String
     private set
 
   @CommandLine.Option(
@@ -50,7 +49,7 @@ class SpannerFlags {
     description = ["Name of the Spanner database. Required if --basic-reports-enabled is true."],
     required = false,
   )
-  lateinit var databaseName: String
+  override lateinit var databaseName: String
     private set
 
   @CommandLine.Option(
@@ -58,7 +57,7 @@ class SpannerFlags {
     description = ["How long to wait for Spanner to be ready."],
     defaultValue = "10s",
   )
-  lateinit var readyTimeout: Duration
+  override lateinit var readyTimeout: Duration
     private set
 
   @CommandLine.Option(
@@ -66,37 +65,14 @@ class SpannerFlags {
     description = ["Host name and port of the spanner emulator."],
     required = false,
   )
-  var emulatorHost: String? = null
+  override var emulatorHost: String? = null
     private set
 
-  val jdbcConnectionString: String
-    get() {
-      val databasePath = "projects/$projectName/instances/$instanceName/databases/$databaseName"
-      return if (emulatorHost == null) {
-        "jdbc:cloudspanner:/$databasePath"
-      } else {
-        "jdbc:cloudspanner://$emulatorHost/$databasePath;usePlainText=true;autoConfigEmulator=true"
-      }
-    }
-}
-
-/** Builds a [SpannerDatabaseConnector] from these flags. */
-private fun SpannerFlags.toSpannerDatabaseConnector(): SpannerDatabaseConnector {
-  return SpannerDatabaseConnector(
-    projectName = projectName,
-    instanceName = instanceName,
-    databaseName = databaseName,
-    readyTimeout = readyTimeout,
-    emulatorHost = emulatorHost,
+  @set:CommandLine.Option(
+    names = ["--spanner-async-thread-pool-size"],
+    description = ["Size of the thread pool for Spanner async operations."],
+    defaultValue = "8",
   )
-}
-
-/**
- * Executes [block] with a [SpannerDatabaseConnector] resource once it's ready, ensuring that the
- * resource is closed.
- */
-suspend fun <R> SpannerFlags.usingSpanner(
-  block: suspend (spanner: SpannerDatabaseConnector) -> R
-): R {
-  return toSpannerDatabaseConnector().usingSpanner(block)
+  override var asyncThreadPoolSize: Int by Delegates.notNull()
+    private set
 }

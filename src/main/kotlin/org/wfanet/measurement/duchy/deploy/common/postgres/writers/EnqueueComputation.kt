@@ -27,6 +27,9 @@ import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresWriter
  * @param delaySeconds a short delay time. The computation will be available in queue after this
  *   time.
  * @param clock See [Clock].
+ *
+ * TODO(world-federation-of-advertisers/cross-media-measurement#2579): Check expectedOwner before
+ *   enqueue.
  */
 class EnqueueComputation(
   private val localId: Long,

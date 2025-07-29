@@ -132,7 +132,7 @@ class EventReaderTest {
     }
 
     impressionsDekStorageClient.writeBlob(
-      "ds/$DS/event-group-id/$EVENT_GROUP_NAME/metadata",
+      "ds/$DS/event-group-reference-id/$EVENT_GROUP_REFERENCE_ID/metadata",
       blobDetails.toByteString(),
     )
 
@@ -146,7 +146,7 @@ class EventReaderTest {
       )
 
     // Get labeled impressions
-    val result = eventReader.getLabeledImpressions(DS, EVENT_GROUP_NAME).toList()
+    val result = eventReader.getLabeledImpressions(DS, EVENT_GROUP_REFERENCE_ID).toList()
 
     // Verify the result
     assertThat(result).hasSize(impressionCount)
@@ -178,7 +178,7 @@ class EventReaderTest {
 
     runBlocking {
       impressionsDekStorageClient.writeBlob(
-        "ds/$DS/event-group-id/$EVENT_GROUP_NAME/metadata",
+        "ds/$DS/event-group-reference-id/$EVENT_GROUP_REFERENCE_ID/metadata",
         blobDetails.toByteString(),
       )
     }
@@ -193,7 +193,7 @@ class EventReaderTest {
       )
     // Get labeled impressions
     assertFailsWith<ImpressionReadException> {
-      runBlocking { eventReader.getLabeledImpressions(DS, EVENT_GROUP_NAME).toList() }
+      runBlocking { eventReader.getLabeledImpressions(DS, EVENT_GROUP_REFERENCE_ID).toList() }
     }
   }
 
@@ -213,7 +213,7 @@ class EventReaderTest {
 
     private val TEST_EVENT = testEvent { person = PERSON }
 
-    private const val EVENT_GROUP_NAME = "dataProviders/someDataProvider/eventGroups/name"
+    private const val EVENT_GROUP_REFERENCE_ID = "some-event-group-reference-id"
 
     private const val IMPRESSIONS_BUCKET = "impression-bucket"
     private const val IMPRESSIONS_FILE_URI = "file:///$IMPRESSIONS_BUCKET"

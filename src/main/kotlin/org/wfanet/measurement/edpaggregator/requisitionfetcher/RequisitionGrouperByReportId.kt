@@ -18,7 +18,6 @@ package org.wfanet.measurement.edpaggregator.requisitionfetcher
 
 import com.google.type.Interval
 import com.google.type.interval
-import java.util.logging.Logger
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.Requisition
@@ -48,7 +47,7 @@ class RequisitionGrouperByReportId(
    * Combines Grouped Requisitions by ReportId and then unions their collection intervals per event
    * group.
    */
-  override fun combineGroupedRequisitions(
+  override suspend fun combineGroupedRequisitions(
     groupedRequisitions: List<GroupedRequisitions>
   ): List<GroupedRequisitions> {
     val groupedByReport: Map<String, List<GroupedRequisitions>> =
@@ -70,14 +69,14 @@ class RequisitionGrouperByReportId(
    * Combines Grouped Requisitions by ReportId and then unions their collection intervals per event
    * group.
    */
-  private fun combineByReportId(
+  private suspend fun combineByReportId(
     groupedByReport: Map<String, List<GroupedRequisitions>>
   ): List<GroupedRequisitions> {
+
     return groupedByReport.toList().mapNotNull {
       (reportId: String, groups: List<GroupedRequisitions>) ->
-      if (!requisitionValidator.validateModelLines(groups, reportId = reportId)) {
-        null
-      } else {
+      try {
+        requisitionValidator.validateModelLines(groups, reportId = reportId)
         val entries =
           groups
             .flatMap { it.eventGroupMapList }
@@ -100,6 +99,9 @@ class RequisitionGrouperByReportId(
           this.eventGroupMap += entries
           this.requisitions += groups.flatMap { it.requisitionsList }
         }
+      } catch (e: InvalidRequisitionException) {
+        e.requisitions.forEach { refuseRequisition(it, e.refusal) }
+        null
       }
     }
   }
@@ -122,9 +124,5 @@ class RequisitionGrouperByReportId(
     }
     result.add(current)
     return result
-  }
-
-  companion object {
-    private val logger: Logger = Logger.getLogger(this::class.java.name)
   }
 }

@@ -50,10 +50,16 @@ class DataWatcherFunction : CloudEventsFunction {
       StorageObjectData.newBuilder()
         .apply { JsonFormat.parser().merge(cloudEventData, this) }
         .build()
+
     val blobKey: String = data.getName()
     val bucket: String = data.getBucket()
     val path = "$scheme://$bucket/$blobKey"
     logger.info("Receiving path $path")
+    val size = data.size
+    if (size == 0L) {
+      logger.info("Skipping processing: file '${path}' is empty")
+      return
+    }
     runBlocking { dataWatcher.receivePath(path) }
   }
 
