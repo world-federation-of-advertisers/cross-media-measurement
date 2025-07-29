@@ -513,7 +513,7 @@ object VariancesImpl : Variances {
    * Computes [ReachVariance] of a reach-and-frequency measurement that is computed using the Honest
    * Majority Share Shuffle methodology.
    */
-  private fun computeHonestMajorityShareShuffleVariance(
+  private fun computeFrequencyVectorBasedVariance(
     frequencyVectorSize: Long,
     reachParams: ReachMeasurementVarianceParams,
   ): Double {
@@ -524,31 +524,7 @@ object VariancesImpl : Variances {
       )
 
     val variance =
-      HonestMajorityShareShuffle.reachVariance(
-        frequencyVectorSize = frequencyVectorSize,
-        vidSamplingIntervalWidth = reachParams.measurementParams.vidSamplingInterval.width,
-        reach = reachParams.reach,
-        reachNoiseVariance = reachNoiseVariance,
-      )
-    return max(0.0, variance)
-  }
-
-  /**
-   * Computes [ReachVariance] of a reach-and-frequency measurement that is computed using TrusTEE
-   * methodology.
-   */
-  private fun computeHonestTrusTeeVariance(
-    frequencyVectorSize: Long,
-    reachParams: ReachMeasurementVarianceParams,
-  ): Double {
-    val reachNoiseVariance: Double =
-      computeDistributedNoiseVariance(
-        reachParams.measurementParams.dpParams,
-        reachParams.measurementParams.noiseMechanism,
-      )
-
-    val variance =
-      TrusTee.reachVariance(
+      FrequencyVectorBasedVariance.reachVariance(
         frequencyVectorSize = frequencyVectorSize,
         vidSamplingIntervalWidth = reachParams.measurementParams.vidSamplingInterval.width,
         reach = reachParams.reach,
@@ -561,7 +537,7 @@ object VariancesImpl : Variances {
    * Computes [FrequencyVariances] of a reach-and-frequency measurement that is computed using the
    * Honest Majority Share Shuffle methodology.
    */
-  private fun computeHonestMajorityShareShuffleVariance(
+  private fun computeFrequencyVectorBasedVariance(
     frequencyVectorSize: Long,
     frequencyParams: FrequencyMeasurementVarianceParams,
   ): FrequencyVariances {
@@ -593,7 +569,7 @@ object VariancesImpl : Variances {
 
     val countVariances: Map<Int, Double> =
       (1..maximumFrequency).associateWith { frequency ->
-        HonestMajorityShareShuffle.frequencyCountVariance(
+        FrequencyVectorBasedVariance.frequencyCountVariance(
           frequencyVectorSize,
           frequency,
           frequencyNoiseVariance,
@@ -609,7 +585,7 @@ object VariancesImpl : Variances {
 
     val kPlusCountVariances: Map<Int, Double> =
       (1..maximumFrequency).associateWith { frequency ->
-        HonestMajorityShareShuffle.kPlusFrequencyCountVariance(
+        FrequencyVectorBasedVariance.kPlusFrequencyCountVariance(
           frequencyVectorSize,
           frequency,
           frequencyNoiseVariance,
@@ -625,7 +601,7 @@ object VariancesImpl : Variances {
 
     val relativeVariances: Map<Int, Double> =
       (1..maximumFrequency).associateWith { frequency ->
-        HonestMajorityShareShuffle.frequencyRelativeVariance(
+        FrequencyVectorBasedVariance.frequencyRelativeVariance(
           frequencyVectorSize,
           frequency,
           frequencyNoiseVariance,
@@ -641,7 +617,7 @@ object VariancesImpl : Variances {
 
     val kPlusRelativeVariances: Map<Int, Double> =
       (1..maximumFrequency).associateWith { frequency ->
-        HonestMajorityShareShuffle.kPlusFrequencyRelativeVariance(
+        FrequencyVectorBasedVariance.kPlusFrequencyRelativeVariance(
           frequencyVectorSize,
           frequency,
           frequencyNoiseVariance,
@@ -805,7 +781,13 @@ object VariancesImpl : Variances {
         )
       }
       is HonestMajorityShareShuffleMethodology -> {
-        computeHonestMajorityShareShuffleVariance(
+        computeFrequencyVectorBasedVariance(
+          methodology.frequencyVectorSize,
+          measurementVarianceParams,
+        )
+      }
+      is TrusTeeMethodology -> {
+        computeFrequencyVectorBasedVariance(
           methodology.frequencyVectorSize,
           measurementVarianceParams,
         )
@@ -880,7 +862,13 @@ object VariancesImpl : Variances {
         )
       }
       is HonestMajorityShareShuffleMethodology -> {
-        computeHonestMajorityShareShuffleVariance(
+        computeFrequencyVectorBasedVariance(
+          methodology.frequencyVectorSize,
+          measurementVarianceParams,
+        )
+      }
+      is TrusTeeMethodology -> {
+        computeFrequencyVectorBasedVariance(
           methodology.frequencyVectorSize,
           measurementVarianceParams,
         )

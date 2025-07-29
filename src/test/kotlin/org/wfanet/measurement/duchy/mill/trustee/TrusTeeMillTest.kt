@@ -192,7 +192,7 @@ private val REQUISITION_1 =
         protocol =
           RequisitionDetailsKt.requisitionProtocol {
             trusTee = requisitionTrusTee {
-              encryptedSymmetricKey = DEK_KEYSET_HANDLE_1.toEncryptedByteString(KEK_AEAD_1)
+              encryptedDekCiphertext = DEK_KEYSET_HANDLE_1.toEncryptedByteString(KEK_AEAD_1)
               kmsKekUri = KEK_URI_1
               workloadIdentityProvider = "WIP_1"
               impersonatedServiceAccount = "SA_1"
@@ -209,7 +209,7 @@ private val REQUISITION_2 =
         protocol =
           RequisitionDetailsKt.requisitionProtocol {
             trusTee = requisitionTrusTee {
-              encryptedSymmetricKey = DEK_KEYSET_HANDLE_2.toEncryptedByteString(KEK_AEAD_2)
+              encryptedDekCiphertext = DEK_KEYSET_HANDLE_2.toEncryptedByteString(KEK_AEAD_2)
               kmsKekUri = KEK_URI_2
               workloadIdentityProvider = "WIP_2"
               impersonatedServiceAccount = "SA_2"
@@ -226,7 +226,7 @@ private val REQUISITION_3 =
         protocol =
           RequisitionDetailsKt.requisitionProtocol {
             trusTee = requisitionTrusTee {
-              encryptedSymmetricKey = DEK_KEYSET_HANDLE_3.toEncryptedByteString(KEK_AEAD_3)
+              encryptedDekCiphertext = DEK_KEYSET_HANDLE_3.toEncryptedByteString(KEK_AEAD_3)
               kmsKekUri = KEK_URI_3
               workloadIdentityProvider = "WIP_3"
               impersonatedServiceAccount = "SA_3"
@@ -692,7 +692,7 @@ class TrusTeeMillTest {
               protocol.copy {
                 trusTee =
                   trusTee.copy {
-                    encryptedSymmetricKey = DEK_KEYSET_HANDLE_1.toEncryptedByteString(KEK_AEAD_2)
+                    encryptedDekCiphertext = DEK_KEYSET_HANDLE_1.toEncryptedByteString(KEK_AEAD_2)
                   }
               }
           }
