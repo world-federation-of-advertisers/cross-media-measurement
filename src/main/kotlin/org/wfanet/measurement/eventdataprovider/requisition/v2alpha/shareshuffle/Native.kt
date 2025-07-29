@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package org.wfanet.measurement.eventdataprovider.shareshuffle
+package org.wfanet.measurement.eventdataprovider.requisition.v2alpha.shareshuffle
 
 import java.nio.file.Path
 import org.wfanet.measurement.common.NativeLibraryLoader
