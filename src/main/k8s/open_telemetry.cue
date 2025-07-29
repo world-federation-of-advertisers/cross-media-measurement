@@ -135,7 +135,7 @@ package k8s
 					name:  k
 					value: v
 				}]
-				java: image: "ghcr.io/open-telemetry/opentelemetry-operator/autoinstrumentation-java:2.3.0"
+				java: image: "ghcr.io/open-telemetry/opentelemetry-operator/autoinstrumentation-java:2.18.1"
 			}
 		}
 	}

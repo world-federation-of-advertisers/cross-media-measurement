@@ -25,7 +25,7 @@ runs:
   - name: Install cert-manager
     shell: bash
     run: |
-      kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.14.5/cert-manager.yaml
+      kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.18.2/cert-manager.yaml
       for deployment in $(kubectl --namespace=cert-manager get deployments -o name); do
         kubectl --namespace=cert-manager rollout status "$deployment" --timeout=5m
       done
@@ -33,7 +33,7 @@ runs:
   - name: Install OpenTelemetry operator
     shell: bash
     run: |
-      kubectl apply -f https://github.com/open-telemetry/opentelemetry-operator/releases/download/v0.99.0/opentelemetry-operator.yaml
+      kubectl apply -f https://github.com/open-telemetry/opentelemetry-operator/releases/download/v0.129.1/opentelemetry-operator.yaml
       for deployment in $(kubectl --namespace=opentelemetry-operator-system get deployments -o name); do
         kubectl --namespace=opentelemetry-operator-system rollout status "$deployment" --timeout=5m
       done
