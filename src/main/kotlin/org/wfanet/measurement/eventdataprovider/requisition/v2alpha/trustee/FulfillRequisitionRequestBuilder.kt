@@ -22,10 +22,7 @@ import com.google.crypto.tink.KmsClient
 import com.google.crypto.tink.aead.AeadConfig
 import com.google.protobuf.ByteString
 import com.google.protobuf.kotlin.toByteString
-import io.grpc.Status
-import io.grpc.StatusException
 import java.io.ByteArrayOutputStream
-import java.security.GeneralSecurityException
 import org.wfanet.frequencycount.FrequencyVector
 import org.wfanet.measurement.api.v2alpha.EncryptionKey
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequest
@@ -77,30 +74,17 @@ class FulfillRequisitionRequestBuilder(
 
     require(frequencyVector.dataCount > 0) { "FrequencyVector must have size > 0" }
 
-    try {
-      val dekHandle = KeysetHandle.generateNew(KeyTemplates.get("AES256_GCM"))
-      val dekAead = dekHandle.getPrimitive(Aead::class.java)
+    val dekHandle = KeysetHandle.generateNew(KeyTemplates.get("AES256_GCM"))
+    val dekAead = dekHandle.getPrimitive(Aead::class.java)
 
-      val frequencyVectorData = integersToBigEndianBytes(frequencyVector.dataList)
-      val encryptedData = dekAead.encrypt(frequencyVectorData, null)
-      encryptedFrequencyVector = encryptedData.toByteString()
+    val frequencyVectorData = integersToBytes(frequencyVector.dataList)
+    val encryptedData = dekAead.encrypt(frequencyVectorData, null)
+    encryptedFrequencyVector = encryptedData.toByteString()
 
-      val kekAead = kmsClient.getAead(kmsKekUri)
-      val outputStream = ByteArrayOutputStream()
-      dekHandle.write(BinaryKeysetWriter.withOutputStream(outputStream), kekAead)
-      encryptedDek = outputStream.toByteArray().toByteString()
-    } catch (e: GeneralSecurityException) {
-      throw RuntimeException("Failed to build trustee request due to a cryptographic error", e)
-    } catch (e: StatusException) {
-      throw when (e.status.code) {
-          Status.Code.UNAVAILABLE -> Status.UNAVAILABLE
-          Status.Code.ABORTED -> Status.ABORTED
-          Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
-          else -> Status.UNKNOWN
-        }
-        .withCause(e)
-        .asRuntimeException()
-    }
+    val kekAead = kmsClient.getAead(kmsKekUri)
+    val outputStream = ByteArrayOutputStream()
+    dekHandle.write(BinaryKeysetWriter.withOutputStream(outputStream), kekAead)
+    encryptedDek = outputStream.toByteArray().toByteString()
   }
 
   /** Builds the Sequence of requests. */
@@ -156,7 +140,7 @@ class FulfillRequisitionRequestBuilder(
       AeadConfig.register()
     }
 
-    private fun integersToBigEndianBytes(integers: List<Int>): ByteArray {
+    private fun integersToBytes(integers: List<Int>): ByteArray {
       val bytes = ByteArray(integers.size)
       for ((index, value) in integers.withIndex()) {
         require(value in 0..255) { "FrequencyVector value must be between 0 and 255" }
