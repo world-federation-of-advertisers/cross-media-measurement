@@ -1,14 +1,16 @@
 load("//build:variables.bzl", "IMAGE_REPOSITORY_SETTINGS")
 load(":images.bzl", "IMAGES_TO_SIGN")
+load("//src/main/docker/panel_exchange_client:images.bzl", "ALL_IMAGES")
 
 def _compute_image_list(ctx):
     registry = ctx.expand_make_variables("registry", IMAGE_REPOSITORY_SETTINGS.container_registry, {})
     tag = ctx.expand_make_variables("tag", IMAGE_REPOSITORY_SETTINGS.image_tag, {})
-    image_refs = []
-    for image_spec in IMAGES_TO_SIGN:
+
+    def image_ref(image_spec):
         repository = ctx.expand_make_variables("repository", image_spec.repository, {})
-        image_refs.append("%s/%s:%s" % (registry, repository, tag))
-    return image_refs
+        return "%s/%s:%s" % (registry, repository, tag)
+
+    return [image_ref(i) for i in IMAGES_TO_SIGN] + [image_ref(i) for i in ALL_IMAGES]
 
 def _sign_images_impl(ctx):
     image_refs = _compute_image_list(ctx)
