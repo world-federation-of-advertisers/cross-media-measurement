@@ -31,7 +31,8 @@ object EventTemplateFieldInfo {
     val isPopulationAttribute: Boolean,
     val supportedReportingFeatures: SupportedReportingFeatures,
     val type: Descriptors.FieldDescriptor.Type,
-    val fullName: String,
+    // Only valid if type is MESSAGE
+    val messageTypeFullName: String,
     // Map of Enum name to Enum number
     val enumValuesMap: Map<String, Int>,
   )

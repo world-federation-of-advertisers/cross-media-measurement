@@ -537,6 +537,13 @@ class BasicReportsService(
                   }
                 }
 
+                val messageTypeFullName =
+                  if (templateField.type == FieldDescriptor.Type.MESSAGE) {
+                    templateField.messageType.fullName
+                  } else {
+                    ""
+                  }
+
                 put(
                   eventTemplateFieldName,
                   EventTemplateFieldInfo.EventTemplateFieldInfo(
@@ -544,7 +551,7 @@ class BasicReportsService(
                     isPopulationAttribute = isPopulationAttribute,
                     supportedReportingFeatures = supportedReportingFeatures,
                     type = templateField.type,
-                    fullName = templateField.fullName,
+                    messageTypeFullName = messageTypeFullName,
                     enumValuesMap = enumValuesMap,
                   ),
                 )

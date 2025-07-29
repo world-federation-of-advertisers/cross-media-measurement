@@ -260,14 +260,6 @@ fun validateDimensionSpec(
           }
         }
 
-        if (!eventTemplateFieldInfo.isPopulationAttribute) {
-          throw InvalidFieldValueException(
-            "basic_report.result_group_specs.dimension_spec.filters.terms.path"
-          ) { fieldName ->
-            "$fieldName is not a population attribute"
-          }
-        }
-
         if (groupingEventTemplateFieldsSet.contains(eventTemplateField.path)) {
           throw InvalidFieldValueException(
             "basic_report.result_group_specs.dimension_spec.filters.terms.path"
@@ -282,7 +274,7 @@ fun validateDimensionSpec(
             if (eventTemplateFieldInfo.type != Descriptors.FieldDescriptor.Type.STRING) {
               if (
                 eventTemplateFieldInfo.type != Descriptors.FieldDescriptor.Type.MESSAGE ||
-                  eventTemplateFieldInfo.fullName != Timestamp.getDescriptor().fullName
+                  eventTemplateFieldInfo.messageTypeFullName != Timestamp.getDescriptor().fullName
               ) {
                 throw InvalidFieldValueException(
                   "basic_report.result_group_specs.dimension_spec.filters.terms.value.string_value"
@@ -320,7 +312,7 @@ fun validateDimensionSpec(
                 eventTemplateFieldInfo.type == Descriptors.FieldDescriptor.Type.STRING ||
                 eventTemplateFieldInfo.type == Descriptors.FieldDescriptor.Type.BOOL ||
                 (eventTemplateFieldInfo.type == Descriptors.FieldDescriptor.Type.MESSAGE &&
-                  eventTemplateFieldInfo.fullName != Duration.getDescriptor().fullName)
+                  eventTemplateFieldInfo.messageTypeFullName != Duration.getDescriptor().fullName)
             ) {
               throw InvalidFieldValueException(
                 "basic_report.result_group_specs.dimension_spec.filters.terms.value.float_value"
@@ -333,6 +325,14 @@ fun validateDimensionSpec(
             throw RequiredFieldNotSetException(
               "basic_report.result_group_specs.dimension_spec.filters.terms.value"
             )
+          }
+        }
+
+        if (!eventTemplateFieldInfo.isPopulationAttribute) {
+          throw InvalidFieldValueException(
+            "basic_report.result_group_specs.dimension_spec.filters.terms.path"
+          ) { fieldName ->
+            "$fieldName is not a population attribute"
           }
         }
       }
