@@ -31,6 +31,7 @@ import org.junit.runners.JUnit4
 import org.mockito.Mockito.mock
 import org.mockito.kotlin.any
 import org.mockito.kotlin.whenever
+import org.wfanet.frequencycount.FrequencyVector
 import org.wfanet.frequencycount.frequencyVector
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt
@@ -43,17 +44,17 @@ import org.wfanet.measurement.consent.client.dataprovider.computeRequisitionFing
 @RunWith(JUnit4::class)
 class FulfillRequisitionRequestBuilderTest {
   @Test
-  fun `build fails when requisition has no TrusTee config`() {
+  fun `buildEncrypted fails when requisition has no TrusTee config`() {
     val exception =
       assertFailsWith<IllegalArgumentException> {
-        FulfillRequisitionRequestBuilder.build(
+        FulfillRequisitionRequestBuilder.buildEncrypted(
           requisition { protocolConfig = protocolConfig {} },
           NONCE,
-          frequencyVector { data += 1 },
+          FREQUENCY_VECTOR,
           KMS_CLIENT,
           KEK_URI,
-          "idProvider",
-          "serviceAccount",
+          WORKLOAD_ID_PROVIDER,
+          IMPERSONATED_SERVICE_ACCOUNT,
         )
       }
     assertThat(exception.message).contains("Expected to find exactly one config for TrusTee")
@@ -61,10 +62,10 @@ class FulfillRequisitionRequestBuilderTest {
   }
 
   @Test
-  fun `build fails when requisition has multiple TrusTee configs`() {
+  fun `buildEncrypted fails when requisition has multiple TrusTee configs`() {
     val exception =
       assertFailsWith<IllegalArgumentException> {
-        FulfillRequisitionRequestBuilder.build(
+        FulfillRequisitionRequestBuilder.buildEncrypted(
           REQUISITION.copy {
             protocolConfig =
               protocolConfig.copy {
@@ -72,11 +73,11 @@ class FulfillRequisitionRequestBuilderTest {
               }
           },
           NONCE,
-          frequencyVector { data += 1 },
+          FREQUENCY_VECTOR,
           KMS_CLIENT,
           KEK_URI,
-          "idProvider",
-          "serviceAccount",
+          WORKLOAD_ID_PROVIDER,
+          IMPERSONATED_SERVICE_ACCOUNT,
         )
       }
     assertThat(exception.message).contains("Expected to find exactly one config for TrusTee")
@@ -84,70 +85,70 @@ class FulfillRequisitionRequestBuilderTest {
   }
 
   @Test
-  fun `build fails when frequency vector is empty`() {
+  fun `buildEncrypted fails when frequency vector is empty`() {
     val exception =
       assertFailsWith<IllegalArgumentException>("expected exception") {
-        FulfillRequisitionRequestBuilder.build(
+        FulfillRequisitionRequestBuilder.buildEncrypted(
           REQUISITION,
           NONCE,
-          frequencyVector {},
+          FrequencyVector.getDefaultInstance(),
           KMS_CLIENT,
           KEK_URI,
-          "idProvider",
-          "serviceAccount",
+          WORKLOAD_ID_PROVIDER,
+          IMPERSONATED_SERVICE_ACCOUNT,
         )
       }
     assertThat(exception.message).contains("must have size")
   }
 
   @Test
-  fun `build fails when frequency vector has negative value`() {
+  fun `buildEncrypted fails when frequency vector has negative value`() {
     val exception =
       assertFailsWith<IllegalArgumentException> {
-        FulfillRequisitionRequestBuilder.build(
+        FulfillRequisitionRequestBuilder.buildEncrypted(
           REQUISITION,
           NONCE,
           frequencyVector { data += -1 },
           KMS_CLIENT,
           KEK_URI,
-          "idProvider",
-          "serviceAccount",
+          WORKLOAD_ID_PROVIDER,
+          IMPERSONATED_SERVICE_ACCOUNT,
         )
       }
     assertThat(exception.message).contains("FrequencyVector value")
   }
 
   @Test
-  fun `build fails when frequency vector has value over 255`() {
+  fun `buildEncrypted fails when frequency vector has value over 255`() {
     val exception =
       assertFailsWith<IllegalArgumentException> {
-        FulfillRequisitionRequestBuilder.build(
+        FulfillRequisitionRequestBuilder.buildEncrypted(
           REQUISITION,
           NONCE,
           frequencyVector { data += 256 },
           KMS_CLIENT,
           KEK_URI,
-          "idProvider",
-          "serviceAccount",
+          WORKLOAD_ID_PROVIDER,
+          IMPERSONATED_SERVICE_ACCOUNT,
         )
       }
     assertThat(exception.message).contains("FrequencyVector value")
   }
 
   @Test
-  fun `build fails for invalid kek uri`() {
+  fun `buildEncrypted fails for invalid kek uri`() {
     val invalidKekUri = "gcp-kms://unregistered/key/uri"
 
     val exception =
       assertFailsWith<GeneralSecurityException> {
-        FulfillRequisitionRequestBuilder.build(
+        FulfillRequisitionRequestBuilder.buildEncrypted(
           REQUISITION,
           NONCE,
-          frequencyVector { data += 1 },
+          FREQUENCY_VECTOR,
           KMS_CLIENT,
           invalidKekUri,
-          "idProvider",
-          "serviceAccount",
+          WORKLOAD_ID_PROVIDER,
+          IMPERSONATED_SERVICE_ACCOUNT,
         )
       }
 
@@ -155,21 +156,21 @@ class FulfillRequisitionRequestBuilderTest {
   }
 
   @Test
-  fun `build fails for kms client getAead failure`() {
+  fun `buildEncrypted fails for kms client getAead failure`() {
     val kmsClientMock: KmsClient = mock()
     val rpcException = Status.DEADLINE_EXCEEDED.asRuntimeException()
     whenever(kmsClientMock.getAead(any())).thenThrow(rpcException)
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        FulfillRequisitionRequestBuilder.build(
+        FulfillRequisitionRequestBuilder.buildEncrypted(
           REQUISITION,
           NONCE,
-          frequencyVector { data += 1 },
+          FREQUENCY_VECTOR,
           kmsClientMock,
           KEK_URI,
-          "idProvider",
-          "serviceAccount",
+          WORKLOAD_ID_PROVIDER,
+          IMPERSONATED_SERVICE_ACCOUNT,
         )
       }
 
@@ -177,7 +178,7 @@ class FulfillRequisitionRequestBuilderTest {
   }
 
   @Test
-  fun `build fails for dek encryption rpc failure`() {
+  fun `buildEncrypted fails for dek encryption rpc failure`() {
     val aeadMock: Aead = mock()
     val rpcException = Status.ABORTED.asRuntimeException()
     whenever(aeadMock.encrypt(any(), any())).thenThrow(rpcException)
@@ -187,14 +188,14 @@ class FulfillRequisitionRequestBuilderTest {
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        FulfillRequisitionRequestBuilder.build(
+        FulfillRequisitionRequestBuilder.buildEncrypted(
           REQUISITION,
           NONCE,
-          frequencyVector { data += 1 },
+          FREQUENCY_VECTOR,
           kmsClientMock,
           KEK_URI,
-          "idProvider",
-          "serviceAccount",
+          WORKLOAD_ID_PROVIDER,
+          IMPERSONATED_SERVICE_ACCOUNT,
         )
       }
 
@@ -202,7 +203,7 @@ class FulfillRequisitionRequestBuilderTest {
   }
 
   @Test
-  fun `build fails for dek encryption failure`() {
+  fun `buildEncrypted fails for dek encryption failure`() {
     val aeadMock: Aead = mock()
     KMS_CLIENT.setAead(KEK_URI, aeadMock)
     whenever(aeadMock.encrypt(any(), any()))
@@ -210,14 +211,14 @@ class FulfillRequisitionRequestBuilderTest {
 
     val exception =
       assertFailsWith<GeneralSecurityException> {
-        FulfillRequisitionRequestBuilder.build(
+        FulfillRequisitionRequestBuilder.buildEncrypted(
           REQUISITION,
           NONCE,
-          frequencyVector { data += 1 },
+          FREQUENCY_VECTOR,
           KMS_CLIENT,
           KEK_URI,
-          "idProvider",
-          "serviceAccount",
+          WORKLOAD_ID_PROVIDER,
+          IMPERSONATED_SERVICE_ACCOUNT,
         )
       }
 
@@ -225,11 +226,34 @@ class FulfillRequisitionRequestBuilderTest {
   }
 
   @Test
-  fun `build returns requests with correctly encrypted payload`() {
+  fun `buildUnencrypted fails when encryption params are provided`() {
+    val encryptionParams =
+      FulfillRequisitionRequestBuilder.EncryptionParams(
+        KMS_CLIENT,
+        KEK_URI,
+        WORKLOAD_ID_PROVIDER,
+        IMPERSONATED_SERVICE_ACCOUNT,
+      )
+    val builder =
+      FulfillRequisitionRequestBuilder(REQUISITION, NONCE, FREQUENCY_VECTOR, encryptionParams)
+    val exception = assertFailsWith<IllegalStateException> { builder.buildUnencrypted().toList() }
+    assertThat(exception).hasMessageThat().contains("Cannot build unencrypted request")
+  }
+
+  // region build() Failure Tests
+  @Test
+  fun `buildEncrypted fails when encryption params are not provided`() {
+    val builder = FulfillRequisitionRequestBuilder(REQUISITION, NONCE, FREQUENCY_VECTOR, null)
+    val exception = assertFailsWith<IllegalArgumentException> { builder.buildEncrypted().toList() }
+    assertThat(exception).hasMessageThat().contains("Encryption parameters are required")
+  }
+
+  @Test
+  fun `buildEncrypted returns requests with correctly encrypted payload`() {
     val inputFrequencyVector = frequencyVector { data += listOf(1, 8, 27) }
 
     val requests =
-      FulfillRequisitionRequestBuilder.build(
+      FulfillRequisitionRequestBuilder.buildEncrypted(
           REQUISITION,
           NONCE,
           inputFrequencyVector,
@@ -269,8 +293,37 @@ class FulfillRequisitionRequestBuilderTest {
 
     val decryptedFrequencyVectorData =
       dekAead.decrypt(bodyRequest.bodyChunk.data.toByteArray(), null)
-    val decryptedIntegers = bigEndianBytesToIntegers(decryptedFrequencyVectorData)
+    val decryptedIntegers = bytesToIntegers(decryptedFrequencyVectorData)
     assertThat(decryptedIntegers).isEqualTo(inputFrequencyVector.dataList)
+  }
+
+  @Test
+  fun `buildUnencrypted returns requests with unencrypted payload`() {
+    val inputFrequencyVector = frequencyVector { data += listOf(1, 8, 27) }
+    val requests =
+      FulfillRequisitionRequestBuilder.buildUnencrypted(REQUISITION, NONCE, inputFrequencyVector)
+        .toList()
+
+    assertThat(requests).hasSize(2)
+    val headerRequest = requests[0]
+    val bodyRequest = requests[1]
+
+    assertThat(headerRequest.hasHeader()).isTrue()
+    assertThat(bodyRequest.hasBodyChunk()).isTrue()
+
+    val header = headerRequest.header
+    assertThat(header.name).isEqualTo(REQUISITION.name)
+    assertThat(header.requisitionFingerprint).isEqualTo(computeRequisitionFingerprint(REQUISITION))
+    assertThat(header.nonce).isEqualTo(NONCE)
+
+    val trusteeHeader = header.trusTee
+    assertThat(trusteeHeader.dataFormat)
+      .isEqualTo(FulfillRequisitionRequest.Header.TrusTee.DataFormat.FREQUENCY_VECTOR)
+    assertThat(trusteeHeader.hasEnvelopeEncryption()).isFalse()
+
+    val payload = bodyRequest.bodyChunk.data
+    val payloadIntegers = bytesToIntegers(payload.toByteArray())
+    assertThat(payloadIntegers).isEqualTo(inputFrequencyVector.dataList)
   }
 
   companion object {
@@ -286,6 +339,7 @@ class FulfillRequisitionRequestBuilderTest {
     private const val NONCE = 12345L
     private const val WORKLOAD_ID_PROVIDER = "workload-id-provider"
     private const val IMPERSONATED_SERVICE_ACCOUNT = "impersonated-sa"
+    private val FREQUENCY_VECTOR = frequencyVector { data += 1 }
     private val REQUISITION = requisition {
       name = "requisitions/test"
       protocolConfig = protocolConfig {
@@ -293,7 +347,7 @@ class FulfillRequisitionRequestBuilderTest {
       }
     }
 
-    private fun bigEndianBytesToIntegers(bytes: ByteArray): List<Int> {
+    private fun bytesToIntegers(bytes: ByteArray): List<Int> {
       return bytes.map { it.toInt() and 0xFF }
     }
   }
