@@ -118,6 +118,30 @@ locals {
     destination = "requisition-fetcher-config.textproto"
   }
 
+  cloud_function_configs = {
+    data_watcher = {
+      function_name       = var.data_watcher_function_name
+      entry_point         = "org.wfanet.measurement.securecomputation.deploy.gcloud.datawatcher.DataWatcherFunction"
+      extra_env_vars      = var.data_watcher_env_var
+      secret_mappings     = var.data_watcher_secret_mapping
+      uber_jar_path       = var.data_watcher_uber_jar_path
+    },
+    requisition_fetcher = {
+      function_name       = var.requisition_fetcher_function_name
+      entry_point         = "org.wfanet.measurement.edpaggregator.deploy.gcloud.requisitionfetcher.RequisitionFetcherFunction"
+      extra_env_vars      = var.requisition_fetcher_env_var
+      secret_mappings     = var.requisition_fetcher_secret_mapping
+      uber_jar_path       = var.requisition_fetcher_uber_jar_path
+    },
+    event_group_sync = {
+      function_name       = var.event_group_sync_function_name
+      entry_point         = "org.wfanet.measurement.edpaggregator.deploy.gcloud.eventgroups.EventGroupSyncFunction"
+      extra_env_vars      = var.event_group_env_var
+      secret_mappings     = var.requisition_fetcher_secret_mapping
+      uber_jar_path       = var.event_group_uber_jar_path
+    }
+  }
+
 }
 
 module "edp_aggregator" {
@@ -139,7 +163,6 @@ module "edp_aggregator" {
   requisition_fetcher_config                = local.requisition_fetcher_config
   event_group_sync_service_account_name     = "edpa-event-group-sync"
   event_group_sync_function_name            = "event-group-sync"
-  event_group_sync_function_location        = data.google_client_config.default.region
   edpa_tee_app_tls_key                      = local.edpa_tee_app_tls_key
   edpa_tee_app_tls_pem                      = local.edpa_tee_app_tls_pem
   data_watcher_tls_key                      = local.data_watcher_tls_key
@@ -147,4 +170,5 @@ module "edp_aggregator" {
   secure_computation_root_ca                = local.secure_computation_root_ca
   kingdom_root_ca                           = local.kingdom_root_ca
   edps_certs                                = local.edps_certs
+  cloud_function_configs                    = local.cloud_function_configs
 }
