@@ -50,6 +50,7 @@ import org.wfanet.measurement.consent.client.dataprovider.computeRequisitionFing
 class FulfillRequisitionRequestBuilder(
   private val requisition: Requisition,
   private val requisitionNonce: Long,
+  // TODO(world-federation-of-advertisers/cross-media-measurement#2705): make it ByteArray
   private val frequencyVector: FrequencyVector,
   private val encryptionParams: EncryptionParams?,
 ) {
