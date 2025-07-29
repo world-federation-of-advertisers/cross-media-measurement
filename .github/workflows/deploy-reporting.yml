@@ -18,15 +18,7 @@ on:
   push:
 
 jobs:
-  terraform:
-    uses: ./.github/workflows/terraform-cmms.yml
-    secrets: inherit
-    with:
-      image-tag: test-new-flag-2
-      environment: dev
-      apply: true
   update-reporting:
-    needs: [ terraform ]
     uses: ./.github/workflows/configure-reporting-v2.yml
     secrets: inherit
     with:
