@@ -15,13 +15,13 @@
 name: Deploy Reporting
 
 on:
-  push:
+  workflow_dispatch:
 
 jobs:
   update-reporting:
     uses: ./.github/workflows/configure-reporting-v2.yml
     secrets: inherit
     with:
-      image-tag: test-new-flag-2
+      image-tag: test-new-flag-3
       environment: dev
       apply: true
