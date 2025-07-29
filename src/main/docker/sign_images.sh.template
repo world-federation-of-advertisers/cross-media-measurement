@@ -7,7 +7,7 @@ fi
 
 kms_key=$1
 
-# WIP - DELETE THIS
+# WIP - DELETE this overwrite
 kms_key=$(echo "${kms_key}" | sed 's#3$#cryptoKeyVersions/3#' | sed 's#332250267344#halo-cmm-poc#')
 echo "Using key: ${kms_key}"
 
@@ -25,6 +25,8 @@ for image_ref_tag in $(cat {{images_file}}); do
   image_ref_digest="${image_ref_tag%:*}@${digest}"
   echo "Signing image: ${image_ref_digest}"
   ./cosign sign --tlog-upload=false --key gcpkms://${kms_key} ${image_ref_digest}
+
+  # WIP - DELETE verification
   echo "Verifying image: ${image_ref_digest}"
   ./cosign verify --insecure-ignore-tlog=true --key gcpkms://${kms_key} ${image_ref_digest}
 done
