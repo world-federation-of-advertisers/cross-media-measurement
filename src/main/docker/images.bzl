@@ -349,5 +349,5 @@ ALL_EKS_IMAGES = COMMON_IMAGES + EKS_IMAGES
 
 ALL_TEE_APP_GKE_IMAGES = SECURE_COMPUTATION_TEE_APP_IMAGES
 
-#WIP: refine / confirm (missing panel enchance client images here)
+#WIP: refine / confirm (missing panel exchange client images here)
 IMAGES_TO_SIGN = ALL_GKE_IMAGES + ALL_TEE_APP_GKE_IMAGES + ALL_EKS_IMAGES
