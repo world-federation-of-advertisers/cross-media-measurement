@@ -51,30 +51,8 @@ abstract class AbstractEdpAggregatorCorrectnessTest(private val measurementSyste
     val mcSimulator: MeasurementConsumerSimulator
   }
 
-  private fun triggerRequisitionFetcher() {
-
-    val jwt = System.getenv("AUTH_ID_TOKEN")
-      ?: error("AUTH_ID_TOKEN must be set")
-
-    val requisitionFetcherTarget = System.getenv("REQUISITION_FETCHER_TARGET")
-      ?: error("REQUISITION_FETCHER_TARGET must be set")
-
-    val client = HttpClient.newHttpClient()
-    val request =
-      HttpRequest.newBuilder()
-        .uri(URI.create(requisitionFetcherTarget))
-        .timeout(Duration.ofSeconds(120))
-        .header("Authorization", "Bearer $jwt")
-        .GET()
-        .build()
-    val response = client.send(request, HttpResponse.BodyHandlers.ofString())
-
-    check(response.statusCode() == 200)
-  }
-
   companion object {
     
-    private const val MC_ENCRYPTION_PRIVATE_KEY_NAME = "mc_enc_private.tink"
     private const val MC_CS_CERT_DER_NAME = "mc_cs_cert.der"
     private const val MC_CS_PRIVATE_KEY_DER_NAME = "mc_cs_private.der"
 
