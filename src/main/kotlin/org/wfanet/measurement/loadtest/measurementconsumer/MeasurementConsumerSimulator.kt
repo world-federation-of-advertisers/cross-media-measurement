@@ -157,6 +157,7 @@ abstract class MeasurementConsumerSimulator(
   private val maximumResultPollingDelay: Duration,
   private val eventGroupFilter: ((EventGroup) -> Boolean)? = null,
   private val reportName: String = "some-report-id",
+  private val onMeasurementsCreated: (() -> Unit)? = null,
 ) {
   /** Cache of resource name to [Certificate]. */
   private val certificateCache = mutableMapOf<String, Certificate>()
@@ -320,7 +321,7 @@ abstract class MeasurementConsumerSimulator(
    *
    * @numMeasurements - The number of incremental measurements to request within the time period.
    */
-  suspend fun testDirectReachAndFrequency(runId: String, numMeasurements: Int, getRequisitions: (() -> Unit)? = null) {
+  suspend fun testDirectReachAndFrequency(runId: String, numMeasurements: Int) {
     // Create a new measurement on behalf of the measurement consumer.
     val measurementConsumer = getMeasurementConsumer(measurementConsumerData.name)
     logger.info("Creating measurements...")
@@ -341,7 +342,7 @@ abstract class MeasurementConsumerSimulator(
         measurementInfo
       }
 
-    getRequisitions?.invoke()
+    onMeasurementsCreated?.invoke()
 
     measurementInfos.forEachIndexed { measurementNumber, measurementInfo ->
       val measurementName = measurementInfo.measurement.name
@@ -812,6 +813,9 @@ abstract class MeasurementConsumerSimulator(
           ),
           protocol.honestMajorityShareShuffle.noiseMechanism,
         )
+      }
+      ProtocolConfig.Protocol.ProtocolCase.TRUS_TEE -> {
+        error("TrusTEE is not implemented.")
       }
       ProtocolConfig.Protocol.ProtocolCase.PROTOCOL_NOT_SET -> {
         error("Protocol is not set.")

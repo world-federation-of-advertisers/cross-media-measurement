@@ -143,7 +143,7 @@ jobs:
     - name: Build test event proto descriptors
       id: build-test-event-descriptors
       env:
-        BAZEL_TARGET_LABEL: "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller/testing:event_template_metadata_type"
+        BAZEL_TARGET_LABEL: "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:edpa_event_template_metadata_type"
       run: |
         bazelisk build "$BAZEL_TARGET_LABEL"
         RELATIVE_PROTO_DESCRIPTORS_PATH=$(bazelisk cquery "$BAZEL_TARGET_LABEL" --output=files)
