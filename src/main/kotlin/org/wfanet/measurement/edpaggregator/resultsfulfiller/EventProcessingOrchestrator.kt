@@ -37,8 +37,6 @@ import org.wfanet.measurement.api.v2alpha.PopulationSpecKt.subPopulation
 import org.wfanet.measurement.api.v2alpha.PopulationSpecKt.vidRange
 import org.wfanet.measurement.api.v2alpha.populationSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticPopulationSpec
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
-import com.google.protobuf.DynamicMessage
 import java.io.File
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.loadtest.dataprovider.toPopulationSpecWithAttributes
@@ -92,7 +90,7 @@ class EventProcessingOrchestrator(
     config: PipelineConfiguration,
     typeRegistry: TypeRegistry
   ): Map<String, FrequencyVector> {
-    require(!config.populationSpecPath.isNullOrEmpty()) { "Population spec path must be provided" }
+    require(config.populationSpecPath.isNotEmpty()) { "Population spec path must be provided" }
 
     // Generate filters from requisitions with deduplication
     val (filterConfigurations, requisitionToFilters) = generateFiltersFromRequisitions(requisitions, config)
@@ -107,7 +105,7 @@ class EventProcessingOrchestrator(
       val vidIndexMapStartTime = System.currentTimeMillis()
 
       // Create or load population spec for VID index mapping
-      val populationSpec = loadPopulationSpecFromFile(config.populationSpecPath!!, config.isSyntheticPopulationSpec)
+      val populationSpec = loadPopulationSpecFromFile(config.populationSpecPath, config.isSyntheticPopulationSpec)
 
       val vidIndexMap = InMemoryVidIndexMap.build(populationSpec)
 
@@ -130,7 +128,7 @@ class EventProcessingOrchestrator(
 
       // Create storage event source for requisition fulfillment
       val eventSource = StorageEventSource(
-        eventReader = config.eventReader!!,
+        eventReader = config.eventReader,
         dateRange = config.startDate..config.endDate,
         eventGroupReferenceIds = config.eventGroupReferenceIds,
         batchSize = config.effectiveBatchSize

@@ -249,7 +249,6 @@ kt_jvm_test(
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator:storage_config",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:event_processing_orchestrator",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:event_reader",
-        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:event_source_type",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:pipeline_configuration",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/testing:test_encrypted_storage",
         "//src/main/kotlin/org/wfanet/measurement/integration/common:configs",

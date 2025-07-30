@@ -254,18 +254,11 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
-    name = "event_source_type",
-    srcs = ["EventSourceType.kt"],
-    deps = [],
-)
-
-kt_jvm_library(
     name = "pipeline_configuration",
     testonly = True,
     srcs = ["PipelineConfiguration.kt"],
     deps = [
         ":event_reader",
-        ":event_source_type",
         "//src/main/proto/wfa/measurement/api/v2alpha/event_group_metadata/testing:simulator_synthetic_data_spec_kt_jvm_proto",
     ],
 )
@@ -277,7 +270,6 @@ kt_jvm_library(
     deps = [
         ":event_reader",
         ":event_source",
-        ":event_source_type",
         ":filter_configuration",
         ":filter_spec",
         ":frequency_vector",

@@ -181,7 +181,7 @@ class ParallelBatchedPipeline(
               
               if (matchingSink != null) {
                 logger.fine("Processing ${matchedEvents.size} matched events for processor ${processor.filterId}")
-                matchingSink.processMatchedEvents(matchedEvents, batch.size)
+                matchingSink.processMatchedEvents(matchedEvents)
               } else {
                 logger.warning("No matching sink found for processor ${processor.filterId}")
               }

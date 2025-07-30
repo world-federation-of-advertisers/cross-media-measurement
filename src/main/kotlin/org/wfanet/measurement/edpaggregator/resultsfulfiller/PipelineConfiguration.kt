@@ -19,8 +19,6 @@ package org.wfanet.measurement.edpaggregator.resultsfulfiller
 import com.google.type.Interval
 import java.time.LocalDate
 import java.time.ZoneId
-import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
-import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticPopulationSpec
 
 /**
  * Configuration for the event processing pipeline.
@@ -41,20 +39,13 @@ data class PipelineConfiguration(
   val parallelWorkers: Int,
   val threadPoolSize: Int,
 
-  // Event source configuration
-  val eventSourceType: EventSourceType,
-
-  // Synthetic data generation configuration (required if eventSourceType is SYNTHETIC)
-  val populationSpec: SyntheticPopulationSpec? = null,
-  val eventGroupSpec: SyntheticEventGroupSpec? = null,
-
-  // Storage event source configuration (required if eventSourceType is STORAGE)
-  val eventReader: EventReader? = null,
-  val eventGroupReferenceIds: List<String> = emptyList(),
+  // Storage event source configuration
+  val eventReader: EventReader,
+  val eventGroupReferenceIds: List<String>,
   
-  // Population spec file path (optional - if not provided, population spec will be generated)
+  // Population spec file path
   // TODO: Switch to fetch population spec from the API instead of loading from file
-  val populationSpecPath: String? = null,
+  val populationSpecPath: String,
 
   val zoneId: ZoneId,
 
@@ -82,19 +73,8 @@ data class PipelineConfiguration(
     require(parallelBatchSize > 0) { "Parallel batch size must be positive" }
     require(parallelWorkers > 0) { "Parallel workers must be positive" }
     require(threadPoolSize > 0) { "Thread pool size must be positive" }
-
-    when (eventSourceType) {
-      EventSourceType.SYNTHETIC -> {
-        requireNotNull(populationSpec) { "Population spec is required for synthetic event source" }
-        requireNotNull(eventGroupSpec) { "Event group spec is required for synthetic event source" }
-        require(populationSpec.hasVidRange()) { "Population spec must have VID range" }
-        require(eventGroupSpec.dateSpecsCount > 0) { "Event group spec must have date specifications" }
-      }
-      EventSourceType.STORAGE -> {
-        requireNotNull(eventReader) { "Event reader is required for storage event source" }
-        require(eventGroupReferenceIds.isNotEmpty()) { "Event group reference IDs must not be empty for storage event source" }
-      }
-    }
+    require(eventGroupReferenceIds.isNotEmpty()) { "Event group reference IDs must not be empty" }
+    require(populationSpecPath.isNotEmpty()) { "Population spec path must not be empty" }
   }
 
   /**
