@@ -64,6 +64,7 @@ import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
 import java.util.UUID
+import kotlinx.coroutines.withTimeout
 
 class EdpAggregatorCorrectnessTest: AbstractEdpAggregatorCorrectnessTest(measurementSystem) {
 
@@ -92,9 +93,11 @@ class EdpAggregatorCorrectnessTest: AbstractEdpAggregatorCorrectnessTest(measure
     }
 
     private suspend fun waitForEventGroupSyncToComplete() {
-      while (!isEventGroupSyncDone()) {
-        logger.info("Waiting on Event Group Sync to complete...")
-        delay(3000)
+      withTimeout(EVENT_GROUP_SYNC_TIMEOUT) {
+        while (!isEventGroupSyncDone()) {
+          logger.info("Waiting on Event Group Sync to complete...")
+          delay(EVENT_GROUP_SYNC_POLLING_INTERVAL)
+        }
       }
     }
 
@@ -155,6 +158,12 @@ class EdpAggregatorCorrectnessTest: AbstractEdpAggregatorCorrectnessTest(measure
         }
       }
     }
+
+    companion object {
+      private const val EVENT_GROUP_SYNC_TIMEOUT = 30_000L
+      private const val EVENT_GROUP_SYNC_POLLING_INTERVAL = 3000L
+    }
+
   }
   private class RunningMeasurementSystem : MeasurementSystem, TestRule {
     override val runId: String by lazy { UUID.randomUUID().toString() }
