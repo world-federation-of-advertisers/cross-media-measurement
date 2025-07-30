@@ -158,3 +158,16 @@ kt_jvm_test(
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/tink/testing",
     ],
 )
+
+kt_jvm_test(
+    name = "StripedByteFrequencyVectorTest",
+    srcs = ["StripedByteFrequencyVectorTest.kt"],
+    test_class = "org.wfanet.measurement.edpaggregator.resultsfulfiller.StripedByteFrequencyVectorTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:frequency_vector",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+    ],
+)

@@ -1,0 +1,53 @@
+/*
+ * Copyright 2025 The Cross-Media Measurement Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.wfanet.measurement.edpaggregator.resultsfulfiller
+
+/**
+ * Interface for frequency vectors used in reach and frequency measurements.
+ *
+ * Provides operations for getting reach, average frequency, and total count metrics.
+ */
+interface FrequencyVector {
+
+  /**
+   * Gets the total reach (unique VID count).
+   *
+   * @return The number of unique VIDs in this frequency vector
+   */
+  fun getReach(): Long
+
+  /**
+   * Gets the average frequency per VID.
+   *
+   * @return The average frequency (total frequency / reach)
+   */
+  fun getAverageFrequency(): Double
+
+  /**
+   * Gets the total count of all impressions.
+   *
+   * @return The total count across all VIDs
+   */
+  fun getTotalCount(): Long
+
+  /**
+   * Increments the frequency count for a given VID index.
+   *
+   * @param index The VID index to increment
+   */
+  fun incrementByIndex(index: Int)
+}
