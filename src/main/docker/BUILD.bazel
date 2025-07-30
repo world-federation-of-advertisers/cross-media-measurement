@@ -37,6 +37,7 @@ package(
         name = "sign_" + image_spec.name,
         image = image_spec.image,
         repository = IMAGE_REPOSITORY_SETTINGS.container_registry + "/" + image_spec.repository,
+        args = ["--key", "gcpkms://projects/123/locations/global/keyRings/myring/cryptoKeys/mykey/versions/1"],
         tags = [
             "manual",
             "no-remote",
