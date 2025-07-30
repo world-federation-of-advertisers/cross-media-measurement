@@ -43,7 +43,7 @@ abstract class AbstractEdpAggregatorCorrectnessTest(private val measurementSyste
     runBlocking {
       // Use frontend simulator to create a direct reach and frequency measurement and verify its
       // result.
-      mcSimulator.testDirectReachAndFrequency("1234", 1, ::triggerRequisitionFetcher)
+      mcSimulator.testDirectReachAndFrequency("1234", 1)
     }
 
   interface MeasurementSystem {
