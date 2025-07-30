@@ -109,7 +109,7 @@ private val POPULATION: Population = population {
   name = POPULATION_NAME
   description = DESCRIPTION
   createTime = CREATE_TIME
-  populationBlob = populationBlob { modelBlobUri = MODEL_BLOB_URI }
+  populationBlob = populationBlob { blobUri = MODEL_BLOB_URI }
   eventTemplate = eventTemplate { type = EVENT_TEMPLATE_TYPE }
 }
 

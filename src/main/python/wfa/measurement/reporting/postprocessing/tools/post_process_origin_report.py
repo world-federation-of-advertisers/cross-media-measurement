@@ -81,6 +81,7 @@ class ReportSummaryProcessor:
     self._k_reach: dict[str, dict[FrozenSet[str], dict[int, Measurement]]] = {}
     self._impression: dict[str, dict[FrozenSet[str], Measurement]] = {}
     self._set_difference_map: dict[str, tuple[str, str]] = {}
+    self._uncorrected_measurements: set[str] = set()
 
   def process(self) -> ReportPostProcessorResult:
     """
@@ -182,6 +183,12 @@ class ReportSummaryProcessor:
     report_post_processor_result.updated_measurements.update(
         metric_name_to_value)
 
+    # Updates the report post processor result with the uncorrected
+    # measurements.
+    report_post_processor_result.uncorrected_measurements.extend(
+        self._uncorrected_measurements
+    )
+
     return report_post_processor_result
 
   def _process_primitive_measurements(self):
@@ -203,11 +210,21 @@ class ReportSummaryProcessor:
     logging.info(
         "Processing primitive measurements (cumulative and union)."
     )
+
+    seen_measurement_policies: set[str] = set()
     for entry in self._report_summary.measurement_details:
+      measurement_policy = entry.measurement_policy
+      if measurement_policy not in seen_measurement_policies:
+        seen_measurement_policies.add(measurement_policy)
+        self._cumulative_measurements[measurement_policy] = {}
+        self._whole_campaign_measurements[measurement_policy] = {}
+        self._k_reach[measurement_policy] = {}
+        self._impression[measurement_policy] = {}
+
       if entry.set_operation == "cumulative":
         logging.debug(
-            f"Processing {entry.measurement_policy} cumulative measurements "
-            f"for the EDP combination {entry.data_providers}."
+            f"Processing {measurement_policy} cumulative measurements for the "
+            f"EDP combination {entry.data_providers}."
         )
         if not all(
             result.HasField('reach') for result in entry.measurement_results):
@@ -218,19 +235,13 @@ class ReportSummaryProcessor:
                         result.metric)
             for result in entry.measurement_results
         ]
-        if entry.measurement_policy not in self._cumulative_measurements:
-          self._cumulative_measurements[entry.measurement_policy] = {}
-        self._cumulative_measurements[entry.measurement_policy][
+        self._cumulative_measurements[measurement_policy][
           frozenset(entry.data_providers)] = measurements
       elif (entry.set_operation == "union") and (entry.is_cumulative == False):
         logging.debug(
-            f"Processing {entry.measurement_policy} total campaign measurements"
-            f" for the EDP combination {entry.data_providers}."
+            f"Processing {measurement_policy} total campaign measurements for "
+            f"the EDP combination {entry.data_providers}."
         )
-        if entry.measurement_policy not in self._whole_campaign_measurements:
-          self._whole_campaign_measurements[entry.measurement_policy] = {}
-          self._k_reach[entry.measurement_policy] = {}
-          self._impression[entry.measurement_policy] = {}
         if not all(result.HasField('reach') or result.HasField(
             'reach_and_frequency') or result.HasField(
             'impression_count') for result in entry.measurement_results):
@@ -240,7 +251,7 @@ class ReportSummaryProcessor:
           )
         for measurement_result in entry.measurement_results:
           if measurement_result.HasField('reach_and_frequency'):
-            self._whole_campaign_measurements[entry.measurement_policy][
+            self._whole_campaign_measurements[measurement_policy][
               frozenset(entry.data_providers)] = Measurement(
                 measurement_result.reach_and_frequency.reach.value,
                 measurement_result.reach_and_frequency.reach.standard_deviation,
@@ -248,19 +259,19 @@ class ReportSummaryProcessor:
             self._k_reach[entry.measurement_policy][
               frozenset(entry.data_providers)] = {}
             for bin in measurement_result.reach_and_frequency.frequency.bins:
-              self._k_reach[entry.measurement_policy][
+              self._k_reach[measurement_policy][
                 frozenset(entry.data_providers)][int(bin.label)] = Measurement(
                   bin.value,
                   bin.standard_deviation,
                   measurement_result.metric + "-frequency-" + bin.label)
           elif measurement_result.HasField('reach'):
-            self._whole_campaign_measurements[entry.measurement_policy][
+            self._whole_campaign_measurements[measurement_policy][
               frozenset(entry.data_providers)] = Measurement(
                 measurement_result.reach.value,
                 measurement_result.reach.standard_deviation,
                 measurement_result.metric)
           elif measurement_result.HasField('impression_count'):
-            self._impression[entry.measurement_policy][
+            self._impression[measurement_policy][
               frozenset(entry.data_providers)] = Measurement(
                 measurement_result.impression_count.value,
                 measurement_result.impression_count.standard_deviation,
@@ -362,8 +373,23 @@ class ReportSummaryProcessor:
                                      key=lambda sublist: len(sublist[0]),
                                      reverse=True)
 
+    # TODO(@ple13): Update the logic that handles difference measurements so
+    # that it supports reports that do not contain union measurements. The
+    # current logic assumes that a report always contains measurements for union
+    # of all EDPs, and measurements for each individual EDP.
     for (superset, subset, measurement_policy,
          difference_measurement) in difference_measurements:
+      # When both cumulative measurements and total campaign measurements are
+      # not in the report, but unique reach or incremental reach measurements
+      # exists, the total reach measurements for superset do not exist. In this
+      # case, the report post-processor just skip this difference measurement.
+      if superset not in self._whole_campaign_measurements[measurement_policy]:
+        self._uncorrected_measurements.add(difference_measurement.name)
+        logging.warning(
+            f'The measurement {difference_measurement.name} cannot be '
+            f'corrected due to missing measurement for {superset}.'
+        )
+        continue
       # Gets the reach of the union of all EDPs. This measurement either
       # exists in the report summary or has been inferred in prior steps.
       superset_measurement = \
