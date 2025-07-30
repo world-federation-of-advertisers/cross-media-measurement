@@ -6,6 +6,7 @@ load(
 load("@rules_oci//cosign:defs.bzl", "cosign_sign")
 load("//build:variables.bzl", "IMAGE_REPOSITORY_SETTINGS")
 load(":images.bzl", "ALL_EKS_IMAGES", "ALL_GKE_IMAGES", "ALL_IMAGES", "ALL_LOCAL_IMAGES", "ALL_REPORTING_GKE_IMAGES", "ALL_TEE_APP_GKE_IMAGES", "TEST_IMAGES")
+load(":sign_images.bzl", "wrap_cosign_sign")
 
 package(
     default_testonly = True,  #TODO: delete when InMemoryKeyStore and FakeHybridCipher are not used.
@@ -33,13 +34,14 @@ package(
 ]
 
 [
-    cosign_sign(
+    wrap_cosign_sign(
         name = "sign_" + image_spec.name,
         image = image_spec.image,
         #repository = IMAGE_REPOSITORY_SETTINGS.container_registry + "/" + image_spec.repository,
         # WIP - make variable substitution
-        repository = "ghcr.io/world-federation-of-advertisers/edp-aggregator/results_fulfiller",
-        args = ["--tlog-upload=false", "--key", "gcpkms://projects/halo-cmm-poc/locations/global/keyRings/key-ring-signed-builds/cryptoKeys/key-signed-builds/cryptoKeyVersions/3"],
+        #repository = "ghcr.io/world-federation-of-advertisers/edp-aggregator/results_fulfiller",
+        image_spec_repository_template = image_spec.repository,
+        #args = ["--tlog-upload=false", "--key", "gcpkms://projects/halo-cmm-poc/locations/global/keyRings/key-ring-signed-builds/cryptoKeys/key-signed-builds/cryptoKeyVersions/3"],
         tags = [
             "manual",
             "no-remote",
