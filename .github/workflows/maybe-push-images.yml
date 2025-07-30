@@ -54,3 +54,11 @@ jobs:
     secrets: inherit
     with:
       image-tag: ${{ needs.get-image-tag.outputs.image-tag }}
+
+  push-edpa-cloud-function-images:
+    uses: ./.github/workflows/publish-cloud-run-function-uber-jars.yml
+    if: inputs.existing-image-tag == ''
+    needs: [ get-image-tag ]
+    secrets: inherit
+    with:
+      package-version: ${{ needs.get-image-tag.outputs.image-tag }}

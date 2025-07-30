@@ -149,6 +149,7 @@ java_test(
     tags = [
         "cpu:2",
         "manual",
+        "no-remote-exec",
     ],
     test_class = "org.wfanet.measurement.integration.deploy.gcloud.GCloudSpannerInProcessReachMeasurementAccuracyTest",
     runtime_deps = [":gcloud_spanner_in_process_reach_measurement_accuracy_test"],

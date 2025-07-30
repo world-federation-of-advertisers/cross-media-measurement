@@ -445,6 +445,7 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 // K8s PodTemplate.
 #PodTemplate: {
 	let Name = metadata.name
+	let ContainerName = "\(Name)-container"
 
 	_secretName?: string
 	_container:   #Container & {
@@ -458,8 +459,13 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 	kind:       "PodTemplate"
 	metadata:   #ObjectMeta
 	template:   #PodTemplateSpec & {
-		metadata: labels: {
-			app: "\(Name)-app"
+		metadata: {
+			labels: {
+				app: "\(Name)-app"
+			}
+			annotations: {
+				"instrumentation.opentelemetry.io/container-names": string | *"\(ContainerName)"
+			}
 		}
 		spec: {
 			_mounts: {
@@ -470,7 +476,7 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 				}
 				"heap-dumps": volume: emptyDir: {}
 			}
-			_containers: "\(Name)-container": _container
+			_containers: "\(ContainerName)": _container
 		}
 	}
 }
@@ -555,6 +561,7 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 			heapDumpPath:          "/run/heap-dumps"
 		}
 	}
+	let ContainerName = "\(_name)-container"
 
 	apiVersion: "apps/v1"
 	kind:       "Deployment"
@@ -576,6 +583,9 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 				labels: {
 					app: _name + "-app"
 				}
+				annotations: {
+					"instrumentation.opentelemetry.io/container-names": string | *"\(ContainerName)"
+				}
 			}
 			spec: {
 				_mounts: {
@@ -586,7 +596,7 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 					}
 					"heap-dumps": volume: emptyDir: {}
 				}
-				_containers: "\(_name)-container": _container
+				_containers: "\(ContainerName)": _container
 				restartPolicy: restartPolicy | *"Always"
 			}
 		}

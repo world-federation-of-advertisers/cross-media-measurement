@@ -1,0 +1,84 @@
+# Copyright 2025 The Cross-Media Measurement Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: Build and push uber jar to Github packages
+
+on:
+  workflow_call:
+    inputs:
+      package-version:
+        description: "Maven version to assign"
+        type: string
+        required: true
+  workflow_dispatch:
+    inputs:
+      package-version:
+        description: "Maven version to assign"
+        type: string
+        required: true
+
+jobs:
+  publish-artifacts:
+    name: Publish Uber‑JAR to GitHub Packages
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Bazel
+        uses: world-federation-of-advertisers/actions/setup-bazel@v2
+
+      - name: Set up Java & Maven
+        uses: actions/setup-java@v3
+        with:
+          distribution: zulu
+          java-version: '17'
+
+      - id: get-artifact-version
+        uses: ./.github/actions/get-maven-artifact-version
+        with:
+          package-version: ${{ inputs.package-version }}
+
+      - name: Build and Deploy Data Watcher
+        env:
+          MAVEN_USERNAME: ${{ github.actor }}
+          MAVEN_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+        uses: ./.github/actions/build-and-push-uber-jar
+        with:
+          package-version: ${{ steps.get-artifact-version.outputs.artifact-version }}
+          artifact-id: data-watcher
+          artifact-group-id: org.wfanet.measurement.securecomputation.deploy.gcloud.datawatcher
+          bazel_target_label: //src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/datawatcher:DataWatcherFunction_deploy.jar
+
+      - name: Build and Deploy Requisition Fetcher
+        env:
+          MAVEN_USERNAME: ${{ github.actor }}
+          MAVEN_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+        uses: ./.github/actions/build-and-push-uber-jar
+        with:
+          package-version: ${{ steps.get-artifact-version.outputs.artifact-version }}
+          artifact-id: requisition-fetcher
+          artifact-group-id: org.wfanet.measurement.edpaggregator.deploy.gcloud.requisitionfetcher
+          bazel_target_label: //src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/requisitionfetcher:RequisitionFetcherFunction_deploy.jar
+
+      - name: Build and Deploy Event Group Sync
+        env:
+          MAVEN_USERNAME: ${{ github.actor }}
+          MAVEN_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+        uses: ./.github/actions/build-and-push-uber-jar
+        with:
+          package-version: ${{ steps.get-artifact-version.outputs.artifact-version }}
+          artifact-id: event-group-sync
+          artifact-group-id: org.wfanet.measurement.edpaggregator.deploy.gcloud.eventgroups
+          bazel_target_label: //src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/eventgroups:EventGroupSyncFunction_deploy.jar
+

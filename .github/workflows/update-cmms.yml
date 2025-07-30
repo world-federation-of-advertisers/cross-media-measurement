@@ -68,6 +68,7 @@ jobs:
 
   terraform:
     uses: ./.github/workflows/terraform-cmms.yml
+    needs: [publish-images]
     secrets: inherit
     with:
       environment: ${{ inputs.environment }}
