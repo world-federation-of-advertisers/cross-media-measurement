@@ -21,6 +21,7 @@ import com.google.crypto.tink.KmsClient
 import com.google.crypto.tink.aead.AeadConfig
 import com.google.crypto.tink.streamingaead.StreamingAeadConfig
 import com.google.protobuf.ByteString
+import com.google.protobuf.TypeRegistry
 import java.nio.file.Files
 import java.time.LocalDate
 import java.time.ZoneId
@@ -35,6 +36,7 @@ import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.person
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.testEvent
 import org.wfanet.measurement.common.OpenEndTimeRange
@@ -83,7 +85,7 @@ class EventReaderTest {
   }
 
   @Test
-  fun `getLabeledImpressionsFlow returns labeled impressions`() = runBlocking {
+  fun `getLabeledEventsBatched returns labeled events`() = runBlocking {
     // Create impressions storage client
     val impressionsTmpPath = Files.createTempDirectory(null).toFile()
     val impressionsBucketDir = impressionsTmpPath.resolve(IMPRESSIONS_BUCKET)
@@ -143,20 +145,117 @@ class EventReaderTest {
         StorageConfig(rootDirectory = impressionsTmpPath),
         StorageConfig(rootDirectory = dekTmpPath),
         IMPRESSIONS_DEK_FILE_URI_PREFIX,
+        TypeRegistry.newBuilder().add(TestEvent.getDescriptor()).build(),
       )
 
-    // Get labeled impressions
-    val result = eventReader.getLabeledImpressions(DS, EVENT_GROUP_REFERENCE_ID).toList()
+    // Get labeled events in batches
+    val result = eventReader.getLabeledEventsBatched(DS, EVENT_GROUP_REFERENCE_ID).toList()
 
     // Verify the result
-    assertThat(result).hasSize(impressionCount)
+    val flattenedResult = result.flatten()
+    assertThat(flattenedResult).hasSize(impressionCount)
     for (i in 0 until impressionCount) {
-      assertThat(result[i].vid).isEqualTo(i.toLong())
+      assertThat(flattenedResult[i].vid).isEqualTo(i.toLong())
     }
   }
 
   @Test
-  fun `getLabeledImpressionsFlow throws exception if impressions blob not found`() {
+  fun `getLabeledEventsBatched handles multiple type URLs`() = runBlocking {
+    // Create impressions storage client
+    val impressionsTmpPath = Files.createTempDirectory(null).toFile()
+    val impressionsBucketDir = impressionsTmpPath.resolve(IMPRESSIONS_BUCKET)
+    Files.createDirectories(impressionsBucketDir.toPath())
+    val impressionsStorageClient = FileSystemStorageClient(impressionsBucketDir)
+
+    // Setup encrypted mesos client
+    val mesosRecordIoStorageClient =
+      EncryptedStorage.buildEncryptedMesosStorageClient(
+        impressionsStorageClient,
+        kmsClient,
+        kekUri,
+        serializedEncryptionKey,
+      )
+
+    // Create test impressions with two different event types
+    val impressionCount = 10
+    val impressions = mutableListOf<org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression>()
+    
+    // Add TestEvent impressions
+    repeat(impressionCount / 2) { index ->
+      impressions.add(labeledImpression {
+        eventTime = TIME_RANGE.start.toProtoTime()
+        vid = index.toLong()
+        event = TEST_EVENT.pack()
+      })
+    }
+    
+    // Add Person impressions (different type URL)
+    repeat(impressionCount / 2) { index ->
+      impressions.add(labeledImpression {
+        eventTime = TIME_RANGE.start.toProtoTime()
+        vid = (index + impressionCount / 2).toLong()
+        event = PERSON.pack()
+      })
+    }
+
+    val impressionsFlow = flow {
+      impressions.forEach { impression -> emit(impression.toByteString()) }
+    }
+
+    // Write impressions to storage
+    mesosRecordIoStorageClient.writeBlob(DS.toString(), impressionsFlow)
+
+    // Create the impressions DEK store
+    val dekTmpPath = Files.createTempDirectory(null).toFile()
+    val deksBucketDir = dekTmpPath.resolve(IMPRESSIONS_DEK_BUCKET)
+    Files.createDirectories(deksBucketDir.toPath())
+    val impressionsDekStorageClient = FileSystemStorageClient(deksBucketDir)
+
+    val encryptedDek =
+      EncryptedDek.newBuilder().setKekUri(kekUri).setEncryptedDek(serializedEncryptionKey).build()
+
+    val blobDetails = blobDetails {
+      blobUri = "$IMPRESSIONS_FILE_URI/$DS"
+      this.encryptedDek = encryptedDek
+    }
+
+    impressionsDekStorageClient.writeBlob(
+      "ds/$DS/event-group-reference-id/$EVENT_GROUP_REFERENCE_ID/metadata",
+      blobDetails.toByteString(),
+    )
+
+    // Create EventReader with both type descriptors
+    val eventReader =
+      EventReader(
+        kmsClient,
+        StorageConfig(rootDirectory = impressionsTmpPath),
+        StorageConfig(rootDirectory = dekTmpPath),
+        IMPRESSIONS_DEK_FILE_URI_PREFIX,
+        TypeRegistry.newBuilder()
+          .add(TestEvent.getDescriptor())
+          .add(Person.getDescriptor())
+          .build(),
+      )
+
+    // Get labeled events in batches
+    val result = eventReader.getLabeledEventsBatched(DS, EVENT_GROUP_REFERENCE_ID).toList()
+
+    // Verify the result
+    val flattenedResult = result.flatten()
+    assertThat(flattenedResult).hasSize(impressionCount)
+    
+    // Verify both types are present
+    val testEventCount = flattenedResult.count { it.message is com.google.protobuf.DynamicMessage && 
+      (it.message as com.google.protobuf.DynamicMessage).descriptorForType.fullName == "wfa.measurement.api.v2alpha.event_templates.testing.TestEvent" }
+    val personCount = flattenedResult.count { it.message is com.google.protobuf.DynamicMessage && 
+      (it.message as com.google.protobuf.DynamicMessage).descriptorForType.fullName == "wfa.measurement.api.v2alpha.event_templates.testing.Person" }
+      
+    assertThat(testEventCount).isEqualTo(impressionCount / 2)
+    assertThat(personCount).isEqualTo(impressionCount / 2)
+  }
+
+  @Test
+  fun `getLabeledEventsBatched throws exception if impressions blob not found`() {
     // Create impressions storage client
     val impressionsTmpPath = Files.createTempDirectory(null).toFile()
     val impressionsBucketDir = impressionsTmpPath.resolve(IMPRESSIONS_BUCKET)
@@ -190,10 +289,11 @@ class EventReaderTest {
         StorageConfig(rootDirectory = impressionsTmpPath),
         StorageConfig(rootDirectory = dekTmpPath),
         IMPRESSIONS_DEK_FILE_URI_PREFIX,
+        TypeRegistry.newBuilder().add(TestEvent.getDescriptor()).build(),
       )
-    // Get labeled impressions
+    // Get labeled events
     assertFailsWith<ImpressionReadException> {
-      runBlocking { eventReader.getLabeledImpressions(DS, EVENT_GROUP_REFERENCE_ID).toList() }
+      runBlocking { eventReader.getLabeledEventsBatched(DS, EVENT_GROUP_REFERENCE_ID).toList() }
     }
   }
 
