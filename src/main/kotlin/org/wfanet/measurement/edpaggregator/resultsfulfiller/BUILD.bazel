@@ -161,6 +161,19 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
+    name = "filter_processor",
+    srcs = ["FilterProcessor.kt"],
+    deps = [
+        ":event_batch",
+        ":filter_spec",
+        ":labeled_event",
+        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/eventfiltration:event_filters",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+    ],
+)
+
+kt_jvm_library(
     name = "event_processing_pipeline",
     srcs = ["EventProcessingPipeline.kt"],
     deps = [
@@ -237,6 +250,50 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:results_fulfiller_params_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/protobuf",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+    ],
+)
+
+kt_jvm_library(
+    name = "event_source_type",
+    srcs = ["EventSourceType.kt"],
+    deps = [],
+)
+
+kt_jvm_library(
+    name = "pipeline_configuration",
+    testonly = True,
+    srcs = ["PipelineConfiguration.kt"],
+    deps = [
+        ":event_reader",
+        ":event_source_type",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_group_metadata/testing:simulator_synthetic_data_spec_kt_jvm_proto",
+    ],
+)
+
+kt_jvm_library(
+    name = "event_processing_orchestrator",
+    testonly = True,
+    srcs = ["EventProcessingOrchestrator.kt"],
+    deps = [
+        ":event_reader",
+        ":event_source",
+        ":event_source_type",
+        ":filter_configuration",
+        ":filter_spec",
+        ":frequency_vector",
+        ":labeled_event",
+        ":parallel_batched_pipeline",
+        ":pipeline_configuration",
+        ":storage_event_source",
+        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/shareshuffle/v2alpha:shareshuffle",
+        "//src/main/proto/wfa/measurement/api/v2alpha:measurement_spec_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:requisition_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_group_metadata/testing:simulator_synthetic_data_spec_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:test_event_kt_jvm_proto",
+        "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:population_spec_converter",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
     ],
 )
 

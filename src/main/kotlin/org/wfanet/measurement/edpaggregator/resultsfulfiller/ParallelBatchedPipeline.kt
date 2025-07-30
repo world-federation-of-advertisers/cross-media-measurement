@@ -95,15 +95,17 @@ class ParallelBatchedPipeline(
     val sinks = filters.associate { config ->
       config.filterSpec to FrequencyVectorSink(
         filterSpec = config.filterSpec,
-        frequencyVector = StripedByteFrequencyVector(vidIndexMap.size.toInt()),
+        frequencyVector = StripedByteFrequencyVector(vidIndexMap.size.toInt(), config.maxFrequency),
         vidIndexMap = vidIndexMap
       )
     }
     
-    // Create a lookup map for easier access by CEL expression
+    // Create a lookup map for easier access by unique filter key
     val sinksByFilter = mutableMapOf<String, FrequencyVectorSink>()
     filters.forEach { config ->
-      sinksByFilter[config.filterSpec.celExpression] = sinks[config.filterSpec]!!
+      // Use FilterSpec hashCode to create unique key since FilterSpec is a data class with all fields
+      val filterKey = config.filterSpec.hashCode().toString()
+      sinksByFilter[filterKey] = sinks[config.filterSpec]!!
     }
 
     // Create channels for round-robin distribution to workers
@@ -134,7 +136,7 @@ class ParallelBatchedPipeline(
           filters.forEach { config ->
             processors.add(
               FilterProcessor(
-                filterId = config.filterSpec.celExpression,
+                filterId = config.filterSpec.hashCode().toString(), // Use hashCode for unique ID
                 celExpression = config.filterSpec.celExpression,
                 eventMessageDescriptor = eventTemplateDescriptor!!,
                 typeRegistry = typeRegistry,
@@ -174,14 +176,14 @@ class ParallelBatchedPipeline(
           val filterJobs = processors.map { processor ->
             launch(dispatcher) {
               val matchedEvents = processor.processBatch(batch)
-              // Use simplified lookup by CEL expression for debugging
-              val matchingSink = sinksByFilter[processor.celExpression]
+              // Use processor filterId (which is FilterSpec hashCode) for lookup
+              val matchingSink = sinksByFilter[processor.filterId]
               
               if (matchingSink != null) {
                 logger.fine("Processing ${matchedEvents.size} matched events for processor ${processor.filterId}")
                 matchingSink.processMatchedEvents(matchedEvents, batch.size)
               } else {
-                logger.warning("No matching sink found for processor ${processor.filterId} with CEL: '${processor.celExpression}'")
+                logger.warning("No matching sink found for processor ${processor.filterId}")
               }
             }
           }

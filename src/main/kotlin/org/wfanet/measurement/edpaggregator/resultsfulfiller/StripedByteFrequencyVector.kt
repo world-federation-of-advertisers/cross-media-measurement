@@ -27,8 +27,9 @@ package org.wfanet.measurement.edpaggregator.resultsfulfiller
  * - Supports concurrent access from multiple threads
  * 
  * @param size The total number of VIDs to track
+ * @param maxFrequency Maximum frequency cap (0 means use technical byte limit of 255)
  */
-class StripedByteFrequencyVector(private val size: Int) : FrequencyVector {
+class StripedByteFrequencyVector(private val size: Int, private val maxFrequency: Int = 0) : FrequencyVector {
   
   companion object {
     private const val DEFAULT_STRIPE_COUNT = 1024
@@ -40,12 +41,15 @@ class StripedByteFrequencyVector(private val size: Int) : FrequencyVector {
   private val data = ByteArray(size)
   private val locks = Array(stripeCount) { Any() }
   
+  // Effective maximum frequency (either configured limit or technical byte limit)
+  private val effectiveMaxFreq = if (maxFrequency > 0) minOf(maxFrequency, MAX_BYTE_VALUE) else MAX_BYTE_VALUE
+  
   private fun getStripe(index: Int) = index / stripeSize
   
   /**
    * Increments the frequency count for a given VID index.
    * 
-   * Note: Frequency counts are capped at 255 to fit in a byte.
+   * Note: Frequency counts are capped at the configured maximum or 255 (byte limit).
    * 
    * @param index The VID index to increment
    */
@@ -53,7 +57,7 @@ class StripedByteFrequencyVector(private val size: Int) : FrequencyVector {
     if (index >= 0 && index < size) {
       synchronized(locks[getStripe(index)]) {
         val current = data[index].toInt() and 0xFF
-        if (current < MAX_BYTE_VALUE) {
+        if (current < effectiveMaxFreq) {
           data[index] = (current + 1).toByte()
         }
       }
@@ -125,6 +129,52 @@ class StripedByteFrequencyVector(private val size: Int) : FrequencyVector {
 
   override fun getTotalCount(): Long {
     return getTotalCountInternal()
+  }
+
+  /**
+   * Merges this frequency vector with another frequency vector of the same size.
+   * 
+   * This method adds the frequency counts from the other vector to this vector,
+   * capping individual frequencies at 255 (max byte value).
+   * 
+   * @param other The frequency vector to merge with this one
+   * @return A new StripedByteFrequencyVector containing the merged frequencies
+   * @throws IllegalArgumentException if the vectors have different sizes
+   */
+  fun merge(other: StripedByteFrequencyVector): StripedByteFrequencyVector {
+    require(other.size == this.size) {
+      "Cannot merge frequency vectors of different sizes: ${this.size} vs ${other.size}"
+    }
+    
+    // Use the more restrictive maxFrequency for the merged result
+    val mergedMaxFreq = if (this.maxFrequency > 0 && other.maxFrequency > 0) {
+      minOf(this.maxFrequency, other.maxFrequency)
+    } else if (this.maxFrequency > 0) {
+      this.maxFrequency
+    } else if (other.maxFrequency > 0) {
+      other.maxFrequency
+    } else {
+      0
+    }
+    
+    val result = StripedByteFrequencyVector(this.size, mergedMaxFreq)
+    
+    for (i in 0 until stripeCount) {
+      synchronized(locks[i]) {
+        synchronized(other.locks[i]) {
+          val start = i * stripeSize
+          val end = minOf(start + stripeSize, size)
+          for (j in start until end) {
+            val thisCount = this.data[j].toInt() and 0xFF
+            val otherCount = other.data[j].toInt() and 0xFF
+            val mergedCount = minOf(thisCount + otherCount, result.effectiveMaxFreq)
+            result.data[j] = mergedCount.toByte()
+          }
+        }
+      }
+    }
+    
+    return result
   }
 
 }
