@@ -73,12 +73,7 @@ abstract class AbstractEdpAggregatorCorrectnessTest(private val measurementSyste
   }
 
   companion object {
-
-    val OUTPUT_DP_PARAMS = differentialPrivacyParams {
-      epsilon = 0.1
-      delta = 0.000001
-    }
-
+    
     private const val MC_ENCRYPTION_PRIVATE_KEY_NAME = "mc_enc_private.tink"
     private const val MC_CS_CERT_DER_NAME = "mc_cs_cert.der"
     private const val MC_CS_PRIVATE_KEY_DER_NAME = "mc_cs_private.der"
@@ -88,20 +83,8 @@ abstract class AbstractEdpAggregatorCorrectnessTest(private val measurementSyste
     val MC_SIGNING_KEY: SigningKeyHandle by lazy {
       loadSigningKey(MC_CS_CERT_DER_NAME, MC_CS_PRIVATE_KEY_DER_NAME)
     }
-    val MC_ENCRYPTION_PRIVATE_KEY: PrivateKeyHandle by lazy {
-      loadEncryptionPrivateKey(MC_ENCRYPTION_PRIVATE_KEY_NAME)
-    }
 
     private val WORKSPACE_PATH: Path = Paths.get("wfa_measurement_system")
-
-    val MEASUREMENT_CONSUMER_SIGNING_CERTS: SigningCerts by lazy {
-      val secretFiles =
-        getRuntimePath(SECRET_FILES_PATH)
-      val trustedCerts = secretFiles.resolve("mc_trusted_certs.pem").toFile()
-      val cert = secretFiles.resolve("mc_tls.pem").toFile()
-      val key = secretFiles.resolve("mc_tls.key").toFile()
-      SigningCerts.fromPemFiles(cert, key, trustedCerts)
-    }
 
     fun getRuntimePath(workspaceRelativePath: Path): Path {
       return checkNotNull(
