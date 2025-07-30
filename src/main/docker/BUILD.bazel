@@ -35,7 +35,7 @@ package(
 [
     cosign_sign(
         name = "sign_" + image_spec.name,
-        image = ":push_" + image_spec.name,
+        image = image_spec.image,
         #repository = IMAGE_REPOSITORY_SETTINGS.container_registry + "/" + image_spec.repository,
         # WIP - make variable substitution
         repository = "ghcr.io/world-federation-of-advertisers/edp-aggregator/results_fulfiller",
