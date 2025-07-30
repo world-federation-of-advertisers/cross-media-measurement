@@ -70,6 +70,9 @@ import org.wfanet.measurement.internal.reporting.v2.ReportScheduleIterationsGrpc
 import org.wfanet.measurement.internal.reporting.v2.ReportSchedulesGrpcKt.ReportSchedulesCoroutineStub as InternalReportSchedulesCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt.ReportingSetsCoroutineStub as InternalReportingSetsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.ReportsGrpcKt.ReportsCoroutineStub as InternalReportsCoroutineStub
+import com.google.protobuf.ExtensionRegistry
+import com.google.protobuf.TypeRegistry
+import org.wfanet.measurement.api.v2alpha.EventAnnotationsProto
 import org.wfanet.measurement.internal.reporting.v2.measurementConsumer
 import org.wfanet.measurement.measurementconsumer.stats.VariancesImpl
 import org.wfanet.measurement.reporting.deploy.v2.common.EncryptionKeyPairMap
@@ -206,17 +209,6 @@ private object V2AlphaPublicApiServer {
       parseTextProto(v2AlphaFlags.metricSpecConfigFile, MetricSpecConfig.getDefaultInstance())
     metricSpecConfig.validate()
 
-    val basicReportMetricSpecConfig =
-      if (v2AlphaFlags.basicReportMetricSpecConfigFile == null) {
-        metricSpecConfig
-      } else {
-        parseTextProto(
-          v2AlphaFlags.basicReportMetricSpecConfigFile!!,
-          MetricSpecConfig.getDefaultInstance(),
-        )
-      }
-    basicReportMetricSpecConfig.validate()
-
     val apiKey = measurementConsumerConfigs.configsMap.values.first().apiKey
     val celEnvCacheProvider =
       CelEnvCacheProvider(
@@ -269,6 +261,10 @@ private object V2AlphaPublicApiServer {
         .directExecutor()
         .build()
         .withShutdownTimeout(Duration.ofSeconds(30))
+
+    val eventDescriptor =
+      buildTypeRegistry(v2AlphaPublicServerFlags.eventDescriptorSetFiles)
+        .find(v2AlphaPublicServerFlags.eventProto)
 
     val services: List<ServerServiceDefinition> =
       listOf(
@@ -343,7 +339,6 @@ private object V2AlphaPublicApiServer {
             InternalBasicReportsCoroutineStub(channel),
             InternalImpressionQualificationFiltersCoroutineStub(channel),
             InternalReportingSetsCoroutineStub(channel),
-            basicReportMetricSpecConfig,
             authorization,
             serviceDispatcher,
           )
@@ -414,7 +409,47 @@ private object V2AlphaPublicApiServer {
 
     lateinit var knownEventGroupMetadataTypes: List<Descriptors.FileDescriptor>
       private set
+
+    @CommandLine.Option(
+      names = ["--event-proto"],
+      description = ["Fully qualified name of the event message type."],
+      required = true,
+    )
+    lateinit var eventProto: String
+
+    @CommandLine.Option(
+      names = ["--event-descriptor-set"],
+      description =
+      [
+        "Path to a serialized FileDescriptorSet containing an event message type and/or its " +
+          "dependencies.",
+        "This can be specified multiple times.",
+      ],
+      required = true,
+    )
+    lateinit var eventDescriptorSetFiles: List<File>
   }
+
+  private fun buildTypeRegistry(descriptorSetFiles: List<File>): TypeRegistry {
+    val descriptorSets: List<DescriptorProtos.FileDescriptorSet> =
+      descriptorSetFiles.map {
+        it.inputStream().use { input ->
+          DescriptorProtos.FileDescriptorSet.parseFrom(input, EXTENSION_REGISTRY)
+        }
+      }
+
+    return TypeRegistry.newBuilder()
+      .add(ProtoReflection.buildDescriptors(descriptorSets))
+      .build()
+  }
+
+  private val EXTENSION_REGISTRY =
+    ExtensionRegistry.newInstance()
+      .apply {
+        add(EventAnnotationsProto.eventTemplate)
+        add(EventAnnotationsProto.templateField)
+      }
+      .unmodifiable
 }
 
 fun main(args: Array<String>) = commandLineMain(V2AlphaPublicApiServer::run, args)

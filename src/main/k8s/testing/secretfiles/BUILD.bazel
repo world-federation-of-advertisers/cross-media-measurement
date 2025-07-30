@@ -28,7 +28,6 @@ package(
 )
 
 exports_files([
-    "basic_report_metric_spec_config.textproto",
     "impression_qualification_filter_config.textproto",
     "metric_spec_config.textproto",
 ])

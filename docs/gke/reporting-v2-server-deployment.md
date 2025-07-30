@@ -240,8 +240,8 @@ configuration uses one named `config-files`.
     *   [`EncryptionKeyPairConfig`](../../src/main/proto/wfa/measurement/config/reporting/encryption_key_pair_config.proto)
 *   `metric_spec_config.textproto`
     *   [`MetricSpecConfig`](../../src/main/proto/wfa/measurement/config/reporting/metric_spec_config.proto)
-*   `basic_report_metric_spec_config.textproto`
-    *   [`MetricSpecConfig`](../../src/main/proto/wfa/measurement/config/reporting/metric_spec_config.proto)
+*   `event_proto-descriptor-set.proto.bin`
+    *   Serialized Protobuf `FileDescriptorSet` containing Event type.
 *   `known_event_group_metadata_type_set.pb`
     *   Protobuf `FileDescriptorSet` containing known `EventGroup` metadata
         types.
