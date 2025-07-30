@@ -49,7 +49,7 @@ class StripedByteFrequencyVector(private val size: Int) : FrequencyVector {
    * 
    * @param index The VID index to increment
    */
-  fun incrementByIndex(index: Int) {
+  override fun incrementByIndex(index: Int) {
     if (index >= 0 && index < size) {
       synchronized(locks[getStripe(index)]) {
         val current = data[index].toInt() and 0xFF
