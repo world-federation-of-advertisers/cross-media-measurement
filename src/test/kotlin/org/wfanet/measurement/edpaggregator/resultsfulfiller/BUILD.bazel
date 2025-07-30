@@ -188,3 +188,20 @@ kt_jvm_test(
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
     ],
 )
+
+kt_jvm_test(
+    name = "StorageEventSourceTest",
+    srcs = ["StorageEventSourceTest.kt"],
+    test_class = "org.wfanet.measurement.edpaggregator.resultsfulfiller.StorageEventSourceTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:storage_event_source",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:labeled_event",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:test_event_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//imports/kotlin/org/mockito/kotlin",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:selected_storage_client",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage/testing",
+    ],
+)
