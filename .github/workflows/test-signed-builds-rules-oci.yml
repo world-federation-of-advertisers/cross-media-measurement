@@ -22,6 +22,7 @@ jobs:
   push-images:
     runs-on: ubuntu-22.04
     permissions:
+      id-token: write
       packages: write
     env:
       CONTAINER_REGISTRY: ghcr.io
@@ -65,6 +66,12 @@ jobs:
         run: |
           bazelisk run //src/main/docker:push_test_image
 
+      - name: Authenticate to Google Cloud for image signing
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.IMAGE_SIGNING_DEV_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.IMAGE_SIGNING_DEV_SA }}
+          
       - name: Sign images
         run: |
           bazelisk run //src/main/docker:sign_test_image

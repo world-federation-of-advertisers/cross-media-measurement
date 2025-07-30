@@ -35,9 +35,11 @@ package(
 [
     cosign_sign(
         name = "sign_" + image_spec.name,
-        image = image_spec.image,
-        repository = IMAGE_REPOSITORY_SETTINGS.container_registry + "/" + image_spec.repository,
-        args = ["--key", "gcpkms://projects/123/locations/global/keyRings/myring/cryptoKeys/mykey/versions/1"],
+        image = ":push_" + image_spec.name,
+        #repository = IMAGE_REPOSITORY_SETTINGS.container_registry + "/" + image_spec.repository,
+        # WIP - make variable substitution
+        repository = "ghcr.io/world-federation-of-advertisers/edp-aggregator/results_fulfiller",
+        args = ["--key", "gcpkms://projects/halo-cmm-poc/locations/global/keyRings/key-ring-signed-builds/cryptoKeys/key-signed-builds/cryptoKeyVersions/3"],
         tags = [
             "manual",
             "no-remote",
