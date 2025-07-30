@@ -88,7 +88,7 @@ class ParallelBatchedPipeline(
     // We'll need to get the descriptor from the first event
     var eventTemplateDescriptor: com.google.protobuf.Descriptors.Descriptor? = null
     val processors = mutableListOf<FilterProcessor>()
-    
+
     // This will be populated once we receive the first event
     var processorsInitialized = false
 
@@ -99,7 +99,7 @@ class ParallelBatchedPipeline(
         vidIndexMap = vidIndexMap
       )
     }
-    
+
     // Create a lookup map for easier access by unique filter key
     val sinksByFilter = mutableMapOf<String, FrequencyVectorSink>()
     filters.forEach { config ->
@@ -128,9 +128,9 @@ class ParallelBatchedPipeline(
           val firstEvent = eventList.first()
           val eventMessage = firstEvent.message
           eventTemplateDescriptor = eventMessage.descriptorForType
-          
+
           logger.info("Initialized processors with event type: ${eventTemplateDescriptor!!.fullName}")
-          
+
           // Now create the processors with the actual descriptor
           processors.clear()
           filters.forEach { config ->
@@ -147,11 +147,11 @@ class ParallelBatchedPipeline(
           }
           processorsInitialized = true
         }
-        
+
         val batch = EventBatch(eventList.map { it as LabeledEvent<DynamicMessage> }, batchId++)
         workerChannels[workerIndex % workers].send(batch)
         workerIndex++
-        
+
         totalBatches.incrementAndGet()
         totalEvents.addAndGet(eventList.size.toLong())
 
@@ -159,7 +159,7 @@ class ParallelBatchedPipeline(
           logBatchingProgress(totalEvents.get(), totalBatches.get(), startTime)
         }
       }
-      
+
       // Close all worker channels to signal completion
       workerChannels.forEach { it.close() }
       logger.info("Batch distribution completed: ${totalEvents.get()} events in ${totalBatches.get()} batches")
@@ -178,10 +178,10 @@ class ParallelBatchedPipeline(
               val matchedEvents = processor.processBatch(batch)
               // Use processor filterId (which is FilterSpec hashCode) for lookup
               val matchingSink = sinksByFilter[processor.filterId]
-              
+
               if (matchingSink != null) {
                 logger.fine("Processing ${matchedEvents.size} matched events for processor ${processor.filterId}")
-                matchingSink.processMatchedEvents(matchedEvents)
+                matchingSink.processMatchedEvents(matchedEvents, batch.size)
               } else {
                 logger.warning("No matching sink found for processor ${processor.filterId}")
               }
