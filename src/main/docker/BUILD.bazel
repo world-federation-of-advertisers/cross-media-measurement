@@ -39,7 +39,7 @@ package(
         #repository = IMAGE_REPOSITORY_SETTINGS.container_registry + "/" + image_spec.repository,
         # WIP - make variable substitution
         repository = "ghcr.io/world-federation-of-advertisers/edp-aggregator/results_fulfiller",
-        args = ["--key", "gcpkms://projects/halo-cmm-poc/locations/global/keyRings/key-ring-signed-builds/cryptoKeys/key-signed-builds/cryptoKeyVersions/3"],
+        args = ["--tlog-upload=false", "--key", "gcpkms://projects/halo-cmm-poc/locations/global/keyRings/key-ring-signed-builds/cryptoKeys/key-signed-builds/cryptoKeyVersions/3"],
         tags = [
             "manual",
             "no-remote",
