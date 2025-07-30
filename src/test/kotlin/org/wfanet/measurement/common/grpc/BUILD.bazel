@@ -3,17 +3,29 @@ load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_test")
 package(default_testonly = True)
 
 kt_jvm_test(
-    name = "PrincipalRateLimitingServerInterceptorTest",
-    srcs = ["PrincipalRateLimitingServerInterceptorTest.kt"],
-    test_class = "org.wfanet.measurement.common.grpc.PrincipalRateLimitingServerInterceptorTest",
+    name = "RateLimitingServerInterceptorTest",
+    srcs = ["RateLimitingServerInterceptorTest.kt"],
+    test_class = "org.wfanet.measurement.common.grpc.RateLimitingServerInterceptorTest",
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/common/grpc:interceptors",
-        "//src/main/kotlin/org/wfanet/measurement/common/grpc:principal_rate_limiting_server_interceptor",
+        "//src/main/kotlin/org/wfanet/measurement/common/grpc:rate_limiting_server_interceptor",
         "//src/main/proto/google/longrunning:operations_kt_jvm_grpc_proto",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/java/org/junit",
         "@wfa_common_jvm//imports/kotlin/kotlin/test",
         "@wfa_common_jvm//imports/kotlin/org/mockito/kotlin",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc/testing",
+    ],
+)
+
+kt_jvm_test(
+    name = "RateLimiterProviderTest",
+    srcs = ["RateLimiterProviderTest.kt"],
+    test_class = "org.wfanet.measurement.common.grpc.RateLimiterProviderTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/common/grpc:rate_limiter_provider",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/io/grpc:api",
+        "@wfa_common_jvm//imports/java/org/junit",
     ],
 )
