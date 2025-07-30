@@ -23,7 +23,6 @@ import java.nio.file.Paths
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.Duration
-import java.util.*
 import org.junit.rules.TestRule
 import org.junit.runner.Description
 import org.junit.runners.model.Statement
@@ -60,6 +59,11 @@ import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.Synthetic
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticPopulationSpec
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.loadtest.measurementconsumer.EdpAggregatorMeasurementConsumerSimulator
+import java.net.URI
+import java.net.http.HttpClient
+import java.net.http.HttpRequest
+import java.net.http.HttpResponse
+import java.util.UUID
 
 class EdpAggregatorCorrectnessTest: AbstractEdpAggregatorCorrectnessTest(measurementSystem) {
 
@@ -69,7 +73,8 @@ class EdpAggregatorCorrectnessTest: AbstractEdpAggregatorCorrectnessTest(measure
     private val eventGroupObjectMapKey = "edp7/event-groups-map/edp7-event-group.pb"
     private val eventGroupObjectKey = "edp7/event-groups/edp7-event-group.pb"
     private val eventGroupBlobUri = "gs://$bucket/$eventGroupObjectKey"
-    private val googleProjectId = "halo-cmm-dev"
+    private val googleProjectId: String = System.getenv("GOOGLE_PROJECT_ID")
+      ?: error("GOOGLE_PROJECT_ID must be set")
     private val storageClient = StorageOptions.getDefaultInstance().service
 
     override fun apply(base: Statement, description: Description): Statement {
@@ -141,7 +146,7 @@ class EdpAggregatorCorrectnessTest: AbstractEdpAggregatorCorrectnessTest(measure
               this.adMetadata = adMetadata {
                 this.campaignMetadata = campaignMetadata {
                   brand = "some-brand"
-                  campaign = "some-brand"
+                  campaign = "some-campaign"
                 }
               }
             }
@@ -172,6 +177,27 @@ class EdpAggregatorCorrectnessTest: AbstractEdpAggregatorCorrectnessTest(measure
           }
         }
       }
+    }
+
+    private fun triggerRequisitionFetcher() {
+
+      val jwt = System.getenv("AUTH_ID_TOKEN")
+        ?: error("AUTH_ID_TOKEN must be set")
+
+      val requisitionFetcherTarget = System.getenv("REQUISITION_FETCHER_TARGET")
+        ?: error("REQUISITION_FETCHER_TARGET must be set")
+
+      val client = HttpClient.newHttpClient()
+      val request =
+        HttpRequest.newBuilder()
+          .uri(URI.create(requisitionFetcherTarget))
+          .timeout(Duration.ofSeconds(120))
+          .header("Authorization", "Bearer $jwt")
+          .GET()
+          .build()
+      val response = client.send(request, HttpResponse.BodyHandlers.ofString())
+
+      check(response.statusCode() == 200)
     }
 
     private fun createMcSimulator(): MeasurementConsumerSimulator {
@@ -205,7 +231,8 @@ class EdpAggregatorCorrectnessTest: AbstractEdpAggregatorCorrectnessTest(measure
         ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN,
         syntheticPopulationSpec,
         syntheticEventGroupMap,
-        eventGroupFilter = EVENT_GROUP_FILTERING_LAMBDA
+        eventGroupFilter = EVENT_GROUP_FILTERING_LAMBDA,
+        onMeasurementsCreated=::triggerRequisitionFetcher
       )
 
     }
