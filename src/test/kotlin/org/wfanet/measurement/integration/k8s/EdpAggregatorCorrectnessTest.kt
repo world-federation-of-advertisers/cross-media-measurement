@@ -73,8 +73,8 @@ class EdpAggregatorCorrectnessTest: AbstractEdpAggregatorCorrectnessTest(measure
     private val eventGroupObjectMapKey = "edp7/event-groups-map/edp7-event-group.pb"
     private val eventGroupObjectKey = "edp7/event-groups/edp7-event-group.pb"
     private val eventGroupBlobUri = "gs://$bucket/$eventGroupObjectKey"
-    private val googleProjectId: String = System.getenv("GOOGLE_PROJECT_ID")
-      ?: error("GOOGLE_PROJECT_ID must be set")
+    private val googleProjectId: String = System.getenv("GOOGLE_CLOUD_PROJECT")
+      ?: error("GOOGLE_CLOUD_PROJECT must be set")
     private val storageClient = StorageOptions.getDefaultInstance().service
 
     override fun apply(base: Statement, description: Description): Statement {
