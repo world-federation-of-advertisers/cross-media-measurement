@@ -1,4 +1,5 @@
 load("@rules_java//java:defs.bzl", "java_binary")
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
 load("//src/main/docker:macros.bzl", "java_image")
 
 java_binary(
@@ -9,6 +10,7 @@ java_binary(
     main_class = "org.wfanet.measurement.gcloud.spanner.tools.UpdateSchema",
     resources = ["//src/main/resources/kingdom/spanner"],
     runtime_deps = [
+        ":copy_event_groups",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/logging",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner/tools:update_schema",
     ],
@@ -24,5 +26,16 @@ java_image(
     visibility = [
         "//src/main/docker:__pkg__",
         "//src/main/k8s:__subpackages__",
+    ],
+)
+
+kt_jvm_library(
+    name = "copy_event_groups",
+    srcs = ["CopyEventGroups.kt"],
+    visibility = ["//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/testing:__pkg__"],
+    deps = [
+        "@wfa_common_jvm//imports/java/liquibase:core",
+        "@wfa_common_jvm//imports/java/liquibase/ext/spanner",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner",
     ],
 )

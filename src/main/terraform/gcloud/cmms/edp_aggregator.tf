@@ -18,7 +18,7 @@ locals {
 
   results_fulfiller_event_proto_descriptors = {
     secret_id         = "results-fulfiller-event-proto-descriptor-set",
-    secret_local_path = var.event_template_metadata_type_file_path,
+    secret_local_path = var.results_fulfiller_event_proto_descriptor_path,
     is_binary_format  = true
   }
 
