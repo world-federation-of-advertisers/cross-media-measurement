@@ -169,6 +169,7 @@ module "edp_aggregator" {
   requisition_fetcher_config                = local.requisition_fetcher_config
   event_group_sync_service_account_name     = "edpa-event-group-sync"
   event_group_sync_function_name            = "event-group-sync"
+  results_fulfiller_event_proto_descriptors = local.results_fulfiller_event_proto_descriptors
   edpa_tee_app_tls_key                      = local.edpa_tee_app_tls_key
   edpa_tee_app_tls_pem                      = local.edpa_tee_app_tls_pem
   data_watcher_tls_key                      = local.data_watcher_tls_key
