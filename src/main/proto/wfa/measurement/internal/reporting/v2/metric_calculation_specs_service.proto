@@ -54,6 +54,11 @@ message ListMetricCalculationSpecsRequest {
   string cmms_measurement_consumer_id = 1;
   // Skips to results with a resource id greater than this, exclusive.
   string external_metric_calculation_spec_id_after = 2;
+  message Filter {
+    string external_campaign_group_id = 1;
+  }
+  Filter filter = 4;
+
   int32 limit = 3;
 }
 

@@ -25,7 +25,7 @@ package k8s
 	}
 	spec: {
 		mode:             *"deployment" | "sidecar"
-		image:            string | *"ghcr.io/open-telemetry/opentelemetry-collector-releases/opentelemetry-collector-contrib:0.99.0"
+		image:            string | *"ghcr.io/open-telemetry/opentelemetry-collector-releases/opentelemetry-collector-contrib:0.129.1"
 		imagePullPolicy?: "IfNotPresent" | "Always" | "Never"
 		config: {
 			exporters: {...}
@@ -135,7 +135,7 @@ package k8s
 					name:  k
 					value: v
 				}]
-				java: image: "ghcr.io/open-telemetry/opentelemetry-operator/autoinstrumentation-java:2.3.0"
+				java: image: "ghcr.io/open-telemetry/opentelemetry-operator/autoinstrumentation-java:2.18.1"
 			}
 		}
 	}
