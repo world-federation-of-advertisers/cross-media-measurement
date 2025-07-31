@@ -39,6 +39,12 @@ locals {
       version    = "latest"
       mount_path = "/etc/ssl/kingdom_root.pem",
       flag_name  = "--kingdom-cert-collection-file-path"
+    },
+    {
+      secret_id  = var.results_fulfiller_event_proto_descriptors.secret_id
+      version    = "latest"
+      mount_path = "/var/tmp/event_proto_descriptors.pb",
+      flag_name  = "--event-template-metadata-type"
     }
   ]
 
@@ -84,12 +90,13 @@ locals {
   ]...)
 
   all_secrets = merge(
-    { edpa_tee_app_tls_key       = var.edpa_tee_app_tls_key },
-    { edpa_tee_app_tls_pem       = var.edpa_tee_app_tls_pem },
-    { data_watcher_tls_key       = var.data_watcher_tls_key },
-    { data_watcher_tls_pem       = var.data_watcher_tls_pem },
-    { secure_computation_root_ca = var.secure_computation_root_ca },
-    { kingdom_root_ca            = var.kingdom_root_ca },
+    { edpa_tee_app_tls_key                          = var.edpa_tee_app_tls_key },
+    { edpa_tee_app_tls_pem                          = var.edpa_tee_app_tls_pem },
+    { data_watcher_tls_key                          = var.data_watcher_tls_key },
+    { data_watcher_tls_pem                          = var.data_watcher_tls_pem },
+    { secure_computation_root_ca                    = var.secure_computation_root_ca },
+    { kingdom_root_ca                               = var.kingdom_root_ca },
+    { results_fulfiller_event_proto_descriptors     = var.results_fulfiller_event_proto_descriptors },
     local.edps_secrets
   )
 
@@ -264,6 +271,8 @@ resource "google_kms_crypto_key" "edp_aggregator_kek" {
 
 module "result_fulfiller_tee_app" {
   source   = "../mig"
+
+  depends_on = [module.secrets]
 
   instance_template_name        = var.requisition_fulfiller_config.worker.instance_template_name
   base_instance_name            = var.requisition_fulfiller_config.worker.base_instance_name
