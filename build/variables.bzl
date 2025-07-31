@@ -176,3 +176,17 @@ PANEL_EXCHANGE_CLIENT_TEST_GOOGLE_CLOUD_SETTINGS = struct(
     cloud_storage_project = "$(cloud_storage_project)",
     cloud_storage_bucket = "$(cloud_storage_bucket)",
 )
+
+RESULT_FULFILLER_SETTINGS = struct(
+    edpa_tls_cert_file_path = "$(edpa_tls_cert_file_path)",
+    edpa_tls_key_file_path = "$(edpa_tls_key_file_path)",
+    secure_computation_cert_collection_file_path = "$(secure_computation_cert_collection_file_path)",
+    kingdom_public_api_target = "$(kingdom_public_api_target)",
+    secure_computation_public_api_target = "$(secure_computation_public_api_target)",
+    kingdom_public_api_cert_host = "$(kingdom_public_api_cert_host)",
+    secure_computation_public_api_cert_host = "$(secure_computation_public_api_cert_host)",
+    kingdom_cert_collection_file_path = "$(kingdom_cert_collection_file_path)",
+    subscription_id = "$(subscription_id)",
+    google_pub_sub_project_id = "$(google_pub_sub_project_id)",
+    event_template_metadata_type = "$(event_template_metadata_type)",
+)

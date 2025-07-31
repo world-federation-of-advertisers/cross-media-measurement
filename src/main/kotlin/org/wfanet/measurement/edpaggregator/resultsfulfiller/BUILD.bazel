@@ -1,6 +1,10 @@
 load("@rules_java//java:defs.bzl", "java_binary")
 load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
 load("//src/main/docker:macros.bzl", "java_image")
+load(
+    "//build:variables.bzl",
+    "RESULT_FULFILLER_SETTINGS",
+)
 
 package(
     default_visibility = [
@@ -174,6 +178,19 @@ java_binary(
 
 java_image(
     name = "results_fulfiller_image",
+    args = [
+        "--edpa-tls-cert-file-path=" + RESULT_FULFILLER_SETTINGS.edpa_tls_cert_file_path,
+        "--edpa-tls-key-file-path=" + RESULT_FULFILLER_SETTINGS.edpa_tls_key_file_path,
+        "--secure-computation-cert-collection-file-path=" + RESULT_FULFILLER_SETTINGS.secure_computation_cert_collection_file_path,
+        "--kingdom-public-api-target=" + RESULT_FULFILLER_SETTINGS.kingdom_public_api_target,
+        "--secure-computation-public-api-target=" + RESULT_FULFILLER_SETTINGS.secure_computation_public_api_target,
+        "--kingdom-public-api-cert-host=" + RESULT_FULFILLER_SETTINGS.kingdom_public_api_cert_host,
+        "--secure-computation-public-api-cert-host=" + RESULT_FULFILLER_SETTINGS.secure_computation_public_api_cert_host,
+        "--kingdom-cert-collection-file-path=" + RESULT_FULFILLER_SETTINGS.kingdom_cert_collection_file_path,
+        "--subscription-id=" + RESULT_FULFILLER_SETTINGS.subscription_id,
+        "--google-pub-sub-project-id=" + RESULT_FULFILLER_SETTINGS.google_pub_sub_project_id,
+        "--event-template-metadata-type=" + RESULT_FULFILLER_SETTINGS.event_template_metadata_type,
+    ],
     binary = ":ResultsFulfiller",
     main_class = "org.wfanet.measurement.edpaggregator.resultsfulfiller.ResultsFulfillerAppRunner",
     visibility = ["//src:docker_image_deployment"],

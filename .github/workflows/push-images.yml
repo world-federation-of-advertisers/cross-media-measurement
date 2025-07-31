@@ -44,12 +44,30 @@ jobs:
       - name: Write ~/.bazelrc
         env:
           IMAGE_TAG: ${{ inputs.image-tag }}
+          EDPA_TLS_CERT_FILE_PATH: "/etc/ssl/edpa_tee_app_tls.pem"
+          EDPA_TLS_KEY_FILE_PATH: "/etc/ssl/edpa_tee_app_tls.key"
+          SECURE_COMPUTATION_CERT_COLLECTION_FILE_PATH: "/etc/ssl/secure_computation_root.pem"
+          KINGDOM_PUBLIC_API_TARGET: "v2alpha.kingdom.dev.halo-cmm.org:8443"
+          SECURE_COMPUTATION_PUBLIC_API_TARGET: "v1alpha.secure-computation.dev.halo-cmm.org:8443"
+          KINGDOM_CERT_COLLECTION_FILE_PATH: "etc/ssl/kingdom_root.pem"
+          SUBSCRIPTION_ID: "subscription-here"
+          GOOGLE_PUB_SUB_PROJECT_ID: "halo-cmm-dev"
+          EVENT_TEMPLATE_METADATA_TYPE: "/var/tmp/event_proto_descriptors.pb"
         run: |
           cat << EOF > ~/.bazelrc
           common --config=ci
           build --define container_registry=$CONTAINER_REGISTRY
           build --define image_repo_prefix=$GITHUB_REPOSITORY_OWNER
           build --define image_tag=$IMAGE_TAG
+          build --define=edpa_tls_cert_file_path=$EDPA_TLS_CERT_FILE_PATH
+          build --define=edpa_tls_key_file_path=$EDPA_TLS_KEY_FILE_PATH
+          build --define=secure_computation_cert_collection_file_path=$SECURE_COMPUTATION_CERT_COLLECTION_FILE_PATH
+          build --define=kingdom_public_api_target=$KINGDOM_PUBLIC_API_TARGET
+          build --define=secure_computation_public_api_target=$SECURE_COMPUTATION_PUBLIC_API_TARGET
+          build --define=kingdom_cert_collection_file_path=$KINGDOM_CERT_COLLECTION_FILE_PATH
+          build --define=subscription_id=$SUBSCRIPTION_ID
+          build --define=google_pub_sub_project_id=$GOOGLE_PUB_SUB_PROJECT_ID
+          build --define=event_template_metadata_type=$EVENT_TEMPLATE_METADATA_TYPE
           EOF
 
       - name: Authenticate to GitHub Container Registry
