@@ -21,14 +21,16 @@ import java.nio.file.Paths
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
+import org.wfanet.measurement.common.crypto.PrivateKeyHandle
+import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.integration.common.loadEncryptionPrivateKey
 import org.wfanet.measurement.integration.common.loadSigningKey
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerSimulator
-import org.wfanet.measurement.common.crypto.PrivateKeyHandle
-import org.wfanet.measurement.common.crypto.SigningCerts
 
-abstract class AbstractEdpAggregatorCorrectnessTest(private val measurementSystem: MeasurementSystem) {
+abstract class AbstractEdpAggregatorCorrectnessTest(
+  private val measurementSystem: MeasurementSystem
+) {
 
   private val mcSimulator: MeasurementConsumerSimulator
     get() = measurementSystem.mcSimulator
@@ -67,8 +69,7 @@ abstract class AbstractEdpAggregatorCorrectnessTest(private val measurementSyste
     }
 
     val MEASUREMENT_CONSUMER_SIGNING_CERTS: SigningCerts by lazy {
-      val secretFiles =
-        getRuntimePath(SECRET_FILES_PATH)
+      val secretFiles = getRuntimePath(SECRET_FILES_PATH)
       val trustedCerts = secretFiles.resolve("mc_trusted_certs.pem").toFile()
       val cert = secretFiles.resolve("mc_tls.pem").toFile()
       val key = secretFiles.resolve("mc_tls.key").toFile()
@@ -82,7 +83,5 @@ abstract class AbstractEdpAggregatorCorrectnessTest(private val measurementSyste
         org.wfanet.measurement.common.getRuntimePath(WORKSPACE_PATH.resolve(workspaceRelativePath))
       )
     }
-
   }
-
 }

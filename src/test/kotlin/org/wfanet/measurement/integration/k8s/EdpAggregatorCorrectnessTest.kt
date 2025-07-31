@@ -16,57 +16,57 @@
 
 package org.wfanet.measurement.integration.k8s
 
+import com.google.cloud.storage.StorageOptions
 import com.google.protobuf.timestamp
 import com.google.type.interval
 import io.grpc.ManagedChannel
+import java.net.URI
+import java.net.http.HttpClient
+import java.net.http.HttpRequest
+import java.net.http.HttpResponse
 import java.nio.file.Paths
+import java.time.Duration
 import java.time.LocalDate
 import java.time.ZoneId
-import java.time.Duration
+import java.util.UUID
+import java.util.logging.Logger
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.asFlow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
+import org.junit.ClassRule
 import org.junit.rules.TestRule
 import org.junit.runner.Description
 import org.junit.runners.model.Statement
 import org.measurement.integration.k8s.testing.CorrectnessTestConfig
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt
-import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroup as PublicApiEventGroup
+import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt
-import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
+import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
+import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticPopulationSpec
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withDefaultDeadline
 import org.wfanet.measurement.common.parseTextProto
-import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
-import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerSimulator
-import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.eventGroup
+import org.wfanet.measurement.common.testing.chainRulesSequentially
+import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup.MediaType
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.MetadataKt.AdMetadataKt.campaignMetadata
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.MetadataKt.adMetadata
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.metadata as eventGroupMetadata
-import kotlinx.coroutines.flow.asFlow
-import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.runBlocking
-import org.junit.ClassRule
-import org.wfanet.measurement.common.testing.chainRulesSequentially
+import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.eventGroup
+import org.wfanet.measurement.loadtest.measurementconsumer.EdpAggregatorMeasurementConsumerSimulator
+import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
+import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerSimulator
 import org.wfanet.measurement.storage.MesosRecordIoStorageClient
 import org.wfanet.measurement.storage.SelectedStorageClient
-import com.google.cloud.storage.StorageOptions
-import java.util.logging.Logger
-import kotlinx.coroutines.delay
-import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
-import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticPopulationSpec
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
-import org.wfanet.measurement.loadtest.measurementconsumer.EdpAggregatorMeasurementConsumerSimulator
-import java.net.URI
-import java.net.http.HttpClient
-import java.net.http.HttpRequest
-import java.net.http.HttpResponse
-import java.util.UUID
-import kotlinx.coroutines.withTimeout
 
-class EdpAggregatorCorrectnessTest: AbstractEdpAggregatorCorrectnessTest(measurementSystem) {
+class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measurementSystem) {
 
   private class UploadEventGroup : TestRule {
 
@@ -74,8 +74,8 @@ class EdpAggregatorCorrectnessTest: AbstractEdpAggregatorCorrectnessTest(measure
     private val eventGroupObjectMapKey = "edp7/event-groups-map/edp7-event-group.pb"
     private val eventGroupObjectKey = "edp7/event-groups/edp7-event-group.pb"
     private val eventGroupBlobUri = "gs://$bucket/$eventGroupObjectKey"
-    private val googleProjectId: String = System.getenv("GOOGLE_CLOUD_PROJECT")
-      ?: error("GOOGLE_CLOUD_PROJECT must be set")
+    private val googleProjectId: String =
+      System.getenv("GOOGLE_CLOUD_PROJECT") ?: error("GOOGLE_CLOUD_PROJECT must be set")
     private val storageClient = StorageOptions.getDefaultInstance().service
 
     override fun apply(base: Statement, description: Description): Statement {
@@ -108,17 +108,17 @@ class EdpAggregatorCorrectnessTest: AbstractEdpAggregatorCorrectnessTest(measure
     private fun deleteExistingEventGroupsMap() {
       storageClient.delete(bucket, eventGroupObjectMapKey)
     }
-    private suspend fun uploadEventGroups(eventGroup: List<EventGroup>) {
-      val eventGroupsBlobUri =
-        SelectedStorageClient.parseBlobUri(eventGroupBlobUri)
-      MesosRecordIoStorageClient(
-        SelectedStorageClient(
-          blobUri = eventGroupsBlobUri,
-          rootDirectory = null,
-          projectId = googleProjectId,
-        )
-      ).writeBlob(eventGroupObjectKey, eventGroup.asFlow().map { it.toByteString() })
 
+    private suspend fun uploadEventGroups(eventGroup: List<EventGroup>) {
+      val eventGroupsBlobUri = SelectedStorageClient.parseBlobUri(eventGroupBlobUri)
+      MesosRecordIoStorageClient(
+          SelectedStorageClient(
+            blobUri = eventGroupsBlobUri,
+            rootDirectory = null,
+            projectId = googleProjectId,
+          )
+        )
+        .writeBlob(eventGroupObjectKey, eventGroup.asFlow().map { it.toByteString() })
     }
 
     private fun createEventGroups(): List<EventGroup> {
@@ -131,10 +131,10 @@ class EdpAggregatorCorrectnessTest: AbstractEdpAggregatorCorrectnessTest(measure
               .toInstant()
           val endTime =
             LocalDate.of(
-              dateRange.endExclusive.year,
-              dateRange.endExclusive.month,
-              dateRange.endExclusive.day - 1,
-            )
+                dateRange.endExclusive.year,
+                dateRange.endExclusive.month,
+                dateRange.endExclusive.day - 1,
+              )
               .atTime(23, 59, 59)
               .atZone(ZONE_ID)
               .toInstant()
@@ -163,8 +163,8 @@ class EdpAggregatorCorrectnessTest: AbstractEdpAggregatorCorrectnessTest(measure
       private const val EVENT_GROUP_SYNC_TIMEOUT = 30_000L
       private const val EVENT_GROUP_SYNC_POLLING_INTERVAL = 3000L
     }
-
   }
+
   private class RunningMeasurementSystem : MeasurementSystem, TestRule {
     override val runId: String by lazy { UUID.randomUUID().toString() }
 
@@ -190,11 +190,11 @@ class EdpAggregatorCorrectnessTest: AbstractEdpAggregatorCorrectnessTest(measure
 
     private fun triggerRequisitionFetcher() {
 
-      val jwt = System.getenv("AUTH_ID_TOKEN")
-        ?: error("AUTH_ID_TOKEN must be set")
+      val jwt = System.getenv("AUTH_ID_TOKEN") ?: error("AUTH_ID_TOKEN must be set")
 
-      val requisitionFetcherTarget = System.getenv("REQUISITION_FETCHER_TARGET")
-        ?: error("REQUISITION_FETCHER_TARGET must be set")
+      val requisitionFetcherTarget =
+        System.getenv("REQUISITION_FETCHER_TARGET")
+          ?: error("REQUISITION_FETCHER_TARGET must be set")
 
       val client = HttpClient.newHttpClient()
       val request =
@@ -220,10 +220,10 @@ class EdpAggregatorCorrectnessTest: AbstractEdpAggregatorCorrectnessTest(measure
 
       val publicApiChannel =
         buildMutualTlsChannel(
-          TEST_CONFIG.kingdomPublicApiTarget,
-          MEASUREMENT_CONSUMER_SIGNING_CERTS,
-          TEST_CONFIG.kingdomPublicApiCertHost.ifEmpty { null },
-        )
+            TEST_CONFIG.kingdomPublicApiTarget,
+            MEASUREMENT_CONSUMER_SIGNING_CERTS,
+            TEST_CONFIG.kingdomPublicApiCertHost.ifEmpty { null },
+          )
           .also { channels.add(it) }
           .withDefaultDeadline(RPC_DEADLINE_DURATION)
 
@@ -241,9 +241,8 @@ class EdpAggregatorCorrectnessTest: AbstractEdpAggregatorCorrectnessTest(measure
         syntheticPopulationSpec,
         syntheticEventGroupMap,
         eventGroupFilter = EVENT_GROUP_FILTERING_LAMBDA,
-        onMeasurementsCreated=::triggerRequisitionFetcher
+        onMeasurementsCreated = ::triggerRequisitionFetcher,
       )
-
     }
 
     private fun shutDownChannels() {
@@ -251,7 +250,6 @@ class EdpAggregatorCorrectnessTest: AbstractEdpAggregatorCorrectnessTest(measure
         channel.shutdown()
       }
     }
-
   }
 
   companion object {
@@ -261,11 +259,7 @@ class EdpAggregatorCorrectnessTest: AbstractEdpAggregatorCorrectnessTest(measure
       Paths.get("src", "test", "kotlin", "org", "wfanet", "measurement", "integration", "k8s")
     private const val TEST_CONFIG_NAME = "correctness_test_config.textproto"
     private val TEST_CONFIG: CorrectnessTestConfig by lazy {
-      val configFile = getRuntimePath(
-        CONFIG_PATH.resolve(
-          TEST_CONFIG_NAME
-        )
-      ).toFile()
+      val configFile = getRuntimePath(CONFIG_PATH.resolve(TEST_CONFIG_NAME)).toFile()
       parseTextProto(configFile, CorrectnessTestConfig.getDefaultInstance())
     }
 
@@ -286,9 +280,8 @@ class EdpAggregatorCorrectnessTest: AbstractEdpAggregatorCorrectnessTest(measure
       it.eventGroupReferenceId == REQUIRED_EVENT_GROUP_REFERENCE_ID
     }
 
-    private val TEST_DATA_RUNTIME_PATH = org.wfanet.measurement.common.getRuntimePath(
-      TEST_DATA_PATH
-    )!!
+    private val TEST_DATA_RUNTIME_PATH =
+      org.wfanet.measurement.common.getRuntimePath(TEST_DATA_PATH)!!
 
     val syntheticPopulationSpec: SyntheticPopulationSpec =
       parseTextProto(
@@ -309,7 +302,7 @@ class EdpAggregatorCorrectnessTest: AbstractEdpAggregatorCorrectnessTest(measure
     private val measurementSystem = RunningMeasurementSystem()
 
     @ClassRule
-    @JvmField val chainedRule = chainRulesSequentially(uploadEventGroup, measurementSystem)
+    @JvmField
+    val chainedRule = chainRulesSequentially(uploadEventGroup, measurementSystem)
   }
-
 }
