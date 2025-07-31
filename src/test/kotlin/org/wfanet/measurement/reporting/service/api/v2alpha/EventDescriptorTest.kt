@@ -29,6 +29,9 @@ import org.wfanet.measurement.api.v2alpha.MediaType
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.MissingFieldAnnotationEvent
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.MissingTemplateAnnotationEvent
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.UnsupportedFieldTypeEvent
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.UnsupportedFieldTypeEventKt
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.UnsupportedRepeatedFieldEvent
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.UnsupportedReportingFeatureEvent
 
 @RunWith(JUnit4::class)
@@ -168,6 +171,20 @@ class EventDescriptorTest {
   fun `EventDescriptor instantiation fails with exception when reporting feature invalid`() {
     assertFailsWith<IllegalArgumentException> {
       EventDescriptor(UnsupportedReportingFeatureEvent.getDescriptor())
+    }
+  }
+
+  @Test
+  fun `EventDescriptor instantiation fails with exception when field repeated`() {
+    assertFailsWith<IllegalArgumentException> {
+      EventDescriptor(UnsupportedRepeatedFieldEvent.getDescriptor())
+    }
+  }
+
+  @Test
+  fun `EventDescriptor instantiation fails with exception when field unsupported type`() {
+    assertFailsWith<IllegalArgumentException> {
+      EventDescriptor(UnsupportedFieldTypeEvent.getDescriptor())
     }
   }
 }

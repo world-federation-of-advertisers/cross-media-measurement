@@ -17,6 +17,8 @@
 package org.wfanet.measurement.reporting.service.api.v2alpha
 
 import com.google.protobuf.Descriptors
+import com.google.protobuf.Duration
+import com.google.protobuf.Timestamp
 import org.wfanet.measurement.api.v2alpha.EventAnnotationsProto
 import org.wfanet.measurement.api.v2alpha.EventFieldDescriptor
 import org.wfanet.measurement.api.v2alpha.EventTemplateDescriptor
@@ -50,8 +52,7 @@ class EventDescriptor(eventDescriptor: Descriptors.Descriptor) {
    * relevant to Reporting
    *
    * @param eventDescriptor [Descriptors.Descriptor] for Event message
-   * @throws IllegalArgumentException when annotation missing or invalid reporting feature
-   *   annotation
+   * @throws IllegalArgumentException when template is missing annotation
    */
   private fun buildEventTemplateFieldsMap(
     eventDescriptor: Descriptors.Descriptor
@@ -67,9 +68,7 @@ class EventDescriptor(eventDescriptor: Descriptors.Descriptor) {
         val mediaType = templateAnnotation.mediaType
 
         for (templateField in field.messageType.fields) {
-          if (!templateField.options.hasExtension(EventAnnotationsProto.templateField)) {
-            throw IllegalArgumentException("EventTemplate field missing annotation")
-          }
+          validateEventTemplateField(templateField)
 
           val eventTemplateFieldName = "${templateAnnotation.name}.${templateField.name}"
           val templateFieldAnnotation: EventFieldDescriptor =
@@ -102,6 +101,49 @@ class EventDescriptor(eventDescriptor: Descriptors.Descriptor) {
           )
         }
       }
+    }
+  }
+
+  /**
+   * Validates EventTemplate field [Descriptors.FieldDescriptor]
+   *
+   * @throws IllegalArgumentException when field is missing annotation, or field is invalid
+   */
+  private fun validateEventTemplateField(eventTemplateField: Descriptors.FieldDescriptor) {
+    if (!eventTemplateField.options.hasExtension(EventAnnotationsProto.templateField)) {
+      throw IllegalArgumentException("EventTemplate field missing annotation")
+    }
+
+    if (eventTemplateField.isRepeated) {
+      throw IllegalArgumentException("EventTemplate field cannot be repeated")
+    }
+
+    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf enum fields cannot be null.
+    when (eventTemplateField.type) {
+      Descriptors.FieldDescriptor.Type.STRING,
+      Descriptors.FieldDescriptor.Type.BOOL,
+      Descriptors.FieldDescriptor.Type.ENUM,
+      Descriptors.FieldDescriptor.Type.DOUBLE,
+      Descriptors.FieldDescriptor.Type.FLOAT,
+      Descriptors.FieldDescriptor.Type.INT32,
+      Descriptors.FieldDescriptor.Type.INT64 -> {}
+      Descriptors.FieldDescriptor.Type.MESSAGE ->
+        when (val messageName = eventTemplateField.messageType.fullName) {
+          Duration.getDescriptor().fullName,
+          Timestamp.getDescriptor().fullName -> {}
+          else -> throw IllegalArgumentException("EventTemplate field has unsupported type $messageName")
+        }
+      Descriptors.FieldDescriptor.Type.UINT64,
+      Descriptors.FieldDescriptor.Type.FIXED64,
+      Descriptors.FieldDescriptor.Type.FIXED32,
+      Descriptors.FieldDescriptor.Type.GROUP,
+      Descriptors.FieldDescriptor.Type.BYTES,
+      Descriptors.FieldDescriptor.Type.UINT32,
+      Descriptors.FieldDescriptor.Type.SFIXED32,
+      Descriptors.FieldDescriptor.Type.SFIXED64,
+      Descriptors.FieldDescriptor.Type.SINT32,
+      Descriptors.FieldDescriptor.Type.SINT64 ->
+        throw IllegalArgumentException("EventTemplate field has unsupported type ${eventTemplateField.type.name.lowercase()}")
     }
   }
 
