@@ -223,6 +223,8 @@ abstract class MeasurementConsumerSimulator(
     val measurementName = measurementInfo.measurement.name
     logger.info { "Created reach and frequency Measurement $measurementName" }
 
+    onMeasurementsCreated?.invoke()
+
     // Get the CMMS computed result and compare it with the expected result.
     val reachAndFrequencyResult: Result = pollForResult {
       getReachAndFrequencyResult(measurementName)
@@ -298,6 +300,8 @@ abstract class MeasurementConsumerSimulator(
     logger.info(
       "Created invalid reach and frequency measurement ${invalidMeasurement.name}, state=${invalidMeasurement.state.name}"
     )
+
+    onMeasurementsCreated?.invoke()
 
     var failure = getFailure(invalidMeasurement.name)
     var attempts = 0
@@ -420,6 +424,8 @@ abstract class MeasurementConsumerSimulator(
       val measurementName = measurementInfo.measurement.name
       logger.info("Created direct reach measurement $measurementName.")
 
+      onMeasurementsCreated?.invoke()
+
       // Get the CMMS computed result and compare it with the expected result.
       val reachResult = pollForResult { getReachResult(measurementName) }
       logger.info("Got direct reach result from Kingdom: $reachResult")
@@ -471,6 +477,8 @@ abstract class MeasurementConsumerSimulator(
     val measurementName = measurementInfo.measurement.name
     logger.info("Created reach-only measurement $measurementName.")
 
+    onMeasurementsCreated?.invoke()
+
     // Get the CMMS computed result and compare it with the expected result.
     var reachOnlyResult = getReachResult(measurementName)
     var attemptCount = 0
@@ -504,6 +512,8 @@ abstract class MeasurementConsumerSimulator(
       )
     val measurementName = measurementInfo.measurement.name
     logger.info("Created reach-and-frequency measurement $measurementName.")
+
+    onMeasurementsCreated?.invoke()
 
     // Get the CMMS computed result and compare it with the expected result.
     var reachAndFrequencyResult = getReachAndFrequencyResult(measurementName)
@@ -582,6 +592,8 @@ abstract class MeasurementConsumerSimulator(
     val measurementName = measurementInfo.measurement.name
     logger.info("Created impression Measurement $measurementName.")
 
+    onMeasurementsCreated?.invoke()
+
     val impressionResults: List<Measurement.ResultOutput> = pollForResults {
       getImpressionResults(measurementName)
     }
@@ -623,6 +635,8 @@ abstract class MeasurementConsumerSimulator(
       )
     val measurementName = measurementInfo.measurement.name
     logger.info("Created duration Measurement $measurementName.")
+
+    onMeasurementsCreated?.invoke()
 
     val durationResults = pollForResults { getDurationResults(measurementName) }
 
@@ -669,6 +683,8 @@ abstract class MeasurementConsumerSimulator(
 
     val measurementName = populationMeasurementInfo.measurementInfo.measurement.name
     logger.info { "Created population Measurement $measurementName" }
+
+    onMeasurementsCreated?.invoke()
 
     // Get the CMMS computed result and compare it with the expected result.
     val populationResult: Result = pollForResult { getPopulationResult(measurementName) }

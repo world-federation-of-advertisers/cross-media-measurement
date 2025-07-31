@@ -198,7 +198,7 @@ variable "event_group_uber_jar_path" {
   type = string
 }
 
-variable "event_template_metadata_type_file_path" {
+variable "results_fulfiller_event_proto_descriptor_path" {
   description = "Serialized FileDescriptorSet path for EventTemplate metadata types."
   type = string
 }

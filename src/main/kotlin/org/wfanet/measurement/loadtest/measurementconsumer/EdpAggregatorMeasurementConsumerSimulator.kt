@@ -80,8 +80,8 @@ class EdpAggregatorMeasurementConsumerSimulator(
     expectedDirectNoiseMechanism,
     initialResultPollingDelay,
     maximumResultPollingDelay,
-    eventGroupFilter=eventGroupFilter,
-    onMeasurementsCreated=onMeasurementsCreated
+    eventGroupFilter = eventGroupFilter,
+    onMeasurementsCreated = onMeasurementsCreated,
   ) {
 
   override fun Flow<EventGroup>.filterEventGroups(): Flow<EventGroup> {

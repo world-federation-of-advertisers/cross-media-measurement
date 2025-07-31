@@ -214,7 +214,7 @@ jobs:
         -var="requisition_fetcher_uber_jar_path=${{ steps.download-uber-jars.outputs.requisition_fetcher_source_path }}"
         -var="event_group_uber_jar_path=${{ steps.download-uber-jars.outputs.event_group_sync_source_path }}"
         -var="image_tag=$IMAGE_TAG"
-        -var="event_template_metadata_type_file_path=${{ steps.build-test-event-descriptors.outputs.event_proto_descriptors_path }}"
+        -var="results_fulfiller_event_proto_descriptor_path=${{ steps.build-test-event-descriptors.outputs.event_proto_descriptors_path }}"
         -out=tfplan
 
     - name: terraform apply
