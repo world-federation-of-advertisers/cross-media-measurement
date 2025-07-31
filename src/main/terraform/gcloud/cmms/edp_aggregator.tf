@@ -16,6 +16,12 @@ locals {
 
   edp_display_names = ["edp7"]
 
+  results_fulfiller_event_proto_descriptors = {
+    secret_id         = "results-fulfiller-event-proto-descriptor-set",
+    secret_local_path = var.results_fulfiller_event_proto_descriptor_path,
+    is_binary_format  = true
+  }
+
   edpa_tee_app_tls_key = {
     secret_id         = "edpa-tee-app-tls-key",
     secret_local_path = abspath("${path.root}/../../../k8s/testing/secretfiles/edpa_tee_app_tls.key"),
