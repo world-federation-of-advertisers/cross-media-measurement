@@ -128,3 +128,21 @@ java_test(
     test_class = "org.wfanet.measurement.integration.k8s.SyntheticGeneratorCorrectnessTest",
     runtime_deps = [":synthetic_data_generator_correctness_test"],
 )
+
+kt_jvm_library(
+    name = "abstract_edp_aggregatorcorrectness_test",
+    srcs = ["AbstractEdpAggregatorCorrectnessTest.kt"],
+    data = [
+        "//src/main/k8s/testing/secretfiles:mc_trusted_certs.pem",
+        "//src/main/k8s/testing/secretfiles:reporting_root.pem",
+        "//src/main/k8s/testing/secretfiles:secret_files",
+    ],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/integration/common:configs",
+        "//src/main/kotlin/org/wfanet/measurement/loadtest/measurementconsumer:edp_aggregator_measurement_consumer_simulator",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+    ],
+)
