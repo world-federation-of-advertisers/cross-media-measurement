@@ -11,11 +11,6 @@ kms_key=$1
 kms_key=$(echo "${kms_key}" | sed 's#3$#cryptoKeyVersions/3#' | sed 's#332250267344#halo-cmm-poc#')
 echo "Using key: ${kms_key}"
 
-# install cosign
-COSIGN_VERSION="2.5.0"
-wget -nv -O cosign "https://github.com/sigstore/cosign/releases/download/v${COSIGN_VERSION}/cosign-linux-amd64"
-chmod +x cosign
-
 # sign images
 for image_ref_tag in $(cat {{images_file}}); do
   echo "Getting digest for image: ${image_ref_tag}"
@@ -24,9 +19,9 @@ for image_ref_tag in $(cat {{images_file}}); do
   echo "Digest: ${digest}"
   image_ref_digest="${image_ref_tag%:*}@${digest}"
   echo "Signing image: ${image_ref_digest}"
-  ./cosign sign --tlog-upload=false --key gcpkms://${kms_key} ${image_ref_digest}
+  {{cosign}} sign --tlog-upload=false --key gcpkms://${kms_key} ${image_ref_digest}
 
   # WIP - DELETE verification
   echo "Verifying image: ${image_ref_digest}"
-  ./cosign verify --insecure-ignore-tlog=true --key gcpkms://${kms_key} ${image_ref_digest}
+  {{cosign}} verify --insecure-ignore-tlog=true --key gcpkms://${kms_key} ${image_ref_digest}
 done
