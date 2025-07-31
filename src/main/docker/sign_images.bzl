@@ -12,22 +12,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-""" Image signing wrapper to apply Make variable substitution """
+""" Image signing wrapper to apply Make variable expansion """
 
 load("//build:variables.bzl", "IMAGE_REPOSITORY_SETTINGS")
-load("@rules_oci//cosign:defs.bzl", "cosign_sign")
+load("@rules_oci//cosign:defs.bzl", "_cosign_sign_impl")
 
 def _wrap_cosign_sign_impl(ctx):
     registry = ctx.expand_make_variables("registry", IMAGE_REPOSITORY_SETTINGS.container_registry, {})
     repository = ctx.expand_make_variables("repository", ctx.attr.image_spec_repository_template, {})
     
-    return cosign_sign(
+    return _cosign_sign_impl(
         ctx,
         name = ctx.label.name,
         image = ctx.attr.image,
         repository = "{registry}/{repository}".format(registry=registry, repository=repository),
-        # WIP - solve KMS keys
-        args = ["--tlog-upload=false", "--key", "gcpkms://projects/halo-cmm-poc/locations/global/keyRings/key-ring-signed-builds/cryptoKeys/key-signed-builds/cryptoKeyVersions/3"],
         )
 
 wrap_cosign_sign = rule(
@@ -36,4 +34,11 @@ wrap_cosign_sign = rule(
         "image": attr.label(allow_single_file = True, mandatory = True, doc = "Label to an oci_image"),
         "image_spec_repository_template": attr.string(mandatory = True),
     },
+    # WIP - solve KMS keys
+    args = ["--tlog-upload=false", "--key", "gcpkms://projects/halo-cmm-poc/locations/global/keyRings/key-ring-signed-builds/cryptoKeys/key-signed-builds/cryptoKeyVersions/3"],
+    executable = True,
+    toolchains = [
+        "@rules_oci//cosign:toolchain_type",
+        "@aspect_bazel_lib//lib:jq_toolchain_type",
+    ],    
 )
