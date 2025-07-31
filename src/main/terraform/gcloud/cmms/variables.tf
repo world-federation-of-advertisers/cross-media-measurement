@@ -197,3 +197,8 @@ variable "event_group_uber_jar_path" {
   description = "Path to EventGroupSync uber jar."
   type = string
 }
+
+variable "results_fulfiller_event_proto_descriptor_path" {
+  description = "Serialized FileDescriptorSet path for EventTemplate metadata types."
+  type = string
+}
