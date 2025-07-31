@@ -131,7 +131,7 @@ class EventProcessingOrchestrator(
         eventReader = config.eventReader,
         dateRange = config.startDate..config.endDate,
         eventGroupReferenceIds = config.eventGroupReferenceIds,
-        batchSize = config.effectiveBatchSize
+        batchSize = config.batchSize
       )
 
       // Create and run pipeline
@@ -214,8 +214,8 @@ class EventProcessingOrchestrator(
     dispatcher: kotlinx.coroutines.CoroutineDispatcher
   ): EventProcessingPipeline {
     return ParallelBatchedPipeline(
-      batchSize = config.parallelBatchSize,
-      workers = config.parallelWorkers,
+      batchSize = config.batchSize,
+      workers = config.workers,
       dispatcher = dispatcher,
       disableLogging = config.disableLogging
     )

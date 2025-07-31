@@ -34,10 +34,8 @@ data class PipelineConfiguration(
   // Pipeline processing configuration
   val batchSize: Int,
   val channelCapacity: Int,
-  val useParallelPipeline: Boolean,
-  val parallelBatchSize: Int,
-  val parallelWorkers: Int,
   val threadPoolSize: Int,
+  val workers: Int,
 
   // Storage event source configuration
   val eventReader: EventReader,
@@ -70,17 +68,11 @@ data class PipelineConfiguration(
     require(endDate >= startDate) { "End date must be after or equal to start date" }
     require(batchSize > 0) { "Batch size must be positive" }
     require(channelCapacity > 0) { "Channel capacity must be positive" }
-    require(parallelBatchSize > 0) { "Parallel batch size must be positive" }
-    require(parallelWorkers > 0) { "Parallel workers must be positive" }
+    require(workers > 0) { "Workers must be positive" }
     require(threadPoolSize > 0) { "Thread pool size must be positive" }
     require(eventGroupReferenceIds.isNotEmpty()) { "Event group reference IDs must not be empty" }
     require(populationSpecPath.isNotEmpty()) { "Population spec path must not be empty" }
   }
 
-  /**
-   * Returns the effective batch size based on pipeline type.
-   */
-  val effectiveBatchSize: Int
-    get() = if (useParallelPipeline) parallelBatchSize else batchSize
 }
 
