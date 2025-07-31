@@ -24,6 +24,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import kotlin.random.Random
+import kotlin.test.assertFailsWith
 
 @RunWith(JUnit4::class)
 class StripedByteFrequencyVectorTest {
@@ -270,5 +271,149 @@ class StripedByteFrequencyVectorTest {
     assertThat(vector.getReach()).isEqualTo(1L)
     assertThat(vector.getTotalCount()).isEqualTo(1L)
     assertThat(vector.getAverageFrequency()).isEqualTo(1.0)
+  }
+
+  @Test
+  fun `merge combines two frequency vectors correctly`() {
+    val vector1 = StripedByteFrequencyVector(100)
+    val vector2 = StripedByteFrequencyVector(100)
+    
+    // Add some frequencies to vector1
+    vector1.incrementByIndex(10)
+    vector1.incrementByIndex(20)
+    vector1.incrementByIndex(20) // VID 20 has frequency 2
+    
+    // Add some frequencies to vector2
+    vector2.incrementByIndex(10) // VID 10 appears in both
+    vector2.incrementByIndex(30)
+    vector2.incrementByIndex(40)
+    
+    // Merge vectors
+    val merged = vector1.merge(vector2)
+    
+    // Verify results
+    assertThat(merged.getReach()).isEqualTo(4L) // VIDs 10, 20, 30, 40
+    assertThat(merged.getTotalCount()).isEqualTo(6L) // 2 + 2 + 1 + 1
+  }
+
+  @Test
+  fun `merge handles frequency capping at 255`() {
+    val vector1 = StripedByteFrequencyVector(10)
+    val vector2 = StripedByteFrequencyVector(10)
+    
+    // Max out frequency for VID 5 in vector1
+    repeat(255) {
+      vector1.incrementByIndex(5)
+    }
+    
+    // Add more frequency for VID 5 in vector2
+    repeat(100) {
+      vector2.incrementByIndex(5)
+    }
+    
+    // Merge vectors
+    val merged = vector1.merge(vector2)
+    
+    // Verify frequency is capped at 255
+    assertThat(merged.getReach()).isEqualTo(1L)
+    assertThat(merged.getTotalCount()).isEqualTo(255L) // Capped at max byte value
+  }
+
+  @Test
+  fun `merge throws exception for different sized vectors`() {
+    val vector1 = StripedByteFrequencyVector(100)
+    val vector2 = StripedByteFrequencyVector(200)
+    
+    assertFailsWith<IllegalArgumentException> {
+      vector1.merge(vector2)
+    }
+  }
+
+  @Test
+  fun `merge with empty vectors returns empty result`() {
+    val vector1 = StripedByteFrequencyVector(50)
+    val vector2 = StripedByteFrequencyVector(50)
+    
+    val merged = vector1.merge(vector2)
+    
+    assertThat(merged.getReach()).isEqualTo(0L)
+    assertThat(merged.getTotalCount()).isEqualTo(0L)
+    assertThat(merged.getAverageFrequency()).isEqualTo(0.0)
+  }
+
+  @Test
+  fun `merge preserves individual vector data`() {
+    val vector1 = StripedByteFrequencyVector(100)
+    val vector2 = StripedByteFrequencyVector(100)
+    
+    vector1.incrementByIndex(5)
+    vector1.incrementByIndex(10)
+    
+    vector2.incrementByIndex(15)
+    vector2.incrementByIndex(20)
+    
+    // Store original values
+    val reach1Before = vector1.getReach()
+    val reach2Before = vector2.getReach()
+    
+    // Perform merge
+    val merged = vector1.merge(vector2)
+    
+    // Verify original vectors are unchanged
+    assertThat(vector1.getReach()).isEqualTo(reach1Before)
+    assertThat(vector2.getReach()).isEqualTo(reach2Before)
+    
+    // Verify merged result
+    assertThat(merged.getReach()).isEqualTo(4L)
+  }
+
+  @Test
+  fun `merge handles overlapping and non-overlapping VIDs`() {
+    val vector1 = StripedByteFrequencyVector(100)
+    val vector2 = StripedByteFrequencyVector(100)
+    
+    // Vector1: VIDs 1, 2, 3 with different frequencies
+    vector1.incrementByIndex(1)
+    vector1.incrementByIndex(2)
+    vector1.incrementByIndex(2)
+    vector1.incrementByIndex(3)
+    vector1.incrementByIndex(3)
+    vector1.incrementByIndex(3)
+    
+    // Vector2: VIDs 2, 3, 4 with different frequencies
+    vector2.incrementByIndex(2)
+    vector2.incrementByIndex(2)
+    vector2.incrementByIndex(2)
+    vector2.incrementByIndex(3)
+    vector2.incrementByIndex(4)
+    
+    val merged = vector1.merge(vector2)
+    
+    // Expected: VID 1 (freq 1), VID 2 (freq 2+3=5), VID 3 (freq 3+1=4), VID 4 (freq 1)
+    assertThat(merged.getReach()).isEqualTo(4L)
+    assertThat(merged.getTotalCount()).isEqualTo(11L) // 1 + 5 + 4 + 1
+  }
+
+  @Test
+  fun `merge of multiple vectors using reduce`() {
+    val vectors = listOf(
+      StripedByteFrequencyVector(50).apply {
+        incrementByIndex(1)
+        incrementByIndex(2)
+      },
+      StripedByteFrequencyVector(50).apply {
+        incrementByIndex(2)
+        incrementByIndex(3)
+      },
+      StripedByteFrequencyVector(50).apply {
+        incrementByIndex(3)
+        incrementByIndex(4)
+      }
+    )
+    
+    val merged = vectors.reduce { acc, vector -> acc.merge(vector) }
+    
+    assertThat(merged.getReach()).isEqualTo(4L) // VIDs 1, 2, 3, 4
+    assertThat(merged.getTotalCount()).isEqualTo(6L) // 1 + 2 + 2 + 1
   }
 }

@@ -160,6 +160,7 @@ kt_jvm_library(
     ],
 )
 
+
 kt_jvm_library(
     name = "event_processing_pipeline",
     srcs = ["EventProcessingPipeline.kt"],
@@ -241,6 +242,42 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
+    name = "pipeline_configuration",
+    testonly = True,
+    srcs = ["PipelineConfiguration.kt"],
+    deps = [
+        ":event_reader",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_group_metadata/testing:simulator_synthetic_data_spec_kt_jvm_proto",
+    ],
+)
+
+kt_jvm_library(
+    name = "event_processing_orchestrator",
+    testonly = True,
+    srcs = ["EventProcessingOrchestrator.kt"],
+    deps = [
+        ":event_reader",
+        ":event_source",
+        ":filter_configuration",
+        ":filter_spec",
+        ":frequency_vector",
+        ":labeled_event",
+        ":parallel_batched_pipeline",
+        ":pipeline_configuration",
+        ":storage_event_source",
+        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/shareshuffle/v2alpha:shareshuffle",
+        "//src/main/proto/wfa/measurement/api/v2alpha:measurement_spec_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:requisition_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_group_metadata/testing:simulator_synthetic_data_spec_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:test_event_kt_jvm_proto",
+        "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:population_spec_converter",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+    ],
+)
+
+kt_jvm_library(
     name = "requisition_stub_factory_impl",
     srcs = ["RequisitionStubFactoryImpl.kt"],
     deps = [
@@ -272,16 +309,9 @@ kt_jvm_library(
         ":filter_spec",
         ":frequency_vector",
         ":labeled_event",
-        ":sink_statistics",
         "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/shareshuffle/v2alpha:shareshuffle",
         "@wfa_common_jvm//imports/java/com/google/protobuf",
     ],
-)
-
-kt_jvm_library(
-    name = "sink_statistics",
-    srcs = ["SinkStatistics.kt"],
-    deps = [],
 )
 
 kt_jvm_library(

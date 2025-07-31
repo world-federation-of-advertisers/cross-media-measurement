@@ -88,22 +88,24 @@ class ParallelBatchedPipeline(
     // We'll need to get the descriptor from the first event
     var eventTemplateDescriptor: com.google.protobuf.Descriptors.Descriptor? = null
     val processors = mutableListOf<FilterProcessor>()
-    
+
     // This will be populated once we receive the first event
     var processorsInitialized = false
 
     val sinks = filters.associate { config ->
       config.filterSpec to FrequencyVectorSink(
         filterSpec = config.filterSpec,
-        frequencyVector = StripedByteFrequencyVector(vidIndexMap.size.toInt()),
+        frequencyVector = StripedByteFrequencyVector(vidIndexMap.size.toInt(), config.maxFrequency),
         vidIndexMap = vidIndexMap
       )
     }
-    
-    // Create a lookup map for easier access by CEL expression
+
+    // Create a lookup map for easier access by unique filter key
     val sinksByFilter = mutableMapOf<String, FrequencyVectorSink>()
     filters.forEach { config ->
-      sinksByFilter[config.filterSpec.celExpression] = sinks[config.filterSpec]!!
+      // Use FilterSpec hashCode to create unique key since FilterSpec is a data class with all fields
+      val filterKey = config.filterSpec.hashCode().toString()
+      sinksByFilter[filterKey] = sinks[config.filterSpec]!!
     }
 
     // Create channels for round-robin distribution to workers
@@ -126,15 +128,15 @@ class ParallelBatchedPipeline(
           val firstEvent = eventList.first()
           val eventMessage = firstEvent.message
           eventTemplateDescriptor = eventMessage.descriptorForType
-          
+
           logger.info("Initialized processors with event type: ${eventTemplateDescriptor!!.fullName}")
-          
+
           // Now create the processors with the actual descriptor
           processors.clear()
           filters.forEach { config ->
             processors.add(
               FilterProcessor(
-                filterId = config.filterSpec.celExpression,
+                filterId = config.filterSpec.hashCode().toString(), // Use hashCode for unique ID
                 celExpression = config.filterSpec.celExpression,
                 eventMessageDescriptor = eventTemplateDescriptor!!,
                 typeRegistry = typeRegistry,
@@ -145,11 +147,11 @@ class ParallelBatchedPipeline(
           }
           processorsInitialized = true
         }
-        
+
         val batch = EventBatch(eventList.map { it as LabeledEvent<DynamicMessage> }, batchId++)
         workerChannels[workerIndex % workers].send(batch)
         workerIndex++
-        
+
         totalBatches.incrementAndGet()
         totalEvents.addAndGet(eventList.size.toLong())
 
@@ -157,7 +159,7 @@ class ParallelBatchedPipeline(
           logBatchingProgress(totalEvents.get(), totalBatches.get(), startTime)
         }
       }
-      
+
       // Close all worker channels to signal completion
       workerChannels.forEach { it.close() }
       logger.info("Batch distribution completed: ${totalEvents.get()} events in ${totalBatches.get()} batches")
@@ -174,14 +176,14 @@ class ParallelBatchedPipeline(
           val filterJobs = processors.map { processor ->
             launch(dispatcher) {
               val matchedEvents = processor.processBatch(batch)
-              // Use simplified lookup by CEL expression for debugging
-              val matchingSink = sinksByFilter[processor.celExpression]
-              
+              // Use processor filterId (which is FilterSpec hashCode) for lookup
+              val matchingSink = sinksByFilter[processor.filterId]
+
               if (matchingSink != null) {
                 logger.fine("Processing ${matchedEvents.size} matched events for processor ${processor.filterId}")
                 matchingSink.processMatchedEvents(matchedEvents, batch.size)
               } else {
-                logger.warning("No matching sink found for processor ${processor.filterId} with CEL: '${processor.celExpression}'")
+                logger.warning("No matching sink found for processor ${processor.filterId}")
               }
             }
           }

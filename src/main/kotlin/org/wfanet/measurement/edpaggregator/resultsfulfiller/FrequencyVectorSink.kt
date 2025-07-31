@@ -73,21 +73,4 @@ class FrequencyVectorSink(
     return frequencyVector
   }
   
-  /**
-   * Returns current statistics for this sink.
-   */
-  fun getStatistics(): SinkStatistics {
-    val frequencyVector = getFrequencyVector()
-    
-    return SinkStatistics(
-      sinkId = filterSpec.eventGroupReferenceId,
-      description = "Filter: ${filterSpec.celExpression}",
-      processedEvents = processedCount.get(),
-      matchedEvents = matchedCount.get(),
-      errorCount = errorCount.get(),
-      reach = frequencyVector.getReach(),
-      totalFrequency = frequencyVector.getTotalCount(),
-      averageFrequency = frequencyVector.getAverageFrequency()
-    )
-  }
 }
