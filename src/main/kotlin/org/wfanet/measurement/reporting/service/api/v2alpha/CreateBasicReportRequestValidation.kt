@@ -306,7 +306,7 @@ fun validateEventTemplateField(
         if (eventTemplateFieldInfo.type != Descriptors.FieldDescriptor.Type.STRING) {
           if (
             eventTemplateFieldInfo.type != Descriptors.FieldDescriptor.Type.MESSAGE ||
-            eventTemplateFieldInfo.messageTypeFullName != Timestamp.getDescriptor().fullName
+              eventTemplateFieldInfo.messageTypeFullName != Timestamp.getDescriptor().fullName
           ) {
             throw InvalidFieldValueException(
               "basic_report.result_group_specs.dimension_spec.filters.terms.value.string_value"
@@ -319,9 +319,7 @@ fun validateEventTemplateField(
       EventTemplateField.FieldValue.SelectorCase.ENUM_VALUE -> {
         if (
           eventTemplateFieldInfo.type != Descriptors.FieldDescriptor.Type.ENUM ||
-          !eventTemplateFieldInfo.enumValuesMap.containsKey(
-            eventTemplateField.value.enumValue
-          )
+            !eventTemplateFieldInfo.enumValuesMap.containsKey(eventTemplateField.value.enumValue)
         ) {
           throw InvalidFieldValueException(
             "basic_report.result_group_specs.dimension_spec.filters.terms.value.enum_value"
@@ -341,10 +339,10 @@ fun validateEventTemplateField(
       EventTemplateField.FieldValue.SelectorCase.FLOAT_VALUE -> {
         if (
           eventTemplateFieldInfo.type == Descriptors.FieldDescriptor.Type.ENUM ||
-          eventTemplateFieldInfo.type == Descriptors.FieldDescriptor.Type.STRING ||
-          eventTemplateFieldInfo.type == Descriptors.FieldDescriptor.Type.BOOL ||
-          (eventTemplateFieldInfo.type == Descriptors.FieldDescriptor.Type.MESSAGE &&
-            eventTemplateFieldInfo.messageTypeFullName != Duration.getDescriptor().fullName)
+            eventTemplateFieldInfo.type == Descriptors.FieldDescriptor.Type.STRING ||
+            eventTemplateFieldInfo.type == Descriptors.FieldDescriptor.Type.BOOL ||
+            (eventTemplateFieldInfo.type == Descriptors.FieldDescriptor.Type.MESSAGE &&
+              eventTemplateFieldInfo.messageTypeFullName != Duration.getDescriptor().fullName)
         ) {
           throw InvalidFieldValueException(
             "basic_report.result_group_specs.dimension_spec.filters.terms.value.float_value"

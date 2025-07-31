@@ -22,9 +22,7 @@ import org.wfanet.measurement.api.v2alpha.EventFieldDescriptor
 import org.wfanet.measurement.api.v2alpha.EventTemplateDescriptor
 import org.wfanet.measurement.api.v2alpha.MediaType
 
-/**
- * Wrapper around Descriptor for an Event message
- */
+/** Wrapper around Descriptor for an Event message */
 class EventDescriptor(eventDescriptor: Descriptors.Descriptor) {
   data class SupportedReportingFeatures(
     val groupable: Boolean,
@@ -32,9 +30,7 @@ class EventDescriptor(eventDescriptor: Descriptors.Descriptor) {
     val impressionQualification: Boolean,
   )
 
-  /**
-   * Contains info from [EventAnnotationsProto] and [Descriptors.FieldDescriptor]
-   */
+  /** Contains info from [EventAnnotationsProto] and [Descriptors.FieldDescriptor] */
   data class EventTemplateFieldInfo(
     val mediaType: MediaType,
     val isPopulationAttribute: Boolean,
@@ -46,15 +42,16 @@ class EventDescriptor(eventDescriptor: Descriptors.Descriptor) {
     val enumValuesMap: Map<String, Int>,
   )
 
-  val eventTemplateFieldsMap: Map<String, EventTemplateFieldInfo> = buildEventTemplateFieldsMap(eventDescriptor)
+  val eventTemplateFieldsMap: Map<String, EventTemplateFieldInfo> =
+    buildEventTemplateFieldsMap(eventDescriptor)
 
   /**
    * Builds Map of EventTemplateField name with respect to Event message to object containing info
    * relevant to Reporting
    *
    * @param eventDescriptor [Descriptors.Descriptor] for Event message
-   *
-   * @throws IllegalArgumentException when annotation missing or invalid reporting feature annotation
+   * @throws IllegalArgumentException when annotation missing or invalid reporting feature
+   *   annotation
    */
   private fun buildEventTemplateFieldsMap(
     eventDescriptor: Descriptors.Descriptor
@@ -113,37 +110,41 @@ class EventDescriptor(eventDescriptor: Descriptors.Descriptor) {
    *
    * @param templateFieldAnnotation annotation for an EventTemplate field
    */
-  private fun buildSupportedReportingFeatures(templateFieldAnnotation: EventFieldDescriptor): SupportedReportingFeatures {
-    val supportedReportingFeaturesMap =
-      buildMap {
-        put(EventFieldDescriptor.ReportingFeature.GROUPABLE, false)
-        put(EventFieldDescriptor.ReportingFeature.FILTERABLE, false)
-        put(EventFieldDescriptor.ReportingFeature.IMPRESSION_QUALIFICATION, false)
+  private fun buildSupportedReportingFeatures(
+    templateFieldAnnotation: EventFieldDescriptor
+  ): SupportedReportingFeatures {
+    val supportedReportingFeaturesMap = buildMap {
+      put(EventFieldDescriptor.ReportingFeature.GROUPABLE, false)
+      put(EventFieldDescriptor.ReportingFeature.FILTERABLE, false)
+      put(EventFieldDescriptor.ReportingFeature.IMPRESSION_QUALIFICATION, false)
 
-        for (reportingFeature in templateFieldAnnotation.reportingFeaturesList) {
-          @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields cannot be null.
-          when (reportingFeature) {
-            EventFieldDescriptor.ReportingFeature.GROUPABLE -> {
-              put(EventFieldDescriptor.ReportingFeature.GROUPABLE, true)
-            }
-            EventFieldDescriptor.ReportingFeature.FILTERABLE -> {
-              put(EventFieldDescriptor.ReportingFeature.FILTERABLE, true)
-            }
-            EventFieldDescriptor.ReportingFeature.IMPRESSION_QUALIFICATION -> {
-              put(EventFieldDescriptor.ReportingFeature.IMPRESSION_QUALIFICATION, true)
-            }
-            EventFieldDescriptor.ReportingFeature.REPORTING_FEATURE_UNSPECIFIED,
-            EventFieldDescriptor.ReportingFeature.UNRECOGNIZED -> {
-              throw IllegalArgumentException("Invalid reporting feature")
-            }
+      for (reportingFeature in templateFieldAnnotation.reportingFeaturesList) {
+        @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields cannot be null.
+        when (reportingFeature) {
+          EventFieldDescriptor.ReportingFeature.GROUPABLE -> {
+            put(EventFieldDescriptor.ReportingFeature.GROUPABLE, true)
+          }
+          EventFieldDescriptor.ReportingFeature.FILTERABLE -> {
+            put(EventFieldDescriptor.ReportingFeature.FILTERABLE, true)
+          }
+          EventFieldDescriptor.ReportingFeature.IMPRESSION_QUALIFICATION -> {
+            put(EventFieldDescriptor.ReportingFeature.IMPRESSION_QUALIFICATION, true)
+          }
+          EventFieldDescriptor.ReportingFeature.REPORTING_FEATURE_UNSPECIFIED,
+          EventFieldDescriptor.ReportingFeature.UNRECOGNIZED -> {
+            throw IllegalArgumentException("Invalid reporting feature")
           }
         }
       }
+    }
 
     return SupportedReportingFeatures(
       groupable = supportedReportingFeaturesMap[EventFieldDescriptor.ReportingFeature.GROUPABLE]!!,
-      filterable = supportedReportingFeaturesMap[EventFieldDescriptor.ReportingFeature.FILTERABLE]!!,
-      impressionQualification = supportedReportingFeaturesMap[EventFieldDescriptor.ReportingFeature.IMPRESSION_QUALIFICATION]!!,
+      filterable =
+        supportedReportingFeaturesMap[EventFieldDescriptor.ReportingFeature.FILTERABLE]!!,
+      impressionQualification =
+        supportedReportingFeaturesMap[
+          EventFieldDescriptor.ReportingFeature.IMPRESSION_QUALIFICATION]!!,
     )
   }
 }

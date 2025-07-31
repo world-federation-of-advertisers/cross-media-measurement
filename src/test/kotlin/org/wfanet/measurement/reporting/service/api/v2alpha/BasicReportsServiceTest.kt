@@ -5707,9 +5707,7 @@ class BasicReportsServiceTest {
         .build()
 
     private val TEST_EVENT_DESCRIPTOR =
-      EventDescriptor(
-        TYPE_REGISTRY.find(TestEvent.getDescriptor().fullName)
-      )
+      EventDescriptor(TYPE_REGISTRY.find(TestEvent.getDescriptor().fullName))
 
     private const val DEFAULT_PAGE_SIZE = 10
     private const val MAX_PAGE_SIZE = 25

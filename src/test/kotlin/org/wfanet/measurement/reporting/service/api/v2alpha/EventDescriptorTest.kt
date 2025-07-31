@@ -55,99 +55,99 @@ class EventDescriptorTest {
     val eventDescriptor = EventDescriptor(typeRegistry.find(TestEvent.getDescriptor().fullName))
 
     assertThat(eventDescriptor.eventTemplateFieldsMap).hasSize(6)
-    assertThat(eventDescriptor.eventTemplateFieldsMap).containsExactly(
-      "person.gender",
-      EventDescriptor.EventTemplateFieldInfo(
-        mediaType = MediaType.MEDIA_TYPE_UNSPECIFIED,
-        isPopulationAttribute = true,
-        supportedReportingFeatures = EventDescriptor.SupportedReportingFeatures(
-          groupable = true,
-          filterable = true,
-          impressionQualification = false,
+    assertThat(eventDescriptor.eventTemplateFieldsMap)
+      .containsExactly(
+        "person.gender",
+        EventDescriptor.EventTemplateFieldInfo(
+          mediaType = MediaType.MEDIA_TYPE_UNSPECIFIED,
+          isPopulationAttribute = true,
+          supportedReportingFeatures =
+            EventDescriptor.SupportedReportingFeatures(
+              groupable = true,
+              filterable = true,
+              impressionQualification = false,
+            ),
+          type = Descriptors.FieldDescriptor.Type.ENUM,
+          messageTypeFullName = "",
+          enumValuesMap = mapOf("GENDER_UNSPECIFIED" to 0, "MALE" to 1, "FEMALE" to 2),
         ),
-        type = Descriptors.FieldDescriptor.Type.ENUM,
-        messageTypeFullName = "",
-        enumValuesMap = mapOf(
-          "GENDER_UNSPECIFIED" to 0,
-          "MALE" to 1,
-          "FEMALE" to 2,
-        )
-      ),
-      "person.age_group",
-      EventDescriptor.EventTemplateFieldInfo(
-        mediaType = MediaType.MEDIA_TYPE_UNSPECIFIED,
-        isPopulationAttribute = true,
-        supportedReportingFeatures = EventDescriptor.SupportedReportingFeatures(
-          groupable = true,
-          filterable = true,
-          impressionQualification = false,
+        "person.age_group",
+        EventDescriptor.EventTemplateFieldInfo(
+          mediaType = MediaType.MEDIA_TYPE_UNSPECIFIED,
+          isPopulationAttribute = true,
+          supportedReportingFeatures =
+            EventDescriptor.SupportedReportingFeatures(
+              groupable = true,
+              filterable = true,
+              impressionQualification = false,
+            ),
+          type = Descriptors.FieldDescriptor.Type.ENUM,
+          messageTypeFullName = "",
+          enumValuesMap =
+            mapOf(
+              "AGE_GROUP_UNSPECIFIED" to 0,
+              "YEARS_18_TO_34" to 1,
+              "YEARS_35_TO_54" to 2,
+              "YEARS_55_PLUS" to 3,
+            ),
         ),
-        type = Descriptors.FieldDescriptor.Type.ENUM,
-        messageTypeFullName = "",
-        enumValuesMap = mapOf(
-          "AGE_GROUP_UNSPECIFIED" to 0,
-          "YEARS_18_TO_34" to 1,
-          "YEARS_35_TO_54" to 2,
-          "YEARS_55_PLUS" to 3,
-        )
-      ),
-      "person.social_grade_group",
-      EventDescriptor.EventTemplateFieldInfo(
-        mediaType = MediaType.MEDIA_TYPE_UNSPECIFIED,
-        isPopulationAttribute = true,
-        supportedReportingFeatures = EventDescriptor.SupportedReportingFeatures(
-          groupable = true,
-          filterable = true,
-          impressionQualification = false,
+        "person.social_grade_group",
+        EventDescriptor.EventTemplateFieldInfo(
+          mediaType = MediaType.MEDIA_TYPE_UNSPECIFIED,
+          isPopulationAttribute = true,
+          supportedReportingFeatures =
+            EventDescriptor.SupportedReportingFeatures(
+              groupable = true,
+              filterable = true,
+              impressionQualification = false,
+            ),
+          type = Descriptors.FieldDescriptor.Type.ENUM,
+          messageTypeFullName = "",
+          enumValuesMap = mapOf("SOCIAL_GRADE_GROUP_UNSPECIFIED" to 0, "A_B_C1" to 1, "C2_D_E" to 2),
         ),
-        type = Descriptors.FieldDescriptor.Type.ENUM,
-        messageTypeFullName = "",
-        enumValuesMap = mapOf(
-          "SOCIAL_GRADE_GROUP_UNSPECIFIED" to 0,
-          "A_B_C1" to 1,
-          "C2_D_E" to 2,
-        )
-      ),
-      "video_ad.length",
-      EventDescriptor.EventTemplateFieldInfo(
-        mediaType = MediaType.VIDEO,
-        isPopulationAttribute = false,
-        supportedReportingFeatures = EventDescriptor.SupportedReportingFeatures(
-          groupable = false,
-          filterable = true,
-          impressionQualification = false,
+        "video_ad.length",
+        EventDescriptor.EventTemplateFieldInfo(
+          mediaType = MediaType.VIDEO,
+          isPopulationAttribute = false,
+          supportedReportingFeatures =
+            EventDescriptor.SupportedReportingFeatures(
+              groupable = false,
+              filterable = true,
+              impressionQualification = false,
+            ),
+          type = Descriptors.FieldDescriptor.Type.MESSAGE,
+          messageTypeFullName = "google.protobuf.Duration",
+          enumValuesMap = mapOf(),
         ),
-        type = Descriptors.FieldDescriptor.Type.MESSAGE,
-        messageTypeFullName = "google.protobuf.Duration",
-        enumValuesMap = mapOf(),
-      ),
-      "video_ad.viewed_fraction",
-      EventDescriptor.EventTemplateFieldInfo(
-        mediaType = MediaType.VIDEO,
-        isPopulationAttribute = false,
-        supportedReportingFeatures = EventDescriptor.SupportedReportingFeatures(
-          groupable = false,
-          filterable = false,
-          impressionQualification = true,
+        "video_ad.viewed_fraction",
+        EventDescriptor.EventTemplateFieldInfo(
+          mediaType = MediaType.VIDEO,
+          isPopulationAttribute = false,
+          supportedReportingFeatures =
+            EventDescriptor.SupportedReportingFeatures(
+              groupable = false,
+              filterable = false,
+              impressionQualification = true,
+            ),
+          type = Descriptors.FieldDescriptor.Type.DOUBLE,
+          messageTypeFullName = "",
+          enumValuesMap = mapOf(),
         ),
-        type = Descriptors.FieldDescriptor.Type.DOUBLE,
-        messageTypeFullName = "",
-        enumValuesMap = mapOf(),
-      ),
-      "banner_ad.viewable",
-      EventDescriptor.EventTemplateFieldInfo(
-        mediaType = MediaType.DISPLAY,
-        isPopulationAttribute = false,
-        supportedReportingFeatures = EventDescriptor.SupportedReportingFeatures(
-          groupable = false,
-          filterable = false,
-          impressionQualification = true,
+        "banner_ad.viewable",
+        EventDescriptor.EventTemplateFieldInfo(
+          mediaType = MediaType.DISPLAY,
+          isPopulationAttribute = false,
+          supportedReportingFeatures =
+            EventDescriptor.SupportedReportingFeatures(
+              groupable = false,
+              filterable = false,
+              impressionQualification = true,
+            ),
+          type = Descriptors.FieldDescriptor.Type.BOOL,
+          messageTypeFullName = "",
+          enumValuesMap = mapOf(),
         ),
-        type = Descriptors.FieldDescriptor.Type.BOOL,
-        messageTypeFullName = "",
-        enumValuesMap = mapOf(),
-      ),
-    )
+      )
   }
 
   @Test

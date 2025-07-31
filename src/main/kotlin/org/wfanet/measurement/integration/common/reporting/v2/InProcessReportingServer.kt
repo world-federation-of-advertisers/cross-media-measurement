@@ -18,6 +18,8 @@ package org.wfanet.measurement.integration.common.reporting.v2
 
 import com.google.protobuf.ByteString
 import com.google.protobuf.Descriptors
+import com.google.protobuf.ExtensionRegistry
+import com.google.protobuf.TypeRegistry
 import com.google.protobuf.util.Durations
 import io.grpc.Channel
 import io.grpc.Status
@@ -40,6 +42,7 @@ import org.wfanet.measurement.access.service.internal.PermissionMapping
 import org.wfanet.measurement.access.v1alpha.PermissionsGrpcKt
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub as PublicKingdomCertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub as PublicKingdomDataProvidersCoroutineStub
+import org.wfanet.measurement.api.v2alpha.EventAnnotationsProto
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub as PublicKingdomEventGroupMetadataDescriptorsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub as PublicKingdomEventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerCertificateKey
@@ -81,6 +84,7 @@ import org.wfanet.measurement.reporting.service.api.CelEnvCacheProvider
 import org.wfanet.measurement.reporting.service.api.InMemoryEncryptionKeyPairStore
 import org.wfanet.measurement.reporting.service.api.v2alpha.BasicReportsService
 import org.wfanet.measurement.reporting.service.api.v2alpha.DataProvidersService
+import org.wfanet.measurement.reporting.service.api.v2alpha.EventDescriptor
 import org.wfanet.measurement.reporting.service.api.v2alpha.EventGroupMetadataDescriptorsService
 import org.wfanet.measurement.reporting.service.api.v2alpha.EventGroupsService
 import org.wfanet.measurement.reporting.service.api.v2alpha.ImpressionQualificationFiltersService
@@ -91,10 +95,6 @@ import org.wfanet.measurement.reporting.service.api.v2alpha.ReportsService
 import org.wfanet.measurement.reporting.service.api.v2alpha.validate
 import org.wfanet.measurement.reporting.v2alpha.EventGroup
 import org.wfanet.measurement.reporting.v2alpha.MetricsGrpcKt.MetricsCoroutineStub as PublicMetricsCoroutineStub
-import com.google.protobuf.ExtensionRegistry
-import com.google.protobuf.TypeRegistry
-import org.wfanet.measurement.api.v2alpha.EventAnnotationsProto
-import org.wfanet.measurement.reporting.service.api.v2alpha.EventDescriptor
 
 /** TestRule that starts and stops all Reporting Server gRPC services. */
 class InProcessReportingServer(
@@ -235,19 +235,19 @@ class InProcessReportingServer(
         metricSpecConfig = METRIC_SPEC_CONFIG
 
         listOf(
-          DataProvidersService(
+            DataProvidersService(
                 publicKingdomDataProvidersClient,
                 authorization,
                 measurementConsumerConfig.apiKey,
               )
               .withTrustedPrincipalAuthentication(),
-          EventGroupMetadataDescriptorsService(
+            EventGroupMetadataDescriptorsService(
                 publicKingdomEventGroupMetadataDescriptorsClient,
                 authorization,
                 measurementConsumerConfig.apiKey,
               )
               .withTrustedPrincipalAuthentication(),
-          EventGroupsService(
+            EventGroupsService(
                 publicKingdomEventGroupsClient,
                 authorization,
                 celEnvCacheProvider.value,
@@ -255,7 +255,7 @@ class InProcessReportingServer(
                 encryptionKeyPairStore,
               )
               .withTrustedPrincipalAuthentication(),
-          MetricCalculationSpecsService(
+            MetricCalculationSpecsService(
                 internalMetricCalculationSpecsClient,
                 publicKingdomModelLinesClient,
                 METRIC_SPEC_CONFIG,
@@ -264,7 +264,7 @@ class InProcessReportingServer(
                 measurementConsumerConfigs,
               )
               .withTrustedPrincipalAuthentication(),
-          MetricsService(
+            MetricsService(
                 METRIC_SPEC_CONFIG,
                 measurementConsumerConfigs,
                 internalReportingSetsClient,
@@ -289,9 +289,9 @@ class InProcessReportingServer(
                 cacheLoaderContext = Dispatchers.Default,
               )
               .withTrustedPrincipalAuthentication(),
-          ReportingSetsService(internalReportingSetsClient, authorization)
+            ReportingSetsService(internalReportingSetsClient, authorization)
               .withTrustedPrincipalAuthentication(),
-          ReportsService(
+            ReportsService(
                 internalReportsClient,
                 internalMetricCalculationSpecsClient,
                 PublicMetricsCoroutineStub(this@GrpcTestServerRule.channel),
@@ -300,13 +300,12 @@ class InProcessReportingServer(
                 SecureRandom().asKotlinRandom(),
               )
               .withTrustedPrincipalAuthentication(),
-          BasicReportsService(
+            BasicReportsService(
                 internalBasicReportsClient,
                 internalImpressionQualificationFiltersClient,
                 internalReportingSetsClient,
-                EventDescriptor(
-                  TYPE_REGISTRY.find(TestEvent.getDescriptor().fullName)
-                ).eventTemplateFieldsMap,
+                EventDescriptor(TYPE_REGISTRY.find(TestEvent.getDescriptor().fullName))
+                  .eventTemplateFieldsMap,
                 authorization,
               )
               .withTrustedPrincipalAuthentication(),
