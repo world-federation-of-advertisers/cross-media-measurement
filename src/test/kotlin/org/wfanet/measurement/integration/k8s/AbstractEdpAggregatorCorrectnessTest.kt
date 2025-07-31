@@ -20,20 +20,13 @@ import java.nio.file.Path
 import java.nio.file.Paths
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
-import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
-import org.wfanet.measurement.integration.common.loadEncryptionPrivateKey
 import org.wfanet.measurement.integration.common.loadSigningKey
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerSimulator
-import org.wfanet.measurement.common.crypto.PrivateKeyHandle
-import org.wfanet.measurement.common.crypto.SigningCerts
-import java.net.URI
-import java.net.http.HttpClient
-import java.net.http.HttpRequest
-import java.net.http.HttpResponse
-import java.time.Duration
 
-abstract class AbstractEdpAggregatorCorrectnessTest(private val measurementSystem: MeasurementSystem) {
+abstract class AbstractEdpAggregatorCorrectnessTest(
+  private val measurementSystem: MeasurementSystem
+) {
 
   private val mcSimulator: MeasurementConsumerSimulator
     get() = measurementSystem.mcSimulator
@@ -52,7 +45,7 @@ abstract class AbstractEdpAggregatorCorrectnessTest(private val measurementSyste
   }
 
   companion object {
-    
+
     private const val MC_CS_CERT_DER_NAME = "mc_cs_cert.der"
     private const val MC_CS_PRIVATE_KEY_DER_NAME = "mc_cs_private.der"
 
@@ -69,7 +62,5 @@ abstract class AbstractEdpAggregatorCorrectnessTest(private val measurementSyste
         org.wfanet.measurement.common.getRuntimePath(WORKSPACE_PATH.resolve(workspaceRelativePath))
       )
     }
-
   }
-
 }
