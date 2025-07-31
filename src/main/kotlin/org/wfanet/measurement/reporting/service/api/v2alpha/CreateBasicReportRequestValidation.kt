@@ -57,7 +57,7 @@ private val RESOURCE_ID_REGEX = ResourceIds.AIP_122_REGEX
 fun validateCreateBasicReportRequest(
   request: CreateBasicReportRequest,
   campaignGroup: ReportingSet,
-  eventTemplateFieldsMap: Map<String, EventTemplateFieldInfo.EventTemplateFieldInfo>,
+  eventTemplateFieldsMap: Map<String, EventDescriptor.EventTemplateFieldInfo>,
 ) {
   if (request.basicReportId.isEmpty()) {
     throw RequiredFieldNotSetException("basic_report_id")
@@ -107,7 +107,7 @@ fun validateCreateBasicReportRequest(
 fun validateResultGroupSpecs(
   resultGroupSpecs: List<ResultGroupSpec>,
   campaignGroup: ReportingSet,
-  eventTemplateFieldsMap: Map<String, EventTemplateFieldInfo.EventTemplateFieldInfo>,
+  eventTemplateFieldsMap: Map<String, EventDescriptor.EventTemplateFieldInfo>,
 ) {
   if (resultGroupSpecs.isEmpty()) {
     throw RequiredFieldNotSetException("basic_report.result_group_specs")
@@ -191,41 +191,12 @@ fun validateReportingUnit(reportingUnit: ReportingUnit, dataProviderNameSet: Set
  */
 fun validateDimensionSpec(
   dimensionSpec: DimensionSpec,
-  eventTemplateFieldsMap: Map<String, EventTemplateFieldInfo.EventTemplateFieldInfo>,
+  eventTemplateFieldsMap: Map<String, EventDescriptor.EventTemplateFieldInfo>,
 ) {
   val groupingEventTemplateFieldsSet: Set<String> = buildSet {
     if (dimensionSpec.hasGrouping()) {
-      if (dimensionSpec.grouping.eventTemplateFieldsList.isEmpty()) {
-        throw RequiredFieldNotSetException(
-          "basic_report.result_group_specs.dimension_spec.grouping.event_template_fields"
-        )
-      }
-
+      validateDimensionSpecGrouping(dimensionSpec.grouping, eventTemplateFieldsMap)
       for (eventTemplateFieldPath in dimensionSpec.grouping.eventTemplateFieldsList) {
-        val eventTemplateFieldInfo =
-          eventTemplateFieldsMap[eventTemplateFieldPath]
-            ?: throw InvalidFieldValueException(
-              "basic_report.result_group_specs.dimension_spec.grouping.event_template_fields"
-            ) { fieldName ->
-              "$fieldName contains event template field that doesn't exist"
-            }
-
-        if (!eventTemplateFieldInfo.supportedReportingFeatures.groupable) {
-          throw InvalidFieldValueException(
-            "basic_report.result_group_specs.dimension_spec.grouping.event_template_fields"
-          ) { fieldName ->
-            "$fieldName contains event template field that is not groupable"
-          }
-        }
-
-        if (!eventTemplateFieldInfo.isPopulationAttribute) {
-          throw InvalidFieldValueException(
-            "basic_report.result_group_specs.dimension_spec.grouping.event_template_fields"
-          ) { fieldName ->
-            "$fieldName contains event template field that is not a population attribute"
-          }
-        }
-
         add(eventTemplateFieldPath)
       }
     }
@@ -239,102 +210,161 @@ fun validateDimensionSpec(
     }
 
     for (eventTemplateField in eventFilter.termsList) {
-      if (eventTemplateField.path.isEmpty()) {
-        throw RequiredFieldNotSetException(
+      validateEventTemplateField(eventTemplateField, eventTemplateFieldsMap)
+      if (groupingEventTemplateFieldsSet.contains(eventTemplateField.path)) {
+        throw InvalidFieldValueException(
           "basic_report.result_group_specs.dimension_spec.filters.terms.path"
-        )
-      } else {
-        val eventTemplateFieldInfo =
-          eventTemplateFieldsMap[eventTemplateField.path]
-            ?: throw InvalidFieldValueException(
-              "basic_report.result_group_specs.dimension_spec.filters.terms.path"
+        ) { fieldName ->
+          "$fieldName is already in basic_report.result_group_specs.dimension_spec.grouping.event_template_fields for the same dimension_spec"
+        }
+      }
+    }
+  }
+}
+
+/**
+ * Validates a [DimensionSpec.Grouping]
+ *
+ * @param grouping [DimensionSpec.Grouping] to validate
+ * @param eventTemplateFieldsMap for validating [EventTemplateField]
+ * @throws [RequiredFieldNotSetException] when validation fails
+ * @throws [InvalidFieldValueException] when validation fails
+ */
+fun validateDimensionSpecGrouping(
+  grouping: DimensionSpec.Grouping,
+  eventTemplateFieldsMap: Map<String, EventDescriptor.EventTemplateFieldInfo>,
+) {
+  if (grouping.eventTemplateFieldsList.isEmpty()) {
+    throw RequiredFieldNotSetException(
+      "basic_report.result_group_specs.dimension_spec.grouping.event_template_fields"
+    )
+  }
+
+  for (eventTemplateFieldPath in grouping.eventTemplateFieldsList) {
+    val eventTemplateFieldInfo =
+      eventTemplateFieldsMap[eventTemplateFieldPath]
+        ?: throw InvalidFieldValueException(
+          "basic_report.result_group_specs.dimension_spec.grouping.event_template_fields"
+        ) { fieldName ->
+          "$fieldName contains event template field that doesn't exist"
+        }
+
+    if (!eventTemplateFieldInfo.supportedReportingFeatures.groupable) {
+      throw InvalidFieldValueException(
+        "basic_report.result_group_specs.dimension_spec.grouping.event_template_fields"
+      ) { fieldName ->
+        "$fieldName contains event template field that is not groupable"
+      }
+    }
+
+    if (!eventTemplateFieldInfo.isPopulationAttribute) {
+      throw InvalidFieldValueException(
+        "basic_report.result_group_specs.dimension_spec.grouping.event_template_fields"
+      ) { fieldName ->
+        "$fieldName contains event template field that is not a population attribute"
+      }
+    }
+  }
+}
+
+/**
+ * Validates an [EventTemplateField]
+ *
+ * @param eventTemplateField [EventTemplateField] to validate
+ * @param eventTemplateFieldsMap for validating [EventTemplateField]
+ * @throws [RequiredFieldNotSetException] when validation fails
+ * @throws [InvalidFieldValueException] when validation fails
+ */
+fun validateEventTemplateField(
+  eventTemplateField: EventTemplateField,
+  eventTemplateFieldsMap: Map<String, EventDescriptor.EventTemplateFieldInfo>,
+) {
+  if (eventTemplateField.path.isEmpty()) {
+    throw RequiredFieldNotSetException(
+      "basic_report.result_group_specs.dimension_spec.filters.terms.path"
+    )
+  } else {
+    val eventTemplateFieldInfo =
+      eventTemplateFieldsMap[eventTemplateField.path]
+        ?: throw InvalidFieldValueException(
+          "basic_report.result_group_specs.dimension_spec.filters.terms.path"
+        ) { fieldName ->
+          "$fieldName doesn't exist"
+        }
+
+    if (!eventTemplateFieldInfo.supportedReportingFeatures.filterable) {
+      throw InvalidFieldValueException(
+        "basic_report.result_group_specs.dimension_spec.filters.terms.path"
+      ) { fieldName ->
+        "$fieldName is not filterable"
+      }
+    }
+
+    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf enum fields cannot be null.
+    when (eventTemplateField.value.selectorCase) {
+      EventTemplateField.FieldValue.SelectorCase.STRING_VALUE -> {
+        if (eventTemplateFieldInfo.type != Descriptors.FieldDescriptor.Type.STRING) {
+          if (
+            eventTemplateFieldInfo.type != Descriptors.FieldDescriptor.Type.MESSAGE ||
+            eventTemplateFieldInfo.messageTypeFullName != Timestamp.getDescriptor().fullName
+          ) {
+            throw InvalidFieldValueException(
+              "basic_report.result_group_specs.dimension_spec.filters.terms.value.string_value"
             ) { fieldName ->
-              "$fieldName doesn't exist"
+              "$fieldName is invalid for ${eventTemplateField.path}"
             }
-
-        if (!eventTemplateFieldInfo.supportedReportingFeatures.filterable) {
+          }
+        }
+      }
+      EventTemplateField.FieldValue.SelectorCase.ENUM_VALUE -> {
+        if (
+          eventTemplateFieldInfo.type != Descriptors.FieldDescriptor.Type.ENUM ||
+          !eventTemplateFieldInfo.enumValuesMap.containsKey(
+            eventTemplateField.value.enumValue
+          )
+        ) {
           throw InvalidFieldValueException(
-            "basic_report.result_group_specs.dimension_spec.filters.terms.path"
+            "basic_report.result_group_specs.dimension_spec.filters.terms.value.enum_value"
           ) { fieldName ->
-            "$fieldName is not filterable"
+            "$fieldName is invalid for for ${eventTemplateField.path}"
           }
         }
-
-        if (groupingEventTemplateFieldsSet.contains(eventTemplateField.path)) {
+      }
+      EventTemplateField.FieldValue.SelectorCase.BOOL_VALUE ->
+        if (eventTemplateFieldInfo.type != Descriptors.FieldDescriptor.Type.BOOL) {
           throw InvalidFieldValueException(
-            "basic_report.result_group_specs.dimension_spec.filters.terms.path"
+            "basic_report.result_group_specs.dimension_spec.filters.terms.value.bool_value"
           ) { fieldName ->
-            "$fieldName is already in basic_report.result_group_specs.dimension_spec.grouping.event_template_fields for the same dimension_spec"
+            "$fieldName is invalid for ${eventTemplateField.path}"
           }
         }
-
-        @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf enum fields cannot be null.
-        when (eventTemplateField.value.selectorCase) {
-          EventTemplateField.FieldValue.SelectorCase.STRING_VALUE -> {
-            if (eventTemplateFieldInfo.type != Descriptors.FieldDescriptor.Type.STRING) {
-              if (
-                eventTemplateFieldInfo.type != Descriptors.FieldDescriptor.Type.MESSAGE ||
-                  eventTemplateFieldInfo.messageTypeFullName != Timestamp.getDescriptor().fullName
-              ) {
-                throw InvalidFieldValueException(
-                  "basic_report.result_group_specs.dimension_spec.filters.terms.value.string_value"
-                ) { fieldName ->
-                  "$fieldName is invalid for ${eventTemplateField.path}"
-                }
-              }
-            }
-          }
-          EventTemplateField.FieldValue.SelectorCase.ENUM_VALUE -> {
-            if (
-              eventTemplateFieldInfo.type != Descriptors.FieldDescriptor.Type.ENUM ||
-                !eventTemplateFieldInfo.enumValuesMap.containsKey(
-                  eventTemplateField.value.enumValue
-                )
-            ) {
-              throw InvalidFieldValueException(
-                "basic_report.result_group_specs.dimension_spec.filters.terms.value.enum_value"
-              ) { fieldName ->
-                "$fieldName is invalid for for ${eventTemplateField.path}"
-              }
-            }
-          }
-          EventTemplateField.FieldValue.SelectorCase.BOOL_VALUE ->
-            if (eventTemplateFieldInfo.type != Descriptors.FieldDescriptor.Type.BOOL) {
-              throw InvalidFieldValueException(
-                "basic_report.result_group_specs.dimension_spec.filters.terms.value.bool_value"
-              ) { fieldName ->
-                "$fieldName is invalid for ${eventTemplateField.path}"
-              }
-            }
-          EventTemplateField.FieldValue.SelectorCase.FLOAT_VALUE -> {
-            if (
-              eventTemplateFieldInfo.type == Descriptors.FieldDescriptor.Type.ENUM ||
-                eventTemplateFieldInfo.type == Descriptors.FieldDescriptor.Type.STRING ||
-                eventTemplateFieldInfo.type == Descriptors.FieldDescriptor.Type.BOOL ||
-                (eventTemplateFieldInfo.type == Descriptors.FieldDescriptor.Type.MESSAGE &&
-                  eventTemplateFieldInfo.messageTypeFullName != Duration.getDescriptor().fullName)
-            ) {
-              throw InvalidFieldValueException(
-                "basic_report.result_group_specs.dimension_spec.filters.terms.value.float_value"
-              ) { fieldName ->
-                "$fieldName is invalid for ${eventTemplateField.path}"
-              }
-            }
-          }
-          EventTemplateField.FieldValue.SelectorCase.SELECTOR_NOT_SET -> {
-            throw RequiredFieldNotSetException(
-              "basic_report.result_group_specs.dimension_spec.filters.terms.value"
-            )
-          }
-        }
-
-        if (!eventTemplateFieldInfo.isPopulationAttribute) {
+      EventTemplateField.FieldValue.SelectorCase.FLOAT_VALUE -> {
+        if (
+          eventTemplateFieldInfo.type == Descriptors.FieldDescriptor.Type.ENUM ||
+          eventTemplateFieldInfo.type == Descriptors.FieldDescriptor.Type.STRING ||
+          eventTemplateFieldInfo.type == Descriptors.FieldDescriptor.Type.BOOL ||
+          (eventTemplateFieldInfo.type == Descriptors.FieldDescriptor.Type.MESSAGE &&
+            eventTemplateFieldInfo.messageTypeFullName != Duration.getDescriptor().fullName)
+        ) {
           throw InvalidFieldValueException(
-            "basic_report.result_group_specs.dimension_spec.filters.terms.path"
+            "basic_report.result_group_specs.dimension_spec.filters.terms.value.float_value"
           ) { fieldName ->
-            "$fieldName is not a population attribute"
+            "$fieldName is invalid for ${eventTemplateField.path}"
           }
         }
+      }
+      EventTemplateField.FieldValue.SelectorCase.SELECTOR_NOT_SET -> {
+        throw RequiredFieldNotSetException(
+          "basic_report.result_group_specs.dimension_spec.filters.terms.value"
+        )
+      }
+    }
+
+    if (!eventTemplateFieldInfo.isPopulationAttribute) {
+      throw InvalidFieldValueException(
+        "basic_report.result_group_specs.dimension_spec.filters.terms.path"
+      ) { fieldName ->
+        "$fieldName is not a population attribute"
       }
     }
   }

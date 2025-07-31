@@ -188,7 +188,7 @@ class BasicReportsServiceTest {
         internalBasicReportsService,
         internalImpressionQualificationFiltersService,
         internalReportingSetsService,
-        TEST_EVENT_DESCRIPTOR,
+        TEST_EVENT_DESCRIPTOR.eventTemplateFieldsMap,
         authorization,
       )
   }
@@ -5707,7 +5707,7 @@ class BasicReportsServiceTest {
         .build()
 
     private val TEST_EVENT_DESCRIPTOR =
-      BasicReportsService.buildEventTemplateFieldsMap(
+      EventDescriptor(
         TYPE_REGISTRY.find(TestEvent.getDescriptor().fullName)
       )
 

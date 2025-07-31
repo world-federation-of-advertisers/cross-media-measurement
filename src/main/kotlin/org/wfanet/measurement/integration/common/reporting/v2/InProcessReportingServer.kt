@@ -91,6 +91,10 @@ import org.wfanet.measurement.reporting.service.api.v2alpha.ReportsService
 import org.wfanet.measurement.reporting.service.api.v2alpha.validate
 import org.wfanet.measurement.reporting.v2alpha.EventGroup
 import org.wfanet.measurement.reporting.v2alpha.MetricsGrpcKt.MetricsCoroutineStub as PublicMetricsCoroutineStub
+import com.google.protobuf.ExtensionRegistry
+import com.google.protobuf.TypeRegistry
+import org.wfanet.measurement.api.v2alpha.EventAnnotationsProto
+import org.wfanet.measurement.reporting.service.api.v2alpha.EventDescriptor
 
 /** TestRule that starts and stops all Reporting Server gRPC services. */
 class InProcessReportingServer(
@@ -231,19 +235,19 @@ class InProcessReportingServer(
         metricSpecConfig = METRIC_SPEC_CONFIG
 
         listOf(
-            DataProvidersService(
+          DataProvidersService(
                 publicKingdomDataProvidersClient,
                 authorization,
                 measurementConsumerConfig.apiKey,
               )
               .withTrustedPrincipalAuthentication(),
-            EventGroupMetadataDescriptorsService(
+          EventGroupMetadataDescriptorsService(
                 publicKingdomEventGroupMetadataDescriptorsClient,
                 authorization,
                 measurementConsumerConfig.apiKey,
               )
               .withTrustedPrincipalAuthentication(),
-            EventGroupsService(
+          EventGroupsService(
                 publicKingdomEventGroupsClient,
                 authorization,
                 celEnvCacheProvider.value,
@@ -251,7 +255,7 @@ class InProcessReportingServer(
                 encryptionKeyPairStore,
               )
               .withTrustedPrincipalAuthentication(),
-            MetricCalculationSpecsService(
+          MetricCalculationSpecsService(
                 internalMetricCalculationSpecsClient,
                 publicKingdomModelLinesClient,
                 METRIC_SPEC_CONFIG,
@@ -260,7 +264,7 @@ class InProcessReportingServer(
                 measurementConsumerConfigs,
               )
               .withTrustedPrincipalAuthentication(),
-            MetricsService(
+          MetricsService(
                 METRIC_SPEC_CONFIG,
                 measurementConsumerConfigs,
                 internalReportingSetsClient,
@@ -285,9 +289,9 @@ class InProcessReportingServer(
                 cacheLoaderContext = Dispatchers.Default,
               )
               .withTrustedPrincipalAuthentication(),
-            ReportingSetsService(internalReportingSetsClient, authorization)
+          ReportingSetsService(internalReportingSetsClient, authorization)
               .withTrustedPrincipalAuthentication(),
-            ReportsService(
+          ReportsService(
                 internalReportsClient,
                 internalMetricCalculationSpecsClient,
                 PublicMetricsCoroutineStub(this@GrpcTestServerRule.channel),
@@ -296,11 +300,13 @@ class InProcessReportingServer(
                 SecureRandom().asKotlinRandom(),
               )
               .withTrustedPrincipalAuthentication(),
-            BasicReportsService(
+          BasicReportsService(
                 internalBasicReportsClient,
                 internalImpressionQualificationFiltersClient,
                 internalReportingSetsClient,
-                BasicReportsService.buildEventTemplateFieldsMap(TestEvent.getDescriptor()),
+                EventDescriptor(
+                  TYPE_REGISTRY.find(TestEvent.getDescriptor().fullName)
+                ).eventTemplateFieldsMap,
                 authorization,
               )
               .withTrustedPrincipalAuthentication(),
@@ -336,6 +342,24 @@ class InProcessReportingServer(
 
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
+
+    private val EXTENSION_REGISTRY =
+      ExtensionRegistry.newInstance()
+        .apply {
+          add(EventAnnotationsProto.eventTemplate)
+          add(EventAnnotationsProto.templateField)
+        }
+        .unmodifiable
+
+    private val TYPE_REGISTRY =
+      TypeRegistry.newBuilder()
+        .add(
+          listOf(
+            TestEvent.parseFrom(TestEvent.getDefaultInstance().toByteString(), EXTENSION_REGISTRY)
+              .descriptorForType
+          )
+        )
+        .build()
 
     private const val NUMBER_VID_BUCKETS = 300
     private val METRIC_SPEC_CONFIG = metricSpecConfig {
