@@ -30,7 +30,6 @@ import org.wfanet.measurement.api.v2alpha.event_templates.testing.MissingFieldAn
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.MissingTemplateAnnotationEvent
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.UnsupportedFieldTypeEvent
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.UnsupportedFieldTypeEventKt
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.UnsupportedRepeatedFieldEvent
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.UnsupportedReportingFeatureEvent
 

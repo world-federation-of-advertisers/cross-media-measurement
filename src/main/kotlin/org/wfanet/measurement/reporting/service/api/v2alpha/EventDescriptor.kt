@@ -131,7 +131,8 @@ class EventDescriptor(eventDescriptor: Descriptors.Descriptor) {
         when (val messageName = eventTemplateField.messageType.fullName) {
           Duration.getDescriptor().fullName,
           Timestamp.getDescriptor().fullName -> {}
-          else -> throw IllegalArgumentException("EventTemplate field has unsupported type $messageName")
+          else ->
+            throw IllegalArgumentException("EventTemplate field has unsupported type $messageName")
         }
       Descriptors.FieldDescriptor.Type.UINT64,
       Descriptors.FieldDescriptor.Type.FIXED64,
@@ -143,7 +144,9 @@ class EventDescriptor(eventDescriptor: Descriptors.Descriptor) {
       Descriptors.FieldDescriptor.Type.SFIXED64,
       Descriptors.FieldDescriptor.Type.SINT32,
       Descriptors.FieldDescriptor.Type.SINT64 ->
-        throw IllegalArgumentException("EventTemplate field has unsupported type ${eventTemplateField.type.name.lowercase()}")
+        throw IllegalArgumentException(
+          "EventTemplate field has unsupported type ${eventTemplateField.type.name.lowercase()}"
+        )
     }
   }
 
