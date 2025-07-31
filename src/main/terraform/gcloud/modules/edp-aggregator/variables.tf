@@ -54,6 +54,15 @@ variable "requisition_fulfiller_config" {
   })
 }
 
+variable "results_fulfiller_event_proto_descriptors" {
+  description = "Event proto descriptors file path"
+  type = object({
+    secret_id         = string
+    secret_local_path = string
+    is_binary_format  = bool
+  })
+}
+
 variable "edpa_tee_app_tls_key" {
   description = "EDPA tls key"
   type = object({
