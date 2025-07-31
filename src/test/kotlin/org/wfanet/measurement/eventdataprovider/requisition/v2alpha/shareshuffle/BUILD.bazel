@@ -5,9 +5,9 @@ kt_jvm_test(
     srcs = ["FulfillRequisitionRequestBuilderTest.kt"],
     test_class = "org.wfanet.measurement.eventdataprovider.requisition.v2alpha.shareshuffle.FulfillRequisitionRequestBuilderTest",
     deps = [
+        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/requisition:native",
         "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/requisition/v2alpha/common",
         "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/requisition/v2alpha/shareshuffle",
-        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/requisition/v2alpha/shareshuffle:native",
         "//src/main/kotlin/org/wfanet/measurement/testing:requisitions",
         "//src/main/proto/wfa/any_sketch:frequency_vector_kt_jvm_proto",
         "//src/main/proto/wfa/frequency_count:frequency_vector_kt_jvm_proto",
@@ -21,16 +21,5 @@ kt_jvm_test(
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/testing",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/identity",
         "@wfa_consent_signaling_client//src/main/kotlin/org/wfanet/measurement/consent/client/dataprovider",
-    ],
-)
-
-kt_jvm_test(
-    name = "NativeTest",
-    srcs = ["NativeTest.kt"],
-    test_class = "org.wfanet.measurement.eventdataprovider.requisition.v2alpha.shareshuffle.NativeTest",
-    deps = [
-        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/requisition/v2alpha/shareshuffle:native",
-        "@any_sketch_java//src/main/java/org/wfanet/frequencycount",
-        "@wfa_common_jvm//imports/java/org/junit",
     ],
 )

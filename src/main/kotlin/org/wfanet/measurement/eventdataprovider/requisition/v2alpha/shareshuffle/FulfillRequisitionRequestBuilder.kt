@@ -161,7 +161,7 @@ class FulfillRequisitionRequestBuilder(
     private const val RPC_CHUNK_SIZE_BYTES = 32 * 1024 // 32 KiB
     private const val NATIVE_LIB_NAME = "secret_share_generator_adapter"
     private const val NATIVE_LOADER_OBJECT_NAME =
-      "org.wfanet.measurement.eventdataprovider.requisition.v2alpha.shareshuffle.Native"
+      "org.wfanet.measurement.eventdataprovider.requisition.Native"
 
     init {
       // This is required to create secret shares out of the frequency vector

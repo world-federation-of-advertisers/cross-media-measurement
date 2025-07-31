@@ -14,9 +14,8 @@
  * limitations under the License.
  */
 
-package org.wfanet.measurement.eventdataprovider.requisition.v2alpha.shareshuffle
+package org.wfanet.measurement.eventdataprovider.requisition
 
-import java.lang.Exception
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4

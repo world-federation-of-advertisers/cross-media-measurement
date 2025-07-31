@@ -30,7 +30,7 @@ kt_jvm_library(
 )
 
 maven_export(
-    name = "requisition_common_maven",
+    name = "common_maven",
     lib_name = "common",
     maven_coordinates = MAVEN_COORDINATES,
     tags = [
