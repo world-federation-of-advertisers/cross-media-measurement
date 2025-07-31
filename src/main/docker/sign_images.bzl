@@ -36,15 +36,17 @@ def _sign_images_impl(ctx):
         content = "\n".join(image_refs),
     )
     script = ctx.actions.declare_file("%s-sign-script" % ctx.label.name)
+    cosign_bin = ctx.executable.cosign
     ctx.actions.expand_template(
         template = ctx.file._template,
         output = script,
         substitutions = {
             "{{images_file}}": images_file.short_path,
+            "{{cosign}}": cosign_bin.path,
         },
         is_executable = True,
     )
-    runfiles = ctx.runfiles(files = [images_file])
+    runfiles = ctx.runfiles(files = [images_file, ctx.executable.cosign])
     return [DefaultInfo(executable = script, runfiles = runfiles)]
 
 sign_images = rule(
@@ -53,6 +55,12 @@ sign_images = rule(
         "_template": attr.label(
             default = ":sign_images.sh.template",
             allow_single_file = True,
+        ),
+        "cosign": attr.label(
+            executable = True,
+            cfg = "host",
+            allow_single_file = True,
+            default = Label("@cosign_bin//file"),
         ),
     },
     executable = True,
