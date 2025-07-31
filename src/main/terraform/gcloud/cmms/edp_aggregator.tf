@@ -16,6 +16,12 @@ locals {
 
   edp_display_names = ["edp7"]
 
+  results_fulfiller_event_proto_descriptors = {
+    secret_id         = "results-fulfiller-event-proto-descriptor-set",
+    secret_local_path = var.results_fulfiller_event_proto_descriptor_path,
+    is_binary_format  = true
+  }
+
   edpa_tee_app_tls_key = {
     secret_id         = "edpa-tee-app-tls-key",
     secret_local_path = abspath("${path.root}/../../../k8s/testing/secretfiles/edpa_tee_app_tls.key"),
@@ -163,6 +169,7 @@ module "edp_aggregator" {
   requisition_fetcher_config                = local.requisition_fetcher_config
   event_group_sync_service_account_name     = "edpa-event-group-sync"
   event_group_sync_function_name            = "event-group-sync"
+  results_fulfiller_event_proto_descriptors = local.results_fulfiller_event_proto_descriptors
   edpa_tee_app_tls_key                      = local.edpa_tee_app_tls_key
   edpa_tee_app_tls_pem                      = local.edpa_tee_app_tls_pem
   data_watcher_tls_key                      = local.data_watcher_tls_key
