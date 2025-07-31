@@ -33,5 +33,5 @@ maven_export(
         "no-javadocs",
         "no-remote-cache",
     ],
-    visibility = ["//src/main/kotlin/org/wfanet/measurement/eventdataprovider/requisition/v2alpha:__pkg__"],
+    visibility = ["//visibility:private"],
 )

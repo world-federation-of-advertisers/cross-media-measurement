@@ -12,7 +12,7 @@ from the GitHub documentation. The primary artifact is
 
 This JVM library has a native dependency on the
 `libsecret_share_generator_adapter.so` shared library. The simplest way to
-include this is to depend on the additional `native-maven` Maven artifact
+include this is to depend on the additional `requisition-native` Maven artifact
 at runtime. This artifact includes a precompiled copy of the native library.
 
 If using the precompiled artifact does not fit your use case, you can build the
