@@ -26,24 +26,9 @@ import org.wfanet.measurement.duchy.mill.trustee.WifCredentialsConfig
 
 /** A [KmsClientFactory] for creating Tink [KmsClient] instances for Google Cloud KMS. */
 class GcpKmsClientFactory : KmsClientFactory {
-
   /**
-   * Returns a [GcpKmsClient] that uses Application Default Credentials.
-   *
-   * This is suitable for environments where credentials are automatically available, such as on
-   * Google Cloud Engine or when the `gcloud auth application-default login` command has been run.
-   *
-   * @throws GeneralSecurityException if the client cannot be initialized.
-   */
-  override fun getKmsClient(): KmsClient {
-    // GcpKmsClient.withDefaultCredentials() uses GoogleCredentials.getApplicationDefault()
-    // under the hood and wraps exceptions in GeneralSecurityException.
-    return GcpKmsClient().withDefaultCredentials()
-  }
-
-  /**
-   * Returns a [GcpKmsClient] configured for Workload Identity Federation (WIF) with service
-   * account impersonation.
+   * Returns a [GcpKmsClient] configured for Workload Identity Federation (WIF) with service account
+   * impersonation.
    *
    * This method programmatically builds an `ExternalAccountCredentials` object, which is ideal for
    * environments like Confidential Space where a short-lived token from a file needs to be
@@ -54,6 +39,7 @@ class GcpKmsClientFactory : KmsClientFactory {
    * @throws GeneralSecurityException if the client cannot be initialized with the provided
    *   credentials.
    */
+  @Throws(GeneralSecurityException::class)
   override fun getKmsClient(config: WifCredentialsConfig): KmsClient {
     val wifConfigJson =
       JsonObject().run {
@@ -63,7 +49,7 @@ class GcpKmsClientFactory : KmsClientFactory {
         addProperty("token_url", config.tokenUrl)
         add(
           "credential_source",
-          JsonObject().apply { addProperty("file", config.credentialSourceFilePath) }
+          JsonObject().apply { addProperty("file", config.credentialSourceFilePath) },
         )
         addProperty("service_account_impersonation_url", config.serviceAccountImpersonationUrl)
         add("scopes", JsonArray().apply { add("https://www.googleapis.com/auth/cloud-platform") })

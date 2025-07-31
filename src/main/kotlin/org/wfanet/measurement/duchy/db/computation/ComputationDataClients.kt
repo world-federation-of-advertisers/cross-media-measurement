@@ -195,7 +195,7 @@ private constructor(
   /** Reads and returns a single fulfilled requisition blob. */
   suspend fun readSingleRequisitionBlob(requisition: RequisitionMetadata): ByteString? {
     val path = requisition.path
-    val blob = requisitionStore.get(path) ?: return null
+    val blob: Blob = requisitionStore.get(path) ?: return null
     return blob.read().flatten()
   }
 

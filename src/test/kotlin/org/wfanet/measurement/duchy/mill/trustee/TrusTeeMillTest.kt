@@ -24,11 +24,12 @@ import com.google.crypto.tink.KmsClient
 import com.google.protobuf.ByteString
 import com.google.protobuf.kotlin.toByteString
 import com.google.protobuf.kotlin.toByteStringUtf8
-import io.grpc.Status
 import java.io.ByteArrayOutputStream
 import java.nio.ByteBuffer
+import java.security.GeneralSecurityException
 import java.time.Clock
 import java.time.Duration
+import kotlin.io.path.Path
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.Rule
@@ -102,170 +103,6 @@ import org.wfanet.measurement.system.v1alpha.Requisition
 import org.wfanet.measurement.system.v1alpha.computationParticipant
 import org.wfanet.measurement.system.v1alpha.setComputationResultRequest
 import org.wfanet.measurement.system.v1alpha.setParticipantRequisitionParamsRequest
-
-private const val PUBLIC_API_VERSION = "v2alpha"
-private const val MILL_ID = "test-trustee-mill"
-private const val DUCHY_ID = "aggregator"
-private const val ATTESTATION_TOKEN_PATH = "attestation/token/path"
-
-private const val LOCAL_ID = 1234L
-private const val GLOBAL_ID = LOCAL_ID.toString()
-
-private const val DUCHY_CERT_NAME = "cert 1"
-private val DUCHY_CERT_DER = TestData.FIXED_SERVER_CERT_DER_FILE.readBytes().toByteString()
-private val DUCHY_PRIVATE_KEY_DER = TestData.FIXED_SERVER_KEY_DER_FILE.readBytes().toByteString()
-private val MEASUREMENT_ENCRYPTION_PRIVATE_KEY = TinkPrivateKeyHandle.generateEcies()
-private val MEASUREMENT_ENCRYPTION_PUBLIC_KEY =
-  MEASUREMENT_ENCRYPTION_PRIVATE_KEY.publicKey.toEncryptionPublicKey()
-private val DUCHY_SIGNING_CERT = readCertificate(DUCHY_CERT_DER)
-private val DUCHY_SIGNING_KEY =
-  SigningKeyHandle(
-    DUCHY_SIGNING_CERT,
-    readPrivateKey(DUCHY_PRIVATE_KEY_DER, DUCHY_SIGNING_CERT.publicKey.algorithm),
-  )
-
-// In the test, use the same set of cert and encryption key for all EDPs.
-private val DATA_PROVIDER_CERT_DER = TestData.FIXED_SERVER_CERT_DER_FILE.readBytes().toByteString()
-private val DATA_PROVIDER_PRIVATE_KEY_DER =
-  TestData.FIXED_SERVER_KEY_DER_FILE.readBytes().toByteString()
-private val DATA_PROVIDER_SIGNING_CERT = readCertificate(DATA_PROVIDER_CERT_DER)
-private val DATA_PROVIDER_SIGNING_KEY =
-  SigningKeyHandle(
-    DATA_PROVIDER_SIGNING_CERT,
-    readPrivateKey(DATA_PROVIDER_PRIVATE_KEY_DER, DATA_PROVIDER_SIGNING_CERT.publicKey.algorithm),
-  )
-
-private val TEST_REQUISITION_1 = TestRequisition("111") { SERIALIZED_MEASUREMENT_SPEC }
-private val TEST_REQUISITION_2 = TestRequisition("222") { SERIALIZED_MEASUREMENT_SPEC }
-private val TEST_REQUISITION_3 = TestRequisition("333") { SERIALIZED_MEASUREMENT_SPEC }
-
-private val MEASUREMENT_SPEC = measurementSpec {
-  nonceHashes += TEST_REQUISITION_1.nonceHash
-  nonceHashes += TEST_REQUISITION_2.nonceHash
-  nonceHashes += TEST_REQUISITION_3.nonceHash
-  reachAndFrequency = MeasurementSpec.ReachAndFrequency.getDefaultInstance()
-  vidSamplingInterval = MeasurementSpecKt.vidSamplingInterval { width = 0.5f }
-}
-
-private val SERIALIZED_MEASUREMENT_SPEC: ByteString = MEASUREMENT_SPEC.toByteString()
-
-private val DEK_KEYSET_HANDLE_1 = KeysetHandle.generateNew(KeyTemplates.get("AES128_GCM"))
-private val DEK_KEYSET_HANDLE_2 = KeysetHandle.generateNew(KeyTemplates.get("AES128_GCM"))
-private val DEK_KEYSET_HANDLE_3 = KeysetHandle.generateNew(KeyTemplates.get("AES128_GCM"))
-
-private val DEK_AEAD_1: Aead = DEK_KEYSET_HANDLE_1.getPrimitive(Aead::class.java)
-private val DEK_AEAD_2: Aead = DEK_KEYSET_HANDLE_2.getPrimitive(Aead::class.java)
-private val DEK_AEAD_3: Aead = DEK_KEYSET_HANDLE_3.getPrimitive(Aead::class.java)
-
-private val RAW_DATA_1 = intArrayOf(1, 0, 1, 0, 1)
-private val RAW_DATA_2 = intArrayOf(0, 1, 2, 0, 0)
-private val RAW_DATA_3 = intArrayOf(2, 1, 0, 0, 0)
-
-private val MEASUREMENT_RESULT =
-  ReachAndFrequencyResult(
-    reach = 4,
-    frequency = mapOf(0L to 0.2, 1L to 0.2, 2L to 0.2, 3L to 0.4, 4L to 0.2, 5L to 0.0),
-    methodology = TrusTeeMethodology(5),
-  )
-
-private val KEK_URI_1 = "fake-kms://kek_uri_1"
-private val KEK_URI_2 = "fake-kms://kek_uri_2"
-private val KEK_URI_3 = "fake-kms://kek_uri_3"
-private val KEK_KEYSET_HANDLE_1 = KeysetHandle.generateNew(KeyTemplates.get("AES128_GCM"))
-private val KEK_KEYSET_HANDLE_2 = KeysetHandle.generateNew(KeyTemplates.get("AES128_GCM"))
-private val KEK_KEYSET_HANDLE_3 = KeysetHandle.generateNew(KeyTemplates.get("AES128_GCM"))
-private val KEK_AEAD_1: Aead = KEK_KEYSET_HANDLE_1.getPrimitive(Aead::class.java)
-private val KEK_AEAD_2: Aead = KEK_KEYSET_HANDLE_2.getPrimitive(Aead::class.java)
-private val KEK_AEAD_3: Aead = KEK_KEYSET_HANDLE_3.getPrimitive(Aead::class.java)
-
-/** Encrypt a dek KeysetHandle and convert into bytes. */
-private fun KeysetHandle.toEncryptedByteString(kekAead: Aead): ByteString {
-  val outputStream = ByteArrayOutputStream()
-  this.write(BinaryKeysetWriter.withOutputStream(outputStream), kekAead)
-  return outputStream.toByteArray().toByteString()
-}
-
-private val REQUISITION_1 =
-  TEST_REQUISITION_1.toRequisitionMetadata(Requisition.State.FULFILLED).copy {
-    details =
-      details.copy {
-        protocol =
-          RequisitionDetailsKt.requisitionProtocol {
-            trusTee = requisitionTrusTee {
-              encryptedDekCiphertext = DEK_KEYSET_HANDLE_1.toEncryptedByteString(KEK_AEAD_1)
-              kmsKekUri = KEK_URI_1
-              workloadIdentityProvider = "WIP_1"
-              impersonatedServiceAccount = "SA_1"
-            }
-          }
-      }
-    path = RequisitionBlobContext(GLOBAL_ID, externalKey.externalRequisitionId).blobKey
-  }
-
-private val REQUISITION_2 =
-  TEST_REQUISITION_2.toRequisitionMetadata(Requisition.State.FULFILLED).copy {
-    details =
-      details.copy {
-        protocol =
-          RequisitionDetailsKt.requisitionProtocol {
-            trusTee = requisitionTrusTee {
-              encryptedDekCiphertext = DEK_KEYSET_HANDLE_2.toEncryptedByteString(KEK_AEAD_2)
-              kmsKekUri = KEK_URI_2
-              workloadIdentityProvider = "WIP_2"
-              impersonatedServiceAccount = "SA_2"
-            }
-          }
-      }
-    path = RequisitionBlobContext(GLOBAL_ID, externalKey.externalRequisitionId).blobKey
-  }
-
-private val REQUISITION_3 =
-  TEST_REQUISITION_3.toRequisitionMetadata(Requisition.State.FULFILLED).copy {
-    details =
-      details.copy {
-        protocol =
-          RequisitionDetailsKt.requisitionProtocol {
-            trusTee = requisitionTrusTee {
-              encryptedDekCiphertext = DEK_KEYSET_HANDLE_3.toEncryptedByteString(KEK_AEAD_3)
-              kmsKekUri = KEK_URI_3
-              workloadIdentityProvider = "WIP_3"
-              impersonatedServiceAccount = "SA_3"
-            }
-          }
-      }
-    path = RequisitionBlobContext(GLOBAL_ID, externalKey.externalRequisitionId).blobKey
-  }
-
-private val REQUISITIONS = listOf(REQUISITION_1, REQUISITION_2, REQUISITION_3)
-
-private val TRUSTEE_PARAMETERS =
-  TrusTeeKt.ComputationDetailsKt.parameters {
-    maximumFrequency = 5
-    reachDpParams = differentialPrivacyParams {
-      epsilon = 1.1
-      delta = 0.1
-    }
-    frequencyDpParams = differentialPrivacyParams {
-      epsilon = 2.1
-      delta = 0.1
-    }
-    noiseMechanism = NoiseMechanism.CONTINUOUS_GAUSSIAN
-  }
-
-private val COMPUTATION_DETAILS = computationDetails {
-  kingdomComputation =
-    ComputationDetailsKt.kingdomComputationDetails {
-      publicApiVersion = PUBLIC_API_VERSION
-      measurementPublicKey = MEASUREMENT_ENCRYPTION_PUBLIC_KEY.toDuchyEncryptionPublicKey()
-      measurementSpec = SERIALIZED_MEASUREMENT_SPEC
-      participantCount = 1
-    }
-  trusTee =
-    TrusTeeKt.computationDetails {
-      role = RoleInComputation.AGGREGATOR
-      parameters = TRUSTEE_PARAMETERS
-    }
-}
 
 @RunWith(JUnit4::class)
 class TrusTeeMillTest {
@@ -606,7 +443,7 @@ class TrusTeeMillTest {
     )
 
     whenever(mockKmsClientFactory.getKmsClient(any<WifCredentialsConfig>()))
-      .thenThrow(RuntimeException("KMS client creation failed for test"))
+      .thenThrow(GeneralSecurityException("KMS client creation failed for test"))
 
     val mill = createMill()
     mill.claimAndProcessWork()
@@ -640,10 +477,10 @@ class TrusTeeMillTest {
     val mill = createMill()
     mill.claimAndProcessWork()
 
+    // The attempt fails and the computation is enqueued
     val finalToken = fakeComputationDb[LOCAL_ID]!!
-    assertThat(finalToken.computationStage).isEqualTo(Stage.COMPLETE.toProtocolStage())
-    assertThat(finalToken.computationDetails.endingState)
-      .isEqualTo(ComputationDetails.CompletedReason.FAILED)
+    assertThat(finalToken.computationStage).isEqualTo(Stage.COMPUTING.toProtocolStage())
+    assertThat(finalToken.version).isEqualTo(2) // claim + enqueue
 
     verify(mockCryptor, never()).addFrequencyVector(any())
     verify(mockCryptor, never()).computeResult()
@@ -662,9 +499,7 @@ class TrusTeeMillTest {
 
     val inaccessibleKmsClient: KmsClient = mock()
     whenever(inaccessibleKmsClient.getAead(KEK_URI_1))
-      .thenThrow(
-        Status.PERMISSION_DENIED.withDescription("KMS permission failure").asRuntimeException()
-      )
+      .thenThrow(GeneralSecurityException("KMS permission denied"))
     whenever(mockKmsClientFactory.getKmsClient(any<WifCredentialsConfig>()))
       .thenReturn(inaccessibleKmsClient)
 
@@ -672,9 +507,8 @@ class TrusTeeMillTest {
     mill.claimAndProcessWork()
 
     val finalToken = fakeComputationDb[LOCAL_ID]!!
-    assertThat(finalToken.computationStage).isEqualTo(Stage.COMPLETE.toProtocolStage())
-    assertThat(finalToken.computationDetails.endingState)
-      .isEqualTo(ComputationDetails.CompletedReason.FAILED)
+    assertThat(finalToken.computationStage).isEqualTo(Stage.COMPUTING.toProtocolStage())
+    assertThat(finalToken.version).isEqualTo(2) // claim + enqueue
 
     verify(mockCryptor, never()).addFrequencyVector(any())
     verify(mockCryptor, never()).computeResult()
@@ -709,9 +543,8 @@ class TrusTeeMillTest {
     mill.claimAndProcessWork()
 
     val finalToken = fakeComputationDb[LOCAL_ID]!!
-    assertThat(finalToken.computationStage).isEqualTo(Stage.COMPLETE.toProtocolStage())
-    assertThat(finalToken.computationDetails.endingState)
-      .isEqualTo(ComputationDetails.CompletedReason.FAILED)
+    assertThat(finalToken.computationStage).isEqualTo(Stage.COMPUTING.toProtocolStage())
+    assertThat(finalToken.version).isEqualTo(2) // claim + enqueue
 
     verify(mockCryptor, never()).addFrequencyVector(any())
     verify(mockCryptor, never()).computeResult()
@@ -730,9 +563,7 @@ class TrusTeeMillTest {
 
     val transientErrorKmsClient: KmsClient = mock()
     whenever(transientErrorKmsClient.getAead(KEK_URI_1))
-      .thenThrow(
-        Status.UNAVAILABLE.withDescription("KMS is temporarily unavailable").asRuntimeException()
-      )
+      .thenThrow(GeneralSecurityException("KMS is temporarily unavailable"))
     whenever(mockKmsClientFactory.getKmsClient(any<WifCredentialsConfig>()))
       .thenReturn(transientErrorKmsClient)
 
@@ -770,9 +601,8 @@ class TrusTeeMillTest {
     mill.claimAndProcessWork()
 
     val finalToken = fakeComputationDb[LOCAL_ID]!!
-    assertThat(finalToken.computationStage).isEqualTo(Stage.COMPLETE.toProtocolStage())
-    assertThat(finalToken.computationDetails.endingState)
-      .isEqualTo(ComputationDetails.CompletedReason.FAILED)
+    assertThat(finalToken.computationStage).isEqualTo(Stage.COMPUTING.toProtocolStage())
+    assertThat(finalToken.version).isEqualTo(2) // claim + enqueue
 
     verify(mockCryptor, never()).addFrequencyVector(any())
     verify(mockCryptor, never()).computeResult()
@@ -836,5 +666,176 @@ class TrusTeeMillTest {
     verify(mockCryptor, times(REQUISITIONS.size)).addFrequencyVector(any())
     verify(mockCryptor, times(1)).computeResult()
     verify(mockSystemComputations, never()).setComputationResult(any())
+  }
+
+  companion object {
+    private const val PUBLIC_API_VERSION = "v2alpha"
+    private const val MILL_ID = "test-trustee-mill"
+    private const val DUCHY_ID = "aggregator"
+    private val ATTESTATION_TOKEN_PATH = Path("attestation/token/path")
+
+    private const val LOCAL_ID = 1234L
+    private const val GLOBAL_ID = LOCAL_ID.toString()
+
+    private const val DUCHY_CERT_NAME = "cert 1"
+    private val DUCHY_CERT_DER = TestData.FIXED_SERVER_CERT_DER_FILE.readBytes().toByteString()
+    private val DUCHY_PRIVATE_KEY_DER =
+      TestData.FIXED_SERVER_KEY_DER_FILE.readBytes().toByteString()
+    private val MEASUREMENT_ENCRYPTION_PRIVATE_KEY = TinkPrivateKeyHandle.generateEcies()
+    private val MEASUREMENT_ENCRYPTION_PUBLIC_KEY =
+      MEASUREMENT_ENCRYPTION_PRIVATE_KEY.publicKey.toEncryptionPublicKey()
+    private val DUCHY_SIGNING_CERT = readCertificate(DUCHY_CERT_DER)
+    private val DUCHY_SIGNING_KEY =
+      SigningKeyHandle(
+        DUCHY_SIGNING_CERT,
+        readPrivateKey(DUCHY_PRIVATE_KEY_DER, DUCHY_SIGNING_CERT.publicKey.algorithm),
+      )
+
+    // In the test, use the same set of cert and encryption key for all EDPs.
+    private val DATA_PROVIDER_CERT_DER =
+      TestData.FIXED_SERVER_CERT_DER_FILE.readBytes().toByteString()
+    private val DATA_PROVIDER_PRIVATE_KEY_DER =
+      TestData.FIXED_SERVER_KEY_DER_FILE.readBytes().toByteString()
+    private val DATA_PROVIDER_SIGNING_CERT = readCertificate(DATA_PROVIDER_CERT_DER)
+    private val DATA_PROVIDER_SIGNING_KEY =
+      SigningKeyHandle(
+        DATA_PROVIDER_SIGNING_CERT,
+        readPrivateKey(
+          DATA_PROVIDER_PRIVATE_KEY_DER,
+          DATA_PROVIDER_SIGNING_CERT.publicKey.algorithm,
+        ),
+      )
+
+    private val TEST_REQUISITION_1 = TestRequisition("111") { SERIALIZED_MEASUREMENT_SPEC }
+    private val TEST_REQUISITION_2 = TestRequisition("222") { SERIALIZED_MEASUREMENT_SPEC }
+    private val TEST_REQUISITION_3 = TestRequisition("333") { SERIALIZED_MEASUREMENT_SPEC }
+
+    private val MEASUREMENT_SPEC = measurementSpec {
+      nonceHashes += TEST_REQUISITION_1.nonceHash
+      nonceHashes += TEST_REQUISITION_2.nonceHash
+      nonceHashes += TEST_REQUISITION_3.nonceHash
+      reachAndFrequency = MeasurementSpec.ReachAndFrequency.getDefaultInstance()
+      vidSamplingInterval = MeasurementSpecKt.vidSamplingInterval { width = 0.5f }
+    }
+
+    private val SERIALIZED_MEASUREMENT_SPEC: ByteString = MEASUREMENT_SPEC.toByteString()
+
+    private val DEK_KEYSET_HANDLE_1 = KeysetHandle.generateNew(KeyTemplates.get("AES128_GCM"))
+    private val DEK_KEYSET_HANDLE_2 = KeysetHandle.generateNew(KeyTemplates.get("AES128_GCM"))
+    private val DEK_KEYSET_HANDLE_3 = KeysetHandle.generateNew(KeyTemplates.get("AES128_GCM"))
+
+    private val DEK_AEAD_1: Aead = DEK_KEYSET_HANDLE_1.getPrimitive(Aead::class.java)
+    private val DEK_AEAD_2: Aead = DEK_KEYSET_HANDLE_2.getPrimitive(Aead::class.java)
+    private val DEK_AEAD_3: Aead = DEK_KEYSET_HANDLE_3.getPrimitive(Aead::class.java)
+
+    private val RAW_DATA_1 = intArrayOf(1, 0, 1, 0, 1)
+    private val RAW_DATA_2 = intArrayOf(0, 1, 2, 0, 0)
+    private val RAW_DATA_3 = intArrayOf(2, 1, 0, 0, 0)
+
+    private val MEASUREMENT_RESULT =
+      ReachAndFrequencyResult(
+        reach = 4,
+        frequency = mapOf(0L to 0.2, 1L to 0.2, 2L to 0.2, 3L to 0.4, 4L to 0.2, 5L to 0.0),
+        methodology = TrusTeeMethodology(5),
+      )
+
+    private val KEK_URI_1 = "fake-kms://kek_uri_1"
+    private val KEK_URI_2 = "fake-kms://kek_uri_2"
+    private val KEK_URI_3 = "fake-kms://kek_uri_3"
+    private val KEK_KEYSET_HANDLE_1 = KeysetHandle.generateNew(KeyTemplates.get("AES128_GCM"))
+    private val KEK_KEYSET_HANDLE_2 = KeysetHandle.generateNew(KeyTemplates.get("AES128_GCM"))
+    private val KEK_KEYSET_HANDLE_3 = KeysetHandle.generateNew(KeyTemplates.get("AES128_GCM"))
+    private val KEK_AEAD_1: Aead = KEK_KEYSET_HANDLE_1.getPrimitive(Aead::class.java)
+    private val KEK_AEAD_2: Aead = KEK_KEYSET_HANDLE_2.getPrimitive(Aead::class.java)
+    private val KEK_AEAD_3: Aead = KEK_KEYSET_HANDLE_3.getPrimitive(Aead::class.java)
+
+    /** Encrypt a dek KeysetHandle and convert into bytes. */
+    private fun KeysetHandle.toEncryptedByteString(kekAead: Aead): ByteString {
+      val outputStream = ByteArrayOutputStream()
+      this.write(BinaryKeysetWriter.withOutputStream(outputStream), kekAead)
+      return outputStream.toByteArray().toByteString()
+    }
+
+    private val REQUISITION_1 =
+      TEST_REQUISITION_1.toRequisitionMetadata(Requisition.State.FULFILLED).copy {
+        details =
+          details.copy {
+            protocol =
+              RequisitionDetailsKt.requisitionProtocol {
+                trusTee = requisitionTrusTee {
+                  encryptedDekCiphertext = DEK_KEYSET_HANDLE_1.toEncryptedByteString(KEK_AEAD_1)
+                  kmsKekUri = KEK_URI_1
+                  workloadIdentityProvider = "WIP_1"
+                  impersonatedServiceAccount = "SA_1"
+                }
+              }
+          }
+        path = RequisitionBlobContext(GLOBAL_ID, externalKey.externalRequisitionId).blobKey
+      }
+
+    private val REQUISITION_2 =
+      TEST_REQUISITION_2.toRequisitionMetadata(Requisition.State.FULFILLED).copy {
+        details =
+          details.copy {
+            protocol =
+              RequisitionDetailsKt.requisitionProtocol {
+                trusTee = requisitionTrusTee {
+                  encryptedDekCiphertext = DEK_KEYSET_HANDLE_2.toEncryptedByteString(KEK_AEAD_2)
+                  kmsKekUri = KEK_URI_2
+                  workloadIdentityProvider = "WIP_2"
+                  impersonatedServiceAccount = "SA_2"
+                }
+              }
+          }
+        path = RequisitionBlobContext(GLOBAL_ID, externalKey.externalRequisitionId).blobKey
+      }
+
+    private val REQUISITION_3 =
+      TEST_REQUISITION_3.toRequisitionMetadata(Requisition.State.FULFILLED).copy {
+        details =
+          details.copy {
+            protocol =
+              RequisitionDetailsKt.requisitionProtocol {
+                trusTee = requisitionTrusTee {
+                  encryptedDekCiphertext = DEK_KEYSET_HANDLE_3.toEncryptedByteString(KEK_AEAD_3)
+                  kmsKekUri = KEK_URI_3
+                  workloadIdentityProvider = "WIP_3"
+                  impersonatedServiceAccount = "SA_3"
+                }
+              }
+          }
+        path = RequisitionBlobContext(GLOBAL_ID, externalKey.externalRequisitionId).blobKey
+      }
+
+    private val REQUISITIONS = listOf(REQUISITION_1, REQUISITION_2, REQUISITION_3)
+
+    private val TRUSTEE_PARAMETERS =
+      TrusTeeKt.ComputationDetailsKt.parameters {
+        maximumFrequency = 5
+        reachDpParams = differentialPrivacyParams {
+          epsilon = 1.1
+          delta = 0.1
+        }
+        frequencyDpParams = differentialPrivacyParams {
+          epsilon = 2.1
+          delta = 0.1
+        }
+        noiseMechanism = NoiseMechanism.CONTINUOUS_GAUSSIAN
+      }
+
+    private val COMPUTATION_DETAILS = computationDetails {
+      kingdomComputation =
+        ComputationDetailsKt.kingdomComputationDetails {
+          publicApiVersion = PUBLIC_API_VERSION
+          measurementPublicKey = MEASUREMENT_ENCRYPTION_PUBLIC_KEY.toDuchyEncryptionPublicKey()
+          measurementSpec = SERIALIZED_MEASUREMENT_SPEC
+          participantCount = 1
+        }
+      trusTee =
+        TrusTeeKt.computationDetails {
+          role = RoleInComputation.AGGREGATOR
+          parameters = TRUSTEE_PARAMETERS
+        }
+    }
   }
 }

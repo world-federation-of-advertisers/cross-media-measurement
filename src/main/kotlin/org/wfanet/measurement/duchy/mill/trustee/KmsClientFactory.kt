@@ -15,18 +15,17 @@
 package org.wfanet.measurement.duchy.mill.trustee
 
 import com.google.crypto.tink.KmsClient
+import java.security.GeneralSecurityException
 
 /**
  * Configuration for creating credentials using Workload Identity Federation (WIF) and service
  * account impersonation.
  *
- * audience The audience for the WIF token exchange.
- * subjectTokenType The type of the token being presented (e.g., an OIDC token type).
- * tokenUrl The Security Token Service (STS) token endpoint URL.
- * credentialSourceFilePath The file path to the subject token (e.g., an attestation
- *   token).
- * serviceAccountImpersonationUrl The URL to impersonate a service account to get a final
- *   access token.
+ * audience The audience for the WIF token exchange. subjectTokenType The type of the token being
+ * presented (e.g., an OIDC token type). tokenUrl The Security Token Service (STS) token endpoint
+ * URL. credentialSourceFilePath The file path to the subject token (e.g., an attestation token).
+ * serviceAccountImpersonationUrl The URL to impersonate a service account to get a final access
+ * token.
  */
 data class WifCredentialsConfig(
   val audience: String,
@@ -38,13 +37,10 @@ data class WifCredentialsConfig(
 
 /** Factory for creating [KmsClient] instances. */
 interface KmsClientFactory {
-  /** Returns a [KmsClient] instance using default credentials (e.g., ADC). */
-  fun getKmsClient(): KmsClient
-
   /**
    * Returns a [KmsClient] instance using Workload Identity Federation credentials.
    *
    * @param config The configuration for WIF and service account impersonation.
    */
-  fun getKmsClient(config: WifCredentialsConfig): KmsClient
+  @Throws(GeneralSecurityException::class) fun getKmsClient(config: WifCredentialsConfig): KmsClient
 }

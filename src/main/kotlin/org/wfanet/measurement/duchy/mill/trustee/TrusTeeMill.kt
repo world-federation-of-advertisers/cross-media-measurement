@@ -19,9 +19,8 @@ import com.google.crypto.tink.BinaryKeysetReader
 import com.google.crypto.tink.KeysetHandle
 import com.google.crypto.tink.KmsClient
 import com.google.protobuf.ByteString
-import io.grpc.Status
-import io.grpc.StatusRuntimeException
 import java.nio.ByteBuffer
+import java.nio.file.Path
 import java.security.GeneralSecurityException
 import java.time.Clock
 import java.time.Duration
@@ -62,7 +61,7 @@ class TrusTeeMill(
   workLockDuration: Duration,
   private val trusTeeCryptorFactory: TrusTeeCryptor.Factory,
   private val kmsClientFactory: KmsClientFactory,
-  private val attestationTokenPath: String,
+  private val attestationTokenPath: Path,
   requestChunkSizeBytes: Int = 1024 * 32,
   maximumAttempts: Int = 10,
   clock: Clock = Clock.systemUTC(),
@@ -83,7 +82,6 @@ class TrusTeeMill(
     maximumAttempts = maximumAttempts,
     clock = clock,
   ) {
-  init {}
 
   override val endingStage = Stage.COMPLETE.toProtocolStage()
 
@@ -155,14 +153,14 @@ class TrusTeeMill(
         audience = protocol.workloadIdentityProvider,
         subjectTokenType = OAUTH_TOKEN_TYPE_ID_TOKEN,
         tokenUrl = GOOGLE_STS_TOKEN_URL,
-        credentialSourceFilePath = attestationTokenPath,
+        credentialSourceFilePath = attestationTokenPath.toString(),
         serviceAccountImpersonationUrl =
           IAM_IMPERSONATION_URL_FORMAT.format(protocol.impersonatedServiceAccount),
       )
 
     try {
       return kmsClientFactory.getKmsClient(config)
-    } catch (e: Exception) {
+    } catch (e: GeneralSecurityException) {
       throw PermanentErrorException("Failed to create KMS client", e)
     }
   }
@@ -178,16 +176,11 @@ class TrusTeeMill(
         BinaryKeysetReader.withBytes(protocol.encryptedDekCiphertext.toByteArray()),
         kekAead,
       )
-    } catch (e: StatusRuntimeException) {
-      val message = "KMS communication failed: ${e.status.description}"
-      when (e.status.code) {
-        Status.Code.UNAVAILABLE,
-        Status.Code.DEADLINE_EXCEEDED,
-        Status.Code.ABORTED -> throw TransientErrorException(message, e)
-        else -> throw PermanentErrorException(message, e)
-      }
     } catch (e: GeneralSecurityException) {
-      throw PermanentErrorException("Failed to get DEK keyset due to a cryptographic error", e)
+      // Note: The implementation of gcpkms from tink wraps all exception including RuntimeException
+      // as
+      // GeneralSecurityException. So we have to regard them all as transient to retry.
+      throw TransientErrorException("Failed to get DEK keyset due to a cryptographic error", e)
     }
   }
 
@@ -204,7 +197,7 @@ class TrusTeeMill(
 
       return toIntArray(decryptedBytes)
     } catch (e: GeneralSecurityException) {
-      throw PermanentErrorException(
+      throw TransientErrorException(
         "Failed to decrypt requisition data due to a cryptographic error",
         e,
       )
