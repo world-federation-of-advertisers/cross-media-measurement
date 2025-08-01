@@ -1,0 +1,6 @@
+package(default_visibility = ["//visibility:public"])
+
+alias(
+    name = "secretmanager",
+    actual = "@maven//:com_google_cloud_google_cloud_secretmanager",
+)

@@ -157,6 +157,7 @@ kt_jvm_library(
     deps = [
         ":requisition_stub_factory_impl",
         ":results_fulfiller_app",
+        "//imports/java/com/google/cloud/secretmanager",
         "//imports/java/com/google/crypto/tink/integration/gcpkms",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/pubsub:google_pub_sub_client",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/pubsub:publisher",
