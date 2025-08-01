@@ -86,6 +86,7 @@ fun ComputationToken.role(): RoleInComputation {
       computationDetails.reachOnlyLiquidLegionsV2.role
     ComputationDetails.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE ->
       computationDetails.honestMajorityShareShuffle.role
+    ComputationDetails.ProtocolCase.TRUS_TEE -> computationDetails.trusTee.role
     ComputationDetails.ProtocolCase.PROTOCOL_NOT_SET ->
       error("Invalid computation protocol to get role.")
   }
