@@ -68,12 +68,17 @@ jobs:
         shell: bash
         name: Compute workflow conclusion
         run: |
+          set -euo pipefail
+          job_results="${{ join(needs.*.result, ' ') }}"
           conclusion="success"
-          if [[ ${{ contains(needs.*.result, 'failure') }} == "true" ]]; then
-            conclusion="failure"
-          elif [[ ${{ contains(needs.*.result, 'cancelled') }} == "true" ]]; then
-            conclusion="cancelled"
-          fi
+          for job_result in ${job_results}; do
+            if [[ ${job_result} == "failure" ]]; then
+              conclusion="failure"
+              break
+            elif [[ ${job_result} != "success" ]]; then
+              conclusion="other"
+            fi
+          done
           echo "conclusion=${conclusion}" >> "$GITHUB_OUTPUT"
 
       - id: compute-notification-title
@@ -81,13 +86,17 @@ jobs:
         name: Compute notification title
         run: |
           workflow_conclusion=${{ steps.compute-workflow-conclusion.outputs.conclusion }}
-          if [[ ${workflow_conclusion} == "success" ]]; then
-            title=":white_check_mark: Successfully deployed nightly build"
-          elif [[ ${workflow_conclusion} == "failure" ]]; then
-            title=":x: Nightly build deployment failed"
-          else
-            title=":warning: Nightly build deployment finished with status: ${workflow_conclusion}"
-          fi
+          case "${workflow_conclusion}" in
+            "success")
+              title=":white_check_mark: Successfully deployed nightly build"
+              ;;
+            "failure")
+              title=":x: Nightly build deployment failed"
+              ;;
+            *)
+              title=":warning: Nightly build deployment finished with status: ${workflow_conclusion}"
+              ;;
+          esac
           echo "title=${title}." >> "$GITHUB_OUTPUT"
 
       - name: Post deployment start message to Slack channel
