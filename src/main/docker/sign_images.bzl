@@ -15,18 +15,16 @@
 """ Image signing scripts """
 
 load("//build:variables.bzl", "IMAGE_REPOSITORY_SETTINGS")
-load("//src/main/docker/panel_exchange_client:images.bzl", "ALL_IMAGES")
-load(":images.bzl", "IMAGES_TO_SIGN")
 
 def _compute_image_list(ctx):
     registry = ctx.expand_make_variables("registry", IMAGE_REPOSITORY_SETTINGS.container_registry, {})
     tag = ctx.expand_make_variables("tag", IMAGE_REPOSITORY_SETTINGS.image_tag, {})
 
-    def image_ref(image_spec):
-        repository = ctx.expand_make_variables("repository", image_spec.repository, {})
-        return "%s/%s:%s" % (registry, repository, tag)
+    def image_ref(image_name):
+        expanded_image_name = ctx.expand_make_variables("image_name", image_name, {})
+        return "%s/%s:%s" % (registry, expanded_image_name, tag)
 
-    return [image_ref(i) for i in IMAGES_TO_SIGN] + [image_ref(i) for i in ALL_IMAGES]
+    return [image_ref(i) for i in ctx.attr.image_names]
 
 def _sign_images_impl(ctx):
     image_refs = _compute_image_list(ctx)
@@ -61,6 +59,10 @@ sign_images = rule(
             cfg = "exec",
             allow_single_file = True,
             default = Label("@cosign_bin//file"),
+        ),
+        "image_names": attr.string_list(
+            mandatory = True,
+            doc = "List of image names to sign"
         ),
     },
     executable = True,

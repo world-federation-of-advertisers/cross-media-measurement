@@ -78,11 +78,14 @@ jobs:
           service_account: ${{ inputs.service-account }}
 
       - name: Build image signing script
-        run: |
-          bazelisk build //src/main/docker:sign_all_images
+        run: >
+          bazelisk build 
+          //src/main/docker:sign_images
+          //src/main/docker/panel_exchange_client:sign_images
 
       - name: Sign images
         env:
           GCP_KMS_KEY_FOR_SIGNING: ${{ inputs.kms-key-resource-name }}
         run: |
-          bazelisk run //src/main/docker:sign_all_images -- $GCP_KMS_KEY_FOR_SIGNING
+          bazelisk run //src/main/docker:sign_images -- $GCP_KMS_KEY_FOR_SIGNING
+          bazelisk run //src/main/docker/panel_exchange_client:sign_images -- $GCP_KMS_KEY_FOR_SIGNING
