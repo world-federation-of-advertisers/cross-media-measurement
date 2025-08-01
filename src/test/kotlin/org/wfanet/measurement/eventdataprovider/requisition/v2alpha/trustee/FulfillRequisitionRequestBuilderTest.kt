@@ -21,8 +21,6 @@ import com.google.crypto.tink.KeysetHandle
 import com.google.crypto.tink.KmsClient
 import com.google.crypto.tink.aead.AeadConfig
 import com.google.protobuf.ByteString
-import io.grpc.Status
-import io.grpc.StatusRuntimeException
 import java.security.GeneralSecurityException
 import kotlin.test.assertFailsWith
 import org.junit.Test
@@ -158,11 +156,11 @@ class FulfillRequisitionRequestBuilderTest {
   @Test
   fun `buildEncrypted fails for kms client getAead failure`() {
     val kmsClientMock: KmsClient = mock()
-    val rpcException = Status.DEADLINE_EXCEEDED.asRuntimeException()
-    whenever(kmsClientMock.getAead(any())).thenThrow(rpcException)
+    val errorMessage = "Mocked get AEAD failure"
+    whenever(kmsClientMock.getAead(any())).thenThrow(GeneralSecurityException(errorMessage))
 
     val exception =
-      assertFailsWith<StatusRuntimeException> {
+      assertFailsWith<GeneralSecurityException> {
         FulfillRequisitionRequestBuilder.buildEncrypted(
           REQUISITION,
           NONCE,
@@ -174,40 +172,15 @@ class FulfillRequisitionRequestBuilderTest {
         )
       }
 
-    assertThat(exception.status.code).isEqualTo(Status.Code.DEADLINE_EXCEEDED)
-  }
-
-  @Test
-  fun `buildEncrypted fails for dek encryption rpc failure`() {
-    val aeadMock: Aead = mock()
-    val rpcException = Status.ABORTED.asRuntimeException()
-    whenever(aeadMock.encrypt(any(), any())).thenThrow(rpcException)
-
-    val kmsClientMock: KmsClient = mock()
-    whenever(kmsClientMock.getAead(KEK_URI)).thenReturn(aeadMock)
-
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
-        FulfillRequisitionRequestBuilder.buildEncrypted(
-          REQUISITION,
-          NONCE,
-          FREQUENCY_VECTOR,
-          kmsClientMock,
-          KEK_URI,
-          WORKLOAD_ID_PROVIDER,
-          IMPERSONATED_SERVICE_ACCOUNT,
-        )
-      }
-
-    assertThat(exception.status.code).isEqualTo(Status.Code.ABORTED)
+    assertThat(exception.message).isEqualTo(errorMessage)
   }
 
   @Test
   fun `buildEncrypted fails for dek encryption failure`() {
     val aeadMock: Aead = mock()
     KMS_CLIENT.setAead(KEK_URI, aeadMock)
-    whenever(aeadMock.encrypt(any(), any()))
-      .thenThrow(GeneralSecurityException("Mocked KEK AEAD encryption failure"))
+    val errorMessage = "Mocked KEK AEAD encryption failure"
+    whenever(aeadMock.encrypt(any(), any())).thenThrow(GeneralSecurityException(errorMessage))
 
     val exception =
       assertFailsWith<GeneralSecurityException> {
@@ -222,7 +195,7 @@ class FulfillRequisitionRequestBuilderTest {
         )
       }
 
-    assertThat(exception.message).isEqualTo("Mocked KEK AEAD encryption failure")
+    assertThat(exception.message).isEqualTo(errorMessage)
   }
 
   @Test
@@ -240,7 +213,6 @@ class FulfillRequisitionRequestBuilderTest {
     assertThat(exception).hasMessageThat().contains("Cannot build unencrypted request")
   }
 
-  // region build() Failure Tests
   @Test
   fun `buildEncrypted fails when encryption params are not provided`() {
     val builder = FulfillRequisitionRequestBuilder(REQUISITION, NONCE, FREQUENCY_VECTOR, null)
