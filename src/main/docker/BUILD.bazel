@@ -4,7 +4,7 @@ load(
     "container_push_all",
 )
 load("//build:variables.bzl", "IMAGE_REPOSITORY_SETTINGS")
-load(":images.bzl", "ALL_EKS_IMAGES", "ALL_GKE_IMAGES", "ALL_IMAGES", "ALL_LOCAL_IMAGES", "ALL_REPORTING_GKE_IMAGES", "ALL_TEE_APP_GKE_IMAGES")
+load(":images.bzl", "ALL_EKS_IMAGES", "ALL_GKE_IMAGES", "ALL_IMAGES", "ALL_LOCAL_IMAGES", "ALL_REPORTING_GKE_IMAGES", "ALL_TEE_APP_GKE_IMAGES", "IMAGES_TO_SIGN")
 load(":sign_images.bzl", "sign_images")
 
 package(
@@ -137,5 +137,6 @@ container_push_all(
 )
 
 sign_images(
-    name = "sign_all_images",
+    name = "sign_images",
+    image_names = [image_spec.repository for image_spec in IMAGES_TO_SIGN]
 )
