@@ -236,6 +236,7 @@ maven.install(
         "com.google.cloud.functions.invoker:java-function-invoker:1.4.0",
         "com.google.auth:google-auth-library-credentials",
         "com.google.auth:google-auth-library-oauth2-http",
+        "com.google.cloud:google-cloud-secretmanager",
 
         # AWS
         "software.amazon.awssdk:acmpca",

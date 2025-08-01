@@ -178,3 +178,27 @@ java_image(
     main_class = "org.wfanet.measurement.edpaggregator.resultsfulfiller.ResultsFulfillerAppRunner",
     visibility = ["//src:docker_image_deployment"],
 )
+
+kt_jvm_library(
+    name = "tee_test",
+    srcs = ["TeeTest.kt"],
+    deps = [
+        "//imports/java/com/google/cloud/secretmanager",
+        "@wfa_common_jvm//imports/java/picocli",
+    ],
+)
+
+java_binary(
+    name = "TeeTest",
+    main_class = "org.wfanet.measurement.edpaggregator.resultsfulfiller.TeeTest",
+    runtime_deps = [
+        ":tee_test",
+    ],
+)
+
+java_image(
+    name = "tee_test_image",
+    binary = ":TeeTest",
+    main_class = "org.wfanet.measurement.edpaggregator.resultsfulfiller.TeeTest",
+    visibility = ["//src:docker_image_deployment"],
+)
