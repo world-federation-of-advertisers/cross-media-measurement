@@ -341,8 +341,8 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/api/v2alpha:media_type_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/protobuf",
     ],
-)   
-      
+)
+
 kt_jvm_library(
     name = "basic_report_transformations",
     srcs = ["BasicReportTransformations.kt"],
