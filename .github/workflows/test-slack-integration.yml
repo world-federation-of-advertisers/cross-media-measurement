@@ -39,72 +39,14 @@ jobs:
         run: |
           sleep 20
           echo "This step is going to fail on purpose"
-          exit 0
+          exit 1
 
   test-notifications:
-    runs-on: ubuntu-22.04
+    uses: ./.github/workflows/slack-nightly-build-notification.yml
     needs: [ previous-job-ok, previous-job-skipped, previous-job-failure ]
-    if: always()
-    steps:
-      - name: Check out revision
-        uses: actions/checkout@v4
-
-      - id: dummy-compute-tag
-        name: dummy create tag
-        run: echo "tag=nightly/20250722.1" >> "$GITHUB_OUTPUT"
-
-      - id: get-latest-release-tag
-        uses: actions/github-script@v7
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          script: |
-            const { data: release } = await github.rest.repos.getLatestRelease({
-              owner: context.repo.owner,
-              repo:  context.repo.repo
-            });
-            core.setOutput("latest_release_tag", release.tag_name);
-
-      - id: compute-workflow-conclusion
-        shell: bash
-        name: Compute workflow conclusion
-        run: |
-          set -euo pipefail
-          job_results="${{ join(needs.*.result, ' ') }}"
-          conclusion="success"
-          for job_result in ${job_results}; do
-            if [[ ${job_result} == "failure" ]]; then
-              conclusion="failure"
-              break
-            elif [[ ${job_result} != "success" ]]; then
-              conclusion="other"
-            fi
-          done
-          echo "conclusion=${conclusion}" >> "$GITHUB_OUTPUT"
-
-      - id: compute-notification-title
-        shell: bash
-        name: Compute notification title
-        run: |
-          workflow_conclusion=${{ steps.compute-workflow-conclusion.outputs.conclusion }}
-          case "${workflow_conclusion}" in
-            "success")
-              title=":white_check_mark: Successfully deployed nightly build"
-              ;;
-            "failure")
-              title=":x: Nightly build deployment failed"
-              ;;
-            *)
-              title=":warning: Nightly build deployment finished with status: ${workflow_conclusion}"
-              ;;
-          esac
-          echo "title=${title}." >> "$GITHUB_OUTPUT"
-
-      - name: Post deployment start message to Slack channel
-        uses: ./.github/actions/send-nightly-build-notification
-        with:
-          slack_bot_token: ${{ secrets.SLACK_BOT_TOKEN }}
-          housekeeping_channel_id: ${{ secrets.SLACK_HOUSEKEEPING_CHANNEL }}
-          title: ${{ steps.compute-notification-title.outputs.title }}
-          nightly_build_tag: ${{ steps.dummy-compute-tag.outputs.tag }}
-          latest_release_tag: ${{ steps.get-latest-release-tag.outputs.latest_release_tag }}
-
+    secrets: inherit
+    if: ${{ !cancelled() }}
+    with:
+      # WIP - image-tag
+      image-tag: "dummy-tag"
+      job-results: ${{ join(needs.*.result, ' ') }}
