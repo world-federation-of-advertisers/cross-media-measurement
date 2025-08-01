@@ -49,6 +49,10 @@ on:
       existing-image-tag:
         description: "Tag of existing published images (skips push)"
         type: string
+      send-slack-notification:
+        description: "Send slack notification (for scheduled nightly builds)"
+        type: boolean
+        default: false
 
 jobs:
   publish-images:
@@ -157,3 +161,12 @@ jobs:
     secrets: inherit
     with:
       environment: ${{ inputs.environment }}
+
+  send-slack-notification:
+    uses: ./.github/workflows/slack-nightly-build-notification.yml
+    needs: [ publish-images, run-tests, update-secure-computation, scan-images ]
+    secrets: inherit
+    if: ${{ !cancelled() && inputs.send-slack-notification }}
+    with:
+      image-tag: ${{ needs.publish-images.outputs.image-tag }}
+      job-results: ${{ join(needs.*.result, ' ') }}

@@ -18,13 +18,13 @@ on:
   workflow_call:
     inputs:
       image-tag:
-        type: string
-        required: true
         description: "Nightly build tag"
-      job-results:
         type: string
         required: true
+      job-results:
         description: "Space separated collection of relevant job results (e.g, 'success failure success skipped')"
+        type: string
+        required: true
 
 jobs:
   send-notification:
