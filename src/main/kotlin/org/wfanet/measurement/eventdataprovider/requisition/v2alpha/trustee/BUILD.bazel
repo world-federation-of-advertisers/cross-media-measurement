@@ -1,6 +1,11 @@
 load("@rules_jvm_external//:defs.bzl", "maven_export")
+load("@wfa_common_jvm//build:defs.bzl", "test_target")
 load("@wfa_common_jvm//build/maven:defs.bzl", "artifact_version")
 load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
+
+package(default_visibility = [
+    test_target(":__pkg__"),
+])
 
 MAVEN_COORDINATES = "org.wfanet.measurement.eventdataprovider:requisition-trustee-v2alpha:" + artifact_version()
 
