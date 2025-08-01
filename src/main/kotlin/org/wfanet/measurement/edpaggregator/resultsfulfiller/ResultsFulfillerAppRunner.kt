@@ -287,10 +287,10 @@ class ResultsFulfillerAppRunner : Runnable {
     private val logger = Logger.getLogger(this::class.java.name)
 
     private const val SECRET_VERSION = "latest"
-    private const val EDPA_TLS_CERT_FILE_PATH = "/etc/ssl/edpa_tee_app_tls.pem"
-    private const val EDPA_TLS_KEY_FILE_PATH = "/etc/ssl/edpa_tee_app_tls.key"
-    private const val SECURE_COMPUTATION_ROOT_CA_FILE_PATH = "/etc/ssl/secure_computation_root.pem"
-    private const val KINGDOM_ROOT_CA_FILE_PATH = "/etc/ssl/kingdom_root.pem"
+    private const val EDPA_TLS_CERT_FILE_PATH = "/tmp/edpa_certs/edpa_tee_app_tls.pem"
+    private const val EDPA_TLS_KEY_FILE_PATH = "/tmp/edpa_certs/edpa_tee_app_tls.key"
+    private const val SECURE_COMPUTATION_ROOT_CA_FILE_PATH = "/tmp/edpa_certs/secure_computation_root.pem"
+    private const val KINGDOM_ROOT_CA_FILE_PATH = "/tmp/edpa_certs/kingdom_root.pem"
 
     @JvmStatic fun main(args: Array<String>) = commandLineMain(ResultsFulfillerAppRunner(), args)
   }
