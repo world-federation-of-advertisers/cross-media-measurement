@@ -393,3 +393,20 @@ kt_jvm_test(
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/testing",
     ],
 )
+
+kt_jvm_test(
+    name = "BasicReportTransformationsTest",
+    srcs = ["BasicReportTransformationsTest.kt"],
+    test_class = "org.wfanet.measurement.reporting.service.api.v2alpha.BasicReportTransformationsTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha:basic_report_transformations",
+        "//src/main/proto/wfa/measurement/internal/reporting/v2:metric_calculation_spec_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/reporting/v2:metric_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/reporting/v2alpha:metric_frequency_spec_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/reporting/v2alpha:reporting_set_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/reporting/v2alpha:reporting_unit_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/reporting/v2alpha:result_group_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+    ],
+)
