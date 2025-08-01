@@ -4,8 +4,8 @@ load(
     "container_push_all",
 )
 load("//build:variables.bzl", "IMAGE_REPOSITORY_SETTINGS")
-load(":images.bzl", "ALL_EKS_IMAGES", "ALL_GKE_IMAGES", "ALL_IMAGES", "ALL_LOCAL_IMAGES", "ALL_REPORTING_GKE_IMAGES", "ALL_TEE_APP_GKE_IMAGES", "IMAGES_TO_SIGN")
 load("//build/cosign:sign_images.bzl", "sign_images")
+load(":images.bzl", "ALL_EKS_IMAGES", "ALL_GKE_IMAGES", "ALL_IMAGES", "ALL_LOCAL_IMAGES", "ALL_REPORTING_GKE_IMAGES", "ALL_TEE_APP_GKE_IMAGES", "IMAGES_TO_SIGN")
 
 package(
     default_testonly = True,  #TODO: delete when InMemoryKeyStore and FakeHybridCipher are not used.
@@ -138,5 +138,5 @@ container_push_all(
 
 sign_images(
     name = "sign_images",
-    image_names = [image_spec.repository for image_spec in IMAGES_TO_SIGN]
+    image_names = [image_spec.repository for image_spec in IMAGES_TO_SIGN],
 )

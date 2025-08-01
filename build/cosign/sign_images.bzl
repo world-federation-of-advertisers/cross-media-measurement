@@ -61,7 +61,7 @@ sign_images = rule(
         ),
         "image_names": attr.string_list(
             mandatory = True,
-            doc = "List of image names to sign"
+            doc = "List of image names to sign",
         ),
     },
     executable = True,

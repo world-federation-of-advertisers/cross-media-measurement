@@ -4,8 +4,8 @@ load(
     "container_push_all",
 )
 load("//build:variables.bzl", "IMAGE_REPOSITORY_SETTINGS")
-load("//src/main/docker/panel_exchange_client:images.bzl", "ALL_IMAGES")
 load("//build/cosign:sign_images.bzl", "sign_images")
+load("//src/main/docker/panel_exchange_client:images.bzl", "ALL_IMAGES")
 
 package(
     default_testonly = True,  #TODO: delete when InMemoryKeyStore and FakeHybridCipher are not used.
@@ -41,5 +41,5 @@ container_push_all(
 
 sign_images(
     name = "sign_images",
-    image_names = [image_spec.repository for image_spec in ALL_IMAGES]
+    image_names = [image_spec.repository for image_spec in ALL_IMAGES],
 )
