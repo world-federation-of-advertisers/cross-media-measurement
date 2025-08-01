@@ -77,6 +77,35 @@ class ResultsFulfillerAppRunner : Runnable {
   )
   private lateinit var kingdomCertCollectionSecretId: String
 
+  @CommandLine.ArgGroup(
+    exclusive = false,
+    multiplicity = "1..*",
+    heading = "Single EDP certs\n"
+  )
+  lateinit var edpCerts: List<EdpFlags>
+    private set
+
+  class EdpFlags {
+    @CommandLine.Option(names = ["--edp-name"], required = true, description = ["Name of the EDP"])
+    lateinit var edpName: String
+
+    @CommandLine.Option(names = ["--edp-cert-der"], required = true, description = ["Secret ID for the EDP cert"])
+    lateinit var certDerSecretId: String
+
+    @CommandLine.Option(names = ["--edp-private-der"], required = true, description = ["Secret ID for the EDP private key"])
+    lateinit var privateDerSecretId: String
+
+    @CommandLine.Option(names = ["--edp-enc-private"], required = true, description = ["Secret ID for the EDP encryption private key"])
+    lateinit var encPrivateSecretId: String
+
+    @CommandLine.Option(names = ["--edp-tls-key"], required = true, description = ["Secret ID for the EDP TLS key"])
+    lateinit var tlsKeySecretId: String
+
+    @CommandLine.Option(names = ["--edp-tls-pem"], required = true, description = ["Secret ID for the EDP TLS cert"])
+    lateinit var tlsPemSecretId: String
+
+  }
+
   @CommandLine.Option(
     names = ["--kingdom-public-api-target"],
     description = ["gRPC target of the Kingdom public API server"],
@@ -145,7 +174,9 @@ class ResultsFulfillerAppRunner : Runnable {
 
   override fun run() {
 
+    // Pull certificates needed to operate from Google Secrets.
     saveEdpaCerts()
+    saveEdpsCerts()
 
     val queueSubscriber = createQueueSubscriber()
     val parser = createWorkItemParser()
@@ -229,7 +260,7 @@ class ResultsFulfillerAppRunner : Runnable {
   }
 
   fun saveEdpaCerts() {
-    logger.info("Storing EDP Aggregator certs file")
+    logger.info("Storing EDP Aggregator certs file...")
     val edpaCert = accessSecretBytes(googleProjectId, edpaCertSecretId, SECRET_VERSION)
     saveSecretToFile(edpaCert, EDPA_TLS_CERT_FILE_PATH)
     val edpaPrivateKey = accessSecretBytes(googleProjectId, edpaPrivateKeySecretId, SECRET_VERSION)
@@ -239,6 +270,24 @@ class ResultsFulfillerAppRunner : Runnable {
     val kingdomRootCa = accessSecretBytes(googleProjectId, kingdomCertCollectionSecretId, SECRET_VERSION)
     saveSecretToFile(kingdomRootCa, KINGDOM_ROOT_CA_FILE_PATH)
     logger.info("EDP Aggregator certs file have been stored.")
+  }
+
+  fun saveEdpsCerts() {
+    logger.info("Storing certs file for EDPs...")
+    edpCerts.forEachIndexed { index, edp ->
+      val edpName = edp.edpName
+      val edpCertDer = accessSecretBytes(googleProjectId, edp.certDerSecretId, SECRET_VERSION)
+      saveSecretToFile(edpCertDer, EDP_CERT_DER.format(edpName))
+      val edpprivateDer = accessSecretBytes(googleProjectId, edp.privateDerSecretId, SECRET_VERSION)
+      saveSecretToFile(edpprivateDer, EDP_PRIVATE_DER.format(edpName))
+      val edpEncPrivate = accessSecretBytes(googleProjectId, edp.encPrivateSecretId, SECRET_VERSION)
+      saveSecretToFile(edpEncPrivate, EDP_ENC_PRIVATE.format(edpName))
+      val edpTlsKey = accessSecretBytes(googleProjectId, edp.tlsKeySecretId, SECRET_VERSION)
+      saveSecretToFile(edpTlsKey, EDP_TLS_KEY.format(edpName))
+      val edpTlsPem = accessSecretBytes(googleProjectId, edp.tlsPemSecretId, SECRET_VERSION)
+      saveSecretToFile(edpTlsPem, EDP_TLS_PEM.format(edpName))
+    }
+    logger.info("EDPs certs file have been stored.")
   }
 
   fun saveSecretToFile(bytes: ByteArray, path: String) {
@@ -291,6 +340,11 @@ class ResultsFulfillerAppRunner : Runnable {
     private const val EDPA_TLS_KEY_FILE_PATH = "/tmp/edpa_certs/edpa_tee_app_tls.key"
     private const val SECURE_COMPUTATION_ROOT_CA_FILE_PATH = "/tmp/edpa_certs/secure_computation_root.pem"
     private const val KINGDOM_ROOT_CA_FILE_PATH = "/tmp/edpa_certs/kingdom_root.pem"
+    private const val EDP_CERT_DER = "/tmp/edp_certs/%s_cs_cert.der"
+    private const val EDP_PRIVATE_DER = "/tmp/edp_certs/%s_cs_private.der"
+    private const val EDP_ENC_PRIVATE = "/tmp/edp_certs/%s_enc_private.tink"
+    private const val EDP_TLS_KEY = "/tmp/edp_certs/%s_tls.key"
+    private const val EDP_TLS_PEM = "/tmp/edp_certs/%s_tls.pem"
 
     @JvmStatic fun main(args: Array<String>) = commandLineMain(ResultsFulfillerAppRunner(), args)
   }
