@@ -37,7 +37,7 @@ import org.wfanet.measurement.common.crypto.tink.loadPrivateKey
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.dataprovider.DataProviderData
-import org.wfanet.measurement.eventdataprovider.shareshuffle.v2alpha.VidIndexMap
+import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.VidIndexMap
 import org.wfanet.measurement.loadtest.config.PrivacyBudgets.createNoOpPrivacyBudgetManager
 import picocli.CommandLine
 

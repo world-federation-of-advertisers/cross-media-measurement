@@ -4,10 +4,10 @@ load("@wfa_common_jvm//build/maven:defs.bzl", "artifact_version")
 load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
 
 package(default_visibility = [
-    test_target(":__pkg__"),
+    test_target(":__subpackages__"),
 ])
 
-MAVEN_COORDINATES = "org.wfanet.measurement.eventdataprovider:shareshuffle-native:" + artifact_version()
+MAVEN_COORDINATES = "org.wfanet.measurement.eventdataprovider:requisition-native:" + artifact_version()
 
 java_native_libraries(
     name = "native_deps",
