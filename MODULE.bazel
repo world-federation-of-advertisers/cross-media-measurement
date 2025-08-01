@@ -42,9 +42,9 @@ bazel_dep(
 )
 archive_override(
     module_name = "common-jvm",
-    strip_prefix = "common-jvm-479cdb0a4e8ae876197e8acf6920691862cb90c1",
+    strip_prefix = "common-jvm-90e1e51f20517ff174c8ff6660d16dd97b29c85f",
     urls = [
-        "https://github.com/world-federation-of-advertisers/common-jvm/archive/479cdb0a4e8ae876197e8acf6920691862cb90c1.tar.gz",
+        "https://github.com/world-federation-of-advertisers/common-jvm/archive/90e1e51f20517ff174c8ff6660d16dd97b29c85f.tar.gz",
     ],
 )
 
