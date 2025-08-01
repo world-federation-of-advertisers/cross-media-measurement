@@ -32,7 +32,6 @@ import org.wfanet.measurement.common.crypto.tink.KmsClientFactory
 import org.wfanet.measurement.common.crypto.tink.WifCredentialsConfig
 import org.wfanet.measurement.duchy.db.computation.ComputationDataClients
 import org.wfanet.measurement.duchy.db.computation.ComputationDataClients.PermanentErrorException
-import org.wfanet.measurement.duchy.db.computation.ComputationDataClients.TransientErrorException
 import org.wfanet.measurement.duchy.mill.Certificate
 import org.wfanet.measurement.duchy.mill.MillBase
 import org.wfanet.measurement.duchy.mill.trustee.crypto.TrusTeeCryptor
@@ -179,10 +178,7 @@ class TrusTeeMill(
         kekAead,
       )
     } catch (e: GeneralSecurityException) {
-      // Note: The implementation of gcpkms from tink wraps all exception including RuntimeException
-      // as
-      // GeneralSecurityException. So we have to regard them all as transient to retry.
-      throw TransientErrorException("Failed to get DEK keyset due to a cryptographic error", e)
+      throw PermanentErrorException("Failed to get DEK keyset due to a cryptographic error", e)
     }
   }
 
@@ -199,7 +195,7 @@ class TrusTeeMill(
 
       return toIntArray(decryptedBytes)
     } catch (e: GeneralSecurityException) {
-      throw TransientErrorException(
+      throw PermanentErrorException(
         "Failed to decrypt requisition data due to a cryptographic error",
         e,
       )
