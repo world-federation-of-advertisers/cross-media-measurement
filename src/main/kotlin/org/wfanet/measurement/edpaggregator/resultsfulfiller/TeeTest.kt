@@ -10,6 +10,33 @@ import picocli.CommandLine
 @CommandLine.Command(name = "tee_test")
 class TeeTest : Runnable {
 
+  @CommandLine.ArgGroup(
+    exclusive = false,
+    multiplicity = "1..*",
+    heading = "Single EDP certs\n"
+  )
+  lateinit var edpCerts: List<EdpFlags>
+    private set
+
+  class EdpFlags {
+    @CommandLine.Option(names = ["--edp-name"], required = true, description = ["Name of the EDP"])
+    lateinit var edpName: String
+
+    @CommandLine.Option(
+      names = ["--edp-cert-der"],
+      required = true,
+      description = ["Secret ID for the EDP cert"]
+    )
+    lateinit var certDerSecretId: String
+
+    @CommandLine.Option(
+      names = ["--edp-private-der"],
+      required = true,
+      description = ["Secret ID for the EDP private key"]
+    )
+    lateinit var privateDerSecretId: String
+  }
+
   @CommandLine.Option(
     names = ["--test-flag"],
     description = ["A test flag to demonstrate Picocli input."],
@@ -27,6 +54,13 @@ class TeeTest : Runnable {
     logger.info("TeeTest.mainFunction")
     logger.info("TeeTest.run called with --test-flag=$testFlag")
 
+    edpCerts.forEachIndexed { index, edp ->
+      logger.info("EDP #$index:")
+      logger.info("  edpName: ${edp.edpName}")
+      logger.info("  certDerSecretId: ${edp.certDerSecretId}")
+      logger.info("  privateDerSecretId: ${edp.privateDerSecretId}")
+    }
+    
     val secretValue = accessSecret(projectId, secretId, secretVersion)
     println("Secret value: $secretValue")
 
