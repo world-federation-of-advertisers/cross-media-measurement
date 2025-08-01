@@ -77,6 +77,35 @@ class ResultsFulfillerAppRunner : Runnable {
   )
   private lateinit var kingdomCertCollectionSecretId: String
 
+  @CommandLine.ArgGroup(
+    exclusive = false,
+    multiplicity = "1..*",
+    heading = "Single EDP certs\n"
+  )
+  lateinit var edpCerts: List<EdpFlags>
+    private set
+
+  class EdpFlags {
+    @CommandLine.Option(names = ["--edp-name"], required = true, description = ["Name of the EDP"])
+    lateinit var edpName: String
+
+    @CommandLine.Option(names = ["--edp-cert-der"], required = true, description = ["Secret ID for the EDP cert"])
+    lateinit var certDerSecretId: String
+
+    @CommandLine.Option(names = ["--edp-private-der"], required = true, description = ["Secret ID for the EDP private key"])
+    lateinit var privateDerSecretId: String
+
+    @CommandLine.Option(names = ["--edp-enc-private"], required = true, description = ["Secret ID for the EDP encryption private key"])
+    lateinit var encPrivateSecretId: String
+
+    @CommandLine.Option(names = ["--edp-tls-key"], required = true, description = ["Secret ID for the EDP TLS key"])
+    lateinit var tlsKeySecretId: String
+
+    @CommandLine.Option(names = ["--edp-tls-pem"], required = true, description = ["Secret ID for the EDP TLS cert"])
+    lateinit var tlsPemSecretId: String
+
+  }
+
   @CommandLine.Option(
     names = ["--kingdom-public-api-target"],
     description = ["gRPC target of the Kingdom public API server"],
@@ -241,6 +270,15 @@ class ResultsFulfillerAppRunner : Runnable {
     logger.info("EDP Aggregator certs file have been stored.")
   }
 
+  fun saveEdpsCerts() {
+    logger.info("Storing certs file for EDPs")
+    edpCerts.forEachIndexed { index, edp ->
+      println("EDP #$index: $edp")
+      // Process each EDP cert set
+    }
+    logger.info("EDPs certs file have been stored.")
+  }
+
   fun saveSecretToFile(bytes: ByteArray, path: String) {
     val file = File(path)
     file.parentFile?.mkdirs()
@@ -291,7 +329,7 @@ class ResultsFulfillerAppRunner : Runnable {
     private const val EDPA_TLS_KEY_FILE_PATH = "/etc/ssl/edpa_tee_app_tls.key"
     private const val SECURE_COMPUTATION_ROOT_CA_FILE_PATH = "/etc/ssl/secure_computation_root.pem"
     private const val KINGDOM_ROOT_CA_FILE_PATH = "/etc/ssl/kingdom_root.pem"
-
+    private const val _cs_cert.der = "/etc/ssl/%s_cs_cert.der"
     @JvmStatic fun main(args: Array<String>) = commandLineMain(ResultsFulfillerAppRunner(), args)
   }
 }
