@@ -58,7 +58,7 @@ sign_images = rule(
         ),
         "cosign": attr.label(
             executable = True,
-            cfg = "host",
+            cfg = "exec",
             allow_single_file = True,
             default = Label("@cosign_bin//file"),
         ),
