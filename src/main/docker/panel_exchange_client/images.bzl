@@ -44,3 +44,5 @@ LOCAL_IMAGES = [
         repository = _PREFIX + "/panel-exchange/forwarded-storage-daemon",
     ),
 ]
+
+ALL_IMAGES = GCLOUD_IMAGES + AWS_IMAGES + LOCAL_IMAGES

@@ -4,12 +4,8 @@ load(
     "container_push_all",
 )
 load("//build:variables.bzl", "IMAGE_REPOSITORY_SETTINGS")
-load(
-    "//src/main/docker/panel_exchange_client:images.bzl",
-    "AWS_IMAGES",
-    "GCLOUD_IMAGES",
-    "LOCAL_IMAGES",
-)
+load("//build/cosign:sign_images.bzl", "sign_images")
+load("//src/main/docker/panel_exchange_client:images.bzl", "ALL_IMAGES")
 
 package(
     default_testonly = True,  #TODO: delete when InMemoryKeyStore and FakeHybridCipher are not used.
@@ -18,8 +14,6 @@ package(
         "//src/test/kotlin/org/wfanet/panelmatch/integration/k8s:__pkg__",
     ],
 )
-
-ALL_IMAGES = GCLOUD_IMAGES + AWS_IMAGES + LOCAL_IMAGES
 
 # These rules push Docker images to the container registry.
 # 'bazel build' builds the image, 'bazel run' will actually push it.
@@ -43,4 +37,9 @@ container_push_all(
         tag = IMAGE_REPOSITORY_SETTINGS.image_tag,
     ): image_spec.image for image_spec in ALL_IMAGES},
     tags = ["manual"],
+)
+
+sign_images(
+    name = "sign_images",
+    image_names = [image_spec.repository for image_spec in ALL_IMAGES],
 )
