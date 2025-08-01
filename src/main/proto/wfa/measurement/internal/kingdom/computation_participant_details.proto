@@ -28,5 +28,7 @@ message ComputationParticipantDetails {
     LiquidLegionsV2Params reach_only_liquid_legions_v2 = 2;
 
     HonestMajorityShareShuffleParams honest_majority_share_shuffle = 3;
+
+    TrusTeeParams trus_tee = 4;
   }
 }

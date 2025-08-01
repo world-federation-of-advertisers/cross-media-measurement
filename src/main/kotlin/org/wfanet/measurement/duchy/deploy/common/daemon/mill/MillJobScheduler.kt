@@ -233,6 +233,7 @@ class MillJobScheduler(
       when (this) {
         MillType.LIQUID_LEGIONS_V2 -> liquidLegionsV2WorkLockDuration
         MillType.HONEST_MAJORITY_SHARE_SHUFFLE -> shareShuffleWorkLockDuration
+        MillType.TRUS_TEE -> error("TrusTEE is not supported")
       }
 
   private val MillType.maximumConcurrency: Int
@@ -240,6 +241,7 @@ class MillJobScheduler(
       when (this) {
         MillType.LIQUID_LEGIONS_V2 -> liquidLegionsV2MaximumConcurrency
         MillType.HONEST_MAJORITY_SHARE_SHUFFLE -> shareShuffleMaximumConcurrency
+        MillType.TRUS_TEE -> error("TrusTEE is not supported")
       }
 
   private val MillType.podTemplate: V1PodTemplate
@@ -247,6 +249,7 @@ class MillJobScheduler(
       when (this) {
         MillType.LIQUID_LEGIONS_V2 -> liquidLegionsV2PodTemplate
         MillType.HONEST_MAJORITY_SHARE_SHUFFLE -> shareShufflePodTemplate
+        MillType.TRUS_TEE -> error("TrusTEE is not supported")
       }
 
   private class Flags {
@@ -367,6 +370,7 @@ class MillJobScheduler(
         when (this) {
           MillType.LIQUID_LEGIONS_V2 -> "llv2-mill-job"
           MillType.HONEST_MAJORITY_SHARE_SHUFFLE -> "hmss-mill-job"
+          MillType.TRUS_TEE -> "trustee-mill-job"
         }
 
     @CommandLine.Command(
