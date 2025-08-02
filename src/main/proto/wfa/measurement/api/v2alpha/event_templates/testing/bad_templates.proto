@@ -66,6 +66,18 @@ message Dummy {
            "32-bit integer"];
 }
 
+message UnsupportedReportingFeature {
+  option (.wfa.measurement.api.v2alpha.event_template) = {
+    name: "unsupported_reporting_feature"
+    display_name: "Unsupported Reporting Feature"
+  };
+
+  bool annotated_field = 1 [(.wfa.measurement.api.v2alpha.template_field) = {
+    display_name: "Unsupported Reporting Feature"
+    reporting_features: REPORTING_FEATURE_UNSPECIFIED
+  }];
+}
+
 message MissingTemplateAnnotationEvent {
   MissingTemplateAnnotation missing_template_annotation = 1;
 }
@@ -84,4 +96,8 @@ message UnsupportedFieldTypeEvent {
 
 message UnsupportedRepeatedFieldEvent {
   UnsupportedRepeatedField unsupported_repeated_field = 1;
+}
+
+message UnsupportedReportingFeatureEvent {
+  UnsupportedReportingFeature unsupported_reporting_feature = 1;
 }

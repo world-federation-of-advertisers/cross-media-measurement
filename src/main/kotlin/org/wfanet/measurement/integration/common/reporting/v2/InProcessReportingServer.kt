@@ -18,6 +18,8 @@ package org.wfanet.measurement.integration.common.reporting.v2
 
 import com.google.protobuf.ByteString
 import com.google.protobuf.Descriptors
+import com.google.protobuf.ExtensionRegistry
+import com.google.protobuf.TypeRegistry
 import com.google.protobuf.util.Durations
 import io.grpc.Channel
 import io.grpc.Status
@@ -40,6 +42,7 @@ import org.wfanet.measurement.access.service.internal.PermissionMapping
 import org.wfanet.measurement.access.v1alpha.PermissionsGrpcKt
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub as PublicKingdomCertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub as PublicKingdomDataProvidersCoroutineStub
+import org.wfanet.measurement.api.v2alpha.EventAnnotationsProto
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub as PublicKingdomEventGroupMetadataDescriptorsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub as PublicKingdomEventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerCertificateKey
@@ -47,6 +50,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub as PublicKingdomMeasurementConsumersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub as PublicKingdomMeasurementsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt.ModelLinesCoroutineStub as PublicKingdomModelLinesCoroutineStub
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.api.withAuthenticationKey
 import org.wfanet.measurement.common.crypto.tink.loadPrivateKey
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
@@ -80,6 +84,7 @@ import org.wfanet.measurement.reporting.service.api.CelEnvCacheProvider
 import org.wfanet.measurement.reporting.service.api.InMemoryEncryptionKeyPairStore
 import org.wfanet.measurement.reporting.service.api.v2alpha.BasicReportsService
 import org.wfanet.measurement.reporting.service.api.v2alpha.DataProvidersService
+import org.wfanet.measurement.reporting.service.api.v2alpha.EventDescriptor
 import org.wfanet.measurement.reporting.service.api.v2alpha.EventGroupMetadataDescriptorsService
 import org.wfanet.measurement.reporting.service.api.v2alpha.EventGroupsService
 import org.wfanet.measurement.reporting.service.api.v2alpha.ImpressionQualificationFiltersService
@@ -299,6 +304,8 @@ class InProcessReportingServer(
                 internalBasicReportsClient,
                 internalImpressionQualificationFiltersClient,
                 internalReportingSetsClient,
+                EventDescriptor(TYPE_REGISTRY.find(TestEvent.getDescriptor().fullName))
+                  .eventTemplateFieldsMap,
                 authorization,
               )
               .withTrustedPrincipalAuthentication(),
@@ -334,6 +341,24 @@ class InProcessReportingServer(
 
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
+
+    private val EXTENSION_REGISTRY =
+      ExtensionRegistry.newInstance()
+        .apply {
+          add(EventAnnotationsProto.eventTemplate)
+          add(EventAnnotationsProto.templateField)
+        }
+        .unmodifiable
+
+    private val TYPE_REGISTRY =
+      TypeRegistry.newBuilder()
+        .add(
+          listOf(
+            TestEvent.parseFrom(TestEvent.getDefaultInstance().toByteString(), EXTENSION_REGISTRY)
+              .descriptorForType
+          )
+        )
+        .build()
 
     private const val NUMBER_VID_BUCKETS = 300
     private val METRIC_SPEC_CONFIG = metricSpecConfig {

@@ -17,9 +17,13 @@
 package org.wfanet.measurement.reporting.service.api.v2alpha
 
 import com.google.common.truth.Truth.assertThat
+import com.google.protobuf.ExtensionRegistry
+import com.google.protobuf.TypeRegistry
 import com.google.type.DayOfWeek
 import kotlin.test.assertFailsWith
 import org.junit.Test
+import org.wfanet.measurement.api.v2alpha.EventAnnotationsProto
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpec
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpecKt
 import org.wfanet.measurement.internal.reporting.v2.MetricSpecKt
@@ -60,7 +64,7 @@ class BasicReportTransformationsTest {
             filters += eventFilter {
               terms += eventTemplateField {
                 path = "person.age_group"
-                value = EventTemplateFieldKt.fieldValue { enumValue = "18_TO_35" }
+                value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
               }
             }
             filters += eventFilter {
@@ -94,6 +98,7 @@ class BasicReportTransformationsTest {
         impressionQualificationFilterSpecsFilters = impressionQualificationSpecsFilters,
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
+        eventTemplateFieldsMap = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsMap,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(1)
@@ -131,7 +136,7 @@ class BasicReportTransformationsTest {
               cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
               details =
                 MetricCalculationSpecKt.details {
-                  filter = "filter && (person.age_group == 18_TO_35 && person.gender == MALE)"
+                  filter = "filter && (person.age_group == 1 && person.gender == 1)"
                   metricFrequencySpec =
                     MetricCalculationSpecKt.metricFrequencySpec {
                       weekly =
@@ -159,7 +164,7 @@ class BasicReportTransformationsTest {
               cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
               details =
                 MetricCalculationSpecKt.details {
-                  filter = "filter && (person.age_group == 18_TO_35 && person.gender == MALE)"
+                  filter = "filter && (person.age_group == 1 && person.gender == 1)"
                   metricFrequencySpec =
                     MetricCalculationSpecKt.metricFrequencySpec {
                       weekly =
@@ -200,7 +205,7 @@ class BasicReportTransformationsTest {
             filters += eventFilter {
               terms += eventTemplateField {
                 path = "person.age_group"
-                value = EventTemplateFieldKt.fieldValue { enumValue = "18_TO_35" }
+                value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
               }
             }
             filters += eventFilter {
@@ -230,6 +235,7 @@ class BasicReportTransformationsTest {
         impressionQualificationFilterSpecsFilters = impressionQualificationSpecsFilters,
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
+        eventTemplateFieldsMap = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsMap,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(2)
@@ -242,7 +248,7 @@ class BasicReportTransformationsTest {
               cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
               details =
                 MetricCalculationSpecKt.details {
-                  filter = "filter && (person.age_group == 18_TO_35 && person.gender == MALE)"
+                  filter = "filter && (person.age_group == 1 && person.gender == 1)"
                   metricSpecs += metricSpec { reach = MetricSpecKt.reachParams {} }
                 }
             }
@@ -283,7 +289,7 @@ class BasicReportTransformationsTest {
               cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
               details =
                 MetricCalculationSpecKt.details {
-                  filter = "filter && (person.age_group == 18_TO_35 && person.gender == MALE)"
+                  filter = "filter && (person.age_group == 1 && person.gender == 1)"
                   metricSpecs += metricSpec {
                     reachAndFrequency = MetricSpecKt.reachAndFrequencyParams {}
                   }
@@ -317,7 +323,7 @@ class BasicReportTransformationsTest {
             filters += eventFilter {
               terms += eventTemplateField {
                 path = "person.age_group"
-                value = EventTemplateFieldKt.fieldValue { enumValue = "18_TO_35" }
+                value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
               }
             }
             filters += eventFilter {
@@ -353,6 +359,7 @@ class BasicReportTransformationsTest {
         impressionQualificationFilterSpecsFilters = impressionQualificationSpecsFilters,
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
+        eventTemplateFieldsMap = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsMap,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(3)
@@ -365,7 +372,7 @@ class BasicReportTransformationsTest {
               cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
               details =
                 MetricCalculationSpecKt.details {
-                  filter = "filter && (person.age_group == 18_TO_35 && person.gender == MALE)"
+                  filter = "filter && (person.age_group == 1 && person.gender == 1)"
                   metricFrequencySpec =
                     MetricCalculationSpecKt.metricFrequencySpec {
                       weekly =
@@ -393,7 +400,7 @@ class BasicReportTransformationsTest {
               cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
               details =
                 MetricCalculationSpecKt.details {
-                  filter = "filter && (person.age_group == 18_TO_35 && person.gender == MALE)"
+                  filter = "filter && (person.age_group == 1 && person.gender == 1)"
                   metricFrequencySpec =
                     MetricCalculationSpecKt.metricFrequencySpec {
                       weekly =
@@ -422,7 +429,7 @@ class BasicReportTransformationsTest {
               cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
               details =
                 MetricCalculationSpecKt.details {
-                  filter = "filter && (person.age_group == 18_TO_35 && person.gender == MALE)"
+                  filter = "filter && (person.age_group == 1 && person.gender == 1)"
                   metricFrequencySpec =
                     MetricCalculationSpecKt.metricFrequencySpec {
                       weekly =
@@ -450,7 +457,7 @@ class BasicReportTransformationsTest {
               cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
               details =
                 MetricCalculationSpecKt.details {
-                  filter = "filter && (person.age_group == 18_TO_35 && person.gender == MALE)"
+                  filter = "filter && (person.age_group == 1 && person.gender == 1)"
                   metricFrequencySpec =
                     MetricCalculationSpecKt.metricFrequencySpec {
                       weekly =
@@ -503,7 +510,7 @@ class BasicReportTransformationsTest {
               cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
               details =
                 MetricCalculationSpecKt.details {
-                  filter = "filter && (person.age_group == 18_TO_35 && person.gender == MALE)"
+                  filter = "filter && (person.age_group == 1 && person.gender == 1)"
                   metricFrequencySpec =
                     MetricCalculationSpecKt.metricFrequencySpec {
                       weekly =
@@ -526,7 +533,7 @@ class BasicReportTransformationsTest {
               cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
               details =
                 MetricCalculationSpecKt.details {
-                  filter = "filter && (person.age_group == 18_TO_35 && person.gender == MALE)"
+                  filter = "filter && (person.age_group == 1 && person.gender == 1)"
                   metricFrequencySpec =
                     MetricCalculationSpecKt.metricFrequencySpec {
                       weekly =
@@ -562,7 +569,7 @@ class BasicReportTransformationsTest {
             filters += eventFilter {
               terms += eventTemplateField {
                 path = "person.age_group"
-                value = EventTemplateFieldKt.fieldValue { enumValue = "18_TO_35" }
+                value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
               }
             }
             filters += eventFilter {
@@ -592,6 +599,7 @@ class BasicReportTransformationsTest {
         impressionQualificationFilterSpecsFilters = impressionQualificationSpecsFilters,
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
+        eventTemplateFieldsMap = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsMap,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(3)
@@ -604,7 +612,7 @@ class BasicReportTransformationsTest {
               cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
               details =
                 MetricCalculationSpecKt.details {
-                  filter = "filter && (person.age_group == 18_TO_35 && person.gender == MALE)"
+                  filter = "filter && (person.age_group == 1 && person.gender == 1)"
                   metricSpecs += metricSpec {
                     reachAndFrequency = MetricSpecKt.reachAndFrequencyParams {}
                   }
@@ -626,7 +634,7 @@ class BasicReportTransformationsTest {
               cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
               details =
                 MetricCalculationSpecKt.details {
-                  filter = "filter && (person.age_group == 18_TO_35 && person.gender == MALE)"
+                  filter = "filter && (person.age_group == 1 && person.gender == 1)"
                   metricSpecs += metricSpec {
                     reachAndFrequency = MetricSpecKt.reachAndFrequencyParams {}
                   }
@@ -672,7 +680,7 @@ class BasicReportTransformationsTest {
               cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
               details =
                 MetricCalculationSpecKt.details {
-                  filter = "filter && (person.age_group == 18_TO_35 && person.gender == MALE)"
+                  filter = "filter && (person.age_group == 1 && person.gender == 1)"
                   metricSpecs += metricSpec { reach = MetricSpecKt.reachParams {} }
                 }
             }
@@ -701,7 +709,7 @@ class BasicReportTransformationsTest {
             filters += eventFilter {
               terms += eventTemplateField {
                 path = "person.age_group"
-                value = EventTemplateFieldKt.fieldValue { enumValue = "18_TO_35" }
+                value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
               }
             }
             filters += eventFilter {
@@ -730,6 +738,7 @@ class BasicReportTransformationsTest {
         impressionQualificationFilterSpecsFilters = impressionQualificationSpecsFilters,
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
+        eventTemplateFieldsMap = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsMap,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(2)
@@ -742,7 +751,7 @@ class BasicReportTransformationsTest {
               cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
               details =
                 MetricCalculationSpecKt.details {
-                  filter = "filter && (person.age_group == 18_TO_35 && person.gender == MALE)"
+                  filter = "filter && (person.age_group == 1 && person.gender == 1)"
                   metricSpecs += metricSpec {
                     reachAndFrequency = MetricSpecKt.reachAndFrequencyParams {}
                   }
@@ -764,7 +773,7 @@ class BasicReportTransformationsTest {
               cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
               details =
                 MetricCalculationSpecKt.details {
-                  filter = "filter && (person.age_group == 18_TO_35 && person.gender == MALE)"
+                  filter = "filter && (person.age_group == 1 && person.gender == 1)"
                   metricSpecs += metricSpec {
                     reachAndFrequency = MetricSpecKt.reachAndFrequencyParams {}
                   }
@@ -798,7 +807,7 @@ class BasicReportTransformationsTest {
             filters += eventFilter {
               terms += eventTemplateField {
                 path = "person.age_group"
-                value = EventTemplateFieldKt.fieldValue { enumValue = "18_TO_35" }
+                value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
               }
             }
             filters += eventFilter {
@@ -823,6 +832,7 @@ class BasicReportTransformationsTest {
         impressionQualificationFilterSpecsFilters = impressionQualificationSpecsFilters,
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
+        eventTemplateFieldsMap = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsMap,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(3)
@@ -835,7 +845,7 @@ class BasicReportTransformationsTest {
               cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
               details =
                 MetricCalculationSpecKt.details {
-                  filter = "filter && (person.age_group == 18_TO_35 && person.gender == MALE)"
+                  filter = "filter && (person.age_group == 1 && person.gender == 1)"
                   metricFrequencySpec =
                     MetricCalculationSpecKt.metricFrequencySpec {
                       weekly =
@@ -864,7 +874,7 @@ class BasicReportTransformationsTest {
               cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
               details =
                 MetricCalculationSpecKt.details {
-                  filter = "filter && (person.age_group == 18_TO_35 && person.gender == MALE)"
+                  filter = "filter && (person.age_group == 1 && person.gender == 1)"
                   metricFrequencySpec =
                     MetricCalculationSpecKt.metricFrequencySpec {
                       weekly =
@@ -917,7 +927,7 @@ class BasicReportTransformationsTest {
               cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
               details =
                 MetricCalculationSpecKt.details {
-                  filter = "filter && (person.age_group == 18_TO_35 && person.gender == MALE)"
+                  filter = "filter && (person.age_group == 1 && person.gender == 1)"
                   metricFrequencySpec =
                     MetricCalculationSpecKt.metricFrequencySpec {
                       weekly =
@@ -956,7 +966,7 @@ class BasicReportTransformationsTest {
             filters += eventFilter {
               terms += eventTemplateField {
                 path = "person.age_group"
-                value = EventTemplateFieldKt.fieldValue { enumValue = "18_TO_35" }
+                value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
               }
             }
             filters += eventFilter {
@@ -981,6 +991,7 @@ class BasicReportTransformationsTest {
         impressionQualificationFilterSpecsFilters = impressionQualificationSpecsFilters,
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
+        eventTemplateFieldsMap = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsMap,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap).isEmpty()
@@ -1009,7 +1020,7 @@ class BasicReportTransformationsTest {
             filters += eventFilter {
               terms += eventTemplateField {
                 path = "person.age_group"
-                value = EventTemplateFieldKt.fieldValue { enumValue = "18_TO_35" }
+                value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
               }
             }
             filters += eventFilter {
@@ -1034,6 +1045,7 @@ class BasicReportTransformationsTest {
         impressionQualificationFilterSpecsFilters = impressionQualificationSpecsFilters,
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
+        eventTemplateFieldsMap = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsMap,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(4)
@@ -1082,7 +1094,7 @@ class BasicReportTransformationsTest {
                       count = 1
                       increment = MetricCalculationSpec.TrailingWindow.Increment.WEEK
                     }
-                  filter = "filter && (person.age_group == 18_TO_35 && person.gender == MALE)"
+                  filter = "filter && (person.age_group == 1 && person.gender == 1)"
                   metricSpecs += metricSpec { reach = MetricSpecKt.reachParams {} }
                 }
             }
@@ -1135,7 +1147,7 @@ class BasicReportTransformationsTest {
                       count = 1
                       increment = MetricCalculationSpec.TrailingWindow.Increment.WEEK
                     }
-                  filter = "filter && (person.age_group == 18_TO_35 && person.gender == MALE)"
+                  filter = "filter && (person.age_group == 1 && person.gender == 1)"
                   metricSpecs += metricSpec { reach = MetricSpecKt.reachParams {} }
                 }
             }
@@ -1188,7 +1200,7 @@ class BasicReportTransformationsTest {
                       count = 1
                       increment = MetricCalculationSpec.TrailingWindow.Increment.WEEK
                     }
-                  filter = "filter && (person.age_group == 18_TO_35 && person.gender == MALE)"
+                  filter = "filter && (person.age_group == 1 && person.gender == 1)"
                   metricSpecs += metricSpec { reach = MetricSpecKt.reachParams {} }
                 }
             }
@@ -1252,7 +1264,7 @@ class BasicReportTransformationsTest {
                       count = 1
                       increment = MetricCalculationSpec.TrailingWindow.Increment.WEEK
                     }
-                  filter = "filter && (person.age_group == 18_TO_35 && person.gender == MALE)"
+                  filter = "filter && (person.age_group == 1 && person.gender == 1)"
                   metricSpecs += metricSpec { reach = MetricSpecKt.reachParams {} }
                 }
             }
@@ -1284,7 +1296,7 @@ class BasicReportTransformationsTest {
             filters += eventFilter {
               terms += eventTemplateField {
                 path = "person.age_group"
-                value = EventTemplateFieldKt.fieldValue { enumValue = "18_TO_35" }
+                value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
               }
             }
             filters += eventFilter {
@@ -1309,6 +1321,7 @@ class BasicReportTransformationsTest {
         impressionQualificationFilterSpecsFilters = impressionQualificationSpecsFilters,
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
+        eventTemplateFieldsMap = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsMap,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(4)
@@ -1345,7 +1358,7 @@ class BasicReportTransformationsTest {
               cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
               details =
                 MetricCalculationSpecKt.details {
-                  filter = "filter && (person.age_group == 18_TO_35 && person.gender == MALE)"
+                  filter = "filter && (person.age_group == 1 && person.gender == 1)"
                   metricSpecs += metricSpec { reach = MetricSpecKt.reachParams {} }
                 }
             }
@@ -1386,7 +1399,7 @@ class BasicReportTransformationsTest {
               cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
               details =
                 MetricCalculationSpecKt.details {
-                  filter = "filter && (person.age_group == 18_TO_35 && person.gender == MALE)"
+                  filter = "filter && (person.age_group == 1 && person.gender == 1)"
                   metricSpecs += metricSpec { reach = MetricSpecKt.reachParams {} }
                 }
             }
@@ -1427,7 +1440,7 @@ class BasicReportTransformationsTest {
               cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
               details =
                 MetricCalculationSpecKt.details {
-                  filter = "filter && (person.age_group == 18_TO_35 && person.gender == MALE)"
+                  filter = "filter && (person.age_group == 1 && person.gender == 1)"
                   metricSpecs += metricSpec { reach = MetricSpecKt.reachParams {} }
                 }
             }
@@ -1479,7 +1492,7 @@ class BasicReportTransformationsTest {
               cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
               details =
                 MetricCalculationSpecKt.details {
-                  filter = "filter && (person.age_group == 18_TO_35 && person.gender == MALE)"
+                  filter = "filter && (person.age_group == 1 && person.gender == 1)"
                   metricSpecs += metricSpec { reach = MetricSpecKt.reachParams {} }
                 }
             }
@@ -1505,7 +1518,7 @@ class BasicReportTransformationsTest {
             filters += eventFilter {
               terms += eventTemplateField {
                 path = "person.age_group"
-                value = EventTemplateFieldKt.fieldValue { enumValue = "18_TO_35" }
+                value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
               }
             }
             filters += eventFilter {
@@ -1530,6 +1543,7 @@ class BasicReportTransformationsTest {
         impressionQualificationFilterSpecsFilters = impressionQualificationSpecsFilters,
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
+        eventTemplateFieldsMap = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsMap,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(1)
@@ -1542,7 +1556,7 @@ class BasicReportTransformationsTest {
               cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
               details =
                 MetricCalculationSpecKt.details {
-                  filter = "filter && (person.age_group == 18_TO_35 && person.gender == MALE)"
+                  filter = "filter && (person.age_group == 1 && person.gender == 1)"
                   metricSpecs += metricSpec {
                     reachAndFrequency = MetricSpecKt.reachAndFrequencyParams {}
                   }
@@ -1570,7 +1584,7 @@ class BasicReportTransformationsTest {
             filters += eventFilter {
               terms += eventTemplateField {
                 path = "person.age_group"
-                value = EventTemplateFieldKt.fieldValue { enumValue = "18_TO_35" }
+                value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
               }
             }
             filters += eventFilter {
@@ -1593,6 +1607,7 @@ class BasicReportTransformationsTest {
         impressionQualificationFilterSpecsFilters = impressionQualificationSpecsFilters,
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
+        eventTemplateFieldsMap = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsMap,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(1)
@@ -1605,7 +1620,7 @@ class BasicReportTransformationsTest {
               cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
               details =
                 MetricCalculationSpecKt.details {
-                  filter = "filter && (person.age_group == 18_TO_35 && person.gender == MALE)"
+                  filter = "filter && (person.age_group == 1 && person.gender == 1)"
                   metricSpecs += metricSpec { reach = MetricSpecKt.reachParams {} }
                 }
             }
@@ -1636,7 +1651,7 @@ class BasicReportTransformationsTest {
             filters += eventFilter {
               terms += eventTemplateField {
                 path = "person.age_group"
-                value = EventTemplateFieldKt.fieldValue { enumValue = "18_TO_35" }
+                value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
               }
             }
             filters += eventFilter {
@@ -1659,6 +1674,7 @@ class BasicReportTransformationsTest {
         impressionQualificationFilterSpecsFilters = impressionQualificationSpecsFilters,
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
+        eventTemplateFieldsMap = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsMap,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(3)
@@ -1671,7 +1687,7 @@ class BasicReportTransformationsTest {
               cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
               details =
                 MetricCalculationSpecKt.details {
-                  filter = "filter && (person.age_group == 18_TO_35 && person.gender == MALE)"
+                  filter = "filter && (person.age_group == 1 && person.gender == 1)"
                   metricSpecs += metricSpec { reach = MetricSpecKt.reachParams {} }
                 }
             }
@@ -1712,7 +1728,7 @@ class BasicReportTransformationsTest {
               cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
               details =
                 MetricCalculationSpecKt.details {
-                  filter = "filter && (person.age_group == 18_TO_35 && person.gender == MALE)"
+                  filter = "filter && (person.age_group == 1 && person.gender == 1)"
                   metricSpecs += metricSpec { reach = MetricSpecKt.reachParams {} }
                 }
             }
@@ -1764,7 +1780,7 @@ class BasicReportTransformationsTest {
               cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
               details =
                 MetricCalculationSpecKt.details {
-                  filter = "filter && (person.age_group == 18_TO_35 && person.gender == MALE)"
+                  filter = "filter && (person.age_group == 1 && person.gender == 1)"
                   metricSpecs += metricSpec { reach = MetricSpecKt.reachParams {} }
                 }
             }
@@ -1774,7 +1790,7 @@ class BasicReportTransformationsTest {
   }
 
   @Test
-  fun `any value in dimensionSpec filter can be processed`() {
+  fun `differnt values in dimensionSpec filter can be processed and sorted`() {
     val impressionQualificationSpecsFilters = listOf("filter")
     val dataProviderPrimitiveReportingSetMap = buildMap {
       put(DATA_PROVIDER_NAME_1, PRIMITIVE_REPORTING_SET_1)
@@ -1790,13 +1806,7 @@ class BasicReportTransformationsTest {
             filters += eventFilter {
               terms += eventTemplateField {
                 path = "person.age_group"
-                value = EventTemplateFieldKt.fieldValue { enumValue = "18_TO_35" }
-              }
-            }
-            filters += eventFilter {
-              terms += eventTemplateField {
-                path = "person.gender"
-                value = EventTemplateFieldKt.fieldValue { stringValue = "MALE" }
+                value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
               }
             }
             filters += eventFilter {
@@ -1825,6 +1835,7 @@ class BasicReportTransformationsTest {
         impressionQualificationFilterSpecsFilters = impressionQualificationSpecsFilters,
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
+        eventTemplateFieldsMap = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsMap,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(1)
@@ -1838,7 +1849,7 @@ class BasicReportTransformationsTest {
               details =
                 MetricCalculationSpecKt.details {
                   filter =
-                    "filter && (banner_ad.viewable == true && person.age_group == 18_TO_35 && person.gender == MALE && video_ad.viewed_fraction == 0.5)"
+                    "filter && (banner_ad.viewable == true && person.age_group == 1 && video_ad.viewed_fraction == 0.5)"
                   metricSpecs += metricSpec { reach = MetricSpecKt.reachParams {} }
                 }
             }
@@ -1876,6 +1887,7 @@ class BasicReportTransformationsTest {
         impressionQualificationFilterSpecsFilters = impressionQualificationSpecsFilters,
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
+        eventTemplateFieldsMap = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsMap,
       )
     }
   }
@@ -1900,7 +1912,7 @@ class BasicReportTransformationsTest {
             filters += eventFilter {
               terms += eventTemplateField {
                 path = "person.age_group"
-                value = EventTemplateFieldKt.fieldValue { enumValue = "18_TO_35" }
+                value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
               }
             }
             filters += eventFilter {
@@ -1934,6 +1946,7 @@ class BasicReportTransformationsTest {
         impressionQualificationFilterSpecsFilters = impressionQualificationSpecsFilters,
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
+        eventTemplateFieldsMap = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsMap,
       )
 
     val resultGroupSpecsWithDuplicates = resultGroupSpecs + resultGroupSpecs
@@ -1943,6 +1956,7 @@ class BasicReportTransformationsTest {
         impressionQualificationFilterSpecsFilters = impressionQualificationSpecsFilters,
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecsWithDuplicates,
+        eventTemplateFieldsMap = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsMap,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap)
@@ -1966,7 +1980,7 @@ class BasicReportTransformationsTest {
             filters += eventFilter {
               terms += eventTemplateField {
                 path = "person.age_group"
-                value = EventTemplateFieldKt.fieldValue { enumValue = "18_TO_35" }
+                value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
               }
             }
             filters += eventFilter {
@@ -1992,6 +2006,7 @@ class BasicReportTransformationsTest {
         impressionQualificationFilterSpecsFilters = impressionQualificationSpecsFilters,
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
+        eventTemplateFieldsMap = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsMap,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(1)
@@ -2004,7 +2019,7 @@ class BasicReportTransformationsTest {
               cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
               details =
                 MetricCalculationSpecKt.details {
-                  filter = "filter && (person.age_group == 18_TO_35 && person.gender == MALE)"
+                  filter = "filter && (person.age_group == 1 && person.gender == 1)"
                   metricSpecs += metricSpec { reach = MetricSpecKt.reachParams {} }
                   metricSpecs += metricSpec {
                     populationCount = MetricSpecKt.populationCountParams {}
@@ -2033,7 +2048,7 @@ class BasicReportTransformationsTest {
             filters += eventFilter {
               terms += eventTemplateField {
                 path = "person.age_group"
-                value = EventTemplateFieldKt.fieldValue { enumValue = "18_TO_35" }
+                value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
               }
             }
             filters += eventFilter {
@@ -2058,6 +2073,7 @@ class BasicReportTransformationsTest {
         impressionQualificationFilterSpecsFilters = impressionQualificationSpecsFilters,
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
+        eventTemplateFieldsMap = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsMap,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(1)
@@ -2070,7 +2086,7 @@ class BasicReportTransformationsTest {
               cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
               details =
                 MetricCalculationSpecKt.details {
-                  filter = "filter && (person.age_group == 18_TO_35 && person.gender == MALE)"
+                  filter = "filter && (person.age_group == 1 && person.gender == 1)"
                   metricSpecs += metricSpec { reach = MetricSpecKt.reachParams {} }
                 }
             }
@@ -2096,7 +2112,7 @@ class BasicReportTransformationsTest {
             filters += eventFilter {
               terms += eventTemplateField {
                 path = "person.age_group"
-                value = EventTemplateFieldKt.fieldValue { enumValue = "18_TO_35" }
+                value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
               }
             }
             filters += eventFilter {
@@ -2121,6 +2137,7 @@ class BasicReportTransformationsTest {
         impressionQualificationFilterSpecsFilters = impressionQualificationSpecsFilters,
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
+        eventTemplateFieldsMap = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsMap,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(1)
@@ -2133,7 +2150,7 @@ class BasicReportTransformationsTest {
               cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
               details =
                 MetricCalculationSpecKt.details {
-                  filter = "filter && (person.age_group == 18_TO_35 && person.gender == MALE)"
+                  filter = "filter && (person.age_group == 1 && person.gender == 1)"
                   metricSpecs += metricSpec { reach = MetricSpecKt.reachParams {} }
                   metricSpecs += metricSpec {
                     populationCount = MetricSpecKt.populationCountParams {}
@@ -2162,7 +2179,7 @@ class BasicReportTransformationsTest {
             filters += eventFilter {
               terms += eventTemplateField {
                 path = "person.age_group"
-                value = EventTemplateFieldKt.fieldValue { enumValue = "18_TO_35" }
+                value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
               }
             }
             filters += eventFilter {
@@ -2187,6 +2204,7 @@ class BasicReportTransformationsTest {
         impressionQualificationFilterSpecsFilters = impressionQualificationSpecsFilters,
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
+        eventTemplateFieldsMap = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsMap,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(1)
@@ -2199,7 +2217,7 @@ class BasicReportTransformationsTest {
               cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
               details =
                 MetricCalculationSpecKt.details {
-                  filter = "filter && (person.age_group == 18_TO_35 && person.gender == MALE)"
+                  filter = "filter && (person.age_group == 1 && person.gender == 1)"
                   metricSpecs += metricSpec {
                     reachAndFrequency = MetricSpecKt.reachAndFrequencyParams {}
                   }
@@ -2227,7 +2245,7 @@ class BasicReportTransformationsTest {
             filters += eventFilter {
               terms += eventTemplateField {
                 path = "person.age_group"
-                value = EventTemplateFieldKt.fieldValue { enumValue = "18_TO_35" }
+                value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
               }
             }
             filters += eventFilter {
@@ -2252,6 +2270,7 @@ class BasicReportTransformationsTest {
         impressionQualificationFilterSpecsFilters = impressionQualificationSpecsFilters,
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
+        eventTemplateFieldsMap = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsMap,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(1)
@@ -2264,7 +2283,7 @@ class BasicReportTransformationsTest {
               cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
               details =
                 MetricCalculationSpecKt.details {
-                  filter = "filter && (person.age_group == 18_TO_35 && person.gender == MALE)"
+                  filter = "filter && (person.age_group == 1 && person.gender == 1)"
                   metricSpecs += metricSpec {
                     reachAndFrequency = MetricSpecKt.reachAndFrequencyParams {}
                   }
@@ -2295,7 +2314,7 @@ class BasicReportTransformationsTest {
             filters += eventFilter {
               terms += eventTemplateField {
                 path = "person.age_group"
-                value = EventTemplateFieldKt.fieldValue { enumValue = "18_TO_35" }
+                value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
               }
             }
             filters += eventFilter {
@@ -2320,6 +2339,7 @@ class BasicReportTransformationsTest {
         impressionQualificationFilterSpecsFilters = impressionQualificationSpecsFilters,
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
+        eventTemplateFieldsMap = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsMap,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(1)
@@ -2332,7 +2352,7 @@ class BasicReportTransformationsTest {
               cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
               details =
                 MetricCalculationSpecKt.details {
-                  filter = "filter && (person.age_group == 18_TO_35 && person.gender == MALE)"
+                  filter = "filter && (person.age_group == 1 && person.gender == 1)"
                   metricSpecs += metricSpec {
                     reachAndFrequency = MetricSpecKt.reachAndFrequencyParams {}
                   }
@@ -2360,7 +2380,7 @@ class BasicReportTransformationsTest {
             filters += eventFilter {
               terms += eventTemplateField {
                 path = "person.age_group"
-                value = EventTemplateFieldKt.fieldValue { enumValue = "18_TO_35" }
+                value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
               }
             }
             filters += eventFilter {
@@ -2385,6 +2405,7 @@ class BasicReportTransformationsTest {
         impressionQualificationFilterSpecsFilters = impressionQualificationSpecsFilters,
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
+        eventTemplateFieldsMap = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsMap,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(1)
@@ -2397,7 +2418,7 @@ class BasicReportTransformationsTest {
               cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
               details =
                 MetricCalculationSpecKt.details {
-                  filter = "filter && (person.age_group == 18_TO_35 && person.gender == MALE)"
+                  filter = "filter && (person.age_group == 1 && person.gender == 1)"
                   metricSpecs += metricSpec {
                     impressionCount = MetricSpecKt.impressionCountParams {}
                   }
@@ -2425,7 +2446,7 @@ class BasicReportTransformationsTest {
             filters += eventFilter {
               terms += eventTemplateField {
                 path = "person.age_group"
-                value = EventTemplateFieldKt.fieldValue { enumValue = "18_TO_35" }
+                value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
               }
             }
             filters += eventFilter {
@@ -2450,6 +2471,7 @@ class BasicReportTransformationsTest {
         impressionQualificationFilterSpecsFilters = impressionQualificationSpecsFilters,
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
+        eventTemplateFieldsMap = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsMap,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(1)
@@ -2462,7 +2484,7 @@ class BasicReportTransformationsTest {
               cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
               details =
                 MetricCalculationSpecKt.details {
-                  filter = "filter && (person.age_group == 18_TO_35 && person.gender == MALE)"
+                  filter = "filter && (person.age_group == 1 && person.gender == 1)"
                   metricSpecs += metricSpec {
                     reachAndFrequency = MetricSpecKt.reachAndFrequencyParams {}
                   }
@@ -2494,5 +2516,26 @@ class BasicReportTransformationsTest {
     private val PRIMITIVE_REPORTING_SET_1 = reportingSet { name = PRIMITIVE_REPORTING_SET_NAME_1 }
     private val PRIMITIVE_REPORTING_SET_2 = reportingSet { name = PRIMITIVE_REPORTING_SET_NAME_2 }
     private val PRIMITIVE_REPORTING_SET_3 = reportingSet { name = PRIMITIVE_REPORTING_SET_NAME_3 }
+
+    private val EXTENSION_REGISTRY =
+      ExtensionRegistry.newInstance()
+        .apply {
+          add(EventAnnotationsProto.eventTemplate)
+          add(EventAnnotationsProto.templateField)
+        }
+        .unmodifiable
+
+    private val TYPE_REGISTRY =
+      TypeRegistry.newBuilder()
+        .add(
+          listOf(
+            TestEvent.parseFrom(TestEvent.getDefaultInstance().toByteString(), EXTENSION_REGISTRY)
+              .descriptorForType
+          )
+        )
+        .build()
+
+    private val TEST_EVENT_DESCRIPTOR =
+      EventDescriptor(TYPE_REGISTRY.find(TestEvent.getDescriptor().fullName))
   }
 }

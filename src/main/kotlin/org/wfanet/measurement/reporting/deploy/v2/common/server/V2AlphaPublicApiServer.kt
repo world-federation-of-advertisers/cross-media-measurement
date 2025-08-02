@@ -332,6 +332,8 @@ private object V2AlphaPublicApiServer {
             InternalBasicReportsCoroutineStub(channel),
             InternalImpressionQualificationFiltersCoroutineStub(channel),
             InternalReportingSetsCoroutineStub(channel),
+            // TODO(@tristanvuong2021): Switch to non-empty map when ready to deploy
+            emptyMap(),
             authorization,
             serviceDispatcher,
           )

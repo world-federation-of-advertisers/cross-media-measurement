@@ -30,6 +30,8 @@ message EventTemplateField {
   //
   // For example, if the Event message had an event template `common` with
   // a field `age_group` then the field path would be `common.age_group`.
+  //
+  // Only population attributes are supported at the moment.
   string path = 1 [
     (google.api.field_behavior) = REQUIRED,
     (google.api.field_behavior) = IMMUTABLE
