@@ -66,6 +66,7 @@ private data class MetricCalculationSpecInfo(
  * @param dataProviderPrimitiveReportingSetMap Map of [DataProvider] resource name to primitive
  *   [ReportingSet] containing associated [EventGroup] resource names
  * @param resultGroupSpecs List of [ResultGroupSpec] to transform
+ * @param eventTemplateFieldsMap for creating a CEL string from [EventTemplateField]
  * @return Map of [ReportingSet] to [MetricCalculationSpec]
  */
 fun buildReportingSetMetricCalculationSpecDetailsMap(
@@ -73,6 +74,7 @@ fun buildReportingSetMetricCalculationSpecDetailsMap(
   impressionQualificationFilterSpecsFilters: List<String>,
   dataProviderPrimitiveReportingSetMap: Map<String, ReportingSet>,
   resultGroupSpecs: List<ResultGroupSpec>,
+  eventTemplateFieldsMap: Map<String, EventDescriptor.EventTemplateFieldInfo>,
 ): Map<ReportingSet, List<MetricCalculationSpec>> {
   // This intermediate map is for reducing the number of MetricCalculationSpecs created for a given
   // ReportingSet. Without this map, MetricCalculationSpecs with everything identical except for
@@ -91,6 +93,7 @@ fun buildReportingSetMetricCalculationSpecDetailsMap(
           createMetricCalculationSpecFilters(
             impressionQualificationFilterSpecsFilters,
             resultGroupSpec.dimensionSpec.filtersList,
+            eventTemplateFieldsMap,
           )
 
         // The Primitive ReportingSets for the ReportingUnit
@@ -165,10 +168,12 @@ private fun MutableMap.MutableEntry<MetricCalculationSpecInfoKey, MetricCalculat
  * @param impressionQualificationFilterSpecsFilters List of CEL strings created from
  *   [ReportingImpressionQualificationFilter]s
  * @param dimensionSpecFilters List of [EventFilter]s from [DimensionSpec]
+ * @param eventTemplateFieldsMap for creating a CEL string from [EventTemplateField]
  */
 private fun createMetricCalculationSpecFilters(
   impressionQualificationFilterSpecsFilters: List<String>,
   dimensionSpecFilters: List<EventFilter>,
+  eventTemplateFieldsMap: Map<String, EventDescriptor.EventTemplateFieldInfo>,
 ): List<String> {
   val dimensionSpecFilter =
     dimensionSpecFilters
@@ -180,7 +185,11 @@ private fun createMetricCalculationSpecFilters(
           @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
           when (term.value.selectorCase) {
             EventTemplateField.FieldValue.SelectorCase.STRING_VALUE -> term.value.stringValue
-            EventTemplateField.FieldValue.SelectorCase.ENUM_VALUE -> term.value.enumValue
+            EventTemplateField.FieldValue.SelectorCase.ENUM_VALUE -> {
+              eventTemplateFieldsMap
+                .getValue(term.path).enumValuesMap
+                .getValue(term.value.enumValue)
+            }
             EventTemplateField.FieldValue.SelectorCase.FLOAT_VALUE -> term.value.floatValue
             EventTemplateField.FieldValue.SelectorCase.BOOL_VALUE -> term.value.boolValue
             EventTemplateField.FieldValue.SelectorCase.SELECTOR_NOT_SET ->
