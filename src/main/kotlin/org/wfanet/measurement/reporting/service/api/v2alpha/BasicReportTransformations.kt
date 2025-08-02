@@ -187,7 +187,8 @@ private fun createMetricCalculationSpecFilters(
             EventTemplateField.FieldValue.SelectorCase.STRING_VALUE -> term.value.stringValue
             EventTemplateField.FieldValue.SelectorCase.ENUM_VALUE -> {
               eventTemplateFieldsMap
-                .getValue(term.path).enumValuesMap
+                .getValue(term.path)
+                .enumValuesMap
                 .getValue(term.value.enumValue)
             }
             EventTemplateField.FieldValue.SelectorCase.FLOAT_VALUE -> term.value.floatValue
