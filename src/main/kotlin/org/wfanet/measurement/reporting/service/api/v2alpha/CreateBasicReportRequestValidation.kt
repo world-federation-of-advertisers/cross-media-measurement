@@ -338,7 +338,7 @@ fun validateEventTemplateField(
           }
         }
       EventTemplateField.FieldValue.SelectorCase.FLOAT_VALUE -> {
-        // Duration is represented as a float.
+        // Enum, String, and Bool field values cannot be float values, but Duration can be.
         if (
           eventTemplateFieldInfo.type == Descriptors.FieldDescriptor.Type.ENUM ||
             eventTemplateFieldInfo.type == Descriptors.FieldDescriptor.Type.STRING ||
