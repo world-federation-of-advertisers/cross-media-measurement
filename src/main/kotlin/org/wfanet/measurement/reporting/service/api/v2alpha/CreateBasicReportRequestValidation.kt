@@ -304,7 +304,7 @@ fun validateEventTemplateField(
     when (eventTemplateField.value.selectorCase) {
       EventTemplateField.FieldValue.SelectorCase.STRING_VALUE -> {
         if (eventTemplateFieldInfo.type != Descriptors.FieldDescriptor.Type.STRING) {
-          // Timestamp os represented as a String
+          // Timestamp iss represented as a String
           if (
             eventTemplateFieldInfo.type != Descriptors.FieldDescriptor.Type.MESSAGE ||
               eventTemplateFieldInfo.messageTypeFullName != Timestamp.getDescriptor().fullName
