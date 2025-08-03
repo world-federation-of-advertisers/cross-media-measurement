@@ -304,6 +304,7 @@ fun validateEventTemplateField(
     when (eventTemplateField.value.selectorCase) {
       EventTemplateField.FieldValue.SelectorCase.STRING_VALUE -> {
         if (eventTemplateFieldInfo.type != Descriptors.FieldDescriptor.Type.STRING) {
+          // Timestamp os represented as a String
           if (
             eventTemplateFieldInfo.type != Descriptors.FieldDescriptor.Type.MESSAGE ||
               eventTemplateFieldInfo.messageTypeFullName != Timestamp.getDescriptor().fullName
@@ -337,6 +338,7 @@ fun validateEventTemplateField(
           }
         }
       EventTemplateField.FieldValue.SelectorCase.FLOAT_VALUE -> {
+        // Duration is represented as a float.
         if (
           eventTemplateFieldInfo.type == Descriptors.FieldDescriptor.Type.ENUM ||
             eventTemplateFieldInfo.type == Descriptors.FieldDescriptor.Type.STRING ||
