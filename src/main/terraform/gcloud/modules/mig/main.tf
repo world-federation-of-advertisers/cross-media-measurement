@@ -128,7 +128,7 @@ resource "google_compute_instance_template" "confidential_vm_template" {
     },
     local.metadata_map
   )
-  
+
   service_account {
     email = google_service_account.mig_service_account.email
     scopes = [
