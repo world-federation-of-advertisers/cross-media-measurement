@@ -6,9 +6,9 @@ kt_jvm_library(
     testonly = True,
     srcs = ["FulfillRequisitionRequestBuilderTest.kt"],
     deps = [
+        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/requisition:native",
         "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/requisition/v2alpha/common",
         "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/requisition/v2alpha/shareshuffle",
-        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/requisition/v2alpha/shareshuffle:native",
         "//src/main/kotlin/org/wfanet/measurement/testing:requisitions",
         "//src/main/proto/wfa/any_sketch:frequency_vector_kt_jvm_proto",
         "//src/main/proto/wfa/frequency_count:frequency_vector_kt_jvm_proto",
