@@ -43,6 +43,8 @@ import picocli.CommandLine
 import com.google.cloud.secretmanager.v1.SecretManagerServiceClient
 import com.google.cloud.secretmanager.v1.AccessSecretVersionRequest
 import com.google.cloud.secretmanager.v1.SecretVersionName
+import java.net.URI
+import org.wfanet.measurement.common.edpaggregator.TeeAppConfig.getConfig
 
 @CommandLine.Command(name = "results_fulfiller_app_runner")
 class ResultsFulfillerAppRunner : Runnable {
@@ -167,16 +169,6 @@ class ResultsFulfillerAppRunner : Runnable {
     required = true,
   )
   private lateinit var eventTemplateDescriptorBlobUris: List<String>
-//  @CommandLine.Option(
-//    names = ["--event-template-metadata-type"],
-//    description =
-//      [
-//        "Serialized FileDescriptorSet for EventTemplate metadata types.",
-//        "This can be specified multiple times.",
-//      ],
-//    required = true,
-//  )
-//  private lateinit var eventTemplateDescriptorSetFiles: List<File>
 
   private val getImpressionsStorageConfig: (StorageParams) -> StorageConfig = { storageParams ->
     StorageConfig(projectId = storageParams.gcsProjectId)
@@ -187,6 +179,7 @@ class ResultsFulfillerAppRunner : Runnable {
     // Pull certificates needed to operate from Google Secrets.
     saveEdpaCerts()
     saveEdpsCerts()
+    saveResultsFulfillerConfig()
 
     val queueSubscriber = createQueueSubscriber()
     val parser = createWorkItemParser()
@@ -257,10 +250,14 @@ class ResultsFulfillerAppRunner : Runnable {
     return TypeRegistry.newBuilder()
       .apply {
         add(COMPILED_PROTOBUF_TYPES.flatMap { it.messageTypes })
-        if (::eventTemplateDescriptorSetFiles.isInitialized) {
+        val localDescriptorFiles = File(CONFIG_FILE_DIR)
+          .listFiles()
+          ?.toList()
+          .orEmpty()
+        if (localDescriptorFiles.isNotEmpty()) {
           add(
             ProtoReflection.buildDescriptors(
-              loadFileDescriptorSets(eventTemplateDescriptorSetFiles),
+              loadFileDescriptorSets(localDescriptorFiles),
               COMPILED_PROTOBUF_TYPES,
             )
           )
@@ -272,13 +269,13 @@ class ResultsFulfillerAppRunner : Runnable {
   fun saveEdpaCerts() {
     logger.info("Storing EDP Aggregator certs file...")
     val edpaCert = accessSecretBytes(googleProjectId, edpaCertSecretId, SECRET_VERSION)
-    saveSecretToFile(edpaCert, EDPA_TLS_CERT_FILE_PATH)
+    saveByteArrayToFile(edpaCert, EDPA_TLS_CERT_FILE_PATH)
     val edpaPrivateKey = accessSecretBytes(googleProjectId, edpaPrivateKeySecretId, SECRET_VERSION)
-    saveSecretToFile(edpaPrivateKey, EDPA_TLS_KEY_FILE_PATH)
+    saveByteArrayToFile(edpaPrivateKey, EDPA_TLS_KEY_FILE_PATH)
     val secureComputationRootCa = accessSecretBytes(googleProjectId, secureComputationCertCollectionSecretId, SECRET_VERSION)
-    saveSecretToFile(secureComputationRootCa, SECURE_COMPUTATION_ROOT_CA_FILE_PATH)
+    saveByteArrayToFile(secureComputationRootCa, SECURE_COMPUTATION_ROOT_CA_FILE_PATH)
     val kingdomRootCa = accessSecretBytes(googleProjectId, kingdomCertCollectionSecretId, SECRET_VERSION)
-    saveSecretToFile(kingdomRootCa, KINGDOM_ROOT_CA_FILE_PATH)
+    saveByteArrayToFile(kingdomRootCa, KINGDOM_ROOT_CA_FILE_PATH)
     logger.info("EDP Aggregator certs file have been stored.")
   }
 
@@ -287,20 +284,31 @@ class ResultsFulfillerAppRunner : Runnable {
     edpCerts.forEachIndexed { index, edp ->
       val edpName = edp.edpName
       val edpCertDer = accessSecretBytes(googleProjectId, edp.certDerSecretId, SECRET_VERSION)
-      saveSecretToFile(edpCertDer, EDP_CERT_DER.format(edpName))
+      saveByteArrayToFile(edpCertDer, EDP_CERT_DER.format(edpName))
       val edpprivateDer = accessSecretBytes(googleProjectId, edp.privateDerSecretId, SECRET_VERSION)
-      saveSecretToFile(edpprivateDer, EDP_PRIVATE_DER.format(edpName))
+      saveByteArrayToFile(edpprivateDer, EDP_PRIVATE_DER.format(edpName))
       val edpEncPrivate = accessSecretBytes(googleProjectId, edp.encPrivateSecretId, SECRET_VERSION)
-      saveSecretToFile(edpEncPrivate, EDP_ENC_PRIVATE.format(edpName))
+      saveByteArrayToFile(edpEncPrivate, EDP_ENC_PRIVATE.format(edpName))
       val edpTlsKey = accessSecretBytes(googleProjectId, edp.tlsKeySecretId, SECRET_VERSION)
-      saveSecretToFile(edpTlsKey, EDP_TLS_KEY.format(edpName))
+      saveByteArrayToFile(edpTlsKey, EDP_TLS_KEY.format(edpName))
       val edpTlsPem = accessSecretBytes(googleProjectId, edp.tlsPemSecretId, SECRET_VERSION)
-      saveSecretToFile(edpTlsPem, EDP_TLS_PEM.format(edpName))
+      saveByteArrayToFile(edpTlsPem, EDP_TLS_PEM.format(edpName))
     }
     logger.info("EDPs certs file have been stored.")
   }
 
-  fun saveSecretToFile(bytes: ByteArray, path: String) {
+  fun saveResultsFulfillerConfig() {
+    runBlocking {
+      eventTemplateDescriptorBlobUris.forEach {
+        saveByteArrayToFile(
+          getConfig(googleProjectId, it),
+          "$CONFIG_FILE_DIR/${URI(it).path.substringAfterLast("/")}"
+        )
+      }
+    }
+  }
+
+  fun saveByteArrayToFile(bytes: ByteArray, path: String) {
     val file = File(path)
     file.parentFile?.mkdirs()
     file.writeBytes(bytes)
@@ -355,6 +363,7 @@ class ResultsFulfillerAppRunner : Runnable {
     private const val EDP_ENC_PRIVATE = "/tmp/edp_certs/%s_enc_private.tink"
     private const val EDP_TLS_KEY = "/tmp/edp_certs/%s_tls.key"
     private const val EDP_TLS_PEM = "/tmp/edp_certs/%s_tls.pem"
+    private const val CONFIG_FILE_DIR = "/tmp/proto_descriptors"
 
     @JvmStatic fun main(args: Array<String>) = commandLineMain(ResultsFulfillerAppRunner(), args)
   }

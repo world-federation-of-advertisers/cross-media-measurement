@@ -45,7 +45,7 @@ object TeeAppConfig {
    * @throws IllegalArgumentException if required environment variables are not set.
    * @throws IllegalStateException if the config blob is not found.
    */
-  suspend fun <T : Message> getConfig(
+  suspend fun getConfig(
     projectId: String,
     blobUri: String,
   ): ByteArray {
