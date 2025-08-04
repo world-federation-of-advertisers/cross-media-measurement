@@ -96,6 +96,7 @@ import org.wfanet.measurement.internal.duchy.config.RoleInComputation
 import org.wfanet.measurement.internal.duchy.config.honestMajorityShareShuffleSetupConfig
 import org.wfanet.measurement.internal.duchy.config.liquidLegionsV2SetupConfig
 import org.wfanet.measurement.internal.duchy.config.protocolsSetupConfig
+import org.wfanet.measurement.internal.duchy.config.trusTeeSetupConfig
 import org.wfanet.measurement.internal.duchy.deleteComputationRequest
 import org.wfanet.measurement.internal.duchy.differentialPrivacyParams as duchyDifferentialPrivacyParams
 import org.wfanet.measurement.internal.duchy.differentialPrivacyParams
@@ -109,6 +110,8 @@ import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggrega
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsV2NoiseConfigKt.reachNoiseConfig
 import org.wfanet.measurement.internal.duchy.protocol.ReachOnlyLiquidLegionsSketchAggregationV2
 import org.wfanet.measurement.internal.duchy.protocol.ReachOnlyLiquidLegionsSketchAggregationV2Kt
+import org.wfanet.measurement.internal.duchy.protocol.TrusTee
+import org.wfanet.measurement.internal.duchy.protocol.TrusTeeKt
 import org.wfanet.measurement.internal.duchy.protocol.liquidLegionsSketchParameters
 import org.wfanet.measurement.internal.duchy.protocol.liquidLegionsV2NoiseConfig
 import org.wfanet.measurement.internal.duchy.setContinuationTokenRequest
@@ -122,6 +125,7 @@ import org.wfanet.measurement.system.v1alpha.ComputationKt.MpcProtocolConfigKt.L
 import org.wfanet.measurement.system.v1alpha.ComputationKt.MpcProtocolConfigKt.LiquidLegionsV2Kt.mpcNoise
 import org.wfanet.measurement.system.v1alpha.ComputationKt.MpcProtocolConfigKt.honestMajorityShareShuffle
 import org.wfanet.measurement.system.v1alpha.ComputationKt.MpcProtocolConfigKt.liquidLegionsV2
+import org.wfanet.measurement.system.v1alpha.ComputationKt.MpcProtocolConfigKt.trusTee
 import org.wfanet.measurement.system.v1alpha.ComputationKt.mpcProtocolConfig
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineImplBase
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub as SystemComputationLogEntriesCoroutineStub
@@ -247,6 +251,10 @@ private val HMSS_MPC_PROTOCOL_CONFIG = mpcProtocolConfig {
   }
 }
 
+private val TRUS_TEE_MPC_PROTOCOL_CONFIG = mpcProtocolConfig {
+  trusTee = trusTee { noiseMechanism = SystemNoiseMechanism.CONTINUOUS_GAUSSIAN }
+}
+
 private const val AGGREGATOR_DUCHY_ID = "aggregator_duchy"
 private const val AGGREGATOR_HERALD_ID = "aggregator_herald"
 private const val NON_AGGREGATOR_DUCHY_ID = "worker_duchy"
@@ -267,6 +275,7 @@ private val AGGREGATOR_PROTOCOLS_SETUP_CONFIG = protocolsSetupConfig {
     firstNonAggregatorDuchyId = DUCHY_TWO
     secondNonAggregatorDuchyId = DUCHY_THREE
   }
+  trusTee = trusTeeSetupConfig { role = RoleInComputation.AGGREGATOR }
 }
 
 private val NON_AGGREGATOR_PROTOCOLS_SETUP_CONFIG = protocolsSetupConfig {
@@ -322,6 +331,10 @@ private val HMSS_FIRST_NON_AGGREGATOR_COMPUTATION_DETAILS = computationDetails {
     HonestMajorityShareShuffleKt.computationDetails {
       role = RoleInComputation.FIRST_NON_AGGREGATOR
     }
+}
+
+private val TRUS_TEE_COMPUTATION_DETAILS = computationDetails {
+  trusTee = TrusTeeKt.computationDetails { role = RoleInComputation.AGGREGATOR }
 }
 
 private const val COMPUTATION_GLOBAL_ID = "123"
@@ -1814,6 +1827,117 @@ class HeraldTest {
       )
   }
 
+  @Test
+  fun `syncStatuses creates new trusTEE computation`() = runTest {
+    val confirmingKnown =
+      buildComputationAtKingdom("1", Computation.State.PENDING_REQUISITION_PARAMS)
+
+    val systemApiRequisitions1 =
+      REQUISITION_1.toSystemRequisition("2", Requisition.State.UNFULFILLED)
+    val systemApiRequisitions2 =
+      REQUISITION_2.toSystemRequisition("2", Requisition.State.UNFULFILLED)
+    val confirmingUnknown =
+      buildComputationAtKingdom(
+        "2",
+        Computation.State.PENDING_REQUISITION_PARAMS,
+        systemApiRequisitions = listOf(systemApiRequisitions1, systemApiRequisitions2),
+        mpcProtocolConfig = TRUS_TEE_MPC_PROTOCOL_CONFIG,
+        systemComputationParticipant = SINGLE_COMPUTATION_PARTICIPANT,
+      )
+    mockStreamActiveComputationsToReturn(confirmingKnown, confirmingUnknown)
+
+    fakeComputationDatabase.addComputation(
+      globalId = confirmingKnown.key.computationId,
+      stage = TrusTee.Stage.INITIALIZED.toProtocolStage(),
+      computationDetails = TRUS_TEE_COMPUTATION_DETAILS,
+    )
+
+    aggregatorHerald.syncStatuses()
+
+    verifyBlocking(continuationTokensService, atLeastOnce()) {
+      setContinuationToken(eq(setContinuationTokenRequest { this.token = "2" }))
+    }
+    assertThat(
+        fakeComputationDatabase.mapValues { (_, fakeComputation) ->
+          fakeComputation.computationStage
+        }
+      )
+      .containsExactly(
+        confirmingKnown.key.computationId.toLong(),
+        TrusTee.Stage.INITIALIZED.toProtocolStage(),
+        confirmingUnknown.key.computationId.toLong(),
+        TrusTee.Stage.INITIALIZED.toProtocolStage(),
+      )
+
+    assertThat(
+        fakeComputationDatabase[confirmingUnknown.key.computationId.toLong()]?.requisitionsList
+      )
+      .containsExactly(
+        REQUISITION_1.toRequisitionMetadata(Requisition.State.UNFULFILLED),
+        REQUISITION_2.toRequisitionMetadata(Requisition.State.UNFULFILLED),
+      )
+    val computationDetails =
+      fakeComputationDatabase[confirmingUnknown.key.computationId.toLong()]?.computationDetails
+    assertThat(computationDetails)
+      .ignoringFields(ComputationDetails.TRUS_TEE_FIELD_NUMBER)
+      .isEqualTo(
+        computationDetails {
+          blobsStoragePrefix = "computation-blob-storage/$AGGREGATOR_DUCHY_ID/2"
+          kingdomComputation = kingdomComputationDetails {
+            publicApiVersion = PUBLIC_API_VERSION
+            measurementSpec = SERIALIZED_MEASUREMENT_SPEC
+            measurementPublicKey = PUBLIC_API_ENCRYPTION_PUBLIC_KEY.toDuchyEncryptionPublicKey()
+            participantCount = 1
+          }
+        }
+      )
+    val trusTeeDetails = computationDetails!!.trusTee
+    assertThat(trusTeeDetails)
+      .isEqualTo(
+        TrusTeeKt.computationDetails {
+          role = RoleInComputation.AGGREGATOR
+          parameters =
+            TrusTeeKt.ComputationDetailsKt.parameters {
+              maximumFrequency = 10
+              reachDpParams = differentialPrivacyParams {
+                epsilon = 1.1
+                delta = 1.2
+              }
+              frequencyDpParams = differentialPrivacyParams {
+                epsilon = 2.1
+                delta = 2.2
+              }
+              noiseMechanism = NoiseMechanism.CONTINUOUS_GAUSSIAN
+            }
+        }
+      )
+  }
+
+  @Test
+  fun `syncStatuses starts TrusTEE computations`() = runTest {
+    val waitingToStart =
+      buildComputationAtKingdom(COMPUTATION_GLOBAL_ID, Computation.State.PENDING_COMPUTATION)
+    mockStreamActiveComputationsToReturn(waitingToStart)
+
+    fakeComputationDatabase.addComputation(
+      globalId = waitingToStart.key.computationId,
+      stage = TrusTee.Stage.WAIT_TO_START.toProtocolStage(),
+      computationDetails = TRUS_TEE_COMPUTATION_DETAILS,
+    )
+
+    aggregatorHerald.syncStatuses()
+
+    assertThat(
+        fakeComputationDatabase.mapValues { (_, fakeComputation) ->
+          fakeComputation.computationStage
+        }
+      )
+      .containsExactly(
+        waitingToStart.key.computationId.toLong(),
+        TrusTee.Stage.COMPUTING.toProtocolStage(),
+      )
+  }
+
   private fun mockStreamActiveComputationsToReturn(vararg computations: Computation) =
     systemComputations.stub {
       onBlocking { streamActiveComputations(any()) }
@@ -1856,6 +1980,13 @@ class HeraldTest {
         computationParticipant {
           name = ComputationParticipantKey(COMPUTATION_GLOBAL_ID, DUCHY_THREE).toName()
         },
+      )
+
+    private val SINGLE_COMPUTATION_PARTICIPANT =
+      listOf(
+        computationParticipant {
+          name = ComputationParticipantKey(COMPUTATION_GLOBAL_ID, DUCHY_ONE).toName()
+        }
       )
 
     /**
