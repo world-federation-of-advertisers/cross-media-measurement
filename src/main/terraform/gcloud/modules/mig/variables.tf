@@ -88,12 +88,6 @@ variable "machine_type" {
   nullable    = false
 }
 
-variable "kms_key_id" {
-  description = "The kms key id of the key encryption key to grant access to."
-  type        = string
-  nullable    = false
-}
-
 variable "docker_image" {
   description = "The docker image to be deployed."
   type        = string

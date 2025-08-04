@@ -267,7 +267,6 @@ module "result_fulfiller_tee_app" {
   max_replicas                  = var.requisition_fulfiller_config.worker.max_replicas
   app_args                      = var.requisition_fulfiller_config.worker.app_args
   machine_type                  = var.requisition_fulfiller_config.worker.machine_type
-  kms_key_id                    = google_kms_crypto_key.edp_aggregator_kek.id
   docker_image                  = var.requisition_fulfiller_config.worker.docker_image
   mig_distribution_policy_zones = var.requisition_fulfiller_config.worker.mig_distribution_policy_zones
   terraform_service_account     = var.terraform_service_account
@@ -310,7 +309,7 @@ resource "google_storage_bucket_iam_member" "data_watcher_config_storage_viewer"
 resource "google_storage_bucket_iam_member" "results_fulfiller_config_storage_viewer" {
   bucket = module.config_files_bucket.storage_bucket.name
   role   = "roles/storage.objectViewer"
-  member = "serviceAccount:${module.mig.mig_service_account.email}"
+  member = "serviceAccount:${module.result_fulfiller_tee_app.mig_service_account.email}"
 }
 
 resource "google_cloud_run_service_iam_member" "event_group_sync_invoker" {

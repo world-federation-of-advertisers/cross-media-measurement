@@ -41,19 +41,19 @@ resource "google_secret_manager_secret_iam_member" "mig_sa_secret_accessor" {
 }
 
 resource "google_project_iam_member" "mig_sa_user" {
-  project = var.project_id
+  project = data.google_project.project.name
   role    = "roles/iam.serviceAccountUser"
   member  = "serviceAccount:${google_service_account.mig_service_account.email}"
 }
 
 resource "google_project_iam_member" "mig_workload_user" {
-  project = var.project_id
+  project = data.google_project.project.name
   role    = "roles/confidentialComputing.workloadUser"
   member  = "serviceAccount:${google_service_account.mig_service_account.email}"
 }
 
 resource "google_project_iam_member" "mig_log_writer" {
-  project = var.project_id
+  project = data.google_project.project.name
   role    = "roles/logging.logWriter"
   member  = "serviceAccount:${google_service_account.mig_service_account.email}"
 }
