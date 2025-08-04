@@ -252,22 +252,6 @@ resource "google_pubsub_topic_iam_member" "publisher" {
   member = var.pubsub_iam_service_account_member
 }
 
-resource "google_kms_key_ring" "edp_aggregator_key_ring" {
-
-  name     = var.key_ring_name
-  location = var.key_ring_location
-
-  lifecycle {
-    prevent_destroy = false
-  }
-}
-
-resource "google_kms_crypto_key" "edp_aggregator_kek" {
-  name     = var.kms_key_name
-  key_ring = google_kms_key_ring.edp_aggregator_key_ring.id
-  purpose  = "ENCRYPT_DECRYPT"
-}
-
 module "result_fulfiller_tee_app" {
   source   = "../mig"
 

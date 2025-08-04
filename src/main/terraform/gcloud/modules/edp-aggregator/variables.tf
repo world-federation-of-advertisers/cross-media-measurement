@@ -12,24 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-variable "key_ring_name" {
-  description = "Name of the KMS key ring."
-  type        = string
-  nullable    = false
-}
-
-variable "key_ring_location" {
-  description = "Location of the KMS key ring."
-  type        = string
-  nullable    = false
-}
-
-variable "kms_key_name" {
-  description = "Name of the KMS KEK."
-  type        = string
-  nullable    = false
-}
-
 variable "requisition_fulfiller_config" {
   description = "Config for a single Pub/Sub queue and its corresponding MIG worker"
   type = object({

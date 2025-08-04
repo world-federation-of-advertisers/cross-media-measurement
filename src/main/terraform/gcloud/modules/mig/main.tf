@@ -32,18 +32,30 @@ resource "google_pubsub_subscription_iam_member" "mig_subscriber" {
   member        = "serviceAccount:${google_service_account.mig_service_account.email}"
 }
 
-resource "google_kms_crypto_key_iam_member" "mig_kms_user" {
-  crypto_key_id = var.kms_key_id
-  role          = "roles/cloudkms.cryptoKeyDecrypter"
-  member        = "serviceAccount:${google_service_account.mig_service_account.email}"
-}
-
 resource "google_secret_manager_secret_iam_member" "mig_sa_secret_accessor" {
   for_each = { for s in var.secrets_to_mount : s.secret_id => s }
 
   secret_id = each.value.secret_id
   role      = "roles/secretmanager.secretAccessor"
   member    = "serviceAccount:${google_service_account.mig_service_account.email}"
+}
+
+resource "google_project_iam_member" "mig_sa_user" {
+  project = var.project_id
+  role    = "roles/iam.serviceAccountUser"
+  member  = "serviceAccount:${google_service_account.mig_service_account.email}"
+}
+
+resource "google_project_iam_member" "mig_workload_user" {
+  project = var.project_id
+  role    = "roles/confidentialComputing.workloadUser"
+  member  = "serviceAccount:${google_service_account.mig_service_account.email}"
+}
+
+resource "google_project_iam_member" "mig_log_writer" {
+  project = var.project_id
+  role    = "roles/logging.logWriter"
+  member  = "serviceAccount:${google_service_account.mig_service_account.email}"
 }
 
 resource "google_compute_instance_template" "confidential_vm_template" {

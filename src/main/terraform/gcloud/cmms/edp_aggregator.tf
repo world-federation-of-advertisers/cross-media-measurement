@@ -152,9 +152,6 @@ locals {
 module "edp_aggregator" {
   source = "../modules/edp-aggregator"
 
-  key_ring_name                             = "securecomputation-key-ring"
-  key_ring_location                         = local.key_ring_location
-  kms_key_name                              = "edpa-secure-computation-kek"
   requisition_fulfiller_config              = local.requisition_fulfiller_config
   pubsub_iam_service_account_member         = module.secure_computation.secure_computation_internal_iam_service_account_member
   edp_aggregator_bucket_name                = var.secure_computation_storage_bucket_name
