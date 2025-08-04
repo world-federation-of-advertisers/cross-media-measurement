@@ -190,6 +190,8 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
 
     private fun triggerRequisitionFetcher() {
 
+      logger.info("Invoking requisition fetcher...")
+
       val jwt = System.getenv("AUTH_ID_TOKEN") ?: error("AUTH_ID_TOKEN must be set")
 
       val requisitionFetcherTarget =
