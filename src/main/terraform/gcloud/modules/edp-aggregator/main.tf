@@ -323,6 +323,12 @@ resource "google_storage_bucket_iam_member" "data_watcher_config_storage_viewer"
   member = "serviceAccount:${module.data_watcher_cloud_function.cloud_function_service_account.email}"
 }
 
+resource "google_storage_bucket_iam_member" "results_fulfiller_config_storage_viewer" {
+  bucket = module.config_files_bucket.storage_bucket.name
+  role   = "roles/storage.objectViewer"
+  member = "serviceAccount:${module.mig.mig_service_account.email}"
+}
+
 resource "google_cloud_run_service_iam_member" "event_group_sync_invoker" {
   service  = var.event_group_sync_function_name
   role     = "roles/run.invoker"
