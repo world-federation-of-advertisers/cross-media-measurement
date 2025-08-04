@@ -49,10 +49,7 @@ class FulfillRequisitionRequestBuilderTest {
           requisition { protocolConfig = protocolConfig {} },
           NONCE,
           FREQUENCY_VECTOR,
-          KMS_CLIENT,
-          KEK_URI,
-          WORKLOAD_ID_PROVIDER,
-          IMPERSONATED_SERVICE_ACCOUNT,
+          ENCRYPTED_PARAMS,
         )
       }
     assertThat(exception.message).contains("Expected to find exactly one config for TrusTee")
@@ -72,10 +69,7 @@ class FulfillRequisitionRequestBuilderTest {
           },
           NONCE,
           FREQUENCY_VECTOR,
-          KMS_CLIENT,
-          KEK_URI,
-          WORKLOAD_ID_PROVIDER,
-          IMPERSONATED_SERVICE_ACCOUNT,
+          ENCRYPTED_PARAMS,
         )
       }
     assertThat(exception.message).contains("Expected to find exactly one config for TrusTee")
@@ -90,10 +84,7 @@ class FulfillRequisitionRequestBuilderTest {
           REQUISITION,
           NONCE,
           FrequencyVector.getDefaultInstance(),
-          KMS_CLIENT,
-          KEK_URI,
-          WORKLOAD_ID_PROVIDER,
-          IMPERSONATED_SERVICE_ACCOUNT,
+          ENCRYPTED_PARAMS,
         )
       }
     assertThat(exception.message).contains("must have size")
@@ -107,10 +98,7 @@ class FulfillRequisitionRequestBuilderTest {
           REQUISITION,
           NONCE,
           frequencyVector { data += -1 },
-          KMS_CLIENT,
-          KEK_URI,
-          WORKLOAD_ID_PROVIDER,
-          IMPERSONATED_SERVICE_ACCOUNT,
+          ENCRYPTED_PARAMS,
         )
       }
     assertThat(exception.message).contains("FrequencyVector value")
@@ -124,10 +112,7 @@ class FulfillRequisitionRequestBuilderTest {
           REQUISITION,
           NONCE,
           frequencyVector { data += 256 },
-          KMS_CLIENT,
-          KEK_URI,
-          WORKLOAD_ID_PROVIDER,
-          IMPERSONATED_SERVICE_ACCOUNT,
+          ENCRYPTED_PARAMS,
         )
       }
     assertThat(exception.message).contains("FrequencyVector value")
@@ -140,14 +125,12 @@ class FulfillRequisitionRequestBuilderTest {
     val exception =
       assertFailsWith<GeneralSecurityException> {
         FulfillRequisitionRequestBuilder.buildEncrypted(
-          REQUISITION,
-          NONCE,
-          FREQUENCY_VECTOR,
-          KMS_CLIENT,
-          invalidKekUri,
-          WORKLOAD_ID_PROVIDER,
-          IMPERSONATED_SERVICE_ACCOUNT,
-        )
+            REQUISITION,
+            NONCE,
+            FREQUENCY_VECTOR,
+            ENCRYPTED_PARAMS.copy(kmsKekUri = invalidKekUri),
+          )
+          .toList()
       }
 
     assertThat(exception.message).contains("URI")
@@ -162,14 +145,12 @@ class FulfillRequisitionRequestBuilderTest {
     val exception =
       assertFailsWith<GeneralSecurityException> {
         FulfillRequisitionRequestBuilder.buildEncrypted(
-          REQUISITION,
-          NONCE,
-          FREQUENCY_VECTOR,
-          kmsClientMock,
-          KEK_URI,
-          WORKLOAD_ID_PROVIDER,
-          IMPERSONATED_SERVICE_ACCOUNT,
-        )
+            REQUISITION,
+            NONCE,
+            FREQUENCY_VECTOR,
+            ENCRYPTED_PARAMS.copy(kmsClient = kmsClientMock),
+          )
+          .toList()
       }
 
     assertThat(exception.message).isEqualTo(errorMessage)
@@ -185,39 +166,15 @@ class FulfillRequisitionRequestBuilderTest {
     val exception =
       assertFailsWith<GeneralSecurityException> {
         FulfillRequisitionRequestBuilder.buildEncrypted(
-          REQUISITION,
-          NONCE,
-          FREQUENCY_VECTOR,
-          KMS_CLIENT,
-          KEK_URI,
-          WORKLOAD_ID_PROVIDER,
-          IMPERSONATED_SERVICE_ACCOUNT,
-        )
+            REQUISITION,
+            NONCE,
+            FREQUENCY_VECTOR,
+            ENCRYPTED_PARAMS,
+          )
+          .toList()
       }
 
     assertThat(exception.message).isEqualTo(errorMessage)
-  }
-
-  @Test
-  fun `buildUnencrypted fails when encryption params are provided`() {
-    val encryptionParams =
-      FulfillRequisitionRequestBuilder.EncryptionParams(
-        KMS_CLIENT,
-        KEK_URI,
-        WORKLOAD_ID_PROVIDER,
-        IMPERSONATED_SERVICE_ACCOUNT,
-      )
-    val builder =
-      FulfillRequisitionRequestBuilder(REQUISITION, NONCE, FREQUENCY_VECTOR, encryptionParams)
-    val exception = assertFailsWith<IllegalStateException> { builder.buildUnencrypted().toList() }
-    assertThat(exception).hasMessageThat().contains("Cannot build unencrypted request")
-  }
-
-  @Test
-  fun `buildEncrypted fails when encryption params are not provided`() {
-    val builder = FulfillRequisitionRequestBuilder(REQUISITION, NONCE, FREQUENCY_VECTOR, null)
-    val exception = assertFailsWith<IllegalArgumentException> { builder.buildEncrypted().toList() }
-    assertThat(exception).hasMessageThat().contains("Encryption parameters are required")
   }
 
   @Test
@@ -229,10 +186,7 @@ class FulfillRequisitionRequestBuilderTest {
           REQUISITION,
           NONCE,
           inputFrequencyVector,
-          KMS_CLIENT,
-          KEK_URI,
-          WORKLOAD_ID_PROVIDER,
-          IMPERSONATED_SERVICE_ACCOUNT,
+          ENCRYPTED_PARAMS,
         )
         .toList()
 
@@ -318,6 +272,13 @@ class FulfillRequisitionRequestBuilderTest {
         protocols += ProtocolConfigKt.protocol { trusTee = ProtocolConfigKt.trusTee {} }
       }
     }
+    private val ENCRYPTED_PARAMS =
+      FulfillRequisitionRequestBuilder.EncryptionParams(
+        KMS_CLIENT,
+        KEK_URI,
+        WORKLOAD_ID_PROVIDER,
+        IMPERSONATED_SERVICE_ACCOUNT,
+      )
 
     private fun bytesToIntegers(bytes: ByteArray): List<Int> {
       return bytes.map { it.toInt() and 0xFF }
