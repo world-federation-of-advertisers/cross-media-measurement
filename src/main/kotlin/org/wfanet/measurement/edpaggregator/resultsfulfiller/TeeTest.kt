@@ -4,7 +4,12 @@ import java.util.logging.Logger
 import com.google.cloud.secretmanager.v1.SecretManagerServiceClient
 import com.google.cloud.secretmanager.v1.AccessSecretVersionRequest
 import com.google.cloud.secretmanager.v1.SecretVersionName
+import org.wfanet.measurement.storage.SelectedStorageClient
+import org.wfanet.measurement.common.flatten
 import java.io.File
+import java.net.URI
+import java.nio.file.Paths
+import kotlinx.coroutines.runBlocking
 import picocli.CommandLine
 
 @CommandLine.Command(name = "tee_test")
@@ -60,7 +65,7 @@ class TeeTest : Runnable {
       logger.info("  certDerSecretId: ${edp.certDerSecretId}")
       logger.info("  privateDerSecretId: ${edp.privateDerSecretId}")
     }
-    
+
     val secretValue = accessSecret(projectId, secretId, secretVersion)
     println("Secret value: $secretValue")
 
@@ -72,6 +77,46 @@ class TeeTest : Runnable {
       println("File $outputPath does not exist or is empty.")
     }
 
+    logger.info("PRE runBlocking")
+    runBlocking {
+      logger.info("INSIDE runBlocking")
+      saveBytesToFile(
+        getConfig("halo-cmm-dev", "gs://edpa-configs-storage-dev-bucket/test.txt"),
+        "/tmp/config.txt"
+      )
+
+      if (checkFile("/tmp/config.txt")) {
+        println("File CONFIG exists and has non-zero size.")
+      } else {
+        println("File CONFIG does not exist or is empty.")
+      }
+    }
+
+    logger.info("POST runBlocking")
+
+  }
+
+  suspend fun getConfig(
+    projectId: String,
+    blobUri: String,
+  ): ByteArray {
+
+    val uri = URI(blobUri)
+    val rootDirectory = if (uri.scheme == "file") {
+      val path = Paths.get(uri)
+      path.parent?.toFile()
+    } else {
+      null
+    }
+
+    val storageClient = SelectedStorageClient(url = blobUri, rootDirectory = rootDirectory, projectId = projectId)
+    val blobKey = uri.path.removePrefix("/")
+
+    val blob = checkNotNull(storageClient.getBlob(blobKey)) {
+      "Blob '$blobKey' not found at '$blobUri'"
+    }
+
+    return blob.read().flatten().toByteArray()
   }
 
   fun accessSecret(projectId: String, secretId: String, version: String): String {
@@ -84,6 +129,12 @@ class TeeTest : Runnable {
       val response = client.accessSecretVersion(request)
       response.payload.data.toStringUtf8()
     }
+  }
+
+  fun saveBytesToFile(content: ByteArray, path: String) {
+    val file = File(path)
+    file.parentFile?.mkdirs()
+    File(path).writeBytes(content)
   }
 
   fun saveToFile(content: String, path: String) {
