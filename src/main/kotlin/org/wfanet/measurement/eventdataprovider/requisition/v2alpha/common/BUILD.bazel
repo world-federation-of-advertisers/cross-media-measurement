@@ -4,32 +4,34 @@ load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
 
 package(default_visibility = ["//visibility:public"])
 
-MAVEN_COORDINATES = "org.wfanet.measurement.eventdataprovider:shareshuffle-v2alpha:" + artifact_version()
+MAVEN_COORDINATES = "org.wfanet.measurement.eventdataprovider:requisition-common-v2alpha:" + artifact_version()
 
 kt_jvm_library(
-    name = "shareshuffle",
-    srcs = glob(["*.kt"]),
+    name = "common",
+    srcs = [
+        "FrequencyVectorBuilder.kt",
+        "InMemoryVidIndexMap.kt",
+        "VidIndexMap.kt",
+    ],
     tags = ["maven_coordinates=" + MAVEN_COORDINATES],
+    visibility = [
+        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/requisition/v2alpha:__pkg__",
+        "//src/test/kotlin/org/wfanet/measurement/eventdataprovider/requisition/v2alpha/common:__pkg__",
+        "//src/test/kotlin/org/wfanet/measurement/eventdataprovider/requisition/v2alpha/shareshuffle:__pkg__",
+        "//src/test/kotlin/org/wfanet/measurement/loadtest/dataprovider:__pkg__",
+    ],
     deps = [
-        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:packed_messages",
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:population_spec_validator",
-        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
         "//src/main/proto/wfa/frequency_count:frequency_vector_kt_jvm_proto",
-        "//src/main/proto/wfa/frequency_count:secret_share_kt_jvm_proto",
-        "//src/main/proto/wfa/frequency_count:secret_share_methods_kt_jvm__proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:api_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/eventdataprovider/shareshuffle:vid_index_map_entry_kt_jvm_proto",
-        "@any_sketch_java//src/main/java/org/wfanet/frequencycount",
-        "@wfa_common_jvm//imports/java/com/google/common:guava",
-        "@wfa_common_jvm//imports/kotlin/kotlin/reflect",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
-        "@wfa_consent_signaling_client//src/main/kotlin/org/wfanet/measurement/consent/client/dataprovider",
     ],
 )
 
 maven_export(
-    name = "shareshuffle_maven",
-    lib_name = "shareshuffle",
+    name = "common_maven",
+    lib_name = "common",
     maven_coordinates = MAVEN_COORDINATES,
     tags = [
         "no-javadocs",
