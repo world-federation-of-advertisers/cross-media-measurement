@@ -12,7 +12,7 @@
  * the License.
  */
 
-package org.wfanet.measurement.eventdataprovider.shareshuffle.v2alpha
+package org.wfanet.measurement.eventdataprovider.requisition.v2alpha.shareshuffle
 
 import com.google.common.truth.Truth.assertThat
 import kotlin.test.assertFailsWith
