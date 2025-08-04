@@ -195,11 +195,13 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
       logger.info("Invoking requisition fetcher...")
 
       val jwt = System.getenv("AUTH_ID_TOKEN") ?: error("AUTH_ID_TOKEN must be set")
+      logger.info("Token is: ${jwt}")
 
       val requisitionFetcherTarget =
         System.getenv("REQUISITION_FETCHER_TARGET")
           ?: error("REQUISITION_FETCHER_TARGET must be set")
 
+      logger.info("requisitionFetcherTarget: ${requisitionFetcherTarget}")
       val client = HttpClient.newHttpClient()
       val request =
         HttpRequest.newBuilder()
@@ -209,6 +211,8 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
           .GET()
           .build()
       val response = client.send(request, HttpResponse.BodyHandlers.ofString())
+
+      logger.info("response: ${response.body()}")
 
       check(response.statusCode() == 200)
     }

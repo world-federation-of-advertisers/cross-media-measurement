@@ -107,7 +107,7 @@ jobs:
         --test_env=AUTH_ID_TOKEN \
         --test_env=REQUISITION_FETCHER_TARGET \
         //src/test/kotlin/org/wfanet/measurement/integration/k8s:EdpAggregatorCorrectnessTest
-      
+
 #    - name: Run tests
 #      id: run-tests
 #      run: >
