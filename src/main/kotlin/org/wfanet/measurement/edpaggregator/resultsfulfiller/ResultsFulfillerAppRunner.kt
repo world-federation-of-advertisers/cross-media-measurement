@@ -158,15 +158,25 @@ class ResultsFulfillerAppRunner : Runnable {
     private set
 
   @CommandLine.Option(
-    names = ["--event-template-metadata-type"],
+    names = ["--event-template-metadata-blob-uri"],
     description =
-      [
-        "Serialized FileDescriptorSet for EventTemplate metadata types.",
-        "This can be specified multiple times.",
-      ],
+    [
+      "Config storage blob URI to the FileDescriptorSet for EventTemplate metadata types.",
+      "This can be specified multiple times.",
+    ],
     required = true,
   )
-  private lateinit var eventTemplateDescriptorSetFiles: List<File>
+  private lateinit var eventTemplateDescriptorBlobUris: List<String>
+//  @CommandLine.Option(
+//    names = ["--event-template-metadata-type"],
+//    description =
+//      [
+//        "Serialized FileDescriptorSet for EventTemplate metadata types.",
+//        "This can be specified multiple times.",
+//      ],
+//    required = true,
+//  )
+//  private lateinit var eventTemplateDescriptorSetFiles: List<File>
 
   private val getImpressionsStorageConfig: (StorageParams) -> StorageConfig = { storageParams ->
     StorageConfig(projectId = storageParams.gcsProjectId)
