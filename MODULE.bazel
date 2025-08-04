@@ -202,6 +202,10 @@ bazel_dep(
     name = "rules_oci",
     version = "2.2.1",
 )
+bazel_dep(
+    name = "rules_multirun",
+    version = "0.6.1",
+)
 
 maven = use_extension("@rules_jvm_external//:extensions.bzl", "maven")
 maven.artifact(

@@ -9,25 +9,18 @@ load("//build:variables.bzl", "IMAGE_REPOSITORY_SETTINGS")
 
 _attrs = {
     "image": attr.label(allow_single_file = True, mandatory = True, doc = "Label to an oci_image"),
-    "image_name": attr.string(mandatory = True, doc = "Image name subject to make variable expansion"),
+    "repository_url": attr.string(mandatory = True, doc = "Image repository url subject to make variable expansion"),
     "_sign_sh_tpl": attr.label(default = "@rules_oci//cosign/private:sign.sh.tpl", allow_single_file = True),
 }
 
 def _compute_repository(ctx):
-    expanded_registry = ctx.expand_make_variables("registry", IMAGE_REPOSITORY_SETTINGS.container_registry, {})
-    expanded_image_name = ctx.expand_make_variables("image_name", ctx.attr.image_name, {})
-    return "{registry}/{image_name}".format(
-            registry = expanded_registry,
-            image_name = expanded_image_name,
-        )
+    # handle make variable expansion
+    return ctx.expand_make_variables("repository_url", ctx.attr.repository_url, {})
 
 
 def _cosign_sign_impl(ctx):
     cosign = ctx.toolchains["@rules_oci//cosign:toolchain_type"]
     jq = ctx.toolchains["@aspect_bazel_lib//lib:jq_toolchain_type"]
-
-    if ctx.attr.image_name.find(":") != -1 or ctx.attr.image_name.find("@") != -1:
-        fail("repository attribute should not contain digest or tag.")
 
     executable = ctx.actions.declare_file("cosign_sign_{}.sh".format(ctx.label.name))
     ctx.actions.expand_template(
