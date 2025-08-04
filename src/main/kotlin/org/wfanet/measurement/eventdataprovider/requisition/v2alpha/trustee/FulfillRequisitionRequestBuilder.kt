@@ -20,7 +20,6 @@ import com.google.crypto.tink.KeyTemplates
 import com.google.crypto.tink.KeysetHandle
 import com.google.crypto.tink.KmsClient
 import com.google.crypto.tink.aead.AeadConfig
-import com.google.protobuf.ByteString
 import com.google.protobuf.kotlin.toByteString
 import java.io.ByteArrayOutputStream
 import org.wfanet.frequencycount.FrequencyVector
@@ -30,7 +29,6 @@ import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequestKt
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequestKt.HeaderKt.trusTee
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequestKt.bodyChunk
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequestKt.header
-import org.wfanet.measurement.api.v2alpha.ProtocolConfig.TrusTee
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.encryptionKey
 import org.wfanet.measurement.api.v2alpha.fulfillRequisitionRequest
@@ -45,7 +43,7 @@ import org.wfanet.measurement.consent.client.dataprovider.computeRequisitionFing
  * @param encryptionParams The parameters for encryption. If null, the payload will not be
  *   encrypted.
  * @throws IllegalArgumentException if the requisition is malformed or the frequency vector is empty
- * @throws RuntimeException if a cryptographic error happens
+ * @throws GeneralSecurityException if a cryptographic error happens
  */
 class FulfillRequisitionRequestBuilder(
   private val requisition: Requisition,
@@ -72,20 +70,15 @@ class FulfillRequisitionRequestBuilder(
     val impersonatedServiceAccount: String,
   )
 
-  private val protocolConfig: TrusTee
   private val frequencyVectorBytes: ByteArray
-  private var encryptedFrequencyVector: ByteString? = null
-  private var encryptedDek: ByteString? = null
 
   init {
     val trusTeeProtocolList =
       requisition.protocolConfig.protocolsList.filter { it.hasTrusTee() }.map { it.trusTee }
 
-    protocolConfig =
-      trusTeeProtocolList.singleOrNull()
-        ?: throw IllegalArgumentException(
-          "Expected to find exactly one config for TrusTee. Found: ${trusTeeProtocolList.size}"
-        )
+    require(trusTeeProtocolList.size == 1) {
+      "Expected to find exactly one config for TrusTee. Found: ${trusTeeProtocolList.size}"
+    }
 
     require(frequencyVector.dataCount > 0) { "FrequencyVector must have size > 0" }
 
@@ -96,26 +89,11 @@ class FulfillRequisitionRequestBuilder(
         }
         frequencyVector.dataList[index].toByte()
       }
-
-    encryptionParams?.let { params ->
-      val dekHandle = KeysetHandle.generateNew(KeyTemplates.get("AES256_GCM"))
-      val dekAead = dekHandle.getPrimitive(Aead::class.java)
-
-      val encryptedData = dekAead.encrypt(frequencyVectorBytes, null)
-      encryptedFrequencyVector = encryptedData.toByteString()
-
-      val kekAead = params.kmsClient.getAead(params.kmsKekUri)
-      val outputStream = ByteArrayOutputStream()
-      dekHandle.write(BinaryKeysetWriter.withOutputStream(outputStream), kekAead)
-      encryptedDek = outputStream.toByteArray().toByteString()
-    }
   }
 
-  /** Builds the Sequence of requests with encrypted payload. */
-  fun buildEncrypted(): Sequence<FulfillRequisitionRequest> = sequence {
-    requireNotNull(encryptionParams) { "Encryption parameters are required to build." }
-    requireNotNull(encryptedFrequencyVector) { "Encrypted frequency vector is null." }
-    requireNotNull(encryptedDek) { "Encrypted DEK is null." }
+  /** Builds the Sequence of requests with payload. */
+  fun build(): Sequence<FulfillRequisitionRequest> = sequence {
+    var payload = frequencyVectorBytes.toByteString()
 
     yield(
       fulfillRequisitionRequest {
@@ -124,67 +102,50 @@ class FulfillRequisitionRequestBuilder(
           requisitionFingerprint = computeRequisitionFingerprint(requisition)
           nonce = requisitionNonce
           protocolConfig = requisition.protocolConfig
-          trusTee = trusTee {
-            dataFormat =
-              FulfillRequisitionRequest.Header.TrusTee.DataFormat.ENCRYPTED_FREQUENCY_VECTOR
-            envelopeEncryption =
-              FulfillRequisitionRequestKt.HeaderKt.TrusTeeKt.envelopeEncryption {
-                encryptedDek = encryptionKey {
-                  format = EncryptionKey.Format.TINK_ENCRYPTED_KEYSET
-                  data = this@FulfillRequisitionRequestBuilder.encryptedDek!!
+
+          if (encryptionParams == null) {
+            trusTee = trusTee {
+              dataFormat = FulfillRequisitionRequest.Header.TrusTee.DataFormat.FREQUENCY_VECTOR
+            }
+          } else {
+            val dekHandle = KeysetHandle.generateNew(KeyTemplates.get(KEY_TEMPLATE))
+            val dekAead = dekHandle.getPrimitive(Aead::class.java)
+
+            val encryptedData: ByteArray = dekAead.encrypt(frequencyVectorBytes, null)
+            payload = encryptedData.toByteString()
+
+            val kekAead = encryptionParams.kmsClient.getAead(encryptionParams.kmsKekUri)
+            val outputStream = ByteArrayOutputStream()
+            dekHandle.write(BinaryKeysetWriter.withOutputStream(outputStream), kekAead)
+            val encryptedDek = outputStream.toByteArray().toByteString()
+
+            trusTee = trusTee {
+              dataFormat =
+                FulfillRequisitionRequest.Header.TrusTee.DataFormat.ENCRYPTED_FREQUENCY_VECTOR
+              envelopeEncryption =
+                FulfillRequisitionRequestKt.HeaderKt.TrusTeeKt.envelopeEncryption {
+                  this.encryptedDek = encryptionKey {
+                    format = EncryptionKey.Format.TINK_ENCRYPTED_KEYSET
+                    data = encryptedDek
+                  }
+                  kmsKekUri = encryptionParams.kmsKekUri
+                  workloadIdentityProvider = encryptionParams.workloadIdentityProvider
+                  impersonatedServiceAccount = encryptionParams.impersonatedServiceAccount
                 }
-                kmsKekUri = encryptionParams.kmsKekUri
-                workloadIdentityProvider = encryptionParams.workloadIdentityProvider
-                impersonatedServiceAccount = encryptionParams.impersonatedServiceAccount
-              }
-            // TODO(world-federation-of-advertisers/cross-media-measurement#2624): generate
-            // populationSpec fingerprint
+              // TODO(world-federation-of-advertisers/cross-media-measurement#2624): generate
+              // populationSpec fingerprint
+            }
           }
         }
       }
     )
 
-    for (begin in 0 until encryptedFrequencyVector!!.size() step RPC_CHUNK_SIZE_BYTES) {
+    for (begin in 0 until payload.size() step RPC_CHUNK_SIZE_BYTES) {
       yield(
         fulfillRequisitionRequest {
           bodyChunk = bodyChunk {
-            data =
-              encryptedFrequencyVector!!.substring(
-                begin,
-                minOf(encryptedFrequencyVector!!.size(), begin + RPC_CHUNK_SIZE_BYTES),
-              )
-          }
-        }
-      )
-    }
-  }
-
-  /** Builds the Sequence of requests with an unencrypted payload. */
-  fun buildUnencrypted(): Sequence<FulfillRequisitionRequest> = sequence {
-    check(encryptionParams == null) {
-      "Cannot build unencrypted request when encryption params are present."
-    }
-
-    yield(
-      fulfillRequisitionRequest {
-        header = header {
-          name = requisition.name
-          requisitionFingerprint = computeRequisitionFingerprint(requisition)
-          nonce = requisitionNonce
-          protocolConfig = requisition.protocolConfig
-          trusTee = trusTee {
-            dataFormat = FulfillRequisitionRequest.Header.TrusTee.DataFormat.FREQUENCY_VECTOR
-          }
-        }
-      }
-    )
-
-    for (begin in 0 until frequencyVectorBytes.size step RPC_CHUNK_SIZE_BYTES) {
-      yield(
-        fulfillRequisitionRequest {
-          bodyChunk = bodyChunk {
-            val chunkSize = minOf(frequencyVectorBytes.size - begin, RPC_CHUNK_SIZE_BYTES)
-            data = ByteString.copyFrom(frequencyVectorBytes, begin, chunkSize)
+            val end = minOf(payload.size(), begin + RPC_CHUNK_SIZE_BYTES)
+            data = payload.substring(begin, end)
           }
         }
       )
@@ -192,6 +153,7 @@ class FulfillRequisitionRequestBuilder(
   }
 
   companion object {
+    private const val KEY_TEMPLATE = "AES256_GCM"
     private const val RPC_CHUNK_SIZE_BYTES = 32 * 1024 // 32 KiB
 
     init {
@@ -203,20 +165,15 @@ class FulfillRequisitionRequestBuilder(
       requisition: Requisition,
       requisitionNonce: Long,
       frequencyVector: FrequencyVector,
-      kmsClient: KmsClient,
-      kmsKekUri: String,
-      workloadIdentityProvider: String,
-      impersonatedServiceAccount: String,
+      encryptionParams: EncryptionParams,
     ): Sequence<FulfillRequisitionRequest> {
-      val encryptionParams =
-        EncryptionParams(kmsClient, kmsKekUri, workloadIdentityProvider, impersonatedServiceAccount)
       return FulfillRequisitionRequestBuilder(
           requisition,
           requisitionNonce,
           frequencyVector,
           encryptionParams,
         )
-        .buildEncrypted()
+        .build()
     }
 
     /** Builds a sequence of requests with an unencrypted payload. */
@@ -225,7 +182,6 @@ class FulfillRequisitionRequestBuilder(
       requisitionNonce: Long,
       frequencyVector: FrequencyVector,
     ): Sequence<FulfillRequisitionRequest> =
-      FulfillRequisitionRequestBuilder(requisition, requisitionNonce, frequencyVector, null)
-        .buildUnencrypted()
+      FulfillRequisitionRequestBuilder(requisition, requisitionNonce, frequencyVector, null).build()
   }
 }
