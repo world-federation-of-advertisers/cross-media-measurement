@@ -46,10 +46,10 @@ resource "google_project_iam_member" "mig_sa_user" {
   member  = "serviceAccount:${google_service_account.mig_service_account.email}"
 }
 
-resource "google_project_iam_member" "mig_workload_user" {
-  project = data.google_project.project.name
-  role    = "roles/confidentialComputing.workloadUser"
-  member  = "serviceAccount:${google_service_account.mig_service_account.email}"
+resource "google_service_account_iam_member" "confidential_workload_user" {
+  service_account_id = google_service_account.mig_service_account.name
+  role               = "roles/confidentialComputing.workloadUser"
+  member             = "serviceAccount:${google_service_account.mig_service_account.email}"
 }
 
 resource "google_project_iam_member" "mig_log_writer" {
