@@ -12,7 +12,7 @@
  * the License.
  */
 
-package org.wfanet.measurement.eventdataprovider.shareshuffle.v2alpha
+package org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common
 
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.ByteString
