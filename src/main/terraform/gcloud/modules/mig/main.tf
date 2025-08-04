@@ -122,13 +122,13 @@ resource "google_compute_instance_template" "confidential_vm_template" {
   }
 
   metadata = merge(
-      {
-        "google-logging-enabled"    = "true"
-        "google-monitoring-enabled" = "true"
-      },
-      local.metadata_map
-
-    )
+    {
+      "google-logging-enabled"    = "true"
+      "google-monitoring-enabled" = "true"
+    },
+    local.metadata_map
+  )
+  
   service_account {
     email = google_service_account.mig_service_account.email
     scopes = [
