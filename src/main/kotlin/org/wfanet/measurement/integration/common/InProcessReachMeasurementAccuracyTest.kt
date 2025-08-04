@@ -42,7 +42,6 @@ import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
 import org.wfanet.measurement.loadtest.measurementconsumer.EventQueryMeasurementConsumerSimulator
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerSimulator.MeasurementInfo
-import org.wfanet.measurement.loadtest.measurementconsumer.MetadataSyntheticGeneratorEventQuery
 import org.wfanet.measurement.measurementconsumer.stats.HonestMajorityShareShuffleMethodology
 import org.wfanet.measurement.measurementconsumer.stats.LiquidLegionsV2Methodology
 import org.wfanet.measurement.measurementconsumer.stats.Methodology
@@ -110,11 +109,6 @@ abstract class InProcessReachMeasurementAccuracyTest(
 
   private fun initMcSimulator() {
     val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
-    val eventQuery =
-      MetadataSyntheticGeneratorEventQuery(
-        SYNTHETIC_POPULATION_SPEC,
-        InProcessCmmsComponents.MC_ENCRYPTION_PRIVATE_KEY,
-      )
     mcSimulator =
       EventQueryMeasurementConsumerSimulator(
         MeasurementConsumerData(
@@ -130,7 +124,7 @@ abstract class InProcessReachMeasurementAccuracyTest(
         publicMeasurementConsumersClient,
         publicCertificatesClient,
         InProcessCmmsComponents.TRUSTED_CERTIFICATES,
-        eventQuery,
+        inProcessCmmsComponents.eventQuery,
         NoiseMechanism.CONTINUOUS_GAUSSIAN,
       )
   }

@@ -17,36 +17,40 @@ package org.wfanet.measurement.loadtest.measurementconsumer
 import com.google.protobuf.ByteString
 import com.google.protobuf.Message
 import com.google.type.Interval
+import com.google.type.interval
 import java.security.cert.X509Certificate
 import java.time.Duration
 import java.time.LocalDate
-import java.util.logging.Logger
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.filter
-import kotlinx.coroutines.flow.toList
-import kotlinx.coroutines.runBlocking
 import org.projectnessie.cel.Program
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
+import org.wfanet.measurement.api.v2alpha.DataProvider
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.DifferentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupKey
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.MeasurementConsumer
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig.NoiseMechanism
+import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticPopulationSpec
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
+import org.wfanet.measurement.api.v2alpha.requisitionSpec
 import org.wfanet.measurement.common.OpenEndTimeRange
+import org.wfanet.measurement.common.crypto.Hashing
 import org.wfanet.measurement.common.toInstant
+import org.wfanet.measurement.common.toProtoTime
+import org.wfanet.measurement.consent.client.measurementconsumer.signRequisitionSpec
 import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters
 import org.wfanet.measurement.loadtest.dataprovider.SyntheticDataGeneration
 
 /** Implementation of MeasurementConsumerSimulator for use with the EDP Aggregator. */
 class EdpAggregatorMeasurementConsumerSimulator(
-  measurementConsumerData: MeasurementConsumerData,
+  private val measurementConsumerData: MeasurementConsumerData,
   outputDpParams: DifferentialPrivacyParams,
   dataProvidersClient: DataProvidersCoroutineStub,
   eventGroupsClient: EventGroupsCoroutineStub,
@@ -58,10 +62,11 @@ class EdpAggregatorMeasurementConsumerSimulator(
   expectedDirectNoiseMechanism: NoiseMechanism,
   private val syntheticPopulationSpec: SyntheticPopulationSpec,
   private val syntheticEventGroupMap: Map<String, SyntheticEventGroupSpec>,
-  filterExpression: String = DEFAULT_FILTER_EXPRESSION,
-  eventRange: OpenEndTimeRange = DEFAULT_EVENT_RANGE,
+  private val filterExpression: String = DEFAULT_FILTER_EXPRESSION,
   initialResultPollingDelay: Duration = Duration.ofSeconds(1),
   maximumResultPollingDelay: Duration = Duration.ofMinutes(1),
+  eventGroupFilter: ((EventGroup) -> Boolean)?,
+  onMeasurementsCreated: (() -> Unit)? = null,
 ) :
   MeasurementConsumerSimulator(
     measurementConsumerData,
@@ -73,10 +78,10 @@ class EdpAggregatorMeasurementConsumerSimulator(
     certificatesClient,
     trustedCertificates,
     expectedDirectNoiseMechanism,
-    filterExpression,
-    eventRange,
     initialResultPollingDelay,
     maximumResultPollingDelay,
+    eventGroupFilter = eventGroupFilter,
+    onMeasurementsCreated = onMeasurementsCreated,
   ) {
 
   override fun Flow<EventGroup>.filterEventGroups(): Flow<EventGroup> {
@@ -84,18 +89,18 @@ class EdpAggregatorMeasurementConsumerSimulator(
   }
 
   /**
-   * Filters a list of vids for a [MeasurementInfo]. Filters by targetDataProviderId, if provided.
-   * Otherwise, filters by collection interval.
+   * Filters a list of vids for a [MeasurementConsumerSimulator.MeasurementInfo]. Filters by
+   * targetDataProviderId, if provided. Otherwise, filters by collection interval.
    */
   private fun getMeasurementFilteredVids(
     measurementInfo: MeasurementInfo,
     targetDataProviderId: String? = null,
-  ): Flow<Long> {
-    val eventGroupSpecs: List<Triple<SyntheticEventGroupSpec, String, Interval>> =
-      measurementInfo.requisitions.flatMap { requisitionInfo ->
+  ): Sequence<Long> {
+    val eventGroupSpecs: Sequence<Triple<SyntheticEventGroupSpec, String, Interval>> =
+      measurementInfo.requisitions.asSequence().flatMap { requisitionInfo ->
         requisitionInfo.eventGroups
           .zip(requisitionInfo.requisitionSpec.events.eventGroupsList)
-          .filter { (eventGroup, eventGroupEntry) ->
+          .filter { (eventGroup, _) ->
             targetDataProviderId == null ||
               targetDataProviderId ==
                 requireNotNull(EventGroupKey.fromName(eventGroup.name)).dataProviderId
@@ -110,37 +115,81 @@ class EdpAggregatorMeasurementConsumerSimulator(
       }
     return eventGroupSpecs
       .flatMap { (syntheticEventGroupSpec, expression, collectionInterval) ->
-        runBlocking {
-          val program: Program =
-            EventFilters.compileProgram(messageInstance.descriptorForType, expression)
-          SyntheticDataGeneration.generateEvents(
-              messageInstance,
-              syntheticPopulationSpec,
-              syntheticEventGroupSpec,
-            )
-            .toList()
-            .flatMap { it.impressions.toList() }
-            .filter { impression -> EventFilters.matches(impression.message, program) }
-            .filter { impression ->
-              targetDataProviderId != null ||
-                (impression.timestamp >= collectionInterval.startTime.toInstant() &&
-                  impression.timestamp < collectionInterval.endTime.toInstant())
-            }
-        }
+        val program: Program =
+          EventFilters.compileProgram(messageInstance.descriptorForType, expression)
+        SyntheticDataGeneration.generateEvents(
+            messageInstance,
+            syntheticPopulationSpec,
+            syntheticEventGroupSpec,
+          )
+          .flatMap { it.labeledEvents }
+          .filter { impression -> EventFilters.matches(impression.message, program) }
+          .filter { impression ->
+            targetDataProviderId != null ||
+              (impression.timestamp >= collectionInterval.startTime.toInstant() &&
+                impression.timestamp < collectionInterval.endTime.toInstant())
+          }
       }
       .map { it.vid }
-      .asFlow()
   }
 
-  override fun getFilteredVids(measurementInfo: MeasurementInfo): Flow<Long> {
+  override fun getFilteredVids(measurementInfo: MeasurementInfo): Sequence<Long> {
     return getMeasurementFilteredVids(measurementInfo, null)
   }
 
   override fun getFilteredVids(
     measurementInfo: MeasurementInfo,
     targetDataProviderId: String,
-  ): Flow<Long> {
+  ): Sequence<Long> {
     return getMeasurementFilteredVids(measurementInfo, targetDataProviderId)
+  }
+
+  override fun buildRequisitionInfo(
+    dataProvider: DataProvider,
+    eventGroups: List<EventGroup>,
+    measurementConsumer: MeasurementConsumer,
+    nonce: Long,
+    percentage: Double,
+  ): RequisitionInfo {
+    val requisitionSpec = requisitionSpec {
+      for (eventGroup in eventGroups) {
+        events =
+          RequisitionSpecKt.events {
+            this.eventGroups +=
+              RequisitionSpecKt.eventGroupEntry {
+                key = eventGroup.name
+                value =
+                  RequisitionSpecKt.EventGroupEntryKt.value {
+                    collectionInterval = interval {
+                      startTime = eventGroup.dataAvailabilityInterval.startTime
+                      val durationMillis =
+                        Duration.between(
+                            eventGroup.dataAvailabilityInterval.startTime.toInstant(),
+                            eventGroup.dataAvailabilityInterval.endTime.toInstant(),
+                          )
+                          .toMillis() * percentage
+                      val requisitionEndTime =
+                        (eventGroup.dataAvailabilityInterval.startTime
+                            .toInstant()
+                            .plusMillis(durationMillis.toLong()))
+                          .toProtoTime()
+
+                      endTime = requisitionEndTime
+                    }
+                    filter = RequisitionSpecKt.eventFilter { expression = filterExpression }
+                  }
+              }
+          }
+      }
+      measurementPublicKey = measurementConsumer.publicKey.message
+      this.nonce = nonce
+    }
+    val signedRequisitionSpec =
+      signRequisitionSpec(requisitionSpec, measurementConsumerData.signingKey)
+    val dataProviderEntry =
+      dataProvider.toDataProviderEntry(signedRequisitionSpec, Hashing.hashSha256(nonce))
+
+    return RequisitionInfo(dataProviderEntry, requisitionSpec, eventGroups)
   }
 
   companion object {
@@ -150,6 +199,5 @@ class EdpAggregatorMeasurementConsumerSimulator(
     /** Default time range for events. */
     private val DEFAULT_EVENT_RANGE =
       OpenEndTimeRange.fromClosedDateRange(LocalDate.of(2021, 3, 15)..LocalDate.of(2021, 3, 17))
-    private val logger: Logger = Logger.getLogger(this::class.java.name)
   }
 }

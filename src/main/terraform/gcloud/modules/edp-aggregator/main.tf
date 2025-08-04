@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+data "google_project" "project" {}
+
 locals {
   common_secrets_to_mount = [
     {
@@ -37,6 +39,12 @@ locals {
       version    = "latest"
       mount_path = "/etc/ssl/kingdom_root.pem",
       flag_name  = "--kingdom-cert-collection-file-path"
+    },
+    {
+      secret_id  = var.results_fulfiller_event_proto_descriptors.secret_id
+      version    = "latest"
+      mount_path = "/var/tmp/event_proto_descriptors.pb",
+      flag_name  = "--event-template-metadata-type"
     }
   ]
 
@@ -82,12 +90,13 @@ locals {
   ]...)
 
   all_secrets = merge(
-    { edpa_tee_app_tls_key       = var.edpa_tee_app_tls_key },
-    { edpa_tee_app_tls_pem       = var.edpa_tee_app_tls_pem },
-    { data_watcher_tls_key       = var.data_watcher_tls_key },
-    { data_watcher_tls_pem       = var.data_watcher_tls_pem },
-    { secure_computation_root_ca = var.secure_computation_root_ca },
-    { kingdom_root_ca            = var.kingdom_root_ca },
+    { edpa_tee_app_tls_key                          = var.edpa_tee_app_tls_key },
+    { edpa_tee_app_tls_pem                          = var.edpa_tee_app_tls_pem },
+    { data_watcher_tls_key                          = var.data_watcher_tls_key },
+    { data_watcher_tls_pem                          = var.data_watcher_tls_pem },
+    { secure_computation_root_ca                    = var.secure_computation_root_ca },
+    { kingdom_root_ca                               = var.kingdom_root_ca },
+    { results_fulfiller_event_proto_descriptors     = var.results_fulfiller_event_proto_descriptors },
     local.edps_secrets
   )
 
@@ -101,6 +110,7 @@ locals {
     for edp_name, certs in var.edps_certs : [
       "${edp_name}_tls_key",
       "${edp_name}_tls_pem",
+      "${edp_name}_enc_private",
     ]
   ])
 
@@ -131,9 +141,9 @@ locals {
   ]...)
 
   service_accounts = {
-    "data_watcher"        = module.data_watcher_function_service_accounts.cloud_function_service_account.email
-    "requisition_fetcher" = module.requisition_fetcher_function_service_account.cloud_function_service_account.email
-    "event_group_sync"    = module.event_group_sync_function_service_account.cloud_function_service_account.email
+    "data_watcher"        = module.data_watcher_cloud_function.cloud_function_service_account.email
+    "requisition_fetcher" = module.requisition_fetcher_cloud_function.cloud_function_service_account.email
+    "event_group_sync"    = module.event_group_sync_cloud_function.cloud_function_service_account.email
   }
 }
 
@@ -163,6 +173,18 @@ resource "google_storage_bucket_object" "uploaded_requisition_fetcher_config" {
   source = var.requisition_fetcher_config.local_path
 }
 
+resource "google_project_iam_member" "eventarc_service_agent" {
+  project = data.google_project.project.project_id
+  role    = "roles/eventarc.serviceAgent"
+  member  = "serviceAccount:service-${data.google_project.project.number}@gcp-sa-eventarc.iam.gserviceaccount.com"
+}
+
+resource "google_project_iam_member" "storage_service_agent" {
+  project = data.google_project.project.project_id
+  role    = "roles/pubsub.publisher"
+  member  = "serviceAccount:service-${data.google_project.project.number}@gs-project-accounts.iam.gserviceaccount.com"
+}
+
 module "secrets" {
   source            = "../secret"
   for_each          = local.all_secrets
@@ -171,27 +193,42 @@ module "secrets" {
   is_binary_format  = each.value.is_binary_format
 }
 
-module "data_watcher_function_service_accounts" {
+module "data_watcher_cloud_function" {
   source    = "../gcs-bucket-cloud-function"
 
-  cloud_function_service_account_name       = var.data_watcher_service_account_name
-  cloud_function_trigger_service_account_name    = var.data_watcher_trigger_service_account_name
-  trigger_bucket_name                       = module.edp_aggregator_bucket.storage_bucket.name
-  terraform_service_account                 = var.terraform_service_account
+  cloud_function_service_account_name           = var.data_watcher_service_account_name
+  cloud_function_trigger_service_account_name   = var.data_watcher_trigger_service_account_name
+  trigger_bucket_name                           = module.edp_aggregator_bucket.storage_bucket.name
+  terraform_service_account                     = var.terraform_service_account
+  function_name                                 = var.cloud_function_configs.data_watcher.function_name
+  entry_point                                   = var.cloud_function_configs.data_watcher.entry_point
+  extra_env_vars                                = var.cloud_function_configs.data_watcher.extra_env_vars
+  secret_mappings                               = var.cloud_function_configs.data_watcher.secret_mappings
+  uber_jar_path                                 = var.cloud_function_configs.data_watcher.uber_jar_path
 }
 
-module "requisition_fetcher_function_service_account" {
+module "requisition_fetcher_cloud_function" {
   source    = "../http-cloud-function"
 
   http_cloud_function_service_account_name  = var.requisition_fetcher_service_account_name
   terraform_service_account                 = var.terraform_service_account
+  function_name                             = var.cloud_function_configs.requisition_fetcher.function_name
+  entry_point                               = var.cloud_function_configs.requisition_fetcher.entry_point
+  extra_env_vars                            = var.cloud_function_configs.requisition_fetcher.extra_env_vars
+  secret_mappings                           = var.cloud_function_configs.requisition_fetcher.secret_mappings
+  uber_jar_path                             = var.cloud_function_configs.requisition_fetcher.uber_jar_path
 }
 
-module "event_group_sync_function_service_account" {
+module "event_group_sync_cloud_function" {
   source    = "../http-cloud-function"
 
   http_cloud_function_service_account_name  = var.event_group_sync_service_account_name
   terraform_service_account                 = var.terraform_service_account
+  function_name                             = var.cloud_function_configs.event_group_sync.function_name
+  entry_point                               = var.cloud_function_configs.event_group_sync.entry_point
+  extra_env_vars                            = var.cloud_function_configs.event_group_sync.extra_env_vars
+  secret_mappings                           = var.cloud_function_configs.event_group_sync.secret_mappings
+  uber_jar_path                             = var.cloud_function_configs.event_group_sync.uber_jar_path
 }
 
 resource "google_secret_manager_secret_iam_member" "secret_accessor" {
@@ -235,6 +272,8 @@ resource "google_kms_crypto_key" "edp_aggregator_kek" {
 module "result_fulfiller_tee_app" {
   source   = "../mig"
 
+  depends_on = [module.secrets]
+
   instance_template_name        = var.requisition_fulfiller_config.worker.instance_template_name
   base_instance_name            = var.requisition_fulfiller_config.worker.base_instance_name
   managed_instance_group_name   = var.requisition_fulfiller_config.worker.managed_instance_group_name
@@ -268,19 +307,25 @@ resource "google_storage_bucket_iam_binding" "aggregator_storage_admin" {
   bucket = module.edp_aggregator_bucket.storage_bucket.name
   role   = "roles/storage.objectAdmin"
   members = [
-    "serviceAccount:${module.requisition_fetcher_function_service_account.cloud_function_service_account.email}",
-    "serviceAccount:${module.event_group_sync_function_service_account.cloud_function_service_account.email}",
+    "serviceAccount:${module.requisition_fetcher_cloud_function.cloud_function_service_account.email}",
+    "serviceAccount:${module.event_group_sync_cloud_function.cloud_function_service_account.email}",
   ]
 }
 
 resource "google_storage_bucket_iam_member" "requisition_fetcher_config_storage_viewer" {
   bucket = module.config_files_bucket.storage_bucket.name
   role   = "roles/storage.objectViewer"
-  member = "serviceAccount:${module.requisition_fetcher_function_service_account.cloud_function_service_account.email}"
+  member = "serviceAccount:${module.requisition_fetcher_cloud_function.cloud_function_service_account.email}"
 }
 
 resource "google_storage_bucket_iam_member" "data_watcher_config_storage_viewer" {
   bucket = module.config_files_bucket.storage_bucket.name
   role   = "roles/storage.objectViewer"
-  member = "serviceAccount:${module.data_watcher_function_service_accounts.cloud_function_service_account.email}"
+  member = "serviceAccount:${module.data_watcher_cloud_function.cloud_function_service_account.email}"
+}
+
+resource "google_cloud_run_service_iam_member" "event_group_sync_invoker" {
+  service  = var.event_group_sync_function_name
+  role     = "roles/run.invoker"
+  member   = "serviceAccount:${module.data_watcher_cloud_function.cloud_function_service_account.email}"
 }

@@ -37,9 +37,19 @@ bazel_dep(
 )
 bazel_dep(
     name = "common-jvm",
-    version = "0.108.0",
+    version = "0.111.0",
     repo_name = "wfa_common_jvm",
 )
+
+#DO_NOT_SUBMIT: wait for https://github.com/world-federation-of-advertisers/common-jvm/pull/330
+archive_override(
+    module_name = "common-jvm",
+    strip_prefix = "common-jvm-ed814019c83c634c41c2409863b992825f3b00d0",
+    urls = [
+        "https://github.com/world-federation-of-advertisers/common-jvm/archive/ed814019c83c634c41c2409863b992825f3b00d0.tar.gz",
+    ],
+)
+
 bazel_dep(
     name = "common-cpp",
     version = "0.13.0",
@@ -47,7 +57,7 @@ bazel_dep(
 )
 bazel_dep(
     name = "cross-media-measurement-api",
-    version = "0.79.0",
+    version = "0.80.0",
     repo_name = "wfa_measurement_proto",
 )
 bazel_dep(
@@ -86,7 +96,7 @@ bazel_dep(
 )
 bazel_dep(
     name = "cloud-spanner-emulator-bin",
-    version = "1.5.32",
+    version = "1.5.37.libcxx.1",
     repo_name = "cloud_spanner_emulator",
 )
 bazel_dep(
@@ -99,7 +109,7 @@ bazel_dep(
 
 bazel_dep(
     name = "platforms",
-    version = "0.0.11",
+    version = "1.0.0",
 )
 bazel_dep(
     name = "bazel_skylib",
@@ -235,8 +245,6 @@ maven.install(
         # TODO(googleapis/java-cloud-bom#5279): Remove when managed by BOM.
         "com.google.apis:google-api-services-storage:v1-rev20240706-2.0.0",
         "com.google.cloud.functions.invoker:java-function-invoker:1.4.0",
-        "com.google.auth:google-auth-library-oauth2-http:1.36.0",
-        "com.google.auth:google-auth-library-credentials",
 
         # AWS
         "software.amazon.awssdk:acmpca",

@@ -50,6 +50,7 @@ object TrusTeeProtocol {
     override fun enumToLong(value: TrusTee.Stage): Long {
       return value.numberAsLong
     }
+
     /** Translates [TrusTee.Stage] s into [ComputationStageDetails]. */
     object Details :
       ProtocolStageDetails<Stage, ComputationStageDetails, TrusTee.ComputationDetails> {

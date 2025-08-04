@@ -19,9 +19,8 @@ import com.google.crypto.tink.BinaryKeysetReader
 import com.google.crypto.tink.KeysetHandle
 import com.google.crypto.tink.KmsClient
 import com.google.protobuf.ByteString
-import io.grpc.Status
-import io.grpc.StatusRuntimeException
 import java.nio.ByteBuffer
+import java.nio.file.Path
 import java.security.GeneralSecurityException
 import java.time.Clock
 import java.time.Duration
@@ -29,9 +28,10 @@ import java.util.logging.Logger
 import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
+import org.wfanet.measurement.common.crypto.tink.GcpWifCredentials
+import org.wfanet.measurement.common.crypto.tink.KmsClientFactory
 import org.wfanet.measurement.duchy.db.computation.ComputationDataClients
 import org.wfanet.measurement.duchy.db.computation.ComputationDataClients.PermanentErrorException
-import org.wfanet.measurement.duchy.db.computation.ComputationDataClients.TransientErrorException
 import org.wfanet.measurement.duchy.mill.Certificate
 import org.wfanet.measurement.duchy.mill.MillBase
 import org.wfanet.measurement.duchy.mill.trustee.crypto.TrusTeeCryptor
@@ -62,7 +62,7 @@ class TrusTeeMill(
   workLockDuration: Duration,
   private val trusTeeCryptorFactory: TrusTeeCryptor.Factory,
   private val kmsClientFactory: KmsClientFactory,
-  private val attestationTokenPath: String,
+  private val attestationTokenPath: Path,
   requestChunkSizeBytes: Int = 1024 * 32,
   maximumAttempts: Int = 10,
   clock: Clock = Clock.systemUTC(),
@@ -83,7 +83,6 @@ class TrusTeeMill(
     maximumAttempts = maximumAttempts,
     clock = clock,
   ) {
-  init {}
 
   override val endingStage = Stage.COMPLETE.toProtocolStage()
 
@@ -151,18 +150,18 @@ class TrusTeeMill(
     protocol: RequisitionDetails.RequisitionProtocol.TrusTee,
   ): KmsClient {
     val config =
-      WifCredentialsConfig(
+      GcpWifCredentials(
         audience = protocol.workloadIdentityProvider,
         subjectTokenType = OAUTH_TOKEN_TYPE_ID_TOKEN,
         tokenUrl = GOOGLE_STS_TOKEN_URL,
-        credentialSourceFilePath = attestationTokenPath,
+        credentialSourceFilePath = attestationTokenPath.toString(),
         serviceAccountImpersonationUrl =
           IAM_IMPERSONATION_URL_FORMAT.format(protocol.impersonatedServiceAccount),
       )
 
     try {
       return kmsClientFactory.getKmsClient(config)
-    } catch (e: Exception) {
+    } catch (e: GeneralSecurityException) {
       throw PermanentErrorException("Failed to create KMS client", e)
     }
   }
@@ -175,17 +174,9 @@ class TrusTeeMill(
       val kekAead = kmsClient.getAead(protocol.kmsKekUri)
 
       return KeysetHandle.read(
-        BinaryKeysetReader.withBytes(protocol.encryptedSymmetricKey.toByteArray()),
+        BinaryKeysetReader.withBytes(protocol.encryptedDekCiphertext.toByteArray()),
         kekAead,
       )
-    } catch (e: StatusRuntimeException) {
-      val message = "KMS communication failed: ${e.status.description}"
-      when (e.status.code) {
-        Status.Code.UNAVAILABLE,
-        Status.Code.DEADLINE_EXCEEDED,
-        Status.Code.ABORTED -> throw TransientErrorException(message, e)
-        else -> throw PermanentErrorException(message, e)
-      }
     } catch (e: GeneralSecurityException) {
       throw PermanentErrorException("Failed to get DEK keyset due to a cryptographic error", e)
     }

@@ -18,8 +18,10 @@ kt_jvm_library(
     ],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/integration/common:configs",
+        "//src/main/kotlin/org/wfanet/measurement/integration/common:event_query",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/measurementconsumer:event_query_measurement_consumer_simulator",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/reporting:simulator",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:test_event_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/java/org/junit",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
@@ -41,7 +43,6 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/integration/common:synthetic_generation_specs",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/config:vid_sampling",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/measurementconsumer:event_query_measurement_consumer_simulator",
-        "//src/main/kotlin/org/wfanet/measurement/loadtest/measurementconsumer:synthetic_generator_event_query",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/resourcesetup:resource_setup",
         "@wfa_common_jvm//imports/java/org/jetbrains/annotations",
         "@wfa_common_jvm//imports/java/org/junit",
@@ -60,7 +61,6 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/integration/common:synthetic_generation_specs",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/config:vid_sampling",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/measurementconsumer:event_query_measurement_consumer_simulator",
-        "//src/main/kotlin/org/wfanet/measurement/loadtest/measurementconsumer:synthetic_generator_event_query",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/reporting:simulator",
         "//src/main/proto/wfa/measurement/integration/k8s/testing:correctness_test_config_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/org/junit",
@@ -80,6 +80,12 @@ expand_template(
         "{mc_api_key}": TEST_K8S_SETTINGS.mc_api_key,
         "{reporting_public_api_target}": "$(reporting_public_api_target)",
         "{reporting_public_api_cert_host}": "localhost",
+        "{edp1_name}": "$(edp1_name)",
+        "{edp2_name}": "$(edp2_name)",
+        "{edp3_name}": "$(edp3_name)",
+        "{edp4_name}": "$(edp4_name)",
+        "{edp5_name}": "$(edp5_name)",
+        "{edp6_name}": "$(edp6_name)",
     },
     tags = ["manual"],
     template = "correctness_test_config.tmpl.textproto",
@@ -121,4 +127,59 @@ java_test(
     ],
     test_class = "org.wfanet.measurement.integration.k8s.SyntheticGeneratorCorrectnessTest",
     runtime_deps = [":synthetic_data_generator_correctness_test"],
+)
+
+kt_jvm_library(
+    name = "abstract_edp_aggregatorcorrectness_test",
+    srcs = ["AbstractEdpAggregatorCorrectnessTest.kt"],
+    data = [
+        "//src/main/k8s/testing/secretfiles:mc_trusted_certs.pem",
+        "//src/main/k8s/testing/secretfiles:reporting_root.pem",
+        "//src/main/k8s/testing/secretfiles:secret_files",
+    ],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/integration/common:configs",
+        "//src/main/kotlin/org/wfanet/measurement/loadtest/measurementconsumer:edp_aggregator_measurement_consumer_simulator",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+    ],
+)
+
+kt_jvm_library(
+    name = "edp_aggregator_correctness_test",
+    srcs = ["EdpAggregatorCorrectnessTest.kt"],
+    data = [
+        "//src/main/proto/wfa/measurement/loadtest/dataprovider:specs",
+    ],
+    deps = [
+        ":abstract_edp_aggregatorcorrectness_test",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_group_metadata/testing:simulator_synthetic_data_spec_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:test_event_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/eventgroups/v1alpha:event_group_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/integration/k8s/testing:correctness_test_config_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/testing",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:mesos_recordio_storage_client",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:selected_storage_client",
+    ],
+)
+
+java_test(
+    name = "EdpAggregatorCorrectnessTest",
+    timeout = "long",
+    data = [
+        ":correctness_test_config.textproto",
+    ],
+    tags = [
+        "exclusive",
+        "external",
+        "manual",
+        "no-remote-exec",
+    ],
+    test_class = "org.wfanet.measurement.integration.k8s.EdpAggregatorCorrectnessTest",
+    runtime_deps = [":edp_aggregator_correctness_test"],
 )

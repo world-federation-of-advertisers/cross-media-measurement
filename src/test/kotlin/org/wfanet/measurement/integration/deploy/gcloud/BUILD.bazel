@@ -149,6 +149,7 @@ java_test(
     tags = [
         "cpu:2",
         "manual",
+        "no-remote-exec",
     ],
     test_class = "org.wfanet.measurement.integration.deploy.gcloud.GCloudSpannerInProcessReachMeasurementAccuracyTest",
     runtime_deps = [":gcloud_spanner_in_process_reach_measurement_accuracy_test"],
@@ -168,6 +169,10 @@ kt_jvm_library(
 java_test(
     name = "GCloudSpannerInProcessMeasurementSystemProberIntegrationTest",
     size = "large",
+    tags = [
+        "cpu:2",
+        "no-remote-exec",
+    ],
     test_class = "org.wfanet.measurement.integration.deploy.gcloud.GCloudSpannerInProcessMeasurementSystemProberIntegrationTest",
     runtime_deps = [":gcloud_spanner_in_process_measurement_system_prober_integration_test"],
 )
@@ -189,9 +194,24 @@ kt_jvm_library(
 java_test(
     name = "GCloudInProcessAccessCliIntegrationTest",
     size = "large",
+    tags = [
+        "cpu:2",
+        "no-remote-exec",
+    ],
     # TODO(world-federation-of-advertisers/cross-media-measurement#827): Remove when flakiness is resolved.
     test_class = "org.wfanet.measurement.integration.deploy.gcloud.GCloudInProcessAccessCliIntegrationTest",
     runtime_deps = [":gcloud_in_process_access_cli_integration_test"],
+)
+
+kt_jvm_library(
+    name = "gcloud_edp_aggregator_life_of_a_measurement_integration_test",
+    srcs = ["GCloudEdpAggregatorLifeOfAMeasurementIntegrationTest.kt"],
+    data = ["@cloud_spanner_emulator//:emulator"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/integration/common:in_process_edp_aggregator_life_of_a_measurement_integration_test",
+        "//src/main/kotlin/org/wfanet/measurement/integration/deploy/gcloud:kingdom_data_services_provider_rule",
+        "//src/main/kotlin/org/wfanet/measurement/integration/deploy/gcloud:spanner_duchy_dependency_provider_rule",
+    ],
 )
 
 kt_jvm_library(
@@ -205,8 +225,26 @@ kt_jvm_library(
 
 # TODO(bazelbuild/rules_kotlin#1088): Use kt_jvm_test when fixed.
 java_test(
+    name = "GCloudEdpAggregatorLifeOfAMeasurementIntegrationTest",
+    size = "large",
+    tags = [
+        "cpu:2",
+        "no-remote-exec",
+    ],
+    test_class = "org.wfanet.measurement.integration.deploy.gcloud.GCloudEdpAggregatorLifeOfAMeasurementIntegrationTest",
+    runtime_deps = [
+        ":gcloud_edp_aggregator_life_of_a_measurement_integration_test",
+        "//imports/java/org/slf4j:simple",
+    ],
+)
+
+java_test(
     name = "GCloudInProcessModelRepositoryCliIntegrationTest",
     size = "large",
+    tags = [
+        "cpu:2",
+        "no-remote-exec",
+    ],
     test_class = "org.wfanet.measurement.integration.deploy.gcloud.GCloudInProcessModelRepositoryCliIntegrationTest",
     runtime_deps = [":gcloud_in_process_model_repository_cli_integration_test"],
 )

@@ -54,6 +54,15 @@ variable "requisition_fulfiller_config" {
   })
 }
 
+variable "results_fulfiller_event_proto_descriptors" {
+  description = "Event proto descriptors file path"
+  type = object({
+    secret_id         = string
+    secret_local_path = string
+    is_binary_format  = bool
+  })
+}
+
 variable "edpa_tee_app_tls_key" {
   description = "EDPA tls key"
   type = object({
@@ -216,8 +225,12 @@ variable "event_group_sync_function_name" {
   nullable    = false
 }
 
-variable "event_group_sync_function_location" {
-  description = "The location of the EventGroupSync cloud function."
-  type        = string
-  nullable    = false
+variable "cloud_function_configs" {
+  type = map(object({
+    function_name       = string
+    entry_point         = string
+    extra_env_vars      = string
+    secret_mappings     = string
+    uber_jar_path       = string
+  }))
 }

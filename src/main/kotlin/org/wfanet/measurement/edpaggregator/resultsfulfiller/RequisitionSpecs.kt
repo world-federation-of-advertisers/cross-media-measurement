@@ -19,6 +19,7 @@ package org.wfanet.measurement.edpaggregator.resultsfulfiller
 import com.google.protobuf.TypeRegistry
 import java.time.LocalDate
 import java.time.ZoneId
+import java.util.logging.Logger
 import kotlin.streams.asSequence
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -43,10 +44,11 @@ object RequisitionSpecs {
   @OptIn(ExperimentalCoroutinesApi::class) // For flatMapConcat
   suspend fun getSampledVids(
     requisitionSpec: RequisitionSpec,
+    eventGroupMap: Map<String, String>,
     vidSamplingInterval: MeasurementSpec.VidSamplingInterval,
     typeRegistry: TypeRegistry,
     eventReader: EventReader,
-    zoneId: ZoneId = ZoneId.of("America/New_York"),
+    zoneId: ZoneId,
   ): Flow<Long> {
     val vidSamplingIntervalStart = vidSamplingInterval.start
     val vidSamplingIntervalWidth = vidSamplingInterval.width
@@ -62,14 +64,24 @@ object RequisitionSpecs {
 
     // Return a Flow that processes event groups and extracts valid VIDs
     return requisitionSpec.events.eventGroupsList.asFlow().flatMapConcat { eventGroup ->
+      logger.info("Reading event group: $eventGroup")
       val collectionInterval = eventGroup.value.collectionInterval
       val startDate = LocalDate.ofInstant(collectionInterval.startTime.toInstant(), zoneId)
-      val endDate = LocalDate.ofInstant(collectionInterval.endTime.toInstant(), zoneId)
-      val dates = startDate.datesUntil(endDate).asSequence().asFlow()
-
+      // One second is subtracted since interval is exclusive just in case the time is midnight to
+      // avoid fetching an extra day.
+      val endDate =
+        LocalDate.ofInstant(collectionInterval.endTime.toInstant().minusSeconds(1), zoneId)
+      logger.info(
+        "Fetching Dates: ${startDate.datesUntil(endDate.plusDays(1)).asSequence().toList()}"
+      )
+      // datesUntil is end exclusive so a day is added. If an event time is 3PM, then a day needs to
+      // be added in order to read the day up until 3pm.
+      val dates = startDate.datesUntil(endDate.plusDays(1)).asSequence()
       // Iterates through all dates up to the end date in the collection interval(inclusive)
       val impressions =
-        dates.flatMapConcat { date -> eventReader.getLabeledImpressions(date, eventGroup.key) }
+        dates.asFlow().flatMapConcat { date ->
+          eventReader.getLabeledImpressions(date, eventGroupMap.getValue(eventGroup.key))
+        }
 
       VidFilter.filterAndExtractVids(
         impressions,
@@ -81,4 +93,6 @@ object RequisitionSpecs {
       )
     }
   }
+
+  private val logger: Logger = Logger.getLogger(this::class.java.name)
 }

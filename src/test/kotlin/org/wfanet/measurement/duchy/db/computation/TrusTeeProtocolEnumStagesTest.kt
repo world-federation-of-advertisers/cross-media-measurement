@@ -14,10 +14,8 @@
 
 package org.wfanet.measurement.duchy.db.computation
 
-import kotlin.test.assertEquals
+import com.google.common.truth.Truth.assertThat
 import kotlin.test.assertFails
-import kotlin.test.assertFalse
-import kotlin.test.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
@@ -26,27 +24,11 @@ import org.wfanet.measurement.internal.duchy.protocol.TrusTee
 @RunWith(JUnit4::class)
 class TrusTeeProtocolEnumStagesTest {
   @Test
-  fun `verify initial stage`() {
-    assertTrue {
-      TrusTeeProtocol.EnumStages.validInitialStage(
-        TrusTee.Stage.INITIALIZED
-      )
-    }
-    assertFalse {
-      TrusTeeProtocol.EnumStages.validInitialStage(
-        TrusTee.Stage.WAIT_TO_START
-      )
-    }
-    assertFalse {
-      TrusTeeProtocol.EnumStages.validInitialStage(
-        TrusTee.Stage.COMPUTING
-      )
-    }
-    assertFalse {
-      TrusTeeProtocol.EnumStages.validInitialStage(
-        TrusTee.Stage.COMPLETE
-      )
-    }
+  fun `validInitialStage verifies initial stages correctly`() {
+    assertThat(TrusTeeProtocol.EnumStages.validInitialStage(TrusTee.Stage.INITIALIZED)).isTrue()
+    assertThat(TrusTeeProtocol.EnumStages.validInitialStage(TrusTee.Stage.WAIT_TO_START)).isFalse()
+    assertThat(TrusTeeProtocol.EnumStages.validInitialStage(TrusTee.Stage.COMPUTING)).isFalse()
+    assertThat(TrusTeeProtocol.EnumStages.validInitialStage(TrusTee.Stage.COMPLETE)).isFalse()
   }
 
   @Test
@@ -55,71 +37,65 @@ class TrusTeeProtocolEnumStagesTest {
       if (stage == TrusTee.Stage.UNRECOGNIZED) {
         assertFails { TrusTeeProtocol.EnumStages.enumToLong(stage) }
       } else {
-        assertEquals(
-          stage,
-          TrusTeeProtocol.EnumStages.longToEnum(
-            TrusTeeProtocol.EnumStages.enumToLong(stage)
-          ),
-          "enumToLong and longToEnum were not inverses for $stage",
-        )
+        assertThat(
+            TrusTeeProtocol.EnumStages.longToEnum(TrusTeeProtocol.EnumStages.enumToLong(stage))
+          )
+          .isEqualTo(stage)
       }
     }
   }
 
   @Test
-  fun `longToEnum with invalid numbers`() {
-    assertEquals(
-      TrusTee.Stage.UNRECOGNIZED,
-      TrusTeeProtocol.EnumStages.longToEnum(-1),
-    )
-    assertEquals(
-      TrusTee.Stage.UNRECOGNIZED,
-      TrusTeeProtocol.EnumStages.longToEnum(1000),
-    )
+  fun `longToEnum returned UNRECOGNIZED for invalid numbers`() {
+    assertThat(TrusTeeProtocol.EnumStages.longToEnum(-1)).isEqualTo(TrusTee.Stage.UNRECOGNIZED)
+    assertThat(TrusTeeProtocol.EnumStages.longToEnum(1000)).isEqualTo(TrusTee.Stage.UNRECOGNIZED)
   }
 
   @Test
-  fun `verify transistions`() {
-    assertTrue {
-      TrusTeeProtocol.EnumStages.validTransition(
-        TrusTee.Stage.INITIALIZED,
-        TrusTee.Stage.WAIT_TO_START,
+  fun `validTransition verifies the transition correctly`() {
+    assertThat(
+        TrusTeeProtocol.EnumStages.validTransition(
+          TrusTee.Stage.INITIALIZED,
+          TrusTee.Stage.WAIT_TO_START,
+        )
       )
-    }
+      .isTrue()
 
-    assertTrue {
-      TrusTeeProtocol.EnumStages.validTransition(
-        TrusTee.Stage.WAIT_TO_START,
-        TrusTee.Stage.COMPUTING,
+    assertThat(
+        TrusTeeProtocol.EnumStages.validTransition(
+          TrusTee.Stage.WAIT_TO_START,
+          TrusTee.Stage.COMPUTING,
+        )
       )
-    }
+      .isTrue()
 
-    assertTrue {
-      TrusTeeProtocol.EnumStages.validTransition(
-        TrusTee.Stage.COMPUTING,
-        TrusTee.Stage.COMPLETE,
+    assertThat(
+        TrusTeeProtocol.EnumStages.validTransition(TrusTee.Stage.COMPUTING, TrusTee.Stage.COMPLETE)
       )
-    }
+      .isTrue()
 
-    assertFalse {
-      TrusTeeProtocol.EnumStages.validTransition(
-        TrusTee.Stage.WAIT_TO_START,
-        TrusTee.Stage.COMPLETE,
+    assertThat(
+        TrusTeeProtocol.EnumStages.validTransition(
+          TrusTee.Stage.WAIT_TO_START,
+          TrusTee.Stage.COMPLETE,
+        )
       )
-    }
+      .isFalse()
 
-    assertFalse {
-      TrusTeeProtocol.EnumStages.validTransition(
-        TrusTee.Stage.INITIALIZED,
-        TrusTee.Stage.COMPLETE,
+    assertThat(
+        TrusTeeProtocol.EnumStages.validTransition(
+          TrusTee.Stage.INITIALIZED,
+          TrusTee.Stage.COMPLETE,
+        )
       )
-    }
+      .isFalse()
 
-    assertFalse {
-      TrusTeeProtocol.EnumStages.validTransition(
-        TrusTee.Stage.UNRECOGNIZED,
-        TrusTee.Stage.INITIALIZED,
+    assertThat(
+        TrusTeeProtocol.EnumStages.validTransition(
+          TrusTee.Stage.UNRECOGNIZED,
+          TrusTee.Stage.INITIALIZED,
+        )
       )
-    }
+      .isFalse()
   }
 }

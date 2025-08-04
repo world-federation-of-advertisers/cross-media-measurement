@@ -1,4 +1,5 @@
 load("@com_google_protobuf//bazel:proto_library.bzl", "proto_library")
+load("@rules_proto//proto:defs.bzl", "proto_descriptor_set")
 load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_proto_library")
 
 package(
@@ -19,7 +20,10 @@ proto_library(
     name = "banner_proto",
     srcs = ["banner_ad.proto"],
     strip_import_prefix = IMPORT_PREFIX,
-    deps = ["@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:event_annotations_proto"],
+    deps = [
+        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:event_annotations_proto",
+        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:media_type_proto",
+    ],
 )
 
 proto_library(
@@ -29,6 +33,7 @@ proto_library(
     deps = [
         "@com_google_protobuf//:duration_proto",
         "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:event_annotations_proto",
+        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:media_type_proto",
     ],
 )
 
@@ -57,4 +62,11 @@ proto_library(
 kt_jvm_proto_library(
     name = "bad_templates_kt_jvm_proto",
     deps = [":bad_templates_proto"],
+)
+
+proto_descriptor_set(
+    name = "edpa_event_template_metadata_type",
+    deps = [
+        ":test_event_proto",
+    ],
 )

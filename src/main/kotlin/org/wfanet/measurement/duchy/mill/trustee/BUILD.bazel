@@ -19,7 +19,6 @@ kt_jvm_library(
     ],
     runtime_deps = ["@wfa_common_jvm//imports/java/io/grpc/netty"],
     deps = [
-        ":kms_client_factory",
         "//src/main/kotlin/org/wfanet/measurement/api:public_api_version",
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:packed_messages",
         "//src/main/kotlin/org/wfanet/measurement/common:bitwise_operations",
@@ -37,15 +36,8 @@ kt_jvm_library(
         "@wfa_common_jvm//imports/java/io/grpc:api",
         "@wfa_common_jvm//imports/java/io/opentelemetry/api",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/tink",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/identity",
         "@wfa_consent_signaling_client//src/main/kotlin/org/wfanet/measurement/consent/client/duchy",
-    ],
-)
-
-kt_jvm_library(
-    name = "kms_client_factory",
-    srcs = ["KmsClientFactory.kt"],
-    deps = [
-        "@maven//:com_google_crypto_tink_tink",
     ],
 )

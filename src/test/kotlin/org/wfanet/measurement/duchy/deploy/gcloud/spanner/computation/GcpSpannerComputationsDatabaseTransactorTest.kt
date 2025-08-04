@@ -477,7 +477,7 @@ class GcpSpannerComputationsDatabaseTransactorTest :
       )
 
     databaseClient.write(listOf(computation, differentComputation))
-    database.enqueue(token, 2)
+    database.enqueue(token, 2, "PeterSpacemen")
 
     assertQueryReturns(
       databaseClient,
@@ -525,7 +525,9 @@ class GcpSpannerComputationsDatabaseTransactorTest :
           editVersion = 0,
           globalId = "0",
         )
-      assertFailsWith<ComputationNotFoundException> { database.enqueue(token, 0) }
+      assertFailsWith<ComputationNotFoundException> {
+        database.enqueue(token, 0, "the-owner-of-the-lock")
+      }
     }
 
   @Test
@@ -556,7 +558,42 @@ class GcpSpannerComputationsDatabaseTransactorTest :
           details = FAKE_COMPUTATION_DETAILS,
         )
       databaseClient.write(listOf(computation))
-      assertFailsWith<ComputationTokenVersionMismatchException> { database.enqueue(token, 0) }
+      assertFailsWith<ComputationTokenVersionMismatchException> {
+        database.enqueue(token, 0, "AnOwnedLock")
+      }
+    }
+
+  @Test
+  fun `enqueue with unmatched owner fails`() =
+    runBlocking<Unit> {
+      val lastUpdated = Instant.ofEpochMilli(12345678910L)
+      val lockExpires = lastUpdated.plusSeconds(1)
+      val token =
+        ComputationEditToken(
+          localId = 1,
+          protocol = FakeProtocol.ZERO,
+          stage = C,
+          attempt = 1,
+          editVersion = lastUpdated.minusSeconds(200).toEpochMilli(),
+          globalId = "1234",
+        )
+
+      val computation =
+        computationMutations.insertComputation(
+          localId = token.localId,
+          creationTime = lastUpdated.toGcloudTimestamp(),
+          updateTime = lastUpdated.toGcloudTimestamp(),
+          globalId = token.globalId,
+          protocol = FakeProtocol.ONE,
+          stage = token.stage,
+          lockOwner = "AnOwnedLock",
+          lockExpirationTime = lockExpires.toGcloudTimestamp(),
+          details = FAKE_COMPUTATION_DETAILS,
+        )
+      databaseClient.write(listOf(computation))
+      assertFailsWith<ComputationTokenVersionMismatchException> {
+        database.enqueue(token, 0, "WrongOwner")
+      }
     }
 
   @Test

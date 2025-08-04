@@ -54,7 +54,7 @@ private const val MIN_FREQUENCY_EPSILON = 0.000001
 object TrusTeeStarter {
   private val logger: Logger = Logger.getLogger(this::class.java.name)
 
-  /** Create a TrusTEE Computation populated with randomness seed and tink encryption key pairs. */
+  /** Create a TrusTEE Computation. */
   suspend fun createComputation(
     duchyId: String,
     computationStorageClient: ComputationsGrpcKt.ComputationsCoroutineStub,

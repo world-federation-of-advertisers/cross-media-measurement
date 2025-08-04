@@ -161,6 +161,12 @@ permissions {
 
 # basicReports
 permissions {
+  key: "reporting.basicReports.create"
+  value {
+    protected_resource_types: "halo.wfanet.org/MeasurementConsumer"
+  }
+}
+permissions {
   key: "reporting.basicReports.get"
   value {
     protected_resource_types: "halo.wfanet.org/MeasurementConsumer"
