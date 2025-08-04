@@ -82,6 +82,7 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
       return object : Statement() {
         override fun evaluate() {
           runBlocking {
+            logger.info("Syncing Event Group...")
             deleteExistingEventGroupsMap()
             uploadEventGroups(createEventGroups())
             waitForEventGroupSyncToComplete()
@@ -179,6 +180,7 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
       return object : Statement() {
         override fun evaluate() {
           try {
+            logger.info("Creating MC Simulator...")
             _mcSimulator = createMcSimulator()
             base.evaluate()
           } finally {
