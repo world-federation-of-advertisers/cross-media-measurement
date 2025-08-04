@@ -91,19 +91,19 @@ class ResultsFulfillerAppRunner : Runnable {
     @CommandLine.Option(names = ["--edp-name"], required = true, description = ["Name of the EDP"])
     lateinit var edpName: String
 
-    @CommandLine.Option(names = ["--edp-cert-der"], required = true, description = ["Secret ID for the EDP cert"])
+    @CommandLine.Option(names = ["--edp-cert-der-secret-id"], required = true, description = ["Secret ID for the EDP cert"])
     lateinit var certDerSecretId: String
 
-    @CommandLine.Option(names = ["--edp-private-der"], required = true, description = ["Secret ID for the EDP private key"])
+    @CommandLine.Option(names = ["--edp-private-der-secret-id"], required = true, description = ["Secret ID for the EDP private key"])
     lateinit var privateDerSecretId: String
 
-    @CommandLine.Option(names = ["--edp-enc-private"], required = true, description = ["Secret ID for the EDP encryption private key"])
+    @CommandLine.Option(names = ["--edp-enc-private-secret-id"], required = true, description = ["Secret ID for the EDP encryption private key"])
     lateinit var encPrivateSecretId: String
 
-    @CommandLine.Option(names = ["--edp-tls-key"], required = true, description = ["Secret ID for the EDP TLS key"])
+    @CommandLine.Option(names = ["--edp-tls-key-secret-id"], required = true, description = ["Secret ID for the EDP TLS key"])
     lateinit var tlsKeySecretId: String
 
-    @CommandLine.Option(names = ["--edp-tls-pem"], required = true, description = ["Secret ID for the EDP TLS cert"])
+    @CommandLine.Option(names = ["--edp-tls-pem-secret-id"], required = true, description = ["Secret ID for the EDP TLS cert"])
     lateinit var tlsPemSecretId: String
 
   }

@@ -17,13 +17,21 @@ data "google_project" "project" {}
 locals {
 
   tee_cmd = [
-    "--test-flag", "some_value",
-    "--edp-name", "edp1",
-    "--edp-cert-der", "cert1",
-    "--edp-private-der", "priv1",
-    "--edp-name", "edp2",
-    "--edp-cert-der", "cert2",
-    "--edp-private-der", "priv2",
+    "--edpa-tls-cert-secret-id", "edpa-tee-app-tls-pem",
+    "--edpa-tls-key-secret-id", "edpa-tee-app-tls-key",
+    "--secure-computation-cert-collection-secret-id", "securecomputation-root-ca",
+    "--kingdom-cert-collection-secret-id", "kingdom-root-ca",
+    "--edp-name", "edp7",
+    "--edp-cert-der-secret-id", "edp7-cert-der",
+    "--edp-private-der-secret-id", "edp7-private-der",
+    "--edp-enc-private-secret-id", "edp7-enc-private",
+    "--edp-tls-key-secret-id", "edp7-tls-key",
+    "--edp-tls-pem-secret-id", "edp7-tls-pem",
+    "--kingdom-public-api-target", "v2alpha.kingdom.dev.halo-cmm.org:8443",
+    "--secure-computation-public-api-target", "v1alpha.secure-computation.dev.halo-cmm.org:8443",
+    "--subscription-id", "results-fulfiller-subscription",
+    "--google-project-id", "halo-cmm-dev",
+    "--event-template-metadata-blob-uri", "gs://edpa-configs-storage-dev-bucket/results_fulfiller_event_proto_descriptor.pb"
   ]
 
   metadata_map = {
