@@ -28,8 +28,8 @@ import java.util.logging.Logger
 import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
+import org.wfanet.measurement.common.crypto.tink.GcpWifCredentials
 import org.wfanet.measurement.common.crypto.tink.KmsClientFactory
-import org.wfanet.measurement.common.crypto.tink.WifCredentialsConfig
 import org.wfanet.measurement.duchy.db.computation.ComputationDataClients
 import org.wfanet.measurement.duchy.db.computation.ComputationDataClients.PermanentErrorException
 import org.wfanet.measurement.duchy.mill.Certificate
@@ -150,7 +150,7 @@ class TrusTeeMill(
     protocol: RequisitionDetails.RequisitionProtocol.TrusTee,
   ): KmsClient {
     val config =
-      WifCredentialsConfig(
+      GcpWifCredentials(
         audience = protocol.workloadIdentityProvider,
         subjectTokenType = OAUTH_TOKEN_TYPE_ID_TOKEN,
         tokenUrl = GOOGLE_STS_TOKEN_URL,

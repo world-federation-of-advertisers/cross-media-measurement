@@ -51,9 +51,10 @@ import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.crypto.readPrivateKey
 import org.wfanet.measurement.common.crypto.testing.TestData
+import org.wfanet.measurement.common.crypto.tink.GcpWifCredentials
 import org.wfanet.measurement.common.crypto.tink.KmsClientFactory
 import org.wfanet.measurement.common.crypto.tink.TinkPrivateKeyHandle
-import org.wfanet.measurement.common.crypto.tink.WifCredentialsConfig
+import org.wfanet.measurement.common.crypto.tink.WifCredentials
 import org.wfanet.measurement.common.crypto.tink.testing.FakeKmsClient
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
@@ -444,8 +445,9 @@ class TrusTeeMillTest {
       requisitions = REQUISITIONS,
     )
 
-    whenever(mockKmsClientFactory.getKmsClient(any<WifCredentialsConfig>()))
-      .thenThrow(GeneralSecurityException("KMS client creation failed for test"))
+    whenever(mockKmsClientFactory.getKmsClient(any<WifCredentials>())).thenAnswer {
+      throw GeneralSecurityException("KMS client creation failed for test")
+    }
 
     val mill = createMill()
     mill.claimAndProcessWork()
@@ -461,7 +463,7 @@ class TrusTeeMillTest {
   }
 
   @Test
-  fun `computingPhase fails when kek key not found`(): Unit = runBlocking {
+  fun `computingPhase fails when kek not found`(): Unit = runBlocking {
     writeRequisitionData()
     fakeComputationDb.addComputation(
       LOCAL_ID,
@@ -473,7 +475,7 @@ class TrusTeeMillTest {
     val incompleteKmsClient = FakeKmsClient()
     incompleteKmsClient.setAead(KEK_URI_2, KEK_AEAD_2)
     incompleteKmsClient.setAead(KEK_URI_3, KEK_AEAD_3)
-    whenever(mockKmsClientFactory.getKmsClient(any<WifCredentialsConfig>()))
+    whenever(mockKmsClientFactory.getKmsClient(any<GcpWifCredentials>()))
       .thenReturn(incompleteKmsClient)
 
     val mill = createMill()
@@ -481,8 +483,9 @@ class TrusTeeMillTest {
 
     // The attempt fails and the computation is enqueued
     val finalToken = fakeComputationDb[LOCAL_ID]!!
-    assertThat(finalToken.computationStage).isEqualTo(Stage.COMPUTING.toProtocolStage())
-    assertThat(finalToken.version).isEqualTo(2) // claim + enqueue
+    assertThat(finalToken.computationStage).isEqualTo(Stage.COMPLETE.toProtocolStage())
+    assertThat(finalToken.computationDetails.endingState)
+      .isEqualTo(ComputationDetails.CompletedReason.FAILED)
 
     verify(mockCryptor, never()).addFrequencyVector(any())
     verify(mockCryptor, never()).computeResult()
@@ -490,7 +493,7 @@ class TrusTeeMillTest {
   }
 
   @Test
-  fun `computingPhase fails when kek key not accessible`(): Unit = runBlocking {
+  fun `computingPhase fails when kek not accessible`(): Unit = runBlocking {
     writeRequisitionData()
     fakeComputationDb.addComputation(
       LOCAL_ID,
@@ -502,15 +505,16 @@ class TrusTeeMillTest {
     val inaccessibleKmsClient: KmsClient = mock()
     whenever(inaccessibleKmsClient.getAead(KEK_URI_1))
       .thenThrow(GeneralSecurityException("KMS permission denied"))
-    whenever(mockKmsClientFactory.getKmsClient(any<WifCredentialsConfig>()))
+    whenever(mockKmsClientFactory.getKmsClient(any<GcpWifCredentials>()))
       .thenReturn(inaccessibleKmsClient)
 
     val mill = createMill()
     mill.claimAndProcessWork()
 
     val finalToken = fakeComputationDb[LOCAL_ID]!!
-    assertThat(finalToken.computationStage).isEqualTo(Stage.COMPUTING.toProtocolStage())
-    assertThat(finalToken.version).isEqualTo(2) // claim + enqueue
+    assertThat(finalToken.computationStage).isEqualTo(Stage.COMPLETE.toProtocolStage())
+    assertThat(finalToken.computationDetails.endingState)
+      .isEqualTo(ComputationDetails.CompletedReason.FAILED)
 
     verify(mockCryptor, never()).addFrequencyVector(any())
     verify(mockCryptor, never()).computeResult()
@@ -545,8 +549,9 @@ class TrusTeeMillTest {
     mill.claimAndProcessWork()
 
     val finalToken = fakeComputationDb[LOCAL_ID]!!
-    assertThat(finalToken.computationStage).isEqualTo(Stage.COMPUTING.toProtocolStage())
-    assertThat(finalToken.version).isEqualTo(2) // claim + enqueue
+    assertThat(finalToken.computationStage).isEqualTo(Stage.COMPLETE.toProtocolStage())
+    assertThat(finalToken.computationDetails.endingState)
+      .isEqualTo(ComputationDetails.CompletedReason.FAILED)
 
     verify(mockCryptor, never()).addFrequencyVector(any())
     verify(mockCryptor, never()).computeResult()
@@ -566,15 +571,16 @@ class TrusTeeMillTest {
     val transientErrorKmsClient: KmsClient = mock()
     whenever(transientErrorKmsClient.getAead(KEK_URI_1))
       .thenThrow(GeneralSecurityException("KMS is temporarily unavailable"))
-    whenever(mockKmsClientFactory.getKmsClient(any<WifCredentialsConfig>()))
+    whenever(mockKmsClientFactory.getKmsClient(any<GcpWifCredentials>()))
       .thenReturn(transientErrorKmsClient)
 
     val mill = createMill()
     mill.claimAndProcessWork()
 
     val finalToken = fakeComputationDb[LOCAL_ID]!!
-    assertThat(finalToken.computationStage).isEqualTo(Stage.COMPUTING.toProtocolStage())
-    assertThat(finalToken.version).isEqualTo(2) // claim + enqueue
+    assertThat(finalToken.computationStage).isEqualTo(Stage.COMPLETE.toProtocolStage())
+    assertThat(finalToken.computationDetails.endingState)
+      .isEqualTo(ComputationDetails.CompletedReason.FAILED)
 
     verify(mockCryptor, never()).addFrequencyVector(any())
     verify(mockCryptor, never()).computeResult()
@@ -603,8 +609,9 @@ class TrusTeeMillTest {
     mill.claimAndProcessWork()
 
     val finalToken = fakeComputationDb[LOCAL_ID]!!
-    assertThat(finalToken.computationStage).isEqualTo(Stage.COMPUTING.toProtocolStage())
-    assertThat(finalToken.version).isEqualTo(2) // claim + enqueue
+    assertThat(finalToken.computationStage).isEqualTo(Stage.COMPLETE.toProtocolStage())
+    assertThat(finalToken.computationDetails.endingState)
+      .isEqualTo(ComputationDetails.CompletedReason.FAILED)
 
     verify(mockCryptor, never()).addFrequencyVector(any())
     verify(mockCryptor, never()).computeResult()
