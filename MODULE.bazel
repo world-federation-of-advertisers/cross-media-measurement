@@ -44,8 +44,8 @@ bazel_dep(
 # DO_NOT_SUBMIT (world-federation-of-advertisers/common-jvm#286)
 archive_override(
     module_name = "common-jvm",
-    strip_prefix = "common-jvm-ad0e773a9f2cdf33f58bbd504e1f17a783858ada",
-    urls = "https://github.com/world-federation-of-advertisers/common-jvm/archive/ad0e773a9f2cdf33f58bbd504e1f17a783858ada.tar.gz",
+    strip_prefix = "common-jvm-21c50242d931e5a2b2a9aa931101cf624f0d5f76",
+    urls = "https://github.com/world-federation-of-advertisers/common-jvm/archive/21c50242d931e5a2b2a9aa931101cf624f0d5f76.tar.gz",
 )
 
 bazel_dep(
