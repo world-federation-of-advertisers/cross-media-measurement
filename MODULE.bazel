@@ -202,9 +202,10 @@ bazel_dep(
     name = "rules_oci",
     version = "2.2.1",
 )
+# WIP - updated because of https://github.com/keith/rules_multirun/pull/48/files
 bazel_dep(
     name = "rules_multirun",
-    version = "0.6.1",
+    version = "0.12.0",
 )
 
 maven = use_extension("@rules_jvm_external//:extensions.bzl", "maven")
