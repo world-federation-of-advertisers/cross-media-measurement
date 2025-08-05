@@ -22,6 +22,7 @@ import org.wfanet.measurement.internal.duchy.computationStage
 import org.wfanet.measurement.internal.duchy.protocol.HonestMajorityShareShuffle
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2
 import org.wfanet.measurement.internal.duchy.protocol.ReachOnlyLiquidLegionsSketchAggregationV2
+import org.wfanet.measurement.internal.duchy.protocol.TrusTee
 
 class ComputationsEnumHelperTest {
 
@@ -65,6 +66,21 @@ class ComputationsEnumHelperTest {
     for (stage in HonestMajorityShareShuffle.Stage.values()) {
       if (stage == HonestMajorityShareShuffle.Stage.UNRECOGNIZED) continue
       val computationStage = computationStage { honestMajorityShareShuffle = stage }
+      assertEquals(
+        computationStage,
+        ComputationProtocolStages.longValuesToComputationStageEnum(
+          ComputationProtocolStages.computationStageEnumToLongValues(computationStage)
+        ),
+        "protocolEnumToLong and longToProtocolEnum were not inverses for $stage",
+      )
+    }
+  }
+
+  @Test
+  fun `trusTee round trip conversion should get the same stage`() {
+    for (stage in TrusTee.Stage.values()) {
+      if (stage == TrusTee.Stage.UNRECOGNIZED) continue
+      val computationStage = computationStage { trusTee = stage }
       assertEquals(
         computationStage,
         ComputationProtocolStages.longValuesToComputationStageEnum(

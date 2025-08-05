@@ -177,6 +177,11 @@ proto_library(
     name = "trus_tee_proto",
     srcs = ["trus_tee.proto"],
     strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        "//src/main/proto/wfa/measurement/internal/duchy:differential_privacy_proto",
+        "//src/main/proto/wfa/measurement/internal/duchy:noise_mechanism_proto",
+        "//src/main/proto/wfa/measurement/internal/duchy/config:protocols_setup_config_proto",
+    ],
 )
 
 kt_jvm_proto_library(
