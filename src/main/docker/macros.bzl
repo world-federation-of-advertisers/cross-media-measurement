@@ -43,7 +43,6 @@ def java_image(
         labels = {
             "org.opencontainers.image.source": MEASUREMENT_SYSTEM_REPO,
             "tee.launch_policy.allow_cmd_override": "true",
-            "tee.launch_policy.allow_capabilities": "true",
         },
         cmd_args = args,
         tags = tags + ["no-remote-cache"],

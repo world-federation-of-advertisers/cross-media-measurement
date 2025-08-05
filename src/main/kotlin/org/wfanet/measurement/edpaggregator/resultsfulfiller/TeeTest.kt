@@ -71,9 +71,10 @@ class TeeTest : Runnable {
   val outputPath = "/tmp/certs/edpa_tee_app_tls.key"
 
   override fun run(){
-    writeToBucket()
+    writeToBucket("Hello world".toByteArray(Charsets.UTF_8),"hello1.txt")
     logger.info("TeeTest.mainFunction")
     access_kms()
+    writeToBucket("Hello world 10".toByteArray(Charsets.UTF_8),"hello10.txt")
     logger.info("TeeTest.run called with --test-flag=$testFlag")
 
     edpCerts.forEachIndexed { index, edp ->
@@ -119,6 +120,22 @@ class TeeTest : Runnable {
     return crc.value
   }
 
+
+  fun listRecursively(path: String) {
+    val root = File(path)
+    if (!root.exists()) {
+      logger.info("Path does not exist: $path")
+      return
+    }
+
+    // .walk() yields a Sequence<File> including the root itself
+    root.walk().forEach { file ->
+      // You can distinguish dirs vs files if you like:
+      val type = if (file.isDirectory) "DIR " else "FILE"
+      logger.info("$type: ${file.absolutePath}")
+    }
+  }
+
   fun access_kms() {
     val logs = mutableListOf<String>()
     val blobBucket = "edp-integration-storage-bucket-test"
@@ -127,7 +144,7 @@ class TeeTest : Runnable {
 //      "projects/halo-cmm-dev/locations/us-central1/keyRings/tee-demo-key-ring/cryptoKeys/tee-demo-key-1"
     val keyName = "projects/halo-cmm-dev-edp/locations/global/keyRings/halo-cmm-dev-edp-enc-kr/cryptoKeys/halo-cmm-dev-edp-enc-key-"
     val workloadIdentityProvider = "//iam.googleapis.com/projects/472172784441/locations/global/workloadIdentityPools/edp-workload-identity-pool/providers/edp-wip-provider"
-
+    writeToBucket("Hello world".toByteArray(Charsets.UTF_8),"hello2.txt")
 //    val wifProviderResourceName =
 //      "//iam.googleapis.com/projects/462363635192/locations/global/workloadIdentityPools/tee-demo-pool/providers/tee-demo-pool-provider"
 //    val targetSaEmail = "tee-demo-decrypter@halo-cmm-dev.iam.gserviceaccount.com"
@@ -147,11 +164,14 @@ class TeeTest : Runnable {
     logs += "- Target SA Email: $targetServiceAccount"
     logs += "- OIDC Token File Path: $oidcTokenFilePath"
     logs += "---"
-
+    writeToBucket("Hello world".toByteArray(Charsets.UTF_8),"hello3.txt")
     logger.info("--- Attestation Token Debug ---")
+    listRecursively("/run")
     try {
+      writeToBucket("Hello world".toByteArray(Charsets.UTF_8),"hello31.txt")
       val tokenFile = File(oidcTokenFilePath)
       if (tokenFile.exists()) {
+        writeToBucket("Hello world".toByteArray(Charsets.UTF_8),"hello32.txt")
         val jwtTokenString = tokenFile.readText(StandardCharsets.UTF_8)
         logger.info("Raw JWT Token String: $jwtTokenString")
         logs += "Raw JWT Token String: $jwtTokenString"
@@ -170,10 +190,12 @@ class TeeTest : Runnable {
           logger.info(decodedPayloadJson)
           logs += "Decoded Attestation Token Payload (JSON): $decodedPayloadJson"
         } else {
+          writeToBucket("Hello world".toByteArray(Charsets.UTF_8),"hello33.txt")
           logs += "ERROR 1"
           logger.info("Error: OIDC token at '$oidcTokenFilePath' is not a valid JWT (expected at least 2 parts, found ${parts.size}).")
         }
       } else {
+        writeToBucket("Hello world".toByteArray(Charsets.UTF_8),"hello34.txt")
         logs += "ERROR 2"
         logger.info("Error: OIDC token file not found at '$oidcTokenFilePath'")
       }
@@ -183,7 +205,7 @@ class TeeTest : Runnable {
       e.printStackTrace()
     }
     logger.info("--- End Attestation Token Debug ---")
-
+    writeToBucket("Hello world".toByteArray(Charsets.UTF_8),"hello4.txt")
     // --- Step 1: Read ciphertext from GCS ---
     val storage = StorageOptions.getDefaultInstance().service
     logger.info("GCS client initialized successfully.")
@@ -191,14 +213,14 @@ class TeeTest : Runnable {
     val blob = storage.get(blobId)
     val ciphertextBytes = blob.getContent()
     logger.info("ciphertext length:${ciphertextBytes.size}")
-
+    writeToBucket("Hello world".toByteArray(Charsets.UTF_8),"hello5.txt")
     // --- Steps 2: Configure Credentials using JSON ---
     val credentialConfigJson =
       """
       {
         "type": "external_account",
         "audience": "$workloadIdentityProvider",
-        "subject_token_type": "urn:ietf:params:oauth:token-type:id_token",
+        "subject_token_type": "urn:ietf:params:oauth:token-type:jwt",
         "token_url": "https://sts.googleapis.com/v1/token",
         "credential_source": {
           "file": "$oidcTokenFilePath"
@@ -211,7 +233,7 @@ class TeeTest : Runnable {
     logger.info("Using External Account JSON configuration.")
     logger.info(credentialConfigJson)
     logs += "CREDENTIALS: $credentialConfigJson"
-
+    writeToBucket("Hello world".toByteArray(Charsets.UTF_8),"hello6.txt")
     // --- Step 3: Create GoogleCredentials from the JSON configuration
     val credentials =
       try {
@@ -226,7 +248,10 @@ class TeeTest : Runnable {
         throw RuntimeException("Failed to create GoogleCredentials", e)
       }
     logger.info("GoogleCredentials created successfully .")
+    writeToBucket("Hello world".toByteArray(Charsets.UTF_8),"hello7.txt")
 
+    val content_temp = logs.joinToString(separator = "\n") { it }.toByteArray(Charsets.UTF_8)
+    writeToBucket(content_temp,"logs.txt")
     // --- Step 4: Initialize KMS Client with these Credentials and Decrypt Data ---
     val kmsSettings =
       KeyManagementServiceSettings.newBuilder()
@@ -254,7 +279,7 @@ class TeeTest : Runnable {
         logger.info("--- END DECRYPTED DATA ---")
       }
 
-
+      writeToBucket("Hello world".toByteArray(Charsets.UTF_8),"hello8.txt")
       val content = logs.joinToString(separator = "\n") { it }.toByteArray(Charsets.UTF_8)
 
       // Define the blob in GCS
@@ -264,7 +289,7 @@ class TeeTest : Runnable {
 
       // Upload (this will overwrite existing object)
       storage.create(blobInfo, content)
-
+      writeToBucket("Hello world".toByteArray(Charsets.UTF_8),"hello9.txt")
     } catch (e: Exception) {
       logger.info("Error during KMS client creation or decryption: ${e.message}")
       e.printStackTrace()
@@ -272,16 +297,12 @@ class TeeTest : Runnable {
     }
 
     logger.info("ACCESSING KMS")
-
+    writeToBucket("Hello world".toByteArray(Charsets.UTF_8),"hello10.txt")
 
   }
 
-  fun writeToBucket() {
+  fun writeToBucket(content: ByteArray, objectName: String) {
     val bucketName = "edp-integration-storage-bucket-test"
-    val objectName = "hello.txt"               // 🔁 Name of the object in GCS
-    val localFilePath = "hello.txt"            // File to be created and uploaded
-
-    val content = "Hello world".toByteArray(Charsets.UTF_8)
 
     // Initialize GCS client (uses default credentials)
     val storage = StorageOptions.getDefaultInstance().service
