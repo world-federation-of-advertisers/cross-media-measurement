@@ -91,4 +91,18 @@ message BasicReport {
   // The time when the BasicReport was created.
   google.protobuf.Timestamp create_time = 8
       [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Possible states of a `BasicReport`.
+  enum State {
+    // Default value. This value is unused.
+    STATE_UNSPECIFIED = 0;
+    // Computation is running.
+    RUNNING = 1;
+    // Completed successfully. Terminal state.
+    SUCCEEDED = 2;
+    // Completed with failure. Terminal state.
+    FAILED = 3;
+  }
+  // `BasicReport` state.
+  State state = 10 [(google.api.field_behavior) = OUTPUT_ONLY];
 }

@@ -116,6 +116,7 @@ import org.wfanet.measurement.reporting.deploy.v2.common.service.Services
 import org.wfanet.measurement.reporting.service.api.v2alpha.BasicReportKey
 import org.wfanet.measurement.reporting.service.api.v2alpha.EventGroupKey
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportingSetKey
+import org.wfanet.measurement.reporting.v2alpha.BasicReport
 import org.wfanet.measurement.reporting.v2alpha.BasicReportsGrpcKt.BasicReportsCoroutineStub
 import org.wfanet.measurement.reporting.v2alpha.EventGroup
 import org.wfanet.measurement.reporting.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
@@ -2236,6 +2237,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
             reportStart = dateTime { day = 3 }
             reportEnd = date { day = 5 }
           }
+          state = BasicReport.State.SUCCEEDED
 
           impressionQualificationFilters += reportingImpressionQualificationFilter {
             custom =

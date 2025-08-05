@@ -49,4 +49,22 @@ message BasicReport {
   BasicReportDetails details = 7;
 
   google.protobuf.Timestamp create_time = 8;
+
+  // Possible states of a `BasicReport`.
+  enum State {
+    // Default value. This value is unused.
+    STATE_UNSPECIFIED = 0;
+    // `BasicReport` created.
+    CREATED = 1;
+    // `Report` created.
+    REPORT_CREATED = 2;
+    // `Report` is in SUCCEEDED state.
+    RESULTS_READY = 3;
+    // Completed successfully. Terminal state.
+    SUCCEEDED = 4;
+    // Completed with failure. Terminal state.
+    FAILED = 5;
+  }
+  // `BasicReport` state.
+  State state = 9;
 }

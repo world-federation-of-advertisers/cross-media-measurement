@@ -3640,6 +3640,7 @@ class BasicReportsServiceTest {
             reportStart = dateTime { day = 3 }
             reportEnd = date { day = 5 }
           }
+          state = BasicReport.State.SUCCEEDED
 
           impressionQualificationFilters += reportingImpressionQualificationFilter {
             impressionQualificationFilter =
@@ -4394,6 +4395,7 @@ class BasicReportsServiceTest {
             reportEnd = date { day = 5 }
           }
           createTime = internalBasicReport.createTime
+          state = BasicReport.State.SUCCEEDED
         }
       )
     assertThat(listBasicReportsResponse.nextPageToken).isEmpty()
@@ -4655,6 +4657,7 @@ class BasicReportsServiceTest {
             reportEnd = date { day = 5 }
           }
           createTime = internalBasicReport1.createTime
+          state = BasicReport.State.SUCCEEDED
         }
       )
     assertThat(listBasicReportsResponse.nextPageToken)
@@ -4766,6 +4769,7 @@ class BasicReportsServiceTest {
             reportEnd = date { day = 5 }
           }
           createTime = internalBasicReport2.createTime
+          state = BasicReport.State.SUCCEEDED
         }
       )
     assertThat(listBasicReportsResponse.nextPageToken).isEmpty()
