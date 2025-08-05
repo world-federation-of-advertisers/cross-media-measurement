@@ -215,8 +215,3 @@ variable "cloud_function_configs" {
     uber_jar_path       = string
   }))
 }
-
-variable "results_fulfiller_tee_cmd" {
-  description = "The list of flags and values for the Results Fulfiller"
-  type        = list(string)
-}
