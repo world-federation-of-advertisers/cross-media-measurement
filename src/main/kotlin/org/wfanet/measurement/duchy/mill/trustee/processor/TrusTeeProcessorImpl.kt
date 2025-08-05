@@ -28,8 +28,8 @@ class TrusTeeProcessorImpl(override val trusTeeParams: TrusTeeParams) : TrusTeeP
   /**
    * Holds the aggregated frequency vector.
    *
-   * This is initialized with a copy of the first vector passed to [addFrequencyVector]. Subsequent
-   * calls add to this vector. It is null until the first vector is added.
+   * This is initialized with a copy of the first vector passed to [addFrequencyVectorBytes].
+   * Subsequent calls add to this vector. It is null until the first vector is added.
    */
   private var aggregatedFrequencyVector: IntArray? = null
 
@@ -79,7 +79,7 @@ class TrusTeeProcessorImpl(override val trusTeeParams: TrusTeeParams) : TrusTeeP
       aggregatedFrequencyVector
         ?: throw IllegalStateException("addFrequencyVector must be called before computeResult.")
 
-    val rawHistogram = buildHistogram(frequencyVector)
+    val rawHistogram = buildHistogram(frequencyVector, maxFrequency)
 
     return when (trusTeeParams) {
       is TrusTeeReachParams -> {
@@ -155,25 +155,6 @@ class TrusTeeProcessorImpl(override val trusTeeParams: TrusTeeParams) : TrusTeeP
     return noisedHistogram.withIndex().associate { (freq, count) ->
       freq.toLong() to count.toDouble() / totalNoisedCount
     }
-  }
-
-  private fun buildHistogram(frequencyVector: IntArray): LongArray {
-    val histogram = LongArray(maxFrequency + 1)
-    for (userFrequency in frequencyVector) {
-      histogram[userFrequency]++
-    }
-    return histogram
-  }
-
-  private fun ByteArray.toIntArray(): IntArray {
-    return this.map { byte ->
-        val frequency = byte.toInt()
-        require(frequency >= 0 && frequency < 127) {
-          "Invalid frequency value in byte array: $frequency. Must be non-negative and less than 127."
-        }
-        frequency
-      }
-      .toIntArray()
   }
 
   companion object Factory : TrusTeeProcessor.Factory {

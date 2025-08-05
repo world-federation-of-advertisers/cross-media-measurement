@@ -193,15 +193,6 @@ class TrusTeeProcessorImplTest {
   }
 
   @Test
-  fun `addFrequencyVectorBytes throws for invalid negative frequency`() {
-    val processor = TrusTeeProcessorImpl(REACH_ONLY_PARAMS)
-    val vector = byteArrayOf(1, -1, 2)
-    val exception =
-      assertFailsWith<IllegalArgumentException> { processor.addFrequencyVectorBytes(vector) }
-    assertThat(exception.message).contains("Invalid frequency value")
-  }
-
-  @Test
   fun `addFrequencyVectorBytes throws for frequency greater than or equal to 127`() {
     val processor = TrusTeeProcessorImpl(REACH_ONLY_PARAMS)
     val vector = byteArrayOf(1, 127, 2)

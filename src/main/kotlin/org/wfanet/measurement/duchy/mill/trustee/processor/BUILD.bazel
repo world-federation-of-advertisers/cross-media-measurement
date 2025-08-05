@@ -11,10 +11,16 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
+    name = "trus_tee_processor_utility",
+    srcs = ["TrusTeeProcessorUtility.kt"],
+)
+
+kt_jvm_library(
     name = "trus_tee_processor_impl",
     srcs = ["TrusTeeProcessorImpl.kt"],
     deps = [
         ":trus_tee_processor",
+        ":trus_tee_processor_utility",
         "//src/main/kotlin/org/wfanet/measurement/duchy/utils:computation_conversions",
         "//src/main/kotlin/org/wfanet/measurement/measurementconsumer/stats:covariances",
         "//src/main/proto/wfa/measurement/api/v2alpha:measurement_spec_kt_jvm_proto",
