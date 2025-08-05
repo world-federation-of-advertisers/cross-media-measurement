@@ -45,7 +45,7 @@ class ResultsFulfillerAppRunnerTest {
     val data = "testdata".toByteArray()
     val runner = ResultsFulfillerAppRunner()
 
-    runner.saveSecretToFile(data, testFile.absolutePath)
+    runner.saveByteArrayToFile(data, testFile.absolutePath)
 
     assertThat(Files.exists(testFile.toPath())).isTrue()
     assertThat(data).isEqualTo(Files.readAllBytes(testFile.toPath()))
@@ -57,7 +57,7 @@ class ResultsFulfillerAppRunnerTest {
     val data = "nested-data".toByteArray()
     val runner = ResultsFulfillerAppRunner()
 
-    runner.saveSecretToFile(data, nestedFile.absolutePath)
+    runner.saveByteArrayToFile(data, nestedFile.absolutePath)
 
     assertThat(nestedFile.exists()).isTrue()
     assertThat(data).isEqualTo(nestedFile.readBytes())
@@ -89,9 +89,9 @@ class ResultsFulfillerAppRunnerTest {
     }
 
     doReturn(ByteArray(0)).`when`(runner).accessSecretBytes(anyString(), anyString(), anyString())
-    doNothing().`when`(runner).saveSecretToFile(any(), anyString())
+    doNothing().`when`(runner).saveByteArrayToFile(any(), anyString())
     runner.saveEdpsCerts()
-    verify(runner, times(5)).saveSecretToFile(any(), anyString())
+    verify(runner, times(5)).saveByteArrayToFile(any(), anyString())
   }
 
 }
