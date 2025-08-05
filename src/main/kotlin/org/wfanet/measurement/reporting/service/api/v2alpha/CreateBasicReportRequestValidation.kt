@@ -17,8 +17,6 @@
 package org.wfanet.measurement.reporting.service.api.v2alpha
 
 import com.google.protobuf.Descriptors
-import com.google.protobuf.Duration
-import com.google.protobuf.Timestamp
 import java.util.UUID
 import kotlin.collections.List
 import kotlin.collections.Set
@@ -304,16 +302,10 @@ fun validateEventTemplateField(
     when (eventTemplateField.value.selectorCase) {
       EventTemplateField.FieldValue.SelectorCase.STRING_VALUE -> {
         if (eventTemplateFieldInfo.type != Descriptors.FieldDescriptor.Type.STRING) {
-          // Timestamp iss represented as a String
-          if (
-            eventTemplateFieldInfo.type != Descriptors.FieldDescriptor.Type.MESSAGE ||
-              eventTemplateFieldInfo.messageTypeFullName != Timestamp.getDescriptor().fullName
-          ) {
-            throw InvalidFieldValueException(
-              "basic_report.result_group_specs.dimension_spec.filters.terms.value.string_value"
-            ) { fieldName ->
-              "$fieldName is invalid for ${eventTemplateField.path}"
-            }
+          throw InvalidFieldValueException(
+            "basic_report.result_group_specs.dimension_spec.filters.terms.value.string_value"
+          ) { fieldName ->
+            "$fieldName is invalid for ${eventTemplateField.path}"
           }
         }
       }
@@ -338,13 +330,11 @@ fun validateEventTemplateField(
           }
         }
       EventTemplateField.FieldValue.SelectorCase.FLOAT_VALUE -> {
-        // Enum, String, and Bool field values cannot be float values, but Duration can be.
         if (
           eventTemplateFieldInfo.type == Descriptors.FieldDescriptor.Type.ENUM ||
             eventTemplateFieldInfo.type == Descriptors.FieldDescriptor.Type.STRING ||
             eventTemplateFieldInfo.type == Descriptors.FieldDescriptor.Type.BOOL ||
-            (eventTemplateFieldInfo.type == Descriptors.FieldDescriptor.Type.MESSAGE &&
-              eventTemplateFieldInfo.messageTypeFullName != Duration.getDescriptor().fullName)
+            eventTemplateFieldInfo.type == Descriptors.FieldDescriptor.Type.MESSAGE
         ) {
           throw InvalidFieldValueException(
             "basic_report.result_group_specs.dimension_spec.filters.terms.value.float_value"

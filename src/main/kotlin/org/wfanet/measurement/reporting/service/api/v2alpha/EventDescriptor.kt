@@ -38,8 +38,6 @@ class EventDescriptor(eventDescriptor: Descriptors.Descriptor) {
     val isPopulationAttribute: Boolean,
     val supportedReportingFeatures: SupportedReportingFeatures,
     val type: Descriptors.FieldDescriptor.Type,
-    // Only valid if type is MESSAGE
-    val messageTypeFullName: String,
     // Map of Enum name to Enum number
     val enumValuesMap: Map<String, Int>,
   )
@@ -81,12 +79,6 @@ class EventDescriptor(eventDescriptor: Descriptors.Descriptor) {
               templateField.enumType.values.forEach { put(it.name, it.number) }
             }
           }
-          val messageTypeFullName =
-            if (templateField.type == Descriptors.FieldDescriptor.Type.MESSAGE) {
-              templateField.messageType.fullName
-            } else {
-              ""
-            }
 
           put(
             eventTemplateFieldName,
@@ -95,7 +87,6 @@ class EventDescriptor(eventDescriptor: Descriptors.Descriptor) {
               isPopulationAttribute = isPopulationAttribute,
               supportedReportingFeatures = supportedReportingFeatures,
               type = templateField.type,
-              messageTypeFullName = messageTypeFullName,
               enumValuesMap = enumValuesMap,
             ),
           )

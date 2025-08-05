@@ -40,15 +40,16 @@ message EventTemplateField {
   message FieldValue {
     // Value type selector. Required.
     oneof selector {
-      // The field value as a string
+      // The field value as a string. Only STRING field type is supported.
       string string_value = 1 [(google.api.field_behavior) = IMMUTABLE];
       // The field value as a stringified enum value. This is the symbol
       // associated with the enum value, not a stringification of its integer
-      // value. For example, for MediaType.VIDEO we expect "VIDEO" not "1"
+      // value. For example, for MediaType.VIDEO we expect "VIDEO" not "1".
+      // Only ENUM field type is supported.
       string enum_value = 2 [(google.api.field_behavior) = IMMUTABLE];
-      // The field value as a Boolean
+      // The field value as a Boolean. Only BOOL field type is supported.
       bool bool_value = 3 [(google.api.field_behavior) = IMMUTABLE];
-      // The field value as a Float
+      // The field value as a Float. Only numerical field types are supported.
       float float_value = 4 [(google.api.field_behavior) = IMMUTABLE];
     }
   }

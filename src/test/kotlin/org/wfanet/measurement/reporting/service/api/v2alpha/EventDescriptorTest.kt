@@ -70,7 +70,6 @@ class EventDescriptorTest {
               impressionQualification = false,
             ),
           type = Descriptors.FieldDescriptor.Type.ENUM,
-          messageTypeFullName = "",
           enumValuesMap = mapOf("GENDER_UNSPECIFIED" to 0, "MALE" to 1, "FEMALE" to 2),
         ),
         "person.age_group",
@@ -84,7 +83,6 @@ class EventDescriptorTest {
               impressionQualification = false,
             ),
           type = Descriptors.FieldDescriptor.Type.ENUM,
-          messageTypeFullName = "",
           enumValuesMap =
             mapOf(
               "AGE_GROUP_UNSPECIFIED" to 0,
@@ -104,7 +102,6 @@ class EventDescriptorTest {
               impressionQualification = false,
             ),
           type = Descriptors.FieldDescriptor.Type.ENUM,
-          messageTypeFullName = "",
           enumValuesMap = mapOf("SOCIAL_GRADE_GROUP_UNSPECIFIED" to 0, "A_B_C1" to 1, "C2_D_E" to 2),
         ),
         "video_ad.length",
@@ -118,7 +115,6 @@ class EventDescriptorTest {
               impressionQualification = false,
             ),
           type = Descriptors.FieldDescriptor.Type.MESSAGE,
-          messageTypeFullName = "google.protobuf.Duration",
           enumValuesMap = mapOf(),
         ),
         "video_ad.viewed_fraction",
@@ -132,7 +128,6 @@ class EventDescriptorTest {
               impressionQualification = true,
             ),
           type = Descriptors.FieldDescriptor.Type.DOUBLE,
-          messageTypeFullName = "",
           enumValuesMap = mapOf(),
         ),
         "banner_ad.viewable",
@@ -146,7 +141,6 @@ class EventDescriptorTest {
               impressionQualification = true,
             ),
           type = Descriptors.FieldDescriptor.Type.BOOL,
-          messageTypeFullName = "",
           enumValuesMap = mapOf(),
         ),
       )
