@@ -52,7 +52,7 @@ abstract class EdpSimulatorRunner : Runnable {
     eventTemplates: Iterable<EventGroup.EventTemplate>,
     metadataByReferenceIdSuffix: Map<String, Message>,
     knownEventGroupMetadataTypes: Iterable<Descriptors.FileDescriptor>,
-    hmssVidIndexMap: VidIndexMap? = null,
+    vidIndexMap: VidIndexMap? = null,
   ) {
     val clientCerts =
       SigningCerts.fromPemFiles(
@@ -121,7 +121,7 @@ abstract class EdpSimulatorRunner : Runnable {
         MinimumIntervalThrottler(Clock.systemUTC(), flags.throttlerMinimumInterval),
         createNoOpPrivacyBudgetManager(),
         clientCerts.trustedCertificates,
-        hmssVidIndexMap = hmssVidIndexMap,
+        vidIndexMap = vidIndexMap,
         knownEventGroupMetadataTypes = knownEventGroupMetadataTypes,
         random = random,
         logSketchDetails = flags.logSketchDetails,

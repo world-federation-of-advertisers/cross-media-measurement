@@ -144,7 +144,8 @@ import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.api.v2al
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.api.v2alpha.PrivacyQueryMapper.getMpcAcdpQuery
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.FrequencyVectorBuilder
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.VidIndexMap
-import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.shareshuffle.FulfillRequisitionRequestBuilder
+import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.shareshuffle.FulfillRequisitionRequestBuilder as ShareShuffleFulfillRequisitionRequestBuilder
+import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.trustee.FulfillRequisitionRequestBuilder as TrusTeeRequisitionRequestBuilder
 import org.wfanet.measurement.loadtest.common.sampleVids
 import org.wfanet.measurement.loadtest.config.TestIdentifiers.SIMULATOR_EVENT_GROUP_REFERENCE_ID_PREFIX
 
@@ -166,11 +167,12 @@ class EdpSimulator(
   private val trustedCertificates: Map<ByteString, X509Certificate>,
   /**
    * EDP uses the vidIndexMap to fulfill the requisitions for the honest majority share shuffle
-   * protocol.
+   * protocol and trustee protocol.
    *
-   * When the vidIndexMap is empty, the honest majority share shuffle protocol is not supported.
+   * When the vidIndexMap is empty, the honest majority share shuffle protocol and trustee protocol
+   * are not supported.
    */
-  private val hmssVidIndexMap: VidIndexMap? = null,
+  private val vidIndexMap: VidIndexMap? = null,
   /**
    * Known protobuf types for [EventGroupMetadataDescriptor]s.
    *
@@ -191,8 +193,9 @@ class EdpSimulator(
   private val supportedProtocols = buildSet {
     add(ProtocolConfig.Protocol.ProtocolCase.LIQUID_LEGIONS_V2)
     add(ProtocolConfig.Protocol.ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2)
-    if (hmssVidIndexMap != null) {
+    if (vidIndexMap != null) {
       add(ProtocolConfig.Protocol.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE)
+      add(ProtocolConfig.Protocol.ProtocolCase.TRUS_TEE)
     }
   }
 
@@ -218,7 +221,7 @@ class EdpSimulator(
         name = edpData.name
         capabilities =
           DataProviderKt.capabilities {
-            honestMajorityShareShuffleSupported = (hmssVidIndexMap != null)
+            honestMajorityShareShuffleSupported = (vidIndexMap != null)
           }
       }
     )
@@ -458,6 +461,7 @@ class EdpSimulator(
               trustedIssuer,
             )
           }
+        ProtocolConfig.Protocol.ProtocolCase.TRUS_TEE -> {}
         else -> throw InvalidSpecException("Unsupported protocol $protocol")
       }
     } catch (e: CertPathValidatorException) {
@@ -524,6 +528,19 @@ class EdpSimulator(
         throw RequisitionRefusalException.Default(
           Requisition.Refusal.Justification.SPEC_INVALID,
           "Exactly one duchy entry is expected to have the encryption public key, but ${publicKeyList.size} duchy entries do.",
+        )
+      }
+    }
+
+    if (protocol == ProtocolConfig.Protocol.ProtocolCase.TRUS_TEE) {
+      if (requisition.duchiesList.size != 1) {
+        logger.log(
+          Level.WARNING,
+          "One duchy entry is expected, but there are ${requisition.duchiesList.size}.",
+        )
+        throw RequisitionRefusalException.Default(
+          Requisition.Refusal.Justification.SPEC_INVALID,
+          "One duchy entry is expected, but there are ${requisition.duchiesList.size}.",
         )
       }
     }
@@ -758,6 +775,24 @@ class EdpSimulator(
           verifyDuchyEntries(requisition, protocolConfig)
 
           fulfillRequisitionForHmssMeasurement(
+            requisition,
+            measurementSpec,
+            requisitionSpec.nonce,
+            eventGroupSpecs,
+          )
+        } else if (protocols.any { it.hasTrusTee() }) {
+          if (!measurementSpec.hasReach() && !measurementSpec.hasReachAndFrequency()) {
+            throw RequisitionRefusalException.Default(
+              Requisition.Refusal.Justification.SPEC_INVALID,
+              "Measurement type not supported for protocol TrusTee.",
+            )
+          }
+
+          val protocolConfig = ProtocolConfig.Protocol.ProtocolCase.TRUS_TEE
+          verifyProtocolConfig(requisition.name, protocolConfig)
+          verifyDuchyEntries(requisition, protocolConfig)
+
+          fulfillRequisitionForTrusteeMeasurement(
             requisition,
             measurementSpec,
             requisitionSpec.nonce,
@@ -1155,7 +1190,7 @@ class EdpSimulator(
     nonce: Long,
     eventGroupSpecs: Iterable<EventQuery.EventGroupSpec>,
   ) {
-    requireNotNull(hmssVidIndexMap) { "HMSS VidIndexMap cannot be null." }
+    requireNotNull(vidIndexMap) { "HMSS VidIndexMap cannot be null." }
 
     val protocolConfig: ProtocolConfig.HonestMajorityShareShuffle =
       requireNotNull(
@@ -1177,10 +1212,10 @@ class EdpSimulator(
 
     logger.info("Generating sampled frequency vector for HMSS...")
     val frequencyVectorBuilder =
-      FrequencyVectorBuilder(hmssVidIndexMap.populationSpec, measurementSpec, strict = false)
+      FrequencyVectorBuilder(vidIndexMap.populationSpec, measurementSpec, strict = false)
     for (eventGroupSpec in eventGroupSpecs) {
       eventQuery.getUserVirtualIds(eventGroupSpec).forEach {
-        frequencyVectorBuilder.increment(hmssVidIndexMap[it])
+        frequencyVectorBuilder.increment(vidIndexMap[it])
       }
     }
 
@@ -1188,13 +1223,61 @@ class EdpSimulator(
     logger.log(Level.INFO) { "Sampled frequency vector size:\n${sampledFrequencyVector.dataCount}" }
 
     val requests =
-      FulfillRequisitionRequestBuilder.build(
+      ShareShuffleFulfillRequisitionRequestBuilder.build(
           requisition,
           nonce,
           sampledFrequencyVector,
           edpData.certificateKey,
           edpData.signingKeyHandle,
         )
+        .asFlow()
+
+    val duchyId = getDuchyWithoutPublicKey(requisition)
+    val requisitionFulfillmentStub =
+      requisitionFulfillmentStubsByDuchyId[duchyId]
+        ?: throw Exception("Requisition fulfillment stub not found for $duchyId.")
+    fulfillRequisition(requisitionFulfillmentStub, requisition, requests)
+  }
+
+  /** Fulfill Trustee Measurement's Requisition. */
+  private suspend fun fulfillRequisitionForTrusteeMeasurement(
+    requisition: Requisition,
+    measurementSpec: MeasurementSpec,
+    nonce: Long,
+    eventGroupSpecs: Iterable<EventQuery.EventGroupSpec>,
+  ) {
+    requireNotNull(vidIndexMap) { "TrusTee VidIndexMap cannot be null." }
+
+    requireNotNull(
+      requisition.protocolConfig.protocolsList.find { protocol -> protocol.hasTrusTee() }
+    ) {
+      "Protocol with TrusTee is missing"
+    }
+
+    // TODO: should we add a new one or rename it to chargeTEEPrivacyBudget?
+    chargeMpcPrivacyBudget(
+      requisition.name,
+      measurementSpec,
+      eventGroupSpecs.map { it.spec },
+      NoiseMechanism.CONTINUOUS_GAUSSIAN,
+      1,
+    )
+
+    logger.info("Generating sampled frequency vector for TrusTee...")
+    val frequencyVectorBuilder =
+      FrequencyVectorBuilder(vidIndexMap.populationSpec, measurementSpec, strict = false)
+    for (eventGroupSpec in eventGroupSpecs) {
+      eventQuery.getUserVirtualIds(eventGroupSpec).forEach {
+        frequencyVectorBuilder.increment(vidIndexMap[it])
+      }
+    }
+
+    val sampledFrequencyVector = frequencyVectorBuilder.build()
+    logger.log(Level.INFO) { "Sampled frequency vector size:\n${sampledFrequencyVector.dataCount}" }
+
+    val requests =
+      // TODO: try both unencrypted or encrpyted?
+      TrusTeeRequisitionRequestBuilder.buildUnencrypted(requisition, nonce, sampledFrequencyVector)
         .asFlow()
 
     val duchyId = getDuchyWithoutPublicKey(requisition)
