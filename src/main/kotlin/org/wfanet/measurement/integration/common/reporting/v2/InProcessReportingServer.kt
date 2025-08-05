@@ -306,6 +306,7 @@ class InProcessReportingServer(
                 internalReportingSetsClient,
                 EventDescriptor(TYPE_REGISTRY.find(TestEvent.getDescriptor().fullName))
                   .eventTemplateFieldsMap,
+                METRIC_SPEC_CONFIG,
                 authorization,
               )
               .withTrustedPrincipalAuthentication(),

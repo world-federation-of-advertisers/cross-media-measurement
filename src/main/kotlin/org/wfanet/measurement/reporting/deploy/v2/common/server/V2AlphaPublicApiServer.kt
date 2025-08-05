@@ -206,6 +206,17 @@ private object V2AlphaPublicApiServer {
       parseTextProto(v2AlphaFlags.metricSpecConfigFile, MetricSpecConfig.getDefaultInstance())
     metricSpecConfig.validate()
 
+    val basicReportMetricSpecConfig =
+      if (v2AlphaFlags.basicReportMetricSpecConfigFile == null) {
+        metricSpecConfig
+      } else {
+        parseTextProto(
+          v2AlphaFlags.basicReportMetricSpecConfigFile!!,
+          MetricSpecConfig.getDefaultInstance(),
+        )
+      }
+    basicReportMetricSpecConfig.validate()
+
     val apiKey = measurementConsumerConfigs.configsMap.values.first().apiKey
     val celEnvCacheProvider =
       CelEnvCacheProvider(
@@ -334,6 +345,7 @@ private object V2AlphaPublicApiServer {
             InternalReportingSetsCoroutineStub(channel),
             // TODO(@tristanvuong2021): Switch to non-empty map when ready to deploy
             emptyMap(),
+            basicReportMetricSpecConfig,
             authorization,
             serviceDispatcher,
           )
