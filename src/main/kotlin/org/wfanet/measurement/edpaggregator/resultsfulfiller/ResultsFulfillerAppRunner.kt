@@ -219,11 +219,11 @@ class ResultsFulfillerAppRunner : Runnable {
       )
 
     val targetServiceAccount = "primus-sa@halo-cmm-dev-edp.iam.gserviceaccount.com"
-    
+
     val credentialConfigJson = """
     {
       "type": "external_account",
-      "audience": "//iam.googleapis.com/projects/472172784441/locations/global/workloadIdentityPools/edp-workload-identity-pool/providers/edp-wip-provider-kotlin-w-sa",
+      "audience": "//iam.googleapis.com/projects/472172784441/locations/global/workloadIdentityPools/edp-workload-identity-pool/providers/edp-wip-provider-k-res",
       "subject_token_type": "urn:ietf:params:oauth:token-type:jwt",
       "token_url": "https://sts.googleapis.com/v1/token",
       "credential_source": {
