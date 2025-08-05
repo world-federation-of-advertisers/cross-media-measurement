@@ -17,6 +17,9 @@
 package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
 import com.google.crypto.tink.integration.gcpkms.GcpKmsClient
+import com.google.auth.oauth2.GoogleCredentials
+import com.google.cloud.kms.v1.KeyManagementServiceClient
+import com.google.cloud.kms.v1.KeyManagementServiceSettings
 import com.google.protobuf.DescriptorProtos
 import com.google.protobuf.Descriptors
 import com.google.protobuf.ExtensionRegistry
@@ -43,7 +46,9 @@ import picocli.CommandLine
 import com.google.cloud.secretmanager.v1.SecretManagerServiceClient
 import com.google.cloud.secretmanager.v1.AccessSecretVersionRequest
 import com.google.cloud.secretmanager.v1.SecretVersionName
+import java.io.ByteArrayInputStream
 import java.net.URI
+import java.nio.charset.StandardCharsets
 import org.wfanet.measurement.common.edpaggregator.TeeAppConfig.getConfig
 
 @CommandLine.Command(name = "results_fulfiller_app_runner")
@@ -213,7 +218,35 @@ class ResultsFulfillerAppRunner : Runnable {
         trustedCertCollection = kingdomCertCollectionFile,
       )
 
-    val kmsClient = GcpKmsClient().withDefaultCredentials()
+    val targetServiceAccount = "primus-sa@halo-cmm-dev-edp.iam.gserviceaccount.com"
+    
+    val credentialConfigJson = """
+    {
+      "type": "external_account",
+      "audience": "//iam.googleapis.com/projects/472172784441/locations/global/workloadIdentityPools/edp-workload-identity-pool/providers/edp-wip-provider-kotlin-w-sa",
+      "subject_token_type": "urn:ietf:params:oauth:token-type:jwt",
+      "token_url": "https://sts.googleapis.com/v1/token",
+      "credential_source": {
+        "file": "/run/container_launcher/attestation_verifier_claims_token"
+      },
+      "service_account_impersonation_url": "https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/$targetServiceAccount:generateAccessToken"
+    }
+  """.trimIndent()
+
+    val credentials = GoogleCredentials.fromStream(
+      ByteArrayInputStream(credentialConfigJson.toByteArray(StandardCharsets.UTF_8))
+    )
+
+//    val kmsSettings = KeyManagementServiceSettings.newBuilder()
+//      .setCredentialsProvider { credentials }
+//      .build()
+//
+//    val rawKmsClient = KeyManagementServiceClient.create(kmsSettings)
+//
+//    val kmsClient = GcpKmsClient(rawKmsClient)
+    val kmsClient = GcpKmsClient()
+      .withCredentials(credentials)
+//    val kmsClient = GcpKmsClient().withDefaultCredentials()
 
     val typeRegistry: TypeRegistry = buildTypeRegistry()
 
