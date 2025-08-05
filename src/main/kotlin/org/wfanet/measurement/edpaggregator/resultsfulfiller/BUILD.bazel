@@ -205,6 +205,7 @@ java_binary(
 
 java_image(
     name = "tee_test_image",
+    base = "@java_debug_root",
     binary = ":TeeTest",
     main_class = "org.wfanet.measurement.edpaggregator.resultsfulfiller.TeeTest",
     visibility = ["//src:docker_image_deployment"],

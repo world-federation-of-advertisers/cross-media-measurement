@@ -143,7 +143,7 @@ class TeeTest : Runnable {
 //    val kmsKeyName =
 //      "projects/halo-cmm-dev/locations/us-central1/keyRings/tee-demo-key-ring/cryptoKeys/tee-demo-key-1"
     val keyName = "projects/halo-cmm-dev-edp/locations/global/keyRings/halo-cmm-dev-edp-enc-kr/cryptoKeys/halo-cmm-dev-edp-enc-key-"
-    val workloadIdentityProvider = "//iam.googleapis.com/projects/472172784441/locations/global/workloadIdentityPools/edp-workload-identity-pool/providers/edp-wip-provider"
+    val workloadIdentityProvider = "//iam.googleapis.com/projects/472172784441/locations/global/workloadIdentityPools/edp-workload-identity-pool/providers/edp-wip-provider-kotlin-w-sa"
     writeToBucket("Hello world".toByteArray(Charsets.UTF_8),"hello2.txt")
 //    val wifProviderResourceName =
 //      "//iam.googleapis.com/projects/462363635192/locations/global/workloadIdentityPools/tee-demo-pool/providers/tee-demo-pool-provider"
