@@ -85,6 +85,7 @@ class ResultsFulfillerAppRunner : Runnable {
   lateinit var edpCerts: List<EdpFlags>
     private set
 
+  // The file paths supplied via each EdpFlags instance must exactly match the paths defined in the ResultsFulfillerParam proto configuration.
   class EdpFlags {
     @CommandLine.Option(names = ["--edp-cert-der-secret-id"], required = true, description = ["Secret ID for the EDP cert"])
     lateinit var certDerSecretId: String
