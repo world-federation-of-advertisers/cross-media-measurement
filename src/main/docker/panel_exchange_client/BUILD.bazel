@@ -39,12 +39,14 @@ container_push_all(
     tags = ["manual"],
 )
 
+IMAGES_TO_SIGN = GCLOUD_IMAGES + AWS_IMAGES
+
 sign_all(
     name = "sign_all_images",
     images = {"{registry}/{name}".format(
         name = image_spec.repository,
         registry = IMAGE_REPOSITORY_SETTINGS.container_registry,
-    ): image_spec.image for image_spec in ALL_IMAGES},
+    ): image_spec.image for image_spec in IMAGES_TO_SIGN},
     tags = [
         "manual",
         "no-remote",
