@@ -5,7 +5,7 @@ load(
 )
 load("//build:variables.bzl", "IMAGE_REPOSITORY_SETTINGS")
 load("//build/cosign:macros.bzl", "sign_all")
-load("//src/main/docker/panel_exchange_client:images.bzl", "ALL_IMAGES")
+load("//src/main/docker/panel_exchange_client:images.bzl", "ALL_IMAGES", "AWS_IMAGES", "GCLOUD_IMAGES")
 
 package(
     default_testonly = True,  #TODO: delete when InMemoryKeyStore and FakeHybridCipher are not used.
