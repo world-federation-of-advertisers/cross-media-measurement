@@ -237,6 +237,7 @@ maven.install(
         "com.google.auth:google-auth-library-credentials",
         "com.google.auth:google-auth-library-oauth2-http",
         "com.google.cloud:google-cloud-secretmanager",
+        "com.google.cloud:google-cloud-kms",
 
         # AWS
         "software.amazon.awssdk:acmpca",

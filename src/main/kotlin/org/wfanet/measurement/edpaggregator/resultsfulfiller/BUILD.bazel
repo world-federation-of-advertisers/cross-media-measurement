@@ -183,8 +183,14 @@ kt_jvm_library(
     name = "tee_test",
     srcs = ["TeeTest.kt"],
     deps = [
+        "//imports/java/com/google/auth:credentials",
+        "//imports/java/com/google/auth:oauth_http2",
+        "//imports/java/com/google/cloud/kms",
         "//imports/java/com/google/cloud/secretmanager",
+        "//imports/java/com/google/crypto/tink/integration/gcpkms",
+        "@wfa_common_jvm//imports/java/com/google/cloud/storage",
         "@wfa_common_jvm//imports/java/picocli",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:client",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:selected_storage_client",
     ],
 )
