@@ -14,6 +14,15 @@
 
 data "google_project" "project" {}
 
+locals {
+
+  metadata_map = {
+    "tee-image-reference"           = var.docker_image
+    "tee-container-log-redirect"    = "true"
+    "tee-cmd"                       = jsonencode(var.tee_cmd)
+  }
+}
+
 resource "google_service_account" "mig_service_account" {
   account_id   = var.mig_service_account_name
   description  = "Service account for Managed Instance Group"
@@ -33,7 +42,7 @@ resource "google_pubsub_subscription_iam_member" "mig_subscriber" {
 }
 
 resource "google_secret_manager_secret_iam_member" "mig_sa_secret_accessor" {
-  for_each = { for s in var.secrets_to_mount : s.secret_id => s }
+  for_each = { for s in var.secrets_to_access : s.secret_id => s }
 
   secret_id = each.value.secret_id
   role      = "roles/secretmanager.secretAccessor"
@@ -58,12 +67,17 @@ resource "google_project_iam_member" "mig_log_writer" {
   member  = "serviceAccount:${google_service_account.mig_service_account.email}"
 }
 
+data "google_compute_image" "confidential_space" {
+  family  = "confidential-space-debug"
+  project = "confidential-space-images"
+}
+
 resource "google_compute_instance_template" "confidential_vm_template" {
   machine_type = var.machine_type
 
   confidential_instance_config {
     enable_confidential_compute = true
-    confidential_instance_type  = "SEV_SNP"
+    confidential_instance_type  = "SEV"
   }
 
   scheduling {
@@ -76,7 +90,12 @@ resource "google_compute_instance_template" "confidential_vm_template" {
   }
 
   disk {
-    source_image = "projects/cos-cloud/global/images/family/cos-stable"
+    boot            = true
+    source_image    = data.google_compute_image.confidential_space.self_link
+  }
+
+  shielded_instance_config {
+    enable_secure_boot = true
   }
 
   network_interface {
@@ -85,72 +104,12 @@ resource "google_compute_instance_template" "confidential_vm_template" {
   }
 
   metadata = merge(
-      {
+    {
         "google-logging-enabled"    = "true"
         "google-monitoring-enabled" = "true"
-      },
-      {
-        # 1) at boot, loop over each secret and write it out:
-        "startup-script" = <<-EOT
-          #!/bin/bash
-          set -euo pipefail
-          %{ for s in var.secrets_to_mount }
-          host_dir="$(dirname "${s.mount_path}")"
-          mkdir -p "$host_dir"
-          docker run --rm \
-            -v "$host_dir":"$host_dir" \
-            gcr.io/google.com/cloudsdktool/cloud-sdk:slim \
-            gcloud secrets versions access ${s.version} \
-              --secret=${s.secret_id} \
-              --project=${data.google_project.project.name} \
-              --out-file=${s.mount_path}
-          chmod 644 ${s.mount_path}
-          %{ endfor }
-          EOT
-      },
-      {
-        # 2) append a --<flag>=<path> for each mount into the container args
-        "gce-container-declaration" = <<-EOT
-  spec:
-    containers:
-      - name: subscriber
-        image: ${var.docker_image}
-        stdin: false
-        tty: false
-        args: ${jsonencode(
-          concat(
-            var.app_args,
-            [ for s in var.secrets_to_mount :
-              "${s.flag_name}=${s.mount_path}"
-              if s.flag_name != null
-            ]
-          )
-        )}
-        env:
-          - name: GRPC_TRACE
-            value: "all"
-          - name: GRPC_VERBOSITY
-            value: "DEBUG"
-        volumeMounts:
-          - name: ssl-secrets
-            mountPath: /etc/ssl
-            readOnly: true
-          - name: proto-descriptors
-            mountPath: /var/tmp
-            readOnly: true
-    restartPolicy: Always
-    volumes:
-      - name: ssl-secrets
-        hostPath:
-          path: /etc/ssl
-          type: DirectoryOrCreate
-      - name: proto-descriptors
-        hostPath:
-          path: /var/tmp
-          type: DirectoryOrCreate
-  EOT
-      }
-    )
+    },
+    local.metadata_map
+  )
   service_account {
     email = google_service_account.mig_service_account.email
     scopes = [
