@@ -71,8 +71,8 @@ jobs:
     with:
       image-tag: ${{ needs.get-image-tag.outputs.image-tag }}
       #WIP - kms-key-resource-name: ${{ vars.IMAGE_SIGNING_DEV_KEY_RESOURCE_NAME }}
-      #kms-key-resource-name: "gcpkms://projects/halo-cmm-poc/locations/global/keyRings/key-ring-signed-builds/cryptoKeys/key-signed-builds/cryptoKeyVersions/3"
-      kms-key-resource-name: "gcpkms://projects/halo-cmm-poc/locations/global/keyRings/key-ring-signed-builds/cryptoKeys/key-signed-builds-ed25519"
+      kms-key-resource-name: "gcpkms://projects/halo-cmm-poc/locations/global/keyRings/key-ring-signed-builds/cryptoKeys/key-signed-builds/cryptoKeyVersions/3"
+      #WIP - kms-key-resource-name: "gcpkms://projects/halo-cmm-poc/locations/global/keyRings/key-ring-signed-builds/cryptoKeys/key-signed-builds-ed25519"
       service-account: ${{ vars.IMAGE_SIGNING_DEV_SA }}
       workload-identity-provider: ${{ vars.IMAGE_SIGNING_DEV_WORKLOAD_IDENTITY_PROVIDER }}
 
