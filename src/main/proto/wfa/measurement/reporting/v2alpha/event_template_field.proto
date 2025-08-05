@@ -49,7 +49,7 @@ message EventTemplateField {
       string enum_value = 2 [(google.api.field_behavior) = IMMUTABLE];
       // The field value as a Boolean. Only BOOL field type is supported.
       bool bool_value = 3 [(google.api.field_behavior) = IMMUTABLE];
-      // The field value as a Float. Only numerical field types are supported.
+      // The field value as a Float. Only FLOAT field type is supported.
       float float_value = 4 [(google.api.field_behavior) = IMMUTABLE];
     }
   }

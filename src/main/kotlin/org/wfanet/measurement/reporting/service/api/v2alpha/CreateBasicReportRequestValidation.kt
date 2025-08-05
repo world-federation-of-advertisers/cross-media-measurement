@@ -330,12 +330,7 @@ fun validateEventTemplateField(
           }
         }
       EventTemplateField.FieldValue.SelectorCase.FLOAT_VALUE -> {
-        if (
-          eventTemplateFieldInfo.type == Descriptors.FieldDescriptor.Type.ENUM ||
-            eventTemplateFieldInfo.type == Descriptors.FieldDescriptor.Type.STRING ||
-            eventTemplateFieldInfo.type == Descriptors.FieldDescriptor.Type.BOOL ||
-            eventTemplateFieldInfo.type == Descriptors.FieldDescriptor.Type.MESSAGE
-        ) {
+        if (eventTemplateFieldInfo.type != Descriptors.FieldDescriptor.Type.FLOAT) {
           throw InvalidFieldValueException(
             "basic_report.result_group_specs.dimension_spec.filters.terms.value.float_value"
           ) { fieldName ->
