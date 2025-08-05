@@ -229,7 +229,6 @@ class ResultsFulfillerAppRunner : Runnable {
   }
 
   fun saveEdpaCerts() {
-    logger.info("Storing EDP Aggregator certs file")
     val edpaCert = accessSecretBytes(googleProjectId, edpaCertSecretId, SECRET_VERSION)
     saveSecretToFile(edpaCert, EDPA_TLS_CERT_FILE_PATH)
     val edpaPrivateKey = accessSecretBytes(googleProjectId, edpaPrivateKeySecretId, SECRET_VERSION)
@@ -238,7 +237,6 @@ class ResultsFulfillerAppRunner : Runnable {
     saveSecretToFile(secureComputationRootCa, SECURE_COMPUTATION_ROOT_CA_FILE_PATH)
     val kingdomRootCa = accessSecretBytes(googleProjectId, kingdomCertCollectionSecretId, SECRET_VERSION)
     saveSecretToFile(kingdomRootCa, KINGDOM_ROOT_CA_FILE_PATH)
-    logger.info("EDP Aggregator certs file have been stored.")
   }
 
   fun saveSecretToFile(bytes: ByteArray, path: String) {
