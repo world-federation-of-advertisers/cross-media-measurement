@@ -1,15 +1,28 @@
-# Modified copy of https://github.com/bazel-contrib/rules_oci/blob/v2.2.1/cosign/private/sign.bzl to allow make variable expansion.
-# It may need to be updated whenever the version of rules_oci used in MODULE.bazel is updated.
+# Copyright 2022 The Bazel Contrib Authors
+# Copyright 2025 The Cross-Media Measurement Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 """Sign an oci_image using cosign binary at a remote registry. It signs the image by its digest determined beforehand. """
 
-# WIP - license?
+# Modified copy of https://github.com/bazel-contrib/rules_oci/blob/v2.2.1/cosign/private/sign.bzl to allow make variable expansion.
+# It may need to be updated whenever the version of rules_oci used in MODULE.bazel is updated.
 
 _attrs = {
     "image": attr.label(allow_single_file = True, mandatory = True, doc = "Label to an oci_image"),
     "repository_url": attr.string(mandatory = True, doc = "Image repository url subject to make variable expansion"),
     # WIP - local template for debugging. "_sign_sh_tpl": attr.label(default = "@rules_oci//cosign/private:sign.sh.tpl", allow_single_file = True),
-    "_sign_sh_tpl": attr.label(default = "//build/cosign:sign.sh.tpl", allow_single_file = True),
+    "_sign_sh_tpl": attr.label(default = "//third_party/rules_oci:sign.sh.tpl", allow_single_file = True),
 }
 
 def _compute_repository(ctx):
