@@ -1,9 +1,7 @@
-# Modified copy of https://github.com/bazel-contrib/rules_oci/blob/v2.2.1/cosign/private/sign.bzl to allow make variable expansion
+# Modified copy of https://github.com/bazel-contrib/rules_oci/blob/v2.2.1/cosign/private/sign.bzl to allow make variable expansion.
 # It may need to be updated whenever the version of rules_oci used in MODULE.bazel is updated.
 
 """Sign an oci_image using cosign binary at a remote registry. It signs the image by its digest determined beforehand. """
-
-load("//build:variables.bzl", "IMAGE_REPOSITORY_SETTINGS")
 
 # WIP - license?
 
@@ -17,7 +15,6 @@ _attrs = {
 def _compute_repository(ctx):
     # handle make variable expansion
     return ctx.expand_make_variables("repository_url", ctx.attr.repository_url, {})
-
 
 def _cosign_sign_impl(ctx):
     cosign = ctx.toolchains["@rules_oci//cosign:toolchain_type"]

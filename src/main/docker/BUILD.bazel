@@ -4,9 +4,7 @@ load(
     "container_push_all",
 )
 load("//build:variables.bzl", "IMAGE_REPOSITORY_SETTINGS")
-load("//build/cosign:sign.bzl", "cosign_sign")
 load("//build/cosign:macros.bzl", "sign_all")
-load("//build/cosign:sign_images.bzl", "sign_images")
 load(":images.bzl", "ALL_EKS_IMAGES", "ALL_GKE_IMAGES", "ALL_IMAGES", "ALL_LOCAL_IMAGES", "ALL_REPORTING_GKE_IMAGES", "ALL_TEE_APP_GKE_IMAGES", "IMAGES_TO_SIGN")
 
 package(
@@ -138,22 +136,11 @@ container_push_all(
     ],
 )
 
-sign_images(
-    name = "sign_images",
-    image_names = [image_spec.repository for image_spec in IMAGES_TO_SIGN],
-)
-
-#cosign_sign(
-#    name = "sign_test",
-#    image = IMAGES_TO_SIGN[0].image,
-#    image_name = IMAGES_TO_SIGN[0].repository,
-#)
-
 sign_all(
     name = "sign_all_images",
     images = {"{registry}/{name}".format(
-        registry = IMAGE_REPOSITORY_SETTINGS.container_registry,
         name = image_spec.repository,
+        registry = IMAGE_REPOSITORY_SETTINGS.container_registry,
     ): image_spec.image for image_spec in IMAGES_TO_SIGN},
     tags = [
         "manual",

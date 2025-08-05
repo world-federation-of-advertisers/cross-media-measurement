@@ -81,11 +81,11 @@ jobs:
         run: >
           bazelisk build 
           //src/main/docker:sign_all_images
-      #//src/main/docker/panel_exchange_client:sign_images
+          //src/main/docker/panel_exchange_client:sign_all_images
 
       - name: Sign images
         env:
           GCP_KMS_KEY_FOR_SIGNING: ${{ inputs.kms-key-resource-name }}
         run: |
           bazelisk run //src/main/docker:sign_all_images -- --tlog-upload=false --key $GCP_KMS_KEY_FOR_SIGNING
-      #bazelisk run //src/main/docker/panel_exchange_client:sign_images -- $GCP_KMS_KEY_FOR_SIGNING
+          bazelisk run //src/main/docker/panel_exchange_client:sign_all_images -- --tlog-upload=false --key $GCP_KMS_KEY_FOR_SIGNING
