@@ -10,7 +10,8 @@ load("//build:variables.bzl", "IMAGE_REPOSITORY_SETTINGS")
 _attrs = {
     "image": attr.label(allow_single_file = True, mandatory = True, doc = "Label to an oci_image"),
     "repository_url": attr.string(mandatory = True, doc = "Image repository url subject to make variable expansion"),
-    "_sign_sh_tpl": attr.label(default = "@rules_oci//cosign/private:sign.sh.tpl", allow_single_file = True),
+    # WIP - local template for debugging. "_sign_sh_tpl": attr.label(default = "@rules_oci//cosign/private:sign.sh.tpl", allow_single_file = True),
+    "_sign_sh_tpl": attr.label(default = "//build/cosign:sign.sh.tpl", allow_single_file = True),
 }
 
 def _compute_repository(ctx):
