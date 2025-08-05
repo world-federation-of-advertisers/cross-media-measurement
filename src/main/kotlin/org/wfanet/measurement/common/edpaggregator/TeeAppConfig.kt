@@ -14,36 +14,22 @@
 
 package org.wfanet.measurement.common.edpaggregator
 
-import com.google.protobuf.Message
-import com.google.protobuf.TypeRegistry
-import java.io.File
-import java.io.StringReader
 import java.net.URI
 import java.nio.file.Paths
 import org.wfanet.measurement.common.flatten
-import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.storage.SelectedStorageClient
-import org.wfanet.measurement.storage.StorageClient
 
-/** Function to get Cloud Functions' configurations from Storage */
+/** Function to get Tee Application' configurations from Storage */
 object TeeAppConfig {
 
   /**
-   * Loads a UTF-8-encoded configuration proto from the storage backend specified by environment
-   * variables.
+   * Fetches and returns the raw bytes of a UTF-8–encoded configuration blob from storage.
    *
-   * Environment variables consumed:
-   * - EDPA_CONFIG_STORAGE_BUCKET: URI prefix where config blobs live. • gs://my-bucket/base-path
-   *   for Google Cloud Storage • file:///absolute/local/path for local-filesystem testing This
-   *   value must be set and must not end with a slash.
-   * - GOOGLE_PROJECT_ID: (optional) GCP project ID to use for Cloud Storage.
-   *
-   * @param configBlobKey The name of the config blob to load.
-   * @param defaultInstance A default instance of the protobuf message type to parse into.
-   * @param typeRegistry Optional registry for handling `Any` fields during parsing.
-   * @return A protobuf message of type [T] populated from the parsed config.
-   * @throws IllegalArgumentException if required environment variables are not set.
-   * @throws IllegalStateException if the config blob is not found.
+   * @param projectId    GCP project ID (used for GCS access; ignored for `file:` URIs).
+   * @param blobUri      Full URI of the config blob to load.
+   * @return             Raw bytes of the loaded config.
+   * @throws IllegalArgumentException if [blobUri] is empty or malformed.
+   * @throws IllegalStateException    if the blob isn’t found at the given URI.
    */
   suspend fun getConfig(
     projectId: String,
