@@ -512,7 +512,7 @@
   "moduleExtensions": {
     "//build/cosign:extensions.bzl%cosign": {
       "general": {
-        "bzlTransitiveDigest": "2fURAsn/QVskVZQn0EKSvjgJuqSGQMAvslsXTLglLqk=",
+        "bzlTransitiveDigest": "Hoy0BEKYj7sQzHVgDZB4mhENVDLVxjVp1Z94N5hHI0g=",
         "usagesDigest": "i8qTPVy331pmIqeJOUgT06X89sfQ2ybpYD9xyBj7oJg=",
         "recordedFileInputs": {},
         "recordedDirentsInputs": {},
