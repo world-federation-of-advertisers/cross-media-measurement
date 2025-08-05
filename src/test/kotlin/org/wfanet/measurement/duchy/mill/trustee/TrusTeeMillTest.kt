@@ -23,9 +23,7 @@ import com.google.crypto.tink.KeysetHandle
 import com.google.crypto.tink.KmsClient
 import com.google.protobuf.ByteString
 import com.google.protobuf.kotlin.toByteString
-import com.google.protobuf.kotlin.toByteStringUtf8
 import java.io.ByteArrayOutputStream
-import java.nio.ByteBuffer
 import java.security.GeneralSecurityException
 import java.time.Clock
 import java.time.Duration
@@ -218,12 +216,6 @@ class TrusTeeMillTest {
     return outputStream.toByteArray().toByteString()
   }
 
-  private fun serializeIntArray(data: IntArray): ByteArray {
-    val buffer = ByteBuffer.allocate(data.size * Int.SIZE_BYTES)
-    buffer.asIntBuffer().put(data)
-    return buffer.array()
-  }
-
   private suspend fun writeRequisitionData() {
     val requisitionBlobContext1 =
       RequisitionBlobContext(GLOBAL_ID, REQUISITION_1.externalKey.externalRequisitionId)
@@ -232,13 +224,13 @@ class TrusTeeMillTest {
     val requisitionBlobContext3 =
       RequisitionBlobContext(GLOBAL_ID, REQUISITION_3.externalKey.externalRequisitionId)
 
-    val encryptedData1 = DEK_AEAD_1.encrypt(serializeIntArray(RAW_DATA_1), null).toByteString()
+    val encryptedData1 = DEK_AEAD_1.encrypt(RAW_DATA_1, null).toByteString()
     requisitionStore.write(requisitionBlobContext1, encryptedData1)
 
-    val encryptedData2 = DEK_AEAD_2.encrypt(serializeIntArray(RAW_DATA_2), null).toByteString()
+    val encryptedData2 = DEK_AEAD_2.encrypt(RAW_DATA_2, null).toByteString()
     requisitionStore.write(requisitionBlobContext2, encryptedData2)
 
-    val encryptedData3 = DEK_AEAD_3.encrypt(serializeIntArray(RAW_DATA_3), null).toByteString()
+    val encryptedData3 = DEK_AEAD_3.encrypt(RAW_DATA_3, null).toByteString()
     requisitionStore.write(requisitionBlobContext3, encryptedData3)
   }
 
@@ -361,7 +353,7 @@ class TrusTeeMillTest {
       requisitions = REQUISITIONS,
     )
 
-    whenever(mockProcessor.addFrequencyVector(any())).thenAnswer {}
+    whenever(mockProcessor.addFrequencyVectorBytes(any())).thenAnswer {}
     whenever(mockProcessor.computeResult()).thenReturn(MEASUREMENT_RESULT)
 
     val mill = createMill()
@@ -381,8 +373,8 @@ class TrusTeeMillTest {
         }
       )
 
-    val vectorCaptor = argumentCaptor<IntArray>()
-    verify(mockProcessor, times(3)).addFrequencyVector(vectorCaptor.capture())
+    val vectorCaptor = argumentCaptor<ByteArray>()
+    verify(mockProcessor, times(3)).addFrequencyVectorBytes(vectorCaptor.capture())
     verify(mockProcessor, times(1)).computeResult()
     val capturedVectors = vectorCaptor.allValues
     assertThat(capturedVectors).hasSize(3)
@@ -409,11 +401,11 @@ class TrusTeeMillTest {
     // Data for REQUISITION_2 is deliberately omitted.
     requisitionStore.write(
       RequisitionBlobContext(GLOBAL_ID, REQUISITION_1.externalKey.externalRequisitionId),
-      DEK_AEAD_1.encrypt(serializeIntArray(RAW_DATA_1), null).toByteString(),
+      DEK_AEAD_1.encrypt(RAW_DATA_1, null).toByteString(),
     )
     requisitionStore.write(
       RequisitionBlobContext(GLOBAL_ID, REQUISITION_3.externalKey.externalRequisitionId),
-      DEK_AEAD_3.encrypt(serializeIntArray(RAW_DATA_3), null).toByteString(),
+      DEK_AEAD_3.encrypt(RAW_DATA_3, null).toByteString(),
     )
 
     fakeComputationDb.addComputation(
@@ -431,7 +423,7 @@ class TrusTeeMillTest {
     assertThat(finalToken.computationDetails.endingState)
       .isEqualTo(ComputationDetails.CompletedReason.FAILED)
 
-    verify(mockProcessor, times(1)).addFrequencyVector(any())
+    verify(mockProcessor, times(1)).addFrequencyVectorBytes(any())
     verify(mockProcessor, never()).computeResult()
     verify(mockSystemComputations, never()).setComputationResult(any())
   }
@@ -458,7 +450,7 @@ class TrusTeeMillTest {
     assertThat(finalToken.computationDetails.endingState)
       .isEqualTo(ComputationDetails.CompletedReason.FAILED)
 
-    verify(mockProcessor, never()).addFrequencyVector(any())
+    verify(mockProcessor, never()).addFrequencyVectorBytes(any())
     verify(mockProcessor, never()).computeResult()
     verify(mockSystemComputations, never()).setComputationResult(any())
   }
@@ -488,7 +480,7 @@ class TrusTeeMillTest {
     assertThat(finalToken.computationDetails.endingState)
       .isEqualTo(ComputationDetails.CompletedReason.FAILED)
 
-    verify(mockProcessor, never()).addFrequencyVector(any())
+    verify(mockProcessor, never()).addFrequencyVectorBytes(any())
     verify(mockProcessor, never()).computeResult()
     verify(mockSystemComputations, never()).setComputationResult(any())
   }
@@ -517,7 +509,7 @@ class TrusTeeMillTest {
     assertThat(finalToken.computationDetails.endingState)
       .isEqualTo(ComputationDetails.CompletedReason.FAILED)
 
-    verify(mockProcessor, never()).addFrequencyVector(any())
+    verify(mockProcessor, never()).addFrequencyVectorBytes(any())
     verify(mockProcessor, never()).computeResult()
     verify(mockSystemComputations, never()).setComputationResult(any())
   }
@@ -554,7 +546,7 @@ class TrusTeeMillTest {
     assertThat(finalToken.computationDetails.endingState)
       .isEqualTo(ComputationDetails.CompletedReason.FAILED)
 
-    verify(mockProcessor, never()).addFrequencyVector(any())
+    verify(mockProcessor, never()).addFrequencyVectorBytes(any())
     verify(mockProcessor, never()).computeResult()
     verify(mockSystemComputations, never()).setComputationResult(any())
   }
@@ -583,7 +575,7 @@ class TrusTeeMillTest {
     assertThat(finalToken.computationDetails.endingState)
       .isEqualTo(ComputationDetails.CompletedReason.FAILED)
 
-    verify(mockProcessor, never()).addFrequencyVector(any())
+    verify(mockProcessor, never()).addFrequencyVectorBytes(any())
     verify(mockProcessor, never()).computeResult()
     verify(mockSystemComputations, never()).setComputationResult(any())
   }
@@ -592,8 +584,7 @@ class TrusTeeMillTest {
   fun `computingPhase fails when data decryption fails`(): Unit = runBlocking {
     writeRequisitionData()
 
-    val incorrectlyEncryptedData =
-      DEK_AEAD_2.encrypt(serializeIntArray(RAW_DATA_1), null).toByteString()
+    val incorrectlyEncryptedData = DEK_AEAD_2.encrypt(RAW_DATA_1, null).toByteString()
     requisitionStore.write(
       RequisitionBlobContext(GLOBAL_ID, REQUISITION_1.externalKey.externalRequisitionId),
       incorrectlyEncryptedData,
@@ -614,39 +605,7 @@ class TrusTeeMillTest {
     assertThat(finalToken.computationDetails.endingState)
       .isEqualTo(ComputationDetails.CompletedReason.FAILED)
 
-    verify(mockProcessor, never()).addFrequencyVector(any())
-    verify(mockProcessor, never()).computeResult()
-    verify(mockSystemComputations, never()).setComputationResult(any())
-  }
-
-  @Test
-  fun `computingPhase fails when decrypted data has invalid format`(): Unit = runBlocking {
-    writeRequisitionData()
-
-    val malformedPlaintext = "12345".toByteStringUtf8()
-    val incorrectlyFormattedData =
-      DEK_AEAD_1.encrypt(malformedPlaintext.toByteArray(), null).toByteString()
-    requisitionStore.write(
-      RequisitionBlobContext(GLOBAL_ID, REQUISITION_1.externalKey.externalRequisitionId),
-      incorrectlyFormattedData,
-    )
-
-    fakeComputationDb.addComputation(
-      LOCAL_ID,
-      Stage.COMPUTING.toProtocolStage(),
-      computationDetails = COMPUTATION_DETAILS,
-      requisitions = REQUISITIONS,
-    )
-
-    val mill = createMill()
-    mill.claimAndProcessWork()
-
-    val finalToken = fakeComputationDb[LOCAL_ID]!!
-    assertThat(finalToken.computationStage).isEqualTo(Stage.COMPLETE.toProtocolStage())
-    assertThat(finalToken.computationDetails.endingState)
-      .isEqualTo(ComputationDetails.CompletedReason.FAILED)
-
-    verify(mockProcessor, never()).addFrequencyVector(any())
+    verify(mockProcessor, never()).addFrequencyVectorBytes(any())
     verify(mockProcessor, never()).computeResult()
     verify(mockSystemComputations, never()).setComputationResult(any())
   }
@@ -661,7 +620,7 @@ class TrusTeeMillTest {
       requisitions = REQUISITIONS,
     )
 
-    whenever(mockProcessor.addFrequencyVector(any())).thenAnswer {}
+    whenever(mockProcessor.addFrequencyVectorBytes(any())).thenAnswer {}
     whenever(mockProcessor.computeResult())
       .thenThrow(IllegalArgumentException("Test cryptor failure during result computation"))
 
@@ -673,7 +632,7 @@ class TrusTeeMillTest {
     assertThat(finalToken.computationDetails.endingState)
       .isEqualTo(ComputationDetails.CompletedReason.FAILED)
 
-    verify(mockProcessor, times(REQUISITIONS.size)).addFrequencyVector(any())
+    verify(mockProcessor, times(REQUISITIONS.size)).addFrequencyVectorBytes(any())
     verify(mockProcessor, times(1)).computeResult()
     verify(mockSystemComputations, never()).setComputationResult(any())
   }
@@ -738,9 +697,9 @@ class TrusTeeMillTest {
     private val DEK_AEAD_2: Aead = DEK_KEYSET_HANDLE_2.getPrimitive(Aead::class.java)
     private val DEK_AEAD_3: Aead = DEK_KEYSET_HANDLE_3.getPrimitive(Aead::class.java)
 
-    private val RAW_DATA_1 = intArrayOf(1, 0, 1, 0, 1)
-    private val RAW_DATA_2 = intArrayOf(0, 1, 2, 0, 0)
-    private val RAW_DATA_3 = intArrayOf(2, 1, 0, 0, 0)
+    private val RAW_DATA_1 = byteArrayOf(1, 0, 1, 0, 1)
+    private val RAW_DATA_2 = byteArrayOf(0, 1, 2, 0, 0)
+    private val RAW_DATA_3 = byteArrayOf(2, 1, 0, 0, 0)
 
     private val MEASUREMENT_RESULT =
       ReachAndFrequencyResult(

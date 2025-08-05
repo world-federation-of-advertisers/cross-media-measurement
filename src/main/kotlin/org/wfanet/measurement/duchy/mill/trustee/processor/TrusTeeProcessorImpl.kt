@@ -41,6 +41,7 @@ class TrusTeeProcessorImpl(override val trusTeeParams: TrusTeeParams) : TrusTeeP
     when (trusTeeParams) {
       is TrusTeeReachAndFrequencyParams -> {
         maxFrequency = trusTeeParams.maximumFrequency
+        require(maxFrequency >= 2) { "Invalid max frequency: $maxFrequency" }
         vidSamplingIntervalWidth = trusTeeParams.vidSamplingIntervalWidth
       }
       is TrusTeeReachParams -> {
@@ -49,14 +50,15 @@ class TrusTeeProcessorImpl(override val trusTeeParams: TrusTeeParams) : TrusTeeP
       }
     }
 
-    require(maxFrequency >= 1) { "Invalid max frequency: $maxFrequency" }
     require(vidSamplingIntervalWidth >= 0.0f && vidSamplingIntervalWidth <= 1.0f) {
       "Invalid vid sampling interval width: $vidSamplingIntervalWidth"
     }
   }
 
-  override fun addFrequencyVector(vector: IntArray) {
-    require(vector.isNotEmpty()) { "Input frequency vector cannot be empty." }
+  override fun addFrequencyVectorBytes(bytes: ByteArray) {
+    require(bytes.isNotEmpty()) { "Input frequency vector cannot be empty." }
+
+    val vector = bytes.toIntArray()
 
     if (aggregatedFrequencyVector == null) {
       aggregatedFrequencyVector = IntArray(vector.size)
@@ -161,6 +163,17 @@ class TrusTeeProcessorImpl(override val trusTeeParams: TrusTeeParams) : TrusTeeP
       histogram[userFrequency]++
     }
     return histogram
+  }
+
+  private fun ByteArray.toIntArray(): IntArray {
+    return this.map { byte ->
+        val frequency = byte.toInt()
+        require(frequency >= 0 && frequency < 127) {
+          "Invalid frequency value in byte array: $frequency. Must be non-negative and less than 127."
+        }
+        frequency
+      }
+      .toIntArray()
   }
 
   companion object Factory : TrusTeeProcessor.Factory {

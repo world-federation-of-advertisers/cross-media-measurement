@@ -43,29 +43,28 @@ data class TrusTeeReachAndFrequencyParams(
  * should be used for a single computation.
  */
 interface TrusTeeProcessor {
-  /** The [MeasurementSpec] for the computation. */
+  /** The [TrusTeeParams] for the computation. */
   val trusTeeParams: TrusTeeParams
 
   /**
-   * Adds a frequency vector to the internal state of the processor.
+   * Adds a frequency vector, represented as a byte array, to the internal state of the processor.
    *
    * A frequency vector is an array where each index represents a unique user ID (or a hash
    * thereof), and the value at that index is the frequency with which that user was observed by a
-   * single data provider.
+   * single data provider. The frequencies are represented as 8-bit unsigned integers.
    *
    * This method should be called for each frequency vector from each data provider.
    *
-   * @param vector The frequency vector from a single data provider.
-   * @throws IllegalArgumentException if the provided vector has a different size than previously
-   *   added vectors.
+   * @param bytes The frequency vector from a single data provider, where each byte is an 8-bit
+   *   unsigned integer representing a frequency.
    */
-  fun addFrequencyVector(vector: IntArray)
+  fun addFrequencyVectorBytes(bytes: ByteArray)
 
   /**
    * Computes the final reach and frequency result from all previously added vectors.
    *
    * This method should only be called after all frequency vectors for the computation have been
-   * added via [addFrequencyVector].
+   * added via [addFrequencyVectorBytes].
    *
    * The output is a [ComputationResult] protobuf message. It contains either a reach result or
    * reach_and_frequency result based on the measurement spec.

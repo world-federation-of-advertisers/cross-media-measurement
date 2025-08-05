@@ -19,7 +19,6 @@ import com.google.crypto.tink.BinaryKeysetReader
 import com.google.crypto.tink.KeysetHandle
 import com.google.crypto.tink.KmsClient
 import com.google.protobuf.ByteString
-import java.nio.ByteBuffer
 import java.nio.file.Path
 import java.security.GeneralSecurityException
 import java.time.Clock
@@ -132,7 +131,7 @@ class TrusTeeMill(
       val rawRequisitionData = getRequisitionData(requisition)
       val decryptedRequisitionData = decryptRequisitionData(dek, rawRequisitionData)
 
-      processor.addFrequencyVector(decryptedRequisitionData)
+      processor.addFrequencyVectorBytes(decryptedRequisitionData)
     }
 
     val computationResult = processor.computeResult()
@@ -210,31 +209,17 @@ class TrusTeeMill(
       ?: throw PermanentErrorException("Requisition data not found for ${requisition.externalKey}")
   }
 
-  private fun decryptRequisitionData(dek: KeysetHandle, data: ByteString): IntArray {
+  private fun decryptRequisitionData(dek: KeysetHandle, data: ByteString): ByteArray {
     try {
       val aead = dek.getPrimitive(Aead::class.java)
 
-      val decryptedBytes = aead.decrypt(data.toByteArray(), null)
-
-      return toIntArray(decryptedBytes)
+      return aead.decrypt(data.toByteArray(), null)
     } catch (e: GeneralSecurityException) {
       throw PermanentErrorException(
         "Failed to decrypt requisition data due to a cryptographic error",
         e,
       )
-    } catch (e: IllegalArgumentException) {
-      throw PermanentErrorException("Decrypted requisition data has an invalid format", e)
     }
-  }
-
-  private fun toIntArray(bytes: ByteArray): IntArray {
-    require(bytes.size % 4 == 0) { "Input ByteArray size (${bytes.size}) must be a multiple of 4." }
-
-    val intArray = IntArray(bytes.size / 4)
-    val buffer = ByteBuffer.wrap(bytes)
-    buffer.asIntBuffer().get(intArray)
-
-    return intArray
   }
 
   companion object {
