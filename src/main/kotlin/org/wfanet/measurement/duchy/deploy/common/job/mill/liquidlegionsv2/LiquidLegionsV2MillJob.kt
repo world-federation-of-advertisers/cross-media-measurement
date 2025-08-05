@@ -166,6 +166,7 @@ abstract class LiquidLegionsV2MillJob : Runnable {
             parallelism = flags.parallelism,
           )
         ComputationTypeEnum.ComputationType.HONEST_MAJORITY_SHARE_SHUFFLE,
+        ComputationTypeEnum.ComputationType.TRUS_TEE,
         ComputationTypeEnum.ComputationType.UNSPECIFIED,
         ComputationTypeEnum.ComputationType.UNRECOGNIZED ->
           error("Unsupported ComputationType ${flags.claimedComputationType}")

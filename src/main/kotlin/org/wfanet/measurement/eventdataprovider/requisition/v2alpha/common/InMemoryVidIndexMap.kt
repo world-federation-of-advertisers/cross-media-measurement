@@ -12,13 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.eventdataprovider.shareshuffle.v2alpha
+package org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common
 
 import com.google.common.hash.Hashing
 import com.google.protobuf.ByteString
 import java.nio.ByteOrder
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.filter
 import org.jetbrains.annotations.VisibleForTesting
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.PopulationSpecValidator
@@ -121,7 +120,7 @@ private constructor(
      */
     @JvmStatic
     fun build(populationSpec: PopulationSpec): InMemoryVidIndexMap {
-      return buildInternal(populationSpec, ::hashVidToLongWithFarmHash)
+      return buildInternal(populationSpec, Companion::hashVidToLongWithFarmHash)
     }
 
     /**
