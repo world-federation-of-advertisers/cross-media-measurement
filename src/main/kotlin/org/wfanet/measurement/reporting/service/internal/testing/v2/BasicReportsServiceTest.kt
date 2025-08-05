@@ -108,10 +108,9 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
     val response =
       service.insertBasicReport(insertBasicReportRequest { this.basicReport = basicReport })
 
-    assertThat(response).ignoringFields(
-      BasicReport.CREATE_TIME_FIELD_NUMBER,
-      BasicReport.STATE_FIELD_NUMBER
-      ).isEqualTo(basicReport)
+    assertThat(response)
+      .ignoringFields(BasicReport.CREATE_TIME_FIELD_NUMBER, BasicReport.STATE_FIELD_NUMBER)
+      .isEqualTo(basicReport)
 
     assertThat(response.state).isEqualTo(BasicReport.State.SUCCEEDED)
     assertThat(response.hasCreateTime())

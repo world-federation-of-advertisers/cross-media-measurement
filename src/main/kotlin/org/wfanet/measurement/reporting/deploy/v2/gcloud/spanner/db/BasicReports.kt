@@ -169,7 +169,6 @@ fun AsyncDatabaseClient.TransactionContext.insertBasicReport(
     set("BasicReportResultDetails").to(basicReport.resultDetails)
     set("State").to(state)
   }
-
 }
 
 /** Returns whether a [BasicReport] with the specified [basicReportId] exists. */
