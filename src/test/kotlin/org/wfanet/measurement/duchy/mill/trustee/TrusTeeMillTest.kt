@@ -66,7 +66,7 @@ import org.wfanet.measurement.duchy.db.computation.ComputationDataClients
 import org.wfanet.measurement.duchy.db.computation.testing.FakeComputationsDatabase
 import org.wfanet.measurement.duchy.mill.Certificate
 import org.wfanet.measurement.duchy.mill.MillBase
-import org.wfanet.measurement.duchy.mill.trustee.crypto.TrusTeeCryptor
+import org.wfanet.measurement.duchy.mill.trustee.processor.TrusTeeProcessor
 import org.wfanet.measurement.duchy.service.internal.computations.ComputationsService
 import org.wfanet.measurement.duchy.storage.ComputationStore
 import org.wfanet.measurement.duchy.storage.RequisitionBlobContext
@@ -88,6 +88,7 @@ import org.wfanet.measurement.internal.duchy.computationToken
 import org.wfanet.measurement.internal.duchy.config.RoleInComputation
 import org.wfanet.measurement.internal.duchy.copy
 import org.wfanet.measurement.internal.duchy.differentialPrivacyParams
+import org.wfanet.measurement.internal.duchy.protocol.TrusTee.ComputationDetails as TrusTeeDetails
 import org.wfanet.measurement.internal.duchy.protocol.TrusTee.Stage
 import org.wfanet.measurement.internal.duchy.protocol.TrusTeeKt
 import org.wfanet.measurement.measurementconsumer.stats.TrusTeeMethodology
@@ -109,9 +110,9 @@ import org.wfanet.measurement.system.v1alpha.setParticipantRequisitionParamsRequ
 
 @RunWith(JUnit4::class)
 class TrusTeeMillTest {
-  private val mockCryptor: TrusTeeCryptor = mock()
-  private val mockCryptorFactory: TrusTeeCryptor.Factory = mock {
-    on { create(any()) }.thenReturn(mockCryptor)
+  private val mockProcessor: TrusTeeProcessor = mock()
+  private val mockProcessorFactory: TrusTeeProcessor.Factory = mock {
+    on { create(any()) }.thenReturn(mockProcessor)
   }
 
   private val fakeKmsClient = FakeKmsClient()
@@ -205,7 +206,7 @@ class TrusTeeMillTest {
       systemComputationLogEntriesClient = systemComputationLogEntriesStub,
       computationStatsClient = computationStatsStub,
       workLockDuration = Duration.ofMinutes(5),
-      trusTeeCryptorFactory = mockCryptorFactory,
+      trusTeeProcessorFactory = mockProcessorFactory,
       kmsClientFactory = mockKmsClientFactory,
       attestationTokenPath = ATTESTATION_TOKEN_PATH,
     )
@@ -360,8 +361,8 @@ class TrusTeeMillTest {
       requisitions = REQUISITIONS,
     )
 
-    whenever(mockCryptor.addFrequencyVector(any())).thenAnswer {}
-    whenever(mockCryptor.computeResult()).thenReturn(MEASUREMENT_RESULT)
+    whenever(mockProcessor.addFrequencyVector(any())).thenAnswer {}
+    whenever(mockProcessor.computeResult()).thenReturn(MEASUREMENT_RESULT)
 
     val mill = createMill()
     mill.claimAndProcessWork()
@@ -381,8 +382,8 @@ class TrusTeeMillTest {
       )
 
     val vectorCaptor = argumentCaptor<IntArray>()
-    verify(mockCryptor, times(3)).addFrequencyVector(vectorCaptor.capture())
-    verify(mockCryptor, times(1)).computeResult()
+    verify(mockProcessor, times(3)).addFrequencyVector(vectorCaptor.capture())
+    verify(mockProcessor, times(1)).computeResult()
     val capturedVectors = vectorCaptor.allValues
     assertThat(capturedVectors).hasSize(3)
     assertThat(capturedVectors[0]).isEqualTo(RAW_DATA_1)
@@ -430,8 +431,8 @@ class TrusTeeMillTest {
     assertThat(finalToken.computationDetails.endingState)
       .isEqualTo(ComputationDetails.CompletedReason.FAILED)
 
-    verify(mockCryptor, times(1)).addFrequencyVector(any())
-    verify(mockCryptor, never()).computeResult()
+    verify(mockProcessor, times(1)).addFrequencyVector(any())
+    verify(mockProcessor, never()).computeResult()
     verify(mockSystemComputations, never()).setComputationResult(any())
   }
 
@@ -457,8 +458,8 @@ class TrusTeeMillTest {
     assertThat(finalToken.computationDetails.endingState)
       .isEqualTo(ComputationDetails.CompletedReason.FAILED)
 
-    verify(mockCryptor, never()).addFrequencyVector(any())
-    verify(mockCryptor, never()).computeResult()
+    verify(mockProcessor, never()).addFrequencyVector(any())
+    verify(mockProcessor, never()).computeResult()
     verify(mockSystemComputations, never()).setComputationResult(any())
   }
 
@@ -487,8 +488,8 @@ class TrusTeeMillTest {
     assertThat(finalToken.computationDetails.endingState)
       .isEqualTo(ComputationDetails.CompletedReason.FAILED)
 
-    verify(mockCryptor, never()).addFrequencyVector(any())
-    verify(mockCryptor, never()).computeResult()
+    verify(mockProcessor, never()).addFrequencyVector(any())
+    verify(mockProcessor, never()).computeResult()
     verify(mockSystemComputations, never()).setComputationResult(any())
   }
 
@@ -516,8 +517,8 @@ class TrusTeeMillTest {
     assertThat(finalToken.computationDetails.endingState)
       .isEqualTo(ComputationDetails.CompletedReason.FAILED)
 
-    verify(mockCryptor, never()).addFrequencyVector(any())
-    verify(mockCryptor, never()).computeResult()
+    verify(mockProcessor, never()).addFrequencyVector(any())
+    verify(mockProcessor, never()).computeResult()
     verify(mockSystemComputations, never()).setComputationResult(any())
   }
 
@@ -553,8 +554,8 @@ class TrusTeeMillTest {
     assertThat(finalToken.computationDetails.endingState)
       .isEqualTo(ComputationDetails.CompletedReason.FAILED)
 
-    verify(mockCryptor, never()).addFrequencyVector(any())
-    verify(mockCryptor, never()).computeResult()
+    verify(mockProcessor, never()).addFrequencyVector(any())
+    verify(mockProcessor, never()).computeResult()
     verify(mockSystemComputations, never()).setComputationResult(any())
   }
 
@@ -582,8 +583,8 @@ class TrusTeeMillTest {
     assertThat(finalToken.computationDetails.endingState)
       .isEqualTo(ComputationDetails.CompletedReason.FAILED)
 
-    verify(mockCryptor, never()).addFrequencyVector(any())
-    verify(mockCryptor, never()).computeResult()
+    verify(mockProcessor, never()).addFrequencyVector(any())
+    verify(mockProcessor, never()).computeResult()
     verify(mockSystemComputations, never()).setComputationResult(any())
   }
 
@@ -613,8 +614,8 @@ class TrusTeeMillTest {
     assertThat(finalToken.computationDetails.endingState)
       .isEqualTo(ComputationDetails.CompletedReason.FAILED)
 
-    verify(mockCryptor, never()).addFrequencyVector(any())
-    verify(mockCryptor, never()).computeResult()
+    verify(mockProcessor, never()).addFrequencyVector(any())
+    verify(mockProcessor, never()).computeResult()
     verify(mockSystemComputations, never()).setComputationResult(any())
   }
 
@@ -645,8 +646,8 @@ class TrusTeeMillTest {
     assertThat(finalToken.computationDetails.endingState)
       .isEqualTo(ComputationDetails.CompletedReason.FAILED)
 
-    verify(mockCryptor, never()).addFrequencyVector(any())
-    verify(mockCryptor, never()).computeResult()
+    verify(mockProcessor, never()).addFrequencyVector(any())
+    verify(mockProcessor, never()).computeResult()
     verify(mockSystemComputations, never()).setComputationResult(any())
   }
 
@@ -660,8 +661,8 @@ class TrusTeeMillTest {
       requisitions = REQUISITIONS,
     )
 
-    whenever(mockCryptor.addFrequencyVector(any())).thenAnswer {}
-    whenever(mockCryptor.computeResult())
+    whenever(mockProcessor.addFrequencyVector(any())).thenAnswer {}
+    whenever(mockProcessor.computeResult())
       .thenThrow(IllegalArgumentException("Test cryptor failure during result computation"))
 
     val mill = createMill()
@@ -672,8 +673,8 @@ class TrusTeeMillTest {
     assertThat(finalToken.computationDetails.endingState)
       .isEqualTo(ComputationDetails.CompletedReason.FAILED)
 
-    verify(mockCryptor, times(REQUISITIONS.size)).addFrequencyVector(any())
-    verify(mockCryptor, times(1)).computeResult()
+    verify(mockProcessor, times(REQUISITIONS.size)).addFrequencyVector(any())
+    verify(mockProcessor, times(1)).computeResult()
     verify(mockSystemComputations, never()).setComputationResult(any())
   }
 
@@ -843,6 +844,7 @@ class TrusTeeMillTest {
       trusTee =
         TrusTeeKt.computationDetails {
           role = RoleInComputation.AGGREGATOR
+          type = TrusTeeDetails.Type.REACH_AND_FREQUENCY
           parameters = TRUSTEE_PARAMETERS
         }
     }

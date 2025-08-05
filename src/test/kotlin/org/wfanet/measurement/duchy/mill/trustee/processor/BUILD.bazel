@@ -4,10 +4,10 @@ load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
 package(default_testonly = True)
 
 kt_jvm_library(
-    name = "trus_tee_cryptor_impl_test",
-    srcs = ["TrusTeeCryptorImplTest.kt"],
+    name = "trus_tee_processor_impl_test",
+    srcs = ["TrusTeeProcessorImplTest.kt"],
     deps = [
-        "//src/main/kotlin/org/wfanet/measurement/duchy/mill/trustee/crypto:trus_tee_cryptor_impl",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/mill/trustee/processor:trus_tee_processor_impl",
         "//src/main/proto/wfa/measurement/api/v2alpha:measurement_spec_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/kotlin/kotlin/test",
@@ -18,7 +18,7 @@ kt_jvm_library(
 )
 
 java_test(
-    name = "TrusTeeCryptorImplTest",
-    test_class = "org.wfanet.measurement.duchy.mill.trustee.crypto.TrusTeeCryptorImplTest",
-    runtime_deps = [":trus_tee_cryptor_impl_test"],
+    name = "TrusTeeProcessorImplTest",
+    test_class = "org.wfanet.measurement.duchy.mill.trustee.processor.TrusTeeProcessorImplTest",
+    runtime_deps = [":trus_tee_processor_impl_test"],
 )

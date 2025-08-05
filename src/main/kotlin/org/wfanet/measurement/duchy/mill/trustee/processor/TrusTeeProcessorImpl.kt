@@ -12,20 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.duchy.mill.trustee.crypto
+package org.wfanet.measurement.duchy.mill.trustee.processor
 
 import com.google.privacy.differentialprivacy.GaussianNoise
 import kotlin.math.min
 import kotlin.properties.Delegates
-import org.wfanet.measurement.api.v2alpha.DifferentialPrivacyParams
-import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.duchy.utils.ComputationResult
 import org.wfanet.measurement.duchy.utils.ReachAndFrequencyResult
 import org.wfanet.measurement.duchy.utils.ReachResult
+import org.wfanet.measurement.internal.duchy.DifferentialPrivacyParams
 import org.wfanet.measurement.measurementconsumer.stats.TrusTeeMethodology
 
-/** A concrete, stateful implementation of [TrusTeeCryptor]. */
-class TrusTeeCryptorImpl(override val measurementSpec: MeasurementSpec) : TrusTeeCryptor {
+/** A concrete, stateful implementation of [TrusTeeProcessor]. */
+class TrusTeeProcessorImpl(override val trusTeeParams: TrusTeeParams) : TrusTeeProcessor {
   /**
    * Holds the aggregated frequency vector.
    *
@@ -36,16 +35,24 @@ class TrusTeeCryptorImpl(override val measurementSpec: MeasurementSpec) : TrusTe
 
   private var maxFrequency by Delegates.notNull<Int>()
 
+  private var vidSamplingIntervalWidth by Delegates.notNull<Float>()
+
   init {
-    require(measurementSpec.hasReachAndFrequency() || measurementSpec.hasReach()) {
-      "TrusTEE only supports Reach and Reach & Frequency measurements"
+    when (trusTeeParams) {
+      is TrusTeeReachAndFrequencyParams -> {
+        maxFrequency = trusTeeParams.maximumFrequency
+        vidSamplingIntervalWidth = trusTeeParams.vidSamplingIntervalWidth
+      }
+      is TrusTeeReachParams -> {
+        maxFrequency = 1
+        vidSamplingIntervalWidth = trusTeeParams.vidSamplingIntervalWidth
+      }
     }
 
-    maxFrequency =
-      if (measurementSpec.hasReachAndFrequency()) measurementSpec.reachAndFrequency.maximumFrequency
-      else 1
-
     require(maxFrequency >= 1) { "Invalid max frequency: $maxFrequency" }
+    require(vidSamplingIntervalWidth >= 0.0f && vidSamplingIntervalWidth <= 1.0f) {
+      "Invalid vid sampling interval width: $vidSamplingIntervalWidth"
+    }
   }
 
   override fun addFrequencyVector(vector: IntArray) {
@@ -72,26 +79,15 @@ class TrusTeeCryptorImpl(override val measurementSpec: MeasurementSpec) : TrusTe
 
     val rawHistogram = buildHistogram(frequencyVector)
 
-    return when {
-      measurementSpec.hasReachAndFrequency() -> {
-        val reachAndFrequencyParams = measurementSpec.reachAndFrequency
+    return when (trusTeeParams) {
+      is TrusTeeReachParams -> {
+        val reach = computeReach(rawHistogram, trusTeeParams.dpParams)
 
-        val reachDpParams =
-          if (reachAndFrequencyParams.hasReachPrivacyParams()) {
-            reachAndFrequencyParams.reachPrivacyParams
-          } else {
-            null
-          }
-
-        val freqDpParams =
-          if (reachAndFrequencyParams.hasFrequencyPrivacyParams()) {
-            reachAndFrequencyParams.frequencyPrivacyParams
-          } else {
-            null
-          }
-
-        val reach = computeReach(rawHistogram, reachDpParams)
-        val frequency = computeFrequencyDistribution(rawHistogram, freqDpParams)
+        ReachResult(reach = reach, methodology = TrusTeeMethodology(frequencyVector.size.toLong()))
+      }
+      is TrusTeeReachAndFrequencyParams -> {
+        val reach = computeReach(rawHistogram, trusTeeParams.reachDpParams)
+        val frequency = computeFrequencyDistribution(rawHistogram, trusTeeParams.frequencyDpParams)
 
         ReachAndFrequencyResult(
           reach = reach,
@@ -99,15 +95,6 @@ class TrusTeeCryptorImpl(override val measurementSpec: MeasurementSpec) : TrusTe
           methodology = TrusTeeMethodology(frequencyVector.size.toLong()),
         )
       }
-      measurementSpec.hasReach() -> {
-        val reachParams = measurementSpec.reach
-        val reachDpParams = if (reachParams.hasPrivacyParams()) reachParams.privacyParams else null
-
-        val reach = computeReach(rawHistogram, reachDpParams)
-
-        ReachResult(reach = reach, methodology = TrusTeeMethodology(frequencyVector.size.toLong()))
-      }
-      else -> error("Unsupported measurement spec type")
     }
   }
 
@@ -122,13 +109,13 @@ class TrusTeeCryptorImpl(override val measurementSpec: MeasurementSpec) : TrusTe
   private fun computeReach(rawHistogram: LongArray, dpParams: DifferentialPrivacyParams?): Long {
     val rawReach = rawHistogram.sum() - rawHistogram[0]
     if (dpParams == null) {
-      return rawReach
+      return (rawReach / vidSamplingIntervalWidth).toLong()
     }
 
     val noise = GaussianNoise()
     val noisedReach = noise.addNoise(rawReach, 1, 1L, dpParams.epsilon, dpParams.delta)
 
-    return if (noisedReach < 0) 0L else noisedReach
+    return if (noisedReach < 0) 0L else (noisedReach / vidSamplingIntervalWidth).toLong()
   }
 
   /**
@@ -176,9 +163,9 @@ class TrusTeeCryptorImpl(override val measurementSpec: MeasurementSpec) : TrusTe
     return histogram
   }
 
-  companion object Factory : TrusTeeCryptor.Factory {
-    override fun create(measurementSpec: MeasurementSpec): TrusTeeCryptor {
-      return TrusTeeCryptorImpl(measurementSpec)
+  companion object Factory : TrusTeeProcessor.Factory {
+    override fun create(trusTeeParams: TrusTeeParams): TrusTeeProcessor {
+      return TrusTeeProcessorImpl(trusTeeParams)
     }
   }
 }

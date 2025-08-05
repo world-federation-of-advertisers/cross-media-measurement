@@ -12,28 +12,42 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.duchy.mill.trustee.crypto
+package org.wfanet.measurement.duchy.mill.trustee.processor
 
-import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.duchy.utils.ComputationResult
+import org.wfanet.measurement.internal.duchy.DifferentialPrivacyParams
+
+/** Parameters required for a TrusTEE computation. */
+sealed interface TrusTeeParams
+
+/** TrusTEE parameters for a Reach-only measurement. */
+data class TrusTeeReachParams(
+  val vidSamplingIntervalWidth: Float,
+  val dpParams: DifferentialPrivacyParams?,
+) : TrusTeeParams
+
+/** TrusTEE parameters for a Reach-and-Frequency measurement. */
+data class TrusTeeReachAndFrequencyParams(
+  val maximumFrequency: Int,
+  val vidSamplingIntervalWidth: Float,
+  val reachDpParams: DifferentialPrivacyParams?,
+  val frequencyDpParams: DifferentialPrivacyParams?,
+) : TrusTeeParams
 
 /**
- * A cryptor for the TrusTEE protocol that aggregates frequency vectors from multiple sources to
+ * A processor for the TrusTEE protocol that aggregates frequency vectors from multiple sources to
  * compute a reach and frequency distribution.
  *
  * This component is stateful. It accumulates data from each call to [addFrequencyVector] and uses
  * the final aggregated data to perform the final computation in [computeResult]. A single instance
  * should be used for a single computation.
  */
-interface TrusTeeCryptor {
-  /**
-   * The [MeasurementSpec] for the computation. This determines the calculation type (e.g.,
-   * reach-only or reach-and-frequency), the maximum frequency cap, and privacy parameters.
-   */
-  val measurementSpec: MeasurementSpec
+interface TrusTeeProcessor {
+  /** The [MeasurementSpec] for the computation. */
+  val trusTeeParams: TrusTeeParams
 
   /**
-   * Adds a frequency vector to the internal state of the cryptor.
+   * Adds a frequency vector to the internal state of the processor.
    *
    * A frequency vector is an array where each index represents a unique user ID (or a hash
    * thereof), and the value at that index is the frequency with which that user was observed by a
@@ -60,8 +74,8 @@ interface TrusTeeCryptor {
    */
   fun computeResult(): ComputationResult
 
-  /** Factory for creating [TrusTeeCryptor] instances. */
+  /** Factory for creating [TrusTeeProcessor] instances. */
   interface Factory {
-    fun create(measurementSpec: MeasurementSpec): TrusTeeCryptor
+    fun create(trusTeeParams: TrusTeeParams): TrusTeeProcessor
   }
 }

@@ -25,8 +25,6 @@ import java.security.GeneralSecurityException
 import java.time.Clock
 import java.time.Duration
 import java.util.logging.Logger
-import org.wfanet.measurement.api.Version
-import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.tink.GcpWifCredentials
 import org.wfanet.measurement.common.crypto.tink.KmsClientFactory
@@ -34,7 +32,10 @@ import org.wfanet.measurement.duchy.db.computation.ComputationDataClients
 import org.wfanet.measurement.duchy.db.computation.ComputationDataClients.PermanentErrorException
 import org.wfanet.measurement.duchy.mill.Certificate
 import org.wfanet.measurement.duchy.mill.MillBase
-import org.wfanet.measurement.duchy.mill.trustee.crypto.TrusTeeCryptor
+import org.wfanet.measurement.duchy.mill.trustee.processor.TrusTeeParams
+import org.wfanet.measurement.duchy.mill.trustee.processor.TrusTeeProcessor
+import org.wfanet.measurement.duchy.mill.trustee.processor.TrusTeeReachAndFrequencyParams
+import org.wfanet.measurement.duchy.mill.trustee.processor.TrusTeeReachParams
 import org.wfanet.measurement.duchy.toProtocolStage
 import org.wfanet.measurement.internal.duchy.ComputationDetails
 import org.wfanet.measurement.internal.duchy.ComputationStatsGrpcKt
@@ -42,6 +43,7 @@ import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
 import org.wfanet.measurement.internal.duchy.RequisitionDetails
 import org.wfanet.measurement.internal.duchy.RequisitionMetadata
+import org.wfanet.measurement.internal.duchy.protocol.TrusTee.ComputationDetails as TrusTeeDetails
 import org.wfanet.measurement.internal.duchy.protocol.TrusTee.Stage
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt
 import org.wfanet.measurement.system.v1alpha.ComputationParticipant
@@ -60,7 +62,7 @@ class TrusTeeMill(
   systemComputationLogEntriesClient: ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub,
   computationStatsClient: ComputationStatsGrpcKt.ComputationStatsCoroutineStub,
   workLockDuration: Duration,
-  private val trusTeeCryptorFactory: TrusTeeCryptor.Factory,
+  private val trusTeeProcessorFactory: TrusTeeProcessor.Factory,
   private val kmsClientFactory: KmsClientFactory,
   private val attestationTokenPath: Path,
   requestChunkSizeBytes: Int = 1024 * 32,
@@ -117,15 +119,10 @@ class TrusTeeMill(
   }
 
   private suspend fun computingPhase(token: ComputationToken): ComputationToken {
-    val publicApiVersion =
-      Version.fromString(token.computationDetails.kingdomComputation.publicApiVersion)
-    val measurementSpec =
-      when (publicApiVersion) {
-        Version.V2_ALPHA ->
-          MeasurementSpec.parseFrom(token.computationDetails.kingdomComputation.measurementSpec)
-      }
+    val trusTeeDetails = token.computationDetails.trusTee
+    val trusTeeParams = trusTeeDetails.toTrusTeeParams()
 
-    val cryptor: TrusTeeCryptor = trusTeeCryptorFactory.create(measurementSpec)
+    val processor: TrusTeeProcessor = trusTeeProcessorFactory.create(trusTeeParams)
 
     for (requisition in token.requisitionsList) {
       val details = requisition.details
@@ -135,14 +132,40 @@ class TrusTeeMill(
       val rawRequisitionData = getRequisitionData(requisition)
       val decryptedRequisitionData = decryptRequisitionData(dek, rawRequisitionData)
 
-      cryptor.addFrequencyVector(decryptedRequisitionData)
+      processor.addFrequencyVector(decryptedRequisitionData)
     }
 
-    val computationResult = cryptor.computeResult()
+    val computationResult = processor.computeResult()
 
     sendResultToKingdom(token, computationResult)
 
     return completeComputation(token, ComputationDetails.CompletedReason.SUCCEEDED)
+  }
+
+  /** Converts internal [TrusTee.ComputationDetails] to the internal [TrusTeeParams]. */
+  fun TrusTeeDetails.toTrusTeeParams(): TrusTeeParams {
+    return when (type) {
+      TrusTeeDetails.Type.REACH -> {
+        val dpParams = if (parameters.hasReachDpParams()) parameters.reachDpParams else null
+        TrusTeeReachParams(parameters.vidSamplingIntervalWidth, dpParams)
+      }
+      TrusTeeDetails.Type.REACH_AND_FREQUENCY -> {
+        val reachDpParams = if (parameters.hasReachDpParams()) parameters.reachDpParams else null
+        val freqDpParams =
+          if (parameters.hasFrequencyDpParams()) parameters.frequencyDpParams else null
+        TrusTeeReachAndFrequencyParams(
+          parameters.maximumFrequency,
+          parameters.vidSamplingIntervalWidth,
+          reachDpParams,
+          freqDpParams,
+        )
+      }
+      TrusTeeDetails.Type.TYPE_UNSPECIFIED,
+      TrusTeeDetails.Type.UNRECOGNIZED ->
+        throw IllegalArgumentException(
+          "Unsupported or unspecified TrusTEE computation type in ComputationDetails: $type"
+        )
+    }
   }
 
   private fun getKmsClient(
