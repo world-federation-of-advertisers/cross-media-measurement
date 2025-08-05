@@ -299,6 +299,7 @@ class InProcessReportingServer(
                 internalBasicReportsClient,
                 internalImpressionQualificationFiltersClient,
                 internalReportingSetsClient,
+                METRIC_SPEC_CONFIG,
                 authorization,
               )
               .withTrustedPrincipalAuthentication(),
