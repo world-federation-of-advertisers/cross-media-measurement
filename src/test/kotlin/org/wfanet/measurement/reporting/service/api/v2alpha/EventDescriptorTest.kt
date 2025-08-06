@@ -18,13 +18,11 @@ package org.wfanet.measurement.reporting.service.api.v2alpha
 
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.Descriptors
-import com.google.protobuf.ExtensionRegistry
 import com.google.protobuf.TypeRegistry
 import kotlin.test.assertFailsWith
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.wfanet.measurement.api.v2alpha.EventAnnotationsProto
 import org.wfanet.measurement.api.v2alpha.MediaType
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.MissingFieldAnnotationEvent
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.MissingTemplateAnnotationEvent
@@ -37,20 +35,11 @@ import org.wfanet.measurement.api.v2alpha.event_templates.testing.UnsupportedRep
 class EventDescriptorTest {
   @Test
   fun `EventDescriptor instantiation succeeds`() {
-    val extensionRegistry =
-      ExtensionRegistry.newInstance()
-        .apply {
-          add(EventAnnotationsProto.eventTemplate)
-          add(EventAnnotationsProto.templateField)
-        }
-        .unmodifiable
-
     val typeRegistry =
       TypeRegistry.newBuilder()
         .add(
           listOf(
-            TestEvent.parseFrom(TestEvent.getDefaultInstance().toByteString(), extensionRegistry)
-              .descriptorForType
+            TestEvent.getDescriptor()
           )
         )
         .build()

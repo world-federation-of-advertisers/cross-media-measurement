@@ -18,7 +18,6 @@ package org.wfanet.measurement.integration.common.reporting.v2
 
 import com.google.protobuf.ByteString
 import com.google.protobuf.Descriptors
-import com.google.protobuf.ExtensionRegistry
 import com.google.protobuf.TypeRegistry
 import com.google.protobuf.util.Durations
 import io.grpc.Channel
@@ -42,7 +41,6 @@ import org.wfanet.measurement.access.service.internal.PermissionMapping
 import org.wfanet.measurement.access.v1alpha.PermissionsGrpcKt
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub as PublicKingdomCertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub as PublicKingdomDataProvidersCoroutineStub
-import org.wfanet.measurement.api.v2alpha.EventAnnotationsProto
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub as PublicKingdomEventGroupMetadataDescriptorsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub as PublicKingdomEventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerCertificateKey
@@ -343,20 +341,11 @@ class InProcessReportingServer(
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
 
-    private val EXTENSION_REGISTRY =
-      ExtensionRegistry.newInstance()
-        .apply {
-          add(EventAnnotationsProto.eventTemplate)
-          add(EventAnnotationsProto.templateField)
-        }
-        .unmodifiable
-
     private val TYPE_REGISTRY =
       TypeRegistry.newBuilder()
         .add(
           listOf(
-            TestEvent.parseFrom(TestEvent.getDefaultInstance().toByteString(), EXTENSION_REGISTRY)
-              .descriptorForType
+            TestEvent.getDescriptor()
           )
         )
         .build()

@@ -149,38 +149,37 @@ class EventDescriptor(eventDescriptor: Descriptors.Descriptor) {
   private fun buildSupportedReportingFeatures(
     templateFieldAnnotation: EventFieldDescriptor
   ): SupportedReportingFeatures {
-    val supportedReportingFeaturesMap = buildMap {
-      put(EventFieldDescriptor.ReportingFeature.GROUPABLE, false)
-      put(EventFieldDescriptor.ReportingFeature.FILTERABLE, false)
-      put(EventFieldDescriptor.ReportingFeature.IMPRESSION_QUALIFICATION, false)
+    var groupable = false
+    var filterable = false
+    var impressionQualification = false
 
-      for (reportingFeature in templateFieldAnnotation.reportingFeaturesList) {
-        @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields cannot be null.
-        when (reportingFeature) {
-          EventFieldDescriptor.ReportingFeature.GROUPABLE -> {
-            put(EventFieldDescriptor.ReportingFeature.GROUPABLE, true)
-          }
-          EventFieldDescriptor.ReportingFeature.FILTERABLE -> {
-            put(EventFieldDescriptor.ReportingFeature.FILTERABLE, true)
-          }
-          EventFieldDescriptor.ReportingFeature.IMPRESSION_QUALIFICATION -> {
-            put(EventFieldDescriptor.ReportingFeature.IMPRESSION_QUALIFICATION, true)
-          }
-          EventFieldDescriptor.ReportingFeature.REPORTING_FEATURE_UNSPECIFIED,
-          EventFieldDescriptor.ReportingFeature.UNRECOGNIZED -> {
-            throw IllegalArgumentException("Invalid reporting feature")
-          }
+    for (reportingFeature in templateFieldAnnotation.reportingFeaturesList) {
+      @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields cannot be null.
+      when (reportingFeature) {
+        EventFieldDescriptor.ReportingFeature.GROUPABLE -> {
+          groupable = true
+        }
+
+        EventFieldDescriptor.ReportingFeature.FILTERABLE -> {
+          filterable = true
+        }
+
+        EventFieldDescriptor.ReportingFeature.IMPRESSION_QUALIFICATION -> {
+          impressionQualification = true
+        }
+
+        EventFieldDescriptor.ReportingFeature.REPORTING_FEATURE_UNSPECIFIED,
+        EventFieldDescriptor.ReportingFeature.UNRECOGNIZED
+        -> {
+          throw IllegalArgumentException("Invalid reporting feature")
         }
       }
     }
 
     return SupportedReportingFeatures(
-      groupable = supportedReportingFeaturesMap[EventFieldDescriptor.ReportingFeature.GROUPABLE]!!,
-      filterable =
-        supportedReportingFeaturesMap[EventFieldDescriptor.ReportingFeature.FILTERABLE]!!,
-      impressionQualification =
-        supportedReportingFeaturesMap[
-          EventFieldDescriptor.ReportingFeature.IMPRESSION_QUALIFICATION]!!,
+      groupable = groupable,
+      filterable = filterable,
+      impressionQualification = impressionQualification,
     )
   }
 }

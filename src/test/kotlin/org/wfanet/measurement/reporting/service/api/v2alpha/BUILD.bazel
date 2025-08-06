@@ -403,8 +403,6 @@ kt_jvm_test(
     test_class = "org.wfanet.measurement.reporting.service.api.v2alpha.EventDescriptorTest",
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha:event_descriptor",
-        "//src/main/proto/wfa/measurement/api/v2alpha:event_annotations_kt_jvm_proto",
-        "//src/main/proto/wfa/measurement/api/v2alpha:media_type_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:bad_templates_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:test_event_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
