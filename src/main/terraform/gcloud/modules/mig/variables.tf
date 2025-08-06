@@ -96,3 +96,9 @@ variable "tee_cmd" {
   description = "The list of flags and values for the TEE application"
   type        = list(string)
 }
+
+variable "disk_image_family" {
+  description = "The boot disk image family."
+  type        = string
+  nullable    = false
+}

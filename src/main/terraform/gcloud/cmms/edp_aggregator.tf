@@ -118,7 +118,7 @@ locals {
                                           "--secure-computation-public-api-target", var.secure_computation_public_api_target,
                                           "--subscription-id", "results-fulfiller-subscription",
                                           "--google-project-id", data.google_client_config.default.project,
-                                          "--event-template-metadata-blob-uri", "gs://edpa-configs-storage-dev-bucket/results_fulfiller_event_proto_descriptor.pb"
+                                          "--event-template-metadata-blob-uri", var.results_fulfiller_event_proto_descriptor_blob_uri
                                         ]
     }
   }

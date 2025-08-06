@@ -68,7 +68,7 @@ resource "google_project_iam_member" "mig_log_writer" {
 }
 
 data "google_compute_image" "confidential_space" {
-  family  = "confidential-space-debug"
+  family  = var.disk_image_family
   project = "confidential-space-images"
 }
 

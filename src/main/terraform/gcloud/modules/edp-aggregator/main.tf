@@ -256,8 +256,9 @@ module "result_fulfiller_tee_app" {
   docker_image                  = var.requisition_fulfiller_config.worker.docker_image
   mig_distribution_policy_zones = var.requisition_fulfiller_config.worker.mig_distribution_policy_zones
   terraform_service_account     = var.terraform_service_account
-  secrets_to_access              = local.result_fulfiller_secrets_to_access
+  secrets_to_access             = local.result_fulfiller_secrets_to_access
   tee_cmd                       = var.requisition_fulfiller_config.worker.app_flags
+  disk_image_family             = var.results_fulfiller_disk_image_family
 }
 
 resource "google_storage_bucket_iam_member" "result_fulfiller_storage_viewer" {
