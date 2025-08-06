@@ -18,7 +18,6 @@ package org.wfanet.measurement.reporting.service.api.v2alpha
 
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.ExtensionRegistry
-import com.google.protobuf.TypeRegistry
 import com.google.type.DayOfWeek
 import kotlin.test.assertFailsWith
 import org.junit.Test
@@ -2525,17 +2524,7 @@ class BasicReportTransformationsTest {
         }
         .unmodifiable
 
-    private val TYPE_REGISTRY =
-      TypeRegistry.newBuilder()
-        .add(
-          listOf(
-            TestEvent.parseFrom(TestEvent.getDefaultInstance().toByteString(), EXTENSION_REGISTRY)
-              .descriptorForType
-          )
-        )
-        .build()
-
     private val TEST_EVENT_DESCRIPTOR =
-      EventDescriptor(TYPE_REGISTRY.find(TestEvent.getDescriptor().fullName))
+      EventDescriptor(TestEvent.getDescriptor())
   }
 }

@@ -38,8 +38,7 @@ class EventDescriptor(eventDescriptor: Descriptors.Descriptor) {
     val isPopulationAttribute: Boolean,
     val supportedReportingFeatures: SupportedReportingFeatures,
     val type: Descriptors.FieldDescriptor.Type,
-    /** Map of Enum name to Enum number */
-    val enumValuesMap: Map<String, Int>,
+    val enumType: Descriptors.EnumDescriptor?,
   )
 
   /** Key is protobuf EventTemplate field name with respect to Event message. */
@@ -77,11 +76,12 @@ class EventDescriptor(eventDescriptor: Descriptors.Descriptor) {
             val isPopulationAttribute = templateFieldAnnotation.populationAttribute
             val supportedReportingFeatures =
               buildSupportedReportingFeatures(templateFieldAnnotation)
-            val enumValuesMap = buildMap {
+            val enumType =
               if (templateField.type == Descriptors.FieldDescriptor.Type.ENUM) {
-                templateField.enumType.values.forEach { put(it.name, it.number) }
+                templateField.enumType
+              } else {
+                null
               }
-            }
 
             put(
               eventTemplateFieldName,
@@ -90,7 +90,7 @@ class EventDescriptor(eventDescriptor: Descriptors.Descriptor) {
                 isPopulationAttribute = isPopulationAttribute,
                 supportedReportingFeatures = supportedReportingFeatures,
                 type = templateField.type,
-                enumValuesMap = enumValuesMap,
+                enumType = enumType,
               ),
             )
           }

@@ -66,8 +66,8 @@ private data class MetricCalculationSpecInfo(
  * @param dataProviderPrimitiveReportingSetMap Map of [DataProvider] resource name to primitive
  *   [ReportingSet] containing associated [EventGroup] resource names
  * @param resultGroupSpecs List of [ResultGroupSpec] to transform
- * @param eventTemplateFieldsMap Key is protobuf EventTemplate field name with respect to Event
- *   message. Map is used for parsing [EventTemplateField]
+ * @param eventTemplateFieldsMap Map of EventTemplate field name with respect to Event message to
+ *   info for the field. Used for parsing [EventTemplateField]
  * @return Map of [ReportingSet] to [MetricCalculationSpec]
  */
 fun buildReportingSetMetricCalculationSpecDetailsMap(
@@ -189,8 +189,9 @@ private fun createMetricCalculationSpecFilters(
             EventTemplateField.FieldValue.SelectorCase.ENUM_VALUE -> {
               eventTemplateFieldsMap
                 .getValue(term.path)
-                .enumValuesMap
-                .getValue(term.value.enumValue)
+                .enumType
+                ?.findValueByName(term.value.enumValue)
+                ?.number
             }
             EventTemplateField.FieldValue.SelectorCase.FLOAT_VALUE -> term.value.floatValue
             EventTemplateField.FieldValue.SelectorCase.BOOL_VALUE -> term.value.boolValue

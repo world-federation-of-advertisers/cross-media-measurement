@@ -48,8 +48,8 @@ private val RESOURCE_ID_REGEX = ResourceIds.AIP_122_REGEX
  *
  * @param request
  * @param campaignGroup
- * @param eventTemplateFieldsMap Key is protobuf EventTemplate field name with respect to Event
- *   message. Map is used for validating[EventTemplateField]
+ * @param eventTemplateFieldsMap Map of EventTemplate field name with respect to Event message to
+ *   info for the field. Used for validating [EventTemplateField]
  * @throws [RequiredFieldNotSetException] when validation fails
  * @throws [InvalidFieldValueException] when validation fails
  */
@@ -99,8 +99,8 @@ fun validateCreateBasicReportRequest(
  *
  * @param resultGroupSpecs [List] of [ResultGroupSpec] to validate
  * @param campaignGroup [ReportingSet] to validate against
- * @param eventTemplateFieldsMap Key is protobuf EventTemplate field name with respect to Event
- *   message. Map is used for validating [EventTemplateField]
+ * @param eventTemplateFieldsMap Map of EventTemplate field name with respect to Event message to
+ *   info for the field. Used for validating [EventTemplateField]
  * @throws [RequiredFieldNotSetException] when validation fails
  * @throws [InvalidFieldValueException] when validation fails
  */
@@ -185,8 +185,8 @@ fun validateReportingUnit(reportingUnit: ReportingUnit, dataProviderNameSet: Set
  * Validates a [DimensionSpec]
  *
  * @param dimensionSpec [DimensionSpec] to validate
- * @param eventTemplateFieldsMap Key is protobuf EventTemplate field name with respect to Event
- *   message. Map is used for validating [EventTemplateField]
+ * @param eventTemplateFieldsMap Map of EventTemplate field name with respect to Event message to
+ *   info for the field. Used for validating [EventTemplateField]
  * @throws [RequiredFieldNotSetException] when validation fails
  * @throws [InvalidFieldValueException] when validation fails
  */
@@ -227,8 +227,8 @@ fun validateDimensionSpec(
  * Validates a [DimensionSpec.Grouping]
  *
  * @param grouping [DimensionSpec.Grouping] to validate
- * @param eventTemplateFieldsMap Key is protobuf EventTemplate field name with respect to Event
- *   message. Map is used for validating [EventTemplateField]
+ * @param eventTemplateFieldsMap Map of EventTemplate field name with respect to Event message to
+ *   info for the field. Used for validating [EventTemplateField]
  * @throws [RequiredFieldNotSetException] when validation fails
  * @throws [InvalidFieldValueException] when validation fails
  */
@@ -273,8 +273,8 @@ fun validateDimensionSpecGrouping(
  * Validates an [EventTemplateField]
  *
  * @param eventTemplateField [EventTemplateField] to validate
- * @param eventTemplateFieldsMap Key is protobuf EventTemplate field name with respect to Event
- *   message. Map is used for validating [EventTemplateField]
+ * @param eventTemplateFieldsMap Map of EventTemplate field name with respect to Event message to
+ *   info for the field. Used for validating [EventTemplateField]
  * @throws [RequiredFieldNotSetException] when validation fails
  * @throws [InvalidFieldValueException] when validation fails
  */
@@ -317,7 +317,7 @@ fun validateEventTemplateField(
       EventTemplateField.FieldValue.SelectorCase.ENUM_VALUE -> {
         if (
           eventTemplateFieldInfo.type != Descriptors.FieldDescriptor.Type.ENUM ||
-            !eventTemplateFieldInfo.enumValuesMap.containsKey(eventTemplateField.value.enumValue)
+            eventTemplateFieldInfo.enumType?.findValueByName(eventTemplateField.value.enumValue) == null
         ) {
           throw InvalidFieldValueException(
             "basic_report.result_group_specs.dimension_spec.filters.terms.value.enum_value"

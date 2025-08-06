@@ -26,6 +26,7 @@ import org.junit.runners.JUnit4
 import org.wfanet.measurement.api.v2alpha.MediaType
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.MissingFieldAnnotationEvent
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.MissingTemplateAnnotationEvent
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.UnsupportedFieldTypeEvent
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.UnsupportedRepeatedFieldEvent
@@ -52,7 +53,7 @@ class EventDescriptorTest {
               impressionQualification = false,
             ),
           type = Descriptors.FieldDescriptor.Type.ENUM,
-          enumValuesMap = mapOf("GENDER_UNSPECIFIED" to 0, "MALE" to 1, "FEMALE" to 2),
+          enumType = Person.Gender.getDescriptor(),
         ),
         "person.age_group",
         EventDescriptor.EventTemplateFieldInfo(
@@ -65,13 +66,7 @@ class EventDescriptorTest {
               impressionQualification = false,
             ),
           type = Descriptors.FieldDescriptor.Type.ENUM,
-          enumValuesMap =
-            mapOf(
-              "AGE_GROUP_UNSPECIFIED" to 0,
-              "YEARS_18_TO_34" to 1,
-              "YEARS_35_TO_54" to 2,
-              "YEARS_55_PLUS" to 3,
-            ),
+          enumType = Person.AgeGroup.getDescriptor(),
         ),
         "person.social_grade_group",
         EventDescriptor.EventTemplateFieldInfo(
@@ -84,7 +79,7 @@ class EventDescriptorTest {
               impressionQualification = false,
             ),
           type = Descriptors.FieldDescriptor.Type.ENUM,
-          enumValuesMap = mapOf("SOCIAL_GRADE_GROUP_UNSPECIFIED" to 0, "A_B_C1" to 1, "C2_D_E" to 2),
+          enumType = Person.SocialGradeGroup.getDescriptor(),
         ),
         "video_ad.length",
         EventDescriptor.EventTemplateFieldInfo(
@@ -97,7 +92,7 @@ class EventDescriptorTest {
               impressionQualification = false,
             ),
           type = Descriptors.FieldDescriptor.Type.MESSAGE,
-          enumValuesMap = mapOf(),
+          enumType = null,
         ),
         "video_ad.viewed_fraction",
         EventDescriptor.EventTemplateFieldInfo(
@@ -110,7 +105,7 @@ class EventDescriptorTest {
               impressionQualification = true,
             ),
           type = Descriptors.FieldDescriptor.Type.DOUBLE,
-          enumValuesMap = mapOf(),
+          enumType = null,
         ),
         "banner_ad.viewable",
         EventDescriptor.EventTemplateFieldInfo(
@@ -123,7 +118,7 @@ class EventDescriptorTest {
               impressionQualification = true,
             ),
           type = Descriptors.FieldDescriptor.Type.BOOL,
-          enumValuesMap = mapOf(),
+          enumType = null,
         ),
       )
   }
