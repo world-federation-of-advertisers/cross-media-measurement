@@ -19,6 +19,11 @@ package org.wfanet.measurement.edpaggregator.resultsfulfiller
 import com.google.common.truth.Truth.assertThat
 import java.io.File
 import java.nio.file.Files
+import org.junit.Rule
+import org.junit.Test
+import org.junit.rules.TemporaryFolder
+import org.junit.runner.RunWith
+import org.junit.runners.JUnit4
 import org.mockito.ArgumentMatchers.anyString
 import org.mockito.Mockito.doNothing
 import org.mockito.Mockito.doReturn
@@ -26,11 +31,6 @@ import org.mockito.Mockito.spy
 import org.mockito.Mockito.times
 import org.mockito.Mockito.verify
 import org.mockito.kotlin.any
-import org.junit.Rule
-import org.junit.Test
-import org.junit.rules.TemporaryFolder
-import org.junit.runner.RunWith
-import org.junit.runners.JUnit4
 
 @RunWith(JUnit4::class)
 class ResultsFulfillerAppRunnerTest {
@@ -68,18 +68,19 @@ class ResultsFulfillerAppRunnerTest {
       isAccessible = true
       set(runner, "testProject")
     }
-    val edp = ResultsFulfillerAppRunner.EdpFlags().apply {
-      certDerSecretId = "cert"
-      privateDerSecretId = "priv"
-      encPrivateSecretId = "enc"
-      tlsKeySecretId = "tlsKey"
-      tlsPemSecretId = "tlsPem"
-      certDerFilePath = File(tempFolder.root, "testEdp_cs_cert.der").absolutePath
-      privateDerFilePath = File(tempFolder.root, "testEdp_cs_private.der").absolutePath
-      encPrivateFilePath = File(tempFolder.root, "testEdp_enc_private.tink").absolutePath
-      tlsKeyFilePath = File(tempFolder.root, "testEdp_tls.key").absolutePath
-      tlsPemFilePath = File(tempFolder.root, "testEdp_tls.pem").absolutePath
-    }
+    val edp =
+      ResultsFulfillerAppRunner.EdpFlags().apply {
+        certDerSecretId = "cert"
+        privateDerSecretId = "priv"
+        encPrivateSecretId = "enc"
+        tlsKeySecretId = "tlsKey"
+        tlsPemSecretId = "tlsPem"
+        certDerFilePath = File(tempFolder.root, "testEdp_cs_cert.der").absolutePath
+        privateDerFilePath = File(tempFolder.root, "testEdp_cs_private.der").absolutePath
+        encPrivateFilePath = File(tempFolder.root, "testEdp_enc_private.tink").absolutePath
+        tlsKeyFilePath = File(tempFolder.root, "testEdp_tls.key").absolutePath
+        tlsPemFilePath = File(tempFolder.root, "testEdp_tls.pem").absolutePath
+      }
 
     runner.javaClass.getDeclaredField("edpCerts").apply {
       isAccessible = true
@@ -91,5 +92,4 @@ class ResultsFulfillerAppRunnerTest {
     runner.saveEdpsCerts()
     verify(runner, times(5)).saveSecretToFile(any(), anyString())
   }
-
 }
