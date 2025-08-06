@@ -16,11 +16,6 @@
 
 package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
-import org.junit.Rule
-import org.junit.runner.RunWith
-import org.junit.Test
-import org.junit.rules.TemporaryFolder
-import org.junit.runners.JUnit4
 import com.google.common.truth.Truth.assertThat
 import java.io.File
 import java.nio.file.Files
@@ -31,13 +26,16 @@ import org.mockito.Mockito.spy
 import org.mockito.Mockito.times
 import org.mockito.Mockito.verify
 import org.mockito.kotlin.any
+import org.junit.Rule
+import org.junit.Test
+import org.junit.rules.TemporaryFolder
+import org.junit.runner.RunWith
+import org.junit.runners.JUnit4
 
 @RunWith(JUnit4::class)
 class ResultsFulfillerAppRunnerTest {
 
-  @Rule
-  @JvmField
-  val tempFolder = TemporaryFolder()
+  @Rule @JvmField val tempFolder = TemporaryFolder()
 
   @Test
   fun `saveSecretToFile writes bytes to file`() {
