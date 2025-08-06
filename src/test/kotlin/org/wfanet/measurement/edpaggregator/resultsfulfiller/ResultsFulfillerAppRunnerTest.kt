@@ -19,7 +19,6 @@ package org.wfanet.measurement.edpaggregator.resultsfulfiller
 import com.google.common.truth.Truth.assertThat
 import java.io.File
 import java.nio.file.Files
-<<<<<<< HEAD
 import org.mockito.ArgumentMatchers.anyString
 import org.mockito.Mockito.doNothing
 import org.mockito.Mockito.doReturn
@@ -27,8 +26,6 @@ import org.mockito.Mockito.spy
 import org.mockito.Mockito.times
 import org.mockito.Mockito.verify
 import org.mockito.kotlin.any
-=======
->>>>>>> main
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
