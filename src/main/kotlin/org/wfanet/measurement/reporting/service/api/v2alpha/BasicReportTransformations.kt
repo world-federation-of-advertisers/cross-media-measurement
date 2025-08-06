@@ -66,7 +66,8 @@ private data class MetricCalculationSpecInfo(
  * @param dataProviderPrimitiveReportingSetMap Map of [DataProvider] resource name to primitive
  *   [ReportingSet] containing associated [EventGroup] resource names
  * @param resultGroupSpecs List of [ResultGroupSpec] to transform
- * @param eventTemplateFieldsMap for creating a CEL string from [EventTemplateField]
+ * @param eventTemplateFieldsMap Key is protobuf EventTemplate field name with respect to Event
+ *   message. Map is used for parsing [EventTemplateField]
  * @return Map of [ReportingSet] to [MetricCalculationSpec]
  */
 fun buildReportingSetMetricCalculationSpecDetailsMap(

@@ -49,7 +49,7 @@ private val RESOURCE_ID_REGEX = ResourceIds.AIP_122_REGEX
  * @param request
  * @param campaignGroup
  * @param eventTemplateFieldsMap Key is protobuf EventTemplate field name with respect to Event
- *   message. Map is used for validating and parsing [EventTemplateField]
+ *   message. Map is used for validating[EventTemplateField]
  * @throws [RequiredFieldNotSetException] when validation fails
  * @throws [InvalidFieldValueException] when validation fails
  */
@@ -99,7 +99,8 @@ fun validateCreateBasicReportRequest(
  *
  * @param resultGroupSpecs [List] of [ResultGroupSpec] to validate
  * @param campaignGroup [ReportingSet] to validate against
- * @param eventTemplateFieldsMap for validating [EventTemplateField]
+ * @param eventTemplateFieldsMap Key is protobuf EventTemplate field name with respect to Event
+ *   message. Map is used for validating [EventTemplateField]
  * @throws [RequiredFieldNotSetException] when validation fails
  * @throws [InvalidFieldValueException] when validation fails
  */
@@ -184,7 +185,8 @@ fun validateReportingUnit(reportingUnit: ReportingUnit, dataProviderNameSet: Set
  * Validates a [DimensionSpec]
  *
  * @param dimensionSpec [DimensionSpec] to validate
- * @param eventTemplateFieldsMap for validating [EventTemplateField]
+ * @param eventTemplateFieldsMap Key is protobuf EventTemplate field name with respect to Event
+ *   message. Map is used for validating [EventTemplateField]
  * @throws [RequiredFieldNotSetException] when validation fails
  * @throws [InvalidFieldValueException] when validation fails
  */
@@ -225,7 +227,8 @@ fun validateDimensionSpec(
  * Validates a [DimensionSpec.Grouping]
  *
  * @param grouping [DimensionSpec.Grouping] to validate
- * @param eventTemplateFieldsMap for validating [EventTemplateField]
+ * @param eventTemplateFieldsMap Key is protobuf EventTemplate field name with respect to Event
+ *   message. Map is used for validating [EventTemplateField]
  * @throws [RequiredFieldNotSetException] when validation fails
  * @throws [InvalidFieldValueException] when validation fails
  */
@@ -270,7 +273,8 @@ fun validateDimensionSpecGrouping(
  * Validates an [EventTemplateField]
  *
  * @param eventTemplateField [EventTemplateField] to validate
- * @param eventTemplateFieldsMap for validating [EventTemplateField]
+ * @param eventTemplateFieldsMap Key is protobuf EventTemplate field name with respect to Event
+ *   message. Map is used for validating [EventTemplateField]
  * @throws [RequiredFieldNotSetException] when validation fails
  * @throws [InvalidFieldValueException] when validation fails
  */
