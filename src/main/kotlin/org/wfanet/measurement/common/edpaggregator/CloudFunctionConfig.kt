@@ -24,7 +24,6 @@ object CloudFunctionConfig {
 
   private const val CONFIG_STORAGE_BUCKET_ENV = "EDPA_CONFIG_STORAGE_BUCKET"
   private const val GOOGLE_PROJECT_ID_ENV = "GOOGLE_PROJECT_ID"
-  private val loader = BlobLoader()
 
   /**
    * Loads a UTF-8-encoded configuration proto from the storage backend specified by environment
@@ -48,10 +47,13 @@ object CloudFunctionConfig {
     defaultInstance: T,
     typeRegistry: TypeRegistry? = null,
   ): T {
-    val bucket = checkNotNull(System.getenv(CONFIG_STORAGE_BUCKET_ENV)) {
-      "Environment variable EDPA_CONFIG_STORAGE_BUCKET must be set."
-    }.removeSuffix("/")
+    val bucket =
+      checkNotNull(System.getenv(CONFIG_STORAGE_BUCKET_ENV)) {
+          "Environment variable EDPA_CONFIG_STORAGE_BUCKET must be set."
+        }
+        .removeSuffix("/")
     val projectId = System.getenv(GOOGLE_PROJECT_ID_ENV)
+    val loader = BlobLoader()
     val bytes = loader.getBytes(bucket, configBlobKey, projectId)
     val text = bytes.toStringUtf8()
     return if (typeRegistry != null) {

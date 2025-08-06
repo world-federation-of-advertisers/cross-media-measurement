@@ -24,37 +24,27 @@ import org.wfanet.measurement.storage.SelectedStorageClient
 /**
  * Loads raw configuration data blobs from storage.
  *
- * Uses the provided URI prefix and blob key to locate the resource, then returns its
- * raw bytes as a [ByteString].
+ * Uses the provided URI prefix and blob key to locate the resource, then returns its raw bytes as a
+ * [ByteString].
  */
 class BlobLoader {
 
   /**
    * Fetches the raw bytes for the given blob.
    *
-   * @param blobUriPrefix
-   *   URI prefix where blobs are stored. For local files this should start with `file:///`.
-   * @param blobKey
-   *   Name of the blob to load.
-   * @param projectId
-   *   Optional GCP project ID, used when reading from Google Cloud Storage.
-   *
-   * @return
-   *   A [ByteString] containing the raw bytes of the blob.
-   *
-   * @throws IllegalArgumentException
-   *   If [blobUriPrefix] or [blobKey] are malformed.
-   * @throws IllegalStateException
-   *   If no blob is found at the resolved location.
+   * @param blobUriPrefix URI prefix where blobs are stored. For local files this should start with
+   *   `file:///`.
+   * @param blobKey Name of the blob to load.
+   * @param projectId Optional GCP project ID, used when reading from Google Cloud Storage.
+   * @return A [ByteString] containing the raw bytes of the blob.
+   * @throws IllegalArgumentException If [blobUriPrefix] or [blobKey] are malformed.
+   * @throws IllegalStateException If no blob is found at the resolved location.
    */
-  suspend fun getBytes(
-    blobUriPrefix: String, blobKey: String, projectId: String?
-  ): ByteString {
+  suspend fun getBytes(blobUriPrefix: String, blobKey: String, projectId: String?): ByteString {
     val (fullUri, rootDir) = resolve(blobUriPrefix, blobKey)
-    val client = SelectedStorageClient(url = fullUri, rootDirectory = rootDir, projectId = projectId)
-    val blob = requireNotNull(client.getBlob(blobKey)) {
-      "Blob '$blobKey' not found at '$fullUri'"
-    }
+    val client =
+      SelectedStorageClient(url = fullUri, rootDirectory = rootDir, projectId = projectId)
+    val blob = requireNotNull(client.getBlob(blobKey)) { "Blob '$blobKey' not found at '$fullUri'" }
     return blob.read().flatten()
   }
 
@@ -71,5 +61,4 @@ class BlobLoader {
       "$prefix/$blobKey" to null
     }
   }
-
 }
