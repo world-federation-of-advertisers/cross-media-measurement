@@ -16,6 +16,9 @@
 
 package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
+import com.google.cloud.secretmanager.v1.AccessSecretVersionRequest
+import com.google.cloud.secretmanager.v1.SecretManagerServiceClient
+import com.google.cloud.secretmanager.v1.SecretVersionName
 import com.google.crypto.tink.integration.gcpkms.GcpKmsClient
 import com.google.protobuf.DescriptorProtos
 import com.google.protobuf.Descriptors
@@ -40,9 +43,6 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAttemptsGrpcKt
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt
 import picocli.CommandLine
-import com.google.cloud.secretmanager.v1.SecretManagerServiceClient
-import com.google.cloud.secretmanager.v1.AccessSecretVersionRequest
-import com.google.cloud.secretmanager.v1.SecretVersionName
 
 @CommandLine.Command(name = "results_fulfiller_app_runner")
 class ResultsFulfillerAppRunner : Runnable {
@@ -233,9 +233,11 @@ class ResultsFulfillerAppRunner : Runnable {
     saveSecretToFile(edpaCert, EDPA_TLS_CERT_FILE_PATH)
     val edpaPrivateKey = accessSecretBytes(googleProjectId, edpaPrivateKeySecretId, SECRET_VERSION)
     saveSecretToFile(edpaPrivateKey, EDPA_TLS_KEY_FILE_PATH)
-    val secureComputationRootCa = accessSecretBytes(googleProjectId, secureComputationCertCollectionSecretId, SECRET_VERSION)
+    val secureComputationRootCa =
+      accessSecretBytes(googleProjectId, secureComputationCertCollectionSecretId, SECRET_VERSION)
     saveSecretToFile(secureComputationRootCa, SECURE_COMPUTATION_ROOT_CA_FILE_PATH)
-    val kingdomRootCa = accessSecretBytes(googleProjectId, kingdomCertCollectionSecretId, SECRET_VERSION)
+    val kingdomRootCa =
+      accessSecretBytes(googleProjectId, kingdomCertCollectionSecretId, SECRET_VERSION)
     saveSecretToFile(kingdomRootCa, KINGDOM_ROOT_CA_FILE_PATH)
   }
 
@@ -248,9 +250,8 @@ class ResultsFulfillerAppRunner : Runnable {
   fun accessSecretBytes(projectId: String, secretId: String, version: String): ByteArray {
     return SecretManagerServiceClient.create().use { client ->
       val secretVersionName = SecretVersionName.of(projectId, secretId, version)
-      val request = AccessSecretVersionRequest.newBuilder()
-        .setName(secretVersionName.toString())
-        .build()
+      val request =
+        AccessSecretVersionRequest.newBuilder().setName(secretVersionName.toString()).build()
 
       val response = client.accessSecretVersion(request)
       response.payload.data.toByteArray()
@@ -287,7 +288,8 @@ class ResultsFulfillerAppRunner : Runnable {
     private const val SECRET_VERSION = "latest"
     private const val EDPA_TLS_CERT_FILE_PATH = "/tmp/edpa_certs/edpa_tee_app_tls.pem"
     private const val EDPA_TLS_KEY_FILE_PATH = "/tmp/edpa_certs/edpa_tee_app_tls.key"
-    private const val SECURE_COMPUTATION_ROOT_CA_FILE_PATH = "/tmp/edpa_certs/secure_computation_root.pem"
+    private const val SECURE_COMPUTATION_ROOT_CA_FILE_PATH =
+      "/tmp/edpa_certs/secure_computation_root.pem"
     private const val KINGDOM_ROOT_CA_FILE_PATH = "/tmp/edpa_certs/kingdom_root.pem"
 
     @JvmStatic fun main(args: Array<String>) = commandLineMain(ResultsFulfillerAppRunner(), args)
