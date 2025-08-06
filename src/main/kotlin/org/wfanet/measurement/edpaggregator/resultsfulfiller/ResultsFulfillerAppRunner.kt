@@ -16,6 +16,9 @@
 
 package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
+import com.google.cloud.secretmanager.v1.AccessSecretVersionRequest
+import com.google.cloud.secretmanager.v1.SecretManagerServiceClient
+import com.google.cloud.secretmanager.v1.SecretVersionName
 import com.google.crypto.tink.integration.gcpkms.GcpKmsClient
 import com.google.protobuf.DescriptorProtos
 import com.google.protobuf.Descriptors
@@ -23,12 +26,14 @@ import com.google.protobuf.ExtensionRegistry
 import com.google.protobuf.Parser
 import com.google.protobuf.TypeRegistry
 import java.io.File
+import java.net.URI
 import java.util.logging.Logger
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.EventAnnotationsProto
 import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.SigningCerts
+import org.wfanet.measurement.common.edpaggregator.TeeAppConfig.getConfig
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
@@ -44,28 +49,122 @@ import picocli.CommandLine
 @CommandLine.Command(name = "results_fulfiller_app_runner")
 class ResultsFulfillerAppRunner : Runnable {
   @CommandLine.Option(
-    names = ["--edpa-tls-cert-file-path"],
-    description = ["User's own TLS cert file path."],
+    names = ["--edpa-tls-cert-secret-id"],
+    description = ["Secret ID of EDPA TLS cert file."],
     defaultValue = "",
   )
-  lateinit var edpaCertFilePath: String
+  lateinit var edpaCertSecretId: String
     private set
 
   @CommandLine.Option(
-    names = ["--edpa-tls-key-file-path"],
-    description = ["User's own TLS private key file path."],
+    names = ["--edpa-tls-key-secret-id"],
+    description = ["Secret ID of EDPA TLS key file."],
     defaultValue = "",
   )
-  lateinit var edpaPrivateKeyFilePath: String
+  lateinit var edpaPrivateKeySecretId: String
     private set
 
   @CommandLine.Option(
-    names = ["--secure-computation-cert-collection-file-path"],
-    description = ["Trusted root Cert collection file path."],
-    required = false,
+    names = ["--secure-computation-cert-collection-secret-id"],
+    description = ["Secret ID of SecureComputation Trusted root Cert collection file."],
+    required = true,
   )
-  var secureComputationCertCollectionFilePath: String? = null
+  lateinit var secureComputationCertCollectionSecretId: String
     private set
+
+  @CommandLine.Option(
+    names = ["--kingdom-cert-collection-secret-id"],
+    description = ["Secret ID of Kingdom root collections file."],
+    required = true,
+  )
+  private lateinit var kingdomCertCollectionSecretId: String
+
+  @CommandLine.ArgGroup(exclusive = false, multiplicity = "1..*", heading = "Single EDP certs\n")
+  lateinit var edpCerts: List<EdpFlags>
+    private set
+
+  // The file paths supplied via each EdpFlags instance must exactly match the paths defined in the
+  // ResultsFulfillerParam proto configuration.
+  class EdpFlags {
+    @CommandLine.Option(
+      names = ["--edp-cert-der-secret-id"],
+      required = true,
+      description = ["Secret ID for the EDP cert"],
+    )
+    lateinit var certDerSecretId: String
+
+    @CommandLine.Option(
+      names = ["--edp-cert-der-file-path"],
+      required = true,
+      description =
+        [
+          "Path to the EDP certificate in DER format. Must match the `consent_params` field of the `results_fulfiller_param` proto in DataWatcher."
+        ],
+    )
+    lateinit var certDerFilePath: String
+
+    @CommandLine.Option(
+      names = ["--edp-private-der-secret-id"],
+      required = true,
+      description = ["Secret ID for the EDP private key"],
+    )
+    lateinit var privateDerSecretId: String
+
+    @CommandLine.Option(
+      names = ["--edp-private-der-file-path"],
+      required = true,
+      description =
+        [
+          "EDP private key file path. Must match the `consent_params` field of the `results_fulfiller_param` proto in DataWatcher."
+        ],
+    )
+    lateinit var privateDerFilePath: String
+
+    @CommandLine.Option(
+      names = ["--edp-enc-private-secret-id"],
+      required = true,
+      description = ["Secret ID for the EDP encryption private key"],
+    )
+    lateinit var encPrivateSecretId: String
+
+    @CommandLine.Option(
+      names = ["--edp-enc-private-file-path"],
+      required = true,
+      description =
+        [
+          "EDP encryption private key file path. Must match the `consent_params` field of the `results_fulfiller_param` proto in DataWatcher."
+        ],
+    )
+    lateinit var encPrivateFilePath: String
+
+    @CommandLine.Option(
+      names = ["--edp-tls-key-secret-id"],
+      required = true,
+      description = ["Secret ID for the EDP TLS key"],
+    )
+    lateinit var tlsKeySecretId: String
+
+    @CommandLine.Option(
+      names = ["--edp-tls-key-file-path"],
+      required = true,
+      description = ["EDP TLS key file path"],
+    )
+    lateinit var tlsKeyFilePath: String
+
+    @CommandLine.Option(
+      names = ["--edp-tls-pem-secret-id"],
+      required = true,
+      description = ["Secret ID for the EDP TLS cert"],
+    )
+    lateinit var tlsPemSecretId: String
+
+    @CommandLine.Option(
+      names = ["--edp-tls-pem-file-path"],
+      required = true,
+      description = ["EDP TLS cert file path"],
+    )
+    lateinit var tlsPemFilePath: String
+  }
 
   @CommandLine.Option(
     names = ["--kingdom-public-api-target"],
@@ -104,13 +203,6 @@ class ResultsFulfillerAppRunner : Runnable {
   private var secureComputationPublicApiCertHost: String? = null
 
   @CommandLine.Option(
-    names = ["--kingdom-cert-collection-file-path"],
-    description = ["Kingdom root collections file path"],
-    required = true,
-  )
-  private lateinit var kingdomCertCollectionFilePath: String
-
-  @CommandLine.Option(
     names = ["--subscription-id"],
     description = ["Subscription ID for the queue"],
     required = true,
@@ -118,36 +210,42 @@ class ResultsFulfillerAppRunner : Runnable {
   private lateinit var subscriptionId: String
 
   @CommandLine.Option(
-    names = ["--google-pub-sub-project-id"],
-    description = ["Project ID of Google pub sub subscriber."],
+    names = ["--google-project-id"],
+    description = ["Project ID of EDP Aggregator."],
     required = true,
   )
-  lateinit var pubSubProjectId: String
+  lateinit var googleProjectId: String
     private set
 
   @CommandLine.Option(
-    names = ["--event-template-metadata-type"],
+    names = ["--event-template-metadata-blob-uri"],
     description =
       [
-        "Serialized FileDescriptorSet for EventTemplate metadata types.",
+        "Config storage blob URI to the FileDescriptorSet for EventTemplate metadata types.",
         "This can be specified multiple times.",
       ],
     required = true,
   )
-  private lateinit var eventTemplateDescriptorSetFiles: List<File>
+  private lateinit var eventTemplateDescriptorBlobUris: List<String>
 
   private val getImpressionsStorageConfig: (StorageParams) -> StorageConfig = { storageParams ->
     StorageConfig(projectId = storageParams.gcsProjectId)
   }
 
   override fun run() {
+
+    // Pull certificates needed to operate from Google Secrets.
+    saveEdpaCerts()
+    saveEdpsCerts()
+    saveResultsFulfillerConfig()
+
     val queueSubscriber = createQueueSubscriber()
     val parser = createWorkItemParser()
 
     // Get client certificates from server flags
-    val edpaCertFile = File(edpaCertFilePath)
-    val edpaPrivateKeyFile = File(edpaPrivateKeyFilePath)
-    val secureComputationCertCollectionFile = File(secureComputationCertCollectionFilePath)
+    val edpaCertFile = File(EDPA_TLS_CERT_FILE_PATH)
+    val edpaPrivateKeyFile = File(EDPA_TLS_KEY_FILE_PATH)
+    val secureComputationCertCollectionFile = File(SECURE_COMPUTATION_ROOT_CA_FILE_PATH)
     val secureComputationClientCerts =
       SigningCerts.fromPemFiles(
         certificateFile = edpaCertFile,
@@ -164,7 +262,7 @@ class ResultsFulfillerAppRunner : Runnable {
       )
     val workItemsClient = WorkItemsGrpcKt.WorkItemsCoroutineStub(publicChannel)
     val workItemAttemptsClient = WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineStub(publicChannel)
-    val kingdomCertCollectionFile = File(kingdomCertCollectionFilePath)
+    val kingdomCertCollectionFile = File(KINGDOM_ROOT_CA_FILE_PATH)
 
     val requisitionStubFactory =
       RequisitionStubFactoryImpl(
@@ -210,10 +308,11 @@ class ResultsFulfillerAppRunner : Runnable {
     return TypeRegistry.newBuilder()
       .apply {
         add(COMPILED_PROTOBUF_TYPES.flatMap { it.messageTypes })
-        if (::eventTemplateDescriptorSetFiles.isInitialized) {
+        val localDescriptorFiles = File(PROTO_DESCRIPTORS_DIR).listFiles()?.toList().orEmpty()
+        if (localDescriptorFiles.isNotEmpty()) {
           add(
             ProtoReflection.buildDescriptors(
-              loadFileDescriptorSets(eventTemplateDescriptorSetFiles),
+              loadFileDescriptorSets(localDescriptorFiles),
               COMPILED_PROTOBUF_TYPES,
             )
           )
@@ -222,10 +321,66 @@ class ResultsFulfillerAppRunner : Runnable {
       .build()
   }
 
+  fun saveEdpaCerts() {
+    val edpaCert = accessSecretBytes(googleProjectId, edpaCertSecretId, SECRET_VERSION)
+    saveByteArrayToFile(edpaCert, EDPA_TLS_CERT_FILE_PATH)
+    val edpaPrivateKey = accessSecretBytes(googleProjectId, edpaPrivateKeySecretId, SECRET_VERSION)
+    saveByteArrayToFile(edpaPrivateKey, EDPA_TLS_KEY_FILE_PATH)
+    val secureComputationRootCa =
+      accessSecretBytes(googleProjectId, secureComputationCertCollectionSecretId, SECRET_VERSION)
+    saveByteArrayToFile(secureComputationRootCa, SECURE_COMPUTATION_ROOT_CA_FILE_PATH)
+    val kingdomRootCa =
+      accessSecretBytes(googleProjectId, kingdomCertCollectionSecretId, SECRET_VERSION)
+    saveByteArrayToFile(kingdomRootCa, KINGDOM_ROOT_CA_FILE_PATH)
+  }
+
+  fun saveEdpsCerts() {
+    edpCerts.forEachIndexed { index, edp ->
+      val edpCertDer = accessSecretBytes(googleProjectId, edp.certDerSecretId, SECRET_VERSION)
+      saveByteArrayToFile(edpCertDer, edp.certDerFilePath)
+      val edpPrivateDer = accessSecretBytes(googleProjectId, edp.privateDerSecretId, SECRET_VERSION)
+      saveByteArrayToFile(edpPrivateDer, edp.privateDerFilePath)
+      val edpEncPrivate = accessSecretBytes(googleProjectId, edp.encPrivateSecretId, SECRET_VERSION)
+      saveByteArrayToFile(edpEncPrivate, edp.encPrivateFilePath)
+      val edpTlsKey = accessSecretBytes(googleProjectId, edp.tlsKeySecretId, SECRET_VERSION)
+      saveByteArrayToFile(edpTlsKey, edp.tlsKeyFilePath)
+      val edpTlsPem = accessSecretBytes(googleProjectId, edp.tlsPemSecretId, SECRET_VERSION)
+      saveByteArrayToFile(edpTlsPem, edp.tlsPemFilePath)
+    }
+  }
+
+  fun saveResultsFulfillerConfig() {
+    runBlocking {
+      eventTemplateDescriptorBlobUris.forEach {
+        saveByteArrayToFile(
+          getConfig(googleProjectId, it),
+          "$PROTO_DESCRIPTORS_DIR/${URI(it).path.substringAfterLast("/")}",
+        )
+      }
+    }
+  }
+
+  fun saveByteArrayToFile(bytes: ByteArray, path: String) {
+    val file = File(path)
+    file.parentFile?.mkdirs()
+    file.writeBytes(bytes)
+  }
+
+  fun accessSecretBytes(projectId: String, secretId: String, version: String): ByteArray {
+    return SecretManagerServiceClient.create().use { client ->
+      val secretVersionName = SecretVersionName.of(projectId, secretId, version)
+      val request =
+        AccessSecretVersionRequest.newBuilder().setName(secretVersionName.toString()).build()
+
+      val response = client.accessSecretVersion(request)
+      response.payload.data.toByteArray()
+    }
+  }
+
   private fun createQueueSubscriber(): QueueSubscriber {
-    logger.info("Creating DefaultGooglePubSubclient: ${pubSubProjectId}")
+    logger.info("Creating DefaultGooglePubSubclient: ${googleProjectId}")
     val pubSubClient = DefaultGooglePubSubClient()
-    return Subscriber(projectId = pubSubProjectId, googlePubSubClient = pubSubClient)
+    return Subscriber(projectId = googleProjectId, googlePubSubClient = pubSubClient)
   }
 
   private fun createWorkItemParser(): Parser<WorkItem> {
@@ -248,6 +403,15 @@ class ResultsFulfillerAppRunner : Runnable {
         .unmodifiable
 
     private val logger = Logger.getLogger(this::class.java.name)
+
+    private const val SECRET_VERSION = "latest"
+    private const val EDPA_TLS_CERT_FILE_PATH = "/tmp/edpa_certs/edpa_tee_app_tls.pem"
+    private const val EDPA_TLS_KEY_FILE_PATH = "/tmp/edpa_certs/edpa_tee_app_tls.key"
+    private const val SECURE_COMPUTATION_ROOT_CA_FILE_PATH =
+      "/tmp/edpa_certs/secure_computation_root.pem"
+    private const val KINGDOM_ROOT_CA_FILE_PATH = "/tmp/edpa_certs/kingdom_root.pem"
+
+    private const val PROTO_DESCRIPTORS_DIR = "/tmp/proto_descriptors"
 
     @JvmStatic fun main(args: Array<String>) = commandLineMain(ResultsFulfillerAppRunner(), args)
   }

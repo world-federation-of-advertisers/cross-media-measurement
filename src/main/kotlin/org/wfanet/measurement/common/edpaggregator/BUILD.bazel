@@ -8,13 +8,30 @@ package(default_visibility = [
 ])
 
 kt_jvm_library(
-    name = "cloud_function_config",
-    srcs = ["CloudFunctionConfig.kt"],
+    name = "blob_loader",
+    srcs = ["BlobLoader.kt"],
     deps = [
-        "//src/main/kotlin/org/wfanet/measurement/common:env_vars",
         "@wfa_common_jvm//imports/java/com/google/protobuf",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/gcs",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:selected_storage_client",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage/filesystem:client",
+    ],
+)
+
+kt_jvm_library(
+    name = "cloud_function_config",
+    srcs = ["CloudFunctionConfig.kt"],
+    deps = [
+        ":blob_loader",
+        "//src/main/kotlin/org/wfanet/measurement/common:env_vars",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+    ],
+)
+
+kt_jvm_library(
+    name = "tee_app_config",
+    srcs = ["TeeAppConfig.kt"],
+    deps = [
+        ":blob_loader",
     ],
 )
