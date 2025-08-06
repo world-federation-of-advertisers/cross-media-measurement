@@ -28,7 +28,7 @@ import java.util.logging.Logger
 import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
-import org.wfanet.measurement.common.crypto.tink.GcpWifCredentials
+import org.wfanet.measurement.common.crypto.tink.GCloudWifCredentials
 import org.wfanet.measurement.common.crypto.tink.KmsClientFactory
 import org.wfanet.measurement.duchy.db.computation.ComputationDataClients
 import org.wfanet.measurement.duchy.db.computation.ComputationDataClients.PermanentErrorException
@@ -61,7 +61,7 @@ class TrusTeeMill(
   computationStatsClient: ComputationStatsGrpcKt.ComputationStatsCoroutineStub,
   workLockDuration: Duration,
   private val trusTeeCryptorFactory: TrusTeeCryptor.Factory,
-  private val kmsClientFactory: KmsClientFactory,
+  private val kmsClientFactory: KmsClientFactory<GCloudWifCredentials>,
   private val attestationTokenPath: Path,
   requestChunkSizeBytes: Int = 1024 * 32,
   maximumAttempts: Int = 10,
@@ -146,11 +146,11 @@ class TrusTeeMill(
   }
 
   private fun getKmsClient(
-    kmsClientFactory: KmsClientFactory,
+    kmsClientFactory: KmsClientFactory<GCloudWifCredentials>,
     protocol: RequisitionDetails.RequisitionProtocol.TrusTee,
   ): KmsClient {
     val config =
-      GcpWifCredentials(
+      GCloudWifCredentials(
         audience = protocol.workloadIdentityProvider,
         subjectTokenType = OAUTH_TOKEN_TYPE_ID_TOKEN,
         tokenUrl = GOOGLE_STS_TOKEN_URL,

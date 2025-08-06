@@ -51,10 +51,9 @@ import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.crypto.readPrivateKey
 import org.wfanet.measurement.common.crypto.testing.TestData
-import org.wfanet.measurement.common.crypto.tink.GcpWifCredentials
+import org.wfanet.measurement.common.crypto.tink.GCloudWifCredentials
 import org.wfanet.measurement.common.crypto.tink.KmsClientFactory
 import org.wfanet.measurement.common.crypto.tink.TinkPrivateKeyHandle
-import org.wfanet.measurement.common.crypto.tink.WifCredentials
 import org.wfanet.measurement.common.crypto.tink.testing.FakeKmsClient
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
@@ -115,7 +114,7 @@ class TrusTeeMillTest {
   }
 
   private val fakeKmsClient = FakeKmsClient()
-  private val mockKmsClientFactory: KmsClientFactory = mock {
+  private val mockKmsClientFactory: KmsClientFactory<GCloudWifCredentials> = mock {
     on { getKmsClient(any()) }.thenReturn(fakeKmsClient)
   }
 
@@ -445,7 +444,7 @@ class TrusTeeMillTest {
       requisitions = REQUISITIONS,
     )
 
-    whenever(mockKmsClientFactory.getKmsClient(any<WifCredentials>())).thenAnswer {
+    whenever(mockKmsClientFactory.getKmsClient(any<GCloudWifCredentials>())).thenAnswer {
       throw GeneralSecurityException("KMS client creation failed for test")
     }
 
@@ -475,7 +474,7 @@ class TrusTeeMillTest {
     val incompleteKmsClient = FakeKmsClient()
     incompleteKmsClient.setAead(KEK_URI_2, KEK_AEAD_2)
     incompleteKmsClient.setAead(KEK_URI_3, KEK_AEAD_3)
-    whenever(mockKmsClientFactory.getKmsClient(any<GcpWifCredentials>()))
+    whenever(mockKmsClientFactory.getKmsClient(any<GCloudWifCredentials>()))
       .thenReturn(incompleteKmsClient)
 
     val mill = createMill()
@@ -505,7 +504,7 @@ class TrusTeeMillTest {
     val inaccessibleKmsClient: KmsClient = mock()
     whenever(inaccessibleKmsClient.getAead(KEK_URI_1))
       .thenThrow(GeneralSecurityException("KMS permission denied"))
-    whenever(mockKmsClientFactory.getKmsClient(any<GcpWifCredentials>()))
+    whenever(mockKmsClientFactory.getKmsClient(any<GCloudWifCredentials>()))
       .thenReturn(inaccessibleKmsClient)
 
     val mill = createMill()
@@ -571,7 +570,7 @@ class TrusTeeMillTest {
     val transientErrorKmsClient: KmsClient = mock()
     whenever(transientErrorKmsClient.getAead(KEK_URI_1))
       .thenThrow(GeneralSecurityException("KMS is temporarily unavailable"))
-    whenever(mockKmsClientFactory.getKmsClient(any<GcpWifCredentials>()))
+    whenever(mockKmsClientFactory.getKmsClient(any<GCloudWifCredentials>()))
       .thenReturn(transientErrorKmsClient)
 
     val mill = createMill()
