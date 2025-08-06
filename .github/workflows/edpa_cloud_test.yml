@@ -64,9 +64,18 @@ jobs:
           EOF
 
       - name: Write ~/.bazelrc
+        env:
+          KINGDOM_PUBLIC_API_TARGET: ${{ vars.KINGDOM_PUBLIC_API_TARGET }}
+          MC_NAME: ${{ vars.MC_NAME }}
+          MC_API_KEY: ${{ secrets.MC_API_KEY }}
+          GCLOUD_PROJECT: ${{ vars.GCLOUD_PROJECT }}
         run: |
           cat << EOF > ~/.bazelrc
           common --config=ci
+          build --define kingdom_public_api_target=$KINGDOM_PUBLIC_API_TARGET
+          build --define mc_name=$MC_NAME
+          build --define mc_api_key=$MC_API_KEY
+          build --define google_cloud_project=$GCLOUD_PROJECT
           test --test_output=streamed
           test --test_timeout=3600
           EOF

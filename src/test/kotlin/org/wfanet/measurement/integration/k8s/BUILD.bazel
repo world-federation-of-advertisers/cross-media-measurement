@@ -129,6 +129,19 @@ java_test(
     runtime_deps = [":synthetic_data_generator_correctness_test"],
 )
 
+expand_template(
+    name = "gen_edpa_correctness_test_config",
+    out = "edpa_correctness_test_config.textproto",
+    substitutions = {
+        "{kingdom_public_api_target}": "$(kingdom_public_api_target)",
+        "{kingdom_public_api_cert_host}": "localhost",
+        "{mc_name}": TEST_K8S_SETTINGS.mc_name,
+        "{mc_api_key}": TEST_K8S_SETTINGS.mc_api_key,
+    },
+    tags = ["manual"],
+    template = "correctness_test_config.tmpl.textproto",
+)
+
 kt_jvm_library(
     name = "abstract_edp_aggregator_correctness_test",
     srcs = ["AbstractEdpAggregatorCorrectnessTest.kt"],
@@ -171,9 +184,9 @@ kt_jvm_library(
 java_test(
     name = "EdpAggregatorCorrectnessTest",
     timeout = "long",
-    #    data = [
-    #        ":correctness_test_config.textproto",
-    #    ],
+    data = [
+        ":edpa_correctness_test_config.textproto",
+    ],
     tags = [
         "exclusive",
         "external",
