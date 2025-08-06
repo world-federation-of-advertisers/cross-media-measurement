@@ -5691,13 +5691,7 @@ class BasicReportsServiceTest {
       PostgresDatabaseProviderRule(PostgresSchemata.REPORTING_CHANGELOG_PATH)
 
     private val TYPE_REGISTRY =
-      TypeRegistry.newBuilder()
-        .add(
-          listOf(
-            TestEvent.getDescriptor()
-          )
-        )
-        .build()
+      TypeRegistry.newBuilder().add(listOf(TestEvent.getDescriptor())).build()
 
     private val TEST_EVENT_DESCRIPTOR =
       EventDescriptor(TYPE_REGISTRY.find(TestEvent.getDescriptor().fullName))

@@ -342,13 +342,7 @@ class InProcessReportingServer(
     private val logger: Logger = Logger.getLogger(this::class.java.name)
 
     private val TYPE_REGISTRY =
-      TypeRegistry.newBuilder()
-        .add(
-          listOf(
-            TestEvent.getDescriptor()
-          )
-        )
-        .build()
+      TypeRegistry.newBuilder().add(listOf(TestEvent.getDescriptor())).build()
 
     private const val NUMBER_VID_BUCKETS = 300
     private val METRIC_SPEC_CONFIG = metricSpecConfig {

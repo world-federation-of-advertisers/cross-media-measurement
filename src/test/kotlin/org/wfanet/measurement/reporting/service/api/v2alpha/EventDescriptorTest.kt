@@ -35,14 +35,7 @@ import org.wfanet.measurement.api.v2alpha.event_templates.testing.UnsupportedRep
 class EventDescriptorTest {
   @Test
   fun `EventDescriptor instantiation succeeds`() {
-    val typeRegistry =
-      TypeRegistry.newBuilder()
-        .add(
-          listOf(
-            TestEvent.getDescriptor()
-          )
-        )
-        .build()
+    val typeRegistry = TypeRegistry.newBuilder().add(listOf(TestEvent.getDescriptor())).build()
     val eventDescriptor = EventDescriptor(typeRegistry.find(TestEvent.getDescriptor().fullName))
 
     assertThat(eventDescriptor.eventTemplateFieldsMap).hasSize(6)

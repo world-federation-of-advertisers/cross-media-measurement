@@ -169,8 +169,7 @@ class EventDescriptor(eventDescriptor: Descriptors.Descriptor) {
         }
 
         EventFieldDescriptor.ReportingFeature.REPORTING_FEATURE_UNSPECIFIED,
-        EventFieldDescriptor.ReportingFeature.UNRECOGNIZED
-        -> {
+        EventFieldDescriptor.ReportingFeature.UNRECOGNIZED -> {
           throw IllegalArgumentException("Invalid reporting feature")
         }
       }
