@@ -322,6 +322,7 @@ class ResultsFulfillerAppRunner : Runnable {
     runBlocking { resultsFulfillerApp.run() }
   }
 
+  // TODO(@marcopremier): Refactor when common-jvm #330 get merge
   private fun createKmsClients() {
 
     kmsClientsMap = mutableMapOf()
@@ -331,7 +332,7 @@ class ResultsFulfillerAppRunner : Runnable {
       val credentialConfigJson = """
 {
   "type": "external_account",
-  "audience": ${edp.edpKmsAudience},
+  "audience": "${edp.edpKmsAudience}",
   "subject_token_type": "urn:ietf:params:oauth:token-type:jwt",
   "token_url": "https://sts.googleapis.com/v1/token",
   "credential_source": {
