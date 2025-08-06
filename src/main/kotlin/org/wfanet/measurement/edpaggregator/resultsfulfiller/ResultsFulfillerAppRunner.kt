@@ -26,12 +26,14 @@ import com.google.protobuf.ExtensionRegistry
 import com.google.protobuf.Parser
 import com.google.protobuf.TypeRegistry
 import java.io.File
+import java.net.URI
 import java.util.logging.Logger
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.EventAnnotationsProto
 import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.SigningCerts
+import org.wfanet.measurement.common.edpaggregator.TeeAppConfig.getConfig
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
@@ -216,15 +218,15 @@ class ResultsFulfillerAppRunner : Runnable {
     private set
 
   @CommandLine.Option(
-    names = ["--event-template-metadata-type"],
+    names = ["--event-template-metadata-blob-uri"],
     description =
       [
-        "Serialized FileDescriptorSet for EventTemplate metadata types.",
+        "Config storage blob URI to the FileDescriptorSet for EventTemplate metadata types.",
         "This can be specified multiple times.",
       ],
     required = true,
   )
-  private lateinit var eventTemplateDescriptorSetFiles: List<File>
+  private lateinit var eventTemplateDescriptorBlobUris: List<String>
 
   private val getImpressionsStorageConfig: (StorageParams) -> StorageConfig = { storageParams ->
     StorageConfig(projectId = storageParams.gcsProjectId)
@@ -235,6 +237,7 @@ class ResultsFulfillerAppRunner : Runnable {
     // Pull certificates needed to operate from Google Secrets.
     saveEdpaCerts()
     saveEdpsCerts()
+    saveResultsFulfillerConfig()
 
     val queueSubscriber = createQueueSubscriber()
     val parser = createWorkItemParser()
@@ -305,10 +308,11 @@ class ResultsFulfillerAppRunner : Runnable {
     return TypeRegistry.newBuilder()
       .apply {
         add(COMPILED_PROTOBUF_TYPES.flatMap { it.messageTypes })
-        if (::eventTemplateDescriptorSetFiles.isInitialized) {
+        val localDescriptorFiles = File(PROTO_DESCRIPTORS_DIR).listFiles()?.toList().orEmpty()
+        if (localDescriptorFiles.isNotEmpty()) {
           add(
             ProtoReflection.buildDescriptors(
-              loadFileDescriptorSets(eventTemplateDescriptorSetFiles),
+              loadFileDescriptorSets(localDescriptorFiles),
               COMPILED_PROTOBUF_TYPES,
             )
           )
@@ -319,33 +323,44 @@ class ResultsFulfillerAppRunner : Runnable {
 
   fun saveEdpaCerts() {
     val edpaCert = accessSecretBytes(googleProjectId, edpaCertSecretId, SECRET_VERSION)
-    saveSecretToFile(edpaCert, EDPA_TLS_CERT_FILE_PATH)
+    saveByteArrayToFile(edpaCert, EDPA_TLS_CERT_FILE_PATH)
     val edpaPrivateKey = accessSecretBytes(googleProjectId, edpaPrivateKeySecretId, SECRET_VERSION)
-    saveSecretToFile(edpaPrivateKey, EDPA_TLS_KEY_FILE_PATH)
+    saveByteArrayToFile(edpaPrivateKey, EDPA_TLS_KEY_FILE_PATH)
     val secureComputationRootCa =
       accessSecretBytes(googleProjectId, secureComputationCertCollectionSecretId, SECRET_VERSION)
-    saveSecretToFile(secureComputationRootCa, SECURE_COMPUTATION_ROOT_CA_FILE_PATH)
+    saveByteArrayToFile(secureComputationRootCa, SECURE_COMPUTATION_ROOT_CA_FILE_PATH)
     val kingdomRootCa =
       accessSecretBytes(googleProjectId, kingdomCertCollectionSecretId, SECRET_VERSION)
-    saveSecretToFile(kingdomRootCa, KINGDOM_ROOT_CA_FILE_PATH)
+    saveByteArrayToFile(kingdomRootCa, KINGDOM_ROOT_CA_FILE_PATH)
   }
 
   fun saveEdpsCerts() {
     edpCerts.forEachIndexed { index, edp ->
       val edpCertDer = accessSecretBytes(googleProjectId, edp.certDerSecretId, SECRET_VERSION)
-      saveSecretToFile(edpCertDer, edp.certDerFilePath)
-      val edpprivateDer = accessSecretBytes(googleProjectId, edp.privateDerSecretId, SECRET_VERSION)
-      saveSecretToFile(edpprivateDer, edp.privateDerFilePath)
+      saveByteArrayToFile(edpCertDer, edp.certDerFilePath)
+      val edpPrivateDer = accessSecretBytes(googleProjectId, edp.privateDerSecretId, SECRET_VERSION)
+      saveByteArrayToFile(edpPrivateDer, edp.privateDerFilePath)
       val edpEncPrivate = accessSecretBytes(googleProjectId, edp.encPrivateSecretId, SECRET_VERSION)
-      saveSecretToFile(edpEncPrivate, edp.encPrivateFilePath)
+      saveByteArrayToFile(edpEncPrivate, edp.encPrivateFilePath)
       val edpTlsKey = accessSecretBytes(googleProjectId, edp.tlsKeySecretId, SECRET_VERSION)
-      saveSecretToFile(edpTlsKey, edp.tlsKeyFilePath)
+      saveByteArrayToFile(edpTlsKey, edp.tlsKeyFilePath)
       val edpTlsPem = accessSecretBytes(googleProjectId, edp.tlsPemSecretId, SECRET_VERSION)
-      saveSecretToFile(edpTlsPem, edp.tlsPemFilePath)
+      saveByteArrayToFile(edpTlsPem, edp.tlsPemFilePath)
     }
   }
 
-  fun saveSecretToFile(bytes: ByteArray, path: String) {
+  fun saveResultsFulfillerConfig() {
+    runBlocking {
+      eventTemplateDescriptorBlobUris.forEach {
+        saveByteArrayToFile(
+          getConfig(googleProjectId, it),
+          "$PROTO_DESCRIPTORS_DIR/${URI(it).path.substringAfterLast("/")}",
+        )
+      }
+    }
+  }
+
+  fun saveByteArrayToFile(bytes: ByteArray, path: String) {
     val file = File(path)
     file.parentFile?.mkdirs()
     file.writeBytes(bytes)
@@ -395,6 +410,8 @@ class ResultsFulfillerAppRunner : Runnable {
     private const val SECURE_COMPUTATION_ROOT_CA_FILE_PATH =
       "/tmp/edpa_certs/secure_computation_root.pem"
     private const val KINGDOM_ROOT_CA_FILE_PATH = "/tmp/edpa_certs/kingdom_root.pem"
+
+    private const val PROTO_DESCRIPTORS_DIR = "/tmp/proto_descriptors"
 
     @JvmStatic fun main(args: Array<String>) = commandLineMain(ResultsFulfillerAppRunner(), args)
   }

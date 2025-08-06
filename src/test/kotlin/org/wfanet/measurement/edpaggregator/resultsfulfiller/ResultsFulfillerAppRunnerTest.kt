@@ -43,26 +43,26 @@ class ResultsFulfillerAppRunnerTest {
     val data = "testdata".toByteArray()
     val runner = ResultsFulfillerAppRunner()
 
-    runner.saveSecretToFile(data, testFile.absolutePath)
+    runner.saveByteArrayToFile(data, testFile.absolutePath)
 
     assertThat(Files.exists(testFile.toPath())).isTrue()
     assertThat(data).isEqualTo(Files.readAllBytes(testFile.toPath()))
   }
 
   @Test
-  fun saveSecretToFile_createsParentDirectories() {
+  fun `saveSecretToFile creates parent directories`() {
     val nestedFile = File(tempFolder.root, "nested/dir/file.pem")
     val data = "nested-data".toByteArray()
     val runner = ResultsFulfillerAppRunner()
 
-    runner.saveSecretToFile(data, nestedFile.absolutePath)
+    runner.saveByteArrayToFile(data, nestedFile.absolutePath)
 
     assertThat(nestedFile.exists()).isTrue()
     assertThat(data).isEqualTo(nestedFile.readBytes())
   }
 
   @Test
-  fun saveEdpsCerts_callsSaveSecretToFileFiveTimesForOneEdp() {
+  fun `saveEdpsCerts calls saveSecretToFile five times for one edp`() {
     val runner = spy(ResultsFulfillerAppRunner())
     runner.javaClass.getDeclaredField("googleProjectId").apply {
       isAccessible = true
@@ -88,8 +88,41 @@ class ResultsFulfillerAppRunnerTest {
     }
 
     doReturn(ByteArray(0)).`when`(runner).accessSecretBytes(anyString(), anyString(), anyString())
-    doNothing().`when`(runner).saveSecretToFile(any(), anyString())
+    doNothing().`when`(runner).saveByteArrayToFile(any(), anyString())
     runner.saveEdpsCerts()
-    verify(runner, times(5)).saveSecretToFile(any(), anyString())
+    verify(runner, times(5)).saveByteArrayToFile(any(), anyString())
+  }
+
+  @Test
+  fun `saveResultsFulfillerConfig writes proto descriptor files to config directory`() {
+
+    val inputDir = tempFolder.newFolder("desc-input")
+    val descriptorName = "fooDescriptor.protoset"
+    val inputFile = File(inputDir, descriptorName)
+    val expectedBytes = "fake‐descriptor‐bytes".toByteArray()
+    inputFile.writeBytes(expectedBytes)
+
+    val runner = ResultsFulfillerAppRunner()
+    runner.javaClass.getDeclaredField("googleProjectId").apply {
+      isAccessible = true
+      set(runner, "dummyProject")
+    }
+    val uriString = inputFile.toURI().toString()
+    runner.javaClass.getDeclaredField("eventTemplateDescriptorBlobUris").apply {
+      isAccessible = true
+      set(runner, listOf(uriString))
+    }
+
+    runner.saveResultsFulfillerConfig()
+    val configDirField =
+      ResultsFulfillerAppRunner::class.java.getDeclaredField("PROTO_DESCRIPTORS_DIR")
+    configDirField.isAccessible = true
+    val configDir = configDirField.get(null) as String
+
+    // Verify the file was written in <PROTO_DESCRIPTORS_DIR>/fooDescriptor.protoset with identical
+    // contents
+    val outputFile = File(configDir, descriptorName)
+    assertThat(outputFile.exists()).isTrue()
+    assertThat(outputFile.readBytes()).isEqualTo(expectedBytes)
   }
 }
