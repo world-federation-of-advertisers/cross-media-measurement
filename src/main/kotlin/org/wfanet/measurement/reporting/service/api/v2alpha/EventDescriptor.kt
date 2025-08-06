@@ -38,15 +38,11 @@ class EventDescriptor(eventDescriptor: Descriptors.Descriptor) {
     val isPopulationAttribute: Boolean,
     val supportedReportingFeatures: SupportedReportingFeatures,
     val type: Descriptors.FieldDescriptor.Type,
-    /**
-     * Map of Enum name to Enum number
-     */
+    /** Map of Enum name to Enum number */
     val enumValuesMap: Map<String, Int>,
   )
 
-  /**
-   * Key is protobuf EventTemplate field name with respect to Event message.
-   */
+  /** Key is protobuf EventTemplate field name with respect to Event message. */
   val eventTemplateFieldsMap: Map<String, EventTemplateFieldInfo> =
     buildEventTemplateFieldsMap(eventDescriptor)
 
@@ -79,7 +75,8 @@ class EventDescriptor(eventDescriptor: Descriptors.Descriptor) {
               templateField.options.getExtension(EventAnnotationsProto.templateField)
 
             val isPopulationAttribute = templateFieldAnnotation.populationAttribute
-            val supportedReportingFeatures = buildSupportedReportingFeatures(templateFieldAnnotation)
+            val supportedReportingFeatures =
+              buildSupportedReportingFeatures(templateFieldAnnotation)
             val enumValuesMap = buildMap {
               if (templateField.type == Descriptors.FieldDescriptor.Type.ENUM) {
                 templateField.enumType.values.forEach { put(it.name, it.number) }
@@ -129,7 +126,9 @@ class EventDescriptor(eventDescriptor: Descriptors.Descriptor) {
             Duration.getDescriptor().fullName,
             Timestamp.getDescriptor().fullName -> {}
             else ->
-              throw IllegalArgumentException("EventTemplate field has unsupported type $messageName")
+              throw IllegalArgumentException(
+                "EventTemplate field has unsupported type $messageName"
+              )
           }
         Descriptors.FieldDescriptor.Type.UINT64,
         Descriptors.FieldDescriptor.Type.FIXED64,
