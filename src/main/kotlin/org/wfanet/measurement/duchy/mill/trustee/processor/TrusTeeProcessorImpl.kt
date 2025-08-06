@@ -83,12 +83,12 @@ class TrusTeeProcessorImpl(override val trusTeeParams: TrusTeeParams) : TrusTeeP
 
     return when (trusTeeParams) {
       is TrusTeeReachParams -> {
-        val reach = computeReach(rawHistogram, trusTeeParams.dpParams)
+        val reach = computeReach(rawHistogram, frequencyVector.size, trusTeeParams.dpParams)
 
         ReachResult(reach = reach, methodology = TrusTeeMethodology(frequencyVector.size.toLong()))
       }
       is TrusTeeReachAndFrequencyParams -> {
-        val reach = computeReach(rawHistogram, trusTeeParams.reachDpParams)
+        val reach = computeReach(rawHistogram, frequencyVector.size, trusTeeParams.reachDpParams)
         val frequency = computeFrequencyDistribution(rawHistogram, trusTeeParams.frequencyDpParams)
 
         ReachAndFrequencyResult(
@@ -108,16 +108,33 @@ class TrusTeeProcessorImpl(override val trusTeeParams: TrusTeeParams) : TrusTeeP
    *   returned.
    * @return The reach value, potentially with noise.
    */
-  private fun computeReach(rawHistogram: LongArray, dpParams: DifferentialPrivacyParams?): Long {
-    val rawReach = rawHistogram.sum() - rawHistogram[0]
+  private fun computeReach(
+    rawHistogram: LongArray,
+    vectorSize: Int,
+    dpParams: DifferentialPrivacyParams?,
+  ): Long {
+    val maxPossibleScaledReach = (vectorSize.toLong() / vidSamplingIntervalWidth).toLong()
+
+    val reachInSample = rawHistogram.sum() - rawHistogram[0]
+
     if (dpParams == null) {
-      return (rawReach / vidSamplingIntervalWidth).toLong()
+      val scaledReach = (reachInSample / vidSamplingIntervalWidth).toLong()
+      return min(scaledReach, maxPossibleScaledReach)
     }
 
     val noise = GaussianNoise()
-    val noisedReach = noise.addNoise(rawReach, 1, 1L, dpParams.epsilon, dpParams.delta)
+    val noisedReachInSample =
+      noise.addNoise(
+        /* x= */ reachInSample,
+        /* l0Sensitivity= */ 1,
+        /* lInfSensitivity= */ 1L,
+        /* epsilon= */ dpParams.epsilon,
+        /* delta= */ dpParams.delta,
+      )
+    val scaledNoisedReach =
+      if (noisedReachInSample < 0) 0L else (noisedReachInSample / vidSamplingIntervalWidth).toLong()
 
-    return if (noisedReach < 0) 0L else (noisedReach / vidSamplingIntervalWidth).toLong()
+    return min(scaledNoisedReach, maxPossibleScaledReach)
   }
 
   /**
@@ -133,17 +150,24 @@ class TrusTeeProcessorImpl(override val trusTeeParams: TrusTeeParams) : TrusTeeP
     dpParams: DifferentialPrivacyParams?,
   ): Map<Long, Double> {
     if (dpParams == null) {
-      val totalUsers = rawHistogram.sum()
-      if (totalUsers == 0L) return emptyMap()
+      val totalSampledUsers = rawHistogram.sum()
+      if (totalSampledUsers == 0L) return emptyMap()
       return rawHistogram.withIndex().associate { (freq, count) ->
-        freq.toLong() to count.toDouble() / totalUsers
+        freq.toLong() to count.toDouble() / totalSampledUsers
       }
     }
 
     val noise = GaussianNoise()
     val noisedHistogram =
       rawHistogram.map {
-        val noisedValue = noise.addNoise(it, 1, 1L, dpParams.epsilon, dpParams.delta)
+        val noisedValue =
+          noise.addNoise(
+            /* x= */ it,
+            /* l0Sensitivity= */ 1,
+            /* lInfSensitivity= */ 1L,
+            /* epsilon= */ dpParams.epsilon,
+            /* delta= */ dpParams.delta,
+          )
         if (noisedValue < 0) 0L else noisedValue
       }
 
