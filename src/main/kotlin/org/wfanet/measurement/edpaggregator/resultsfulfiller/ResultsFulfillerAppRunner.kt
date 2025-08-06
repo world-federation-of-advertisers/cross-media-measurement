@@ -77,60 +77,91 @@ class ResultsFulfillerAppRunner : Runnable {
   )
   private lateinit var kingdomCertCollectionSecretId: String
 
-  @CommandLine.ArgGroup(
-    exclusive = false,
-    multiplicity = "1..*",
-    heading = "Single EDP certs\n"
-  )
+  @CommandLine.ArgGroup(exclusive = false, multiplicity = "1..*", heading = "Single EDP certs\n")
   lateinit var edpCerts: List<EdpFlags>
     private set
 
-  // The file paths supplied via each EdpFlags instance must exactly match the paths defined in the ResultsFulfillerParam proto configuration.
+  // The file paths supplied via each EdpFlags instance must exactly match the paths defined in the
+  // ResultsFulfillerParam proto configuration.
   class EdpFlags {
-    @CommandLine.Option(names = ["--edp-cert-der-secret-id"], required = true, description = ["Secret ID for the EDP cert"])
+    @CommandLine.Option(
+      names = ["--edp-cert-der-secret-id"],
+      required = true,
+      description = ["Secret ID for the EDP cert"],
+    )
     lateinit var certDerSecretId: String
 
     @CommandLine.Option(
       names = ["--edp-cert-der-file-path"],
       required = true,
-      description = [
-        "Path to the EDP certificate in DER format. Must match the `consent_params` field of the `results_fulfiller_param` proto in DataWatcher."
-      ]
+      description =
+        [
+          "Path to the EDP certificate in DER format. Must match the `consent_params` field of the `results_fulfiller_param` proto in DataWatcher."
+        ],
     )
     lateinit var certDerFilePath: String
 
-    @CommandLine.Option(names = ["--edp-private-der-secret-id"], required = true, description = ["Secret ID for the EDP private key"])
+    @CommandLine.Option(
+      names = ["--edp-private-der-secret-id"],
+      required = true,
+      description = ["Secret ID for the EDP private key"],
+    )
     lateinit var privateDerSecretId: String
 
     @CommandLine.Option(
       names = ["--edp-private-der-file-path"],
       required = true,
-      description = ["EDP private key file path. Must match the `consent_params` field of the `results_fulfiller_param` proto in DataWatcher."]
+      description =
+        [
+          "EDP private key file path. Must match the `consent_params` field of the `results_fulfiller_param` proto in DataWatcher."
+        ],
     )
     lateinit var privateDerFilePath: String
 
-    @CommandLine.Option(names = ["--edp-enc-private-secret-id"], required = true, description = ["Secret ID for the EDP encryption private key"])
+    @CommandLine.Option(
+      names = ["--edp-enc-private-secret-id"],
+      required = true,
+      description = ["Secret ID for the EDP encryption private key"],
+    )
     lateinit var encPrivateSecretId: String
 
     @CommandLine.Option(
       names = ["--edp-enc-private-file-path"],
       required = true,
-      description = ["EDP encryption private key file path. Must match the `consent_params` field of the `results_fulfiller_param` proto in DataWatcher."]
+      description =
+        [
+          "EDP encryption private key file path. Must match the `consent_params` field of the `results_fulfiller_param` proto in DataWatcher."
+        ],
     )
     lateinit var encPrivateFilePath: String
 
-    @CommandLine.Option(names = ["--edp-tls-key-secret-id"], required = true, description = ["Secret ID for the EDP TLS key"])
+    @CommandLine.Option(
+      names = ["--edp-tls-key-secret-id"],
+      required = true,
+      description = ["Secret ID for the EDP TLS key"],
+    )
     lateinit var tlsKeySecretId: String
 
-    @CommandLine.Option(names = ["--edp-tls-key-file-path"], required = true, description = ["EDP TLS key file path"])
+    @CommandLine.Option(
+      names = ["--edp-tls-key-file-path"],
+      required = true,
+      description = ["EDP TLS key file path"],
+    )
     lateinit var tlsKeyFilePath: String
 
-    @CommandLine.Option(names = ["--edp-tls-pem-secret-id"], required = true, description = ["Secret ID for the EDP TLS cert"])
+    @CommandLine.Option(
+      names = ["--edp-tls-pem-secret-id"],
+      required = true,
+      description = ["Secret ID for the EDP TLS cert"],
+    )
     lateinit var tlsPemSecretId: String
 
-    @CommandLine.Option(names = ["--edp-tls-pem-file-path"], required = true, description = ["EDP TLS cert file path"])
+    @CommandLine.Option(
+      names = ["--edp-tls-pem-file-path"],
+      required = true,
+      description = ["EDP TLS cert file path"],
+    )
     lateinit var tlsPemFilePath: String
-
   }
 
   @CommandLine.Option(
