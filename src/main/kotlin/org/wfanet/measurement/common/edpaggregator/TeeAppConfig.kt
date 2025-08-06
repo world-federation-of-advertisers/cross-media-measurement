@@ -14,13 +14,10 @@
 
 package org.wfanet.measurement.common.edpaggregator
 
-import java.net.URI
-import java.nio.file.Paths
-import org.wfanet.measurement.common.flatten
-import org.wfanet.measurement.storage.SelectedStorageClient
-
 /** Function to get Tee Application' configurations from Storage */
 object TeeAppConfig {
+
+  private val loader = BlobLoader()
 
   /**
    * Fetches and returns the raw bytes of a UTF-8–encoded configuration blob from storage.
@@ -36,21 +33,8 @@ object TeeAppConfig {
     blobUri: String,
   ): ByteArray {
 
-    val uri = URI(blobUri)
-    val rootDirectory = if (uri.scheme == "file") {
-      val path = Paths.get(uri)
-      path.parent?.toFile()
-    } else {
-      null
-    }
-
-    val storageClient = SelectedStorageClient(url = blobUri, rootDirectory = rootDirectory, projectId = projectId)
-    val blobKey = uri.path.removePrefix("/")
-
-    val blob = checkNotNull(storageClient.getBlob(blobKey)) {
-      "Blob '$blobKey' not found at '$blobUri'"
-    }
-
-    return blob.read().flatten().toByteArray()
+    val prefix = blobUri.substringBeforeLast("/")
+    val key = blobUri.substringAfterLast("/")
+    return loader.getBytes(prefix, key, projectId).toByteArray()
   }
 }
