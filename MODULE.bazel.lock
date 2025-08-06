@@ -506,13 +506,13 @@
   "moduleExtensions": {
     "//build/cosign:extensions.bzl%cosign": {
       "general": {
-        "bzlTransitiveDigest": "FRpIJVrKXyMIUj4RCMvETrSwiuCeLuv656oXYyOHqWo=",
-        "usagesDigest": "i8qTPVy331pmIqeJOUgT06X89sfQ2ybpYD9xyBj7oJg=",
+        "bzlTransitiveDigest": "ZLIhJxfK+DmZHSQ4zgQrXyvZhedGtlpRPioc14ewAZ4=",
+        "usagesDigest": "IGzqkLFn2tdeL5STFqOABSJim9WWqZXhwBEXrrTzLBE=",
         "recordedFileInputs": {},
         "recordedDirentsInputs": {},
         "envVariables": {},
         "generatedRepoSpecs": {
-          "cosign_darwin_amd64": {
+          "oci_cosign_darwin_amd64": {
             "bzlFile": "@@rules_oci~//cosign:repositories.bzl",
             "ruleClassName": "cosign_repositories",
             "attributes": {
@@ -520,7 +520,7 @@
               "cosign_version": "v2.2.3"
             }
           },
-          "cosign_darwin_arm64": {
+          "oci_cosign_darwin_arm64": {
             "bzlFile": "@@rules_oci~//cosign:repositories.bzl",
             "ruleClassName": "cosign_repositories",
             "attributes": {
@@ -528,7 +528,7 @@
               "cosign_version": "v2.2.3"
             }
           },
-          "cosign_linux_arm64": {
+          "oci_cosign_linux_arm64": {
             "bzlFile": "@@rules_oci~//cosign:repositories.bzl",
             "ruleClassName": "cosign_repositories",
             "attributes": {
@@ -536,7 +536,7 @@
               "cosign_version": "v2.2.3"
             }
           },
-          "cosign_linux_armv6": {
+          "oci_cosign_linux_armv6": {
             "bzlFile": "@@rules_oci~//cosign:repositories.bzl",
             "ruleClassName": "cosign_repositories",
             "attributes": {
@@ -544,7 +544,7 @@
               "cosign_version": "v2.2.3"
             }
           },
-          "cosign_linux_i386": {
+          "oci_cosign_linux_i386": {
             "bzlFile": "@@rules_oci~//cosign:repositories.bzl",
             "ruleClassName": "cosign_repositories",
             "attributes": {
@@ -552,7 +552,7 @@
               "cosign_version": "v2.2.3"
             }
           },
-          "cosign_linux_s390x": {
+          "oci_cosign_linux_s390x": {
             "bzlFile": "@@rules_oci~//cosign:repositories.bzl",
             "ruleClassName": "cosign_repositories",
             "attributes": {
@@ -560,7 +560,7 @@
               "cosign_version": "v2.2.3"
             }
           },
-          "cosign_linux_amd64": {
+          "oci_cosign_linux_amd64": {
             "bzlFile": "@@rules_oci~//cosign:repositories.bzl",
             "ruleClassName": "cosign_repositories",
             "attributes": {
@@ -568,7 +568,7 @@
               "cosign_version": "v2.2.3"
             }
           },
-          "cosign_windows_armv6": {
+          "oci_cosign_windows_armv6": {
             "bzlFile": "@@rules_oci~//cosign:repositories.bzl",
             "ruleClassName": "cosign_repositories",
             "attributes": {
@@ -576,7 +576,7 @@
               "cosign_version": "v2.2.3"
             }
           },
-          "cosign_windows_amd64": {
+          "oci_cosign_windows_amd64": {
             "bzlFile": "@@rules_oci~//cosign:repositories.bzl",
             "ruleClassName": "cosign_repositories",
             "attributes": {
@@ -584,12 +584,12 @@
               "cosign_version": "v2.2.3"
             }
           },
-          "cosign_toolchains": {
+          "oci_cosign_toolchains": {
             "bzlFile": "@@rules_oci~//oci/private:toolchains_repo.bzl",
             "ruleClassName": "toolchains_repo",
             "attributes": {
               "toolchain_type": "@rules_oci//cosign:toolchain_type",
-              "toolchain": "@cosign_{platform}//:cosign_toolchain"
+              "toolchain": "@oci_cosign_{platform}//:cosign_toolchain"
             }
           }
         },

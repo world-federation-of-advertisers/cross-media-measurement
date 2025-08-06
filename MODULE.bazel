@@ -362,10 +362,9 @@ use_repo(
 
 # TODO(bazel-contrib/rules_oci#235): Replace this custom extension once rules_oci adds blzmod support for cosign.
 cosign = use_extension("//build/cosign:extensions.bzl", "cosign")
-cosign.toolchains()
-use_repo(cosign, "cosign_toolchains")
+use_repo(cosign, "oci_cosign_toolchains")
 
-register_toolchains("@cosign_toolchains//:all")
+register_toolchains("@oci_cosign_toolchains//:all")
 
 http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
