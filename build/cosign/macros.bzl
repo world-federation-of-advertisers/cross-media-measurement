@@ -38,7 +38,7 @@ def sign_all(
         cosign_sign(
             name = sign_name,
             image = image,
-            repository_url = repository_url,
+            repository = repository_url,
             **kwargs
         )
         command(
