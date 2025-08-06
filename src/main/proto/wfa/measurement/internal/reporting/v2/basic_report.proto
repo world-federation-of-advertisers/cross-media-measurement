@@ -67,7 +67,7 @@ message BasicReport {
     // Completed with failure. Terminal state.
     FAILED = 5;
     // Results have been invalidated. Terminal state.
-    INVALIDATED = 6;
+    INVALID = 6;
   }
   // `BasicReport` state.
   State state = 9;

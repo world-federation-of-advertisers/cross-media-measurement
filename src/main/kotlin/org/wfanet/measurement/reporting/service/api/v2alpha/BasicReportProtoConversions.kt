@@ -86,7 +86,7 @@ fun InternalBasicReport.toBasicReport(): BasicReport {
         InternalBasicReport.State.RESULTS_READY -> BasicReport.State.RUNNING
         InternalBasicReport.State.SUCCEEDED -> BasicReport.State.SUCCEEDED
         InternalBasicReport.State.FAILED -> BasicReport.State.FAILED
-        InternalBasicReport.State.INVALIDATED -> BasicReport.State.INVALIDATED
+        InternalBasicReport.State.INVALID -> BasicReport.State.INVALID
         InternalBasicReport.State.STATE_UNSPECIFIED -> BasicReport.State.STATE_UNSPECIFIED
         InternalBasicReport.State.UNRECOGNIZED -> BasicReport.State.UNRECOGNIZED
       }

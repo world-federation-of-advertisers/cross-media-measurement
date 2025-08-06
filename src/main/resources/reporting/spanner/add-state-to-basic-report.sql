@@ -24,7 +24,4 @@ ALTER TABLE BasicReports
 -- encoded as an integer.
 ADD COLUMN State INT64 NOT NULL DEFAULT (4);
 
-ALTER TABLE BasicReports
-ALTER COLUMN State INT64 NOT NULL;
-
 RUN BATCH;
