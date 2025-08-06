@@ -50,6 +50,7 @@ import org.mockito.kotlin.verifyBlocking
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reach
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reachAndFrequency
+import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.vidSamplingInterval
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams as cmmsDifferentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.elGamalPublicKey
 import org.wfanet.measurement.api.v2alpha.encryptionPublicKey
@@ -180,6 +181,10 @@ private val PUBLIC_API_MEASUREMENT_SPEC = measurementSpec {
       delta = 2.2
     }
     maximumFrequency = 10
+  }
+  vidSamplingInterval = vidSamplingInterval {
+    start = 0.1f
+    width = 0.5f
   }
   nonceHashes += REACH_ONLY_REQUISITION_1.nonceHash
   nonceHashes += REACH_ONLY_REQUISITION_2.nonceHash
@@ -1896,6 +1901,7 @@ class HeraldTest {
       .isEqualTo(
         TrusTeeKt.computationDetails {
           role = RoleInComputation.AGGREGATOR
+          type = TrusTee.ComputationDetails.Type.REACH_AND_FREQUENCY
           parameters =
             TrusTeeKt.ComputationDetailsKt.parameters {
               maximumFrequency = 10
@@ -1908,6 +1914,7 @@ class HeraldTest {
                 delta = 2.2
               }
               noiseMechanism = NoiseMechanism.CONTINUOUS_GAUSSIAN
+              vidSamplingIntervalWidth = 0.5f
             }
         }
       )
