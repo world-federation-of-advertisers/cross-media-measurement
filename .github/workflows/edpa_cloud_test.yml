@@ -15,9 +15,6 @@
 name: Run EDP Aggregator Cloud Test
 
 on:
-  push:
-    branches:
-      - marcopremier/edpa_cloud_test_workflow
   workflow_call:
     inputs:
       environment:
@@ -40,8 +37,7 @@ permissions:
 jobs:
   run-tests:
     runs-on: ubuntu-22.04
-#    environment: ${{ inputs.environment }}
-    environment: "dev"
+    environment: ${{ inputs.environment }}
     env:
       GOOGLE_CLOUD_PROJECT: ${{ vars.GCLOUD_PROJECT }}
     steps:
