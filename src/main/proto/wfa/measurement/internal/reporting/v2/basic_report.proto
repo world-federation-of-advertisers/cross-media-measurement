@@ -58,12 +58,16 @@ message BasicReport {
     CREATED = 1;
     // `Report` created.
     REPORT_CREATED = 2;
-    // `Report` is in SUCCEEDED state.
+    // `Report` is in SUCCEEDED state, and its results are transformed and
+    // persisted with the `BasicReport`.
     RESULTS_READY = 3;
-    // Completed successfully. Terminal state.
+    // Results have been noise-corrected. Available in the `BasicReport` as
+    // `result_details`.
     SUCCEEDED = 4;
     // Completed with failure. Terminal state.
     FAILED = 5;
+    // Results have been invalidated. Terminal state.
+    INVALIDATED = 6;
   }
   // `BasicReport` state.
   State state = 9;

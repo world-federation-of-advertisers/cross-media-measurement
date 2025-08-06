@@ -98,10 +98,12 @@ message BasicReport {
     STATE_UNSPECIFIED = 0;
     // Computation is running.
     RUNNING = 1;
-    // Completed successfully. Terminal state.
+    // Completed successfully.
     SUCCEEDED = 2;
     // Completed with failure. Terminal state.
     FAILED = 3;
+    // Results have been invalidated. Terminal state.
+    INVALIDATED = 4;
   }
   // `BasicReport` state.
   State state = 10 [(google.api.field_behavior) = OUTPUT_ONLY];
