@@ -273,6 +273,15 @@ class Herald(
             privateKeyStore,
           )
         }
+        Computation.MpcProtocolConfig.ProtocolCase.TRUS_TEE -> {
+          TrusTeeStarter.createComputation(
+            duchyId,
+            internalComputationsClient,
+            systemComputation,
+            protocolsSetupConfig.trusTee,
+            blobStorageBucket,
+          )
+        }
         Computation.MpcProtocolConfig.ProtocolCase.PROTOCOL_NOT_SET ->
           error("Unknown or unsupported protocol for creation.")
       }
@@ -347,8 +356,9 @@ class Herald(
             protocolsSetupConfig.reachOnlyLiquidLegionsV2.externalAggregatorDuchyId,
           )
         ComputationDetails.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE,
+        ComputationDetails.ProtocolCase.TRUS_TEE,
         ComputationDetails.ProtocolCase.PROTOCOL_NOT_SET ->
-          error("Unknown or unsupported protocol.")
+          error("Unknown or unsupported protocol: ${token.computationDetails.protocolCase}")
       }
       logger.info("[id=$globalId]: Confirmed Computation")
     }
@@ -368,6 +378,9 @@ class Herald(
           ReachOnlyLiquidLegionsV2Starter.startComputation(token, internalComputationsClient)
         ComputationDetails.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE -> {
           HonestMajorityShareShuffleStarter.startComputation(token, internalComputationsClient)
+        }
+        ComputationDetails.ProtocolCase.TRUS_TEE -> {
+          TrusTeeStarter.startComputation(token, internalComputationsClient)
         }
         ComputationDetails.ProtocolCase.PROTOCOL_NOT_SET ->
           error("Unknown or unsupported protocol.")
@@ -437,6 +450,8 @@ class Herald(
           ComputationDetails.ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2 ->
             ReachOnlyLiquidLegionsV2Starter.TERMINAL_STAGE
           ComputationDetails.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE ->
+            HonestMajorityShareShuffleStarter.TERMINAL_STAGE
+          ComputationDetails.ProtocolCase.TRUS_TEE ->
             HonestMajorityShareShuffleStarter.TERMINAL_STAGE
           ComputationDetails.ProtocolCase.PROTOCOL_NOT_SET ->
             error { "Unknown or unsupported protocol." }
