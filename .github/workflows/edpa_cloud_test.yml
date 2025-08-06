@@ -40,7 +40,8 @@ permissions:
 jobs:
   run-tests:
     runs-on: ubuntu-22.04
-    environment: ${{ inputs.environment }}
+#    environment: ${{ inputs.environment }}
+    environment: "dev"
     env:
       GOOGLE_CLOUD_PROJECT: ${{ vars.GCLOUD_PROJECT }}
     steps:
