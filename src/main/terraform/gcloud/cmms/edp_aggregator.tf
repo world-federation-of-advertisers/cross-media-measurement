@@ -133,7 +133,7 @@ locals {
     destination = "requisition-fetcher-config.textproto"
   }
 
-  results_fulfiller_config = {
+  results_fulfiller_event_descriptor = {
     local_path  = var.results_fulfiller_event_proto_descriptor_path
     destination = "results_fulfiller_event_proto_descriptor.pb"
   }
@@ -178,7 +178,7 @@ module "edp_aggregator" {
   requisition_fetcher_service_account_name  = "edpa-requisition-fetcher"
   data_watcher_config                       = local.data_watcher_config
   requisition_fetcher_config                = local.requisition_fetcher_config
-  results_fulfiller_config                  = local.results_fulfiller_config
+  results_fulfiller_event_descriptor        = local.results_fulfiller_event_descriptor
   event_group_sync_service_account_name     = "edpa-event-group-sync"
   event_group_sync_function_name            = "event-group-sync"
   edpa_tee_app_tls_key                      = local.edpa_tee_app_tls_key

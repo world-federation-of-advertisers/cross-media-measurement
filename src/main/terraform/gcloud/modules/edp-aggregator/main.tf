@@ -154,9 +154,9 @@ resource "google_storage_bucket_object" "upload_requisition_fetcher_config" {
 }
 
 resource "google_storage_bucket_object" "upload_results_fulfiller_proto_descriptors" {
-  name   = var.results_fulfiller_config.destination
+  name   = var.results_fulfiller_event_descriptor.destination
   bucket = module.config_files_bucket.storage_bucket.name
-  source = var.results_fulfiller_config.local_path
+  source = var.results_fulfiller_event_descriptor.local_path
 }
 
 resource "google_project_iam_member" "eventarc_service_agent" {
