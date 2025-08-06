@@ -342,12 +342,12 @@ oci.pull(
     image = "gcr.io/distroless/base",
     platforms = ["linux/amd64"],
 )
+
+# TODO(@marcopremier): #2729
 oci.pull(
     name = "java_debug_root",
     digest = "sha256:d970f3ca4dca489cbb1d6753c104de479359cc1b589bcd02a3e2067292237e32",
-    #    digest = "sha256:46b4e5494edffefed75f509f33a23a47344936a4c46ec850912ebae47163533c",
     image = "gcr.io/distroless/java17-debian12:debug",
-    #    image = "docker.io/bellsoft/liberica-openjdk-debian:17",
     platforms = ["linux/amd64"],
 )
 use_repo(
