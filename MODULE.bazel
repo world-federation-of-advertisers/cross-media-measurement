@@ -204,10 +204,8 @@ bazel_dep(
 )
 single_version_override(
     module_name = "rules_oci",
-    version = "2.2.1",
     patches = [
-        "//patches/rules_oci:sign_dot_bzl.patch",
-        "//patches/rules_oci:sign_dot_sh_dot_tpl.patch",
+        "//build/cosign/patches:sign_dot_bzl.patch",
     ],
     patch_strip = 1
 )
