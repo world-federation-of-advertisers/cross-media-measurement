@@ -47,9 +47,11 @@ object CloudFunctionConfig {
     defaultInstance: T,
     typeRegistry: TypeRegistry? = null,
   ): T {
-    val bucket = checkNotNull(System.getenv(CONFIG_STORAGE_BUCKET_ENV)) {
-      "Environment variable EDPA_CONFIG_STORAGE_BUCKET must be set."
-    }.removeSuffix("/")
+    val bucket =
+      checkNotNull(System.getenv(CONFIG_STORAGE_BUCKET_ENV)) {
+          "Environment variable EDPA_CONFIG_STORAGE_BUCKET must be set."
+        }
+        .removeSuffix("/")
     val projectId = System.getenv(GOOGLE_PROJECT_ID_ENV)
     val loader = BlobLoader()
     val bytes = loader.getBytes(bucket, configBlobKey, projectId)
