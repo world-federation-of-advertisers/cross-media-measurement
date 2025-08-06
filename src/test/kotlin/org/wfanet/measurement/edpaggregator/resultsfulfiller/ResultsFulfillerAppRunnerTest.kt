@@ -35,9 +35,7 @@ import org.mockito.kotlin.any
 @RunWith(JUnit4::class)
 class ResultsFulfillerAppRunnerTest {
 
-  @Rule
-  @JvmField
-  val tempFolder = TemporaryFolder()
+  @Rule @JvmField val tempFolder = TemporaryFolder()
 
   @Test
   fun `saveSecretToFile writes bytes to file`() {
@@ -70,18 +68,19 @@ class ResultsFulfillerAppRunnerTest {
       isAccessible = true
       set(runner, "testProject")
     }
-    val edp = ResultsFulfillerAppRunner.EdpFlags().apply {
-      certDerSecretId = "cert"
-      privateDerSecretId = "priv"
-      encPrivateSecretId = "enc"
-      tlsKeySecretId = "tlsKey"
-      tlsPemSecretId = "tlsPem"
-      certDerFilePath = File(tempFolder.root, "testEdp_cs_cert.der").absolutePath
-      privateDerFilePath = File(tempFolder.root, "testEdp_cs_private.der").absolutePath
-      encPrivateFilePath = File(tempFolder.root, "testEdp_enc_private.tink").absolutePath
-      tlsKeyFilePath = File(tempFolder.root, "testEdp_tls.key").absolutePath
-      tlsPemFilePath = File(tempFolder.root, "testEdp_tls.pem").absolutePath
-    }
+    val edp =
+      ResultsFulfillerAppRunner.EdpFlags().apply {
+        certDerSecretId = "cert"
+        privateDerSecretId = "priv"
+        encPrivateSecretId = "enc"
+        tlsKeySecretId = "tlsKey"
+        tlsPemSecretId = "tlsPem"
+        certDerFilePath = File(tempFolder.root, "testEdp_cs_cert.der").absolutePath
+        privateDerFilePath = File(tempFolder.root, "testEdp_cs_private.der").absolutePath
+        encPrivateFilePath = File(tempFolder.root, "testEdp_enc_private.tink").absolutePath
+        tlsKeyFilePath = File(tempFolder.root, "testEdp_tls.key").absolutePath
+        tlsPemFilePath = File(tempFolder.root, "testEdp_tls.pem").absolutePath
+      }
 
     runner.javaClass.getDeclaredField("edpCerts").apply {
       isAccessible = true

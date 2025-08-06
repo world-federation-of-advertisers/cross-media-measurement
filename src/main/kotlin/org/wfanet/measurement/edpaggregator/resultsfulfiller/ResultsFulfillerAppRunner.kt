@@ -16,6 +16,9 @@
 
 package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
+import com.google.cloud.secretmanager.v1.AccessSecretVersionRequest
+import com.google.cloud.secretmanager.v1.SecretManagerServiceClient
+import com.google.cloud.secretmanager.v1.SecretVersionName
 import com.google.crypto.tink.integration.gcpkms.GcpKmsClient
 import com.google.protobuf.DescriptorProtos
 import com.google.protobuf.Descriptors
@@ -40,9 +43,6 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAttemptsGrpcKt
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt
 import picocli.CommandLine
-import com.google.cloud.secretmanager.v1.SecretManagerServiceClient
-import com.google.cloud.secretmanager.v1.AccessSecretVersionRequest
-import com.google.cloud.secretmanager.v1.SecretVersionName
 import java.net.URI
 import org.wfanet.measurement.common.edpaggregator.TeeAppConfig.getConfig
 
@@ -79,46 +79,91 @@ class ResultsFulfillerAppRunner : Runnable {
   )
   private lateinit var kingdomCertCollectionSecretId: String
 
-  @CommandLine.ArgGroup(
-    exclusive = false,
-    multiplicity = "1..*",
-    heading = "Single EDP certs\n"
-  )
+  @CommandLine.ArgGroup(exclusive = false, multiplicity = "1..*", heading = "Single EDP certs\n")
   lateinit var edpCerts: List<EdpFlags>
     private set
 
-  // The file paths supplied via each EdpFlags instance must exactly match the paths defined in the ResultsFulfillerParam proto configuration.
+  // The file paths supplied via each EdpFlags instance must exactly match the paths defined in the
+  // ResultsFulfillerParam proto configuration.
   class EdpFlags {
-    @CommandLine.Option(names = ["--edp-cert-der-secret-id"], required = true, description = ["Secret ID for the EDP cert"])
+    @CommandLine.Option(
+      names = ["--edp-cert-der-secret-id"],
+      required = true,
+      description = ["Secret ID for the EDP cert"],
+    )
     lateinit var certDerSecretId: String
 
-    @CommandLine.Option(names = ["--edp-cert-der-file-path"], required = true, description = ["EDP cert file path"])
+    @CommandLine.Option(
+      names = ["--edp-cert-der-file-path"],
+      required = true,
+      description =
+        [
+          "Path to the EDP certificate in DER format. Must match the `consent_params` field of the `results_fulfiller_param` proto in DataWatcher."
+        ],
+    )
     lateinit var certDerFilePath: String
 
-    @CommandLine.Option(names = ["--edp-private-der-secret-id"], required = true, description = ["Secret ID for the EDP private key"])
+    @CommandLine.Option(
+      names = ["--edp-private-der-secret-id"],
+      required = true,
+      description = ["Secret ID for the EDP private key"],
+    )
     lateinit var privateDerSecretId: String
 
-    @CommandLine.Option(names = ["--edp-private-der-file-path"], required = true, description = ["EDP private key file path"])
+    @CommandLine.Option(
+      names = ["--edp-private-der-file-path"],
+      required = true,
+      description =
+        [
+          "EDP private key file path. Must match the `consent_params` field of the `results_fulfiller_param` proto in DataWatcher."
+        ],
+    )
     lateinit var privateDerFilePath: String
 
-    @CommandLine.Option(names = ["--edp-enc-private-secret-id"], required = true, description = ["Secret ID for the EDP encryption private key"])
+    @CommandLine.Option(
+      names = ["--edp-enc-private-secret-id"],
+      required = true,
+      description = ["Secret ID for the EDP encryption private key"],
+    )
     lateinit var encPrivateSecretId: String
 
-    @CommandLine.Option(names = ["--edp-enc-private-file-path"], required = true, description = ["EDP encryption private key file path"])
+    @CommandLine.Option(
+      names = ["--edp-enc-private-file-path"],
+      required = true,
+      description =
+        [
+          "EDP encryption private key file path. Must match the `consent_params` field of the `results_fulfiller_param` proto in DataWatcher."
+        ],
+    )
     lateinit var encPrivateFilePath: String
 
-    @CommandLine.Option(names = ["--edp-tls-key-secret-id"], required = true, description = ["Secret ID for the EDP TLS key"])
+    @CommandLine.Option(
+      names = ["--edp-tls-key-secret-id"],
+      required = true,
+      description = ["Secret ID for the EDP TLS key"],
+    )
     lateinit var tlsKeySecretId: String
 
-    @CommandLine.Option(names = ["--edp-tls-key-file-path"], required = true, description = ["EDP TLS key file path"])
+    @CommandLine.Option(
+      names = ["--edp-tls-key-file-path"],
+      required = true,
+      description = ["EDP TLS key file path"],
+    )
     lateinit var tlsKeyFilePath: String
 
-    @CommandLine.Option(names = ["--edp-tls-pem-secret-id"], required = true, description = ["Secret ID for the EDP TLS cert"])
+    @CommandLine.Option(
+      names = ["--edp-tls-pem-secret-id"],
+      required = true,
+      description = ["Secret ID for the EDP TLS cert"],
+    )
     lateinit var tlsPemSecretId: String
 
-    @CommandLine.Option(names = ["--edp-tls-pem-file-path"], required = true, description = ["EDP TLS cert file path"])
+    @CommandLine.Option(
+      names = ["--edp-tls-pem-file-path"],
+      required = true,
+      description = ["EDP TLS cert file path"],
+    )
     lateinit var tlsPemFilePath: String
-
   }
 
   @CommandLine.Option(
@@ -325,9 +370,8 @@ class ResultsFulfillerAppRunner : Runnable {
   fun accessSecretBytes(projectId: String, secretId: String, version: String): ByteArray {
     return SecretManagerServiceClient.create().use { client ->
       val secretVersionName = SecretVersionName.of(projectId, secretId, version)
-      val request = AccessSecretVersionRequest.newBuilder()
-        .setName(secretVersionName.toString())
-        .build()
+      val request =
+        AccessSecretVersionRequest.newBuilder().setName(secretVersionName.toString()).build()
 
       val response = client.accessSecretVersion(request)
       response.payload.data.toByteArray()
@@ -364,7 +408,8 @@ class ResultsFulfillerAppRunner : Runnable {
     private const val SECRET_VERSION = "latest"
     private const val EDPA_TLS_CERT_FILE_PATH = "/tmp/edpa_certs/edpa_tee_app_tls.pem"
     private const val EDPA_TLS_KEY_FILE_PATH = "/tmp/edpa_certs/edpa_tee_app_tls.key"
-    private const val SECURE_COMPUTATION_ROOT_CA_FILE_PATH = "/tmp/edpa_certs/secure_computation_root.pem"
+    private const val SECURE_COMPUTATION_ROOT_CA_FILE_PATH =
+      "/tmp/edpa_certs/secure_computation_root.pem"
     private const val KINGDOM_ROOT_CA_FILE_PATH = "/tmp/edpa_certs/kingdom_root.pem"
 
     private const val PROTO_DESCRIPTORS_DIR = "/tmp/proto_descriptors"
