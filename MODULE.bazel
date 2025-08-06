@@ -202,6 +202,15 @@ bazel_dep(
     name = "rules_oci",
     version = "2.2.1",
 )
+single_version_override(
+    module_name = "rules_oci",
+    version = "2.2.1",
+    patches = [
+        "//patches/rules_oci:sign_dot_bzl.patch",
+        "//patches/rules_oci:sign_dot_sh_dot_tpl.patch",
+    ],
+    patch_strip = 1
+)
 bazel_dep(
     name = "rules_multirun",
     version = "0.12.0",

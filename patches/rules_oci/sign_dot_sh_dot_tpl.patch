@@ -1,0 +1,9 @@
+--- a/cosign/private/sign.sh.tpl
++++ b/cosign/private/sign.sh.tpl
+@@ -22,5 +22,6 @@ while (( $# > 0 )); do
+     esac
+ done
+ 
++echo "Running ${COSIGN}" sign "${REPOSITORY}@${DIGEST}" ${ARGS[@]+"${ARGS[@]}"}
+ exec "${COSIGN}" sign "${REPOSITORY}@${DIGEST}" ${ARGS[@]+"${ARGS[@]}"}
+ 
