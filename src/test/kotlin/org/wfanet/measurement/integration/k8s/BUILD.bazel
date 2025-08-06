@@ -130,7 +130,7 @@ java_test(
 )
 
 kt_jvm_library(
-    name = "abstract_edp_aggregatorcorrectness_test",
+    name = "abstract_edp_aggregator_correctness_test",
     srcs = ["AbstractEdpAggregatorCorrectnessTest.kt"],
     data = [
         "//src/main/k8s/testing/secretfiles:mc_trusted_certs.pem",
@@ -154,7 +154,7 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/loadtest/dataprovider:specs",
     ],
     deps = [
-        ":abstract_edp_aggregatorcorrectness_test",
+        ":abstract_edp_aggregator_correctness_test",
         "//src/main/proto/wfa/measurement/api/v2alpha/event_group_metadata/testing:simulator_synthetic_data_spec_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:test_event_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/edpaggregator/eventgroups/v1alpha:event_group_kt_jvm_proto",
@@ -171,9 +171,9 @@ kt_jvm_library(
 java_test(
     name = "EdpAggregatorCorrectnessTest",
     timeout = "long",
-    data = [
-        ":correctness_test_config.textproto",
-    ],
+    #    data = [
+    #        ":correctness_test_config.textproto",
+    #    ],
     tags = [
         "exclusive",
         "external",
