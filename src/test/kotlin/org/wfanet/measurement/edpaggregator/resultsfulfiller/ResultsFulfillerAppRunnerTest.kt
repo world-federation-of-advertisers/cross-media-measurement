@@ -22,22 +22,15 @@ import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import org.junit.runners.JUnit4
 import com.google.common.truth.Truth.assertThat
-import com.google.auth.oauth2.GoogleCredentials
-import com.google.crypto.tink.integration.gcpkms.GcpKmsClient
 import java.io.File
-import java.io.InputStream
 import java.nio.file.Files
 import org.mockito.ArgumentMatchers.anyString
 import org.mockito.Mockito.doNothing
 import org.mockito.Mockito.doReturn
-import org.mockito.Mockito.mock
-import org.mockito.Mockito.mockConstruction
-import org.mockito.Mockito.mockStatic
 import org.mockito.Mockito.spy
 import org.mockito.Mockito.times
 import org.mockito.Mockito.verify
 import org.mockito.kotlin.any
-import org.mockito.kotlin.whenever
 
 @RunWith(JUnit4::class)
 class ResultsFulfillerAppRunnerTest {
