@@ -17,24 +17,20 @@ package org.wfanet.measurement.common.edpaggregator
 /** Function to get Tee Application' configurations from Storage */
 object TeeAppConfig {
 
-  private val loader = BlobLoader()
-
   /**
    * Fetches and returns the raw bytes of a UTF-8–encoded configuration blob from storage.
    *
-   * @param projectId    GCP project ID (used for GCS access; ignored for `file:` URIs).
-   * @param blobUri      Full URI of the config blob to load.
-   * @return             Raw bytes of the loaded config.
+   * @param projectId GCP project ID (used for GCS access; ignored for `file:` URIs).
+   * @param blobUri Full URI of the config blob to load.
+   * @return Raw bytes of the loaded config.
    * @throws IllegalArgumentException if [blobUri] is empty or malformed.
-   * @throws IllegalStateException    if the blob isn’t found at the given URI.
+   * @throws IllegalStateException if the blob isn’t found at the given URI.
    */
-  suspend fun getConfig(
-    projectId: String,
-    blobUri: String,
-  ): ByteArray {
+  suspend fun getConfig(projectId: String, blobUri: String): ByteArray {
 
     val prefix = blobUri.substringBeforeLast("/")
     val key = blobUri.substringAfterLast("/")
+    val loader = BlobLoader()
     return loader.getBytes(prefix, key, projectId).toByteArray()
   }
 }
