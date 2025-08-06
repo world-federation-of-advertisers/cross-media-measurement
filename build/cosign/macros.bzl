@@ -15,7 +15,7 @@
 """Common macros."""
 
 load("@rules_multirun//:defs.bzl", "command", "multirun")
-load("//third_party/rules_oci:sign.bzl", "cosign_sign")
+load("@rules_oci//cosign:defs.bzl", "cosign_sign")
 
 def sign_all(
         name,
