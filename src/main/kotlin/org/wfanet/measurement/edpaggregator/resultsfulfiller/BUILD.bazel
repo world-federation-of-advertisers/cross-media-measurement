@@ -1,7 +1,6 @@
 load("@rules_java//java:defs.bzl", "java_binary")
 load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
 load("//src/main/docker:macros.bzl", "java_image")
-load("@wfa_common_jvm//build/rules_oci:defs.bzl", "DEFAULT_JAVA_DEBUG_IMAGE_BASE")
 
 package(
     default_visibility = [
@@ -177,8 +176,7 @@ java_binary(
 
 java_image(
     name = "results_fulfiller_image",
-    #    base = "@java_debug_root",
-    base = DEFAULT_JAVA_DEBUG_IMAGE_BASE,
+    base = "@java_debug_root",
     binary = ":ResultsFulfiller",
     main_class = "org.wfanet.measurement.edpaggregator.resultsfulfiller.ResultsFulfillerAppRunner",
     visibility = ["//src:docker_image_deployment"],

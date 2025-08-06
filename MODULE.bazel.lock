@@ -2290,7 +2290,7 @@
     "@@rules_oci~//oci:extensions.bzl%oci": {
       "general": {
         "bzlTransitiveDigest": "Pwl3buD1so+kkqQIhc0set/YV3qQif9bq1U9dF30htA=",
-        "usagesDigest": "JjX80+8a97ZZJQTHUeFjsGbcCSh12+C+gkg47DkYgCg=",
+        "usagesDigest": "87xcKgCSr6x/DCoIksvop2RxwOTtRuoa0XMyUvP8Rlo=",
         "recordedFileInputs": {},
         "recordedDirentsInputs": {},
         "envVariables": {},
@@ -2329,9 +2329,9 @@
             "ruleClassName": "oci_pull",
             "attributes": {
               "scheme": "https",
-              "registry": "index.docker.io",
-              "repository": "bellsoft/liberica-openjdk-debian",
-              "identifier": "sha256:46b4e5494edffefed75f509f33a23a47344936a4c46ec850912ebae47163533c",
+              "registry": "gcr.io",
+              "repository": "distroless/java17-debian12",
+              "identifier": "sha256:d970f3ca4dca489cbb1d6753c104de479359cc1b589bcd02a3e2067292237e32",
               "platform": "linux/amd64",
               "target_name": "java_debug_root_linux_amd64",
               "bazel_tags": []
@@ -2343,9 +2343,9 @@
             "attributes": {
               "target_name": "java_debug_root",
               "scheme": "https",
-              "registry": "index.docker.io",
-              "repository": "bellsoft/liberica-openjdk-debian",
-              "identifier": "sha256:46b4e5494edffefed75f509f33a23a47344936a4c46ec850912ebae47163533c",
+              "registry": "gcr.io",
+              "repository": "distroless/java17-debian12",
+              "identifier": "sha256:d970f3ca4dca489cbb1d6753c104de479359cc1b589bcd02a3e2067292237e32",
               "platforms": {
                 "@@platforms//cpu:x86_64": "@java_debug_root_linux_amd64"
               },
