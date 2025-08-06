@@ -21,7 +21,32 @@ import java.nio.file.Paths
 import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.storage.SelectedStorageClient
 
+/**
+ * Loads raw configuration data blobs from storage.
+ *
+ * Uses the provided URI prefix and blob key to locate the resource, then returns its
+ * raw bytes as a [ByteString].
+ */
 class BlobLoader {
+
+  /**
+   * Fetches the raw bytes for the given blob.
+   *
+   * @param blobUriPrefix
+   *   URI prefix where blobs are stored. For local files this should start with `file:///`.
+   * @param blobKey
+   *   Name of the blob to load.
+   * @param projectId
+   *   Optional GCP project ID, used when reading from Google Cloud Storage.
+   *
+   * @return
+   *   A [ByteString] containing the raw bytes of the blob.
+   *
+   * @throws IllegalArgumentException
+   *   If [blobUriPrefix] or [blobKey] are malformed.
+   * @throws IllegalStateException
+   *   If no blob is found at the resolved location.
+   */
   suspend fun getBytes(
     blobUriPrefix: String, blobKey: String, projectId: String?
   ): ByteString {
