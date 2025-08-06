@@ -22,15 +22,22 @@ import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import org.junit.runners.JUnit4
 import com.google.common.truth.Truth.assertThat
+import com.google.auth.oauth2.GoogleCredentials
+import com.google.crypto.tink.integration.gcpkms.GcpKmsClient
 import java.io.File
+import java.io.InputStream
 import java.nio.file.Files
 import org.mockito.ArgumentMatchers.anyString
 import org.mockito.Mockito.doNothing
 import org.mockito.Mockito.doReturn
+import org.mockito.Mockito.mock
+import org.mockito.Mockito.mockConstruction
+import org.mockito.Mockito.mockStatic
 import org.mockito.Mockito.spy
 import org.mockito.Mockito.times
 import org.mockito.Mockito.verify
 import org.mockito.kotlin.any
+import org.mockito.kotlin.whenever
 
 @RunWith(JUnit4::class)
 class ResultsFulfillerAppRunnerTest {
@@ -122,6 +129,45 @@ class ResultsFulfillerAppRunnerTest {
     val outputFile = File(configDir, descriptorName)
     assertThat(outputFile.exists()).isTrue()
     assertThat(outputFile.readBytes()).isEqualTo(expectedBytes)
+  }
+
+  @Test
+  fun `createKmsClients populates kmsClientsMap keys`() {
+    val runner = ResultsFulfillerAppRunner()
+
+    val edpCertsField = runner.javaClass
+      .getDeclaredField("edpCerts")
+      .apply { isAccessible = true }
+
+    val edp1 = ResultsFulfillerAppRunner.EdpFlags().apply {
+      edpKmsAudience = "aud1"
+      edpTargetServiceAccount = "sa1"
+      edpResourceName = "res1"
+    }
+    val edp2 = ResultsFulfillerAppRunner.EdpFlags().apply {
+      edpKmsAudience = "aud2"
+      edpTargetServiceAccount = "sa2"
+      edpResourceName = "res2"
+    }
+
+    edpCertsField.set(runner, listOf(edp1, edp2))
+
+    runner.javaClass
+      .getDeclaredMethod("createKmsClients")
+      .apply {
+        isAccessible = true
+      }
+      .invoke(runner)
+
+    val kmsMapField = runner.javaClass
+      .getDeclaredField("kmsClientsMap")
+      .apply { isAccessible = true }
+
+    @Suppress("UNCHECKED_CAST")
+    val map = kmsMapField.get(runner) as Map<String, *>
+
+    // Verify that the map contains the right KmsClients
+    assertThat(map.keys).containsExactly("res1", "res2")
   }
 
 }

@@ -323,7 +323,7 @@ class ResultsFulfillerAppRunner : Runnable {
   }
 
   // TODO(@marcopremier): Refactor when common-jvm #330 get merge
-  private fun createKmsClients() {
+  fun createKmsClients() {
 
     kmsClientsMap = mutableMapOf()
 
