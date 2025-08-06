@@ -22,5 +22,4 @@ def _cosign_impl(module_ctx):
 
 cosign = module_extension(
     implementation = _cosign_impl,
-    tag_classes = {},
 )
