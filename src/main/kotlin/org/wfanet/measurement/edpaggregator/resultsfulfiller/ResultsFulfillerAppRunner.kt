@@ -263,7 +263,7 @@ class ResultsFulfillerAppRunner : Runnable {
     return TypeRegistry.newBuilder()
       .apply {
         add(COMPILED_PROTOBUF_TYPES.flatMap { it.messageTypes })
-        val localDescriptorFiles = File(CONFIG_FILE_DIR)
+        val localDescriptorFiles = File(PROTO_DESCRIPTORS_DIR)
           .listFiles()
           ?.toList()
           .orEmpty()
@@ -310,7 +310,7 @@ class ResultsFulfillerAppRunner : Runnable {
       eventTemplateDescriptorBlobUris.forEach {
         saveByteArrayToFile(
           getConfig(googleProjectId, it),
-          "$CONFIG_FILE_DIR/${URI(it).path.substringAfterLast("/")}"
+          "$PROTO_DESCRIPTORS_DIR/${URI(it).path.substringAfterLast("/")}"
         )
       }
     }
@@ -367,7 +367,7 @@ class ResultsFulfillerAppRunner : Runnable {
     private const val SECURE_COMPUTATION_ROOT_CA_FILE_PATH = "/tmp/edpa_certs/secure_computation_root.pem"
     private const val KINGDOM_ROOT_CA_FILE_PATH = "/tmp/edpa_certs/kingdom_root.pem"
 
-    private const val CONFIG_FILE_DIR = "/tmp/proto_descriptors"
+    private const val PROTO_DESCRIPTORS_DIR = "/tmp/proto_descriptors"
 
     @JvmStatic fun main(args: Array<String>) = commandLineMain(ResultsFulfillerAppRunner(), args)
   }
