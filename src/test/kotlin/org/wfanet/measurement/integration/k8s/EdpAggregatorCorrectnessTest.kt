@@ -257,7 +257,7 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
     private val RPC_DEADLINE_DURATION = Duration.ofSeconds(30)
     private val CONFIG_PATH =
       Paths.get("src", "test", "kotlin", "org", "wfanet", "measurement", "integration", "k8s")
-    private const val TEST_CONFIG_NAME = "correctness_test_config.textproto"
+    private const val TEST_CONFIG_NAME = "edpa_correctness_test_config.textproto"
     private val TEST_CONFIG: CorrectnessTestConfig by lazy {
       val configFile = getRuntimePath(CONFIG_PATH.resolve(TEST_CONFIG_NAME)).toFile()
       parseTextProto(configFile, CorrectnessTestConfig.getDefaultInstance())
