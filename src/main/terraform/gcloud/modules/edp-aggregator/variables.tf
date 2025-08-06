@@ -174,8 +174,8 @@ variable "requisition_fetcher_config" {
   })
 }
 
-variable "results_fulfiller_config" {
-  description = "An object containing the local path of the results fulfiller config file and its destination path in Cloud Storage."
+variable "results_fulfiller_event_descriptor" {
+  description = "An object containing the local path of the results fulfiller event descriptor file and its destination path in Cloud Storage."
   type = object({
     local_path  = string
     destination = string
