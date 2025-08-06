@@ -17,8 +17,6 @@ package org.wfanet.measurement.common.edpaggregator
 /** Function to get Tee Application' configurations from Storage */
 object TeeAppConfig {
 
-  private val loader = BlobLoader()
-
   /**
    * Fetches and returns the raw bytes of a UTF-8–encoded configuration blob from storage.
    *
@@ -35,6 +33,7 @@ object TeeAppConfig {
 
     val prefix = blobUri.substringBeforeLast("/")
     val key = blobUri.substringAfterLast("/")
+    val loader = BlobLoader()
     return loader.getBytes(prefix, key, projectId).toByteArray()
   }
 }
