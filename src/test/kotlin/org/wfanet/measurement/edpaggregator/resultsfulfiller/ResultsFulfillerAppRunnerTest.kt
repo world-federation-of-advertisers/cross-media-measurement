@@ -24,6 +24,13 @@ import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.mockito.ArgumentMatchers.anyString
+import org.mockito.Mockito.doNothing
+import org.mockito.Mockito.doReturn
+import org.mockito.Mockito.spy
+import org.mockito.Mockito.times
+import org.mockito.Mockito.verify
+import org.mockito.kotlin.any
 
 @RunWith(JUnit4::class)
 class ResultsFulfillerAppRunnerTest {
@@ -52,5 +59,37 @@ class ResultsFulfillerAppRunnerTest {
 
     assertThat(nestedFile.exists()).isTrue()
     assertThat(data).isEqualTo(nestedFile.readBytes())
+  }
+
+  @Test
+  fun saveEdpsCerts_callsSaveSecretToFileFiveTimesForOneEdp() {
+    val runner = spy(ResultsFulfillerAppRunner())
+    runner.javaClass.getDeclaredField("googleProjectId").apply {
+      isAccessible = true
+      set(runner, "testProject")
+    }
+    val edp =
+      ResultsFulfillerAppRunner.EdpFlags().apply {
+        certDerSecretId = "cert"
+        privateDerSecretId = "priv"
+        encPrivateSecretId = "enc"
+        tlsKeySecretId = "tlsKey"
+        tlsPemSecretId = "tlsPem"
+        certDerFilePath = File(tempFolder.root, "testEdp_cs_cert.der").absolutePath
+        privateDerFilePath = File(tempFolder.root, "testEdp_cs_private.der").absolutePath
+        encPrivateFilePath = File(tempFolder.root, "testEdp_enc_private.tink").absolutePath
+        tlsKeyFilePath = File(tempFolder.root, "testEdp_tls.key").absolutePath
+        tlsPemFilePath = File(tempFolder.root, "testEdp_tls.pem").absolutePath
+      }
+
+    runner.javaClass.getDeclaredField("edpCerts").apply {
+      isAccessible = true
+      set(runner, listOf(edp))
+    }
+
+    doReturn(ByteArray(0)).`when`(runner).accessSecretBytes(anyString(), anyString(), anyString())
+    doNothing().`when`(runner).saveSecretToFile(any(), anyString())
+    runner.saveEdpsCerts()
+    verify(runner, times(5)).saveSecretToFile(any(), anyString())
   }
 }

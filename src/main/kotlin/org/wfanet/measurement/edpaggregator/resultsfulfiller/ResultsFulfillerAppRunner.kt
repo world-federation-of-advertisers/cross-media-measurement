@@ -77,6 +77,93 @@ class ResultsFulfillerAppRunner : Runnable {
   )
   private lateinit var kingdomCertCollectionSecretId: String
 
+  @CommandLine.ArgGroup(exclusive = false, multiplicity = "1..*", heading = "Single EDP certs\n")
+  lateinit var edpCerts: List<EdpFlags>
+    private set
+
+  // The file paths supplied via each EdpFlags instance must exactly match the paths defined in the
+  // ResultsFulfillerParam proto configuration.
+  class EdpFlags {
+    @CommandLine.Option(
+      names = ["--edp-cert-der-secret-id"],
+      required = true,
+      description = ["Secret ID for the EDP cert"],
+    )
+    lateinit var certDerSecretId: String
+
+    @CommandLine.Option(
+      names = ["--edp-cert-der-file-path"],
+      required = true,
+      description =
+        [
+          "Path to the EDP certificate in DER format. Must match the `consent_params` field of the `results_fulfiller_param` proto in DataWatcher."
+        ],
+    )
+    lateinit var certDerFilePath: String
+
+    @CommandLine.Option(
+      names = ["--edp-private-der-secret-id"],
+      required = true,
+      description = ["Secret ID for the EDP private key"],
+    )
+    lateinit var privateDerSecretId: String
+
+    @CommandLine.Option(
+      names = ["--edp-private-der-file-path"],
+      required = true,
+      description =
+        [
+          "EDP private key file path. Must match the `consent_params` field of the `results_fulfiller_param` proto in DataWatcher."
+        ],
+    )
+    lateinit var privateDerFilePath: String
+
+    @CommandLine.Option(
+      names = ["--edp-enc-private-secret-id"],
+      required = true,
+      description = ["Secret ID for the EDP encryption private key"],
+    )
+    lateinit var encPrivateSecretId: String
+
+    @CommandLine.Option(
+      names = ["--edp-enc-private-file-path"],
+      required = true,
+      description =
+        [
+          "EDP encryption private key file path. Must match the `consent_params` field of the `results_fulfiller_param` proto in DataWatcher."
+        ],
+    )
+    lateinit var encPrivateFilePath: String
+
+    @CommandLine.Option(
+      names = ["--edp-tls-key-secret-id"],
+      required = true,
+      description = ["Secret ID for the EDP TLS key"],
+    )
+    lateinit var tlsKeySecretId: String
+
+    @CommandLine.Option(
+      names = ["--edp-tls-key-file-path"],
+      required = true,
+      description = ["EDP TLS key file path"],
+    )
+    lateinit var tlsKeyFilePath: String
+
+    @CommandLine.Option(
+      names = ["--edp-tls-pem-secret-id"],
+      required = true,
+      description = ["Secret ID for the EDP TLS cert"],
+    )
+    lateinit var tlsPemSecretId: String
+
+    @CommandLine.Option(
+      names = ["--edp-tls-pem-file-path"],
+      required = true,
+      description = ["EDP TLS cert file path"],
+    )
+    lateinit var tlsPemFilePath: String
+  }
+
   @CommandLine.Option(
     names = ["--kingdom-public-api-target"],
     description = ["gRPC target of the Kingdom public API server"],
@@ -145,7 +232,9 @@ class ResultsFulfillerAppRunner : Runnable {
 
   override fun run() {
 
+    // Pull certificates needed to operate from Google Secrets.
     saveEdpaCerts()
+    saveEdpsCerts()
 
     val queueSubscriber = createQueueSubscriber()
     val parser = createWorkItemParser()
@@ -239,6 +328,21 @@ class ResultsFulfillerAppRunner : Runnable {
     val kingdomRootCa =
       accessSecretBytes(googleProjectId, kingdomCertCollectionSecretId, SECRET_VERSION)
     saveSecretToFile(kingdomRootCa, KINGDOM_ROOT_CA_FILE_PATH)
+  }
+
+  fun saveEdpsCerts() {
+    edpCerts.forEachIndexed { index, edp ->
+      val edpCertDer = accessSecretBytes(googleProjectId, edp.certDerSecretId, SECRET_VERSION)
+      saveSecretToFile(edpCertDer, edp.certDerFilePath)
+      val edpprivateDer = accessSecretBytes(googleProjectId, edp.privateDerSecretId, SECRET_VERSION)
+      saveSecretToFile(edpprivateDer, edp.privateDerFilePath)
+      val edpEncPrivate = accessSecretBytes(googleProjectId, edp.encPrivateSecretId, SECRET_VERSION)
+      saveSecretToFile(edpEncPrivate, edp.encPrivateFilePath)
+      val edpTlsKey = accessSecretBytes(googleProjectId, edp.tlsKeySecretId, SECRET_VERSION)
+      saveSecretToFile(edpTlsKey, edp.tlsKeyFilePath)
+      val edpTlsPem = accessSecretBytes(googleProjectId, edp.tlsPemSecretId, SECRET_VERSION)
+      saveSecretToFile(edpTlsPem, edp.tlsPemFilePath)
+    }
   }
 
   fun saveSecretToFile(bytes: ByteArray, path: String) {
