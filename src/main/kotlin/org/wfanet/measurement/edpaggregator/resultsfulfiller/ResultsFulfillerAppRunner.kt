@@ -19,6 +19,7 @@ package org.wfanet.measurement.edpaggregator.resultsfulfiller
 import com.google.cloud.secretmanager.v1.AccessSecretVersionRequest
 import com.google.cloud.secretmanager.v1.SecretManagerServiceClient
 import com.google.cloud.secretmanager.v1.SecretVersionName
+import com.google.crypto.tink.KmsClient
 import com.google.crypto.tink.integration.gcpkms.GcpKmsClient
 import com.google.protobuf.DescriptorProtos
 import com.google.protobuf.Descriptors
@@ -45,6 +46,9 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGr
 import picocli.CommandLine
 import java.net.URI
 import org.wfanet.measurement.common.edpaggregator.TeeAppConfig.getConfig
+import com.google.auth.oauth2.GoogleCredentials
+import java.io.ByteArrayInputStream
+import java.nio.charset.StandardCharsets
 
 @CommandLine.Command(name = "results_fulfiller_app_runner")
 class ResultsFulfillerAppRunner : Runnable {
@@ -86,6 +90,27 @@ class ResultsFulfillerAppRunner : Runnable {
   // The file paths supplied via each EdpFlags instance must exactly match the paths defined in the
   // ResultsFulfillerParam proto configuration.
   class EdpFlags {
+    @CommandLine.Option(
+      names = ["--edp-kms-audience"],
+      required = true,
+      description = ["Kms credential audience as workload identity pool provider"],
+    )
+    lateinit var edpKmsAudience: String
+
+    @CommandLine.Option(
+      names = ["--edp-target-service-account"],
+      required = true,
+      description = ["Edp service account with KMS access"],
+    )
+    lateinit var edpTargetServiceAccount: String
+
+    @CommandLine.Option(
+      names = ["--edp-resource-name"],
+      required = true,
+      description = ["Edp resource name. It must match the resource name in the DataWatcher ResultsFulfillerParams."],
+    )
+      lateinit var edpResourceName: String
+
     @CommandLine.Option(
       names = ["--edp-cert-der-secret-id"],
       required = true,
@@ -228,6 +253,8 @@ class ResultsFulfillerAppRunner : Runnable {
   )
   private lateinit var eventTemplateDescriptorBlobUris: List<String>
 
+  private lateinit var kmsClientsMap: MutableMap<String, KmsClient>
+
   private val getImpressionsStorageConfig: (StorageParams) -> StorageConfig = { storageParams ->
     StorageConfig(projectId = storageParams.gcsProjectId)
   }
@@ -238,6 +265,8 @@ class ResultsFulfillerAppRunner : Runnable {
     saveEdpaCerts()
     saveEdpsCerts()
     saveResultsFulfillerConfig()
+    // Create KMS clients for EDPs
+    createKmsClients()
 
     val queueSubscriber = createQueueSubscriber()
     val parser = createWorkItemParser()
@@ -283,7 +312,7 @@ class ResultsFulfillerAppRunner : Runnable {
         workItemsClient = workItemsClient,
         workItemAttemptsClient = workItemAttemptsClient,
         requisitionStubFactory = requisitionStubFactory,
-        kmsClient = kmsClient,
+        kmsClients = kmsClientsMap,
         typeRegistry = typeRegistry,
         getImpressionsMetadataStorageConfig = getImpressionsStorageConfig,
         getImpressionsStorageConfig = getImpressionsStorageConfig,
@@ -291,6 +320,37 @@ class ResultsFulfillerAppRunner : Runnable {
       )
 
     runBlocking { resultsFulfillerApp.run() }
+  }
+
+  private fun createKmsClients() {
+
+    kmsClientsMap = mutableMapOf()
+
+    edpCerts.forEachIndexed { index, edp ->
+
+      val credentialConfigJson = """
+{
+  "type": "external_account",
+  "audience": ${edp.edpKmsAudience},
+  "subject_token_type": "urn:ietf:params:oauth:token-type:jwt",
+  "token_url": "https://sts.googleapis.com/v1/token",
+  "credential_source": {
+    "file": "/run/container_launcher/attestation_verifier_claims_token"
+  },
+  "service_account_impersonation_url": "https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/${edp.edpTargetServiceAccount}:generateAccessToken"
+}
+  """.trimIndent()
+
+      val credentials = GoogleCredentials.fromStream(
+        ByteArrayInputStream(credentialConfigJson.toByteArray(StandardCharsets.UTF_8))
+      )
+
+      val kmsClient = GcpKmsClient()
+        .withCredentials(credentials)
+
+      kmsClientsMap[edp.edpResourceName] = kmsClient
+
+    }
   }
 
   // @TODO(@marcopremier): Move this and `buildTypeRegistry` on common-jvm
