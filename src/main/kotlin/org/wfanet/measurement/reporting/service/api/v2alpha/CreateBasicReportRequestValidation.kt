@@ -48,7 +48,8 @@ private val RESOURCE_ID_REGEX = ResourceIds.AIP_122_REGEX
  *
  * @param request
  * @param campaignGroup
- * @param eventTemplateFieldsMap for validating [EventTemplateField]
+ * @param eventTemplateFieldsMap Key is protobuf EventTemplate field name with respect to Event
+ *    message. Map is used for validating and parsing [EventTemplateField]
  * @throws [RequiredFieldNotSetException] when validation fails
  * @throws [InvalidFieldValueException] when validation fails
  */

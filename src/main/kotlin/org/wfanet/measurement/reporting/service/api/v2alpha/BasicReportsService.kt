@@ -77,8 +77,10 @@ class BasicReportsService(
   private val internalImpressionQualificationFiltersStub:
     ImpressionQualificationFiltersCoroutineStub,
   private val internalReportingSetsStub: InternalReportingSetsCoroutineStub,
-  // Key is protobuf EventTemplate field name with respect to Event message.
-  // Map is used for validating and parsing wfa.measurement.reporting.v2alpha.EventTemplateField
+  /**
+   * Key is protobuf EventTemplate field name with respect to Event message.
+   * Map is used for validating and parsing wfa.measurement.reporting.v2alpha.EventTemplateField
+   */
   private val eventTemplateFieldsMap: Map<String, EventDescriptor.EventTemplateFieldInfo>,
   private val metricSpecConfig: MetricSpecConfig,
   private val authorization: Authorization,

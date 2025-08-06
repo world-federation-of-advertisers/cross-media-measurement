@@ -18,7 +18,6 @@ package org.wfanet.measurement.integration.common.reporting.v2
 
 import com.google.protobuf.ByteString
 import com.google.protobuf.Descriptors
-import com.google.protobuf.TypeRegistry
 import com.google.protobuf.util.Durations
 import io.grpc.Channel
 import io.grpc.Status
@@ -302,7 +301,7 @@ class InProcessReportingServer(
                 internalBasicReportsClient,
                 internalImpressionQualificationFiltersClient,
                 internalReportingSetsClient,
-                EventDescriptor(TYPE_REGISTRY.find(TestEvent.getDescriptor().fullName))
+                EventDescriptor(TestEvent.getDescriptor())
                   .eventTemplateFieldsMap,
                 METRIC_SPEC_CONFIG,
                 authorization,
@@ -340,9 +339,6 @@ class InProcessReportingServer(
 
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
-
-    private val TYPE_REGISTRY =
-      TypeRegistry.newBuilder().add(listOf(TestEvent.getDescriptor())).build()
 
     private const val NUMBER_VID_BUCKETS = 300
     private val METRIC_SPEC_CONFIG = metricSpecConfig {

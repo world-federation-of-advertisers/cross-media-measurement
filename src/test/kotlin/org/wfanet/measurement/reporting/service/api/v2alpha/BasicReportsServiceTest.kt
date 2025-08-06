@@ -18,7 +18,6 @@ package org.wfanet.measurement.reporting.service.api.v2alpha
 
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
-import com.google.protobuf.TypeRegistry
 import com.google.protobuf.timestamp
 import com.google.rpc.errorInfo
 import com.google.type.DayOfWeek
@@ -5690,11 +5689,7 @@ class BasicReportsServiceTest {
     val postgresDatabaseProvider =
       PostgresDatabaseProviderRule(PostgresSchemata.REPORTING_CHANGELOG_PATH)
 
-    private val TYPE_REGISTRY =
-      TypeRegistry.newBuilder().add(listOf(TestEvent.getDescriptor())).build()
-
-    private val TEST_EVENT_DESCRIPTOR =
-      EventDescriptor(TYPE_REGISTRY.find(TestEvent.getDescriptor().fullName))
+    private val TEST_EVENT_DESCRIPTOR = EventDescriptor(TestEvent.getDescriptor())
 
     private val SECRETS_DIR =
       getRuntimePath(
