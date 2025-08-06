@@ -15,6 +15,9 @@
 name: Run EDP Aggregator Cloud Test
 
 on:
+  push:
+    branches:
+      - marcopremier/edpa_cloud_test_workflow
   workflow_call:
     inputs:
       environment:
