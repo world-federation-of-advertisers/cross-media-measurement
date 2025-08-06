@@ -2524,7 +2524,6 @@ class BasicReportTransformationsTest {
         }
         .unmodifiable
 
-    private val TEST_EVENT_DESCRIPTOR =
-      EventDescriptor(TestEvent.getDescriptor())
+    private val TEST_EVENT_DESCRIPTOR = EventDescriptor(TestEvent.getDescriptor())
   }
 }

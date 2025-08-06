@@ -317,7 +317,8 @@ fun validateEventTemplateField(
       EventTemplateField.FieldValue.SelectorCase.ENUM_VALUE -> {
         if (
           eventTemplateFieldInfo.type != Descriptors.FieldDescriptor.Type.ENUM ||
-            eventTemplateFieldInfo.enumType?.findValueByName(eventTemplateField.value.enumValue) == null
+            eventTemplateFieldInfo.enumType?.findValueByName(eventTemplateField.value.enumValue) ==
+              null
         ) {
           throw InvalidFieldValueException(
             "basic_report.result_group_specs.dimension_spec.filters.terms.value.enum_value"
