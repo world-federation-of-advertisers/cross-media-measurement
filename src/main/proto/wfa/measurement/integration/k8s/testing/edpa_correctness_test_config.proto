@@ -43,9 +43,6 @@ message EdpaCorrectnessTestConfig {
   string auth_id_token = 5;
 
   // Full HTTP endpoint URL of the RequisitionFetcher Cloud Function.
-  string requisition_fetcher_target = 6;
-
-  // Google Cloud Project.
-  string google_cloud_project = 7;
+  string requisition_fetcher_endpoint = 6;
 
 }

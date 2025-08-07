@@ -191,13 +191,13 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
     private fun triggerRequisitionFetcher() {
 
       val jwt = TEST_CONFIG.authIdToken
-      val requisitionFetcherTarget = TEST_CONFIG.requisitionFetcherTarget
+      val requisitionFetcherEndpoint = TEST_CONFIG.requisitionFetcherEndpoint
 
 
       val client = HttpClient.newHttpClient()
       val request =
         HttpRequest.newBuilder()
-          .uri(URI.create(requisitionFetcherTarget))
+          .uri(URI.create(requisitionFetcherEndpoint))
           .timeout(Duration.ofSeconds(120))
           .header("Authorization", "Bearer $jwt")
           .GET()

@@ -3,6 +3,8 @@ load("@wfa_common_jvm//build:defs.bzl", "expand_template")
 load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
 load(
     "//build:variables.bzl",
+    "KINGDOM_K8S_SETTINGS",
+    "TEST_EDPA_SETTINGS",
     "TEST_K8S_SETTINGS",
 )
 
@@ -133,12 +135,12 @@ expand_template(
     name = "gen_edpa_correctness_test_config",
     out = "edpa_correctness_test_config.textproto",
     substitutions = {
-        "{kingdom_public_api_target}": "$(kingdom_public_api_target)",
+        "{kingdom_public_api_target}": KINGDOM_K8S_SETTINGS.public_api_target,
         "{kingdom_public_api_cert_host}": "localhost",
         "{mc_name}": TEST_K8S_SETTINGS.mc_name,
         "{mc_api_key}": TEST_K8S_SETTINGS.mc_api_key,
-        "{auth_id_token}": "$(auth_id_token)",
-        "{requisition_fetcher_target}": "$(requisition_fetcher_target)",
+        "{auth_id_token}": TEST_EDPA_SETTINGS.auth_id_token,
+        "{requisition_fetcher_endpoint}": TEST_EDPA_SETTINGS.requisition_fetcher_endpoint,
     },
     tags = ["manual"],
     template = "edpa_correctness_test_config.tmpl.textproto",
