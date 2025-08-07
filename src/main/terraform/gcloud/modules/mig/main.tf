@@ -72,6 +72,10 @@ data "google_compute_image" "confidential_space" {
   project = "confidential-space-images"
 }
 
+resource "terraform_data" "image_change_trigger" {
+  input = var.docker_image
+}
+
 resource "google_compute_instance_template" "confidential_vm_template" {
   machine_type = var.machine_type
 
@@ -87,6 +91,7 @@ resource "google_compute_instance_template" "confidential_vm_template" {
   name_prefix = "${var.instance_template_name}-"
   lifecycle {
     create_before_destroy = true
+    replace_triggered_by  = [terraform_data.image_change_trigger]
   }
 
   disk {
