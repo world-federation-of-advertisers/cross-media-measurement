@@ -21,11 +21,13 @@ from typing import Any
 from typing import FrozenSet
 from typing import Optional
 from typing import Tuple
+from typing import TypeAlias
 
 from absl import logging
 from qpsolvers import Solution
 
 from noiseninja.noised_measurements import Measurement
+from noiseninja.noised_measurements import MeasurementSet
 from noiseninja.noised_measurements import OrderedSets
 from noiseninja.noised_measurements import SetMeasurementsSpec
 from noiseninja.solver import Solver
@@ -35,6 +37,8 @@ from src.main.proto.wfa.measurement.reporting.postprocessing.v2alpha import \
 ReportPostProcessorResult = report_post_processor_result_pb2.ReportPostProcessorResult
 ReportPostProcessorStatus = report_post_processor_result_pb2.ReportPostProcessorStatus
 ReportQuality = report_post_processor_result_pb2.ReportQuality
+
+EdpCombination: TypeAlias = FrozenSet[str]
 
 MIN_STANDARD_VARIATION_RATIO = 0.001
 UNIT_SCALING_FACTOR = 1.0
@@ -57,8 +61,9 @@ def fuzzy_less_equal(smaller: float, larger: float, tolerance: float) -> bool:
   return larger - smaller + tolerance >= 0
 
 
-def get_subset_relationships(edp_combinations: list[FrozenSet[str]]) -> list[
-  Tuple[FrozenSet[str], FrozenSet[str]]]:
+def get_subset_relationships(
+    edp_combinations: list[EdpCombination],
+) -> list[Tuple[EdpCombination, EdpCombination]]:
   """Returns a list of tuples where first element in the tuple is the parent
   and second element is the subset."""
   logging.debug(
@@ -78,8 +83,9 @@ def get_subset_relationships(edp_combinations: list[FrozenSet[str]]) -> list[
   return subset_relationships
 
 
-def is_cover(target_set: FrozenSet[str],
-    possible_cover: list[FrozenSet[str]]) -> bool:
+def is_cover(
+    target_set: EdpCombination, possible_cover: list[EdpCombination]
+) -> bool:
   """Checks if a collection of sets covers a target set.
 
   Args:
@@ -96,8 +102,9 @@ def is_cover(target_set: FrozenSet[str],
   return union_of_possible_cover == target_set
 
 
-def get_covers(target_set: FrozenSet[str], other_sets: list[FrozenSet[str]]) -> \
-    list[Tuple[FrozenSet[str], list[FrozenSet[str]]]]:
+def get_covers(
+    target_set: EdpCombination, other_sets: list[EdpCombination]
+) -> list[Tuple[EdpCombination, list[EdpCombination]]]:
   """Finds all combinations of sets from `other_sets` that cover `target_set`.
 
   This function identifies all possible combinations of sets within `other_sets`
@@ -145,8 +152,9 @@ def get_covers(target_set: FrozenSet[str], other_sets: list[FrozenSet[str]]) -> 
   return cover_relationship
 
 
-def get_cover_relationships(edp_combinations: list[FrozenSet[str]]) -> list[
-  Tuple[FrozenSet[str], list[FrozenSet[str]]]]:
+def get_cover_relationships(
+    edp_combinations: list[EdpCombination],
+) -> list[Tuple[EdpCombination, list[EdpCombination]]]:
   """Returns covers as defined here: # https://en.wikipedia.org/wiki/Cover_(topology).
   For each set (s_i) in the list, enumerate combinations of all sets excluding this one.
   For each of these considered combinations, take their union and check if it is equal to
@@ -221,44 +229,73 @@ def is_union_reach_consistent(
     STANDARD_DEVIATION_TEST_THRESHOLD * standard_deviation
 
 
-def get_edps_from_edp_combination(edp_combination: FrozenSet[str],
-    all_edp_combinations: FrozenSet[str]) -> list[FrozenSet[str]]:
-  edps: list[FrozenSet[str]] = all_edp_combinations.intersection(
-      [frozenset({edp}) for edp in edp_combination]
+def get_edps_from_edp_combination(
+    edp_combination: EdpCombination,
+    all_edp_combinations: set[EdpCombination]
+) -> list[EdpCombination]:
+  return list(
+    all_edp_combinations.intersection([frozenset({edp}) for edp in edp_combination])
   )
-  return edps
+
+
+
+def build_whole_campaign_measurements(
+    reach_whole_campaign: dict, k_reach: dict, impression: dict
+) -> dict[EdpCombination, MeasurementSet]:
+  """Builds a dictionary of MeasurementSet from separate measurement dicts."""
+  all_edps = (
+      set(reach_whole_campaign.keys())
+      | set(k_reach.keys())
+      | set(impression.keys())
+  )
+  whole_campaign_measurements = {}
+  for edp in all_edps:
+    whole_campaign_measurements[edp] = MeasurementSet(
+        reach=reach_whole_campaign.get(edp),
+        k_reach=k_reach.get(edp, {}),
+        impression=impression.get(edp),
+    )
+  return whole_campaign_measurements
+
 
 
 class MetricReport:
   """Represents a metric sub-report view (e.g., MRC, AMI) within a report.
 
-    This class stores and provides access to reach measurements for different
-    EDP (Event, Data Provider, and Platform) combinations. It holds two types
-    of reach data:
+    This class stores and provides access to various measurements for different
+    EDP (Event, Data Provider, and Platform) combinations. It holds three main
+    types of data:
 
         * Cumulative reach over time, represented as a time series.
-        * Reach for the whole campaign.
+        * A set of measurements (reach, k-reach, impression) for the whole
+          campaign.
+        * A time series of weekly non-cumulative measurements for each period.
 
     Attributes:
         _reach_time_series: A dictionary mapping EDP combinations (represented
                             as frozensets of strings) to lists of Measurement
                             objects, where each list represents a time series of
                             reach values.
-        _reach_whole_campaign: A dictionary mapping EDP combinations to
-                               Measurement objects representing the reach for
-                               the whole campaign.
-    """
+        _whole_campaign_measurements: A dictionary mapping EDP combinations to
+                                      MeasurementSet objects, each containing
+                                      the reach, k-reach, and impression for
+                                      the entire campaign.
+        _weekly_non_cumulative_measurements: A dictionary mapping EDP combinations to
+                                      lists of MeasurementSet objects, where
+                                      each set represents the non-cumulative
+                                      measurements for a specific time period.
+  """
 
   def __init__(
       self,
-      reach_time_series: dict[FrozenSet[str], list[Measurement]],
-      reach_whole_campaign: dict[FrozenSet[str], Measurement],
-      k_reach: dict[FrozenSet[str], dict[int, Measurement]],
-      impression: dict[FrozenSet[str], Measurement],
+      reach_time_series: dict[EdpCombination, list[Measurement]],
+      whole_campaign_measurements: dict[EdpCombination, MeasurementSet],
+      weekly_non_cumulative_measurements: dict[
+          EdpCombination, list[MeasurementSet]
+      ],
   ):
     num_periods = len(
         next(iter(reach_time_series.values()))) if reach_time_series else 0
-    num_frequencies = len(next(iter(k_reach.values()))) if k_reach else 0
 
     for series in reach_time_series.values():
       if len(series) != num_periods:
@@ -268,18 +305,20 @@ class MetricReport:
             )
         )
 
-    for item in k_reach.values():
-      if len(item) != num_frequencies:
-        raise ValueError(
-            "All k_reach must have the same length {a: d} vs {2: d}".format(
-                len(item), len(num_frequencies)
-            )
-        )
+    k_reach_lengths = {
+        len(measurement_set.k_reach)
+        for measurement_set in whole_campaign_measurements.values()
+        if measurement_set.k_reach
+    }
+
+    if len(k_reach_lengths) > 1:
+      raise ValueError(
+          "All non-empty k_reach must have the same number of frequencies."
+      )
 
     self._reach_time_series = reach_time_series
-    self._reach_whole_campaign = reach_whole_campaign
-    self._impression = impression
-    self._k_reach = k_reach
+    self._whole_campaign_measurements = whole_campaign_measurements
+    self._weekly_non_cumulative_measurements = weekly_non_cumulative_measurements
 
   def sample_with_noise(self) -> "MetricReport":
     """
@@ -299,71 +338,91 @@ class MetricReport:
         }
     )
 
-  def get_cumulative_measurements(self, edp_combination: FrozenSet[str]) -> \
-      list[Measurement]:
+  def get_cumulative_measurements(
+      self, edp_combination: EdpCombination
+  ) -> list[Measurement]:
     return self._reach_time_series[edp_combination]
 
-  def get_cumulative_measurement(self, edp_combination: FrozenSet[str],
-      period: int) -> Measurement:
+  def get_cumulative_measurement(
+      self, edp_combination: EdpCombination, period: int
+  ) -> Measurement:
     return self._reach_time_series[edp_combination][period]
 
-  def get_whole_campaign_measurement(self,
-      edp_combination: FrozenSet[str]) -> Measurement:
-    return self._reach_whole_campaign[edp_combination]
+  def get_whole_campaign_measurement(
+      self, edp_combination: EdpCombination
+  ) -> Measurement:
+    return self._whole_campaign_measurements[edp_combination].reach
 
-  def get_impression_measurement(self,
-      edp_combination: FrozenSet[str]) -> Measurement:
-    return self._impression[edp_combination]
+  def get_impression_measurement(
+      self, edp_combination: EdpCombination
+  ) -> Measurement:
+    return self._whole_campaign_measurements[edp_combination].impression
 
-  def get_k_reach_measurements(self, edp_combination: FrozenSet[str]) -> list[
-    Measurement]:
-    return [measurement for measurement in
-            self._k_reach[edp_combination].values()]
+  def get_k_reach_measurements(
+      self, edp_combination: EdpCombination
+  ) -> list[Measurement]:
+    return list(self._whole_campaign_measurements[edp_combination].k_reach.values())
 
-  def get_k_reach_measurement(self, edp_combination: FrozenSet[str],
-      frequency: int) -> Measurement:
-    return self._k_reach[edp_combination][frequency]
+  def get_k_reach_measurement(
+      self, edp_combination: EdpCombination, frequency: int
+  ) -> Measurement:
+    return self._whole_campaign_measurements[edp_combination].k_reach[frequency]
 
-  def get_cumulative_edp_combinations(self) -> set[FrozenSet[str]]:
+  def get_cumulative_edp_combinations(self) -> set[EdpCombination]:
     return set(self._reach_time_series.keys())
 
-  def get_whole_campaign_edp_combinations(self) -> set[FrozenSet[str]]:
-    return set(self._reach_whole_campaign.keys())
+  def get_whole_campaign_edp_combinations(self) -> set[EdpCombination]:
+    return {
+        edp
+        for edp, measurement_set in self._whole_campaign_measurements.items()
+        if measurement_set.reach is not None
+    }
+    
+  def get_impression_edp_combinations(self) -> set[EdpCombination]:
+    return {
+        edp
+        for edp, measurement_set in self._whole_campaign_measurements.items()
+        if measurement_set.impression is not None
+    }
 
-  def get_impression_edp_combinations(self) -> set[FrozenSet[str]]:
-    return set(self._impression.keys())
-
-  def get_k_reach_edp_combinations(self) -> set[FrozenSet[str]]:
-    return set(self._k_reach.keys())
+  def get_k_reach_edp_combinations(self) -> set[EdpCombination]:
+    return {
+        edp
+        for edp, measurement_set in self._whole_campaign_measurements.items()
+        if len(measurement_set.k_reach) > 0
+    }
 
   def get_cumulative_edp_combinations_count(self) -> int:
     return len(self._reach_time_series.keys())
 
   def get_whole_campaign_edp_combinations_count(self) -> int:
-    return len(self._reach_whole_campaign.keys())
+    return len(self.get_whole_campaign_edp_combinations())
 
   def get_number_of_periods(self) -> int:
     return len(next(iter(self._reach_time_series.values()))) \
       if self._reach_time_series else 0
 
   def get_number_of_frequencies(self) -> int:
-    return len(next(iter(self._k_reach.values()))) if self._k_reach else 0
+    if not self._whole_campaign_measurements:
+      return 0
+    return len(next(iter(self._whole_campaign_measurements.values())).k_reach)
 
   def get_cumulative_subset_relationships(self) -> list[
-    Tuple[FrozenSet[str], FrozenSet[str]]]:
+    Tuple[EdpCombination, EdpCombination]]:
     return get_subset_relationships(list(self._reach_time_series))
 
   def get_whole_campaign_subset_relationships(self) -> list[
-    Tuple[FrozenSet[str], FrozenSet[str]]]:
-    return get_subset_relationships(list(self._reach_whole_campaign))
+    Tuple[EdpCombination, EdpCombination]]:
+    return get_subset_relationships(list(self.get_whole_campaign_edp_combinations()))
 
   def get_cumulative_cover_relationships(self) -> list[
-    Tuple[FrozenSet[str], list[FrozenSet[str]]]]:
+    Tuple[EdpCombination, list[EdpCombination]]]:
     return get_cover_relationships(list(self._reach_time_series))
 
-  def get_whole_campaign_cover_relationships(self) -> list[
-    Tuple[FrozenSet[str], list[FrozenSet[str]]]]:
-    return get_cover_relationships(list(self._reach_whole_campaign))
+  def get_whole_campaign_cover_relationships(
+      self,
+  ) -> list[Tuple[EdpCombination, list[EdpCombination]]]:
+    return get_cover_relationships(list(self.get_whole_campaign_edp_combinations()))
 
   @staticmethod
   def _sample_with_noise(measurement: Measurement) -> Measurement:
@@ -686,10 +745,13 @@ class Report:
         )
     logging.info("Finished adding subset relations to spec.")
 
-
-  def _get_ordered_sets_for_cumulative_measurements_within_metric(self,
-      metric_report: MetricReport, edp_combination: FrozenSet[str],
-      edps: list[FrozenSet[str]], period: int) -> OrderedSets:
+  def _get_ordered_sets_for_cumulative_measurements_within_metric(
+      self,
+      metric_report: MetricReport,
+      edp_combination: EdpCombination,
+      edps: list[EdpCombination],
+      period: int,
+  ) -> OrderedSets:
     """Gets ordered sets for cumulative measurements within the same metric.
 
     Let X_{1, i}, X_{2, i}, ..., X_{k, i} be cumulative measurements at
@@ -753,7 +815,7 @@ class Report:
       for edp_combination in cumulative_edp_combinations:
         if len(edp_combination) <= 1:
           continue
-        edps: list[FrozenSet[str]] = get_edps_from_edp_combination(
+        edps: list[EdpCombination] = get_edps_from_edp_combination(
             edp_combination, cumulative_edp_combinations
         )
         if len(edps) != len(edp_combination):
@@ -876,10 +938,14 @@ class Report:
                 metric_report.get_impression_measurement(edp_combination))
         )
 
-  def _get_ordered_sets_for_cumulative_measurements_across_metric(self,
-      parent_metric_report: MetricReport, child_metric_report: MetricReport,
-      edp_combination: FrozenSet[str], edps: list[FrozenSet[str]],
-      period: int) -> OrderedSets:
+  def _get_ordered_sets_for_cumulative_measurements_across_metric(
+      self,
+      parent_metric_report: MetricReport,
+      child_metric_report: MetricReport,
+      edp_combination: EdpCombination,
+      edps: list[EdpCombination],
+      period: int,
+  ) -> OrderedSets:
     """Gets ordered sets for cumulative measurements across metric.
 
     Let X_{1, i}, ..., X_{k, i} be the child cumulative measurements and
@@ -934,10 +1000,13 @@ class Report:
 
     return OrderedSets(set(greater_set), set(smaller_set))
 
-  def _get_ordered_sets_for_whole_campaign_measurements_across_metric(self,
-      parent_metric_report: MetricReport, child_metric_report: MetricReport,
-      edp_combination: FrozenSet[str],
-      edps: list[FrozenSet[str]]) -> OrderedSets:
+  def _get_ordered_sets_for_whole_campaign_measurements_across_metric(
+      self,
+      parent_metric_report: MetricReport,
+      child_metric_report: MetricReport,
+      edp_combination: EdpCombination,
+      edps: list[EdpCombination],
+  ) -> OrderedSets:
     """Gets ordered sets for whole campaign measurements across metric.
 
     Let X_1, ..., X_k be the child total campaign measurements and Y_1, ..., Y_k
@@ -1016,7 +1085,7 @@ class Report:
         for edp_combination in common_cumulative_edp_combinations:
           if len(edp_combination) <= 1:
             continue
-          edps: list[FrozenSet[str]] = get_edps_from_edp_combination(
+          edps: list[EdpCombination] = get_edps_from_edp_combination(
               edp_combination, common_cumulative_edp_combinations
           )
           if len(edps) != len(edp_combination):
@@ -1055,7 +1124,7 @@ class Report:
           if len(edp_combination) <= 1:
             continue
 
-          edps: list[FrozenSet[str]] = get_edps_from_edp_combination(
+          edps: list[EdpCombination] = get_edps_from_edp_combination(
               edp_combination, common_whole_campaign_edp_combinations
           )
           if len(edps) != len(edp_combination):
@@ -1215,15 +1284,17 @@ class Report:
   def _get_measurement_index(self, measurement: Measurement) -> int:
     return self._measurement_name_to_index[measurement.name]
 
-  def _get_cumulative_measurement_index(self, metric: str,
-      edp_combination: FrozenSet[str], period: int) -> int:
+  def _get_cumulative_measurement_index(
+      self, metric: str, edp_combination: EdpCombination, period: int
+  ) -> int:
     return self._get_measurement_index(
         self._metric_reports[metric].get_cumulative_measurement(
             edp_combination, period)
     )
 
-  def _get_whole_campaign_measurement_index(self, metric: str,
-      edp_combination: FrozenSet[str]) -> int:
+  def _get_whole_campaign_measurement_index(
+      self, metric: str, edp_combination: EdpCombination
+  ) -> int:
     return self._get_measurement_index(
         self._metric_reports[metric].get_whole_campaign_measurement(
             edp_combination)
@@ -1289,14 +1360,31 @@ class Report:
           metric_report.get_impression_measurement(edp_combination).sigma,
           metric_report.get_impression_measurement(edp_combination).name,
       )
-    return MetricReport(
-        reach_time_series=solution_time_series,
-        reach_whole_campaign=solution_whole_campaign,
-        k_reach=solution_k_reach,
-        impression=solution_impression,
+
+    all_edps = (
+        set(solution_whole_campaign.keys())
+        | set(solution_k_reach.keys())
+        | set(solution_impression.keys())
     )
 
-  def _is_zero_variance_edp(self, edp_combination: FrozenSet[str]) -> bool:
+    solution_whole_campaign_measurements = {}
+
+    for edp in all_edps:
+      reach = solution_whole_campaign.get(edp)
+      k_reach = solution_k_reach.get(edp, {})
+      impression = solution_impression.get(edp)
+
+      if reach or impression or len(k_reach) > 0:
+        solution_whole_campaign_measurements[edp] = MeasurementSet(
+            reach=reach, k_reach=k_reach, impression=impression
+        )
+    return MetricReport(
+        reach_time_series=solution_time_series,
+        whole_campaign_measurements=solution_whole_campaign_measurements,
+        weekly_non_cumulative_measurements=metric_report._weekly_non_cumulative_measurements,
+    )
+
+  def _is_zero_variance_edp(self, edp_combination: EdpCombination) -> bool:
     """Checks if a given EDP combination represents a zero variance EDP.
 
     An EDP is a zero variance EDP if the standard deviation is zero for all
@@ -1339,8 +1427,9 @@ class Report:
 
     return all(val == 0.0 for val in standard_deviations)
 
-  def _are_edp_measurements_consistent(self,
-      edp_combination: FrozenSet[str]) -> bool:
+  def _are_edp_measurements_consistent(
+      self, edp_combination: EdpCombination
+  ) -> bool:
     """Checks if all measurements of a specific edp combination are consistent."""
     # Check for the consistency within a metric.
     for metric in self._metric_reports.keys():
@@ -1442,8 +1531,9 @@ class Report:
 
     return True
 
-  def _validate_independence_checks(self,
-      edp_combination: FrozenSet[str]) -> bool:
+  def _validate_independence_checks(
+      self, edp_combination: EdpCombination
+  ) -> bool:
     """Verifies if the observed union measurements for the edp_combination meet
     the independence check.
     """
@@ -1481,13 +1571,13 @@ class Report:
 
     return True
 
-  def _get_zero_variace_edps(self) -> list[str]:
+  def _get_zero_variance_edps(self) -> list[EdpCombination]:
     """Get the zero variance EDPs.
 
     Returns:
        A list of zero variance EDPs.
     """
-    zero_variance_edp_combinations: list[str] = []
+    zero_variance_edp_combinations: list[EdpCombination] = []
     if self._metric_reports.keys() is None:
       raise ValueError("The report does not contain any measurements.")
 
@@ -1508,7 +1598,7 @@ class Report:
         outcomes (`zero_variance_measurements_status`, `union_status`) from the performed checks.
     """
     # Gets the zero variance measurement quality status.
-    zero_variance_edp_combinations = self._get_zero_variace_edps()
+    zero_variance_edp_combinations = self._get_zero_variance_edps()
     if not zero_variance_edp_combinations:
       zero_variance_measurements_status = \
         ReportQuality \

@@ -19,9 +19,13 @@ from typing import FrozenSet
 from absl import app
 from absl import flags
 from absl import logging
+from typing import TypeAlias
 
 from noiseninja.noised_measurements import Measurement
+from noiseninja.noised_measurements import MeasurementSet
 
+from report.report import build_whole_campaign_measurements
+from report.report import EdpCombination
 from report.report import MetricReport
 from report.report import Report
 
@@ -33,8 +37,8 @@ from src.main.proto.wfa.measurement.reporting.postprocessing.v2alpha import \
 ReportPostProcessorStatus = report_post_processor_result_pb2.ReportPostProcessorStatus
 ReportPostProcessorResult = report_post_processor_result_pb2.ReportPostProcessorResult
 
-# This is a demo script that has the following assumptions :
-# 1. Impression results are not corrected.
+KReachMeasurements: TypeAlias = dict[int, Measurement]
+MeasurementPolicy: TypeAlias = str
 
 FLAGS = flags.FLAGS
 
@@ -74,13 +78,15 @@ class ReportSummaryProcessor:
       report_summary: The ReportSummary proto to process.
     """
     self._report_summary = report_summary
-    self._cumulative_measurements: dict[
-      str, dict[FrozenSet[str], list[Measurement]]] = {}
-    self._whole_campaign_measurements: dict[
-      str, dict[FrozenSet[str], Measurement]] = {}
-    self._k_reach: dict[str, dict[FrozenSet[str], dict[int, Measurement]]] = {}
-    self._impression: dict[str, dict[FrozenSet[str], Measurement]] = {}
-    self._set_difference_map: dict[str, tuple[str, str]] = {}
+    self._cumulative_measurements: dict[str, dict[EdpCombination,
+                                                  list[Measurement]]] = {}
+    self._whole_campaign_measurements: dict[str,
+                                            dict[EdpCombination, Measurement]] = {}
+    self._k_reach: dict[MeasurementPolicy,
+                        dict[EdpCombination, KReachMeasurements]] = {}
+    self._impression: dict[MeasurementPolicy,
+                           dict[EdpCombination, Measurement]] = {}
+    self._set_difference_map: dict[MeasurementPolicy, tuple[str, str]] = {}
     self._uncorrected_measurements: set[str] = set()
 
   def process(self) -> ReportPostProcessorResult:
@@ -111,22 +117,35 @@ class ReportSummaryProcessor:
     Correct the report and returns the adjusted value for each measurement.
     """
     logging.info("Building a report from the report summary.")
+
+    all_policies = (
+        set(self._cumulative_measurements.keys())
+        | set(self._whole_campaign_measurements.keys())
+        | set(self._k_reach.keys())
+        | set(self._impression.keys())
+    )
+
+    metric_reports = {}
+    for policy in all_policies:
+      whole_campaign_measurements = build_whole_campaign_measurements(
+          self._whole_campaign_measurements.get(policy, {}),
+          self._k_reach.get(policy, {}), self._impression.get(policy, {})
+      )
+      metric_reports[policy] = MetricReport(
+          reach_time_series=self._cumulative_measurements.get(policy, {}),
+          whole_campaign_measurements=whole_campaign_measurements,
+          weekly_non_cumulative_measurements={},
+      )
+
     children_metric = []
-    if "mrc" in self._cumulative_measurements:
+    if "mrc" in all_policies:
       children_metric.append("mrc")
-    if "custom" in self._cumulative_measurements:
+    if "custom" in all_policies:
       children_metric.append("custom")
 
     # Builds the report based on the extracted primitive measurements.
     report = Report(
-        {
-            policy: MetricReport(
-                reach_time_series=self._cumulative_measurements[policy],
-                reach_whole_campaign=self._whole_campaign_measurements[policy],
-                k_reach=self._k_reach[policy],
-                impression=self._impression[policy])
-            for policy in self._cumulative_measurements
-        },
+        metric_reports,
         metric_subsets_by_parent={
             ami: children_metric} if children_metric else {},
         cumulative_inconsistency_allowed_edp_combinations={},
