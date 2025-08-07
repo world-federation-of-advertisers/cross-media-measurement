@@ -85,7 +85,7 @@ class InProcessEdpSimulator(
 
   init {
     val populationSpec: PopulationSpec = eventQuery.populationSpec.toPopulationSpec()
-    val hmssVidIndexMap =
+    val vidIndexMap =
       if (honestMajorityShareShuffleSupported) {
         InMemoryVidIndexMap.build(populationSpec)
       } else {
@@ -124,7 +124,7 @@ class InProcessEdpSimulator(
             100.0f,
           ),
         trustedCertificates = trustedCertificates,
-        hmssVidIndexMap = hmssVidIndexMap,
+        vidIndexMap = vidIndexMap,
         knownEventGroupMetadataTypes = listOf(EventGroupMetadata.getDescriptor().file),
         random = random,
       )
