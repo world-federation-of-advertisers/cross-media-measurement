@@ -63,35 +63,11 @@ runs:
         set -euo pipefail
         
         ARGS=(
-          iam workload-identity-pools providers update-oidc "$EDP_WIP_NAME" \
-          functions deploy "$FUNCTION_NAME"
-          --gen2
-          --runtime=java17
-          --entry-point="$ENTRY_POINT"
-          --memory=512MB
-          --region="$CLOUD_REGION"
-          --run-service-account="$RUN_SERVICE_ACCOUNT"
-          --source="$UBER_JAR_TEMP_DIR"
+          iam workload-identity-pools providers update-oidc "$EDP_WIP_PROVIDER_NAME" 
+          --project="$EDP_GCLOUD_PROJECT_NAME"
+          --location="$EDP_GCLOUD_PROJECT_LOCATION"
+          --workload-identity-pool="$EDP_WIP_NAME"
+          --attribute-condition="assertion.swname == 'CONFIDENTIAL_SPACE' && assertion.submods.container.image_reference == '$TEE_APP_IMAGE' && '$EDP_TARGET_SERVICE_ACCOUNT' in assertion.google_service_accounts"
         )
-        
-        if [[ -n "$TRIGGER_BUCKET" ]]; then
-          ARGS+=(
-            --trigger-event-filters="type=google.cloud.storage.object.v1.finalized"
-            --trigger-event-filters="bucket=$TRIGGER_BUCKET"
-            --trigger-service-account="$TRIGGER_SERVICE_ACCOUNT"
-          )
-        else
-          ARGS+=(
-            --trigger-http
-          )
-        fi
-        
-        if [[ -n "$EXTRA_ENV_VARS" ]]; then
-          ARGS+=(--set-env-vars="$EXTRA_ENV_VARS")
-        fi
-        
-        if [[ -n "$SECRET_MAPPINGS" ]]; then
-          ARGS+=(--set-secrets="$SECRET_MAPPINGS")
-        fi
         
         gcloud "${ARGS[@]}"
