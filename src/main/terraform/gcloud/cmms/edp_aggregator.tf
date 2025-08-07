@@ -16,12 +16,6 @@ locals {
 
   edp_display_names = ["edp7"]
 
-  results_fulfiller_event_proto_descriptors = {
-    secret_id         = "results-fulfiller-event-proto-descriptor-set",
-    secret_local_path = var.results_fulfiller_event_proto_descriptor_path,
-    is_binary_format  = true
-  }
-
   edpa_tee_app_tls_key = {
     secret_id         = "edpa-tee-app-tls-key",
     secret_local_path = abspath("${path.root}/../../../k8s/testing/secretfiles/edpa_tee_app_tls.key"),
@@ -124,6 +118,11 @@ locals {
     destination = "requisition-fetcher-config.textproto"
   }
 
+  results_fulfiller_event_descriptor = {
+    local_path  = var.results_fulfiller_event_proto_descriptor_path
+    destination = "results_fulfiller_event_proto_descriptor.pb"
+  }
+
   cloud_function_configs = {
     data_watcher = {
       function_name       = var.data_watcher_function_name
@@ -153,9 +152,6 @@ locals {
 module "edp_aggregator" {
   source = "../modules/edp-aggregator"
 
-  key_ring_name                             = "securecomputation-key-ring"
-  key_ring_location                         = local.key_ring_location
-  kms_key_name                              = "edpa-secure-computation-kek"
   requisition_fulfiller_config              = local.requisition_fulfiller_config
   pubsub_iam_service_account_member         = module.secure_computation.secure_computation_internal_iam_service_account_member
   edp_aggregator_bucket_name                = var.secure_computation_storage_bucket_name
@@ -167,9 +163,9 @@ module "edp_aggregator" {
   requisition_fetcher_service_account_name  = "edpa-requisition-fetcher"
   data_watcher_config                       = local.data_watcher_config
   requisition_fetcher_config                = local.requisition_fetcher_config
+  results_fulfiller_event_descriptor        = local.results_fulfiller_event_descriptor
   event_group_sync_service_account_name     = "edpa-event-group-sync"
   event_group_sync_function_name            = "event-group-sync"
-  results_fulfiller_event_proto_descriptors = local.results_fulfiller_event_proto_descriptors
   edpa_tee_app_tls_key                      = local.edpa_tee_app_tls_key
   edpa_tee_app_tls_pem                      = local.edpa_tee_app_tls_pem
   data_watcher_tls_key                      = local.data_watcher_tls_key
