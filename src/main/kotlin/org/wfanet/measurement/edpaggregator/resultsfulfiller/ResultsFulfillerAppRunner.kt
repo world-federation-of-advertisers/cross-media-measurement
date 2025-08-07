@@ -46,9 +46,8 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAttemptsGrpcKt
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt
 import picocli.CommandLine
-import com.google.auth.oauth2.GoogleCredentials
-import java.io.ByteArrayInputStream
-import java.nio.charset.StandardCharsets
+import org.wfanet.measurement.gcloud.kms.GCloudKmsClientFactory
+import org.wfanet.measurement.common.crypto.tink.GCloudWifCredentials
 
 @CommandLine.Command(name = "results_fulfiller_app_runner")
 class ResultsFulfillerAppRunner : Runnable {
@@ -329,25 +328,15 @@ class ResultsFulfillerAppRunner : Runnable {
 
     edpCerts.forEachIndexed { index, edp ->
 
-      val credentialConfigJson = """
-{
-  "type": "external_account",
-  "audience": "${edp.edpKmsAudience}",
-  "subject_token_type": "urn:ietf:params:oauth:token-type:jwt",
-  "token_url": "https://sts.googleapis.com/v1/token",
-  "credential_source": {
-    "file": "/run/container_launcher/attestation_verifier_claims_token"
-  },
-  "service_account_impersonation_url": "https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/${edp.edpTargetServiceAccount}:generateAccessToken"
-}
-  """.trimIndent()
-
-      val credentials = GoogleCredentials.fromStream(
-        ByteArrayInputStream(credentialConfigJson.toByteArray(StandardCharsets.UTF_8))
+      val kmsConfig = GCloudWifCredentials(
+        audience = edp.edpKmsAudience,
+        subjectTokenType = SUBJECT_TOKEN_TYPE,
+        tokenUrl = TOKEK_URL,
+        credentialSourceFilePath = CREDENTIAL_SOURCE_FILE_PATH,
+        serviceAccountImpersonationUrl = EDP_TARGET_SERVICE_ACCOUNT.format(edp.edpTargetServiceAccount)
       )
 
-      val kmsClient = GcpKmsClient()
-        .withCredentials(credentials)
+      val kmsClient = GCloudKmsClientFactory().getKmsClient(kmsConfig)
 
       kmsClientsMap[edp.edpResourceName] = kmsClient
 
@@ -474,6 +463,10 @@ class ResultsFulfillerAppRunner : Runnable {
 
     private const val PROTO_DESCRIPTORS_DIR = "/tmp/proto_descriptors"
 
+    private const val SUBJECT_TOKEN_TYPE = "urn:ietf:params:oauth:token-type:jwt"
+    private const val TOKEK_URL = "https://sts.googleapis.com/v1/token"
+    private const val CREDENTIAL_SOURCE_FILE_PATH = "/run/container_launcher/attestation_verifier_claims_token"
+    private const val EDP_TARGET_SERVICE_ACCOUNT = "https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/%s:generateAccessToken"
     @JvmStatic fun main(args: Array<String>) = commandLineMain(ResultsFulfillerAppRunner(), args)
   }
 }
