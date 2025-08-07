@@ -30,8 +30,8 @@ class TrusTeeProcessorImplTest {
     val params =
       TrusTeeReachAndFrequencyParams(
         maximumFrequency = 0,
-        reachDpParams = null,
-        frequencyDpParams = null,
+        reachDpParams = DEFAULT_DP_PARAMS,
+        frequencyDpParams = DEFAULT_DP_PARAMS,
         vidSamplingIntervalWidth = FULL_SAMPLING_RATE,
       )
     val exception = assertFailsWith<IllegalArgumentException> { TrusTeeProcessorImpl(params) }
@@ -43,8 +43,8 @@ class TrusTeeProcessorImplTest {
     val params =
       TrusTeeReachAndFrequencyParams(
         maximumFrequency = -1,
-        reachDpParams = null,
-        frequencyDpParams = null,
+        reachDpParams = DEFAULT_DP_PARAMS,
+        frequencyDpParams = DEFAULT_DP_PARAMS,
         vidSamplingIntervalWidth = FULL_SAMPLING_RATE,
       )
     val exception = assertFailsWith<IllegalArgumentException> { TrusTeeProcessorImpl(params) }
@@ -56,8 +56,8 @@ class TrusTeeProcessorImplTest {
     val params =
       TrusTeeReachAndFrequencyParams(
         maximumFrequency = MAX_FREQUENCY,
-        reachDpParams = null,
-        frequencyDpParams = null,
+        reachDpParams = DEFAULT_DP_PARAMS,
+        frequencyDpParams = DEFAULT_DP_PARAMS,
         vidSamplingIntervalWidth = -0.2f,
       )
     val exception = assertFailsWith<IllegalArgumentException> { TrusTeeProcessorImpl(params) }
@@ -69,8 +69,8 @@ class TrusTeeProcessorImplTest {
     val params =
       TrusTeeReachAndFrequencyParams(
         maximumFrequency = MAX_FREQUENCY,
-        reachDpParams = null,
-        frequencyDpParams = null,
+        reachDpParams = DEFAULT_DP_PARAMS,
+        frequencyDpParams = DEFAULT_DP_PARAMS,
         vidSamplingIntervalWidth = 1.1f,
       )
     val exception = assertFailsWith<IllegalArgumentException> { TrusTeeProcessorImpl(params) }
@@ -85,7 +85,7 @@ class TrusTeeProcessorImplTest {
     processor.addFrequencyVectorBytes(vector)
     val result = processor.computeResult() as ReachAndFrequencyResult
 
-    assertThat(result.reach).isEqualTo(3)
+    assertThat(result.reach).isGreaterThan(0)
     assertThat(result.frequency.size).isEqualTo(MAX_FREQUENCY)
   }
 
@@ -109,11 +109,10 @@ class TrusTeeProcessorImplTest {
     processor.addFrequencyVectorBytes(vector3)
     val result = processor.computeResult() as ReachAndFrequencyResult
 
-    // Aggregated and capped vector: [2, 5, 2, 5]. Reach is 4.
-    assertThat(result.reach).isEqualTo(4)
-    // Distribution is among the 4 reached VIDs.
-    val expectedDistribution = mapOf(1L to 0.0, 2L to 0.5, 3L to 0.0, 4L to 0.0, 5L to 0.5)
-    assertThat(result.frequency).isEqualTo(expectedDistribution)
+    // The exact result is subject to noise. We just check for reasonable properties.
+    assertThat(result.reach).isGreaterThan(0)
+    assertThat(result.frequency.size).isEqualTo(MAX_FREQUENCY)
+    assertThat(result.frequency.values.sum()).isWithin(FLOAT_COMPARISON_TOLERANCE).of(1.0)
   }
 
   @Test
@@ -135,12 +134,14 @@ class TrusTeeProcessorImplTest {
   }
 
   @Test
-  fun `computeResult with all-zero frequency vectors returns zero results`() {
+  fun `computeResult with all-zero frequency vectors returns near-zero results`() {
     val processor = TrusTeeProcessorImpl(REACH_AND_FREQUENCY_PARAMS)
     processor.addFrequencyVectorBytes(byteArrayOf(0, 0, 0, 0))
     val result = processor.computeResult() as ReachAndFrequencyResult
 
-    assertThat(result.reach).isEqualTo(0)
+    // With noise, reach might not be exactly 0, but should be small.
+    // The frequency distribution should be all zeros if the noised total is zero.
+    assertThat(result.reach).isAtMost(5)
     val expectedDistribution = (1L..MAX_FREQUENCY).associateWith { 0.0 }
     assertThat(result.frequency).isEqualTo(expectedDistribution)
   }
@@ -194,7 +195,7 @@ class TrusTeeProcessorImplTest {
         maximumFrequency = MAX_FREQUENCY,
         vidSamplingIntervalWidth = samplingWidth,
         reachDpParams = dpParams,
-        frequencyDpParams = null,
+        frequencyDpParams = dpParams,
       )
     val processor = TrusTeeProcessorImpl(params)
 
@@ -222,12 +223,15 @@ class TrusTeeProcessorImplTest {
     private const val FULL_SAMPLING_RATE = 1.0f
 
     private val REACH_ONLY_PARAMS =
-      TrusTeeReachParams(vidSamplingIntervalWidth = FULL_SAMPLING_RATE, dpParams = null)
+      TrusTeeReachParams(
+        vidSamplingIntervalWidth = FULL_SAMPLING_RATE,
+        dpParams = DEFAULT_DP_PARAMS,
+      )
     private val REACH_AND_FREQUENCY_PARAMS =
       TrusTeeReachAndFrequencyParams(
         maximumFrequency = MAX_FREQUENCY,
-        reachDpParams = null,
-        frequencyDpParams = null,
+        reachDpParams = DEFAULT_DP_PARAMS,
+        frequencyDpParams = DEFAULT_DP_PARAMS,
         vidSamplingIntervalWidth = FULL_SAMPLING_RATE,
       )
   }

@@ -23,15 +23,15 @@ sealed interface TrusTeeParams
 /** TrusTEE parameters for a Reach-only measurement. */
 data class TrusTeeReachParams(
   val vidSamplingIntervalWidth: Float,
-  val dpParams: DifferentialPrivacyParams?,
+  val dpParams: DifferentialPrivacyParams,
 ) : TrusTeeParams
 
 /** TrusTEE parameters for a Reach-and-Frequency measurement. */
 data class TrusTeeReachAndFrequencyParams(
   val maximumFrequency: Int,
   val vidSamplingIntervalWidth: Float,
-  val reachDpParams: DifferentialPrivacyParams?,
-  val frequencyDpParams: DifferentialPrivacyParams?,
+  val reachDpParams: DifferentialPrivacyParams,
+  val frequencyDpParams: DifferentialPrivacyParams,
 ) : TrusTeeParams
 
 /**

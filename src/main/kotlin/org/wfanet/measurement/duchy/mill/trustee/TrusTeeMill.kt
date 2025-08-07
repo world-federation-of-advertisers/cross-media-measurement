@@ -146,18 +146,23 @@ class TrusTeeMill(
   fun TrusTeeDetails.toTrusTeeParams(): TrusTeeParams {
     return when (type) {
       TrusTeeDetails.Type.REACH -> {
-        val dpParams = if (parameters.hasReachDpParams()) parameters.reachDpParams else null
-        TrusTeeReachParams(parameters.vidSamplingIntervalWidth, dpParams)
+        require(parameters.hasReachDpParams()) {
+          "Reach DP params are required for a Reach-only TrusTee computation."
+        }
+        TrusTeeReachParams(parameters.vidSamplingIntervalWidth, parameters.reachDpParams)
       }
       TrusTeeDetails.Type.REACH_AND_FREQUENCY -> {
-        val reachDpParams = if (parameters.hasReachDpParams()) parameters.reachDpParams else null
-        val freqDpParams =
-          if (parameters.hasFrequencyDpParams()) parameters.frequencyDpParams else null
+        require(parameters.hasReachDpParams()) {
+          "Reach DP params are required for a Reach-and-Frequency TrusTee computation."
+        }
+        require(parameters.hasFrequencyDpParams()) {
+          "Frequency DP params are required for a Reach-and-Frequency TrusTee computation."
+        }
         TrusTeeReachAndFrequencyParams(
           parameters.maximumFrequency,
           parameters.vidSamplingIntervalWidth,
-          reachDpParams,
-          freqDpParams,
+          parameters.reachDpParams,
+          parameters.frequencyDpParams,
         )
       }
       TrusTeeDetails.Type.TYPE_UNSPECIFIED,
