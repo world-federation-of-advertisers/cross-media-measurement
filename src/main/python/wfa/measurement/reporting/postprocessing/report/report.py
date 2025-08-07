@@ -30,6 +30,7 @@ from noiseninja.noised_measurements import Measurement
 from noiseninja.noised_measurements import MeasurementSet
 from noiseninja.noised_measurements import OrderedSets
 from noiseninja.noised_measurements import SetMeasurementsSpec
+from noiseninja.noised_measurements import KReachMeasurements
 from noiseninja.solver import Solver
 from src.main.proto.wfa.measurement.reporting.postprocessing.v2alpha import \
   report_post_processor_result_pb2
@@ -240,7 +241,9 @@ def get_edps_from_edp_combination(
 
 
 def build_whole_campaign_measurements(
-    reach_whole_campaign: dict, k_reach: dict, impression: dict
+    reach_whole_campaign: dict[EdpCombination, Measurement],
+    k_reach: dict[EdpCombination, KReachMeasurements],
+    impression: dict[EdpCombination, Measurement]
 ) -> dict[EdpCombination, MeasurementSet]:
   """Builds a dictionary of MeasurementSet from separate measurement dicts."""
   all_edps = (

@@ -23,6 +23,7 @@ from typing import TypeAlias
 
 from noiseninja.noised_measurements import Measurement
 from noiseninja.noised_measurements import MeasurementSet
+from noiseninja.noised_measurements import KReachMeasurements
 
 from report.report import build_whole_campaign_measurements
 from report.report import EdpCombination
@@ -37,7 +38,6 @@ from src.main.proto.wfa.measurement.reporting.postprocessing.v2alpha import \
 ReportPostProcessorStatus = report_post_processor_result_pb2.ReportPostProcessorStatus
 ReportPostProcessorResult = report_post_processor_result_pb2.ReportPostProcessorResult
 
-KReachMeasurements: TypeAlias = dict[int, Measurement]
 MeasurementPolicy: TypeAlias = str
 
 FLAGS = flags.FLAGS

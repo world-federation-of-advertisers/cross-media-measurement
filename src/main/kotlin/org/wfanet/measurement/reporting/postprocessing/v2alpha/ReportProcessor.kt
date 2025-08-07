@@ -93,7 +93,7 @@ interface ReportProcessor {
   /**
    * Processes a serialized [Report], outputs a consistent one, generates detailed logs of this
    * processing, and returns both a string representation of the processing result and the generated
-
+   * log object.
    *
    * @param report The JSON [String] containing the report data to be processed.
    * @param projectId The GCS Project ID.

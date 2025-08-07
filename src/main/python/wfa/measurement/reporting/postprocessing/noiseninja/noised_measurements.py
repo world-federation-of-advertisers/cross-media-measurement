@@ -16,6 +16,7 @@ from collections import defaultdict
 from dataclasses import dataclass
 from dataclasses import field
 from typing import Optional
+from typing import TypeAlias
 
 class Measurement:
   """Represents a measurement with a mean value and a standard deviation"""
@@ -32,10 +33,14 @@ class Measurement:
     return 'Measurement({:.2f}, {:.2f}, {})\n'.format(self.value, self.sigma,
                                                       self.name)
 
+
+KReachMeasurements: TypeAlias = dict[int, Measurement]
+
+
 @dataclass
 class MeasurementSet:
   reach: Optional[Measurement] = None
-  k_reach: dict[int, Measurement] = field(default_factory=dict)
+  k_reach: KReachMeasurements = field(default_factory=dict)
   impression: Optional[Measurement] = None
 
   def __post_init__(self):

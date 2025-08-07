@@ -22,6 +22,7 @@ from noiseninja.noised_measurements import SetMeasurementsSpec
 from report.report import EdpCombination
 from report.report import MetricReport
 from report.report import Report
+from report.report import build_whole_campaign_measurements
 from report.report import get_covers
 from report.report import is_cover
 from report.report import is_union_reach_consistent
@@ -39,25 +40,6 @@ EDP_TWO = "EDP_TWO"
 EDP_THREE = "EDP_THREE"
 
 NOISE_CORRECTION_TOLERANCE = 0.1
-
-
-def build_whole_campaign_measurements(
-    reach_whole_campaign: dict, k_reach: dict, impression: dict
-) -> dict[EdpCombination, MeasurementSet]:
-  """Builds a dictionary of MeasurementSet from separate measurement dicts."""
-  all_edps = (
-      set(reach_whole_campaign.keys())
-      | set(k_reach.keys())
-      | set(impression.keys())
-  )
-  whole_campaign_measurements = {}
-  for edp in all_edps:
-    whole_campaign_measurements[edp] = MeasurementSet(
-        reach=reach_whole_campaign.get(edp),
-        k_reach=k_reach.get(edp, {}),
-        impression=impression.get(edp),
-    )
-  return whole_campaign_measurements
 
 
 SAMPLE_REPORT = Report(
