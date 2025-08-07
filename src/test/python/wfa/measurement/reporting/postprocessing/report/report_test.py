@@ -3518,48 +3518,48 @@ class TestReport(unittest.TestCase):
     )
 
     self.assertCountEqual(
-        expected.get_cumulative_edp_combinations(),
-        actual.get_cumulative_edp_combinations()
+        expected.get_weekly_cumulative_reach_edp_combinations(),
+        actual.get_weekly_cumulative_reach_edp_combinations()
     )
-    for edp_combination in expected.get_cumulative_edp_combinations():
+    for edp_combination in expected.get_weekly_cumulative_reach_edp_combinations():
       for period in range(0, expected.get_number_of_periods()):
         self._assertMeasurementAlmostEquals(
-            expected.get_cumulative_measurement(edp_combination, period),
-            actual.get_cumulative_measurement(edp_combination, period),
+            expected.get_weekly_cumulative_reach_measurement(edp_combination, period),
+            actual.get_weekly_cumulative_reach_measurement(edp_combination, period),
             msg,
         )
 
     self.assertCountEqual(
-        expected.get_whole_campaign_edp_combinations(),
-        actual.get_whole_campaign_edp_combinations()
+        expected.get_whole_campaign_reach_edp_combinations(),
+        actual.get_whole_campaign_reach_edp_combinations()
     )
-    for edp_combination in expected.get_whole_campaign_edp_combinations():
+    for edp_combination in expected.get_whole_campaign_reach_edp_combinations():
       self._assertMeasurementAlmostEquals(
-          expected.get_whole_campaign_measurement(edp_combination),
-          actual.get_whole_campaign_measurement(edp_combination),
+          expected.get_whole_campaign_reach_measurement(edp_combination),
+          actual.get_whole_campaign_reach_measurement(edp_combination),
           msg,
       )
 
     self.assertCountEqual(
-        expected.get_k_reach_edp_combinations(),
-        actual.get_k_reach_edp_combinations()
+        expected.get_whole_campaign_k_reach_edp_combinations(),
+        actual.get_whole_campaign_k_reach_edp_combinations()
     )
-    for edp_combination in expected.get_k_reach_edp_combinations():
+    for edp_combination in expected.get_whole_campaign_k_reach_edp_combinations():
       for frequency in range(1, expected.get_number_of_frequencies() + 1):
         self._assertMeasurementAlmostEquals(
-            expected.get_k_reach_measurement(edp_combination, frequency),
-            actual.get_k_reach_measurement(edp_combination, frequency),
+            expected.get_whole_campaign_k_reach_measurement(edp_combination, frequency),
+            actual.get_whole_campaign_k_reach_measurement(edp_combination, frequency),
             msg
         )
 
     self.assertCountEqual(
-        expected.get_impression_edp_combinations(),
-        actual.get_impression_edp_combinations()
+        expected.get_whole_campaign_impression_edp_combinations(),
+        actual.get_whole_campaign_impression_edp_combinations()
     )
-    for edp_combination in expected.get_impression_edp_combinations():
+    for edp_combination in expected.get_whole_campaign_impression_edp_combinations():
       self._assertMeasurementAlmostEquals(
-          expected.get_impression_measurement(edp_combination),
-          actual.get_impression_measurement(edp_combination),
+          expected.get_whole_campaign_impression_measurement(edp_combination),
+          actual.get_whole_campaign_impression_measurement(edp_combination),
           msg
       )
 
