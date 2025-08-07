@@ -354,6 +354,7 @@ class RequisitionReader private constructor(override val builder: Statement.Buil
         ComputationParticipantDetails.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE -> {
           honestMajorityShareShuffle = participantDetails.honestMajorityShareShuffle
         }
+        ComputationParticipantDetails.ProtocolCase.TRUS_TEE -> error("TRUS_TEE is not supported")
         // Protocol may only be set after computation participant sets requisition params.
         ComputationParticipantDetails.ProtocolCase.PROTOCOL_NOT_SET -> Unit
       }
