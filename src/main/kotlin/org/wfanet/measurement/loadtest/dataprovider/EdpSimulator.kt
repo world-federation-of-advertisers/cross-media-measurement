@@ -14,6 +14,7 @@
 
 package org.wfanet.measurement.loadtest.dataprovider
 
+import com.google.crypto.tink.integration.gcpkms.GcpKmsClient
 import com.google.protobuf.ByteString
 import com.google.protobuf.Descriptors
 import com.google.protobuf.Message
@@ -146,6 +147,7 @@ import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.Frequ
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.VidIndexMap
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.shareshuffle.FulfillRequisitionRequestBuilder as ShareShuffleFulfillRequisitionRequestBuilder
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.trustee.FulfillRequisitionRequestBuilder as TrusTeeRequisitionRequestBuilder
+import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.trustee.FulfillRequisitionRequestBuilder
 import org.wfanet.measurement.loadtest.common.sampleVids
 import org.wfanet.measurement.loadtest.config.TestIdentifiers.SIMULATOR_EVENT_GROUP_REFERENCE_ID_PREFIX
 
@@ -184,6 +186,9 @@ class EdpSimulator(
   private val random: Random = Random,
   private val logSketchDetails: Boolean = false,
   private val health: SettableHealth = SettableHealth(),
+  private val kmsKekUri: String = "",
+  private val workloadIdentityProvider: String = "",
+  private val impersonatedServiceAccount: String = "",
   private val blockingCoroutineContext: @BlockingExecutor CoroutineContext = Dispatchers.IO,
 ) :
   RequisitionFulfiller(edpData, certificatesStub, requisitionsStub, throttler, trustedCertificates),
@@ -847,14 +852,16 @@ class EdpSimulator(
     }
   }
 
-  private suspend fun chargeMpcPrivacyBudget(
+  private suspend fun chargeIndirectPrivacyBudget(
     requisitionName: String,
     measurementSpec: MeasurementSpec,
     eventSpecs: Iterable<RequisitionSpec.EventGroupEntry.Value>,
     noiseMechanism: NoiseMechanism,
     contributorCount: Int,
   ) {
-    logger.info("chargeMpcPrivacyBudget for requisition with $noiseMechanism noise mechanism...")
+    logger.info(
+      "chargeIndirectPrivacyBudget for requisition with $noiseMechanism noise mechanism..."
+    )
 
     try {
       if (noiseMechanism != NoiseMechanism.DISCRETE_GAUSSIAN) {
@@ -872,7 +879,7 @@ class EdpSimulator(
         )
       )
     } catch (e: PrivacyBudgetManagerException) {
-      logger.log(Level.WARNING, "chargeMpcPrivacyBudget failed due to ${e.errorType}", e)
+      logger.log(Level.WARNING, "chargeIndirectPrivacyBudget failed due to ${e.errorType}", e)
       when (e.errorType) {
         PrivacyBudgetManagerExceptionType.PRIVACY_BUDGET_EXCEEDED -> {
           throw RequisitionRefusalException.Default(
@@ -1027,7 +1034,7 @@ class EdpSimulator(
     val liquidLegionsV2: ProtocolConfig.LiquidLegionsV2 = llv2Protocol.liquidLegionsV2
     val combinedPublicKey = requisition.getCombinedPublicKey(liquidLegionsV2.ellipticCurveId)
 
-    chargeMpcPrivacyBudget(
+    chargeIndirectPrivacyBudget(
       requisition.name,
       measurementSpec,
       eventGroupSpecs.map { it.spec },
@@ -1087,7 +1094,7 @@ class EdpSimulator(
     val combinedPublicKey: AnySketchElGamalPublicKey =
       requisition.getCombinedPublicKey(protocolConfig.ellipticCurveId)
 
-    chargeMpcPrivacyBudget(
+    chargeIndirectPrivacyBudget(
       requisition.name,
       measurementSpec,
       eventGroupSpecs.map { it.spec },
@@ -1202,7 +1209,7 @@ class EdpSimulator(
         }
         .honestMajorityShareShuffle
 
-    chargeMpcPrivacyBudget(
+    chargeIndirectPrivacyBudget(
       requisition.name,
       measurementSpec,
       eventGroupSpecs.map { it.spec },
@@ -1254,8 +1261,7 @@ class EdpSimulator(
       "Protocol with TrusTee is missing"
     }
 
-    // TODO: should we add a new one or rename it to chargeTEEPrivacyBudget?
-    chargeMpcPrivacyBudget(
+    chargeIndirectPrivacyBudget(
       requisition.name,
       measurementSpec,
       eventGroupSpecs.map { it.spec },
@@ -1275,10 +1281,35 @@ class EdpSimulator(
     val sampledFrequencyVector = frequencyVectorBuilder.build()
     logger.log(Level.INFO) { "Sampled frequency vector size:\n${sampledFrequencyVector.dataCount}" }
 
-    val requests =
-      // TODO: try both unencrypted or encrpyted?
-      TrusTeeRequisitionRequestBuilder.buildUnencrypted(requisition, nonce, sampledFrequencyVector)
-        .asFlow()
+    val requests: Flow<FulfillRequisitionRequest> =
+      if (
+        kmsKekUri.isNotEmpty() &&
+          workloadIdentityProvider.isNotEmpty() &&
+          impersonatedServiceAccount.isNotEmpty()
+      ) {
+        val kmsClient = GcpKmsClient()
+        val encryptionParams =
+          FulfillRequisitionRequestBuilder.EncryptionParams(
+            kmsClient,
+            kmsKekUri,
+            workloadIdentityProvider,
+            impersonatedServiceAccount,
+          )
+        TrusTeeRequisitionRequestBuilder.buildEncrypted(
+            requisition,
+            nonce,
+            sampledFrequencyVector,
+            encryptionParams,
+          )
+          .asFlow()
+      } else {
+        TrusTeeRequisitionRequestBuilder.buildUnencrypted(
+            requisition,
+            nonce,
+            sampledFrequencyVector,
+          )
+          .asFlow()
+      }
 
     val duchyId = getDuchyWithoutPublicKey(requisition)
     val requisitionFulfillmentStub =
