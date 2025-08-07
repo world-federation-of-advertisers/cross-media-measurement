@@ -89,6 +89,7 @@ resource "google_compute_instance_template" "confidential_vm_template" {
 
   name_prefix = "${var.instance_template_name}-"
   lifecycle {
+    create_before_destroy = true
     replace_triggered_by  = [terraform_data.image_change_trigger]
   }
 
