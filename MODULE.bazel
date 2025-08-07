@@ -345,9 +345,10 @@ oci.pull(
 
 # TODO(world-federation-of-advertisers/cross-media-measurement#2729): Remove root Java image when Confidential Spaces properly supports nonroot images.
 oci.pull(
-    name = "java_root",
+    name = "java_image_base_root",
+    # Digest of latest tag.
     digest = "sha256:58b716f89428587db33656f3fc6444b6dd4fd567e549c4b3657db75838f39950",
-    image = "gcr.io/distroless/java17-debian12:latest",
+    image = "gcr.io/distroless/java17-debian12",
     platforms = ["linux/amd64"],
 )
 use_repo(
@@ -355,7 +356,7 @@ use_repo(
     "go_image_base",
     "go_image_base_linux_amd64",
 )
-use_repo(oci, "java_root", "java_root_linux_amd64")
+use_repo(oci, "java_image_base_root", "java_image_base_root_linux_amd64")
 
 http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
