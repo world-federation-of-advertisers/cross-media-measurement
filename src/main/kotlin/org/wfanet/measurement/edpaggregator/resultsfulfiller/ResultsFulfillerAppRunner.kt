@@ -88,6 +88,7 @@ class ResultsFulfillerAppRunner : Runnable {
 
   // The file paths supplied via each EdpFlags instance must exactly match the paths defined in the
   // ResultsFulfillerParam proto configuration.
+  // TODO(world-federation-of-advertisers/cross-media-measurement#2738): Replace flags with config files.
   class EdpFlags {
     @CommandLine.Option(
       names = ["--edp-kms-audience"],
