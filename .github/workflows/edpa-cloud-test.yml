@@ -15,6 +15,9 @@
 name: Run EDP Aggregator Cloud Test
 
 on:
+  push:
+    branches:
+      - marcopremier/edpa_cloud_test_workflow
   workflow_call:
     inputs:
       environment:
@@ -37,11 +40,13 @@ permissions:
 jobs:
   run-tests:
     runs-on: ubuntu-22.04
-    environment: ${{ inputs.environment }}
-    env:
-      GOOGLE_CLOUD_PROJECT: ${{ vars.GCLOUD_PROJECT }}
+#    environment: ${{ inputs.environment }}
+    environment: "dev"
     steps:
       - uses: actions/checkout@v4
+
+      - name: Set up Bazel
+        uses: world-federation-of-advertisers/actions/setup-bazel@v2
 
       - name: Authenticate to Google Cloud
         id: auth
@@ -65,7 +70,8 @@ jobs:
           KINGDOM_PUBLIC_API_TARGET: ${{ vars.KINGDOM_PUBLIC_API_TARGET }}
           MC_NAME: ${{ vars.MC_NAME }}
           MC_API_KEY: ${{ secrets.MC_API_KEY }}
-          GCLOUD_PROJECT: ${{ vars.GCLOUD_PROJECT }}
+          AUTH_ID_TOKEN: ${{ steps.auth.outputs.id_token }}
+          REQUISITION_FETCHER_TARGET: ${{ vars.REQUISITION_FETCHER_TARGET }}
         run: |
           cat << EOF > ~/.bazelrc
           common --config=ci
@@ -73,8 +79,14 @@ jobs:
           build --define mc_name=$MC_NAME
           build --define mc_api_key=$MC_API_KEY
           build --define google_cloud_project=$GCLOUD_PROJECT
+          build --define auth_id_token=$AUTH_ID_TOKEN
+          build --define requisition_fetcher_target=$REQUISITION_FETCHER_TARGET
           test --test_output=streamed
           test --test_timeout=3600
+          test --test_env=GOOGLE_APPLICATION_CREDENTIALS
+          test --test_env=GOOGLE_CLOUD_PROJECT
+          test --test_env=AUTH_ID_TOKEN
+          test --test_env=REQUISITION_FETCHER_TARGET
           EOF
 
       # Reduce chance of disconnection from the Build Event Service.
@@ -83,16 +95,8 @@ jobs:
 
       - name: Run tests
         id: run-tests
-        env:
-          AUTH_ID_TOKEN: ${{ steps.auth.outputs.id_token }}
-          REQUISITION_FETCHER_TARGET: ${{ vars.REQUISITION_FETCHER_TARGET }}
         run: |
-          bazelisk test \
-          --test_env=GOOGLE_APPLICATION_CREDENTIALS \
-          --test_env=GOOGLE_CLOUD_PROJECT \
-          --test_env=AUTH_ID_TOKEN \
-          --test_env=REQUISITION_FETCHER_TARGET \
-          //src/test/kotlin/org/wfanet/measurement/integration/k8s:EdpAggregatorCorrectnessTest
+          bazel test //src/test/kotlin/org/wfanet/measurement/integration/k8s:EdpAggregatorCorrectnessTest
 
       - name: Upload Bazel testlogs
         continue-on-error: true
