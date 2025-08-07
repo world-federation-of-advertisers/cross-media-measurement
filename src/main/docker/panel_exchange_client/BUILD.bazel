@@ -4,6 +4,7 @@ load(
     "container_push_all",
 )
 load("//build:variables.bzl", "IMAGE_REPOSITORY_SETTINGS")
+load("//build/cosign:macros.bzl", "sign_all")
 load(
     "//src/main/docker/panel_exchange_client:images.bzl",
     "AWS_IMAGES",
@@ -43,4 +44,18 @@ container_push_all(
         tag = IMAGE_REPOSITORY_SETTINGS.image_tag,
     ): image_spec.image for image_spec in ALL_IMAGES},
     tags = ["manual"],
+)
+
+IMAGES_TO_SIGN = GCLOUD_IMAGES + AWS_IMAGES
+
+sign_all(
+    name = "sign_all_images",
+    images = {"{registry}/{name}".format(
+        name = image_spec.repository,
+        registry = IMAGE_REPOSITORY_SETTINGS.container_registry,
+    ): image_spec.image for image_spec in IMAGES_TO_SIGN},
+    tags = [
+        "manual",
+        "no-remote",
+    ],
 )
