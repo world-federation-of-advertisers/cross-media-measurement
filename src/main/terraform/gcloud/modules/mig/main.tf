@@ -18,7 +18,6 @@ locals {
 
   metadata_map = {
     "tee-image-reference"           = var.docker_image
-    "tee-container-log-redirect"    = "true"
     "tee-cmd"                       = jsonencode(var.tee_cmd)
   }
 }
