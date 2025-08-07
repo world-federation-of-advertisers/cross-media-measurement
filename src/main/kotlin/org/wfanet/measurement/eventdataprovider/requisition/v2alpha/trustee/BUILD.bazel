@@ -4,6 +4,7 @@ load("@wfa_common_jvm//build/maven:defs.bzl", "artifact_version")
 load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
 
 package(default_visibility = [
+    "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/requisition/v2alpha:__pkg__",
     test_target(":__pkg__"),
 ])
 
@@ -13,10 +14,6 @@ kt_jvm_library(
     name = "trustee",
     srcs = ["FulfillRequisitionRequestBuilder.kt"],
     tags = ["maven_coordinates=" + MAVEN_COORDINATES],
-    visibility = [
-        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/requisition/v2alpha:__pkg__",
-        "//src/test/kotlin/org/wfanet/measurement/eventdataprovider/requisition/v2alpha/trustee:__pkg__",
-    ],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
         "//src/main/proto/wfa/frequency_count:frequency_vector_kt_jvm_proto",
