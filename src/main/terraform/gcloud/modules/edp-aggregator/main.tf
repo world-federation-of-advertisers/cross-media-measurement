@@ -40,12 +40,6 @@ locals {
       mount_path = "/etc/ssl/kingdom_root.pem",
       flag_name  = "--kingdom-cert-collection-file-path"
     },
-    {
-      secret_id  = var.results_fulfiller_event_proto_descriptors.secret_id
-      version    = "latest"
-      mount_path = "/var/tmp/event_proto_descriptors.pb",
-      flag_name  = "--event-template-metadata-type"
-    }
   ]
 
   edp_secrets_to_mount = flatten([
@@ -96,7 +90,6 @@ locals {
     { data_watcher_tls_pem                          = var.data_watcher_tls_pem },
     { secure_computation_root_ca                    = var.secure_computation_root_ca },
     { kingdom_root_ca                               = var.kingdom_root_ca },
-    { results_fulfiller_event_proto_descriptors     = var.results_fulfiller_event_proto_descriptors },
     local.edps_secrets
   )
 
@@ -161,16 +154,22 @@ module "config_files_bucket" {
   location = var.edp_aggregator_buckets_location
 }
 
-resource "google_storage_bucket_object" "uploaded_data_watcher_config" {
+resource "google_storage_bucket_object" "upload_data_watcher_config" {
   name   = var.data_watcher_config.destination
   bucket = module.config_files_bucket.storage_bucket.name
   source = var.data_watcher_config.local_path
 }
 
-resource "google_storage_bucket_object" "uploaded_requisition_fetcher_config" {
+resource "google_storage_bucket_object" "upload_requisition_fetcher_config" {
   name   = var.requisition_fetcher_config.destination
   bucket = module.config_files_bucket.storage_bucket.name
   source = var.requisition_fetcher_config.local_path
+}
+
+resource "google_storage_bucket_object" "upload_results_fulfiller_proto_descriptors" {
+  name   = var.results_fulfiller_event_descriptor.destination
+  bucket = module.config_files_bucket.storage_bucket.name
+  source = var.results_fulfiller_event_descriptor.local_path
 }
 
 resource "google_project_iam_member" "eventarc_service_agent" {
@@ -322,6 +321,12 @@ resource "google_storage_bucket_iam_member" "data_watcher_config_storage_viewer"
   bucket = module.config_files_bucket.storage_bucket.name
   role   = "roles/storage.objectViewer"
   member = "serviceAccount:${module.data_watcher_cloud_function.cloud_function_service_account.email}"
+}
+
+resource "google_storage_bucket_iam_member" "results_fulfiller_config_storage_viewer" {
+  bucket = module.config_files_bucket.storage_bucket.name
+  role   = "roles/storage.objectViewer"
+  member = "serviceAccount:${module.result_fulfiller_tee_app.mig_service_account.email}"
 }
 
 resource "google_cloud_run_service_iam_member" "event_group_sync_invoker" {
