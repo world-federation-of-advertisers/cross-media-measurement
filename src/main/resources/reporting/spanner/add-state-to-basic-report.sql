@@ -17,11 +17,7 @@
 -- changeset tristanvuong2021:2 dbms:cloudspanner
 -- comment: Add State and Report ID columns to BasicReport
 
-START BATCH DDL;
-
 ALTER TABLE BasicReports
 -- org.wfanet.measurement.internal.reporting.v2.BasicReport.State protobuf enum
 -- encoded as an integer.
 ADD COLUMN State INT64 NOT NULL DEFAULT (4);
-
-RUN BATCH;
