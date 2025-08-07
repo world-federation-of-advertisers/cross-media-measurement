@@ -185,6 +185,9 @@ jobs:
         EVENT_GROUP_ENV_VAR: ${{ vars.EVENT_GROUP_ENV_VAR }}
         EVENT_GROUP_SECRET_MAPPING: ${{ vars.EVENT_GROUP_SECRET_MAPPING }}
         RESULTS_FULFILLER_EVENT_DESCRIPTOR_BLOB_URI: ${{ vars.RESULTS_FULFILLER_EVENT_DESCRIPTOR_BLOB_URI }}
+        EDPA_EDP_KMS_AUDIENCE: ${{ vars.EDPA_EDP_KMS_AUDIENCE }}
+        EDPA_EDP_RESOURCE_NAME: ${{ vars.EDPA_EDP_RESOURCE_NAME }}
+        EDPA_EDP_TARGET_SERVICE_ACCOUNT: ${{ vars.EDPA_EDP_TARGET_SERVICE_ACCOUNT }}
       working-directory: ${{ env.GCLOUD_MODULE_PATH }}
       run: >
         terraform plan
@@ -217,6 +220,9 @@ jobs:
         -var="image_tag=$IMAGE_TAG"
         -var="results_fulfiller_event_proto_descriptor_path=${{ steps.build-test-event-descriptors.outputs.event_proto_descriptors_path }}"
         -var="results_fulfiller_event_proto_descriptor_blob_uri=$RESULTS_FULFILLER_EVENT_DESCRIPTOR_BLOB_URI"
+        -var="edpa_edp_kms_audience=$EDPA_EDP_KMS_AUDIENCE"
+        -var="edpa_edp_target_service_account=$EDPA_EDP_TARGET_SERVICE_ACCOUNT"
+        -var="edpa_edp_resource_name=$EDPA_EDP_RESOURCE_NAME"
         -out=tfplan
 
     - name: terraform apply

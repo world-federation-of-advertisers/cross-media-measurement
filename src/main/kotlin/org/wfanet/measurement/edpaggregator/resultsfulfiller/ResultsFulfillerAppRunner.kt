@@ -322,7 +322,6 @@ class ResultsFulfillerAppRunner : Runnable {
     runBlocking { resultsFulfillerApp.run() }
   }
 
-  // TODO(@marcopremier): Refactor when common-jvm #330 get merge
   fun createKmsClients() {
 
     kmsClientsMap = mutableMapOf()
@@ -332,7 +331,7 @@ class ResultsFulfillerAppRunner : Runnable {
       val kmsConfig = GCloudWifCredentials(
         audience = edp.edpKmsAudience,
         subjectTokenType = SUBJECT_TOKEN_TYPE,
-        tokenUrl = TOKEK_URL,
+        tokenUrl = TOKEN_URL,
         credentialSourceFilePath = CREDENTIAL_SOURCE_FILE_PATH,
         serviceAccountImpersonationUrl = EDP_TARGET_SERVICE_ACCOUNT.format(edp.edpTargetServiceAccount)
       )
@@ -465,7 +464,7 @@ class ResultsFulfillerAppRunner : Runnable {
     private const val PROTO_DESCRIPTORS_DIR = "/tmp/proto_descriptors"
 
     private const val SUBJECT_TOKEN_TYPE = "urn:ietf:params:oauth:token-type:jwt"
-    private const val TOKEK_URL = "https://sts.googleapis.com/v1/token"
+    private const val TOKEN_URL = "https://sts.googleapis.com/v1/token"
     private const val CREDENTIAL_SOURCE_FILE_PATH = "/run/container_launcher/attestation_verifier_claims_token"
     private const val EDP_TARGET_SERVICE_ACCOUNT = "https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/%s:generateAccessToken"
     @JvmStatic fun main(args: Array<String>) = commandLineMain(ResultsFulfillerAppRunner(), args)
