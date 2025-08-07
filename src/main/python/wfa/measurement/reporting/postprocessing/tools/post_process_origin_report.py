@@ -78,9 +78,9 @@ class ReportSummaryProcessor:
       report_summary: The ReportSummary proto to process.
     """
     self._report_summary = report_summary
-    self._weekly_cumulative_reaches: dict[str, dict[EdpCombination,
+    self._weekly_cumulative_reaches: dict[MeasurementPolicy, dict[EdpCombination,
                                                   list[Measurement]]] = {}
-    self._whole_campaign_reaches: dict[str,
+    self._whole_campaign_reaches: dict[MeasurementPolicy,
                                             dict[EdpCombination, Measurement]] = {}
     self._whole_campaign_k_reaches: dict[MeasurementPolicy,
                         dict[EdpCombination, KReachMeasurements]] = {}
