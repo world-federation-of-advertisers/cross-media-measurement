@@ -78,11 +78,13 @@ jobs:
           build --define kingdom_public_api_target=$KINGDOM_PUBLIC_API_TARGET
           build --define mc_name=$MC_NAME
           build --define mc_api_key=$MC_API_KEY
-          build --define google_cloud_project=$GCLOUD_PROJECT
+#          build --define google_cloud_project=$GCLOUD_PROJECT
           build --define auth_id_token=$AUTH_ID_TOKEN
           build --define requisition_fetcher_target=$REQUISITION_FETCHER_TARGET
           test --test_output=streamed
           test --test_timeout=3600
+          test --test_env=GOOGLE_APPLICATION_CREDENTIALS
+          test --test_env=GOOGLE_CLOUD_PROJECT
           EOF
 
       # Reduce chance of disconnection from the Build Event Service.
