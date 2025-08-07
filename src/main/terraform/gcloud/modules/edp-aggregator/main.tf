@@ -252,22 +252,6 @@ resource "google_pubsub_topic_iam_member" "publisher" {
   member = var.pubsub_iam_service_account_member
 }
 
-resource "google_kms_key_ring" "edp_aggregator_key_ring" {
-
-  name     = var.key_ring_name
-  location = var.key_ring_location
-
-  lifecycle {
-    prevent_destroy = false
-  }
-}
-
-resource "google_kms_crypto_key" "edp_aggregator_kek" {
-  name     = var.kms_key_name
-  key_ring = google_kms_key_ring.edp_aggregator_key_ring.id
-  purpose  = "ENCRYPT_DECRYPT"
-}
-
 module "result_fulfiller_tee_app" {
   source   = "../mig"
 
@@ -283,7 +267,6 @@ module "result_fulfiller_tee_app" {
   max_replicas                  = var.requisition_fulfiller_config.worker.max_replicas
   app_args                      = var.requisition_fulfiller_config.worker.app_args
   machine_type                  = var.requisition_fulfiller_config.worker.machine_type
-  kms_key_id                    = google_kms_crypto_key.edp_aggregator_kek.id
   docker_image                  = var.requisition_fulfiller_config.worker.docker_image
   mig_distribution_policy_zones = var.requisition_fulfiller_config.worker.mig_distribution_policy_zones
   terraform_service_account     = var.terraform_service_account
