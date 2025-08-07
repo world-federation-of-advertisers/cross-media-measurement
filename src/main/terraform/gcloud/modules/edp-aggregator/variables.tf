@@ -12,24 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-variable "key_ring_name" {
-  description = "Name of the KMS key ring."
-  type        = string
-  nullable    = false
-}
-
-variable "key_ring_location" {
-  description = "Location of the KMS key ring."
-  type        = string
-  nullable    = false
-}
-
-variable "kms_key_name" {
-  description = "Name of the KMS KEK."
-  type        = string
-  nullable    = false
-}
-
 variable "requisition_fulfiller_config" {
   description = "Config for a single Pub/Sub queue and its corresponding MIG worker"
   type = object({
@@ -51,15 +33,6 @@ variable "requisition_fulfiller_config" {
       docker_image                  = string
       mig_distribution_policy_zones = list(string)
     })
-  })
-}
-
-variable "results_fulfiller_event_proto_descriptors" {
-  description = "Event proto descriptors file path"
-  type = object({
-    secret_id         = string
-    secret_local_path = string
-    is_binary_format  = bool
   })
 }
 
@@ -177,6 +150,14 @@ variable "data_watcher_config" {
 
 variable "requisition_fetcher_config" {
   description = "An object containing the local path of the requisition fetcher config file and its destination path in Cloud Storage."
+  type = object({
+    local_path  = string
+    destination = string
+  })
+}
+
+variable "results_fulfiller_event_descriptor" {
+  description = "An object containing the local path of the results fulfiller event descriptor file and its destination path in Cloud Storage."
   type = object({
     local_path  = string
     destination = string
