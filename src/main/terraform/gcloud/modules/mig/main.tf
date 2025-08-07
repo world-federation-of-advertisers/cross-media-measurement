@@ -133,6 +133,10 @@ resource "google_compute_region_instance_group_manager" "mig" {
   lifecycle {
     replace_triggered_by  = [terraform_data.image_change_trigger]
   }
+  update_policy {
+    type           = "PROACTIVE"
+    minimal_action = "REPLACE"
+  }
 }
 
 resource "google_compute_region_autoscaler" "mig_autoscaler" {
