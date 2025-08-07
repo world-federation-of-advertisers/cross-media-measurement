@@ -23,22 +23,28 @@ object ReachAndFrequencyCalculator {
   private const val L_INFINITE_SENSITIVITY = 1L
 
   /**
-   * Computes the reach, applying differential privacy noise.
+   * Computes the reach, applying differential privacy noise if parameters are provided.
    *
    * @param rawHistogram A histogram of counts for frequencies 1 to `maxFrequency`.
-   * @param dpParams The privacy parameters for the reach computation.
-   * @return The reach value, with noise applied.
+   * @param dpParams The privacy parameters for the reach computation. If `null`, the raw reach is
+   *   computed.
+   * @return The reach value, potentially with noise applied.
    */
   fun computeReach(
     rawHistogram: LongArray,
     vectorSize: Int,
     vidSamplingIntervalWidth: Float,
-    dpParams: DifferentialPrivacyParams,
+    dpParams: DifferentialPrivacyParams?,
   ): Long {
     val maxPossibleScaledReach = (vectorSize / vidSamplingIntervalWidth).toLong()
 
     // The histogram is built only from non-zero frequencies, so its sum is the reach in the sample.
     val reachInSample = rawHistogram.sum()
+
+    if (dpParams == null) {
+      val scaledReach = (reachInSample / vidSamplingIntervalWidth).toLong()
+      return min(scaledReach, maxPossibleScaledReach)
+    }
 
     val noise = GaussianNoise()
     val noisedReachInSample =
@@ -57,19 +63,31 @@ object ReachAndFrequencyCalculator {
 
   /**
    * Computes the frequency distribution among VIDs with non-zero frequencies, applying differential
-   * privacy noise.
+   * privacy noise if parameters are provided.
    *
    * @param rawHistogram A histogram of counts for frequencies 1 to `maxFrequency`.
-   * @param dpParams The privacy parameters for the frequency computation.
+   * @param dpParams The privacy parameters for the frequency computation. If `null`, the raw
+   *   distribution is computed.
    * @return A map representing the frequency distribution for frequencies 1 through `maxFrequency`.
    */
   fun computeFrequencyDistribution(
     rawHistogram: LongArray,
     maxFrequency: Int,
-    dpParams: DifferentialPrivacyParams,
+    dpParams: DifferentialPrivacyParams?,
   ): Map<Long, Double> {
     require(rawHistogram.size == maxFrequency) {
       "Invalid histogram size: ${rawHistogram.size} against maxFrequency: $maxFrequency"
+    }
+
+    if (dpParams == null) {
+      val totalReachedUsers = rawHistogram.sum()
+      if (totalReachedUsers == 0L) {
+        return (1..maxFrequency).associate { it.toLong() to 0.0 }
+      }
+      return rawHistogram.withIndex().associate { (index, count) ->
+        val frequency = index + 1L
+        frequency to count.toDouble() / totalReachedUsers
+      }
     }
 
     val noise = GaussianNoise()
