@@ -52,6 +52,8 @@ import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.impression
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reach
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.vidSamplingInterval
 import org.wfanet.measurement.api.v2alpha.MediaType
+import org.wfanet.measurement.api.v2alpha.PopulationSpecKt.subPopulation
+import org.wfanet.measurement.api.v2alpha.PopulationSpecKt.vidRange
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt
 import org.wfanet.measurement.api.v2alpha.RefuseRequisitionRequest
@@ -81,6 +83,7 @@ import org.wfanet.measurement.api.v2alpha.liquidLegionsSketchParams
 import org.wfanet.measurement.api.v2alpha.listEventGroupsResponse
 import org.wfanet.measurement.api.v2alpha.listRequisitionsResponse
 import org.wfanet.measurement.api.v2alpha.measurementSpec
+import org.wfanet.measurement.api.v2alpha.populationSpec
 import org.wfanet.measurement.api.v2alpha.protocolConfig
 import org.wfanet.measurement.api.v2alpha.refuseRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.requisition
@@ -93,6 +96,7 @@ import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.common.testing.verifyAndCapture
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
+import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
 import org.wfanet.measurement.consent.client.duchy.computeRequisitionFingerprint
@@ -105,10 +109,6 @@ import org.wfanet.measurement.dataprovider.MeasurementResults
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.AcdpCharge
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.AgeGroup as PrivacyLandscapeAge
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.Gender as PrivacyLandscapeGender
-import org.wfanet.measurement.api.v2alpha.PopulationSpecKt.subPopulation
-import org.wfanet.measurement.api.v2alpha.PopulationSpecKt.vidRange
-import org.wfanet.measurement.api.v2alpha.populationSpec
-import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBucketGroup
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.InMemoryVidIndexMap
@@ -116,7 +116,6 @@ import org.wfanet.measurement.integration.common.SyntheticGenerationSpecs
 import org.wfanet.measurement.loadtest.common.sampleVids
 import org.wfanet.measurement.loadtest.config.PrivacyBudgets
 import org.wfanet.measurement.loadtest.config.TestIdentifiers
-import org.wfanet.measurement.loadtest.dataprovider.AbstractEdpSimulatorTest.Companion
 
 private const val RANDOM_SEED: Long = 0
 
