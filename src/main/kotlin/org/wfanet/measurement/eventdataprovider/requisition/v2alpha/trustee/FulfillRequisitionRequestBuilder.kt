@@ -14,14 +14,18 @@
 
 package org.wfanet.measurement.eventdataprovider.requisition.v2alpha.trustee
 
-import com.google.crypto.tink.Aead
 import com.google.crypto.tink.BinaryKeysetWriter
 import com.google.crypto.tink.KeyTemplates
 import com.google.crypto.tink.KeysetHandle
 import com.google.crypto.tink.KmsClient
+import com.google.crypto.tink.StreamingAead
 import com.google.crypto.tink.aead.AeadConfig
+import com.google.crypto.tink.streamingaead.StreamingAeadConfig
+import com.google.protobuf.ByteString
 import com.google.protobuf.kotlin.toByteString
 import java.io.ByteArrayOutputStream
+import java.nio.ByteBuffer
+import java.nio.channels.Pipe
 import org.wfanet.frequencycount.FrequencyVector
 import org.wfanet.measurement.api.v2alpha.EncryptionKey
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequest
@@ -93,71 +97,108 @@ class FulfillRequisitionRequestBuilder(
 
   /** Builds the Sequence of requests with payload. */
   fun build(): Sequence<FulfillRequisitionRequest> = sequence {
-    var payload = frequencyVectorBytes.toByteString()
-
-    yield(
-      fulfillRequisitionRequest {
-        header = header {
-          name = requisition.name
-          requisitionFingerprint = computeRequisitionFingerprint(requisition)
-          nonce = requisitionNonce
-          protocolConfig = requisition.protocolConfig
-
-          if (encryptionParams == null) {
-            trusTee = trusTee {
-              dataFormat = FulfillRequisitionRequest.Header.TrusTee.DataFormat.FREQUENCY_VECTOR
-            }
-          } else {
-            val dekHandle = KeysetHandle.generateNew(KeyTemplates.get(KEY_TEMPLATE))
-            val dekAead = dekHandle.getPrimitive(Aead::class.java)
-
-            val encryptedData: ByteArray = dekAead.encrypt(frequencyVectorBytes, null)
-            payload = encryptedData.toByteString()
-
-            val kekAead = encryptionParams.kmsClient.getAead(encryptionParams.kmsKekUri)
-            val outputStream = ByteArrayOutputStream()
-            dekHandle.write(BinaryKeysetWriter.withOutputStream(outputStream), kekAead)
-            val encryptedDek = outputStream.toByteArray().toByteString()
-
-            trusTee = trusTee {
-              dataFormat =
-                FulfillRequisitionRequest.Header.TrusTee.DataFormat.ENCRYPTED_FREQUENCY_VECTOR
-              envelopeEncryption =
-                FulfillRequisitionRequestKt.HeaderKt.TrusTeeKt.envelopeEncryption {
-                  this.encryptedDek = encryptionKey {
-                    format = EncryptionKey.Format.TINK_ENCRYPTED_KEYSET
-                    data = encryptedDek
-                  }
-                  kmsKekUri = encryptionParams.kmsKekUri
-                  workloadIdentityProvider = encryptionParams.workloadIdentityProvider
-                  impersonatedServiceAccount = encryptionParams.impersonatedServiceAccount
-                }
-              // TODO(world-federation-of-advertisers/cross-media-measurement#2624): generate
-              // populationSpec fingerprint
+    if (encryptionParams == null) {
+      val headerRequest = buildUnencryptedHeader()
+      yield(headerRequest)
+      val payload = frequencyVectorBytes.toByteString()
+      for (begin in 0 until payload.size() step RPC_CHUNK_SIZE_BYTES) {
+        yield(
+          fulfillRequisitionRequest {
+            bodyChunk = bodyChunk {
+              val end = minOf(payload.size(), begin + RPC_CHUNK_SIZE_BYTES)
+              data = payload.substring(begin, end)
             }
           }
+        )
+      }
+    } else {
+      val dekHandle = KeysetHandle.generateNew(KeyTemplates.get(KEY_TEMPLATE))
+      val encryptedDek = encryptDek(dekHandle)
+      val headerRequest = buildEncryptedHeader(encryptedDek)
+      yield(headerRequest)
+      yieldBodyChunks(dekHandle)
+    }
+  }
+
+  private suspend fun SequenceScope<FulfillRequisitionRequest>.yieldBodyChunks(
+    dekHandle: KeysetHandle
+  ) {
+    val pipe = Pipe.open()
+
+    pipe.sink().use { sinkChannel ->
+      val streamingAead = dekHandle.getPrimitive(StreamingAead::class.java)
+      streamingAead.newEncryptingChannel(sinkChannel, byteArrayOf()).use { plaintextChannel ->
+        plaintextChannel.write(ByteBuffer.wrap(frequencyVectorBytes))
+      }
+    }
+
+    pipe.source().use { sourceChannel ->
+      val buffer = ByteBuffer.allocate(RPC_CHUNK_SIZE_BYTES)
+      while (sourceChannel.read(buffer) != -1) {
+        buffer.flip()
+        yield(
+          fulfillRequisitionRequest { bodyChunk = bodyChunk { data = ByteString.copyFrom(buffer) } }
+        )
+        buffer.clear()
+      }
+    }
+  }
+
+  private fun encryptDek(dekHandle: KeysetHandle): ByteString {
+    val kekAead = encryptionParams!!.kmsClient.getAead(encryptionParams.kmsKekUri)
+    val outputStream = ByteArrayOutputStream()
+    dekHandle.write(BinaryKeysetWriter.withOutputStream(outputStream), kekAead)
+    return outputStream.toByteArray().toByteString()
+  }
+
+  private fun buildUnencryptedHeader(): FulfillRequisitionRequest {
+    return fulfillRequisitionRequest {
+      header = header {
+        name = requisition.name
+        requisitionFingerprint = computeRequisitionFingerprint(requisition)
+        nonce = requisitionNonce
+        protocolConfig = requisition.protocolConfig
+        trusTee = trusTee {
+          dataFormat = FulfillRequisitionRequest.Header.TrusTee.DataFormat.FREQUENCY_VECTOR
         }
       }
-    )
+    }
+  }
 
-    for (begin in 0 until payload.size() step RPC_CHUNK_SIZE_BYTES) {
-      yield(
-        fulfillRequisitionRequest {
-          bodyChunk = bodyChunk {
-            val end = minOf(payload.size(), begin + RPC_CHUNK_SIZE_BYTES)
-            data = payload.substring(begin, end)
-          }
+  private fun buildEncryptedHeader(encryptedDek: ByteString): FulfillRequisitionRequest {
+    return fulfillRequisitionRequest {
+      header = header {
+        name = requisition.name
+        requisitionFingerprint = computeRequisitionFingerprint(requisition)
+        nonce = requisitionNonce
+        protocolConfig = requisition.protocolConfig
+        trusTee = trusTee {
+          dataFormat =
+            FulfillRequisitionRequest.Header.TrusTee.DataFormat.ENCRYPTED_FREQUENCY_VECTOR
+          envelopeEncryption =
+            FulfillRequisitionRequestKt.HeaderKt.TrusTeeKt.envelopeEncryption {
+              this.encryptedDek = encryptionKey {
+                format = EncryptionKey.Format.TINK_ENCRYPTED_KEYSET
+                data = encryptedDek
+              }
+              kmsKekUri = encryptionParams!!.kmsKekUri
+              workloadIdentityProvider = encryptionParams.workloadIdentityProvider
+              impersonatedServiceAccount = encryptionParams.impersonatedServiceAccount
+            }
+          // TODO(world-federation-of-advertisers/cross-media-measurement#2624): generate
+          // populationSpec fingerprint
         }
-      )
+      }
     }
   }
 
   companion object {
-    private const val KEY_TEMPLATE = "AES256_GCM"
+    private const val KEY_TEMPLATE = "AES256_GCM_HKDF_1MB"
     private const val RPC_CHUNK_SIZE_BYTES = 32 * 1024 // 32 KiB
 
     init {
       AeadConfig.register()
+      StreamingAeadConfig.register()
     }
 
     /** Builds a sequence of requests with an encrypted payload. */
