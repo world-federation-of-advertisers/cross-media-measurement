@@ -219,5 +219,5 @@ variable "cloud_function_configs" {
 variable "results_fulfiller_disk_image_family" {
   description = "The boot disk image family."
   type        = string
-  default     = "confidential-space-debug"
+  default     = "confidential-space"
 }
