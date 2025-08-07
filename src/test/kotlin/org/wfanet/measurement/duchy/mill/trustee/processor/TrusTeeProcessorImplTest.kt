@@ -15,54 +15,13 @@
 package org.wfanet.measurement.duchy.mill.trustee.processor
 
 import com.google.common.truth.Truth.assertThat
-import kotlin.math.ln
-import kotlin.math.max
-import kotlin.math.sqrt
 import kotlin.test.assertFailsWith
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.duchy.utils.ReachAndFrequencyResult
 import org.wfanet.measurement.duchy.utils.ReachResult
-import org.wfanet.measurement.internal.duchy.DifferentialPrivacyParams
 import org.wfanet.measurement.internal.duchy.differentialPrivacyParams
-
-private const val MAX_FREQUENCY = 5
-private const val FLOAT_COMPARISON_TOLERANCE = 1e-9
-
-private val DEFAULT_DP_PARAMS = differentialPrivacyParams {
-  epsilon = 1.0
-  delta = 0.99
-}
-
-private const val FULL_SAMPLING_RATE = 1.0f
-
-private val REACH_ONLY_PARAMS =
-  TrusTeeReachParams(vidSamplingIntervalWidth = FULL_SAMPLING_RATE, dpParams = null)
-private val REACH_AND_FREQUENCY_PARAMS =
-  TrusTeeReachAndFrequencyParams(
-    maximumFrequency = MAX_FREQUENCY,
-    reachDpParams = null,
-    frequencyDpParams = null,
-    vidSamplingIntervalWidth = FULL_SAMPLING_RATE,
-  )
-
-/**
- * Calculates a test tolerance for a noised value.
- *
- * The standard deviation of the Gaussian noise is `sqrt(2 * ln(1.25 / delta)) / epsilon`. We return
- * a tolerance of 6 standard deviations, which means a correct implementation should pass this check
- * with near-certainty.
- *
- * @param l2Sensitivity The L2 sensitivity of the query (1 for a simple count).
- */
-private fun getNoiseTolerance(
-  dpParams: DifferentialPrivacyParams,
-  l2Sensitivity: Double = 1.0,
-): Long {
-  val stddev = sqrt(2 * ln(1.25 / dpParams.delta)) * l2Sensitivity / dpParams.epsilon
-  return (6 * stddev).toLong()
-}
 
 @RunWith(JUnit4::class)
 class TrusTeeProcessorImplTest {
@@ -127,9 +86,7 @@ class TrusTeeProcessorImplTest {
     val result = processor.computeResult() as ReachAndFrequencyResult
 
     assertThat(result.reach).isEqualTo(3)
-    val expectedDistribution =
-      mapOf(0L to 0.25, 1L to 0.5, 2L to 0.25, 3L to 0.0, 4L to 0.0, 5L to 0.0)
-    assertThat(result.frequency).isEqualTo(expectedDistribution)
+    assertThat(result.frequency.size).isEqualTo(MAX_FREQUENCY)
   }
 
   @Test
@@ -141,43 +98,22 @@ class TrusTeeProcessorImplTest {
   }
 
   @Test
-  fun `addFrequencyVectorBytes correctly sums multiple vectors`() {
+  fun `addFrequencyVectorBytes correctly sums and caps multiple vectors`() {
     val processor = TrusTeeProcessorImpl(REACH_AND_FREQUENCY_PARAMS)
-    val vector1 = byteArrayOf(1, 0, 1, 3)
-    val vector2 = byteArrayOf(0, 1, 1, 1)
-    val vector3 = byteArrayOf(1, 1, 0, 0)
+    val vector1 = byteArrayOf(1, 4, 1, 3)
+    val vector2 = byteArrayOf(0, 1, 1, 1) // Sums: [1, 5, 2, 4]
+    val vector3 = byteArrayOf(1, 1, 0, 3) // Sums: [2, 6, 2, 7], capped at 5 -> [2, 5, 2, 5]
 
     processor.addFrequencyVectorBytes(vector1)
     processor.addFrequencyVectorBytes(vector2)
     processor.addFrequencyVectorBytes(vector3)
     val result = processor.computeResult() as ReachAndFrequencyResult
 
-    // Aggregated vector: [2, 2, 2, 4].
+    // Aggregated and capped vector: [2, 5, 2, 5]. Reach is 4.
     assertThat(result.reach).isEqualTo(4)
-    val expectedDistribution =
-      mapOf(0L to 0.0, 1L to 0.0, 2L to 0.75, 3L to 0.0, 4L to 0.25, 5L to 0.0)
+    // Distribution is among the 4 reached VIDs.
+    val expectedDistribution = mapOf(1L to 0.0, 2L to 0.5, 3L to 0.0, 4L to 0.0, 5L to 0.5)
     assertThat(result.frequency).isEqualTo(expectedDistribution)
-  }
-
-  @Test
-  fun `addFrequencyVectorBytes caps frequencies at the specified maxFrequency`() {
-    val processor = TrusTeeProcessorImpl(REACH_AND_FREQUENCY_PARAMS)
-    val vector1 = byteArrayOf(3, 4, 5)
-    val vector2 = byteArrayOf(3, 0, 1)
-
-    processor.addFrequencyVectorBytes(vector1)
-    processor.addFrequencyVectorBytes(vector2)
-    val result = processor.computeResult() as ReachAndFrequencyResult
-
-    // Aggregated vector: [5, 4, 5].
-    assertThat(result.reach).isEqualTo(3)
-    val expectedDistribution =
-      mapOf(0L to 0.0, 1L to 0.0, 2L to 0.0, 3L to 0.0, 4L to (1.0 / 3.0), 5L to (2.0 / 3.0))
-
-    assertThat(result.frequency.keys).isEqualTo(expectedDistribution.keys)
-    for ((freq, expectedValue) in expectedDistribution) {
-      assertThat(result.frequency[freq]).isWithin(FLOAT_COMPARISON_TOLERANCE).of(expectedValue)
-    }
   }
 
   @Test
@@ -193,15 +129,6 @@ class TrusTeeProcessorImplTest {
   }
 
   @Test
-  fun `addFrequencyVectorBytes throws for frequency greater than or equal to 127`() {
-    val processor = TrusTeeProcessorImpl(REACH_ONLY_PARAMS)
-    val vector = byteArrayOf(1, 127, 2)
-    val exception =
-      assertFailsWith<IllegalArgumentException> { processor.addFrequencyVectorBytes(vector) }
-    assertThat(exception.message).contains("Invalid frequency value")
-  }
-
-  @Test
   fun `computeResult throws IllegalStateException if no vectors are added`() {
     val processor = TrusTeeProcessorImpl(REACH_ONLY_PARAMS)
     assertFailsWith<IllegalStateException> { processor.computeResult() }
@@ -211,186 +138,53 @@ class TrusTeeProcessorImplTest {
   fun `computeResult with all-zero frequency vectors returns zero results`() {
     val processor = TrusTeeProcessorImpl(REACH_AND_FREQUENCY_PARAMS)
     processor.addFrequencyVectorBytes(byteArrayOf(0, 0, 0, 0))
-    processor.addFrequencyVectorBytes(byteArrayOf(0, 0, 0, 0))
-    processor.addFrequencyVectorBytes(byteArrayOf(0, 0, 0, 0))
     val result = processor.computeResult() as ReachAndFrequencyResult
 
     assertThat(result.reach).isEqualTo(0)
-    val expectedDistribution = (0L..MAX_FREQUENCY).associateWith { 0.0 }.toMutableMap()
-    expectedDistribution[0L] = 1.0
+    val expectedDistribution = (1L..MAX_FREQUENCY).associateWith { 0.0 }
     assertThat(result.frequency).isEqualTo(expectedDistribution)
   }
 
   @Test
-  fun `computeResult for Reach scales raw reach by sampling width`() {
-    val samplingWidth = 0.5f
-    val params = TrusTeeReachParams(vidSamplingIntervalWidth = samplingWidth, dpParams = null)
+  fun `computeResult for Reach-Only returns correct result type`() {
+    val params = TrusTeeReachParams(vidSamplingIntervalWidth = 0.5f, dpParams = DEFAULT_DP_PARAMS)
     val processor = TrusTeeProcessorImpl(params)
-    val vector1 = byteArrayOf(1, 0, 1, 0, 1, 0)
-    val vector2 = byteArrayOf(0, 1, 0, 0, 1, 1)
-    val vector3 = byteArrayOf(1, 0, 1, 0, 0, 0)
-
-    processor.addFrequencyVectorBytes(vector1)
-    processor.addFrequencyVectorBytes(vector2)
-    processor.addFrequencyVectorBytes(vector3)
+    processor.addFrequencyVectorBytes(byteArrayOf(1, 0, 1, 0, 1, 0))
     val result = processor.computeResult() as ReachResult
 
-    // Aggregated vector (capped at 1): [1, 1, 1, 0, 1, 1]. Raw reach is 5.
-    val rawReach = 5L
-    val expectedScaledReach = (rawReach / samplingWidth).toLong() // 10
-    assertThat(result.reach).isEqualTo(expectedScaledReach)
+    assertThat(result).isInstanceOf(ReachResult::class.java)
+    // Raw reach is 3. Scaled reach is 6. Noised result should be around 6.
+    // A more precise check is in the calculator test.
+    assertThat(result.reach).isGreaterThan(0)
   }
 
   @Test
-  fun `computeResult for Reach scales noised reach by sampling width`() {
-    val samplingWidth = 0.5f
-    val params =
-      TrusTeeReachParams(vidSamplingIntervalWidth = samplingWidth, dpParams = DEFAULT_DP_PARAMS)
-    val processor = TrusTeeProcessorImpl(params)
-    val vector1 = byteArrayOf(1, 0, 1, 0, 1, 0, 1, 1)
-    val vector2 = byteArrayOf(0, 1, 1, 1, 0, 0, 0, 0)
-    val vector3 = byteArrayOf(1, 0, 0, 0, 1, 1, 0, 1)
-
-    processor.addFrequencyVectorBytes(vector1)
-    processor.addFrequencyVectorBytes(vector2)
-    processor.addFrequencyVectorBytes(vector3)
-    val result = processor.computeResult() as ReachResult
-
-    // Aggregated vector (capped at 1 for reach): [1, 1, 1, 1, 1, 1, 1, 1]. Raw reach is 8.
-    val rawReach = 8L
-    val expectedScaledReach = (rawReach / samplingWidth).toLong() // 16
-    val tolerance = (getNoiseTolerance(DEFAULT_DP_PARAMS) / samplingWidth).toLong()
-
-    assertThat(result.reach).isAtMost(expectedScaledReach + tolerance)
-    assertThat(result.reach).isAtLeast(max(0L, expectedScaledReach - tolerance))
-  }
-
-  @Test
-  fun `computeResult for R&F scales raw reach by sampling width`() {
-    val samplingWidth = 0.25f
+  fun `computeResult for R&F returns correct result type and values`() {
     val params =
       TrusTeeReachAndFrequencyParams(
         maximumFrequency = MAX_FREQUENCY,
-        vidSamplingIntervalWidth = samplingWidth,
-        reachDpParams = null,
-        frequencyDpParams = null,
-      )
-    val processor = TrusTeeProcessorImpl(params)
-    val vector1 = byteArrayOf(1, 2, 0, 1, 3)
-    val vector2 = byteArrayOf(1, 0, 2, 0, 1)
-    val vector3 = byteArrayOf(0, 1, 1, 2, 0)
-
-    processor.addFrequencyVectorBytes(vector1)
-    processor.addFrequencyVectorBytes(vector2)
-    processor.addFrequencyVectorBytes(vector3)
-    val result = processor.computeResult() as ReachAndFrequencyResult
-
-    // Aggregated vector: [2, 3, 3, 3, 4]. Raw reach is 5.
-    val rawReach = 5L
-    val expectedScaledReach = (rawReach / samplingWidth).toLong() // 20
-    assertThat(result.reach).isEqualTo(expectedScaledReach)
-
-    // Frequency should be unaffected by sampling width.
-    // Raw histogram is [0, 0, 1, 3, 1, 0], total 5.
-    val expectedFrequency = mapOf(0L to 0.0, 1L to 0.0, 2L to 0.2, 3L to 0.6, 4L to 0.2, 5L to 0.0)
-    assertThat(result.frequency.keys).isEqualTo(expectedFrequency.keys)
-    for ((k, v) in result.frequency) {
-      assertThat(v).isWithin(FLOAT_COMPARISON_TOLERANCE).of(expectedFrequency[k]!!)
-    }
-  }
-
-  @Test
-  fun `computeResult for R&F scales noised reach by sampling width`() {
-    val samplingWidth = 0.25f
-    val params =
-      TrusTeeReachAndFrequencyParams(
-        maximumFrequency = MAX_FREQUENCY,
-        vidSamplingIntervalWidth = samplingWidth,
-        reachDpParams = DEFAULT_DP_PARAMS,
-        frequencyDpParams = null, // No DP on frequency for this test's simplicity
-      )
-    val processor = TrusTeeProcessorImpl(params)
-    val vector1 = byteArrayOf(1, 2, 0, 1, 3)
-    val vector2 = byteArrayOf(1, 0, 2, 0, 1)
-    val vector3 = byteArrayOf(0, 1, 1, 2, 0)
-
-    processor.addFrequencyVectorBytes(vector1)
-    processor.addFrequencyVectorBytes(vector2)
-    processor.addFrequencyVectorBytes(vector3)
-    val result = processor.computeResult() as ReachAndFrequencyResult
-
-    // Aggregated vector: [2, 3, 3, 3, 4]. Raw reach is 5.
-    val rawReach = 5L
-    val expectedScaledReach = (rawReach / samplingWidth).toLong() // 20
-    val tolerance = (getNoiseTolerance(DEFAULT_DP_PARAMS) / samplingWidth).toLong()
-
-    assertThat(result.reach).isAtMost(expectedScaledReach + tolerance)
-    assertThat(result.reach).isAtLeast(max(0L, expectedScaledReach - tolerance))
-    assertThat(result.reach).isNotEqualTo(rawReach)
-
-    // Raw histogram is [0, 0, 1, 3, 1, 0], total 5.
-    val expectedFrequency = mapOf(0L to 0.0, 1L to 0.0, 2L to 0.2, 3L to 0.6, 4L to 0.2, 5L to 0.0)
-    assertThat(result.frequency.keys).isEqualTo(expectedFrequency.keys)
-    for ((k, v) in result.frequency) {
-      assertThat(v).isWithin(FLOAT_COMPARISON_TOLERANCE).of(expectedFrequency[k]!!)
-    }
-  }
-
-  @Test
-  fun `computeResult for R&F computes results with DP params`() {
-    val params =
-      TrusTeeReachAndFrequencyParams(
-        maximumFrequency = MAX_FREQUENCY,
-        vidSamplingIntervalWidth = FULL_SAMPLING_RATE,
+        vidSamplingIntervalWidth = 0.25f,
         reachDpParams = DEFAULT_DP_PARAMS,
         frequencyDpParams = DEFAULT_DP_PARAMS,
       )
     val processor = TrusTeeProcessorImpl(params)
-    val vector1 = byteArrayOf(1, 2, 0, 1, 3)
-    val vector2 = byteArrayOf(0, 1, 1, 0, 1)
-    val vector3 = byteArrayOf(1, 0, 0, 1, 1)
+    processor.addFrequencyVectorBytes(byteArrayOf(1, 2, 0, 1, 3))
+    val result = processor.computeResult()
 
-    processor.addFrequencyVectorBytes(vector1)
-    processor.addFrequencyVectorBytes(vector2)
-    processor.addFrequencyVectorBytes(vector3)
-    val result = processor.computeResult() as ReachAndFrequencyResult
+    assertThat(result).isInstanceOf(ReachAndFrequencyResult::class.java)
+    result as ReachAndFrequencyResult
 
-    // Aggregated vector: [2, 3, 1, 2, 5].
-    // Histogram: [0, 1, 2, 1, 0, 1].
-    val rawReach = 5L
-    val rawHistogram = longArrayOf(0, 1, 2, 1, 0, 1)
-    val totalUsers = rawHistogram.sum()
-
-    val scaledReach = (rawReach / FULL_SAMPLING_RATE).toLong()
-    val reachTolerance = (getNoiseTolerance(DEFAULT_DP_PARAMS) / FULL_SAMPLING_RATE).toLong()
-    assertThat(result.reach).isAtMost(scaledReach + reachTolerance)
-    assertThat(result.reach).isAtLeast(max(0L, scaledReach - reachTolerance))
-
+    // Raw reach is 4. Scaled reach is 16. Noised result should be around 16.
+    assertThat(result.reach).isGreaterThan(0)
+    // Frequency distribution should be for freqs 1-5 and sum to 1.0.
+    assertThat(result.frequency.keys).containsExactlyElementsIn(1L..MAX_FREQUENCY)
     assertThat(result.frequency.values.sum()).isWithin(FLOAT_COMPARISON_TOLERANCE).of(1.0)
-    assertThat(result.frequency.keys).containsExactlyElementsIn(0L..MAX_FREQUENCY)
-
-    val binCountTolerance = getNoiseTolerance(DEFAULT_DP_PARAMS)
-    val numBins = (MAX_FREQUENCY + 1).toDouble()
-    val totalCountTolerance = getNoiseTolerance(DEFAULT_DP_PARAMS, l2Sensitivity = sqrt(numBins))
-
-    val minTotalNoisedCount = max(1.0, (totalUsers - totalCountTolerance).toDouble())
-    val maxTotalNoisedCount = (totalUsers + totalCountTolerance).toDouble()
-
-    for (i in 0..MAX_FREQUENCY) {
-      val rawCount = rawHistogram[i]
-      val minBinNoisedCount = max(0.0, (rawCount - binCountTolerance).toDouble())
-      val maxBinNoisedCount = (rawCount + binCountTolerance).toDouble()
-
-      val minProbability = minBinNoisedCount / maxTotalNoisedCount
-      val maxProbability = maxBinNoisedCount / minTotalNoisedCount
-
-      assertThat(result.frequency[i.toLong()]).isAtLeast(minProbability)
-      assertThat(result.frequency[i.toLong()]).isAtMost(maxProbability)
-    }
   }
 
   @Test
-  fun `computeResult with all-zero frequency vectors returns zero results with dp params`() {
+  fun `computeResult for R&F caps noised reach at theoretical maximum`() {
+    val samplingWidth = 0.5f
+    // Low noise
     val dpParams = differentialPrivacyParams {
       epsilon = 100.0
       delta = 0.99
@@ -398,17 +192,43 @@ class TrusTeeProcessorImplTest {
     val params =
       TrusTeeReachAndFrequencyParams(
         maximumFrequency = MAX_FREQUENCY,
-        vidSamplingIntervalWidth = FULL_SAMPLING_RATE,
+        vidSamplingIntervalWidth = samplingWidth,
         reachDpParams = dpParams,
-        frequencyDpParams = dpParams,
+        frequencyDpParams = null,
       )
     val processor = TrusTeeProcessorImpl(params)
-    processor.addFrequencyVectorBytes(byteArrayOf(0, 0, 0, 0))
-    processor.addFrequencyVectorBytes(byteArrayOf(0, 0, 0, 0))
-    processor.addFrequencyVectorBytes(byteArrayOf(0, 0, 0, 0))
+
+    val vector = ByteArray(200) { 1 } // 200 VIDs, all reached
+    val vectorSize = vector.size
+
+    processor.addFrequencyVectorBytes(vector)
     val result = processor.computeResult() as ReachAndFrequencyResult
 
-    assertThat(result.reach).isEqualTo(0)
-    assertThat(result.frequency[0L]).isWithin(FLOAT_COMPARISON_TOLERANCE).of(1.0)
+    val maxPossibleScaledReach = (vectorSize / samplingWidth).toLong() // 200 / 0.5 = 400
+
+    // The result should be at most the theoretical maximum.
+    assertThat(result.reach).isAtMost(maxPossibleScaledReach)
+  }
+
+  companion object {
+    private const val MAX_FREQUENCY = 5
+    private const val FLOAT_COMPARISON_TOLERANCE = 1e-9
+
+    private val DEFAULT_DP_PARAMS = differentialPrivacyParams {
+      epsilon = 1.0
+      delta = 0.99
+    }
+
+    private const val FULL_SAMPLING_RATE = 1.0f
+
+    private val REACH_ONLY_PARAMS =
+      TrusTeeReachParams(vidSamplingIntervalWidth = FULL_SAMPLING_RATE, dpParams = null)
+    private val REACH_AND_FREQUENCY_PARAMS =
+      TrusTeeReachAndFrequencyParams(
+        maximumFrequency = MAX_FREQUENCY,
+        reachDpParams = null,
+        frequencyDpParams = null,
+        vidSamplingIntervalWidth = FULL_SAMPLING_RATE,
+      )
   }
 }

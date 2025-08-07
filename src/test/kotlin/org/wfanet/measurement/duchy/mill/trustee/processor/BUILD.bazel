@@ -1,40 +1,25 @@
-load("@rules_java//java:defs.bzl", "java_test")
-load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_test")
 
 package(default_testonly = True)
 
-kt_jvm_library(
-    name = "trus_tee_processor_utility_test",
-    srcs = ["TrusTeeProcessorUtilityTest.kt"],
+kt_jvm_test(
+    name = "ReachAndFrequencyCalculatorTest",
+    srcs = ["ReachAndFrequencyCalculatorTest.kt"],
     deps = [
-        "//src/main/kotlin/org/wfanet/measurement/duchy/mill/trustee/processor:trus_tee_processor_utility",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/mill/trustee/processor:reach_and_frequency_calculator",
+        "//src/main/proto/wfa/measurement/internal/duchy:differential_privacy_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/kotlin/kotlin/test",
     ],
 )
 
-java_test(
-    name = "TrusTeeProcessorUtilityTest",
-    test_class = "org.wfanet.measurement.duchy.mill.trustee.processor.TrusTeeProcessorUtilityTest",
-    runtime_deps = [":trus_tee_processor_utility_test"],
-)
-
-kt_jvm_library(
-    name = "trus_tee_processor_impl_test",
+kt_jvm_test(
+    name = "TrusTeeProcessorImplTest",
     srcs = ["TrusTeeProcessorImplTest.kt"],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/duchy/mill/trustee/processor:trus_tee_processor_impl",
-        "//src/main/proto/wfa/measurement/api/v2alpha:measurement_spec_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/duchy:differential_privacy_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/kotlin/kotlin/test",
-        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines/test",
-        "@wfa_common_jvm//imports/kotlin/org/mockito/kotlin",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc/testing",
     ],
-)
-
-java_test(
-    name = "TrusTeeProcessorImplTest",
-    test_class = "org.wfanet.measurement.duchy.mill.trustee.processor.TrusTeeProcessorImplTest",
-    runtime_deps = [":trus_tee_processor_impl_test"],
 )

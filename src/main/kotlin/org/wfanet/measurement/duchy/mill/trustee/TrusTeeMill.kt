@@ -42,6 +42,7 @@ import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
 import org.wfanet.measurement.internal.duchy.RequisitionDetails
 import org.wfanet.measurement.internal.duchy.RequisitionMetadata
+import org.wfanet.measurement.internal.duchy.protocol.TrusTee
 import org.wfanet.measurement.internal.duchy.protocol.TrusTee.ComputationDetails as TrusTeeDetails
 import org.wfanet.measurement.internal.duchy.protocol.TrusTee.Stage
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt
@@ -118,7 +119,7 @@ class TrusTeeMill(
   }
 
   private suspend fun computingPhase(token: ComputationToken): ComputationToken {
-    val trusTeeDetails = token.computationDetails.trusTee
+    val trusTeeDetails: TrusTeeDetails = token.computationDetails.trusTee
     val trusTeeParams = trusTeeDetails.toTrusTeeParams()
 
     val processor: TrusTeeProcessor = trusTeeProcessorFactory.create(trusTeeParams)

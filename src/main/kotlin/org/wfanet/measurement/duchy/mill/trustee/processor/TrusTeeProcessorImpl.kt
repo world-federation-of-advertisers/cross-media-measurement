@@ -14,13 +14,10 @@
 
 package org.wfanet.measurement.duchy.mill.trustee.processor
 
-import com.google.privacy.differentialprivacy.GaussianNoise
 import kotlin.math.min
-import kotlin.properties.Delegates
 import org.wfanet.measurement.duchy.utils.ComputationResult
 import org.wfanet.measurement.duchy.utils.ReachAndFrequencyResult
 import org.wfanet.measurement.duchy.utils.ReachResult
-import org.wfanet.measurement.internal.duchy.DifferentialPrivacyParams
 import org.wfanet.measurement.measurementconsumer.stats.TrusTeeMethodology
 
 /** A concrete, stateful implementation of [TrusTeeProcessor]. */
@@ -33,15 +30,16 @@ class TrusTeeProcessorImpl(override val trusTeeParams: TrusTeeParams) : TrusTeeP
    */
   private var aggregatedFrequencyVector: IntArray? = null
 
-  private var maxFrequency by Delegates.notNull<Int>()
-
-  private var vidSamplingIntervalWidth by Delegates.notNull<Float>()
+  private val maxFrequency: Int
+  private val vidSamplingIntervalWidth: Float
 
   init {
     when (trusTeeParams) {
       is TrusTeeReachAndFrequencyParams -> {
         maxFrequency = trusTeeParams.maximumFrequency
-        require(maxFrequency >= 2) { "Invalid max frequency: $maxFrequency" }
+        require(maxFrequency >= 2 && maxFrequency <= Byte.MAX_VALUE) {
+          "Invalid max frequency: $maxFrequency"
+        }
         vidSamplingIntervalWidth = trusTeeParams.vidSamplingIntervalWidth
       }
       is TrusTeeReachParams -> {
@@ -50,7 +48,8 @@ class TrusTeeProcessorImpl(override val trusTeeParams: TrusTeeParams) : TrusTeeP
       }
     }
 
-    require(vidSamplingIntervalWidth >= 0.0f && vidSamplingIntervalWidth <= 1.0f) {
+    // A vidSamplingIntervalWidth of 0 is invalid as it would cause division by zero.
+    require(vidSamplingIntervalWidth > 0.0f && vidSamplingIntervalWidth <= 1.0f) {
       "Invalid vid sampling interval width: $vidSamplingIntervalWidth"
     }
   }
@@ -58,38 +57,59 @@ class TrusTeeProcessorImpl(override val trusTeeParams: TrusTeeParams) : TrusTeeP
   override fun addFrequencyVectorBytes(bytes: ByteArray) {
     require(bytes.isNotEmpty()) { "Input frequency vector cannot be empty." }
 
-    val vector = bytes.toIntArray()
-
     if (aggregatedFrequencyVector == null) {
-      aggregatedFrequencyVector = IntArray(vector.size)
+      aggregatedFrequencyVector = IntArray(bytes.size)
     }
 
     val currentVector = requireNotNull(aggregatedFrequencyVector)
-    require(vector.size == currentVector.size) {
-      "Input vector size ${vector.size} does not match expected size ${currentVector.size}"
+    require(bytes.size == currentVector.size) {
+      "Input vector size ${bytes.size} does not match expected size ${currentVector.size}"
     }
 
-    for (i in currentVector.indices) {
-      currentVector[i] = min(currentVector[i] + vector[i], maxFrequency)
+    for (i in bytes.indices) {
+      val frequency = bytes[i].toInt()
+      require(frequency >= 0) {
+        "Invalid frequency value in byte array: $frequency. Frequency must be non-negative."
+      }
+      currentVector[i] = min(currentVector[i] + frequency, maxFrequency)
     }
   }
 
   override fun computeResult(): ComputationResult {
     val frequencyVector =
       aggregatedFrequencyVector
-        ?: throw IllegalStateException("addFrequencyVector must be called before computeResult.")
+        ?: throw IllegalStateException(
+          "addFrequencyVectorBytes must be called before computeResult."
+        )
 
-    val rawHistogram = buildHistogram(frequencyVector, maxFrequency)
+    val rawHistogram = ReachAndFrequencyCalculator.buildHistogram(frequencyVector, maxFrequency)
 
     return when (trusTeeParams) {
       is TrusTeeReachParams -> {
-        val reach = computeReach(rawHistogram, frequencyVector.size, trusTeeParams.dpParams)
+        val reach =
+          ReachAndFrequencyCalculator.computeReach(
+            rawHistogram,
+            frequencyVector.size,
+            vidSamplingIntervalWidth,
+            trusTeeParams.dpParams,
+          )
 
         ReachResult(reach = reach, methodology = TrusTeeMethodology(frequencyVector.size.toLong()))
       }
       is TrusTeeReachAndFrequencyParams -> {
-        val reach = computeReach(rawHistogram, frequencyVector.size, trusTeeParams.reachDpParams)
-        val frequency = computeFrequencyDistribution(rawHistogram, trusTeeParams.frequencyDpParams)
+        val reach =
+          ReachAndFrequencyCalculator.computeReach(
+            rawHistogram,
+            frequencyVector.size,
+            vidSamplingIntervalWidth,
+            trusTeeParams.reachDpParams,
+          )
+        val frequency =
+          ReachAndFrequencyCalculator.computeFrequencyDistribution(
+            rawHistogram,
+            maxFrequency,
+            trusTeeParams.frequencyDpParams,
+          )
 
         ReachAndFrequencyResult(
           reach = reach,
@@ -97,87 +117,6 @@ class TrusTeeProcessorImpl(override val trusTeeParams: TrusTeeParams) : TrusTeeP
           methodology = TrusTeeMethodology(frequencyVector.size.toLong()),
         )
       }
-    }
-  }
-
-  /**
-   * Computes the reach, applying differential privacy noise if specified.
-   *
-   * @param rawHistogram The raw, non-DP histogram of frequencies.
-   * @param dpParams The privacy parameters for the reach computation. If null, the raw reach is
-   *   returned.
-   * @return The reach value, potentially with noise.
-   */
-  private fun computeReach(
-    rawHistogram: LongArray,
-    vectorSize: Int,
-    dpParams: DifferentialPrivacyParams?,
-  ): Long {
-    val maxPossibleScaledReach = (vectorSize.toLong() / vidSamplingIntervalWidth).toLong()
-
-    val reachInSample = rawHistogram.sum() - rawHistogram[0]
-
-    if (dpParams == null) {
-      val scaledReach = (reachInSample / vidSamplingIntervalWidth).toLong()
-      return min(scaledReach, maxPossibleScaledReach)
-    }
-
-    val noise = GaussianNoise()
-    val noisedReachInSample =
-      noise.addNoise(
-        /* x= */ reachInSample,
-        /* l0Sensitivity= */ 1,
-        /* lInfSensitivity= */ 1L,
-        /* epsilon= */ dpParams.epsilon,
-        /* delta= */ dpParams.delta,
-      )
-    val scaledNoisedReach =
-      if (noisedReachInSample < 0) 0L else (noisedReachInSample / vidSamplingIntervalWidth).toLong()
-
-    return min(scaledNoisedReach, maxPossibleScaledReach)
-  }
-
-  /**
-   * Computes the frequency distribution, applying differential privacy noise if specified.
-   *
-   * @param rawHistogram The raw, non-DP histogram of frequencies.
-   * @param dpParams The privacy parameters for the frequency computation. If null, the raw
-   *   distribution is returned.
-   * @return A map representing the frequency distribution, potentially with noise.
-   */
-  private fun computeFrequencyDistribution(
-    rawHistogram: LongArray,
-    dpParams: DifferentialPrivacyParams?,
-  ): Map<Long, Double> {
-    if (dpParams == null) {
-      val totalSampledUsers = rawHistogram.sum()
-      if (totalSampledUsers == 0L) return emptyMap()
-      return rawHistogram.withIndex().associate { (freq, count) ->
-        freq.toLong() to count.toDouble() / totalSampledUsers
-      }
-    }
-
-    val noise = GaussianNoise()
-    val noisedHistogram =
-      rawHistogram.map {
-        val noisedValue =
-          noise.addNoise(
-            /* x= */ it,
-            /* l0Sensitivity= */ 1,
-            /* lInfSensitivity= */ 1L,
-            /* epsilon= */ dpParams.epsilon,
-            /* delta= */ dpParams.delta,
-          )
-        if (noisedValue < 0) 0L else noisedValue
-      }
-
-    val totalNoisedCount = noisedHistogram.sum()
-    if (totalNoisedCount == 0L) {
-      return (0..maxFrequency).associate { it.toLong() to 0.0 }
-    }
-
-    return noisedHistogram.withIndex().associate { (freq, count) ->
-      freq.toLong() to count.toDouble() / totalNoisedCount
     }
   }
 

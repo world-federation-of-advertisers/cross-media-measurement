@@ -38,9 +38,9 @@ data class TrusTeeReachAndFrequencyParams(
  * A processor for the TrusTEE protocol that aggregates frequency vectors from multiple sources to
  * compute a reach and frequency distribution.
  *
- * This component is stateful. It accumulates data from each call to [addFrequencyVector] and uses
- * the final aggregated data to perform the final computation in [computeResult]. A single instance
- * should be used for a single computation.
+ * This component is stateful. It accumulates data from each call to [addFrequencyVectorBytes] and
+ * uses the final aggregated data to perform the final computation in [computeResult]. A single
+ * instance should be used for a single computation.
  */
 interface TrusTeeProcessor {
   /** The [TrusTeeParams] for the computation. */
@@ -51,12 +51,13 @@ interface TrusTeeProcessor {
    *
    * A frequency vector is an array where each index represents a unique user ID (or a hash
    * thereof), and the value at that index is the frequency with which that user was observed by a
-   * single data provider. The frequencies are represented as 8-bit unsigned integers.
+   * single data provider. The frequencies are represented as 8-bit signed integers, which must be
+   * non-negative.
    *
    * This method should be called for each frequency vector from each data provider.
    *
-   * @param bytes The frequency vector from a single data provider, where each byte is an 8-bit
-   *   unsigned integer representing a frequency.
+   * @param bytes The frequency vector from a single data provider, where each byte is a
+   *   non-negative 8-bit signed integer representing a frequency.
    */
   fun addFrequencyVectorBytes(bytes: ByteArray)
 
@@ -66,8 +67,8 @@ interface TrusTeeProcessor {
    * This method should only be called after all frequency vectors for the computation have been
    * added via [addFrequencyVectorBytes].
    *
-   * The output is a [ComputationResult] protobuf message. It contains either a reach result or
-   * reach_and_frequency result based on the measurement spec.
+   * The output is a [ComputationResult] protobuf message. It contains either a reach result or a
+   * reach-and-frequency result based on the [TrusTeeParams].
    *
    * @return A [ComputationResult] containing the final computation result.
    */
