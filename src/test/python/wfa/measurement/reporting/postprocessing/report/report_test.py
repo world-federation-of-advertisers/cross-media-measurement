@@ -45,7 +45,7 @@ NOISE_CORRECTION_TOLERANCE = 0.1
 SAMPLE_REPORT = Report(
     metric_reports={
         "ami": MetricReport(
-            reach_time_series={
+            weekly_cumulative_reaches={
                 frozenset({EDP_ONE}): [
                     Measurement(1, 0, "measurement_01"),
                     Measurement(1, 0, "measurement_02")
@@ -64,7 +64,7 @@ SAMPLE_REPORT = Report(
                 ],
             },
             whole_campaign_measurements=build_whole_campaign_measurements(
-                reach_whole_campaign={
+                reach={
                     frozenset({EDP_ONE}): Measurement(1, 0, "measurement_09"),
                     frozenset({EDP_TWO}): Measurement(1, 1, "measurement_10"),
                     frozenset({EDP_THREE}): Measurement(1, 1, "measurement_11"),
@@ -103,7 +103,7 @@ SAMPLE_REPORT = Report(
             weekly_non_cumulative_measurements={},
         ),
         "mrc": MetricReport(
-            reach_time_series={
+            weekly_cumulative_reaches={
                 frozenset({EDP_ONE}): [
                     Measurement(1, 0, "measurement_27"),
                     Measurement(1, 0, "measurement_28")
@@ -122,7 +122,7 @@ SAMPLE_REPORT = Report(
                 ],
             },
             whole_campaign_measurements=build_whole_campaign_measurements(
-                reach_whole_campaign={
+                reach={
                     frozenset({EDP_ONE}): Measurement(1, 0, "measurement_35"),
                     frozenset({EDP_TWO}): Measurement(1, 1, "measurement_36"),
                     frozenset({EDP_THREE}): Measurement(1, 1, "measurement_37"),
@@ -158,7 +158,7 @@ SAMPLE_REPORT = Report(
             weekly_non_cumulative_measurements={},
         ),
         "custom": MetricReport(
-            reach_time_series={
+            weekly_cumulative_reaches={
                 frozenset({EDP_ONE}): [
                     Measurement(1, 0, "measurement_51"),
                     Measurement(1, 0, "measurement_52")
@@ -177,7 +177,7 @@ SAMPLE_REPORT = Report(
                 ],
             },
             whole_campaign_measurements=build_whole_campaign_measurements(
-                reach_whole_campaign={
+                reach={
                     frozenset({EDP_ONE}): Measurement(1, 0, "measurement_59"),
                     frozenset({EDP_TWO}): Measurement(1, 1, "measurement_60"),
                     frozenset({EDP_THREE}): Measurement(1, 1, "measurement_61"),
@@ -289,7 +289,7 @@ class TestReport(unittest.TestCase):
 
   def test_get_cover_relationships(self):
     metric_report = MetricReport(
-        reach_time_series={
+        weekly_cumulative_reaches={
             frozenset({EDP_ONE}): [Measurement(1, 1, "measurement_01")],
             frozenset({EDP_TWO}): [Measurement(1, 1, "measurement_02")],
             frozenset({EDP_THREE}): [Measurement(1, 1, "measurement_03")],
@@ -303,7 +303,7 @@ class TestReport(unittest.TestCase):
                 Measurement(1, 1, "measurement_07")],
         },
         whole_campaign_measurements=build_whole_campaign_measurements(
-            reach_whole_campaign={},
+            reach={},
             k_reach={
                 frozenset({EDP_ONE}): {1: Measurement(1, 1, "measurement_08")},
             },
@@ -1254,14 +1254,14 @@ class TestReport(unittest.TestCase):
     report = Report(
         metric_reports={
             "ami": MetricReport(
-                reach_time_series={
+                weekly_cumulative_reaches={
                     frozenset({EDP_ONE}): [
                         Measurement(55, 0, "measurement_01"),
                         Measurement(48.0, 0, "measurement_02")
                     ],
                 },
                 whole_campaign_measurements=build_whole_campaign_measurements(
-                    reach_whole_campaign={
+                    reach={
                         frozenset({EDP_ONE}): Measurement(48, 0, "measurement_03"),
                     },
                     k_reach={
@@ -1290,14 +1290,14 @@ class TestReport(unittest.TestCase):
     report = Report(
         metric_reports={
             "ami": MetricReport(
-                reach_time_series={
+                weekly_cumulative_reaches={
                     frozenset({EDP_ONE}): [
                         Measurement(25, 0, "measurement_01"),
                         Measurement(35.0, 0, "measurement_02")
                     ],
                 },
                 whole_campaign_measurements=build_whole_campaign_measurements(
-                    reach_whole_campaign={
+                    reach={
                         frozenset({EDP_ONE}): Measurement(48, 0, "measurement_03"),
                     },
                     k_reach={
@@ -1326,14 +1326,14 @@ class TestReport(unittest.TestCase):
     report = Report(
         metric_reports={
             "ami": MetricReport(
-                reach_time_series={
+                weekly_cumulative_reaches={
                     frozenset({EDP_ONE}): [
                         Measurement(25, 0, "measurement_01"),
                         Measurement(48.0, 0, "measurement_02")
                     ],
                 },
                 whole_campaign_measurements=build_whole_campaign_measurements(
-                    reach_whole_campaign={
+                    reach={
                         frozenset({EDP_ONE}): Measurement(48, 0, "measurement_03"),
                     },
                     k_reach={
@@ -1362,14 +1362,14 @@ class TestReport(unittest.TestCase):
     report = Report(
         metric_reports={
             "ami": MetricReport(
-                reach_time_series={
+                weekly_cumulative_reaches={
                     frozenset({EDP_ONE}): [
                         Measurement(25, 0, "measurement_01"),
                         Measurement(48.0, 0, "measurement_02")
                     ],
                 },
                 whole_campaign_measurements=build_whole_campaign_measurements(
-                    reach_whole_campaign={
+                    reach={
                         frozenset({EDP_ONE}): Measurement(48, 0, "measurement_03"),
                     },
                     k_reach={
@@ -1398,14 +1398,14 @@ class TestReport(unittest.TestCase):
     report = Report(
         metric_reports={
             "ami": MetricReport(
-                reach_time_series={
+                weekly_cumulative_reaches={
                     frozenset({EDP_ONE}): [
                         Measurement(35, 0, "measurement_01"),
                         Measurement(48.0, 0, "measurement_02")
                     ],
                 },
                 whole_campaign_measurements=build_whole_campaign_measurements(
-                    reach_whole_campaign={
+                    reach={
                         frozenset({EDP_ONE}): Measurement(48, 0, "measurement_03"),
                     },
                     k_reach={
@@ -1420,14 +1420,14 @@ class TestReport(unittest.TestCase):
                 weekly_non_cumulative_measurements={},
             ),
             "mrc": MetricReport(
-                reach_time_series={
+                weekly_cumulative_reaches={
                     frozenset({EDP_ONE}): [
                         Measurement(40, 0, "measurement_07"),
                         Measurement(40.0, 0, "measurement_08")
                     ],
                 },
                 whole_campaign_measurements=build_whole_campaign_measurements(
-                    reach_whole_campaign={
+                    reach={
                         frozenset({EDP_ONE}): Measurement(40, 0, "measurement_09"),
                     },
                     k_reach={
@@ -1522,7 +1522,7 @@ class TestReport(unittest.TestCase):
     report = Report(
         metric_reports={
             ami: MetricReport(
-                reach_time_series={
+                weekly_cumulative_reaches={
                     frozenset({EDP_ONE, EDP_TWO}): [
                         Measurement(0.00, 1, "measurement_01"),
                         Measurement(3.30, 1, "measurement_02"),
@@ -1553,7 +1553,7 @@ class TestReport(unittest.TestCase):
     expected = Report(
         metric_reports={
             ami: MetricReport(
-                reach_time_series={
+                weekly_cumulative_reaches={
                     frozenset({EDP_ONE, EDP_TWO}): [
                         Measurement(0.00, 1, "measurement_01"),
                         Measurement(1.65, 1, "measurement_02"),
@@ -1597,7 +1597,7 @@ class TestReport(unittest.TestCase):
     report = Report(
         metric_reports={
             "ami": MetricReport(
-                reach_time_series={
+                weekly_cumulative_reaches={
                     frozenset({EDP_ONE}): [
                         Measurement(0.00, 1, "measurement_01"),
                         Measurement(33.0, 1, "measurement_02"),
@@ -1612,7 +1612,7 @@ class TestReport(unittest.TestCase):
                     ],
                 },
                 whole_campaign_measurements=build_whole_campaign_measurements(
-                    reach_whole_campaign={
+                    reach={
                         frozenset({EDP_ONE}):
                           Measurement(30.0, 1, "measurement_07"),
                         frozenset({EDP_TWO}):
@@ -1625,7 +1625,7 @@ class TestReport(unittest.TestCase):
                 weekly_non_cumulative_measurements={},
             ),
             "mrc": MetricReport(
-                reach_time_series={
+                weekly_cumulative_reaches={
                     frozenset({EDP_ONE}): [
                         Measurement(1.00, 1, "measurement_10"),
                         Measurement(33.0, 1, "measurement_11"),
@@ -1640,7 +1640,7 @@ class TestReport(unittest.TestCase):
                     ],
                 },
                 whole_campaign_measurements=build_whole_campaign_measurements(
-                    reach_whole_campaign={
+                    reach={
                         frozenset({EDP_ONE}):
                           Measurement(40.0, 1, "measurement_16"),
                         frozenset({EDP_TWO}):
@@ -1668,7 +1668,7 @@ class TestReport(unittest.TestCase):
     report = Report(
         metric_reports={
             "ami": MetricReport(
-                reach_time_series={
+                weekly_cumulative_reaches={
                     # 1 way comb
                     frozenset({EDP_ONE}): [
                         Measurement(0.00, 1, "measurement_01"),
@@ -1732,7 +1732,7 @@ class TestReport(unittest.TestCase):
     expected = Report(
         metric_reports={
             "ami": MetricReport(
-                reach_time_series={
+                weekly_cumulative_reaches={
                     # 1 way comb
                     frozenset({EDP_ONE}): [
                         Measurement(0.10, 1.00, "measurement_01"),
@@ -1802,7 +1802,7 @@ class TestReport(unittest.TestCase):
     report = Report(
         metric_reports={
             ami: MetricReport(
-                reach_time_series={
+                weekly_cumulative_reaches={
                     # 1 way comb
                     frozenset({EDP_ONE}): [
                         Measurement(0.00, 1, "measurement_01"),
@@ -1836,7 +1836,7 @@ class TestReport(unittest.TestCase):
                     ],
                 },
                 whole_campaign_measurements=build_whole_campaign_measurements(
-                    reach_whole_campaign={
+                    reach={
                         # 1 way comb
                         frozenset({EDP_ONE}):
                           Measurement(4.00, 1.00, "measurement_03"),
@@ -1882,7 +1882,7 @@ class TestReport(unittest.TestCase):
     expected = Report(
         metric_reports={
             ami: MetricReport(
-                reach_time_series={
+                weekly_cumulative_reaches={
                     # 1 way comb
                     frozenset({EDP_ONE}): [
                         Measurement(0.10, 1.00, "measurement_01"),
@@ -1916,7 +1916,7 @@ class TestReport(unittest.TestCase):
                     ],
                 },
                 whole_campaign_measurements=build_whole_campaign_measurements(
-                    reach_whole_campaign={
+                    reach={
                         # 1 way comb
                         frozenset({EDP_ONE}):
                           Measurement(3.65, 1.00, "measurement_03"),
@@ -1965,7 +1965,7 @@ class TestReport(unittest.TestCase):
     report = Report(
         metric_reports={
             ami: MetricReport(
-                reach_time_series={
+                weekly_cumulative_reaches={
                     # 1 way comb
                     frozenset({EDP_ONE}): [
                         Measurement(0.00, 1, "measurement_01"),
@@ -1986,7 +1986,7 @@ class TestReport(unittest.TestCase):
                     ],
                 },
                 whole_campaign_measurements=build_whole_campaign_measurements(
-                    reach_whole_campaign={
+                    reach={
                         # 1 way comb
                         frozenset({EDP_ONE}):
                           Measurement(4.00, 1.00, "measurement_03"),
@@ -2023,7 +2023,7 @@ class TestReport(unittest.TestCase):
     expected = Report(
         metric_reports={
             ami: MetricReport(
-                reach_time_series={
+                weekly_cumulative_reaches={
                     # 1 way comb
                     frozenset({EDP_ONE}): [
                         Measurement(0.0250, 1.00, "measurement_01"),
@@ -2044,7 +2044,7 @@ class TestReport(unittest.TestCase):
                     ],
                 },
                 whole_campaign_measurements=build_whole_campaign_measurements(
-                    reach_whole_campaign={
+                    reach={
                         # 1 way comb
                         frozenset({EDP_ONE}):
                           Measurement(3.7966, 1.00, "measurement_03"),
@@ -2092,7 +2092,7 @@ class TestReport(unittest.TestCase):
     report = Report(
         metric_reports={
             ami: MetricReport(
-                reach_time_series={
+                weekly_cumulative_reaches={
                     frozenset({EDP_TWO}): [
                         Measurement(0.00, 1, "measurement_01"),
                         Measurement(3.30, 1, "measurement_02"),
@@ -2122,7 +2122,7 @@ class TestReport(unittest.TestCase):
     expected = Report(
         metric_reports={
             ami: MetricReport(
-                reach_time_series={
+                weekly_cumulative_reaches={
                     frozenset({EDP_TWO}): [
                         Measurement(0.00, 1, "measurement_01"),
                         Measurement(3.30, 1, "measurement_02"),
@@ -2164,7 +2164,7 @@ class TestReport(unittest.TestCase):
     report = Report(
         metric_reports={
             ami: MetricReport(
-                reach_time_series={
+                weekly_cumulative_reaches={
                     frozenset({EDP_ONE, EDP_TWO}): [
                         Measurement(51, 1, "measurement_01")],
                     frozenset({EDP_ONE}): [
@@ -2174,7 +2174,7 @@ class TestReport(unittest.TestCase):
                 weekly_non_cumulative_measurements={},
             ),
             mrc: MetricReport(
-                reach_time_series={
+                weekly_cumulative_reaches={
                     frozenset({EDP_ONE, EDP_TWO}): [
                         Measurement(52, 1, "measurement_03")],
                     frozenset({EDP_ONE}): [
@@ -2198,7 +2198,7 @@ class TestReport(unittest.TestCase):
     expected = Report(
         metric_reports={
             ami: MetricReport(
-                reach_time_series={
+                weekly_cumulative_reaches={
                     frozenset({EDP_ONE, EDP_TWO}): [
                         Measurement(51.5, 1, "measurement_01")],
                     frozenset({EDP_ONE}): [
@@ -2208,7 +2208,7 @@ class TestReport(unittest.TestCase):
                 weekly_non_cumulative_measurements={},
             ),
             mrc: MetricReport(
-                reach_time_series={
+                weekly_cumulative_reaches={
                     frozenset({EDP_ONE, EDP_TWO}): [
                         Measurement(51.5, 1, "measurement_03")],
                     frozenset({EDP_ONE}): [
@@ -2243,14 +2243,14 @@ class TestReport(unittest.TestCase):
     report = Report(
         metric_reports={
             "ami": MetricReport(
-                reach_time_series={
+                weekly_cumulative_reaches={
                     frozenset({EDP_ONE}): [
                         Measurement(35, 0, "measurement_01"),
                         Measurement(48.0, 0, "measurement_02")
                     ],
                 },
                 whole_campaign_measurements=build_whole_campaign_measurements(
-                    reach_whole_campaign={
+                    reach={
                         frozenset({EDP_ONE}): Measurement(48, 0, "measurement_03"),
                     },
                     k_reach={
@@ -2265,14 +2265,14 @@ class TestReport(unittest.TestCase):
                 weekly_non_cumulative_measurements={},
             ),
             "mrc": MetricReport(
-                reach_time_series={
+                weekly_cumulative_reaches={
                     frozenset({EDP_ONE}): [
                         Measurement(30, 0, "measurement_07"),
                         Measurement(40.0, 0, "measurement_08")
                     ],
                 },
                 whole_campaign_measurements=build_whole_campaign_measurements(
-                    reach_whole_campaign={
+                    reach={
                         frozenset({EDP_ONE}): Measurement(40, 0, "measurement_09"),
                     },
                     k_reach={
@@ -2339,7 +2339,7 @@ class TestReport(unittest.TestCase):
     report = Report(
         metric_reports={
             "ami": MetricReport(
-                reach_time_series={
+                weekly_cumulative_reaches={
                     frozenset({EDP_ONE}): [
                         Measurement(10000000, 0, "measurement_02")
                     ],
@@ -2350,7 +2350,7 @@ class TestReport(unittest.TestCase):
                     ],
                 },
                 whole_campaign_measurements=build_whole_campaign_measurements(
-                    reach_whole_campaign={
+                    reach={
                         frozenset({EDP_ONE}): Measurement(10000000, 0,
                                                           "measurement_04"),
                         frozenset({EDP_TWO}): Measurement(3000000, 0,
@@ -2429,14 +2429,14 @@ class TestReport(unittest.TestCase):
     report = Report(
         metric_reports={
             "ami": MetricReport(
-                reach_time_series={
+                weekly_cumulative_reaches={
                     frozenset({EDP_ONE}): [
                         Measurement(35, 0, "measurement_01"),
                         Measurement(48.0, 0, "measurement_02")
                     ],
                 },
                 whole_campaign_measurements=build_whole_campaign_measurements(
-                    reach_whole_campaign={
+                    reach={
                         frozenset({EDP_ONE}): Measurement(48, 0, "measurement_03"),
                     },
                     k_reach={
@@ -2451,14 +2451,14 @@ class TestReport(unittest.TestCase):
                 weekly_non_cumulative_measurements={},
             ),
             "mrc": MetricReport(
-                reach_time_series={
+                weekly_cumulative_reaches={
                     frozenset({EDP_ONE}): [
                         Measurement(40, 0, "measurement_07"),
                         Measurement(40.0, 0, "measurement_08")
                     ],
                 },
                 whole_campaign_measurements=build_whole_campaign_measurements(
-                    reach_whole_campaign={
+                    reach={
                         frozenset({EDP_ONE}): Measurement(40, 0, "measurement_09"),
                     },
                     k_reach={
@@ -2522,7 +2522,7 @@ class TestReport(unittest.TestCase):
     report = Report(
         metric_reports={
             "ami": MetricReport(
-                reach_time_series={
+                weekly_cumulative_reaches={
                     frozenset({EDP_ONE}): [
                         Measurement(10000000, 0, "measurement_02")
                     ],
@@ -2533,7 +2533,7 @@ class TestReport(unittest.TestCase):
                     ],
                 },
                 whole_campaign_measurements=build_whole_campaign_measurements(
-                    reach_whole_campaign={
+                    reach={
                         frozenset({EDP_ONE}): Measurement(10000000, 0,
                                                           "measurement_04"),
                         frozenset({EDP_TWO}): Measurement(3001000, 1300,
@@ -2611,7 +2611,7 @@ class TestReport(unittest.TestCase):
     report = Report(
         metric_reports={
             "ami": MetricReport(
-                reach_time_series={
+                weekly_cumulative_reaches={
                     frozenset({EDP_ONE}): [
                         Measurement(10000000, 0, "measurement_02")
                     ],
@@ -2622,7 +2622,7 @@ class TestReport(unittest.TestCase):
                     ],
                 },
                 whole_campaign_measurements=build_whole_campaign_measurements(
-                    reach_whole_campaign={
+                    reach={
                         frozenset({EDP_ONE}): Measurement(10000000, 0,
                                                           "measurement_04"),
                         frozenset({EDP_TWO}): Measurement(3001000, 1300,
@@ -2698,14 +2698,14 @@ class TestReport(unittest.TestCase):
     report = Report(
         metric_reports={
             "ami": MetricReport(
-                reach_time_series={
+                weekly_cumulative_reaches={
                     frozenset({EDP_ONE}): [
                         Measurement(36.599, 1, "measurement_01"),
                         Measurement(48.0, 1, "measurement_02")
                     ],
                 },
                 whole_campaign_measurements=build_whole_campaign_measurements(
-                    reach_whole_campaign={
+                    reach={
                         frozenset({EDP_ONE}): Measurement(40, 1, "measurement_03"),
                     },
                     k_reach={
@@ -2720,14 +2720,14 @@ class TestReport(unittest.TestCase):
                 weekly_non_cumulative_measurements={},
             ),
             "mrc": MetricReport(
-                reach_time_series={
+                weekly_cumulative_reaches={
                     frozenset({EDP_ONE}): [
                         Measurement(20.0, 1, "measurement_07"),
                         Measurement(58.0, 1, "measurement_08")
                     ],
                 },
                 whole_campaign_measurements=build_whole_campaign_measurements(
-                    reach_whole_campaign={
+                    reach={
                         frozenset({EDP_ONE}): Measurement(40, 1, "measurement_09"),
                     },
                     k_reach={
@@ -2742,14 +2742,14 @@ class TestReport(unittest.TestCase):
                 weekly_non_cumulative_measurements={},
             ),
             "custom": MetricReport(
-                reach_time_series={
+                weekly_cumulative_reaches={
                     frozenset({EDP_ONE}): [
                         Measurement(45.0, 1, "measurement_13"),
                         Measurement(38.0, 1, "measurement_14")
                     ],
                 },
                 whole_campaign_measurements=build_whole_campaign_measurements(
-                    reach_whole_campaign={
+                    reach={
                         frozenset({EDP_ONE}): Measurement(40, 1, "measurement_15"),
                     },
                     k_reach={
@@ -2787,14 +2787,14 @@ class TestReport(unittest.TestCase):
     expected = Report(
         metric_reports={
             "ami": MetricReport(
-                reach_time_series={
+                weekly_cumulative_reaches={
                     frozenset({EDP_ONE}): [
                         Measurement(35.844, 1, "measurement_01"),
                         Measurement(35.844, 1, "measurement_02")
                     ],
                 },
                 whole_campaign_measurements=build_whole_campaign_measurements(
-                    reach_whole_campaign={
+                    reach={
                         frozenset({EDP_ONE}): Measurement(35.844, 1,
                                                           "measurement_03"),
                     },
@@ -2811,14 +2811,14 @@ class TestReport(unittest.TestCase):
                 weekly_non_cumulative_measurements={},
             ),
             "mrc": MetricReport(
-                reach_time_series={
+                weekly_cumulative_reaches={
                     frozenset({EDP_ONE}): [
                         Measurement(19.999, 1, "measurement_07"),
                         Measurement(35.844, 1, "measurement_08")
                     ],
                 },
                 whole_campaign_measurements=build_whole_campaign_measurements(
-                    reach_whole_campaign={
+                    reach={
                         frozenset({EDP_ONE}): Measurement(35.844, 1,
                                                           "measurement_09"),
                     },
@@ -2835,14 +2835,14 @@ class TestReport(unittest.TestCase):
                 weekly_non_cumulative_measurements={},
             ),
             "custom": MetricReport(
-                reach_time_series={
+                weekly_cumulative_reaches={
                     frozenset({EDP_ONE}): [
                         Measurement(34.599, 1, "measurement_13"),
                         Measurement(34.599, 1, "measurement_14")
                     ],
                 },
                 whole_campaign_measurements=build_whole_campaign_measurements(
-                    reach_whole_campaign={
+                    reach={
                         frozenset({EDP_ONE}): Measurement(34.599, 1,
                                                           "measurement_15"),
                     },
@@ -2882,7 +2882,7 @@ class TestReport(unittest.TestCase):
     report = Report(
         metric_reports={
             "ami": MetricReport(
-                reach_time_series={
+                weekly_cumulative_reaches={
                     frozenset({EDP_ONE, EDP_TWO}): [
                         Measurement(50, 1, "measurement_01")
                     ],
@@ -2892,7 +2892,7 @@ class TestReport(unittest.TestCase):
                     frozenset({EDP_TWO}): [Measurement(1, 1, "measurement_03")],
                 },
                 whole_campaign_measurements=build_whole_campaign_measurements(
-                    reach_whole_campaign={
+                    reach={
                         frozenset({EDP_ONE}): Measurement(1, 1, "measurement_04"),
                         frozenset({EDP_TWO}): Measurement(1, 1, "measurement_05"),
                         frozenset({EDP_ONE, EDP_TWO}):
@@ -2941,7 +2941,7 @@ class TestReport(unittest.TestCase):
     expected = Report(
         metric_reports={
             "ami": MetricReport(
-                reach_time_series={
+                weekly_cumulative_reaches={
                     frozenset({EDP_ONE}): [
                         Measurement(48.0, 1, "measurement_02")
                     ],
@@ -2953,7 +2953,7 @@ class TestReport(unittest.TestCase):
                     ],
                 },
                 whole_campaign_measurements=build_whole_campaign_measurements(
-                    reach_whole_campaign={
+                    reach={
                         frozenset({EDP_TWO}):
                           Measurement(0.7142, 1, "measurement_05"),
                         frozenset({EDP_ONE}): Measurement(48, 1, "measurement_04"),
@@ -3007,7 +3007,7 @@ class TestReport(unittest.TestCase):
     report = Report(
         metric_reports={
             "ami": MetricReport(
-                reach_time_series={
+                weekly_cumulative_reaches={
                     frozenset({EDP_ONE, EDP_TWO}): [
                         Measurement(50, 1, "measurement_01")
                     ],
@@ -3017,7 +3017,7 @@ class TestReport(unittest.TestCase):
                     frozenset({EDP_TWO}): [Measurement(1, 1, "measurement_03")],
                 },
                 whole_campaign_measurements=build_whole_campaign_measurements(
-                    reach_whole_campaign={
+                    reach={
                         frozenset({EDP_ONE}): Measurement(1, 1, "measurement_04"),
                         frozenset({EDP_TWO}): Measurement(1, 1, "measurement_05"),
                         frozenset({EDP_ONE, EDP_TWO}):
@@ -3052,7 +3052,7 @@ class TestReport(unittest.TestCase):
     expected = Report(
         metric_reports={
             "ami": MetricReport(
-                reach_time_series={
+                weekly_cumulative_reaches={
                     frozenset({EDP_ONE}): [
                         Measurement(48.0, 1, "measurement_02")
                     ],
@@ -3064,7 +3064,7 @@ class TestReport(unittest.TestCase):
                     ],
                 },
                 whole_campaign_measurements=build_whole_campaign_measurements(
-                    reach_whole_campaign={
+                    reach={
                         frozenset({EDP_TWO}):
                           Measurement(0.0, 1, "measurement_05"),
                         frozenset({EDP_ONE}): Measurement(48, 1, "measurement_04"),
@@ -3129,7 +3129,7 @@ class TestReport(unittest.TestCase):
     report = Report(
         metric_reports={
             "ami": MetricReport(
-                reach_time_series={
+                weekly_cumulative_reaches={
                     frozenset({EDP_ONE}): [
                         Measurement(ami_time_series[i], 10000,
                                     "measurement_" + str(i))
@@ -3137,7 +3137,7 @@ class TestReport(unittest.TestCase):
                     ],
                 },
                 whole_campaign_measurements=build_whole_campaign_measurements(
-                    reach_whole_campaign={
+                    reach={
                         frozenset({EDP_ONE}): Measurement(AMI_TOTAL_REACH, 10000,
                                                           "measurement_3")
                     },
@@ -3157,7 +3157,7 @@ class TestReport(unittest.TestCase):
                 weekly_non_cumulative_measurements={},
             ),
             "mrc": MetricReport(
-                reach_time_series={
+                weekly_cumulative_reaches={
                     frozenset({EDP_ONE}): [
                         Measurement(mrc_time_series[i], 10000,
                                     "measurement_" + str(10 + i))
@@ -3165,7 +3165,7 @@ class TestReport(unittest.TestCase):
                     ],
                 },
                 whole_campaign_measurements=build_whole_campaign_measurements(
-                    reach_whole_campaign={
+                    reach={
                         frozenset({EDP_ONE}): Measurement(MRC_TOTAL_REACH, 10000,
                                                           "measurement_13")
                     },
@@ -3205,7 +3205,7 @@ class TestReport(unittest.TestCase):
     expected = Report(
         metric_reports={
             "ami": MetricReport(
-                reach_time_series={
+                weekly_cumulative_reaches={
                     frozenset({EDP_ONE}): [
                         Measurement(2931764.71, 10000, "measurement_0"),
                         Measurement(3049282.70, 10000, "measurement_1"),
@@ -3213,7 +3213,7 @@ class TestReport(unittest.TestCase):
                     ],
                 },
                 whole_campaign_measurements=build_whole_campaign_measurements(
-                    reach_whole_campaign={
+                    reach={
                         frozenset({EDP_ONE}): Measurement(3076447.51, 10000,
                                                           "measurement_3")
                     },
@@ -3233,7 +3233,7 @@ class TestReport(unittest.TestCase):
                 weekly_non_cumulative_measurements={},
             ),
             "mrc": MetricReport(
-                reach_time_series={
+                weekly_cumulative_reaches={
                     frozenset({EDP_ONE}): [
                         Measurement(2043369.80, 10000, "measurement_10"),
                         Measurement(2130896.79, 10000, "measurement_11"),
@@ -3241,7 +3241,7 @@ class TestReport(unittest.TestCase):
                     ],
                 },
                 whole_campaign_measurements=build_whole_campaign_measurements(
-                    reach_whole_campaign={
+                    reach={
                         frozenset({EDP_ONE}): Measurement(2175141.42, 10000,
                                                           "measurement_13")
                     },
@@ -3308,9 +3308,9 @@ class TestReport(unittest.TestCase):
     report = Report(
         metric_reports={
             "ami": MetricReport(
-                reach_time_series={},
+                weekly_cumulative_reaches={},
                 whole_campaign_measurements=build_whole_campaign_measurements(
-                    reach_whole_campaign={
+                    reach={
                         frozenset({EDP_ONE}): Measurement(AMI_TOTAL_REACH, 10000,
                                                           "measurement_3")
                     },
@@ -3330,9 +3330,9 @@ class TestReport(unittest.TestCase):
                 weekly_non_cumulative_measurements={},
             ),
             "mrc": MetricReport(
-                reach_time_series={},
+                weekly_cumulative_reaches={},
                 whole_campaign_measurements=build_whole_campaign_measurements(
-                    reach_whole_campaign={
+                    reach={
                         frozenset({EDP_ONE}): Measurement(MRC_TOTAL_REACH, 10000,
                                                           "measurement_13")
                     },
@@ -3366,9 +3366,9 @@ class TestReport(unittest.TestCase):
     expected = Report(
         metric_reports={
             "ami": MetricReport(
-                reach_time_series={},
+                weekly_cumulative_reaches={},
                 whole_campaign_measurements=build_whole_campaign_measurements(
-                    reach_whole_campaign={
+                    reach={
                         frozenset({EDP_ONE}): Measurement(3072650.69, 10000,
                                                           "measurement_3")
                     },
@@ -3388,9 +3388,9 @@ class TestReport(unittest.TestCase):
                 weekly_non_cumulative_measurements={},
             ),
             "mrc": MetricReport(
-                reach_time_series={},
+                weekly_cumulative_reaches={},
                 whole_campaign_measurements=build_whole_campaign_measurements(
-                    reach_whole_campaign={
+                    reach={
                         frozenset({EDP_ONE}): Measurement(2169767.78, 10000,
                                                           "measurement_13")
                     },
@@ -3428,9 +3428,9 @@ class TestReport(unittest.TestCase):
     report = Report(
         metric_reports={
             "ami": MetricReport(
-                reach_time_series={},
+                weekly_cumulative_reaches={},
                 whole_campaign_measurements=build_whole_campaign_measurements(
-                    reach_whole_campaign={},
+                    reach={},
                     k_reach={},
                     impression={
                         frozenset({EDP_ONE}): Measurement(5262888, 10000,
@@ -3439,9 +3439,9 @@ class TestReport(unittest.TestCase):
                 weekly_non_cumulative_measurements={},
             ),
             "mrc": MetricReport(
-                reach_time_series={},
+                weekly_cumulative_reaches={},
                 whole_campaign_measurements=build_whole_campaign_measurements(
-                    reach_whole_campaign={},
+                    reach={},
                     k_reach={},
                     impression={
                         frozenset({EDP_ONE}): Measurement(6343141, 10000,
@@ -3461,9 +3461,9 @@ class TestReport(unittest.TestCase):
     expected = Report(
         metric_reports={
             "ami": MetricReport(
-                reach_time_series={},
+                weekly_cumulative_reaches={},
                 whole_campaign_measurements=build_whole_campaign_measurements(
-                    reach_whole_campaign={},
+                    reach={},
                     k_reach={},
                     impression={
                         frozenset({EDP_ONE}): Measurement(5803013.91, 10000,
@@ -3472,9 +3472,9 @@ class TestReport(unittest.TestCase):
                 weekly_non_cumulative_measurements={},
             ),
             "mrc": MetricReport(
-                reach_time_series={},
+                weekly_cumulative_reaches={},
                 whole_campaign_measurements=build_whole_campaign_measurements(
-                    reach_whole_campaign={},
+                    reach={},
                     k_reach={},
                     impression={
                         frozenset({EDP_ONE}): Measurement(5803013.91, 10000,

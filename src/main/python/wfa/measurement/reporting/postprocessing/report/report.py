@@ -26,6 +26,7 @@ from typing import TypeAlias
 from absl import logging
 from qpsolvers import Solution
 
+from noiseninja.noised_measurements import KReachMeasurements
 from noiseninja.noised_measurements import Measurement
 from noiseninja.noised_measurements import MeasurementSet
 from noiseninja.noised_measurements import OrderedSets
@@ -39,7 +40,6 @@ ReportPostProcessorStatus = report_post_processor_result_pb2.ReportPostProcessor
 ReportQuality = report_post_processor_result_pb2.ReportQuality
 
 EdpCombination: TypeAlias = FrozenSet[str]
-KReachMeasurements: TypeAlias = dict[int, Measurement]
 
 MIN_STANDARD_VARIATION_RATIO = 0.001
 UNIT_SCALING_FACTOR = 1.0
@@ -241,20 +241,20 @@ def get_edps_from_edp_combination(
 
 
 def build_whole_campaign_measurements(
-    reach_whole_campaign: dict[EdpCombination, Measurement],
+    reach: dict[EdpCombination, Measurement],
     k_reach: dict[EdpCombination, KReachMeasurements],
     impression: dict[EdpCombination, Measurement]
 ) -> dict[EdpCombination, MeasurementSet]:
   """Builds a dictionary of MeasurementSet from separate measurement dicts."""
   all_edps = (
-      set(reach_whole_campaign.keys())
+      set(reach.keys())
       | set(k_reach.keys())
       | set(impression.keys())
   )
   whole_campaign_measurements = {}
   for edp in all_edps:
     whole_campaign_measurements[edp] = MeasurementSet(
-        reach=reach_whole_campaign.get(edp),
+        reach=reach.get(edp),
         k_reach=k_reach.get(edp, {}),
         impression=impression.get(edp),
     )
@@ -275,7 +275,7 @@ class MetricReport:
         * A time series of weekly non-cumulative measurements for each period.
 
     Attributes:
-        _reach_time_series: A dictionary mapping EDP combinations (represented
+        _weekly_cumulative_reaches: A dictionary mapping EDP combinations (represented
                             as frozensets of strings) to lists of Measurement
                             objects, where each list represents a time series of
                             reach values.
@@ -291,16 +291,16 @@ class MetricReport:
 
   def __init__(
       self,
-      reach_time_series: dict[EdpCombination, list[Measurement]],
+      weekly_cumulative_reaches: dict[EdpCombination, list[Measurement]],
       whole_campaign_measurements: dict[EdpCombination, MeasurementSet],
       weekly_non_cumulative_measurements: dict[
           EdpCombination, list[MeasurementSet]
       ],
   ):
     num_periods = len(
-        next(iter(reach_time_series.values()))) if reach_time_series else 0
+        next(iter(weekly_cumulative_reaches.values()))) if weekly_cumulative_reaches else 0
 
-    for series in reach_time_series.values():
+    for series in weekly_cumulative_reaches.values():
       if len(series) != num_periods:
         raise ValueError(
             "All time series must have the same length {1: d} vs {2: d}".format(
@@ -319,7 +319,7 @@ class MetricReport:
           "All non-empty k_reach must have the same number of frequencies."
       )
 
-    self._reach_time_series = reach_time_series
+    self._weekly_cumulative_reaches = weekly_cumulative_reaches
     self._whole_campaign_measurements = whole_campaign_measurements
     self._weekly_non_cumulative_measurements = weekly_non_cumulative_measurements
 
@@ -329,27 +329,27 @@ class MetricReport:
     according to their mean and variance.
     """
     return MetricReport(
-        reach_time_series={
+        weekly_cumulative_reaches={
             edp_combination: [
                 MetricReport._sample_with_noise(measurement)
-                for measurement in self._reach_time_series[
+                for measurement in self._weekly_cumulative_reaches[
                   edp_combination
                 ]
             ]
             for edp_combination in
-            self._reach_time_series.keys()
+            self._weekly_cumulative_reaches.keys()
         }
     )
 
   def get_cumulative_measurements(
       self, edp_combination: EdpCombination
   ) -> list[Measurement]:
-    return self._reach_time_series[edp_combination]
+    return self._weekly_cumulative_reaches[edp_combination]
 
   def get_cumulative_measurement(
       self, edp_combination: EdpCombination, period: int
   ) -> Measurement:
-    return self._reach_time_series[edp_combination][period]
+    return self._weekly_cumulative_reaches[edp_combination][period]
 
   def get_whole_campaign_measurement(
       self, edp_combination: EdpCombination
@@ -372,7 +372,7 @@ class MetricReport:
     return self._whole_campaign_measurements[edp_combination].k_reach[frequency]
 
   def get_cumulative_edp_combinations(self) -> set[EdpCombination]:
-    return set(self._reach_time_series.keys())
+    return set(self._weekly_cumulative_reaches.keys())
 
   def get_whole_campaign_edp_combinations(self) -> set[EdpCombination]:
     return {
@@ -396,14 +396,14 @@ class MetricReport:
     }
 
   def get_cumulative_edp_combinations_count(self) -> int:
-    return len(self._reach_time_series.keys())
+    return len(self._weekly_cumulative_reaches.keys())
 
   def get_whole_campaign_edp_combinations_count(self) -> int:
     return len(self.get_whole_campaign_edp_combinations())
 
   def get_number_of_periods(self) -> int:
-    return len(next(iter(self._reach_time_series.values()))) \
-      if self._reach_time_series else 0
+    return len(next(iter(self._weekly_cumulative_reaches.values()))) \
+      if self._weekly_cumulative_reaches else 0
 
   def get_number_of_frequencies(self) -> int:
     k_reach_lengths = {
@@ -419,7 +419,7 @@ class MetricReport:
 
   def get_cumulative_subset_relationships(self) -> list[
     Tuple[EdpCombination, EdpCombination]]:
-    return get_subset_relationships(list(self._reach_time_series))
+    return get_subset_relationships(list(self._weekly_cumulative_reaches))
 
   def get_whole_campaign_subset_relationships(self) -> list[
     Tuple[EdpCombination, EdpCombination]]:
@@ -427,7 +427,7 @@ class MetricReport:
 
   def get_cumulative_cover_relationships(self) -> list[
     Tuple[EdpCombination, list[EdpCombination]]]:
-    return get_cover_relationships(list(self._reach_time_series))
+    return get_cover_relationships(list(self._weekly_cumulative_reaches))
 
   def get_whole_campaign_cover_relationships(
       self,
@@ -1389,7 +1389,7 @@ class Report:
             reach=reach, k_reach=k_reach, impression=impression
         )
     return MetricReport(
-        reach_time_series=solution_time_series,
+        weekly_cumulative_reaches=solution_time_series,
         whole_campaign_measurements=solution_whole_campaign_measurements,
         weekly_non_cumulative_measurements=metric_report._weekly_non_cumulative_measurements,
     )

@@ -132,7 +132,7 @@ class ReportSummaryProcessor:
           self._k_reach.get(policy, {}), self._impression.get(policy, {})
       )
       metric_reports[policy] = MetricReport(
-          reach_time_series=self._cumulative_measurements.get(policy, {}),
+          weekly_cumulative_reaches=self._cumulative_measurements.get(policy, {}),
           whole_campaign_measurements=whole_campaign_measurements,
           weekly_non_cumulative_measurements={},
       )
