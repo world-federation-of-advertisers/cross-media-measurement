@@ -104,7 +104,6 @@ locals {
                                           "--edpa-tls-key-secret-id", "edpa-tee-app-tls-key",
                                           "--secure-computation-cert-collection-secret-id", "securecomputation-root-ca",
                                           "--kingdom-cert-collection-secret-id", "kingdom-root-ca",
-                                          # TODO(@marcopremier): #2734
                                           "--edp-kms-audience", "//iam.googleapis.com/projects/472172784441/locations/global/workloadIdentityPools/edp-workload-identity-pool/providers/edp-wip-provider-k-res",
                                           "--edp-target-service-account", "primus-sa@halo-cmm-dev-edp.iam.gserviceaccount.com",
                                           "--edp-resource-name", "dataProviders/T5RryPMNong",
