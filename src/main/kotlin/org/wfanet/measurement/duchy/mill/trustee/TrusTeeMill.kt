@@ -149,7 +149,7 @@ class TrusTeeMill(
     kmsClientFactory: KmsClientFactory<GCloudWifCredentials>,
     protocol: RequisitionDetails.RequisitionProtocol.TrusTee,
   ): KmsClient {
-    val config =
+    val credentials =
       GCloudWifCredentials(
         audience = protocol.workloadIdentityProvider,
         subjectTokenType = OAUTH_TOKEN_TYPE_ID_TOKEN,
@@ -160,7 +160,7 @@ class TrusTeeMill(
       )
 
     try {
-      return kmsClientFactory.getKmsClient(config)
+      return kmsClientFactory.getKmsClient(credentials)
     } catch (e: GeneralSecurityException) {
       throw PermanentErrorException("Failed to create KMS client", e)
     }
