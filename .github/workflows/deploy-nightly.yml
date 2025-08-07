@@ -62,8 +62,6 @@ jobs:
       uses: actions/github-script@v7
       env:
         TAG: ${{ steps.compute-next-nightly-tag.outputs.tag }}
-
-      # WIP - add input to enable notifications but only when the actor is github actions
       with:
         script: |
           const tag = process.env['TAG'];
@@ -75,5 +73,6 @@ jobs:
             inputs: {
               environment: 'head',
               apply: true,
+              send-slack-notification: ${{ github.event_name == 'schedule' }},
             },
           });
