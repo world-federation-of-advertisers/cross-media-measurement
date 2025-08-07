@@ -18,7 +18,7 @@ import com.google.privacy.differentialprivacy.GaussianNoise
 import kotlin.math.min
 import org.wfanet.measurement.internal.duchy.DifferentialPrivacyParams
 
-object ReachAndFrequencyCalculator {
+object ReachAndFrequencyComputations {
   private const val L0_SENSITIVITY = 1
   private const val L_INFINITE_SENSITIVITY = 1L
 

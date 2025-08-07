@@ -78,11 +78,11 @@ class TrusTeeProcessorImplTest {
   }
 
   @Test
-  fun `addFrequencyVectorBytes initializes and aggregates a single vector`() {
+  fun `addFrequencyVector initializes and aggregates a single vector`() {
     val processor = TrusTeeProcessorImpl(REACH_AND_FREQUENCY_PARAMS)
     val vector = byteArrayOf(1, 1, 0, 2)
 
-    processor.addFrequencyVectorBytes(vector)
+    processor.addFrequencyVector(vector)
     val result = processor.computeResult() as ReachAndFrequencyResult
 
     assertThat(result.reach).isGreaterThan(0)
@@ -90,23 +90,23 @@ class TrusTeeProcessorImplTest {
   }
 
   @Test
-  fun `addFrequencyVectorBytes throws for empty vector`() {
+  fun `addFrequencyVector throws for empty vector`() {
     val processor = TrusTeeProcessorImpl(REACH_AND_FREQUENCY_PARAMS)
     val exception =
-      assertFailsWith<IllegalArgumentException> { processor.addFrequencyVectorBytes(byteArrayOf()) }
+      assertFailsWith<IllegalArgumentException> { processor.addFrequencyVector(byteArrayOf()) }
     assertThat(exception.message).contains("Input frequency vector cannot be empty")
   }
 
   @Test
-  fun `addFrequencyVectorBytes correctly sums and caps multiple vectors`() {
+  fun `addFrequencyVector correctly sums and caps multiple vectors`() {
     val processor = TrusTeeProcessorImpl(REACH_AND_FREQUENCY_PARAMS)
     val vector1 = byteArrayOf(1, 4, 1, 3)
     val vector2 = byteArrayOf(0, 1, 1, 1) // Sums: [1, 5, 2, 4]
     val vector3 = byteArrayOf(1, 1, 0, 3) // Sums: [2, 6, 2, 7], capped at 5 -> [2, 5, 2, 5]
 
-    processor.addFrequencyVectorBytes(vector1)
-    processor.addFrequencyVectorBytes(vector2)
-    processor.addFrequencyVectorBytes(vector3)
+    processor.addFrequencyVector(vector1)
+    processor.addFrequencyVector(vector2)
+    processor.addFrequencyVector(vector3)
     val result = processor.computeResult() as ReachAndFrequencyResult
 
     // The exact result is subject to noise. We just check for reasonable properties.
@@ -116,14 +116,12 @@ class TrusTeeProcessorImplTest {
   }
 
   @Test
-  fun `addFrequencyVectorBytes throws for mismatched vector sizes`() {
+  fun `addFrequencyVector throws for mismatched vector sizes`() {
     val processor = TrusTeeProcessorImpl(REACH_AND_FREQUENCY_PARAMS)
-    processor.addFrequencyVectorBytes(byteArrayOf(1, 2, 3))
+    processor.addFrequencyVector(byteArrayOf(1, 2, 3))
 
     val exception =
-      assertFailsWith<IllegalArgumentException> {
-        processor.addFrequencyVectorBytes(byteArrayOf(1, 2))
-      }
+      assertFailsWith<IllegalArgumentException> { processor.addFrequencyVector(byteArrayOf(1, 2)) }
     assertThat(exception.message).contains("size")
   }
 
@@ -136,7 +134,7 @@ class TrusTeeProcessorImplTest {
   @Test
   fun `computeResult with all-zero frequency vectors returns near-zero results`() {
     val processor = TrusTeeProcessorImpl(REACH_AND_FREQUENCY_PARAMS)
-    processor.addFrequencyVectorBytes(byteArrayOf(0, 0, 0, 0))
+    processor.addFrequencyVector(byteArrayOf(0, 0, 0, 0))
     val result = processor.computeResult() as ReachAndFrequencyResult
 
     // With noise, reach might not be exactly 0, but should be small.
@@ -150,7 +148,7 @@ class TrusTeeProcessorImplTest {
   fun `computeResult for Reach-Only returns correct result type`() {
     val params = TrusTeeReachParams(vidSamplingIntervalWidth = 0.5f, dpParams = DEFAULT_DP_PARAMS)
     val processor = TrusTeeProcessorImpl(params)
-    processor.addFrequencyVectorBytes(byteArrayOf(1, 0, 1, 0, 1, 0))
+    processor.addFrequencyVector(byteArrayOf(1, 0, 1, 0, 1, 0))
     val result = processor.computeResult() as ReachResult
 
     assertThat(result).isInstanceOf(ReachResult::class.java)
@@ -169,7 +167,7 @@ class TrusTeeProcessorImplTest {
         frequencyDpParams = DEFAULT_DP_PARAMS,
       )
     val processor = TrusTeeProcessorImpl(params)
-    processor.addFrequencyVectorBytes(byteArrayOf(1, 2, 0, 1, 3))
+    processor.addFrequencyVector(byteArrayOf(1, 2, 0, 1, 3))
     val result = processor.computeResult()
 
     assertThat(result).isInstanceOf(ReachAndFrequencyResult::class.java)
@@ -202,7 +200,7 @@ class TrusTeeProcessorImplTest {
     val vector = ByteArray(200) { 1 } // 200 VIDs, all reached
     val vectorSize = vector.size
 
-    processor.addFrequencyVectorBytes(vector)
+    processor.addFrequencyVector(vector)
     val result = processor.computeResult() as ReachAndFrequencyResult
 
     val maxPossibleScaledReach = (vectorSize / samplingWidth).toLong() // 200 / 0.5 = 400

@@ -132,7 +132,7 @@ class TrusTeeMill(
       val rawRequisitionData = getRequisitionData(requisition)
       val decryptedRequisitionData = decryptRequisitionData(dek, rawRequisitionData)
 
-      processor.addFrequencyVectorBytes(decryptedRequisitionData)
+      processor.addFrequencyVector(decryptedRequisitionData)
     }
 
     val computationResult = processor.computeResult()

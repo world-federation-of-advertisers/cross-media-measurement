@@ -38,9 +38,9 @@ data class TrusTeeReachAndFrequencyParams(
  * A processor for the TrusTEE protocol that aggregates frequency vectors from multiple sources to
  * compute a reach and frequency distribution.
  *
- * This component is stateful. It accumulates data from each call to [addFrequencyVectorBytes] and
- * uses the final aggregated data to perform the final computation in [computeResult]. A single
- * instance should be used for a single computation.
+ * This component is stateful. It accumulates data from each call to [addFrequencyVector] and uses
+ * the final aggregated data to perform the final computation in [computeResult]. A single instance
+ * should be used for a single computation.
  */
 interface TrusTeeProcessor {
   /** The [TrusTeeParams] for the computation. */
@@ -56,16 +56,16 @@ interface TrusTeeProcessor {
    *
    * This method should be called for each frequency vector from each data provider.
    *
-   * @param bytes The frequency vector from a single data provider, where each byte is a
+   * @param vector The frequency vector from a single data provider, where each byte is a
    *   non-negative 8-bit signed integer representing a frequency.
    */
-  fun addFrequencyVectorBytes(bytes: ByteArray)
+  fun addFrequencyVector(vector: ByteArray)
 
   /**
    * Computes the final reach and frequency result from all previously added vectors.
    *
    * This method should only be called after all frequency vectors for the computation have been
-   * added via [addFrequencyVectorBytes].
+   * added via [addFrequencyVector].
    *
    * The output is a [ComputationResult] protobuf message. It contains either a reach result or a
    * reach-and-frequency result based on the [TrusTeeParams].

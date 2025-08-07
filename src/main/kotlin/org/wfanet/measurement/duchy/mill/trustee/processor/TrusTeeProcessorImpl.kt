@@ -25,10 +25,10 @@ class TrusTeeProcessorImpl(override val trusTeeParams: TrusTeeParams) : TrusTeeP
   /**
    * Holds the aggregated frequency vector.
    *
-   * This is initialized with a copy of the first vector passed to [addFrequencyVectorBytes].
-   * Subsequent calls add to this vector. It is null until the first vector is added.
+   * This is initialized on the first call to [addFrequencyVectorBytes]. Subsequent calls add to
+   * this vector.
    */
-  private var aggregatedFrequencyVector: IntArray? = null
+  private lateinit var aggregatedFrequencyVector: IntArray
 
   private val maxFrequency: Int
   private val vidSamplingIntervalWidth: Float
@@ -37,7 +37,7 @@ class TrusTeeProcessorImpl(override val trusTeeParams: TrusTeeParams) : TrusTeeP
     when (trusTeeParams) {
       is TrusTeeReachAndFrequencyParams -> {
         maxFrequency = trusTeeParams.maximumFrequency
-        require(maxFrequency >= 2 && maxFrequency <= Byte.MAX_VALUE) {
+        require(maxFrequency in 2..Byte.MAX_VALUE) {
           "Invalid max frequency: $maxFrequency"
         }
         vidSamplingIntervalWidth = trusTeeParams.vidSamplingIntervalWidth
@@ -54,20 +54,20 @@ class TrusTeeProcessorImpl(override val trusTeeParams: TrusTeeParams) : TrusTeeP
     }
   }
 
-  override fun addFrequencyVectorBytes(bytes: ByteArray) {
-    require(bytes.isNotEmpty()) { "Input frequency vector cannot be empty." }
+  override fun addFrequencyVector(vector: ByteArray) {
+    require(vector.isNotEmpty()) { "Input frequency vector cannot be empty." }
 
-    if (aggregatedFrequencyVector == null) {
-      aggregatedFrequencyVector = IntArray(bytes.size)
+    if (!::aggregatedFrequencyVector.isInitialized) {
+      aggregatedFrequencyVector = IntArray(vector.size)
     }
 
     val currentVector = requireNotNull(aggregatedFrequencyVector)
-    require(bytes.size == currentVector.size) {
-      "Input vector size ${bytes.size} does not match expected size ${currentVector.size}"
+    require(vector.size == currentVector.size) {
+      "Input vector size ${vector.size} does not match expected size ${currentVector.size}"
     }
 
-    for (i in bytes.indices) {
-      val frequency = bytes[i].toInt()
+    for (i in vector.indices) {
+      val frequency = vector[i].toInt()
       require(frequency >= 0) {
         "Invalid frequency value in byte array: $frequency. Frequency must be non-negative."
       }
@@ -76,18 +76,19 @@ class TrusTeeProcessorImpl(override val trusTeeParams: TrusTeeParams) : TrusTeeP
   }
 
   override fun computeResult(): ComputationResult {
-    val frequencyVector =
-      aggregatedFrequencyVector
-        ?: throw IllegalStateException(
-          "addFrequencyVectorBytes must be called before computeResult."
-        )
+    if (!::aggregatedFrequencyVector.isInitialized) {
+      throw IllegalStateException(
+        "addFrequencyVectorBytes must be called before computeResult."
+      )
+    }
+    val frequencyVector = aggregatedFrequencyVector
 
-    val rawHistogram = ReachAndFrequencyCalculator.buildHistogram(frequencyVector, maxFrequency)
+    val rawHistogram = ReachAndFrequencyComputations.buildHistogram(frequencyVector, maxFrequency)
 
     return when (trusTeeParams) {
       is TrusTeeReachParams -> {
         val reach =
-          ReachAndFrequencyCalculator.computeReach(
+          ReachAndFrequencyComputations.computeReach(
             rawHistogram,
             frequencyVector.size,
             vidSamplingIntervalWidth,
@@ -98,14 +99,14 @@ class TrusTeeProcessorImpl(override val trusTeeParams: TrusTeeParams) : TrusTeeP
       }
       is TrusTeeReachAndFrequencyParams -> {
         val reach =
-          ReachAndFrequencyCalculator.computeReach(
+          ReachAndFrequencyComputations.computeReach(
             rawHistogram,
             frequencyVector.size,
             vidSamplingIntervalWidth,
             trusTeeParams.reachDpParams,
           )
         val frequency =
-          ReachAndFrequencyCalculator.computeFrequencyDistribution(
+          ReachAndFrequencyComputations.computeFrequencyDistribution(
             rawHistogram,
             maxFrequency,
             trusTeeParams.frequencyDpParams,

@@ -353,7 +353,7 @@ class TrusTeeMillTest {
       requisitions = REQUISITIONS,
     )
 
-    whenever(mockProcessor.addFrequencyVectorBytes(any())).thenAnswer {}
+    whenever(mockProcessor.addFrequencyVector(any())).thenAnswer {}
     whenever(mockProcessor.computeResult()).thenReturn(MEASUREMENT_RESULT)
 
     val mill = createMill()
@@ -374,7 +374,7 @@ class TrusTeeMillTest {
       )
 
     val vectorCaptor = argumentCaptor<ByteArray>()
-    verify(mockProcessor, times(3)).addFrequencyVectorBytes(vectorCaptor.capture())
+    verify(mockProcessor, times(3)).addFrequencyVector(vectorCaptor.capture())
     verify(mockProcessor, times(1)).computeResult()
     val capturedVectors = vectorCaptor.allValues
     assertThat(capturedVectors).hasSize(3)
@@ -423,7 +423,7 @@ class TrusTeeMillTest {
     assertThat(finalToken.computationDetails.endingState)
       .isEqualTo(ComputationDetails.CompletedReason.FAILED)
 
-    verify(mockProcessor, times(1)).addFrequencyVectorBytes(any())
+    verify(mockProcessor, times(1)).addFrequencyVector(any())
     verify(mockProcessor, never()).computeResult()
     verify(mockSystemComputations, never()).setComputationResult(any())
   }
@@ -450,7 +450,7 @@ class TrusTeeMillTest {
     assertThat(finalToken.computationDetails.endingState)
       .isEqualTo(ComputationDetails.CompletedReason.FAILED)
 
-    verify(mockProcessor, never()).addFrequencyVectorBytes(any())
+    verify(mockProcessor, never()).addFrequencyVector(any())
     verify(mockProcessor, never()).computeResult()
     verify(mockSystemComputations, never()).setComputationResult(any())
   }
@@ -480,7 +480,7 @@ class TrusTeeMillTest {
     assertThat(finalToken.computationDetails.endingState)
       .isEqualTo(ComputationDetails.CompletedReason.FAILED)
 
-    verify(mockProcessor, never()).addFrequencyVectorBytes(any())
+    verify(mockProcessor, never()).addFrequencyVector(any())
     verify(mockProcessor, never()).computeResult()
     verify(mockSystemComputations, never()).setComputationResult(any())
   }
@@ -509,7 +509,7 @@ class TrusTeeMillTest {
     assertThat(finalToken.computationDetails.endingState)
       .isEqualTo(ComputationDetails.CompletedReason.FAILED)
 
-    verify(mockProcessor, never()).addFrequencyVectorBytes(any())
+    verify(mockProcessor, never()).addFrequencyVector(any())
     verify(mockProcessor, never()).computeResult()
     verify(mockSystemComputations, never()).setComputationResult(any())
   }
@@ -546,7 +546,7 @@ class TrusTeeMillTest {
     assertThat(finalToken.computationDetails.endingState)
       .isEqualTo(ComputationDetails.CompletedReason.FAILED)
 
-    verify(mockProcessor, never()).addFrequencyVectorBytes(any())
+    verify(mockProcessor, never()).addFrequencyVector(any())
     verify(mockProcessor, never()).computeResult()
     verify(mockSystemComputations, never()).setComputationResult(any())
   }
@@ -575,7 +575,7 @@ class TrusTeeMillTest {
     assertThat(finalToken.computationDetails.endingState)
       .isEqualTo(ComputationDetails.CompletedReason.FAILED)
 
-    verify(mockProcessor, never()).addFrequencyVectorBytes(any())
+    verify(mockProcessor, never()).addFrequencyVector(any())
     verify(mockProcessor, never()).computeResult()
     verify(mockSystemComputations, never()).setComputationResult(any())
   }
@@ -605,7 +605,7 @@ class TrusTeeMillTest {
     assertThat(finalToken.computationDetails.endingState)
       .isEqualTo(ComputationDetails.CompletedReason.FAILED)
 
-    verify(mockProcessor, never()).addFrequencyVectorBytes(any())
+    verify(mockProcessor, never()).addFrequencyVector(any())
     verify(mockProcessor, never()).computeResult()
     verify(mockSystemComputations, never()).setComputationResult(any())
   }
@@ -620,7 +620,7 @@ class TrusTeeMillTest {
       requisitions = REQUISITIONS,
     )
 
-    whenever(mockProcessor.addFrequencyVectorBytes(any())).thenAnswer {}
+    whenever(mockProcessor.addFrequencyVector(any())).thenAnswer {}
     whenever(mockProcessor.computeResult())
       .thenThrow(IllegalArgumentException("Test cryptor failure during result computation"))
 
@@ -632,7 +632,7 @@ class TrusTeeMillTest {
     assertThat(finalToken.computationDetails.endingState)
       .isEqualTo(ComputationDetails.CompletedReason.FAILED)
 
-    verify(mockProcessor, times(REQUISITIONS.size)).addFrequencyVectorBytes(any())
+    verify(mockProcessor, times(REQUISITIONS.size)).addFrequencyVector(any())
     verify(mockProcessor, times(1)).computeResult()
     verify(mockSystemComputations, never()).setComputationResult(any())
   }

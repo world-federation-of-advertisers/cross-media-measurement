@@ -3,10 +3,10 @@ load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_test")
 package(default_testonly = True)
 
 kt_jvm_test(
-    name = "ReachAndFrequencyCalculatorTest",
-    srcs = ["ReachAndFrequencyCalculatorTest.kt"],
+    name = "ReachAndFrequencyComputationsTest",
+    srcs = ["ReachAndFrequencyComputationsTest.kt"],
     deps = [
-        "//src/main/kotlin/org/wfanet/measurement/duchy/mill/trustee/processor:reach_and_frequency_calculator",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/mill/trustee/processor:reach_and_frequency_computations",
         "//src/main/proto/wfa/measurement/internal/duchy:differential_privacy_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/kotlin/kotlin/test",

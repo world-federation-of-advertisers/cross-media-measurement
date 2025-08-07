@@ -11,8 +11,8 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
-    name = "reach_and_frequency_calculator",
-    srcs = ["ReachAndFrequencyCalculator.kt"],
+    name = "reach_and_frequency_computations",
+    srcs = ["ReachAndFrequencyComputations.kt"],
     deps = [
         "//src/main/proto/wfa/measurement/internal/duchy:differential_privacy_kt_jvm_proto",
         "@maven//:com_google_privacy_differentialprivacy_differentialprivacy",
@@ -23,7 +23,7 @@ kt_jvm_library(
     name = "trus_tee_processor_impl",
     srcs = ["TrusTeeProcessorImpl.kt"],
     deps = [
-        ":reach_and_frequency_calculator",
+        ":reach_and_frequency_computations",
         ":trus_tee_processor",
         "//src/main/kotlin/org/wfanet/measurement/duchy/utils:computation_conversions",
         "//src/main/kotlin/org/wfanet/measurement/measurementconsumer/stats:covariances",

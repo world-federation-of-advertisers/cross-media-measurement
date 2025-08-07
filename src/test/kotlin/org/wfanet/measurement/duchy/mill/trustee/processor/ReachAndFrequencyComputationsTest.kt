@@ -26,14 +26,15 @@ import org.wfanet.measurement.internal.duchy.DifferentialPrivacyParams
 import org.wfanet.measurement.internal.duchy.differentialPrivacyParams
 
 @RunWith(JUnit4::class)
-class ReachAndFrequencyCalculatorTest {
+class ReachAndFrequencyComputationsTest {
 
   @Test
   fun `buildHistogram creates correct histogram excluding zeros`() {
     val vector = intArrayOf(1, 2, 0, 1, 3, 2, 1, 0, 0)
     val maxFrequency = 3
     val expected = longArrayOf(3, 2, 1)
-    assertThat(ReachAndFrequencyCalculator.buildHistogram(vector, maxFrequency)).isEqualTo(expected)
+    assertThat(ReachAndFrequencyComputations.buildHistogram(vector, maxFrequency))
+      .isEqualTo(expected)
   }
 
   @Test
@@ -41,7 +42,8 @@ class ReachAndFrequencyCalculatorTest {
     val vector = intArrayOf()
     val maxFrequency = 5
     val expected = longArrayOf(0, 0, 0, 0, 0)
-    assertThat(ReachAndFrequencyCalculator.buildHistogram(vector, maxFrequency)).isEqualTo(expected)
+    assertThat(ReachAndFrequencyComputations.buildHistogram(vector, maxFrequency))
+      .isEqualTo(expected)
   }
 
   @Test
@@ -49,7 +51,8 @@ class ReachAndFrequencyCalculatorTest {
     val vector = intArrayOf(0, 0, 0, 0)
     val maxFrequency = 3
     val expected = longArrayOf(0, 0, 0)
-    assertThat(ReachAndFrequencyCalculator.buildHistogram(vector, maxFrequency)).isEqualTo(expected)
+    assertThat(ReachAndFrequencyComputations.buildHistogram(vector, maxFrequency))
+      .isEqualTo(expected)
   }
 
   @Test
@@ -57,7 +60,8 @@ class ReachAndFrequencyCalculatorTest {
     val vector = intArrayOf(1, 2, 3, 4, 5)
     val maxFrequency = 5
     val expected = longArrayOf(1, 1, 1, 1, 1)
-    assertThat(ReachAndFrequencyCalculator.buildHistogram(vector, maxFrequency)).isEqualTo(expected)
+    assertThat(ReachAndFrequencyComputations.buildHistogram(vector, maxFrequency))
+      .isEqualTo(expected)
   }
 
   @Test
@@ -65,14 +69,15 @@ class ReachAndFrequencyCalculatorTest {
     val vector = intArrayOf(1, 2, 3, 4, 5, 6)
     val maxFrequency = 4
     val expected = longArrayOf(1, 1, 1, 3)
-    assertThat(ReachAndFrequencyCalculator.buildHistogram(vector, maxFrequency)).isEqualTo(expected)
+    assertThat(ReachAndFrequencyComputations.buildHistogram(vector, maxFrequency))
+      .isEqualTo(expected)
   }
 
   @Test
   fun `computeReach calculates raw reach correctly`() {
     val rawHistogram = longArrayOf(10, 5, 1) // Frequencies 1, 2, 3
     val reach =
-      ReachAndFrequencyCalculator.computeReach(
+      ReachAndFrequencyComputations.computeReach(
         rawHistogram,
         vectorSize = 20,
         vidSamplingIntervalWidth = 1.0f,
@@ -85,7 +90,7 @@ class ReachAndFrequencyCalculatorTest {
   fun `computeReach scales raw reach by sampling width`() {
     val rawHistogram = longArrayOf(10, 5, 1) // Frequencies 1, 2, 3
     val reach =
-      ReachAndFrequencyCalculator.computeReach(
+      ReachAndFrequencyComputations.computeReach(
         rawHistogram,
         vectorSize = 40,
         vidSamplingIntervalWidth = 0.5f,
@@ -99,7 +104,7 @@ class ReachAndFrequencyCalculatorTest {
     val rawHistogram = longArrayOf(100, 50, 20) // Reach in sample = 170
     val tolerance = getNoiseTolerance(DP_PARAMS)
     val reach =
-      ReachAndFrequencyCalculator.computeReach(
+      ReachAndFrequencyComputations.computeReach(
         rawHistogram,
         vectorSize = 200,
         vidSamplingIntervalWidth = 1.0f,
@@ -113,7 +118,7 @@ class ReachAndFrequencyCalculatorTest {
   fun `computeFrequencyDistribution calculates raw distribution`() {
     val rawHistogram = longArrayOf(10, 30, 60) // Frequencies 1, 2, 3
     val distribution =
-      ReachAndFrequencyCalculator.computeFrequencyDistribution(
+      ReachAndFrequencyComputations.computeFrequencyDistribution(
         rawHistogram,
         maxFrequency = 3,
         dpParams = null,
@@ -129,7 +134,7 @@ class ReachAndFrequencyCalculatorTest {
   fun `computeFrequencyDistribution with zero-only histogram returns map of zeros`() {
     val rawHistogram = longArrayOf(0, 0, 0)
     val distribution =
-      ReachAndFrequencyCalculator.computeFrequencyDistribution(
+      ReachAndFrequencyComputations.computeFrequencyDistribution(
         rawHistogram,
         maxFrequency = 3,
         dpParams = null,
@@ -143,7 +148,7 @@ class ReachAndFrequencyCalculatorTest {
     val rawHistogram = longArrayOf(100, 200, 300, 400, 0) // Frequencies 1-5
     val totalReached = rawHistogram.sum()
     val distribution =
-      ReachAndFrequencyCalculator.computeFrequencyDistribution(
+      ReachAndFrequencyComputations.computeFrequencyDistribution(
         rawHistogram,
         maxFrequency = 5,
         dpParams = DP_PARAMS,
@@ -173,7 +178,7 @@ class ReachAndFrequencyCalculatorTest {
     val rawHistogram = longArrayOf(1, 1)
     val exception =
       assertFailsWith<IllegalArgumentException> {
-        ReachAndFrequencyCalculator.computeFrequencyDistribution(
+        ReachAndFrequencyComputations.computeFrequencyDistribution(
           rawHistogram,
           maxFrequency = 3,
           dpParams = null,
