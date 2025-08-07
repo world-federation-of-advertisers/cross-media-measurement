@@ -137,9 +137,11 @@ expand_template(
         "{kingdom_public_api_cert_host}": "localhost",
         "{mc_name}": TEST_K8S_SETTINGS.mc_name,
         "{mc_api_key}": TEST_K8S_SETTINGS.mc_api_key,
+        "{auth_id_token}": "$(auth_id_token)",
+        "{requisition_fetcher_target}": "$(requisition_fetcher_target)",
     },
     tags = ["manual"],
-    template = "correctness_test_config.tmpl.textproto",
+    template = "edpa_correctness_test_config.tmpl.textproto",
 )
 
 kt_jvm_library(
@@ -171,7 +173,7 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/api/v2alpha/event_group_metadata/testing:simulator_synthetic_data_spec_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:test_event_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/edpaggregator/eventgroups/v1alpha:event_group_kt_jvm_proto",
-        "//src/main/proto/wfa/measurement/integration/k8s/testing:correctness_test_config_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/integration/k8s/testing:edpa_correctness_test_config_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/org/junit",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",

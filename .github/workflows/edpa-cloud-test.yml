@@ -79,14 +79,10 @@ jobs:
           build --define mc_name=$MC_NAME
           build --define mc_api_key=$MC_API_KEY
           build --define google_cloud_project=$GCLOUD_PROJECT
-#          build --define auth_id_token=$AUTH_ID_TOKEN
-#          build --define requisition_fetcher_target=$REQUISITION_FETCHER_TARGET
+          build --define auth_id_token=$AUTH_ID_TOKEN
+          build --define requisition_fetcher_target=$REQUISITION_FETCHER_TARGET
           test --test_output=streamed
           test --test_timeout=3600
-          test --test_env=GOOGLE_APPLICATION_CREDENTIALS
-          test --test_env=GOOGLE_CLOUD_PROJECT
-          test --test_env=AUTH_ID_TOKEN
-          test --test_env=REQUISITION_FETCHER_TARGET
           EOF
 
       # Reduce chance of disconnection from the Build Event Service.
@@ -95,9 +91,9 @@ jobs:
 
       - name: Run tests
         id: run-tests
-        env:
-          AUTH_ID_TOKEN: ${{ steps.auth.outputs.id_token }}
-          REQUISITION_FETCHER_TARGET: ${{ vars.REQUISITION_FETCHER_TARGET }}
+#        env:
+#          AUTH_ID_TOKEN: ${{ steps.auth.outputs.id_token }}
+#          REQUISITION_FETCHER_TARGET: ${{ vars.REQUISITION_FETCHER_TARGET }}
         run: |
           bazel test //src/test/kotlin/org/wfanet/measurement/integration/k8s:EdpAggregatorCorrectnessTest
 

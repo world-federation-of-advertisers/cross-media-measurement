@@ -39,7 +39,7 @@ import org.junit.ClassRule
 import org.junit.rules.TestRule
 import org.junit.runner.Description
 import org.junit.runners.model.Statement
-import org.measurement.integration.k8s.testing.CorrectnessTestConfig
+import org.measurement.integration.k8s.testing.EdpaCorrectnessTestConfig
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt
 import org.wfanet.measurement.api.v2alpha.EventGroup as PublicApiEventGroup
@@ -190,11 +190,9 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
 
     private fun triggerRequisitionFetcher() {
 
-      val jwt = System.getenv("AUTH_ID_TOKEN") ?: error("AUTH_ID_TOKEN must be set")
+      val jwt = TEST_CONFIG.authIdToken
+      val requisitionFetcherTarget = TEST_CONFIG.requisitionFetcherTarget
 
-      val requisitionFetcherTarget =
-        System.getenv("REQUISITION_FETCHER_TARGET")
-          ?: error("REQUISITION_FETCHER_TARGET must be set")
 
       val client = HttpClient.newHttpClient()
       val request =
@@ -258,9 +256,9 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
     private val CONFIG_PATH =
       Paths.get("src", "test", "kotlin", "org", "wfanet", "measurement", "integration", "k8s")
     private const val TEST_CONFIG_NAME = "edpa_correctness_test_config.textproto"
-    private val TEST_CONFIG: CorrectnessTestConfig by lazy {
+    private val TEST_CONFIG: EdpaCorrectnessTestConfig by lazy {
       val configFile = getRuntimePath(CONFIG_PATH.resolve(TEST_CONFIG_NAME)).toFile()
-      parseTextProto(configFile, CorrectnessTestConfig.getDefaultInstance())
+      parseTextProto(configFile, EdpaCorrectnessTestConfig.getDefaultInstance())
     }
 
     private val TEST_DATA_PATH =
