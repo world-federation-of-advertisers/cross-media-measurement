@@ -46,8 +46,6 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAttemptsGrpcKt
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt
 import picocli.CommandLine
-import java.net.URI
-import org.wfanet.measurement.common.edpaggregator.TeeAppConfig.getConfig
 import com.google.auth.oauth2.GoogleCredentials
 import java.io.ByteArrayInputStream
 import java.nio.charset.StandardCharsets

@@ -16,14 +16,14 @@
 
 package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
-import org.junit.Rule
-import org.junit.runner.RunWith
-import org.junit.Test
-import org.junit.rules.TemporaryFolder
-import org.junit.runners.JUnit4
 import com.google.common.truth.Truth.assertThat
 import java.io.File
 import java.nio.file.Files
+import org.junit.Rule
+import org.junit.Test
+import org.junit.rules.TemporaryFolder
+import org.junit.runner.RunWith
+import org.junit.runners.JUnit4
 import org.mockito.ArgumentMatchers.anyString
 import org.mockito.Mockito.doNothing
 import org.mockito.Mockito.doReturn
@@ -114,11 +114,13 @@ class ResultsFulfillerAppRunnerTest {
     }
 
     runner.saveResultsFulfillerConfig()
-    val configDirField = ResultsFulfillerAppRunner::class.java.getDeclaredField("PROTO_DESCRIPTORS_DIR")
+    val configDirField =
+      ResultsFulfillerAppRunner::class.java.getDeclaredField("PROTO_DESCRIPTORS_DIR")
     configDirField.isAccessible = true
     val configDir = configDirField.get(null) as String
 
-    // Verify the file was written in <PROTO_DESCRIPTORS_DIR>/fooDescriptor.protoset with identical contents
+    // Verify the file was written in <PROTO_DESCRIPTORS_DIR>/fooDescriptor.protoset with identical
+    // contents
     val outputFile = File(configDir, descriptorName)
     assertThat(outputFile.exists()).isTrue()
     assertThat(outputFile.readBytes()).isEqualTo(expectedBytes)
