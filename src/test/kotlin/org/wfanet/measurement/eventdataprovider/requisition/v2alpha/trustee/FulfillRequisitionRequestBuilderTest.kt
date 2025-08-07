@@ -19,8 +19,13 @@ import com.google.crypto.tink.BinaryKeysetReader
 import com.google.crypto.tink.KeyTemplates
 import com.google.crypto.tink.KeysetHandle
 import com.google.crypto.tink.KmsClient
+import com.google.crypto.tink.StreamingAead
 import com.google.crypto.tink.aead.AeadConfig
+import com.google.crypto.tink.streamingaead.StreamingAeadConfig
 import com.google.protobuf.ByteString
+import java.io.ByteArrayOutputStream
+import java.nio.ByteBuffer
+import java.nio.channels.Channels
 import java.security.GeneralSecurityException
 import kotlin.test.assertFailsWith
 import org.junit.Test
@@ -191,11 +196,12 @@ class FulfillRequisitionRequestBuilderTest {
         .toList()
 
     assertThat(requests).hasSize(2)
-    val headerRequest = requests[0]
-    val bodyRequest = requests[1]
+    val headerRequest = requests.first { it.hasHeader() }
+    val bodyChunks = requests.filter { it.hasBodyChunk() }.map { it.bodyChunk.data }
+    assertThat(bodyChunks).isNotEmpty()
+    val encryptedPayload = bodyChunks.reduce { a, b -> a.concat(b) }
 
     assertThat(headerRequest.hasHeader()).isTrue()
-    assertThat(bodyRequest.hasBodyChunk()).isTrue()
 
     val header = headerRequest.header
     assertThat(header.name).isEqualTo(REQUISITION.name)
@@ -215,10 +221,22 @@ class FulfillRequisitionRequestBuilderTest {
     val encryptedDek: ByteString = header.trusTee.envelopeEncryption.encryptedDek.data
     val dekKeysetHandle =
       KeysetHandle.read(BinaryKeysetReader.withInputStream(encryptedDek.newInput()), kekAead)
-    val dekAead = dekKeysetHandle.getPrimitive(Aead::class.java)
+    val dekStreamingAead = dekKeysetHandle.getPrimitive(StreamingAead::class.java)
 
-    val decryptedFrequencyVectorData =
-      dekAead.decrypt(bodyRequest.bodyChunk.data.toByteArray(), null)
+    val decryptingChannel =
+      dekStreamingAead.newDecryptingChannel(
+        Channels.newChannel(encryptedPayload.newInput()),
+        byteArrayOf(),
+      )
+    val decryptedData = ByteArrayOutputStream()
+    val buffer = ByteBuffer.allocate(1024)
+    while (decryptingChannel.read(buffer) != -1) {
+      buffer.flip()
+      decryptedData.write(buffer.array(), 0, buffer.limit())
+      buffer.clear()
+    }
+    val decryptedFrequencyVectorData = decryptedData.toByteArray()
+
     val decryptedIntegers = bytesToIntegers(decryptedFrequencyVectorData)
     assertThat(decryptedIntegers).isEqualTo(inputFrequencyVector.dataList)
   }
@@ -258,6 +276,7 @@ class FulfillRequisitionRequestBuilderTest {
 
     init {
       AeadConfig.register()
+      StreamingAeadConfig.register()
       val kmsKeyHandle = KeysetHandle.generateNew(KeyTemplates.get("AES256_GCM"))
       KMS_CLIENT.setAead(KEK_URI, kmsKeyHandle.getPrimitive(Aead::class.java))
     }
