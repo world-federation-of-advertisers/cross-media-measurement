@@ -30,7 +30,6 @@ from noiseninja.noised_measurements import Measurement
 from noiseninja.noised_measurements import MeasurementSet
 from noiseninja.noised_measurements import OrderedSets
 from noiseninja.noised_measurements import SetMeasurementsSpec
-from noiseninja.noised_measurements import KReachMeasurements
 from noiseninja.solver import Solver
 from src.main.proto.wfa.measurement.reporting.postprocessing.v2alpha import \
   report_post_processor_result_pb2
@@ -40,6 +39,7 @@ ReportPostProcessorStatus = report_post_processor_result_pb2.ReportPostProcessor
 ReportQuality = report_post_processor_result_pb2.ReportQuality
 
 EdpCombination: TypeAlias = FrozenSet[str]
+KReachMeasurements: TypeAlias = dict[int, Measurement]
 
 MIN_STANDARD_VARIATION_RATIO = 0.001
 UNIT_SCALING_FACTOR = 1.0
@@ -406,9 +406,16 @@ class MetricReport:
       if self._reach_time_series else 0
 
   def get_number_of_frequencies(self) -> int:
-    if not self._whole_campaign_measurements:
+    k_reach_lengths = {
+        len(measurement_set.k_reach)
+        for measurement_set in self._whole_campaign_measurements.values()
+        if measurement_set.k_reach
+    }
+
+    if len(k_reach_lengths) > 0:
+      return next(iter(k_reach_lengths))
+    else:
       return 0
-    return len(next(iter(self._whole_campaign_measurements.values())).k_reach)
 
   def get_cumulative_subset_relationships(self) -> list[
     Tuple[EdpCombination, EdpCombination]]:
