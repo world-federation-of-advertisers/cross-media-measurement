@@ -202,6 +202,17 @@ bazel_dep(
     name = "rules_oci",
     version = "2.2.1",
 )
+single_version_override(
+    module_name = "rules_oci",
+    patches = [
+        "//build/cosign/patches:sign_dot_bzl.patch",
+    ],
+    patch_strip = 1
+)
+bazel_dep(
+    name = "rules_multirun",
+    version = "0.12.0",
+)
 
 maven = use_extension("@rules_jvm_external//:extensions.bzl", "maven")
 maven.artifact(
@@ -357,6 +368,12 @@ use_repo(
     "go_image_base_linux_amd64",
 )
 use_repo(oci, "java_image_base_root", "java_image_base_root_linux_amd64")
+
+# TODO(bazel-contrib/rules_oci#235): Replace this custom extension once rules_oci adds blzmod support for cosign.
+cosign = use_extension("//build/cosign:extensions.bzl", "cosign")
+use_repo(cosign, "oci_cosign_toolchains")
+
+register_toolchains("@oci_cosign_toolchains//:all")
 
 http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
