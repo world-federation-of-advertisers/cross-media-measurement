@@ -69,11 +69,11 @@ data class DataProviderData(
 )
 
 abstract class RequisitionFulfiller(
-  val dataProviderData: DataProviderData,
+  protected val dataProviderData: DataProviderData,
   private val certificatesStub: CertificatesCoroutineStub,
   private val requisitionsStub: RequisitionsCoroutineStub,
-  val throttler: Throttler,
-  private val trustedCertificates: Map<ByteString, X509Certificate>,
+  protected val throttler: Throttler,
+  protected val trustedCertificates: Map<ByteString, X509Certificate>,
 ) {
   protected data class Specifications(
     val measurementSpec: MeasurementSpec,
