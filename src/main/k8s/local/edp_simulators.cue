@@ -47,10 +47,6 @@ _eventGroupSpecs: [
 	"/etc/\(#AppName)/config-files/synthetic_event_group_spec_small_2.textproto",
 ]
 
-#EdpConfig: {
-	eventGroupSpec: string
-}
-
 _edpConfigs: [...#EdpConfig]
 _edpConfigs: [
 	for i, name in _edpResourceNames {
@@ -60,19 +56,28 @@ _edpConfigs: [
 		resourceName:     name
 		certResourceName: _edpCertResourceNames[i]
 		displayName:      "edp\(Number)"
-		eventGroupSpec:   _eventGroupSpecs[SpecIndex]
+
 		// Support HMSS on the first half of the EDPs so that we have one EDP with each event source supporting the protocol.
 		if (name == _edp1_name || name == _edp2_name || name == _edp3_name) {
 			supportHmss: true
 		}
+
+		eventGroupConfigs: [{
+			referenceIdSuffix:     ""
+			syntheticDataSpecPath: _eventGroupSpecs[SpecIndex]
+			mediaTypes: ["DISPLAY", "VIDEO"]
+			brandName:    "Brand \(Number)"
+			campaignName: "Campaign \(Number)"
+		}]
 	},
 ]
 
 edpSimulators: {
 	for edpConfig in _edpConfigs {
 		"\(edpConfig.displayName)": #EdpSimulator & {
-			_edpConfig: edpConfig
-			_imageConfig: repoSuffix: "simulator/synthetic-generator-edp"
+			_edpConfig:          edpConfig
+			_populationSpecPath: _populationSpec
+			_imageConfig: repoSuffix: "simulator/edp"
 			_edp_secret_name:  _secret_name
 			_mc_resource_name: _mc_name
 			_requisitionFulfillmentServiceConfigs: [
@@ -86,20 +91,14 @@ edpSimulators: {
 				},
 			]
 			_kingdom_public_api_target: #KingdomPublicApiTarget
-			_additional_args: [
-				"--population-spec=\(_populationSpec)",
-				"--event-group-spec==\(edpConfig.eventGroupSpec)",
-				"--event-group-metadata==\(edpConfig.eventGroupSpec)",
-				if (edpConfig.supportHmss) {"--support-hmss"},
-			]
 
 			deployment: spec: template: spec: {
+				_mounts: "config-files": #ConfigMapMount
 				_dependencies: [
 					"v2alpha-public-api-server",
 					"worker1-requisition-fulfillment-server",
 					"worker2-requisition-fulfillment-server",
 				]
-				_mounts: "config-files": #ConfigMapMount
 			}
 		}
 	}

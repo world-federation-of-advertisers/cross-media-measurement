@@ -39,6 +39,24 @@ _worker2PublicApiTarget: string @tag("worker2_public_api_target")
 
 #SimulatorServiceAccount: "simulator"
 
+_resourceRequirements: ResourceRequirements=#ResourceRequirements & {
+	requests: {
+		cpu:    "500m"
+		memory: "16Gi"
+	}
+	limits: {
+		memory: ResourceRequirements.requests.memory
+	}
+}
+_maxHeapSize: "13G"
+
+_populationSpec: "/etc/\(#AppName)/config-files/synthetic_population_spec_large.textproto"
+_eventGroupSpecs: [
+	"/etc/\(#AppName)/config-files/synthetic_event_group_spec_large_1.textproto",
+	"/etc/\(#AppName)/config-files/synthetic_event_group_spec_large_2.textproto",
+	"/etc/\(#AppName)/config-files/synthetic_event_group_spec_large_3.textproto",
+]
+
 objectSets: [
 	serviceAccounts,
 	configMaps,
@@ -49,23 +67,34 @@ objectSets: [
 _edpConfigs: [...#EdpConfig]
 _edpConfigs: [
 	for i, name in _edpResourceNames {
+		let SpecIndex = mod(i, len(_eventGroupSpecs))
 		let Number = i + 1
 
 		resourceName:     name
 		certResourceName: _edpCertResourceNames[i]
 		displayName:      "edp\(Number)"
-		publisherId:      Number
+
 		// Support HMSS on the first half of the EDPs so that we have one EDP with each event source supporting the protocol.
 		if (name == _edp1_name || name == _edp2_name || name == _edp3_name) {
 			supportHmss: true
 		}
+
+		eventGroupConfigs: [{
+			referenceIdSuffix:     ""
+			syntheticDataSpecPath: _eventGroupSpecs[SpecIndex]
+			mediaTypes: ["DISPLAY", "VIDEO"]
+			brandName:    "Brand \(Number)"
+			campaignName: "Campaign \(Number)"
+		}]
 	},
 ]
 
 edp_simulators: {
-	for edp in _edpConfigs {
+	for i, edp in _edpConfigs {
 		"\(edp.displayName)": #EdpSimulator & {
-			_edpConfig:       edp
+			_edpConfig:          edp
+			_populationSpecPath: _populationSpec
+			_imageConfig: repoSuffix: "simulator/edp"
 			_edp_secret_name: _secret_name
 			_requisitionFulfillmentServiceConfigs: [{
 				duchyId:              _worker1Id
@@ -80,7 +109,12 @@ edp_simulators: {
 			_mc_resource_name:          _mc_name
 
 			deployment: {
+				_container: {
+					_javaOptions: maxHeapSize: _maxHeapSize
+					resources: _resourceRequirements
+				}
 				spec: template: spec: #SpotVmPodSpec & #ServiceAccountPodSpec & {
+					_mounts: "config-files": #ConfigMapMount
 					serviceAccountName: #SimulatorServiceAccount
 				}
 			}
