@@ -49,8 +49,8 @@ private val RESOURCE_ID_REGEX = ResourceIds.AIP_122_REGEX
  *
  * @param request
  * @param campaignGroup
- * @param eventTemplateFieldsMap Key is protobuf EventTemplate field name with respect to Event
- *   message. Map is used for validating and parsing [EventTemplateField]
+ * @param eventTemplateFieldsMap Map of EventTemplate field name with respect to Event message to
+ *   info for the field. Used for validating [EventTemplateField]
  * @throws [RequiredFieldNotSetException] when validation fails
  * @throws [InvalidFieldValueException] when validation fails
  */
@@ -101,8 +101,8 @@ fun validateCreateBasicReportRequest(
  *
  * @param resultGroupSpecs [List] of [ResultGroupSpec] to validate
  * @param campaignGroup [ReportingSet] to validate against
- * @param eventTemplateFieldsMap Key is protobuf EventTemplate field name with respect to Event
- *   message. Map is used for validating and parsing [EventTemplateField]
+ * @param eventTemplateFieldsMap Map of EventTemplate field name with respect to Event message to
+ *   info for the field. Used for validating [EventTemplateField]
  * @throws [RequiredFieldNotSetException] when validation fails
  * @throws [InvalidFieldValueException] when validation fails
  */
@@ -187,7 +187,8 @@ fun validateReportingUnit(reportingUnit: ReportingUnit, dataProviderNameSet: Set
  * Validates a [DimensionSpec]
  *
  * @param dimensionSpec [DimensionSpec] to validate
- * @param eventTemplateFieldsMap for validating [EventTemplateField]
+ * @param eventTemplateFieldsMap Map of EventTemplate field name with respect to Event message to
+ *   info for the field. Used for validating [EventTemplateField]
  * @throws [RequiredFieldNotSetException] when validation fails
  * @throws [InvalidFieldValueException] when validation fails
  */
@@ -235,7 +236,8 @@ fun validateDimensionSpec(
  * Validates a [DimensionSpec.Grouping]
  *
  * @param grouping [DimensionSpec.Grouping] to validate
- * @param eventTemplateFieldsMap for validating [EventTemplateField]
+ * @param eventTemplateFieldsMap Map of EventTemplate field name with respect to Event message to
+ *   info for the field. Used for validating [EventTemplateField]
  * @throws [RequiredFieldNotSetException] when validation fails
  * @throws [InvalidFieldValueException] when validation fails
  */
@@ -291,8 +293,8 @@ fun MediaType.toEventAnnotationMediaType(): EventAnnotationMediaType {
  * Validates an [EventTemplateField] for a [DimensionSpec]
  *
  * @param eventTemplateField [EventTemplateField] to validate
- * @param eventTemplateFieldsMap Key is protobuf EventTemplate field name with respect to Event
- *   message. Map is used for validating and parsing [EventTemplateField]
+ * @param eventTemplateFieldsMap Map of EventTemplate field name with respect to Event message to
+ *   info for the field. Used for validating [EventTemplateField]
  * @throws [RequiredFieldNotSetException] when validation fails
  * @throws [InvalidFieldValueException] when validation fails
  */
@@ -335,7 +337,8 @@ fun validateDimensionSpecEventTemplateField(
       EventTemplateField.FieldValue.SelectorCase.ENUM_VALUE -> {
         if (
           eventTemplateFieldInfo.type != Descriptors.FieldDescriptor.Type.ENUM ||
-            !eventTemplateFieldInfo.enumValuesMap.containsKey(eventTemplateField.value.enumValue)
+            eventTemplateFieldInfo.enumType?.findValueByName(eventTemplateField.value.enumValue) ==
+              null
         ) {
           throw InvalidFieldValueException(
             "basic_report.result_group_specs.dimension_spec.filters.terms.value.enum_value"
@@ -382,8 +385,8 @@ fun validateDimensionSpecEventTemplateField(
  * Validates an [EventTemplateField] for an [CustomImpressionQualificationFilterSpec]
  *
  * @param eventTemplateField [EventTemplateField] to validate
- * @param eventTemplateFieldsMap Key is protobuf EventTemplate field name with respect to Event
- *   message. Map is used for validating and parsing [EventTemplateField]
+ * @param eventTemplateFieldsMap Map of EventTemplate field name with respect to Event message to
+ *   info for the field. Used for validating [EventTemplateField]
  * @param mediaType [MediaType] to check against if set
  * @throws [RequiredFieldNotSetException] when validation fails
  * @throws [InvalidFieldValueException] when validation fails
@@ -436,7 +439,8 @@ fun validateCustomImpressionQualificationFilterSpecEventTemplateField(
       EventTemplateField.FieldValue.SelectorCase.ENUM_VALUE -> {
         if (
           eventTemplateFieldInfo.type != Descriptors.FieldDescriptor.Type.ENUM ||
-          !eventTemplateFieldInfo.enumValuesMap.containsKey(eventTemplateField.value.enumValue)
+          eventTemplateFieldInfo.enumType?.findValueByName(eventTemplateField.value.enumValue) ==
+          null
         ) {
           throw InvalidFieldValueException(
             "basic_report.impression_qualification_filters.custom.filter_spec.filters.terms.value.enum_value"
@@ -588,8 +592,8 @@ fun validateReportingInterval(reportingInterval: ReportingInterval) {
  *
  * @param reportingImpressionQualificationFilters [List] of [ReportingImpressionQualificationFilter]
  *   to validate
- * @param eventTemplateFieldsMap Key is protobuf EventTemplate field name with respect to Event
- *   message. Map is used for validating and parsing [EventTemplateField]
+ * @param eventTemplateFieldsMap Map of EventTemplate field name with respect to Event message to
+ *   info for the field. Used for validating [EventTemplateField]
  * @throws [RequiredFieldNotSetException] when validation fails
  * @throws [InvalidFieldValueException] when validation fails
  */
@@ -622,8 +626,8 @@ fun validateReportingImpressionQualificationFilters(
  *
  * @param customImpressionQualificationFilterSpec [CustomImpressionQualificationFilterSpec] to
  *   validate
- * @param eventTemplateFieldsMap Key is protobuf EventTemplate field name with respect to Event
- *   message. Map is used for validating and parsing [EventTemplateField]
+ * @param eventTemplateFieldsMap Map of EventTemplate field name with respect to Event message to
+ *   info for the field. Used for validating [EventTemplateField]
  * @throws [RequiredFieldNotSetException] when validation fails
  * @throws [InvalidFieldValueException] when validation fails
  */
