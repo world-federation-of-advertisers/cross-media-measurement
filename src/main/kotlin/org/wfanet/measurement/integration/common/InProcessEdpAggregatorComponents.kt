@@ -69,6 +69,7 @@ import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup.Media
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.MetadataKt.AdMetadataKt.campaignMetadata
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.MetadataKt.adMetadata
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.metadata as eventGroupMetadata
+import com.google.crypto.tink.KmsClient
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.MappedEventGroup
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.eventGroup
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionFetcher
@@ -155,6 +156,12 @@ class InProcessEdpAggregatorComponents(
     kmsClient
   }
 
+  private val kmsClients by lazy {
+    mutableMapOf(
+      edpResourceName to kmsClient as KmsClient
+    )
+  }
+
   private val resultFulfillerApp by lazy {
     val typeRegistry = TypeRegistry.newBuilder().add(TestEvent.getDescriptor()).build()
     val requisitionStubFactory = TestRequisitionStubFactory(publicApiChannel)
@@ -169,7 +176,7 @@ class InProcessEdpAggregatorComponents(
       workItemAttemptsClient =
         WorkItemAttemptsCoroutineStub(secureComputationPublicApi.publicApiChannel),
       queueSubscriber = subscriber,
-      kmsClient = kmsClient,
+      kmsClients = kmsClients,
       requisitionStubFactory = requisitionStubFactory,
       typeRegistry = typeRegistry,
       getImpressionsMetadataStorageConfig = getStorageConfig,
