@@ -1,0 +1,91 @@
+# Copyright 2025 The Cross-Media Measurement Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: Sign container images
+
+on:
+  workflow_call:
+    inputs:
+      image-tag:
+        description: "Tag of container images"
+        type: string
+        required: true
+      kms-key-resource-name:
+        description: "GCP KMS key resource name for image signing"
+        type: string
+        required: true
+      service-account:
+        description: "Service account to access the key"
+        type: string
+        required: true
+      workload-identity-provider:
+        description: "Workload identity provider to impersonate the service account"
+        type: string
+        required: true
+
+jobs:
+  sign-images:
+    runs-on: ubuntu-22.04
+    permissions:
+      id-token: write
+      packages: write
+    env:
+      CONTAINER_REGISTRY: ghcr.io
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Write auth.bazelrc
+        env:
+          BUILDBUDDY_API_KEY: ${{ secrets.BUILDBUDDY_API_KEY }}
+        run: |
+          cat << EOF > auth.bazelrc
+          build --remote_header=x-buildbuddy-api-key=$BUILDBUDDY_API_KEY
+          EOF
+
+      - name: Write ~/.bazelrc
+        env:
+          IMAGE_TAG: ${{ inputs.image-tag }}
+        run: |
+          cat << EOF > ~/.bazelrc
+          common --config=ci
+          build --define container_registry=$CONTAINER_REGISTRY
+          build --define image_repo_prefix=$GITHUB_REPOSITORY_OWNER
+          build --define image_tag=$IMAGE_TAG
+          EOF
+
+      - name: Authenticate to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.CONTAINER_REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+
+      - name: Authenticate to Google Cloud for image signing
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ inputs.workload-identity-provider }}
+          service_account: ${{ inputs.service-account }}
+
+      - name: Build image signing script
+        run: >
+          bazelisk build 
+          //src/main/docker:sign_all_images
+          //src/main/docker/panel_exchange_client:sign_all_images
+
+      - name: Sign images
+        env:
+          GCP_KMS_KEY_FOR_SIGNING: ${{ inputs.kms-key-resource-name }}
+        run: |
+          bazelisk run //src/main/docker:sign_all_images -- --tlog-upload=false --key $GCP_KMS_KEY_FOR_SIGNING
+          bazelisk run //src/main/docker/panel_exchange_client:sign_all_images -- --tlog-upload=false --key $GCP_KMS_KEY_FOR_SIGNING
