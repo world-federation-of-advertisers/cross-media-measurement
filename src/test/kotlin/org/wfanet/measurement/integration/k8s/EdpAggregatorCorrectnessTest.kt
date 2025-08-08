@@ -193,7 +193,6 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
       val jwt = TEST_CONFIG.authIdToken
       val requisitionFetcherEndpoint = TEST_CONFIG.requisitionFetcherEndpoint
 
-
       val client = HttpClient.newHttpClient()
       val request =
         HttpRequest.newBuilder()
