@@ -34,7 +34,7 @@ message EdpaCorrectnessTestConfig {
 
   // MeasurementConsumer resource name.
   string measurement_consumer = 3 [(google.api.resource_reference).type =
-      "halo.wfanet.org/MeasurementConsumer"];
+                                       "halo.wfanet.org/MeasurementConsumer"];
 
   // Authentication key for the CMMS public API.
   string api_authentication_key = 4;
@@ -44,5 +44,4 @@ message EdpaCorrectnessTestConfig {
 
   // Full HTTP endpoint URL of the RequisitionFetcher Cloud Function.
   string requisition_fetcher_endpoint = 6;
-
 }
