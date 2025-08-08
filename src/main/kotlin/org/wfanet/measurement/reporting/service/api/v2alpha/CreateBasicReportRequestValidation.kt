@@ -205,10 +205,17 @@ fun validateDimensionSpec(
   }
 
   for (eventFilter in dimensionSpec.filtersList) {
-    if (eventFilter.termsList.size != 1) {
-      throw InvalidFieldValueException(
+    if (eventFilter.termsList.isEmpty()) {
+      throw RequiredFieldNotSetException(
         "basic_report.result_group_specs.dimension_spec.filters.terms"
       )
+    }
+    if (eventFilter.termsList.size > 1) {
+      throw InvalidFieldValueException(
+        "basic_report.result_group_specs.dimension_spec.filters.terms"
+      ) { fieldName ->
+        "$fieldName can only have a size of 1"
+      }
     }
 
     for (eventTemplateField in eventFilter.termsList) {
@@ -381,7 +388,7 @@ fun validateDimensionSpecEventTemplateField(
  * @throws [RequiredFieldNotSetException] when validation fails
  * @throws [InvalidFieldValueException] when validation fails
  */
-fun validateCustomImpressionQualificationFilterSpecventTemplateField(
+fun validateCustomImpressionQualificationFilterSpecEventTemplateField(
   eventTemplateField: EventTemplateField,
   eventTemplateFieldsMap: Map<String, EventDescriptor.EventTemplateFieldInfo>,
   mediaType: MediaType,
@@ -399,11 +406,11 @@ fun validateCustomImpressionQualificationFilterSpecventTemplateField(
           "$fieldName doesn't exist"
         }
 
-    if (!eventTemplateFieldInfo.supportedReportingFeatures.filterable) {
+    if (!eventTemplateFieldInfo.supportedReportingFeatures.impressionQualification) {
       throw InvalidFieldValueException(
         "basic_report.impression_qualification_filters.custom.filter_spec.filters.terms.path"
       ) { fieldName ->
-        "$fieldName is not filterable"
+        "$fieldName cannot be used for impression qualification"
       }
     }
 
@@ -459,14 +466,6 @@ fun validateCustomImpressionQualificationFilterSpecventTemplateField(
         throw RequiredFieldNotSetException(
           "basic_report.impression_qualification_filters.custom.filter_spec.filters.terms.value"
         )
-      }
-    }
-
-    if (!eventTemplateFieldInfo.isPopulationAttribute) {
-      throw InvalidFieldValueException(
-        "basic_report.impression_qualification_filters.custom.filter_spec.filters.terms.path"
-      ) { fieldName ->
-        "$fieldName is not a population attribute"
       }
     }
   }
@@ -657,14 +656,21 @@ fun validateCustomImpressionQualificationFilterSpec(
       }
 
       for (eventFilter in filterSpec.filtersList) {
-        if (eventFilter.termsList.size != 1) {
+        if (eventFilter.termsList.isEmpty()) {
           throw RequiredFieldNotSetException(
             "basic_report.impression_qualification_filters.custom.filter_spec.filters.terms"
           )
         }
+        if (eventFilter.termsList.size > 1) {
+          throw InvalidFieldValueException(
+            "basic_report.impression_qualification_filters.custom.filter_spec.filters.terms"
+          ) { fieldName ->
+            "$fieldName can only have a size of 1"
+          }
+        }
 
         for (eventTemplateField in eventFilter.termsList) {
-          validateCustomImpressionQualificationFilterSpecventTemplateField(eventTemplateField, eventTemplateFieldsMap, filterSpec.mediaType)
+          validateCustomImpressionQualificationFilterSpecEventTemplateField(eventTemplateField, eventTemplateFieldsMap, filterSpec.mediaType)
         }
       }
     }
