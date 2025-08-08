@@ -301,6 +301,7 @@ resource "google_storage_bucket_iam_member" "results_fulfiller_config_storage_vi
 }
 
 resource "google_cloud_run_service_iam_member" "event_group_sync_invoker" {
+  depends_on = [module.event_group_sync_cloud_function]
   service  = var.event_group_sync_function_name
   role     = "roles/run.invoker"
   member   = "serviceAccount:${module.data_watcher_cloud_function.cloud_function_service_account.email}"
