@@ -207,3 +207,18 @@ variable "results_fulfiller_event_proto_descriptor_blob_uri" {
   description = "GCS blob uri of the FileDescriptorSet containing the event message descriptor."
   type = string
 }
+
+variable "edpa_edp_kms_audience" {
+  description = "Edp Aggregator EDP KMS audience."
+  type = string
+}
+
+variable "edpa_edp_target_service_account" {
+  description = "Edp Aggregator EDP target service account"
+  type = string
+}
+
+variable "edpa_edp_resource_name" {
+  description = "Edp Aggregator EDP Resource name"
+  type = string
+}

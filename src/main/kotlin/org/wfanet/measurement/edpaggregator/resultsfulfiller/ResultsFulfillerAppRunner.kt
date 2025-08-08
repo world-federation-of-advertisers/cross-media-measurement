@@ -34,11 +34,13 @@ import org.wfanet.measurement.api.v2alpha.EventAnnotationsProto
 import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.SigningCerts
+import org.wfanet.measurement.common.crypto.tink.GCloudWifCredentials
 import org.wfanet.measurement.common.edpaggregator.TeeAppConfig.getConfig
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams.StorageParams
+import org.wfanet.measurement.gcloud.kms.GCloudKmsClientFactory
 import org.wfanet.measurement.gcloud.pubsub.DefaultGooglePubSubClient
 import org.wfanet.measurement.gcloud.pubsub.Subscriber
 import org.wfanet.measurement.queue.QueueSubscriber
@@ -46,8 +48,6 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAttemptsGrpcKt
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt
 import picocli.CommandLine
-import org.wfanet.measurement.gcloud.kms.GCloudKmsClientFactory
-import org.wfanet.measurement.common.crypto.tink.GCloudWifCredentials
 
 @CommandLine.Command(name = "results_fulfiller_app_runner")
 class ResultsFulfillerAppRunner : Runnable {
@@ -88,7 +88,8 @@ class ResultsFulfillerAppRunner : Runnable {
 
   // The file paths supplied via each EdpFlags instance must exactly match the paths defined in the
   // ResultsFulfillerParam proto configuration.
-  // TODO(world-federation-of-advertisers/cross-media-measurement#2738): Replace flags with config files.
+  // TODO(world-federation-of-advertisers/cross-media-measurement#2738): Replace flags with config
+  // files.
   class EdpFlags {
     @CommandLine.Option(
       names = ["--edp-kms-audience"],
@@ -107,9 +108,12 @@ class ResultsFulfillerAppRunner : Runnable {
     @CommandLine.Option(
       names = ["--edp-resource-name"],
       required = true,
-      description = ["Edp resource name. It must match the resource name in the DataWatcher ResultsFulfillerParams."],
+      description =
+        [
+          "Edp resource name. It must match the resource name in the DataWatcher ResultsFulfillerParams."
+        ],
     )
-      lateinit var edpResourceName: String
+    lateinit var edpResourceName: String
 
     @CommandLine.Option(
       names = ["--edp-cert-der-secret-id"],
@@ -322,25 +326,24 @@ class ResultsFulfillerAppRunner : Runnable {
     runBlocking { resultsFulfillerApp.run() }
   }
 
-  // TODO(@marcopremier): Refactor when common-jvm #330 get merge
   fun createKmsClients() {
 
     kmsClientsMap = mutableMapOf()
 
     edpCerts.forEachIndexed { index, edp ->
-
-      val kmsConfig = GCloudWifCredentials(
-        audience = edp.edpKmsAudience,
-        subjectTokenType = SUBJECT_TOKEN_TYPE,
-        tokenUrl = TOKEK_URL,
-        credentialSourceFilePath = CREDENTIAL_SOURCE_FILE_PATH,
-        serviceAccountImpersonationUrl = EDP_TARGET_SERVICE_ACCOUNT.format(edp.edpTargetServiceAccount)
-      )
+      val kmsConfig =
+        GCloudWifCredentials(
+          audience = edp.edpKmsAudience,
+          subjectTokenType = SUBJECT_TOKEN_TYPE,
+          tokenUrl = TOKEN_URL,
+          credentialSourceFilePath = CREDENTIAL_SOURCE_FILE_PATH,
+          serviceAccountImpersonationUrl =
+            EDP_TARGET_SERVICE_ACCOUNT.format(edp.edpTargetServiceAccount),
+        )
 
       val kmsClient = GCloudKmsClientFactory().getKmsClient(kmsConfig)
 
       kmsClientsMap[edp.edpResourceName] = kmsClient
-
     }
   }
 
@@ -465,9 +468,12 @@ class ResultsFulfillerAppRunner : Runnable {
     private const val PROTO_DESCRIPTORS_DIR = "/tmp/proto_descriptors"
 
     private const val SUBJECT_TOKEN_TYPE = "urn:ietf:params:oauth:token-type:jwt"
-    private const val TOKEK_URL = "https://sts.googleapis.com/v1/token"
-    private const val CREDENTIAL_SOURCE_FILE_PATH = "/run/container_launcher/attestation_verifier_claims_token"
-    private const val EDP_TARGET_SERVICE_ACCOUNT = "https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/%s:generateAccessToken"
+    private const val TOKEN_URL = "https://sts.googleapis.com/v1/token"
+    private const val CREDENTIAL_SOURCE_FILE_PATH =
+      "/run/container_launcher/attestation_verifier_claims_token"
+    private const val EDP_TARGET_SERVICE_ACCOUNT =
+      "https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/%s:generateAccessToken"
+
     @JvmStatic fun main(args: Array<String>) = commandLineMain(ResultsFulfillerAppRunner(), args)
   }
 }
