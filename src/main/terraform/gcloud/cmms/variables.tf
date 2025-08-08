@@ -213,8 +213,8 @@ variable "edpa_edp_kms_audience" {
   type = string
 }
 
-variable "edpa_edp_target_service_account" {
-  description = "Edp Aggregator EDP target service account"
+variable "edpa_edp_service_account" {
+  description = "Edp Aggregator EDP service account"
   type = string
 }
 

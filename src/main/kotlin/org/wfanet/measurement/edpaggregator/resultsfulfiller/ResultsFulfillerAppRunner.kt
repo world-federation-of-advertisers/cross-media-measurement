@@ -338,7 +338,7 @@ class ResultsFulfillerAppRunner : Runnable {
           tokenUrl = TOKEN_URL,
           credentialSourceFilePath = CREDENTIAL_SOURCE_FILE_PATH,
           serviceAccountImpersonationUrl =
-            EDP_TARGET_SERVICE_ACCOUNT.format(edp.edpTargetServiceAccount),
+            EDP_TARGET_SERVICE_ACCOUNT_FORMAT.format(edp.edpTargetServiceAccount),
         )
 
       val kmsClient = GCloudKmsClientFactory().getKmsClient(kmsConfig)
@@ -471,7 +471,7 @@ class ResultsFulfillerAppRunner : Runnable {
     private const val TOKEN_URL = "https://sts.googleapis.com/v1/token"
     private const val CREDENTIAL_SOURCE_FILE_PATH =
       "/run/container_launcher/attestation_verifier_claims_token"
-    private const val EDP_TARGET_SERVICE_ACCOUNT =
+    private const val EDP_TARGET_SERVICE_ACCOUNT_FORMAT =
       "https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/%s:generateAccessToken"
 
     @JvmStatic fun main(args: Array<String>) = commandLineMain(ResultsFulfillerAppRunner(), args)
