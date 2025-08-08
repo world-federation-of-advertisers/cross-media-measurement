@@ -15,6 +15,9 @@
 name: Run EDP Aggregator Cloud Test
 
 on:
+  push:
+    branches:
+      - marcopremier/edpa_cloud_test_workflow
   workflow_call:
     inputs:
       environment:
@@ -37,7 +40,8 @@ permissions:
 jobs:
   run-tests:
     runs-on: ubuntu-22.04
-    environment: ${{ inputs.environment }}
+#    environment: ${{ inputs.environment }}
+    environment: "dev"
     steps:
       - uses: actions/checkout@v4
 
@@ -51,7 +55,7 @@ jobs:
           workload_identity_provider: ${{ vars.WORKLOAD_IDENTITY_PROVIDER }}
           service_account: ${{ vars.TF_SERVICE_ACCOUNT }}
           token_format: 'id_token'
-          id_token_audience: ${{ vars.REQUISITION_FETCHER_TARGET }}
+          id_token_audience: ${{ vars.REQUISITION_FETCHER_ENDPOINT }}
 
       - name: Write auth.bazelrc
         env:
@@ -67,7 +71,7 @@ jobs:
           MC_NAME: ${{ vars.MC_NAME }}
           MC_API_KEY: ${{ secrets.MC_API_KEY }}
           AUTH_ID_TOKEN: ${{ steps.auth.outputs.id_token }}
-          REQUISITION_FETCHER_TARGET: ${{ vars.REQUISITION_FETCHER_TARGET }}
+          REQUISITION_FETCHER_ENDPOINT: ${{ vars.REQUISITION_FETCHER_ENDPOINT }}
         run: |
           cat << EOF > ~/.bazelrc
           common --config=ci
@@ -75,7 +79,7 @@ jobs:
           build --define mc_name=$MC_NAME
           build --define mc_api_key=$MC_API_KEY
           build --define auth_id_token=$AUTH_ID_TOKEN
-          build --define requisition_fetcher_target=$REQUISITION_FETCHER_TARGET
+          build --define requisition_fetcher_endpoint=$REQUISITION_FETCHER_ENDPOINT
           test --test_output=streamed
           test --test_timeout=3600
           EOF
