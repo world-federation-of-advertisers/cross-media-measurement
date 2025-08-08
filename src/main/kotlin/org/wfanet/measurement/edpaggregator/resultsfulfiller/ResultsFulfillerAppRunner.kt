@@ -20,7 +20,6 @@ import com.google.cloud.secretmanager.v1.AccessSecretVersionRequest
 import com.google.cloud.secretmanager.v1.SecretManagerServiceClient
 import com.google.cloud.secretmanager.v1.SecretVersionName
 import com.google.crypto.tink.KmsClient
-import com.google.crypto.tink.integration.gcpkms.GcpKmsClient
 import com.google.protobuf.DescriptorProtos
 import com.google.protobuf.Descriptors
 import com.google.protobuf.ExtensionRegistry
@@ -303,7 +302,7 @@ class ResultsFulfillerAppRunner : Runnable {
         cmmsTarget = kingdomPublicApiTarget,
         trustedCertCollection = kingdomCertCollectionFile,
       )
-    
+
     val typeRegistry: TypeRegistry = buildTypeRegistry()
 
     val resultsFulfillerApp =
