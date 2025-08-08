@@ -105,7 +105,7 @@ locals {
                                           "--secure-computation-cert-collection-secret-id", "securecomputation-root-ca",
                                           "--kingdom-cert-collection-secret-id", "kingdom-root-ca",
                                           "--edp-kms-audience", var.edpa_edp_kms_audience,
-                                          "--edp-target-service-account", var.edpa_edp_target_service_account,
+                                          "--edp-target-service-account", var.edpa_edp_service_account,
                                           "--edp-resource-name", var.edpa_edp_resource_name,
                                           "--edp-cert-der-secret-id", "edp7-cert-der",
                                           "--edp-cert-der-file-path", "/tmp/edp_certs/edp7_cs_cert.der",
