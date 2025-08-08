@@ -303,9 +303,7 @@ class ResultsFulfillerAppRunner : Runnable {
         cmmsTarget = kingdomPublicApiTarget,
         trustedCertCollection = kingdomCertCollectionFile,
       )
-
-    val kmsClient = GcpKmsClient().withDefaultCredentials()
-
+    
     val typeRegistry: TypeRegistry = buildTypeRegistry()
 
     val resultsFulfillerApp =
