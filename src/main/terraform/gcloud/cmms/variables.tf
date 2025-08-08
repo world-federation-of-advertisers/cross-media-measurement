@@ -202,3 +202,8 @@ variable "results_fulfiller_event_proto_descriptor_path" {
   description = "Serialized FileDescriptorSet path for EventTemplate metadata types."
   type = string
 }
+
+variable "results_fulfiller_event_proto_descriptor_blob_uri" {
+  description = "GCS blob uri of the FileDescriptorSet containing the event message descriptor."
+  type = string
+}

@@ -36,24 +36,16 @@ variable "mig_service_account_name" {
   nullable    = false
 }
 
-variable "app_args" {
-  description = "Arguments to pass to the application"
-  type        = list(string)
-  default     = []
-}
-
 variable "mig_distribution_policy_zones" {
   description = "Availability zones for MIG"
   type        = list(string)
 }
 
-variable "secrets_to_mount" {
-  description = "List of secrets to mount into the VM"
+variable "secrets_to_access" {
+  description = "List of secrets to access from the VM"
   type = list(object({
     secret_id  = string
     version    = string
-    mount_path = string
-    flag_name  = optional(string)
   }))
   default = []
 }
@@ -100,3 +92,13 @@ variable "terraform_service_account" {
   nullable    = false
 }
 
+variable "tee_cmd" {
+  description = "The list of flags and values for the TEE application"
+  type        = list(string)
+}
+
+variable "disk_image_family" {
+  description = "The boot disk image family."
+  type        = string
+  nullable    = false
+}

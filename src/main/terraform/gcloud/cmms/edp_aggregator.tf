@@ -96,15 +96,30 @@ locals {
       single_instance_assignment    = 1
       min_replicas                  = 1
       max_replicas                  = 10
-      app_args = [
-        "--kingdom-public-api-target=${var.kingdom_public_api_target}",
-        "--secure-computation-public-api-target=${var.secure_computation_public_api_target}",
-        "--subscription-id=results-fulfiller-subscription",
-        "--google-pub-sub-project-id=${data.google_client_config.default.project}"
-      ]
       machine_type                  = "n2d-standard-2"
       docker_image                  = "ghcr.io/world-federation-of-advertisers/edp-aggregator/results_fulfiller:${var.image_tag}"
       mig_distribution_policy_zones = ["us-central1-a"]
+      app_flags                     = [
+                                          "--edpa-tls-cert-secret-id", "edpa-tee-app-tls-pem",
+                                          "--edpa-tls-key-secret-id", "edpa-tee-app-tls-key",
+                                          "--secure-computation-cert-collection-secret-id", "securecomputation-root-ca",
+                                          "--kingdom-cert-collection-secret-id", "kingdom-root-ca",
+                                          "--edp-cert-der-secret-id", "edp7-cert-der",
+                                          "--edp-cert-der-file-path", "/tmp/edp_certs/edp7_cs_cert.der",
+                                          "--edp-private-der-secret-id", "edp7-private-der",
+                                          "--edp-private-der-file-path", "/tmp/edp_certs/edp7_cs_private.der",
+                                          "--edp-enc-private-secret-id", "edp7-enc-private",
+                                          "--edp-enc-private-file-path", "/tmp/edp_certs/edp7_enc_private.tink",
+                                          "--edp-tls-key-secret-id", "edp7-tls-key",
+                                          "--edp-tls-key-file-path", "/tmp/edp_certs/edp7_tls.key",
+                                          "--edp-tls-pem-secret-id", "edp7-tls-pem",
+                                          "--edp-tls-pem-file-path", "/tmp/edp_certs/edp7_tls.pem",
+                                          "--kingdom-public-api-target", var.kingdom_public_api_target,
+                                          "--secure-computation-public-api-target", var.secure_computation_public_api_target,
+                                          "--subscription-id", "results-fulfiller-subscription",
+                                          "--google-project-id", data.google_client_config.default.project,
+                                          "--event-template-metadata-blob-uri", var.results_fulfiller_event_proto_descriptor_blob_uri
+                                        ]
     }
   }
 
@@ -174,4 +189,5 @@ module "edp_aggregator" {
   kingdom_root_ca                           = local.kingdom_root_ca
   edps_certs                                = local.edps_certs
   cloud_function_configs                    = local.cloud_function_configs
+  results_fulfiller_disk_image_family       = "confidential-space"
 }
