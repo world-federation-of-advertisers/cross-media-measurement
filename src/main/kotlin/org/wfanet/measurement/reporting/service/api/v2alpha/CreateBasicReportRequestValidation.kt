@@ -284,8 +284,7 @@ fun MediaType.toEventAnnotationMediaType(): EventAnnotationMediaType {
     MediaType.DISPLAY -> EventAnnotationMediaType.DISPLAY
     MediaType.OTHER -> EventAnnotationMediaType.OTHER
     MediaType.MEDIA_TYPE_UNSPECIFIED,
-    MediaType.UNRECOGNIZED
-    -> throw UnsupportedOperationException()
+    MediaType.UNRECOGNIZED -> throw UnsupportedOperationException()
   }
 }
 
@@ -439,8 +438,8 @@ fun validateCustomImpressionQualificationFilterSpecEventTemplateField(
       EventTemplateField.FieldValue.SelectorCase.ENUM_VALUE -> {
         if (
           eventTemplateFieldInfo.type != Descriptors.FieldDescriptor.Type.ENUM ||
-          eventTemplateFieldInfo.enumType?.findValueByName(eventTemplateField.value.enumValue) ==
-          null
+            eventTemplateFieldInfo.enumType?.findValueByName(eventTemplateField.value.enumValue) ==
+              null
         ) {
           throw InvalidFieldValueException(
             "basic_report.impression_qualification_filters.custom.filter_spec.filters.terms.value.enum_value"
@@ -614,7 +613,10 @@ fun validateReportingImpressionQualificationFilters(
           "basic_report.impression_qualification_filters.impression_qualification_filter"
         )
     } else if (impressionQualificationFilter.hasCustom()) {
-      validateCustomImpressionQualificationFilterSpec(impressionQualificationFilter.custom, eventTemplateFieldsMap)
+      validateCustomImpressionQualificationFilterSpec(
+        impressionQualificationFilter.custom,
+        eventTemplateFieldsMap,
+      )
     } else {
       throw InvalidFieldValueException("basic_report.impression_qualification_filters.selector")
     }
@@ -674,7 +676,11 @@ fun validateCustomImpressionQualificationFilterSpec(
         }
 
         for (eventTemplateField in eventFilter.termsList) {
-          validateCustomImpressionQualificationFilterSpecEventTemplateField(eventTemplateField, eventTemplateFieldsMap, filterSpec.mediaType)
+          validateCustomImpressionQualificationFilterSpecEventTemplateField(
+            eventTemplateField,
+            eventTemplateFieldsMap,
+            filterSpec.mediaType,
+          )
         }
       }
     }

@@ -1654,16 +1654,15 @@ class BasicReportsServiceTest {
           BASIC_REPORT.copy {
             campaignGroup = campaignGroupKey.toName()
             impressionQualificationFilters += reportingImpressionQualificationFilter {
-              custom = ReportingImpressionQualificationFilterKt.customImpressionQualificationFilterSpec {
-                filterSpec += impressionQualificationFilterSpec {
-                  mediaType = MediaType.DISPLAY
-                  filters += eventFilter {
-                    terms += eventTemplateField {
-                      path = "banner_ad.viewable"
+              custom =
+                ReportingImpressionQualificationFilterKt.customImpressionQualificationFilterSpec {
+                  filterSpec += impressionQualificationFilterSpec {
+                    mediaType = MediaType.DISPLAY
+                    filters += eventFilter {
+                      terms += eventTemplateField { path = "banner_ad.viewable" }
                     }
                   }
                 }
-              }
             }
           }
         basicReportId = "a1234"
@@ -2678,122 +2677,124 @@ class BasicReportsServiceTest {
     }
 
   @Test
-  fun `createBasicReport throws INVALID_ARGUMENT when dimension enum_value set for Duration`() = runBlocking {
-    val measurementConsumerKey = MeasurementConsumerKey("1234")
-    val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
+  fun `createBasicReport throws INVALID_ARGUMENT when dimension enum_value set for Duration`() =
+    runBlocking {
+      val measurementConsumerKey = MeasurementConsumerKey("1234")
+      val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
 
-    measurementConsumersService.createMeasurementConsumer(
-      measurementConsumer {
-        cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
-      }
-    )
-
-    internalReportingSetsService.createReportingSet(
-      createReportingSetRequest {
-        reportingSet =
-          INTERNAL_CAMPAIGN_GROUP.copy {
-            cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
-            externalCampaignGroupId = campaignGroupKey.reportingSetId
-          }
-        externalReportingSetId = campaignGroupKey.reportingSetId
-      }
-    )
-
-    val request = createBasicReportRequest {
-      parent = measurementConsumerKey.toName()
-      basicReport =
-        BASIC_REPORT.copy {
-          campaignGroup = campaignGroupKey.toName()
-          resultGroupSpecs[0] =
-            resultGroupSpecs[0].copy {
-              dimensionSpec =
-                BASIC_REPORT.resultGroupSpecsList[0].dimensionSpec.copy {
-                  filters += eventFilter {
-                    terms += eventTemplateField {
-                      path = "video_ad.length"
-                      value = EventTemplateFieldKt.fieldValue { enumValue = "1s" }
-                    }
-                  }
-                }
-            }
-        }
-      basicReportId = "a1234"
-    }
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
-        withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
-      }
-
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.errorInfo)
-      .isEqualTo(
-        errorInfo {
-          domain = Errors.DOMAIN
-          reason = Errors.Reason.INVALID_FIELD_VALUE.name
-          metadata[Errors.Metadata.FIELD_NAME.key] =
-            "basic_report.result_group_specs.dimension_spec.filters.terms.value.enum_value"
+      measurementConsumersService.createMeasurementConsumer(
+        measurementConsumer {
+          cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
         }
       )
-  }
+
+      internalReportingSetsService.createReportingSet(
+        createReportingSetRequest {
+          reportingSet =
+            INTERNAL_CAMPAIGN_GROUP.copy {
+              cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+              externalCampaignGroupId = campaignGroupKey.reportingSetId
+            }
+          externalReportingSetId = campaignGroupKey.reportingSetId
+        }
+      )
+
+      val request = createBasicReportRequest {
+        parent = measurementConsumerKey.toName()
+        basicReport =
+          BASIC_REPORT.copy {
+            campaignGroup = campaignGroupKey.toName()
+            resultGroupSpecs[0] =
+              resultGroupSpecs[0].copy {
+                dimensionSpec =
+                  BASIC_REPORT.resultGroupSpecsList[0].dimensionSpec.copy {
+                    filters += eventFilter {
+                      terms += eventTemplateField {
+                        path = "video_ad.length"
+                        value = EventTemplateFieldKt.fieldValue { enumValue = "1s" }
+                      }
+                    }
+                  }
+              }
+          }
+        basicReportId = "a1234"
+      }
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.INVALID_FIELD_VALUE.name
+            metadata[Errors.Metadata.FIELD_NAME.key] =
+              "basic_report.result_group_specs.dimension_spec.filters.terms.value.enum_value"
+          }
+        )
+    }
 
   @Test
-  fun `createBasicReport throws INVALID_ARGUMENT when dimension bool_value set for Duration`() = runBlocking {
-    val measurementConsumerKey = MeasurementConsumerKey("1234")
-    val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
+  fun `createBasicReport throws INVALID_ARGUMENT when dimension bool_value set for Duration`() =
+    runBlocking {
+      val measurementConsumerKey = MeasurementConsumerKey("1234")
+      val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
 
-    measurementConsumersService.createMeasurementConsumer(
-      measurementConsumer {
-        cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
-      }
-    )
-
-    internalReportingSetsService.createReportingSet(
-      createReportingSetRequest {
-        reportingSet =
-          INTERNAL_CAMPAIGN_GROUP.copy {
-            cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
-            externalCampaignGroupId = campaignGroupKey.reportingSetId
-          }
-        externalReportingSetId = campaignGroupKey.reportingSetId
-      }
-    )
-
-    val request = createBasicReportRequest {
-      parent = measurementConsumerKey.toName()
-      basicReport =
-        BASIC_REPORT.copy {
-          campaignGroup = campaignGroupKey.toName()
-          resultGroupSpecs[0] =
-            resultGroupSpecs[0].copy {
-              dimensionSpec =
-                BASIC_REPORT.resultGroupSpecsList[0].dimensionSpec.copy {
-                  filters += eventFilter {
-                    terms += eventTemplateField {
-                      path = "video_ad.length"
-                      value = EventTemplateFieldKt.fieldValue { boolValue = true }
-                    }
-                  }
-                }
-            }
-        }
-      basicReportId = "a1234"
-    }
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
-        withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
-      }
-
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.errorInfo)
-      .isEqualTo(
-        errorInfo {
-          domain = Errors.DOMAIN
-          reason = Errors.Reason.INVALID_FIELD_VALUE.name
-          metadata[Errors.Metadata.FIELD_NAME.key] =
-            "basic_report.result_group_specs.dimension_spec.filters.terms.value.bool_value"
+      measurementConsumersService.createMeasurementConsumer(
+        measurementConsumer {
+          cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
         }
       )
-  }
+
+      internalReportingSetsService.createReportingSet(
+        createReportingSetRequest {
+          reportingSet =
+            INTERNAL_CAMPAIGN_GROUP.copy {
+              cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+              externalCampaignGroupId = campaignGroupKey.reportingSetId
+            }
+          externalReportingSetId = campaignGroupKey.reportingSetId
+        }
+      )
+
+      val request = createBasicReportRequest {
+        parent = measurementConsumerKey.toName()
+        basicReport =
+          BASIC_REPORT.copy {
+            campaignGroup = campaignGroupKey.toName()
+            resultGroupSpecs[0] =
+              resultGroupSpecs[0].copy {
+                dimensionSpec =
+                  BASIC_REPORT.resultGroupSpecsList[0].dimensionSpec.copy {
+                    filters += eventFilter {
+                      terms += eventTemplateField {
+                        path = "video_ad.length"
+                        value = EventTemplateFieldKt.fieldValue { boolValue = true }
+                      }
+                    }
+                  }
+              }
+          }
+        basicReportId = "a1234"
+      }
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.INVALID_FIELD_VALUE.name
+            metadata[Errors.Metadata.FIELD_NAME.key] =
+              "basic_report.result_group_specs.dimension_spec.filters.terms.value.bool_value"
+          }
+        )
+    }
 
   @Test
   fun `createBasicReport throws INVALID_ARGUMENT when dimension float_value set for Duration`() =
@@ -2856,63 +2857,64 @@ class BasicReportsServiceTest {
     }
 
   @Test
-  fun `createBasicReport throws INVALID_ARGUMENT when dimension spec string_value set for Enum`() = runBlocking {
-    val measurementConsumerKey = MeasurementConsumerKey("1234")
-    val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
+  fun `createBasicReport throws INVALID_ARGUMENT when dimension spec string_value set for Enum`() =
+    runBlocking {
+      val measurementConsumerKey = MeasurementConsumerKey("1234")
+      val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
 
-    measurementConsumersService.createMeasurementConsumer(
-      measurementConsumer {
-        cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
-      }
-    )
-
-    internalReportingSetsService.createReportingSet(
-      createReportingSetRequest {
-        reportingSet =
-          INTERNAL_CAMPAIGN_GROUP.copy {
-            cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
-            externalCampaignGroupId = campaignGroupKey.reportingSetId
-          }
-        externalReportingSetId = campaignGroupKey.reportingSetId
-      }
-    )
-
-    val request = createBasicReportRequest {
-      parent = measurementConsumerKey.toName()
-      basicReport =
-        BASIC_REPORT.copy {
-          campaignGroup = campaignGroupKey.toName()
-          resultGroupSpecs[0] =
-            resultGroupSpecs[0].copy {
-              dimensionSpec =
-                BASIC_REPORT.resultGroupSpecsList[0].dimensionSpec.copy {
-                  filters += eventFilter {
-                    terms += eventTemplateField {
-                      path = "person.gender"
-                      value = EventTemplateFieldKt.fieldValue { stringValue = "MALE" }
-                    }
-                  }
-                }
-            }
-        }
-      basicReportId = "a1234"
-    }
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
-        withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
-      }
-
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.errorInfo)
-      .isEqualTo(
-        errorInfo {
-          domain = Errors.DOMAIN
-          reason = Errors.Reason.INVALID_FIELD_VALUE.name
-          metadata[Errors.Metadata.FIELD_NAME.key] =
-            "basic_report.result_group_specs.dimension_spec.filters.terms.value.string_value"
+      measurementConsumersService.createMeasurementConsumer(
+        measurementConsumer {
+          cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
         }
       )
-  }
+
+      internalReportingSetsService.createReportingSet(
+        createReportingSetRequest {
+          reportingSet =
+            INTERNAL_CAMPAIGN_GROUP.copy {
+              cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+              externalCampaignGroupId = campaignGroupKey.reportingSetId
+            }
+          externalReportingSetId = campaignGroupKey.reportingSetId
+        }
+      )
+
+      val request = createBasicReportRequest {
+        parent = measurementConsumerKey.toName()
+        basicReport =
+          BASIC_REPORT.copy {
+            campaignGroup = campaignGroupKey.toName()
+            resultGroupSpecs[0] =
+              resultGroupSpecs[0].copy {
+                dimensionSpec =
+                  BASIC_REPORT.resultGroupSpecsList[0].dimensionSpec.copy {
+                    filters += eventFilter {
+                      terms += eventTemplateField {
+                        path = "person.gender"
+                        value = EventTemplateFieldKt.fieldValue { stringValue = "MALE" }
+                      }
+                    }
+                  }
+              }
+          }
+        basicReportId = "a1234"
+      }
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.INVALID_FIELD_VALUE.name
+            metadata[Errors.Metadata.FIELD_NAME.key] =
+              "basic_report.result_group_specs.dimension_spec.filters.terms.value.string_value"
+          }
+        )
+    }
 
   @Test
   fun `createBasicReport throws INVALID_ARGUMENT when invalid dimension enum_value set for Enum`() =
@@ -2975,125 +2977,7 @@ class BasicReportsServiceTest {
     }
 
   @Test
-  fun `createBasicReport throws INVALID_ARGUMENT when dimension bool_value set for Enum`() = runBlocking {
-    val measurementConsumerKey = MeasurementConsumerKey("1234")
-    val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
-
-    measurementConsumersService.createMeasurementConsumer(
-      measurementConsumer {
-        cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
-      }
-    )
-
-    internalReportingSetsService.createReportingSet(
-      createReportingSetRequest {
-        reportingSet =
-          INTERNAL_CAMPAIGN_GROUP.copy {
-            cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
-            externalCampaignGroupId = campaignGroupKey.reportingSetId
-          }
-        externalReportingSetId = campaignGroupKey.reportingSetId
-      }
-    )
-
-    val request = createBasicReportRequest {
-      parent = measurementConsumerKey.toName()
-      basicReport =
-        BASIC_REPORT.copy {
-          campaignGroup = campaignGroupKey.toName()
-          resultGroupSpecs[0] =
-            resultGroupSpecs[0].copy {
-              dimensionSpec =
-                BASIC_REPORT.resultGroupSpecsList[0].dimensionSpec.copy {
-                  filters += eventFilter {
-                    terms += eventTemplateField {
-                      path = "person.gender"
-                      value = EventTemplateFieldKt.fieldValue { boolValue = true }
-                    }
-                  }
-                }
-            }
-        }
-      basicReportId = "a1234"
-    }
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
-        withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
-      }
-
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.errorInfo)
-      .isEqualTo(
-        errorInfo {
-          domain = Errors.DOMAIN
-          reason = Errors.Reason.INVALID_FIELD_VALUE.name
-          metadata[Errors.Metadata.FIELD_NAME.key] =
-            "basic_report.result_group_specs.dimension_spec.filters.terms.value.bool_value"
-        }
-      )
-  }
-
-  @Test
-  fun `createBasicReport throws INVALID_ARGUMENT when dimension float_value set for Enum`() = runBlocking {
-    val measurementConsumerKey = MeasurementConsumerKey("1234")
-    val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
-
-    measurementConsumersService.createMeasurementConsumer(
-      measurementConsumer {
-        cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
-      }
-    )
-
-    internalReportingSetsService.createReportingSet(
-      createReportingSetRequest {
-        reportingSet =
-          INTERNAL_CAMPAIGN_GROUP.copy {
-            cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
-            externalCampaignGroupId = campaignGroupKey.reportingSetId
-          }
-        externalReportingSetId = campaignGroupKey.reportingSetId
-      }
-    )
-
-    val request = createBasicReportRequest {
-      parent = measurementConsumerKey.toName()
-      basicReport =
-        BASIC_REPORT.copy {
-          campaignGroup = campaignGroupKey.toName()
-          resultGroupSpecs[0] =
-            resultGroupSpecs[0].copy {
-              dimensionSpec =
-                BASIC_REPORT.resultGroupSpecsList[0].dimensionSpec.copy {
-                  filters += eventFilter {
-                    terms += eventTemplateField {
-                      path = "person.gender"
-                      value = EventTemplateFieldKt.fieldValue { floatValue = 1f }
-                    }
-                  }
-                }
-            }
-        }
-      basicReportId = "a1234"
-    }
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
-        withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
-      }
-
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.errorInfo)
-      .isEqualTo(
-        errorInfo {
-          domain = Errors.DOMAIN
-          reason = Errors.Reason.INVALID_FIELD_VALUE.name
-          metadata[Errors.Metadata.FIELD_NAME.key] =
-            "basic_report.result_group_specs.dimension_spec.filters.terms.value.float_value"
-        }
-      )
-  }
-
-  @Test
-  fun `createBasicReport throws INVALID_ARGUMENT when custom IQF filter 0 terms`() =
+  fun `createBasicReport throws INVALID_ARGUMENT when dimension bool_value set for Enum`() =
     runBlocking {
       val measurementConsumerKey = MeasurementConsumerKey("1234")
       val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
@@ -3120,79 +3004,18 @@ class BasicReportsServiceTest {
         basicReport =
           BASIC_REPORT.copy {
             campaignGroup = campaignGroupKey.toName()
-            impressionQualificationFilters += reportingImpressionQualificationFilter {
-              custom = ReportingImpressionQualificationFilterKt.customImpressionQualificationFilterSpec {
-                filterSpec += impressionQualificationFilterSpec {
-                  mediaType = MediaType.DISPLAY
-                  filters += eventFilter {}
-                }
-              }
-            }
-          }
-        basicReportId = "a1234"
-      }
-      val exception =
-        assertFailsWith<StatusRuntimeException> {
-          withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
-        }
-
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception.errorInfo)
-        .isEqualTo(
-          errorInfo {
-            domain = Errors.DOMAIN
-            reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
-            metadata[Errors.Metadata.FIELD_NAME.key] =
-              "basic_report.impression_qualification_filters.custom.filter_spec.filters.terms"
-          }
-        )
-    }
-
-  @Test
-  fun `createBasicReport throws INVALID_ARGUMENT when custom IQF filter 2 terms`() =
-    runBlocking {
-      val measurementConsumerKey = MeasurementConsumerKey("1234")
-      val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
-
-      measurementConsumersService.createMeasurementConsumer(
-        measurementConsumer {
-          cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
-        }
-      )
-
-      internalReportingSetsService.createReportingSet(
-        createReportingSetRequest {
-          reportingSet =
-            INTERNAL_CAMPAIGN_GROUP.copy {
-              cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
-              externalCampaignGroupId = campaignGroupKey.reportingSetId
-            }
-          externalReportingSetId = campaignGroupKey.reportingSetId
-        }
-      )
-
-      val request = createBasicReportRequest {
-        parent = measurementConsumerKey.toName()
-        basicReport =
-          BASIC_REPORT.copy {
-            campaignGroup = campaignGroupKey.toName()
-            impressionQualificationFilters += reportingImpressionQualificationFilter {
-              custom = ReportingImpressionQualificationFilterKt.customImpressionQualificationFilterSpec {
-                filterSpec += impressionQualificationFilterSpec {
-                  mediaType = MediaType.DISPLAY
-                  filters += eventFilter {
-                    terms += eventTemplateField {
-                      path = "banner_ad.viewable"
-                      value = EventTemplateFieldKt.fieldValue { boolValue = true }
-                    }
-                    terms += eventTemplateField {
-                      path = "banner_ad.viewable"
-                      value = EventTemplateFieldKt.fieldValue { boolValue = false }
+            resultGroupSpecs[0] =
+              resultGroupSpecs[0].copy {
+                dimensionSpec =
+                  BASIC_REPORT.resultGroupSpecsList[0].dimensionSpec.copy {
+                    filters += eventFilter {
+                      terms += eventTemplateField {
+                        path = "person.gender"
+                        value = EventTemplateFieldKt.fieldValue { boolValue = true }
+                      }
                     }
                   }
-                }
               }
-            }
           }
         basicReportId = "a1234"
       }
@@ -3208,10 +3031,191 @@ class BasicReportsServiceTest {
             domain = Errors.DOMAIN
             reason = Errors.Reason.INVALID_FIELD_VALUE.name
             metadata[Errors.Metadata.FIELD_NAME.key] =
-              "basic_report.impression_qualification_filters.custom.filter_spec.filters.terms"
+              "basic_report.result_group_specs.dimension_spec.filters.terms.value.bool_value"
           }
         )
     }
+
+  @Test
+  fun `createBasicReport throws INVALID_ARGUMENT when dimension float_value set for Enum`() =
+    runBlocking {
+      val measurementConsumerKey = MeasurementConsumerKey("1234")
+      val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
+
+      measurementConsumersService.createMeasurementConsumer(
+        measurementConsumer {
+          cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+        }
+      )
+
+      internalReportingSetsService.createReportingSet(
+        createReportingSetRequest {
+          reportingSet =
+            INTERNAL_CAMPAIGN_GROUP.copy {
+              cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+              externalCampaignGroupId = campaignGroupKey.reportingSetId
+            }
+          externalReportingSetId = campaignGroupKey.reportingSetId
+        }
+      )
+
+      val request = createBasicReportRequest {
+        parent = measurementConsumerKey.toName()
+        basicReport =
+          BASIC_REPORT.copy {
+            campaignGroup = campaignGroupKey.toName()
+            resultGroupSpecs[0] =
+              resultGroupSpecs[0].copy {
+                dimensionSpec =
+                  BASIC_REPORT.resultGroupSpecsList[0].dimensionSpec.copy {
+                    filters += eventFilter {
+                      terms += eventTemplateField {
+                        path = "person.gender"
+                        value = EventTemplateFieldKt.fieldValue { floatValue = 1f }
+                      }
+                    }
+                  }
+              }
+          }
+        basicReportId = "a1234"
+      }
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.INVALID_FIELD_VALUE.name
+            metadata[Errors.Metadata.FIELD_NAME.key] =
+              "basic_report.result_group_specs.dimension_spec.filters.terms.value.float_value"
+          }
+        )
+    }
+
+  @Test
+  fun `createBasicReport throws INVALID_ARGUMENT when custom IQF filter 0 terms`() = runBlocking {
+    val measurementConsumerKey = MeasurementConsumerKey("1234")
+    val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
+
+    measurementConsumersService.createMeasurementConsumer(
+      measurementConsumer {
+        cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+      }
+    )
+
+    internalReportingSetsService.createReportingSet(
+      createReportingSetRequest {
+        reportingSet =
+          INTERNAL_CAMPAIGN_GROUP.copy {
+            cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+            externalCampaignGroupId = campaignGroupKey.reportingSetId
+          }
+        externalReportingSetId = campaignGroupKey.reportingSetId
+      }
+    )
+
+    val request = createBasicReportRequest {
+      parent = measurementConsumerKey.toName()
+      basicReport =
+        BASIC_REPORT.copy {
+          campaignGroup = campaignGroupKey.toName()
+          impressionQualificationFilters += reportingImpressionQualificationFilter {
+            custom =
+              ReportingImpressionQualificationFilterKt.customImpressionQualificationFilterSpec {
+                filterSpec += impressionQualificationFilterSpec {
+                  mediaType = MediaType.DISPLAY
+                  filters += eventFilter {}
+                }
+              }
+          }
+        }
+      basicReportId = "a1234"
+    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+          metadata[Errors.Metadata.FIELD_NAME.key] =
+            "basic_report.impression_qualification_filters.custom.filter_spec.filters.terms"
+        }
+      )
+  }
+
+  @Test
+  fun `createBasicReport throws INVALID_ARGUMENT when custom IQF filter 2 terms`() = runBlocking {
+    val measurementConsumerKey = MeasurementConsumerKey("1234")
+    val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
+
+    measurementConsumersService.createMeasurementConsumer(
+      measurementConsumer {
+        cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+      }
+    )
+
+    internalReportingSetsService.createReportingSet(
+      createReportingSetRequest {
+        reportingSet =
+          INTERNAL_CAMPAIGN_GROUP.copy {
+            cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+            externalCampaignGroupId = campaignGroupKey.reportingSetId
+          }
+        externalReportingSetId = campaignGroupKey.reportingSetId
+      }
+    )
+
+    val request = createBasicReportRequest {
+      parent = measurementConsumerKey.toName()
+      basicReport =
+        BASIC_REPORT.copy {
+          campaignGroup = campaignGroupKey.toName()
+          impressionQualificationFilters += reportingImpressionQualificationFilter {
+            custom =
+              ReportingImpressionQualificationFilterKt.customImpressionQualificationFilterSpec {
+                filterSpec += impressionQualificationFilterSpec {
+                  mediaType = MediaType.DISPLAY
+                  filters += eventFilter {
+                    terms += eventTemplateField {
+                      path = "banner_ad.viewable"
+                      value = EventTemplateFieldKt.fieldValue { boolValue = true }
+                    }
+                    terms += eventTemplateField {
+                      path = "banner_ad.viewable"
+                      value = EventTemplateFieldKt.fieldValue { boolValue = false }
+                    }
+                  }
+                }
+              }
+          }
+        }
+      basicReportId = "a1234"
+    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.INVALID_FIELD_VALUE.name
+          metadata[Errors.Metadata.FIELD_NAME.key] =
+            "basic_report.impression_qualification_filters.custom.filter_spec.filters.terms"
+        }
+      )
+  }
 
   @Test
   fun `createBasicReport throws INVALID_ARGUMENT when custom IQF filter term path not exist`() =
@@ -3242,17 +3246,18 @@ class BasicReportsServiceTest {
           BASIC_REPORT.copy {
             campaignGroup = campaignGroupKey.toName()
             impressionQualificationFilters += reportingImpressionQualificationFilter {
-              custom = ReportingImpressionQualificationFilterKt.customImpressionQualificationFilterSpec {
-                filterSpec += impressionQualificationFilterSpec {
-                  mediaType = MediaType.DISPLAY
-                  filters += eventFilter {
-                    terms += eventTemplateField {
-                      path = "banner_ad.height"
-                      value = EventTemplateFieldKt.fieldValue { boolValue = false }
+              custom =
+                ReportingImpressionQualificationFilterKt.customImpressionQualificationFilterSpec {
+                  filterSpec += impressionQualificationFilterSpec {
+                    mediaType = MediaType.DISPLAY
+                    filters += eventFilter {
+                      terms += eventTemplateField {
+                        path = "banner_ad.height"
+                        value = EventTemplateFieldKt.fieldValue { boolValue = false }
+                      }
                     }
                   }
                 }
-              }
             }
           }
         basicReportId = "a1234"
@@ -3304,17 +3309,18 @@ class BasicReportsServiceTest {
           BASIC_REPORT.copy {
             campaignGroup = campaignGroupKey.toName()
             impressionQualificationFilters += reportingImpressionQualificationFilter {
-              custom = ReportingImpressionQualificationFilterKt.customImpressionQualificationFilterSpec {
-                filterSpec += impressionQualificationFilterSpec {
-                  mediaType = MediaType.DISPLAY
-                  filters += eventFilter {
-                    terms += eventTemplateField {
-                      path = "person.gender"
-                      value = EventTemplateFieldKt.fieldValue { enumValue = "MALE" }
+              custom =
+                ReportingImpressionQualificationFilterKt.customImpressionQualificationFilterSpec {
+                  filterSpec += impressionQualificationFilterSpec {
+                    mediaType = MediaType.DISPLAY
+                    filters += eventFilter {
+                      terms += eventTemplateField {
+                        path = "person.gender"
+                        value = EventTemplateFieldKt.fieldValue { enumValue = "MALE" }
+                      }
                     }
                   }
                 }
-              }
             }
           }
         basicReportId = "a1234"
@@ -3366,17 +3372,18 @@ class BasicReportsServiceTest {
           BASIC_REPORT.copy {
             campaignGroup = campaignGroupKey.toName()
             impressionQualificationFilters += reportingImpressionQualificationFilter {
-              custom = ReportingImpressionQualificationFilterKt.customImpressionQualificationFilterSpec {
-                filterSpec += impressionQualificationFilterSpec {
-                  mediaType = MediaType.VIDEO
-                  filters += eventFilter {
-                    terms += eventTemplateField {
-                      path = "banner_ad.viewable"
-                      value = EventTemplateFieldKt.fieldValue { boolValue = true }
+              custom =
+                ReportingImpressionQualificationFilterKt.customImpressionQualificationFilterSpec {
+                  filterSpec += impressionQualificationFilterSpec {
+                    mediaType = MediaType.VIDEO
+                    filters += eventFilter {
+                      terms += eventTemplateField {
+                        path = "banner_ad.viewable"
+                        value = EventTemplateFieldKt.fieldValue { boolValue = true }
+                      }
                     }
                   }
                 }
-              }
             }
           }
         basicReportId = "a1234"
@@ -3428,17 +3435,18 @@ class BasicReportsServiceTest {
           BASIC_REPORT.copy {
             campaignGroup = campaignGroupKey.toName()
             impressionQualificationFilters += reportingImpressionQualificationFilter {
-              custom = ReportingImpressionQualificationFilterKt.customImpressionQualificationFilterSpec {
-                filterSpec += impressionQualificationFilterSpec {
-                  mediaType = MediaType.DISPLAY
-                  filters += eventFilter {
-                    terms += eventTemplateField {
-                      path = "banner_ad.viewable"
-                      value = EventTemplateFieldKt.fieldValue { stringValue = "true" }
+              custom =
+                ReportingImpressionQualificationFilterKt.customImpressionQualificationFilterSpec {
+                  filterSpec += impressionQualificationFilterSpec {
+                    mediaType = MediaType.DISPLAY
+                    filters += eventFilter {
+                      terms += eventTemplateField {
+                        path = "banner_ad.viewable"
+                        value = EventTemplateFieldKt.fieldValue { stringValue = "true" }
+                      }
                     }
                   }
                 }
-              }
             }
           }
         basicReportId = "a1234"
@@ -3461,124 +3469,128 @@ class BasicReportsServiceTest {
     }
 
   @Test
-  fun `createBasicReport throws INVALID_ARGUMENT when custom IQF enum_value set for Bool`() = runBlocking {
-    val measurementConsumerKey = MeasurementConsumerKey("1234")
-    val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
+  fun `createBasicReport throws INVALID_ARGUMENT when custom IQF enum_value set for Bool`() =
+    runBlocking {
+      val measurementConsumerKey = MeasurementConsumerKey("1234")
+      val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
 
-    measurementConsumersService.createMeasurementConsumer(
-      measurementConsumer {
-        cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
-      }
-    )
-
-    internalReportingSetsService.createReportingSet(
-      createReportingSetRequest {
-        reportingSet =
-          INTERNAL_CAMPAIGN_GROUP.copy {
-            cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
-            externalCampaignGroupId = campaignGroupKey.reportingSetId
-          }
-        externalReportingSetId = campaignGroupKey.reportingSetId
-      }
-    )
-
-    val request = createBasicReportRequest {
-      parent = measurementConsumerKey.toName()
-      basicReport =
-        BASIC_REPORT.copy {
-          campaignGroup = campaignGroupKey.toName()
-          impressionQualificationFilters += reportingImpressionQualificationFilter {
-            custom = ReportingImpressionQualificationFilterKt.customImpressionQualificationFilterSpec {
-              filterSpec += impressionQualificationFilterSpec {
-                mediaType = MediaType.DISPLAY
-                filters += eventFilter {
-                  terms += eventTemplateField {
-                    path = "banner_ad.viewable"
-                    value = EventTemplateFieldKt.fieldValue { enumValue = "TRUE" }
-                  }
-                }
-              }
-            }
-          }
-        }
-      basicReportId = "a1234"
-    }
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
-        withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
-      }
-
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.errorInfo)
-      .isEqualTo(
-        errorInfo {
-          domain = Errors.DOMAIN
-          reason = Errors.Reason.INVALID_FIELD_VALUE.name
-          metadata[Errors.Metadata.FIELD_NAME.key] =
-            "basic_report.impression_qualification_filters.custom.filter_spec.filters.terms.value.enum_value"
+      measurementConsumersService.createMeasurementConsumer(
+        measurementConsumer {
+          cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
         }
       )
-  }
+
+      internalReportingSetsService.createReportingSet(
+        createReportingSetRequest {
+          reportingSet =
+            INTERNAL_CAMPAIGN_GROUP.copy {
+              cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+              externalCampaignGroupId = campaignGroupKey.reportingSetId
+            }
+          externalReportingSetId = campaignGroupKey.reportingSetId
+        }
+      )
+
+      val request = createBasicReportRequest {
+        parent = measurementConsumerKey.toName()
+        basicReport =
+          BASIC_REPORT.copy {
+            campaignGroup = campaignGroupKey.toName()
+            impressionQualificationFilters += reportingImpressionQualificationFilter {
+              custom =
+                ReportingImpressionQualificationFilterKt.customImpressionQualificationFilterSpec {
+                  filterSpec += impressionQualificationFilterSpec {
+                    mediaType = MediaType.DISPLAY
+                    filters += eventFilter {
+                      terms += eventTemplateField {
+                        path = "banner_ad.viewable"
+                        value = EventTemplateFieldKt.fieldValue { enumValue = "TRUE" }
+                      }
+                    }
+                  }
+                }
+            }
+          }
+        basicReportId = "a1234"
+      }
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.INVALID_FIELD_VALUE.name
+            metadata[Errors.Metadata.FIELD_NAME.key] =
+              "basic_report.impression_qualification_filters.custom.filter_spec.filters.terms.value.enum_value"
+          }
+        )
+    }
 
   @Test
-  fun `createBasicReport throws INVALID_ARGUMENT when custom IQF float_value set for Bool`() = runBlocking {
-    val measurementConsumerKey = MeasurementConsumerKey("1234")
-    val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
+  fun `createBasicReport throws INVALID_ARGUMENT when custom IQF float_value set for Bool`() =
+    runBlocking {
+      val measurementConsumerKey = MeasurementConsumerKey("1234")
+      val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
 
-    measurementConsumersService.createMeasurementConsumer(
-      measurementConsumer {
-        cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
-      }
-    )
-
-    internalReportingSetsService.createReportingSet(
-      createReportingSetRequest {
-        reportingSet =
-          INTERNAL_CAMPAIGN_GROUP.copy {
-            cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
-            externalCampaignGroupId = campaignGroupKey.reportingSetId
-          }
-        externalReportingSetId = campaignGroupKey.reportingSetId
-      }
-    )
-
-    val request = createBasicReportRequest {
-      parent = measurementConsumerKey.toName()
-      basicReport =
-        BASIC_REPORT.copy {
-          campaignGroup = campaignGroupKey.toName()
-          impressionQualificationFilters += reportingImpressionQualificationFilter {
-            custom = ReportingImpressionQualificationFilterKt.customImpressionQualificationFilterSpec {
-              filterSpec += impressionQualificationFilterSpec {
-                mediaType = MediaType.DISPLAY
-                filters += eventFilter {
-                  terms += eventTemplateField {
-                    path = "banner_ad.viewable"
-                    value = EventTemplateFieldKt.fieldValue { floatValue = 1f }
-                  }
-                }
-              }
-            }
-          }
-        }
-      basicReportId = "a1234"
-    }
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
-        withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
-      }
-
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.errorInfo)
-      .isEqualTo(
-        errorInfo {
-          domain = Errors.DOMAIN
-          reason = Errors.Reason.INVALID_FIELD_VALUE.name
-          metadata[Errors.Metadata.FIELD_NAME.key] =
-            "basic_report.impression_qualification_filters.custom.filter_spec.filters.terms.value.float_value"
+      measurementConsumersService.createMeasurementConsumer(
+        measurementConsumer {
+          cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
         }
       )
-  }
+
+      internalReportingSetsService.createReportingSet(
+        createReportingSetRequest {
+          reportingSet =
+            INTERNAL_CAMPAIGN_GROUP.copy {
+              cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+              externalCampaignGroupId = campaignGroupKey.reportingSetId
+            }
+          externalReportingSetId = campaignGroupKey.reportingSetId
+        }
+      )
+
+      val request = createBasicReportRequest {
+        parent = measurementConsumerKey.toName()
+        basicReport =
+          BASIC_REPORT.copy {
+            campaignGroup = campaignGroupKey.toName()
+            impressionQualificationFilters += reportingImpressionQualificationFilter {
+              custom =
+                ReportingImpressionQualificationFilterKt.customImpressionQualificationFilterSpec {
+                  filterSpec += impressionQualificationFilterSpec {
+                    mediaType = MediaType.DISPLAY
+                    filters += eventFilter {
+                      terms += eventTemplateField {
+                        path = "banner_ad.viewable"
+                        value = EventTemplateFieldKt.fieldValue { floatValue = 1f }
+                      }
+                    }
+                  }
+                }
+            }
+          }
+        basicReportId = "a1234"
+      }
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.INVALID_FIELD_VALUE.name
+            metadata[Errors.Metadata.FIELD_NAME.key] =
+              "basic_report.impression_qualification_filters.custom.filter_spec.filters.terms.value.float_value"
+          }
+        )
+    }
 
   @Test
   fun `createBasicReport throws INVALID_ARGUMENT when custom IQF bool_value set for Double`() =
@@ -3609,17 +3621,18 @@ class BasicReportsServiceTest {
           BASIC_REPORT.copy {
             campaignGroup = campaignGroupKey.toName()
             impressionQualificationFilters += reportingImpressionQualificationFilter {
-              custom = ReportingImpressionQualificationFilterKt.customImpressionQualificationFilterSpec {
-                filterSpec += impressionQualificationFilterSpec {
-                  mediaType = MediaType.VIDEO
-                  filters += eventFilter {
-                    terms += eventTemplateField {
-                      path = "video_ad.viewed_fraction"
-                      value = EventTemplateFieldKt.fieldValue { boolValue = true }
+              custom =
+                ReportingImpressionQualificationFilterKt.customImpressionQualificationFilterSpec {
+                  filterSpec += impressionQualificationFilterSpec {
+                    mediaType = MediaType.VIDEO
+                    filters += eventFilter {
+                      terms += eventTemplateField {
+                        path = "video_ad.viewed_fraction"
+                        value = EventTemplateFieldKt.fieldValue { boolValue = true }
+                      }
                     }
                   }
                 }
-              }
             }
           }
         basicReportId = "a1234"
@@ -3670,17 +3683,18 @@ class BasicReportsServiceTest {
           BASIC_REPORT.copy {
             campaignGroup = campaignGroupKey.toName()
             impressionQualificationFilters += reportingImpressionQualificationFilter {
-              custom = ReportingImpressionQualificationFilterKt.customImpressionQualificationFilterSpec {
-                filterSpec += impressionQualificationFilterSpec {
-                  mediaType = MediaType.VIDEO
-                  filters += eventFilter {
-                    terms += eventTemplateField {
-                      path = "video_ad.viewed_fraction"
-                      value = EventTemplateFieldKt.fieldValue { floatValue = 1f }
+              custom =
+                ReportingImpressionQualificationFilterKt.customImpressionQualificationFilterSpec {
+                  filterSpec += impressionQualificationFilterSpec {
+                    mediaType = MediaType.VIDEO
+                    filters += eventFilter {
+                      terms += eventTemplateField {
+                        path = "video_ad.viewed_fraction"
+                        value = EventTemplateFieldKt.fieldValue { floatValue = 1f }
+                      }
                     }
                   }
                 }
-              }
             }
           }
         basicReportId = "a1234"
@@ -6419,17 +6433,18 @@ class BasicReportsServiceTest {
           ImpressionQualificationFilterKey(AMI_IQF.externalImpressionQualificationFilterId).toName()
       }
       impressionQualificationFilters += reportingImpressionQualificationFilter {
-        custom = ReportingImpressionQualificationFilterKt.customImpressionQualificationFilterSpec {
-          filterSpec += impressionQualificationFilterSpec {
-            mediaType = MediaType.DISPLAY
-            filters += eventFilter {
-              terms += eventTemplateField {
-                path = "banner_ad.viewable"
-                value = EventTemplateFieldKt.fieldValue { boolValue = true }
+        custom =
+          ReportingImpressionQualificationFilterKt.customImpressionQualificationFilterSpec {
+            filterSpec += impressionQualificationFilterSpec {
+              mediaType = MediaType.DISPLAY
+              filters += eventFilter {
+                terms += eventTemplateField {
+                  path = "banner_ad.viewable"
+                  value = EventTemplateFieldKt.fieldValue { boolValue = true }
+                }
               }
             }
           }
-        }
       }
       resultGroupSpecs += resultGroupSpec {
         title = "title"
