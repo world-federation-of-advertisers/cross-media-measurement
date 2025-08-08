@@ -19,7 +19,7 @@ package org.wfanet.measurement.edpaggregator.resultsfulfiller
 import com.google.cloud.secretmanager.v1.AccessSecretVersionRequest
 import com.google.cloud.secretmanager.v1.SecretManagerServiceClient
 import com.google.cloud.secretmanager.v1.SecretVersionName
-import com.google.crypto.tink.integration.gcpkms.GcpKmsClient
+import com.google.crypto.tink.KmsClient
 import com.google.protobuf.DescriptorProtos
 import com.google.protobuf.Descriptors
 import com.google.protobuf.ExtensionRegistry
@@ -33,11 +33,13 @@ import org.wfanet.measurement.api.v2alpha.EventAnnotationsProto
 import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.SigningCerts
+import org.wfanet.measurement.common.crypto.tink.GCloudWifCredentials
 import org.wfanet.measurement.common.edpaggregator.TeeAppConfig.getConfig
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams.StorageParams
+import org.wfanet.measurement.gcloud.kms.GCloudKmsClientFactory
 import org.wfanet.measurement.gcloud.pubsub.DefaultGooglePubSubClient
 import org.wfanet.measurement.gcloud.pubsub.Subscriber
 import org.wfanet.measurement.queue.QueueSubscriber
@@ -85,7 +87,33 @@ class ResultsFulfillerAppRunner : Runnable {
 
   // The file paths supplied via each EdpFlags instance must exactly match the paths defined in the
   // ResultsFulfillerParam proto configuration.
+  // TODO(world-federation-of-advertisers/cross-media-measurement#2738): Replace flags with config
+  // files.
   class EdpFlags {
+    @CommandLine.Option(
+      names = ["--edp-kms-audience"],
+      required = true,
+      description = ["Kms credential audience as workload identity pool provider"],
+    )
+    lateinit var edpKmsAudience: String
+
+    @CommandLine.Option(
+      names = ["--edp-target-service-account"],
+      required = true,
+      description = ["Edp service account with KMS access"],
+    )
+    lateinit var edpTargetServiceAccount: String
+
+    @CommandLine.Option(
+      names = ["--edp-resource-name"],
+      required = true,
+      description =
+        [
+          "Edp resource name. It must match the resource name in the DataWatcher ResultsFulfillerParams."
+        ],
+    )
+    lateinit var edpResourceName: String
+
     @CommandLine.Option(
       names = ["--edp-cert-der-secret-id"],
       required = true,
@@ -228,6 +256,8 @@ class ResultsFulfillerAppRunner : Runnable {
   )
   private lateinit var eventTemplateDescriptorBlobUris: List<String>
 
+  private lateinit var kmsClientsMap: MutableMap<String, KmsClient>
+
   private val getImpressionsStorageConfig: (StorageParams) -> StorageConfig = { storageParams ->
     StorageConfig(projectId = storageParams.gcsProjectId)
   }
@@ -238,6 +268,8 @@ class ResultsFulfillerAppRunner : Runnable {
     saveEdpaCerts()
     saveEdpsCerts()
     saveResultsFulfillerConfig()
+    // Create KMS clients for EDPs
+    createKmsClients()
 
     val queueSubscriber = createQueueSubscriber()
     val parser = createWorkItemParser()
@@ -271,8 +303,6 @@ class ResultsFulfillerAppRunner : Runnable {
         trustedCertCollection = kingdomCertCollectionFile,
       )
 
-    val kmsClient = GcpKmsClient().withDefaultCredentials()
-
     val typeRegistry: TypeRegistry = buildTypeRegistry()
 
     val resultsFulfillerApp =
@@ -283,7 +313,7 @@ class ResultsFulfillerAppRunner : Runnable {
         workItemsClient = workItemsClient,
         workItemAttemptsClient = workItemAttemptsClient,
         requisitionStubFactory = requisitionStubFactory,
-        kmsClient = kmsClient,
+        kmsClients = kmsClientsMap,
         typeRegistry = typeRegistry,
         getImpressionsMetadataStorageConfig = getImpressionsStorageConfig,
         getImpressionsStorageConfig = getImpressionsStorageConfig,
@@ -291,6 +321,27 @@ class ResultsFulfillerAppRunner : Runnable {
       )
 
     runBlocking { resultsFulfillerApp.run() }
+  }
+
+  fun createKmsClients() {
+
+    kmsClientsMap = mutableMapOf()
+
+    edpCerts.forEachIndexed { index, edp ->
+      val kmsConfig =
+        GCloudWifCredentials(
+          audience = edp.edpKmsAudience,
+          subjectTokenType = SUBJECT_TOKEN_TYPE,
+          tokenUrl = TOKEN_URL,
+          credentialSourceFilePath = CREDENTIAL_SOURCE_FILE_PATH,
+          serviceAccountImpersonationUrl =
+            EDP_TARGET_SERVICE_ACCOUNT_FORMAT.format(edp.edpTargetServiceAccount),
+        )
+
+      val kmsClient = GCloudKmsClientFactory().getKmsClient(kmsConfig)
+
+      kmsClientsMap[edp.edpResourceName] = kmsClient
+    }
   }
 
   // @TODO(@marcopremier): Move this and `buildTypeRegistry` on common-jvm
@@ -412,6 +463,13 @@ class ResultsFulfillerAppRunner : Runnable {
     private const val KINGDOM_ROOT_CA_FILE_PATH = "/tmp/edpa_certs/kingdom_root.pem"
 
     private const val PROTO_DESCRIPTORS_DIR = "/tmp/proto_descriptors"
+
+    private const val SUBJECT_TOKEN_TYPE = "urn:ietf:params:oauth:token-type:jwt"
+    private const val TOKEN_URL = "https://sts.googleapis.com/v1/token"
+    private const val CREDENTIAL_SOURCE_FILE_PATH =
+      "/run/container_launcher/attestation_verifier_claims_token"
+    private const val EDP_TARGET_SERVICE_ACCOUNT_FORMAT =
+      "https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/%s:generateAccessToken"
 
     @JvmStatic fun main(args: Array<String>) = commandLineMain(ResultsFulfillerAppRunner(), args)
   }

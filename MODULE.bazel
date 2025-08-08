@@ -37,7 +37,7 @@ bazel_dep(
 )
 bazel_dep(
     name = "common-jvm",
-    version = "0.111.0",
+    version = "0.114.0",
     repo_name = "wfa_common_jvm",
 )
 bazel_dep(
@@ -204,11 +204,12 @@ bazel_dep(
 )
 single_version_override(
     module_name = "rules_oci",
+    patch_strip = 1,
     patches = [
         "//build/cosign/patches:sign_dot_bzl.patch",
     ],
-    patch_strip = 1
 )
+
 bazel_dep(
     name = "rules_multirun",
     version = "0.12.0",

@@ -125,4 +125,39 @@ class ResultsFulfillerAppRunnerTest {
     assertThat(outputFile.exists()).isTrue()
     assertThat(outputFile.readBytes()).isEqualTo(expectedBytes)
   }
+
+  @Test
+  fun `createKmsClients populates kmsClientsMap keys`() {
+    val runner = ResultsFulfillerAppRunner()
+
+    val edpCertsField = runner.javaClass.getDeclaredField("edpCerts").apply { isAccessible = true }
+
+    val edp1 =
+      ResultsFulfillerAppRunner.EdpFlags().apply {
+        edpKmsAudience = "aud1"
+        edpTargetServiceAccount = "sa1"
+        edpResourceName = "res1"
+      }
+    val edp2 =
+      ResultsFulfillerAppRunner.EdpFlags().apply {
+        edpKmsAudience = "aud2"
+        edpTargetServiceAccount = "sa2"
+        edpResourceName = "res2"
+      }
+
+    edpCertsField.set(runner, listOf(edp1, edp2))
+
+    runner.javaClass
+      .getDeclaredMethod("createKmsClients")
+      .apply { isAccessible = true }
+      .invoke(runner)
+
+    val kmsMapField =
+      runner.javaClass.getDeclaredField("kmsClientsMap").apply { isAccessible = true }
+
+    @Suppress("UNCHECKED_CAST") val map = kmsMapField.get(runner) as Map<String, *>
+
+    // Verify that the map contains the right KmsClients
+    assertThat(map.keys).containsExactly("res1", "res2")
+  }
 }
