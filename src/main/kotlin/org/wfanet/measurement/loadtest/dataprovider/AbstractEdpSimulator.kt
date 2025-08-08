@@ -1032,8 +1032,20 @@ abstract class AbstractEdpSimulator(
     val frequencyVectorBuilder =
       FrequencyVectorBuilder(hmssVidIndexMap.populationSpec, measurementSpec, strict = false)
     for (eventGroupSpec in eventGroupSpecs) {
-      eventQuery.getUserVirtualIds(eventGroupSpec).forEach {
-        frequencyVectorBuilder.increment(hmssVidIndexMap[it])
+      try {
+        eventQuery.getUserVirtualIds(eventGroupSpec).forEach {
+          frequencyVectorBuilder.increment(hmssVidIndexMap[it])
+        }
+      } catch (e: EventFilterValidationException) {
+        logger.log(
+          Level.WARNING,
+          "RequisitionFulfillmentWorkflow failed due to invalid event filter",
+          e,
+        )
+        throw RequisitionRefusalException.Default(
+          Requisition.Refusal.Justification.SPEC_INVALID,
+          "Invalid event filter (${e.code}): ${e.code.description}",
+        )
       }
     }
 
