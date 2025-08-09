@@ -248,6 +248,7 @@ class SpannerBasicReportsService(
           basicReportId = basicReportId,
           measurementConsumerId = measurementConsumerResult.measurementConsumerId,
           basicReport = request.basicReport,
+          state = BasicReport.State.SUCCEEDED,
         )
       }
     } catch (e: SpannerException) {
@@ -268,7 +269,10 @@ class SpannerBasicReportsService(
 
     val commitTimestamp: Timestamp = transactionRunner.getCommitTimestamp().toProto()
 
-    return request.basicReport.copy { createTime = commitTimestamp }
+    return request.basicReport.copy {
+      createTime = commitTimestamp
+      state = BasicReport.State.SUCCEEDED
+    }
   }
 
   /**
