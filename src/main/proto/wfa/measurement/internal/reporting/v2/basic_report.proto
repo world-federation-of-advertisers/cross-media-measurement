@@ -58,8 +58,8 @@ message BasicReport {
     CREATED = 1;
     // `Report` created.
     REPORT_CREATED = 2;
-    // `Report` is in SUCCEEDED state, and its results are transformed and
-    // persisted with the `BasicReport`.
+    // `Report` is in SUCCEEDED state, and its results are persisted with the
+    // `BasicReport`, but not yet processed by the noise corrector.
     NOISY_RESULTS_READY = 3;
     // Results have been noise-corrected. Available in the `BasicReport` as
     // `result_details`.
