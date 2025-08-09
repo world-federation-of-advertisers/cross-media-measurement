@@ -41,7 +41,7 @@ class EventDescriptor(eventDescriptor: Descriptors.Descriptor) {
     val enumType: Descriptors.EnumDescriptor?,
   )
 
-  /** Key is protobuf EventTemplate field name with respect to Event message. */
+  /** Map of EventTemplate field name with respect to Event message to info for the field. */
   val eventTemplateFieldsMap: Map<String, EventTemplateFieldInfo> =
     buildEventTemplateFieldsMap(eventDescriptor)
 

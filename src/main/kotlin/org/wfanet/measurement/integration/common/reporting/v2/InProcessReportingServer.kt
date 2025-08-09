@@ -301,7 +301,7 @@ class InProcessReportingServer(
                 internalBasicReportsClient,
                 internalImpressionQualificationFiltersClient,
                 internalReportingSetsClient,
-                EventDescriptor(TestEvent.getDescriptor()).eventTemplateFieldsMap,
+                EventDescriptor(TestEvent.getDescriptor()),
                 METRIC_SPEC_CONFIG,
                 authorization,
               )

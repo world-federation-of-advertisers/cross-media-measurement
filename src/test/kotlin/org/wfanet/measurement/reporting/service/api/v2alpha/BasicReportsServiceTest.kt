@@ -189,7 +189,7 @@ class BasicReportsServiceTest {
         internalBasicReportsService,
         internalImpressionQualificationFiltersService,
         internalReportingSetsService,
-        TEST_EVENT_DESCRIPTOR.eventTemplateFieldsMap,
+        TEST_EVENT_DESCRIPTOR,
         METRIC_SPEC_CONFIG,
         authorization,
       )
