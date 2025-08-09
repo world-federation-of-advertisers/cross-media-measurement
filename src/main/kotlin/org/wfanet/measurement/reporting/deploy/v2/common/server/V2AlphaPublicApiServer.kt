@@ -343,6 +343,9 @@ private object V2AlphaPublicApiServer {
             InternalBasicReportsCoroutineStub(channel),
             InternalImpressionQualificationFiltersCoroutineStub(channel),
             InternalReportingSetsCoroutineStub(channel),
+            // TODO(@tristanvuong2021): Switch to non-null value using required flags when ready to
+            // deploy
+            null,
             basicReportMetricSpecConfig,
             authorization,
             serviceDispatcher,

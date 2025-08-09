@@ -16,6 +16,7 @@
 
 package org.wfanet.measurement.reporting.service.api.v2alpha
 
+import com.google.protobuf.Descriptors
 import java.util.UUID
 import kotlin.collections.List
 import kotlin.collections.Set
@@ -46,12 +47,16 @@ private val RESOURCE_ID_REGEX = ResourceIds.AIP_122_REGEX
  * calls
  *
  * @param request
+ * @param campaignGroup
+ * @param eventTemplateFieldsMap Map of EventTemplate field name with respect to Event message to
+ *   info for the field. Used for validating [EventTemplateField]
  * @throws [RequiredFieldNotSetException] when validation fails
  * @throws [InvalidFieldValueException] when validation fails
  */
 fun validateCreateBasicReportRequest(
   request: CreateBasicReportRequest,
   campaignGroup: ReportingSet,
+  eventTemplateFieldsMap: Map<String, EventDescriptor.EventTemplateFieldInfo>,
 ) {
   if (request.basicReportId.isEmpty()) {
     throw RequiredFieldNotSetException("basic_report_id")
@@ -82,7 +87,11 @@ fun validateCreateBasicReportRequest(
   validateReportingImpressionQualificationFilters(
     request.basicReport.impressionQualificationFiltersList
   )
-  validateResultGroupSpecs(request.basicReport.resultGroupSpecsList, campaignGroup)
+  validateResultGroupSpecs(
+    request.basicReport.resultGroupSpecsList,
+    campaignGroup,
+    eventTemplateFieldsMap,
+  )
 }
 
 /**
@@ -90,10 +99,16 @@ fun validateCreateBasicReportRequest(
  *
  * @param resultGroupSpecs [List] of [ResultGroupSpec] to validate
  * @param campaignGroup [ReportingSet] to validate against
+ * @param eventTemplateFieldsMap Map of EventTemplate field name with respect to Event message to
+ *   info for the field. Used for validating [EventTemplateField]
  * @throws [RequiredFieldNotSetException] when validation fails
  * @throws [InvalidFieldValueException] when validation fails
  */
-fun validateResultGroupSpecs(resultGroupSpecs: List<ResultGroupSpec>, campaignGroup: ReportingSet) {
+fun validateResultGroupSpecs(
+  resultGroupSpecs: List<ResultGroupSpec>,
+  campaignGroup: ReportingSet,
+  eventTemplateFieldsMap: Map<String, EventDescriptor.EventTemplateFieldInfo>,
+) {
   if (resultGroupSpecs.isEmpty()) {
     throw RequiredFieldNotSetException("basic_report.result_group_specs")
   }
@@ -120,7 +135,7 @@ fun validateResultGroupSpecs(resultGroupSpecs: List<ResultGroupSpec>, campaignGr
     }
 
     if (resultGroupSpec.hasDimensionSpec()) {
-      validateDimensionSpec(resultGroupSpec.dimensionSpec)
+      validateDimensionSpec(resultGroupSpec.dimensionSpec, eventTemplateFieldsMap)
     } else {
       throw RequiredFieldNotSetException("basic_report.result_group_specs.dimension_spec")
     }
@@ -170,14 +185,22 @@ fun validateReportingUnit(reportingUnit: ReportingUnit, dataProviderNameSet: Set
  * Validates a [DimensionSpec]
  *
  * @param dimensionSpec [DimensionSpec] to validate
+ * @param eventTemplateFieldsMap Map of EventTemplate field name with respect to Event message to
+ *   info for the field. Used for validating [EventTemplateField]
  * @throws [RequiredFieldNotSetException] when validation fails
  * @throws [InvalidFieldValueException] when validation fails
  */
-fun validateDimensionSpec(dimensionSpec: DimensionSpec) {
-  if (dimensionSpec.hasGrouping() && dimensionSpec.grouping.eventTemplateFieldsList.isEmpty()) {
-    throw RequiredFieldNotSetException(
-      "basic_report.result_group_specs.dimension_spec.grouping.event_template_fields"
-    )
+fun validateDimensionSpec(
+  dimensionSpec: DimensionSpec,
+  eventTemplateFieldsMap: Map<String, EventDescriptor.EventTemplateFieldInfo>,
+) {
+  val groupingEventTemplateFieldsSet: Set<String> = buildSet {
+    if (dimensionSpec.hasGrouping()) {
+      validateDimensionSpecGrouping(dimensionSpec.grouping, eventTemplateFieldsMap)
+      for (eventTemplateFieldPath in dimensionSpec.grouping.eventTemplateFieldsList) {
+        add(eventTemplateFieldPath)
+      }
+    }
   }
 
   for (eventFilter in dimensionSpec.filtersList) {
@@ -187,21 +210,152 @@ fun validateDimensionSpec(dimensionSpec: DimensionSpec) {
       )
     }
 
-    // TODO(@tristanvuong2021): Need to verify against eventTemplate descriptor
     for (eventTemplateField in eventFilter.termsList) {
-      if (eventTemplateField.path.isEmpty()) {
-        throw RequiredFieldNotSetException(
+      validateEventTemplateField(eventTemplateField, eventTemplateFieldsMap)
+      if (groupingEventTemplateFieldsSet.contains(eventTemplateField.path)) {
+        throw InvalidFieldValueException(
           "basic_report.result_group_specs.dimension_spec.filters.terms.path"
-        )
+        ) { fieldName ->
+          "$fieldName is already in basic_report.result_group_specs.dimension_spec.grouping.event_template_fields for the same dimension_spec"
+        }
       }
+    }
+  }
+}
 
-      if (
-        eventTemplateField.value.selectorCase ==
-          EventTemplateField.FieldValue.SelectorCase.SELECTOR_NOT_SET
-      ) {
+/**
+ * Validates a [DimensionSpec.Grouping]
+ *
+ * @param grouping [DimensionSpec.Grouping] to validate
+ * @param eventTemplateFieldsMap Map of EventTemplate field name with respect to Event message to
+ *   info for the field. Used for validating [EventTemplateField]
+ * @throws [RequiredFieldNotSetException] when validation fails
+ * @throws [InvalidFieldValueException] when validation fails
+ */
+fun validateDimensionSpecGrouping(
+  grouping: DimensionSpec.Grouping,
+  eventTemplateFieldsMap: Map<String, EventDescriptor.EventTemplateFieldInfo>,
+) {
+  if (grouping.eventTemplateFieldsList.isEmpty()) {
+    throw RequiredFieldNotSetException(
+      "basic_report.result_group_specs.dimension_spec.grouping.event_template_fields"
+    )
+  }
+
+  for (eventTemplateFieldPath in grouping.eventTemplateFieldsList) {
+    val eventTemplateFieldInfo =
+      eventTemplateFieldsMap[eventTemplateFieldPath]
+        ?: throw InvalidFieldValueException(
+          "basic_report.result_group_specs.dimension_spec.grouping.event_template_fields"
+        ) { fieldName ->
+          "$fieldName contains event template field that doesn't exist"
+        }
+
+    if (!eventTemplateFieldInfo.supportedReportingFeatures.groupable) {
+      throw InvalidFieldValueException(
+        "basic_report.result_group_specs.dimension_spec.grouping.event_template_fields"
+      ) { fieldName ->
+        "$fieldName contains event template field that is not groupable"
+      }
+    }
+
+    if (!eventTemplateFieldInfo.isPopulationAttribute) {
+      throw InvalidFieldValueException(
+        "basic_report.result_group_specs.dimension_spec.grouping.event_template_fields"
+      ) { fieldName ->
+        "$fieldName contains event template field that is not a population attribute"
+      }
+    }
+  }
+}
+
+/**
+ * Validates an [EventTemplateField]
+ *
+ * @param eventTemplateField [EventTemplateField] to validate
+ * @param eventTemplateFieldsMap Map of EventTemplate field name with respect to Event message to
+ *   info for the field. Used for validating [EventTemplateField]
+ * @throws [RequiredFieldNotSetException] when validation fails
+ * @throws [InvalidFieldValueException] when validation fails
+ */
+fun validateEventTemplateField(
+  eventTemplateField: EventTemplateField,
+  eventTemplateFieldsMap: Map<String, EventDescriptor.EventTemplateFieldInfo>,
+) {
+  if (eventTemplateField.path.isEmpty()) {
+    throw RequiredFieldNotSetException(
+      "basic_report.result_group_specs.dimension_spec.filters.terms.path"
+    )
+  } else {
+    val eventTemplateFieldInfo =
+      eventTemplateFieldsMap[eventTemplateField.path]
+        ?: throw InvalidFieldValueException(
+          "basic_report.result_group_specs.dimension_spec.filters.terms.path"
+        ) { fieldName ->
+          "$fieldName doesn't exist"
+        }
+
+    if (!eventTemplateFieldInfo.supportedReportingFeatures.filterable) {
+      throw InvalidFieldValueException(
+        "basic_report.result_group_specs.dimension_spec.filters.terms.path"
+      ) { fieldName ->
+        "$fieldName is not filterable"
+      }
+    }
+
+    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf enum fields cannot be null.
+    when (eventTemplateField.value.selectorCase) {
+      EventTemplateField.FieldValue.SelectorCase.STRING_VALUE -> {
+        if (eventTemplateFieldInfo.type != Descriptors.FieldDescriptor.Type.STRING) {
+          throw InvalidFieldValueException(
+            "basic_report.result_group_specs.dimension_spec.filters.terms.value.string_value"
+          ) { fieldName ->
+            "$fieldName is invalid for ${eventTemplateField.path}"
+          }
+        }
+      }
+      EventTemplateField.FieldValue.SelectorCase.ENUM_VALUE -> {
+        if (
+          eventTemplateFieldInfo.type != Descriptors.FieldDescriptor.Type.ENUM ||
+            eventTemplateFieldInfo.enumType?.findValueByName(eventTemplateField.value.enumValue) ==
+              null
+        ) {
+          throw InvalidFieldValueException(
+            "basic_report.result_group_specs.dimension_spec.filters.terms.value.enum_value"
+          ) { fieldName ->
+            "$fieldName is invalid for for ${eventTemplateField.path}"
+          }
+        }
+      }
+      EventTemplateField.FieldValue.SelectorCase.BOOL_VALUE ->
+        if (eventTemplateFieldInfo.type != Descriptors.FieldDescriptor.Type.BOOL) {
+          throw InvalidFieldValueException(
+            "basic_report.result_group_specs.dimension_spec.filters.terms.value.bool_value"
+          ) { fieldName ->
+            "$fieldName is invalid for ${eventTemplateField.path}"
+          }
+        }
+      EventTemplateField.FieldValue.SelectorCase.FLOAT_VALUE -> {
+        if (eventTemplateFieldInfo.type != Descriptors.FieldDescriptor.Type.FLOAT) {
+          throw InvalidFieldValueException(
+            "basic_report.result_group_specs.dimension_spec.filters.terms.value.float_value"
+          ) { fieldName ->
+            "$fieldName is invalid for ${eventTemplateField.path}"
+          }
+        }
+      }
+      EventTemplateField.FieldValue.SelectorCase.SELECTOR_NOT_SET -> {
         throw RequiredFieldNotSetException(
           "basic_report.result_group_specs.dimension_spec.filters.terms.value"
         )
+      }
+    }
+
+    if (!eventTemplateFieldInfo.isPopulationAttribute) {
+      throw InvalidFieldValueException(
+        "basic_report.result_group_specs.dimension_spec.filters.terms.path"
+      ) { fieldName ->
+        "$fieldName is not a population attribute"
       }
     }
   }
