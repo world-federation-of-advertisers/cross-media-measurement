@@ -57,14 +57,12 @@ import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventGroupKt as CmmsEventGroupKt
-import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementKt
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt
-import org.wfanet.measurement.api.v2alpha.batchGetEventGroupMetadataDescriptorsRequest
 import org.wfanet.measurement.api.v2alpha.eventGroup as cmmsEventGroup
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
 import org.wfanet.measurement.api.v2alpha.getDataProviderRequest
@@ -362,10 +360,6 @@ abstract class InProcessLifeOfAReportIntegrationTest(
 
   private val publicDataProvidersClient by lazy {
     DataProvidersCoroutineStub(reportingServer.publicApiChannel)
-  }
-
-  private val publicEventGroupMetadataDescriptorsClient by lazy {
-    EventGroupMetadataDescriptorsCoroutineStub(reportingServer.publicApiChannel)
   }
 
   private val publicEventGroupsClient by lazy {
@@ -1979,35 +1973,6 @@ abstract class InProcessLifeOfAReportIntegrationTest(
         .getDataProvider(getDataProviderRequest { name = dataProviderName })
 
     assertThat(DataProviderCertificateKey.fromName(dataProvider.certificate)).isNotNull()
-  }
-
-  @Test
-  fun `retrieving metadata descriptors for event groups succeeds`() = runBlocking {
-    val eventGroups = listEventGroups()
-
-    val descriptorNames = eventGroups.map { it.metadata.eventGroupMetadataDescriptor }
-
-    val descriptors =
-      publicEventGroupMetadataDescriptorsClient
-        .withCallCredentials(credentials)
-        .batchGetEventGroupMetadataDescriptors(
-          batchGetEventGroupMetadataDescriptorsRequest { names += descriptorNames }
-        )
-        .eventGroupMetadataDescriptorsList
-
-    assertThat(descriptors).hasSize(descriptorNames.size)
-
-    val retrievedDescriptorNames = mutableSetOf<String>()
-    for (descriptor in descriptors) {
-      retrievedDescriptorNames.add(descriptor.name)
-    }
-
-    for (eventGroup in eventGroups) {
-      assertThat(
-          retrievedDescriptorNames.contains(eventGroup.metadata.eventGroupMetadataDescriptor)
-        )
-        .isTrue()
-    }
   }
 
   @Test

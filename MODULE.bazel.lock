@@ -112,6 +112,7 @@
     "https://bcr.bazel.build/modules/platforms/1.0.0/source.json": "f4ff1fd412e0246fd38c82328eb209130ead81d62dcd5a9e40910f867f733d96",
     "https://bcr.bazel.build/modules/protobuf/21.7/MODULE.bazel": "a5a29bb89544f9b97edce05642fac225a808b5b7be74038ea3640fae2f8e66a7",
     "https://bcr.bazel.build/modules/protobuf/23.1/MODULE.bazel": "88b393b3eb4101d18129e5db51847cd40a5517a53e81216144a8c32dfeeca52a",
+    "https://bcr.bazel.build/modules/protobuf/24.4/MODULE.bazel": "7bc7ce5f2abf36b3b7b7c8218d3acdebb9426aeb35c2257c96445756f970eb12",
     "https://bcr.bazel.build/modules/protobuf/27.0/MODULE.bazel": "7873b60be88844a0a1d8f80b9d5d20cfbd8495a689b8763e76c6372998d3f64c",
     "https://bcr.bazel.build/modules/protobuf/27.1/MODULE.bazel": "703a7b614728bb06647f965264967a8ef1c39e09e8f167b3ca0bb1fd80449c0d",
     "https://bcr.bazel.build/modules/protobuf/27.3/MODULE.bazel": "d94898cbf9d6d25c0edca2521211413506b68a109a6b01776832ed25154d23d7",
@@ -169,6 +170,7 @@
     "https://bcr.bazel.build/modules/rules_java/6.3.1/MODULE.bazel": "5a3471c8b84d53d58d5f6e316313680d7dd2c70afac696dbe14b761b0b5c6a06",
     "https://bcr.bazel.build/modules/rules_java/6.4.0/MODULE.bazel": "e986a9fe25aeaa84ac17ca093ef13a4637f6107375f64667a15999f77db6c8f6",
     "https://bcr.bazel.build/modules/rules_java/6.5.2/MODULE.bazel": "1d440d262d0e08453fa0c4d8f699ba81609ed0e9a9a0f02cd10b3e7942e61e31",
+    "https://bcr.bazel.build/modules/rules_java/7.1.0/MODULE.bazel": "30d9135a2b6561c761bd67bd4990da591e6bdc128790ce3e7afd6a3558b2fb64",
     "https://bcr.bazel.build/modules/rules_java/7.10.0/MODULE.bazel": "530c3beb3067e870561739f1144329a21c851ff771cd752a49e06e3dc9c2e71a",
     "https://bcr.bazel.build/modules/rules_java/7.12.2/MODULE.bazel": "579c505165ee757a4280ef83cda0150eea193eed3bef50b1004ba88b99da6de6",
     "https://bcr.bazel.build/modules/rules_java/7.2.0/MODULE.bazel": "06c0334c9be61e6cef2c8c84a7800cef502063269a5af25ceb100b192453d4ab",
@@ -197,8 +199,9 @@
     "https://bcr.bazel.build/modules/rules_license/0.0.7/MODULE.bazel": "088fbeb0b6a419005b89cf93fe62d9517c0a2b8bb56af3244af65ecfe37e7d5d",
     "https://bcr.bazel.build/modules/rules_license/1.0.0/MODULE.bazel": "a7fda60eefdf3d8c827262ba499957e4df06f659330bbe6cdbdb975b768bb65c",
     "https://bcr.bazel.build/modules/rules_license/1.0.0/source.json": "a52c89e54cc311196e478f8382df91c15f7a2bfdf4c6cd0e2675cc2ff0b56efb",
+    "https://bcr.bazel.build/modules/rules_multirun/0.12.0/MODULE.bazel": "8c2a45d1ed9ad938a4f8088e78781017974f6a90e6fc4172f6e3f275812a0b48",
+    "https://bcr.bazel.build/modules/rules_multirun/0.12.0/source.json": "95c835bcba571ddffda1ea34e48dc7d93ca204e669db2fd2681f1104f0812e4d",
     "https://bcr.bazel.build/modules/rules_multirun/0.6.1/MODULE.bazel": "3f7fa04386664325356ed3b9141db1956cedaa6d238d796ef56d91251d58fdcc",
-    "https://bcr.bazel.build/modules/rules_multirun/0.6.1/source.json": "2d5c5dbc3ee6c5a153549c1e2c8c4243bb55299c4386b80115f7d79071d47b7a",
     "https://bcr.bazel.build/modules/rules_nodejs/6.2.0/MODULE.bazel": "ec27907f55eb34705adb4e8257952162a2d4c3ed0f0b3b4c3c1aad1fac7be35e",
     "https://bcr.bazel.build/modules/rules_nodejs/6.2.0/source.json": "a77c307175a82982f0847fd6a8660db5b21440d8a9d073642cb4afa7a18612ff",
     "https://bcr.bazel.build/modules/rules_oci/1.7.5/MODULE.bazel": "6dce2f04eff5ee563fa68341539e7465c62f114b9101c8d0e0d626abc1974a51",
@@ -224,6 +227,7 @@
     "https://bcr.bazel.build/modules/rules_python/0.28.0/MODULE.bazel": "cba2573d870babc976664a912539b320cbaa7114cd3e8f053c720171cde331ed",
     "https://bcr.bazel.build/modules/rules_python/0.31.0/MODULE.bazel": "93a43dc47ee570e6ec9f5779b2e64c1476a6ce921c48cc9a1678a91dd5f8fd58",
     "https://bcr.bazel.build/modules/rules_python/0.33.2/MODULE.bazel": "3e036c4ad8d804a4dad897d333d8dce200d943df4827cb849840055be8d2e937",
+    "https://bcr.bazel.build/modules/rules_python/0.36.0/MODULE.bazel": "a4ce1ccea92b9106c7d16ab9ee51c6183107e78ba4a37aa65055227b80cd480c",
     "https://bcr.bazel.build/modules/rules_python/0.4.0/MODULE.bazel": "9208ee05fd48bf09ac60ed269791cf17fb343db56c8226a720fbb1cdf467166c",
     "https://bcr.bazel.build/modules/rules_python/1.1.0/MODULE.bazel": "57e01abae22956eb96d891572490d20e07d983e0c065de0b2170cafe5053e788",
     "https://bcr.bazel.build/modules/rules_python/1.1.0/source.json": "29f1fdfd23a40808c622f813bc93e29c3aae277333f03293f667e76159750a0f",
@@ -320,8 +324,8 @@
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/common-cpp/0.11.0/MODULE.bazel": "22f7e06ac78cd614d2143fcd0e7028eb595d9902dbfa94f777531439c616f13f",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/common-cpp/0.13.0/MODULE.bazel": "ad9f152e8f710943b2d9aa4ea19e06b47911abd8a5fb63d9e69e66636475794d",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/common-cpp/0.13.0/source.json": "910ffe09948e90417f98e00fd88819dbaa54efda4175e05e528481acc81c5d71",
-    "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/common-jvm/0.111.0/MODULE.bazel": "b2277ccc733ab5b0626cebaf7765e7ac16cbcc2193188f4b3233ed415f4e760a",
-    "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/common-jvm/0.111.0/source.json": "14b9f1ec8724e93b91291725560fc4d73de0e578c91b82af095dfaa362b258a6",
+    "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/common-jvm/0.114.0/MODULE.bazel": "f9d49fe927db8d6bf4e4d58ac6c0dd1523f63010222b3ce87c9fd31fd751c1ad",
+    "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/common-jvm/0.114.0/source.json": "7f6ed4642c5fe5944111b584c478dcbe6cf9e040527f18deb0d10fa515b01e1d",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/common-jvm/0.82.1/MODULE.bazel": "e5d9aee83831d55952c193f6f05b3952d3f3cd61d8d4e3bfedf3549e25edf308",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/consent-signaling-client/0.22.0/MODULE.bazel": "6437a69ac68ec8e3589d595a5ed79d3f6404510124e455838ce9cf51b8b27d52",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/consent-signaling-client/0.22.0/source.json": "844344f41ae9b780cfb0452438388465d3cf7c7b5accedb1fcc4900ace5111ca",
@@ -369,6 +373,7 @@
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/private-join-and-compute/0.0.0-20230417-e028e59/source.json": "43051b4aaa1cd9a2b1c8d71f1bd266169759bad248cd7b2de683e64924abc173",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/protobuf/21.7/MODULE.bazel": "not found",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/protobuf/23.1/MODULE.bazel": "not found",
+    "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/protobuf/24.4/MODULE.bazel": "not found",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/protobuf/27.0/MODULE.bazel": "not found",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/protobuf/27.1/MODULE.bazel": "not found",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/protobuf/27.3/MODULE.bazel": "not found",
@@ -419,6 +424,7 @@
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/rules_java/6.3.1/MODULE.bazel": "not found",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/rules_java/6.4.0/MODULE.bazel": "not found",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/rules_java/6.5.2/MODULE.bazel": "not found",
+    "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/rules_java/7.1.0/MODULE.bazel": "not found",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/rules_java/7.10.0/MODULE.bazel": "not found",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/rules_java/7.12.2/MODULE.bazel": "not found",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/rules_java/7.2.0/MODULE.bazel": "not found",
@@ -447,6 +453,7 @@
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/rules_license/0.0.4/MODULE.bazel": "not found",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/rules_license/0.0.7/MODULE.bazel": "not found",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/rules_license/1.0.0/MODULE.bazel": "not found",
+    "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/rules_multirun/0.12.0/MODULE.bazel": "not found",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/rules_multirun/0.6.1/MODULE.bazel": "not found",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/rules_nodejs/6.2.0/MODULE.bazel": "not found",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/rules_oci/1.7.5/MODULE.bazel": "not found",
@@ -469,6 +476,7 @@
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/rules_python/0.28.0/MODULE.bazel": "not found",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/rules_python/0.31.0/MODULE.bazel": "not found",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/rules_python/0.33.2/MODULE.bazel": "not found",
+    "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/rules_python/0.36.0/MODULE.bazel": "not found",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/rules_python/0.4.0/MODULE.bazel": "not found",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/rules_python/1.1.0/MODULE.bazel": "not found",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/rules_rust/0.56.0/MODULE.bazel": "not found",
@@ -502,6 +510,108 @@
   },
   "selectedYankedVersions": {},
   "moduleExtensions": {
+    "//build/cosign:extensions.bzl%cosign": {
+      "general": {
+        "bzlTransitiveDigest": "MIBMWFndp9/VblpteS4JL4FgCPy5KQypjxq2TWKDFcg=",
+        "usagesDigest": "IGzqkLFn2tdeL5STFqOABSJim9WWqZXhwBEXrrTzLBE=",
+        "recordedFileInputs": {},
+        "recordedDirentsInputs": {},
+        "envVariables": {},
+        "generatedRepoSpecs": {
+          "oci_cosign_darwin_amd64": {
+            "bzlFile": "@@rules_oci~//cosign:repositories.bzl",
+            "ruleClassName": "cosign_repositories",
+            "attributes": {
+              "platform": "darwin_amd64",
+              "cosign_version": "v2.2.3"
+            }
+          },
+          "oci_cosign_darwin_arm64": {
+            "bzlFile": "@@rules_oci~//cosign:repositories.bzl",
+            "ruleClassName": "cosign_repositories",
+            "attributes": {
+              "platform": "darwin_arm64",
+              "cosign_version": "v2.2.3"
+            }
+          },
+          "oci_cosign_linux_arm64": {
+            "bzlFile": "@@rules_oci~//cosign:repositories.bzl",
+            "ruleClassName": "cosign_repositories",
+            "attributes": {
+              "platform": "linux_arm64",
+              "cosign_version": "v2.2.3"
+            }
+          },
+          "oci_cosign_linux_armv6": {
+            "bzlFile": "@@rules_oci~//cosign:repositories.bzl",
+            "ruleClassName": "cosign_repositories",
+            "attributes": {
+              "platform": "linux_armv6",
+              "cosign_version": "v2.2.3"
+            }
+          },
+          "oci_cosign_linux_i386": {
+            "bzlFile": "@@rules_oci~//cosign:repositories.bzl",
+            "ruleClassName": "cosign_repositories",
+            "attributes": {
+              "platform": "linux_i386",
+              "cosign_version": "v2.2.3"
+            }
+          },
+          "oci_cosign_linux_s390x": {
+            "bzlFile": "@@rules_oci~//cosign:repositories.bzl",
+            "ruleClassName": "cosign_repositories",
+            "attributes": {
+              "platform": "linux_s390x",
+              "cosign_version": "v2.2.3"
+            }
+          },
+          "oci_cosign_linux_amd64": {
+            "bzlFile": "@@rules_oci~//cosign:repositories.bzl",
+            "ruleClassName": "cosign_repositories",
+            "attributes": {
+              "platform": "linux_amd64",
+              "cosign_version": "v2.2.3"
+            }
+          },
+          "oci_cosign_windows_armv6": {
+            "bzlFile": "@@rules_oci~//cosign:repositories.bzl",
+            "ruleClassName": "cosign_repositories",
+            "attributes": {
+              "platform": "windows_armv6",
+              "cosign_version": "v2.2.3"
+            }
+          },
+          "oci_cosign_windows_amd64": {
+            "bzlFile": "@@rules_oci~//cosign:repositories.bzl",
+            "ruleClassName": "cosign_repositories",
+            "attributes": {
+              "platform": "windows_amd64",
+              "cosign_version": "v2.2.3"
+            }
+          },
+          "oci_cosign_toolchains": {
+            "bzlFile": "@@rules_oci~//oci/private:toolchains_repo.bzl",
+            "ruleClassName": "toolchains_repo",
+            "attributes": {
+              "toolchain_type": "@rules_oci//cosign:toolchain_type",
+              "toolchain": "@oci_cosign_{platform}//:cosign_toolchain"
+            }
+          }
+        },
+        "moduleExtensionMetadata": {
+          "useAllRepos": "NO",
+          "reproducible": false
+        },
+        "recordedRepoMappingEntries": [
+          [
+            "",
+            "rules_oci",
+            "rules_oci~"
+          ]
+        ]
+      }
+    },
     "@@apple_support~//crosstool:setup.bzl%apple_cc_configure_extension": {
       "general": {
         "bzlTransitiveDigest": "7ii+gFxWSxHhQPrBxfMEHhtrGvHmBTvsh+KOyGunP/s=",
@@ -2290,7 +2400,7 @@
     "@@rules_oci~//oci:extensions.bzl%oci": {
       "general": {
         "bzlTransitiveDigest": "Pwl3buD1so+kkqQIhc0set/YV3qQif9bq1U9dF30htA=",
-        "usagesDigest": "keNyJejEcOx3H8qxjN4mHxve6OHeM4lPLIFiaPhgu4c=",
+        "usagesDigest": "4agG8zc4foYG+H2A7smtNvNtoVOhopipuHsSXuV9d6M=",
         "recordedFileInputs": {},
         "recordedDirentsInputs": {},
         "envVariables": {},
@@ -2321,6 +2431,35 @@
                 "@@platforms//cpu:x86_64": "@go_image_base_linux_amd64"
               },
               "bzlmod_repository": "go_image_base",
+              "reproducible": true
+            }
+          },
+          "java_image_base_root_linux_amd64": {
+            "bzlFile": "@@rules_oci~//oci/private:pull.bzl",
+            "ruleClassName": "oci_pull",
+            "attributes": {
+              "scheme": "https",
+              "registry": "gcr.io",
+              "repository": "distroless/java17-debian12",
+              "identifier": "sha256:58b716f89428587db33656f3fc6444b6dd4fd567e549c4b3657db75838f39950",
+              "platform": "linux/amd64",
+              "target_name": "java_image_base_root_linux_amd64",
+              "bazel_tags": []
+            }
+          },
+          "java_image_base_root": {
+            "bzlFile": "@@rules_oci~//oci/private:pull.bzl",
+            "ruleClassName": "oci_alias",
+            "attributes": {
+              "target_name": "java_image_base_root",
+              "scheme": "https",
+              "registry": "gcr.io",
+              "repository": "distroless/java17-debian12",
+              "identifier": "sha256:58b716f89428587db33656f3fc6444b6dd4fd567e549c4b3657db75838f39950",
+              "platforms": {
+                "@@platforms//cpu:x86_64": "@java_image_base_root_linux_amd64"
+              },
+              "bzlmod_repository": "java_image_base_root",
               "reproducible": true
             }
           },
@@ -2782,7 +2921,9 @@
         "moduleExtensionMetadata": {
           "explicitRootModuleDirectDeps": [
             "go_image_base",
-            "go_image_base_linux_amd64"
+            "go_image_base_linux_amd64",
+            "java_image_base_root",
+            "java_image_base_root_linux_amd64"
           ],
           "explicitRootModuleDirectDevDeps": [],
           "useAllRepos": "NO",

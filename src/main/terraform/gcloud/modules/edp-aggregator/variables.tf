@@ -28,10 +28,10 @@ variable "requisition_fulfiller_config" {
       single_instance_assignment    = number
       min_replicas                  = number
       max_replicas                  = number
-      app_args                      = list(string)
       machine_type                  = string
       docker_image                  = string
       mig_distribution_policy_zones = list(string)
+      app_flags                     = list(string)
     })
   })
 }
@@ -214,4 +214,10 @@ variable "cloud_function_configs" {
     secret_mappings     = string
     uber_jar_path       = string
   }))
+}
+
+variable "results_fulfiller_disk_image_family" {
+  description = "The boot disk image family."
+  type        = string
+  default     = "confidential-space"
 }

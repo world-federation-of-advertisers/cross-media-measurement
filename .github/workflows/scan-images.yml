@@ -72,7 +72,8 @@ jobs:
           - reporting/v2/v2alpha-public-api
           - reporting/v2/gcloud-postgres-update-schema
           - reporting/v2/gcloud-internal-server
-          - simulator/synthetic-generator-edp
+          - simulator/edp
+          - simulator/legacy-metadata-edp
           - duchy/postgres-update-schema
           - duchy/gcloud-postgres-update-schema
           - duchy/postgres-internal-server

@@ -20,6 +20,7 @@ import com.google.common.truth.Truth.assertThat
 import com.google.crypto.tink.Aead
 import com.google.crypto.tink.KeyTemplates
 import com.google.crypto.tink.KeysetHandle
+import com.google.crypto.tink.KmsClient
 import com.google.crypto.tink.TinkProtoKeysetFormat
 import com.google.crypto.tink.aead.AeadConfig
 import com.google.crypto.tink.streamingaead.StreamingAeadConfig
@@ -240,11 +241,12 @@ class ResultsFulfillerAppTest {
     val impressionsStorageClient = SelectedStorageClient(IMPRESSIONS_FILE_URI, tmpPath)
 
     // Set up KMS
+    val kmsClients = mutableMapOf<String, KmsClient>()
     val kmsClient = FakeKmsClient()
     val kekUri = FakeKmsClient.KEY_URI_PREFIX + "kek"
     val kmsKeyHandle = KeysetHandle.generateNew(KeyTemplates.get("AES128_GCM"))
     kmsClient.setAead(kekUri, kmsKeyHandle.getPrimitive(Aead::class.java))
-
+    kmsClients[EDP_NAME] = kmsClient
     // Set up streaming encryption
     val tinkKeyTemplateType = "AES128_GCM_HKDF_1MB"
     val aeadKeyTemplate = KeyTemplates.get(tinkKeyTemplateType)
@@ -304,7 +306,7 @@ class ResultsFulfillerAppTest {
         workItemsStub,
         workItemAttemptsStub,
         TestRequisitionStubFactory(grpcTestServerRule.channel),
-        kmsClient,
+        kmsClients,
         typeRegistry,
         getStorageConfig(tmpPath),
         getStorageConfig(tmpPath),
@@ -394,10 +396,12 @@ class ResultsFulfillerAppTest {
     val impressionsStorageClient = SelectedStorageClient(IMPRESSIONS_FILE_URI, tmpPath)
 
     // Set up KMS
+    val kmsClients = mutableMapOf<String, KmsClient>()
     val kmsClient = FakeKmsClient()
     val kekUri = FakeKmsClient.KEY_URI_PREFIX + "kek"
     val kmsKeyHandle = KeysetHandle.generateNew(KeyTemplates.get("AES128_GCM"))
     kmsClient.setAead(kekUri, kmsKeyHandle.getPrimitive(Aead::class.java))
+    kmsClients[EDP_NAME] = kmsClient
 
     // Set up streaming encryption
     val tinkKeyTemplateType = "AES128_GCM_HKDF_1MB"
@@ -458,7 +462,7 @@ class ResultsFulfillerAppTest {
         workItemsStub,
         workItemAttemptsStub,
         TestRequisitionStubFactory(grpcTestServerRule.channel),
-        kmsClient,
+        kmsClients,
         typeRegistry,
         getStorageConfig(tmpPath),
         getStorageConfig(tmpPath),
@@ -541,10 +545,12 @@ class ResultsFulfillerAppTest {
     val impressionsStorageClient = SelectedStorageClient(IMPRESSIONS_FILE_URI, tmpPath)
 
     // Set up KMS
+    val kmsClients = mutableMapOf<String, KmsClient>()
     val kmsClient = FakeKmsClient()
     val kekUri = FakeKmsClient.KEY_URI_PREFIX + "kek"
     val kmsKeyHandle = KeysetHandle.generateNew(KeyTemplates.get("AES128_GCM"))
     kmsClient.setAead(kekUri, kmsKeyHandle.getPrimitive(Aead::class.java))
+    kmsClients[EDP_NAME] = kmsClient
 
     // Set up streaming encryption
     val tinkKeyTemplateType = "AES128_GCM_HKDF_1MB"
@@ -605,7 +611,7 @@ class ResultsFulfillerAppTest {
         workItemsStub,
         workItemAttemptsStub,
         TestRequisitionStubFactory(grpcTestServerRule.channel),
-        kmsClient,
+        kmsClients,
         typeRegistry,
         getStorageConfig(tmpPath),
         getStorageConfig(tmpPath),
