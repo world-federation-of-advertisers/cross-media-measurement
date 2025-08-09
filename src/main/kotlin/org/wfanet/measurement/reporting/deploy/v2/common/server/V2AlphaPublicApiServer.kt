@@ -340,14 +340,15 @@ private object V2AlphaPublicApiServer {
           )
           .withInterceptor(principalAuthInterceptor),
         BasicReportsService(
-          InternalBasicReportsCoroutineStub(channel),
-          InternalImpressionQualificationFiltersCoroutineStub(channel),
-          InternalReportingSetsCoroutineStub(channel),
-          // TODO(@tristanvuong2021): Switch to non-null value using required flags when ready to deploy
-          null,
-          basicReportMetricSpecConfig,
-          authorization,
-          serviceDispatcher,
+            InternalBasicReportsCoroutineStub(channel),
+            InternalImpressionQualificationFiltersCoroutineStub(channel),
+            InternalReportingSetsCoroutineStub(channel),
+            // TODO(@tristanvuong2021): Switch to non-null value using required flags when ready to
+            // deploy
+            null,
+            basicReportMetricSpecConfig,
+            authorization,
+            serviceDispatcher,
           )
           .withInterceptor(principalAuthInterceptor),
         ModelLinesService(
