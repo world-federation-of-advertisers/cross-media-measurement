@@ -239,7 +239,7 @@ jobs:
       with:
         project_id: ${{ vars.EDPA_EDP_GCLOUD_PROJECT_NAME }}
         location: ${{ vars.EDPA_WIP_LOCATION }}
-        pool_id: ${{ vars.EPDA_EDP_WIP_ID }}
+        pool_id: ${{ vars.EDPA_EDP_WIP_ID }}
         provider_id: ${{ vars.EDPA_EDP_WIP_PROVIDER_ID }}
         tee_app_service_account: ${{ vars.EDPA_TEE_APP_SERVICE_ACCOUNT }}
         container_image_base: ${{ vars.RESULTS_FULFILLER_BASE_IMAGE }}
