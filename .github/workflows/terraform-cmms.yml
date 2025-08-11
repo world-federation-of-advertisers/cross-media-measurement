@@ -72,6 +72,9 @@ jobs:
         workload_identity_provider: ${{ vars.WORKLOAD_IDENTITY_PROVIDER }}
         service_account: ${{ vars.TF_SERVICE_ACCOUNT }}
 
+    - name: Setup gcloud
+      uses: google-github-actions/setup-gcloud@v1
+
     - name: Set up Java & Maven
       uses: actions/setup-java@v3
       with:
@@ -232,12 +235,12 @@ jobs:
 
     - name: Update Workload Identity Provider (OIDC) for results-fulfiller
       if: ${{ inputs.apply }}
-      uses: ./.github/actions/update-wip-oicd
+      uses: ./.github/actions/update-wip-oidc
       with:
-        project_id: ${{ vars.EDP_GCLOUD_PROJECT_NAME }}
-        location: ${{ vars.WIP_LOCATION }}
-        pool_id: ${{ vars.EDP_WIP_NAME }}
-        provider_id: ${{ vars.EDP_WIP_PROVIDER_NAME }}
-        edp_service_account: ${{ vars.EDP_TARGET_SERVICE_ACCOUNT }}
-        container_image_base: ghcr.io/world-federation-of-advertisers/edp-aggregator/results_fulfiller
+        project_id: ${{ vars.EDPA_EDP_GCLOUD_PROJECT_NAME }}
+        location: ${{ vars.EDPA_WIP_LOCATION }}
+        pool_id: ${{ vars.EPDA_EDP_WIP_NAME }}
+        provider_id: ${{ vars.EDPA_EDP_WIP_PROVIDER_NAME }}
+        tee_app_service_account: ${{ vars.EDPA_TEE_APP_SERVICE_ACCOUNT }}
+        container_image_base: ${{ vars.RESULTS_FULFILLER_BASE_IMAGE }}
         container_image_tag: 8419f93c4cb62de98bfc925cdbbbd2051f428730

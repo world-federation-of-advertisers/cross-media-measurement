@@ -29,8 +29,8 @@ inputs:
   provider_id:
     description: "Workload identity pool provider ID"
     required: true
-  edp_service_account:
-    description: "EDP service account email that should be allowed to impersonate"
+  tee_app_service_account:
+    description: "Tee app running service account email that should be allowed to impersonate"
     required: true
   container_image_base:
     description: "Base container image reference without tag"
@@ -49,7 +49,7 @@ runs:
         LOCATION: ${{ inputs.location }}
         POOL_ID: ${{ inputs.pool_id }}
         PROVIDER_ID: ${{ inputs.provider_id }}
-        EDP_SERVICE_ACCOUNT: ${{ inputs.edp_service_account }}
+        TEE_APP_SERVICE_ACCOUNT: ${{ inputs.tee_app_service_account }}
         IMAGE_BASE: ${{ inputs.container_image_base }}
         IMAGE_TAG: ${{ inputs.container_image_tag }}
       run: |
@@ -59,7 +59,7 @@ runs:
 
         ATTR_COND="assertion.swname == 'CONFIDENTIAL_SPACE' && \
         assertion.submods.container.image_reference == '${CONTAINER_IMAGE_REFERENCE}' && \
-        '${EDP_SERVICE_ACCOUNT}' in assertion.google_service_accounts"
+        '${TEE_APP_SERVICE_ACCOUNT}' in assertion.google_service_accounts"
 
   
         gcloud iam workload-identity-pools providers update-oidc "${PROVIDER_ID}" \
