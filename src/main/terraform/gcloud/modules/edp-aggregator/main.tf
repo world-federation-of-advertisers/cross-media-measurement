@@ -15,66 +15,53 @@
 data "google_project" "project" {}
 
 locals {
-  common_secrets_to_mount = [
+  common_secrets_to_access = [
     {
       secret_id  = var.edpa_tee_app_tls_key.secret_id
       version    = "latest"
-      mount_path = "/etc/ssl/edpa_tee_app_tls.key",
-      flag_name  = "--edpa-tls-key-file-path"
     },
     {
       secret_id  = var.edpa_tee_app_tls_pem.secret_id
       version    = "latest"
-      mount_path = "/etc/ssl/edpa_tee_app_tls.pem",
-      flag_name  = "--edpa-tls-cert-file-path"
     },
     {
       secret_id  = var.secure_computation_root_ca.secret_id
       version    = "latest"
-      mount_path = "/etc/ssl/secure_computation_root.pem",
-      flag_name  = "--secure-computation-cert-collection-file-path"
     },
     {
       secret_id  = var.kingdom_root_ca.secret_id
       version    = "latest"
-      mount_path = "/etc/ssl/kingdom_root.pem",
-      flag_name  = "--kingdom-cert-collection-file-path"
     },
   ]
 
-  edp_secrets_to_mount = flatten([
+  edp_secrets_to_access = flatten([
     for edp_name, certs in var.edps_certs : [
       {
         secret_id  = certs.cert_der.secret_id
         version    = "latest"
-        mount_path = "/etc/ssl/${edp_name}_cs_cert.der"
       },
       {
         secret_id  = certs.private_der.secret_id
         version    = "latest"
-        mount_path = "/etc/ssl/${edp_name}_cs_private.der"
       },
       {
         secret_id  = certs.enc_private.secret_id
         version    = "latest"
-        mount_path = "/etc/ssl/${edp_name}_enc_private.tink"
       },
       {
         secret_id  = certs.tls_key.secret_id
         version    = "latest"
-        mount_path = "/etc/ssl/${edp_name}_tls.key"
       },
       {
         secret_id  = certs.tls_pem.secret_id
         version    = "latest"
-        mount_path = "/etc/ssl/${edp_name}_tls.pem"
       },
     ]
   ])
 
-  result_fulfiller_secrets_to_mount = concat(
-    local.common_secrets_to_mount,
-    local.edp_secrets_to_mount,
+  result_fulfiller_secrets_to_access = concat(
+    local.common_secrets_to_access,
+    local.edp_secrets_to_access,
   )
 
   edps_secrets = merge([
@@ -265,12 +252,13 @@ module "result_fulfiller_tee_app" {
   single_instance_assignment    = var.requisition_fulfiller_config.worker.single_instance_assignment
   min_replicas                  = var.requisition_fulfiller_config.worker.min_replicas
   max_replicas                  = var.requisition_fulfiller_config.worker.max_replicas
-  app_args                      = var.requisition_fulfiller_config.worker.app_args
   machine_type                  = var.requisition_fulfiller_config.worker.machine_type
   docker_image                  = var.requisition_fulfiller_config.worker.docker_image
   mig_distribution_policy_zones = var.requisition_fulfiller_config.worker.mig_distribution_policy_zones
   terraform_service_account     = var.terraform_service_account
-  secrets_to_mount              = local.result_fulfiller_secrets_to_mount
+  secrets_to_access             = local.result_fulfiller_secrets_to_access
+  tee_cmd                       = var.requisition_fulfiller_config.worker.app_flags
+  disk_image_family             = var.results_fulfiller_disk_image_family
 }
 
 resource "google_storage_bucket_iam_member" "result_fulfiller_storage_viewer" {

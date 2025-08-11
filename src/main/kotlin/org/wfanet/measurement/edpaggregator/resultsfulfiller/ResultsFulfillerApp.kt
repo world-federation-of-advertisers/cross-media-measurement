@@ -72,7 +72,7 @@ class ResultsFulfillerApp(
   workItemsClient: WorkItemsGrpcKt.WorkItemsCoroutineStub,
   workItemAttemptsClient: WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineStub,
   private val requisitionStubFactory: RequisitionStubFactory,
-  private val kmsClient: KmsClient,
+  private val kmsClients: MutableMap<String, KmsClient>,
   private val typeRegistry: TypeRegistry,
   private val getImpressionsMetadataStorageConfig: (StorageParams) -> StorageConfig,
   private val getImpressionsStorageConfig: (StorageParams) -> StorageConfig,
@@ -122,6 +122,9 @@ class ResultsFulfillerApp(
       readPrivateKey(consentPrivateKeyFile.readByteString(), consentCertificate.publicKey.algorithm)
     val dataProviderResultSigningKeyHandle =
       SigningKeyHandle(consentCertificate, consentPrivateEncryptionKey)
+
+    val kmsClient = kmsClients[fulfillerParams.dataProvider]
+    requireNotNull(kmsClient) { "KMS client not found for ${fulfillerParams.dataProvider}" }
 
     val eventReader =
       EventReader(

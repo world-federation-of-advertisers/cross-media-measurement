@@ -95,7 +95,7 @@ jobs:
         run: >
           bazel build --worker_quit_after_build
           //...
-          //src/main/k8s/dev:synthetic_generator_edp_simulators
+          //src/main/k8s/dev:edp_simulators
 
       - name: Run tests
         id: run-tests

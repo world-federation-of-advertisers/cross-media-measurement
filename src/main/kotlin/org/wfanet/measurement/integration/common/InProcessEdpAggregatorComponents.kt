@@ -19,6 +19,7 @@ package org.wfanet.measurement.integration.common
 import com.google.crypto.tink.Aead
 import com.google.crypto.tink.KeyTemplates
 import com.google.crypto.tink.KeysetHandle
+import com.google.crypto.tink.KmsClient
 import com.google.crypto.tink.aead.AeadConfig
 import com.google.crypto.tink.streamingaead.StreamingAeadConfig
 import com.google.protobuf.TypeRegistry
@@ -155,6 +156,8 @@ class InProcessEdpAggregatorComponents(
     kmsClient
   }
 
+  private val kmsClients by lazy { mutableMapOf(edpResourceName to kmsClient as KmsClient) }
+
   private val resultFulfillerApp by lazy {
     val typeRegistry = TypeRegistry.newBuilder().add(TestEvent.getDescriptor()).build()
     val requisitionStubFactory = TestRequisitionStubFactory(publicApiChannel)
@@ -169,7 +172,7 @@ class InProcessEdpAggregatorComponents(
       workItemAttemptsClient =
         WorkItemAttemptsCoroutineStub(secureComputationPublicApi.publicApiChannel),
       queueSubscriber = subscriber,
-      kmsClient = kmsClient,
+      kmsClients = kmsClients,
       requisitionStubFactory = requisitionStubFactory,
       typeRegistry = typeRegistry,
       getImpressionsMetadataStorageConfig = getStorageConfig,
