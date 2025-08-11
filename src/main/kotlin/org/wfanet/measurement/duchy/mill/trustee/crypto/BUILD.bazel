@@ -1,0 +1,11 @@
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
+
+package(default_visibility = ["//visibility:public"])
+
+kt_jvm_library(
+    name = "trus_tee_cryptor",
+    srcs = ["TrusTeeCryptor.kt"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/duchy/utils:computation_conversions",
+    ],
+)
