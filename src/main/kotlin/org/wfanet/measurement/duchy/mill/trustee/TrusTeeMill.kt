@@ -25,8 +25,6 @@ import java.security.GeneralSecurityException
 import java.time.Clock
 import java.time.Duration
 import java.util.logging.Logger
-import org.wfanet.measurement.api.Version
-import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.tink.GCloudWifCredentials
 import org.wfanet.measurement.common.crypto.tink.KmsClientFactory

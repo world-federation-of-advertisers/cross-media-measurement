@@ -12,9 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.duchy.mill.trustee.processor
+package org.wfanet.measurement.computation
 
-import com.google.common.truth.Truth.assertThat
+import com.google.common.truth.Truth
+import kotlin.collections.iterator
 import kotlin.math.ln
 import kotlin.math.max
 import kotlin.math.sqrt
@@ -22,57 +23,9 @@ import kotlin.test.assertFailsWith
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.wfanet.measurement.internal.duchy.DifferentialPrivacyParams
-import org.wfanet.measurement.internal.duchy.differentialPrivacyParams
 
 @RunWith(JUnit4::class)
 class ReachAndFrequencyComputationsTest {
-
-  @Test
-  fun `buildHistogram creates correct histogram excluding zeros`() {
-    val vector = intArrayOf(1, 2, 0, 1, 3, 2, 1, 0, 0)
-    val maxFrequency = 3
-    val expected = longArrayOf(3, 2, 1)
-    assertThat(ReachAndFrequencyComputations.buildHistogram(vector, maxFrequency))
-      .isEqualTo(expected)
-  }
-
-  @Test
-  fun `buildHistogram with empty vector returns histogram of zeros`() {
-    val vector = intArrayOf()
-    val maxFrequency = 5
-    val expected = longArrayOf(0, 0, 0, 0, 0)
-    assertThat(ReachAndFrequencyComputations.buildHistogram(vector, maxFrequency))
-      .isEqualTo(expected)
-  }
-
-  @Test
-  fun `buildHistogram with all zero frequencies returns histogram of zeros`() {
-    val vector = intArrayOf(0, 0, 0, 0)
-    val maxFrequency = 3
-    val expected = longArrayOf(0, 0, 0)
-    assertThat(ReachAndFrequencyComputations.buildHistogram(vector, maxFrequency))
-      .isEqualTo(expected)
-  }
-
-  @Test
-  fun `buildHistogram with frequencies up to maxFrequency`() {
-    val vector = intArrayOf(1, 2, 3, 4, 5)
-    val maxFrequency = 5
-    val expected = longArrayOf(1, 1, 1, 1, 1)
-    assertThat(ReachAndFrequencyComputations.buildHistogram(vector, maxFrequency))
-      .isEqualTo(expected)
-  }
-
-  @Test
-  fun `buildHistogram caps frequencies greater than maxFrequency`() {
-    val vector = intArrayOf(1, 2, 3, 4, 5, 6)
-    val maxFrequency = 4
-    val expected = longArrayOf(1, 1, 1, 3)
-    assertThat(ReachAndFrequencyComputations.buildHistogram(vector, maxFrequency))
-      .isEqualTo(expected)
-  }
-
   @Test
   fun `computeReach calculates raw reach correctly`() {
     val rawHistogram = longArrayOf(10, 5, 1) // Frequencies 1, 2, 3
@@ -83,7 +36,7 @@ class ReachAndFrequencyComputationsTest {
         vidSamplingIntervalWidth = 1.0f,
         dpParams = null,
       )
-    assertThat(reach).isEqualTo(16)
+    Truth.assertThat(reach).isEqualTo(16)
   }
 
   @Test
@@ -96,7 +49,7 @@ class ReachAndFrequencyComputationsTest {
         vidSamplingIntervalWidth = 0.5f,
         dpParams = null,
       )
-    assertThat(reach).isEqualTo(32)
+    Truth.assertThat(reach).isEqualTo(32)
   }
 
   @Test
@@ -110,8 +63,8 @@ class ReachAndFrequencyComputationsTest {
         vidSamplingIntervalWidth = 1.0f,
         dpParams = DP_PARAMS,
       )
-    assertThat(reach).isAtMost(170 + tolerance)
-    assertThat(reach).isAtLeast(max(0L, 170 - tolerance))
+    Truth.assertThat(reach).isAtMost(170 + tolerance)
+    Truth.assertThat(reach).isAtLeast(max(0L, 170 - tolerance))
   }
 
   @Test
@@ -124,9 +77,9 @@ class ReachAndFrequencyComputationsTest {
         dpParams = null,
       )
     val expected = mapOf(1L to 0.1, 2L to 0.3, 3L to 0.6)
-    assertThat(distribution.keys).isEqualTo(expected.keys)
+    Truth.assertThat(distribution.keys).isEqualTo(expected.keys)
     for ((k, v) in distribution) {
-      assertThat(v).isWithin(FLOAT_COMPARISON_TOLERANCE).of(expected[k]!!)
+      Truth.assertThat(v).isWithin(FLOAT_COMPARISON_TOLERANCE).of(expected[k]!!)
     }
   }
 
@@ -140,7 +93,7 @@ class ReachAndFrequencyComputationsTest {
         dpParams = null,
       )
     val expected = mapOf(1L to 0.0, 2L to 0.0, 3L to 0.0)
-    assertThat(distribution).isEqualTo(expected)
+    Truth.assertThat(distribution).isEqualTo(expected)
   }
 
   @Test
@@ -154,7 +107,7 @@ class ReachAndFrequencyComputationsTest {
         dpParams = DP_PARAMS,
       )
 
-    assertThat(distribution.values.sum()).isWithin(FLOAT_COMPARISON_TOLERANCE).of(1.0)
+    Truth.assertThat(distribution.values.sum()).isWithin(FLOAT_COMPARISON_TOLERANCE).of(1.0)
 
     val binCountTolerance = getNoiseTolerance(DP_PARAMS)
     val totalCountTolerance = getNoiseTolerance(DP_PARAMS, l2Sensitivity = sqrt(5.0))
@@ -168,8 +121,8 @@ class ReachAndFrequencyComputationsTest {
       val minProbability = minBinNoisedCount / maxTotalNoisedCount
       val maxProbability = maxBinNoisedCount / minTotalNoisedCount
 
-      assertThat(distribution[i + 1L]).isAtLeast(minProbability)
-      assertThat(distribution[i + 1L]).isAtMost(maxProbability)
+      Truth.assertThat(distribution[i + 1L]).isAtLeast(minProbability)
+      Truth.assertThat(distribution[i + 1L]).isAtMost(maxProbability)
     }
   }
 
@@ -184,17 +137,14 @@ class ReachAndFrequencyComputationsTest {
           dpParams = null,
         )
       }
-    assertThat(exception.message).contains("Invalid histogram size")
+    Truth.assertThat(exception.message).contains("Invalid histogram size")
   }
 
   companion object {
     private const val MAX_FREQUENCY = 5
     private const val FLOAT_COMPARISON_TOLERANCE = 1e-9
 
-    private val DP_PARAMS = differentialPrivacyParams {
-      epsilon = 1.0
-      delta = 0.99
-    }
+    private val DP_PARAMS = DifferentialPrivacyParams(epsilon = 1.0, delta = 0.99)
 
     /**
      * Calculates a test tolerance for a noised value.

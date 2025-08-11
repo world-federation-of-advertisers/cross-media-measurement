@@ -15,9 +15,13 @@
 package org.wfanet.measurement.duchy.mill.trustee.processor
 
 import kotlin.math.min
+import org.wfanet.measurement.computation.DifferentialPrivacyParams
+import org.wfanet.measurement.computation.HistogramComputations
+import org.wfanet.measurement.computation.ReachAndFrequencyComputations
 import org.wfanet.measurement.duchy.utils.ComputationResult
 import org.wfanet.measurement.duchy.utils.ReachAndFrequencyResult
 import org.wfanet.measurement.duchy.utils.ReachResult
+import org.wfanet.measurement.internal.duchy.DifferentialPrivacyParams as InternalDifferentialPrivacyParams
 import org.wfanet.measurement.measurementconsumer.stats.TrusTeeMethodology
 
 /** A concrete, stateful implementation of [TrusTeeProcessor]. */
@@ -37,9 +41,7 @@ class TrusTeeProcessorImpl(override val trusTeeParams: TrusTeeParams) : TrusTeeP
     when (trusTeeParams) {
       is TrusTeeReachAndFrequencyParams -> {
         maxFrequency = trusTeeParams.maximumFrequency
-        require(maxFrequency in 2..Byte.MAX_VALUE) {
-          "Invalid max frequency: $maxFrequency"
-        }
+        require(maxFrequency in 2..Byte.MAX_VALUE) { "Invalid max frequency: $maxFrequency" }
         vidSamplingIntervalWidth = trusTeeParams.vidSamplingIntervalWidth
       }
       is TrusTeeReachParams -> {
@@ -77,13 +79,11 @@ class TrusTeeProcessorImpl(override val trusTeeParams: TrusTeeParams) : TrusTeeP
 
   override fun computeResult(): ComputationResult {
     if (!::aggregatedFrequencyVector.isInitialized) {
-      throw IllegalStateException(
-        "addFrequencyVectorBytes must be called before computeResult."
-      )
+      throw IllegalStateException("addFrequencyVectorBytes must be called before computeResult.")
     }
     val frequencyVector = aggregatedFrequencyVector
 
-    val rawHistogram = ReachAndFrequencyComputations.buildHistogram(frequencyVector, maxFrequency)
+    val rawHistogram = HistogramComputations.buildHistogram(frequencyVector, maxFrequency)
 
     return when (trusTeeParams) {
       is TrusTeeReachParams -> {
@@ -92,7 +92,7 @@ class TrusTeeProcessorImpl(override val trusTeeParams: TrusTeeParams) : TrusTeeP
             rawHistogram,
             frequencyVector.size,
             vidSamplingIntervalWidth,
-            trusTeeParams.dpParams,
+            trusTeeParams.dpParams.toDifferentialPrivacyParams(),
           )
 
         ReachResult(reach = reach, methodology = TrusTeeMethodology(frequencyVector.size.toLong()))
@@ -103,13 +103,13 @@ class TrusTeeProcessorImpl(override val trusTeeParams: TrusTeeParams) : TrusTeeP
             rawHistogram,
             frequencyVector.size,
             vidSamplingIntervalWidth,
-            trusTeeParams.reachDpParams,
+            trusTeeParams.reachDpParams.toDifferentialPrivacyParams(),
           )
         val frequency =
           ReachAndFrequencyComputations.computeFrequencyDistribution(
             rawHistogram,
             maxFrequency,
-            trusTeeParams.frequencyDpParams,
+            trusTeeParams.frequencyDpParams.toDifferentialPrivacyParams(),
           )
 
         ReachAndFrequencyResult(
@@ -119,6 +119,11 @@ class TrusTeeProcessorImpl(override val trusTeeParams: TrusTeeParams) : TrusTeeP
         )
       }
     }
+  }
+
+  private fun InternalDifferentialPrivacyParams.toDifferentialPrivacyParams():
+    DifferentialPrivacyParams {
+    return DifferentialPrivacyParams(epsilon = epsilon, delta = delta)
   }
 
   companion object Factory : TrusTeeProcessor.Factory {

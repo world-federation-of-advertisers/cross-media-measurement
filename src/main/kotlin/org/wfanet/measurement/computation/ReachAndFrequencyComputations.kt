@@ -12,11 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.duchy.mill.trustee.processor
+package org.wfanet.measurement.computation
 
 import com.google.privacy.differentialprivacy.GaussianNoise
 import kotlin.math.min
-import org.wfanet.measurement.internal.duchy.DifferentialPrivacyParams
 
 object ReachAndFrequencyComputations {
   private const val L0_SENSITIVITY = 1
@@ -26,6 +25,8 @@ object ReachAndFrequencyComputations {
    * Computes the reach, applying differential privacy noise if parameters are provided.
    *
    * @param rawHistogram A histogram of counts for frequencies 1 to `maxFrequency`.
+   * @param vectorSize The total size of the frequency vector space.
+   * @param vidSamplingIntervalWidth The sampling rate used to select VIDs.
    * @param dpParams The privacy parameters for the reach computation. If `null`, the raw reach is
    *   computed.
    * @return The reach value, potentially with noise applied.
@@ -113,28 +114,5 @@ object ReachAndFrequencyComputations {
       val frequency = index + 1L
       frequency to count.toDouble() / totalNoisedReachedUsers
     }
-  }
-
-  /**
-   * Builds a histogram from a frequency vector, counting only non-zero frequencies.
-   *
-   * Frequencies greater than [maxFrequency] are treated as [maxFrequency].
-   *
-   * @param frequencyVector An array where each element is the frequency for a given VID.
-   * @param maxFrequency The maximum possible frequency value. The histogram will have
-   *   `maxFrequency` buckets.
-   * @return A [LongArray] representing the histogram, where index `k-1` is the count of VIDs with
-   *   frequency `k`.
-   */
-  fun buildHistogram(frequencyVector: IntArray, maxFrequency: Int): LongArray {
-    val histogram = LongArray(maxFrequency)
-    for (frequency in frequencyVector) {
-      if (frequency > 0) {
-        // Cap the frequency at maxFrequency.
-        val cappedFrequency = min(frequency, maxFrequency)
-        histogram[cappedFrequency - 1]++
-      }
-    }
-    return histogram
   }
 }

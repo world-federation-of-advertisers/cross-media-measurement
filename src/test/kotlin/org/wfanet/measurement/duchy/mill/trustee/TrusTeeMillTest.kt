@@ -23,7 +23,6 @@ import com.google.crypto.tink.KeysetHandle
 import com.google.crypto.tink.KmsClient
 import com.google.protobuf.ByteString
 import com.google.protobuf.kotlin.toByteString
-import com.google.protobuf.kotlin.toByteStringUtf8
 import java.io.ByteArrayOutputStream
 import java.nio.ByteBuffer
 import java.security.GeneralSecurityException
@@ -54,7 +53,6 @@ import org.wfanet.measurement.common.crypto.testing.TestData
 import org.wfanet.measurement.common.crypto.tink.GCloudWifCredentials
 import org.wfanet.measurement.common.crypto.tink.KmsClientFactory
 import org.wfanet.measurement.common.crypto.tink.TinkPrivateKeyHandle
-import org.wfanet.measurement.common.crypto.tink.WifCredentials
 import org.wfanet.measurement.common.crypto.tink.testing.FakeKmsClient
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
