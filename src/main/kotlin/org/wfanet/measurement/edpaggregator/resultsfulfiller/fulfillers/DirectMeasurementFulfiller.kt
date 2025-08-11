@@ -54,12 +54,11 @@ class DirectMeasurementFulfiller(
   private val measurementResult: Measurement.Result,
   private val requisitionNonce: Long,
   private val measurementEncryptionPublicKey: EncryptionPublicKey,
-  private val sampledVids: Flow<Long>,
   private val directProtocolConfig: ProtocolConfig.Direct,
   private val directNoiseMechanism: DirectNoiseMechanism,
   private val dataProviderSigningKeyHandle: SigningKeyHandle,
   private val dataProviderCertificateKey: DataProviderCertificateKey,
-  override val requisitionsStub: RequisitionsCoroutineStub,
+  private val requisitionsStub: RequisitionsCoroutineStub,
 ) : MeasurementFulfiller {
   private val logger: Logger = Logger.getLogger(this::class.java.name)
 
