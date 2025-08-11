@@ -80,6 +80,7 @@ import org.wfanet.measurement.kingdom.deploy.common.service.DataServices as King
 import org.wfanet.measurement.loadtest.resourcesetup.EntityContent
 import org.wfanet.measurement.loadtest.resourcesetup.ResourceSetup
 import org.wfanet.measurement.reporting.deploy.v2.common.service.Services as ReportingInternalServices
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.reporting.v2alpha.EventGroupsGrpc
 import org.wfanet.measurement.reporting.v2alpha.ListEventGroupsRequest
 import org.wfanet.measurement.reporting.v2alpha.ListEventGroupsRequestKt
@@ -176,6 +177,7 @@ abstract class InProcessEventGroupsTest(
           measurementConsumerConfig,
           TRUSTED_CERTIFICATES,
           kingdom.knownEventGroupMetadataTypes,
+          TestEvent.getDescriptor(),
           verboseGrpcLogging = false,
         )
       }

@@ -103,6 +103,7 @@ class InProcessReportingServer(
   private val measurementConsumerConfig: MeasurementConsumerConfig,
   private val trustedCertificates: Map<ByteString, X509Certificate>,
   private val knownEventGroupMetadataTypes: Iterable<Descriptors.FileDescriptor>,
+  private val eventDescriptor: Descriptors.Descriptor,
   private val verboseGrpcLogging: Boolean = true,
 ) : TestRule {
   private val publicKingdomMeasurementConsumersClient =
@@ -301,7 +302,7 @@ class InProcessReportingServer(
                 internalBasicReportsClient,
                 internalImpressionQualificationFiltersClient,
                 internalReportingSetsClient,
-                EventDescriptor(TestEvent.getDescriptor()),
+                EventDescriptor(eventDescriptor),
                 METRIC_SPEC_CONFIG,
                 authorization,
               )
