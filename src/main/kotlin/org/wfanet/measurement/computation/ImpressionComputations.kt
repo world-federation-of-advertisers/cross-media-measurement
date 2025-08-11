@@ -72,7 +72,6 @@ class ImpressionComputations(
           rawImpressionCount
         }
       }
-    println(kAnonymityImpressionCount)
     if (dpParams == null) {
       return (kAnonymityImpressionCount / vidSamplingIntervalWidth).toLong()
     }
