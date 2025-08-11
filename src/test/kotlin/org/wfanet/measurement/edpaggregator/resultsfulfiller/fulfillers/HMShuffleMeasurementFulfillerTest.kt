@@ -18,10 +18,12 @@ package org.wfanet.measurement.edpaggregator.resultsfulfiller.fulfillers
 
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth
-import io.grpc.StatusException
+import io.grpc.Status
+import io.grpc.StatusRuntimeException
 import java.nio.file.Path
 import java.nio.file.Paths
 import kotlin.random.Random
+import kotlin.test.assertFailsWith
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
@@ -31,6 +33,7 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
 import org.mockito.kotlin.mock
+import org.mockito.kotlin.whenever
 import org.wfanet.frequencycount.frequencyVector
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequest
@@ -107,25 +110,27 @@ class HMShuffleMeasurementFulfillerTest {
     assertThat(fulfilledRequisitions[1].bodyChunk.data).isNotEmpty()
   }
 
-  @Test(expected = Exception::class)
-  fun `fulfillRequisition throws on gRPC error`() = runBlocking {
-    val requisitionNonce = Random.Default.nextLong()
-    val sampledFrequencyVector = frequencyVector { data += listOf(4, 5, 6) }
-    val stubWithError: RequisitionFulfillmentCoroutineStub = mock {
-      onBlocking { fulfillRequisition(any()) }.thenThrow(StatusException(io.grpc.Status.INTERNAL))
+  @Test
+  fun `fulfillRequisition throws on gRPC error`() {
+    runBlocking {
+      val requisitionNonce = Random.Default.nextLong()
+      val sampledFrequencyVector = frequencyVector { data += listOf(4, 5, 6) }
+      val stubWithError: RequisitionFulfillmentCoroutineStub = mock()
+      whenever(stubWithError.fulfillRequisition(any(), any()))
+        .thenThrow(StatusRuntimeException(Status.INTERNAL))
+
+      val requisition = HMSS_REQUISITION.copy { this.nonce = requisitionNonce }
+      val fulfiller =
+        HMShuffleMeasurementFulfiller(
+          requisition = requisition,
+          requisitionNonce = requisitionNonce,
+          sampledFrequencyVector = sampledFrequencyVector,
+          dataProviderSigningKeyHandle = EDP_SIGNING_KEY,
+          dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
+          requisitionFulfillmentStub = stubWithError,
+        )
+      assertFailsWith<StatusRuntimeException> { fulfiller.fulfillRequisition() }
     }
-    val requisition = HMSS_REQUISITION.copy { this.nonce = requisitionNonce }
-    val fulfiller =
-      HMShuffleMeasurementFulfiller(
-        requisition = requisition,
-        requisitionNonce = requisitionNonce,
-        sampledFrequencyVector = sampledFrequencyVector,
-        dataProviderSigningKeyHandle = EDP_SIGNING_KEY,
-        dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
-        requisitionFulfillmentStub = stubWithError,
-      )
-    // Should throw Exception due to gRPC error
-    fulfiller.fulfillRequisition()
   }
 
   companion object {
