@@ -39,7 +39,7 @@ class SyntheticGeneratorEventQueryTest {
     syntheticPopulationSpec: SyntheticPopulationSpec,
     private val syntheticEventGroupSpec: SyntheticEventGroupSpec,
     eventMessageDescriptor: Descriptors.Descriptor,
-  ) : SyntheticGeneratorEventQuery(syntheticPopulationSpec, eventMessageDescriptor) {
+  ) : SyntheticGeneratorEventQuery(syntheticPopulationSpec, eventMessageDescriptor, ZONE_ID) {
     override fun getSyntheticDataSpec(eventGroup: EventGroup): SyntheticEventGroupSpec {
       return syntheticEventGroupSpec
     }

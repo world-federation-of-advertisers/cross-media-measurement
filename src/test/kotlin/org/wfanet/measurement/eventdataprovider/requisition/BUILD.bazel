@@ -1,0 +1,12 @@
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_test")
+
+kt_jvm_test(
+    name = "NativeTest",
+    srcs = ["NativeTest.kt"],
+    test_class = "org.wfanet.measurement.eventdataprovider.requisition.NativeTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/requisition:native",
+        "@any_sketch_java//src/main/java/org/wfanet/frequencycount",
+        "@wfa_common_jvm//imports/java/org/junit",
+    ],
+)

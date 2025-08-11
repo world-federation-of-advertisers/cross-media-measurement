@@ -29,9 +29,12 @@ import org.wfanet.measurement.api.v2alpha.ApiKeysGrpcKt
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.EventGroup
+import org.wfanet.measurement.api.v2alpha.EventGroupMetadataKt
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt
+import org.wfanet.measurement.api.v2alpha.MediaType
 import org.wfanet.measurement.api.v2alpha.ModelProviderKey
 import org.wfanet.measurement.api.v2alpha.PopulationKey
+import org.wfanet.measurement.api.v2alpha.eventGroupMetadata
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticPopulationSpec
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.Dummy
@@ -51,7 +54,6 @@ import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.RoLlv2ProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
 import org.wfanet.measurement.kingdom.service.api.v2alpha.toPopulation
-import org.wfanet.measurement.loadtest.dataprovider.SyntheticGeneratorEventQuery
 import org.wfanet.measurement.loadtest.dataprovider.toPopulationSpec
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
 import org.wfanet.measurement.loadtest.measurementconsumer.PopulationData
@@ -84,7 +86,7 @@ class InProcessCmmsComponents(
       verboseGrpcLogging = false,
     )
 
-  val eventQuery: SyntheticGeneratorEventQuery by lazy {
+  val eventQuery by lazy {
     EventQuery(
       syntheticPopulationSpec,
       syntheticEventGroupSpecs,
@@ -108,6 +110,23 @@ class InProcessCmmsComponents(
   private val edpSimulators: List<InProcessEdpSimulator> by lazy {
     edpDisplayNameToResourceMap.entries.map { (displayName, resource) ->
       val certificateKey = DataProviderCertificateKey.fromName(resource.dataProvider.certificate)!!
+      val eventGroupOptions =
+        InProcessEdpSimulator.EventGroupOptions(
+          "",
+          eventQuery.eventGroupSpecByDataProvider.getValue(certificateKey.parentKey),
+          EVENT_GROUP_MEDIA_TYPES,
+          eventGroupMetadata {
+            adMetadata =
+              EventGroupMetadataKt.adMetadata {
+                campaignMetadata =
+                  EventGroupMetadataKt.AdMetadataKt.campaignMetadata {
+                    campaignName = "$displayName campaign"
+                    brandName = "Brand"
+                  }
+              }
+          },
+        )
+
       InProcessEdpSimulator(
         displayName = displayName,
         resourceName = resource.name,
@@ -120,6 +139,7 @@ class InProcessCmmsComponents(
             duchies[2].externalDuchyId to duchies[2].publicApiChannel,
           ),
         trustedCertificates = TRUSTED_CERTIFICATES,
+        eventGroupOptions = eventGroupOptions,
         eventQuery = eventQuery,
         honestMajorityShareShuffleSupported =
           (displayName in ALL_EDP_WITH_HMSS_CAPABILITIES_DISPLAY_NAMES),
@@ -300,7 +320,7 @@ class InProcessCmmsComponents(
   fun getDataProviderDisplayNameFromDataProviderName(dataProviderName: String): String? {
     return edpDisplayNameToResourceMap.entries
       .find { entry -> dataProviderName.equals(entry.value.name) }
-      ?.key ?: null
+      ?.key
   }
 
   fun getDataProviderResourceNames(): List<String> {
@@ -359,6 +379,7 @@ class InProcessCmmsComponents(
       loadTestCertCollection("all_root_certs.pem").associateBy {
         checkNotNull(it.subjectKeyIdentifier)
       }
+    private val EVENT_GROUP_MEDIA_TYPES = setOf(MediaType.VIDEO, MediaType.DISPLAY)
 
     @JvmStatic
     fun initConfig() {

@@ -57,14 +57,12 @@ import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventGroupKt as CmmsEventGroupKt
-import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementKt
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt
-import org.wfanet.measurement.api.v2alpha.batchGetEventGroupMetadataDescriptorsRequest
 import org.wfanet.measurement.api.v2alpha.eventGroup as cmmsEventGroup
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
 import org.wfanet.measurement.api.v2alpha.getDataProviderRequest
@@ -116,6 +114,7 @@ import org.wfanet.measurement.reporting.deploy.v2.common.service.Services
 import org.wfanet.measurement.reporting.service.api.v2alpha.BasicReportKey
 import org.wfanet.measurement.reporting.service.api.v2alpha.EventGroupKey
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportingSetKey
+import org.wfanet.measurement.reporting.v2alpha.BasicReport
 import org.wfanet.measurement.reporting.v2alpha.BasicReportsGrpcKt.BasicReportsCoroutineStub
 import org.wfanet.measurement.reporting.v2alpha.EventGroup
 import org.wfanet.measurement.reporting.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
@@ -362,10 +361,6 @@ abstract class InProcessLifeOfAReportIntegrationTest(
 
   private val publicDataProvidersClient by lazy {
     DataProvidersCoroutineStub(reportingServer.publicApiChannel)
-  }
-
-  private val publicEventGroupMetadataDescriptorsClient by lazy {
-    EventGroupMetadataDescriptorsCoroutineStub(reportingServer.publicApiChannel)
   }
 
   private val publicEventGroupsClient by lazy {
@@ -1982,35 +1977,6 @@ abstract class InProcessLifeOfAReportIntegrationTest(
   }
 
   @Test
-  fun `retrieving metadata descriptors for event groups succeeds`() = runBlocking {
-    val eventGroups = listEventGroups()
-
-    val descriptorNames = eventGroups.map { it.metadata.eventGroupMetadataDescriptor }
-
-    val descriptors =
-      publicEventGroupMetadataDescriptorsClient
-        .withCallCredentials(credentials)
-        .batchGetEventGroupMetadataDescriptors(
-          batchGetEventGroupMetadataDescriptorsRequest { names += descriptorNames }
-        )
-        .eventGroupMetadataDescriptorsList
-
-    assertThat(descriptors).hasSize(descriptorNames.size)
-
-    val retrievedDescriptorNames = mutableSetOf<String>()
-    for (descriptor in descriptors) {
-      retrievedDescriptorNames.add(descriptor.name)
-    }
-
-    for (eventGroup in eventGroups) {
-      assertThat(
-          retrievedDescriptorNames.contains(eventGroup.metadata.eventGroupMetadataDescriptor)
-        )
-        .isTrue()
-    }
-  }
-
-  @Test
   fun `getBasicReport returns basic report inserted via internal API`() = runBlocking {
     val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
     val eventGroups = listEventGroups()
@@ -2236,6 +2202,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
             reportStart = dateTime { day = 3 }
             reportEnd = date { day = 5 }
           }
+          state = BasicReport.State.SUCCEEDED
 
           impressionQualificationFilters += reportingImpressionQualificationFilter {
             custom =

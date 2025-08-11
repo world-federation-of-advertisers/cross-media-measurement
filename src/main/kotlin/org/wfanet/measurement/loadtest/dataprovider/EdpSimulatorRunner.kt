@@ -1,135 +1,151 @@
-// Copyright 2021 The Cross-Media Measurement Authors
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+ * Copyright 2025 The Cross-Media Measurement Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 
 package org.wfanet.measurement.loadtest.dataprovider
 
-import com.google.protobuf.Descriptors
-import com.google.protobuf.Message
+import com.google.protobuf.ByteString
 import io.grpc.ManagedChannel
-import java.time.Clock
+import java.io.File
+import java.security.cert.X509Certificate
 import kotlin.random.Random
-import kotlinx.coroutines.runBlocking
-import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
-import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
-import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
-import org.wfanet.measurement.api.v2alpha.EventGroup
-import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub
-import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
-import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
-import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt.RequisitionFulfillmentCoroutineStub
-import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
-import org.wfanet.measurement.common.FileExistsHealth
+import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt
+import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt
+import org.wfanet.measurement.api.v2alpha.EventGroupMetadata
+import org.wfanet.measurement.api.v2alpha.EventGroupMetadataKt
+import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt
+import org.wfanet.measurement.api.v2alpha.MediaType
+import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt
+import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt
+import org.wfanet.measurement.api.v2alpha.eventGroupMetadata
+import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
 import org.wfanet.measurement.common.SettableHealth
-import org.wfanet.measurement.common.crypto.SigningCerts
-import org.wfanet.measurement.common.crypto.testing.loadSigningKey
-import org.wfanet.measurement.common.crypto.tink.loadPrivateKey
-import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
+import org.wfanet.measurement.common.commandLineMain
+import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
-import org.wfanet.measurement.dataprovider.DataProviderData
-import org.wfanet.measurement.eventdataprovider.shareshuffle.v2alpha.VidIndexMap
-import org.wfanet.measurement.loadtest.config.PrivacyBudgets.createNoOpPrivacyBudgetManager
+import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.InMemoryVidIndexMap
+import org.wfanet.measurement.loadtest.config.PrivacyBudgets
 import picocli.CommandLine
 
-/** The base class of the EdpSimulator runner. */
-abstract class EdpSimulatorRunner : Runnable {
-  @CommandLine.Mixin
-  protected lateinit var flags: EdpSimulatorFlags
-    private set
+class EdpSimulatorRunner : AbstractEdpSimulatorRunner() {
+  private class EventGroupOptions : EdpSimulator.EventGroupOptions {
+    @CommandLine.Option(
+      names = ["--event-group-reference-id-suffix"],
+      description = ["Suffix of the EventGroup reference ID"],
+      required = true,
+    )
+    override lateinit var referenceIdSuffix: String
+      private set
 
-  protected fun run(
-    eventQuery: EventQuery<Message>,
-    eventTemplates: Iterable<EventGroup.EventTemplate>,
-    metadataByReferenceIdSuffix: Map<String, Message>,
-    knownEventGroupMetadataTypes: Iterable<Descriptors.FileDescriptor>,
-    hmssVidIndexMap: VidIndexMap? = null,
-  ) {
-    val clientCerts =
-      SigningCerts.fromPemFiles(
-        certificateFile = flags.tlsFlags.certFile,
-        privateKeyFile = flags.tlsFlags.privateKeyFile,
-        trustedCertCollectionFile = flags.tlsFlags.certCollectionFile,
-      )
+    override lateinit var syntheticDataSpec: SyntheticEventGroupSpec
 
-    val v2AlphaPublicApiChannel: ManagedChannel =
-      buildMutualTlsChannel(
-        flags.kingdomPublicApiFlags.target,
-        clientCerts,
-        flags.kingdomPublicApiFlags.certHost,
-      )
-    val requisitionsStub = RequisitionsCoroutineStub(v2AlphaPublicApiChannel)
-    val eventGroupsStub = EventGroupsCoroutineStub(v2AlphaPublicApiChannel)
-    val eventGroupMetadataDescriptorsStub =
-      EventGroupMetadataDescriptorsCoroutineStub(v2AlphaPublicApiChannel)
-    val measurementConsumersStub = MeasurementConsumersCoroutineStub(v2AlphaPublicApiChannel)
-    val certificatesStub = CertificatesCoroutineStub(v2AlphaPublicApiChannel)
-    val dataProvidersStub = DataProvidersCoroutineStub(v2AlphaPublicApiChannel)
-
-    val requisitionFulfillmentStubsByDuchyId =
-      flags.requisitionFulfillmentServiceFlags.associate {
-        val channel = buildMutualTlsChannel(it.target, clientCerts, it.certHost)
-        val stub = RequisitionFulfillmentCoroutineStub(channel)
-        it.duchyId to stub
-      }
-
-    val signingKeyHandle =
-      loadSigningKey(flags.edpCsCertificateDerFile, flags.edpCsPrivateKeyDerFile)
-    val certificateKey =
-      DataProviderCertificateKey.fromName(flags.dataProviderCertificateResourceName)!!
-    val edpData =
-      DataProviderData(
-        flags.dataProviderResourceName,
-        flags.dataProviderDisplayName,
-        loadPrivateKey(flags.edpEncryptionPrivateKeyset),
-        signingKeyHandle,
-        certificateKey,
-      )
-
-    val randomSeed = flags.randomSeed
-    val random =
-      if (randomSeed != null) {
-        Random(randomSeed)
-      } else {
-        Random.Default
-      }
-
-    val healthFile = flags.healthFile
-    val health = if (healthFile == null) SettableHealth() else FileExistsHealth(healthFile)
-
-    val edpSimulator =
-      EdpSimulator(
-        edpData,
-        flags.mcResourceName,
-        measurementConsumersStub,
-        certificatesStub,
-        dataProvidersStub,
-        eventGroupsStub,
-        eventGroupMetadataDescriptorsStub,
-        requisitionsStub,
-        requisitionFulfillmentStubsByDuchyId,
-        eventQuery,
-        MinimumIntervalThrottler(Clock.systemUTC(), flags.throttlerMinimumInterval),
-        createNoOpPrivacyBudgetManager(),
-        clientCerts.trustedCertificates,
-        hmssVidIndexMap = hmssVidIndexMap,
-        knownEventGroupMetadataTypes = knownEventGroupMetadataTypes,
-        random = random,
-        logSketchDetails = flags.logSketchDetails,
-        health = health,
-      )
-    runBlocking {
-      edpSimulator.ensureEventGroups(eventTemplates, metadataByReferenceIdSuffix)
-      edpSimulator.run()
+    @CommandLine.Option(
+      names = ["--event-group-synthetic-spec"],
+      description = ["Path to SyntheticEventGroupSpec protobuf message in text format"],
+      required = true,
+    )
+    private fun setSyntheticDataSpec(syntheticDataSpecFile: File) {
+      syntheticDataSpec =
+        parseTextProto(syntheticDataSpecFile, SyntheticEventGroupSpec.getDefaultInstance())
     }
+
+    @CommandLine.Option(
+      names = ["--event-group-media-type"],
+      description = ["MediaType for the EventGroup. May be specified multiple times."],
+      required = true,
+    )
+    override lateinit var mediaTypes: Set<MediaType>
+      private set
+
+    class BrandAdCampaignMetadata {
+      @CommandLine.Option(names = ["--event-group-brand-name"], required = true)
+      lateinit var brandName: String
+        private set
+
+      @CommandLine.Option(names = ["--event-group-campaign-name"], required = true)
+      lateinit var campaignName: String
+        private set
+    }
+
+    @CommandLine.ArgGroup(exclusive = false)
+    private var brandAdCampaignMetadata: BrandAdCampaignMetadata? = null
+
+    override val metadata: EventGroupMetadata? by lazy {
+      val brandAdCampaignMetadata = brandAdCampaignMetadata
+      if (brandAdCampaignMetadata == null) {
+        null
+      } else {
+        eventGroupMetadata {
+          adMetadata =
+            EventGroupMetadataKt.adMetadata {
+              campaignMetadata =
+                EventGroupMetadataKt.AdMetadataKt.campaignMetadata {
+                  brandName = brandAdCampaignMetadata.brandName
+                  campaignName = brandAdCampaignMetadata.campaignName
+                }
+            }
+        }
+      }
+    }
+  }
+
+  @CommandLine.ArgGroup(
+    multiplicity = "1..*",
+    exclusive = false,
+    heading = "EventGroup Configuration. May be specified multiple times.\n",
+  )
+  private lateinit var _eventGroupsOptions: List<EventGroupOptions>
+
+  override val eventGroupsOptions: List<EdpSimulator.EventGroupOptions>
+    get() = _eventGroupsOptions
+
+  override fun buildEdpSimulator(
+    measurementConsumerName: String,
+    kingdomPublicApiChannel: ManagedChannel,
+    requisitionFulfillmentStubsByDuchyId:
+      Map<String, RequisitionFulfillmentGrpcKt.RequisitionFulfillmentCoroutineStub>,
+    trustedCertificates: Map<ByteString, X509Certificate>,
+    eventQuery: SyntheticGeneratorEventQuery,
+    hmssVidIndexMap: InMemoryVidIndexMap?,
+    logSketchDetails: Boolean,
+    throttler: MinimumIntervalThrottler,
+    health: SettableHealth,
+    random: Random,
+  ): AbstractEdpSimulator {
+    return EdpSimulator(
+      edpData,
+      measurementConsumerName,
+      CertificatesGrpcKt.CertificatesCoroutineStub(kingdomPublicApiChannel),
+      DataProvidersGrpcKt.DataProvidersCoroutineStub(kingdomPublicApiChannel),
+      EventGroupsGrpcKt.EventGroupsCoroutineStub(kingdomPublicApiChannel),
+      RequisitionsGrpcKt.RequisitionsCoroutineStub(kingdomPublicApiChannel),
+      requisitionFulfillmentStubsByDuchyId,
+      syntheticDataTimeZone,
+      eventGroupsOptions,
+      eventQuery,
+      throttler,
+      PrivacyBudgets.createNoOpPrivacyBudgetManager(),
+      trustedCertificates,
+      hmssVidIndexMap,
+      random = random,
+      logSketchDetails = logSketchDetails,
+      health = health,
+    )
+  }
+
+  companion object {
+    @JvmStatic fun main(args: Array<String>) = commandLineMain(EdpSimulatorRunner(), args)
   }
 }

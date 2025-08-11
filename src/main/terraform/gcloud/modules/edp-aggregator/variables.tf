@@ -12,24 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-variable "key_ring_name" {
-  description = "Name of the KMS key ring."
-  type        = string
-  nullable    = false
-}
-
-variable "key_ring_location" {
-  description = "Location of the KMS key ring."
-  type        = string
-  nullable    = false
-}
-
-variable "kms_key_name" {
-  description = "Name of the KMS KEK."
-  type        = string
-  nullable    = false
-}
-
 variable "requisition_fulfiller_config" {
   description = "Config for a single Pub/Sub queue and its corresponding MIG worker"
   type = object({
@@ -46,20 +28,11 @@ variable "requisition_fulfiller_config" {
       single_instance_assignment    = number
       min_replicas                  = number
       max_replicas                  = number
-      app_args                      = list(string)
       machine_type                  = string
       docker_image                  = string
       mig_distribution_policy_zones = list(string)
+      app_flags                     = list(string)
     })
-  })
-}
-
-variable "results_fulfiller_event_proto_descriptors" {
-  description = "Event proto descriptors file path"
-  type = object({
-    secret_id         = string
-    secret_local_path = string
-    is_binary_format  = bool
   })
 }
 
@@ -183,6 +156,14 @@ variable "requisition_fetcher_config" {
   })
 }
 
+variable "results_fulfiller_event_descriptor" {
+  description = "An object containing the local path of the results fulfiller event descriptor file and its destination path in Cloud Storage."
+  type = object({
+    local_path  = string
+    destination = string
+  })
+}
+
 variable "edp_aggregator_buckets_location" {
   description = "Location of the Storage buckets used by the Edp Aggregator."
   type        = string
@@ -233,4 +214,10 @@ variable "cloud_function_configs" {
     secret_mappings     = string
     uber_jar_path       = string
   }))
+}
+
+variable "results_fulfiller_disk_image_family" {
+  description = "The boot disk image family."
+  type        = string
+  default     = "confidential-space"
 }

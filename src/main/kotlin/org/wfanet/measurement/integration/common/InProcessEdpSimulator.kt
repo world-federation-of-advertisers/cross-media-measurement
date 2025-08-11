@@ -36,15 +36,12 @@ import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCorouti
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadata
-import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub
-import org.wfanet.measurement.api.v2alpha.EventGroupMetadataKt
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
-import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
+import org.wfanet.measurement.api.v2alpha.MediaType
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt.RequisitionFulfillmentCoroutineStub
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
-import org.wfanet.measurement.api.v2alpha.eventGroupMetadata
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
+import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
 import org.wfanet.measurement.common.Health
 import org.wfanet.measurement.common.identity.withPrincipalName
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
@@ -53,7 +50,7 @@ import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.InMemory
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBucketFilter
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetManager
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.testing.TestPrivacyBucketMapper
-import org.wfanet.measurement.eventdataprovider.shareshuffle.v2alpha.InMemoryVidIndexMap
+import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.InMemoryVidIndexMap
 import org.wfanet.measurement.loadtest.dataprovider.EdpSimulator
 import org.wfanet.measurement.loadtest.dataprovider.SyntheticGeneratorEventQuery
 import org.wfanet.measurement.loadtest.dataprovider.toPopulationSpec
@@ -67,10 +64,18 @@ class InProcessEdpSimulator(
   kingdomPublicApiChannel: Channel,
   duchyPublicApiChannelMap: Map<String, Channel>,
   trustedCertificates: Map<ByteString, X509Certificate>,
+  eventGroupOptions: EventGroupOptions,
   eventQuery: SyntheticGeneratorEventQuery,
   coroutineContext: CoroutineContext = Dispatchers.Default,
   honestMajorityShareShuffleSupported: Boolean = true,
 ) : Health {
+  data class EventGroupOptions(
+    override val referenceIdSuffix: String,
+    override val syntheticDataSpec: SyntheticEventGroupSpec,
+    override val mediaTypes: Set<MediaType>,
+    override val metadata: EventGroupMetadata,
+  ) : EdpSimulator.EventGroupOptions
+
   private val loggingName = "${javaClass.simpleName} $displayName"
   private val backgroundScope =
     CoroutineScope(
@@ -96,24 +101,20 @@ class InProcessEdpSimulator(
       EdpSimulator(
         edpData = createEdpData(displayName, resourceName),
         measurementConsumerName = mcResourceName,
-        measurementConsumersStub =
-          MeasurementConsumersCoroutineStub(kingdomPublicApiChannel)
-            .withPrincipalName(resourceName),
         certificatesStub =
           CertificatesCoroutineStub(kingdomPublicApiChannel).withPrincipalName(resourceName),
         dataProvidersStub =
           DataProvidersCoroutineStub(kingdomPublicApiChannel).withPrincipalName(resourceName),
         eventGroupsStub =
           EventGroupsCoroutineStub(kingdomPublicApiChannel).withPrincipalName(resourceName),
-        eventGroupMetadataDescriptorsStub =
-          EventGroupMetadataDescriptorsCoroutineStub(kingdomPublicApiChannel)
-            .withPrincipalName(resourceName),
         requisitionsStub =
           RequisitionsCoroutineStub(kingdomPublicApiChannel).withPrincipalName(resourceName),
         requisitionFulfillmentStubsByDuchyId =
           duchyPublicApiChannelMap.mapValues {
             RequisitionFulfillmentCoroutineStub(it.value).withPrincipalName(resourceName)
           },
+        syntheticDataTimeZone = eventQuery.timeZone,
+        eventGroupsOptions = listOf(eventGroupOptions),
         eventQuery = eventQuery,
         throttler = MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         privacyBudgetManager =
@@ -125,7 +126,6 @@ class InProcessEdpSimulator(
           ),
         trustedCertificates = trustedCertificates,
         hmssVidIndexMap = hmssVidIndexMap,
-        knownEventGroupMetadataTypes = listOf(EventGroupMetadata.getDescriptor().file),
         random = random,
       )
   }
@@ -146,20 +146,7 @@ class InProcessEdpSimulator(
     backgroundScope.cancel()
   }
 
-  suspend fun ensureEventGroup() =
-    delegate.ensureEventGroup(
-      EVENT_TEMPLATES,
-      eventGroupMetadata {
-        adMetadata =
-          EventGroupMetadataKt.adMetadata {
-            campaignMetadata =
-              EventGroupMetadataKt.AdMetadataKt.campaignMetadata {
-                campaignName = "$displayName campaign"
-                brandName = "Brand"
-              }
-          }
-      },
-    )
+  suspend fun ensureEventGroup() = delegate.ensureEventGroups().single()
 
   /**
    * Builds a [DataProviderData] object for the Edp with a certain [displayName] and [resourceName].
@@ -180,7 +167,5 @@ class InProcessEdpSimulator(
 
     private const val RANDOM_SEED: Long = 1
     private val random = Random(RANDOM_SEED)
-
-    private val EVENT_TEMPLATES = EdpSimulator.buildEventTemplates(TestEvent.getDescriptor())
   }
 }
