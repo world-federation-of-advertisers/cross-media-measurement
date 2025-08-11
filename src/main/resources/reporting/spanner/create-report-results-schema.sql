@@ -49,6 +49,20 @@ CREATE TABLE EventTemplateDimensions (
   -- of the values the event template field can take on.
   ) PRIMARY KEY (EventTemplateId, EventTemplateDimension)
 
+CREATE TABLE ReportResultStaticDimensions (
+  ReportStaticDimensionId INT64 NOT NULL,
+    -- The IQF for which these results were computed. In the future this
+    -- column could be nullable if we decide to make IQFs optional and/or
+    -- deprecate them.
+    ImpressionQualificationFilterId INT64 NOT NULL
+    -- Corresponds to the enum report_results.proto
+    MetricFrequencyType INT64 NOT NULL;
+    -- Corresponds to the enum report_results.proto.
+    VennDiagramRegionType INT64 NOT NULL;
+    -- Describes the event template dimensions that the results are filtered to
+  ) PRIMARY KEY (ReportStaticDimensionId);
+  -- create unique index on three values
+
 CREATE TABLE ReportResults (
   MeasurementConsumerId INT64 NOT NULL,
   ReportResultId INT64 NOT NULL,
@@ -73,16 +87,12 @@ CREATE TABLE ReportResultDimensions (
   -- We expect that all ReportingSets referenced here represent only unions of
   -- EventGroups.
   ReportingSetId INT64 NOT NULL,
-  -- The IQF for which these results were computed. In the future this
-  -- column could be nullable if we decide to make IQFs optional and/or
-  -- deprecate them.
-  ImpressionQualificationFilterId INT64 NOT NULL
-  -- Corresponds to the enum report_results.proto
-  MetricFrequencyType INT64 NOT NULL;
-  -- Corresponds to the enum report_results.proto.
-  VennDiagramRegionType INT64 NOT NULL;
-  -- Describes the event template dimensions that the results are filtered to
+  ReportResultStaticDimensionId INT64 NOT NULL,
   EventTemplateDimensionId INT64 NOT NULL;
+  -- The start date for non-cumulative results in this row
+  ReportingWindowStartDate DATE NOT NULL,
+  -- The end date for results in this row
+  ReportingWindowEndDate DATE NOT NULL,
   -- This is the normalized filter proto. We expect to be able to do comparisions on this column. It is NULL
   -- if no filters are applied.
   Filter FilterProto `path.to.filter.proto`,
@@ -91,19 +101,13 @@ CREATE TABLE ReportResultDimensions (
   FOREIGN KEY (ReportResultId) REFERENCES ReportResults (ReportResultId)
 ) PRIMARY KEY (MeasurementConsumerId, ReportResultsId, ReportDimensionId),
   INTERLEAVE IN PARENT ReportResults ON DELETE CASCADE;
-
--- We will probably want an index on the non-primary key dimensions as those should be unique
+-- Create an index on the non-primary key dimensions as those should be unique as a group
 
 CREATE TABLE ReportResultValues (
   MeasurementConsumerId INT64 NOT NULL,
   ReportResultId INT64 NOT NULL,
   ReportDimensionId INT64 NOT NULL,
   ReportResultValueId INT64 NOT NULL,
-
-  -- The start date for non-cumulative results in this row
-  ReportingWindowStartDate DATE NOT NULL,
-  -- The end date for results in this row
-  ReportingWindowEndDate DATE NOT NULL,
 
   CumulativeResults
     BasicReportResultDetails `wfa.measurement.internal.reporting.v2.ResultGroup.MetricSet.BasicMetricSet`,
@@ -121,11 +125,6 @@ CREATE TABLE NoisyReportResultValues (
   ReportResultId INT64 NOT NULL,
   ReportDimensionId INT64 NOT NULL,
   NoisyReportResultValueId INT64 NOT NULL,
-
-  -- The start date for non-cumulative results in this row
-  ReportingWindowStartDate DATE NOT NULL,
-  -- The end date for results in this row
-  ReportingWindowEndDate DATE NOT NULL,
 
   CumulativeResults
     BasicReportResultDetails `wfa.measurement.internal.reporting.v2.ReportResults.BaseMetricSet.BasicBaseMetricSet`,
