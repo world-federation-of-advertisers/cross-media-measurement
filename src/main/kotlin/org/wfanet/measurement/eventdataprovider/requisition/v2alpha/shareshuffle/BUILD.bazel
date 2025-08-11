@@ -9,6 +9,7 @@ kt_jvm_library(
     srcs = ["FulfillRequisitionRequestBuilder.kt"],
     tags = ["maven_coordinates=" + MAVEN_COORDINATES],
     visibility = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller/fulfillers:__pkg__",
         "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/requisition/v2alpha:__pkg__",
         "//src/test/kotlin/org/wfanet/measurement/eventdataprovider/requisition/v2alpha/shareshuffle:__pkg__",
     ],
