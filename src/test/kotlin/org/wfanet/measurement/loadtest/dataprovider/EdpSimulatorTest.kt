@@ -109,6 +109,7 @@ import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyB
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
 import org.wfanet.measurement.integration.common.SyntheticGenerationSpecs
 import org.wfanet.measurement.loadtest.common.sampleVids
+import org.wfanet.measurement.loadtest.config.PrivacyBudgets
 import org.wfanet.measurement.loadtest.config.TestIdentifiers
 
 private const val RANDOM_SEED: Long = 0
@@ -415,6 +416,75 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         }
       )
     assertThat(refuseRequest.refusal.message).contains("encryption public key")
+    assertThat(fakeRequisitionFulfillmentService.fullfillRequisitionInvocations).isEmpty()
+  }
+
+  @Test
+  fun `refuses HMSS requisition when event filter is invalid`() {
+    val requisitionSpec =
+      REQUISITION_SPEC.copy {
+        events =
+          events.copy {
+            eventGroups[0] =
+              eventGroups[0].copy {
+                value =
+                  value.copy {
+                    filter =
+                      filter.copy {
+                        // Expression that isn't valid for TestEvent.
+                        expression = "video.viewable_100_percent == true"
+                      }
+                  }
+              }
+          }
+      }
+    val encryptedRequisitionSpec =
+      encryptRequisitionSpec(
+        signRequisitionSpec(requisitionSpec, MC_SIGNING_KEY),
+        DATA_PROVIDER_PUBLIC_KEY,
+      )
+    val requisition =
+      HMSS_REQUISITION.copy { this.encryptedRequisitionSpec = encryptedRequisitionSpec }
+    requisitionsServiceMock.stub {
+      onBlocking { listRequisitions(any()) }
+        .thenReturn(listRequisitionsResponse { requisitions += requisition })
+    }
+
+    val edpSimulator =
+      EdpSimulator(
+        EDP_DATA,
+        MC_NAME,
+        certificatesStub,
+        dataProvidersStub,
+        eventGroupsStub,
+        requisitionsStub,
+        requisitionFulfillmentStubMap,
+        SYNTHETIC_DATA_TIME_ZONE,
+        listOf(EventGroupOptions("", SYNTHETIC_DATA_SPEC, MEDIA_TYPES, EVENT_GROUP_METADATA)),
+        syntheticGeneratorEventQuery,
+        dummyThrottler,
+        PrivacyBudgets.createNoOpPrivacyBudgetManager(),
+        TRUSTED_CERTIFICATES,
+        HMSS_VID_INDEX_MAP,
+      )
+
+    runBlocking { edpSimulator.executeRequisitionFulfillingWorkflow() }
+
+    val refuseRequest: RefuseRequisitionRequest =
+      verifyAndCapture(requisitionsServiceMock, RequisitionsCoroutineImplBase::refuseRequisition)
+    assertThat(refuseRequest)
+      .ignoringFieldScope(
+        FieldScopes.allowingFieldDescriptors(
+          Refusal.getDescriptor().findFieldByNumber(Refusal.MESSAGE_FIELD_NUMBER)
+        )
+      )
+      .isEqualTo(
+        refuseRequisitionRequest {
+          name = REQUISITION.name
+          refusal = refusal { justification = Refusal.Justification.SPEC_INVALID }
+        }
+      )
+    assertThat(refuseRequest.refusal.message).contains("filter")
     assertThat(fakeRequisitionFulfillmentService.fullfillRequisitionInvocations).isEmpty()
   }
 
