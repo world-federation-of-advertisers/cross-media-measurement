@@ -30,9 +30,3 @@ databaseChangeLog:
 - include:
     file: add-create-request-id-to-basic-report.sql
     relativeToChangeLogFile: true
-- include:
-    file: update-proto-bundle-to-fix-reporting-unit.sql
-    relativeToChangeLogFile: true
-- include:
-    file: create-basic-reports-state-index.sql
-    relativeToChangeLogFile: true
