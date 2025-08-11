@@ -12,7 +12,13 @@ kt_jvm_library(
     srcs = ["ImpressionComputations.kt"],
     deps = [
         ":differential_privacy_params",
+        ":k_anonymity_params",
         "//src/main/proto/wfa/measurement/internal/duchy:differential_privacy_kt_jvm_proto",
         "@maven//:com_google_privacy_differentialprivacy_differentialprivacy",
     ],
+)
+
+kt_jvm_library(
+    name = "k_anonymity_params",
+    srcs = ["KAnonymityParams.kt"],
 )

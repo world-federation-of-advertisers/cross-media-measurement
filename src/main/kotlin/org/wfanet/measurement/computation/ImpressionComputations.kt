@@ -52,14 +52,29 @@ class ImpressionComputations(
     rawHistogram: LongArray,
     vidSamplingIntervalWidth: Float,
     dpParams: DifferentialPrivacyParams?,
+    kAnonymityParams: KAnonymityParams?,
   ): Long {
     val rawImpressionCount =
       rawHistogram.withIndex().sumOf { (index, count) ->
         val frequency = index + 1L
         frequency * count
       }
+    val kAnonymityImpressionCount =
+      if (kAnonymityParams == null) {
+        rawImpressionCount
+      } else {
+        if (
+          rawImpressionCount < kAnonymityParams.minImpressions ||
+            rawHistogram.sum() < kAnonymityParams.minUsers
+        ) {
+          0
+        } else {
+          rawImpressionCount
+        }
+      }
+    println(kAnonymityImpressionCount)
     if (dpParams == null) {
-      return (rawImpressionCount / vidSamplingIntervalWidth).toLong()
+      return (kAnonymityImpressionCount / vidSamplingIntervalWidth).toLong()
     }
     check(l0Sensitivity != null && lInfiniteSensitivity != null) {
       "L0Sensitivity and LInfiniteSensitivity cannot be null if dpParams are set"
@@ -67,7 +82,7 @@ class ImpressionComputations(
     val noise = GaussianNoise()
     val noisedImpressionCount =
       noise.addNoise(
-        rawImpressionCount,
+        kAnonymityImpressionCount,
         l0Sensitivity,
         lInfiniteSensitivity,
         dpParams.epsilon,
