@@ -54,7 +54,8 @@ suspend fun AsyncDatabaseClient.ReadContext.getBasicReportByExternalId(
       BasicReports.CreateTime,
       ExternalCampaignGroupId,
       BasicReportDetails,
-      BasicReportResultDetails
+      BasicReportResultDetails,
+      State
     FROM
       MeasurementConsumers
       JOIN BasicReports USING (MeasurementConsumerId)
@@ -96,7 +97,8 @@ fun AsyncDatabaseClient.ReadContext.readBasicReports(
         BasicReports.CreateTime,
         ExternalCampaignGroupId,
         BasicReportDetails,
-        BasicReportResultDetails
+        BasicReportResultDetails,
+        State
       FROM
         MeasurementConsumers
         JOIN BasicReports USING (MeasurementConsumerId)
@@ -155,6 +157,7 @@ fun AsyncDatabaseClient.TransactionContext.insertBasicReport(
   basicReportId: Long,
   measurementConsumerId: Long,
   basicReport: BasicReport,
+  state: BasicReport.State,
 ) {
   bufferInsertMutation("BasicReports") {
     set("MeasurementConsumerId").to(measurementConsumerId)
@@ -164,6 +167,7 @@ fun AsyncDatabaseClient.TransactionContext.insertBasicReport(
     set("BasicReportDetails").to(basicReport.details)
     set("ExternalCampaignGroupId").to(basicReport.externalCampaignGroupId)
     set("BasicReportResultDetails").to(basicReport.resultDetails)
+    set("State").to(state)
   }
 }
 
@@ -189,5 +193,6 @@ private fun buildBasicReport(row: Struct): BasicReport {
       row.getProtoMessage("BasicReportResultDetails", BasicReportResultDetails.getDefaultInstance())
     details = row.getProtoMessage("BasicReportDetails", BasicReportDetails.getDefaultInstance())
     createTime = row.getTimestamp("CreateTime").toProto()
+    state = row.getProtoEnum("State", BasicReport.State::forNumber)
   }
 }

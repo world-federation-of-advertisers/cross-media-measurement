@@ -77,6 +77,7 @@ class BasicReportsService(
   private val internalImpressionQualificationFiltersStub:
     ImpressionQualificationFiltersCoroutineStub,
   private val internalReportingSetsStub: InternalReportingSetsCoroutineStub,
+  private val eventDescriptor: EventDescriptor?,
   private val metricSpecConfig: MetricSpecConfig,
   private val authorization: Authorization,
   coroutineContext: CoroutineContext = EmptyCoroutineContext,
@@ -108,8 +109,10 @@ class BasicReportsService(
     // Required for creating Report
     val campaignGroup: ReportingSet = getReportingSet(request.basicReport.campaignGroup)
 
+    val eventTemplateFieldsMap = eventDescriptor?.eventTemplateFieldsMap ?: emptyMap()
+
     try {
-      validateCreateBasicReportRequest(request, campaignGroup)
+      validateCreateBasicReportRequest(request, campaignGroup, eventTemplateFieldsMap)
     } catch (e: ServiceException) {
       throw when (e.reason) {
         Errors.Reason.REQUIRED_FIELD_NOT_SET,

@@ -35,7 +35,13 @@ interface EventQuery<out T : Message> {
     val spec: RequisitionSpec.EventGroupEntry.Value,
   )
 
-  /** Returns a [Sequence] of [LabeledEvent]. */
+  /**
+   * Returns a [Sequence] of [LabeledEvent].
+   *
+   * @throws
+   *   org.wfanet.measurement.eventdataprovider.eventfiltration.validation.EventFilterValidationException
+   *   if the filter in [eventGroupSpec] is invalid for [T]
+   */
   fun getLabeledEvents(eventGroupSpec: EventGroupSpec): Sequence<LabeledEvent<out T>>
 
   /**
@@ -43,6 +49,10 @@ interface EventQuery<out T : Message> {
    *
    * Each element in the returned value represents a single event. As a result, the same VID may be
    * returned multiple times.
+   *
+   * @throws
+   *   org.wfanet.measurement.eventdataprovider.eventfiltration.validation.EventFilterValidationException
+   *   if the filter in [eventGroupSpec] is invalid for [T]
    */
   fun getUserVirtualIds(eventGroupSpec: EventGroupSpec): Sequence<Long> {
     return getLabeledEvents(eventGroupSpec).map { it.vid }
