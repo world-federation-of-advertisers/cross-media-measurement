@@ -32,6 +32,7 @@ import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
 import org.wfanet.measurement.internal.duchy.RecordOutputBlobPathRequest
 import org.wfanet.measurement.internal.duchy.RecordOutputBlobPathResponse
+import org.wfanet.measurement.internal.duchy.RequisitionMetadata
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.StorageException
 import org.wfanet.measurement.storage.Store.Blob
@@ -189,6 +190,13 @@ private constructor(
           checkNotNull(requisitionStore.get(it.path)) { "Blob with key ${it.path} not found" }
         it.externalKey.externalRequisitionId to blob.read().flatten()
       }
+  }
+
+  /** Reads and returns a single fulfilled requisition blob. */
+  suspend fun readSingleRequisitionBlob(requisition: RequisitionMetadata): ByteString? {
+    val path = requisition.path
+    val blob: Blob = requisitionStore.get(path) ?: return null
+    return blob.read().flatten()
   }
 
   /** Returns a map of [BlobRef]s to the actual bytes of the blob for all inputs to the stage. */

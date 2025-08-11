@@ -20,8 +20,8 @@ import kotlin.math.ceil
 import kotlin.math.max
 import kotlin.math.pow
 
-/** Functions to compute statistics of Share Shuffle sketch based measurements. */
-object HonestMajorityShareShuffle {
+/** Functions to compute statistics of Frequency Vector based measurements. */
+object FrequencyVectorBasedVariance {
   /** Calculates the variance of the reach. */
   fun reachVariance(
     frequencyVectorSize: Long,
