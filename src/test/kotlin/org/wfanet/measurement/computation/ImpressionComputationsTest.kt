@@ -25,11 +25,12 @@ class ImpressionComputationsTest {
   fun `raw impression count calculation without noise`() {
     val histogram = longArrayOf(0L, 5L, 0L, 3L, 7L, 0L) // 2*5 + 4*3 + 5*7
     val result =
-      ImpressionComputations.computeImpressionCount(
-        rawHistogram = histogram,
-        vidSamplingIntervalWidth = 1.0f,
-        dpParams = null,
-      )
+      ImpressionComputations(l0Sensitivity = null, lInfiniteSensitivity = null)
+        .computeImpressionCount(
+          rawHistogram = histogram,
+          vidSamplingIntervalWidth = 1.0f,
+          dpParams = null,
+        )
     assertThat(result).isEqualTo(57L)
   }
 
@@ -38,25 +39,30 @@ class ImpressionComputationsTest {
     val histogram = longArrayOf(0L, 5L, 0L, 3L, 7L, 0L) // 2*5 + 4*3 + 5*7
     val scale = 0.5f
     val result =
-      ImpressionComputations.computeImpressionCount(
-        rawHistogram = histogram,
-        vidSamplingIntervalWidth = scale,
-        dpParams = null,
-      )
+      ImpressionComputations(l0Sensitivity = null, lInfiniteSensitivity = null)
+        .computeImpressionCount(
+          rawHistogram = histogram,
+          vidSamplingIntervalWidth = scale,
+          dpParams = null,
+        )
     assertThat(result).isEqualTo((57L / scale).toLong())
   }
 
   @Test
   fun `impression count with DP noise is within expected tolerance`() {
-    val histogram = longArrayOf(1L, 2L, 0L, 4L, 0L, 0L, 5L, 0L, 1L) // 1*1 + 2*2 + 4*4 + 5*7 + 7*1
+    val histogram = longArrayOf(2L, 4L, 0L, 8L, 0L, 0L, 10L, 0L, 2L) // 1*2 + 2*4 + 4*8 + 7*10 + 7*2
     val result =
-      ImpressionComputations.computeImpressionCount(
-        rawHistogram = histogram,
-        vidSamplingIntervalWidth = 1.0f,
-        dpParams = DP_PARAMS,
-      )
-    val rawImpressionCount = 1 * 1 + 2 * 2 + 4 * 4 + 5 * 7 + 7 * 1
-    val tolerance = calculateNoiseTolerance(DP_PARAMS)
+      ImpressionComputations(l0Sensitivity = 2, lInfiniteSensitivity = 2L)
+        .computeImpressionCount(
+          rawHistogram = histogram,
+          vidSamplingIntervalWidth = 1.0f,
+          dpParams = DP_PARAMS,
+        )
+    val rawImpressionCount = 1 * 2 + 2 * 4 + 4 * 8 + 7 * 10 + 7 * 2
+    val tolerance = calculateNoiseTolerance(DP_PARAMS, 2.0, 2.0)
+    check(rawImpressionCount > tolerance) {
+      "Test must be set up such that raw impression count $rawImpressionCount is greater than tolerance $tolerance"
+    }
     assertThat(result).isAtLeast((rawImpressionCount - tolerance).coerceAtLeast(0).toLong())
     assertThat(result).isAtMost((rawImpressionCount + tolerance).toLong())
   }

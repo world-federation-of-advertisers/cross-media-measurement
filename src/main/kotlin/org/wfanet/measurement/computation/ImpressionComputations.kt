@@ -18,9 +18,19 @@ package org.wfanet.measurement.computation
 
 import com.google.privacy.differentialprivacy.GaussianNoise
 
-object ImpressionComputations {
-  private const val L0_SENSITIVITY = 1
-  private const val L_INFINITE_SENSITIVITY = 1L
+/**
+ * Handles impression count computations with optional differential privacy (DP) noise.
+ *
+ * ## Sensitivity
+ * Both `l0Sensitivity` and `lInfiniteSensitivity` calibrate DP noise and must reflect the maximum
+ * impact a single user can have. Typically, set both to the maximum capped impression count per
+ * user as defined by your product's privacy policy to ensure strong privacy guarantees.
+ */
+class ImpressionComputations(
+  private val l0Sensitivity: Int?,
+  private val lInfiniteSensitivity: Long?,
+) {
+
   /**
    * Computes the impression count from a histogram of frequencies, applying differential privacy
    * noise if parameters are provided.
@@ -51,12 +61,15 @@ object ImpressionComputations {
     if (dpParams == null) {
       return (rawImpressionCount / vidSamplingIntervalWidth).toLong()
     }
+    check(l0Sensitivity != null && lInfiniteSensitivity != null) {
+      "L0Sensitivity and LInfiniteSensitivity cannot be null if dpParams are set"
+    }
     val noise = GaussianNoise()
     val noisedImpressionCount =
       noise.addNoise(
         rawImpressionCount,
-        L0_SENSITIVITY,
-        L_INFINITE_SENSITIVITY,
+        l0Sensitivity,
+        lInfiniteSensitivity,
         dpParams.epsilon,
         dpParams.delta,
       )
