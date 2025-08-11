@@ -45,7 +45,8 @@ CREATE TABLE EventTemplateDimensions (
 
   EventTemplateVersion INT64 NOT NULL,
 
-  -- Create a column per event template dimension that can be grouped by
+  -- Create a column per event template dimension that can be grouped by. It's type is "string" and represents all
+  -- of the values the event template field can take on.
   ) PRIMARY KEY (EventTemplateId, EventTemplateDimension)
 
 CREATE TABLE ReportResults (
