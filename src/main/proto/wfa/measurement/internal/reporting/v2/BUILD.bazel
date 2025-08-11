@@ -35,6 +35,10 @@ proto_and_kt_jvm_proto_library(
 )
 
 proto_and_kt_jvm_proto_library(
+    name = "report_results",
+)
+
+proto_and_kt_jvm_proto_library(
     name = "reporting_set",
 )
 
