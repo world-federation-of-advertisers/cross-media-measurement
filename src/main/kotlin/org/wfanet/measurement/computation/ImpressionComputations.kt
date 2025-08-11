@@ -24,7 +24,7 @@ import com.google.privacy.differentialprivacy.GaussianNoise
  * ## Sensitivity
  * Both `l0Sensitivity` and `lInfiniteSensitivity` calibrate DP noise and must reflect the maximum
  * impact a single user can have. Typically, set both to the maximum capped impression count per
- * user as defined by your product's privacy policy to ensure strong privacy guarantees.
+ * user. They are both required if optional differential privacy noise will be applied.
  */
 class ImpressionComputations(
   private val l0Sensitivity: Int?,
