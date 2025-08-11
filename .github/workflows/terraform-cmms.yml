@@ -229,3 +229,15 @@ jobs:
       if: ${{ inputs.apply }}
       working-directory: ${{ env.GCLOUD_MODULE_PATH }}
       run: terraform apply -input=false tfplan
+
+    - name: Update Workload Identity Provider (OIDC) for results-fulfiller
+      if: ${{ inputs.apply }}
+      uses: ./.github/actions/update-wip-oicd
+      with:
+        project_id: ${{ vars.EDP_GCLOUD_PROJECT_NAME }}
+        location: ${{ vars.WIP_LOCATION }}
+        pool_id: ${{ vars.EDP_WIP_NAME }}
+        provider_id: ${{ vars.EDP_WIP_PROVIDER_NAME }}
+        edp_service_account: ${{ vars.EDP_TARGET_SERVICE_ACCOUNT }}
+        container_image_base: ghcr.io/world-federation-of-advertisers/edp-aggregator/results_fulfiller
+        container_image_tag: 8419f93c4cb62de98bfc925cdbbbd2051f428730

@@ -1,0 +1,69 @@
+# Copyright 2025 The Cross-Media Measurement Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+
+name: "Update Workload Identity Provider (OIDC)"
+description: "Updates the OIDC provider attribute condition to allow Service Account impersonation for a specific Confidential Space image."
+
+inputs:
+  project_id:
+    description: "Google Cloud project ID"
+    required: true
+  location:
+    description: "Location for the Workload Identity Pool"
+    required: true
+  pool_id:
+    description: "Workload identity pool ID"
+    required: true
+  provider_id:
+    description: "Workload identity pool provider ID"
+    required: true
+  edp_service_account:
+    description: "EDP service account email that should be allowed to impersonate"
+    required: true
+  container_image_base:
+    description: "Base container image reference without tag"
+    required: true
+  container_image_tag:
+    description: "Container image tag"
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+    - name: Update OIDC provider attribute condition
+      shell: bash
+      env:
+        PROJECT_ID: ${{ inputs.project_id }}
+        LOCATION: ${{ inputs.location }}
+        POOL_ID: ${{ inputs.pool_id }}
+        PROVIDER_ID: ${{ inputs.provider_id }}
+        EDP_SERVICE_ACCOUNT: ${{ inputs.edp_service_account }}
+        IMAGE_BASE: ${{ inputs.container_image_base }}
+        IMAGE_TAG: ${{ inputs.container_image_tag }}
+      run: |
+        set -euo pipefail
+
+        CONTAINER_IMAGE_REFERENCE="${IMAGE_BASE}:${IMAGE_TAG}"
+
+        ATTR_COND="assertion.swname == 'CONFIDENTIAL_SPACE' && \
+        assertion.submods.container.image_reference == '${CONTAINER_IMAGE_REFERENCE}' && \
+        '${EDP_SERVICE_ACCOUNT}' in assertion.google_service_accounts"
+
+  
+        gcloud iam workload-identity-pools providers update-oidc "${PROVIDER_ID}" \
+        --project="${PROJECT_ID}" \
+        --location="${LOCATION}" \
+        --workload-identity-pool="${POOL_ID}" \
+        --attribute-condition="${ATTR_COND}"
