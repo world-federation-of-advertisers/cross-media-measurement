@@ -5,9 +5,9 @@ load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
 
 package(default_visibility = [
     test_target(":__pkg__"),
+    "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/requisition/v2alpha:__subpackages__",
+    "//src/test/kotlin/org/wfanet/measurement/eventdataprovider/requisition/v2alpha:__subpackages__",
     "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:__subpackages__",
-    "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/requisition/v2alpha:__pkg__",
-    "//src/test/kotlin/org/wfanet/measurement/eventdataprovider/requisition/v2alpha/shareshuffle:__pkg__",
     "//src/test/kotlin/org/wfanet/measurement/loadtest/dataprovider:__pkg__",
 ])
 
@@ -21,12 +21,6 @@ kt_jvm_library(
         "VidIndexMap.kt",
     ],
     tags = ["maven_coordinates=" + MAVEN_COORDINATES],
-    visibility = [
-        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/requisition/v2alpha:__pkg__",
-        "//src/test/kotlin/org/wfanet/measurement/eventdataprovider/requisition/v2alpha/common:__pkg__",
-        "//src/test/kotlin/org/wfanet/measurement/eventdataprovider/requisition/v2alpha/shareshuffle:__pkg__",
-        "//src/test/kotlin/org/wfanet/measurement/loadtest/dataprovider:__pkg__",
-    ],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:population_spec_validator",
         "//src/main/proto/wfa/frequency_count:frequency_vector_kt_jvm_proto",
