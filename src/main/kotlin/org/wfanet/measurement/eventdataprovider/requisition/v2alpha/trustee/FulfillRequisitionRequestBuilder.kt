@@ -18,14 +18,11 @@ import com.google.crypto.tink.BinaryKeysetWriter
 import com.google.crypto.tink.KeyTemplates
 import com.google.crypto.tink.KeysetHandle
 import com.google.crypto.tink.KmsClient
-import com.google.crypto.tink.StreamingAead
 import com.google.crypto.tink.aead.AeadConfig
 import com.google.crypto.tink.streamingaead.StreamingAeadConfig
 import com.google.protobuf.ByteString
 import com.google.protobuf.kotlin.toByteString
 import java.io.ByteArrayOutputStream
-import java.nio.ByteBuffer
-import java.nio.channels.Pipe
 import org.wfanet.frequencycount.FrequencyVector
 import org.wfanet.measurement.api.v2alpha.EncryptionKey
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequest
@@ -36,6 +33,7 @@ import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequestKt.header
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.encryptionKey
 import org.wfanet.measurement.api.v2alpha.fulfillRequisitionRequest
+import org.wfanet.measurement.common.crypto.tink.StreamingEncryption
 import org.wfanet.measurement.consent.client.dataprovider.computeRequisitionFingerprint
 
 /**
@@ -116,30 +114,18 @@ class FulfillRequisitionRequestBuilder(
       val encryptedDek = encryptDek(dekHandle)
       val headerRequest = buildEncryptedHeader(encryptedDek)
       yield(headerRequest)
-      yieldBodyChunks(dekHandle)
-    }
-  }
 
-  private suspend fun SequenceScope<FulfillRequisitionRequest>.yieldBodyChunks(
-    dekHandle: KeysetHandle
-  ) {
-    val pipe = Pipe.open()
+      val bodyChunks: List<ByteString> =
+        StreamingEncryption.encryptChunked(
+            dekHandle,
+            frequencyVectorBytes.toByteString(),
+            RPC_CHUNK_SIZE_BYTES,
+            null,
+          )
+          .toList()
 
-    pipe.sink().use { sinkChannel ->
-      val streamingAead = dekHandle.getPrimitive(StreamingAead::class.java)
-      streamingAead.newEncryptingChannel(sinkChannel, byteArrayOf()).use { plaintextChannel ->
-        plaintextChannel.write(ByteBuffer.wrap(frequencyVectorBytes))
-      }
-    }
-
-    pipe.source().use { sourceChannel ->
-      val buffer = ByteBuffer.allocate(RPC_CHUNK_SIZE_BYTES)
-      while (sourceChannel.read(buffer) != -1) {
-        buffer.flip()
-        yield(
-          fulfillRequisitionRequest { bodyChunk = bodyChunk { data = ByteString.copyFrom(buffer) } }
-        )
-        buffer.clear()
+      for (chunk in bodyChunks) {
+        yield(fulfillRequisitionRequest { bodyChunk = bodyChunk { data = chunk } })
       }
     }
   }
