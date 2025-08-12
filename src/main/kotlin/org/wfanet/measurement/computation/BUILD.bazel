@@ -13,8 +13,7 @@ kt_jvm_library(
     deps = [
         ":differential_privacy_params",
         ":k_anonymity_params",
-        "//src/main/proto/wfa/measurement/internal/duchy:differential_privacy_kt_jvm_proto",
-        "@maven//:com_google_privacy_differentialprivacy_differentialprivacy",
+        "//imports/java/com/google/privacy:differential_privacy",
     ],
 )
 
