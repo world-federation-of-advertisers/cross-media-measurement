@@ -16,12 +16,6 @@ locals {
 
   edp_display_names = ["edp7"]
 
-  results_fulfiller_event_proto_descriptors = {
-    secret_id         = "results-fulfiller-event-proto-descriptor-set",
-    secret_local_path = var.results_fulfiller_event_proto_descriptor_path,
-    is_binary_format  = true
-  }
-
   edpa_tee_app_tls_key = {
     secret_id         = "edpa-tee-app-tls-key",
     secret_local_path = abspath("${path.root}/../../../k8s/testing/secretfiles/edpa_tee_app_tls.key"),
@@ -102,15 +96,33 @@ locals {
       single_instance_assignment    = 1
       min_replicas                  = 1
       max_replicas                  = 10
-      app_args = [
-        "--kingdom-public-api-target=${var.kingdom_public_api_target}",
-        "--secure-computation-public-api-target=${var.secure_computation_public_api_target}",
-        "--subscription-id=results-fulfiller-subscription",
-        "--google-pub-sub-project-id=${data.google_client_config.default.project}"
-      ]
       machine_type                  = "n2d-standard-2"
       docker_image                  = "ghcr.io/world-federation-of-advertisers/edp-aggregator/results_fulfiller:${var.image_tag}"
       mig_distribution_policy_zones = ["us-central1-a"]
+      app_flags                     = [
+                                          "--edpa-tls-cert-secret-id", "edpa-tee-app-tls-pem",
+                                          "--edpa-tls-key-secret-id", "edpa-tee-app-tls-key",
+                                          "--secure-computation-cert-collection-secret-id", "securecomputation-root-ca",
+                                          "--kingdom-cert-collection-secret-id", "kingdom-root-ca",
+                                          "--edp-kms-audience", var.edpa_edp_kms_audience,
+                                          "--edp-target-service-account", var.edpa_edp_service_account,
+                                          "--edp-resource-name", var.edpa_edp_resource_name,
+                                          "--edp-cert-der-secret-id", "edp7-cert-der",
+                                          "--edp-cert-der-file-path", "/tmp/edp_certs/edp7_cs_cert.der",
+                                          "--edp-private-der-secret-id", "edp7-private-der",
+                                          "--edp-private-der-file-path", "/tmp/edp_certs/edp7_cs_private.der",
+                                          "--edp-enc-private-secret-id", "edp7-enc-private",
+                                          "--edp-enc-private-file-path", "/tmp/edp_certs/edp7_enc_private.tink",
+                                          "--edp-tls-key-secret-id", "edp7-tls-key",
+                                          "--edp-tls-key-file-path", "/tmp/edp_certs/edp7_tls.key",
+                                          "--edp-tls-pem-secret-id", "edp7-tls-pem",
+                                          "--edp-tls-pem-file-path", "/tmp/edp_certs/edp7_tls.pem",
+                                          "--kingdom-public-api-target", var.kingdom_public_api_target,
+                                          "--secure-computation-public-api-target", var.secure_computation_public_api_target,
+                                          "--subscription-id", "results-fulfiller-subscription",
+                                          "--google-project-id", data.google_client_config.default.project,
+                                          "--event-template-metadata-blob-uri", var.results_fulfiller_event_proto_descriptor_blob_uri
+                                        ]
     }
   }
 
@@ -122,6 +134,11 @@ locals {
   requisition_fetcher_config = {
     local_path  = var.requisition_fetcher_config_file_path
     destination = "requisition-fetcher-config.textproto"
+  }
+
+  results_fulfiller_event_descriptor = {
+    local_path  = var.results_fulfiller_event_proto_descriptor_path
+    destination = "results_fulfiller_event_proto_descriptor.pb"
   }
 
   cloud_function_configs = {
@@ -153,9 +170,6 @@ locals {
 module "edp_aggregator" {
   source = "../modules/edp-aggregator"
 
-  key_ring_name                             = "securecomputation-key-ring"
-  key_ring_location                         = local.key_ring_location
-  kms_key_name                              = "edpa-secure-computation-kek"
   requisition_fulfiller_config              = local.requisition_fulfiller_config
   pubsub_iam_service_account_member         = module.secure_computation.secure_computation_internal_iam_service_account_member
   edp_aggregator_bucket_name                = var.secure_computation_storage_bucket_name
@@ -167,9 +181,9 @@ module "edp_aggregator" {
   requisition_fetcher_service_account_name  = "edpa-requisition-fetcher"
   data_watcher_config                       = local.data_watcher_config
   requisition_fetcher_config                = local.requisition_fetcher_config
+  results_fulfiller_event_descriptor        = local.results_fulfiller_event_descriptor
   event_group_sync_service_account_name     = "edpa-event-group-sync"
   event_group_sync_function_name            = "event-group-sync"
-  results_fulfiller_event_proto_descriptors = local.results_fulfiller_event_proto_descriptors
   edpa_tee_app_tls_key                      = local.edpa_tee_app_tls_key
   edpa_tee_app_tls_pem                      = local.edpa_tee_app_tls_pem
   data_watcher_tls_key                      = local.data_watcher_tls_key
@@ -178,4 +192,5 @@ module "edp_aggregator" {
   kingdom_root_ca                           = local.kingdom_root_ca
   edps_certs                                = local.edps_certs
   cloud_function_configs                    = local.cloud_function_configs
+  results_fulfiller_disk_image_family       = "confidential-space"
 }

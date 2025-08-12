@@ -16,14 +16,8 @@ package org.wfanet.measurement.common.edpaggregator
 
 import com.google.protobuf.Message
 import com.google.protobuf.TypeRegistry
-import java.io.File
 import java.io.StringReader
-import java.net.URI
-import java.nio.file.Paths
-import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.parseTextProto
-import org.wfanet.measurement.storage.SelectedStorageClient
-import org.wfanet.measurement.storage.StorageClient
 
 /** Function to get Cloud Functions' configurations from Storage */
 object CloudFunctionConfig {
@@ -53,36 +47,19 @@ object CloudFunctionConfig {
     defaultInstance: T,
     typeRegistry: TypeRegistry? = null,
   ): T {
-    val storageUriPrefix =
+    val bucket =
       checkNotNull(System.getenv(CONFIG_STORAGE_BUCKET_ENV)) {
           "Environment variable EDPA_CONFIG_STORAGE_BUCKET must be set."
         }
         .removeSuffix("/")
     val projectId = System.getenv(GOOGLE_PROJECT_ID_ENV)
-
-    val (blobUri, rootDirectory) =
-      if (storageUriPrefix.startsWith("file:///")) {
-        val path = Paths.get(URI(storageUriPrefix))
-        val parentPath =
-          requireNotNull(path.parent?.toString()) { "Parent path must not be null for $path" }
-        val root = if (parentPath.endsWith("/")) parentPath else "$parentPath/"
-        "file:///${path.fileName}/$configBlobKey" to File(root)
-      } else {
-        "$storageUriPrefix/$configBlobKey" to null
-      }
-    val storageClient: StorageClient =
-      SelectedStorageClient(url = blobUri, rootDirectory = rootDirectory, projectId = projectId)
-    val blob: StorageClient.Blob =
-      checkNotNull(storageClient.getBlob(configBlobKey)) {
-        "Configuration blob '$configBlobKey' not found at '$storageUriPrefix'"
-      }
-
-    val bytes = blob.read().flatten()
-    val content = bytes.toStringUtf8()
+    val loader = BlobLoader()
+    val bytes = loader.getBytes(bucket, configBlobKey, projectId)
+    val text = bytes.toStringUtf8()
     return if (typeRegistry != null) {
-      parseTextProto(StringReader(content), defaultInstance, typeRegistry)
+      parseTextProto(StringReader(text), defaultInstance, typeRegistry)
     } else {
-      parseTextProto(StringReader(content), defaultInstance)
+      parseTextProto(StringReader(text), defaultInstance)
     }
   }
 }

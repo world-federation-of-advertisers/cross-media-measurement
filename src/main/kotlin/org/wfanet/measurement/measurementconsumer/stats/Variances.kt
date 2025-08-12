@@ -513,7 +513,7 @@ object VariancesImpl : Variances {
    * Computes [ReachVariance] of a reach-and-frequency measurement that is computed using the Honest
    * Majority Share Shuffle methodology.
    */
-  private fun computeHonestMajorityShareShuffleVariance(
+  private fun computeFrequencyVectorBasedVariance(
     frequencyVectorSize: Long,
     reachParams: ReachMeasurementVarianceParams,
   ): Double {
@@ -524,7 +524,7 @@ object VariancesImpl : Variances {
       )
 
     val variance =
-      HonestMajorityShareShuffle.reachVariance(
+      FrequencyVectorBasedVariance.reachVariance(
         frequencyVectorSize = frequencyVectorSize,
         vidSamplingIntervalWidth = reachParams.measurementParams.vidSamplingInterval.width,
         reach = reachParams.reach,
@@ -537,7 +537,7 @@ object VariancesImpl : Variances {
    * Computes [FrequencyVariances] of a reach-and-frequency measurement that is computed using the
    * Honest Majority Share Shuffle methodology.
    */
-  private fun computeHonestMajorityShareShuffleVariance(
+  private fun computeFrequencyVectorBasedVariance(
     frequencyVectorSize: Long,
     frequencyParams: FrequencyMeasurementVarianceParams,
   ): FrequencyVariances {
@@ -569,7 +569,7 @@ object VariancesImpl : Variances {
 
     val countVariances: Map<Int, Double> =
       (1..maximumFrequency).associateWith { frequency ->
-        HonestMajorityShareShuffle.frequencyCountVariance(
+        FrequencyVectorBasedVariance.frequencyCountVariance(
           frequencyVectorSize,
           frequency,
           frequencyNoiseVariance,
@@ -585,7 +585,7 @@ object VariancesImpl : Variances {
 
     val kPlusCountVariances: Map<Int, Double> =
       (1..maximumFrequency).associateWith { frequency ->
-        HonestMajorityShareShuffle.kPlusFrequencyCountVariance(
+        FrequencyVectorBasedVariance.kPlusFrequencyCountVariance(
           frequencyVectorSize,
           frequency,
           frequencyNoiseVariance,
@@ -601,7 +601,7 @@ object VariancesImpl : Variances {
 
     val relativeVariances: Map<Int, Double> =
       (1..maximumFrequency).associateWith { frequency ->
-        HonestMajorityShareShuffle.frequencyRelativeVariance(
+        FrequencyVectorBasedVariance.frequencyRelativeVariance(
           frequencyVectorSize,
           frequency,
           frequencyNoiseVariance,
@@ -617,7 +617,7 @@ object VariancesImpl : Variances {
 
     val kPlusRelativeVariances: Map<Int, Double> =
       (1..maximumFrequency).associateWith { frequency ->
-        HonestMajorityShareShuffle.kPlusFrequencyRelativeVariance(
+        FrequencyVectorBasedVariance.kPlusFrequencyRelativeVariance(
           frequencyVectorSize,
           frequency,
           frequencyNoiseVariance,
@@ -781,7 +781,13 @@ object VariancesImpl : Variances {
         )
       }
       is HonestMajorityShareShuffleMethodology -> {
-        computeHonestMajorityShareShuffleVariance(
+        computeFrequencyVectorBasedVariance(
+          methodology.frequencyVectorSize,
+          measurementVarianceParams,
+        )
+      }
+      is TrusTeeMethodology -> {
+        computeFrequencyVectorBasedVariance(
           methodology.frequencyVectorSize,
           measurementVarianceParams,
         )
@@ -856,7 +862,13 @@ object VariancesImpl : Variances {
         )
       }
       is HonestMajorityShareShuffleMethodology -> {
-        computeHonestMajorityShareShuffleVariance(
+        computeFrequencyVectorBasedVariance(
+          methodology.frequencyVectorSize,
+          measurementVarianceParams,
+        )
+      }
+      is TrusTeeMethodology -> {
+        computeFrequencyVectorBasedVariance(
           methodology.frequencyVectorSize,
           measurementVarianceParams,
         )
@@ -943,6 +955,12 @@ object VariancesImpl : Variances {
           IllegalArgumentException("Invalid methodology"),
         )
       }
+      is TrusTeeMethodology -> {
+        throw UnsupportedMethodologyUsageException(
+          "Methodology HONEST_MAJORITY_SHARE_SHUFFLE is not supported for impression.",
+          IllegalArgumentException("Invalid methodology"),
+        )
+      }
     }
   }
 
@@ -1002,6 +1020,12 @@ object VariancesImpl : Variances {
         )
       }
       is HonestMajorityShareShuffleMethodology -> {
+        throw UnsupportedMethodologyUsageException(
+          "Methodology HONEST_MAJORITY_SHARE_SHUFFLE is not supported for watch duration.",
+          IllegalArgumentException("Invalid methodology"),
+        )
+      }
+      is TrusTeeMethodology -> {
         throw UnsupportedMethodologyUsageException(
           "Methodology HONEST_MAJORITY_SHARE_SHUFFLE is not supported for watch duration.",
           IllegalArgumentException("Invalid methodology"),

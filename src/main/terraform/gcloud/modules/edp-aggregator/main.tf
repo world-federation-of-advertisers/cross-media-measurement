@@ -15,72 +15,53 @@
 data "google_project" "project" {}
 
 locals {
-  common_secrets_to_mount = [
+  common_secrets_to_access = [
     {
       secret_id  = var.edpa_tee_app_tls_key.secret_id
       version    = "latest"
-      mount_path = "/etc/ssl/edpa_tee_app_tls.key",
-      flag_name  = "--edpa-tls-key-file-path"
     },
     {
       secret_id  = var.edpa_tee_app_tls_pem.secret_id
       version    = "latest"
-      mount_path = "/etc/ssl/edpa_tee_app_tls.pem",
-      flag_name  = "--edpa-tls-cert-file-path"
     },
     {
       secret_id  = var.secure_computation_root_ca.secret_id
       version    = "latest"
-      mount_path = "/etc/ssl/secure_computation_root.pem",
-      flag_name  = "--secure-computation-cert-collection-file-path"
     },
     {
       secret_id  = var.kingdom_root_ca.secret_id
       version    = "latest"
-      mount_path = "/etc/ssl/kingdom_root.pem",
-      flag_name  = "--kingdom-cert-collection-file-path"
     },
-    {
-      secret_id  = var.results_fulfiller_event_proto_descriptors.secret_id
-      version    = "latest"
-      mount_path = "/var/tmp/event_proto_descriptors.pb",
-      flag_name  = "--event-template-metadata-type"
-    }
   ]
 
-  edp_secrets_to_mount = flatten([
+  edp_secrets_to_access = flatten([
     for edp_name, certs in var.edps_certs : [
       {
         secret_id  = certs.cert_der.secret_id
         version    = "latest"
-        mount_path = "/etc/ssl/${edp_name}_cs_cert.der"
       },
       {
         secret_id  = certs.private_der.secret_id
         version    = "latest"
-        mount_path = "/etc/ssl/${edp_name}_cs_private.der"
       },
       {
         secret_id  = certs.enc_private.secret_id
         version    = "latest"
-        mount_path = "/etc/ssl/${edp_name}_enc_private.tink"
       },
       {
         secret_id  = certs.tls_key.secret_id
         version    = "latest"
-        mount_path = "/etc/ssl/${edp_name}_tls.key"
       },
       {
         secret_id  = certs.tls_pem.secret_id
         version    = "latest"
-        mount_path = "/etc/ssl/${edp_name}_tls.pem"
       },
     ]
   ])
 
-  result_fulfiller_secrets_to_mount = concat(
-    local.common_secrets_to_mount,
-    local.edp_secrets_to_mount,
+  result_fulfiller_secrets_to_access = concat(
+    local.common_secrets_to_access,
+    local.edp_secrets_to_access,
   )
 
   edps_secrets = merge([
@@ -96,7 +77,6 @@ locals {
     { data_watcher_tls_pem                          = var.data_watcher_tls_pem },
     { secure_computation_root_ca                    = var.secure_computation_root_ca },
     { kingdom_root_ca                               = var.kingdom_root_ca },
-    { results_fulfiller_event_proto_descriptors     = var.results_fulfiller_event_proto_descriptors },
     local.edps_secrets
   )
 
@@ -161,16 +141,22 @@ module "config_files_bucket" {
   location = var.edp_aggregator_buckets_location
 }
 
-resource "google_storage_bucket_object" "uploaded_data_watcher_config" {
+resource "google_storage_bucket_object" "upload_data_watcher_config" {
   name   = var.data_watcher_config.destination
   bucket = module.config_files_bucket.storage_bucket.name
   source = var.data_watcher_config.local_path
 }
 
-resource "google_storage_bucket_object" "uploaded_requisition_fetcher_config" {
+resource "google_storage_bucket_object" "upload_requisition_fetcher_config" {
   name   = var.requisition_fetcher_config.destination
   bucket = module.config_files_bucket.storage_bucket.name
   source = var.requisition_fetcher_config.local_path
+}
+
+resource "google_storage_bucket_object" "upload_results_fulfiller_proto_descriptors" {
+  name   = var.results_fulfiller_event_descriptor.destination
+  bucket = module.config_files_bucket.storage_bucket.name
+  source = var.results_fulfiller_event_descriptor.local_path
 }
 
 resource "google_project_iam_member" "eventarc_service_agent" {
@@ -253,22 +239,6 @@ resource "google_pubsub_topic_iam_member" "publisher" {
   member = var.pubsub_iam_service_account_member
 }
 
-resource "google_kms_key_ring" "edp_aggregator_key_ring" {
-
-  name     = var.key_ring_name
-  location = var.key_ring_location
-
-  lifecycle {
-    prevent_destroy = false
-  }
-}
-
-resource "google_kms_crypto_key" "edp_aggregator_kek" {
-  name     = var.kms_key_name
-  key_ring = google_kms_key_ring.edp_aggregator_key_ring.id
-  purpose  = "ENCRYPT_DECRYPT"
-}
-
 module "result_fulfiller_tee_app" {
   source   = "../mig"
 
@@ -282,13 +252,13 @@ module "result_fulfiller_tee_app" {
   single_instance_assignment    = var.requisition_fulfiller_config.worker.single_instance_assignment
   min_replicas                  = var.requisition_fulfiller_config.worker.min_replicas
   max_replicas                  = var.requisition_fulfiller_config.worker.max_replicas
-  app_args                      = var.requisition_fulfiller_config.worker.app_args
   machine_type                  = var.requisition_fulfiller_config.worker.machine_type
-  kms_key_id                    = google_kms_crypto_key.edp_aggregator_kek.id
   docker_image                  = var.requisition_fulfiller_config.worker.docker_image
   mig_distribution_policy_zones = var.requisition_fulfiller_config.worker.mig_distribution_policy_zones
   terraform_service_account     = var.terraform_service_account
-  secrets_to_mount              = local.result_fulfiller_secrets_to_mount
+  secrets_to_access             = local.result_fulfiller_secrets_to_access
+  tee_cmd                       = var.requisition_fulfiller_config.worker.app_flags
+  disk_image_family             = var.results_fulfiller_disk_image_family
 }
 
 resource "google_storage_bucket_iam_member" "result_fulfiller_storage_viewer" {
@@ -322,6 +292,12 @@ resource "google_storage_bucket_iam_member" "data_watcher_config_storage_viewer"
   bucket = module.config_files_bucket.storage_bucket.name
   role   = "roles/storage.objectViewer"
   member = "serviceAccount:${module.data_watcher_cloud_function.cloud_function_service_account.email}"
+}
+
+resource "google_storage_bucket_iam_member" "results_fulfiller_config_storage_viewer" {
+  bucket = module.config_files_bucket.storage_bucket.name
+  role   = "roles/storage.objectViewer"
+  member = "serviceAccount:${module.result_fulfiller_tee_app.mig_service_account.email}"
 }
 
 resource "google_cloud_run_service_iam_member" "event_group_sync_invoker" {

@@ -161,6 +161,8 @@ fun InternalComputationParticipant.toSystemComputationParticipant(): Computation
                     source.details.honestMajorityShareShuffle.tinkPublicKeySignatureAlgorithmOid
                 }
             }
+            InternalComputationParticipantDetails.ProtocolCase.TRUS_TEE ->
+              error("TRUS_TEE is not supported")
             InternalComputationParticipantDetails.ProtocolCase.PROTOCOL_NOT_SET -> Unit
           }
         }

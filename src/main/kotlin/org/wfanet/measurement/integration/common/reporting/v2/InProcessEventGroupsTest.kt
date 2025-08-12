@@ -57,6 +57,7 @@ import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.createEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.eventGroup as cmmsEventGroup
 import org.wfanet.measurement.api.v2alpha.eventGroupMetadata as cmmsEventGroupMetadata
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.common.crypto.subjectKeyIdentifier
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.TrustedPrincipalCallCredentials
@@ -176,6 +177,7 @@ abstract class InProcessEventGroupsTest(
           measurementConsumerConfig,
           TRUSTED_CERTIFICATES,
           kingdom.knownEventGroupMetadataTypes,
+          TestEvent.getDescriptor(),
           verboseGrpcLogging = false,
         )
       }

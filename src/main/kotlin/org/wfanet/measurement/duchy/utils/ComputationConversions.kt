@@ -53,6 +53,7 @@ import org.wfanet.measurement.measurementconsumer.stats.HonestMajorityShareShuff
 import org.wfanet.measurement.measurementconsumer.stats.LiquidLegionsSketchMethodology
 import org.wfanet.measurement.measurementconsumer.stats.LiquidLegionsV2Methodology
 import org.wfanet.measurement.measurementconsumer.stats.Methodology
+import org.wfanet.measurement.measurementconsumer.stats.TrusTeeMethodology
 import org.wfanet.measurement.system.v1alpha.Computation as SystemComputation
 import org.wfanet.measurement.system.v1alpha.ComputationKey
 import org.wfanet.measurement.system.v1alpha.ComputationParticipant
@@ -268,7 +269,8 @@ data class ReachAndFrequencyResult(
           is CustomDirectFrequencyMethodology,
           is DeterministicMethodology,
           is LiquidLegionsSketchMethodology,
-          is LiquidLegionsV2Methodology -> {}
+          is LiquidLegionsV2Methodology,
+          is TrusTeeMethodology -> {}
         }
       }
       frequency = frequency {
@@ -283,7 +285,8 @@ data class ReachAndFrequencyResult(
           is CustomDirectFrequencyMethodology,
           is DeterministicMethodology,
           is LiquidLegionsSketchMethodology,
-          is LiquidLegionsV2Methodology -> {}
+          is LiquidLegionsV2Methodology,
+          is TrusTeeMethodology -> {}
         }
       }
     }
@@ -307,7 +310,8 @@ data class ReachResult(val reach: Long, val methodology: Methodology) : Computat
           is CustomDirectFrequencyMethodology,
           is DeterministicMethodology,
           is LiquidLegionsSketchMethodology,
-          is LiquidLegionsV2Methodology -> {}
+          is LiquidLegionsV2Methodology,
+          is TrusTeeMethodology -> {}
         }
       }
     }
