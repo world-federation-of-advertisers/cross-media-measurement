@@ -25,7 +25,7 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/common/identity",
         "//src/main/kotlin/org/wfanet/measurement/duchy/db/computation",
         "//src/main/kotlin/org/wfanet/measurement/duchy/mill:mill_base",
-        "//src/main/kotlin/org/wfanet/measurement/duchy/mill/trustee/crypto:trus_tee_cryptor",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/mill/trustee/processor:trus_tee_processor",
         "//src/main/kotlin/org/wfanet/measurement/duchy/utils:computation_conversions",
         "//src/main/kotlin/org/wfanet/measurement/measurementconsumer/stats:metric_statistics",
         "//src/main/kotlin/org/wfanet/measurement/system/v1alpha:resource_key",
