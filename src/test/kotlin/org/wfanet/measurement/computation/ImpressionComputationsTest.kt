@@ -26,13 +26,26 @@ class ImpressionComputationsTest {
   fun `raw impression count calculation without noise`() {
     val histogram = longArrayOf(0L, 5L, 0L, 3L, 7L, 0L) // 2*5 + 4*3 + 5*7
     val result =
-      ImpressionComputations(l0Sensitivity = null, lInfiniteSensitivity = null)
-        .computeImpressionCount(
-          rawHistogram = histogram,
-          vidSamplingIntervalWidth = 1.0f,
-          dpParams = null,
-        )
+      ImpressionComputations.computeImpressionCount(
+        rawHistogram = histogram,
+        vidSamplingIntervalWidth = 1.0f,
+        maxFrequency = null,
+        dpParams = null,
+      )
     assertThat(result).isEqualTo(57L)
+  }
+
+  @Test
+  fun `caps raw impression count with maximum frequency`() {
+    val histogram = longArrayOf(0L, 5L, 0L, 3L, 7L, 0L) // 2*5 + 4*3 + 5*7
+    val result =
+      ImpressionComputations.computeImpressionCount(
+        rawHistogram = histogram,
+        vidSamplingIntervalWidth = 1.0f,
+        maxFrequency = 4,
+        dpParams = null,
+      )
+    assertThat(result).isEqualTo(50L) // 2*5 + 4*3 + 4*7
   }
 
   @Test
@@ -40,25 +53,26 @@ class ImpressionComputationsTest {
     val histogram = longArrayOf(0L, 5L, 0L, 3L, 7L, 0L) // 2*5 + 4*3 + 5*7
     val scale = 0.5f
     val result =
-      ImpressionComputations(l0Sensitivity = null, lInfiniteSensitivity = null)
-        .computeImpressionCount(
-          rawHistogram = histogram,
-          vidSamplingIntervalWidth = scale,
-          dpParams = null,
-        )
+      ImpressionComputations.computeImpressionCount(
+        rawHistogram = histogram,
+        vidSamplingIntervalWidth = scale,
+        maxFrequency = null,
+        dpParams = null,
+      )
     assertThat(result).isEqualTo((57L / scale).toLong())
   }
 
   @Test
   fun `impression count with DP noise is within expected tolerance`() {
     val histogram = longArrayOf(2L, 4L, 0L, 8L, 0L, 0L, 10L, 0L, 2L) // 1*2 + 2*4 + 4*8 + 7*10 + 7*2
+    val maxFrequency = 2
     val result =
-      ImpressionComputations(l0Sensitivity = 2, lInfiniteSensitivity = 2L)
-        .computeImpressionCount(
-          rawHistogram = histogram,
-          vidSamplingIntervalWidth = 1.0f,
-          dpParams = DP_PARAMS,
-        )
+      ImpressionComputations.computeImpressionCount(
+        rawHistogram = histogram,
+        vidSamplingIntervalWidth = 1.0f,
+        maxFrequency = 2,
+        dpParams = DP_PARAMS,
+      )
     val rawImpressionCount = 1 * 2 + 2 * 4 + 4 * 8 + 7 * 10 + 7 * 2
     val tolerance = calculateNoiseTolerance(DP_PARAMS, 2.0, 2.0)
     check(rawImpressionCount > tolerance) {
@@ -69,15 +83,15 @@ class ImpressionComputationsTest {
   }
 
   @Test
-  fun `throws error is sensitivity is not set but dp params are set`() {
+  fun `throws error if maxFrequency is not set but dp params are set`() {
     val histogram = longArrayOf(2L, 4L, 0L, 8L, 0L, 0L, 10L, 0L, 2L) // 1*2 + 2*4 + 4*8 + 7*10 + 7*2
     assertFailsWith<IllegalStateException> {
-      ImpressionComputations(l0Sensitivity = null, lInfiniteSensitivity = null)
-        .computeImpressionCount(
-          rawHistogram = histogram,
-          vidSamplingIntervalWidth = 1.0f,
-          dpParams = DP_PARAMS,
-        )
+      ImpressionComputations.computeImpressionCount(
+        rawHistogram = histogram,
+        vidSamplingIntervalWidth = 1.0f,
+        maxFrequency = null,
+        dpParams = DP_PARAMS,
+      )
     }
   }
 
@@ -91,12 +105,12 @@ class ImpressionComputationsTest {
     fun calculateNoiseTolerance(
       differentialPrivacyParams: DifferentialPrivacyParams,
       l0Sensitivity: Double = 1.0,
-      linfSensitivity: Double = 1.0,
+      maxFrequency: Double,
     ): Int {
       // Based on DP with Gaussian noise, stddev = sqrt(2 * ln(1.25/delta)) / epsilon
       // Per Google.privacy.differentialprivacy.GaussianNoise docs
       val stddev =
-        sqrt(2.0 * ln(1.25 / differentialPrivacyParams.delta)) * linfSensitivity * l0Sensitivity /
+        sqrt(2.0 * ln(1.25 / differentialPrivacyParams.delta)) * maxFrequency * l0Sensitivity /
           differentialPrivacyParams.epsilon
       return (6 * stddev).toInt() + 1 // ±6 sigma and round-up
     }

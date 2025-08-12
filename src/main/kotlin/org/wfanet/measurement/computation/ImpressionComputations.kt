@@ -17,19 +17,10 @@
 package org.wfanet.measurement.computation
 
 import com.google.privacy.differentialprivacy.GaussianNoise
+import kotlin.math.min
 
-/**
- * Handles impression count computations with optional differential privacy (DP) noise.
- *
- * ## Sensitivity
- * Both `l0Sensitivity` and `lInfiniteSensitivity` calibrate DP noise and must reflect the maximum
- * impact a single user can have. Typically, set both to the maximum capped impression count per
- * user. They are both required if optional differential privacy noise will be applied.
- */
-class ImpressionComputations(
-  private val l0Sensitivity: Int?,
-  private val lInfiniteSensitivity: Long?,
-) {
+object ImpressionComputations {
+  private const val L_0_SENSITIVITY = 1
 
   /**
    * Computes the impression count from a histogram of frequencies, applying differential privacy
@@ -43,6 +34,8 @@ class ImpressionComputations(
    *   the count of impressions at a given frequency.
    * @param vidSamplingIntervalWidth The width of the sampling interval for VIDs, used to scale the
    *   impression count.
+   * @param maxFrequency The maximum impression frequency per user. Used for both impression
+   *   calculations as well as the lInfiniteSensitivy, if noise is applied.
    * @param dpParams Optional differential privacy parameters. If `null`, no noise is added and the
    *   raw impression count is scaled and returned.
    * @return The (potentially noised) impression count as a [Long]. If noise results in a negative
@@ -51,25 +44,29 @@ class ImpressionComputations(
   fun computeImpressionCount(
     rawHistogram: LongArray,
     vidSamplingIntervalWidth: Float,
+    maxFrequency: Long?,
     dpParams: DifferentialPrivacyParams?,
   ): Long {
     val rawImpressionCount =
       rawHistogram.withIndex().sumOf { (index, count) ->
-        val frequency = index + 1L
+        val frequency =
+          if (maxFrequency == null) {
+            index + 1L
+          } else {
+            min(maxFrequency, index + 1L)
+          }
         frequency * count
       }
     if (dpParams == null) {
       return (rawImpressionCount / vidSamplingIntervalWidth).toLong()
     }
-    check(l0Sensitivity != null && lInfiniteSensitivity != null) {
-      "L0Sensitivity and LInfiniteSensitivity cannot be null if dpParams are set"
-    }
+    check(maxFrequency != null) { "maxFrequency cannot be null if dpParams are set" }
     val noise = GaussianNoise()
     val noisedImpressionCount =
       noise.addNoise(
         rawImpressionCount,
-        l0Sensitivity,
-        lInfiniteSensitivity,
+        L_0_SENSITIVITY,
+        maxFrequency,
         dpParams.epsilon,
         dpParams.delta,
       )
