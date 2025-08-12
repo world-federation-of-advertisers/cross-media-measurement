@@ -17,9 +17,6 @@
 package org.wfanet.measurement.edpaggregator.resultsfulfiller.compute.protocols.direct
 
 import java.util.logging.Logger
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.v2alpha.DeterministicCountDistinct
 import org.wfanet.measurement.api.v2alpha.DeterministicDistribution
 import org.wfanet.measurement.api.v2alpha.DifferentialPrivacyParams as CmmsDpParams
@@ -30,12 +27,12 @@ import org.wfanet.measurement.api.v2alpha.MeasurementKt.ResultKt.reach
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig.NoiseMechanism
 import org.wfanet.measurement.api.v2alpha.Requisition
+import org.wfanet.measurement.computation.DifferentialPrivacyParams
 import org.wfanet.measurement.computation.HistogramComputations
+import org.wfanet.measurement.computation.ReachAndFrequencyComputations
 import org.wfanet.measurement.dataprovider.RequisitionRefusalException
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.compute.MeasurementResultBuilder
 import org.wfanet.measurement.eventdataprovider.noiser.DirectNoiseMechanism
-import org.wfanet.measurement.computation.ReachAndFrequencyComputations
-import org.wfanet.measurement.computation.DifferentialPrivacyParams
 
 /**
  * Builder for direct reach and frequency measurement results.
@@ -78,13 +75,11 @@ class DirectReachAndFrequencyResultBuilder(
         "No valid methodologies for direct frequency distribution computation.",
       )
     }
-    val histogram: LongArray = HistogramComputations.buildHistogram(
-      frequencyVector = frequencyData,
-      maxFrequency = maxFrequency,
-    )
-    println("****")
-    println(frequencyData.joinToString(","))
-    println(histogram.joinToString(","))
+    val histogram: LongArray =
+      HistogramComputations.buildHistogram(
+        frequencyVector = frequencyData,
+        maxFrequency = maxFrequency,
+      )
 
     val reachValue = getReachValue(histogram)
 
@@ -112,18 +107,19 @@ class DirectReachAndFrequencyResultBuilder(
   }
 
   private fun getFrequencyMap(histogram: LongArray): Map<Long, Double> {
-    val frequencyDpParams = if (directNoiseMechanism != DirectNoiseMechanism.NONE) {
-      logger.info("Adding $directNoiseMechanism publisher noise to direct reach and frequency...")
-      require(directNoiseMechanism == DirectNoiseMechanism.CONTINUOUS_GAUSSIAN) {
-        "Only Continuous Gaussian is supported for dp noise"
+    val frequencyDpParams =
+      if (directNoiseMechanism != DirectNoiseMechanism.NONE) {
+        logger.info("Adding $directNoiseMechanism publisher noise to direct reach and frequency...")
+        require(directNoiseMechanism == DirectNoiseMechanism.CONTINUOUS_GAUSSIAN) {
+          "Only Continuous Gaussian is supported for dp noise"
+        }
+        DifferentialPrivacyParams(
+          epsilon = frequencyPrivacyParams.epsilon,
+          delta = frequencyPrivacyParams.delta,
+        )
+      } else {
+        null
       }
-      DifferentialPrivacyParams(
-        epsilon = frequencyPrivacyParams.epsilon,
-        delta = frequencyPrivacyParams.delta,
-      )
-    } else {
-      null
-    }
     return ReachAndFrequencyComputations.computeFrequencyDistribution(
       rawHistogram = histogram,
       maxFrequency = maxFrequency,
@@ -132,18 +128,19 @@ class DirectReachAndFrequencyResultBuilder(
   }
 
   private fun getReachValue(histogram: LongArray): Long {
-    val reachDpParams = if (directNoiseMechanism != DirectNoiseMechanism.NONE) {
-      logger.info("Adding $directNoiseMechanism publisher noise to direct reach...")
-      require(directNoiseMechanism == DirectNoiseMechanism.CONTINUOUS_GAUSSIAN) {
-        "Only Continuous Gaussian is supported for dp noise"
+    val reachDpParams =
+      if (directNoiseMechanism != DirectNoiseMechanism.NONE) {
+        logger.info("Adding $directNoiseMechanism publisher noise to direct reach...")
+        require(directNoiseMechanism == DirectNoiseMechanism.CONTINUOUS_GAUSSIAN) {
+          "Only Continuous Gaussian is supported for dp noise"
+        }
+        DifferentialPrivacyParams(
+          epsilon = reachPrivacyParams.epsilon,
+          delta = reachPrivacyParams.delta,
+        )
+      } else {
+        null
       }
-      DifferentialPrivacyParams(
-        epsilon = reachPrivacyParams.epsilon,
-        delta = reachPrivacyParams.delta,
-      )
-    } else {
-      null
-    }
     return ReachAndFrequencyComputations.computeReach(
       rawHistogram = histogram,
       dpParams = reachDpParams,
