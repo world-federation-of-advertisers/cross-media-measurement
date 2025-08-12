@@ -20,7 +20,7 @@ import com.google.privacy.differentialprivacy.GaussianNoise
 import kotlin.math.min
 
 object ImpressionComputations {
-  private const val L_0_SENSITIVITY = 1
+  private const val L_0_SENSITIVITY: Int = 1
 
   /**
    * Computes the impression count from a histogram of frequencies, applying differential privacy

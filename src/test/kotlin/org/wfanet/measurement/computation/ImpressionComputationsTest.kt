@@ -16,6 +16,7 @@ package org.wfanet.measurement.computation
 
 import com.google.common.truth.Truth.assertThat
 import kotlin.math.ln
+import kotlin.math.min
 import kotlin.math.sqrt
 import kotlin.test.assertFailsWith
 import org.junit.Test
@@ -65,21 +66,26 @@ class ImpressionComputationsTest {
   @Test
   fun `impression count with DP noise is within expected tolerance`() {
     val histogram = longArrayOf(2L, 4L, 0L, 8L, 0L, 0L, 10L, 0L, 2L) // 1*2 + 2*4 + 4*8 + 7*10 + 7*2
-    val maxFrequency = 2
+    val maxFrequency = 4L
     val result =
       ImpressionComputations.computeImpressionCount(
         rawHistogram = histogram,
         vidSamplingIntervalWidth = 1.0f,
-        maxFrequency = 2,
+        maxFrequency = maxFrequency,
         dpParams = DP_PARAMS,
       )
-    val rawImpressionCount = 1 * 2 + 2 * 4 + 4 * 8 + 7 * 10 + 7 * 2
-    val tolerance = calculateNoiseTolerance(DP_PARAMS, 2.0, 2.0)
+    val rawImpressionCount =
+      1 * 2 +
+        min(maxFrequency, 2) * 4 +
+        min(maxFrequency, 4) * 8 +
+        min(maxFrequency, 5) * 10 +
+        min(maxFrequency, 7) * 2
+    val tolerance = calculateNoiseTolerance(DP_PARAMS, 1, maxFrequency.toDouble())
     check(rawImpressionCount > tolerance) {
       "Test must be set up such that raw impression count $rawImpressionCount is greater than tolerance $tolerance"
     }
-    assertThat(result).isAtLeast((rawImpressionCount - tolerance).coerceAtLeast(0).toLong())
-    assertThat(result).isAtMost((rawImpressionCount + tolerance).toLong())
+    assertThat(result).isAtLeast((rawImpressionCount - tolerance).coerceAtLeast(0))
+    assertThat(result).isAtMost((rawImpressionCount + tolerance))
   }
 
   @Test
@@ -96,7 +102,11 @@ class ImpressionComputationsTest {
   }
 
   companion object {
-    private val DP_PARAMS = DifferentialPrivacyParams(epsilon = 1.0, delta = 1e-5)
+    private val DP_PARAMS = DifferentialPrivacyParams(epsilon = 2.0, delta = 1e-5)
+
+    private fun getL2Sensitivity(l0Sensitivity: Int, lInfSensitivity: Double): Double {
+      return sqrt(l0Sensitivity.toDouble()) * lInfSensitivity
+    }
 
     /**
      * Returns an interval (tolerance) of ±6 standard deviations for the DP noise added. This
@@ -104,14 +114,15 @@ class ImpressionComputationsTest {
      */
     fun calculateNoiseTolerance(
       differentialPrivacyParams: DifferentialPrivacyParams,
-      l0Sensitivity: Double = 1.0,
-      maxFrequency: Double,
+      l0Sensitivity: Int = 1,
+      lInfSensitivity: Double,
     ): Int {
-      // Based on DP with Gaussian noise, stddev = sqrt(2 * ln(1.25/delta)) / epsilon
+      // Based on DP with Gaussian noise,
+      // stddev = sqrt(2 * ln(1.25/delta)) * l2Sensitivity / epsilon
       // Per Google.privacy.differentialprivacy.GaussianNoise docs
       val stddev =
-        sqrt(2.0 * ln(1.25 / differentialPrivacyParams.delta)) * maxFrequency * l0Sensitivity /
-          differentialPrivacyParams.epsilon
+        sqrt(2.0 * ln(1.25 / differentialPrivacyParams.delta)) *
+          getL2Sensitivity(l0Sensitivity, lInfSensitivity) / differentialPrivacyParams.epsilon
       return (6 * stddev).toInt() + 1 // ±6 sigma and round-up
     }
   }
