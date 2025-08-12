@@ -19,9 +19,14 @@ from typing import FrozenSet
 from absl import app
 from absl import flags
 from absl import logging
+from typing import TypeAlias
 
 from noiseninja.noised_measurements import Measurement
+from noiseninja.noised_measurements import MeasurementSet
+from noiseninja.noised_measurements import KReachMeasurements
 
+from report.report import build_whole_campaign_measurements
+from report.report import EdpCombination
 from report.report import MetricReport
 from report.report import Report
 
@@ -33,8 +38,7 @@ from src.main.proto.wfa.measurement.reporting.postprocessing.v2alpha import \
 ReportPostProcessorStatus = report_post_processor_result_pb2.ReportPostProcessorStatus
 ReportPostProcessorResult = report_post_processor_result_pb2.ReportPostProcessorResult
 
-# This is a demo script that has the following assumptions :
-# 1. Impression results are not corrected.
+MeasurementPolicy: TypeAlias = str
 
 FLAGS = flags.FLAGS
 
@@ -56,9 +60,9 @@ class ReportSummaryProcessor:
 
   Attributes:
       _report_summary: The ReportSummary to process.
-      _cumulative_measurements: A dictionary mapping measurement policies
+      _weekly_cumulative_reaches: A dictionary mapping measurement policies
                                 to cumulative measurements.
-      _whole_campaign_measurements: A dictionary mapping measurement policies
+      _whole_campaign_reaches: A dictionary mapping measurement policies
                                      to whole campaign measurements.
       _set_difference_map: A dictionary mapping set different measurements to
                            the corresponding primitive measurements. A different
@@ -74,13 +78,15 @@ class ReportSummaryProcessor:
       report_summary: The ReportSummary proto to process.
     """
     self._report_summary = report_summary
-    self._cumulative_measurements: dict[
-      str, dict[FrozenSet[str], list[Measurement]]] = {}
-    self._whole_campaign_measurements: dict[
-      str, dict[FrozenSet[str], Measurement]] = {}
-    self._k_reach: dict[str, dict[FrozenSet[str], dict[int, Measurement]]] = {}
-    self._impression: dict[str, dict[FrozenSet[str], Measurement]] = {}
-    self._set_difference_map: dict[str, tuple[str, str]] = {}
+    self._weekly_cumulative_reaches: dict[MeasurementPolicy, dict[EdpCombination,
+                                                  list[Measurement]]] = {}
+    self._whole_campaign_reaches: dict[MeasurementPolicy,
+                                            dict[EdpCombination, Measurement]] = {}
+    self._whole_campaign_k_reaches: dict[MeasurementPolicy,
+                        dict[EdpCombination, KReachMeasurements]] = {}
+    self._whole_campaign_impressions: dict[MeasurementPolicy,
+                           dict[EdpCombination, Measurement]] = {}
+    self._set_difference_map: dict[MeasurementPolicy, tuple[str, str]] = {}
     self._uncorrected_measurements: set[str] = set()
 
   def process(self) -> ReportPostProcessorResult:
@@ -111,22 +117,35 @@ class ReportSummaryProcessor:
     Correct the report and returns the adjusted value for each measurement.
     """
     logging.info("Building a report from the report summary.")
+
+    all_policies = (
+        set(self._weekly_cumulative_reaches.keys())
+        | set(self._whole_campaign_reaches.keys())
+        | set(self._whole_campaign_k_reaches.keys())
+        | set(self._whole_campaign_impressions.keys())
+    )
+
+    metric_reports = {}
+    for policy in all_policies:
+      whole_campaign_measurements = build_whole_campaign_measurements(
+          self._whole_campaign_reaches.get(policy, {}),
+          self._whole_campaign_k_reaches.get(policy, {}), self._whole_campaign_impressions.get(policy, {})
+      )
+      metric_reports[policy] = MetricReport(
+          weekly_cumulative_reaches=self._weekly_cumulative_reaches.get(policy, {}),
+          whole_campaign_measurements=whole_campaign_measurements,
+          weekly_non_cumulative_measurements={},
+      )
+
     children_metric = []
-    if "mrc" in self._cumulative_measurements:
+    if "mrc" in all_policies:
       children_metric.append("mrc")
-    if "custom" in self._cumulative_measurements:
+    if "custom" in all_policies:
       children_metric.append("custom")
 
     # Builds the report based on the extracted primitive measurements.
     report = Report(
-        {
-            policy: MetricReport(
-                reach_time_series=self._cumulative_measurements[policy],
-                reach_whole_campaign=self._whole_campaign_measurements[policy],
-                k_reach=self._k_reach[policy],
-                impression=self._impression[policy])
-            for policy in self._cumulative_measurements
-        },
+        metric_reports,
         metric_subsets_by_parent={
             ami: children_metric} if children_metric else {},
         cumulative_inconsistency_allowed_edp_combinations={},
@@ -154,22 +173,23 @@ class ReportSummaryProcessor:
     measurements_policies = corrected_report.get_metrics()
     for policy in measurements_policies:
       metric_report = corrected_report.get_metric_report(policy)
-      for edp_combination in metric_report.get_cumulative_edp_combinations():
+      for edp_combination in metric_report.get_weekly_cumulative_reach_edp_combinations():
         for index in range(metric_report.get_number_of_periods()):
-          entry = metric_report.get_cumulative_measurement(edp_combination,
-                                                           index)
+          entry = metric_report.get_weekly_cumulative_reach_measurement(
+              edp_combination, index)
           metric_name_to_value.update({entry.name: round(entry.value)})
-      for edp_combination in metric_report.get_whole_campaign_edp_combinations():
-        entry = metric_report.get_whole_campaign_measurement(edp_combination)
+      for edp_combination in metric_report.get_whole_campaign_reach_edp_combinations():
+        entry = metric_report.get_whole_campaign_reach_measurement(edp_combination)
         metric_name_to_value.update({entry.name: round(entry.value)})
-      for edp_combination in metric_report.get_k_reach_edp_combinations():
+      for edp_combination in metric_report.get_whole_campaign_k_reach_edp_combinations():
         for frequency in range(1,
                                metric_report.get_number_of_frequencies() + 1):
-          entry = metric_report.get_k_reach_measurement(edp_combination,
-                                                        frequency)
+          entry = metric_report.get_whole_campaign_k_reach_measurement(
+              edp_combination, frequency)
           metric_name_to_value.update({entry.name: round(entry.value)})
-      for edp_combination in metric_report.get_impression_edp_combinations():
-        entry = metric_report.get_impression_measurement(edp_combination)
+      for edp_combination in metric_report.get_whole_campaign_impression_edp_combinations():
+        entry = metric_report.get_whole_campaign_impression_measurement(
+            edp_combination)
         metric_name_to_value.update({entry.name: round(entry.value)})
 
     # Updates difference measurements.
@@ -200,11 +220,11 @@ class ReportSummaryProcessor:
     For each measurement detail entry:
 
     - If the set_operation is "cumulative", the measurement is added to the
-      `_cumulative_measurements` dictionary, keyed by the measurement policy
+      `_weekly_cumulative_reaches` dictionary, keyed by the measurement policy
       and the set of data providers.
     - If the set_operation is "union" and is_cumulative is False, the
-      measurement is added to the `_whole_campaign_measurements`, or
-      `_k_reach`, or `_impression` dictionary keyed by the measurement policy and
+      measurement is added to the `_whole_campaign_reaches`, or
+      `_whole_campaign_k_reaches`, or `_whole_campaign_impressions` dictionary keyed by the measurement policy and
        the set of data providers.
     """
     logging.info(
@@ -216,10 +236,10 @@ class ReportSummaryProcessor:
       measurement_policy = entry.measurement_policy
       if measurement_policy not in seen_measurement_policies:
         seen_measurement_policies.add(measurement_policy)
-        self._cumulative_measurements[measurement_policy] = {}
-        self._whole_campaign_measurements[measurement_policy] = {}
-        self._k_reach[measurement_policy] = {}
-        self._impression[measurement_policy] = {}
+        self._weekly_cumulative_reaches[measurement_policy] = {}
+        self._whole_campaign_reaches[measurement_policy] = {}
+        self._whole_campaign_k_reaches[measurement_policy] = {}
+        self._whole_campaign_impressions[measurement_policy] = {}
 
       if entry.set_operation == "cumulative":
         logging.debug(
@@ -235,7 +255,7 @@ class ReportSummaryProcessor:
                         result.metric)
             for result in entry.measurement_results
         ]
-        self._cumulative_measurements[measurement_policy][
+        self._weekly_cumulative_reaches[measurement_policy][
           frozenset(entry.data_providers)] = measurements
       elif (entry.set_operation == "union") and (entry.is_cumulative == False):
         logging.debug(
@@ -251,27 +271,27 @@ class ReportSummaryProcessor:
           )
         for measurement_result in entry.measurement_results:
           if measurement_result.HasField('reach_and_frequency'):
-            self._whole_campaign_measurements[measurement_policy][
+            self._whole_campaign_reaches[measurement_policy][
               frozenset(entry.data_providers)] = Measurement(
                 measurement_result.reach_and_frequency.reach.value,
                 measurement_result.reach_and_frequency.reach.standard_deviation,
                 measurement_result.metric)
-            self._k_reach[entry.measurement_policy][
+            self._whole_campaign_k_reaches[entry.measurement_policy][
               frozenset(entry.data_providers)] = {}
             for bin in measurement_result.reach_and_frequency.frequency.bins:
-              self._k_reach[measurement_policy][
+              self._whole_campaign_k_reaches[measurement_policy][
                 frozenset(entry.data_providers)][int(bin.label)] = Measurement(
                   bin.value,
                   bin.standard_deviation,
                   measurement_result.metric + "-frequency-" + bin.label)
           elif measurement_result.HasField('reach'):
-            self._whole_campaign_measurements[measurement_policy][
+            self._whole_campaign_reaches[measurement_policy][
               frozenset(entry.data_providers)] = Measurement(
                 measurement_result.reach.value,
                 measurement_result.reach.standard_deviation,
                 measurement_result.metric)
           elif measurement_result.HasField('impression_count'):
-            self._impression[measurement_policy][
+            self._whole_campaign_impressions[measurement_policy][
               frozenset(entry.data_providers)] = Measurement(
                 measurement_result.impression_count.value,
                 measurement_result.impression_count.standard_deviation,
@@ -281,16 +301,16 @@ class ReportSummaryProcessor:
     # edp_combination exists, but there is no corresponding whole campaign
     # measurement, we use the last week of the cumulative ones as the whole
     # campaign measurement.
-    for measurement_policy in self._cumulative_measurements.keys():
-      for edp_combination in self._cumulative_measurements[
+    for measurement_policy in self._weekly_cumulative_reaches.keys():
+      for edp_combination in self._weekly_cumulative_reaches[
         measurement_policy].keys():
-        if edp_combination not in self._whole_campaign_measurements[
+        if edp_combination not in self._whole_campaign_reaches[
           measurement_policy].keys():
-          self._whole_campaign_measurements[measurement_policy][
+          self._whole_campaign_reaches[measurement_policy][
             edp_combination] = Measurement(
-              self._cumulative_measurements[measurement_policy][
+              self._weekly_cumulative_reaches[measurement_policy][
                 edp_combination][-1].value,
-              self._cumulative_measurements[measurement_policy][
+              self._weekly_cumulative_reaches[measurement_policy][
                 edp_combination][-1].sigma,
               "derived_reach/" + measurement_policy + "/" + "_".join(
                   sorted(edp_combination))
@@ -383,7 +403,7 @@ class ReportSummaryProcessor:
       # not in the report, but unique reach or incremental reach measurements
       # exists, the total reach measurements for superset do not exist. In this
       # case, the report post-processor just skip this difference measurement.
-      if superset not in self._whole_campaign_measurements[measurement_policy]:
+      if superset not in self._whole_campaign_reaches[measurement_policy]:
         self._uncorrected_measurements.add(difference_measurement.name)
         logging.warning(
             f'The measurement {difference_measurement.name} cannot be '
@@ -393,7 +413,7 @@ class ReportSummaryProcessor:
       # Gets the reach of the union of all EDPs. This measurement either
       # exists in the report summary or has been inferred in prior steps.
       superset_measurement = \
-        self._whole_campaign_measurements[measurement_policy][superset]
+        self._whole_campaign_reaches[measurement_policy][superset]
 
       # Now we need to get the measurement that corresponds to reach(subset).
       # If reach(subset) measurement exists in the report summary, maps the
@@ -401,10 +421,10 @@ class ReportSummaryProcessor:
       # reach(subset) measurement does not exist, it needs to be derived from
       # the superset measurement and the difference measurement before the
       # mapping.
-      if subset in self._whole_campaign_measurements[measurement_policy].keys():
+      if subset in self._whole_campaign_reaches[measurement_policy].keys():
         self._set_difference_map[difference_measurement.name] = [
             superset_measurement.name,
-            self._whole_campaign_measurements[measurement_policy][subset].name
+            self._whole_campaign_reaches[measurement_policy][subset].name
         ]
       else:
         # Add the measurement of the edp_comb that is derived from the
@@ -422,7 +442,7 @@ class ReportSummaryProcessor:
             derived_standard_deviation,
             "union/" + measurement_policy + "/" + "_".join(sorted(subset))
         )
-        self._whole_campaign_measurements[measurement_policy][
+        self._whole_campaign_reaches[measurement_policy][
           subset] = subset_measurement
         self._set_difference_map[difference_measurement.name] = [
             superset_measurement.name,
