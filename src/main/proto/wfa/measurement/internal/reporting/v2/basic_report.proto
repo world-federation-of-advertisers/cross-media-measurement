@@ -71,4 +71,7 @@ message BasicReport {
   }
   // `BasicReport` state.
   State state = 9;
+
+  string create_report_request_id = 10;
+  string external_report_id = 11;
 }

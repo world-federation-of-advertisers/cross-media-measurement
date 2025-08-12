@@ -55,7 +55,9 @@ suspend fun AsyncDatabaseClient.ReadContext.getBasicReportByExternalId(
       ExternalCampaignGroupId,
       BasicReportDetails,
       BasicReportResultDetails,
-      State
+      State,
+      CreateReportRequestId,
+      ExternalReportId
     FROM
       MeasurementConsumers
       JOIN BasicReports USING (MeasurementConsumerId)
@@ -98,7 +100,9 @@ fun AsyncDatabaseClient.ReadContext.readBasicReports(
         ExternalCampaignGroupId,
         BasicReportDetails,
         BasicReportResultDetails,
-        State
+        State,
+        CreateReportRequestId,
+        ExternalReportId
       FROM
         MeasurementConsumers
         JOIN BasicReports USING (MeasurementConsumerId)
@@ -194,5 +198,11 @@ private fun buildBasicReport(row: Struct): BasicReport {
     details = row.getProtoMessage("BasicReportDetails", BasicReportDetails.getDefaultInstance())
     createTime = row.getTimestamp("CreateTime").toProto()
     state = row.getProtoEnum("State", BasicReport.State::forNumber)
+    if (!row.isNull("CreateReportRequestId")) {
+      createReportRequestId = row.getString("CreateReportRequestId")
+    }
+    if (!row.isNull("ExternalReportId")) {
+      externalReportId = row.getString("ExternalReportId")
+    }
   }
 }
