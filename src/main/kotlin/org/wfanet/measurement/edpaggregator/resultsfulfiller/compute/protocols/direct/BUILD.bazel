@@ -24,6 +24,8 @@ kt_jvm_library(
     name = "direct_reach_and_frequency_result_builder",
     srcs = ["DirectReachAndFrequencyResultBuilder.kt"],
     deps = [
+        "//src/main/kotlin/org/wfanet/measurement/computation:histogram_computations",
+        "//src/main/kotlin/org/wfanet/measurement/computation:reach_and_frequency_computations",
         "//src/main/kotlin/org/wfanet/measurement/dataprovider:measurement_results",
         "//src/main/kotlin/org/wfanet/measurement/dataprovider:requisition_refusal_exception",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller/compute:measurement_result_builder",

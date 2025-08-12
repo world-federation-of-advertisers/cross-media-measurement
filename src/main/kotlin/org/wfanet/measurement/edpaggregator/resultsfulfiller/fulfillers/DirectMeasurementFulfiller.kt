@@ -41,7 +41,6 @@ import org.wfanet.measurement.eventdataprovider.noiser.DirectNoiseMechanism
  * @param measurementResult The measurement result to fulfill the requisition with.
  * @param nonce The nonce to use for the fulfillment.
  * @param measurementEncryptionPublicKey The encryption public key to use for the fulfillment.
- * @param sampledVids The sampled VIDs.
  * @param directProtocolConfig The direct protocol configuration.
  * @param directNoiseMechanism The direct noise mechanism to use.
  * @param requisitionsStub The stub for the Requisitions service.
@@ -54,7 +53,6 @@ class DirectMeasurementFulfiller(
   private val measurementResult: Measurement.Result,
   private val requisitionNonce: Long,
   private val measurementEncryptionPublicKey: EncryptionPublicKey,
-  private val sampledVids: Flow<Long>,
   private val directProtocolConfig: ProtocolConfig.Direct,
   private val directNoiseMechanism: DirectNoiseMechanism,
   private val dataProviderSigningKeyHandle: SigningKeyHandle,
