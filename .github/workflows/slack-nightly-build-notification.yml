@@ -42,7 +42,7 @@ jobs:
               owner: context.repo.owner,
               repo:  context.repo.repo
             });
-            core.setOutput("latest_release_tag", release.tag_name);
+            core.setOutput("latest-release-tag", release.tag_name);
 
       - id: compute-workflow-conclusion
         shell: bash
@@ -81,8 +81,8 @@ jobs:
       - name: Post message to Slack channel
         uses: ./.github/actions/send-nightly-build-notification
         with:
-          slack_bot_token: ${{ secrets.SLACK_BOT_TOKEN }}
-          housekeeping_channel_id: ${{ secrets.SLACK_HOUSEKEEPING_CHANNEL }}
+          slack-bot-token: ${{ secrets.SLACK_BOT_TOKEN }}
+          housekeeping-channel-id: ${{ secrets.SLACK_HOUSEKEEPING_CHANNEL }}
           title: ${{ steps.compute-notification-title.outputs.title }}
-          nightly_build_tag: ${{ inputs.image-tag }}
-          latest_release_tag: ${{ steps.get-latest-release-tag.outputs.latest_release_tag }}
+          nightly-build-tag: ${{ inputs.image-tag }}
+          latest-release-tag: ${{ steps.get-latest-release-tag.outputs.latest-release-tag }}
