@@ -1,0 +1,120 @@
+// Copyright 2025 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.edpaggregator.v1alpha;
+
+import "google/api/field_behavior.proto";
+import "google/protobuf/timestamp.proto";
+
+option java_package = "org.wfanet.measurement.edpaggregator.v1alpha";
+option java_multiple_files = true;
+option java_outer_classname = "RequisitionMetadataProto";
+
+// Represents the metadata for a requisition.
+message RequisitionMetadata {
+  // The lifecycle state of the requisition.
+  enum State {
+    // Default, unspecified state.
+    STATE_UNSPECIFIED = 0;
+    // The requisition has been fetched and stored.
+    STORED = 1;
+    // The requisition is queued for processing.
+    QUEUED = 2;
+    // The requisition is actively being processed.
+    PROCESSING = 3;
+    // The requisition has been successfully fulfilled.
+    FULFILLED = 4;
+    // The requisition was refused.
+    REFUSED = 5;
+    // The requisition has been marked for deletion.
+    DELETED = 6;
+  }
+
+  // Unique identifier for the requisition metadata entry.
+  fixed64 requisition_metadata_id = 1
+      [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // The blob storage URI of the RequisitionMetadata.
+  string blob_uri = 2 [(google.api.field_behavior) = REQUIRED];
+
+  // The ID for the group of requisitions this entry belongs to.
+  string group_id = 3 [(google.api.field_behavior) = REQUIRED];
+
+  // The current state of the requisition.
+  State state = 4 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // The creation timestamp of the requisition in the CMMS (Kingdom).
+  google.protobuf.Timestamp cmms_create_time = 5
+      [(google.api.field_behavior) = REQUIRED];
+
+  // The timestamp when this metadata entry was created.
+  google.protobuf.Timestamp create_time = 6
+      [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // The resource name of the requisition in the CMMS (Kingdom).
+  string cmms_resource_name = 7 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.field_behavior) = IMMUTABLE
+  ];
+
+  // The report ID from the CMMS (Kingdom).
+  string cmms_report_id = 8 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.field_behavior) = IMMUTABLE
+  ];
+
+  // The ID of the work item created for processing this requisition.
+  string work_item_id = 9 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Any error message associated with a failure state.
+  string error_message = 10 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Etag for optimistic concurrency control.
+  string etag = 11 [(google.api.field_behavior) = OUTPUT_ONLY];
+}
+
+// Represents a state change action on a RequisitionMetadata entry.
+message RequisitionMetadataAction {
+  // The entity that performed the action.
+  enum ActionerType {
+    ACTIONER_TYPE_UNSPECIFIED = 0;
+    // Action performed by the Requisition Fetcher component.
+    REQUISITION_FETCHER = 1;
+    // Action performed by the Results Fulfiller component.
+    RESULTS_FULFILLER = 2;
+  }
+
+  // Unique identifier for the action.
+  fixed64 action_id = 1 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // The ID of the RequisitionMetadata this action applies to.
+  fixed64 requisition_metadata_id = 2 [(google.api.field_behavior) = REQUIRED];
+
+  // The type of actor that initiated this state change.
+  ActionerType actioner_type = 3 [(google.api.field_behavior) = REQUIRED];
+
+  // The state of the requisition before this action.
+  RequisitionMetadata.State prior_state = 4
+      [(google.api.field_behavior) = REQUIRED];
+
+  // The state of the requisition after this action.
+  RequisitionMetadata.State new_state = 5
+      [(google.api.field_behavior) = REQUIRED];
+
+  // The timestamp when the action occurred.
+  google.protobuf.Timestamp action_time = 6
+      [(google.api.field_behavior) = OUTPUT_ONLY];
+}

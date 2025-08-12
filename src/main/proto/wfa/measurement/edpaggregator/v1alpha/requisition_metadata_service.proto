@@ -1,0 +1,128 @@
+// Copyright 2025 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.edpaggregator.v1alpha;
+
+import "google/api/field_behavior.proto";
+import "google/protobuf/timestamp.proto";
+import "wfa/measurement/edpaggregator/v1alpha/requisition_metadata.proto";
+
+option java_package = "org.wfanet.measurement.edpaggregator.v1alpha";
+option java_multiple_files = true;
+option java_outer_classname = "RequisitionMetadataServiceProto";
+
+// Service for managing RequisitionMetadata.
+service RequisitionMetadataService {
+  // Creates a new RequisitionMetadata entry.
+  rpc CreateRequisitionMetadata(CreateRequisitionMetadataRequest)
+      returns (RequisitionMetadata);
+
+  // Retrieves a specific RequisitionMetadata entry.
+  rpc GetRequisitionMetadata(GetRequisitionMetadataRequest)
+      returns (RequisitionMetadata);
+
+  // Lists RequisitionMetadata entries, with optional filtering and ordering.
+  rpc ListRequisitionMetadata(ListRequisitionMetadataRequest)
+      returns (ListRequisitionMetadataResponse);
+
+  // Gets the latest cmms_create_time from all metadata entries for a
+  // data_provider.
+  //
+  // Used to determine the starting point for fetching new
+  // requisitions from the Kingdom.
+  rpc GetLatestCmmsCreateTime(GetLatestCmmsCreateTimeRequest)
+      returns (google.protobuf.Timestamp);
+}
+
+// Request message for the `CreateRequisitionMetadata` method.
+message CreateRequisitionMetadataRequest {
+  // The RequisitionMetadata to create.
+  RequisitionMetadata requisition_metadata = 1
+      [(google.api.field_behavior) = REQUIRED];
+}
+
+// Request message for the `GetRequisitionMetadata` method.
+message GetRequisitionMetadataRequest {
+  // Lookup-key for the requisition metadata. Required.
+  oneof lookup_key {
+    // The unique ID of the requisition metadata.
+    fixed64 requisition_metadata_id = 1;
+    // The CMMS resource name of the requisition.
+    string cmms_resource_name = 2;
+  }
+}
+
+// Request message for the `ListRequisitionMetadata` method.
+message ListRequisitionMetadataRequest {
+  // The data provider who owns the requisitions.
+  string data_provider = 1 [(google.api.field_behavior) = REQUIRED];
+
+  // Filtering criteria for the list request.
+  message Filter {
+    // Filter by a specific state.
+    RequisitionMetadata.State state = 1;
+    // Filter by a specific group ID.
+    string group_id = 2;
+  }
+  Filter filter = 2;
+
+  // The maximum number of results to return.
+  //
+  // If not specified or 0, the service will use a default page size.
+  int32 page_size = 3;
+
+  // A page token, received from a previous `ListRequisitionMetadata` call.
+  // Provide this to retrieve the subsequent page.
+  //
+  // When paginating, all other parameters provided to `ListRequisitionMetadata`
+  // must match the call that provided the page token.
+  string page_token = 4;
+
+  // Structure for ordering results.
+  message OrderBy {
+    // Orderable field.
+    enum Field {
+      FIELD_UNSPECIFIED = 0;
+      // Order by the CMMS creation time.
+      CMMS_CREATE_TIME = 1;
+    }
+    // Field to order by.
+    Field field = 1;
+
+    // Whether the sort order is descending. Defaults to ascending.
+    bool descending = 2;
+  }
+  // How results should be ordered.
+  OrderBy order_by = 5;
+}
+
+// Response message for the `ListRequisitionMetadata` method.
+message ListRequisitionMetadataResponse {
+  // List of `RequisitionMetadata`s.
+  repeated RequisitionMetadata requisition_metadata_entries = 1;
+  // A token to retrieve the next page of results.
+  //
+  // Pass this value in the `page_token` field in the subsequent call to
+  // `ListRequisitionMetadata` to retrieve the next page of results.
+  // If this field is empty, it means there are no more results.
+  string next_page_token = 2;
+}
+
+// Request message for the `GetLatestCmmsCreateTime` method.
+message GetLatestCmmsCreateTimeRequest {
+  // The data provider to get the latest time for.
+  string data_provider = 1 [(google.api.field_behavior) = REQUIRED];
+}
