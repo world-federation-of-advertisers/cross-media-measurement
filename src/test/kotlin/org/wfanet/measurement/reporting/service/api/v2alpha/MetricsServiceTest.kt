@@ -9124,74 +9124,81 @@ class MetricsServiceTest {
       whenever(internalMetricsMock.batchGetMetrics(any()))
         .thenReturn(
           internalBatchGetMetricsResponse {
-            metrics += INTERNAL_SUCCEEDED_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC.copy {
-              weightedMeasurements.clear()
-              weightedMeasurements += weightedMeasurement {
-                weight = 1
-                binaryRepresentation = 1
-                measurement = INTERNAL_PENDING_SINGLE_PUBLISHER_REACH_FREQUENCY_MEASUREMENT.copy {
-                  state = InternalMeasurement.State.SUCCEEDED
-                  details =
-                    details.copy {
-                      results +=
-                        InternalMeasurementKt.result {
-                          reach =
-                            InternalMeasurementKt.ResultKt.reach {
-                              value = 0
-                              noiseMechanism = NoiseMechanism.CONTINUOUS_LAPLACE
-                              deterministicCountDistinct = InternalDeterministicCountDistinct.getDefaultInstance()
-                            }
-                          frequency =
-                            InternalMeasurementKt.ResultKt.frequency {
-                              relativeFrequencyDistribution.putAll(REACH_FREQUENCY_FREQUENCY_VALUE)
-                              noiseMechanism = NoiseMechanism.CONTINUOUS_LAPLACE
-                              liquidLegionsDistribution = internalLiquidLegionsDistribution {
-                                decayRate = LL_DISTRIBUTION_DECAY_RATE
-                                maxSize = LL_DISTRIBUTION_SKETCH_SIZE
-                              }
+            metrics +=
+              INTERNAL_SUCCEEDED_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC.copy {
+                weightedMeasurements.clear()
+                weightedMeasurements += weightedMeasurement {
+                  weight = 1
+                  binaryRepresentation = 1
+                  measurement =
+                    INTERNAL_PENDING_SINGLE_PUBLISHER_REACH_FREQUENCY_MEASUREMENT.copy {
+                      state = InternalMeasurement.State.SUCCEEDED
+                      details =
+                        details.copy {
+                          results +=
+                            InternalMeasurementKt.result {
+                              reach =
+                                InternalMeasurementKt.ResultKt.reach {
+                                  value = 0
+                                  noiseMechanism = NoiseMechanism.CONTINUOUS_LAPLACE
+                                  deterministicCountDistinct =
+                                    InternalDeterministicCountDistinct.getDefaultInstance()
+                                }
+                              frequency =
+                                InternalMeasurementKt.ResultKt.frequency {
+                                  relativeFrequencyDistribution.putAll(
+                                    REACH_FREQUENCY_FREQUENCY_VALUE
+                                  )
+                                  noiseMechanism = NoiseMechanism.CONTINUOUS_LAPLACE
+                                  liquidLegionsDistribution = internalLiquidLegionsDistribution {
+                                    decayRate = LL_DISTRIBUTION_DECAY_RATE
+                                    maxSize = LL_DISTRIBUTION_SKETCH_SIZE
+                                  }
+                                }
                             }
                         }
                     }
                 }
               }
-            }
           }
         )
 
-      val request = getMetricRequest { name = SUCCEEDED_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC.name }
+      val request = getMetricRequest {
+        name = SUCCEEDED_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC.name
+      }
 
       val result =
         withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.getMetric(request) } }
 
-      assertThat(result).isEqualTo(PENDING_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC.copy {
-        state = Metric.State.SUCCEEDED
-        this.result = metricResult {
-          cmmsMeasurements += PENDING_SINGLE_PUBLISHER_REACH_FREQUENCY_MEASUREMENT.name
-          reachAndFrequency =
-            MetricResultKt.reachAndFrequencyResult {
-              reach =
-                MetricResultKt.reachResult {
-                  value = 0L
-                  univariateStatistics = univariateStatistics {
-                    standardDeviation = sqrt(VARIANCE_VALUE)
-                  }
-                }
-              frequencyHistogram =
-                MetricResultKt.histogramResult {
-                  bins +=
-                    (1..REACH_FREQUENCY_MAXIMUM_FREQUENCY).map { frequency ->
-                      MetricResultKt.HistogramResultKt.bin {
-                        label = frequency.toString()
-                        binResult =
-                          MetricResultKt.HistogramResultKt.binResult {
-                            value = 0.0
-                          }
+      assertThat(result)
+        .isEqualTo(
+          PENDING_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC.copy {
+            state = Metric.State.SUCCEEDED
+            this.result = metricResult {
+              cmmsMeasurements += PENDING_SINGLE_PUBLISHER_REACH_FREQUENCY_MEASUREMENT.name
+              reachAndFrequency =
+                MetricResultKt.reachAndFrequencyResult {
+                  reach =
+                    MetricResultKt.reachResult {
+                      value = 0L
+                      univariateStatistics = univariateStatistics {
+                        standardDeviation = sqrt(VARIANCE_VALUE)
                       }
+                    }
+                  frequencyHistogram =
+                    MetricResultKt.histogramResult {
+                      bins +=
+                        (1..REACH_FREQUENCY_MAXIMUM_FREQUENCY).map { frequency ->
+                          MetricResultKt.HistogramResultKt.bin {
+                            label = frequency.toString()
+                            binResult = MetricResultKt.HistogramResultKt.binResult { value = 0.0 }
+                          }
+                        }
                     }
                 }
             }
-        }
-      })
+          }
+        )
     }
 
   @Test
