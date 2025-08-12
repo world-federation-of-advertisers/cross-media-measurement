@@ -27,20 +27,20 @@ object ReachAndFrequencyComputations {
    * @param rawHistogram A histogram of counts for frequencies 1 to `maxFrequency`.
    * @param vidSamplingIntervalWidth The sampling rate used to select VIDs.
    * @param vectorSize The total size of the frequency vector space, used for capping the result
-   *   before scaling. If 0 (the default), no capping is applied.
+   *   before scaling. If it is null (the default), no capping is applied.
    * @param dpParams The privacy parameters for the reach computation. If `null` (the default), the
-   *   raw reach is computed.
+   *   raw reach is computed, which is mainly for test.
    * @return The reach value, potentially with noise applied.
    */
   fun computeReach(
     rawHistogram: LongArray,
     vidSamplingIntervalWidth: Float,
-    vectorSize: Int = 0,
+    vectorSize: Int? = null,
     dpParams: DifferentialPrivacyParams? = null,
   ): Long {
 
     val maxPossibleScaledReach =
-      if (vectorSize != 0) {
+      if (vectorSize != null) {
         (vectorSize / vidSamplingIntervalWidth).toLong()
       } else {
         Long.MAX_VALUE
@@ -77,7 +77,7 @@ object ReachAndFrequencyComputations {
    * @param maxFrequency The maximum frequency to reveal in the distribution. The input
    *   `rawHistogram` must have this size.
    * @param dpParams The privacy parameters for the frequency computation. If `null`, the raw
-   *   distribution is computed.
+   *   distribution is computed, which is mainly for test.
    * @return A map representing the frequency distribution for frequencies 1 through `maxFrequency`.
    */
   fun computeFrequencyDistribution(
