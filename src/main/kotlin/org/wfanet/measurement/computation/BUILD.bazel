@@ -12,6 +12,15 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
+    name = "impression_computations",
+    srcs = ["ImpressionComputations.kt"],
+    deps = [
+        ":differential_privacy_params",
+        "//imports/java/com/google/privacy:differential_privacy",
+    ],
+)
+
+kt_jvm_library(
     name = "histogram_computations",
     srcs = ["HistogramComputations.kt"],
 )

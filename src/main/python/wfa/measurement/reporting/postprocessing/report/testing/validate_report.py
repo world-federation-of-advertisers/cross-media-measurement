@@ -27,7 +27,7 @@ def are_overlap_constraints_consistent(report: Report, tolerance: float = 0.0):
   for metric in report._metric_reports:
     metric_report = report._metric_reports[metric]
     cumulative_edp_combinations = \
-      metric_report.get_cumulative_edp_combinations()
+      metric_report.get_weekly_cumulative_reach_edp_combinations()
     for edp_combination in cumulative_edp_combinations:
       if len(edp_combination) <= 1:
         continue
@@ -42,19 +42,19 @@ def are_overlap_constraints_consistent(report: Report, tolerance: float = 0.0):
       # |X_1| + ... + |X_k| - |X_1 U ... U X_k| <=
       # |Y_1| + ... + |Y_k| - |Y_1 U ... U Y_k|.
       for period in range(0, report._num_periods - 1):
-        smaller_sum = - metric_report.get_cumulative_measurement(
+        smaller_sum = - metric_report.get_weekly_cumulative_reach_measurement(
             edp_combination, period
         ).value
 
-        larger_sum = - metric_report.get_cumulative_measurement(
+        larger_sum = - metric_report.get_weekly_cumulative_reach_measurement(
             edp_combination, period + 1
         ).value
 
         for edp in edps:
-          smaller_sum += metric_report.get_cumulative_measurement(
+          smaller_sum += metric_report.get_weekly_cumulative_reach_measurement(
               edp, period
           ).value
-          larger_sum += metric_report.get_cumulative_measurement(
+          larger_sum += metric_report.get_weekly_cumulative_reach_measurement(
               edp, period + 1
           ).value
 
@@ -75,8 +75,8 @@ def are_overlap_constraints_consistent(report: Report, tolerance: float = 0.0):
       child_metric_report = report._metric_reports[child_metric]
       # Verifies comulative measurements.
       common_cumulative_edp_combinations = \
-        parent_metric_report.get_cumulative_edp_combinations().intersection(
-            child_metric_report.get_cumulative_edp_combinations())
+        parent_metric_report.get_weekly_cumulative_reach_edp_combinations().intersection(
+            child_metric_report.get_weekly_cumulative_reach_edp_combinations())
       for edp_combination in common_cumulative_edp_combinations:
         if len(edp_combination) <= 1:
           continue
@@ -91,17 +91,17 @@ def are_overlap_constraints_consistent(report: Report, tolerance: float = 0.0):
         # |X_1| + ... + |X_k| - |X_1 U ... U X_k| <=
         # |Y_1| + ... + |Y_k| - |Y_1 U ... U Y_k|.
         for period in range(0, report._num_periods):
-          smaller_sum = - child_metric_report.get_cumulative_measurement(
+          smaller_sum = - child_metric_report.get_weekly_cumulative_reach_measurement(
               edp_combination, period
           ).value
-          larger_sum = - parent_metric_report.get_cumulative_measurement(
+          larger_sum = - parent_metric_report.get_weekly_cumulative_reach_measurement(
               edp_combination, period
           ).value
           for edp in edps:
-            smaller_sum += child_metric_report.get_cumulative_measurement(
+            smaller_sum += child_metric_report.get_weekly_cumulative_reach_measurement(
                 edp, period
             ).value
-            larger_sum += child_metric_report.get_cumulative_measurement(
+            larger_sum += child_metric_report.get_weekly_cumulative_reach_measurement(
                 edp_combination, period
             ).value
           if not fuzzy_less_equal(smaller_sum, larger_sum, 2 * (
@@ -116,8 +116,8 @@ def are_overlap_constraints_consistent(report: Report, tolerance: float = 0.0):
 
       # Verifies whole campaign measurements.
       common_whole_campaign_edp_combinations = \
-        parent_metric_report.get_whole_campaign_edp_combinations().intersection(
-            child_metric_report.get_whole_campaign_edp_combinations())
+        parent_metric_report.get_whole_campaign_reach_edp_combinations().intersection(
+            child_metric_report.get_whole_campaign_reach_edp_combinations())
       for edp_combination in common_whole_campaign_edp_combinations:
         if len(edp_combination) <= 1:
           continue
@@ -132,16 +132,16 @@ def are_overlap_constraints_consistent(report: Report, tolerance: float = 0.0):
         # for i in [0, k], we verify:
         # |X_1| + ... + |X_k| - |X_1 U ... U X_k| <=
         # |Y_1| + ... + |Y_k| - |Y_1 U ... U Y_k|.
-        smaller_sum = - child_metric_report.get_whole_campaign_measurement(
+        smaller_sum = - child_metric_report.get_whole_campaign_reach_measurement(
             edp_combination
         ).value
-        larger_sum = - parent_metric_report.get_whole_campaign_measurement(
+        larger_sum = - parent_metric_report.get_whole_campaign_reach_measurement(
             edp_combination
         ).value
         for edp in edps:
-          smaller_sum += child_metric_report.get_whole_campaign_measurement(
+          smaller_sum += child_metric_report.get_whole_campaign_reach_measurement(
               edp).value
-          larger_sum += parent_metric_report.get_whole_campaign_measurement(
+          larger_sum += parent_metric_report.get_whole_campaign_reach_measurement(
               edp).value
 
         if not fuzzy_less_equal(smaller_sum, larger_sum, 2 * (
