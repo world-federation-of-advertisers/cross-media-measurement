@@ -37,7 +37,7 @@ bazel_dep(
 )
 bazel_dep(
     name = "common-jvm",
-    version = "0.111.0",
+    version = "0.114.0",
     repo_name = "wfa_common_jvm",
 )
 bazel_dep(
@@ -202,6 +202,18 @@ bazel_dep(
     name = "rules_oci",
     version = "2.2.1",
 )
+single_version_override(
+    module_name = "rules_oci",
+    patch_strip = 1,
+    patches = [
+        "//build/cosign/patches:sign_dot_bzl.patch",
+    ],
+)
+
+bazel_dep(
+    name = "rules_multirun",
+    version = "0.12.0",
+)
 
 maven = use_extension("@rules_jvm_external//:extensions.bzl", "maven")
 maven.artifact(
@@ -234,8 +246,7 @@ maven.install(
         # TODO(googleapis/java-cloud-bom#5279): Remove when managed by BOM.
         "com.google.apis:google-api-services-storage:v1-rev20240706-2.0.0",
         "com.google.cloud.functions.invoker:java-function-invoker:1.4.0",
-        "com.google.auth:google-auth-library-credentials",
-        "com.google.auth:google-auth-library-oauth2-http",
+        "com.google.cloud:google-cloud-secretmanager",
 
         # AWS
         "software.amazon.awssdk:acmpca",
@@ -341,11 +352,27 @@ oci.pull(
     image = "gcr.io/distroless/base",
     platforms = ["linux/amd64"],
 )
+
+# TODO(world-federation-of-advertisers/cross-media-measurement#2729): Remove root Java image when Confidential Spaces properly supports nonroot images.
+oci.pull(
+    name = "java_image_base_root",
+    # Digest of latest tag.
+    digest = "sha256:58b716f89428587db33656f3fc6444b6dd4fd567e549c4b3657db75838f39950",
+    image = "gcr.io/distroless/java17-debian12",
+    platforms = ["linux/amd64"],
+)
 use_repo(
     oci,
     "go_image_base",
     "go_image_base_linux_amd64",
 )
+use_repo(oci, "java_image_base_root", "java_image_base_root_linux_amd64")
+
+# TODO(bazel-contrib/rules_oci#235): Replace this custom extension once rules_oci adds blzmod support for cosign.
+cosign = use_extension("//build/cosign:extensions.bzl", "cosign")
+use_repo(cosign, "oci_cosign_toolchains")
+
+register_toolchains("@oci_cosign_toolchains//:all")
 
 http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 

@@ -31,6 +31,7 @@ import org.wfanet.measurement.api.v2alpha.EventGroupKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
+import org.wfanet.measurement.config.reporting.MetricSpecConfig
 import org.wfanet.measurement.internal.reporting.ErrorCode
 import org.wfanet.measurement.internal.reporting.v2.BasicReport as InternalBasicReport
 import org.wfanet.measurement.internal.reporting.v2.BasicReportsGrpcKt.BasicReportsCoroutineStub
@@ -76,6 +77,8 @@ class BasicReportsService(
   private val internalImpressionQualificationFiltersStub:
     ImpressionQualificationFiltersCoroutineStub,
   private val internalReportingSetsStub: InternalReportingSetsCoroutineStub,
+  private val eventDescriptor: EventDescriptor?,
+  private val metricSpecConfig: MetricSpecConfig,
   private val authorization: Authorization,
   coroutineContext: CoroutineContext = EmptyCoroutineContext,
 ) : BasicReportsCoroutineImplBase(coroutineContext) {
@@ -106,8 +109,10 @@ class BasicReportsService(
     // Required for creating Report
     val campaignGroup: ReportingSet = getReportingSet(request.basicReport.campaignGroup)
 
+    val eventTemplateFieldsMap = eventDescriptor?.eventTemplateFieldsMap ?: emptyMap()
+
     try {
-      validateCreateBasicReportRequest(request, campaignGroup)
+      validateCreateBasicReportRequest(request, campaignGroup, eventTemplateFieldsMap)
     } catch (e: ServiceException) {
       throw when (e.reason) {
         Errors.Reason.REQUIRED_FIELD_NOT_SET,

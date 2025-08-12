@@ -183,7 +183,6 @@ class ResultsFulfiller(
       result,
       requisitionSpec.nonce,
       measurementEncryptionPublicKey,
-      sampledVids,
       directProtocolConfig,
       noiseMechanism,
       dataProviderSigningKeyHandle,

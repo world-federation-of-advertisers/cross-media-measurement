@@ -162,34 +162,6 @@ cue_dump(
     ],
 )
 
-cue_dump(
-    name = "edp_simulators_csv",
-    srcs = ["edp_simulators_csv.cue"],
-    cue_tags = {
-        "secret_name": SECRET_NAME,
-        "container_registry": IMAGE_REPOSITORY_SETTINGS.container_registry,
-        "image_repo_prefix": IMAGE_REPOSITORY_SETTINGS.repository_prefix,
-        "image_tag": IMAGE_REPOSITORY_SETTINGS.image_tag,
-        "mc_name": TEST_K8S_SETTINGS.mc_name,
-        "edp1_name": TEST_K8S_SETTINGS.edp1_name,
-        "edp1_cert_name": TEST_K8S_SETTINGS.edp1_cert_name,
-        "edp2_name": TEST_K8S_SETTINGS.edp2_name,
-        "edp2_cert_name": TEST_K8S_SETTINGS.edp2_cert_name,
-        "edp3_name": TEST_K8S_SETTINGS.edp3_name,
-        "edp3_cert_name": TEST_K8S_SETTINGS.edp3_cert_name,
-        "edp4_name": TEST_K8S_SETTINGS.edp4_name,
-        "edp4_cert_name": TEST_K8S_SETTINGS.edp4_cert_name,
-        "edp5_name": TEST_K8S_SETTINGS.edp5_name,
-        "edp5_cert_name": TEST_K8S_SETTINGS.edp5_cert_name,
-        "edp6_name": TEST_K8S_SETTINGS.edp6_name,
-        "edp6_cert_name": TEST_K8S_SETTINGS.edp6_cert_name,
-    },
-    tags = ["manual"],
-    deps = [
-        ":edp_simulators_cue",
-    ],
-)
-
 cue_library(
     name = "population_requisition_fulfiller_cue",
     srcs = ["population_requisition_fulfiller.cue"],
@@ -336,6 +308,7 @@ kustomization_dir(
         "empty_encryption_key_pair_config.textproto",
         "open_id_providers_config.json",
         "//src/main/k8s/testing/data:synthetic_generation_specs_small",
+        "//src/main/k8s/testing/secretfiles:basic_report_metric_spec_config.textproto",
         "//src/main/k8s/testing/secretfiles:impression_qualification_filter_config.textproto",
         "//src/main/k8s/testing/secretfiles:known_event_group_metadata_type_set",
         "//src/main/k8s/testing/secretfiles:metric_spec_config.textproto",
@@ -354,6 +327,7 @@ kustomization_dir(
         "open_id_providers_config.json",
         ":encryption_key_pair_config.textproto",
         "//src/main/k8s/testing/data:synthetic_generation_specs_small",
+        "//src/main/k8s/testing/secretfiles:basic_report_metric_spec_config.textproto",
         "//src/main/k8s/testing/secretfiles:impression_qualification_filter_config.textproto",
         "//src/main/k8s/testing/secretfiles:known_event_group_metadata_type_set",
         "//src/main/k8s/testing/secretfiles:metric_spec_config.textproto",

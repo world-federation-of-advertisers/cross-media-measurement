@@ -49,4 +49,26 @@ message BasicReport {
   BasicReportDetails details = 7;
 
   google.protobuf.Timestamp create_time = 8;
+
+  // Possible states of a `BasicReport`.
+  enum State {
+    // Default value. This value is unused.
+    STATE_UNSPECIFIED = 0;
+    // `BasicReport` created.
+    CREATED = 1;
+    // `Report` created.
+    REPORT_CREATED = 2;
+    // `Report` is in SUCCEEDED state, and its results are persisted with the
+    // `BasicReport`, but not yet processed by the noise corrector.
+    NOISY_RESULTS_READY = 3;
+    // Results have been noise-corrected. Available in the `BasicReport` as
+    // `result_details`.
+    SUCCEEDED = 4;
+    // Completed with failure. Terminal state.
+    FAILED = 5;
+    // Results have been invalidated. Terminal state.
+    INVALID = 6;
+  }
+  // `BasicReport` state.
+  State state = 9;
 }

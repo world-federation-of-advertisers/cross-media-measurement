@@ -142,6 +142,9 @@ class SetParticipantRequisitionParams(private val request: SetParticipantRequisi
           SetParticipantRequisitionParamsRequest.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE -> {
             honestMajorityShareShuffle = request.honestMajorityShareShuffle
           }
+          SetParticipantRequisitionParamsRequest.ProtocolCase.TRUS_TEE -> {
+            trusTee = request.trusTee
+          }
           SetParticipantRequisitionParamsRequest.ProtocolCase.PROTOCOL_NOT_SET -> {
             error("Unspecified protocol case in SetParticipantRequisitionParamsRequest.")
           }
@@ -155,7 +158,8 @@ class SetParticipantRequisitionParams(private val request: SetParticipantRequisi
         SetParticipantRequisitionParamsRequest.ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2 -> {
           ComputationParticipant.State.REQUISITION_PARAMS_SET
         }
-        SetParticipantRequisitionParamsRequest.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE -> {
+        SetParticipantRequisitionParamsRequest.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE,
+        SetParticipantRequisitionParamsRequest.ProtocolCase.TRUS_TEE -> {
           ComputationParticipant.State.READY
         }
         SetParticipantRequisitionParamsRequest.ProtocolCase.PROTOCOL_NOT_SET -> {

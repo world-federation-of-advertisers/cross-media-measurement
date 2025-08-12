@@ -206,6 +206,17 @@ private object V2AlphaPublicApiServer {
       parseTextProto(v2AlphaFlags.metricSpecConfigFile, MetricSpecConfig.getDefaultInstance())
     metricSpecConfig.validate()
 
+    val basicReportMetricSpecConfig =
+      if (v2AlphaFlags.basicReportMetricSpecConfigFile == null) {
+        metricSpecConfig
+      } else {
+        parseTextProto(
+          v2AlphaFlags.basicReportMetricSpecConfigFile!!,
+          MetricSpecConfig.getDefaultInstance(),
+        )
+      }
+    basicReportMetricSpecConfig.validate()
+
     val apiKey = measurementConsumerConfigs.configsMap.values.first().apiKey
     val celEnvCacheProvider =
       CelEnvCacheProvider(
@@ -332,6 +343,9 @@ private object V2AlphaPublicApiServer {
             InternalBasicReportsCoroutineStub(channel),
             InternalImpressionQualificationFiltersCoroutineStub(channel),
             InternalReportingSetsCoroutineStub(channel),
+            // TODO(@tristanvuong2021#2761): Switch to non-null value using flags
+            null,
+            basicReportMetricSpecConfig,
             authorization,
             serviceDispatcher,
           )
