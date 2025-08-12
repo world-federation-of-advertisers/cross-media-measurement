@@ -19,7 +19,6 @@ package org.wfanet.measurement.edpaggregator.resultsfulfiller.fulfillers
 import io.grpc.StatusException
 import java.util.logging.Level
 import java.util.logging.Logger
-import kotlinx.coroutines.flow.Flow
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.EncryptedMessage
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
@@ -57,7 +56,7 @@ class DirectMeasurementFulfiller(
   private val directNoiseMechanism: DirectNoiseMechanism,
   private val dataProviderSigningKeyHandle: SigningKeyHandle,
   private val dataProviderCertificateKey: DataProviderCertificateKey,
-  override val requisitionsStub: RequisitionsCoroutineStub,
+  private val requisitionsStub: RequisitionsCoroutineStub,
 ) : MeasurementFulfiller {
   private val logger: Logger = Logger.getLogger(this::class.java.name)
 

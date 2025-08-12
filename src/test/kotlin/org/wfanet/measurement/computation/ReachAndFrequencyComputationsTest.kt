@@ -18,6 +18,7 @@ import com.google.common.truth.Truth.assertThat
 import kotlin.collections.iterator
 import kotlin.math.ln
 import kotlin.math.max
+import kotlin.math.min
 import kotlin.math.sqrt
 import kotlin.test.assertFailsWith
 import org.junit.Test
@@ -32,8 +33,8 @@ class ReachAndFrequencyComputationsTest {
     val reach =
       ReachAndFrequencyComputations.computeReach(
         rawHistogram,
-        vectorSize = 20,
         vidSamplingIntervalWidth = 1.0f,
+        vectorSize = 20,
         dpParams = null,
       )
     assertThat(reach).isEqualTo(16)
@@ -45,8 +46,8 @@ class ReachAndFrequencyComputationsTest {
     val reach =
       ReachAndFrequencyComputations.computeReach(
         rawHistogram,
-        vectorSize = 40,
         vidSamplingIntervalWidth = 0.5f,
+        vectorSize = 40,
         dpParams = null,
       )
     assertThat(reach).isEqualTo(32)
@@ -59,11 +60,11 @@ class ReachAndFrequencyComputationsTest {
     val reach =
       ReachAndFrequencyComputations.computeReach(
         rawHistogram,
-        vectorSize = 200,
         vidSamplingIntervalWidth = 1.0f,
+        vectorSize = 200,
         dpParams = DP_PARAMS,
       )
-    assertThat(reach).isAtMost(170 + tolerance)
+    assertThat(reach).isAtMost(min(200, 170 + tolerance))
     assertThat(reach).isAtLeast(max(0L, 170 - tolerance))
   }
 
@@ -149,9 +150,9 @@ class ReachAndFrequencyComputationsTest {
     /**
      * Calculates a test tolerance for a noised value.
      *
-     * The standard deviation of the Gaussian noise is `sqrt(2 * ln(1.25 / delta)) / epsilon`. We
-     * return a tolerance of 6 standard deviations, which means a correct implementation should pass
-     * this check with near-certainty.
+     * The standard deviation of the Gaussian noise is `sqrt(2 * ln(1.25 / delta)) * l2Sensitivity /
+     * epsilon`. We return a tolerance of 6 standard deviations, which means a correct
+     * implementation should pass this check with near-certainty.
      */
     private fun getNoiseTolerance(
       dpParams: DifferentialPrivacyParams,

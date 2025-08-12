@@ -19,7 +19,6 @@ package org.wfanet.measurement.edpaggregator.resultsfulfiller.fulfillers
 import java.nio.file.Path
 import java.nio.file.Paths
 import kotlin.random.Random
-import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.runBlocking
 import org.junit.Rule
 import org.junit.Test
@@ -71,12 +70,6 @@ class DirectMeasurementFulfillerTest {
           measurementResult = result,
           requisitionNonce = NONCE,
           measurementEncryptionPublicKey = MC_PUBLIC_KEY,
-          sampledVids =
-            flow {
-              for (i in 1..100) {
-                emit(i.toLong())
-              }
-            },
           directProtocolConfig = DIRECT_PROTOCOL,
           directNoiseMechanism = DirectNoiseMechanism.CONTINUOUS_GAUSSIAN,
           dataProviderSigningKeyHandle = EDP_SIGNING_KEY,
