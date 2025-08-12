@@ -15,19 +15,19 @@
 name: "Send nightly build slack notification"
 
 inputs:
-  slack_bot_token:
+  slack-bot-token:
     type: string
     required: true
-  housekeeping_channel_id:
+  housekeeping-channel-id:
     type: string
     required: true
   title:
     type: string
     required: true
-  nightly_build_tag:
+  nightly-build-tag:
     type: string
     required: true
-  latest_release_tag:
+  latest-release-tag:
     type: string
     required: true
 
@@ -39,9 +39,9 @@ runs:
       with:
         errors: false #avoid failing the job if the step fails
         method: chat.postMessage
-        token: ${{ inputs.slack_bot_token }}
+        token: ${{ inputs.slack-bot-token }}
         payload: |
-          channel: ${{ inputs.housekeeping_channel_id }}
+          channel: ${{ inputs.housekeeping-channel-id }}
           text: "${{ inputs.title }}"
           blocks: [
             {
@@ -64,11 +64,11 @@ runs:
                 },
                 {
                   "type": "mrkdwn",
-                  "text": "*Tag:* <https://github.com/world-federation-of-advertisers/cross-media-measurement/tree/${{ inputs.nightly_build_tag }}|${{ inputs.nightly_build_tag }}>"
+                  "text": "*Tag:* <https://github.com/world-federation-of-advertisers/cross-media-measurement/tree/${{ inputs.nightly-build-tag }}|${{ inputs.nightly-build-tag }}>"
                 },
                 {
                   "type": "mrkdwn",
-                  "text": "*Diff:* <https://github.com/world-federation-of-advertisers/cross-media-measurement/compare/${{ inputs.latest_release_tag }}...${{ inputs.nightly_build_tag }}|${{ inputs.latest_release_tag }}...${{ inputs.nightly_build_tag }}>"
+                  "text": "*Diff:* <https://github.com/world-federation-of-advertisers/cross-media-measurement/compare/${{ inputs.latest-release-tag }}...${{ inputs.nightly-build-tag }}|${{ inputs.latest-release-tag }}...${{ inputs.nightly-build-tag }}>"
                 }
               ]
             }
