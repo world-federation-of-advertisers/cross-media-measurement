@@ -22,11 +22,11 @@ object HistogramComputations {
    *
    * Frequencies greater than [maxFrequency] are treated as [maxFrequency].
    *
-   * @param frequencyVector An array where each element is the frequency for a given VID.
+   * @param frequencyVector An array where each element is a frequency.
    * @param maxFrequency The maximum possible frequency value. The histogram will have
    *   `maxFrequency` buckets.
-   * @return A [LongArray] representing the histogram, where index `k-1` is the count of VIDs with
-   *   frequency `k`.
+   * @return A [LongArray] representing the histogram, where index `k-1` is the count with frequency
+   *   `k`.
    */
   fun buildHistogram(frequencyVector: IntArray, maxFrequency: Int): LongArray {
     val histogram = LongArray(maxFrequency)
