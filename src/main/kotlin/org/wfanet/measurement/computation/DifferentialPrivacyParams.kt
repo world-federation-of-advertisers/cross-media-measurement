@@ -14,4 +14,5 @@
 
 package org.wfanet.measurement.computation
 
+/** Parameters for differential privacy (DP). */
 data class DifferentialPrivacyParams(val epsilon: Double, val delta: Double)
