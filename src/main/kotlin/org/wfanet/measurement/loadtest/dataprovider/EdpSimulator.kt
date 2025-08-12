@@ -14,6 +14,10 @@
 
 package org.wfanet.measurement.loadtest.dataprovider
 
+import org.wfanet.anysketch.crypto.ElGamalPublicKey as AnySketchElGamalPublicKey
+import org.wfanet.anysketch.crypto.elGamalPublicKey as anySketchElGamalPublicKey
+import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.shareshuffle.FulfillRequisitionRequestBuilder as ShareShuffleFulfillRequisitionRequestBuilder
+import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.trustee.FulfillRequisitionRequestBuilder as TrusTeeRequisitionRequestBuilder
 import com.google.crypto.tink.integration.gcpkms.GcpKmsClient
 import com.google.protobuf.ByteString
 import com.google.protobuf.Descriptors
@@ -49,8 +53,6 @@ import org.apache.commons.math3.distribution.ConstantRealDistribution
 import org.jetbrains.annotations.BlockingExecutor
 import org.wfanet.anysketch.Sketch
 import org.wfanet.anysketch.SketchConfig
-import org.wfanet.anysketch.crypto.ElGamalPublicKey as AnySketchElGamalPublicKey
-import org.wfanet.anysketch.crypto.elGamalPublicKey as anySketchElGamalPublicKey
 import org.wfanet.measurement.api.v2alpha.Certificate
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.CustomDirectMethodologyKt.variance
@@ -145,8 +147,6 @@ import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.api.v2al
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.api.v2alpha.PrivacyQueryMapper.getMpcAcdpQuery
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.FrequencyVectorBuilder
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.VidIndexMap
-import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.shareshuffle.FulfillRequisitionRequestBuilder as ShareShuffleFulfillRequisitionRequestBuilder
-import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.trustee.FulfillRequisitionRequestBuilder as TrusTeeRequisitionRequestBuilder
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.trustee.FulfillRequisitionRequestBuilder
 import org.wfanet.measurement.loadtest.common.sampleVids
 import org.wfanet.measurement.loadtest.config.TestIdentifiers.SIMULATOR_EVENT_GROUP_REFERENCE_ID_PREFIX
@@ -186,13 +186,17 @@ class EdpSimulator(
   private val random: Random = Random,
   private val logSketchDetails: Boolean = false,
   private val health: SettableHealth = SettableHealth(),
-  private val kmsKekUri: String = "",
-  private val workloadIdentityProvider: String = "",
-  private val impersonatedServiceAccount: String = "",
+  private val trusTeeEncryptionParams: TrusTeeEncryptionParams? = null,
   private val blockingCoroutineContext: @BlockingExecutor CoroutineContext = Dispatchers.IO,
 ) :
   RequisitionFulfiller(edpData, certificatesStub, requisitionsStub, throttler, trustedCertificates),
   Health by health {
+  data class TrusTeeEncryptionParams(
+    val kmsKekUri: String,
+    val workloadIdentityProvider: String,
+    val impersonatedServiceAccount: String,
+  )
+
   private val eventGroupReferenceIdPrefix = getEventGroupReferenceIdPrefix(edpData.displayName)
 
   private val supportedProtocols = buildSet {
@@ -1282,18 +1286,14 @@ class EdpSimulator(
     logger.log(Level.INFO) { "Sampled frequency vector size:\n${sampledFrequencyVector.dataCount}" }
 
     val requests: Flow<FulfillRequisitionRequest> =
-      if (
-        kmsKekUri.isNotEmpty() &&
-          workloadIdentityProvider.isNotEmpty() &&
-          impersonatedServiceAccount.isNotEmpty()
-      ) {
+      if (trusTeeEncryptionParams != null) {
         val kmsClient = GcpKmsClient()
         val encryptionParams =
           FulfillRequisitionRequestBuilder.EncryptionParams(
             kmsClient,
-            kmsKekUri,
-            workloadIdentityProvider,
-            impersonatedServiceAccount,
+            trusTeeEncryptionParams.kmsKekUri,
+            trusTeeEncryptionParams.workloadIdentityProvider,
+            trusTeeEncryptionParams.impersonatedServiceAccount,
           )
         TrusTeeRequisitionRequestBuilder.buildEncrypted(
             requisition,

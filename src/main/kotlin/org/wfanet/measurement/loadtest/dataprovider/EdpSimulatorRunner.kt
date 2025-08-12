@@ -126,9 +126,12 @@ abstract class EdpSimulatorRunner : Runnable {
         random = random,
         logSketchDetails = flags.logSketchDetails,
         health = health,
-        kmsKekUri = flags.kmsKekUri,
-        workloadIdentityProvider = flags.workloadIdentityProvider,
-        impersonatedServiceAccount = flags.impersonatedServiceAccount,
+        trusTeeEncryptionParams =
+          EdpSimulator.TrusTeeEncryptionParams(
+            flags.kmsKekUri,
+            flags.workloadIdentityProvider,
+            flags.impersonatedServiceAccount,
+          ),
       )
     runBlocking {
       edpSimulator.ensureEventGroups(eventTemplates, metadataByReferenceIdSuffix)
