@@ -17,6 +17,7 @@ package org.wfanet.measurement.computation
 import com.google.common.truth.Truth.assertThat
 import kotlin.math.ln
 import kotlin.math.sqrt
+import kotlin.test.assertFailsWith
 import org.junit.Test
 
 class ImpressionComputationsTest {
@@ -68,6 +69,20 @@ class ImpressionComputationsTest {
     }
     assertThat(result).isAtLeast((rawImpressionCount - tolerance).coerceAtLeast(0).toLong())
     assertThat(result).isAtMost((rawImpressionCount + tolerance).toLong())
+  }
+
+  @Test
+  fun `throws error is sensitivity is not set but dp params are set`() {
+    val histogram = longArrayOf(2L, 4L, 0L, 8L, 0L, 0L, 10L, 0L, 2L) // 1*2 + 2*4 + 4*8 + 7*10 + 7*2
+    assertFailsWith<IllegalStateException> {
+      ImpressionComputations(l0Sensitivity = null, lInfiniteSensitivity = null)
+        .computeImpressionCount(
+          rawHistogram = histogram,
+          vidSamplingIntervalWidth = 1.0f,
+          dpParams = DP_PARAMS,
+          kAnonymityParams = null,
+        )
+    }
   }
 
   @Test
