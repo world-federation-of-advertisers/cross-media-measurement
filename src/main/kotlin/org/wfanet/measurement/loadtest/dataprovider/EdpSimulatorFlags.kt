@@ -174,29 +174,33 @@ class EdpSimulatorFlags {
   var healthFile: File? = null
     private set
 
-  @CommandLine.Option(
-    names = ["--kms-kek-uri"],
-    description = ["The uri of kms key encryption key."],
-    required = false,
-  )
-  lateinit var kmsKekUri: String
-    private set
+  @CommandLine.ArgGroup(exclusive = false) lateinit var trusteeParams: TrusTeeParams
 
-  @CommandLine.Option(
-    names = ["--workload-identity-provider"],
-    description = ["The resource name of the workload identity provider."],
-    required = false,
-  )
-  lateinit var workloadIdentityProvider: String
-    private set
+  class TrusTeeParams {
+    @CommandLine.Option(
+      names = ["--kms-kek-uri"],
+      description = ["The uri of kms key encryption key."],
+      required = true,
+    )
+    lateinit var kmsKekUri: String
+      private set
 
-  @CommandLine.Option(
-    names = ["--impersonated-service-account"],
-    description = ["The name of the service account to impersonate."],
-    required = false,
-  )
-  lateinit var impersonatedServiceAccount: String
-    private set
+    @CommandLine.Option(
+      names = ["--workload-identity-provider"],
+      description = ["The resource name of the workload identity provider."],
+      required = true,
+    )
+    lateinit var workloadIdentityProvider: String
+      private set
+
+    @CommandLine.Option(
+      names = ["--impersonated-service-account"],
+      description = ["The name of the service account to impersonate."],
+      required = true,
+    )
+    lateinit var impersonatedServiceAccount: String
+      private set
+  }
 
   companion object {
     const val TEST_EVENT_MESSAGE_TYPE =
