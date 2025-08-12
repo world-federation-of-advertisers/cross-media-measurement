@@ -23,6 +23,7 @@ import kotlin.collections.Set
 import org.wfanet.measurement.api.v2alpha.DataProvider
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.EventGroupKey
+import org.wfanet.measurement.api.v2alpha.MediaType as EventAnnotationMediaType
 import org.wfanet.measurement.common.api.ResourceIds
 import org.wfanet.measurement.reporting.service.api.FieldUnimplementedException
 import org.wfanet.measurement.reporting.service.api.InvalidFieldValueException
@@ -85,7 +86,8 @@ fun validateCreateBasicReportRequest(
   }
 
   validateReportingImpressionQualificationFilters(
-    request.basicReport.impressionQualificationFiltersList
+    request.basicReport.impressionQualificationFiltersList,
+    eventTemplateFieldsMap,
   )
   validateResultGroupSpecs(
     request.basicReport.resultGroupSpecsList,
@@ -204,14 +206,21 @@ fun validateDimensionSpec(
   }
 
   for (eventFilter in dimensionSpec.filtersList) {
-    if (eventFilter.termsList.size != 1) {
-      throw InvalidFieldValueException(
+    if (eventFilter.termsList.isEmpty()) {
+      throw RequiredFieldNotSetException(
         "basic_report.result_group_specs.dimension_spec.filters.terms"
       )
     }
+    if (eventFilter.termsList.size > 1) {
+      throw InvalidFieldValueException(
+        "basic_report.result_group_specs.dimension_spec.filters.terms"
+      ) { fieldName ->
+        "$fieldName can only have a size of 1"
+      }
+    }
 
     for (eventTemplateField in eventFilter.termsList) {
-      validateEventTemplateField(eventTemplateField, eventTemplateFieldsMap)
+      validateDimensionSpecEventTemplateField(eventTemplateField, eventTemplateFieldsMap)
       if (groupingEventTemplateFieldsSet.contains(eventTemplateField.path)) {
         throw InvalidFieldValueException(
           "basic_report.result_group_specs.dimension_spec.filters.terms.path"
@@ -269,8 +278,18 @@ fun validateDimensionSpecGrouping(
   }
 }
 
+fun MediaType.toEventAnnotationMediaType(): EventAnnotationMediaType {
+  return when (this) {
+    MediaType.VIDEO -> EventAnnotationMediaType.VIDEO
+    MediaType.DISPLAY -> EventAnnotationMediaType.DISPLAY
+    MediaType.OTHER -> EventAnnotationMediaType.OTHER
+    MediaType.MEDIA_TYPE_UNSPECIFIED,
+    MediaType.UNRECOGNIZED -> throw UnsupportedOperationException()
+  }
+}
+
 /**
- * Validates an [EventTemplateField]
+ * Validates an [EventTemplateField] for a [DimensionSpec]
  *
  * @param eventTemplateField [EventTemplateField] to validate
  * @param eventTemplateFieldsMap Map of EventTemplate field name with respect to Event message to
@@ -278,7 +297,7 @@ fun validateDimensionSpecGrouping(
  * @throws [RequiredFieldNotSetException] when validation fails
  * @throws [InvalidFieldValueException] when validation fails
  */
-fun validateEventTemplateField(
+fun validateDimensionSpecEventTemplateField(
   eventTemplateField: EventTemplateField,
   eventTemplateFieldsMap: Map<String, EventDescriptor.EventTemplateFieldInfo>,
 ) {
@@ -356,6 +375,100 @@ fun validateEventTemplateField(
         "basic_report.result_group_specs.dimension_spec.filters.terms.path"
       ) { fieldName ->
         "$fieldName is not a population attribute"
+      }
+    }
+  }
+}
+
+/**
+ * Validates an [EventTemplateField] for an [CustomImpressionQualificationFilterSpec]
+ *
+ * @param eventTemplateField [EventTemplateField] to validate
+ * @param eventTemplateFieldsMap Map of EventTemplate field name with respect to Event message to
+ *   info for the field. Used for validating [EventTemplateField]
+ * @param mediaType [MediaType] to check against if set
+ * @throws [RequiredFieldNotSetException] when validation fails
+ * @throws [InvalidFieldValueException] when validation fails
+ */
+fun validateCustomImpressionQualificationFilterSpecEventTemplateField(
+  eventTemplateField: EventTemplateField,
+  eventTemplateFieldsMap: Map<String, EventDescriptor.EventTemplateFieldInfo>,
+  mediaType: MediaType,
+) {
+  if (eventTemplateField.path.isEmpty()) {
+    throw RequiredFieldNotSetException(
+      "basic_report.impression_qualification_filters.custom.filter_spec.filters.terms.path"
+    )
+  } else {
+    val eventTemplateFieldInfo =
+      eventTemplateFieldsMap[eventTemplateField.path]
+        ?: throw InvalidFieldValueException(
+          "basic_report.impression_qualification_filters.custom.filter_spec.filters.terms.path"
+        ) { fieldName ->
+          "$fieldName doesn't exist"
+        }
+
+    if (!eventTemplateFieldInfo.supportedReportingFeatures.impressionQualification) {
+      throw InvalidFieldValueException(
+        "basic_report.impression_qualification_filters.custom.filter_spec.filters.terms.path"
+      ) { fieldName ->
+        "$fieldName cannot be used for impression qualification"
+      }
+    }
+
+    if (eventTemplateFieldInfo.mediaType != mediaType.toEventAnnotationMediaType()) {
+      throw InvalidFieldValueException(
+        "basic_report.impression_qualification_filters.custom.filter_spec.filters.terms.path"
+      ) { fieldName ->
+        "$fieldName does not have same media_type as parent ImpressionQualificationFilterSpec"
+      }
+    }
+
+    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf enum fields cannot be null.
+    when (eventTemplateField.value.selectorCase) {
+      EventTemplateField.FieldValue.SelectorCase.STRING_VALUE -> {
+        if (eventTemplateFieldInfo.type != Descriptors.FieldDescriptor.Type.STRING) {
+          throw InvalidFieldValueException(
+            "basic_report.impression_qualification_filters.custom.filter_spec.filters.terms.value.string_value"
+          ) { fieldName ->
+            "$fieldName is invalid for ${eventTemplateField.path}"
+          }
+        }
+      }
+      EventTemplateField.FieldValue.SelectorCase.ENUM_VALUE -> {
+        if (
+          eventTemplateFieldInfo.type != Descriptors.FieldDescriptor.Type.ENUM ||
+            eventTemplateFieldInfo.enumType?.findValueByName(eventTemplateField.value.enumValue) ==
+              null
+        ) {
+          throw InvalidFieldValueException(
+            "basic_report.impression_qualification_filters.custom.filter_spec.filters.terms.value.enum_value"
+          ) { fieldName ->
+            "$fieldName is invalid for for ${eventTemplateField.path}"
+          }
+        }
+      }
+      EventTemplateField.FieldValue.SelectorCase.BOOL_VALUE ->
+        if (eventTemplateFieldInfo.type != Descriptors.FieldDescriptor.Type.BOOL) {
+          throw InvalidFieldValueException(
+            "basic_report.impression_qualification_filters.custom.filter_spec.filters.terms.value.bool_value"
+          ) { fieldName ->
+            "$fieldName is invalid for ${eventTemplateField.path}"
+          }
+        }
+      EventTemplateField.FieldValue.SelectorCase.FLOAT_VALUE -> {
+        if (eventTemplateFieldInfo.type != Descriptors.FieldDescriptor.Type.FLOAT) {
+          throw InvalidFieldValueException(
+            "basic_report.impression_qualification_filters.custom.filter_spec.filters.terms.value.float_value"
+          ) { fieldName ->
+            "$fieldName is invalid for ${eventTemplateField.path}"
+          }
+        }
+      }
+      EventTemplateField.FieldValue.SelectorCase.SELECTOR_NOT_SET -> {
+        throw RequiredFieldNotSetException(
+          "basic_report.impression_qualification_filters.custom.filter_spec.filters.terms.value"
+        )
       }
     }
   }
@@ -478,11 +591,14 @@ fun validateReportingInterval(reportingInterval: ReportingInterval) {
  *
  * @param reportingImpressionQualificationFilters [List] of [ReportingImpressionQualificationFilter]
  *   to validate
+ * @param eventTemplateFieldsMap Map of EventTemplate field name with respect to Event message to
+ *   info for the field. Used for validating [EventTemplateField]
  * @throws [RequiredFieldNotSetException] when validation fails
  * @throws [InvalidFieldValueException] when validation fails
  */
 fun validateReportingImpressionQualificationFilters(
-  reportingImpressionQualificationFilters: List<ReportingImpressionQualificationFilter>
+  reportingImpressionQualificationFilters: List<ReportingImpressionQualificationFilter>,
+  eventTemplateFieldsMap: Map<String, EventDescriptor.EventTemplateFieldInfo>,
 ) {
   if (reportingImpressionQualificationFilters.isEmpty()) {
     throw RequiredFieldNotSetException("basic_report.impression_qualification_filters")
@@ -497,7 +613,10 @@ fun validateReportingImpressionQualificationFilters(
           "basic_report.impression_qualification_filters.impression_qualification_filter"
         )
     } else if (impressionQualificationFilter.hasCustom()) {
-      validateCustomImpressionQualificationFilterSpec(impressionQualificationFilter.custom)
+      validateCustomImpressionQualificationFilterSpec(
+        impressionQualificationFilter.custom,
+        eventTemplateFieldsMap,
+      )
     } else {
       throw InvalidFieldValueException("basic_report.impression_qualification_filters.selector")
     }
@@ -509,11 +628,14 @@ fun validateReportingImpressionQualificationFilters(
  *
  * @param customImpressionQualificationFilterSpec [CustomImpressionQualificationFilterSpec] to
  *   validate
+ * @param eventTemplateFieldsMap Map of EventTemplate field name with respect to Event message to
+ *   info for the field. Used for validating [EventTemplateField]
  * @throws [RequiredFieldNotSetException] when validation fails
  * @throws [InvalidFieldValueException] when validation fails
  */
 fun validateCustomImpressionQualificationFilterSpec(
-  customImpressionQualificationFilterSpec: CustomImpressionQualificationFilterSpec
+  customImpressionQualificationFilterSpec: CustomImpressionQualificationFilterSpec,
+  eventTemplateFieldsMap: Map<String, EventDescriptor.EventTemplateFieldInfo>,
 ) {
   if (customImpressionQualificationFilterSpec.filterSpecList.isEmpty()) {
     throw RequiredFieldNotSetException(
@@ -540,28 +662,25 @@ fun validateCustomImpressionQualificationFilterSpec(
       }
 
       for (eventFilter in filterSpec.filtersList) {
-        if (eventFilter.termsList.size != 1) {
+        if (eventFilter.termsList.isEmpty()) {
           throw RequiredFieldNotSetException(
             "basic_report.impression_qualification_filters.custom.filter_spec.filters.terms"
           )
         }
+        if (eventFilter.termsList.size > 1) {
+          throw InvalidFieldValueException(
+            "basic_report.impression_qualification_filters.custom.filter_spec.filters.terms"
+          ) { fieldName ->
+            "$fieldName can only have a size of 1"
+          }
+        }
 
-        // TODO(@tristanvuong2021): Need to verify against eventTemplate descriptor
         for (eventTemplateField in eventFilter.termsList) {
-          if (eventTemplateField.path.isEmpty()) {
-            throw RequiredFieldNotSetException(
-              "basic_report.impression_qualification_filters.custom.filter_spec.filters.terms.path"
-            )
-          }
-
-          if (
-            eventTemplateField.value.selectorCase ==
-              EventTemplateField.FieldValue.SelectorCase.SELECTOR_NOT_SET
-          ) {
-            throw RequiredFieldNotSetException(
-              "basic_report.impression_qualification_filters.custom.filter_spec.filters.terms.value"
-            )
-          }
+          validateCustomImpressionQualificationFilterSpecEventTemplateField(
+            eventTemplateField,
+            eventTemplateFieldsMap,
+            filterSpec.mediaType,
+          )
         }
       }
     }
