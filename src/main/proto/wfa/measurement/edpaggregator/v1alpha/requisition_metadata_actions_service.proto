@@ -1,0 +1,86 @@
+// Copyright 2025 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.edpaggregator.v1alpha;
+
+import "google/api/field_behavior.proto";
+import "wfa/measurement/edpaggregator/v1alpha/requisition_metadata.proto";
+
+option java_package = "org.wfanet.measurement.edpaggregator.v1alpha";
+option java_multiple_files = true;
+option java_outer_classname = "RequisitionMetadataActionServiceProto";
+
+// Service for managing RequisitionMetadataActions.
+//
+// Used for auditing and logging state changes for RequisitionMetadata.
+service RequisitionMetadataActionService {
+  // Creates a new RequisitionMetadataAction entry.
+  rpc CreateRequisitionMetadataAction(CreateRequisitionMetadataActionRequest)
+      returns (RequisitionMetadataAction);
+
+  // Lists RequisitionMetadataAction entries.
+  rpc ListRequisitionMetadataActions(ListRequisitionMetadataActionsRequest)
+      returns (ListRequisitionMetadataActionsResponse);
+}
+
+// Request message for the `CreateRequisitionMetadataAction` method.
+message CreateRequisitionMetadataActionRequest {
+  // The RequisitionMetadataAction to create.
+  RequisitionMetadataAction requisition_metadata_action = 1
+      [(google.api.field_behavior) = REQUIRED];
+}
+
+// Request message for the `ListRequisitionMetadataActions` method.
+message ListRequisitionMetadataActionsRequest {
+  // The data provider who owns the requisitions.
+  string data_provider = 1 [(google.api.field_behavior) = REQUIRED];
+
+  // Filtering criteria for the list request.
+  message Filter {
+    // Filter by the type of actioner.
+    RequisitionMetadataAction.ActionerType actioner_type = 1;
+    // Filter by the state before the action.
+    RequisitionMetadata.State prior_state = 2;
+    // Filter by the state after the action.
+    RequisitionMetadata.State new_state = 3;
+  }
+  Filter filter = 2;
+
+  // The maximum number of results to return. If not specified or 0, the
+  // service will use a default page size.
+  int32 page_size = 3;
+
+  // A page token, received from a previous `ListRequisitionMetadataActions`
+  // call. Provide this to retrieve the subsequent page.
+  //
+  // When paginating, all other parameters provided to
+  // `ListRequisitionMetadataActions` must match the call that provided the page
+  // token.
+  string page_token = 4;
+}
+
+// Response message for the `ListRequisitionMetadataActions` method.
+message ListRequisitionMetadataActionsResponse {
+  // List of `RequisitionMetadataAction`s.
+  repeated RequisitionMetadataAction requisition_metadata_action_entries = 1;
+
+  // A token to retrieve the next page of results.
+  //
+  // Pass this value in the `page_token` field in the subsequent call to
+  // `ListRequisitionMetadataActions` to retrieve the next page of results.
+  // If this field is empty, it means there are no more results.
+  string next_page_token = 2;
+}
