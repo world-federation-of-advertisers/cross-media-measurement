@@ -70,7 +70,7 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
 
   private class UploadEventGroup : TestRule {
 
-    private val bucket = "secure-computation-storage-dev-bucket"
+    private val bucket = "secure-computation-storage-${TEST_CONFIG.testEnvironment}-bucket"
     private val eventGroupObjectMapKey = "edp7/event-groups-map/edp7-event-group.pb"
     private val eventGroupObjectKey = "edp7/event-groups/edp7-event-group.pb"
     private val eventGroupBlobUri = "gs://$bucket/$eventGroupObjectKey"
