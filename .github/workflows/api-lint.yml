@@ -59,5 +59,4 @@ jobs:
     - run: tools/api-lint wfa/measurement/system
     - run: tools/api-lint wfa/measurement/securecomputation
     - run: tools/api-lint wfa/measurement/access
-    - run: tools/api-lint wfa/measurement/edpaggregator/v1alpha/impression_metadata.proto
-    - run: tools/api-lint wfa/measurement/edpaggregator/v1alpha/impression_metadata_service.proto
+    - run: tools/api-lint wfa/measurement/edpaggregator/v1alpha

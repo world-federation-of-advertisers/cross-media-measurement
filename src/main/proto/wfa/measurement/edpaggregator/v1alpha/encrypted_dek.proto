@@ -12,6 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// (-- api-linter: all=disabled
+//     aip.dev/not-precedent: This file needs to be updated to comply with AIPs.
+//     --)
+//  TODO(world-federation-of-advertisers/cross-media-measurement#2777): Fix API
+//  lint errors.
+
 syntax = "proto3";
 
 package wfa.measurement.securecomputation.impressions;
