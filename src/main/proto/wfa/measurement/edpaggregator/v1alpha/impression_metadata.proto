@@ -84,4 +84,12 @@ message ImpressionMetadata {
   // The timestamp when this metadata entry was last updated (e.g., deleted).
   google.protobuf.Timestamp update_time = 8
       [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // A request ID provided by the client on creation to ensure idempotency.
+  //
+  // This field must be a UUID4 (RFC 4122) string.
+  string request_id = 10 [
+    (google.api.field_behavior) = OPTIONAL,
+    (google.api.field_info).format = UUID4
+  ];
 }
