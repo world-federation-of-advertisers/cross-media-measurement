@@ -44,4 +44,7 @@ message EdpaCorrectnessTestConfig {
 
   // Full HTTP endpoint URL of the RequisitionFetcher Cloud Function.
   string requisition_fetcher_endpoint = 6;
+
+  // Test environment.
+  string test_environment = 7;
 }
