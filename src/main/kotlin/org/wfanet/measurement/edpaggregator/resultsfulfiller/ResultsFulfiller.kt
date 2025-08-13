@@ -127,7 +127,7 @@ class ResultsFulfiller(
             requisition,
             measurementSpec,
             requisitionSpec,
-            maxPopulation = Int.MAX_VALUE,
+            maxPopulation = null,
             frequencyData,
           )
         } else if (protocols.any { it.hasHonestMajorityShareShuffle() }) {
@@ -176,7 +176,7 @@ class ResultsFulfiller(
     requisition: Requisition,
     measurementSpec: MeasurementSpec,
     requisitionSpec: RequisitionSpec,
-    maxPopulation: Int,
+    maxPopulation: Int?,
     frequencyData: IntArray,
   ): DirectMeasurementFulfiller {
     val measurementEncryptionPublicKey: EncryptionPublicKey =

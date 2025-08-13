@@ -54,7 +54,7 @@ class DirectReachAndFrequencyResultBuilder(
   private val frequencyPrivacyParams: CmmsDpParams,
   private val samplingRate: Float,
   private val directNoiseMechanism: DirectNoiseMechanism,
-  private val maxPopulation: Int,
+  private val maxPopulation: Int?,
 ) : MeasurementResultBuilder {
 
   /**

@@ -42,7 +42,7 @@ object DirectMeasurementResultFactory {
     directNoiseMechanism: DirectNoiseMechanism,
     measurementSpec: MeasurementSpec,
     frequencyData: IntArray,
-    maxPopulation: Int,
+    maxPopulation: Int?,
   ): Measurement.Result {
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf enum fields cannot be null.
     return when (measurementSpec.measurementTypeCase) {
