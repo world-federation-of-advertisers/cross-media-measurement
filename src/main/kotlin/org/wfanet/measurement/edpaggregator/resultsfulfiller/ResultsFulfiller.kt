@@ -100,17 +100,15 @@ class ResultsFulfiller(
         }
       val requisitionSpec: RequisitionSpec = signedRequisitionSpec.unpack()
       val measurementSpec: MeasurementSpec = requisition.measurementSpec.message.unpack()
-
+      populationSpec = populationSpecMap.getValue(measurementSpec.modelLine)
       val sampledVids: Flow<Long> =
         RequisitionSpecs.getSampledVids(
           requisitionSpec,
           eventGroupMap,
-          measurementSpec.vidSamplingInterval,
           typeRegistry,
           eventReader,
           zoneId,
         )
-      populationSpec = populationSpecMap.getValue(measurementSpec.modelLine)
       val protocols: List<ProtocolConfig.Protocol> = requisition.protocolConfig.protocolsList
       val frequencyVectorBuilder =
         FrequencyVectorBuilder(
@@ -120,7 +118,6 @@ class ResultsFulfiller(
         )
       sampledVids.collect { frequencyVectorBuilder.increment(vidIndexMap[it]) }
       val frequencyData: IntArray = frequencyVectorBuilder.frequencyDataArray
-
       // TODO: Calculate the maximum population for a given cel filter
       val fulfiller =
         if (protocols.any { it.hasDirect() }) {

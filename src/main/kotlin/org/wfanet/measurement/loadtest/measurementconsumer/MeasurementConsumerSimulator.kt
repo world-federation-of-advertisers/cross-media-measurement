@@ -157,7 +157,7 @@ abstract class MeasurementConsumerSimulator(
   private val maximumResultPollingDelay: Duration,
   private val eventGroupFilter: ((EventGroup) -> Boolean)? = null,
   private val reportName: String = "some-report-id",
-  private val modelLine: String = "some-model-line",
+  private val modelLineName: String = "some-model-line",
   private val onMeasurementsCreated: (() -> Unit)? = null,
 ) {
   /** Cache of resource name to [Certificate]. */
@@ -900,7 +900,6 @@ abstract class MeasurementConsumerSimulator(
 
     val measurementSpec =
       newMeasurementSpec(measurementConsumer.publicKey.message, nonceHashes, vidSamplingInterval)
-
     return createMeasurementInfo(measurementConsumer, measurementSpec, requisitions, runId)
   }
 
@@ -1210,6 +1209,7 @@ abstract class MeasurementConsumerSimulator(
       this.vidSamplingInterval = vidSamplingInterval
       this.nonceHashes += nonceHashes
       this.reportingMetadata = reportingMetadata { report = reportName }
+      this.modelLine = modelLineName
     }
   }
 
@@ -1227,6 +1227,7 @@ abstract class MeasurementConsumerSimulator(
       }
       this.vidSamplingInterval = vidSamplingInterval
       this.nonceHashes += nonceHashes
+      this.modelLine = modelLineName
       this.reportingMetadata = reportingMetadata { report = reportName }
     }
   }
@@ -1241,6 +1242,7 @@ abstract class MeasurementConsumerSimulator(
       reach = MeasurementSpecKt.reach { privacyParams = outputDpParams }
       this.vidSamplingInterval = vidSamplingInterval
       this.nonceHashes += nonceHashes
+      this.modelLine = modelLineName
     }
   }
 
@@ -1280,6 +1282,7 @@ abstract class MeasurementConsumerSimulator(
       }
       this.vidSamplingInterval = vidSamplingInterval
       this.nonceHashes += nonceHashes
+      this.modelLine = modelLineName
     }
   }
 
@@ -1295,6 +1298,7 @@ abstract class MeasurementConsumerSimulator(
         maximumWatchDurationPerUser = Durations.fromMinutes(1)
       }
       this.nonceHashes += nonceHashes
+      this.modelLine = modelLineName
     }
   }
 
@@ -1306,7 +1310,7 @@ abstract class MeasurementConsumerSimulator(
       measurementPublicKey = packedMeasurementPublicKey
       population = MeasurementSpecKt.population {}
       this.nonceHashes += nonceHashes
-      modelLine = populationModelLineName
+      this.modelLine = populationModelLineName
     }
   }
 

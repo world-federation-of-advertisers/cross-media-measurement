@@ -65,7 +65,6 @@ object ReachAndFrequencyComputations {
       )
     val scaledNoisedReach =
       if (noisedReachInSample < 0) 0L else (noisedReachInSample / vidSamplingIntervalWidth).toLong()
-
     return min(scaledNoisedReach, maxPossibleScaledReach)
   }
 

@@ -62,11 +62,6 @@ class RequisitionSpecsTest {
     // Create TypeRegistry with the test event descriptor
     val typeRegistry = TypeRegistry.newBuilder().add(testEventDescriptor).build()
 
-    // Create sampling interval
-    val vidSamplingInterval = vidSamplingInterval {
-      start = 0.0f
-      width = 1.0f
-    }
     val labeledImpression = labeledImpression {
       vid = 1
       eventTime = FIRST_EVENT_DATE.atTime(1, 1, 1).toInstant(ZoneOffset.UTC).toProtoTime()
@@ -103,55 +98,11 @@ class RequisitionSpecsTest {
       RequisitionSpecs.getSampledVids(
         REQUISITION_SPEC,
         EVENT_GROUP_MAP,
-        vidSamplingInterval,
         typeRegistry,
         eventReader,
         ZoneOffset.UTC,
       )
 
-    assertThat(result.count()).isEqualTo(1)
-  }
-
-  @Test
-  fun `getSampledVids filters by vid interval`() = runBlocking {
-    // Set up test environment
-    val testEventDescriptor = TestEvent.getDescriptor()
-
-    // Create TypeRegistry with the test event descriptor
-    val typeRegistry = TypeRegistry.newBuilder().add(testEventDescriptor).build()
-
-    // Create sampling interval
-    val vidSamplingInterval = vidSamplingInterval {
-      start = 0.0f
-      width = 0.5f
-    }
-    val labeledImpression = labeledImpression {
-      vid = 1
-      eventTime = FIRST_EVENT_DATE.atTime(1, 1, 1).toInstant(ZoneOffset.UTC).toProtoTime()
-      event =
-        testEvent {
-            this.person = person {
-              gender = Person.Gender.FEMALE
-              ageGroup = Person.AgeGroup.YEARS_18_TO_34
-            }
-          }
-          .pack()
-    }
-    val impressions = flowOf(labeledImpression, labeledImpression.copy { this.vid = 10 })
-    val eventReader: EventReader =
-      mock<EventReader> {
-        onBlocking { getLabeledImpressions(any(), any()) }.thenReturn(impressions)
-      }
-
-    val result =
-      RequisitionSpecs.getSampledVids(
-        REQUISITION_SPEC,
-        EVENT_GROUP_MAP,
-        vidSamplingInterval,
-        typeRegistry,
-        eventReader,
-        ZoneOffset.UTC,
-      )
     assertThat(result.count()).isEqualTo(1)
   }
 
@@ -163,11 +114,6 @@ class RequisitionSpecsTest {
     // Create TypeRegistry with the test event descriptor
     val typeRegistry = TypeRegistry.newBuilder().add(testEventDescriptor).build()
 
-    // Create sampling interval
-    val vidSamplingInterval = vidSamplingInterval {
-      start = 0.0f
-      width = 1.0f
-    }
     val labeledImpression = labeledImpression {
       vid = 1
       eventTime = FIRST_EVENT_DATE.atTime(1, 1, 1).toInstant(ZoneOffset.UTC).toProtoTime()
@@ -197,7 +143,6 @@ class RequisitionSpecsTest {
       RequisitionSpecs.getSampledVids(
         REQUISITION_SPEC,
         EVENT_GROUP_MAP,
-        vidSamplingInterval,
         typeRegistry,
         eventReader,
         ZoneOffset.UTC,
@@ -214,11 +159,6 @@ class RequisitionSpecsTest {
     // Create TypeRegistry with the test event descriptor
     val typeRegistry = TypeRegistry.newBuilder().add(testEventDescriptor).build()
 
-    // Create sampling interval
-    val vidSamplingInterval = vidSamplingInterval {
-      start = 0.5f
-      width = 0.6f
-    }
     // This event gets filters out since event interval end is at 11PM.
     val labeledImpression = labeledImpression {
       vid = 1
@@ -248,7 +188,6 @@ class RequisitionSpecsTest {
         RequisitionSpecs.getSampledVids(
           REQUISITION_SPEC,
           EVENT_GROUP_MAP,
-          vidSamplingInterval,
           typeRegistry,
           eventReader,
           ZoneOffset.UTC,
