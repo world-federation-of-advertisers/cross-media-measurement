@@ -115,14 +115,13 @@ class FulfillRequisitionRequestBuilder(
       val headerRequest = buildEncryptedHeader(encryptedDek)
       yield(headerRequest)
 
-      val bodyChunkRequests: List<FulfillRequisitionRequest> =
+      val bodyChunkRequests: Sequence<FulfillRequisitionRequest> =
         StreamingEncryption.encryptChunked(
             dekHandle,
             frequencyVectorBytes.toByteString(),
             RPC_CHUNK_SIZE_BYTES,
             null,
           )
-          .toList()
           .map { fulfillRequisitionRequest { bodyChunk = bodyChunk { data = it } } }
 
       yieldAll(bodyChunkRequests)
