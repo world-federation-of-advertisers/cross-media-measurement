@@ -118,7 +118,7 @@ class ResultsFulfiller(
           strict = false,
         )
       sampledVids.collect { frequencyVectorBuilder.increment(vidIndexMap[it]) }
-      val frequencyData: IntArray = frequencyVectorBuilder.frequencyData
+      val frequencyData: IntArray = frequencyVectorBuilder.frequencyDataArray
 
       // TODO: Calculate the maximum population for a given cel filter
       val fulfiller =
