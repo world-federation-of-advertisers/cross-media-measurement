@@ -1,7 +1,7 @@
 load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_test")
 
 kt_jvm_test(
-    name = "fulfill_requisition_request_builder_test",
+    name = "FulfillRequisitionRequestBuilderTest",
     srcs = ["FulfillRequisitionRequestBuilderTest.kt"],
     test_class = "org.wfanet.measurement.eventdataprovider.requisition.v2alpha.trustee.FulfillRequisitionRequestBuilderTest",
     deps = [
