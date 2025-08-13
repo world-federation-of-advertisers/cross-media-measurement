@@ -161,7 +161,7 @@ abstract class AbstractEdpSimulator(
    *
    * When the vidIndexMap is empty, the honest majority share shuffle protocol is not supported.
    */
-  private val hmssVidIndexMap: VidIndexMap?,
+  private val vidIndexMap: VidIndexMap?,
   private val sketchEncrypter: SketchEncrypter,
   private val random: Random,
   private val logSketchDetails: Boolean,
@@ -202,7 +202,7 @@ abstract class AbstractEdpSimulator(
   private val supportedProtocols = buildSet {
     add(ProtocolConfig.Protocol.ProtocolCase.LIQUID_LEGIONS_V2)
     add(ProtocolConfig.Protocol.ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2)
-    if (hmssVidIndexMap != null) {
+    if (vidIndexMap != null) {
       add(ProtocolConfig.Protocol.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE)
     }
   }
@@ -231,7 +231,7 @@ abstract class AbstractEdpSimulator(
         name = edpData.name
         capabilities =
           DataProviderKt.capabilities {
-            honestMajorityShareShuffleSupported = (hmssVidIndexMap != null)
+            honestMajorityShareShuffleSupported = (vidIndexMap != null)
           }
       }
     )
@@ -1008,7 +1008,7 @@ abstract class AbstractEdpSimulator(
     nonce: Long,
     eventGroupSpecs: Iterable<EventQuery.EventGroupSpec>,
   ) {
-    requireNotNull(hmssVidIndexMap) { "HMSS VidIndexMap cannot be null." }
+    requireNotNull(vidIndexMap) { "HMSS VidIndexMap cannot be null." }
 
     val protocolConfig: ProtocolConfig.HonestMajorityShareShuffle =
       requireNotNull(
@@ -1030,11 +1030,11 @@ abstract class AbstractEdpSimulator(
 
     logger.info("Generating sampled frequency vector for HMSS...")
     val frequencyVectorBuilder =
-      FrequencyVectorBuilder(hmssVidIndexMap.populationSpec, measurementSpec, strict = false)
+      FrequencyVectorBuilder(vidIndexMap.populationSpec, measurementSpec, strict = false)
     for (eventGroupSpec in eventGroupSpecs) {
       try {
         eventQuery.getUserVirtualIds(eventGroupSpec).forEach {
-          frequencyVectorBuilder.increment(hmssVidIndexMap[it])
+          frequencyVectorBuilder.increment(vidIndexMap[it])
         }
       } catch (e: EventFilterValidationException) {
         logger.log(
