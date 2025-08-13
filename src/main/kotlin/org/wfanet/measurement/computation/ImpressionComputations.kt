@@ -59,32 +59,36 @@ object ImpressionComputations {
           }
         frequency * count
       }
+    val scaledImpressionCount: Long =
+      if (dpParams == null) {
+        (rawImpressionCount / vidSamplingIntervalWidth).toLong()
+      } else {
+        check(maxFrequency != null) { "maxFrequency cannot be null if dpParams are set" }
+        val noise = GaussianNoise()
+        val noisedImpressionCount =
+          noise.addNoise(
+            rawImpressionCount,
+            L_0_SENSITIVITY,
+            maxFrequency,
+            dpParams.epsilon,
+            dpParams.delta,
+          )
+        if (noisedImpressionCount < 0) 0L
+        else (noisedImpressionCount / vidSamplingIntervalWidth).toLong()
+      }
     val kAnonymityImpressionCount =
       if (kAnonymityParams == null) {
-        rawImpressionCount
+        scaledImpressionCount
       } else {
         if (
-          rawImpressionCount < kAnonymityParams.minImpressions ||
-            rawHistogram.sum() < kAnonymityParams.minUsers
+          scaledImpressionCount < kAnonymityParams.minImpressions ||
+            (rawHistogram.sum() / vidSamplingIntervalWidth) < kAnonymityParams.minUsers
         ) {
           0
         } else {
-          rawImpressionCount
+          scaledImpressionCount
         }
       }
-    if (dpParams == null) {
-      return (kAnonymityImpressionCount / vidSamplingIntervalWidth).toLong()
-    }
-    check(maxFrequency != null) { "maxFrequency cannot be null if dpParams are set" }
-    val noise = GaussianNoise()
-    val noisedImpressionCount =
-      noise.addNoise(
-        kAnonymityImpressionCount,
-        L_0_SENSITIVITY,
-        maxFrequency,
-        dpParams.epsilon,
-        dpParams.delta,
-      )
-    return if (noisedImpressionCount < 0) 0L else noisedImpressionCount
+    return kAnonymityImpressionCount
   }
 }
