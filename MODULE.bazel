@@ -398,6 +398,7 @@ single_version_override(
     version = BORINGSSL_VERSION,
 )
 
+# DO_NOT_SUBMIT: https://github.com/world-federation-of-advertisers/common-jvm/pull/334
 archive_override(
     module_name = "common-jvm",
     strip_prefix = "common-jvm-18d82b2505664bfbcbf8a420a56aeb2487dc470e",
