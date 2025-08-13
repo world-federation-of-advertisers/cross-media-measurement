@@ -18,7 +18,6 @@ locals {
 
   metadata_map = {
     "tee-image-reference"           = var.docker_image
-    "tee-container-log-redirect"    = "true"
     "tee-cmd"                       = jsonencode(var.tee_cmd)
   }
 }
@@ -77,7 +76,7 @@ resource "google_compute_instance_template" "confidential_vm_template" {
 
   confidential_instance_config {
     enable_confidential_compute = true
-    confidential_instance_type  = "SEV"
+    confidential_instance_type  = "SEV_SNP"
   }
 
   scheduling {
