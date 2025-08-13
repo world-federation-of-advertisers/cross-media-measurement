@@ -61,8 +61,8 @@ private data class MetricCalculationSpecInfo(
  * This assumes that all parameters have already been validated.
  *
  * @param campaignGroupName resource name of [ReportingSet] that is a campaign group
- * @param impressionQualificationFilterSpecsLists List of List of [ImpressionQualificationFilterSpec]
- *   for each [ReportingImpressionQualificationFilter]
+ * @param impressionQualificationFilterSpecsLists List of List of
+ *   [ImpressionQualificationFilterSpec] for each [ReportingImpressionQualificationFilter]
  * @param dataProviderPrimitiveReportingSetMap Map of [DataProvider] resource name to primitive
  *   [ReportingSet] containing associated [EventGroup] resource names
  * @param resultGroupSpecs List of [ResultGroupSpec] to transform
@@ -138,15 +138,12 @@ fun buildReportingSetMetricCalculationSpecDetailsMap(
  */
 private fun createImpressionQualificationFilterSpecsFilter(
   impressionQualificationFilterSpecs: List<ImpressionQualificationFilterSpec>,
-  eventTemplateFieldsMap: Map<String, EventDescriptor.EventTemplateFieldInfo>,): String {
+  eventTemplateFieldsMap: Map<String, EventDescriptor.EventTemplateFieldInfo>,
+): String {
   return impressionQualificationFilterSpecs
-    .flatMap {
-      it.filtersList
-    }
+    .flatMap { it.filtersList }
     // To normalize the filter string
-    .sortedBy {
-      it.termsList.first().path
-    }
+    .sortedBy { it.termsList.first().path }
     .joinToString(prefix = "(", postfix = ")", separator = " && ") {
       val term = it.termsList.first()
       val termValue =
