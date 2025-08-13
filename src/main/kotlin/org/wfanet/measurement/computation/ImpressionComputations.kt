@@ -76,19 +76,36 @@ object ImpressionComputations {
         if (noisedImpressionCount < 0) 0L
         else (noisedImpressionCount / vidSamplingIntervalWidth).toLong()
       }
-    val kAnonymityImpressionCount =
-      if (kAnonymityParams == null) {
-        scaledImpressionCount
-      } else {
-        if (
-          scaledImpressionCount < kAnonymityParams.minImpressions ||
-            (rawHistogram.sum() / vidSamplingIntervalWidth) < kAnonymityParams.minUsers
-        ) {
-          0
+    if (kAnonymityParams == null) {
+      return scaledImpressionCount
+    }
+    val kAnonymityImpressionCount = run {
+      val rawUserCount = rawHistogram.sum()
+      val scaledUserCount: Long =
+        if (dpParams == null) {
+          (rawUserCount / vidSamplingIntervalWidth).toLong()
         } else {
-          scaledImpressionCount
+          val noise = GaussianNoise()
+          val lInfSensitivity = 1L
+          val noisedUserCount =
+            noise.addNoise(
+              rawUserCount,
+              L_0_SENSITIVITY,
+              lInfSensitivity,
+              dpParams.epsilon,
+              dpParams.delta,
+            )
+          if (noisedUserCount < 0) 0L else (noisedUserCount / vidSamplingIntervalWidth).toLong()
         }
+      if (
+        scaledImpressionCount < kAnonymityParams.minImpressions ||
+          scaledUserCount < kAnonymityParams.minUsers
+      ) {
+        0
+      } else {
+        scaledImpressionCount
       }
+    }
     return kAnonymityImpressionCount
   }
 }
