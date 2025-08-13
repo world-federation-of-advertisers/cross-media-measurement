@@ -16,9 +16,14 @@ syntax = "proto3";
 
 package wfa.measurement.edpaggregator.v1alpha;
 
+import "google/api/annotations.proto";
+import "google/api/client.proto";
 import "google/api/field_behavior.proto";
+import "google/api/resource.proto";
 import "wfa/measurement/edpaggregator/v1alpha/requisition_metadata.proto";
 
+// (-- api-linter: core::0191::java-package=disabled
+//     aip.dev/not-precedent: Project-wide convention. --)
 option java_package = "org.wfanet.measurement.edpaggregator.v1alpha";
 option java_multiple_files = true;
 option java_outer_classname = "RequisitionMetadataActionServiceProto";
@@ -29,58 +34,87 @@ option java_outer_classname = "RequisitionMetadataActionServiceProto";
 service RequisitionMetadataActionService {
   // Creates a new RequisitionMetadataAction entry.
   rpc CreateRequisitionMetadataAction(CreateRequisitionMetadataActionRequest)
-      returns (RequisitionMetadataAction);
+      returns (RequisitionMetadataAction) {
+    option (google.api.http) = {
+      post: "/v1alpha/{parent=dataProviders/*/requisitionMetadata/*}/actions"
+      body: "requisition_metadata_action"
+    };
+    option (google.api.method_signature) = "parent,requisition_metadata_action";
+  }
 
-  // Lists RequisitionMetadataAction entries.
+  // Lists RequisitionMetadataAction entries for a given RequisitionMetadata.
   rpc ListRequisitionMetadataActions(ListRequisitionMetadataActionsRequest)
-      returns (ListRequisitionMetadataActionsResponse);
+      returns (ListRequisitionMetadataActionsResponse) {
+    option (google.api.http) = {
+      get: "/v1alpha/{parent=dataProviders/*/requisitionMetadata/*}/actions"
+    };
+    option (google.api.method_signature) = "parent";
+  }
 }
 
 // Request message for the `CreateRequisitionMetadataAction` method.
 message CreateRequisitionMetadataActionRequest {
+  // The parent RequisitionMetadata resource name.
+  // Format:
+  // `dataProviders/{data_provider}/requisitionMetadata/{requisition_metadata}`
+  string parent = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      child_type: "edpaggregator.halo-cmm.org/RequisitionMetadataAction"
+    }
+  ];
+
   // The RequisitionMetadataAction to create.
-  RequisitionMetadataAction requisition_metadata_action = 1
+  // The `name` and `action_time` fields are ignored.
+  RequisitionMetadataAction requisition_metadata_action = 2
       [(google.api.field_behavior) = REQUIRED];
+
+  // The etag of the parent RequisitionMetadata.
+  //
+  // This is used for optimistic concurrency control to ensure the state of the
+  // parent resource has not changed since it was last read.
+  string requisition_metadata_etag = 3 [(google.api.field_behavior) = REQUIRED];
 }
 
 // Request message for the `ListRequisitionMetadataActions` method.
 message ListRequisitionMetadataActionsRequest {
-  // The data provider who owns the requisitions.
-  string data_provider = 1 [(google.api.field_behavior) = REQUIRED];
+  // The parent RequisitionMetadata resource name.
+  // Format:
+  // `dataProviders/{data_provider}/requisitionMetadata/{requisition_metadata}`
+  string parent = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      child_type: "edpaggregator.halo-cmm.org/RequisitionMetadataAction"
+    }
+  ];
+
+  // The maximum number of results to return.
+  int32 page_size = 2 [(google.api.field_behavior) = OPTIONAL];
+
+  // A page token, received from a previous `ListRequisitionMetadataActions`
+  // call.
+  string page_token = 3 [(google.api.field_behavior) = OPTIONAL];
 
   // Filtering criteria for the list request.
   message Filter {
-    // Filter by the type of actioner.
+    // Filter by the entity that performed the action.
     RequisitionMetadataAction.ActionerType actioner_type = 1;
-    // Filter by the state before the action.
+
+    // Filter by the state of the requisition before the action.
     RequisitionMetadata.State prior_state = 2;
-    // Filter by the state after the action.
+
+    // Filter by the state of the requisition after the action.
     RequisitionMetadata.State new_state = 3;
   }
-  Filter filter = 2;
-
-  // The maximum number of results to return. If not specified or 0, the
-  // service will use a default page size.
-  int32 page_size = 3;
-
-  // A page token, received from a previous `ListRequisitionMetadataActions`
-  // call. Provide this to retrieve the subsequent page.
-  //
-  // When paginating, all other parameters provided to
-  // `ListRequisitionMetadataActions` must match the call that provided the page
-  // token.
-  string page_token = 4;
+  // The filter to apply to the list. All filter fields are optional.
+  Filter filter = 4 [(google.api.field_behavior) = OPTIONAL];
 }
 
 // Response message for the `ListRequisitionMetadataActions` method.
 message ListRequisitionMetadataActionsResponse {
-  // List of `RequisitionMetadataAction`s.
-  repeated RequisitionMetadataAction requisition_metadata_action_entries = 1;
+  // A list of `RequisitionMetadataAction` entries matching the request.
+  repeated RequisitionMetadataAction requisition_metadata_actions = 1;
 
   // A token to retrieve the next page of results.
-  //
-  // Pass this value in the `page_token` field in the subsequent call to
-  // `ListRequisitionMetadataActions` to retrieve the next page of results.
-  // If this field is empty, it means there are no more results.
   string next_page_token = 2;
 }
