@@ -19,6 +19,7 @@ import com.google.common.truth.extensions.proto.FieldScopes
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
 import com.google.protobuf.kotlin.toByteStringUtf8
+import com.google.protobuf.timestamp
 import com.google.type.interval
 import io.grpc.Status
 import java.time.Clock
