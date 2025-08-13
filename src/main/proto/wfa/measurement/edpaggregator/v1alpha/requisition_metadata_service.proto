@@ -68,21 +68,27 @@ service RequisitionMetadataService {
     option (google.api.method_signature) = "parent";
   }
 
-  // Gets the latest cmms_create_time from all metadata entries for a
+  // Fetches the latest cmms_create_time from all metadata entries for a
   // data_provider.
   //
   // Used to determine the starting point for fetching new
   // requisitions from the Kingdom.
-  rpc GetLatestCmmsCreateTime(GetLatestCmmsCreateTimeRequest)
-      returns (GetLatestCmmsCreateTimeResponse) {
+  // (-- api-linter: core::0131::synonyms=disabled
+  //     aip.dev/not-precedent: This is a custom query method instead of GET.
+  //     --)
+  rpc FetchLatestCmmsCreateTime(FetchLatestCmmsCreateTimeRequest)
+      returns (google.protobuf.Timestamp) {
     option (google.api.http) = {
-      get: "/v1alpha/{parent=dataProviders/*}:getLatestCmmsCreateTime"
+      get: "/v1alpha/{parent=dataProviders/*}:fetchLatestCmmsCreateTime"
     };
     option (google.api.method_signature) = "parent";
   }
 }
 
 // Request message for the `CreateRequisitionMetadata` method.
+// (-- api-linter: core::0133::request-id-field=disabled
+//     aip.dev/not-precedent: Idempotency is handled by the `request_id` field
+//     in the `RequisitionMetadata` resource. --)
 message CreateRequisitionMetadataRequest {
   // The parent data provider resource name.
   // Format: `dataProviders/{data_provider}`
@@ -99,6 +105,9 @@ message CreateRequisitionMetadataRequest {
 }
 
 // Request message for the `BatchCreateRequisitionMetadata` method.
+// (-- api-linter: core::0233::request-requests-field=disabled
+//     aip.dev/not-precedent: Linter incorrectly singularizes "Metadata" to
+//     "Metadatum". --)
 message BatchCreateRequisitionMetadataRequest {
   // The parent data provider resource name.
   // Format: `dataProviders/{data_provider}`
@@ -115,6 +124,9 @@ message BatchCreateRequisitionMetadataRequest {
 }
 
 // Response message for the `BatchCreateRequisitionMetadata` method.
+// (-- api-linter: core::0233::response-resource-field=disabled
+//     aip.dev/not-precedent: Linter incorrectly singularizes "Metadata" to
+//     "Metadatum". --)
 message BatchCreateRequisitionMetadataResponse {
   // The list of newly created RequisitionMetadata, in the same order as the
   // request.
@@ -154,11 +166,18 @@ message ListRequisitionMetadataRequest {
   // Filtering criteria for the list request.
   message Filter {
     // Filter by the state of the requisition.
-    RequisitionMetadata.State state = 1;
+    //
+    // (-- api-linter: core::0216::state-field-output-only=disabled
+    //     aip.dev/not-precedent: This field is used for filtering input. --)
+    RequisitionMetadata.State state = 1
+        [(google.api.field_behavior) = OPTIONAL];
     // Filter by the group ID of the requisition.
-    string group_id = 2;
+    string group_id = 2 [(google.api.field_behavior) = OPTIONAL];
   }
   // The filter to apply to the list. All filter fields are optional.
+  // (-- api-linter: core::0132::request-field-types=disabled
+  //     aip.dev/not-precedent: A structured message is more type-safe for
+  //       the fixed filter options. --)
   Filter filter = 4 [(google.api.field_behavior) = OPTIONAL];
 }
 
@@ -171,9 +190,10 @@ message ListRequisitionMetadataResponse {
   string next_page_token = 2;
 }
 
-// Request message for the `GetLatestCmmsCreateTime` method.
-message GetLatestCmmsCreateTimeRequest {
-  // The parent data provider resource name.
+// Request message for the `FetchLatestCmmsCreateTime` method.
+message FetchLatestCmmsCreateTimeRequest {
+  // The parent data provider resource name for which to get the latest
+  // cmms_create_time.
   // Format: `dataProviders/{data_provider}`
   string parent = 1 [
     (google.api.field_behavior) = REQUIRED,
@@ -181,11 +201,4 @@ message GetLatestCmmsCreateTimeRequest {
       child_type: "edpaggregator.halo-cmm.org/RequisitionMetadata"
     }
   ];
-}
-
-// Response message for the `GetLatestCmmsCreateTime` method.
-message GetLatestCmmsCreateTimeResponse {
-  // The latest `cmms_create_time` found for the given data provider.
-  // If no requisitions are found, this will be a default timestamp.
-  google.protobuf.Timestamp latest_cmms_create_time = 1;
 }
