@@ -23,9 +23,6 @@ import com.google.crypto.tink.StreamingAead
 import com.google.crypto.tink.aead.AeadConfig
 import com.google.crypto.tink.streamingaead.StreamingAeadConfig
 import com.google.protobuf.ByteString
-import java.io.ByteArrayOutputStream
-import java.nio.ByteBuffer
-import java.nio.channels.Channels
 import java.security.GeneralSecurityException
 import kotlin.test.assertFailsWith
 import org.junit.Test
@@ -223,19 +220,10 @@ class FulfillRequisitionRequestBuilderTest {
       KeysetHandle.read(BinaryKeysetReader.withInputStream(encryptedDek.newInput()), kekAead)
     val dekStreamingAead = dekKeysetHandle.getPrimitive(StreamingAead::class.java)
 
-    val decryptingChannel =
-      dekStreamingAead.newDecryptingChannel(
-        Channels.newChannel(encryptedPayload.newInput()),
-        byteArrayOf(),
-      )
-    val decryptedData = ByteArrayOutputStream()
-    val buffer = ByteBuffer.allocate(1024)
-    while (decryptingChannel.read(buffer) != -1) {
-      buffer.flip()
-      decryptedData.write(buffer.array(), 0, buffer.limit())
-      buffer.clear()
-    }
-    val decryptedFrequencyVectorData = decryptedData.toByteArray()
+    val decryptedFrequencyVectorData =
+      dekStreamingAead.newDecryptingStream(encryptedPayload.newInput(), byteArrayOf()).use {
+        it.readAllBytes()
+      }
 
     val decryptedIntegers = bytesToIntegers(decryptedFrequencyVectorData)
     assertThat(decryptedIntegers).isEqualTo(inputFrequencyVector.dataList)
