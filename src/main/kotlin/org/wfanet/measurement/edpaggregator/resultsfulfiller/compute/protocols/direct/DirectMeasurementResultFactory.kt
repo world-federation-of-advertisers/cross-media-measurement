@@ -33,8 +33,8 @@ object DirectMeasurementResultFactory {
    * @param directProtocolConfig The direct protocol configuration.
    * @param directNoiseMechanism The direct noise mechanism to use.
    * @param measurementSpec The measurement specification.
-   * @param sampledVids The sampled VIDs.
-   * @param random The random number generator to use.
+   * @param frequencyData IntArray of VID indices.
+   * @param maxPopulation Optional parameter of the max result that should be returned.
    * @return The measurement result.
    */
   suspend fun buildMeasurementResult(

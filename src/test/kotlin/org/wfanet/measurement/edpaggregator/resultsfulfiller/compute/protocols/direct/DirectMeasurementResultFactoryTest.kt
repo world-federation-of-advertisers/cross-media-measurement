@@ -17,8 +17,6 @@
 package org.wfanet.measurement.edpaggregator.resultsfulfiller.compute.protocols.direct
 
 import com.google.common.truth.Truth.assertThat
-import java.security.SecureRandom
-import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -38,16 +36,7 @@ class DirectMeasurementResultFactoryTest {
   fun `buildMeasurementResult returns reach and frequency result for REACH_AND_FREQUENCY measurement type`() =
     runBlocking {
       // Setup
-      val distinctVids = 100
-      val sampledVids = flow {
-        for (i in 1..distinctVids) {
-          emit(i.toLong())
-          // Duplicating the VID for every 10th entry to simulate frequency of 2 for 10 users
-          if (i % 10 == 0) {
-            emit(i.toLong())
-          }
-        }
-      }
+      val frequencyData = IntArray(100) { if (it < 90) 1 else 2 }
 
       val measurementSpec = measurementSpec {
         reachAndFrequency =
@@ -69,15 +58,15 @@ class DirectMeasurementResultFactoryTest {
           directProtocolConfig = DIRECT_PROTOCOL,
           directNoiseMechanism = DirectNoiseMechanism.NONE,
           measurementSpec = measurementSpec,
-          sampledVids = sampledVids,
-          random = SecureRandom(),
+          frequencyData = frequencyData,
+          maxPopulation = null,
         )
 
       // Verify
       assertThat(result.hasReach()).isTrue()
       assertThat(result.reach.noiseMechanism).isEqualTo(NoiseMechanism.NONE)
       assertThat(result.reach.hasDeterministicCountDistinct()).isTrue()
-      assertThat(result.reach.value).isEqualTo(distinctVids)
+      assertThat(result.reach.value).isEqualTo(100)
 
       assertThat(result.hasFrequency()).isTrue()
       assertThat(result.frequency.noiseMechanism).isEqualTo(NoiseMechanism.NONE)

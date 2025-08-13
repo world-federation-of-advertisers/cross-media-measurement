@@ -157,6 +157,7 @@ abstract class MeasurementConsumerSimulator(
   private val maximumResultPollingDelay: Duration,
   private val eventGroupFilter: ((EventGroup) -> Boolean)? = null,
   private val reportName: String = "some-report-id",
+  private val modelLine: String = "some-model-line",
   private val onMeasurementsCreated: (() -> Unit)? = null,
 ) {
   /** Cache of resource name to [Certificate]. */

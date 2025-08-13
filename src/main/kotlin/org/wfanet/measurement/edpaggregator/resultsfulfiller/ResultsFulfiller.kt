@@ -61,6 +61,7 @@ import org.wfanet.measurement.storage.SelectedStorageClient
  * @param zoneId Zone ID instance.
  * @param noiserSelector Selector for noise addition.
  * @param eventReader the [EventReader] to read in impressions data
+ * @param populationSpecMap map of model line to population spec
  *
  * TODO(2347) - Support additional differential privacy and k-anonymization.
  */

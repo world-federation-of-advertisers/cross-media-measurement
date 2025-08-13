@@ -17,10 +17,7 @@
 package org.wfanet.measurement.edpaggregator.resultsfulfiller.compute.protocols.direct
 
 import com.google.common.truth.Truth.assertThat
-import java.security.SecureRandom
 import kotlin.math.absoluteValue
-import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -37,27 +34,18 @@ class DirectReachAndFrequencyResultBuilderTest {
   @Test
   fun `buildMeasurementResult returns non-noisy reach-and-frequency result when noise mechanism is set to NONE`() =
     runBlocking {
-      val distinctVids = 100
-      val sampledVids = flow {
-        for (i in 1..distinctVids) {
-          emit(i.toLong())
-          // Duplicating the VID for every 10th entry to simulate frequency of 2 for 10 users
-          if (i % 10 == 0) {
-            emit(i.toLong())
-          }
-        }
-      }
+      val frequencyData = IntArray(100) { if (it < 90) 1 else 2 }
 
       val directReachAndFrequencyResultBuilder =
         DirectReachAndFrequencyResultBuilder(
           directProtocolConfig = DIRECT_PROTOCOL,
-          sampledVids = sampledVids,
           maxFrequency = MAX_FREQUENCY,
           reachPrivacyParams = REACH_PRIVACY_PARAMS,
           frequencyPrivacyParams = FREQUENCY_PRIVACY_PARAMS,
           samplingRate = SAMPLING_RATE,
           directNoiseMechanism = DirectNoiseMechanism.NONE,
-          random = SecureRandom(),
+          frequencyData = frequencyData,
+          maxPopulation = null,
         )
 
       val result = directReachAndFrequencyResultBuilder.buildMeasurementResult()
@@ -66,7 +54,7 @@ class DirectReachAndFrequencyResultBuilderTest {
       assertThat(result.hasReach()).isTrue()
       assertThat(result.reach.noiseMechanism).isEqualTo(NoiseMechanism.NONE)
       assertThat(result.reach.hasDeterministicCountDistinct()).isTrue()
-      assertThat(result.reach.value).isEqualTo(distinctVids)
+      assertThat(result.reach.value).isEqualTo(100)
 
       assertThat(result.hasFrequency()).isTrue()
       assertThat(result.frequency.noiseMechanism).isEqualTo(NoiseMechanism.NONE)
@@ -81,22 +69,18 @@ class DirectReachAndFrequencyResultBuilderTest {
   @Test
   fun `buildMeasurementResult returns noisy reach-and-frequency result with respect to variance when noise mechanism is set to CONTINUOUS_GAUSSIAN`() =
     runBlocking {
-      val sampledVids = flow {
-        for (i in 1..100) {
-          emit(i.toLong())
-        }
-      }
+      val frequencyData = IntArray(100) { if (it < 90) 1 else 2 }
 
       val directReachAndFrequencyResultBuilder =
         DirectReachAndFrequencyResultBuilder(
           directProtocolConfig = DIRECT_PROTOCOL,
-          sampledVids = sampledVids,
           maxFrequency = MAX_FREQUENCY,
           reachPrivacyParams = REACH_PRIVACY_PARAMS,
           frequencyPrivacyParams = FREQUENCY_PRIVACY_PARAMS,
           samplingRate = SAMPLING_RATE,
           directNoiseMechanism = DirectNoiseMechanism.CONTINUOUS_GAUSSIAN,
-          random = SecureRandom(),
+          frequencyData = frequencyData,
+          maxPopulation = null,
         )
 
       val result = directReachAndFrequencyResultBuilder.buildMeasurementResult()
@@ -115,11 +99,7 @@ class DirectReachAndFrequencyResultBuilderTest {
   @Test
   fun `buildMeasurementResult returns noisy reach-and-frequency result within acceptable range noise mechanism is set to CONTINUOUS_GAUSSIAN`() =
     runBlocking {
-      val sampledVids = flow {
-        for (i in 1..100) {
-          emit(i.toLong())
-        }
-      }
+      val frequencyData = IntArray(100) { if (it < 90) 1 else 2 }
 
       val reachResults = mutableListOf<Long>()
 
@@ -127,13 +107,13 @@ class DirectReachAndFrequencyResultBuilderTest {
         val directReachAndFrequencyResultBuilder =
           DirectReachAndFrequencyResultBuilder(
             directProtocolConfig = DIRECT_PROTOCOL,
-            sampledVids = sampledVids,
             maxFrequency = MAX_FREQUENCY,
             reachPrivacyParams = REACH_PRIVACY_PARAMS,
             frequencyPrivacyParams = FREQUENCY_PRIVACY_PARAMS,
             samplingRate = SAMPLING_RATE,
             directNoiseMechanism = DirectNoiseMechanism.CONTINUOUS_GAUSSIAN,
-            random = SecureRandom(),
+            frequencyData = frequencyData,
+            maxPopulation = null,
           )
 
         val result = directReachAndFrequencyResultBuilder.buildMeasurementResult()
@@ -145,7 +125,7 @@ class DirectReachAndFrequencyResultBuilderTest {
 
       // Test that average reach size is within acceptable range of +/- 5 when compared to actual
       // reach
-      val reachDifference = (sampledVids.toList().size - averageReach).absoluteValue
+      val reachDifference = (100 - averageReach).absoluteValue
       assertThat(reachDifference).isLessThan(5)
     }
 
