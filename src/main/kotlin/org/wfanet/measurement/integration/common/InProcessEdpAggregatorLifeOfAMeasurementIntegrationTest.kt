@@ -30,6 +30,7 @@ import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCorou
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig.NoiseMechanism
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
@@ -42,7 +43,6 @@ import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorClient
 import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorProvider
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerDatabaseAdmin
 import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
-import org.wfanet.measurement.loadtest.dataprovider.toPopulationSpec
 import org.wfanet.measurement.loadtest.measurementconsumer.EdpAggregatorMeasurementConsumerSimulator
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub
@@ -208,6 +208,22 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
       )
     private val TEST_DATA_RUNTIME_PATH = getRuntimePath(TEST_DATA_PATH)!!
 
+    private val TEST_RESULTS_FULFILER_DATA_PATH =
+      Paths.get(
+        "wfa_measurement_system",
+        "src",
+        "main",
+        "kotlin",
+        "org",
+        "wfanet",
+        "measurement",
+        "edpaggregator",
+        "resultsfulfiller",
+        "testing",
+      )
+    private val TEST_RESULTS_FULFILLER_DATA_RUNTIME_PATH =
+      getRuntimePath(TEST_RESULTS_FULFILER_DATA_PATH)!!
+
     val syntheticPopulationSpec: SyntheticPopulationSpec =
       parseTextProto(
         TEST_DATA_RUNTIME_PATH.resolve("small_population_spec.textproto").toFile(),
@@ -218,7 +234,15 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
         TEST_DATA_RUNTIME_PATH.resolve("small_data_spec.textproto").toFile(),
         SyntheticEventGroupSpec.getDefaultInstance(),
       )
-    val populationSpecMap = mapOf("some-model-line" to syntheticPopulationSpec.toPopulationSpec())
+    val populationSpecMap =
+      mapOf(
+        "some-model-line" to
+          parseTextProto(
+            TEST_RESULTS_FULFILLER_DATA_RUNTIME_PATH.resolve("small_population_spec.textproto")
+              .toFile(),
+            PopulationSpec.getDefaultInstance(),
+          )
+      )
 
     @BeforeClass
     @JvmStatic
