@@ -17,6 +17,7 @@
 package org.wfanet.measurement.edpaggregator.resultsfulfiller.testing
 
 import io.grpc.Channel
+import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt.RequisitionFulfillmentCoroutineStub
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.common.identity.withPrincipalName
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.RequisitionStubFactory
@@ -29,5 +30,12 @@ class TestRequisitionStubFactory(private val cmmsChannel: Channel) : Requisition
     fulfillerParams: ResultsFulfillerParams
   ): RequisitionsCoroutineStub {
     return RequisitionsCoroutineStub(cmmsChannel).withPrincipalName(fulfillerParams.dataProvider)
+  }
+
+  override fun buildRequisitionFulfillmentStub(
+    fulfillerParams: ResultsFulfillerParams
+  ): RequisitionFulfillmentCoroutineStub {
+    return RequisitionFulfillmentCoroutineStub(cmmsChannel)
+      .withPrincipalName(fulfillerParams.dataProvider)
   }
 }

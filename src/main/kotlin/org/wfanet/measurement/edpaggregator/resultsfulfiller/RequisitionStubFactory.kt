@@ -16,6 +16,7 @@
 
 package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
+import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt.RequisitionFulfillmentCoroutineStub
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
 
@@ -23,4 +24,8 @@ import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
 interface RequisitionStubFactory {
 
   fun buildRequisitionsStub(fulfillerParams: ResultsFulfillerParams): RequisitionsCoroutineStub
+
+  fun buildRequisitionFulfillmentStub(
+    fulfillerParams: ResultsFulfillerParams
+  ): RequisitionFulfillmentCoroutineStub
 }
