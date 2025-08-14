@@ -24,4 +24,4 @@ package org.wfanet.measurement.computation
  * @property minImpressions The minimum number of impressions required to satisfy k-anonymity.
  * @property maxFrequency Optional. Max frequency used for impression counts in a reach calculation.
  */
-data class KAnonymityParams(val minUsers: Int, val minImpressions: Int, val maxFrequency: Long?)
+data class KAnonymityParams(val minUsers: Int, val minImpressions: Int)

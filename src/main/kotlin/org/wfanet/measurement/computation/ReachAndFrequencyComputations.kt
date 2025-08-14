@@ -30,7 +30,6 @@ object ReachAndFrequencyComputations {
    *   before scaling. If it is null (the default), no capping is applied.
    * @param dpParams The privacy parameters for the reach computation.
    * @param kAnonymityParams Optional k-anonymity params.
-   * @param maxFrequency Optional param for k-anonymity calculations.
    * @return The reach value, potentially with noise applied.
    */
   fun computeReach(
@@ -74,28 +73,14 @@ object ReachAndFrequencyComputations {
       return minScaledNoisedReach
     }
     val kAnonymityImpressionCount = run {
-      val rawImpressionCount: Long =
+      val rawImpressionCount =
         rawHistogram.withIndex().sumOf { (index, count) ->
           val frequency = index + 1L
-            } else {
-              min(maxFrequency, index + 1L)
-            }
           frequency * count
         }
-      val scaledImpressionCount: Long =
-        if (dpParams == null) {
-          (rawImpressionCount / vidSamplingIntervalWidth).toLong()
-        } else {
-          check(maxFrequency != null) { "maxFrequency cannot be null if dpParams are set" }
-          val noise = GaussianNoise()
-          val noisedImpressionCount =
-            noise.addNoise(rawImpressionCount, 1, maxFrequency, dpParams.epsilon, dpParams.delta)
-          if (noisedImpressionCount < 0) 0L
-          else (noisedImpressionCount / vidSamplingIntervalWidth).toLong()
-        }
-      println(
-        "$scaledImpressionCount < ${kAnonymityParams.minImpressions} || $minScaledNoisedReach < ${kAnonymityParams.minUsers}"
-      )
+      val scaledImpressionCount = (rawImpressionCount / vidSamplingIntervalWidth).toLong()
+      // Note: This compares the non-noised impression count since there is no known maxFrequency
+      // needed to apply DP
       if (
         scaledImpressionCount < kAnonymityParams.minImpressions ||
           minScaledNoisedReach < kAnonymityParams.minUsers
@@ -131,53 +116,64 @@ object ReachAndFrequencyComputations {
     require(rawHistogram.size == maxFrequency) {
       "Invalid histogram size: ${rawHistogram.size} against maxFrequency: $maxFrequency"
     }
+    val noisedHistogram: LongArray = run {
+      if (dpParams == null) {
+        val numActiveRegisters = rawHistogram.sum()
+        if (numActiveRegisters == 0L) {
+          return (1..maxFrequency).associate { it.toLong() to 0.0 }
+        }
+        rawHistogram
+      } else {
+        val noise = GaussianNoise()
+        val noisedHistogram: LongArray =
+          rawHistogram
+            .map {
+              val noisedValue =
+                noise.addNoise(
+                  it,
+                  L0_SENSITIVITY,
+                  L_INFINITE_SENSITIVITY,
+                  dpParams.epsilon,
+                  dpParams.delta,
+                )
+              if (noisedValue < 0) 0L else noisedValue
+            }
+            .toLongArray()
 
-    if (dpParams == null) {
-      val numActiveRegisters = rawHistogram.sum()
-      if (numActiveRegisters == 0L) {
-        return (1..maxFrequency).associate { it.toLong() to 0.0 }
+        val numNoisedActiveRegisters = noisedHistogram.sum()
+        if (numNoisedActiveRegisters == 0L) {
+          return (1..maxFrequency).associate { it.toLong() to 0.0 }
+        }
+        noisedHistogram
       }
-      return rawHistogram.withIndex().associate { (index, count) ->
+    }
+
+    return if (kAnonymityParams == null) {
+      val numNoisedActiveRegisters = noisedHistogram.sum()
+      noisedHistogram.withIndex().associate { (index, count) ->
+        val frequency = index + 1L
+        frequency to count.toDouble() / numNoisedActiveRegisters
+      }
+    } else {
+      requireNotNull(vidSamplingIntervalWidth) {
+        "vidSamplingIntervalWidth must be set if kAnonymityParams are set"
+      }
+      val kAnonymityHistogram =
+        noisedHistogram.withIndex().map { (index, count) ->
+          val frequency = index + 1L
+          if (
+            count / vidSamplingIntervalWidth < kAnonymityParams.minUsers ||
+              frequency * count / vidSamplingIntervalWidth < kAnonymityParams.minImpressions
+          ) {
+            0
+          } else {
+            count
+          }
+        }
+      val numActiveRegisters = kAnonymityHistogram.sum()
+      kAnonymityHistogram.withIndex().associate { (index, count) ->
         val frequency = index + 1L
         frequency to count.toDouble() / numActiveRegisters
-      }
-    }
-
-    val noise = GaussianNoise()
-    val noisedHistogram =
-      rawHistogram.map {
-        val noisedValue =
-          noise.addNoise(
-            it,
-            L0_SENSITIVITY,
-            L_INFINITE_SENSITIVITY,
-            dpParams.epsilon,
-            dpParams.delta,
-          )
-        if (noisedValue < 0) 0L else noisedValue
-      }
-
-    val numNoisedActiveRegisters = noisedHistogram.sum()
-    if (numNoisedActiveRegisters == 0L) {
-      return (1..maxFrequency).associate { it.toLong() to 0.0 }
-    }
-
-    return noisedHistogram.withIndex().associate { (index, count) ->
-      val frequency = index + 1L
-      if (kAnonymityParams == null) {
-        frequency to count.toDouble() / numNoisedActiveRegisters
-      } else {
-        requireNotNull(vidSamplingIntervalWidth) {
-          "vidSamplingIntervalWidth must be set if kAnonymityParams are set"
-        }
-        if (
-          count / vidSamplingIntervalWidth < kAnonymityParams.minUsers ||
-            frequency * count / vidSamplingIntervalWidth < kAnonymityParams.minImpressions
-        ) {
-          frequency to 0.0
-        } else {
-          frequency to count.toDouble() / numNoisedActiveRegisters
-        }
       }
     }
   }

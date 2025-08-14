@@ -82,7 +82,6 @@ class ReachAndFrequencyComputationsTest {
         vectorSize = 40,
         dpParams = null,
         kAnonymityParams = KAnonymityParams(minUsers = 35, minImpressions = 30),
-        maxFrequency = null,
       )
     assertThat(reach).isEqualTo(0)
   }
@@ -97,7 +96,6 @@ class ReachAndFrequencyComputationsTest {
         vectorSize = 40,
         dpParams = null,
         kAnonymityParams = KAnonymityParams(minUsers = 30, minImpressions = 50),
-        maxFrequency = null,
       )
     assertThat(reach).isEqualTo(0)
   }
@@ -113,7 +111,6 @@ class ReachAndFrequencyComputationsTest {
         vectorSize = 200,
         dpParams = DP_PARAMS,
         kAnonymityParams = null,
-        maxFrequency = null,
       )
     assertThat(reach).isAtMost(min(200, 170 + tolerance))
     assertThat(reach).isAtLeast(max(0L, 170 - tolerance))
@@ -129,14 +126,27 @@ class ReachAndFrequencyComputationsTest {
         vidSamplingIntervalWidth = 1.0f,
         vectorSize = 200,
         dpParams = DP_PARAMS,
-        kAnonymityParams = null,
-        maxFrequency = null,
+        kAnonymityParams = KAnonymityParams(minUsers = 30, minImpressions = 50),
       )
     assertThat(reach).isAtMost(min(200, 170 + tolerance))
     assertThat(reach).isAtLeast(max(0L, 170 - tolerance))
   }
 
-  /*@Test
+  @Test
+  fun `computeReach with noise and k-anonymity goes to zero`() {
+    val rawHistogram = longArrayOf(100, 50, 20) // Reach in sample = 170
+    val reach =
+      ReachAndFrequencyComputations.computeReach(
+        rawHistogram,
+        vidSamplingIntervalWidth = 1.0f,
+        vectorSize = 200,
+        dpParams = DP_PARAMS,
+        kAnonymityParams = KAnonymityParams(minUsers = 200, minImpressions = 200),
+      )
+    assertThat(reach).isEqualTo(0)
+  }
+
+  @Test
   fun `computeFrequencyDistribution calculates raw distribution`() {
     val rawHistogram = longArrayOf(10, 30, 60) // Frequencies 1, 2, 3
     val distribution =
@@ -215,7 +225,25 @@ class ReachAndFrequencyComputationsTest {
         )
       }
     assertThat(exception.message).contains("Invalid histogram size")
-  }*/
+  }
+
+  @Test
+  fun `computeFrequencyDistribution calculates raw distribution with k-anonymity`() {
+    val rawHistogram = longArrayOf(10, 30, 70) // Frequencies 1, 2, 3
+    val distribution =
+      ReachAndFrequencyComputations.computeFrequencyDistribution(
+        rawHistogram,
+        maxFrequency = 3,
+        dpParams = null,
+        kAnonymityParams = KAnonymityParams(minUsers = 11, minImpressions = 5),
+        vidSamplingIntervalWidth = 1.0f,
+      )
+    val expected = mapOf(1L to 0.0, 2L to 0.3, 3L to 0.7)
+    assertThat(distribution.keys).isEqualTo(expected.keys)
+    for ((k, v) in distribution) {
+      assertThat(v).isWithin(FLOAT_COMPARISON_TOLERANCE).of(expected[k]!!)
+    }
+  }
 
   companion object {
     private const val MAX_FREQUENCY = 5
