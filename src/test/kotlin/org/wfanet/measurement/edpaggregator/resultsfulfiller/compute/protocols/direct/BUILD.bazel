@@ -11,6 +11,16 @@ kt_jvm_test(
 )
 
 kt_jvm_test(
+    name = "DirectReachResultBuilderTest",
+    srcs = ["DirectReachResultBuilderTest.kt"],
+    test_class = "org.wfanet.measurement.edpaggregator.resultsfulfiller.compute.protocols.direct.DirectReachResultBuilderTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller/compute/protocols/direct:direct_reach_result_builder",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+    ],
+)
+
+kt_jvm_test(
     name = "DirectMeasurementResultFactoryTest",
     srcs = ["DirectMeasurementResultFactoryTest.kt"],
     test_class = "org.wfanet.measurement.edpaggregator.resultsfulfiller.compute.protocols.direct.DirectMeasurementResultFactoryTest",
