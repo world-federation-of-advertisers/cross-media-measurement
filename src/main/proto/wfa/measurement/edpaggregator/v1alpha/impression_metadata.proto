@@ -59,11 +59,8 @@ message ImpressionMetadata {
     (google.api.field_behavior) = IMMUTABLE
   ];
 
-  // The resource name of the EventGroup associated with these impressions.
-  string event_group = 3 [
-    (google.api.field_behavior) = REQUIRED,
-    (google.api.resource_reference) = { type: "halo.wfanet.org/EventGroup" }
-  ];
+  // The reference ID of the EventGroup associated with these impressions.
+  string event_group_reference_id = 3 [(google.api.field_behavior) = REQUIRED];
 
   // The resource name of the ModelLine associated with these impressions.
   string model_line = 4 [
