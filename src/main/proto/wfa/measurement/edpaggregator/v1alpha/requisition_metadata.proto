@@ -52,7 +52,7 @@ message RequisitionMetadata {
     FULFILLED = 4;
     // The requisition was refused.
     REFUSED = 5;
-    // The requisition has been marked for deletion.
+    // The requisition has been marked for soft deletion.
     DELETED = 6;
   }
 
