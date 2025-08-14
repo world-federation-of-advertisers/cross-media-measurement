@@ -32,6 +32,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.Requisition
+import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt
 import org.wfanet.measurement.api.v2alpha.SignedMessage
@@ -43,6 +44,7 @@ import org.wfanet.measurement.consent.client.dataprovider.decryptRequisitionSpec
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.compute.protocols.direct.DirectMeasurementResultFactory
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.fulfillers.DirectMeasurementFulfiller
+import org.wfanet.measurement.edpaggregator.resultsfulfiller.fulfillers.HMShuffleMeasurementFulfiller
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.FrequencyVectorBuilder
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.InMemoryVidIndexMap
@@ -53,6 +55,7 @@ import org.wfanet.measurement.storage.SelectedStorageClient
  *
  * @param privateEncryptionKey Handle to the private encryption key.
  * @param requisitionsStub Stub for requisitions gRPC coroutine.
+ * @param requisitionFulfillmentStub Stub for requisitionFulfillment gRPC coroutine.
  * @param dataProviderCertificateKey Data provider certificate key.
  * @param dataProviderSigningKeyHandle Handle to the data provider signing key.
  * @param typeRegistry Type registry instance.
@@ -68,6 +71,8 @@ import org.wfanet.measurement.storage.SelectedStorageClient
 class ResultsFulfiller(
   private val privateEncryptionKey: PrivateKeyHandle,
   private val requisitionsStub: RequisitionsGrpcKt.RequisitionsCoroutineStub,
+  private val requisitionFulfillmentStub:
+    RequisitionFulfillmentGrpcKt.RequisitionFulfillmentCoroutineStub,
   private val dataProviderCertificateKey: DataProviderCertificateKey,
   private val dataProviderSigningKeyHandle: SigningKeyHandle,
   private val typeRegistry: TypeRegistry,
@@ -118,9 +123,9 @@ class ResultsFulfiller(
         )
       sampledVids.collect { frequencyVectorBuilder.increment(vidIndexMap[it]) }
       val frequencyData: IntArray = frequencyVectorBuilder.frequencyDataArray
-      // TODO: Calculate the maximum population for a given cel filter
       val fulfiller =
         if (protocols.any { it.hasDirect() }) {
+          // TODO: Calculate the maximum population for a given cel filter
           buildDirectMeasurementFulfiller(
             requisition,
             measurementSpec,
@@ -129,7 +134,14 @@ class ResultsFulfiller(
             frequencyData,
           )
         } else if (protocols.any { it.hasHonestMajorityShareShuffle() }) {
-          TODO("Not yet implemented")
+          HMShuffleMeasurementFulfiller(
+            requisition,
+            requisition.nonce,
+            frequencyVectorBuilder.build(),
+            dataProviderSigningKeyHandle,
+            dataProviderCertificateKey,
+            requisitionFulfillmentStub,
+          )
         } else {
           throw Exception("Protocol not supported")
         }

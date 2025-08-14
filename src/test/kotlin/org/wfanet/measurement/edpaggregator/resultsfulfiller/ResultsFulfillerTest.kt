@@ -69,6 +69,8 @@ import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventGroupEntry
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.events
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt.RequisitionFulfillmentCoroutineImplBase
+import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt.RequisitionFulfillmentCoroutineStub
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.eventGroup
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
@@ -147,6 +149,9 @@ class ResultsFulfillerTest {
   }
   private val eventGroupsStub: EventGroupsCoroutineStub by lazy {
     EventGroupsCoroutineStub(grpcTestServerRule.channel)
+  }
+  private val requisitionFulfillmentStub: RequisitionFulfillmentCoroutineStub by lazy {
+    RequisitionFulfillmentCoroutineStub(grpcTestServerRule.channel)
   }
 
   private val throttler = MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofSeconds(1L))
@@ -265,6 +270,7 @@ class ResultsFulfillerTest {
       ResultsFulfiller(
         PRIVATE_ENCRYPTION_KEY,
         requisitionsStub,
+        requisitionFulfillmentStub,
         DATA_PROVIDER_CERTIFICATE_KEY,
         EDP_RESULT_SIGNING_KEY,
         typeRegistry,
