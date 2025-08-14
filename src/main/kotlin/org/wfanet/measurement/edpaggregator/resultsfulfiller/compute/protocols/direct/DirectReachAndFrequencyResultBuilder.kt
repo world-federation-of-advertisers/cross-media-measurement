@@ -57,11 +57,6 @@ class DirectReachAndFrequencyResultBuilder(
   private val maxPopulation: Int?,
 ) : MeasurementResultBuilder {
 
-  /**
-   * Builds a non-noisy reach and frequency measurement result.
-   *
-   * @return The non-noisy reach and frequency measurement result.
-   */
   override suspend fun buildMeasurementResult(): Measurement.Result {
     if (!directProtocolConfig.hasDeterministicCountDistinct()) {
       throw RequisitionRefusalException.Default(

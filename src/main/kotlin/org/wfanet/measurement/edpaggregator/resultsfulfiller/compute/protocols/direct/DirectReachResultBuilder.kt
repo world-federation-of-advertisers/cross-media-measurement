@@ -33,7 +33,7 @@ import org.wfanet.measurement.edpaggregator.resultsfulfiller.compute.Measurement
 import org.wfanet.measurement.eventdataprovider.noiser.DirectNoiseMechanism
 
 /**
- * Builder for direct reach and frequency measurement results.
+ * Builder for direct reach measurement results.
  *
  * @param directProtocolConfig The direct protocol configuration.
  * @param frequencyData the Frequency Histogram.
@@ -53,11 +53,6 @@ class DirectReachResultBuilder(
   private val maxFrequency: Int = Byte.MAX_VALUE.toInt(),
 ) : MeasurementResultBuilder {
 
-  /**
-   * Builds a non-noisy reach and frequency measurement result.
-   *
-   * @return The non-noisy reach and frequency measurement result.
-   */
   override suspend fun buildMeasurementResult(): Measurement.Result {
     if (!directProtocolConfig.hasDeterministicCountDistinct()) {
       throw RequisitionRefusalException.Default(

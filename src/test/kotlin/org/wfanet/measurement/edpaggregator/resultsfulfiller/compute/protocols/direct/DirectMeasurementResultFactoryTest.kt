@@ -79,7 +79,7 @@ class DirectMeasurementResultFactoryTest {
     }
 
   @Test
-  fun `buildMeasurementResult returns reach and frequency result for REACH measurement type`() =
+  fun `buildMeasurementResult returns reach result for REACH measurement type`() =
     runBlocking {
       // Setup
       val frequencyData = IntArray(100) { if (it < 90) 1 else 2 }

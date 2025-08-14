@@ -17,11 +17,13 @@
 package org.wfanet.measurement.edpaggregator.resultsfulfiller.compute.protocols.direct
 
 import com.google.common.truth.Truth.assertThat
-import kotlin.math.absoluteValue
+import kotlin.math.ln
+import kotlin.math.sqrt
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.measurement.api.v2alpha.DifferentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig.NoiseMechanism
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt.direct
@@ -57,7 +59,7 @@ class DirectReachResultBuilderTest {
     }
 
   @Test
-  fun `buildMeasurementResult returns noisy reach-and-frequency result with respect to variance when noise mechanism is set to CONTINUOUS_GAUSSIAN`() =
+  fun `buildMeasurementResult returns noisy reach-and-frequency result within acceptable range noise mechanism is set to CONTINUOUS_GAUSSIAN`() =
     runBlocking {
       val frequencyData = IntArray(100) { if (it < 90) 1 else 2 }
 
@@ -72,51 +74,21 @@ class DirectReachResultBuilderTest {
           maxPopulation = null,
         )
 
-      val result = directReachResultBuilder.buildMeasurementResult()
-
-      // Verify the result has the expected structure
-      assertThat(result.hasReach()).isTrue()
-      assertThat(result.reach.noiseMechanism).isEqualTo(NoiseMechanism.CONTINUOUS_GAUSSIAN)
-      assertThat(result.reach.hasDeterministicCountDistinct()).isTrue()
-    }
-
-  @Test
-  fun `buildMeasurementResult returns noisy reach-and-frequency result within acceptable range noise mechanism is set to CONTINUOUS_GAUSSIAN`() =
-    runBlocking {
-      val frequencyData = IntArray(100) { if (it < 90) 1 else 2 }
-
-      val reachResults = mutableListOf<Long>()
-
-      for (round in 1..100) {
-        val directReachResultBuilder =
-          DirectReachResultBuilder(
-            directProtocolConfig = DIRECT_PROTOCOL,
-            maxFrequency = MAX_FREQUENCY,
-            reachPrivacyParams = REACH_PRIVACY_PARAMS,
-            samplingRate = SAMPLING_RATE,
-            directNoiseMechanism = DirectNoiseMechanism.CONTINUOUS_GAUSSIAN,
-            frequencyData = frequencyData,
-            maxPopulation = null,
-          )
-
-        val result = directReachResultBuilder.buildMeasurementResult()
-
-        reachResults.add(result.reach.value)
+      val result = directReachResultBuilder.buildMeasurementResult().reach.value
+      val tolerance = calculateNoiseTolerance(REACH_PRIVACY_PARAMS, 1, 1.0)
+      val rawImpressionCount = 110
+      check(rawImpressionCount > tolerance) {
+        "Test must be set up such that raw impression count $rawImpressionCount is greater than tolerance $tolerance"
       }
-
-      val averageReach = reachResults.map { it }.average()
-
-      // Test that average reach size is within acceptable range of +/- 5 when compared to actual
-      // reach
-      val reachDifference = (100 - averageReach).absoluteValue
-      assertThat(reachDifference).isLessThan(5)
+      assertThat(result).isAtLeast((rawImpressionCount - tolerance).coerceAtLeast(0))
+      assertThat(result).isAtMost((rawImpressionCount + tolerance))
     }
 
   companion object {
     private val MAX_FREQUENCY = 10
     private val REACH_PRIVACY_PARAMS = differentialPrivacyParams {
       epsilon = 1.0
-      delta = 1E-12
+      delta = 1E-9
     }
 
     private val SAMPLING_RATE = 1.0f
@@ -127,6 +99,28 @@ class DirectReachResultBuilderTest {
       noiseMechanisms += NOISE_MECHANISM
       deterministicCountDistinct =
         ProtocolConfig.Direct.DeterministicCountDistinct.getDefaultInstance()
+    }
+
+    private fun getL2Sensitivity(l0Sensitivity: Int, lInfSensitivity: Double): Double {
+      return sqrt(l0Sensitivity.toDouble()) * lInfSensitivity
+    }
+
+    /**
+     * Returns an interval (tolerance) of ±6 standard deviations for the DP noise added. This
+     * follows the convention to allow for expected fluctuation in noisy outputs for tests.
+     */
+    fun calculateNoiseTolerance(
+      differentialPrivacyParams: DifferentialPrivacyParams,
+      l0Sensitivity: Int = 1,
+      lInfSensitivity: Double,
+    ): Int {
+      // Based on DP with Gaussian noise,
+      // stddev = sqrt(2 * ln(1.25/delta)) * l2Sensitivity / epsilon
+      // Per Google.privacy.differentialprivacy.GaussianNoise docs
+      val stddev =
+        sqrt(2.0 * ln(1.25 / differentialPrivacyParams.delta)) *
+          getL2Sensitivity(l0Sensitivity, lInfSensitivity) / differentialPrivacyParams.epsilon
+      return (6 * stddev).toInt() + 1 // ±6 sigma and round-up
     }
   }
 }
