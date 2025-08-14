@@ -37,7 +37,6 @@ class ReachAndFrequencyComputationsTest {
         vectorSize = 20,
         dpParams = null,
         kAnonymityParams = null,
-        maxFrequency = null,
       )
     assertThat(reach).isEqualTo(16)
   }
@@ -52,7 +51,6 @@ class ReachAndFrequencyComputationsTest {
         vectorSize = 40,
         dpParams = null,
         kAnonymityParams = null,
-        maxFrequency = null,
       )
     assertThat(reach).isEqualTo(32)
   }
@@ -67,7 +65,6 @@ class ReachAndFrequencyComputationsTest {
         vectorSize = 40,
         dpParams = null,
         kAnonymityParams = KAnonymityParams(minUsers = 20, minImpressions = 20),
-        maxFrequency = null,
       )
     assertThat(reach).isEqualTo(32)
   }
