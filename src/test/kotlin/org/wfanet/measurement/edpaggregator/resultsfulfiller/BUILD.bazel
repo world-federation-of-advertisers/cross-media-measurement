@@ -25,6 +25,7 @@ kt_jvm_test(
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:continuous_gaussian_noiser_selector",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:no_noiser_selector",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:results_fulfiller",
+        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/requisition:native",
         "//src/main/kotlin/org/wfanet/measurement/integration/common:configs",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/common:sample_vids",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/config:test_identifiers",

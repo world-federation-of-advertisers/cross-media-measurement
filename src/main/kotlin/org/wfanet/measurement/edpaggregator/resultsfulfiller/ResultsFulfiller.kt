@@ -136,7 +136,7 @@ class ResultsFulfiller(
         } else if (protocols.any { it.hasHonestMajorityShareShuffle() }) {
           HMShuffleMeasurementFulfiller(
             requisition,
-            requisition.nonce,
+            requisitionSpec.nonce,
             frequencyVectorBuilder.build(),
             dataProviderSigningKeyHandle,
             dataProviderCertificateKey,
