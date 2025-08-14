@@ -27,11 +27,3 @@ kt_jvm_library(
         "@wfa_common_jvm//imports/java/com/google/protobuf",
     ],
 )
-
-kt_jvm_library(
-    name = "tee_app_config",
-    srcs = ["TeeAppConfig.kt"],
-    deps = [
-        ":blob_loader",
-    ],
-)
