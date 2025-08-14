@@ -78,6 +78,38 @@ class DirectMeasurementResultFactoryTest {
       assertThat(result.frequency.relativeFrequencyDistributionMap[2]).isEqualTo(0.1)
     }
 
+  @Test
+  fun `buildMeasurementResult returns reach and frequency result for REACH measurement type`() =
+    runBlocking {
+      // Setup
+      val frequencyData = IntArray(100) { if (it < 90) 1 else 2 }
+
+      val measurementSpec = measurementSpec {
+        reach = MeasurementSpecKt.reach { privacyParams = REACH_PRIVACY_PARAMS }
+        vidSamplingInterval =
+          MeasurementSpecKt.vidSamplingInterval {
+            start = 0.0f
+            width = SAMPLING_RATE
+          }
+      }
+
+      // Execute
+      val result =
+        DirectMeasurementResultFactory.buildMeasurementResult(
+          directProtocolConfig = DIRECT_PROTOCOL,
+          directNoiseMechanism = DirectNoiseMechanism.NONE,
+          measurementSpec = measurementSpec,
+          frequencyData = frequencyData,
+          maxPopulation = null,
+        )
+
+      // Verify
+      assertThat(result.hasReach()).isTrue()
+      assertThat(result.reach.noiseMechanism).isEqualTo(NoiseMechanism.NONE)
+      assertThat(result.reach.hasDeterministicCountDistinct()).isTrue()
+      assertThat(result.reach.value).isEqualTo(100)
+    }
+
   companion object {
     private const val MAX_FREQUENCY = 10
     private val REACH_PRIVACY_PARAMS = differentialPrivacyParams {
