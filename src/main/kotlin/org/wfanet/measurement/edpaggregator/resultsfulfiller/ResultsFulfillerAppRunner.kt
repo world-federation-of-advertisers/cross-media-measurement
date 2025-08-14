@@ -35,6 +35,8 @@ import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.crypto.tink.GCloudWifCredentials
 import org.wfanet.measurement.common.edpaggregator.EdpAggregatorConfig.getResultsFulfillerConfigAsByteArray
+import org.wfanet.measurement.common.edpaggregator.EdpAggregatorConfig.getConfigAsProtoMessage
+import org.wfanet.measurement.config.edpaggregator.EventDataProviderConfigs
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
@@ -80,119 +82,6 @@ class ResultsFulfillerAppRunner : Runnable {
     required = true,
   )
   private lateinit var kingdomCertCollectionSecretId: String
-
-  @CommandLine.ArgGroup(exclusive = false, multiplicity = "1..*", heading = "Single EDP certs\n")
-  lateinit var edpCerts: List<EdpFlags>
-    private set
-
-  // The file paths supplied via each EdpFlags instance must exactly match the paths defined in the
-  // ResultsFulfillerParam proto configuration.
-  // TODO(world-federation-of-advertisers/cross-media-measurement#2738): Replace flags with config
-  // files.
-  class EdpFlags {
-    @CommandLine.Option(
-      names = ["--edp-kms-audience"],
-      required = true,
-      description = ["Kms credential audience as workload identity pool provider"],
-    )
-    lateinit var edpKmsAudience: String
-
-    @CommandLine.Option(
-      names = ["--edp-target-service-account"],
-      required = true,
-      description = ["Edp service account with KMS access"],
-    )
-    lateinit var edpTargetServiceAccount: String
-
-    @CommandLine.Option(
-      names = ["--edp-resource-name"],
-      required = true,
-      description =
-        [
-          "Edp resource name. It must match the resource name in the DataWatcher ResultsFulfillerParams."
-        ],
-    )
-    lateinit var edpResourceName: String
-
-    @CommandLine.Option(
-      names = ["--edp-cert-der-secret-id"],
-      required = true,
-      description = ["Secret ID for the EDP cert"],
-    )
-    lateinit var certDerSecretId: String
-
-    @CommandLine.Option(
-      names = ["--edp-cert-der-file-path"],
-      required = true,
-      description =
-        [
-          "Path to the EDP certificate in DER format. Must match the `consent_params` field of the `results_fulfiller_param` proto in DataWatcher."
-        ],
-    )
-    lateinit var certDerFilePath: String
-
-    @CommandLine.Option(
-      names = ["--edp-private-der-secret-id"],
-      required = true,
-      description = ["Secret ID for the EDP private key"],
-    )
-    lateinit var privateDerSecretId: String
-
-    @CommandLine.Option(
-      names = ["--edp-private-der-file-path"],
-      required = true,
-      description =
-        [
-          "EDP private key file path. Must match the `consent_params` field of the `results_fulfiller_param` proto in DataWatcher."
-        ],
-    )
-    lateinit var privateDerFilePath: String
-
-    @CommandLine.Option(
-      names = ["--edp-enc-private-secret-id"],
-      required = true,
-      description = ["Secret ID for the EDP encryption private key"],
-    )
-    lateinit var encPrivateSecretId: String
-
-    @CommandLine.Option(
-      names = ["--edp-enc-private-file-path"],
-      required = true,
-      description =
-        [
-          "EDP encryption private key file path. Must match the `consent_params` field of the `results_fulfiller_param` proto in DataWatcher."
-        ],
-    )
-    lateinit var encPrivateFilePath: String
-
-    @CommandLine.Option(
-      names = ["--edp-tls-key-secret-id"],
-      required = true,
-      description = ["Secret ID for the EDP TLS key"],
-    )
-    lateinit var tlsKeySecretId: String
-
-    @CommandLine.Option(
-      names = ["--edp-tls-key-file-path"],
-      required = true,
-      description = ["EDP TLS key file path"],
-    )
-    lateinit var tlsKeyFilePath: String
-
-    @CommandLine.Option(
-      names = ["--edp-tls-pem-secret-id"],
-      required = true,
-      description = ["Secret ID for the EDP TLS cert"],
-    )
-    lateinit var tlsPemSecretId: String
-
-    @CommandLine.Option(
-      names = ["--edp-tls-pem-file-path"],
-      required = true,
-      description = ["EDP TLS cert file path"],
-    )
-    lateinit var tlsPemFilePath: String
-  }
 
   @CommandLine.Option(
     names = ["--kingdom-public-api-target"],
@@ -327,20 +216,20 @@ class ResultsFulfillerAppRunner : Runnable {
 
     kmsClientsMap = mutableMapOf()
 
-    edpCerts.forEachIndexed { index, edp ->
+    edpsConfig.eventDataProviderConfigList.forEach { edpConfig ->
       val kmsConfig =
         GCloudWifCredentials(
-          audience = edp.edpKmsAudience,
+          audience = edpConfig.kms.kmsAudience,
           subjectTokenType = SUBJECT_TOKEN_TYPE,
           tokenUrl = TOKEN_URL,
           credentialSourceFilePath = CREDENTIAL_SOURCE_FILE_PATH,
           serviceAccountImpersonationUrl =
-            EDP_TARGET_SERVICE_ACCOUNT_FORMAT.format(edp.edpTargetServiceAccount),
+            EDP_TARGET_SERVICE_ACCOUNT_FORMAT.format(edpConfig.kms.serviceAccount),
         )
 
       val kmsClient = GCloudKmsClientFactory().getKmsClient(kmsConfig)
 
-      kmsClientsMap[edp.edpResourceName] = kmsClient
+      kmsClientsMap[edpConfig.dataProvider] = kmsClient
     }
   }
 
@@ -386,17 +275,17 @@ class ResultsFulfillerAppRunner : Runnable {
   }
 
   fun saveEdpsCerts() {
-    edpCerts.forEachIndexed { index, edp ->
-      val edpCertDer = accessSecretBytes(googleProjectId, edp.certDerSecretId, SECRET_VERSION)
-      saveByteArrayToFile(edpCertDer, edp.certDerFilePath)
-      val edpPrivateDer = accessSecretBytes(googleProjectId, edp.privateDerSecretId, SECRET_VERSION)
-      saveByteArrayToFile(edpPrivateDer, edp.privateDerFilePath)
-      val edpEncPrivate = accessSecretBytes(googleProjectId, edp.encPrivateSecretId, SECRET_VERSION)
-      saveByteArrayToFile(edpEncPrivate, edp.encPrivateFilePath)
-      val edpTlsKey = accessSecretBytes(googleProjectId, edp.tlsKeySecretId, SECRET_VERSION)
-      saveByteArrayToFile(edpTlsKey, edp.tlsKeyFilePath)
-      val edpTlsPem = accessSecretBytes(googleProjectId, edp.tlsPemSecretId, SECRET_VERSION)
-      saveByteArrayToFile(edpTlsPem, edp.tlsPemFilePath)
+    edpsConfig.eventDataProviderConfigList.forEach { edpConfig ->
+      val edpCertDer = accessSecretBytes(googleProjectId, edpConfig.consentSignaling.certDerSecretId, SECRET_VERSION)
+      saveByteArrayToFile(edpCertDer, edpConfig.consentSignaling.certDerLocalPath)
+      val edpPrivateDer = accessSecretBytes(googleProjectId, edpConfig.consentSignaling.encPrivateSecretId, SECRET_VERSION)
+      saveByteArrayToFile(edpPrivateDer, edpConfig.consentSignaling.encPrivateLocalPath)
+      val edpEncPrivate = accessSecretBytes(googleProjectId, edpConfig.consentSignaling.encPrivateSecretId, SECRET_VERSION)
+      saveByteArrayToFile(edpEncPrivate, edpConfig.consentSignaling.encPrivateLocalPath)
+      val edpTlsKey = accessSecretBytes(googleProjectId, edpConfig.tls.tlsKeySecretId, SECRET_VERSION)
+      saveByteArrayToFile(edpTlsKey, edpConfig.tls.tlsKeyLocalPath)
+      val edpTlsPem = accessSecretBytes(googleProjectId, edpConfig.tls.tlsPemSecretId, SECRET_VERSION)
+      saveByteArrayToFile(edpTlsPem, edpConfig.tls.tlsPemLocalPath)
     }
   }
 
@@ -470,6 +359,11 @@ class ResultsFulfillerAppRunner : Runnable {
       "/run/container_launcher/attestation_verifier_claims_token"
     private const val EDP_TARGET_SERVICE_ACCOUNT_FORMAT =
       "https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/%s:generateAccessToken"
+
+    private const val CONFIG_BLOB_KEY = "edps-config.textproto"
+    private val edpsConfig by lazy {
+      runBlocking { getConfigAsProtoMessage(CONFIG_BLOB_KEY, EventDataProviderConfigs.getDefaultInstance()) }
+    }
 
     @JvmStatic fun main(args: Array<String>) = commandLineMain(ResultsFulfillerAppRunner(), args)
   }
