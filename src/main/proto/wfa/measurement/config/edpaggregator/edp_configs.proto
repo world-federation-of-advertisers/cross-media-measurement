@@ -1,0 +1,54 @@
+// Copyright 2025 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.config.edpaggregator;
+
+import "google/api/resource.proto";
+
+option java_package = "org.wfanet.measurement.config.edpaggregator";
+option java_multiple_files = true;
+option java_outer_classname = "EdpConfigsProto";
+
+message EdpConfigs {
+  // The Edp config for a single EDP
+  message Config {
+    // Resource name referencing the `DataProvider` in an external system.
+    string data_provider = 1
+    [(google.api.resource_reference).type = "halo.wfanet.org/DataProvider"];
+    // Kms credential audience as workload identity pool provider.
+    string kms_audience = 2;
+    // Edp service account with KMS access.
+    string service_account = 3;
+    // Google secret ID for the EDP cert
+    string cert_der_secret_id = 4;
+    // Local file path for the EDP certificate DER file. Must match the `consent_params` field of the `results_fulfiller_param` proto in DataWatcher.
+    string cert_der_local_path = 5;
+    // Secret ID for the EDP encryption private key
+    string enc_private_secret_id = 6;
+    // Local file path for the EDP encryption private key. Must match the `consent_params` field of the `results_fulfiller_param` proto in DataWatcher.
+    string enc_private_local_path = 7;
+    // Secret ID for the EDP TLS key.
+    string tls_key_secret_id = 8;
+    // Local file path for the EDP TLS key.
+    string tls_key_local_path = 9;
+    // Secret ID for the EDP TLS cert.
+    string tls_pem_secret_id = 10;
+    // Local file path for the EDP TLS certificate (PEM format).
+    string tls_pem_local_path = 11;
+  }
+  // List of EDP configurations.
+  repeated Config configs = 1;
+}
