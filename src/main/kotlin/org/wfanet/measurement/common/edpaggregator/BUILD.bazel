@@ -19,8 +19,8 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
-    name = "cloud_function_config",
-    srcs = ["CloudFunctionConfig.kt"],
+    name = "edpa_config",
+    srcs = ["EdpaConfig.kt"],
     deps = [
         ":blob_loader",
         "//src/main/kotlin/org/wfanet/measurement/common:env_vars",
