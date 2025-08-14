@@ -38,6 +38,7 @@ object ImpressionComputations {
    *   calculations as well as the lInfiniteSensitivy, if noise is applied.
    * @param dpParams Optional differential privacy parameters. If `null`, no noise is added and the
    *   raw impression count is scaled and returned.
+   * @param kAnonymityParams Optional k-anonymity params.
    * @return The (potentially noised) impression count as a [Long]. If noise results in a negative
    *   count, zero is returned instead.
    */
@@ -46,6 +47,7 @@ object ImpressionComputations {
     vidSamplingIntervalWidth: Float,
     maxFrequency: Long?,
     dpParams: DifferentialPrivacyParams?,
+    kAnonymityParams: KAnonymityParams?,
   ): Long {
     val rawImpressionCount =
       rawHistogram.withIndex().sumOf { (index, count) ->
@@ -57,19 +59,53 @@ object ImpressionComputations {
           }
         frequency * count
       }
-    if (dpParams == null) {
-      return (rawImpressionCount / vidSamplingIntervalWidth).toLong()
+    val scaledImpressionCount: Long =
+      if (dpParams == null) {
+        (rawImpressionCount / vidSamplingIntervalWidth).toLong()
+      } else {
+        check(maxFrequency != null) { "maxFrequency cannot be null if dpParams are set" }
+        val noise = GaussianNoise()
+        val noisedImpressionCount =
+          noise.addNoise(
+            rawImpressionCount,
+            L_0_SENSITIVITY,
+            maxFrequency,
+            dpParams.epsilon,
+            dpParams.delta,
+          )
+        if (noisedImpressionCount < 0) 0L
+        else (noisedImpressionCount / vidSamplingIntervalWidth).toLong()
+      }
+    if (kAnonymityParams == null) {
+      return scaledImpressionCount
     }
-    check(maxFrequency != null) { "maxFrequency cannot be null if dpParams are set" }
-    val noise = GaussianNoise()
-    val noisedImpressionCount =
-      noise.addNoise(
-        rawImpressionCount,
-        L_0_SENSITIVITY,
-        maxFrequency,
-        dpParams.epsilon,
-        dpParams.delta,
-      )
-    return if (noisedImpressionCount < 0) 0L else noisedImpressionCount
+    val kAnonymityImpressionCount = run {
+      val rawUserCount = rawHistogram.sum()
+      val scaledUserCount: Long =
+        if (dpParams == null) {
+          (rawUserCount / vidSamplingIntervalWidth).toLong()
+        } else {
+          val noise = GaussianNoise()
+          val lInfSensitivity = 1L
+          val noisedUserCount =
+            noise.addNoise(
+              rawUserCount,
+              L_0_SENSITIVITY,
+              lInfSensitivity,
+              dpParams.epsilon,
+              dpParams.delta,
+            )
+          if (noisedUserCount < 0) 0L else (noisedUserCount / vidSamplingIntervalWidth).toLong()
+        }
+      if (
+        scaledImpressionCount < kAnonymityParams.minImpressions ||
+          scaledUserCount < kAnonymityParams.minUsers
+      ) {
+        0
+      } else {
+        scaledImpressionCount
+      }
+    }
+    return kAnonymityImpressionCount
   }
 }
