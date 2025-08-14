@@ -27,7 +27,7 @@ import org.junit.runners.JUnit4
 
 @RunWith(JUnit4::class)
 class ReachAndFrequencyComputationsTest {
-  /*@Test
+  @Test
   fun `computeReach calculates raw reach correctly`() {
     val rawHistogram = longArrayOf(10, 5, 1) // Frequencies 1, 2, 3
     val reach =
@@ -70,7 +70,7 @@ class ReachAndFrequencyComputationsTest {
         maxFrequency = null,
       )
     assertThat(reach).isEqualTo(32)
-  }*/
+  }
 
   @Test
   fun `computeReach scales raw reach by sampling width to zero with k-anon for insufficient users`() {
