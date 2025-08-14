@@ -28,7 +28,6 @@ import com.google.protobuf.TypeRegistry
 import java.io.File
 import java.net.URI
 import java.util.logging.Logger
-import kotlin.io.path.Path
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.EventAnnotationsProto
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
@@ -328,9 +327,7 @@ class ResultsFulfillerAppRunner : Runnable {
 
     val typeRegistry: TypeRegistry = buildTypeRegistry()
 
-    val modelLinesMap = runBlocking {
-      buildModelLineMap()
-    }
+    val modelLinesMap = runBlocking { buildModelLineMap() }
 
     val resultsFulfillerApp =
       ResultsFulfillerApp(
@@ -375,9 +372,10 @@ class ResultsFulfillerAppRunner : Runnable {
   suspend fun buildModelLineMap(): Map<String, PopulationSpec> {
     return modelLines.associate { it: ModelLineFlags ->
       val configContent: ByteArray = getConfig(googleProjectId, it.populationSpecFileBlobUri)
-      val populationSpec = configContent.inputStream().reader(Charsets.UTF_8).use { reader ->
-        parseTextProto(reader, PopulationSpec.getDefaultInstance())
-      }
+      val populationSpec =
+        configContent.inputStream().reader(Charsets.UTF_8).use { reader ->
+          parseTextProto(reader, PopulationSpec.getDefaultInstance())
+        }
       it.modelLine to populationSpec
     }
   }
