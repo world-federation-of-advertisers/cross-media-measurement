@@ -38,6 +38,8 @@ import java.time.LocalDate
 import java.time.ZoneId
 import java.time.ZoneOffset
 import java.util.logging.Logger
+import kotlin.math.ln
+import kotlin.math.sqrt
 import kotlin.test.assertTrue
 import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.flow
@@ -57,6 +59,7 @@ import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reachAndFrequency
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.vidSamplingInterval
+import org.wfanet.measurement.api.v2alpha.PopulationSpecKt
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt
 import org.wfanet.measurement.api.v2alpha.Requisition
@@ -74,6 +77,7 @@ import org.wfanet.measurement.api.v2alpha.event_templates.testing.person
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.testEvent
 import org.wfanet.measurement.api.v2alpha.fulfillDirectRequisitionResponse
 import org.wfanet.measurement.api.v2alpha.measurementSpec
+import org.wfanet.measurement.api.v2alpha.populationSpec
 import org.wfanet.measurement.api.v2alpha.protocolConfig
 import org.wfanet.measurement.api.v2alpha.requisition
 import org.wfanet.measurement.api.v2alpha.requisitionSpec
@@ -95,6 +99,7 @@ import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.common.testing.verifyAndCapture
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.common.toProtoTime
+import org.wfanet.measurement.computation.DifferentialPrivacyParams
 import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
 import org.wfanet.measurement.consent.client.measurementconsumer.decryptResult
 import org.wfanet.measurement.consent.client.measurementconsumer.encryptRequisitionSpec
@@ -201,7 +206,7 @@ class ResultsFulfillerTest {
     val impressions =
       List(130) {
         LABELED_IMPRESSION.copy {
-          vid = it.toLong()
+          vid = it.toLong() + 1
           eventTime = TIME_RANGE.start.toProtoTime()
         }
       }
@@ -248,10 +253,6 @@ class ResultsFulfillerTest {
 
     val typeRegistry = TypeRegistry.newBuilder().add(TestEvent.getDescriptor()).build()
 
-    // Setting RANDOM to always return 1 to cancel out noise and properly test with a consistent
-    // result value
-    RANDOM.setSeed(byteArrayOf(1, 1, 1, 1, 1, 1, 1, 1))
-
     val eventReader =
       EventReader(
         kmsClient,
@@ -269,10 +270,10 @@ class ResultsFulfillerTest {
         typeRegistry,
         REQUISITIONS_FILE_URI,
         StorageConfig(rootDirectory = requisitionsTmpPath),
-        RANDOM,
         ZoneOffset.UTC,
         ContinuousGaussianNoiseSelector(),
         eventReader,
+        mapOf("some-model-line" to POPULATION_SPEC),
       )
 
     resultsFulfiller.fulfillRequisitions()
@@ -294,10 +295,16 @@ class ResultsFulfillerTest {
       .isEqualTo(ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN)
     assertTrue(result.frequency.hasDeterministicDistribution())
 
-    assertThat(result)
-      .reachValue()
-      .isWithin(REACH_TOLERANCE / MEASUREMENT_SPEC.vidSamplingInterval.width)
-      .of(expectedReach)
+    val reachTolerance =
+      getNoiseTolerance(
+        dpParams =
+          DifferentialPrivacyParams(
+            delta = OUTPUT_DP_PARAMS.delta,
+            epsilon = OUTPUT_DP_PARAMS.epsilon,
+          ),
+        l2Sensitivity = 1.0,
+      )
+    assertThat(result).reachValue().isWithin(reachTolerance.toDouble()).of(expectedReach)
 
     assertThat(result)
       .frequencyDistribution()
@@ -357,6 +364,18 @@ class ResultsFulfillerTest {
       .asIterable()
   }
 
+  /**
+   * Calculates a test tolerance for a noised value.
+   *
+   * The standard deviation of the Gaussian noise is `sqrt(2 * ln(1.25 / delta)) / epsilon`. We
+   * return a tolerance of 6 standard deviations, which means a correct implementation should pass
+   * this check with near-certainty.
+   */
+  private fun getNoiseTolerance(dpParams: DifferentialPrivacyParams, l2Sensitivity: Double): Long {
+    val stddev = sqrt(2 * ln(1.25 / dpParams.delta)) * l2Sensitivity / dpParams.epsilon
+    return (6 * stddev).toLong()
+  }
+
   init {
     AeadConfig.register()
     StreamingAeadConfig.register()
@@ -364,11 +383,9 @@ class ResultsFulfillerTest {
 
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
-    private val RANDOM = SecureRandom.getInstance("SHA1PRNG")
     private val LAST_EVENT_DATE = LocalDate.now(ZoneId.of("America/New_York")).minusDays(1)
     private val FIRST_EVENT_DATE = LAST_EVENT_DATE.minusDays(1)
     private val TIME_RANGE = OpenEndTimeRange.fromClosedDateRange(FIRST_EVENT_DATE..LAST_EVENT_DATE)
-    private const val REACH_TOLERANCE = 1.0
     private const val FREQUENCY_DISTRIBUTION_TOLERANCE = 1.0
 
     private val PERSON = person {
@@ -415,6 +432,16 @@ class ResultsFulfillerTest {
         .toEncryptionPublicKey()
     private val MC_PRIVATE_KEY: TinkPrivateKeyHandle =
       loadPrivateKey(SECRET_FILES_PATH.resolve("mc_enc_private.tink").toFile())
+    private val POPULATION_SPEC = populationSpec {
+      subpopulations +=
+        PopulationSpecKt.subPopulation {
+          vidRanges +=
+            PopulationSpecKt.vidRange {
+              startVid = 1
+              endVidInclusive = 1000
+            }
+        }
+    }
     private val REQUISITION_SPEC = requisitionSpec {
       events = events {
         eventGroups += eventGroupEntry {
@@ -453,6 +480,7 @@ class ResultsFulfillerTest {
         width = 1.0f
       }
       nonceHashes += Hashing.hashSha256(REQUISITION_SPEC.nonce)
+      modelLine = "some-model-line"
     }
 
     private val REQUISITION: Requisition = requisition {
