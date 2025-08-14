@@ -210,11 +210,11 @@ class ResultsFulfillerAppRunner : Runnable {
     lateinit var modelLine: String
 
     @CommandLine.Option(
-      names = ["--population-spec-file-path"],
+      names = ["--population-spec-file-blob-uri"],
       required = true,
-      description = ["Path to the proto."],
+      description = ["Blob uri to the proto."],
     )
-    lateinit var populationSpecFilePath: String
+    lateinit var populationSpecFileBlobUri: String
   }
 
   @CommandLine.Option(
@@ -328,7 +328,9 @@ class ResultsFulfillerAppRunner : Runnable {
 
     val typeRegistry: TypeRegistry = buildTypeRegistry()
 
-    val modelLinesMap = buildModelLineMap()
+    val modelLinesMap = runBlocking {
+      buildModelLineMap()
+    }
 
     val resultsFulfillerApp =
       ResultsFulfillerApp(
@@ -370,13 +372,13 @@ class ResultsFulfillerAppRunner : Runnable {
     }
   }
 
-  fun buildModelLineMap(): Map<String, PopulationSpec> {
+  suspend fun buildModelLineMap(): Map<String, PopulationSpec> {
     return modelLines.associate { it: ModelLineFlags ->
-      it.modelLine to
-        parseTextProto(
-          Path(it.populationSpecFilePath).toFile(),
-          PopulationSpec.getDefaultInstance(),
-        )
+      val configContent: ByteArray = getConfig(googleProjectId, it.populationSpecFileBlobUri)
+      val populationSpec = configContent.inputStream().reader(Charsets.UTF_8).use { reader ->
+        parseTextProto(reader, PopulationSpec.getDefaultInstance())
+      }
+      it.modelLine to populationSpec
     }
   }
 
