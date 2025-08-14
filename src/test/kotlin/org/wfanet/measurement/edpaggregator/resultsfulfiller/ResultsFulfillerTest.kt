@@ -20,6 +20,7 @@ import com.google.common.truth.Truth.assertThat
 import com.google.crypto.tink.Aead
 import com.google.crypto.tink.KeyTemplates
 import com.google.crypto.tink.KeysetHandle
+import com.google.crypto.tink.KmsClient
 import com.google.crypto.tink.TinkProtoKeysetFormat
 import com.google.crypto.tink.aead.AeadConfig
 import com.google.crypto.tink.streamingaead.StreamingAeadConfig
@@ -157,7 +158,83 @@ class ResultsFulfillerTest {
   private val throttler = MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofSeconds(1L))
 
   @Test
-  fun `runWork processes requisition successfully`() = runBlocking {
+  fun `runWork processes direct requisition successfully`() = runBlocking {
+    // Set up KMS
+    val kmsClient = FakeKmsClient()
+    val kekUri = FakeKmsClient.KEY_URI_PREFIX + "kek"
+    val kmsKeyHandle = KeysetHandle.generateNew(KeyTemplates.get("AES128_GCM"))
+    kmsClient.setAead(kekUri, kmsKeyHandle.getPrimitive(Aead::class.java))
+    createData(
+      kmsClient,
+      kekUri,
+    )
+
+    val typeRegistry = TypeRegistry.newBuilder().add(TestEvent.getDescriptor()).build()
+
+    val eventReader =
+      EventReader(
+        kmsClient,
+        StorageConfig(rootDirectory = impressionsTmpPath),
+        StorageConfig(rootDirectory = metadataTmpPath),
+        IMPRESSIONS_METADATA_FILE_URI_PREFIX,
+      )
+
+    val resultsFulfiller =
+      ResultsFulfiller(
+        PRIVATE_ENCRYPTION_KEY,
+        requisitionsStub,
+        requisitionFulfillmentStub,
+        DATA_PROVIDER_CERTIFICATE_KEY,
+        EDP_RESULT_SIGNING_KEY,
+        typeRegistry,
+        REQUISITIONS_FILE_URI,
+        StorageConfig(rootDirectory = requisitionsTmpPath),
+        ZoneOffset.UTC,
+        ContinuousGaussianNoiseSelector(),
+        eventReader,
+        mapOf("some-model-line" to POPULATION_SPEC),
+      )
+
+    resultsFulfiller.fulfillRequisitions()
+
+    val request: FulfillDirectRequisitionRequest =
+      verifyAndCapture(
+        requisitionsServiceMock,
+        RequisitionsCoroutineImplBase::fulfillDirectRequisition,
+      )
+    val result: Measurement.Result = decryptResult(request.encryptedResult, MC_PRIVATE_KEY).unpack()
+    val expectedReach: Long = computeExpectedReach(impressions, MEASUREMENT_SPEC)
+    val expectedFrequencyDistribution: Map<Long, Double> =
+      computeExpectedFrequencyDistribution(impressions, MEASUREMENT_SPEC)
+
+    assertThat(result.reach.noiseMechanism)
+      .isEqualTo(ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN)
+    assertTrue(result.reach.hasDeterministicCountDistinct())
+    assertThat(result.frequency.noiseMechanism)
+      .isEqualTo(ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN)
+    assertTrue(result.frequency.hasDeterministicDistribution())
+
+    val reachTolerance =
+      getNoiseTolerance(
+        dpParams =
+          DifferentialPrivacyParams(
+            delta = OUTPUT_DP_PARAMS.delta,
+            epsilon = OUTPUT_DP_PARAMS.epsilon,
+          ),
+        l2Sensitivity = 1.0,
+      )
+    assertThat(result).reachValue().isWithin(reachTolerance.toDouble()).of(expectedReach)
+
+    assertThat(result)
+      .frequencyDistribution()
+      .isWithin(FREQUENCY_DISTRIBUTION_TOLERANCE)
+      .of(expectedFrequencyDistribution)
+  }
+
+  private fun createData(
+    kmsClient: KmsClient,
+    kekUri: String,
+  ) {
     // Create requisitions storage client
     val requisitionsTmpPath = Files.createTempDirectory(null).toFile()
     Files.createDirectories(requisitionsTmpPath.resolve(REQUISITIONS_BUCKET).toPath())
@@ -167,11 +244,11 @@ class ResultsFulfillerTest {
       RequisitionsValidator(TestRequisitionData.EDP_DATA.privateEncryptionKey)
     val groupedRequisitions =
       SingleRequisitionGrouper(
-          requisitionsClient = requisitionsStub,
-          eventGroupsClient = eventGroupsStub,
-          requisitionValidator = requisitionValidator,
-          throttler = throttler,
-        )
+        requisitionsClient = requisitionsStub,
+        eventGroupsClient = eventGroupsStub,
+        requisitionValidator = requisitionValidator,
+        throttler = throttler,
+      )
         .groupRequisitions(listOf(REQUISITION))
     // Add requisitions to storage
     requisitionsStorageClient.writeBlob(
@@ -183,12 +260,6 @@ class ResultsFulfillerTest {
     val impressionsTmpPath = Files.createTempDirectory(null).toFile()
     Files.createDirectories(impressionsTmpPath.resolve(IMPRESSIONS_BUCKET).toPath())
     val impressionsStorageClient = SelectedStorageClient(IMPRESSIONS_FILE_URI, impressionsTmpPath)
-
-    // Set up KMS
-    val kmsClient = FakeKmsClient()
-    val kekUri = FakeKmsClient.KEY_URI_PREFIX + "kek"
-    val kmsKeyHandle = KeysetHandle.generateNew(KeyTemplates.get("AES128_GCM"))
-    kmsClient.setAead(kekUri, kmsKeyHandle.getPrimitive(Aead::class.java))
 
     // Set up streaming encryption
     val tinkKeyTemplateType = "AES128_GCM_HKDF_1MB"
@@ -255,67 +326,6 @@ class ResultsFulfillerTest {
         blobDetails.toByteString(),
       )
     }
-
-    val typeRegistry = TypeRegistry.newBuilder().add(TestEvent.getDescriptor()).build()
-
-    val eventReader =
-      EventReader(
-        kmsClient,
-        StorageConfig(rootDirectory = impressionsTmpPath),
-        StorageConfig(rootDirectory = metadataTmpPath),
-        IMPRESSIONS_METADATA_FILE_URI_PREFIX,
-      )
-
-    val resultsFulfiller =
-      ResultsFulfiller(
-        PRIVATE_ENCRYPTION_KEY,
-        requisitionsStub,
-        requisitionFulfillmentStub,
-        DATA_PROVIDER_CERTIFICATE_KEY,
-        EDP_RESULT_SIGNING_KEY,
-        typeRegistry,
-        REQUISITIONS_FILE_URI,
-        StorageConfig(rootDirectory = requisitionsTmpPath),
-        ZoneOffset.UTC,
-        ContinuousGaussianNoiseSelector(),
-        eventReader,
-        mapOf("some-model-line" to POPULATION_SPEC),
-      )
-
-    resultsFulfiller.fulfillRequisitions()
-
-    val request: FulfillDirectRequisitionRequest =
-      verifyAndCapture(
-        requisitionsServiceMock,
-        RequisitionsCoroutineImplBase::fulfillDirectRequisition,
-      )
-    val result: Measurement.Result = decryptResult(request.encryptedResult, MC_PRIVATE_KEY).unpack()
-    val expectedReach: Long = computeExpectedReach(impressions, MEASUREMENT_SPEC)
-    val expectedFrequencyDistribution: Map<Long, Double> =
-      computeExpectedFrequencyDistribution(impressions, MEASUREMENT_SPEC)
-
-    assertThat(result.reach.noiseMechanism)
-      .isEqualTo(ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN)
-    assertTrue(result.reach.hasDeterministicCountDistinct())
-    assertThat(result.frequency.noiseMechanism)
-      .isEqualTo(ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN)
-    assertTrue(result.frequency.hasDeterministicDistribution())
-
-    val reachTolerance =
-      getNoiseTolerance(
-        dpParams =
-          DifferentialPrivacyParams(
-            delta = OUTPUT_DP_PARAMS.delta,
-            epsilon = OUTPUT_DP_PARAMS.epsilon,
-          ),
-        l2Sensitivity = 1.0,
-      )
-    assertThat(result).reachValue().isWithin(reachTolerance.toDouble()).of(expectedReach)
-
-    assertThat(result)
-      .frequencyDistribution()
-      .isWithin(FREQUENCY_DISTRIBUTION_TOLERANCE)
-      .of(expectedFrequencyDistribution)
   }
 
   private fun computeExpectedReach(
