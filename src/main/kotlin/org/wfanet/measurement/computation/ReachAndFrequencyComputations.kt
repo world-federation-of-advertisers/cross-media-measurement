@@ -148,33 +148,33 @@ object ReachAndFrequencyComputations {
       }
     }
 
-    return if (kAnonymityParams == null) {
+    if (kAnonymityParams == null) {
       val numNoisedActiveRegisters = noisedHistogram.sum()
-      noisedHistogram.withIndex().associate { (index, count) ->
+      return noisedHistogram.withIndex().associate { (index, count) ->
         val frequency = index + 1L
         frequency to count.toDouble() / numNoisedActiveRegisters
       }
-    } else {
-      requireNotNull(vidSamplingIntervalWidth) {
-        "vidSamplingIntervalWidth must be set if kAnonymityParams are set"
-      }
-      val kAnonymityHistogram =
-        noisedHistogram.withIndex().map { (index, count) ->
-          val frequency = index + 1L
-          if (
-            count / vidSamplingIntervalWidth < kAnonymityParams.minUsers ||
-              frequency * count / vidSamplingIntervalWidth < kAnonymityParams.minImpressions
-          ) {
-            0
-          } else {
-            count
-          }
-        }
-      val numActiveRegisters = kAnonymityHistogram.sum()
-      kAnonymityHistogram.withIndex().associate { (index, count) ->
+    }
+
+    requireNotNull(vidSamplingIntervalWidth) {
+      "vidSamplingIntervalWidth must be set if kAnonymityParams are set"
+    }
+    val kAnonymityHistogram =
+      noisedHistogram.withIndex().map { (index, count) ->
         val frequency = index + 1L
-        frequency to count.toDouble() / numActiveRegisters
+        if (
+          count / vidSamplingIntervalWidth < kAnonymityParams.minUsers ||
+            frequency * count / vidSamplingIntervalWidth < kAnonymityParams.minImpressions
+        ) {
+          0
+        } else {
+          count
+        }
       }
+    val numKActiveRegisters = kAnonymityHistogram.sum()
+    return kAnonymityHistogram.withIndex().associate { (index, count) ->
+      val frequency = index + 1L
+      frequency to count.toDouble() / numKActiveRegisters
     }
   }
 }
