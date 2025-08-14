@@ -35,6 +35,8 @@ import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.crypto.tink.GCloudWifCredentials
 import org.wfanet.measurement.common.edpaggregator.EdpaConfig.getConfigAsByteArray
+import org.wfanet.measurement.common.edpaggregator.EdpaConfig.getConfigAsProtoMessage
+import org.wfanet.measurement.config.edpaggregator.EdpsConfig
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
@@ -470,6 +472,11 @@ class ResultsFulfillerAppRunner : Runnable {
       "/run/container_launcher/attestation_verifier_claims_token"
     private const val EDP_TARGET_SERVICE_ACCOUNT_FORMAT =
       "https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/%s:generateAccessToken"
+
+    private const val CONFIG_BLOB_KEY = "edps-config.textproto"
+    private val edpsConfig by lazy {
+      runBlocking { getConfigAsProtoMessage(CONFIG_BLOB_KEY, EdpsConfig.getDefaultInstance()) }
+    }
 
     @JvmStatic fun main(args: Array<String>) = commandLineMain(ResultsFulfillerAppRunner(), args)
   }
