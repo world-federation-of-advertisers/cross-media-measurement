@@ -37,7 +37,6 @@ import org.wfanet.measurement.eventdataprovider.noiser.DirectNoiseMechanism
  *
  * @param directProtocolConfig The direct protocol configuration.
  * @param frequencyData the Frequency Histogram.
- * @param maxFrequency The maximum frequency to consider.
  * @param reachPrivacyParams The differential privacy parameters for reach.
  * @param samplingRate The sampling rate used to sample the events.
  * @param directNoiseMechanism The direct noise mechanism to use.
