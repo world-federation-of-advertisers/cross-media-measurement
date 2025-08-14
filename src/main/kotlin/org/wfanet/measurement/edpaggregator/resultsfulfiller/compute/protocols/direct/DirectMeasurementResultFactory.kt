@@ -70,7 +70,16 @@ object DirectMeasurementResultFactory {
         MeasurementKt.result { TODO("Not yet implemented") }
       }
       MeasurementSpec.MeasurementTypeCase.REACH -> {
-        MeasurementKt.result { TODO("Not yet implemented") }
+        val reachAndFrequencyResultBuilder =
+          DirectReachResultBuilder(
+            directProtocolConfig,
+            frequencyData,
+            measurementSpec.reach.privacyParams,
+            measurementSpec.vidSamplingInterval.width,
+            directNoiseMechanism,
+            maxPopulation,
+          )
+        reachAndFrequencyResultBuilder.buildMeasurementResult()
       }
       MeasurementSpec.MeasurementTypeCase.MEASUREMENTTYPE_NOT_SET -> {
         error("Measurement type not set.")

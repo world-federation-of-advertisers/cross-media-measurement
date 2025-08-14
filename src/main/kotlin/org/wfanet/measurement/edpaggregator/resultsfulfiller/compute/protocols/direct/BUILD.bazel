@@ -12,6 +12,7 @@ kt_jvm_library(
     srcs = ["DirectMeasurementResultFactory.kt"],
     deps = [
         ":direct_reach_and_frequency_result_builder",
+        ":direct_reach_result_builder",
         "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/noiser",
         "//src/main/proto/wfa/measurement/api/v2alpha:measurement_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:measurement_spec_kt_jvm_proto",
@@ -23,6 +24,26 @@ kt_jvm_library(
 kt_jvm_library(
     name = "direct_reach_and_frequency_result_builder",
     srcs = ["DirectReachAndFrequencyResultBuilder.kt"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/computation:histogram_computations",
+        "//src/main/kotlin/org/wfanet/measurement/computation:reach_and_frequency_computations",
+        "//src/main/kotlin/org/wfanet/measurement/dataprovider:measurement_results",
+        "//src/main/kotlin/org/wfanet/measurement/dataprovider:requisition_refusal_exception",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller/compute:measurement_result_builder",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller/noise:noiser",
+        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/noiser",
+        "//src/main/proto/wfa/measurement/api/v2alpha:measurement_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:measurement_spec_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:protocol_config_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:requisition_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/org/apache/commons:math3",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+    ],
+)
+
+kt_jvm_library(
+    name = "direct_reach_result_builder",
+    srcs = ["DirectReachResultBuilder.kt"],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/computation:histogram_computations",
         "//src/main/kotlin/org/wfanet/measurement/computation:reach_and_frequency_computations",
