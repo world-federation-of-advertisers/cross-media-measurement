@@ -61,6 +61,9 @@ service ImpressionMetadataService {
   }
 
   // Lists ImpressionMetadata entries, with optional filtering.
+  // (-- api-linter: core::0132::method-signature=disabled
+  //     aip.dev/not-precedent: The method signature includes the filter field.
+  //     --)
   rpc ListImpressionMetadata(ListImpressionMetadataRequest)
       returns (ListImpressionMetadataResponse) {
     option (google.api.http) = {
@@ -155,6 +158,9 @@ message GetImpressionMetadataRequest {
 }
 
 // Request message for the `ListImpressionMetadata` method.
+// (-- api-linter: core::0132::request-field-types=disabled
+//     aip.dev/not-precedent: Using a message for the filter for type safety.
+//     --)
 message ListImpressionMetadataRequest {
   // The parent data provider resource name.
   // Format: `dataProviders/{data_provider}`
@@ -170,6 +176,10 @@ message ListImpressionMetadataRequest {
 
   // A page token, received from a previous call.
   string page_token = 3 [(google.api.field_behavior) = OPTIONAL];
+
+  // Optional. A filter to apply to the results.
+  // All fields are combined with `AND` logic.
+  Filter filter = 4 [(google.api.field_behavior) = OPTIONAL];
 
   // Filter for `ListImpressionMetadata` method.
   message Filter {
@@ -187,10 +197,11 @@ message ListImpressionMetadataRequest {
         [(google.api.field_behavior) = OPTIONAL];
 
     // The state to filter by.
+    // (-- api-linter: core::0216::state-field-output-only=disabled
+    //     aip.dev/not-precedent: This is a filter input, not a resource output.
+    //     --)
     ImpressionMetadata.State state = 4 [(google.api.field_behavior) = OPTIONAL];
   }
-  // A filter to apply to the results.
-  Filter filter = 4 [(google.api.field_behavior) = OPTIONAL];
 }
 
 // Response message for the `ListImpressionMetadata` method.
