@@ -66,7 +66,7 @@ service ImpressionMetadataService {
     option (google.api.http) = {
       get: "/v1alpha/{parent=dataProviders/*}/impressionMetadata"
     };
-    option (google.api.method_signature) = "parent";
+    option (google.api.method_signature) = "parent,filter";
   }
 
   // Marks an ImpressionMetadata entry as deleted.
@@ -170,6 +170,27 @@ message ListImpressionMetadataRequest {
 
   // A page token, received from a previous call.
   string page_token = 3 [(google.api.field_behavior) = OPTIONAL];
+
+  // Filter for `ListImpressionMetadata` method.
+  message Filter {
+    // The model line resource name to filter by.
+    // Format: `dataProviders/{data_provider}/modelLines/{model_line}`
+    string model_line = 1 [(google.api.field_behavior) = OPTIONAL];
+
+    // The event group reference ID to filter by.
+    string event_group_reference_id = 2
+        [(google.api.field_behavior) = OPTIONAL];
+
+    // The time interval to filter by. The `ImpressionMetadata` time range must
+    // overlap with this interval.
+    google.type.Interval time_range = 3
+        [(google.api.field_behavior) = OPTIONAL];
+
+    // The state to filter by.
+    ImpressionMetadata.State state = 4 [(google.api.field_behavior) = OPTIONAL];
+  }
+  // A filter to apply to the results.
+  Filter filter = 4 [(google.api.field_behavior) = OPTIONAL];
 }
 
 // Response message for the `ListImpressionMetadata` method.
