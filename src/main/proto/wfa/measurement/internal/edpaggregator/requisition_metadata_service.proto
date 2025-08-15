@@ -1,0 +1,100 @@
+// Copyright 2025 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.internal.edpaggregator;
+
+import "google/protobuf/timestamp.proto";
+// Import the message definitions used by this service.
+import "wfa/measurement/internal/edpaggregator/requisition_metadata.proto";
+
+option java_package = "org.wfanet.measurement.internal.edpaggregator";
+option java_multiple_files = true;
+option java_outer_classname = "RequisitionMetadataServiceProto";
+
+// Service for managing RequisitionMetadata.
+service RequisitionMetadataService {
+  // Creates a new RequisitionMetadata entry. The request_id in the resource is
+  // used for idempotency.
+  rpc CreateRequisitionMetadata(RequisitionMetadata)
+      returns (RequisitionMetadata);
+
+  // Creates multiple new RequisitionMetadata entries in a single request.
+  rpc BatchCreateRequisitionMetadata(BatchCreateRequisitionMetadataRequest)
+      returns (BatchCreateRequisitionMetadataResponse);
+
+  // Retrieves a specific RequisitionMetadata entry by its IDs.
+  rpc GetRequisitionMetadata(GetRequisitionMetadataRequest)
+      returns (RequisitionMetadata);
+
+  // Looks up a single RequisitionMetadata resource by an alternative key.
+  rpc LookupRequisitionMetadata(LookupRequisitionMetadataRequest)
+      returns (RequisitionMetadata);
+
+  // Lists RequisitionMetadata entries, with optional filtering.
+  rpc ListRequisitionMetadata(ListRequisitionMetadataRequest)
+      returns (ListRequisitionMetadataResponse);
+
+  // Fetches the latest cmms_create_time for a given DataProvider. This is used
+  // to determine the starting point for fetching new requisitions from the
+  // Kingdom.
+  rpc FetchLatestCmmsCreateTime(FetchLatestCmmsCreateTimeRequest)
+      returns (google.protobuf.Timestamp);
+}
+
+message BatchCreateRequisitionMetadataRequest {
+  fixed64 external_data_provider_id = 1;
+  repeated RequisitionMetadata requisitions = 2;
+}
+
+message BatchCreateRequisitionMetadataResponse {
+  repeated RequisitionMetadata requisition_metadata = 1;
+}
+
+message GetRequisitionMetadataRequest {
+  fixed64 external_data_provider_id = 1;
+  fixed64 external_requisition_metadata_id = 2;
+}
+
+message LookupRequisitionMetadataRequest {
+  fixed64 external_data_provider_id = 1;
+  oneof lookup_key {
+    // The resource name of the requisition in the CMMS (Kingdom).
+    string cmms_requisition = 2;
+    // The blob storage URI.
+    string blob_uri = 3;
+  }
+}
+
+message ListRequisitionMetadataRequest {
+  fixed64 external_data_provider_id = 1;
+  int32 page_size = 2;
+  string page_token = 3;
+
+  message Filter {
+    RequisitionMetadata.State state = 1;
+    string group_id = 2;
+  }
+  Filter filter = 4;
+}
+
+message ListRequisitionMetadataResponse {
+  repeated RequisitionMetadata requisition_metadata = 1;
+  string next_page_token = 2;
+}
+
+message FetchLatestCmmsCreateTimeRequest {
+  fixed64 external_data_provider_id = 1;
+}

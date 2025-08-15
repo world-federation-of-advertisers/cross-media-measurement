@@ -1,0 +1,118 @@
+// Copyright 2025 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.internal.edpaggregator;
+
+import "google/protobuf/timestamp.proto";
+
+option java_package = "org.wfanet.measurement.internal.edpaggregator";
+option java_multiple_files = true;
+option java_outer_classname = "RequisitionMetadataProto";
+
+// Internal representation of RequisitionMetadata.
+message RequisitionMetadata {
+  // The state of the requisition processing. This is an internal-only enum.
+  enum State {
+    // Default, unspecified state.
+    STATE_UNSPECIFIED = 0;
+    // The requisition has been received but not yet fulfilled.
+    UNFULFILLED = 1;
+    // The requisition has been fulfilled by the Data Provider.
+    FULFILLED = 2;
+    // The requisition has been confirmed by the system.
+    CONFIRMED = 3;
+    // The requisition processing has failed.
+    FAILED = 4;
+  }
+
+  // The ID of the DataProvider that owns this metadata.
+  fixed64 external_data_provider_id = 1;
+
+  // The unique ID for this RequisitionMetadata.
+  fixed64 external_requisition_metadata_id = 2;
+
+  // The resource name of the requisition in the CMMS (Kingdom).
+  string cmms_requisition = 3;
+
+  // The blob storage URI of the GroupedRequisitions file this entry belongs to.
+  string blob_uri = 4;
+
+  // The ID for the group of requisitions this entry belongs to.
+  string group_id = 5;
+
+  // The creation timestamp of the requisition in the CMMS (Kingdom).
+  google.protobuf.Timestamp cmms_create_time = 6;
+
+  // The report ID from the CMMS (Kingdom).
+  string cmms_report_id = 7;
+
+  // The ID of the work item created for processing this requisition.
+  string work_item_id = 8;
+
+  // A request ID provided by the client on creation to ensure idempotency.
+  string request_id = 9;
+
+  // The current state of the requisition.
+  State state = 10;
+
+  // The timestamp when this metadata entry was created.
+  google.protobuf.Timestamp create_time = 11;
+
+  // The timestamp when this metadata entry was last updated.
+  google.protobuf.Timestamp update_time = 12;
+
+  // Any error message associated with a failure state.
+  string error_message = 13;
+
+  // Etag for optimistic concurrency control.
+  string etag = 14;
+}
+
+// Internal representation of a RequisitionMetadataAction.
+// This is used for auditing and logging purposes.
+message RequisitionMetadataAction {
+  // The type of actor that initiated this state change. This is an
+  // internal-only enum.
+  enum ActionerType {
+    // Default, unspecified actioner.
+    ACTIONER_TYPE_UNSPECIFIED = 0;
+    // The action was initiated by the Data Provider.
+    DATA_PROVIDER = 1;
+    // The action was initiated by the system (e.g., EDP Aggregator).
+    SYSTEM = 2;
+  }
+
+  // The ID of the DataProvider that owns the parent metadata.
+  fixed64 external_data_provider_id = 1;
+
+  // The ID of the parent RequisitionMetadata.
+  fixed64 external_requisition_metadata_id = 2;
+
+  // The unique ID for this action.
+  fixed64 external_action_id = 3;
+
+  // The type of actor that initiated this state change.
+  ActionerType actioner_type = 4;
+
+  // The state of the requisition before this action.
+  RequisitionMetadata.State prior_state = 5;
+
+  // The state of the requisition after this action.
+  RequisitionMetadata.State new_state = 6;
+
+  // The timestamp when the action occurred.
+  google.protobuf.Timestamp action_time = 7;
+}
