@@ -327,7 +327,7 @@ abstract class MeasurementConsumerSimulator(
    * @numMeasurements - The number of incremental measurements to request within the time period.
    */
   suspend fun testDirectReachAndFrequency(runId: String, numMeasurements: Int) {
-    // Create a new measurement on behalf of the measurement consumer.
+    // Create new measurements on behalf of the measurement consumer.
     val measurementConsumer = getMeasurementConsumer(measurementConsumerData.name)
     logger.info("Creating measurements...")
     val measurementInfos =
@@ -409,7 +409,7 @@ abstract class MeasurementConsumerSimulator(
    * @numMeasurements - The number of incremental measurements to request within the time period.
    */
   suspend fun testDirectReachOnly(runId: String, numMeasurements: Int) {
-    // Create a new measurement on behalf of the measurement consumer.
+    // Create new measurements on behalf of the measurement consumer.
     val measurementConsumer = getMeasurementConsumer(measurementConsumerData.name)
     logger.info("Creating measurements...")
     val measurementInfos =
