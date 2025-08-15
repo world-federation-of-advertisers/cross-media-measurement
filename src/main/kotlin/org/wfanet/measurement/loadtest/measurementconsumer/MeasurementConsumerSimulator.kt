@@ -327,7 +327,7 @@ abstract class MeasurementConsumerSimulator(
    * @numMeasurements - The number of incremental measurements to request within the time period.
    */
   suspend fun testDirectReachAndFrequency(runId: String, numMeasurements: Int) {
-    // Create a new measurement on behalf of the measurement consumer.
+    // Create new measurements on behalf of the measurement consumer.
     val measurementConsumer = getMeasurementConsumer(measurementConsumerData.name)
     logger.info("Creating measurements...")
     val measurementInfos =
@@ -409,24 +409,28 @@ abstract class MeasurementConsumerSimulator(
    * @numMeasurements - The number of incremental measurements to request within the time period.
    */
   suspend fun testDirectReachOnly(runId: String, numMeasurements: Int) {
-    // Create a new measurement on behalf of the measurement consumer.
+    // Create new measurements on behalf of the measurement consumer.
     val measurementConsumer = getMeasurementConsumer(measurementConsumerData.name)
-    (1..numMeasurements).map { measurementNumber ->
-      val measurementInfo =
-        createMeasurement(
-          measurementConsumer,
-          runId,
-          ::newReachMeasurementSpec,
-          DataProviderKt.capabilities { honestMajorityShareShuffleSupported = false },
-          DEFAULT_VID_SAMPLING_INTERVAL,
-          measurementNumber.toDouble() / numMeasurements,
-          1,
-        )
+    logger.info("Creating measurements...")
+    val measurementInfos =
+      (1..numMeasurements).map { measurementNumber ->
+        val measurementInfo =
+          createMeasurement(
+            measurementConsumer,
+            runId,
+            ::newReachMeasurementSpec,
+            DataProviderKt.capabilities { honestMajorityShareShuffleSupported = false },
+            DEFAULT_VID_SAMPLING_INTERVAL,
+            measurementNumber.toDouble() / numMeasurements,
+            1,
+          )
+        val measurementName = measurementInfo.measurement.name
+        logger.info("Created direct reach measurement $measurementName.")
+        measurementInfo
+      }
+    onMeasurementsCreated?.invoke()
+    measurementInfos.forEachIndexed { measurementNumber, measurementInfo ->
       val measurementName = measurementInfo.measurement.name
-      logger.info("Created direct reach measurement $measurementName.")
-
-      onMeasurementsCreated?.invoke()
-
       // Get the CMMS computed result and compare it with the expected result.
       val reachResult = pollForResult { getReachResult(measurementName) }
       logger.info("Got direct reach result from Kingdom: $reachResult")
