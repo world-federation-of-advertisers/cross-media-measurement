@@ -24,6 +24,8 @@ option java_multiple_files = true;
 
 // Internal service for persistence of Basic Report entities.
 service BasicReports {
+  // For direct insertion of a Basic Report.
+  //
   // Error reasons:
   // * `REPORTING_SET_NOT_FOUND`
   // * `IMPRESSION_QUALIFICATION_FILTER_NOT_FOUND`
@@ -31,6 +33,20 @@ service BasicReports {
   rpc InsertBasicReport(InsertBasicReportRequest) returns (BasicReport);
 
   // Error reasons:
+  // * `REPORTING_SET_NOT_FOUND`
+  // * `BASIC_REPORT_ALREADY_EXISTS`
+  rpc CreateBasicReport(CreateBasicReportRequest) returns (BasicReport);
+
+  // In addition to updating the BasicReport with the specified
+  // `external_report_id`, the BasicReport state is set to `REPORT_CREATED`.
+  //
+  // Error reasons:
+  // * `REQUIRED_FIELD_NOT_SET`
+  // * `BASIC_REPORT_NOT_FOUND`
+  rpc SetExternalReportId(SetExternalReportIdRequest) returns (BasicReport);
+
+  // Error reasons:
+  // * `REQUIRED_FIELD_NOT_SET`
   // * `BASIC_REPORT_NOT_FOUND`
   rpc GetBasicReport(GetBasicReportRequest) returns (BasicReport);
 
@@ -41,6 +57,18 @@ service BasicReports {
 
 message InsertBasicReportRequest {
   BasicReport basic_report = 1;
+}
+
+message CreateBasicReportRequest {
+  BasicReport basic_report = 1;
+  string external_basic_report_id = 2;
+  string create_report_request_id = 4;
+}
+
+message SetExternalReportIdRequest {
+  string cmms_measurement_consumer_id = 1;
+  string external_basic_report_id = 2;
+  string external_report_id = 3;
 }
 
 message GetBasicReportRequest {

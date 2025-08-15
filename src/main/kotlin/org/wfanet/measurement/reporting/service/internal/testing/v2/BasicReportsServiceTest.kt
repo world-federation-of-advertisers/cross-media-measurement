@@ -43,6 +43,7 @@ import org.wfanet.measurement.internal.reporting.v2.basicReport
 import org.wfanet.measurement.internal.reporting.v2.basicReportDetails
 import org.wfanet.measurement.internal.reporting.v2.basicReportResultDetails
 import org.wfanet.measurement.internal.reporting.v2.copy
+import org.wfanet.measurement.internal.reporting.v2.createBasicReportRequest
 import org.wfanet.measurement.internal.reporting.v2.createReportingSetRequest
 import org.wfanet.measurement.internal.reporting.v2.getBasicReportRequest
 import org.wfanet.measurement.internal.reporting.v2.insertBasicReportRequest
@@ -53,6 +54,7 @@ import org.wfanet.measurement.internal.reporting.v2.measurementConsumer
 import org.wfanet.measurement.internal.reporting.v2.reportingImpressionQualificationFilter
 import org.wfanet.measurement.internal.reporting.v2.reportingSet
 import org.wfanet.measurement.internal.reporting.v2.resultGroup
+import org.wfanet.measurement.internal.reporting.v2.setExternalReportIdRequest
 import org.wfanet.measurement.reporting.service.internal.Errors
 
 @RunWith(JUnit4::class)
@@ -79,6 +81,122 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
     service = services.basicReportsService
     measurementConsumersService = services.measurementConsumersService
     reportingSetsService = services.reportingSetsService
+  }
+
+  @Test
+  fun `createBasicReport succeeds`(): Unit = runBlocking {
+    measurementConsumersService.createMeasurementConsumer(
+      measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
+    )
+
+    reportingSetsService.createReportingSet(
+      createReportingSetRequest {
+        reportingSet = REPORTING_SET
+        externalReportingSetId = REPORTING_SET.externalReportingSetId
+      }
+    )
+
+    val basicReport = basicReport {
+      cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+      externalBasicReportId = "1237"
+      externalCampaignGroupId = REPORTING_SET.externalReportingSetId
+      campaignGroupDisplayName = REPORTING_SET.displayName
+      details = basicReportDetails { title = "title" }
+    }
+
+    val request = createBasicReportRequest {
+      this.basicReport = basicReport
+      externalBasicReportId = "1234"
+      createReportRequestId = "1235"
+    }
+
+    val response =
+      service.createBasicReport(request)
+
+    assertThat(response)
+      .ignoringFields(BasicReport.CREATE_TIME_FIELD_NUMBER, BasicReport.STATE_FIELD_NUMBER, BasicReport.EXTERNAL_BASIC_REPORT_ID_FIELD_NUMBER, BasicReport.CREATE_REPORT_REQUEST_ID_FIELD_NUMBER)
+      .isEqualTo(basicReport)
+
+    assertThat(response.state).isEqualTo(BasicReport.State.CREATED)
+    assertThat(response.externalBasicReportId).isEqualTo(request.externalBasicReportId)
+    assertThat(response.createReportRequestId).isEqualTo(request.createReportRequestId)
+    assertThat(response.hasCreateTime())
+  }
+
+  @Test
+  fun `createBasicReport throws FAILED_PRECONDITION when reporting set not found`(): Unit =
+    runBlocking {
+      measurementConsumersService.createMeasurementConsumer(
+        measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
+      )
+
+      val basicReport = basicReport {
+        cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+        externalBasicReportId = "1237"
+        externalCampaignGroupId = REPORTING_SET.externalReportingSetId
+        campaignGroupDisplayName = REPORTING_SET.displayName
+        details = basicReportDetails { title = "title" }
+      }
+
+      val request = createBasicReportRequest {
+        this.basicReport = basicReport
+        externalBasicReportId = "1234"
+        createReportRequestId = "1235"
+      }
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.createBasicReport(request)
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    }
+
+  @Test
+  fun `createBasicReport throws ALREADY_EXISTS when external id found`(): Unit = runBlocking {
+    measurementConsumersService.createMeasurementConsumer(
+      measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
+    )
+
+    reportingSetsService.createReportingSet(
+      createReportingSetRequest {
+        reportingSet = REPORTING_SET
+        externalReportingSetId = REPORTING_SET.externalReportingSetId
+      }
+    )
+
+    val basicReport = basicReport {
+      cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+      externalBasicReportId = "1237"
+      externalCampaignGroupId = REPORTING_SET.externalReportingSetId
+      campaignGroupDisplayName = REPORTING_SET.displayName
+      details = basicReportDetails { title = "title" }
+    }
+
+    val request = createBasicReportRequest {
+      this.basicReport = basicReport
+      externalBasicReportId = "1234"
+      createReportRequestId = "1235"
+    }
+
+    service.createBasicReport(request)
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.createBasicReport(request)
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.ALREADY_EXISTS)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.BASIC_REPORT_ALREADY_EXISTS.name
+          metadata[Errors.Metadata.CMMS_MEASUREMENT_CONSUMER_ID.key] =
+            basicReport.cmmsMeasurementConsumerId
+          metadata[Errors.Metadata.EXTERNAL_BASIC_REPORT_ID.key] = basicReport.externalBasicReportId
+        }
+      )
   }
 
   @Test
@@ -233,7 +351,7 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
   }
 
   @Test
-  fun `getBasicReport succeeds`(): Unit = runBlocking {
+  fun `getBasicReport with insertBasicReport succeeds`(): Unit = runBlocking {
     measurementConsumersService.createMeasurementConsumer(
       measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
     )
@@ -247,6 +365,37 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
 
     val createdBasicReport =
       service.insertBasicReport(insertBasicReportRequest { basicReport = BASIC_REPORT })
+
+    val retrievedBasicReport =
+      service.getBasicReport(
+        getBasicReportRequest {
+          cmmsMeasurementConsumerId = createdBasicReport.cmmsMeasurementConsumerId
+          externalBasicReportId = createdBasicReport.externalBasicReportId
+        }
+      )
+
+    assertThat(retrievedBasicReport).isEqualTo(createdBasicReport)
+  }
+
+  @Test
+  fun `getBasicReport with createBasicReport succeeds`(): Unit = runBlocking {
+    measurementConsumersService.createMeasurementConsumer(
+      measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
+    )
+
+    reportingSetsService.createReportingSet(
+      createReportingSetRequest {
+        reportingSet = REPORTING_SET
+        externalReportingSetId = REPORTING_SET.externalReportingSetId
+      }
+    )
+
+    val createdBasicReport =
+      service.createBasicReport(createBasicReportRequest {
+        basicReport = BASIC_REPORT
+        externalBasicReportId = "1234"
+        createReportRequestId = "1235"
+      })
 
     val retrievedBasicReport =
       service.getBasicReport(
@@ -295,6 +444,50 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
             createdBasicReport.cmmsMeasurementConsumerId
           metadata[Errors.Metadata.EXTERNAL_BASIC_REPORT_ID.key] =
             createdBasicReport.externalBasicReportId + "b"
+        }
+      )
+  }
+
+  @Test
+  fun `getBasicReport throws INVALID_ARGUMENT when cmms_measurement_consumer_id missing`(): Unit = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.getBasicReport(
+          getBasicReportRequest {
+            externalBasicReportId = "1234"
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "cmms_measurement_consumer_id"
+        }
+      )
+  }
+
+  @Test
+  fun `getBasicReport throws INVALID_ARGUMENT when external_basic_report_id missing`(): Unit = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.getBasicReport(
+          getBasicReportRequest {
+            cmmsMeasurementConsumerId = "1234"
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "external_basic_report_id"
         }
       )
   }
@@ -670,6 +863,163 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
           domain = Errors.DOMAIN
           reason = Errors.Reason.INVALID_FIELD_VALUE.name
           metadata[Errors.Metadata.FIELD_NAME.key] = "page_size"
+        }
+      )
+  }
+
+  @Test
+  fun `setExternalReportId succeeds`(): Unit = runBlocking {
+    measurementConsumersService.createMeasurementConsumer(
+      measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
+    )
+
+    reportingSetsService.createReportingSet(
+      createReportingSetRequest {
+        reportingSet = REPORTING_SET
+        externalReportingSetId = REPORTING_SET.externalReportingSetId
+      }
+    )
+
+    val createdBasicReport =
+      service.createBasicReport(createBasicReportRequest {
+        basicReport = BASIC_REPORT.copy {
+          clearResultDetails()
+        }
+        externalBasicReportId = "1234"
+        createReportRequestId = "1235"
+      })
+
+    val setExternalReportIdRequest =
+      setExternalReportIdRequest {
+        cmmsMeasurementConsumerId = createdBasicReport.cmmsMeasurementConsumerId
+        externalBasicReportId = createdBasicReport.externalBasicReportId
+        externalReportId = "1236"
+      }
+
+    val updatedBasicReport = service.setExternalReportId(setExternalReportIdRequest)
+
+    val retrievedBasicReport =
+      service.getBasicReport(
+        getBasicReportRequest {
+          cmmsMeasurementConsumerId = createdBasicReport.cmmsMeasurementConsumerId
+          externalBasicReportId = createdBasicReport.externalBasicReportId
+        }
+      )
+
+    assertThat(updatedBasicReport.externalReportId).isEqualTo(setExternalReportIdRequest.externalReportId)
+    assertThat(updatedBasicReport.state).isEqualTo(BasicReport.State.REPORT_CREATED)
+    assertThat(retrievedBasicReport).isEqualTo(updatedBasicReport)
+  }
+
+  @Test
+  fun `setExternalReportId throws NOT_FOUND when basic report not found`(): Unit = runBlocking {
+    measurementConsumersService.createMeasurementConsumer(
+      measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
+    )
+
+    reportingSetsService.createReportingSet(
+      createReportingSetRequest {
+        reportingSet = REPORTING_SET
+        externalReportingSetId = REPORTING_SET.externalReportingSetId
+      }
+    )
+
+    val createdBasicReport =
+      service.createBasicReport(createBasicReportRequest {
+        basicReport = BASIC_REPORT
+        externalBasicReportId = "1234"
+      })
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.setExternalReportId(
+          setExternalReportIdRequest {
+            cmmsMeasurementConsumerId = createdBasicReport.cmmsMeasurementConsumerId
+            externalBasicReportId = createdBasicReport.externalBasicReportId + "b"
+            externalReportId = "1234"
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.BASIC_REPORT_NOT_FOUND.name
+          metadata[Errors.Metadata.CMMS_MEASUREMENT_CONSUMER_ID.key] =
+            createdBasicReport.cmmsMeasurementConsumerId
+          metadata[Errors.Metadata.EXTERNAL_BASIC_REPORT_ID.key] =
+            createdBasicReport.externalBasicReportId + "b"
+        }
+      )
+  }
+
+  @Test
+  fun `setExternalReportId throws INVALID_ARGUMENT when cmms_measurement_consumer_id missing`(): Unit = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.setExternalReportId(
+          setExternalReportIdRequest {
+            externalBasicReportId = "1234"
+            externalReportId = "1234"
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "cmms_measurement_consumer_id"
+        }
+      )
+  }
+
+  @Test
+  fun `setExternalReportId throws INVALID_ARGUMENT when external_basic_report_id missing`(): Unit = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.setExternalReportId(
+          setExternalReportIdRequest {
+            cmmsMeasurementConsumerId = "1234"
+            externalReportId = "1234"
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "external_basic_report_id"
+        }
+      )
+  }
+
+  @Test
+  fun `setExternalReportId throws INVALID_ARGUMENT when external_report_id missing`(): Unit = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.setExternalReportId(
+          setExternalReportIdRequest {
+            cmmsMeasurementConsumerId = "1234"
+            externalBasicReportId = "1234"
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "external_report_id"
         }
       )
   }
