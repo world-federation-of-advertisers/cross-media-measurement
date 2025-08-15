@@ -37,6 +37,7 @@ kt_jvm_library(
     srcs = ["ReachAndFrequencyComputations.kt"],
     deps = [
         ":differential_privacy_params",
+        ":k_anonymity_params",
         "//imports/java/com/google/privacy:differential_privacy",
     ],
 )
