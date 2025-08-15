@@ -35,7 +35,11 @@ import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsRequest
 import org.wfanet.measurement.internal.reporting.v2.basicReport
 import org.wfanet.measurement.reporting.service.internal.BasicReportNotFoundException
 
-data class BasicReportResult(val measurementConsumerId: Long, val basicReportId: Long, val basicReport: BasicReport)
+data class BasicReportResult(
+  val measurementConsumerId: Long,
+  val basicReportId: Long,
+  val basicReport: BasicReport,
+)
 
 /**
  * Reads a [BasicReport] by its external ID.
@@ -83,7 +87,11 @@ suspend fun AsyncDatabaseClient.ReadContext.getBasicReportByExternalId(
       .singleOrNullIfEmpty()
       ?: throw BasicReportNotFoundException(cmmsMeasurementConsumerId, externalBasicReportId)
 
-  return BasicReportResult(row.getLong("MeasurementConsumerId"), row.getLong("BasicReportId"), buildBasicReport(row))
+  return BasicReportResult(
+    row.getLong("MeasurementConsumerId"),
+    row.getLong("BasicReportId"),
+    buildBasicReport(row),
+  )
 }
 
 /**
@@ -165,7 +173,11 @@ fun AsyncDatabaseClient.ReadContext.readBasicReports(
     }
 
   return executeQuery(query).map { row ->
-    BasicReportResult(row.getLong("MeasurementConsumerId"), row.getLong("BasicReportId"), buildBasicReport(row))
+    BasicReportResult(
+      row.getLong("MeasurementConsumerId"),
+      row.getLong("BasicReportId"),
+      buildBasicReport(row),
+    )
   }
 }
 

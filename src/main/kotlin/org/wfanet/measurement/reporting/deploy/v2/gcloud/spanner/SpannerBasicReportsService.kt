@@ -123,9 +123,9 @@ class SpannerBasicReportsService(
     } catch (e: SpannerException) {
       if (e.errorCode == ErrorCode.ALREADY_EXISTS) {
         throw BasicReportAlreadyExistsException(
-          request.basicReport.cmmsMeasurementConsumerId,
-          request.basicReport.externalBasicReportId,
-        )
+            request.basicReport.cmmsMeasurementConsumerId,
+            request.basicReport.externalBasicReportId,
+          )
           .asStatusRuntimeException(Status.Code.ALREADY_EXISTS)
       } else {
         throw e
@@ -167,11 +167,18 @@ class SpannerBasicReportsService(
     val basicReportResult: BasicReportResult =
       try {
         transactionRunner.run { txn ->
-          txn.getBasicReportByExternalId(
-            cmmsMeasurementConsumerId = request.cmmsMeasurementConsumerId,
-            externalBasicReportId = request.externalBasicReportId,
-          )
-            .also { txn.setExternalReportId(it.measurementConsumerId, it.basicReportId, request.externalReportId) }
+          txn
+            .getBasicReportByExternalId(
+              cmmsMeasurementConsumerId = request.cmmsMeasurementConsumerId,
+              externalBasicReportId = request.externalBasicReportId,
+            )
+            .also {
+              txn.setExternalReportId(
+                it.measurementConsumerId,
+                it.basicReportId,
+                request.externalReportId,
+              )
+            }
         }
       } catch (e: BasicReportNotFoundException) {
         throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
@@ -180,9 +187,9 @@ class SpannerBasicReportsService(
     val reportingSetResult: ReportingSetReader.Result =
       try {
         getReportingSets(
-          request.cmmsMeasurementConsumerId,
-          listOf(basicReportResult.basicReport.externalCampaignGroupId),
-        )
+            request.cmmsMeasurementConsumerId,
+            listOf(basicReportResult.basicReport.externalCampaignGroupId),
+          )
           .first()
       } catch (e: ReportingSetNotFoundException) {
         throw e.asStatusRuntimeException(Status.Code.INTERNAL)
