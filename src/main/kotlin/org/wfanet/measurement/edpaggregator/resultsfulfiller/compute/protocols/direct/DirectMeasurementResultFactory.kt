@@ -61,7 +61,17 @@ object DirectMeasurementResultFactory {
         reachAndFrequencyResultBuilder.buildMeasurementResult()
       }
       MeasurementSpec.MeasurementTypeCase.IMPRESSION -> {
-        MeasurementKt.result { TODO("Not yet implemented") }
+        val impressionResultBuilder =
+          DirectImpressionResultBuilder(
+            directProtocolConfig,
+            frequencyData,
+            measurementSpec.reach.privacyParams,
+            measurementSpec.vidSamplingInterval.width,
+            directNoiseMechanism,
+            maxPopulation,
+            measurementSpec.impression.maximumFrequencyPerUser,
+          )
+        impressionResultBuilder.buildMeasurementResult()
       }
       MeasurementSpec.MeasurementTypeCase.DURATION -> {
         MeasurementKt.result { TODO("Not yet implemented") }
