@@ -19,6 +19,7 @@ package org.wfanet.measurement.edpaggregator.resultsfulfiller
 import java.io.File
 import java.nio.file.Paths
 import java.time.Duration
+import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt.RequisitionFulfillmentCoroutineStub
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.getRuntimePath
@@ -57,5 +58,31 @@ class RequisitionStubFactoryImpl(
         .withShutdownTimeout(channelShutdownTimeout)
     }
     return RequisitionsCoroutineStub(publicChannel)
+  }
+
+  override fun buildRequisitionFulfillmentStub(
+    fulfillerParams: ResultsFulfillerParams
+  ): RequisitionFulfillmentCoroutineStub {
+    val publicChannel = run {
+      val signingCerts =
+        SigningCerts.fromPemFiles(
+          certificateFile =
+            checkNotNull(
+                getRuntimePath(Paths.get(fulfillerParams.cmmsConnection.clientCertResourcePath))
+              )
+              .toFile(),
+          privateKeyFile =
+            checkNotNull(
+                getRuntimePath(
+                  Paths.get(fulfillerParams.cmmsConnection.clientPrivateKeyResourcePath)
+                )
+              )
+              .toFile(),
+          trustedCertCollectionFile = trustedCertCollection,
+        )
+      buildMutualTlsChannel(cmmsTarget, signingCerts, cmmsCertHost)
+        .withShutdownTimeout(channelShutdownTimeout)
+    }
+    return RequisitionFulfillmentCoroutineStub(publicChannel)
   }
 }

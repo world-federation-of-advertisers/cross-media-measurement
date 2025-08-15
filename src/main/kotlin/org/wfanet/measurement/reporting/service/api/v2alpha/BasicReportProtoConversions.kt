@@ -77,6 +77,19 @@ fun InternalBasicReport.toBasicReport(): BasicReport {
       resultGroups += internalResultGroup.toResultGroup()
     }
     createTime = source.createTime
+
+    state =
+      @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
+      when (source.state) {
+        InternalBasicReport.State.CREATED,
+        InternalBasicReport.State.REPORT_CREATED,
+        InternalBasicReport.State.NOISY_RESULTS_READY -> BasicReport.State.RUNNING
+        InternalBasicReport.State.SUCCEEDED -> BasicReport.State.SUCCEEDED
+        InternalBasicReport.State.FAILED -> BasicReport.State.FAILED
+        InternalBasicReport.State.INVALID -> BasicReport.State.INVALID
+        InternalBasicReport.State.STATE_UNSPECIFIED -> BasicReport.State.STATE_UNSPECIFIED
+        InternalBasicReport.State.UNRECOGNIZED -> BasicReport.State.UNRECOGNIZED
+      }
   }
 }
 

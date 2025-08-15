@@ -19,5 +19,8 @@ databaseChangeLog:
     file: create-basic-report-schema.sql
     relativeToChangeLogFile: true
 - include:
-      file: create-report-results-schema.sql
-      relativeToChangeLogFile: true
+    file: add-state-to-basic-report.sql
+    relativeToChangeLogFile: true
+- include:
+    file: create-report-results-schema.sql
+    relativeToChangeLogFile: true
