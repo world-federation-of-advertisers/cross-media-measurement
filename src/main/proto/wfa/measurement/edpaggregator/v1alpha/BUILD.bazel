@@ -1,5 +1,5 @@
 load("@rules_proto//proto:defs.bzl", "proto_library")
-load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_proto_library")
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_grpc_proto_library", "kt_jvm_proto_library")
 
 package(default_visibility = ["//visibility:public"])
 
@@ -118,7 +118,7 @@ proto_library(
     ],
 )
 
-kt_jvm_proto_library(
-    name = "impression_metadata_service_kt_jvm_proto",
+kt_jvm_grpc_proto_library(
+    name = "impression_metadata_service_kt_jvm_grpc_proto",
     deps = [":impression_metadata_service_proto"],
 )
