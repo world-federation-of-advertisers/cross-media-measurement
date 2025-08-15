@@ -158,3 +158,12 @@ jobs:
     secrets: inherit
     with:
       environment: ${{ inputs.environment }}
+
+  send-slack-notification:
+    uses: ./.github/workflows/slack-nightly-build-notification.yml
+    needs: [ publish-images, run-tests, update-secure-computation, scan-images ]
+    secrets: inherit
+    if: ${{ !cancelled() && startsWith(github.ref, 'refs/tags/nightly/') && github.actor == 'github-actions[bot]' }}
+    with:
+      image-tag: ${{ needs.publish-images.outputs.image-tag }}
+      job-results: ${{ join(needs.*.result, ' ') }}
