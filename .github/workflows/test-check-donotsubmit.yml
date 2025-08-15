@@ -1,0 +1,38 @@
+name: Test Check for DO_NOT_SUBMIT comments
+
+on:
+  # DO_NOT_SUBMIT: add branches
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check-do-not-submit:
+    name: Check for DO_NOT_SUBMIT comments
+    runs-on: ubuntu-22.04
+    steps:
+    - name: Check out revision
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Run DO_NOT_SUBMIT check
+      shell: bash
+      env:
+        BASE_REV: ${{ github.event.pull_request.base.sha }}
+      run: |
+        set -euo pipefail
+        readarray -d '' -t changed_files < <(
+          git diff -z --diff-filter=AMRC --name-only "${BASE_REV}" HEAD
+        )
+
+        echo "Checking for DO_NOT_SUBMIT comments in ${#changed_files[@]} files"
+
+        if (( ${#changed_files[@]} )) && grep -Hn -- "DO_NOT_SUBMIT" "${changed_files[@]}"; then
+          echo "The above files contain DO_NOT_SUBMIT comments" >&2
+          exit 1
+        else
+          echo "PASSED: no files contain DO_NOT_SUBMIT comments"
+        fi
