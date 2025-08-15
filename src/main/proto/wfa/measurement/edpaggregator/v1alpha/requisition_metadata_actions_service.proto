@@ -32,8 +32,6 @@ option java_outer_classname = "RequisitionMetadataActionsServiceProto";
 //
 // Used for auditing and logging state changes for RequisitionMetadata.
 service RequisitionMetadataActionService {
-  option (google.api.default_host) = "edpaggregator.halo-cmm.org";
-
   // Creates a new RequisitionMetadataAction entry.
   // This RPC has the side effect of updating the state of the parent
   // RequisitionMetadata resource.

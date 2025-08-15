@@ -1,5 +1,5 @@
 load("@rules_proto//proto:defs.bzl", "proto_library")
-load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_proto_library")
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_grpc_proto_library", "kt_jvm_proto_library")
 
 package(default_visibility = ["//visibility:public"])
 
@@ -117,8 +117,8 @@ proto_library(
     ],
 )
 
-kt_jvm_proto_library(
-    name = "requisition_metadata_service_kt_jvm_proto",
+kt_jvm_grpc_proto_library(
+    name = "requisition_metadata_service_kt_jvm_grpc_proto",
     deps = [":requisition_metadata_service_proto"],
 )
 
@@ -135,7 +135,7 @@ proto_library(
     ],
 )
 
-kt_jvm_proto_library(
-    name = "requisition_metadata_actions_service_kt_jvm_proto",
+kt_jvm_grpc_proto_library(
+    name = "requisition_metadata_actions_service_kt_jvm_grpc_proto",
     deps = [":requisition_metadata_actions_service_proto"],
 )
