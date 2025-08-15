@@ -100,7 +100,8 @@ class ResultsFulfillerApp(
     val impressionsStorageConfig = getImpressionsStorageConfig(storageParams)
     val requisitionsStub = requisitionStubFactory.buildRequisitionsStub(fulfillerParams)
 
-    val requisitionFulfillmentStubsMap = requisitionStubFactory.buildRequisitionFulfillmentStubs(fulfillerParams)
+    val requisitionFulfillmentStubsMap =
+      requisitionStubFactory.buildRequisitionFulfillmentStubs(fulfillerParams)
     val dataProviderCertificateKey =
       checkNotNull(
         DataProviderCertificateKey.fromName(fulfillerParams.consentParams.edpCertificateName)

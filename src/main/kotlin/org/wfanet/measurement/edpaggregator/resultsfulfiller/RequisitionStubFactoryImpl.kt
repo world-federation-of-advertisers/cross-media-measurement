@@ -72,17 +72,20 @@ class RequisitionStubFactoryImpl(
           val signingCerts =
             SigningCerts.fromPemFiles(
               certificateFile =
-                checkNotNull(getRuntimePath(Paths.get(fulfillerParams.cmmsConnection.clientCertResourcePath))).toFile(),
+                checkNotNull(
+                    getRuntimePath(Paths.get(fulfillerParams.cmmsConnection.clientCertResourcePath))
+                  )
+                  .toFile(),
               privateKeyFile =
-                checkNotNull(getRuntimePath(Paths.get(fulfillerParams.cmmsConnection.clientPrivateKeyResourcePath)))
+                checkNotNull(
+                    getRuntimePath(
+                      Paths.get(fulfillerParams.cmmsConnection.clientPrivateKeyResourcePath)
+                    )
+                  )
                   .toFile(),
               trustedCertCollectionFile = trustedCertCollection,
             )
-          buildMutualTlsChannel(
-              duchyInfo.target,
-              signingCerts,
-              duchyInfo.certHost,
-            )
+          buildMutualTlsChannel(duchyInfo.target, signingCerts, duchyInfo.certHost)
             .withShutdownTimeout(channelShutdownTimeout)
         }
         duchyResourceName to RequisitionFulfillmentCoroutineStub(publicChannel)
