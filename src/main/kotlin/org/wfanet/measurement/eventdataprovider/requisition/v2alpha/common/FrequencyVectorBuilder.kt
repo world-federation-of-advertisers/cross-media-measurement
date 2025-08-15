@@ -128,6 +128,9 @@ class FrequencyVectorBuilder(
   /** The accumulated frequency data */
   private val frequencyData: IntArray
 
+  val frequencyDataArray: IntArray
+    get() = frequencyData
+
   /** The size of the frequency vector being managed */
   val size: Int
     get() = frequencyData.size
