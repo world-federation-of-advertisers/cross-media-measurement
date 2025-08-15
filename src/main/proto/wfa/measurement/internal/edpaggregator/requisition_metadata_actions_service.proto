@@ -1,0 +1,74 @@
+// Copyright 2025 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.internal.edpaggregator;
+
+// Import the message definitions used by this service.
+import "wfa/measurement/internal/edpaggregator/requisition_metadata.proto";
+
+option java_package = "org.wfanet.measurement.internal.edpaggregator";
+option java_multiple_files = true;
+option java_outer_classname = "RequisitionMetadataActionsServiceProto";
+
+// Service for managing RequisitionMetadataActions.
+service RequisitionMetadataActionService {
+  // Creates a new RequisitionMetadataAction entry and atomically updates the
+  // parent RequisitionMetadata's state.
+  rpc CreateRequisitionMetadataAction(CreateRequisitionMetadataActionRequest)
+      returns (RequisitionMetadataAction);
+
+  // Retrieves a specific RequisitionMetadataAction entry by its IDs.
+  rpc GetRequisitionMetadataAction(GetRequisitionMetadataActionRequest)
+      returns (RequisitionMetadataAction);
+
+  // Lists RequisitionMetadataAction entries for a given RequisitionMetadata.
+  rpc ListRequisitionMetadataActions(ListRequisitionMetadataActionsRequest)
+      returns (ListRequisitionMetadataActionsResponse);
+}
+
+message CreateRequisitionMetadataActionRequest {
+  // The RequisitionMetadataAction to create. The IDs within this resource
+  // specify the parent.
+  RequisitionMetadataAction requisition_metadata_action = 1;
+
+  // Etag of the parent RequisitionMetadata for optimistic locking.
+  string requisition_metadata_etag = 2;
+}
+
+message GetRequisitionMetadataActionRequest {
+  fixed64 external_data_provider_id = 1;
+  fixed64 external_requisition_metadata_id = 2;
+  fixed64 external_action_id = 3;
+}
+
+message ListRequisitionMetadataActionsRequest {
+  fixed64 external_data_provider_id = 1;
+  fixed64 external_requisition_metadata_id = 2;
+  int32 page_size = 3;
+  string page_token = 4;
+
+  message Filter {
+    RequisitionMetadataAction.ActionerType actioner_type = 1;
+    RequisitionMetadata.State prior_state = 2;
+    RequisitionMetadata.State new_state = 3;
+  }
+  Filter filter = 5;
+}
+
+message ListRequisitionMetadataActionsResponse {
+  repeated RequisitionMetadataAction requisition_metadata_actions = 1;
+  string next_page_token = 2;
+}
