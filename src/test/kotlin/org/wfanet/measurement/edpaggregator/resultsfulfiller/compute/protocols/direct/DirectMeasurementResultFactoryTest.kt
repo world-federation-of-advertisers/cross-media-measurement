@@ -17,8 +17,6 @@
 package org.wfanet.measurement.edpaggregator.resultsfulfiller.compute.protocols.direct
 
 import com.google.common.truth.Truth.assertThat
-import java.security.SecureRandom
-import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -38,16 +36,7 @@ class DirectMeasurementResultFactoryTest {
   fun `buildMeasurementResult returns reach and frequency result for REACH_AND_FREQUENCY measurement type`() =
     runBlocking {
       // Setup
-      val distinctVids = 100
-      val sampledVids = flow {
-        for (i in 1..distinctVids) {
-          emit(i.toLong())
-          // Duplicating the VID for every 10th entry to simulate frequency of 2 for 10 users
-          if (i % 10 == 0) {
-            emit(i.toLong())
-          }
-        }
-      }
+      val frequencyData = IntArray(100) { if (it < 90) 1 else 2 }
 
       val measurementSpec = measurementSpec {
         reachAndFrequency =
@@ -69,15 +58,15 @@ class DirectMeasurementResultFactoryTest {
           directProtocolConfig = DIRECT_PROTOCOL,
           directNoiseMechanism = DirectNoiseMechanism.NONE,
           measurementSpec = measurementSpec,
-          sampledVids = sampledVids,
-          random = SecureRandom(),
+          frequencyData = frequencyData,
+          maxPopulation = null,
         )
 
       // Verify
       assertThat(result.hasReach()).isTrue()
       assertThat(result.reach.noiseMechanism).isEqualTo(NoiseMechanism.NONE)
       assertThat(result.reach.hasDeterministicCountDistinct()).isTrue()
-      assertThat(result.reach.value).isEqualTo(distinctVids)
+      assertThat(result.reach.value).isEqualTo(100)
 
       assertThat(result.hasFrequency()).isTrue()
       assertThat(result.frequency.noiseMechanism).isEqualTo(NoiseMechanism.NONE)
@@ -88,6 +77,37 @@ class DirectMeasurementResultFactoryTest {
       assertThat(result.frequency.relativeFrequencyDistributionMap[1]).isEqualTo(0.9)
       assertThat(result.frequency.relativeFrequencyDistributionMap[2]).isEqualTo(0.1)
     }
+
+  @Test
+  fun `buildMeasurementResult returns reach result for REACH measurement type`() = runBlocking {
+    // Setup
+    val frequencyData = IntArray(100) { if (it < 90) 1 else 2 }
+
+    val measurementSpec = measurementSpec {
+      reach = MeasurementSpecKt.reach { privacyParams = REACH_PRIVACY_PARAMS }
+      vidSamplingInterval =
+        MeasurementSpecKt.vidSamplingInterval {
+          start = 0.0f
+          width = SAMPLING_RATE
+        }
+    }
+
+    // Execute
+    val result =
+      DirectMeasurementResultFactory.buildMeasurementResult(
+        directProtocolConfig = DIRECT_PROTOCOL,
+        directNoiseMechanism = DirectNoiseMechanism.NONE,
+        measurementSpec = measurementSpec,
+        frequencyData = frequencyData,
+        maxPopulation = null,
+      )
+
+    // Verify
+    assertThat(result.hasReach()).isTrue()
+    assertThat(result.reach.noiseMechanism).isEqualTo(NoiseMechanism.NONE)
+    assertThat(result.reach.hasDeterministicCountDistinct()).isTrue()
+    assertThat(result.reach.value).isEqualTo(100)
+  }
 
   companion object {
     private const val MAX_FREQUENCY = 10

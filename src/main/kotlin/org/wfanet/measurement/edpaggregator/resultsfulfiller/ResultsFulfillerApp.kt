@@ -21,10 +21,10 @@ import com.google.protobuf.Any
 import com.google.protobuf.Parser
 import com.google.protobuf.TypeRegistry
 import java.nio.file.Paths
-import java.security.SecureRandom
 import java.security.cert.X509Certificate
 import java.time.ZoneOffset
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
+import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.crypto.readPrivateKey
@@ -63,6 +63,7 @@ import org.wfanet.measurement.securecomputation.teesdk.BaseTeeApplication
  *   metadata.
  * @param getImpressionsStorageConfig Lambda to obtain [StorageConfig] for impressions.
  * @param getRequisitionsStorageConfig Lambda to obtain [StorageConfig] for requisitions.
+ * @param populationSpecMap map of model line to population spec
  * @constructor Initializes the application with all required dependencies for result fulfillment.
  */
 class ResultsFulfillerApp(
@@ -77,6 +78,7 @@ class ResultsFulfillerApp(
   private val getImpressionsMetadataStorageConfig: (StorageParams) -> StorageConfig,
   private val getImpressionsStorageConfig: (StorageParams) -> StorageConfig,
   private val getRequisitionsStorageConfig: (StorageParams) -> StorageConfig,
+  private val populationSpecMap: Map<String, PopulationSpec>,
 ) :
   BaseTeeApplication(
     subscriptionId = subscriptionId,
@@ -97,6 +99,8 @@ class ResultsFulfillerApp(
     val impressionsMetadataStorageConfig = getImpressionsMetadataStorageConfig(storageParams)
     val impressionsStorageConfig = getImpressionsStorageConfig(storageParams)
     val requisitionsStub = requisitionStubFactory.buildRequisitionsStub(fulfillerParams)
+    val requisitionFulfillmentStub =
+      requisitionStubFactory.buildRequisitionFulfillmentStub(fulfillerParams)
     val dataProviderCertificateKey =
       checkNotNull(
         DataProviderCertificateKey.fromName(fulfillerParams.consentParams.edpCertificateName)
@@ -143,15 +147,16 @@ class ResultsFulfillerApp(
     ResultsFulfiller(
         loadPrivateKey(encryptionPrivateKeyFile),
         requisitionsStub,
+        requisitionFulfillmentStub,
         dataProviderCertificateKey,
         dataProviderResultSigningKeyHandle,
         typeRegistry,
         requisitionsBlobUri = requisitionsBlobUri,
         requisitionsStorageConfig = requisitionsStorageConfig,
-        random = SecureRandom(),
         zoneId = ZoneOffset.UTC,
         noiserSelector = noiseSelector,
         eventReader = eventReader,
+        populationSpecMap = populationSpecMap,
       )
       .fulfillRequisitions()
   }

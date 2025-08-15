@@ -2079,6 +2079,9 @@ private fun aggregateResults(
 
   // Aggregation
   for (result in internalMeasurementResults) {
+    if (result.hasReach()) {
+      reachValue += result.reach.value
+    }
     if (result.hasFrequency()) {
       if (!result.hasReach()) {
         throw MetricResultNotComputableException(
@@ -2089,12 +2092,14 @@ private fun aggregateResults(
         val previousTotalReachCount =
           frequencyDistribution.getOrDefault(frequency, 0.0) * reachValue
         val currentReachCount = percentage * result.reach.value
-        frequencyDistribution[frequency] =
-          (previousTotalReachCount + currentReachCount) / (reachValue + result.reach.value)
+
+        if (reachValue == 0L) {
+          frequencyDistribution[frequency] = 0.0
+        } else {
+          frequencyDistribution[frequency] =
+            (previousTotalReachCount + currentReachCount) / reachValue
+        }
       }
-    }
-    if (result.hasReach()) {
-      reachValue += result.reach.value
     }
     if (result.hasImpression()) {
       impressionValue += result.impression.value

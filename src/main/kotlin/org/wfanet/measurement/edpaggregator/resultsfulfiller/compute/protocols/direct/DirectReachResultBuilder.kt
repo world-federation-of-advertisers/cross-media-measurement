@@ -18,11 +18,9 @@ package org.wfanet.measurement.edpaggregator.resultsfulfiller.compute.protocols.
 
 import java.util.logging.Logger
 import org.wfanet.measurement.api.v2alpha.DeterministicCountDistinct
-import org.wfanet.measurement.api.v2alpha.DeterministicDistribution
 import org.wfanet.measurement.api.v2alpha.DifferentialPrivacyParams as CmmsDpParams
 import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementKt
-import org.wfanet.measurement.api.v2alpha.MeasurementKt.ResultKt.frequency
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.ResultKt.reach
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig.NoiseMechanism
@@ -35,26 +33,24 @@ import org.wfanet.measurement.edpaggregator.resultsfulfiller.compute.Measurement
 import org.wfanet.measurement.eventdataprovider.noiser.DirectNoiseMechanism
 
 /**
- * Builder for direct reach and frequency measurement results.
+ * Builder for direct reach measurement results.
  *
  * @param directProtocolConfig The direct protocol configuration.
  * @param frequencyData the Frequency Histogram.
- * @param maxFrequency The maximum frequency to consider.
  * @param reachPrivacyParams The differential privacy parameters for reach.
- * @param frequencyPrivacyParams The differential privacy parameters for frequency.
  * @param samplingRate The sampling rate used to sample the events.
  * @param directNoiseMechanism The direct noise mechanism to use.
  * @param maxPopulation The max Population that can be returned.
+ * @param maxFrequency Optional. Used for k-anonymity.
  */
-class DirectReachAndFrequencyResultBuilder(
+class DirectReachResultBuilder(
   private val directProtocolConfig: ProtocolConfig.Direct,
   private val frequencyData: IntArray,
-  private val maxFrequency: Int,
   private val reachPrivacyParams: CmmsDpParams,
-  private val frequencyPrivacyParams: CmmsDpParams,
   private val samplingRate: Float,
   private val directNoiseMechanism: DirectNoiseMechanism,
   private val maxPopulation: Int?,
+  private val maxFrequency: Int = Byte.MAX_VALUE.toInt(),
 ) : MeasurementResultBuilder {
 
   override suspend fun buildMeasurementResult(): Measurement.Result {
@@ -64,12 +60,6 @@ class DirectReachAndFrequencyResultBuilder(
         "No valid methodologies for direct reach computation.",
       )
     }
-    if (!directProtocolConfig.hasDeterministicDistribution()) {
-      throw RequisitionRefusalException.Default(
-        Requisition.Refusal.Justification.DECLINED,
-        "No valid methodologies for direct frequency distribution computation.",
-      )
-    }
     val histogram: LongArray =
       HistogramComputations.buildHistogram(
         frequencyVector = frequencyData,
@@ -77,8 +67,6 @@ class DirectReachAndFrequencyResultBuilder(
       )
 
     val reachValue = getReachValue(histogram)
-
-    val frequencyMap = getFrequencyMap(histogram)
 
     val protocolConfigNoiseMechanism =
       when (directNoiseMechanism) {
@@ -93,33 +81,7 @@ class DirectReachAndFrequencyResultBuilder(
         this.noiseMechanism = protocolConfigNoiseMechanism
         deterministicCountDistinct = DeterministicCountDistinct.getDefaultInstance()
       }
-      frequency = frequency {
-        relativeFrequencyDistribution.putAll(frequencyMap.mapKeys { it.key.toLong() })
-        this.noiseMechanism = protocolConfigNoiseMechanism
-        deterministicDistribution = DeterministicDistribution.getDefaultInstance()
-      }
     }
-  }
-
-  private fun getFrequencyMap(histogram: LongArray): Map<Long, Double> {
-    val frequencyDpParams =
-      if (directNoiseMechanism != DirectNoiseMechanism.NONE) {
-        logger.info("Adding $directNoiseMechanism publisher noise to direct reach and frequency...")
-        require(directNoiseMechanism == DirectNoiseMechanism.CONTINUOUS_GAUSSIAN) {
-          "Only Continuous Gaussian is supported for dp noise"
-        }
-        DifferentialPrivacyParams(
-          epsilon = frequencyPrivacyParams.epsilon,
-          delta = frequencyPrivacyParams.delta,
-        )
-      } else {
-        null
-      }
-    return ReachAndFrequencyComputations.computeFrequencyDistribution(
-      rawHistogram = histogram,
-      maxFrequency = maxFrequency,
-      dpParams = frequencyDpParams,
-    )
   }
 
   private fun getReachValue(histogram: LongArray): Long {
