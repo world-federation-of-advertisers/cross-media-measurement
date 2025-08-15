@@ -32,7 +32,6 @@ import java.time.Clock
 import java.time.Duration
 import java.time.LocalDate
 import java.time.ZoneId
-import java.util.UUID
 import java.util.logging.Level
 import java.util.logging.Logger
 import kotlinx.coroutines.CoroutineExceptionHandler
@@ -141,8 +140,6 @@ class InProcessEdpAggregatorComponents(
   }
 
   private lateinit var dataWatcher: DataWatcher
-
-  private lateinit var requisitionFetcher: RequisitionFetcher
 
   private lateinit var eventGroupSync: EventGroupSync
 
@@ -272,7 +269,7 @@ class InProcessEdpAggregatorComponents(
           throttler,
         )
 
-      requisitionFetcher =
+      val requisitionFetcher =
         RequisitionFetcher(
           requisitionsClient,
           subscribingStorageClient,
@@ -404,8 +401,12 @@ class InProcessEdpAggregatorComponents(
     private const val REQUISITION_STORAGE_PREFIX = "requisition-storage-prefix"
     private val ZONE_ID = ZoneId.of("UTC")
 
+    // TODO: Lookup/Create an entry in the metadata store
     fun createGroupedRequisitionId(groupedRequisition: GroupedRequisitions): String {
-      return UUID.randomUUID().toString()
+      return groupedRequisition.requisitionsList
+        .map { it.requisition.unpack(Requisition::class.java).name }
+        .sorted()
+        .first()
     }
   }
 }
