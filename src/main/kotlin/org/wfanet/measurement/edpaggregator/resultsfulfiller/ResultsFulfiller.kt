@@ -91,6 +91,7 @@ class ResultsFulfiller(
     val groupedRequisitions = getRequisitions()
     val requisitions =
       groupedRequisitions.requisitionsList.map { it.requisition.unpack(Requisition::class.java) }
+    logger.info("Processing ${requisitions.size} Requisitions")
     val eventGroupMap =
       groupedRequisitions.eventGroupMapList
         .map { Pair(it.eventGroup, it.details.eventGroupReferenceId) }

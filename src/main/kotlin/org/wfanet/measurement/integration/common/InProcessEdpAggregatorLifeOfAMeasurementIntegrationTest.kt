@@ -186,11 +186,19 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
     }
 
   @Test
-  fun `create incremental direct RF measurements in same report and check the result is equal to the expected result`() =
+  fun `create a direct reach only measurement and check the result is equal to the expected result`() =
+    runBlocking {
+      // Use frontend simulator to create a direct reach and frequency measurement and verify its
+      // result.
+      mcSimulator.testDirectReachOnly(runId = "1234", numMeasurements = 1)
+    }
+
+  @Test
+  fun `create incremental direct reach only measurements in same report and check the result is equal to the expected result`() =
     runBlocking {
       // Use frontend simulator to create N incremental direct reach and frequency measurements and
       // verify its result.
-      mcSimulator.testDirectReachAndFrequency(runId = "1234", numMeasurements = 3)
+      mcSimulator.testDirectReachOnly(runId = "1234", numMeasurements = 3)
     }
 
   @Test
