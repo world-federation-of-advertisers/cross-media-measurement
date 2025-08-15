@@ -27,7 +27,7 @@ import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withShutdownTimeout
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
 
-class DuchyInfo(target: String, certHost: String)
+class DuchyInfo(val target: String, val certHost: String)
 
 class RequisitionStubFactoryImpl(
   private val cmmsCertHost: String?,
@@ -66,26 +66,26 @@ class RequisitionStubFactoryImpl(
   override fun buildRequisitionFulfillmentStubs(
     fulfillerParams: ResultsFulfillerParams
   ): Map<String, RequisitionFulfillmentCoroutineStub> {
-    return fulfillerParams.duchyConnections
-      .map { (duchyId, tlsParams) ->
+    return duchies
+      .map { (duchyResourceName: String, duchyInfo: DuchyInfo) ->
         val publicChannel = run {
           val signingCerts =
             SigningCerts.fromPemFiles(
               certificateFile =
-                checkNotNull(getRuntimePath(Paths.get(tlsParams.clientCertResourcePath))).toFile(),
+                checkNotNull(getRuntimePath(Paths.get(fulfillerParams.cmmsConnection.clientCertResourcePath))).toFile(),
               privateKeyFile =
-                checkNotNull(getRuntimePath(Paths.get(tlsParams.clientPrivateKeyResourcePath)))
+                checkNotNull(getRuntimePath(Paths.get(fulfillerParams.cmmsConnection.clientPrivateKeyResourcePath)))
                   .toFile(),
               trustedCertCollectionFile = trustedCertCollection,
             )
           buildMutualTlsChannel(
-              duchies.getValue(duchyId).target,
+              duchyInfo.target,
               signingCerts,
-              duchies.getValue(duchyId).certHost,
+              duchyInfo.certHost,
             )
             .withShutdownTimeout(channelShutdownTimeout)
         }
-        duchyId to RequisitionFulfillmentCoroutineStub(publicChannel)
+        duchyResourceName to RequisitionFulfillmentCoroutineStub(publicChannel)
       }
       .toMap()
   }

@@ -51,7 +51,6 @@ class HMShuffleMeasurementFulfiller(
       val duchyId = getDuchyWithoutPublicKey(requisition)
       val requisitionFulfillmentStub = requisitionFulfillmentStubMap.getValue(duchyId)
       requisitionFulfillmentStub.fulfillRequisition(requests)
-      println("************************************")
       logger.info("Successfully fulfilled HMShuffle requisition ${requisition.name}")
     } catch (e: StatusException) {
       throw Exception("Error fulfilling requisition ${requisition.name}", e)
