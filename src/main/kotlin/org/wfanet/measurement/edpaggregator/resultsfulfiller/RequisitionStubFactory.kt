@@ -23,9 +23,14 @@ import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
 /** A factory for building stubs needed by a Result Fulfiller. */
 interface RequisitionStubFactory {
 
+  /** Returns a [RequisitionsCoroutineStub] for a given [ResultsFulfilerParams]. */
   fun buildRequisitionsStub(fulfillerParams: ResultsFulfillerParams): RequisitionsCoroutineStub
 
-  fun buildRequisitionFulfillmentStub(
+  /**
+   * Return a map of Duchy Resource ID to RequisitionFulfillmentCoroutineStub for a given
+   * [ResultsFulfilerParams].
+   */
+  fun buildRequisitionFulfillmentStubs(
     fulfillerParams: ResultsFulfillerParams
-  ): RequisitionFulfillmentCoroutineStub
+  ): Map<String, RequisitionFulfillmentCoroutineStub>
 }

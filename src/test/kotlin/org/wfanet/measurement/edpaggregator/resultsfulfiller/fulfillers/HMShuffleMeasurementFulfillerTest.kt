@@ -88,7 +88,10 @@ class HMShuffleMeasurementFulfillerTest {
         sampledFrequencyVector = sampledFrequencyVector,
         dataProviderSigningKeyHandle = EDP_SIGNING_KEY,
         dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
-        requisitionFulfillmentStub = requisitionsStub,
+        requisitionFulfillmentStubMap =
+          mapOf(
+            "duchies/worker2" to RequisitionFulfillmentCoroutineStub(grpcTestServerRule.channel)
+          ),
       )
     fulfiller.fulfillRequisition()
     val fulfilledRequisitions =
@@ -127,7 +130,7 @@ class HMShuffleMeasurementFulfillerTest {
           sampledFrequencyVector = sampledFrequencyVector,
           dataProviderSigningKeyHandle = EDP_SIGNING_KEY,
           dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
-          requisitionFulfillmentStub = stubWithError,
+          requisitionFulfillmentStubMap = mapOf("duchies/worker2" to stubWithError),
         )
       assertFailsWith<StatusRuntimeException> { fulfiller.fulfillRequisition() }
     }

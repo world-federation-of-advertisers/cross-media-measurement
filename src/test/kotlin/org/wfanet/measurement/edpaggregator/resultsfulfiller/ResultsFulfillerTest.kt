@@ -235,7 +235,7 @@ class ResultsFulfillerTest {
       ResultsFulfiller(
         PRIVATE_ENCRYPTION_KEY,
         requisitionsStub,
-        requisitionFulfillmentStub,
+        emptyMap(),
         DATA_PROVIDER_CERTIFICATE_KEY,
         EDP_RESULT_SIGNING_KEY,
         typeRegistry,
@@ -324,7 +324,10 @@ class ResultsFulfillerTest {
       ResultsFulfiller(
         PRIVATE_ENCRYPTION_KEY,
         requisitionsStub,
-        requisitionFulfillmentStub,
+        mapOf(
+          DUCHY_ONE_NAME to requisitionFulfillmentStub,
+          DUCHY_TWO_NAME to requisitionFulfillmentStub,
+        ),
         DATA_PROVIDER_CERTIFICATE_KEY,
         EDP_RESULT_SIGNING_KEY,
         typeRegistry,
