@@ -34,7 +34,7 @@ class HMShuffleMeasurementFulfiller(
   private val sampledFrequencyVector: FrequencyVector,
   private val dataProviderSigningKeyHandle: SigningKeyHandle,
   private val dataProviderCertificateKey: DataProviderCertificateKey,
-  private val requisitionFulfillmentStub: RequisitionFulfillmentCoroutineStub,
+  private val requisitionFulfillmentStubMap: Map<String, RequisitionFulfillmentCoroutineStub>,
 ) : MeasurementFulfiller {
   override suspend fun fulfillRequisition() {
     logger.info("Fulfilling requisition ${requisition.name}...")
@@ -48,10 +48,23 @@ class HMShuffleMeasurementFulfiller(
         )
         .asFlow()
     try {
+      val duchyId = getDuchyWithoutPublicKey(requisition)
+      val requisitionFulfillmentStub = requisitionFulfillmentStubMap.getValue(duchyId)
       requisitionFulfillmentStub.fulfillRequisition(requests)
+      println("************************************")
+      logger.info("Successfully fulfilled HMShuffle requisition ${requisition.name}")
     } catch (e: StatusException) {
       throw Exception("Error fulfilling requisition ${requisition.name}", e)
     }
+  }
+
+  private fun getDuchyWithoutPublicKey(requisition: Requisition): String {
+    return requisition.duchiesList
+      .singleOrNull { !it.value.honestMajorityShareShuffle.hasPublicKey() }
+      ?.key
+      ?: throw IllegalArgumentException(
+        "Expected exactly one Duchy entry with an HMSS encryption public key."
+      )
   }
 
   companion object {

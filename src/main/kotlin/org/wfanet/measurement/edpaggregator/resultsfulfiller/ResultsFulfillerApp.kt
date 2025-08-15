@@ -99,8 +99,8 @@ class ResultsFulfillerApp(
     val impressionsMetadataStorageConfig = getImpressionsMetadataStorageConfig(storageParams)
     val impressionsStorageConfig = getImpressionsStorageConfig(storageParams)
     val requisitionsStub = requisitionStubFactory.buildRequisitionsStub(fulfillerParams)
-    val requisitionFulfillmentStub =
-      requisitionStubFactory.buildRequisitionFulfillmentStub(fulfillerParams)
+
+    val requisitionFulfillmentStubsMap = requisitionStubFactory.buildRequisitionFulfillmentStubs(fulfillerParams)
     val dataProviderCertificateKey =
       checkNotNull(
         DataProviderCertificateKey.fromName(fulfillerParams.consentParams.edpCertificateName)
@@ -147,7 +147,7 @@ class ResultsFulfillerApp(
     ResultsFulfiller(
         loadPrivateKey(encryptionPrivateKeyFile),
         requisitionsStub,
-        requisitionFulfillmentStub,
+        requisitionFulfillmentStubsMap,
         dataProviderCertificateKey,
         dataProviderResultSigningKeyHandle,
         typeRegistry,

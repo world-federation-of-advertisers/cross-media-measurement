@@ -25,7 +25,7 @@ interface RequisitionStubFactory {
 
   fun buildRequisitionsStub(fulfillerParams: ResultsFulfillerParams): RequisitionsCoroutineStub
 
-  fun buildRequisitionFulfillmentStub(
+  fun buildRequisitionFulfillmentStubs(
     fulfillerParams: ResultsFulfillerParams
-  ): RequisitionFulfillmentCoroutineStub
+  ): Map<String, RequisitionFulfillmentCoroutineStub>
 }

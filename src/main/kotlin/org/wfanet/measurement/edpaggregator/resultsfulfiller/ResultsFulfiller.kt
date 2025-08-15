@@ -71,8 +71,8 @@ import org.wfanet.measurement.storage.SelectedStorageClient
 class ResultsFulfiller(
   private val privateEncryptionKey: PrivateKeyHandle,
   private val requisitionsStub: RequisitionsGrpcKt.RequisitionsCoroutineStub,
-  private val requisitionFulfillmentStub:
-    RequisitionFulfillmentGrpcKt.RequisitionFulfillmentCoroutineStub,
+  private val requisitionFulfillmentStubMap: Map<String,
+    RequisitionFulfillmentGrpcKt.RequisitionFulfillmentCoroutineStub>,
   private val dataProviderCertificateKey: DataProviderCertificateKey,
   private val dataProviderSigningKeyHandle: SigningKeyHandle,
   private val typeRegistry: TypeRegistry,
@@ -140,7 +140,7 @@ class ResultsFulfiller(
             frequencyVectorBuilder.build(),
             dataProviderSigningKeyHandle,
             dataProviderCertificateKey,
-            requisitionFulfillmentStub,
+            requisitionFulfillmentStubMap,
           )
         } else {
           throw Exception("Protocol not supported")
