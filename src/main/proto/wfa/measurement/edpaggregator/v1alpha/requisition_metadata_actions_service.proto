@@ -2,7 +2,7 @@
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
-// You may may obtain a copy of the License at
+// You may obtain a copy of the License at
 //
 //      http://www.apache.org/licenses/LICENSE-2.0
 //
@@ -31,18 +31,18 @@ option java_outer_classname = "RequisitionMetadataActionsServiceProto";
 // Service for managing RequisitionMetadataActions.
 //
 // Used for auditing and logging state changes for RequisitionMetadata.
+// (-- api-linter: core::0127::http-annotation=disabled
+//     aip.dev/not-precedent: This is a gRPC-only service. --)
 service RequisitionMetadataActionService {
   // Creates a new RequisitionMetadataAction entry.
   // This RPC has the side effect of updating the state of the parent
   // RequisitionMetadata resource.
+  // (-- api-linter: core::0133::http-uri-parent=disabled
+  //     aip.dev/not-precedent: This is a gRPC-only service. --)
+  // (-- api-linter: core::0133::method-signature=disabled
+  //     aip.dev/not-precedent: Etag is used to ensure idempotency. --)
   rpc CreateRequisitionMetadataAction(CreateRequisitionMetadataActionRequest)
       returns (RequisitionMetadataAction) {
-    option (google.api.http) = {
-      post: "/v1alpha/{parent=dataProviders/*/requisitionMetadata/*}/actions"
-      body: "requisition_metadata_action"
-    };
-    // (-- api-linter: core::0133::method-signature=disabled
-    //     aip.dev/not-precedent: Etag required for transactional update. --)
     option (google.api.method_signature) =
         "parent,requisition_metadata_action,requisition_metadata_etag";
   }
@@ -50,18 +50,12 @@ service RequisitionMetadataActionService {
   // Retrieves a specific RequisitionMetadataAction entry.
   rpc GetRequisitionMetadataAction(GetRequisitionMetadataActionRequest)
       returns (RequisitionMetadataAction) {
-    option (google.api.http) = {
-      get: "/v1alpha/{name=dataProviders/*/requisitionMetadata/*/actions/*}"
-    };
     option (google.api.method_signature) = "name";
   }
 
   // Lists RequisitionMetadataAction entries for a given RequisitionMetadata.
   rpc ListRequisitionMetadataActions(ListRequisitionMetadataActionsRequest)
       returns (ListRequisitionMetadataActionsResponse) {
-    option (google.api.http) = {
-      get: "/v1alpha/{parent=dataProviders/*/requisitionMetadata/*}/actions"
-    };
     option (google.api.method_signature) = "parent";
   }
 }
@@ -69,7 +63,7 @@ service RequisitionMetadataActionService {
 // Request message for the `CreateRequisitionMetadataAction` method.
 //
 // (-- api-linter: core::0133::request-id-field=disabled
-//     aip.dev/not-precedent: Idempotency handled by parent's etag. --)
+//     aip.dev/not-precedent: Idempotency is handled by the parent's etag. --)
 message CreateRequisitionMetadataActionRequest {
   // The parent RequisitionMetadata resource name.
   // Format:
