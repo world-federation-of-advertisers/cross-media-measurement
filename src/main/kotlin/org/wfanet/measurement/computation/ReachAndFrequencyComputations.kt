@@ -79,9 +79,9 @@ object ReachAndFrequencyComputations {
             val frequency = index + 1L
             frequency * count
           }
-        val scaledNoisedImpressionCount = (rawImpressionCount / vidSamplingIntervalWidth).toLong()
+        val scaledImpressionCount = (rawImpressionCount / vidSamplingIntervalWidth).toLong()
         if (
-          scaledNoisedImpressionCount < kAnonymityParams.minImpressions ||
+          scaledImpressionCount < kAnonymityParams.minImpressions ||
             minScaledNoisedReach < kAnonymityParams.minUsers
         ) {
           0
