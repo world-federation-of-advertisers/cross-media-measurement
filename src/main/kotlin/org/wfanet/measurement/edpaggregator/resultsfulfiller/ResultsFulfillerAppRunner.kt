@@ -36,7 +36,7 @@ import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.crypto.tink.GCloudWifCredentials
 import org.wfanet.measurement.common.edpaggregator.EdpaConfig.getConfigAsByteArray
 import org.wfanet.measurement.common.edpaggregator.EdpaConfig.getConfigAsProtoMessage
-import org.wfanet.measurement.config.edpaggregator.EdpsConfig
+import org.wfanet.measurement.config.edpaggregator.EdpConfigs
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
@@ -216,7 +216,7 @@ class ResultsFulfillerAppRunner : Runnable {
 
     kmsClientsMap = mutableMapOf()
 
-    edpsConfig.edpConfigsList.forEach { edpConfig ->
+    edpConfigs.configsList.forEach { edpConfig ->
       val kmsConfig =
         GCloudWifCredentials(
           audience = edpConfig.kmsAudience,
@@ -275,7 +275,7 @@ class ResultsFulfillerAppRunner : Runnable {
   }
 
   fun saveEdpsCerts() {
-    edpsConfig.edpConfigsList.forEach { edpConfig ->
+    edpConfigs.configsList.forEach { edpConfig ->
       val edpCertDer = accessSecretBytes(googleProjectId, edpConfig.certDerSecretId, SECRET_VERSION)
       saveByteArrayToFile(edpCertDer, edpConfig.certDerLocalPath)
       val edpPrivateDer = accessSecretBytes(googleProjectId, edpConfig.encPrivateSecretId, SECRET_VERSION)
@@ -361,8 +361,8 @@ class ResultsFulfillerAppRunner : Runnable {
       "https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/%s:generateAccessToken"
 
     private const val CONFIG_BLOB_KEY = "edps-config.textproto"
-    private val edpsConfig by lazy {
-      runBlocking { getConfigAsProtoMessage(CONFIG_BLOB_KEY, EdpsConfig.getDefaultInstance()) }
+    private val edpConfigs by lazy {
+      runBlocking { getConfigAsProtoMessage(CONFIG_BLOB_KEY, EdpConfigs.getDefaultInstance()) }
     }
 
     @JvmStatic fun main(args: Array<String>) = commandLineMain(ResultsFulfillerAppRunner(), args)
