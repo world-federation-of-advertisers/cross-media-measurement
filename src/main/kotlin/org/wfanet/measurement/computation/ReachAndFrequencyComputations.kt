@@ -73,21 +73,50 @@ object ReachAndFrequencyComputations {
       return minScaledNoisedReach
     }
     val kAnonymityImpressionCount = run {
-      val rawImpressionCount =
-        rawHistogram.withIndex().sumOf { (index, count) ->
-          val frequency = index + 1L
-          frequency * count
+      if (dpParams == null) {
+        val rawImpressionCount =
+          rawHistogram.withIndex().sumOf { (index, count) ->
+            val frequency = index + 1L
+            frequency * count
+          }
+        val scaledNoisedImpressionCount = (rawImpressionCount / vidSamplingIntervalWidth).toLong()
+        if (
+          scaledNoisedImpressionCount < kAnonymityParams.minImpressions ||
+            minScaledNoisedReach < kAnonymityParams.minUsers
+        ) {
+          0
+        } else {
+          minScaledNoisedReach
         }
-      val scaledImpressionCount = (rawImpressionCount / vidSamplingIntervalWidth).toLong()
-      // Note: This compares the non-noised impression count since there is no known maxFrequency
-      // needed to apply DP
-      if (
-        scaledImpressionCount < kAnonymityParams.minImpressions ||
-          minScaledNoisedReach < kAnonymityParams.minUsers
-      ) {
-        0
       } else {
-        minScaledNoisedReach
+        checkNotNull(kAnonymityParams.maxFrequencyPerUser) {
+          "frequencyPerUser cannot be null if dpParams and kAnonymityParams are set"
+        }
+        val rawImpressionCount =
+          rawHistogram.withIndex().sumOf { (index, count) ->
+            val frequency = min(kAnonymityParams.maxFrequencyPerUser!!, index + 1)
+            frequency * count
+          }
+
+        val noise = GaussianNoise()
+        val noisedImpressionCount =
+          noise.addNoise(
+            rawImpressionCount,
+            1,
+            kAnonymityParams.maxFrequencyPerUser!!.toLong(),
+            dpParams.epsilon,
+            dpParams.delta,
+          )
+        val scaledNoisedImpressionCount =
+          (noisedImpressionCount / vidSamplingIntervalWidth).toLong()
+        if (
+          scaledNoisedImpressionCount < kAnonymityParams.minImpressions ||
+            minScaledNoisedReach < kAnonymityParams.minUsers
+        ) {
+          0
+        } else {
+          minScaledNoisedReach
+        }
       }
     }
     return kAnonymityImpressionCount
