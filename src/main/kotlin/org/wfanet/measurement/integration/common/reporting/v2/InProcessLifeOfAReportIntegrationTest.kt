@@ -65,6 +65,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCorouti
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt
 import org.wfanet.measurement.api.v2alpha.eventGroup as cmmsEventGroup
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.api.v2alpha.getDataProviderRequest
 import org.wfanet.measurement.api.v2alpha.getMeasurementConsumerRequest
 import org.wfanet.measurement.api.v2alpha.listMeasurementsRequest
@@ -240,6 +241,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
           measurementConsumerConfig,
           TRUSTED_CERTIFICATES,
           inProcessCmmsComponents.kingdom.knownEventGroupMetadataTypes,
+          TestEvent.getDescriptor(),
           verboseGrpcLogging = false,
         )
       }

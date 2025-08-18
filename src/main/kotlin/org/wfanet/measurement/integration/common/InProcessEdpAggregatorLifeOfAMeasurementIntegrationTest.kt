@@ -30,6 +30,7 @@ import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCorou
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig.NoiseMechanism
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
@@ -90,6 +91,7 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
       pubSubClient = pubSubClient,
       syntheticEventGroupMap = mapOf("edpa-eg-reference-id-1" to syntheticEventGroupSpec),
       syntheticPopulationSpec = syntheticPopulationSpec,
+      populationSpecMap = populationSpecMap,
     )
 
   @Before
@@ -175,11 +177,19 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
     }
 
   @Test
-  fun `create incremental direct RF measurements in same report and check the result is equal to the expected result`() =
+  fun `create a direct reach only measurement and check the result is equal to the expected result`() =
+    runBlocking {
+      // Use frontend simulator to create a direct reach and frequency measurement and verify its
+      // result.
+      mcSimulator.testDirectReachOnly(runId = "1234", numMeasurements = 1)
+    }
+
+  @Test
+  fun `create incremental direct reach only measurements in same report and check the result is equal to the expected result`() =
     runBlocking {
       // Use frontend simulator to create N incremental direct reach and frequency measurements and
       // verify its result.
-      mcSimulator.testDirectReachAndFrequency(runId = "1234", numMeasurements = 3)
+      mcSimulator.testDirectReachOnly(runId = "1234", numMeasurements = 3)
     }
 
   companion object {
@@ -206,6 +216,22 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
       )
     private val TEST_DATA_RUNTIME_PATH = getRuntimePath(TEST_DATA_PATH)!!
 
+    private val TEST_RESULTS_FULFILER_DATA_PATH =
+      Paths.get(
+        "wfa_measurement_system",
+        "src",
+        "main",
+        "kotlin",
+        "org",
+        "wfanet",
+        "measurement",
+        "edpaggregator",
+        "resultsfulfiller",
+        "testing",
+      )
+    private val TEST_RESULTS_FULFILLER_DATA_RUNTIME_PATH =
+      getRuntimePath(TEST_RESULTS_FULFILER_DATA_PATH)!!
+
     val syntheticPopulationSpec: SyntheticPopulationSpec =
       parseTextProto(
         TEST_DATA_RUNTIME_PATH.resolve("small_population_spec.textproto").toFile(),
@@ -215,6 +241,15 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
       parseTextProto(
         TEST_DATA_RUNTIME_PATH.resolve("small_data_spec.textproto").toFile(),
         SyntheticEventGroupSpec.getDefaultInstance(),
+      )
+    val populationSpecMap =
+      mapOf(
+        "some-model-line" to
+          parseTextProto(
+            TEST_RESULTS_FULFILLER_DATA_RUNTIME_PATH.resolve("small_population_spec.textproto")
+              .toFile(),
+            PopulationSpec.getDefaultInstance(),
+          )
       )
 
     @BeforeClass

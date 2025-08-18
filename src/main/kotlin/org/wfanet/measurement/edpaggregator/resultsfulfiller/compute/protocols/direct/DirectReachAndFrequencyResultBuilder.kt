@@ -16,12 +16,10 @@
 
 package org.wfanet.measurement.edpaggregator.resultsfulfiller.compute.protocols.direct
 
-import java.security.SecureRandom
 import java.util.logging.Logger
-import kotlinx.coroutines.flow.Flow
 import org.wfanet.measurement.api.v2alpha.DeterministicCountDistinct
 import org.wfanet.measurement.api.v2alpha.DeterministicDistribution
-import org.wfanet.measurement.api.v2alpha.DifferentialPrivacyParams
+import org.wfanet.measurement.api.v2alpha.DifferentialPrivacyParams as CmmsDpParams
 import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementKt
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.ResultKt.frequency
@@ -29,41 +27,36 @@ import org.wfanet.measurement.api.v2alpha.MeasurementKt.ResultKt.reach
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig.NoiseMechanism
 import org.wfanet.measurement.api.v2alpha.Requisition
-import org.wfanet.measurement.dataprovider.MeasurementResults
+import org.wfanet.measurement.computation.DifferentialPrivacyParams
+import org.wfanet.measurement.computation.HistogramComputations
+import org.wfanet.measurement.computation.ReachAndFrequencyComputations
 import org.wfanet.measurement.dataprovider.RequisitionRefusalException
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.compute.MeasurementResultBuilder
-import org.wfanet.measurement.edpaggregator.resultsfulfiller.noise.Noiser
 import org.wfanet.measurement.eventdataprovider.noiser.DirectNoiseMechanism
 
 /**
  * Builder for direct reach and frequency measurement results.
  *
  * @param directProtocolConfig The direct protocol configuration.
- * @param sampledVids The sampled vids.
+ * @param frequencyData the Frequency Histogram.
  * @param maxFrequency The maximum frequency to consider.
  * @param reachPrivacyParams The differential privacy parameters for reach.
  * @param frequencyPrivacyParams The differential privacy parameters for frequency.
  * @param samplingRate The sampling rate used to sample the events.
  * @param directNoiseMechanism The direct noise mechanism to use.
- * @param random The random number generator to use.
+ * @param maxPopulation The max Population that can be returned.
  */
 class DirectReachAndFrequencyResultBuilder(
   private val directProtocolConfig: ProtocolConfig.Direct,
-  private val sampledVids: Flow<Long>,
+  private val frequencyData: IntArray,
   private val maxFrequency: Int,
-  private val reachPrivacyParams: DifferentialPrivacyParams,
-  private val frequencyPrivacyParams: DifferentialPrivacyParams,
+  private val reachPrivacyParams: CmmsDpParams,
+  private val frequencyPrivacyParams: CmmsDpParams,
   private val samplingRate: Float,
   private val directNoiseMechanism: DirectNoiseMechanism,
-  private val random: SecureRandom,
+  private val maxPopulation: Int?,
 ) : MeasurementResultBuilder {
-  private val logger: Logger = Logger.getLogger(this::class.java.name)
 
-  /**
-   * Builds a non-noisy reach and frequency measurement result.
-   *
-   * @return The non-noisy reach and frequency measurement result.
-   */
   override suspend fun buildMeasurementResult(): Measurement.Result {
     if (!directProtocolConfig.hasDeterministicCountDistinct()) {
       throw RequisitionRefusalException.Default(
@@ -77,23 +70,15 @@ class DirectReachAndFrequencyResultBuilder(
         "No valid methodologies for direct frequency distribution computation.",
       )
     }
+    val histogram: LongArray =
+      HistogramComputations.buildHistogram(
+        frequencyVector = frequencyData,
+        maxFrequency = maxFrequency,
+      )
 
-    var (sampledReachValue, frequencyMap) =
-      MeasurementResults.computeReachAndFrequency(sampledVids, maxFrequency)
+    val reachValue = getReachValue(histogram)
 
-    if (directNoiseMechanism != DirectNoiseMechanism.NONE) {
-      logger.info("Adding $directNoiseMechanism publisher noise to direct reach and frequency...")
-      val noiser = Noiser(directNoiseMechanism, random)
-
-      val sampledNoisedReachValue = noiser.addNoise(sampledReachValue, reachPrivacyParams)
-      val noisedFrequencyMap =
-        noiser.addNoise(frequencyMap, frequencyPrivacyParams, sampledReachValue)
-
-      sampledReachValue = sampledNoisedReachValue
-      frequencyMap = noisedFrequencyMap
-    }
-
-    val scaledReachValue = (sampledReachValue / samplingRate).toLong()
+    val frequencyMap = getFrequencyMap(histogram)
 
     val protocolConfigNoiseMechanism =
       when (directNoiseMechanism) {
@@ -104,7 +89,7 @@ class DirectReachAndFrequencyResultBuilder(
 
     return MeasurementKt.result {
       reach = reach {
-        value = scaledReachValue
+        value = reachValue
         this.noiseMechanism = protocolConfigNoiseMechanism
         deterministicCountDistinct = DeterministicCountDistinct.getDefaultInstance()
       }
@@ -114,5 +99,52 @@ class DirectReachAndFrequencyResultBuilder(
         deterministicDistribution = DeterministicDistribution.getDefaultInstance()
       }
     }
+  }
+
+  private fun getFrequencyMap(histogram: LongArray): Map<Long, Double> {
+    val frequencyDpParams =
+      if (directNoiseMechanism != DirectNoiseMechanism.NONE) {
+        logger.info("Adding $directNoiseMechanism publisher noise to direct reach and frequency...")
+        require(directNoiseMechanism == DirectNoiseMechanism.CONTINUOUS_GAUSSIAN) {
+          "Only Continuous Gaussian is supported for dp noise"
+        }
+        DifferentialPrivacyParams(
+          epsilon = frequencyPrivacyParams.epsilon,
+          delta = frequencyPrivacyParams.delta,
+        )
+      } else {
+        null
+      }
+    return ReachAndFrequencyComputations.computeFrequencyDistribution(
+      rawHistogram = histogram,
+      maxFrequency = maxFrequency,
+      dpParams = frequencyDpParams,
+    )
+  }
+
+  private fun getReachValue(histogram: LongArray): Long {
+    val reachDpParams =
+      if (directNoiseMechanism != DirectNoiseMechanism.NONE) {
+        logger.info("Adding $directNoiseMechanism publisher noise to direct reach...")
+        require(directNoiseMechanism == DirectNoiseMechanism.CONTINUOUS_GAUSSIAN) {
+          "Only Continuous Gaussian is supported for dp noise"
+        }
+        DifferentialPrivacyParams(
+          epsilon = reachPrivacyParams.epsilon,
+          delta = reachPrivacyParams.delta,
+        )
+      } else {
+        null
+      }
+    return ReachAndFrequencyComputations.computeReach(
+      rawHistogram = histogram,
+      dpParams = reachDpParams,
+      vidSamplingIntervalWidth = samplingRate,
+      vectorSize = maxPopulation,
+    )
+  }
+
+  companion object {
+    private val logger: Logger = Logger.getLogger(this::class.java.name)
   }
 }

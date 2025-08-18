@@ -90,8 +90,8 @@ class TrusTeeProcessorImpl(override val trusTeeParams: TrusTeeParams) : TrusTeeP
         val reach =
           ReachAndFrequencyComputations.computeReach(
             rawHistogram,
-            frequencyVector.size,
             vidSamplingIntervalWidth,
+            frequencyVector.size,
             trusTeeParams.dpParams.toDifferentialPrivacyParams(),
           )
 
@@ -101,8 +101,8 @@ class TrusTeeProcessorImpl(override val trusTeeParams: TrusTeeParams) : TrusTeeP
         val reach =
           ReachAndFrequencyComputations.computeReach(
             rawHistogram,
-            frequencyVector.size,
             vidSamplingIntervalWidth,
+            frequencyVector.size,
             trusTeeParams.reachDpParams.toDifferentialPrivacyParams(),
           )
         val frequency =

@@ -14,10 +14,11 @@
 
 package org.wfanet.measurement.computation
 
-import com.google.common.truth.Truth
+import com.google.common.truth.Truth.assertThat
 import kotlin.collections.iterator
 import kotlin.math.ln
 import kotlin.math.max
+import kotlin.math.min
 import kotlin.math.sqrt
 import kotlin.test.assertFailsWith
 import org.junit.Test
@@ -32,11 +33,11 @@ class ReachAndFrequencyComputationsTest {
     val reach =
       ReachAndFrequencyComputations.computeReach(
         rawHistogram,
-        vectorSize = 20,
         vidSamplingIntervalWidth = 1.0f,
+        vectorSize = 20,
         dpParams = null,
       )
-    Truth.assertThat(reach).isEqualTo(16)
+    assertThat(reach).isEqualTo(16)
   }
 
   @Test
@@ -45,11 +46,11 @@ class ReachAndFrequencyComputationsTest {
     val reach =
       ReachAndFrequencyComputations.computeReach(
         rawHistogram,
-        vectorSize = 40,
         vidSamplingIntervalWidth = 0.5f,
+        vectorSize = 40,
         dpParams = null,
       )
-    Truth.assertThat(reach).isEqualTo(32)
+    assertThat(reach).isEqualTo(32)
   }
 
   @Test
@@ -59,12 +60,12 @@ class ReachAndFrequencyComputationsTest {
     val reach =
       ReachAndFrequencyComputations.computeReach(
         rawHistogram,
-        vectorSize = 200,
         vidSamplingIntervalWidth = 1.0f,
+        vectorSize = 200,
         dpParams = DP_PARAMS,
       )
-    Truth.assertThat(reach).isAtMost(170 + tolerance)
-    Truth.assertThat(reach).isAtLeast(max(0L, 170 - tolerance))
+    assertThat(reach).isAtMost(min(200, 170 + tolerance))
+    assertThat(reach).isAtLeast(max(0L, 170 - tolerance))
   }
 
   @Test
@@ -77,9 +78,9 @@ class ReachAndFrequencyComputationsTest {
         dpParams = null,
       )
     val expected = mapOf(1L to 0.1, 2L to 0.3, 3L to 0.6)
-    Truth.assertThat(distribution.keys).isEqualTo(expected.keys)
+    assertThat(distribution.keys).isEqualTo(expected.keys)
     for ((k, v) in distribution) {
-      Truth.assertThat(v).isWithin(FLOAT_COMPARISON_TOLERANCE).of(expected[k]!!)
+      assertThat(v).isWithin(FLOAT_COMPARISON_TOLERANCE).of(expected[k]!!)
     }
   }
 
@@ -93,7 +94,7 @@ class ReachAndFrequencyComputationsTest {
         dpParams = null,
       )
     val expected = mapOf(1L to 0.0, 2L to 0.0, 3L to 0.0)
-    Truth.assertThat(distribution).isEqualTo(expected)
+    assertThat(distribution).isEqualTo(expected)
   }
 
   @Test
@@ -107,7 +108,7 @@ class ReachAndFrequencyComputationsTest {
         dpParams = DP_PARAMS,
       )
 
-    Truth.assertThat(distribution.values.sum()).isWithin(FLOAT_COMPARISON_TOLERANCE).of(1.0)
+    assertThat(distribution.values.sum()).isWithin(FLOAT_COMPARISON_TOLERANCE).of(1.0)
 
     val binCountTolerance = getNoiseTolerance(DP_PARAMS)
     val totalCountTolerance = getNoiseTolerance(DP_PARAMS, l2Sensitivity = sqrt(5.0))
@@ -121,8 +122,8 @@ class ReachAndFrequencyComputationsTest {
       val minProbability = minBinNoisedCount / maxTotalNoisedCount
       val maxProbability = maxBinNoisedCount / minTotalNoisedCount
 
-      Truth.assertThat(distribution[i + 1L]).isAtLeast(minProbability)
-      Truth.assertThat(distribution[i + 1L]).isAtMost(maxProbability)
+      assertThat(distribution[i + 1L]).isAtLeast(minProbability)
+      assertThat(distribution[i + 1L]).isAtMost(maxProbability)
     }
   }
 
@@ -137,7 +138,7 @@ class ReachAndFrequencyComputationsTest {
           dpParams = null,
         )
       }
-    Truth.assertThat(exception.message).contains("Invalid histogram size")
+    assertThat(exception.message).contains("Invalid histogram size")
   }
 
   companion object {
@@ -149,9 +150,9 @@ class ReachAndFrequencyComputationsTest {
     /**
      * Calculates a test tolerance for a noised value.
      *
-     * The standard deviation of the Gaussian noise is `sqrt(2 * ln(1.25 / delta)) / epsilon`. We
-     * return a tolerance of 6 standard deviations, which means a correct implementation should pass
-     * this check with near-certainty.
+     * The standard deviation of the Gaussian noise is `sqrt(2 * ln(1.25 / delta)) * l2Sensitivity /
+     * epsilon`. We return a tolerance of 6 standard deviations, which means a correct
+     * implementation should pass this check with near-certainty.
      */
     private fun getNoiseTolerance(
       dpParams: DifferentialPrivacyParams,

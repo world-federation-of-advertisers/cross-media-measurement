@@ -164,6 +164,14 @@ variable "results_fulfiller_event_descriptor" {
   })
 }
 
+variable "results_fulfiller_population_spec" {
+  description = "An object containing the local path of the results fulfiller population spec file and its destination path in Cloud Storage."
+  type = object({
+    local_path  = string
+    destination = string
+  })
+}
+
 variable "edp_aggregator_buckets_location" {
   description = "Location of the Storage buckets used by the Edp Aggregator."
   type        = string
