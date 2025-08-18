@@ -19,6 +19,7 @@ package wfa.measurement.edpaggregator.v1alpha;
 import "google/api/annotations.proto";
 import "google/api/client.proto";
 import "google/api/field_behavior.proto";
+import "google/api/field_info.proto";
 import "google/api/resource.proto";
 import "google/protobuf/timestamp.proto";
 import "wfa/measurement/edpaggregator/v1alpha/requisition_metadata.proto";
@@ -30,32 +31,26 @@ option java_multiple_files = true;
 option java_outer_classname = "RequisitionMetadataServiceProto";
 
 // Service for managing RequisitionMetadata.
+// (-- api-linter: core::0127::http-annotation=disabled
+//     aip.dev/not-precedent: This is a gRPC-only service. --)
 service RequisitionMetadataService {
   // Creates a new RequisitionMetadata entry.
+  // (-- api-linter: core::0133::http-uri-parent=disabled
+  //     aip.dev/not-precedent: This is a gRPC-only service. --)
   rpc CreateRequisitionMetadata(CreateRequisitionMetadataRequest)
       returns (RequisitionMetadata) {
-    option (google.api.http) = {
-      post: "/v1alpha/{parent=dataProviders/*}/requisitionMetadata"
-      body: "requisition_metadata"
-    };
     option (google.api.method_signature) = "parent,requisition_metadata";
   }
 
   // Creates multiple new RequisitionMetadata entries in a single request.
+  // (-- api-linter: core::0133::http-uri-parent=disabled
+  //     aip.dev/not-precedent: This is a gRPC-only service. --)
   rpc BatchCreateRequisitionMetadata(BatchCreateRequisitionMetadataRequest)
-      returns (BatchCreateRequisitionMetadataResponse) {
-    option (google.api.http) = {
-      post: "/v1alpha/{parent=dataProviders/*}/requisitionMetadata:batchCreate"
-      body: "*"
-    };
-  }
+      returns (BatchCreateRequisitionMetadataResponse) {}
 
   // Retrieves a specific RequisitionMetadata entry by its resource name.
   rpc GetRequisitionMetadata(GetRequisitionMetadataRequest)
       returns (RequisitionMetadata) {
-    option (google.api.http) = {
-      get: "/v1alpha/{name=dataProviders/*/requisitionMetadata/*}"
-    };
     option (google.api.method_signature) = "name";
   }
 
@@ -63,23 +58,17 @@ service RequisitionMetadataService {
   //
   // Exactly one of the lookup keys must be provided.
   // (-- api-linter: core::0131::synonyms=disabled
-  //     aip.dev/not-precedent: Custom method for alternative keys. --)
+  //     aip.dev/not-precedent: Custom method for alternative key lookup. --)
   // (-- api-linter: core::0136::response-message-name=disabled
-  //     aip.dev/not-precedent: Returning resource directly is more ergonomic.
+  //     aip.dev/not-precedent: Returning the resource directly is more
+  //     ergonomic.
   //     --)
   rpc LookupRequisitionMetadata(LookupRequisitionMetadataRequest)
-      returns (RequisitionMetadata) {
-    option (google.api.http) = {
-      get: "/v1alpha/{parent=dataProviders/*}/requisitionMetadata:lookup"
-    };
-  }
+      returns (RequisitionMetadata) {}
 
   // Lists RequisitionMetadata entries, with optional filtering and ordering.
   rpc ListRequisitionMetadata(ListRequisitionMetadataRequest)
       returns (ListRequisitionMetadataResponse) {
-    option (google.api.http) = {
-      get: "/v1alpha/{parent=dataProviders/*}/requisitionMetadata"
-    };
     option (google.api.method_signature) = "parent";
   }
 
@@ -89,20 +78,16 @@ service RequisitionMetadataService {
   // Used to determine the starting point for fetching new
   // requisitions from the Kingdom.
   // (-- api-linter: core::0131::synonyms=disabled
-  //     aip.dev/not-precedent: Custom query, not a standard Get. --)
+  //     aip.dev/not-precedent: This is a custom query, not a standard Get. --)
   rpc FetchLatestCmmsCreateTime(FetchLatestCmmsCreateTimeRequest)
       returns (google.protobuf.Timestamp) {
-    option (google.api.http) = {
-      get: "/v1alpha/{parent=dataProviders/*}:fetchLatestCmmsCreateTime"
-    };
     option (google.api.method_signature) = "parent";
   }
 }
 
 // Request message for the `CreateRequisitionMetadata` method.
 // (-- api-linter: core::0133::request-id-field=disabled
-//     aip.dev/not-precedent: Idempotency handled by resource's `request_id`.
-//     --)
+//     aip.dev/not-precedent: `request_id` is for idempotency per AIP-152. --)
 message CreateRequisitionMetadataRequest {
   // The parent data provider resource name.
   // Format: `dataProviders/{data_provider}`
@@ -116,6 +101,15 @@ message CreateRequisitionMetadataRequest {
   // The RequisitionMetadata to create.
   RequisitionMetadata requisition_metadata = 2
       [(google.api.field_behavior) = REQUIRED];
+
+  // A request ID provided by the client to ensure idempotency.
+  // This field must be a UUID4 (RFC 4122) string.
+  // If a request with the same ID is received again, the server will return
+  // the original resource without creating a new one.
+  string request_id = 3 [
+    (google.api.field_behavior) = OPTIONAL,
+    (google.api.field_info).format = UUID4
+  ];
 }
 
 // Request message for the `BatchCreateRequisitionMetadata` method.
@@ -169,9 +163,13 @@ message LookupRequisitionMetadataRequest {
     }
   ];
 
+  // Exactly one of the following lookup keys must be provided.
   oneof lookup_key {
-    // The resource name of the requisition in the CMMS (Kingdom).
-    string cmms_requisition = 2;
+    // The resource name of the requisition in the CMMS.
+    // Format: `dataProviders/{data_provider}/requisitions/{requisition}`
+    string cmms_requisition = 2 [
+      (google.api.resource_reference) = { type: "halo.wfanet.org/Requisition" }
+    ];
 
     // The blob storage URI.
     string blob_uri = 3;
@@ -200,7 +198,8 @@ message ListRequisitionMetadataRequest {
     // Filter by the state of the requisition.
     //
     // (-- api-linter: core::0216::state-field-output-only=disabled
-    //     aip.dev/not-precedent: Used for filtering input. --)
+    //     aip.dev/not-precedent: The state field is used for filtering input.
+    //     --)
     RequisitionMetadata.State state = 1
         [(google.api.field_behavior) = OPTIONAL];
     // Filter by the group ID of the requisition.
@@ -208,7 +207,8 @@ message ListRequisitionMetadataRequest {
   }
   // The filter to apply to the list. All filter fields are optional.
   // (-- api-linter: core::0132::request-field-types=disabled
-  //     aip.dev/not-precedent: Structured message is more type-safe. --)
+  //     aip.dev/not-precedent: A structured filter message is more type-safe.
+  //     --)
   Filter filter = 4 [(google.api.field_behavior) = OPTIONAL];
 }
 
