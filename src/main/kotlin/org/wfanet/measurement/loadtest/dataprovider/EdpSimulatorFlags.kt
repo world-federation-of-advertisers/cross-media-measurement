@@ -200,21 +200,6 @@ class EdpSimulatorFlags {
     )
     lateinit var impersonatedServiceAccount: String
       private set
-
-    @CommandLine.Option(
-      names = ["--edp-kms-audience"],
-      description = ["Kms credential audience as workload identity pool provider."],
-      required = true,
-    )
-    lateinit var edpKmsAudience: String
-      private set
-
-    @CommandLine.Option(
-      names = ["--edp-target-service-account"],
-      description = ["Edp service account with KMS access"],
-      required = true,
-    )
-    lateinit var edpTargetServiceAccount: String
   }
 
   companion object {
