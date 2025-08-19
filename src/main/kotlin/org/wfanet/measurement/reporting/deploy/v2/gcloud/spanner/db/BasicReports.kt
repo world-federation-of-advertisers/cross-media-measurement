@@ -177,7 +177,6 @@ fun AsyncDatabaseClient.TransactionContext.insertBasicReport(
   measurementConsumerId: Long,
   basicReport: BasicReport,
   state: BasicReport.State,
-  createReportRequestId: String? = null,
 ) {
   bufferInsertMutation("BasicReports") {
     set("MeasurementConsumerId").to(measurementConsumerId)
@@ -188,8 +187,8 @@ fun AsyncDatabaseClient.TransactionContext.insertBasicReport(
     set("ExternalCampaignGroupId").to(basicReport.externalCampaignGroupId)
     set("BasicReportResultDetails").to(basicReport.resultDetails)
     set("State").to(state)
-    if (createReportRequestId != null) {
-      set("CreateReportRequestId").to(createReportRequestId)
+    if (basicReport.createReportRequestId.isNotEmpty()) {
+      set("CreateReportRequestId").to(basicReport.createReportRequestId)
     }
     if (basicReport.externalReportId.isNotEmpty()) {
       set("ExternalReportId").to(basicReport.externalReportId)

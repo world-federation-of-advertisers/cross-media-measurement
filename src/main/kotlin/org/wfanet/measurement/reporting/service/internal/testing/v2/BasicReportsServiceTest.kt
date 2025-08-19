@@ -102,11 +102,11 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
       externalCampaignGroupId = REPORTING_SET.externalReportingSetId
       campaignGroupDisplayName = REPORTING_SET.displayName
       details = basicReportDetails { title = "title" }
+      createReportRequestId = "1235"
     }
 
     val request = createBasicReportRequest {
       this.basicReport = basicReport
-      createReportRequestId = "1235"
     }
 
     val response = service.createBasicReport(request)
@@ -115,12 +115,10 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
       .ignoringFields(
         BasicReport.CREATE_TIME_FIELD_NUMBER,
         BasicReport.STATE_FIELD_NUMBER,
-        BasicReport.CREATE_REPORT_REQUEST_ID_FIELD_NUMBER,
       )
       .isEqualTo(basicReport)
 
     assertThat(response.state).isEqualTo(BasicReport.State.CREATED)
-    assertThat(response.createReportRequestId).isEqualTo(request.createReportRequestId)
     assertThat(response.hasCreateTime())
   }
 
@@ -137,11 +135,11 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
         externalCampaignGroupId = REPORTING_SET.externalReportingSetId
         campaignGroupDisplayName = REPORTING_SET.displayName
         details = basicReportDetails { title = "title" }
+        createReportRequestId = "1235"
       }
 
       val request = createBasicReportRequest {
         this.basicReport = basicReport
-        createReportRequestId = "1235"
       }
 
       val exception = assertFailsWith<StatusRuntimeException> { service.createBasicReport(request) }
@@ -168,11 +166,11 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
       externalCampaignGroupId = REPORTING_SET.externalReportingSetId
       campaignGroupDisplayName = REPORTING_SET.displayName
       details = basicReportDetails { title = "title" }
+      createReportRequestId = "1235"
     }
 
     val request = createBasicReportRequest {
       this.basicReport = basicReport
-      createReportRequestId = "1235"
     }
 
     service.createBasicReport(request)
@@ -389,8 +387,9 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
     val createdBasicReport =
       service.createBasicReport(
         createBasicReportRequest {
-          basicReport = BASIC_REPORT
-          createReportRequestId = "1235"
+          basicReport = BASIC_REPORT.copy {
+            createReportRequestId = "1235"
+          }
         }
       )
 
@@ -874,8 +873,10 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
     val createdBasicReport =
       service.createBasicReport(
         createBasicReportRequest {
-          basicReport = BASIC_REPORT.copy { clearResultDetails() }
-          createReportRequestId = "1235"
+          basicReport = BASIC_REPORT.copy {
+            createReportRequestId = "1235"
+            clearResultDetails()
+          }
         }
       )
 

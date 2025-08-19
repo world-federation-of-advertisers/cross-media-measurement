@@ -244,7 +244,6 @@ class SpannerBasicReportsService(
           measurementConsumerId = measurementConsumerResult.measurementConsumerId,
           basicReport = request.basicReport,
           state = BasicReport.State.CREATED,
-          createReportRequestId = request.createReportRequestId,
         )
       }
     } catch (e: SpannerException) {
@@ -268,7 +267,6 @@ class SpannerBasicReportsService(
     return request.basicReport.copy {
       createTime = commitTimestamp
       state = BasicReport.State.CREATED
-      createReportRequestId = request.createReportRequestId
     }
   }
 

@@ -24,7 +24,8 @@ option java_multiple_files = true;
 
 // Internal service for persistence of Basic Report entities.
 service BasicReports {
-  // Inserts a `BasicReport` into the database.
+  // Inserts a `BasicReport` into the database in the
+  // `BasicReport.State.SUCCEEDED` state.
   //
   // The `BasicReport` must already be considered in the
   // `BasicReport.State.SUCCEEDED` state.
@@ -66,7 +67,6 @@ message InsertBasicReportRequest {
 
 message CreateBasicReportRequest {
   BasicReport basic_report = 1;
-  string create_report_request_id = 4;
 }
 
 message SetExternalReportIdRequest {
