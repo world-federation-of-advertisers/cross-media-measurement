@@ -102,3 +102,8 @@ variable "disk_image_family" {
   type        = string
   nullable    = false
 }
+
+variable "config_storage_bucket" {
+  description = "Configuration storage bucket."
+  type        = string
+}
