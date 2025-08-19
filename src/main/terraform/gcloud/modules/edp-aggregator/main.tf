@@ -153,6 +153,12 @@ resource "google_storage_bucket_object" "upload_requisition_fetcher_config" {
   source = var.requisition_fetcher_config.local_path
 }
 
+resource "google_storage_bucket_object" "upload_edps_config" {
+  name   = var.edps_config.destination
+  bucket = module.config_files_bucket.storage_bucket.name
+  source = var.edps_config.local_path
+}
+
 resource "google_storage_bucket_object" "upload_results_fulfiller_proto_descriptors" {
   name   = var.results_fulfiller_event_descriptor.destination
   bucket = module.config_files_bucket.storage_bucket.name
@@ -259,6 +265,7 @@ module "result_fulfiller_tee_app" {
   secrets_to_access             = local.result_fulfiller_secrets_to_access
   tee_cmd                       = var.requisition_fulfiller_config.worker.app_flags
   disk_image_family             = var.results_fulfiller_disk_image_family
+  config_storage_bucket         = module.config_files_bucket.storage_bucket.name
 }
 
 resource "google_storage_bucket_iam_member" "result_fulfiller_storage_viewer" {
