@@ -105,17 +105,12 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
       createReportRequestId = "1235"
     }
 
-    val request = createBasicReportRequest {
-      this.basicReport = basicReport
-    }
+    val request = createBasicReportRequest { this.basicReport = basicReport }
 
     val response = service.createBasicReport(request)
 
     assertThat(response)
-      .ignoringFields(
-        BasicReport.CREATE_TIME_FIELD_NUMBER,
-        BasicReport.STATE_FIELD_NUMBER,
-      )
+      .ignoringFields(BasicReport.CREATE_TIME_FIELD_NUMBER, BasicReport.STATE_FIELD_NUMBER)
       .isEqualTo(basicReport)
 
     assertThat(response.state).isEqualTo(BasicReport.State.CREATED)
@@ -138,9 +133,7 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
         createReportRequestId = "1235"
       }
 
-      val request = createBasicReportRequest {
-        this.basicReport = basicReport
-      }
+      val request = createBasicReportRequest { this.basicReport = basicReport }
 
       val exception = assertFailsWith<StatusRuntimeException> { service.createBasicReport(request) }
 
@@ -169,9 +162,7 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
       createReportRequestId = "1235"
     }
 
-    val request = createBasicReportRequest {
-      this.basicReport = basicReport
-    }
+    val request = createBasicReportRequest { this.basicReport = basicReport }
 
     service.createBasicReport(request)
 
@@ -387,9 +378,7 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
     val createdBasicReport =
       service.createBasicReport(
         createBasicReportRequest {
-          basicReport = BASIC_REPORT.copy {
-            createReportRequestId = "1235"
-          }
+          basicReport = BASIC_REPORT.copy { createReportRequestId = "1235" }
         }
       )
 
@@ -873,10 +862,11 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
     val createdBasicReport =
       service.createBasicReport(
         createBasicReportRequest {
-          basicReport = BASIC_REPORT.copy {
-            createReportRequestId = "1235"
-            clearResultDetails()
-          }
+          basicReport =
+            BASIC_REPORT.copy {
+              createReportRequestId = "1235"
+              clearResultDetails()
+            }
         }
       )
 
