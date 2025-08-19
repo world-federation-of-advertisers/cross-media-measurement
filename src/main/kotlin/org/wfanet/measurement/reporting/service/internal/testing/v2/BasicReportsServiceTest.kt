@@ -214,6 +214,7 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
       campaignGroupDisplayName = REPORTING_SET.displayName
       details = basicReportDetails { title = "title" }
       resultDetails = basicReportResultDetails { resultGroups += resultGroup }
+      externalReportId = "2237"
     }
 
     val response =
@@ -357,7 +358,9 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
     )
 
     val createdBasicReport =
-      service.insertBasicReport(insertBasicReportRequest { basicReport = BASIC_REPORT })
+      service.insertBasicReport(insertBasicReportRequest { basicReport = BASIC_REPORT.copy {
+        externalReportId = "2237"
+      } })
 
     val retrievedBasicReport =
       service.getBasicReport(
