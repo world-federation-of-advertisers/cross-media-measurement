@@ -120,6 +120,12 @@ variable "requisition_fetcher_config_file_path" {
   nullable    = false
 }
 
+variable "edps_config_file_path" {
+  description = "Path to the edps config file for the ResultsFulfiller TEE app."
+  type        = string
+  nullable    = false
+}
+
 variable "kingdom_public_api_target" {
   description = "Kingdom public api target"
   type        = string
@@ -205,20 +211,5 @@ variable "results_fulfiller_event_proto_descriptor_path" {
 
 variable "results_fulfiller_event_proto_descriptor_blob_uri" {
   description = "GCS blob uri of the FileDescriptorSet containing the event message descriptor."
-  type = string
-}
-
-variable "edpa_edp_kms_audience" {
-  description = "Edp Aggregator EDP KMS audience."
-  type = string
-}
-
-variable "edpa_edp_service_account" {
-  description = "Edp Aggregator EDP service account"
-  type = string
-}
-
-variable "edpa_edp_resource_name" {
-  description = "Edp Aggregator EDP Resource name"
   type = string
 }
