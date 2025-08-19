@@ -358,9 +358,9 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
     )
 
     val createdBasicReport =
-      service.insertBasicReport(insertBasicReportRequest { basicReport = BASIC_REPORT.copy {
-        externalReportId = "2237"
-      } })
+      service.insertBasicReport(
+        insertBasicReportRequest { basicReport = BASIC_REPORT.copy { externalReportId = "2237" } }
+      )
 
     val retrievedBasicReport =
       service.getBasicReport(
