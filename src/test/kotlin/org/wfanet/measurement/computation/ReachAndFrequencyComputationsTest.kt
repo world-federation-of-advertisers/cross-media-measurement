@@ -93,7 +93,7 @@ class ReachAndFrequencyComputationsTest {
         vectorSize = 40,
         dpParams = null,
         kAnonymityParams =
-          KAnonymityParams(minUsers = 30, minImpressions = 50, maxFrequencyPerUser = 3),
+          KAnonymityParams(minUsers = 30, minImpressions = 50, reachMaxFrequencyPerUser = 3),
       )
     assertThat(reach).isEqualTo(0)
   }
@@ -125,25 +125,10 @@ class ReachAndFrequencyComputationsTest {
         vectorSize = 200,
         dpParams = DP_PARAMS,
         kAnonymityParams =
-          KAnonymityParams(minUsers = 30, minImpressions = 50, maxFrequencyPerUser = 3),
+          KAnonymityParams(minUsers = 30, minImpressions = 50, reachMaxFrequencyPerUser = 3),
       )
     assertThat(reach).isAtMost(min(200, 170 + tolerance))
     assertThat(reach).isAtLeast(max(0L, 170 - tolerance))
-  }
-
-  @Test
-  fun `computeReach with noise and k-anonymity fails if maxFrequencyPerUser not set`() {
-    val rawHistogram = longArrayOf(100, 50, 20) // Reach in sample = 170
-    val tolerance = getNoiseTolerance(DP_PARAMS)
-    assertFailsWith<IllegalStateException> {
-      ReachAndFrequencyComputations.computeReach(
-        rawHistogram,
-        vidSamplingIntervalWidth = 1.0f,
-        vectorSize = 200,
-        dpParams = DP_PARAMS,
-        kAnonymityParams = KAnonymityParams(minUsers = 30, minImpressions = 50),
-      )
-    }
   }
 
   @Test
@@ -156,7 +141,7 @@ class ReachAndFrequencyComputationsTest {
         vectorSize = 200,
         dpParams = DP_PARAMS,
         kAnonymityParams =
-          KAnonymityParams(minUsers = 200, minImpressions = 200, maxFrequencyPerUser = 3),
+          KAnonymityParams(minUsers = 200, minImpressions = 200, reachMaxFrequencyPerUser = 3),
       )
     assertThat(reach).isEqualTo(0)
   }

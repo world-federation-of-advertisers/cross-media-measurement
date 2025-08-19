@@ -41,7 +41,6 @@ class DirectReachResultBuilderTest {
       val directReachResultBuilder =
         DirectReachResultBuilder(
           directProtocolConfig = DIRECT_PROTOCOL,
-          maxFrequency = MAX_FREQUENCY,
           reachPrivacyParams = REACH_PRIVACY_PARAMS,
           samplingRate = SAMPLING_RATE,
           directNoiseMechanism = DirectNoiseMechanism.NONE,
@@ -67,7 +66,6 @@ class DirectReachResultBuilderTest {
       val directReachResultBuilder =
         DirectReachResultBuilder(
           directProtocolConfig = DIRECT_PROTOCOL,
-          maxFrequency = MAX_FREQUENCY,
           reachPrivacyParams = REACH_PRIVACY_PARAMS,
           samplingRate = SAMPLING_RATE,
           directNoiseMechanism = DirectNoiseMechanism.CONTINUOUS_GAUSSIAN,
