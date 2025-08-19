@@ -912,11 +912,7 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
     )
 
     val createdBasicReport =
-      service.createBasicReport(
-        createBasicReportRequest {
-          basicReport = BASIC_REPORT
-        }
-      )
+      service.createBasicReport(createBasicReportRequest { basicReport = BASIC_REPORT })
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
