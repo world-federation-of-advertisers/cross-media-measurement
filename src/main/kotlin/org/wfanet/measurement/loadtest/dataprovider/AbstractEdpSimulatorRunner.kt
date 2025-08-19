@@ -20,6 +20,11 @@ import com.google.protobuf.Descriptors
 import com.google.protobuf.ExtensionRegistry
 import com.google.protobuf.TypeRegistry
 import io.grpc.ManagedChannel
+import java.io.File
+import java.security.cert.X509Certificate
+import java.time.Clock
+import java.time.ZoneId
+import kotlin.random.Random
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.EventAnnotationsProto
@@ -42,11 +47,6 @@ import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.dataprovider.DataProviderData
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.InMemoryVidIndexMap
 import picocli.CommandLine
-import java.io.File
-import java.security.cert.X509Certificate
-import java.time.Clock
-import java.time.ZoneId
-import kotlin.random.Random
 
 /** The base class of the EdpSimulator runner. */
 @CommandLine.Command(mixinStandardHelpOptions = true)
@@ -104,7 +104,7 @@ abstract class AbstractEdpSimulatorRunner : Runnable {
     logSketchDetails: Boolean,
     throttler: MinimumIntervalThrottler,
     health: SettableHealth,
-    trusteeEncryptionParams: AbstractEdpSimulator.TrusTeeParams?,
+    trusteeParams: AbstractEdpSimulator.TrusTeeParams?,
     kmsClientFactory: KmsClientFactory<GCloudWifCredentials>?,
     random: Random,
   ): AbstractEdpSimulator
