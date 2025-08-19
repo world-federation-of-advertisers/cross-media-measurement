@@ -141,7 +141,7 @@ expand_template(
         "{mc_api_key}": TEST_K8S_SETTINGS.mc_api_key,
         "{auth_id_token}": TEST_EDPA_SETTINGS.auth_id_token,
         "{requisition_fetcher_endpoint}": TEST_EDPA_SETTINGS.requisition_fetcher_endpoint,
-        "{test_environment}": TEST_EDPA_SETTINGS.test_environment,
+        "{storage_bucket}": TEST_EDPA_SETTINGS.storage_bucket,
     },
     tags = ["manual"],
     template = "edpa_correctness_test_config.tmpl.textproto",
