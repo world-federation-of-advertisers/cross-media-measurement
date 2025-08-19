@@ -22,33 +22,39 @@ option java_package = "org.wfanet.measurement.config.edpaggregator";
 option java_multiple_files = true;
 option java_outer_classname = "EdpConfigsProto";
 
+// Individual EDP config.
+message Config {
+  // Resource name referencing the `DataProvider` in an external system.
+  string data_provider = 1
+  [(google.api.resource_reference).type = "halo.wfanet.org/DataProvider"];
+  // Kms credential audience as workload identity pool provider.
+  string kms_audience = 2;
+  // Edp service account with KMS access.
+  string service_account = 3;
+  // Google secret ID for the EDP cert
+  string cert_der_secret_id = 4;
+  // Local file path for the EDP certificate DER file. Must match the `consent_params` field of the `results_fulfiller_param` proto in DataWatcher.
+  string cert_der_local_path = 5;
+  // Secret ID for the EDP encryption private der
+  string enc_private_der_secret_id = 6;
+  // Local file path for the EDP encryption private der. Must match the `consent_params` field of the `results_fulfiller_param` proto in DataWatcher.
+  string enc_private_der_local_path = 7;
+  // Secret ID for the EDP encryption private key
+  string enc_private_secret_id = 8;
+  // Local file path for the EDP encryption private key. Must match the `consent_params` field of the `results_fulfiller_param` proto in DataWatcher.
+  string enc_private_local_path = 9;
+  // Secret ID for the EDP TLS key.
+  string tls_key_secret_id = 10;
+  // Local file path for the EDP TLS key.
+  string tls_key_local_path = 11;
+  // Secret ID for the EDP TLS cert.
+  string tls_pem_secret_id = 12;
+  // Local file path for the EDP TLS certificate (PEM format).
+  string tls_pem_local_path = 13;
+}
+
 message EdpConfigs {
-  // The Edp config for a single EDP
-  message Config {
-    // Resource name referencing the `DataProvider` in an external system.
-    string data_provider = 1
-    [(google.api.resource_reference).type = "halo.wfanet.org/DataProvider"];
-    // Kms credential audience as workload identity pool provider.
-    string kms_audience = 2;
-    // Edp service account with KMS access.
-    string service_account = 3;
-    // Google secret ID for the EDP cert
-    string cert_der_secret_id = 4;
-    // Local file path for the EDP certificate DER file. Must match the `consent_params` field of the `results_fulfiller_param` proto in DataWatcher.
-    string cert_der_local_path = 5;
-    // Secret ID for the EDP encryption private key
-    string enc_private_secret_id = 6;
-    // Local file path for the EDP encryption private key. Must match the `consent_params` field of the `results_fulfiller_param` proto in DataWatcher.
-    string enc_private_local_path = 7;
-    // Secret ID for the EDP TLS key.
-    string tls_key_secret_id = 8;
-    // Local file path for the EDP TLS key.
-    string tls_key_local_path = 9;
-    // Secret ID for the EDP TLS cert.
-    string tls_pem_secret_id = 10;
-    // Local file path for the EDP TLS certificate (PEM format).
-    string tls_pem_local_path = 11;
-  }
+
   // List of EDP configurations.
   repeated Config configs = 1;
 }
