@@ -31,18 +31,18 @@ import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.eventdataprovider.noiser.DirectNoiseMechanism
 
 @RunWith(JUnit4::class)
-class DirectReachResultBuilderTest {
+class DirectImpressionResultBuilderTest {
 
   @Test
-  fun `buildMeasurementResult returns non-noisy reach result when noise mechanism is set to NONE`() =
+  fun `buildMeasurementResult returns non-noisy impression result when noise mechanism is set to NONE`() =
     runBlocking {
       val frequencyData = IntArray(100) { if (it < 90) 1 else 2 }
 
-      val directReachResultBuilder =
-        DirectReachResultBuilder(
+      val directImpressionResultBuilder =
+        DirectImpressionResultBuilder(
           directProtocolConfig = DIRECT_PROTOCOL,
           maxFrequency = MAX_FREQUENCY,
-          reachPrivacyParams = REACH_PRIVACY_PARAMS,
+          privacyParams = PRIVACY_PARAMS,
           samplingRate = SAMPLING_RATE,
           directNoiseMechanism = DirectNoiseMechanism.NONE,
           frequencyData = frequencyData,
@@ -50,25 +50,25 @@ class DirectReachResultBuilderTest {
           kAnonymityParams = null,
         )
 
-      val result = directReachResultBuilder.buildMeasurementResult()
+      val result = directImpressionResultBuilder.buildMeasurementResult()
 
       // Verify the result has the expected structure
-      assertThat(result.hasReach()).isTrue()
-      assertThat(result.reach.noiseMechanism).isEqualTo(NoiseMechanism.NONE)
-      assertThat(result.reach.hasDeterministicCountDistinct()).isTrue()
-      assertThat(result.reach.value).isEqualTo(100)
+      assertThat(result.hasImpression()).isTrue()
+      assertThat(result.impression.noiseMechanism).isEqualTo(NoiseMechanism.NONE)
+      assertThat(result.impression.hasDeterministicCount()).isTrue()
+      assertThat(result.impression.value).isEqualTo(110)
     }
 
   @Test
-  fun `buildMeasurementResult returns noisy reach-and-frequency result within acceptable range noise mechanism is set to CONTINUOUS_GAUSSIAN`() =
+  fun `buildMeasurementResult returns noisy impression-and-frequency result within acceptable range noise mechanism is set to CONTINUOUS_GAUSSIAN`() =
     runBlocking {
       val frequencyData = IntArray(100) { if (it < 90) 1 else 2 }
 
-      val directReachResultBuilder =
-        DirectReachResultBuilder(
+      val directImpressionResultBuilder =
+        DirectImpressionResultBuilder(
           directProtocolConfig = DIRECT_PROTOCOL,
           maxFrequency = MAX_FREQUENCY,
-          reachPrivacyParams = REACH_PRIVACY_PARAMS,
+          privacyParams = PRIVACY_PARAMS,
           samplingRate = SAMPLING_RATE,
           directNoiseMechanism = DirectNoiseMechanism.CONTINUOUS_GAUSSIAN,
           frequencyData = frequencyData,
@@ -76,8 +76,8 @@ class DirectReachResultBuilderTest {
           kAnonymityParams = null,
         )
 
-      val result = directReachResultBuilder.buildMeasurementResult().reach.value
-      val tolerance = calculateNoiseTolerance(REACH_PRIVACY_PARAMS, 1, 1.0)
+      val result = directImpressionResultBuilder.buildMeasurementResult().impression.value
+      val tolerance = calculateNoiseTolerance(PRIVACY_PARAMS, 1, MAX_FREQUENCY.toDouble())
       val rawImpressionCount = 110
       check(rawImpressionCount > tolerance) {
         "Test must be set up such that raw impression count $rawImpressionCount is greater than tolerance $tolerance"
@@ -87,8 +87,8 @@ class DirectReachResultBuilderTest {
     }
 
   companion object {
-    private val MAX_FREQUENCY = 10
-    private val REACH_PRIVACY_PARAMS = differentialPrivacyParams {
+    private val MAX_FREQUENCY = 2
+    private val PRIVACY_PARAMS = differentialPrivacyParams {
       epsilon = 1.0
       delta = 1E-9
     }
@@ -99,8 +99,7 @@ class DirectReachResultBuilderTest {
 
     private val DIRECT_PROTOCOL = direct {
       noiseMechanisms += NOISE_MECHANISM
-      deterministicCountDistinct =
-        ProtocolConfig.Direct.DeterministicCountDistinct.getDefaultInstance()
+      deterministicCount = ProtocolConfig.Direct.DeterministicCount.getDefaultInstance()
     }
 
     private fun getL2Sensitivity(l0Sensitivity: Int, lInfSensitivity: Double): Double {
