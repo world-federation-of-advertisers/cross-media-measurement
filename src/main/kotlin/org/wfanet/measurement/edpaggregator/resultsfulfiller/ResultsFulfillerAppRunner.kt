@@ -318,11 +318,13 @@ class ResultsFulfillerAppRunner : Runnable {
     val workItemAttemptsClient = WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineStub(publicChannel)
     val kingdomCertCollectionFile = File(KINGDOM_ROOT_CA_FILE_PATH)
 
+    // TODO: Add support for duchy channels
     val requisitionStubFactory =
       RequisitionStubFactoryImpl(
         cmmsCertHost = kingdomPublicApiCertHost,
         cmmsTarget = kingdomPublicApiTarget,
         trustedCertCollection = kingdomCertCollectionFile,
+        duchies = emptyMap(),
       )
 
     val typeRegistry: TypeRegistry = buildTypeRegistry()

@@ -477,7 +477,7 @@ abstract class MeasurementConsumerSimulator(
         runId,
         ::newReachOnlyMeasurementSpec,
         requiredCapabilities,
-        DEFAULT_VID_SAMPLING_INTERVAL,
+        vidSamplingInterval = vidSamplingInterval,
       )
     val measurementName = measurementInfo.measurement.name
     logger.info("Created reach-only measurement $measurementName.")
@@ -901,7 +901,6 @@ abstract class MeasurementConsumerSimulator(
             timePercentage,
           )
         }
-
     val measurementSpec =
       newMeasurementSpec(measurementConsumer.publicKey.message, nonceHashes, vidSamplingInterval)
     return createMeasurementInfo(measurementConsumer, measurementSpec, requisitions, runId)

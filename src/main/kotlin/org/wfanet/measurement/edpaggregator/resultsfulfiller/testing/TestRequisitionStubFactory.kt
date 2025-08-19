@@ -24,18 +24,25 @@ import org.wfanet.measurement.edpaggregator.resultsfulfiller.RequisitionStubFact
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
 
 /** A Test [RequisitionStubFactory] that ignores params and uses a test stub. */
-class TestRequisitionStubFactory(private val cmmsChannel: Channel) : RequisitionStubFactory {
-
+class TestRequisitionStubFactory(
+  private val cmmsChannel: Channel,
+  private val duchies: Map<String, Channel>,
+) : RequisitionStubFactory {
   override fun buildRequisitionsStub(
     fulfillerParams: ResultsFulfillerParams
   ): RequisitionsCoroutineStub {
     return RequisitionsCoroutineStub(cmmsChannel).withPrincipalName(fulfillerParams.dataProvider)
   }
 
-  override fun buildRequisitionFulfillmentStub(
+  override fun buildRequisitionFulfillmentStubs(
     fulfillerParams: ResultsFulfillerParams
-  ): RequisitionFulfillmentCoroutineStub {
-    return RequisitionFulfillmentCoroutineStub(cmmsChannel)
-      .withPrincipalName(fulfillerParams.dataProvider)
+  ): Map<String, RequisitionFulfillmentCoroutineStub> {
+    return duchies
+      .map { (duchyId, channel) ->
+        duchyId to
+          RequisitionFulfillmentCoroutineStub(duchies.getValue(duchyId))
+            .withPrincipalName(fulfillerParams.dataProvider)
+      }
+      .toMap()
   }
 }
