@@ -22,8 +22,6 @@ import "google/api/field_behavior.proto";
 import "google/api/resource.proto";
 import "wfa/measurement/edpaggregator/v1alpha/requisition_metadata.proto";
 
-// (-- api-linter: core::0191::java-package=disabled
-//     aip.dev/not-precedent: Project-wide convention. --)
 option java_package = "org.wfanet.measurement.edpaggregator.v1alpha";
 option java_multiple_files = true;
 option java_outer_classname = "RequisitionMetadataActionsServiceProto";
@@ -31,14 +29,10 @@ option java_outer_classname = "RequisitionMetadataActionsServiceProto";
 // Service for managing RequisitionMetadataActions.
 //
 // Used for auditing and logging state changes for RequisitionMetadata.
-// (-- api-linter: core::0127::http-annotation=disabled
-//     aip.dev/not-precedent: This is a gRPC-only service. --)
 service RequisitionMetadataActionService {
   // Creates a new RequisitionMetadataAction entry.
   // This RPC has the side effect of updating the state of the parent
   // RequisitionMetadata resource.
-  // (-- api-linter: core::0133::http-uri-parent=disabled
-  //     aip.dev/not-precedent: This is a gRPC-only service. --)
   // (-- api-linter: core::0133::method-signature=disabled
   //     aip.dev/not-precedent: Etag is used to ensure idempotency. --)
   rpc CreateRequisitionMetadataAction(CreateRequisitionMetadataActionRequest)
@@ -62,8 +56,6 @@ service RequisitionMetadataActionService {
 
 // Request message for the `CreateRequisitionMetadataAction` method.
 //
-// (-- api-linter: core::0133::request-id-field=disabled
-//     aip.dev/not-precedent: Idempotency is handled by the parent's etag. --)
 message CreateRequisitionMetadataActionRequest {
   // The parent RequisitionMetadata resource name.
   // Format:
@@ -81,14 +73,12 @@ message CreateRequisitionMetadataActionRequest {
 
   // The etag of the parent RequisitionMetadata.
   //
-  // This is used for optimistic concurrency control to ensure the state of the
-  // parent resource has not changed since it was last read.
-  // (-- api-linter: core::0133::request-unknown-fields=disabled
-  //     aip.dev/not-precedent: Required for parent's optimistic concurrency.
-  //     --)
+  // This is used to ensure the state of the parent resource has not changed
+  // since it was last read.
   // (-- api-linter: core::0133::request-required-fields=disabled
-  //     aip.dev/not-precedent: Required for parent's optimistic concurrency.
-  //     --)
+  //     aip.dev/not-precedent: To match the etag of the parent resource. --)
+  // (-- api-linter: core::0133::request-unknown-fields=disabled
+  //     aip.dev/not-precedent: To match the etag of the parent resource. --)
   string requisition_metadata_etag = 3 [(google.api.field_behavior) = REQUIRED];
 }
 
@@ -132,21 +122,15 @@ message ListRequisitionMetadataActionsRequest {
 
     // Filter by the state of the requisition before the action.
     //
-    // (-- api-linter: core::0216::state-field-output-only=disabled
-    //     aip.dev/not-precedent: Used for filtering input. --)
     RequisitionMetadata.State prior_state = 2
         [(google.api.field_behavior) = OPTIONAL];
 
     // Filter by the state of the requisition after the action.
     //
-    // (-- api-linter: core::0216::state-field-output-only=disabled
-    //     aip.dev/not-precedent: Used for filtering input. --)
     RequisitionMetadata.State new_state = 3
         [(google.api.field_behavior) = OPTIONAL];
   }
   // The filter to apply to the list. All filter fields are optional.
-  // (-- api-linter: core::0132::request-field-types=disabled
-  //     aip.dev/not-precedent: Structured message is more type-safe. --)
   Filter filter = 4 [(google.api.field_behavior) = OPTIONAL];
 }
 
