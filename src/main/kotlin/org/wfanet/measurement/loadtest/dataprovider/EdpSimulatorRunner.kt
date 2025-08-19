@@ -33,9 +33,12 @@ import org.wfanet.measurement.api.v2alpha.eventGroupMetadata
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
 import org.wfanet.measurement.common.SettableHealth
 import org.wfanet.measurement.common.commandLineMain
+import org.wfanet.measurement.common.crypto.tink.GCloudWifCredentials
+import org.wfanet.measurement.common.crypto.tink.KmsClientFactory
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.InMemoryVidIndexMap
+import org.wfanet.measurement.gcloud.kms.GCloudKmsClientFactory
 import org.wfanet.measurement.loadtest.config.PrivacyBudgets
 import picocli.CommandLine
 
@@ -111,6 +114,9 @@ class EdpSimulatorRunner : AbstractEdpSimulatorRunner() {
   override val eventGroupsOptions: List<EdpSimulator.EventGroupOptions>
     get() = _eventGroupsOptions
 
+  override val kmsClientFactory: KmsClientFactory<GCloudWifCredentials>
+    get() = GCloudKmsClientFactory()
+
   override fun buildEdpSimulator(
     measurementConsumerName: String,
     kingdomPublicApiChannel: ManagedChannel,
@@ -122,6 +128,8 @@ class EdpSimulatorRunner : AbstractEdpSimulatorRunner() {
     logSketchDetails: Boolean,
     throttler: MinimumIntervalThrottler,
     health: SettableHealth,
+    trusTeeParams: AbstractEdpSimulator.TrusTeeParams?,
+    kmsClientFactory: KmsClientFactory<GCloudWifCredentials>?,
     random: Random,
   ): AbstractEdpSimulator {
     return EdpSimulator(
@@ -142,6 +150,8 @@ class EdpSimulatorRunner : AbstractEdpSimulatorRunner() {
       random = random,
       logSketchDetails = logSketchDetails,
       health = health,
+      trusTeeParams = trusTeeParams,
+      kmsClientFactory = kmsClientFactory,
     )
   }
 
