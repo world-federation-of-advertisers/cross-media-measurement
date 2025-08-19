@@ -4,7 +4,6 @@ load("@wfa_common_jvm//build/maven:defs.bzl", "artifact_version")
 load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
 
 package(default_visibility = [
-    "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/requisition/v2alpha:__pkg__",
     test_target(":__pkg__"),
     "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/requisition/v2alpha:__pkg__",
 ])
