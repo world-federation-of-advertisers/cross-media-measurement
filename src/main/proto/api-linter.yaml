@@ -70,3 +70,25 @@
   - 'core::0131::synonyms'
   # Allow methods that operate on resources by lookup key.
   - 'core::0136::response-message-name'
+
+- included_paths:
+    - 'wfa/measurement/edpaggregator/v1alpha/*.proto'
+  disabled_rules:
+    # gRPC-only. REST/HTTP not supported.
+    - 'core::0127::http-annotation'
+    - 'core::0133::http-uri-parent'
+    # Java package uses full domain, while protobuf package does not.
+    - 'core::0191::java-package'
+    # Allow custom methods.
+    - 'core::0131::synonyms'
+    - 'core::0136::response-message-name'
+    # Linter incorrectly singularizes "Metadata"
+    - 'core::0233::request-requests-field'
+    - 'core::0233::response-resource-field'
+    # States are also used as records.
+    - 'core::0216::state-field-output-only'
+    # User-specified IDs not supported.
+    - 'core::0133::request-id-field'
+    # Customized filters are used.
+    - 'core::0132::request-field-types'
+

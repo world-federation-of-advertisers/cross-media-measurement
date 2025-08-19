@@ -20,8 +20,6 @@ import "google/api/field_behavior.proto";
 import "google/api/resource.proto";
 import "google/protobuf/timestamp.proto";
 
-// (-- api-linter: core::0191::java-package=disabled
-//     aip.dev/not-precedent: Project-wide convention. --)
 option java_package = "org.wfanet.measurement.edpaggregator.v1alpha";
 option java_multiple_files = true;
 option java_outer_classname = "RequisitionMetadataProto";
@@ -148,14 +146,10 @@ message RequisitionMetadataAction {
   ActionerType actioner_type = 3 [(google.api.field_behavior) = REQUIRED];
 
   // The state of the requisition before this action.
-  // (-- api-linter: core::0216::state-field-output-only=disabled
-  //     aip.dev/not-precedent: Input for immutable audit record. --)
   RequisitionMetadata.State prior_state = 4
       [(google.api.field_behavior) = REQUIRED];
 
   // The state of the requisition after this action.
-  // (-- api-linter: core::0216::state-field-output-only=disabled
-  //     aip.dev/not-precedent: Input for immutable audit record. --)
   RequisitionMetadata.State new_state = 5
       [(google.api.field_behavior) = REQUIRED];
 

@@ -24,27 +24,19 @@ import "google/api/resource.proto";
 import "google/protobuf/timestamp.proto";
 import "wfa/measurement/edpaggregator/v1alpha/requisition_metadata.proto";
 
-// (-- api-linter: core::0191::java-package=disabled
-//     aip.dev/not-precedent: Project-wide convention. --)
 option java_package = "org.wfanet.measurement.edpaggregator.v1alpha";
 option java_multiple_files = true;
 option java_outer_classname = "RequisitionMetadataServiceProto";
 
 // Service for managing RequisitionMetadata.
-// (-- api-linter: core::0127::http-annotation=disabled
-//     aip.dev/not-precedent: This is a gRPC-only service. --)
 service RequisitionMetadataService {
   // Creates a new RequisitionMetadata entry.
-  // (-- api-linter: core::0133::http-uri-parent=disabled
-  //     aip.dev/not-precedent: This is a gRPC-only service. --)
   rpc CreateRequisitionMetadata(CreateRequisitionMetadataRequest)
       returns (RequisitionMetadata) {
     option (google.api.method_signature) = "parent,requisition_metadata";
   }
 
   // Creates multiple new RequisitionMetadata entries in a single request.
-  // (-- api-linter: core::0133::http-uri-parent=disabled
-  //     aip.dev/not-precedent: This is a gRPC-only service. --)
   rpc BatchCreateRequisitionMetadata(BatchCreateRequisitionMetadataRequest)
       returns (BatchCreateRequisitionMetadataResponse) {}
 
@@ -57,12 +49,6 @@ service RequisitionMetadataService {
   // Looks up a single RequisitionMetadata resource by an alternative key.
   //
   // Exactly one of the lookup keys must be provided.
-  // (-- api-linter: core::0131::synonyms=disabled
-  //     aip.dev/not-precedent: Custom method for alternative key lookup. --)
-  // (-- api-linter: core::0136::response-message-name=disabled
-  //     aip.dev/not-precedent: Returning the resource directly is more
-  //     ergonomic.
-  //     --)
   rpc LookupRequisitionMetadata(LookupRequisitionMetadataRequest)
       returns (RequisitionMetadata) {}
 
@@ -77,8 +63,6 @@ service RequisitionMetadataService {
   //
   // Used to determine the starting point for fetching new
   // requisitions from the Kingdom.
-  // (-- api-linter: core::0131::synonyms=disabled
-  //     aip.dev/not-precedent: This is a custom query, not a standard Get. --)
   rpc FetchLatestCmmsCreateTime(FetchLatestCmmsCreateTimeRequest)
       returns (google.protobuf.Timestamp) {
     option (google.api.method_signature) = "parent";
@@ -86,8 +70,6 @@ service RequisitionMetadataService {
 }
 
 // Request message for the `CreateRequisitionMetadata` method.
-// (-- api-linter: core::0133::request-id-field=disabled
-//     aip.dev/not-precedent: `request_id` is for idempotency per AIP-152. --)
 message CreateRequisitionMetadataRequest {
   // The parent data provider resource name.
   // Format: `dataProviders/{data_provider}`
@@ -113,8 +95,6 @@ message CreateRequisitionMetadataRequest {
 }
 
 // Request message for the `BatchCreateRequisitionMetadata` method.
-// (-- api-linter: core::0233::request-requests-field=disabled
-//     aip.dev/not-precedent: Linter incorrectly singularizes "Metadata". --)
 message BatchCreateRequisitionMetadataRequest {
   // The parent data provider resource name.
   // Format: `dataProviders/{data_provider}`
@@ -131,8 +111,6 @@ message BatchCreateRequisitionMetadataRequest {
 }
 
 // Response message for the `BatchCreateRequisitionMetadata` method.
-// (-- api-linter: core::0233::response-resource-field=disabled
-//     aip.dev/not-precedent: Linter incorrectly singularizes "Metadata". --)
 message BatchCreateRequisitionMetadataResponse {
   // The list of newly created RequisitionMetadata, in the same order as the
   // request.
@@ -163,7 +141,7 @@ message LookupRequisitionMetadataRequest {
     }
   ];
 
-  // Exactly one of the following lookup keys must be provided.
+  // Lookup key for the request. Required.
   oneof lookup_key {
     // The resource name of the requisition in the CMMS.
     // Format: `dataProviders/{data_provider}/requisitions/{requisition}`
@@ -197,18 +175,12 @@ message ListRequisitionMetadataRequest {
   message Filter {
     // Filter by the state of the requisition.
     //
-    // (-- api-linter: core::0216::state-field-output-only=disabled
-    //     aip.dev/not-precedent: The state field is used for filtering input.
-    //     --)
     RequisitionMetadata.State state = 1
         [(google.api.field_behavior) = OPTIONAL];
     // Filter by the group ID of the requisition.
     string group_id = 2 [(google.api.field_behavior) = OPTIONAL];
   }
   // The filter to apply to the list. All filter fields are optional.
-  // (-- api-linter: core::0132::request-field-types=disabled
-  //     aip.dev/not-precedent: A structured filter message is more type-safe.
-  //     --)
   Filter filter = 4 [(google.api.field_behavior) = OPTIONAL];
 }
 
