@@ -202,6 +202,13 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
     }
 
   @Test
+  fun `create an impression measurement and check the result is equal to the expected result`() =
+    runBlocking {
+      // Use frontend simulator to create an impression measurement and verify its result.
+      mcSimulator.testImpression("1234")
+    }
+
+  @Test
   fun `create a Hmss reach-only measurement and check the result is equal to the expected result`() =
     runBlocking {
       // Use frontend simulator to create a reach and frequency measurement and verify its result.
@@ -219,7 +226,6 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
         "1234",
         DataProviderKt.capabilities { honestMajorityShareShuffleSupported = true },
       )
-    }
 
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
