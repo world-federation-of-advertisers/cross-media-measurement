@@ -47,6 +47,7 @@ class DirectImpressionResultBuilderTest {
           directNoiseMechanism = DirectNoiseMechanism.NONE,
           frequencyData = frequencyData,
           maxPopulation = null,
+          kAnonymityParams = null,
         )
 
       val result = directImpressionResultBuilder.buildMeasurementResult()
@@ -72,6 +73,7 @@ class DirectImpressionResultBuilderTest {
           directNoiseMechanism = DirectNoiseMechanism.CONTINUOUS_GAUSSIAN,
           frequencyData = frequencyData,
           maxPopulation = null,
+          kAnonymityParams = null,
         )
 
       val result = directImpressionResultBuilder.buildMeasurementResult().impression.value
