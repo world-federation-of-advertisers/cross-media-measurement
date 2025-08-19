@@ -174,7 +174,7 @@ class EdpSimulatorFlags {
   var healthFile: File? = null
     private set
 
-  @CommandLine.ArgGroup(exclusive = false) lateinit var trusteeParams: TrusTeeParams
+  @CommandLine.ArgGroup(exclusive = false) lateinit var trusTeeParams: TrusTeeParams
 
   class TrusTeeParams {
     @CommandLine.Option(
@@ -200,6 +200,21 @@ class EdpSimulatorFlags {
     )
     lateinit var impersonatedServiceAccount: String
       private set
+
+    @CommandLine.Option(
+      names = ["--edp-kms-audience"],
+      description = ["Kms credential audience as workload identity pool provider."],
+      required = true,
+    )
+    lateinit var edpKmsAudience: String
+      private set
+
+    @CommandLine.Option(
+      names = ["--edp-target-service-account"],
+      description = ["Edp service account with KMS access"],
+      required = true,
+    )
+    lateinit var edpTargetServiceAccount: String
   }
 
   companion object {
