@@ -226,6 +226,7 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
         "1234",
         DataProviderKt.capabilities { honestMajorityShareShuffleSupported = true },
       )
+    }
 
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
