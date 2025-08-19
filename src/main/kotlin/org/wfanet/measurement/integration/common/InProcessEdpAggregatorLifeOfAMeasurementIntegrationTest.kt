@@ -192,6 +192,13 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
       mcSimulator.testDirectReachOnly(runId = "1234", numMeasurements = 3)
     }
 
+  @Test
+  fun `create an impression measurement and check the result is equal to the expected result`() =
+    runBlocking {
+      // Use frontend simulator to create an impression measurement and verify its result.
+      mcSimulator.testImpression("1234")
+    }
+
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
     // Epsilon can vary from 0.0001 to 1.0, delta = 1e-15 is a realistic value.
