@@ -26,6 +26,7 @@ import java.util.logging.Logger
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.map
+import org.wfanet.frequencycount.FrequencyVector
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
@@ -40,7 +41,9 @@ import org.wfanet.measurement.api.v2alpha.unpack
 import org.wfanet.measurement.common.crypto.PrivateKeyHandle
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.flatten
+import org.wfanet.measurement.computation.HistogramComputations
 import org.wfanet.measurement.computation.KAnonymityParams
+import org.wfanet.measurement.computation.ReachAndFrequencyComputations
 import org.wfanet.measurement.consent.client.dataprovider.decryptRequisitionSpec
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.compute.protocols.direct.DirectMeasurementResultFactory
@@ -83,6 +86,7 @@ class ResultsFulfiller(
   private val noiserSelector: NoiserSelector,
   private val eventReader: EventReader,
   private val populationSpecMap: Map<String, PopulationSpec>,
+  private val kAnonymityParams: KAnonymityParams?,
 ) {
 
   private lateinit var populationSpec: PopulationSpec
@@ -128,20 +132,41 @@ class ResultsFulfiller(
       val fulfiller =
         if (protocols.any { it.hasDirect() }) {
           // TODO: Calculate the maximum population for a given cel filter
-          // TODO: Read in EDP kAnonymityParams
           buildDirectMeasurementFulfiller(
             requisition,
             measurementSpec,
             requisitionSpec,
             maxPopulation = null,
             frequencyData,
-            kAnonymityParams = null,
+            kAnonymityParams = kAnonymityParams,
           )
         } else if (protocols.any { it.hasHonestMajorityShareShuffle() }) {
+          val hmShuffleFrequencyVector: FrequencyVector =
+            if (kAnonymityParams == null) {
+              frequencyVectorBuilder.build()
+            } else {
+              if (
+                violatesKAnonymity(
+                  measurementSpec,
+                  frequencyData,
+                  kAnonymityParams,
+                  maxPopulation = null,
+                )
+              ) {
+                FrequencyVectorBuilder(
+                    measurementSpec = measurementSpec,
+                    populationSpec = populationSpec,
+                    strict = false,
+                  )
+                  .build()
+              } else {
+                frequencyVectorBuilder.build()
+              }
+            }
           HMShuffleMeasurementFulfiller(
             requisition,
             requisitionSpec.nonce,
-            frequencyVectorBuilder.build(),
+            hmShuffleFrequencyVector,
             dataProviderSigningKeyHandle,
             dataProviderCertificateKey,
             requisitionFulfillmentStubMap,
@@ -183,6 +208,29 @@ class ResultsFulfiller(
         ImpressionReadException.Code.INVALID_FORMAT,
       )
     }
+  }
+
+  /** Builds a direct measurement result. */
+  private fun violatesKAnonymity(
+    measurementSpec: MeasurementSpec,
+    frequencyData: IntArray,
+    kAnonymityParams: KAnonymityParams,
+    maxPopulation: Int?,
+  ): Boolean {
+    val histogram: LongArray =
+      HistogramComputations.buildHistogram(
+        frequencyVector = frequencyData,
+        maxFrequency = kAnonymityParams.maxFrequencyPerUser!!,
+      )
+    val reachValue =
+      ReachAndFrequencyComputations.computeReach(
+        rawHistogram = histogram,
+        vidSamplingIntervalWidth = measurementSpec.vidSamplingInterval.width,
+        vectorSize = maxPopulation,
+        dpParams = null,
+        kAnonymityParams = kAnonymityParams,
+      )
+    return reachValue == 0L
   }
 
   /** Builds a [DirectMeasurementFulfiller]. */

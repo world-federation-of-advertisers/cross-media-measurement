@@ -118,6 +118,7 @@ import org.wfanet.measurement.common.testing.verifyAndCapture
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.computation.DifferentialPrivacyParams
+import org.wfanet.measurement.computation.KAnonymityParams
 import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
 import org.wfanet.measurement.consent.client.measurementconsumer.decryptResult
 import org.wfanet.measurement.consent.client.measurementconsumer.encryptRequisitionSpec
@@ -133,6 +134,8 @@ import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
 import org.wfanet.measurement.edpaggregator.v1alpha.copy
+import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.FrequencyVectorBuilder
+import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.shareshuffle.FulfillRequisitionRequestBuilder
 import org.wfanet.measurement.integration.common.loadEncryptionPrivateKey
 import org.wfanet.measurement.loadtest.config.VidSampling
 import org.wfanet.measurement.storage.MesosRecordIoStorageClient
@@ -245,6 +248,7 @@ class ResultsFulfillerTest {
         ContinuousGaussianNoiseSelector(),
         eventReader,
         mapOf("some-model-line" to POPULATION_SPEC),
+        kAnonymityParams = null,
       )
 
     resultsFulfiller.fulfillRequisitions()
@@ -337,6 +341,7 @@ class ResultsFulfillerTest {
         ContinuousGaussianNoiseSelector(),
         eventReader,
         mapOf("some-model-line" to POPULATION_SPEC),
+        kAnonymityParams = null,
       )
 
     resultsFulfiller.fulfillRequisitions()
@@ -358,6 +363,107 @@ class ResultsFulfillerTest {
     assertThat(fulfilledRequisitions[0].header.honestMajorityShareShuffle.dataProviderCertificate)
       .isEqualTo(DATA_PROVIDER_CERTIFICATE_NAME)
     assertThat(fulfilledRequisitions[1].bodyChunk.data).isNotEmpty()
+    val emptyData =
+      FulfillRequisitionRequestBuilder.build(
+          MULTI_PARTY_REQUISITION,
+          MULTI_PARTY_REQUISITION.nonce,
+          EMPTY_FREQUENCY_VECTOR,
+          DATA_PROVIDER_CERTIFICATE_KEY,
+          EDP_RESULT_SIGNING_KEY,
+        )
+        .toList()[1]
+        .bodyChunk
+        .data
+    assertThat(fulfilledRequisitions[1].bodyChunk.data).isNotEqualTo(emptyData)
+  }
+
+  @Test
+  fun `runWork zeros out frequency vector for k-anonymity`() = runBlocking {
+    val impressionsTmpPath = Files.createTempDirectory(null).toFile()
+    val metadataTmpPath = Files.createTempDirectory(null).toFile()
+    val requisitionsTmpPath = Files.createTempDirectory(null).toFile()
+    val impressions =
+      List(130) {
+        LABELED_IMPRESSION.copy {
+          vid = it.toLong() + 1
+          eventTime = TIME_RANGE.start.toProtoTime()
+        }
+      }
+    // Set up KMS
+    val kmsClient = FakeKmsClient()
+    val kekUri = FakeKmsClient.KEY_URI_PREFIX + "kek"
+    val kmsKeyHandle = KeysetHandle.generateNew(KeyTemplates.get("AES128_GCM"))
+    kmsClient.setAead(kekUri, kmsKeyHandle.getPrimitive(Aead::class.java))
+    createData(
+      kmsClient,
+      kekUri,
+      impressionsTmpPath,
+      metadataTmpPath,
+      requisitionsTmpPath,
+      impressions,
+      listOf(MULTI_PARTY_REQUISITION),
+    )
+
+    val typeRegistry = TypeRegistry.newBuilder().add(TestEvent.getDescriptor()).build()
+
+    val eventReader =
+      EventReader(
+        kmsClient,
+        StorageConfig(rootDirectory = impressionsTmpPath),
+        StorageConfig(rootDirectory = metadataTmpPath),
+        IMPRESSIONS_METADATA_FILE_URI_PREFIX,
+      )
+
+    val resultsFulfiller =
+      ResultsFulfiller(
+        PRIVATE_ENCRYPTION_KEY,
+        requisitionsStub,
+        mapOf(
+          DUCHY_ONE_NAME to requisitionFulfillmentStub,
+          DUCHY_TWO_NAME to requisitionFulfillmentStub,
+        ),
+        DATA_PROVIDER_CERTIFICATE_KEY,
+        EDP_RESULT_SIGNING_KEY,
+        typeRegistry,
+        REQUISITIONS_FILE_URI,
+        StorageConfig(rootDirectory = requisitionsTmpPath),
+        ZoneOffset.UTC,
+        ContinuousGaussianNoiseSelector(),
+        eventReader,
+        mapOf("some-model-line" to POPULATION_SPEC),
+        kAnonymityParams = KAnonymityParams(minImpressions = 200, minUsers = 200),
+      )
+
+    resultsFulfiller.fulfillRequisitions()
+
+    val fulfilledRequisitions =
+      requisitionFulfillmentMock.fullfillRequisitionInvocations.single().requests
+    assertThat(fulfilledRequisitions).hasSize(2)
+    ProtoTruth.assertThat(fulfilledRequisitions[0])
+      .comparingExpectedFieldsOnly()
+      .isEqualTo(
+        fulfillRequisitionRequest {
+          header =
+            FulfillRequisitionRequestKt.header {
+              name = MULTI_PARTY_REQUISITION.name
+              nonce = REQUISITION_SPEC.nonce
+            }
+        }
+      )
+    assertThat(fulfilledRequisitions[0].header.honestMajorityShareShuffle.dataProviderCertificate)
+      .isEqualTo(DATA_PROVIDER_CERTIFICATE_NAME)
+    val emptyData =
+      FulfillRequisitionRequestBuilder.build(
+          MULTI_PARTY_REQUISITION,
+          MULTI_PARTY_REQUISITION.nonce,
+          EMPTY_FREQUENCY_VECTOR,
+          DATA_PROVIDER_CERTIFICATE_KEY,
+          EDP_RESULT_SIGNING_KEY,
+        )
+        .toList()[1]
+        .bodyChunk
+        .data
+    assertThat(fulfilledRequisitions[1].bodyChunk.data).isEqualTo(emptyData)
   }
 
   private suspend fun createData(
@@ -742,5 +848,13 @@ class ResultsFulfillerTest {
     private const val IMPRESSIONS_METADATA_BUCKET = "impression-metadata-bucket"
 
     private const val IMPRESSIONS_METADATA_FILE_URI_PREFIX = "file:///$IMPRESSIONS_METADATA_BUCKET"
+
+    private val EMPTY_FREQUENCY_VECTOR =
+      FrequencyVectorBuilder(
+          measurementSpec = MEASUREMENT_SPEC,
+          populationSpec = POPULATION_SPEC,
+          strict = false,
+        )
+        .build()
   }
 }
