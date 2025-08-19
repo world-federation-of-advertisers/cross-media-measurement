@@ -96,12 +96,8 @@ class FrequencyVectorBuilder(
         measurementSpec.reachAndFrequency.maximumFrequency
       } else if (measurementSpec.hasImpression()) {
         measurementSpec.impression.maximumFrequencyPerUser
-      } else if (
-        measurementSpec.hasReach() &&
-          kAnonymityParams != null &&
-          kAnonymityParams.maxFrequencyPerUser != null
-      ) {
-        kAnonymityParams.maxFrequencyPerUser!!
+      } else if (measurementSpec.hasReach()) {
+        kAnonymityParams?.maxFrequencyPerUser ?: 1
       } else {
         1
       }
