@@ -27,9 +27,12 @@ import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withShutdownTimeout
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
 
+class DuchyInfo(val target: String, val certHost: String)
+
 class RequisitionStubFactoryImpl(
   private val cmmsCertHost: String?,
   private val cmmsTarget: String,
+  private val duchies: Map<String, DuchyInfo>,
   private val channelShutdownTimeout: Duration = Duration.ofSeconds(3),
   private val trustedCertCollection: File,
 ) : RequisitionStubFactory {
@@ -60,29 +63,33 @@ class RequisitionStubFactoryImpl(
     return RequisitionsCoroutineStub(publicChannel)
   }
 
-  override fun buildRequisitionFulfillmentStub(
+  override fun buildRequisitionFulfillmentStubs(
     fulfillerParams: ResultsFulfillerParams
-  ): RequisitionFulfillmentCoroutineStub {
-    val publicChannel = run {
-      val signingCerts =
-        SigningCerts.fromPemFiles(
-          certificateFile =
-            checkNotNull(
-                getRuntimePath(Paths.get(fulfillerParams.cmmsConnection.clientCertResourcePath))
-              )
-              .toFile(),
-          privateKeyFile =
-            checkNotNull(
-                getRuntimePath(
-                  Paths.get(fulfillerParams.cmmsConnection.clientPrivateKeyResourcePath)
-                )
-              )
-              .toFile(),
-          trustedCertCollectionFile = trustedCertCollection,
-        )
-      buildMutualTlsChannel(cmmsTarget, signingCerts, cmmsCertHost)
-        .withShutdownTimeout(channelShutdownTimeout)
-    }
-    return RequisitionFulfillmentCoroutineStub(publicChannel)
+  ): Map<String, RequisitionFulfillmentCoroutineStub> {
+    return duchies
+      .map { (duchyResourceName: String, duchyInfo: DuchyInfo) ->
+        val publicChannel = run {
+          val signingCerts =
+            SigningCerts.fromPemFiles(
+              certificateFile =
+                checkNotNull(
+                    getRuntimePath(Paths.get(fulfillerParams.cmmsConnection.clientCertResourcePath))
+                  )
+                  .toFile(),
+              privateKeyFile =
+                checkNotNull(
+                    getRuntimePath(
+                      Paths.get(fulfillerParams.cmmsConnection.clientPrivateKeyResourcePath)
+                    )
+                  )
+                  .toFile(),
+              trustedCertCollectionFile = trustedCertCollection,
+            )
+          buildMutualTlsChannel(duchyInfo.target, signingCerts, duchyInfo.certHost)
+            .withShutdownTimeout(channelShutdownTimeout)
+        }
+        duchyResourceName to RequisitionFulfillmentCoroutineStub(publicChannel)
+      }
+      .toMap()
   }
 }
