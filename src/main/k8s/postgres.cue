@@ -17,8 +17,8 @@ package k8s
 #CommonPostgresConfig: {
 	_flags: [_=string]: string
 
-	user?:     string
-	database?: string
+	user?:             string
+	database?:         string
 	statementTimeout?: string
 	flags: [ for name, value in _flags {"\(name)=\(value)"}]
 
