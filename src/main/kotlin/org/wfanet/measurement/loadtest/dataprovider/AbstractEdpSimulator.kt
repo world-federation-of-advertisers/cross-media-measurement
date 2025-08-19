@@ -108,6 +108,8 @@ import org.wfanet.measurement.common.api.grpc.listResources
 import org.wfanet.measurement.common.asBufferedFlow
 import org.wfanet.measurement.common.crypto.authorityKeyIdentifier
 import org.wfanet.measurement.common.crypto.readCertificate
+import org.wfanet.measurement.common.crypto.tink.GCloudWifCredentials
+import org.wfanet.measurement.common.crypto.tink.KmsClientFactory
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.common.toInterval
@@ -135,7 +137,8 @@ import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.api.v2al
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.api.v2alpha.PrivacyQueryMapper.getMpcAcdpQuery
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.FrequencyVectorBuilder
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.VidIndexMap
-import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.shareshuffle.FulfillRequisitionRequestBuilder
+import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.shareshuffle.FulfillRequisitionRequestBuilder as ShareshuffleRequisitionRequestBuilder
+import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.trustee.FulfillRequisitionRequestBuilder as TrusTeeRequisitionRequestBuilder
 import org.wfanet.measurement.loadtest.common.sampleVids
 import org.wfanet.measurement.loadtest.config.TestIdentifiers.SIMULATOR_EVENT_GROUP_REFERENCE_ID_PREFIX
 
@@ -166,10 +169,17 @@ abstract class AbstractEdpSimulator(
   private val random: Random,
   private val logSketchDetails: Boolean,
   private val health: SettableHealth,
+  private val trusTeeParams: TrusTeeParams? = null,
+  private val kmsClientFactory: KmsClientFactory<GCloudWifCredentials>? = null,
   private val blockingCoroutineContext: @BlockingExecutor CoroutineContext,
 ) :
   RequisitionFulfiller(edpData, certificatesStub, requisitionsStub, throttler, trustedCertificates),
   Health by health {
+  data class TrusTeeParams(
+    val kmsKekUri: String,
+    val workloadIdentityProvider: String,
+    val impersonatedServiceAccount: String,
+  )
 
   interface EventGroupOptions {
     val referenceIdSuffix: String
@@ -204,6 +214,7 @@ abstract class AbstractEdpSimulator(
     add(ProtocolConfig.Protocol.ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2)
     if (vidIndexMap != null) {
       add(ProtocolConfig.Protocol.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE)
+      add(ProtocolConfig.Protocol.ProtocolCase.TRUS_TEE)
     }
   }
 
@@ -354,6 +365,7 @@ abstract class AbstractEdpSimulator(
               trustedIssuer,
             )
           }
+        ProtocolConfig.Protocol.ProtocolCase.TRUS_TEE -> {}
         else -> throw InvalidSpecException("Unsupported protocol $protocol")
       }
     } catch (e: CertPathValidatorException) {
@@ -397,13 +409,12 @@ abstract class AbstractEdpSimulator(
 
     if (protocol == ProtocolConfig.Protocol.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE) {
       if (requisition.duchiesList.size != 2) {
-        logger.log(
-          Level.WARNING,
-          "Two duchy entries are expected, but there are ${requisition.duchiesList.size}.",
-        )
+        val message =
+          "Two duchy entries are expected, but there are ${requisition.duchiesList.size}."
+        logger.log(Level.WARNING, message)
         throw RequisitionRefusalException.Default(
           Requisition.Refusal.Justification.SPEC_INVALID,
-          "Two duchy entries are expected, but there are ${requisition.duchiesList.size}.",
+          message,
         )
       }
 
@@ -413,13 +424,23 @@ abstract class AbstractEdpSimulator(
           .map { it.value.honestMajorityShareShuffle.publicKey }
 
       if (publicKeyList.size != 1) {
-        logger.log(
-          Level.WARNING,
-          "Exactly one duchy entry is expected to have the encryption public key, but ${publicKeyList.size} duchy entries do.",
-        )
+        val message =
+          "Exactly one duchy entry is expected to have the encryption public key, but ${publicKeyList.size} duchy entries do."
+        logger.log(Level.WARNING, message)
         throw RequisitionRefusalException.Default(
           Requisition.Refusal.Justification.SPEC_INVALID,
-          "Exactly one duchy entry is expected to have the encryption public key, but ${publicKeyList.size} duchy entries do.",
+          message,
+        )
+      }
+    }
+
+    if (protocol == ProtocolConfig.Protocol.ProtocolCase.TRUS_TEE) {
+      if (requisition.duchiesList.size != 1) {
+        val message = "One duchy entry is expected, but there are ${requisition.duchiesList.size}."
+        logger.log(Level.WARNING, message)
+        throw RequisitionRefusalException.Default(
+          Requisition.Refusal.Justification.SPEC_INVALID,
+          message,
         )
       }
     }
@@ -632,6 +653,24 @@ abstract class AbstractEdpSimulator(
             requisitionSpec.nonce,
             eventGroupSpecs,
           )
+        } else if (protocols.any { it.hasTrusTee() }) {
+          if (!measurementSpec.hasReach() && !measurementSpec.hasReachAndFrequency()) {
+            throw RequisitionRefusalException.Default(
+              Requisition.Refusal.Justification.SPEC_INVALID,
+              "Measurement type not supported for protocol TrusTee.",
+            )
+          }
+
+          val protocolConfig = ProtocolConfig.Protocol.ProtocolCase.TRUS_TEE
+          verifyProtocolConfig(requisition.name, protocolConfig)
+          verifyDuchyEntries(requisition, protocolConfig)
+
+          fulfillRequisitionForTrusTeeMeasurement(
+            requisition,
+            measurementSpec,
+            requisitionSpec.nonce,
+            eventGroupSpecs,
+          )
         } else {
           throw RequisitionRefusalException.Default(
             Requisition.Refusal.Justification.SPEC_INVALID,
@@ -681,14 +720,16 @@ abstract class AbstractEdpSimulator(
     }
   }
 
-  private suspend fun chargeMpcPrivacyBudget(
+  private suspend fun chargeIndirectPrivacyBudget(
     requisitionName: String,
     measurementSpec: MeasurementSpec,
     eventSpecs: Iterable<RequisitionSpec.EventGroupEntry.Value>,
     noiseMechanism: NoiseMechanism,
     contributorCount: Int,
   ) {
-    logger.info("chargeMpcPrivacyBudget for requisition with $noiseMechanism noise mechanism...")
+    logger.info(
+      "chargeIndirectPrivacyBudget for requisition with $noiseMechanism noise mechanism..."
+    )
 
     try {
       if (noiseMechanism != NoiseMechanism.DISCRETE_GAUSSIAN) {
@@ -706,7 +747,7 @@ abstract class AbstractEdpSimulator(
         )
       )
     } catch (e: PrivacyBudgetManagerException) {
-      logger.log(Level.WARNING, "chargeMpcPrivacyBudget failed due to ${e.errorType}", e)
+      logger.log(Level.WARNING, "chargeIndirectPrivacyBudget failed due to ${e.errorType}", e)
       when (e.errorType) {
         PrivacyBudgetManagerExceptionType.PRIVACY_BUDGET_EXCEEDED -> {
           throw RequisitionRefusalException.Default(
@@ -855,7 +896,7 @@ abstract class AbstractEdpSimulator(
     val liquidLegionsV2: ProtocolConfig.LiquidLegionsV2 = llv2Protocol.liquidLegionsV2
     val combinedPublicKey = requisition.getCombinedPublicKey(liquidLegionsV2.ellipticCurveId)
 
-    chargeMpcPrivacyBudget(
+    chargeIndirectPrivacyBudget(
       requisition.name,
       measurementSpec,
       eventGroupSpecs.map { it.spec },
@@ -915,7 +956,7 @@ abstract class AbstractEdpSimulator(
     val combinedPublicKey: AnySketchElGamalPublicKey =
       requisition.getCombinedPublicKey(protocolConfig.ellipticCurveId)
 
-    chargeMpcPrivacyBudget(
+    chargeIndirectPrivacyBudget(
       requisition.name,
       measurementSpec,
       eventGroupSpecs.map { it.spec },
@@ -1020,7 +1061,7 @@ abstract class AbstractEdpSimulator(
         }
         .honestMajorityShareShuffle
 
-    chargeMpcPrivacyBudget(
+    chargeIndirectPrivacyBudget(
       requisition.name,
       measurementSpec,
       eventGroupSpecs.map { it.spec },
@@ -1053,7 +1094,7 @@ abstract class AbstractEdpSimulator(
     logger.log(Level.INFO) { "Sampled frequency vector size:\n${sampledFrequencyVector.dataCount}" }
 
     val requests =
-      FulfillRequisitionRequestBuilder.build(
+      ShareshuffleRequisitionRequestBuilder.build(
           requisition,
           nonce,
           sampledFrequencyVector,
@@ -1061,6 +1102,84 @@ abstract class AbstractEdpSimulator(
           edpData.signingKeyHandle,
         )
         .asFlow()
+
+    val duchyId = getDuchyWithoutPublicKey(requisition)
+    val requisitionFulfillmentStub =
+      requisitionFulfillmentStubsByDuchyId[duchyId]
+        ?: throw Exception("Requisition fulfillment stub not found for $duchyId.")
+    fulfillRequisition(requisitionFulfillmentStub, requisition, requests)
+  }
+
+  /** Fulfill Trustee Measurement's Requisition. */
+  private suspend fun fulfillRequisitionForTrusTeeMeasurement(
+    requisition: Requisition,
+    measurementSpec: MeasurementSpec,
+    nonce: Long,
+    eventGroupSpecs: Iterable<EventQuery.EventGroupSpec>,
+  ) {
+    requireNotNull(vidIndexMap) { "TrusTee VidIndexMap cannot be null." }
+
+    requireNotNull(
+      requisition.protocolConfig.protocolsList.find { protocol -> protocol.hasTrusTee() }
+    ) {
+      "Protocol with TrusTee is missing"
+    }
+
+    chargeIndirectPrivacyBudget(
+      requisition.name,
+      measurementSpec,
+      eventGroupSpecs.map { it.spec },
+      NoiseMechanism.CONTINUOUS_GAUSSIAN,
+      1,
+    )
+
+    logger.info("Generating sampled frequency vector for TrusTee...")
+    val frequencyVectorBuilder =
+      FrequencyVectorBuilder(vidIndexMap.populationSpec, measurementSpec, strict = false)
+    for (eventGroupSpec in eventGroupSpecs) {
+      eventQuery.getUserVirtualIds(eventGroupSpec).forEach {
+        frequencyVectorBuilder.increment(vidIndexMap[it])
+      }
+    }
+
+    val sampledFrequencyVector = frequencyVectorBuilder.build()
+    logger.log(Level.INFO) { "Sampled frequency vector size:\n${sampledFrequencyVector.dataCount}" }
+
+    val requests: Flow<FulfillRequisitionRequest> =
+      if (trusTeeParams != null) {
+        requireNotNull(kmsClientFactory) { "kmsClientFactory cannot be null." }
+        val credentials =
+          GCloudWifCredentials(
+            audience = trusTeeParams.workloadIdentityProvider,
+            subjectTokenType = OAUTH_TOKEN_TYPE_ID_TOKEN,
+            tokenUrl = GOOGLE_STS_TOKEN_URL,
+            credentialSourceFilePath = ATTESTATION_TOKEN_PATH,
+            serviceAccountImpersonationUrl =
+              IAM_IMPERSONATION_URL_FORMAT.format(trusTeeParams.impersonatedServiceAccount),
+          )
+
+        val encryptionParams =
+          TrusTeeRequisitionRequestBuilder.EncryptionParams(
+            kmsClientFactory.getKmsClient(credentials),
+            trusTeeParams.kmsKekUri,
+            trusTeeParams.workloadIdentityProvider,
+            trusTeeParams.impersonatedServiceAccount,
+          )
+        TrusTeeRequisitionRequestBuilder.buildEncrypted(
+            requisition,
+            nonce,
+            sampledFrequencyVector,
+            encryptionParams,
+          )
+          .asFlow()
+      } else {
+        TrusTeeRequisitionRequestBuilder.buildUnencrypted(
+            requisition,
+            nonce,
+            sampledFrequencyVector,
+          )
+          .asFlow()
+      }
 
     val duchyId = getDuchyWithoutPublicKey(requisition)
     val requisitionFulfillmentStub =
@@ -1504,6 +1623,12 @@ abstract class AbstractEdpSimulator(
     private const val UNFULFILLABLE_EVENT_GROUP_ID = "unfulfillable"
     // Resource ID for EventGroup that fails Requisitions with DECLINED if used.
     private const val DECLINED_EVENT_GROUP_ID = "declined"
+
+    private const val OAUTH_TOKEN_TYPE_ID_TOKEN = "urn:ietf:params:oauth:token-type:id_token"
+    private const val GOOGLE_STS_TOKEN_URL = "https://sts.googleapis.com/v1/token"
+    private const val IAM_IMPERSONATION_URL_FORMAT =
+      "https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/%s:generateAccessToken"
+    private const val ATTESTATION_TOKEN_PATH = "attestation/token/path"
 
     fun getEventGroupReferenceIdPrefix(edpDisplayName: String): String {
       return "$SIMULATOR_EVENT_GROUP_REFERENCE_ID_PREFIX-${edpDisplayName}"

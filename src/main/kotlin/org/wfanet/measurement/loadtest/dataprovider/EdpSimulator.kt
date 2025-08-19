@@ -33,6 +33,8 @@ import org.wfanet.measurement.api.v2alpha.MediaType
 import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt
 import org.wfanet.measurement.common.SettableHealth
+import org.wfanet.measurement.common.crypto.tink.GCloudWifCredentials
+import org.wfanet.measurement.common.crypto.tink.KmsClientFactory
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.dataprovider.DataProviderData
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetManager
@@ -58,6 +60,8 @@ class EdpSimulator(
   random: Random = Random,
   logSketchDetails: Boolean = false,
   health: SettableHealth = SettableHealth(),
+  trusTeeParams: TrusTeeParams? = null,
+  kmsClientFactory: KmsClientFactory<GCloudWifCredentials>? = null,
   blockingCoroutineContext: @BlockingExecutor CoroutineContext = Dispatchers.IO,
 ) :
   AbstractEdpSimulator(
@@ -79,8 +83,11 @@ class EdpSimulator(
     random,
     logSketchDetails,
     health,
+    trusTeeParams,
+    kmsClientFactory,
     blockingCoroutineContext,
   ) {
+
   interface EventGroupOptions : AbstractEdpSimulator.EventGroupOptions {
     val mediaTypes: Set<MediaType>
     val metadata: EventGroupMetadata?
