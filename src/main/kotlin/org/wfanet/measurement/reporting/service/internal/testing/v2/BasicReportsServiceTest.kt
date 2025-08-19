@@ -106,7 +106,6 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
 
     val request = createBasicReportRequest {
       this.basicReport = basicReport
-      externalBasicReportId = "1234"
       createReportRequestId = "1235"
     }
 
@@ -116,13 +115,11 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
       .ignoringFields(
         BasicReport.CREATE_TIME_FIELD_NUMBER,
         BasicReport.STATE_FIELD_NUMBER,
-        BasicReport.EXTERNAL_BASIC_REPORT_ID_FIELD_NUMBER,
         BasicReport.CREATE_REPORT_REQUEST_ID_FIELD_NUMBER,
       )
       .isEqualTo(basicReport)
 
     assertThat(response.state).isEqualTo(BasicReport.State.CREATED)
-    assertThat(response.externalBasicReportId).isEqualTo(request.externalBasicReportId)
     assertThat(response.createReportRequestId).isEqualTo(request.createReportRequestId)
     assertThat(response.hasCreateTime())
   }
@@ -144,7 +141,6 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
 
       val request = createBasicReportRequest {
         this.basicReport = basicReport
-        externalBasicReportId = "1234"
         createReportRequestId = "1235"
       }
 
@@ -176,7 +172,6 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
 
     val request = createBasicReportRequest {
       this.basicReport = basicReport
-      externalBasicReportId = "1234"
       createReportRequestId = "1235"
     }
 
@@ -392,7 +387,6 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
       service.createBasicReport(
         createBasicReportRequest {
           basicReport = BASIC_REPORT
-          externalBasicReportId = "1234"
           createReportRequestId = "1235"
         }
       )
@@ -878,7 +872,6 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
       service.createBasicReport(
         createBasicReportRequest {
           basicReport = BASIC_REPORT.copy { clearResultDetails() }
-          externalBasicReportId = "1234"
           createReportRequestId = "1235"
         }
       )
@@ -922,7 +915,6 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
       service.createBasicReport(
         createBasicReportRequest {
           basicReport = BASIC_REPORT
-          externalBasicReportId = "1234"
         }
       )
 

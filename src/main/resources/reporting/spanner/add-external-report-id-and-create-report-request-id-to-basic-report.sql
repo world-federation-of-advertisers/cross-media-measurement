@@ -23,6 +23,6 @@ ALTER TABLE BasicReports
 ADD COLUMN CreateReportRequestId STRING(MAX);
 
 ALTER TABLE BasicReports
-ADD COLUMN ExternalReportId STRING(MAX);
+ADD COLUMN ExternalReportId STRING(63);
 
 RUN BATCH;

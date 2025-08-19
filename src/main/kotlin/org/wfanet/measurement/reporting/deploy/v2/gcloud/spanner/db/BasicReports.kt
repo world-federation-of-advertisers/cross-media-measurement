@@ -68,12 +68,7 @@ suspend fun AsyncDatabaseClient.ReadContext.getBasicReportByExternalId(
       MeasurementConsumers
       JOIN BasicReports USING (MeasurementConsumerId)
     WHERE
-      MeasurementConsumerId IN
-        (
-          SELECT MeasurementConsumerId
-          FROM MeasurementConsumers
-          WHERE CmmsMeasurementConsumerId = @cmmsMeasurementConsumerId
-        )
+      CmmsMeasurementConsumerId = @cmmsMeasurementConsumerId
       AND ExternalBasicReportId = @externalBasicReportId
     """
       .trimIndent()
@@ -124,12 +119,7 @@ fun AsyncDatabaseClient.ReadContext.readBasicReports(
         JOIN BasicReports USING (MeasurementConsumerId)
         WHERE
           BasicReportsIndexShardId >= 0
-          AND MeasurementConsumerId IN
-          (
-            SELECT MeasurementConsumerId
-            FROM MeasurementConsumers
-            WHERE CmmsMeasurementConsumerId = @cmmsMeasurementConsumerId
-          )
+          AND CmmsMeasurementConsumerId = @cmmsMeasurementConsumerId
       """
         .trimIndent()
     )
@@ -187,13 +177,12 @@ fun AsyncDatabaseClient.TransactionContext.insertBasicReport(
   measurementConsumerId: Long,
   basicReport: BasicReport,
   state: BasicReport.State,
-  externalBasicReportId: String,
   createReportRequestId: String? = null,
 ) {
   bufferInsertMutation("BasicReports") {
     set("MeasurementConsumerId").to(measurementConsumerId)
     set("BasicReportId").to(basicReportId)
-    set("ExternalBasicReportId").to(externalBasicReportId)
+    set("ExternalBasicReportId").to(basicReport.externalReportId)
     set("CreateTime").to(Value.COMMIT_TIMESTAMP)
     set("BasicReportDetails").to(basicReport.details)
     set("ExternalCampaignGroupId").to(basicReport.externalCampaignGroupId)
