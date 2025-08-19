@@ -19,6 +19,7 @@ import org.wfanet.frequencycount.frequencyVector
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.PopulationSpecValidator.validateVidRangesList
+import org.wfanet.measurement.computation.KAnonymityParams
 
 /**
  * Get the number of VIDs represented by a PopulationSpec
@@ -50,22 +51,23 @@ val PopulationSpec.size: Long
  * @param populationSpec specification of the population being measured
  * @param measurementSpec a [MeasurementSpec] that specifies a Reach or ReachAndFrequency
  * @param strict If false the various increment methods ignore indexes that are out of bounds. If
- *   true, an out of bounds index will result in an exception being thrown.
+ *   true, an out of bounds index will result in an exception being thrown. It is normal for indexes
+ *   to be out of bounds of a given vid interval.
+ * @param kAnonymityParams the kAnonymityParams used for maximimumFrequencyPerUser for reach
+ *   calculations.
  * @constructor Create a [FrequencyVectorBuilder]
  */
 class FrequencyVectorBuilder(
   val populationSpec: PopulationSpec,
   val measurementSpec: MeasurementSpec,
   val strict: Boolean = true,
+  val kAnonymityParams: KAnonymityParams? = null,
 ) {
 
   /** The maximum frequency allowed in the output frequency vector. */
   private val maxFrequency: Int
 
   init {
-    require(measurementSpec.hasReach() || measurementSpec.hasReachAndFrequency()) {
-      "measurementSpec must have either a Reach or ReachAndFrequency measurementType"
-    }
 
     if (measurementSpec.hasReachAndFrequency()) {
       require(measurementSpec.reachAndFrequency.maximumFrequency >= 1) {
@@ -73,9 +75,33 @@ class FrequencyVectorBuilder(
       }
     }
 
+    if (measurementSpec.hasImpression()) {
+      require(measurementSpec.impression.maximumFrequencyPerUser >= 1) {
+        "measurementSpec.impression.maximumFrequencyPerUser must be >= 1"
+      }
+    }
+
+    if (
+      measurementSpec.hasReach() &&
+        kAnonymityParams != null &&
+        kAnonymityParams.maxFrequencyPerUser != null
+    ) {
+      require(kAnonymityParams.maxFrequencyPerUser!! >= 1) {
+        "kAnonymityParams.maxFrequencyPerUser must be >= 1 for reach measurements with kAnonymity"
+      }
+    }
+
     maxFrequency =
       if (measurementSpec.hasReachAndFrequency()) {
         measurementSpec.reachAndFrequency.maximumFrequency
+      } else if (measurementSpec.hasImpression()) {
+        measurementSpec.impression.maximumFrequencyPerUser
+      } else if (
+        measurementSpec.hasReach() &&
+          kAnonymityParams != null &&
+          kAnonymityParams.maxFrequencyPerUser != null
+      ) {
+        kAnonymityParams.maxFrequencyPerUser!!
       } else {
         1
       }
