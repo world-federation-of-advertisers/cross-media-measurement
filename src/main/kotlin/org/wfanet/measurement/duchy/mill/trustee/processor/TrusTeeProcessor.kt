@@ -41,6 +41,8 @@ data class TrusTeeReachAndFrequencyParams(
  * This component is stateful. It accumulates data from each call to [addFrequencyVector] and uses
  * the final aggregated data to perform the final computation in [computeResult]. A single instance
  * should be used for a single computation.
+ *
+ * The processor is not thread-safe.
  */
 interface TrusTeeProcessor {
   /** The [TrusTeeParams] for the computation. */

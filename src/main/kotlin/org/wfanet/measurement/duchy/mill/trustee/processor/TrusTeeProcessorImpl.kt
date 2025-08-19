@@ -14,7 +14,6 @@
 
 package org.wfanet.measurement.duchy.mill.trustee.processor
 
-import kotlin.math.min
 import org.wfanet.measurement.computation.DifferentialPrivacyParams
 import org.wfanet.measurement.computation.HistogramComputations
 import org.wfanet.measurement.computation.ReachAndFrequencyComputations
@@ -63,7 +62,7 @@ class TrusTeeProcessorImpl(override val trusTeeParams: TrusTeeParams) : TrusTeeP
       aggregatedFrequencyVector = IntArray(vector.size)
     }
 
-    val currentVector = requireNotNull(aggregatedFrequencyVector)
+    val currentVector = aggregatedFrequencyVector
     require(vector.size == currentVector.size) {
       "Input vector size ${vector.size} does not match expected size ${currentVector.size}"
     }
@@ -73,13 +72,13 @@ class TrusTeeProcessorImpl(override val trusTeeParams: TrusTeeParams) : TrusTeeP
       require(frequency >= 0) {
         "Invalid frequency value in byte array: $frequency. Frequency must be non-negative."
       }
-      currentVector[i] = min(currentVector[i] + frequency, maxFrequency)
+      currentVector[i] = (currentVector[i] + frequency).coerceAtMost(maxFrequency)
     }
   }
 
   override fun computeResult(): ComputationResult {
-    if (!::aggregatedFrequencyVector.isInitialized) {
-      throw IllegalStateException("addFrequencyVectorBytes must be called before computeResult.")
+    check(!::aggregatedFrequencyVector.isInitialized) {
+      "addFrequencyVectorBytes must be called before computeResult."
     }
     val frequencyVector = aggregatedFrequencyVector
 
@@ -112,18 +111,14 @@ class TrusTeeProcessorImpl(override val trusTeeParams: TrusTeeParams) : TrusTeeP
             trusTeeParams.frequencyDpParams.toDifferentialPrivacyParams(),
           )
 
-        ReachAndFrequencyResult(
-          reach = reach,
-          frequency = frequency,
-          methodology = TrusTeeMethodology(frequencyVector.size.toLong()),
-        )
+        ReachAndFrequencyResult(reach, frequency, TrusTeeMethodology(frequencyVector.size.toLong()))
       }
     }
   }
 
   private fun InternalDifferentialPrivacyParams.toDifferentialPrivacyParams():
     DifferentialPrivacyParams {
-    return DifferentialPrivacyParams(epsilon = epsilon, delta = delta)
+    return DifferentialPrivacyParams(epsilon, delta)
   }
 
   companion object Factory : TrusTeeProcessor.Factory {

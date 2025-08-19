@@ -130,6 +130,8 @@ class TrusTeeMill(
 
       val kmsClient = getKmsClient(kmsClientFactory, details.protocol.trusTee)
       val dek = getDekKeysetHandle(kmsClient, details.protocol.trusTee)
+      // TODO(world-federation-of-advertisers/cross-media-measurement#2800): Use
+      //  StreamingAeadStorage instead to read and decrypt requisition data.
       val rawRequisitionData = getRequisitionData(requisition)
       val decryptedRequisitionData = decryptRequisitionData(dek, rawRequisitionData)
 
