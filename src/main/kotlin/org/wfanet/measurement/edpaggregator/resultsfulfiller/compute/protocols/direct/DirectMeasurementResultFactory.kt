@@ -68,7 +68,7 @@ object DirectMeasurementResultFactory {
           DirectImpressionResultBuilder(
             directProtocolConfig,
             frequencyData,
-            measurementSpec.reach.privacyParams,
+            measurementSpec.impression.privacyParams,
             measurementSpec.vidSamplingInterval.width,
             directNoiseMechanism,
             maxPopulation,
