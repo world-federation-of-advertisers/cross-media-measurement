@@ -28,6 +28,7 @@ import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.computation.DifferentialPrivacyParams
 import org.wfanet.measurement.computation.HistogramComputations
 import org.wfanet.measurement.computation.ImpressionComputations
+import org.wfanet.measurement.computation.KAnonymityParams
 import org.wfanet.measurement.dataprovider.RequisitionRefusalException
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.compute.MeasurementResultBuilder
 import org.wfanet.measurement.eventdataprovider.noiser.DirectNoiseMechanism
@@ -51,6 +52,7 @@ class DirectImpressionResultBuilder(
   private val directNoiseMechanism: DirectNoiseMechanism,
   private val maxPopulation: Int?,
   private val maxFrequency: Int,
+  private val kAnonymityParams: KAnonymityParams?,
 ) : MeasurementResultBuilder {
 
   override suspend fun buildMeasurementResult(): Measurement.Result {
@@ -99,7 +101,7 @@ class DirectImpressionResultBuilder(
       rawHistogram = histogram,
       dpParams = dpParams,
       vidSamplingIntervalWidth = samplingRate,
-      kAnonymityParams = null,
+      kAnonymityParams = kAnonymityParams,
       maxFrequency = maxFrequency.toLong(),
     )
   }

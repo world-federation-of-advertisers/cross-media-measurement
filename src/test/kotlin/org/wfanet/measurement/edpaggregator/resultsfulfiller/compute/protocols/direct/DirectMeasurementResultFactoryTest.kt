@@ -60,6 +60,7 @@ class DirectMeasurementResultFactoryTest {
           measurementSpec = measurementSpec,
           frequencyData = frequencyData,
           maxPopulation = null,
+          kAnonymityParams = null,
         )
 
       // Verify
@@ -100,6 +101,7 @@ class DirectMeasurementResultFactoryTest {
         measurementSpec = measurementSpec,
         frequencyData = frequencyData,
         maxPopulation = null,
+        kAnonymityParams = null,
       )
 
     // Verify
@@ -136,6 +138,7 @@ class DirectMeasurementResultFactoryTest {
           measurementSpec = measurementSpec,
           frequencyData = frequencyData,
           maxPopulation = null,
+          kAnonymityParams = null,
         )
 
       // Verify

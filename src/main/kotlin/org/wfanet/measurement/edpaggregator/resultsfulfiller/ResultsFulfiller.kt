@@ -40,6 +40,7 @@ import org.wfanet.measurement.api.v2alpha.unpack
 import org.wfanet.measurement.common.crypto.PrivateKeyHandle
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.flatten
+import org.wfanet.measurement.computation.KAnonymityParams
 import org.wfanet.measurement.consent.client.dataprovider.decryptRequisitionSpec
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.compute.protocols.direct.DirectMeasurementResultFactory
@@ -71,8 +72,8 @@ import org.wfanet.measurement.storage.SelectedStorageClient
 class ResultsFulfiller(
   private val privateEncryptionKey: PrivateKeyHandle,
   private val requisitionsStub: RequisitionsGrpcKt.RequisitionsCoroutineStub,
-  private val requisitionFulfillmentStub:
-    RequisitionFulfillmentGrpcKt.RequisitionFulfillmentCoroutineStub,
+  private val requisitionFulfillmentStubMap:
+    Map<String, RequisitionFulfillmentGrpcKt.RequisitionFulfillmentCoroutineStub>,
   private val dataProviderCertificateKey: DataProviderCertificateKey,
   private val dataProviderSigningKeyHandle: SigningKeyHandle,
   private val typeRegistry: TypeRegistry,
@@ -127,12 +128,14 @@ class ResultsFulfiller(
       val fulfiller =
         if (protocols.any { it.hasDirect() }) {
           // TODO: Calculate the maximum population for a given cel filter
+          // TODO: Read in EDP kAnonymityParams
           buildDirectMeasurementFulfiller(
             requisition,
             measurementSpec,
             requisitionSpec,
             maxPopulation = null,
             frequencyData,
+            kAnonymityParams = null,
           )
         } else if (protocols.any { it.hasHonestMajorityShareShuffle() }) {
           HMShuffleMeasurementFulfiller(
@@ -141,7 +144,7 @@ class ResultsFulfiller(
             frequencyVectorBuilder.build(),
             dataProviderSigningKeyHandle,
             dataProviderCertificateKey,
-            requisitionFulfillmentStub,
+            requisitionFulfillmentStubMap,
           )
         } else {
           throw Exception("Protocol not supported")
@@ -189,6 +192,7 @@ class ResultsFulfiller(
     requisitionSpec: RequisitionSpec,
     maxPopulation: Int?,
     frequencyData: IntArray,
+    kAnonymityParams: KAnonymityParams?,
   ): DirectMeasurementFulfiller {
     val measurementEncryptionPublicKey: EncryptionPublicKey =
       measurementSpec.measurementPublicKey.unpack()
@@ -203,6 +207,7 @@ class ResultsFulfiller(
         measurementSpec,
         frequencyData,
         maxPopulation,
+        kAnonymityParams = kAnonymityParams,
       )
     return DirectMeasurementFulfiller(
       requisition.name,

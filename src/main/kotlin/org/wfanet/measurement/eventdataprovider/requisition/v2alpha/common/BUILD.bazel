@@ -23,6 +23,7 @@ kt_jvm_library(
     ],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:population_spec_validator",
+        "//src/main/kotlin/org/wfanet/measurement/computation:k_anonymity_params",
         "//src/main/proto/wfa/frequency_count:frequency_vector_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:api_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/eventdataprovider/shareshuffle:vid_index_map_entry_kt_jvm_proto",
