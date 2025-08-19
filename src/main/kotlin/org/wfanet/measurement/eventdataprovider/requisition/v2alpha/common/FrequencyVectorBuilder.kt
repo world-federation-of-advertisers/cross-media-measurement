@@ -82,7 +82,7 @@ class FrequencyVectorBuilder(
     }
 
     if (measurementSpec.hasReach() && kAnonymityParams != null) {
-      require(kAnonymityParams.reachMaxFrequencyPerUser!! >= 1) {
+      require(kAnonymityParams.reachMaxFrequencyPerUser >= 1) {
         "kAnonymityParams.maxFrequencyPerUser must be >= 1 for reach measurements with kAnonymity"
       }
     }
