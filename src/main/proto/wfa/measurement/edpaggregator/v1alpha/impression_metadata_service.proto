@@ -23,8 +23,6 @@ import "google/api/resource.proto";
 import "google/type/interval.proto";
 import "wfa/measurement/edpaggregator/v1alpha/impression_metadata.proto";
 
-// (-- api-linter: core::0191::java-package=disabled
-//     aip.dev/not-precedent: Project-wide convention. --)
 option java_package = "org.wfanet.measurement.edpaggregator.v1alpha";
 option java_multiple_files = true;
 option java_outer_classname = "ImpressionMetadataServiceProto";
@@ -38,8 +36,7 @@ service ImpressionMetadataService {
       post: "/v1alpha/{parent=dataProviders/*}/impressionMetadata"
       body: "impression_metadata"
     };
-    option (google.api.method_signature) =
-        "parent,impression_metadata,impression_metadata_id";
+    option (google.api.method_signature) = "parent,impression_metadata";
   }
 
   // Creates multiple new ImpressionMetadata entries in a single request.
@@ -106,18 +103,9 @@ message CreateImpressionMetadataRequest {
   // The `name` and output-only fields are ignored.
   ImpressionMetadata impression_metadata = 2
       [(google.api.field_behavior) = REQUIRED];
-
-  // Optional. The ID to use for the `ImpressionMetadata`.
-  //
-  // If not provided, a system-generated unique ID will be used.
-  string impression_metadata_id = 3 [(google.api.field_behavior) = OPTIONAL];
 }
 
 // Request message for the `BatchCreateImpressionMetadata` method.
-// (-- api-linter: core::0233::request-requests-field=disabled
-//     aip.dev/not-precedent: Linter incorrectly singularizes "Metadata" to
-//     "Metadatum". The `requests` field correctly uses the
-//     `CreateImpressionMetadataRequest` type. --)
 message BatchCreateImpressionMetadataRequest {
   // The parent data provider resource name.
   // Format: `dataProviders/{data_provider}`
@@ -134,10 +122,6 @@ message BatchCreateImpressionMetadataRequest {
 }
 
 // Response message for the `BatchCreateImpressionMetadata` method.
-// (-- api-linter: core::0233::response-resource-field=disabled
-//     aip.dev/not-precedent: Linter incorrectly singularizes "Metadata" to
-//     "Metadatum". The response correctly contains a repeated
-//     `ImpressionMetadata` resource. --)
 message BatchCreateImpressionMetadataResponse {
   // The list of newly created ImpressionMetadata, in the same order as the
   // request.
@@ -158,9 +142,6 @@ message GetImpressionMetadataRequest {
 }
 
 // Request message for the `ListImpressionMetadata` method.
-// (-- api-linter: core::0132::request-field-types=disabled
-//     aip.dev/not-precedent: Using a message for the filter for type safety.
-//     --)
 message ListImpressionMetadataRequest {
   // The parent data provider resource name.
   // Format: `dataProviders/{data_provider}`
@@ -185,7 +166,10 @@ message ListImpressionMetadataRequest {
   message Filter {
     // The model line resource name to filter by.
     // Format: `dataProviders/{data_provider}/modelLines/{model_line}`
-    string model_line = 1 [(google.api.field_behavior) = OPTIONAL];
+    string model_line = 1 [
+      (google.api.field_behavior) = OPTIONAL,
+      (google.api.resource_reference) = { type: "halo.wfanet.org/ModelLine" }
+    ];
 
     // The event group reference ID to filter by.
     string event_group_reference_id = 2
@@ -193,15 +177,15 @@ message ListImpressionMetadataRequest {
 
     // The time interval to filter by. The `ImpressionMetadata` time range must
     // overlap with this interval.
-    google.type.Interval time_range = 3
+    google.type.Interval interval_overlaps = 3
         [(google.api.field_behavior) = OPTIONAL];
 
     // The state to filter by.
-    // (-- api-linter: core::0216::state-field-output-only=disabled
-    //     aip.dev/not-precedent: This is a filter input, not a resource output.
-    //     --)
     ImpressionMetadata.State state = 4 [(google.api.field_behavior) = OPTIONAL];
   }
+
+  // A flag indicating whether to include soft DELETED entries.
+  bool show_deleted = 5 [(google.api.field_behavior) = OPTIONAL];
 }
 
 // Response message for the `ListImpressionMetadata` method.
@@ -210,6 +194,7 @@ message ListImpressionMetadataResponse {
   repeated ImpressionMetadata impression_metadata = 1;
 
   // A token to retrieve the next page of results.
+  // If this field is omitted, there are no subsequent pages.
   string next_page_token = 2;
 }
 
@@ -247,10 +232,6 @@ message BatchDeleteImpressionMetadataRequest {
 }
 
 // Response message for the `BatchDeleteImpressionMetadata` method.
-// (-- api-linter: core::0235::response-resource-field=disabled
-//     aip.dev/not-precedent: Linter incorrectly singularizes "Metadata" to
-//     "Metadatum". The response correctly contains a repeated
-//     `ImpressionMetadata` resource. --)
 message BatchDeleteImpressionMetadataResponse {
   // The list of updated ImpressionMetadata, now marked as deleted.
   repeated ImpressionMetadata impression_metadata = 1;
