@@ -81,12 +81,8 @@ class FrequencyVectorBuilder(
       }
     }
 
-    if (
-      measurementSpec.hasReach() &&
-        kAnonymityParams != null &&
-        kAnonymityParams.maxFrequencyPerUser != null
-    ) {
-      require(kAnonymityParams.maxFrequencyPerUser!! >= 1) {
+    if (measurementSpec.hasReach() && kAnonymityParams != null) {
+      require(kAnonymityParams.reachMaxFrequencyPerUser!! >= 1) {
         "kAnonymityParams.maxFrequencyPerUser must be >= 1 for reach measurements with kAnonymity"
       }
     }
@@ -97,7 +93,7 @@ class FrequencyVectorBuilder(
       } else if (measurementSpec.hasImpression()) {
         measurementSpec.impression.maximumFrequencyPerUser
       } else if (measurementSpec.hasReach()) {
-        kAnonymityParams?.maxFrequencyPerUser ?: 1
+        kAnonymityParams?.reachMaxFrequencyPerUser ?: 1
       } else {
         1
       }

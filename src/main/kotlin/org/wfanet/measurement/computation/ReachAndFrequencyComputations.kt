@@ -89,12 +89,9 @@ object ReachAndFrequencyComputations {
           minScaledNoisedReach
         }
       } else {
-        checkNotNull(kAnonymityParams.maxFrequencyPerUser) {
-          "frequencyPerUser cannot be null if dpParams and kAnonymityParams are set"
-        }
         val rawImpressionCount =
           rawHistogram.withIndex().sumOf { (index, count) ->
-            val frequency = min(kAnonymityParams.maxFrequencyPerUser!!, index + 1)
+            val frequency = min(kAnonymityParams.reachMaxFrequencyPerUser, index + 1)
             frequency * count
           }
 
@@ -103,7 +100,7 @@ object ReachAndFrequencyComputations {
           noise.addNoise(
             rawImpressionCount,
             1,
-            kAnonymityParams.maxFrequencyPerUser!!.toLong(),
+            kAnonymityParams.reachMaxFrequencyPerUser.toLong(),
             dpParams.epsilon,
             dpParams.delta,
           )
