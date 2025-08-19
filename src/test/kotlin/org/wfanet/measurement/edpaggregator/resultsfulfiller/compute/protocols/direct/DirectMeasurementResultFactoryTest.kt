@@ -60,6 +60,7 @@ class DirectMeasurementResultFactoryTest {
           measurementSpec = measurementSpec,
           frequencyData = frequencyData,
           maxPopulation = null,
+          kAnonymityParams = null,
         )
 
       // Verify
@@ -100,6 +101,7 @@ class DirectMeasurementResultFactoryTest {
         measurementSpec = measurementSpec,
         frequencyData = frequencyData,
         maxPopulation = null,
+        kAnonymityParams = null,
       )
 
     // Verify
@@ -108,6 +110,43 @@ class DirectMeasurementResultFactoryTest {
     assertThat(result.reach.hasDeterministicCountDistinct()).isTrue()
     assertThat(result.reach.value).isEqualTo(100)
   }
+
+  @Test
+  fun `buildMeasurementResult returns impression result for IMPRESSION measurement type`() =
+    runBlocking {
+      // Setup
+      val frequencyData = IntArray(100) { if (it < 90) 1 else 2 }
+
+      val measurementSpec = measurementSpec {
+        impression =
+          MeasurementSpecKt.impression {
+            privacyParams = IMPRESSION_PRIVACY_PARAMS
+            maximumFrequencyPerUser = MAX_FREQUENCY
+          }
+        vidSamplingInterval =
+          MeasurementSpecKt.vidSamplingInterval {
+            start = 0.0f
+            width = SAMPLING_RATE
+          }
+      }
+
+      // Execute
+      val result =
+        DirectMeasurementResultFactory.buildMeasurementResult(
+          directProtocolConfig = DIRECT_PROTOCOL,
+          directNoiseMechanism = DirectNoiseMechanism.NONE,
+          measurementSpec = measurementSpec,
+          frequencyData = frequencyData,
+          maxPopulation = null,
+          kAnonymityParams = null,
+        )
+
+      // Verify
+      assertThat(result.hasImpression()).isTrue()
+      assertThat(result.impression.noiseMechanism).isEqualTo(NoiseMechanism.NONE)
+      assertThat(result.impression.hasDeterministicCount()).isTrue()
+      assertThat(result.impression.value).isEqualTo(110)
+    }
 
   companion object {
     private const val MAX_FREQUENCY = 10
@@ -119,7 +158,10 @@ class DirectMeasurementResultFactoryTest {
       epsilon = 1.0
       delta = 1E-12
     }
-
+    private val IMPRESSION_PRIVACY_PARAMS = differentialPrivacyParams {
+      epsilon = 1.0
+      delta = 1E-12
+    }
     private const val SAMPLING_RATE = 1.0f
 
     private val NOISE_MECHANISM = NoiseMechanism.CONTINUOUS_GAUSSIAN
@@ -130,6 +172,7 @@ class DirectMeasurementResultFactoryTest {
         ProtocolConfig.Direct.DeterministicCountDistinct.getDefaultInstance()
       deterministicDistribution =
         ProtocolConfig.Direct.DeterministicDistribution.getDefaultInstance()
+      deterministicCount = ProtocolConfig.Direct.DeterministicCount.getDefaultInstance()
     }
   }
 }
