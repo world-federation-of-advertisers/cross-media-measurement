@@ -20,11 +20,6 @@ import com.google.protobuf.Descriptors
 import com.google.protobuf.ExtensionRegistry
 import com.google.protobuf.TypeRegistry
 import io.grpc.ManagedChannel
-import java.io.File
-import java.security.cert.X509Certificate
-import java.time.Clock
-import java.time.ZoneId
-import kotlin.random.Random
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.EventAnnotationsProto
@@ -38,6 +33,8 @@ import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.SettableHealth
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.crypto.testing.loadSigningKey
+import org.wfanet.measurement.common.crypto.tink.GCloudWifCredentials
+import org.wfanet.measurement.common.crypto.tink.KmsClientFactory
 import org.wfanet.measurement.common.crypto.tink.loadPrivateKey
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.parseTextProto
@@ -45,6 +42,11 @@ import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.dataprovider.DataProviderData
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.InMemoryVidIndexMap
 import picocli.CommandLine
+import java.io.File
+import java.security.cert.X509Certificate
+import java.time.Clock
+import java.time.ZoneId
+import kotlin.random.Random
 
 /** The base class of the EdpSimulator runner. */
 @CommandLine.Command(mixinStandardHelpOptions = true)
@@ -90,16 +92,20 @@ abstract class AbstractEdpSimulatorRunner : Runnable {
 
   open val additionalMessageTypes: Collection<Descriptors.Descriptor> = emptyList()
 
+  protected abstract val kmsClientFactory: KmsClientFactory<GCloudWifCredentials>
+
   abstract fun buildEdpSimulator(
     measurementConsumerName: String,
     kingdomPublicApiChannel: ManagedChannel,
     requisitionFulfillmentStubsByDuchyId: Map<String, RequisitionFulfillmentCoroutineStub>,
     trustedCertificates: Map<ByteString, X509Certificate>,
     eventQuery: SyntheticGeneratorEventQuery,
-    hmssVidIndexMap: InMemoryVidIndexMap?,
+    vidIndexMap: InMemoryVidIndexMap?,
     logSketchDetails: Boolean,
     throttler: MinimumIntervalThrottler,
     health: SettableHealth,
+    trusteeEncryptionParams: AbstractEdpSimulator.TrusTeeParams?,
+    kmsClientFactory: KmsClientFactory<GCloudWifCredentials>?,
     random: Random,
   ): AbstractEdpSimulator
 
@@ -133,7 +139,7 @@ abstract class AbstractEdpSimulatorRunner : Runnable {
         it.duchyId to stub
       }
 
-    val hmssVidIndexMap: InMemoryVidIndexMap? =
+    val vidIndexMap: InMemoryVidIndexMap? =
       if (flags.supportHmss) {
         InMemoryVidIndexMap.build(syntheticPopulationSpec.toPopulationSpec())
       } else {
@@ -167,10 +173,16 @@ abstract class AbstractEdpSimulatorRunner : Runnable {
         requisitionFulfillmentStubsByDuchyId,
         clientCerts.trustedCertificates,
         eventQuery,
-        hmssVidIndexMap,
+        vidIndexMap,
         flags.logSketchDetails,
         MinimumIntervalThrottler(Clock.systemUTC(), flags.throttlerMinimumInterval),
         health,
+        AbstractEdpSimulator.TrusTeeParams(
+          flags.trusTeeParams.kmsKekUri,
+          flags.trusTeeParams.workloadIdentityProvider,
+          flags.trusTeeParams.impersonatedServiceAccount,
+        ),
+        kmsClientFactory,
         random,
       )
     runBlocking {
