@@ -166,4 +166,4 @@ jobs:
     if: ${{ !cancelled() && startsWith(github.ref, 'refs/tags/nightly/') && github.actor == 'github-actions[bot]' }}
     with:
       image-tag: ${{ needs.publish-images.outputs.image-tag }}
-      job-results: ${{ join(needs.*.result, ' ') }}
+      successfully-deployed: ${{ needs.publish-images.result == 'success' && needs.run-tests.result == 'success' && needs.update-secure-computation.result == 'success' && needs.scan-images.result == 'success' }}

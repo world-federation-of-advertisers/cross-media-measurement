@@ -21,9 +21,9 @@ on:
         description: "Nightly build tag"
         type: string
         required: true
-      job-results:
-        description: "Space separated collection of relevant job results (e.g., 'success failure success skipped')"
-        type: string
+      successfully-deployed:
+        description: "Whether the nightly build finished deployment successfully"
+        type: boolean
         required: true
 
 jobs:
@@ -44,38 +44,17 @@ jobs:
             });
             core.setOutput("latest-release-tag", release.tag_name);
 
-      - id: compute-workflow-conclusion
-        shell: bash
-        name: Compute workflow conclusion
-        run: |
-          set -euo pipefail
-          conclusion="success"
-          for job_result in ${{ inputs.job_results }}; do
-            if [[ ${job_result} == "failure" ]]; then
-              conclusion="failure"
-              break
-            elif [[ ${job_result} != "success" ]]; then
-              conclusion="other"
-            fi
-          done
-          echo "conclusion=${conclusion}" >> "$GITHUB_OUTPUT"
-
       - id: compute-notification-title
-        shell: bash
         name: Compute notification title
+        shell: bash
+        env:
+          SUCCESSFULLY_DEPLOYED: ${{ inputs.successfully-deployed }}
         run: |
-          workflow_conclusion=${{ steps.compute-workflow-conclusion.outputs.conclusion }}
-          case "${workflow_conclusion}" in
-            "success")
-              title=":white_check_mark: Successfully deployed nightly build"
-              ;;
-            "failure")
-              title=":x: Nightly build deployment failed"
-              ;;
-            *)
-              title=":warning: Nightly build deployment finished with status: ${workflow_conclusion}"
-              ;;
-          esac
+          if [[ "${SUCCESSFULLY_DEPLOYED}" == "true" ]]; then
+            title=":white_check_mark: Successfully deployed nightly build"
+          else
+            title=":warning: Nightly build deployment didn't complete"
+          fi
           echo "title=${title}." >> "$GITHUB_OUTPUT"
 
       - name: Post message to Slack channel
