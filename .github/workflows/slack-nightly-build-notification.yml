@@ -17,8 +17,8 @@ name: Send slack notification for nightly build
 on:
   workflow_call:
     inputs:
-      image-tag:
-        description: "Nightly build tag"
+      nightly-build-tag:
+        description: "Git tag for nightly build"
         type: string
         required: true
       successfully-deployed:
@@ -63,5 +63,5 @@ jobs:
           slack-bot-token: ${{ secrets.SLACK_BOT_TOKEN }}
           housekeeping-channel-id: ${{ secrets.SLACK_HOUSEKEEPING_CHANNEL }}
           title: ${{ steps.compute-notification-title.outputs.title }}
-          nightly-build-tag: ${{ inputs.image-tag }}
+          nightly-build-tag: ${{ inputs.nightly-build-tag }}
           latest-release-tag: ${{ steps.get-latest-release-tag.outputs.latest-release-tag }}

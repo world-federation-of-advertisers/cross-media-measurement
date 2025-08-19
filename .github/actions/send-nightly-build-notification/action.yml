@@ -64,7 +64,7 @@ runs:
                 },
                 {
                   "type": "mrkdwn",
-                  "text": "*Tag:* <https://github.com/world-federation-of-advertisers/cross-media-measurement/tree/${{ inputs.nightly-build-tag }}|${{ inputs.nightly-build-tag }}>"
+                  "text": "*Tag:* <https://github.com/world-federation-of-advertisers/cross-media-measurement/tree/refs/tags/${{ inputs.nightly-build-tag }}|${{ inputs.nightly-build-tag }}>"
                 },
                 {
                   "type": "mrkdwn",

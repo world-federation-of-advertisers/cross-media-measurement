@@ -165,5 +165,5 @@ jobs:
     secrets: inherit
     if: ${{ !cancelled() && startsWith(github.ref, 'refs/tags/nightly/') && github.actor == 'github-actions[bot]' }}
     with:
-      image-tag: ${{ needs.publish-images.outputs.image-tag }}
+      nightly-build-tag: ${{ github.ref_name }}
       successfully-deployed: ${{ needs.publish-images.result == 'success' && needs.run-tests.result == 'success' && needs.update-secure-computation.result == 'success' && needs.scan-images.result == 'success' }}
