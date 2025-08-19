@@ -17,6 +17,12 @@ package org.wfanet.measurement.loadtest.dataprovider
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.FieldScopes
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
+import com.google.crypto.tink.Aead
+import com.google.crypto.tink.KeyTemplates
+import com.google.crypto.tink.KeysetHandle
+import com.google.crypto.tink.KmsClient
+import com.google.crypto.tink.aead.AeadConfig
+import com.google.crypto.tink.streamingaead.StreamingAeadConfig
 import com.google.protobuf.ByteString
 import com.google.protobuf.kotlin.toByteStringUtf8
 import com.google.type.interval
@@ -90,7 +96,10 @@ import org.wfanet.measurement.api.v2alpha.testing.MeasurementResultSubject.Compa
 import org.wfanet.measurement.api.v2alpha.unpack
 import org.wfanet.measurement.api.v2alpha.updateEventGroupRequest
 import org.wfanet.measurement.common.crypto.Hashing
+import org.wfanet.measurement.common.crypto.tink.GCloudWifCredentials
+import org.wfanet.measurement.common.crypto.tink.KmsClientFactory
 import org.wfanet.measurement.common.crypto.tink.loadPublicKey
+import org.wfanet.measurement.common.crypto.tink.testing.FakeKmsClient
 import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.common.testing.verifyAndCapture
@@ -493,51 +502,6 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
   }
 
   @Test
-  fun `refuses TrusTee requisition due to invalid number of duchy entries`() {
-    val requisition = TRUSTEE_REQUISITION.copy { duchies += DUCHY_ENTRY_TWO }
-    requisitionsServiceMock.stub {
-      onBlocking { listRequisitions(any()) }
-        .thenReturn(listRequisitionsResponse { requisitions += requisition })
-    }
-
-    val edpSimulator =
-      EdpSimulator(
-        EDP_DATA,
-        MC_NAME,
-        certificatesStub,
-        dataProvidersStub,
-        eventGroupsStub,
-        requisitionsStub,
-        requisitionFulfillmentStubMap,
-        SYNTHETIC_DATA_TIME_ZONE,
-        listOf(EventGroupOptions("", SYNTHETIC_DATA_SPEC, MEDIA_TYPES, EVENT_GROUP_METADATA)),
-        syntheticGeneratorEventQuery,
-        AbstractEdpSimulatorTest.dummyThrottler,
-        PrivacyBudgets.createNoOpPrivacyBudgetManager(),
-        TRUSTED_CERTIFICATES,
-        VID_INDEX_MAP,
-      )
-    runBlocking { edpSimulator.executeRequisitionFulfillingWorkflow() }
-
-    val refuseRequest: RefuseRequisitionRequest =
-      verifyAndCapture(requisitionsServiceMock, RequisitionsCoroutineImplBase::refuseRequisition)
-    assertThat(refuseRequest)
-      .ignoringFieldScope(
-        FieldScopes.allowingFieldDescriptors(
-          Refusal.getDescriptor().findFieldByNumber(Refusal.MESSAGE_FIELD_NUMBER)
-        )
-      )
-      .isEqualTo(
-        refuseRequisitionRequest {
-          name = REQUISITION.name
-          refusal = refusal { justification = Refusal.Justification.SPEC_INVALID }
-        }
-      )
-    assertThat(refuseRequest.refusal.message).contains("One duchy entry is expected")
-    assertThat(fakeRequisitionFulfillmentService.fullfillRequisitionInvocations).isEmpty()
-  }
-
-  @Test
   fun `fulfills HMSS reach and frequency Requisition`() {
     requisitionsServiceMock.stub {
       onBlocking { listRequisitions(any()) }
@@ -669,6 +633,167 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
       )
     assertThat(refuseRequest.refusal.message).contains("Protocol not set or not supported.")
     assertThat(fakeRequisitionFulfillmentService.fullfillRequisitionInvocations).isEmpty()
+  }
+
+  @Test
+  fun `refuses TrusTee requisition due to invalid number of duchy entries`() {
+    val requisition = TRUSTEE_REQUISITION.copy { duchies += DUCHY_ENTRY_TWO }
+    requisitionsServiceMock.stub {
+      onBlocking { listRequisitions(any()) }
+        .thenReturn(listRequisitionsResponse { requisitions += requisition })
+    }
+
+    val edpSimulator =
+      EdpSimulator(
+        EDP_DATA,
+        MC_NAME,
+        certificatesStub,
+        dataProvidersStub,
+        eventGroupsStub,
+        requisitionsStub,
+        requisitionFulfillmentStubMap,
+        SYNTHETIC_DATA_TIME_ZONE,
+        listOf(EventGroupOptions("", SYNTHETIC_DATA_SPEC, MEDIA_TYPES, EVENT_GROUP_METADATA)),
+        syntheticGeneratorEventQuery,
+        AbstractEdpSimulatorTest.dummyThrottler,
+        PrivacyBudgets.createNoOpPrivacyBudgetManager(),
+        TRUSTED_CERTIFICATES,
+        VID_INDEX_MAP,
+      )
+    runBlocking { edpSimulator.executeRequisitionFulfillingWorkflow() }
+
+    val refuseRequest: RefuseRequisitionRequest =
+      verifyAndCapture(requisitionsServiceMock, RequisitionsCoroutineImplBase::refuseRequisition)
+    assertThat(refuseRequest)
+      .ignoringFieldScope(
+        FieldScopes.allowingFieldDescriptors(
+          Refusal.getDescriptor().findFieldByNumber(Refusal.MESSAGE_FIELD_NUMBER)
+        )
+      )
+      .isEqualTo(
+        refuseRequisitionRequest {
+          name = REQUISITION.name
+          refusal = refusal { justification = Refusal.Justification.SPEC_INVALID }
+        }
+      )
+    assertThat(refuseRequest.refusal.message).contains("One duchy entry is expected")
+    assertThat(fakeRequisitionFulfillmentService.fullfillRequisitionInvocations).isEmpty()
+  }
+
+  @Test
+  fun `fulfills TrusTee requisition`() {
+    AeadConfig.register()
+    StreamingAeadConfig.register()
+    val fakeKmsClient = FakeKmsClient()
+    val kekUri = FakeKmsClient.KEY_URI_PREFIX + "kek"
+    val kmsKeyHandle = KeysetHandle.generateNew(KeyTemplates.get("AES256_GCM"))
+    fakeKmsClient.setAead(kekUri, kmsKeyHandle.getPrimitive(Aead::class.java))
+
+    val kmsClientFactory =
+      object : KmsClientFactory<GCloudWifCredentials> {
+        override fun getKmsClient(config: GCloudWifCredentials): KmsClient {
+          return fakeKmsClient
+        }
+      }
+    val trusTeeParams =
+      AbstractEdpSimulator.TrusTeeParams(
+        kmsKekUri = kekUri,
+        workloadIdentityProvider = "workload-identity-provider",
+        impersonatedServiceAccount = "impersonated-service-account",
+      )
+
+    requisitionsServiceMock.stub {
+      onBlocking { listRequisitions(any()) }
+        .thenReturn(listRequisitionsResponse { requisitions += TRUSTEE_REQUISITION })
+    }
+
+    val matchingEvents =
+      generateEvents(
+        1L..10L,
+        FIRST_EVENT_DATE,
+        Person.AgeGroup.YEARS_18_TO_34,
+        Person.Gender.FEMALE,
+      )
+    val nonMatchingEvents =
+      generateEvents(
+        11L..15L,
+        FIRST_EVENT_DATE,
+        Person.AgeGroup.YEARS_35_TO_54,
+        Person.Gender.FEMALE,
+      ) +
+        generateEvents(
+          16L..20L,
+          FIRST_EVENT_DATE,
+          Person.AgeGroup.YEARS_55_PLUS,
+          Person.Gender.FEMALE,
+        ) +
+        generateEvents(
+          21L..25L,
+          FIRST_EVENT_DATE,
+          Person.AgeGroup.YEARS_18_TO_34,
+          Person.Gender.MALE,
+        ) +
+        generateEvents(
+          26L..30L,
+          FIRST_EVENT_DATE,
+          Person.AgeGroup.YEARS_35_TO_54,
+          Person.Gender.MALE,
+        )
+
+    val allEvents = matchingEvents + nonMatchingEvents
+    val eventQuery = InMemoryEventQuery(allEvents)
+
+    val edpSimulator =
+      EdpSimulator(
+        EDP_DATA,
+        MC_NAME,
+        certificatesStub,
+        dataProvidersStub,
+        eventGroupsStub,
+        requisitionsStub,
+        requisitionFulfillmentStubMap,
+        SYNTHETIC_DATA_TIME_ZONE,
+        listOf(EventGroupOptions("", SYNTHETIC_DATA_SPEC, MEDIA_TYPES, EVENT_GROUP_METADATA)),
+        eventQuery,
+        dummyThrottler,
+        privacyBudgetManager,
+        TRUSTED_CERTIFICATES,
+        VID_INDEX_MAP,
+        trusTeeParams = trusTeeParams,
+        kmsClientFactory = kmsClientFactory,
+      )
+
+    runBlocking { edpSimulator.executeRequisitionFulfillingWorkflow() }
+
+    //    val refuseRequest: RefuseRequisitionRequest =
+    //      verifyAndCapture(requisitionsServiceMock,
+    // RequisitionsCoroutineImplBase::refuseRequisition)
+    //    val requests: List<FulfillRequisitionRequest> =
+    //      fakeRequisitionFulfillmentService.fullfillRequisitionInvocations.single().requests
+    //    val header: FulfillRequisitionRequest.Header = requests.first().header
+    //    val encryptedPayload = requests.drop(1).map { it.bodyChunk.data }.flatten()
+    //
+    //    assertThat(header)
+    //      .comparingExpectedFieldsOnly()
+    //      .isEqualTo(
+    //        FulfillRequisitionRequestKt.header {
+    //          name = TRUSTEE_REQUISITION.name
+    //          requisitionFingerprint =
+    //            computeRequisitionFingerprint(
+    //              TRUSTEE_REQUISITION.measurementSpec.message.value,
+    //              Hashing.hashSha256(TRUSTEE_REQUISITION.encryptedRequisitionSpec.ciphertext),
+    //            )
+    //          nonce = REQUISITION_SPEC.nonce
+    //          trusTee =
+    //            FulfillRequisitionRequestKt.HeaderKt.trusTee {
+    //              dataFormat =
+    //                FulfillRequisitionRequest.Header.TrusTee.DataFormat.ENCRYPTED_FREQUENCY_VECTOR
+    //            }
+    //        }
+    //      )
+    //
+    //  TODO: how to verify and check frequency vector, only check the data range as the Hmss test
+    // case?
   }
 
   @Test
