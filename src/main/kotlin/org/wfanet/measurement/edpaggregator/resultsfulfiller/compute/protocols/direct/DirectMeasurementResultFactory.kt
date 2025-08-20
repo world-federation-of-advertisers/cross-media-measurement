@@ -21,6 +21,7 @@ import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementKt
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
+import org.wfanet.measurement.computation.KAnonymityParams
 import org.wfanet.measurement.eventdataprovider.noiser.DirectNoiseMechanism
 
 /** Factory for creating direct measurement results. */
@@ -43,6 +44,7 @@ object DirectMeasurementResultFactory {
     measurementSpec: MeasurementSpec,
     frequencyData: IntArray,
     maxPopulation: Int?,
+    kAnonymityParams: KAnonymityParams?,
   ): Measurement.Result {
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf enum fields cannot be null.
     return when (measurementSpec.measurementTypeCase) {
@@ -57,11 +59,23 @@ object DirectMeasurementResultFactory {
             measurementSpec.vidSamplingInterval.width,
             directNoiseMechanism,
             maxPopulation,
+            kAnonymityParams,
           )
         reachAndFrequencyResultBuilder.buildMeasurementResult()
       }
       MeasurementSpec.MeasurementTypeCase.IMPRESSION -> {
-        MeasurementKt.result { TODO("Not yet implemented") }
+        val impressionResultBuilder =
+          DirectImpressionResultBuilder(
+            directProtocolConfig,
+            frequencyData,
+            measurementSpec.impression.privacyParams,
+            measurementSpec.vidSamplingInterval.width,
+            directNoiseMechanism,
+            maxPopulation,
+            measurementSpec.impression.maximumFrequencyPerUser,
+            kAnonymityParams,
+          )
+        impressionResultBuilder.buildMeasurementResult()
       }
       MeasurementSpec.MeasurementTypeCase.DURATION -> {
         MeasurementKt.result { TODO("Not yet implemented") }
@@ -78,6 +92,7 @@ object DirectMeasurementResultFactory {
             measurementSpec.vidSamplingInterval.width,
             directNoiseMechanism,
             maxPopulation,
+            kAnonymityParams = kAnonymityParams,
           )
         reachAndFrequencyResultBuilder.buildMeasurementResult()
       }
