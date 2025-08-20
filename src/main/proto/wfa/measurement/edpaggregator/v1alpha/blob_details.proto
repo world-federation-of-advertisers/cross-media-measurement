@@ -15,8 +15,8 @@
 // (-- api-linter: all=disabled
 //     aip.dev/not-precedent: This file needs to be updated to comply with AIPs.
 //     --)
-//  TODO(world-federation-of-advertisers/cross-media-measurement#2777): Fix API
-//  lint errors.
+//  TODO(world-federation-of-advertisers/cross-media-measurement#2777): Update
+//  to comply AIPs.
 
 syntax = "proto3";
 
