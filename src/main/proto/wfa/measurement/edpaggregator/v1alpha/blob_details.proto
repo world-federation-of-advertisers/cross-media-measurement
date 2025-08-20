@@ -16,7 +16,8 @@
 //     aip.dev/not-precedent: This file needs to be updated to comply with AIPs.
 //     --)
 //  TODO(world-federation-of-advertisers/cross-media-measurement#2777): Update
-//  to comply AIPs.
+//  to comply AIPs. Also rename `BlobDetails` to avoid the `Details`, which
+//  indicating the internal message by AIP.
 
 syntax = "proto3";
 
