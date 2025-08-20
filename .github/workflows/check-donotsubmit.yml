@@ -1,0 +1,58 @@
+# Copyright 2025 The Cross-Media Measurement Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: Check for DO_NOT_SUBMIT comments
+
+on:
+  pull_request:
+    branches:
+      - main
+      - 'releases/**'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check-do-not-submit:
+    name: Check
+    runs-on: ubuntu-22.04
+    steps:
+    - name: Check out revision
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Run DO_NOT_SUBMIT check
+      shell: bash
+      env:
+        BASE_REV: ${{ github.event.pull_request.base.sha }}
+      run: |
+        set -euo pipefail
+
+        workflow_file="${GITHUB_WORKFLOW_REF#*/*/}"
+        workflow_file="${workflow_file%%@*}"
+
+        readarray -d '' -t changed_files < <(
+          git diff -z --diff-filter=AMRC --name-only "${BASE_REV}" HEAD -- ":(exclude,top)${workflow_file}"
+        )
+
+        echo "Checking for DO_NOT_SUBMIT comments in ${#changed_files[@]} files"
+
+        if (( ${#changed_files[@]} )) && grep -HnI -- "DO_NOT_SUBMIT" "${changed_files[@]}"; then
+          echo "The above files contain DO_NOT_SUBMIT comments" >&2
+          exit 1
+        else
+          echo "PASSED: no files contain DO_NOT_SUBMIT comments"
+        fi
