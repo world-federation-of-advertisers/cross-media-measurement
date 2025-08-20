@@ -30,17 +30,6 @@ option java_outer_classname = "RequisitionMetadataActionsServiceProto";
 //
 // Used for auditing and logging state changes for RequisitionMetadata.
 service RequisitionMetadataActionService {
-  // Creates a new RequisitionMetadataAction entry.
-  // This RPC has the side effect of updating the state of the parent
-  // RequisitionMetadata resource.
-  // (-- api-linter: core::0133::method-signature=disabled
-  //     aip.dev/not-precedent: Etag is used to ensure idempotency. --)
-  rpc CreateRequisitionMetadataAction(CreateRequisitionMetadataActionRequest)
-      returns (RequisitionMetadataAction) {
-    option (google.api.method_signature) =
-        "parent,requisition_metadata_action,requisition_metadata_etag";
-  }
-
   // Retrieves a specific RequisitionMetadataAction entry.
   rpc GetRequisitionMetadataAction(GetRequisitionMetadataActionRequest)
       returns (RequisitionMetadataAction) {
@@ -52,34 +41,6 @@ service RequisitionMetadataActionService {
       returns (ListRequisitionMetadataActionsResponse) {
     option (google.api.method_signature) = "parent";
   }
-}
-
-// Request message for the `CreateRequisitionMetadataAction` method.
-//
-message CreateRequisitionMetadataActionRequest {
-  // The parent RequisitionMetadata resource name.
-  // Format:
-  // `dataProviders/{data_provider}/requisitionMetadata/{requisition_metadata}`
-  string parent = 1 [
-    (google.api.field_behavior) = REQUIRED,
-    (google.api.resource_reference) = {
-      child_type: "edpaggregator.halo-cmm.org/RequisitionMetadataAction"
-    }
-  ];
-
-  // The RequisitionMetadataAction to create.
-  RequisitionMetadataAction requisition_metadata_action = 2
-      [(google.api.field_behavior) = REQUIRED];
-
-  // The etag of the parent RequisitionMetadata.
-  //
-  // This is used to ensure the state of the parent resource has not changed
-  // since it was last read.
-  // (-- api-linter: core::0133::request-required-fields=disabled
-  //     aip.dev/not-precedent: To match the etag of the parent resource. --)
-  // (-- api-linter: core::0133::request-unknown-fields=disabled
-  //     aip.dev/not-precedent: To match the etag of the parent resource. --)
-  string requisition_metadata_etag = 3 [(google.api.field_behavior) = REQUIRED];
 }
 
 // Request message for the `GetRequisitionMetadataAction` method.
