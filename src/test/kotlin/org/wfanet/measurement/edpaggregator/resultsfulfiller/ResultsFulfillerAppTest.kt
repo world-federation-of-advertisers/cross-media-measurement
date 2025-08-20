@@ -63,6 +63,7 @@ import org.wfanet.measurement.api.v2alpha.GetEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reachAndFrequency
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.vidSamplingInterval
+import org.wfanet.measurement.api.v2alpha.PopulationSpecKt
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt
 import org.wfanet.measurement.api.v2alpha.Requisition
@@ -81,6 +82,7 @@ import org.wfanet.measurement.api.v2alpha.event_templates.testing.person
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.testEvent
 import org.wfanet.measurement.api.v2alpha.fulfillDirectRequisitionResponse
 import org.wfanet.measurement.api.v2alpha.measurementSpec
+import org.wfanet.measurement.api.v2alpha.populationSpec
 import org.wfanet.measurement.api.v2alpha.protocolConfig
 import org.wfanet.measurement.api.v2alpha.requisition
 import org.wfanet.measurement.api.v2alpha.requisitionSpec
@@ -118,11 +120,9 @@ import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParamsKt.sto
 import org.wfanet.measurement.edpaggregator.v1alpha.blobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.copy
 import org.wfanet.measurement.edpaggregator.v1alpha.resultsFulfillerParams
-import org.wfanet.measurement.gcloud.pubsub.Publisher
 import org.wfanet.measurement.gcloud.pubsub.Subscriber
 import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorClient
 import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorProvider
-import org.wfanet.measurement.integration.common.loadEncryptionPrivateKey
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem.WorkItemParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineImplBase
@@ -198,7 +198,6 @@ class ResultsFulfillerAppTest {
   @Test
   fun `runWork processes requisition successfully`() = runBlocking {
     val pubSubClient = Subscriber(projectId = PROJECT_ID, googlePubSubClient = emulatorClient)
-    val publisher = Publisher<WorkItem>(PROJECT_ID, emulatorClient)
     val workItemsStub = WorkItemsCoroutineStub(grpcTestServerRule.channel)
     val workItemAttemptsStub = WorkItemAttemptsCoroutineStub(grpcTestServerRule.channel)
 
@@ -268,7 +267,7 @@ class ResultsFulfillerAppTest {
     val impressions =
       List(100) {
         LABELED_IMPRESSION.copy {
-          vid = (it % 80).toLong()
+          vid = (it % 80 + 1).toLong()
           eventTime = FIRST_EVENT_DATE.atStartOfDay().toInstant(ZoneOffset.UTC).toProtoTime()
         }
       }
@@ -305,12 +304,16 @@ class ResultsFulfillerAppTest {
         parser = WorkItem.parser(),
         workItemsStub,
         workItemAttemptsStub,
-        TestRequisitionStubFactory(grpcTestServerRule.channel),
+        TestRequisitionStubFactory(
+          grpcTestServerRule.channel,
+          mapOf("some-duchy" to grpcTestServerRule.channel),
+        ),
         kmsClients,
         typeRegistry,
         getStorageConfig(tmpPath),
         getStorageConfig(tmpPath),
         getStorageConfig(tmpPath),
+        mapOf("some-model-line" to POPULATION_SPEC),
       )
     app.runWork(Any.pack(workItemParams))
 
@@ -336,7 +339,6 @@ class ResultsFulfillerAppTest {
   @Test
   fun `runWork correctly selects continuous gaussian noise`() = runBlocking {
     val pubSubClient = Subscriber(projectId = PROJECT_ID, googlePubSubClient = emulatorClient)
-    val publisher = Publisher<WorkItem>(PROJECT_ID, emulatorClient)
     val workItemsStub = WorkItemsCoroutineStub(grpcTestServerRule.channel)
     val workItemAttemptsStub = WorkItemAttemptsCoroutineStub(grpcTestServerRule.channel)
 
@@ -424,7 +426,7 @@ class ResultsFulfillerAppTest {
     val impressions =
       List(100) {
         LABELED_IMPRESSION.copy {
-          vid = (it % 80).toLong()
+          vid = (it % 80 + 1).toLong()
           eventTime = FIRST_EVENT_DATE.atStartOfDay().toInstant(ZoneOffset.UTC).toProtoTime()
         }
       }
@@ -461,12 +463,16 @@ class ResultsFulfillerAppTest {
         parser = WorkItem.parser(),
         workItemsStub,
         workItemAttemptsStub,
-        TestRequisitionStubFactory(grpcTestServerRule.channel),
+        TestRequisitionStubFactory(
+          grpcTestServerRule.channel,
+          mapOf("some-duchy" to grpcTestServerRule.channel),
+        ),
         kmsClients,
         typeRegistry,
         getStorageConfig(tmpPath),
         getStorageConfig(tmpPath),
         getStorageConfig(tmpPath),
+        mapOf("some-model-line" to POPULATION_SPEC),
       )
     app.runWork(Any.pack(workItemParams))
 
@@ -485,7 +491,6 @@ class ResultsFulfillerAppTest {
   @Test
   fun `runWork throws exception if noise is not selected`() = runBlocking {
     val pubSubClient = Subscriber(projectId = PROJECT_ID, googlePubSubClient = emulatorClient)
-    val publisher = Publisher<WorkItem>(PROJECT_ID, emulatorClient)
     val workItemsStub = WorkItemsCoroutineStub(grpcTestServerRule.channel)
     val workItemAttemptsStub = WorkItemAttemptsCoroutineStub(grpcTestServerRule.channel)
 
@@ -573,7 +578,7 @@ class ResultsFulfillerAppTest {
     val impressions =
       List(100) {
         LABELED_IMPRESSION.copy {
-          vid = (it % 80).toLong()
+          vid = (it % 80 + 1).toLong()
           eventTime = FIRST_EVENT_DATE.atStartOfDay().toInstant(ZoneOffset.UTC).toProtoTime()
         }
       }
@@ -610,12 +615,16 @@ class ResultsFulfillerAppTest {
         parser = WorkItem.parser(),
         workItemsStub,
         workItemAttemptsStub,
-        TestRequisitionStubFactory(grpcTestServerRule.channel),
+        TestRequisitionStubFactory(
+          grpcTestServerRule.channel,
+          mapOf("some-duchy" to grpcTestServerRule.channel),
+        ),
         kmsClients,
         typeRegistry,
         getStorageConfig(tmpPath),
         getStorageConfig(tmpPath),
         getStorageConfig(tmpPath),
+        mapOf("some-model-line" to POPULATION_SPEC),
       )
     assertFails { app.runWork(Any.pack(workItemParams)) }
 
@@ -708,8 +717,6 @@ class ResultsFulfillerAppTest {
     private const val EDP_NAME = "dataProviders/$EDP_ID"
     private const val EVENT_GROUP_NAME = "$EDP_NAME/eventGroups/name"
     private const val EDP_DISPLAY_NAME = "edp1"
-    private val PRIVATE_ENCRYPTION_KEY =
-      loadEncryptionPrivateKey("${EDP_DISPLAY_NAME}_enc_private.tink")
     private val SECRET_FILES_PATH: Path =
       checkNotNull(
         getRuntimePath(
@@ -776,6 +783,7 @@ class ResultsFulfillerAppTest {
         width = 1.0f
       }
       nonceHashes += Hashing.hashSha256(REQUISITION_SPEC.nonce)
+      modelLine = "some-model-line"
     }
 
     private val NOISE_MECHANISM =
@@ -841,5 +849,16 @@ class ResultsFulfillerAppTest {
       "file:///$IMPRESSIONS_METADATA_BUCKET/$IMPRESSION_METADATA_BLOB_KEY"
 
     private const val IMPRESSIONS_METADATA_FILE_URI_PREFIX = "file:///$IMPRESSIONS_METADATA_BUCKET"
+
+    private val POPULATION_SPEC = populationSpec {
+      subpopulations +=
+        PopulationSpecKt.subPopulation {
+          vidRanges +=
+            PopulationSpecKt.vidRange {
+              startVid = 1
+              endVidInclusive = 1000
+            }
+        }
+    }
   }
 }
