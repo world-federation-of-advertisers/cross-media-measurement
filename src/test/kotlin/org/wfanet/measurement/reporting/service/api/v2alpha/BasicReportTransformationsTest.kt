@@ -2485,9 +2485,7 @@ class BasicReportTransformationsTest {
           reportingUnit = reportingUnit { components += DATA_PROVIDER_NAME_1 }
           metricFrequency = metricFrequencySpec { total = true }
           dimensionSpec = dimensionSpec {
-            grouping = DimensionSpecKt.grouping {
-              eventTemplateFields += "person.gender"
-            }
+            grouping = DimensionSpecKt.grouping { eventTemplateFields += "person.gender" }
             filters += eventFilter {
               terms += eventTemplateField {
                 path = "person.age_group"
@@ -2523,15 +2521,12 @@ class BasicReportTransformationsTest {
               cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
               details =
                 MetricCalculationSpecKt.details {
-                  groupings += MetricCalculationSpecKt.grouping {
-                    predicates += "person.gender == 0"
-                  }
-                  groupings += MetricCalculationSpecKt.grouping {
-                    predicates += "person.gender == 1"
-                  }
-                  groupings += MetricCalculationSpecKt.grouping {
-                    predicates += "person.gender == 2"
-                  }
+                  groupings +=
+                    MetricCalculationSpecKt.grouping { predicates += "person.gender == 0" }
+                  groupings +=
+                    MetricCalculationSpecKt.grouping { predicates += "person.gender == 1" }
+                  groupings +=
+                    MetricCalculationSpecKt.grouping { predicates += "person.gender == 2" }
                   filter = "filter && (person.age_group == 1)"
                   metricSpecs += metricSpec {
                     reachAndFrequency = MetricSpecKt.reachAndFrequencyParams {}
@@ -2559,10 +2554,11 @@ class BasicReportTransformationsTest {
           reportingUnit = reportingUnit { components += DATA_PROVIDER_NAME_1 }
           metricFrequency = metricFrequencySpec { total = true }
           dimensionSpec = dimensionSpec {
-            grouping = DimensionSpecKt.grouping {
-              eventTemplateFields += "person.gender"
-              eventTemplateFields += "person.age_group"
-            }
+            grouping =
+              DimensionSpecKt.grouping {
+                eventTemplateFields += "person.gender"
+                eventTemplateFields += "person.age_group"
+              }
             filters += eventFilter {
               terms += eventTemplateField {
                 path = "person.age_group"
@@ -2598,54 +2594,66 @@ class BasicReportTransformationsTest {
               cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
               details =
                 MetricCalculationSpecKt.details {
-                  groupings += MetricCalculationSpecKt.grouping {
-                    predicates += "person.gender == 0"
-                    predicates += "person.age_group == 0"
-                  }
-                  groupings += MetricCalculationSpecKt.grouping {
-                    predicates += "person.gender == 1"
-                    predicates += "person.age_group == 0"
-                  }
-                  groupings += MetricCalculationSpecKt.grouping {
-                    predicates += "person.gender == 2"
-                    predicates += "person.age_group == 0"
-                  }
-                  groupings += MetricCalculationSpecKt.grouping {
-                    predicates += "person.gender == 0"
-                    predicates += "person.age_group == 1"
-                  }
-                  groupings += MetricCalculationSpecKt.grouping {
-                    predicates += "person.gender == 1"
-                    predicates += "person.age_group == 1"
-                  }
-                  groupings += MetricCalculationSpecKt.grouping {
-                    predicates += "person.gender == 2"
-                    predicates += "person.age_group == 1"
-                  }
-                  groupings += MetricCalculationSpecKt.grouping {
-                    predicates += "person.gender == 0"
-                    predicates += "person.age_group == 2"
-                  }
-                  groupings += MetricCalculationSpecKt.grouping {
-                    predicates += "person.gender == 1"
-                    predicates += "person.age_group == 2"
-                  }
-                  groupings += MetricCalculationSpecKt.grouping {
-                    predicates += "person.gender == 2"
-                    predicates += "person.age_group == 2"
-                  }
-                  groupings += MetricCalculationSpecKt.grouping {
-                    predicates += "person.gender == 0"
-                    predicates += "person.age_group == 3"
-                  }
-                  groupings += MetricCalculationSpecKt.grouping {
-                    predicates += "person.gender == 1"
-                    predicates += "person.age_group == 3"
-                  }
-                  groupings += MetricCalculationSpecKt.grouping {
-                    predicates += "person.gender == 2"
-                    predicates += "person.age_group == 3"
-                  }
+                  groupings +=
+                    MetricCalculationSpecKt.grouping {
+                      predicates += "person.gender == 0"
+                      predicates += "person.age_group == 0"
+                    }
+                  groupings +=
+                    MetricCalculationSpecKt.grouping {
+                      predicates += "person.gender == 1"
+                      predicates += "person.age_group == 0"
+                    }
+                  groupings +=
+                    MetricCalculationSpecKt.grouping {
+                      predicates += "person.gender == 2"
+                      predicates += "person.age_group == 0"
+                    }
+                  groupings +=
+                    MetricCalculationSpecKt.grouping {
+                      predicates += "person.gender == 0"
+                      predicates += "person.age_group == 1"
+                    }
+                  groupings +=
+                    MetricCalculationSpecKt.grouping {
+                      predicates += "person.gender == 1"
+                      predicates += "person.age_group == 1"
+                    }
+                  groupings +=
+                    MetricCalculationSpecKt.grouping {
+                      predicates += "person.gender == 2"
+                      predicates += "person.age_group == 1"
+                    }
+                  groupings +=
+                    MetricCalculationSpecKt.grouping {
+                      predicates += "person.gender == 0"
+                      predicates += "person.age_group == 2"
+                    }
+                  groupings +=
+                    MetricCalculationSpecKt.grouping {
+                      predicates += "person.gender == 1"
+                      predicates += "person.age_group == 2"
+                    }
+                  groupings +=
+                    MetricCalculationSpecKt.grouping {
+                      predicates += "person.gender == 2"
+                      predicates += "person.age_group == 2"
+                    }
+                  groupings +=
+                    MetricCalculationSpecKt.grouping {
+                      predicates += "person.gender == 0"
+                      predicates += "person.age_group == 3"
+                    }
+                  groupings +=
+                    MetricCalculationSpecKt.grouping {
+                      predicates += "person.gender == 1"
+                      predicates += "person.age_group == 3"
+                    }
+                  groupings +=
+                    MetricCalculationSpecKt.grouping {
+                      predicates += "person.gender == 2"
+                      predicates += "person.age_group == 3"
+                    }
                   filter = "filter && (person.age_group == 1)"
                   metricSpecs += metricSpec {
                     reachAndFrequency = MetricSpecKt.reachAndFrequencyParams {}

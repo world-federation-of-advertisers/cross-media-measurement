@@ -139,7 +139,7 @@ fun buildReportingSetMetricCalculationSpecDetailsMap(
  * @return List of [MetricCalculationSpec.Grouping]
  */
 private fun DimensionSpec.Grouping.toMetricCalculationSpecGroupings(
-  eventTemplateFieldsMap: Map<String, EventDescriptor.EventTemplateFieldInfo>,
+  eventTemplateFieldsMap: Map<String, EventDescriptor.EventTemplateFieldInfo>
 ): List<MetricCalculationSpec.Grouping> {
   val dimensionSpecGrouping = this
 
@@ -156,9 +156,15 @@ private fun DimensionSpec.Grouping.toMetricCalculationSpecGroupings(
   val firstFieldInfoEnumType = firstFieldInfo.enumType as Descriptors.EnumDescriptor
 
   var groupings: List<List<String>> =
-    firstFieldInfoEnumType.values.map { listOf("${dimensionSpecGrouping.eventTemplateFieldsList.first()} == ${it.number}") }
+    firstFieldInfoEnumType.values.map {
+      listOf("${dimensionSpecGrouping.eventTemplateFieldsList.first()} == ${it.number}")
+    }
 
-  for (field in dimensionSpecGrouping.eventTemplateFieldsList.subList(1, dimensionSpecGrouping.eventTemplateFieldsList.size)) {
+  for (field in
+    dimensionSpecGrouping.eventTemplateFieldsList.subList(
+      1,
+      dimensionSpecGrouping.eventTemplateFieldsList.size,
+    )) {
     val fieldInfo = eventTemplateFieldsMap.getValue(field)
 
     if (fieldInfo.enumType == null) {
@@ -167,21 +173,16 @@ private fun DimensionSpec.Grouping.toMetricCalculationSpecGroupings(
     val fieldInfoEnumType = fieldInfo.enumType as Descriptors.EnumDescriptor
 
     val predicatesList = fieldInfoEnumType.values.map { "$field == ${it.number}" }
-    groupings =
-      buildList {
-        for (predicate in predicatesList) {
-          for (grouping in groupings) {
-            add(grouping + predicate)
-          }
+    groupings = buildList {
+      for (predicate in predicatesList) {
+        for (grouping in groupings) {
+          add(grouping + predicate)
         }
       }
-  }
-
-  return groupings.map {
-    MetricCalculationSpecKt.grouping {
-      predicates += it
     }
   }
+
+  return groupings.map { MetricCalculationSpecKt.grouping { predicates += it } }
 }
 
 /**
