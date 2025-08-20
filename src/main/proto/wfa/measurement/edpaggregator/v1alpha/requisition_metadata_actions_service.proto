@@ -121,16 +121,20 @@ message ListRequisitionMetadataActionsRequest {
         [(google.api.field_behavior) = OPTIONAL];
 
     // Filter by the state of the requisition before the action.
-    //
+    // (-- api-linter: core::0216::state-field-output-only=disabled
+    //     aip.dev/not-precedent: Used for filtering input. --)
     RequisitionMetadata.State prior_state = 2
         [(google.api.field_behavior) = OPTIONAL];
 
     // Filter by the state of the requisition after the action.
-    //
+    // (-- api-linter: core::0216::state-field-output-only=disabled
+    //     aip.dev/not-precedent: Used for filtering input. --)
     RequisitionMetadata.State new_state = 3
         [(google.api.field_behavior) = OPTIONAL];
   }
   // The filter to apply to the list. All filter fields are optional.
+  // (-- api-linter: core::0132::request-field-types=disabled
+  //     aip.dev/not-precedent: Customized message is used for the filter  --)
   Filter filter = 4 [(google.api.field_behavior) = OPTIONAL];
 }
 
