@@ -50,7 +50,7 @@ jobs:
 
         echo "Checking for DO_NOT_SUBMIT comments in ${#changed_files[@]} files"
 
-        if (( ${#changed_files[@]} )) && grep -Hn -- "DO_NOT_SUBMIT" "${changed_files[@]}"; then
+        if (( ${#changed_files[@]} )) && grep -HnI -- "DO_NOT_SUBMIT" "${changed_files[@]}"; then
           echo "The above files contain DO_NOT_SUBMIT comments" >&2
           exit 1
         else
