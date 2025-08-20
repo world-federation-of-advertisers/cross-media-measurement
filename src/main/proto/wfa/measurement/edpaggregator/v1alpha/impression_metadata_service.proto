@@ -106,6 +106,9 @@ message CreateImpressionMetadataRequest {
 }
 
 // Request message for the `BatchCreateImpressionMetadata` method.
+// (-- api-linter: core::0233::request-requests-field=disabled
+//     aip.dev/not-precedent: Linter incorrectly singularizes "Metadata" to
+//     "Metadatum".  --)
 message BatchCreateImpressionMetadataRequest {
   // The parent data provider resource name.
   // Format: `dataProviders/{data_provider}`
@@ -122,6 +125,9 @@ message BatchCreateImpressionMetadataRequest {
 }
 
 // Response message for the `BatchCreateImpressionMetadata` method.
+// (-- api-linter: core::0233::response-resource-field=disabled
+//     aip.dev/not-precedent: Linter incorrectly singularizes "Metadata" to
+//     "Metadatum".  --)
 message BatchCreateImpressionMetadataResponse {
   // The list of newly created ImpressionMetadata, in the same order as the
   // request.
@@ -142,6 +148,9 @@ message GetImpressionMetadataRequest {
 }
 
 // Request message for the `ListImpressionMetadata` method.
+// (-- api-linter: core::0132::request-field-types=disabled
+//     aip.dev/not-precedent: Using a customized message for the filter.
+//     --)
 message ListImpressionMetadataRequest {
   // The parent data provider resource name.
   // Format: `dataProviders/{data_provider}`
@@ -181,6 +190,8 @@ message ListImpressionMetadataRequest {
         [(google.api.field_behavior) = OPTIONAL];
 
     // The state to filter by.
+    // (-- api-linter: core::0216::state-field-output-only=disabled
+    //     aip.dev/not-precedent: State is used as filter. --)
     ImpressionMetadata.State state = 4 [(google.api.field_behavior) = OPTIONAL];
   }
 
@@ -232,6 +243,9 @@ message BatchDeleteImpressionMetadataRequest {
 }
 
 // Response message for the `BatchDeleteImpressionMetadata` method.
+// (-- api-linter: core::0235::response-resource-field=disabled
+//     aip.dev/not-precedent: Linter incorrectly singularizes "Metadata" to
+//     "Metadatum".  --)
 message BatchDeleteImpressionMetadataResponse {
   // The list of updated ImpressionMetadata, now marked as deleted.
   repeated ImpressionMetadata impression_metadata = 1;
