@@ -16,6 +16,7 @@
 
 package org.wfanet.measurement.reporting.service.api.v2alpha
 
+import com.google.protobuf.Descriptors
 import org.wfanet.measurement.api.v2alpha.DataProvider
 import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpec
@@ -85,8 +86,14 @@ fun buildReportingSetMetricCalculationSpecDetailsMap(
     Map<ReportingSet, MutableMap<MetricCalculationSpecInfoKey, MetricCalculationSpecInfo>> =
     buildMap {
       for (resultGroupSpec in resultGroupSpecs) {
-        // TODO(tristanvuong2021): create groupings from dimension_spec
-        val groupings = emptyList<MetricCalculationSpec.Grouping>()
+        val groupings: List<MetricCalculationSpec.Grouping> =
+          if (resultGroupSpec.dimensionSpec.hasGrouping()) {
+            resultGroupSpec.dimensionSpec.grouping.toMetricCalculationSpecGroupings(
+              eventTemplateFieldsMap
+            )
+          } else {
+            emptyList()
+          }
 
         // List of filters to be used in creating the MetricCalculationSpecs given the
         // DimensionSpec
@@ -122,6 +129,59 @@ fun buildReportingSetMetricCalculationSpecDetailsMap(
     .associate { entry ->
       entry.key to entry.value.entries.map { it.toMetricCalculationSpec(cmmsMeasurementConsumerId) }
     }
+}
+
+/**
+ * Transforms a [DimensionSpec.Grouping] into a List of [MetricCalculationSpec.Grouping]
+ *
+ * @param eventTemplateFieldsMap Map of EventTemplate field name with respect to Event message to
+ *   info for the field. Used for parsing [EventTemplateField]
+ * @return List of [MetricCalculationSpec.Grouping]
+ */
+private fun DimensionSpec.Grouping.toMetricCalculationSpecGroupings(
+  eventTemplateFieldsMap: Map<String, EventDescriptor.EventTemplateFieldInfo>,
+): List<MetricCalculationSpec.Grouping> {
+  val dimensionSpecGrouping = this
+
+  if (eventTemplateFieldsList.isEmpty()) {
+    return emptyList()
+  }
+
+  val firstFieldInfo =
+    eventTemplateFieldsMap.getValue(dimensionSpecGrouping.eventTemplateFieldsList.first())
+
+  if (firstFieldInfo.enumType == null) {
+    return emptyList()
+  }
+  val firstFieldInfoEnumType = firstFieldInfo.enumType as Descriptors.EnumDescriptor
+
+  var groupings: List<List<String>> =
+    firstFieldInfoEnumType.values.map { listOf("${dimensionSpecGrouping.eventTemplateFieldsList.first()} == ${it.number}") }
+
+  for (field in dimensionSpecGrouping.eventTemplateFieldsList.subList(1, dimensionSpecGrouping.eventTemplateFieldsList.size)) {
+    val fieldInfo = eventTemplateFieldsMap.getValue(field)
+
+    if (fieldInfo.enumType == null) {
+      return emptyList()
+    }
+    val fieldInfoEnumType = fieldInfo.enumType as Descriptors.EnumDescriptor
+
+    val predicatesList = fieldInfoEnumType.values.map { "$field == ${it.number}" }
+    groupings =
+      buildList {
+        for (predicate in predicatesList) {
+          for (grouping in groupings) {
+            add(grouping + predicate)
+          }
+        }
+      }
+  }
+
+  return groupings.map {
+    MetricCalculationSpecKt.grouping {
+      predicates += it
+    }
+  }
 }
 
 /**
