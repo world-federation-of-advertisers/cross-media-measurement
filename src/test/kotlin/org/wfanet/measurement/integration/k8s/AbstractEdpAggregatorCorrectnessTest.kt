@@ -51,6 +51,14 @@ abstract class AbstractEdpAggregatorCorrectnessTest(
       mcSimulator.testDirectReachAndFrequency("1234", 1)
     }
 
+  @Test
+  fun `create a impression measurement and check the result is equal to the expected result`() =
+    runBlocking {
+      // Use frontend simulator to create an impression measurement and verify its
+      // result.
+      mcSimulator.testImpression("1234")
+    }
+
   interface MeasurementSystem {
     val runId: String
     val mcSimulator: MeasurementConsumerSimulator
