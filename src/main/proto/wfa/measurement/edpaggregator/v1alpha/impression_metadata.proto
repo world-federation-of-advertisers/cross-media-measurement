@@ -44,7 +44,7 @@ message ImpressionMetadata {
     // The metadata is active and can be used for fulfillment.
     ACTIVE = 1;
     // The metadata has been marked as deleted and will not be used for
-    // fulfillment unless explicitly requested.
+    // fulfillment.
     DELETED = 2;
   }
 

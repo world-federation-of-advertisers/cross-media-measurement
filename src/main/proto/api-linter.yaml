@@ -81,14 +81,5 @@
     - 'core::0191::java-package'
     # Allow custom methods.
     - 'core::0131::synonyms'
-    - 'core::0136::response-message-name'
-    # Linter incorrectly singularizes "Metadata"
-    - 'core::0233::request-requests-field'
-    - 'core::0233::response-resource-field'
-    - 'core::0235::response-resource-field'
-    # States are also used as records.
-    - 'core::0216::state-field-output-only'
     # User-specified IDs not supported.
     - 'core::0133::request-id-field'
-    # Customized filters are used.
-    - 'core::0132::request-field-types'
