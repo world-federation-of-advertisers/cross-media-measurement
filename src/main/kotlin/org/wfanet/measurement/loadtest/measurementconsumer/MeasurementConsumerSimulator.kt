@@ -1281,7 +1281,7 @@ abstract class MeasurementConsumerSimulator(
       measurementPublicKey = packedMeasurementPublicKey
       impression = impression {
         privacyParams = outputDpParams
-        maximumFrequencyPerUser = 10
+        maximumFrequencyPerUser = 2
       }
       this.vidSamplingInterval = vidSamplingInterval
       this.nonceHashes += nonceHashes
