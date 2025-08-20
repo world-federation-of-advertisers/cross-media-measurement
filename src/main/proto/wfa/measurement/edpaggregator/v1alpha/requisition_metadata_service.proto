@@ -49,6 +49,10 @@ service RequisitionMetadataService {
   // Looks up a single RequisitionMetadata resource by an alternative key.
   //
   // Exactly one of the lookup keys must be provided.
+  // (-- api-linter: core::0136::response-message-name=disabled
+  //     aip.dev/not-precedent: Returning the resource directly is more
+  //     ergonomic.
+  //     --)
   rpc LookupRequisitionMetadata(LookupRequisitionMetadataRequest)
       returns (RequisitionMetadata) {}
 
@@ -95,6 +99,8 @@ message CreateRequisitionMetadataRequest {
 }
 
 // Request message for the `BatchCreateRequisitionMetadata` method.
+// (-- api-linter: core::0233::request-requests-field=disabled
+//     aip.dev/not-precedent: Linter incorrectly singularizes "Metadata". --)
 message BatchCreateRequisitionMetadataRequest {
   // The parent data provider resource name.
   // Format: `dataProviders/{data_provider}`
@@ -111,6 +117,8 @@ message BatchCreateRequisitionMetadataRequest {
 }
 
 // Response message for the `BatchCreateRequisitionMetadata` method.
+// (-- api-linter: core::0233::response-resource-field=disabled
+//     aip.dev/not-precedent: Linter incorrectly singularizes "Metadata". --)
 message BatchCreateRequisitionMetadataResponse {
   // The list of newly created RequisitionMetadata, in the same order as the
   // request.
@@ -174,13 +182,17 @@ message ListRequisitionMetadataRequest {
   // Filtering criteria for the list request.
   message Filter {
     // Filter by the state of the requisition.
-    //
+    // (-- api-linter: core::0216::state-field-output-only=disabled
+    //     aip.dev/not-precedent: The state field is used for filtering input.
+    //     --)
     RequisitionMetadata.State state = 1
         [(google.api.field_behavior) = OPTIONAL];
     // Filter by the group ID of the requisition.
     string group_id = 2 [(google.api.field_behavior) = OPTIONAL];
   }
   // The filter to apply to the list. All filter fields are optional.
+  // (-- api-linter: core::0132::request-field-types=disabled
+  //     aip.dev/not-precedent: Customized message is used for the filter  --)
   Filter filter = 4 [(google.api.field_behavior) = OPTIONAL];
 }
 
