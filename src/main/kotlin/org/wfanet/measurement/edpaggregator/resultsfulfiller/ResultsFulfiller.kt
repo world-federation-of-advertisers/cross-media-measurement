@@ -26,7 +26,6 @@ import java.util.logging.Logger
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.map
-import org.wfanet.frequencycount.FrequencyVector
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
@@ -41,9 +40,7 @@ import org.wfanet.measurement.api.v2alpha.unpack
 import org.wfanet.measurement.common.crypto.PrivateKeyHandle
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.flatten
-import org.wfanet.measurement.computation.HistogramComputations
 import org.wfanet.measurement.computation.KAnonymityParams
-import org.wfanet.measurement.computation.ReachAndFrequencyComputations
 import org.wfanet.measurement.consent.client.dataprovider.decryptRequisitionSpec
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.compute.protocols.direct.DirectMeasurementResultFactory
@@ -142,14 +139,15 @@ class ResultsFulfiller(
           )
         } else if (protocols.any { it.hasHonestMajorityShareShuffle() }) {
           if (kAnonymityParams == null) {
-          HMShuffleMeasurementFulfiller(
-            requisition,
-            requisitionSpec.nonce,
-            frequencyVectorBuilder.build(),
-            dataProviderSigningKeyHandle,
-            dataProviderCertificateKey,
-            requisitionFulfillmentStubMap,
-          )} else {
+            HMShuffleMeasurementFulfiller(
+              requisition,
+              requisitionSpec.nonce,
+              frequencyVectorBuilder.build(),
+              dataProviderSigningKeyHandle,
+              dataProviderCertificateKey,
+              requisitionFulfillmentStubMap,
+            )
+          } else {
             HMShuffleMeasurementFulfiller.buildKAnonymized(
               requisition,
               requisitionSpec.nonce,
