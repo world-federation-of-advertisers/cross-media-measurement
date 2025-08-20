@@ -3,6 +3,7 @@ module(
     repo_name = "wfa_measurement_system",
 )
 
+# DO_NOT_SUBMIT: testing the check
 BORINGSSL_VERSION = "0.20241209.0"
 
 # Version of Apache Beam.
