@@ -141,36 +141,28 @@ class ResultsFulfiller(
             kAnonymityParams = kAnonymityParams,
           )
         } else if (protocols.any { it.hasHonestMajorityShareShuffle() }) {
-          val hmShuffleFrequencyVector: FrequencyVector =
-            if (kAnonymityParams == null) {
-              frequencyVectorBuilder.build()
-            } else {
-              if (
-                violatesKAnonymity(
-                  measurementSpec,
-                  frequencyData,
-                  kAnonymityParams,
-                  maxPopulation = null,
-                )
-              ) {
-                FrequencyVectorBuilder(
-                    measurementSpec = measurementSpec,
-                    populationSpec = populationSpec,
-                    strict = false,
-                  )
-                  .build()
-              } else {
-                frequencyVectorBuilder.build()
-              }
-            }
+          if (kAnonymityParams == null) {
           HMShuffleMeasurementFulfiller(
             requisition,
             requisitionSpec.nonce,
-            hmShuffleFrequencyVector,
+            frequencyVectorBuilder.build(),
             dataProviderSigningKeyHandle,
             dataProviderCertificateKey,
             requisitionFulfillmentStubMap,
-          )
+          )} else {
+            HMShuffleMeasurementFulfiller.buildKAnonymized(
+              requisition,
+              requisitionSpec.nonce,
+              measurementSpec,
+              populationSpec,
+              frequencyVectorBuilder,
+              dataProviderSigningKeyHandle,
+              dataProviderCertificateKey,
+              requisitionFulfillmentStubMap,
+              kAnonymityParams,
+              maxPopulation = null,
+            )
+          }
         } else {
           throw Exception("Protocol not supported")
         }
@@ -208,29 +200,6 @@ class ResultsFulfiller(
         ImpressionReadException.Code.INVALID_FORMAT,
       )
     }
-  }
-
-  /** Builds a direct measurement result. */
-  private fun violatesKAnonymity(
-    measurementSpec: MeasurementSpec,
-    frequencyData: IntArray,
-    kAnonymityParams: KAnonymityParams,
-    maxPopulation: Int?,
-  ): Boolean {
-    val histogram: LongArray =
-      HistogramComputations.buildHistogram(
-        frequencyVector = frequencyData,
-        maxFrequency = kAnonymityParams.maxFrequencyPerUser!!,
-      )
-    val reachValue =
-      ReachAndFrequencyComputations.computeReach(
-        rawHistogram = histogram,
-        vidSamplingIntervalWidth = measurementSpec.vidSamplingInterval.width,
-        vectorSize = maxPopulation,
-        dpParams = null,
-        kAnonymityParams = kAnonymityParams,
-      )
-    return reachValue == 0L
   }
 
   /** Builds a [DirectMeasurementFulfiller]. */
