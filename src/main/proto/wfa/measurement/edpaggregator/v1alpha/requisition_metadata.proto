@@ -88,9 +88,10 @@ message RequisitionMetadata {
   ];
 
   // The resource name of the WorkItem.
+  // This is set when the requisition is queued for processing.
   // Format `workItems/{work_item}`
   string work_item = 7 [
-    (google.api.field_behavior) = REQUIRED,
+    (google.api.field_behavior) = OPTIONAL,
     (google.api.field_behavior) = IMMUTABLE,
     (google.api.resource_reference) = {
       type: "control-plane.secure-computation.halo-cmm.org/WorkItem"

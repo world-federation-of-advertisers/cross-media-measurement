@@ -71,6 +71,44 @@ service RequisitionMetadataService {
       returns (google.protobuf.Timestamp) {
     option (google.api.method_signature) = "parent";
   }
+
+  // Transitions a RequisitionMetadata resource to the QUEUED state.
+  // This indicates it is ready to be processed.
+  rpc QueueRequisitionMetadata(QueueRequisitionMetadataRequest)
+      returns (RequisitionMetadata) {
+    option (google.api.method_signature) = "name,etag,work_item";
+  }
+
+  // Transitions a RequisitionMetadata resource to the PROCESSING state.
+  // This indicates it is actively being worked on.
+  rpc StartProcessingRequisitionMetadata(
+      StartProcessingRequisitionMetadataRequest) returns (RequisitionMetadata) {
+    option (google.api.method_signature) = "name,etag";
+  }
+
+  // Transitions a RequisitionMetadata resource to the FULFILLED state.
+  // This indicates it has been successfully processed.
+  rpc FulfillRequisitionMetadata(FulfillRequisitionMetadataRequest)
+      returns (RequisitionMetadata) {
+    option (google.api.method_signature) = "name,etag";
+  }
+
+  // Transitions a RequisitionMetadata resource to the REFUSED state.
+  // This indicates that it could not be processed.
+  rpc RefuseRequisitionMetadata(RefuseRequisitionMetadataRequest)
+      returns (RequisitionMetadata) {
+    option (google.api.method_signature) = "name,etag,error_message";
+  }
+
+  // Transitions a RequisitionMetadata resource to the DELETED state.
+  // This is a soft delete. The resource is not actually removed.
+  // (-- api-linter: core::0135::verb-noun=disabled
+  //     aip.dev/not-precedent: Custom soft-delete method returns the resource.
+  //     --)
+  rpc MarkRequisitionMetadataDeleted(MarkRequisitionMetadataDeletedRequest)
+      returns (RequisitionMetadata) {
+    option (google.api.method_signature) = "name,etag";
+  }
 }
 
 // Request message for the `CreateRequisitionMetadata` method.
@@ -128,8 +166,6 @@ message BatchCreateRequisitionMetadataResponse {
 // Request message for the `GetRequisitionMetadata` method.
 message GetRequisitionMetadataRequest {
   // The resource name of the RequisitionMetadata to retrieve.
-  // Format:
-  // `dataProviders/{data_provider}/requisitionMetadata/{requisition_metadata}`
   string name = 1 [
     (google.api.field_behavior) = REQUIRED,
     (google.api.resource_reference) = {
@@ -216,4 +252,87 @@ message FetchLatestCmmsCreateTimeRequest {
       child_type: "edpaggregator.halo-cmm.org/RequisitionMetadata"
     }
   ];
+}
+
+// Request message for the `QueueRequisitionMetadata` method.
+message QueueRequisitionMetadataRequest {
+  // The resource name of the RequisitionMetadata to queue.
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      type: "edpaggregator.halo-cmm.org/RequisitionMetadata"
+    }
+  ];
+
+  // The etag of the RequisitionMetadata for optimistic locking.
+  string etag = 2 [(google.api.field_behavior) = REQUIRED];
+
+  // The resource name of the WorkItem to associate with this requisition.
+  // Format `workItems/{work_item}`
+  string work_item = 3 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      type: "control-plane.secure-computation.halo-cmm.org/WorkItem"
+    }
+  ];
+}
+
+// Request message for the `StartProcessingRequisitionMetadata` method.
+message StartProcessingRequisitionMetadataRequest {
+  // The resource name of the RequisitionMetadata to start processing.
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      type: "edpaggregator.halo-cmm.org/RequisitionMetadata"
+    }
+  ];
+
+  // The etag of the RequisitionMetadata for optimistic locking.
+  string etag = 2 [(google.api.field_behavior) = REQUIRED];
+}
+
+// Request message for the `FulfillRequisitionMetadata` method.
+message FulfillRequisitionMetadataRequest {
+  // The resource name of the RequisitionMetadata to fulfill.
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      type: "edpaggregator.halo-cmm.org/RequisitionMetadata"
+    }
+  ];
+
+  // The etag of the RequisitionMetadata for optimistic locking.
+  string etag = 2 [(google.api.field_behavior) = REQUIRED];
+}
+
+// Request message for the `RefuseRequisitionMetadata` method.
+message RefuseRequisitionMetadataRequest {
+  // The resource name of the RequisitionMetadata to refuse.
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      type: "edpaggregator.halo-cmm.org/RequisitionMetadata"
+    }
+  ];
+
+  // The etag of the RequisitionMetadata for optimistic locking.
+  string etag = 2 [(google.api.field_behavior) = REQUIRED];
+
+  // A human-readable message explaining the reason for refusal.
+  // This will be stored in the `error_message` field of the resource.
+  string error_message = 3 [(google.api.field_behavior) = REQUIRED];
+}
+
+// Request message for the `MarkRequisitionMetadataDeleted` method.
+message MarkRequisitionMetadataDeletedRequest {
+  // The resource name of the RequisitionMetadata to mark as deleted.
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      type: "edpaggregator.halo-cmm.org/RequisitionMetadata"
+    }
+  ];
+
+  // The etag of the RequisitionMetadata for optimistic locking.
+  string etag = 2 [(google.api.field_behavior) = REQUIRED];
 }
