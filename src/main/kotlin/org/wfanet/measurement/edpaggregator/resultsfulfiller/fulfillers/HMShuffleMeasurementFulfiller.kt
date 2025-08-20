@@ -113,7 +113,10 @@ class HMShuffleMeasurementFulfiller(
       )
     }
 
-    /** Returns an empty FrequencyVector is k-anonymity threshold is not met for reach. */
+    /**
+     * Returns an empty FrequencyVector if k-anonymity threshold is not met for reach. It does not
+     * k-anonymize individual frequencies that do not meet a threshold.
+     */
     private fun kAnonymize(
       measurementSpec: MeasurementSpec,
       populationSpec: PopulationSpec,
