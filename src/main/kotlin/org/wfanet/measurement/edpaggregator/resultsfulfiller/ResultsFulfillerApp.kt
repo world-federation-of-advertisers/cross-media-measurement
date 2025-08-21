@@ -31,6 +31,7 @@ import org.wfanet.measurement.common.crypto.readPrivateKey
 import org.wfanet.measurement.common.crypto.tink.loadPrivateKey
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.readByteString
+import org.wfanet.measurement.computation.KAnonymityParams
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams.NoiseParams.NoiseType
@@ -145,6 +146,8 @@ class ResultsFulfillerApp(
         NoiseType.CONTINUOUS_GAUSSIAN -> ContinuousGaussianNoiseSelector()
         else -> throw Exception("Invalid noise type ${fulfillerParams.noiseParams.noiseType}")
       }
+    // TODO: Read in EDP kAnonymityParams
+    val kAnonymityParams: KAnonymityParams? = null
     ResultsFulfiller(
         loadPrivateKey(encryptionPrivateKeyFile),
         requisitionsStub,
@@ -158,6 +161,7 @@ class ResultsFulfillerApp(
         noiserSelector = noiseSelector,
         eventReader = eventReader,
         populationSpecMap = populationSpecMap,
+        kAnonymityParams = kAnonymityParams,
       )
       .fulfillRequisitions()
   }

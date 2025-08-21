@@ -229,6 +229,7 @@ java_test(
     size = "large",
     tags = [
         "cpu:2",
+        "long_running",
         "no-remote-exec",
     ],
     test_class = "org.wfanet.measurement.integration.deploy.gcloud.GCloudEdpAggregatorLifeOfAMeasurementIntegrationTest",
