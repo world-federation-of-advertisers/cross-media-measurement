@@ -152,21 +152,19 @@ private fun DimensionSpec.Grouping.toMetricCalculationSpecGroupings(
     }
   }
 
-  return eventTemplateFieldsList.fold(emptyList()) { groupings: List<List<String>>, field: String ->
-    val fieldInfo = eventTemplateFieldsMap.getValue(field)
-    val fieldInfoEnumType = fieldInfo.enumType as Descriptors.EnumDescriptor
-    val predicatesList = fieldInfoEnumType.values.map { "$field == ${it.number}" }
+  return eventTemplateFieldsList
+    .fold(emptyList()) { groupings: List<List<String>>, field: String ->
+      val fieldInfo = eventTemplateFieldsMap.getValue(field)
+      val fieldInfoEnumType = fieldInfo.enumType as Descriptors.EnumDescriptor
+      val predicatesList = fieldInfoEnumType.values.map { "$field == ${it.number}" }
 
-    if (groupings.isEmpty()) {
-      predicatesList.map { listOf(it) }
-    } else {
-      groupings.flatMap { grouping ->
-        predicatesList.map { predicate ->
-          grouping + predicate
-        }
+      if (groupings.isEmpty()) {
+        predicatesList.map { listOf(it) }
+      } else {
+        groupings.flatMap { grouping -> predicatesList.map { predicate -> grouping + predicate } }
       }
     }
-  }.map { MetricCalculationSpecKt.grouping { predicates += it } }
+    .map { MetricCalculationSpecKt.grouping { predicates += it } }
 }
 
 /**
