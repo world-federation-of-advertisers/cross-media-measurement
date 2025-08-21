@@ -354,9 +354,10 @@ class BasicReportsService(
           }
         pageSize = finalPageSize
         pageToken = listBasicReportsPageToken {
-          filter = ListBasicReportsPageTokenKt.filter {
-            createTimeAfter = decodedPageToken.filter.createTimeAfter
-          }
+          filter =
+            ListBasicReportsPageTokenKt.filter {
+              createTimeAfter = decodedPageToken.filter.createTimeAfter
+            }
           lastBasicReport =
             ListBasicReportsPageTokenKt.previousPageEnd {
               createTime = decodedPageToken.lastBasicReport.createTime

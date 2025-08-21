@@ -5516,17 +5516,20 @@ class BasicReportsServiceTest {
             listBasicReportsRequest {
               parent = MeasurementConsumerKey(cmmsMeasurementConsumerId).toName()
               pageSize = 1
-              filter = ListBasicReportsRequestKt.filter { createTimeAfter = timestamp { seconds = 1 } }
+              filter =
+                ListBasicReportsRequestKt.filter { createTimeAfter = timestamp { seconds = 1 } }
               pageToken =
                 listBasicReportsPageToken {
-                  filter =
-                    ListBasicReportsPageTokenKt.filter { createTimeAfter = timestamp { seconds = 1 } }
-                  lastBasicReport =
-                    ListBasicReportsPageTokenKt.previousPageEnd {
-                      createTime = timestamp { seconds = 5 }
-                      externalBasicReportId = "1234"
-                    }
-                }
+                    filter =
+                      ListBasicReportsPageTokenKt.filter {
+                        createTimeAfter = timestamp { seconds = 1 }
+                      }
+                    lastBasicReport =
+                      ListBasicReportsPageTokenKt.previousPageEnd {
+                        createTime = timestamp { seconds = 5 }
+                        externalBasicReportId = "1234"
+                      }
+                  }
                   .toByteString()
                   .base64UrlEncode()
             }
@@ -5538,15 +5541,15 @@ class BasicReportsServiceTest {
           basicReport {
             name =
               BasicReportKey(
-                cmmsMeasurementConsumerId = cmmsMeasurementConsumerId,
-                basicReportId = internalBasicReport1.externalBasicReportId,
-              )
+                  cmmsMeasurementConsumerId = cmmsMeasurementConsumerId,
+                  basicReportId = internalBasicReport1.externalBasicReportId,
+                )
                 .toName()
             campaignGroup =
               ReportingSetKey(
-                cmmsMeasurementConsumerId = cmmsMeasurementConsumerId,
-                reportingSetId = reportingSetId,
-              )
+                  cmmsMeasurementConsumerId = cmmsMeasurementConsumerId,
+                  reportingSetId = reportingSetId,
+                )
                 .toName()
             campaignGroupDisplayName = INTERNAL_CAMPAIGN_GROUP.displayName
             title = "title"
@@ -5561,16 +5564,15 @@ class BasicReportsServiceTest {
       assertThat(listBasicReportsResponse.nextPageToken)
         .isEqualTo(
           listBasicReportsPageToken {
-            this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
-            filter = ListBasicReportsPageTokenKt.filter {
-              createTimeAfter = timestamp { seconds = 1 }
+              this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
+              filter =
+                ListBasicReportsPageTokenKt.filter { createTimeAfter = timestamp { seconds = 1 } }
+              lastBasicReport =
+                ListBasicReportsPageTokenKt.previousPageEnd {
+                  createTime = internalBasicReport1.createTime
+                  externalBasicReportId = internalBasicReport1.externalBasicReportId
+                }
             }
-            lastBasicReport =
-              ListBasicReportsPageTokenKt.previousPageEnd {
-                createTime = internalBasicReport1.createTime
-                externalBasicReportId = internalBasicReport1.externalBasicReportId
-              }
-          }
             .toByteString()
             .base64UrlEncode()
         )
