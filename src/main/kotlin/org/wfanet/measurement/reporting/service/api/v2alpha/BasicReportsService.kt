@@ -350,9 +350,13 @@ class BasicReportsService(
         this.filter =
           InternalListBasicReportsRequestKt.filter {
             this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
+            createTimeAfter = decodedPageToken.filter.createTimeAfter
           }
         pageSize = finalPageSize
         pageToken = listBasicReportsPageToken {
+          filter = ListBasicReportsPageTokenKt.filter {
+            createTimeAfter = decodedPageToken.filter.createTimeAfter
+          }
           lastBasicReport =
             ListBasicReportsPageTokenKt.previousPageEnd {
               createTime = decodedPageToken.lastBasicReport.createTime
