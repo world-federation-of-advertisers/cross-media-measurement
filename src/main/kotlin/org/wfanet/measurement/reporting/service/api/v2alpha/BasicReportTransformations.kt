@@ -145,37 +145,28 @@ private fun DimensionSpec.Grouping.toMetricCalculationSpecGroupings(
     return emptyList()
   }
 
-  val firstFieldInfo = eventTemplateFieldsMap.getValue(eventTemplateFieldsList.first())
-
-  if (firstFieldInfo.enumType == null) {
-    return emptyList()
-  }
-  val firstFieldInfoEnumType = firstFieldInfo.enumType as Descriptors.EnumDescriptor
-
-  var groupings: List<List<String>> =
-    firstFieldInfoEnumType.values.map {
-      listOf("${eventTemplateFieldsList.first()} == ${it.number}")
-    }
-
-  for (field in eventTemplateFieldsList.subList(1, eventTemplateFieldsList.size)) {
+  for (field in eventTemplateFieldsList) {
     val fieldInfo = eventTemplateFieldsMap.getValue(field)
-
     if (fieldInfo.enumType == null) {
       return emptyList()
     }
-    val fieldInfoEnumType = fieldInfo.enumType as Descriptors.EnumDescriptor
+  }
 
+  return eventTemplateFieldsList.fold(emptyList()) { groupings: List<List<String>>, field: String ->
+    val fieldInfo = eventTemplateFieldsMap.getValue(field)
+    val fieldInfoEnumType = fieldInfo.enumType as Descriptors.EnumDescriptor
     val predicatesList = fieldInfoEnumType.values.map { "$field == ${it.number}" }
-    groupings = buildList {
-      for (predicate in predicatesList) {
-        for (grouping in groupings) {
-          add(grouping + predicate)
+
+    if (groupings.isEmpty()) {
+      predicatesList.map { listOf(it) }
+    } else {
+      groupings.flatMap { grouping ->
+        predicatesList.map { predicate ->
+          grouping + predicate
         }
       }
     }
-  }
-
-  return groupings.map { MetricCalculationSpecKt.grouping { predicates += it } }
+  }.map { MetricCalculationSpecKt.grouping { predicates += it } }
 }
 
 /**

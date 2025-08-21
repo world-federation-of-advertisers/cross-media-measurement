@@ -2601,42 +2601,12 @@ class BasicReportTransformationsTest {
                     }
                   groupings +=
                     MetricCalculationSpecKt.grouping {
-                      predicates += "person.gender == 1"
-                      predicates += "person.age_group == 0"
-                    }
-                  groupings +=
-                    MetricCalculationSpecKt.grouping {
-                      predicates += "person.gender == 2"
-                      predicates += "person.age_group == 0"
-                    }
-                  groupings +=
-                    MetricCalculationSpecKt.grouping {
                       predicates += "person.gender == 0"
                       predicates += "person.age_group == 1"
                     }
                   groupings +=
                     MetricCalculationSpecKt.grouping {
-                      predicates += "person.gender == 1"
-                      predicates += "person.age_group == 1"
-                    }
-                  groupings +=
-                    MetricCalculationSpecKt.grouping {
-                      predicates += "person.gender == 2"
-                      predicates += "person.age_group == 1"
-                    }
-                  groupings +=
-                    MetricCalculationSpecKt.grouping {
                       predicates += "person.gender == 0"
-                      predicates += "person.age_group == 2"
-                    }
-                  groupings +=
-                    MetricCalculationSpecKt.grouping {
-                      predicates += "person.gender == 1"
-                      predicates += "person.age_group == 2"
-                    }
-                  groupings +=
-                    MetricCalculationSpecKt.grouping {
-                      predicates += "person.gender == 2"
                       predicates += "person.age_group == 2"
                     }
                   groupings +=
@@ -2647,7 +2617,37 @@ class BasicReportTransformationsTest {
                   groupings +=
                     MetricCalculationSpecKt.grouping {
                       predicates += "person.gender == 1"
+                      predicates += "person.age_group == 0"
+                    }
+                  groupings +=
+                    MetricCalculationSpecKt.grouping {
+                      predicates += "person.gender == 1"
+                      predicates += "person.age_group == 1"
+                    }
+                  groupings +=
+                    MetricCalculationSpecKt.grouping {
+                      predicates += "person.gender == 1"
+                      predicates += "person.age_group == 2"
+                    }
+                  groupings +=
+                    MetricCalculationSpecKt.grouping {
+                      predicates += "person.gender == 1"
                       predicates += "person.age_group == 3"
+                    }
+                  groupings +=
+                    MetricCalculationSpecKt.grouping {
+                      predicates += "person.gender == 2"
+                      predicates += "person.age_group == 0"
+                    }
+                  groupings +=
+                    MetricCalculationSpecKt.grouping {
+                      predicates += "person.gender == 2"
+                      predicates += "person.age_group == 1"
+                    }
+                  groupings +=
+                    MetricCalculationSpecKt.grouping {
+                      predicates += "person.gender == 2"
+                      predicates += "person.age_group == 2"
                     }
                   groupings +=
                     MetricCalculationSpecKt.grouping {
