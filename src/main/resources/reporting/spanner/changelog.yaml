@@ -21,3 +21,6 @@ databaseChangeLog:
 - include:
     file: add-state-to-basic-report.sql
     relativeToChangeLogFile: true
+- include:
+    file: add-external-report-id-and-create-report-request-id-to-basic-report.sql
+    relativeToChangeLogFile: true
