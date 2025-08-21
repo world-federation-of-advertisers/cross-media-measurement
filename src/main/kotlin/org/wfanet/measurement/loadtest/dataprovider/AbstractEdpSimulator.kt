@@ -14,6 +14,10 @@
 
 package org.wfanet.measurement.loadtest.dataprovider
 
+import org.wfanet.anysketch.crypto.ElGamalPublicKey as AnySketchElGamalPublicKey
+import org.wfanet.anysketch.crypto.elGamalPublicKey as anySketchElGamalPublicKey
+import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.shareshuffle.FulfillRequisitionRequestBuilder as ShareshuffleRequisitionRequestBuilder
+import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.trustee.FulfillRequisitionRequestBuilder as TrusTeeRequisitionRequestBuilder
 import com.google.protobuf.ByteString
 import com.google.protobuf.Message
 import com.google.protobuf.duration
@@ -48,8 +52,6 @@ import org.apache.commons.math3.distribution.ConstantRealDistribution
 import org.jetbrains.annotations.BlockingExecutor
 import org.wfanet.anysketch.Sketch
 import org.wfanet.anysketch.SketchConfig
-import org.wfanet.anysketch.crypto.ElGamalPublicKey as AnySketchElGamalPublicKey
-import org.wfanet.anysketch.crypto.elGamalPublicKey as anySketchElGamalPublicKey
 import org.wfanet.measurement.api.v2alpha.Certificate
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.CustomDirectMethodologyKt.variance
@@ -108,8 +110,6 @@ import org.wfanet.measurement.common.api.grpc.listResources
 import org.wfanet.measurement.common.asBufferedFlow
 import org.wfanet.measurement.common.crypto.authorityKeyIdentifier
 import org.wfanet.measurement.common.crypto.readCertificate
-import org.wfanet.measurement.common.crypto.tink.GCloudWifCredentials
-import org.wfanet.measurement.common.crypto.tink.KmsClientFactory
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.common.toInterval
@@ -137,8 +137,6 @@ import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.api.v2al
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.api.v2alpha.PrivacyQueryMapper.getMpcAcdpQuery
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.FrequencyVectorBuilder
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.VidIndexMap
-import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.shareshuffle.FulfillRequisitionRequestBuilder as ShareshuffleRequisitionRequestBuilder
-import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.trustee.FulfillRequisitionRequestBuilder as TrusTeeRequisitionRequestBuilder
 import org.wfanet.measurement.loadtest.common.sampleVids
 import org.wfanet.measurement.loadtest.config.TestIdentifiers.SIMULATOR_EVENT_GROUP_REFERENCE_ID_PREFIX
 
@@ -169,18 +167,11 @@ abstract class AbstractEdpSimulator(
   private val random: Random,
   private val logSketchDetails: Boolean,
   private val health: SettableHealth,
-  private val trusTeeParams: TrusTeeParams? = null,
-  private val kmsClientFactory: KmsClientFactory<GCloudWifCredentials>? = null,
   private val blockingCoroutineContext: @BlockingExecutor CoroutineContext,
+  private val trusTeeEncryptionParams: TrusTeeRequisitionRequestBuilder.EncryptionParams?,
 ) :
   RequisitionFulfiller(edpData, certificatesStub, requisitionsStub, throttler, trustedCertificates),
   Health by health {
-  data class TrusTeeParams(
-    val kmsKekUri: String,
-    val workloadIdentityProvider: String,
-    val impersonatedServiceAccount: String,
-  )
-
   interface EventGroupOptions {
     val referenceIdSuffix: String
     val syntheticDataSpec: SyntheticEventGroupSpec
@@ -1129,7 +1120,7 @@ abstract class AbstractEdpSimulator(
       requisition.name,
       measurementSpec,
       eventGroupSpecs.map { it.spec },
-      NoiseMechanism.CONTINUOUS_GAUSSIAN,
+      NoiseMechanism.DISCRETE_GAUSSIAN,
       1,
     )
 
@@ -1146,30 +1137,12 @@ abstract class AbstractEdpSimulator(
     logger.log(Level.INFO) { "Sampled frequency vector size:\n${sampledFrequencyVector.dataCount}" }
 
     val requests: Flow<FulfillRequisitionRequest> =
-      if (trusTeeParams != null) {
-        requireNotNull(kmsClientFactory) { "kmsClientFactory cannot be null." }
-        val credentials =
-          GCloudWifCredentials(
-            audience = trusTeeParams.workloadIdentityProvider,
-            subjectTokenType = OAUTH_TOKEN_TYPE_ID_TOKEN,
-            tokenUrl = GOOGLE_STS_TOKEN_URL,
-            credentialSourceFilePath = ATTESTATION_TOKEN_PATH,
-            serviceAccountImpersonationUrl =
-              IAM_IMPERSONATION_URL_FORMAT.format(trusTeeParams.impersonatedServiceAccount),
-          )
-
-        val encryptionParams =
-          TrusTeeRequisitionRequestBuilder.EncryptionParams(
-            kmsClientFactory.getKmsClient(credentials),
-            trusTeeParams.kmsKekUri,
-            trusTeeParams.workloadIdentityProvider,
-            trusTeeParams.impersonatedServiceAccount,
-          )
+      if (trusTeeEncryptionParams != null) {
         TrusTeeRequisitionRequestBuilder.buildEncrypted(
             requisition,
             nonce,
             sampledFrequencyVector,
-            encryptionParams,
+            trusTeeEncryptionParams,
           )
           .asFlow()
       } else {
@@ -1181,7 +1154,7 @@ abstract class AbstractEdpSimulator(
           .asFlow()
       }
 
-    val duchyId = getDuchyWithoutPublicKey(requisition)
+    val duchyId = requisition.duchiesList.single().key
     val requisitionFulfillmentStub =
       requisitionFulfillmentStubsByDuchyId[duchyId]
         ?: throw Exception("Requisition fulfillment stub not found for $duchyId.")
@@ -1623,12 +1596,6 @@ abstract class AbstractEdpSimulator(
     private const val UNFULFILLABLE_EVENT_GROUP_ID = "unfulfillable"
     // Resource ID for EventGroup that fails Requisitions with DECLINED if used.
     private const val DECLINED_EVENT_GROUP_ID = "declined"
-
-    private const val OAUTH_TOKEN_TYPE_ID_TOKEN = "urn:ietf:params:oauth:token-type:id_token"
-    private const val GOOGLE_STS_TOKEN_URL = "https://sts.googleapis.com/v1/token"
-    private const val IAM_IMPERSONATION_URL_FORMAT =
-      "https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/%s:generateAccessToken"
-    private const val ATTESTATION_TOKEN_PATH = "attestation/token/path"
 
     fun getEventGroupReferenceIdPrefix(edpDisplayName: String): String {
       return "$SIMULATOR_EVENT_GROUP_REFERENCE_ID_PREFIX-${edpDisplayName}"
