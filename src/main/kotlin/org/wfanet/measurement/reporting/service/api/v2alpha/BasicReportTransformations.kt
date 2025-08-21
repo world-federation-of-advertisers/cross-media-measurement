@@ -145,8 +145,7 @@ private fun DimensionSpec.Grouping.toMetricCalculationSpecGroupings(
     return emptyList()
   }
 
-  val firstFieldInfo =
-    eventTemplateFieldsMap.getValue(eventTemplateFieldsList.first())
+  val firstFieldInfo = eventTemplateFieldsMap.getValue(eventTemplateFieldsList.first())
 
   if (firstFieldInfo.enumType == null) {
     return emptyList()
