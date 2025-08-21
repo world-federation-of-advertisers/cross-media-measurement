@@ -40,7 +40,6 @@ message ReportResult {
     // primitive Venn diagram region entailed by sub-ReportingSets
     PRIMITIVE = 2;
   }
-
 }
 
 // A base metric is one that is computed by the upstream parts of the CMMS
@@ -49,7 +48,7 @@ message ReportResult {
 message BaseMetricSet {
   int32 population_size = 1;
 
-  message BasicBaseMetricSet {
+  message NonDerivedBasicMetricSet {
     // The reach
     int32 reach = 1;
     // The k+ reach where the index is frequency - 1.

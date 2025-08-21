@@ -376,6 +376,7 @@ proto_descriptor_set(
         ":impression_qualification_filter_proto",
         ":impression_qualification_filter_spec_proto",
         ":metric_frequency_spec_proto",
+        ":report_results_proto",
         ":reporting_impression_qualification_filter_proto",
         ":reporting_interval_proto",
         ":result_group_proto",
