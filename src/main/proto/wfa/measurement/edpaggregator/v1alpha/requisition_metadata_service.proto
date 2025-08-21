@@ -102,10 +102,7 @@ service RequisitionMetadataService {
 
   // Transitions a RequisitionMetadata resource to the DELETED state.
   // This is a soft delete. The resource is not actually removed.
-  // (-- api-linter: core::0135::verb-noun=disabled
-  //     aip.dev/not-precedent: Custom soft-delete method returns the resource.
-  //     --)
-  rpc MarkRequisitionMetadataDeleted(MarkRequisitionMetadataDeletedRequest)
+  rpc DeleteRequisitionMetadata(DeleteRequisitionMetadataRequest)
       returns (RequisitionMetadata) {
     option (google.api.method_signature) = "name,etag";
   }
@@ -123,6 +120,9 @@ message CreateRequisitionMetadataRequest {
   ];
 
   // The RequisitionMetadata to create.
+  //
+  // To create a resource in the REFUSED state, provide a non-empty
+  // `error_message`. Otherwise, it will be created in the STORED state.
   RequisitionMetadata requisition_metadata = 2
       [(google.api.field_behavior) = REQUIRED];
 
@@ -323,8 +323,8 @@ message RefuseRequisitionMetadataRequest {
   string error_message = 3 [(google.api.field_behavior) = REQUIRED];
 }
 
-// Request message for the `MarkRequisitionMetadataDeleted` method.
-message MarkRequisitionMetadataDeletedRequest {
+// Request message for the `DeleteRequisitionMetadata` method.
+message DeleteRequisitionMetadataRequest {
   // The resource name of the RequisitionMetadata to mark as deleted.
   string name = 1 [
     (google.api.field_behavior) = REQUIRED,
