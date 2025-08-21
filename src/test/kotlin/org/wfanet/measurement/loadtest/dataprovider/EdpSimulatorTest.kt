@@ -20,7 +20,6 @@ import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.crypto.tink.Aead
 import com.google.crypto.tink.KeyTemplates
 import com.google.crypto.tink.KeysetHandle
-import com.google.crypto.tink.KmsClient
 import com.google.crypto.tink.aead.AeadConfig
 import com.google.crypto.tink.streamingaead.StreamingAeadConfig
 import com.google.protobuf.ByteString
@@ -96,8 +95,6 @@ import org.wfanet.measurement.api.v2alpha.testing.MeasurementResultSubject.Compa
 import org.wfanet.measurement.api.v2alpha.unpack
 import org.wfanet.measurement.api.v2alpha.updateEventGroupRequest
 import org.wfanet.measurement.common.crypto.Hashing
-import org.wfanet.measurement.common.crypto.tink.GCloudWifCredentials
-import org.wfanet.measurement.common.crypto.tink.KmsClientFactory
 import org.wfanet.measurement.common.crypto.tink.loadPublicKey
 import org.wfanet.measurement.common.crypto.tink.testing.FakeKmsClient
 import org.wfanet.measurement.common.flatten
@@ -120,6 +117,7 @@ import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.Gender a
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBucketGroup
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.InMemoryVidIndexMap
+import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.trustee.FulfillRequisitionRequestBuilder as TrusTeeFulfillRequisitionRequestBuilder
 import org.wfanet.measurement.integration.common.SyntheticGenerationSpecs
 import org.wfanet.measurement.loadtest.common.sampleVids
 import org.wfanet.measurement.loadtest.config.PrivacyBudgets
@@ -682,22 +680,10 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
 
   @Test
   fun `fulfills TrusTee requisition`() {
-    AeadConfig.register()
-    StreamingAeadConfig.register()
-    val fakeKmsClient = FakeKmsClient()
-    val kekUri = FakeKmsClient.KEY_URI_PREFIX + "kek"
-    val kmsKeyHandle = KeysetHandle.generateNew(KeyTemplates.get("AES256_GCM"))
-    fakeKmsClient.setAead(kekUri, kmsKeyHandle.getPrimitive(Aead::class.java))
-
-    val kmsClientFactory =
-      object : KmsClientFactory<GCloudWifCredentials> {
-        override fun getKmsClient(config: GCloudWifCredentials): KmsClient {
-          return fakeKmsClient
-        }
-      }
-    val trusTeeParams =
-      AbstractEdpSimulator.TrusTeeParams(
-        kmsKekUri = kekUri,
+    val trusTeeEncryptionParams =
+      TrusTeeFulfillRequisitionRequestBuilder.EncryptionParams(
+        kmsClient = KMS_CLIENT,
+        kmsKekUri = KEK_URI,
         workloadIdentityProvider = "workload-identity-provider",
         impersonatedServiceAccount = "impersonated-service-account",
       )
@@ -706,42 +692,6 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
       onBlocking { listRequisitions(any()) }
         .thenReturn(listRequisitionsResponse { requisitions += TRUSTEE_REQUISITION })
     }
-
-    val matchingEvents =
-      generateEvents(
-        1L..10L,
-        FIRST_EVENT_DATE,
-        Person.AgeGroup.YEARS_18_TO_34,
-        Person.Gender.FEMALE,
-      )
-    val nonMatchingEvents =
-      generateEvents(
-        11L..15L,
-        FIRST_EVENT_DATE,
-        Person.AgeGroup.YEARS_35_TO_54,
-        Person.Gender.FEMALE,
-      ) +
-        generateEvents(
-          16L..20L,
-          FIRST_EVENT_DATE,
-          Person.AgeGroup.YEARS_55_PLUS,
-          Person.Gender.FEMALE,
-        ) +
-        generateEvents(
-          21L..25L,
-          FIRST_EVENT_DATE,
-          Person.AgeGroup.YEARS_18_TO_34,
-          Person.Gender.MALE,
-        ) +
-        generateEvents(
-          26L..30L,
-          FIRST_EVENT_DATE,
-          Person.AgeGroup.YEARS_35_TO_54,
-          Person.Gender.MALE,
-        )
-
-    val allEvents = matchingEvents + nonMatchingEvents
-    val eventQuery = InMemoryEventQuery(allEvents)
 
     val edpSimulator =
       EdpSimulator(
@@ -754,46 +704,38 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         requisitionFulfillmentStubMap,
         SYNTHETIC_DATA_TIME_ZONE,
         listOf(EventGroupOptions("", SYNTHETIC_DATA_SPEC, MEDIA_TYPES, EVENT_GROUP_METADATA)),
-        eventQuery,
+        syntheticGeneratorEventQuery,
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
         VID_INDEX_MAP,
-        trusTeeParams = trusTeeParams,
-        kmsClientFactory = kmsClientFactory,
+        trusTeeEncryptionParams = trusTeeEncryptionParams,
       )
 
     runBlocking { edpSimulator.executeRequisitionFulfillingWorkflow() }
 
-    //    val refuseRequest: RefuseRequisitionRequest =
-    //      verifyAndCapture(requisitionsServiceMock,
-    // RequisitionsCoroutineImplBase::refuseRequisition)
-    //    val requests: List<FulfillRequisitionRequest> =
-    //      fakeRequisitionFulfillmentService.fullfillRequisitionInvocations.single().requests
-    //    val header: FulfillRequisitionRequest.Header = requests.first().header
-    //    val encryptedPayload = requests.drop(1).map { it.bodyChunk.data }.flatten()
-    //
-    //    assertThat(header)
-    //      .comparingExpectedFieldsOnly()
-    //      .isEqualTo(
-    //        FulfillRequisitionRequestKt.header {
-    //          name = TRUSTEE_REQUISITION.name
-    //          requisitionFingerprint =
-    //            computeRequisitionFingerprint(
-    //              TRUSTEE_REQUISITION.measurementSpec.message.value,
-    //              Hashing.hashSha256(TRUSTEE_REQUISITION.encryptedRequisitionSpec.ciphertext),
-    //            )
-    //          nonce = REQUISITION_SPEC.nonce
-    //          trusTee =
-    //            FulfillRequisitionRequestKt.HeaderKt.trusTee {
-    //              dataFormat =
-    //                FulfillRequisitionRequest.Header.TrusTee.DataFormat.ENCRYPTED_FREQUENCY_VECTOR
-    //            }
-    //        }
-    //      )
-    //
-    //  TODO: how to verify and check frequency vector, only check the data range as the Hmss test
-    // case?
+    val requests: List<FulfillRequisitionRequest> =
+      fakeRequisitionFulfillmentService.fullfillRequisitionInvocations.single().requests
+    val header: FulfillRequisitionRequest.Header = requests.first().header
+
+    assertThat(header)
+      .comparingExpectedFieldsOnly()
+      .isEqualTo(
+        FulfillRequisitionRequestKt.header {
+          name = TRUSTEE_REQUISITION.name
+          requisitionFingerprint =
+            computeRequisitionFingerprint(
+              TRUSTEE_REQUISITION.measurementSpec.message.value,
+              Hashing.hashSha256(TRUSTEE_REQUISITION.encryptedRequisitionSpec.ciphertext),
+            )
+          nonce = REQUISITION_SPEC.nonce
+          trusTee =
+            FulfillRequisitionRequestKt.HeaderKt.trusTee {
+              dataFormat =
+                FulfillRequisitionRequest.Header.TrusTee.DataFormat.ENCRYPTED_FREQUENCY_VECTOR
+            }
+        }
+      )
   }
 
   @Test
@@ -2801,6 +2743,16 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
   }
 
   companion object {
+    private val KMS_CLIENT = FakeKmsClient()
+    private const val KEK_URI = FakeKmsClient.KEY_URI_PREFIX + "kek"
+
+    init {
+      AeadConfig.register()
+      StreamingAeadConfig.register()
+      val kmsKeyHandle = KeysetHandle.generateNew(KeyTemplates.get("AES256_GCM"))
+      KMS_CLIENT.setAead(KEK_URI, kmsKeyHandle.getPrimitive(Aead::class.java))
+    }
+
     private val MEDIA_TYPES = setOf(MediaType.VIDEO, MediaType.DISPLAY)
     private val DATA_AVAILABILITY_INTERVAL = interval {
       startTime = FIRST_EVENT_DATE.atStartOfDay(SYNTHETIC_DATA_TIME_ZONE).toInstant().toProtoTime()
