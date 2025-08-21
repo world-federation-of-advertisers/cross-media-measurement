@@ -14,6 +14,7 @@
 
 package org.wfanet.measurement.loadtest.dataprovider
 
+import com.google.crypto.tink.integration.gcpkms.GcpKmsClient
 import com.google.protobuf.ByteString
 import com.google.protobuf.DescriptorProtos
 import com.google.protobuf.Descriptors
@@ -46,6 +47,7 @@ import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.dataprovider.DataProviderData
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.InMemoryVidIndexMap
+import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.trustee.FulfillRequisitionRequestBuilder as TrusTeeFulfillRequisitionRequestBuilder
 import picocli.CommandLine
 
 /** The base class of the EdpSimulator runner. */
@@ -104,9 +106,8 @@ abstract class AbstractEdpSimulatorRunner : Runnable {
     logSketchDetails: Boolean,
     throttler: MinimumIntervalThrottler,
     health: SettableHealth,
-    trusteeParams: AbstractEdpSimulator.TrusTeeParams?,
-    kmsClientFactory: KmsClientFactory<GCloudWifCredentials>?,
     random: Random,
+    trusTeeEncryptionParams: TrusTeeFulfillRequisitionRequestBuilder.EncryptionParams?,
   ): AbstractEdpSimulator
 
   private fun TypeRegistry.Builder.addEventMessageDescriptors() {
@@ -166,6 +167,18 @@ abstract class AbstractEdpSimulatorRunner : Runnable {
         eventGroupsOptions,
       )
 
+    val trusTeeEncryptionParams =
+      if (flags.trusTeeParams != null) {
+        TrusTeeFulfillRequisitionRequestBuilder.EncryptionParams(
+          GcpKmsClient(),
+          flags.trusTeeParams.kmsKekUri,
+          flags.trusTeeParams.workloadIdentityProvider,
+          flags.trusTeeParams.impersonatedServiceAccount,
+        )
+      } else {
+        null
+      }
+
     val edpSimulator: AbstractEdpSimulator =
       buildEdpSimulator(
         flags.mcResourceName,
@@ -177,13 +190,8 @@ abstract class AbstractEdpSimulatorRunner : Runnable {
         flags.logSketchDetails,
         MinimumIntervalThrottler(Clock.systemUTC(), flags.throttlerMinimumInterval),
         health,
-        AbstractEdpSimulator.TrusTeeParams(
-          flags.trusTeeParams.kmsKekUri,
-          flags.trusTeeParams.workloadIdentityProvider,
-          flags.trusTeeParams.impersonatedServiceAccount,
-        ),
-        kmsClientFactory,
         random,
+        trusTeeEncryptionParams,
       )
     runBlocking {
       edpSimulator.ensureEventGroups()
