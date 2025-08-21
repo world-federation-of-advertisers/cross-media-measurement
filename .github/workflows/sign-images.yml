@@ -86,7 +86,7 @@ jobs:
           GCP_KMS_KEY_RESOURCE_NAME: ${{ inputs.kms-key-resource-name }}
         run: |
           set -euo pipefail
-          re='^projects/([^/]+)/locations/([^/]+)/keyRings/([^/]+)/cryptoKeys/([^/]+)/cryptoKeyVersions/([^/]+)$'
+          re='^gcpkms://projects/([^/]+)/locations/([^/]+)/keyRings/([^/]+)/cryptoKeys/([^/]+)/cryptoKeyVersions/([^/]+)$'
           if [[ "$GCP_KMS_KEY_RESOURCE_NAME" =~ $re ]]; then
             PROJECT="${BASH_REMATCH[1]}"
             LOCATION="${BASH_REMATCH[2]}"
