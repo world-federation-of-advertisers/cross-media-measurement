@@ -21,11 +21,18 @@ import java.util.logging.Logger
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.asFlow
 import org.wfanet.frequencycount.FrequencyVector
+import org.wfanet.frequencycount.SecretShareGeneratorAdapter
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequest
+import org.wfanet.measurement.api.v2alpha.MeasurementSpec
+import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt.RequisitionFulfillmentCoroutineStub
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
+import org.wfanet.measurement.computation.HistogramComputations
+import org.wfanet.measurement.computation.KAnonymityParams
+import org.wfanet.measurement.computation.ReachAndFrequencyComputations
+import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.FrequencyVectorBuilder
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.shareshuffle.FulfillRequisitionRequestBuilder
 
 class HMShuffleMeasurementFulfiller(
@@ -35,6 +42,8 @@ class HMShuffleMeasurementFulfiller(
   private val dataProviderSigningKeyHandle: SigningKeyHandle,
   private val dataProviderCertificateKey: DataProviderCertificateKey,
   private val requisitionFulfillmentStubMap: Map<String, RequisitionFulfillmentCoroutineStub>,
+  private val generateSecretShares: (ByteArray) -> (ByteArray) =
+    SecretShareGeneratorAdapter::generateSecretShares,
 ) : MeasurementFulfiller {
   override suspend fun fulfillRequisition() {
     logger.info("Fulfilling requisition ${requisition.name}...")
@@ -45,6 +54,7 @@ class HMShuffleMeasurementFulfiller(
           sampledFrequencyVector,
           dataProviderCertificateKey,
           dataProviderSigningKeyHandle,
+          generateSecretShares,
         )
         .asFlow()
     try {
@@ -68,5 +78,76 @@ class HMShuffleMeasurementFulfiller(
 
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
+
+    /** Constructs a [HMShuffleMeasurementFulfiller] with a k-anonymized FrequencyVector. */
+    fun buildKAnonymized(
+      requisition: Requisition,
+      requisitionNonce: Long,
+      measurementSpec: MeasurementSpec,
+      populationSpec: PopulationSpec,
+      frequencyVectorBuilder: FrequencyVectorBuilder,
+      dataProviderSigningKeyHandle: SigningKeyHandle,
+      dataProviderCertificateKey: DataProviderCertificateKey,
+      requisitionFulfillmentStubMap: Map<String, RequisitionFulfillmentCoroutineStub>,
+      kAnonymityParams: KAnonymityParams,
+      maxPopulation: Int?,
+      generateSecretShares: (ByteArray) -> (ByteArray) =
+        SecretShareGeneratorAdapter::generateSecretShares,
+    ): HMShuffleMeasurementFulfiller {
+      val kAnonymizedFrequencyVector =
+        kAnonymize(
+          measurementSpec,
+          populationSpec,
+          frequencyVectorBuilder,
+          kAnonymityParams,
+          maxPopulation,
+        )
+      return HMShuffleMeasurementFulfiller(
+        requisition,
+        requisitionNonce,
+        kAnonymizedFrequencyVector,
+        dataProviderSigningKeyHandle,
+        dataProviderCertificateKey,
+        requisitionFulfillmentStubMap,
+        generateSecretShares,
+      )
+    }
+
+    /**
+     * Returns an empty FrequencyVector if k-anonymity threshold is not met for reach. It does not
+     * k-anonymize individual frequencies that do not meet a threshold.
+     */
+    private fun kAnonymize(
+      measurementSpec: MeasurementSpec,
+      populationSpec: PopulationSpec,
+      frequencyVectorBuilder: FrequencyVectorBuilder,
+      kAnonymityParams: KAnonymityParams,
+      maxPopulation: Int?,
+    ): FrequencyVector {
+      val frequencyData = frequencyVectorBuilder.frequencyDataArray
+      val histogram: LongArray =
+        HistogramComputations.buildHistogram(
+          frequencyVector = frequencyData,
+          maxFrequency = kAnonymityParams.reachMaxFrequencyPerUser,
+        )
+      val reachValue =
+        ReachAndFrequencyComputations.computeReach(
+          rawHistogram = histogram,
+          vidSamplingIntervalWidth = measurementSpec.vidSamplingInterval.width,
+          vectorSize = maxPopulation,
+          dpParams = null,
+          kAnonymityParams = kAnonymityParams,
+        )
+      return if (reachValue == 0L) {
+        FrequencyVectorBuilder(
+            measurementSpec = measurementSpec,
+            populationSpec = populationSpec,
+            strict = false,
+          )
+          .build()
+      } else {
+        frequencyVectorBuilder.build()
+      }
+    }
   }
 }
