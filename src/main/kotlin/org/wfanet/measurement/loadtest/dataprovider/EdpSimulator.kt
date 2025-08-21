@@ -33,12 +33,11 @@ import org.wfanet.measurement.api.v2alpha.MediaType
 import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt
 import org.wfanet.measurement.common.SettableHealth
-import org.wfanet.measurement.common.crypto.tink.GCloudWifCredentials
-import org.wfanet.measurement.common.crypto.tink.KmsClientFactory
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.dataprovider.DataProviderData
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetManager
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.VidIndexMap
+import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.trustee.FulfillRequisitionRequestBuilder as TrusTeeFulfillRequisitionRequestBuilder
 
 class EdpSimulator(
   edpData: DataProviderData,
@@ -60,9 +59,8 @@ class EdpSimulator(
   random: Random = Random,
   logSketchDetails: Boolean = false,
   health: SettableHealth = SettableHealth(),
-  trusTeeParams: TrusTeeParams? = null,
-  kmsClientFactory: KmsClientFactory<GCloudWifCredentials>? = null,
   blockingCoroutineContext: @BlockingExecutor CoroutineContext = Dispatchers.IO,
+  trusTeeEncryptionParams: TrusTeeFulfillRequisitionRequestBuilder.EncryptionParams? = null,
 ) :
   AbstractEdpSimulator(
     edpData,
@@ -83,9 +81,8 @@ class EdpSimulator(
     random,
     logSketchDetails,
     health,
-    trusTeeParams,
-    kmsClientFactory,
     blockingCoroutineContext,
+    trusTeeEncryptionParams,
   ) {
 
   interface EventGroupOptions : AbstractEdpSimulator.EventGroupOptions {
