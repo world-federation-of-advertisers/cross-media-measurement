@@ -141,14 +141,12 @@ fun buildReportingSetMetricCalculationSpecDetailsMap(
 private fun DimensionSpec.Grouping.toMetricCalculationSpecGroupings(
   eventTemplateFieldsMap: Map<String, EventDescriptor.EventTemplateFieldInfo>
 ): List<MetricCalculationSpec.Grouping> {
-  val dimensionSpecGrouping = this
-
   if (eventTemplateFieldsList.isEmpty()) {
     return emptyList()
   }
 
   val firstFieldInfo =
-    eventTemplateFieldsMap.getValue(dimensionSpecGrouping.eventTemplateFieldsList.first())
+    eventTemplateFieldsMap.getValue(eventTemplateFieldsList.first())
 
   if (firstFieldInfo.enumType == null) {
     return emptyList()
@@ -157,14 +155,10 @@ private fun DimensionSpec.Grouping.toMetricCalculationSpecGroupings(
 
   var groupings: List<List<String>> =
     firstFieldInfoEnumType.values.map {
-      listOf("${dimensionSpecGrouping.eventTemplateFieldsList.first()} == ${it.number}")
+      listOf("${eventTemplateFieldsList.first()} == ${it.number}")
     }
 
-  for (field in
-    dimensionSpecGrouping.eventTemplateFieldsList.subList(
-      1,
-      dimensionSpecGrouping.eventTemplateFieldsList.size,
-    )) {
+  for (field in eventTemplateFieldsList.subList(1, eventTemplateFieldsList.size)) {
     val fieldInfo = eventTemplateFieldsMap.getValue(field)
 
     if (fieldInfo.enumType == null) {
