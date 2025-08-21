@@ -167,7 +167,7 @@ abstract class AbstractEdpSimulatorRunner : Runnable {
         eventGroupsOptions,
       )
 
-    val trusTeeEncryptionParams =
+    val trusTeeEncryptionParams: TrusTeeFulfillRequisitionRequestBuilder.EncryptionParams? =
       if (flags.trusTeeParams != null) {
         TrusTeeFulfillRequisitionRequestBuilder.EncryptionParams(
           GcpKmsClient(),
