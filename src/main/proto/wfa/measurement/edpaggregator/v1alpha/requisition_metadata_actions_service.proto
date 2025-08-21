@@ -2,7 +2,7 @@
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
-// You may may obtain a copy of the License at
+// You may obtain a copy of the License at
 //
 //      http://www.apache.org/licenses/LICENSE-2.0
 //
@@ -22,8 +22,6 @@ import "google/api/field_behavior.proto";
 import "google/api/resource.proto";
 import "wfa/measurement/edpaggregator/v1alpha/requisition_metadata.proto";
 
-// (-- api-linter: core::0191::java-package=disabled
-//     aip.dev/not-precedent: Project-wide convention. --)
 option java_package = "org.wfanet.measurement.edpaggregator.v1alpha";
 option java_multiple_files = true;
 option java_outer_classname = "RequisitionMetadataActionsServiceProto";
@@ -32,72 +30,17 @@ option java_outer_classname = "RequisitionMetadataActionsServiceProto";
 //
 // Used for auditing and logging state changes for RequisitionMetadata.
 service RequisitionMetadataActionService {
-  option (google.api.default_host) = "edpaggregator.halo-cmm.org";
-
-  // Creates a new RequisitionMetadataAction entry.
-  // This RPC has the side effect of updating the state of the parent
-  // RequisitionMetadata resource.
-  rpc CreateRequisitionMetadataAction(CreateRequisitionMetadataActionRequest)
-      returns (RequisitionMetadataAction) {
-    option (google.api.http) = {
-      post: "/v1alpha/{parent=dataProviders/*/requisitionMetadata/*}/actions"
-      body: "requisition_metadata_action"
-    };
-    // (-- api-linter: core::0133::method-signature=disabled
-    //     aip.dev/not-precedent: Etag required for transactional update. --)
-    option (google.api.method_signature) =
-        "parent,requisition_metadata_action,requisition_metadata_etag";
-  }
-
   // Retrieves a specific RequisitionMetadataAction entry.
   rpc GetRequisitionMetadataAction(GetRequisitionMetadataActionRequest)
       returns (RequisitionMetadataAction) {
-    option (google.api.http) = {
-      get: "/v1alpha/{name=dataProviders/*/requisitionMetadata/*/actions/*}"
-    };
     option (google.api.method_signature) = "name";
   }
 
   // Lists RequisitionMetadataAction entries for a given RequisitionMetadata.
   rpc ListRequisitionMetadataActions(ListRequisitionMetadataActionsRequest)
       returns (ListRequisitionMetadataActionsResponse) {
-    option (google.api.http) = {
-      get: "/v1alpha/{parent=dataProviders/*/requisitionMetadata/*}/actions"
-    };
     option (google.api.method_signature) = "parent";
   }
-}
-
-// Request message for the `CreateRequisitionMetadataAction` method.
-//
-// (-- api-linter: core::0133::request-id-field=disabled
-//     aip.dev/not-precedent: Idempotency handled by parent's etag. --)
-message CreateRequisitionMetadataActionRequest {
-  // The parent RequisitionMetadata resource name.
-  // Format:
-  // `dataProviders/{data_provider}/requisitionMetadata/{requisition_metadata}`
-  string parent = 1 [
-    (google.api.field_behavior) = REQUIRED,
-    (google.api.resource_reference) = {
-      child_type: "edpaggregator.halo-cmm.org/RequisitionMetadataAction"
-    }
-  ];
-
-  // The RequisitionMetadataAction to create.
-  RequisitionMetadataAction requisition_metadata_action = 2
-      [(google.api.field_behavior) = REQUIRED];
-
-  // The etag of the parent RequisitionMetadata.
-  //
-  // This is used for optimistic concurrency control to ensure the state of the
-  // parent resource has not changed since it was last read.
-  // (-- api-linter: core::0133::request-unknown-fields=disabled
-  //     aip.dev/not-precedent: Required for parent's optimistic concurrency.
-  //     --)
-  // (-- api-linter: core::0133::request-required-fields=disabled
-  //     aip.dev/not-precedent: Required for parent's optimistic concurrency.
-  //     --)
-  string requisition_metadata_etag = 3 [(google.api.field_behavior) = REQUIRED];
 }
 
 // Request message for the `GetRequisitionMetadataAction` method.
@@ -139,14 +82,12 @@ message ListRequisitionMetadataActionsRequest {
         [(google.api.field_behavior) = OPTIONAL];
 
     // Filter by the state of the requisition before the action.
-    //
     // (-- api-linter: core::0216::state-field-output-only=disabled
     //     aip.dev/not-precedent: Used for filtering input. --)
     RequisitionMetadata.State prior_state = 2
         [(google.api.field_behavior) = OPTIONAL];
 
     // Filter by the state of the requisition after the action.
-    //
     // (-- api-linter: core::0216::state-field-output-only=disabled
     //     aip.dev/not-precedent: Used for filtering input. --)
     RequisitionMetadata.State new_state = 3
@@ -154,7 +95,7 @@ message ListRequisitionMetadataActionsRequest {
   }
   // The filter to apply to the list. All filter fields are optional.
   // (-- api-linter: core::0132::request-field-types=disabled
-  //     aip.dev/not-precedent: Structured message is more type-safe. --)
+  //     aip.dev/not-precedent: Customized message is used for the filter  --)
   Filter filter = 4 [(google.api.field_behavior) = OPTIONAL];
 }
 

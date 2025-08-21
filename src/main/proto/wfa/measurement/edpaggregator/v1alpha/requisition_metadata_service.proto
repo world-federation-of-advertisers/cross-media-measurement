@@ -19,12 +19,11 @@ package wfa.measurement.edpaggregator.v1alpha;
 import "google/api/annotations.proto";
 import "google/api/client.proto";
 import "google/api/field_behavior.proto";
+import "google/api/field_info.proto";
 import "google/api/resource.proto";
 import "google/protobuf/timestamp.proto";
 import "wfa/measurement/edpaggregator/v1alpha/requisition_metadata.proto";
 
-// (-- api-linter: core::0191::java-package=disabled
-//     aip.dev/not-precedent: Project-wide convention. --)
 option java_package = "org.wfanet.measurement.edpaggregator.v1alpha";
 option java_multiple_files = true;
 option java_outer_classname = "RequisitionMetadataServiceProto";
@@ -34,52 +33,32 @@ service RequisitionMetadataService {
   // Creates a new RequisitionMetadata entry.
   rpc CreateRequisitionMetadata(CreateRequisitionMetadataRequest)
       returns (RequisitionMetadata) {
-    option (google.api.http) = {
-      post: "/v1alpha/{parent=dataProviders/*}/requisitionMetadata"
-      body: "requisition_metadata"
-    };
     option (google.api.method_signature) = "parent,requisition_metadata";
   }
 
   // Creates multiple new RequisitionMetadata entries in a single request.
   rpc BatchCreateRequisitionMetadata(BatchCreateRequisitionMetadataRequest)
-      returns (BatchCreateRequisitionMetadataResponse) {
-    option (google.api.http) = {
-      post: "/v1alpha/{parent=dataProviders/*}/requisitionMetadata:batchCreate"
-      body: "*"
-    };
-  }
+      returns (BatchCreateRequisitionMetadataResponse) {}
 
   // Retrieves a specific RequisitionMetadata entry by its resource name.
   rpc GetRequisitionMetadata(GetRequisitionMetadataRequest)
       returns (RequisitionMetadata) {
-    option (google.api.http) = {
-      get: "/v1alpha/{name=dataProviders/*/requisitionMetadata/*}"
-    };
     option (google.api.method_signature) = "name";
   }
 
   // Looks up a single RequisitionMetadata resource by an alternative key.
   //
   // Exactly one of the lookup keys must be provided.
-  // (-- api-linter: core::0131::synonyms=disabled
-  //     aip.dev/not-precedent: Custom method for alternative keys. --)
   // (-- api-linter: core::0136::response-message-name=disabled
-  //     aip.dev/not-precedent: Returning resource directly is more ergonomic.
+  //     aip.dev/not-precedent: Returning the resource directly is more
+  //     ergonomic.
   //     --)
   rpc LookupRequisitionMetadata(LookupRequisitionMetadataRequest)
-      returns (RequisitionMetadata) {
-    option (google.api.http) = {
-      get: "/v1alpha/{parent=dataProviders/*}/requisitionMetadata:lookup"
-    };
-  }
+      returns (RequisitionMetadata) {}
 
   // Lists RequisitionMetadata entries, with optional filtering and ordering.
   rpc ListRequisitionMetadata(ListRequisitionMetadataRequest)
       returns (ListRequisitionMetadataResponse) {
-    option (google.api.http) = {
-      get: "/v1alpha/{parent=dataProviders/*}/requisitionMetadata"
-    };
     option (google.api.method_signature) = "parent";
   }
 
@@ -88,21 +67,48 @@ service RequisitionMetadataService {
   //
   // Used to determine the starting point for fetching new
   // requisitions from the Kingdom.
-  // (-- api-linter: core::0131::synonyms=disabled
-  //     aip.dev/not-precedent: Custom query, not a standard Get. --)
   rpc FetchLatestCmmsCreateTime(FetchLatestCmmsCreateTimeRequest)
       returns (google.protobuf.Timestamp) {
-    option (google.api.http) = {
-      get: "/v1alpha/{parent=dataProviders/*}:fetchLatestCmmsCreateTime"
-    };
     option (google.api.method_signature) = "parent";
+  }
+
+  // Transitions a RequisitionMetadata resource to the QUEUED state.
+  // This indicates it is ready to be processed.
+  rpc QueueRequisitionMetadata(QueueRequisitionMetadataRequest)
+      returns (RequisitionMetadata) {
+    option (google.api.method_signature) = "name,etag,work_item";
+  }
+
+  // Transitions a RequisitionMetadata resource to the PROCESSING state.
+  // This indicates it is actively being worked on.
+  rpc StartProcessingRequisitionMetadata(
+      StartProcessingRequisitionMetadataRequest) returns (RequisitionMetadata) {
+    option (google.api.method_signature) = "name,etag";
+  }
+
+  // Transitions a RequisitionMetadata resource to the FULFILLED state.
+  // This indicates it has been successfully processed.
+  rpc FulfillRequisitionMetadata(FulfillRequisitionMetadataRequest)
+      returns (RequisitionMetadata) {
+    option (google.api.method_signature) = "name,etag";
+  }
+
+  // Transitions a RequisitionMetadata resource to the REFUSED state.
+  // This indicates that it could not be processed.
+  rpc RefuseRequisitionMetadata(RefuseRequisitionMetadataRequest)
+      returns (RequisitionMetadata) {
+    option (google.api.method_signature) = "name,etag,error_message";
+  }
+
+  // Transitions a RequisitionMetadata resource to the DELETED state.
+  // This is a soft delete. The resource is not actually removed.
+  rpc DeleteRequisitionMetadata(DeleteRequisitionMetadataRequest)
+      returns (RequisitionMetadata) {
+    option (google.api.method_signature) = "name,etag";
   }
 }
 
 // Request message for the `CreateRequisitionMetadata` method.
-// (-- api-linter: core::0133::request-id-field=disabled
-//     aip.dev/not-precedent: Idempotency handled by resource's `request_id`.
-//     --)
 message CreateRequisitionMetadataRequest {
   // The parent data provider resource name.
   // Format: `dataProviders/{data_provider}`
@@ -114,8 +120,23 @@ message CreateRequisitionMetadataRequest {
   ];
 
   // The RequisitionMetadata to create.
+  //
+  // To create a resource in the REFUSED state, provide a non-empty
+  // `error_message`. Otherwise, it will be created in the STORED state.
+  //
+  // The `name` and all other output-only fields (like `state`, `etag`, etc.)
+  // are ignored.
   RequisitionMetadata requisition_metadata = 2
       [(google.api.field_behavior) = REQUIRED];
+
+  // A request ID provided by the client to ensure idempotency.
+  // This field must be a UUID4 (RFC 4122) string.
+  // If a request with the same ID is received again, the server will return
+  // the original resource without creating a new one.
+  string request_id = 3 [
+    (google.api.field_behavior) = OPTIONAL,
+    (google.api.field_info).format = UUID4
+  ];
 }
 
 // Request message for the `BatchCreateRequisitionMetadata` method.
@@ -148,8 +169,6 @@ message BatchCreateRequisitionMetadataResponse {
 // Request message for the `GetRequisitionMetadata` method.
 message GetRequisitionMetadataRequest {
   // The resource name of the RequisitionMetadata to retrieve.
-  // Format:
-  // `dataProviders/{data_provider}/requisitionMetadata/{requisition_metadata}`
   string name = 1 [
     (google.api.field_behavior) = REQUIRED,
     (google.api.resource_reference) = {
@@ -169,9 +188,13 @@ message LookupRequisitionMetadataRequest {
     }
   ];
 
+  // Lookup key for the request. Required.
   oneof lookup_key {
-    // The resource name of the requisition in the CMMS (Kingdom).
-    string cmms_requisition = 2;
+    // The resource name of the requisition in the CMMS.
+    // Format: `dataProviders/{data_provider}/requisitions/{requisition}`
+    string cmms_requisition = 2 [
+      (google.api.resource_reference) = { type: "halo.wfanet.org/Requisition" }
+    ];
 
     // The blob storage URI.
     string blob_uri = 3;
@@ -198,9 +221,9 @@ message ListRequisitionMetadataRequest {
   // Filtering criteria for the list request.
   message Filter {
     // Filter by the state of the requisition.
-    //
     // (-- api-linter: core::0216::state-field-output-only=disabled
-    //     aip.dev/not-precedent: Used for filtering input. --)
+    //     aip.dev/not-precedent: The state field is used for filtering input.
+    //     --)
     RequisitionMetadata.State state = 1
         [(google.api.field_behavior) = OPTIONAL];
     // Filter by the group ID of the requisition.
@@ -208,7 +231,7 @@ message ListRequisitionMetadataRequest {
   }
   // The filter to apply to the list. All filter fields are optional.
   // (-- api-linter: core::0132::request-field-types=disabled
-  //     aip.dev/not-precedent: Structured message is more type-safe. --)
+  //     aip.dev/not-precedent: Customized message is used for the filter  --)
   Filter filter = 4 [(google.api.field_behavior) = OPTIONAL];
 }
 
@@ -232,4 +255,89 @@ message FetchLatestCmmsCreateTimeRequest {
       child_type: "edpaggregator.halo-cmm.org/RequisitionMetadata"
     }
   ];
+}
+
+// Request message for the `QueueRequisitionMetadata` method.
+message QueueRequisitionMetadataRequest {
+  // The resource name of the RequisitionMetadata to queue.
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      type: "edpaggregator.halo-cmm.org/RequisitionMetadata"
+    }
+  ];
+
+  // The etag of the RequisitionMetadata for optimistic locking.
+  string etag = 2 [(google.api.field_behavior) = REQUIRED];
+
+  // The resource name of the WorkItem to associate with this requisition.
+  // Format `workItems/{work_item}`
+  string work_item = 3 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      type: "control-plane.secure-computation.halo-cmm.org/WorkItem"
+    }
+  ];
+}
+
+// Request message for the `StartProcessingRequisitionMetadata` method.
+message StartProcessingRequisitionMetadataRequest {
+  // The resource name of the RequisitionMetadata to start processing.
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      type: "edpaggregator.halo-cmm.org/RequisitionMetadata"
+    }
+  ];
+
+  // The etag of the RequisitionMetadata for optimistic locking.
+  string etag = 2 [(google.api.field_behavior) = REQUIRED];
+}
+
+// Request message for the `FulfillRequisitionMetadata` method.
+message FulfillRequisitionMetadataRequest {
+  // The resource name of the RequisitionMetadata to fulfill.
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      type: "edpaggregator.halo-cmm.org/RequisitionMetadata"
+    }
+  ];
+
+  // The etag of the RequisitionMetadata for optimistic locking.
+  string etag = 2 [(google.api.field_behavior) = REQUIRED];
+}
+
+// Request message for the `RefuseRequisitionMetadata` method.
+message RefuseRequisitionMetadataRequest {
+  // The resource name of the RequisitionMetadata to refuse.
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      type: "edpaggregator.halo-cmm.org/RequisitionMetadata"
+    }
+  ];
+
+  // The etag of the RequisitionMetadata for optimistic locking.
+  string etag = 2 [(google.api.field_behavior) = REQUIRED];
+
+  // A human-readable message explaining the reason for refusal.
+  // This will be stored in the `error_message` field of the resource.
+  string error_message = 3 [(google.api.field_behavior) = REQUIRED];
+}
+
+// Request message for the `DeleteRequisitionMetadata` method.
+// (-- api-linter: core::0135::force-field=disabled
+//     aip.dev/not-precedent: This is a soft-delete.  --)
+message DeleteRequisitionMetadataRequest {
+  // The resource name of the RequisitionMetadata to mark as deleted.
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      type: "edpaggregator.halo-cmm.org/RequisitionMetadata"
+    }
+  ];
+
+  // The etag of the RequisitionMetadata for optimistic locking.
+  string etag = 2 [(google.api.field_behavior) = REQUIRED];
 }

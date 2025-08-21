@@ -87,12 +87,48 @@ kt_jvm_proto_library(
 )
 
 proto_library(
+    name = "impression_metadata_proto",
+    srcs = ["impression_metadata.proto"],
+    strip_import_prefix = _IMPORT_PREFIX,
+    deps = [
+        "@com_google_googleapis//google/api:field_behavior_proto",
+        "@com_google_googleapis//google/api:field_info_proto",
+        "@com_google_googleapis//google/api:resource_proto",
+        "@com_google_googleapis//google/type:interval_proto",
+        "@com_google_protobuf//:timestamp_proto",
+    ],
+)
+
+kt_jvm_proto_library(
+    name = "impression_metadata_kt_jvm_proto",
+    deps = [":impression_metadata_proto"],
+)
+
+proto_library(
+    name = "impression_metadata_service_proto",
+    srcs = ["impression_metadata_service.proto"],
+    strip_import_prefix = _IMPORT_PREFIX,
+    deps = [
+        ":impression_metadata_proto",
+        "@com_google_googleapis//google/api:annotations_proto",
+        "@com_google_googleapis//google/api:client_proto",
+        "@com_google_googleapis//google/api:field_behavior_proto",
+        "@com_google_googleapis//google/api:resource_proto",
+        "@com_google_googleapis//google/type:interval_proto",
+    ],
+)
+
+kt_jvm_grpc_proto_library(
+    name = "impression_metadata_service_kt_jvm_grpc_proto",
+    deps = [":impression_metadata_service_proto"],
+)
+
+proto_library(
     name = "requisition_metadata_proto",
     srcs = ["requisition_metadata.proto"],
     strip_import_prefix = _IMPORT_PREFIX,
     deps = [
         "@com_google_googleapis//google/api:field_behavior_proto",
-        "@com_google_googleapis//google/api:field_info_proto",
         "@com_google_googleapis//google/api:resource_proto",
         "@com_google_protobuf//:timestamp_proto",
     ],
@@ -112,6 +148,7 @@ proto_library(
         "@com_google_googleapis//google/api:annotations_proto",
         "@com_google_googleapis//google/api:client_proto",
         "@com_google_googleapis//google/api:field_behavior_proto",
+        "@com_google_googleapis//google/api:field_info_proto",
         "@com_google_googleapis//google/api:resource_proto",
         "@com_google_protobuf//:timestamp_proto",
     ],
