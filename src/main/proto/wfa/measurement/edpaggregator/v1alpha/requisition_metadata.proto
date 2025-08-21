@@ -114,7 +114,7 @@ message RequisitionMetadata {
   // This is an input field on creation if the initial `state` is `REFUSED`.
   // It is an output-only field for all other methods.
   // It must not contain any sensitive information.
-  string error_message = 11;
+  string error_message = 11 [(google.api.field_behavior) = OPTIONAL];
 
   // Etag for resource freshness validation.
   string etag = 12 [(google.api.field_behavior) = OUTPUT_ONLY];

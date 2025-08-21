@@ -123,6 +123,9 @@ message CreateRequisitionMetadataRequest {
   //
   // To create a resource in the REFUSED state, provide a non-empty
   // `error_message`. Otherwise, it will be created in the STORED state.
+  //
+  // The `name` and all other output-only fields (like `state`, `etag`, etc.)
+  // are ignored.
   RequisitionMetadata requisition_metadata = 2
       [(google.api.field_behavior) = REQUIRED];
 
@@ -324,6 +327,8 @@ message RefuseRequisitionMetadataRequest {
 }
 
 // Request message for the `DeleteRequisitionMetadata` method.
+// (-- api-linter: core::0135::force-field=disabled
+//     aip.dev/not-precedent: This is a soft-delete.  --)
 message DeleteRequisitionMetadataRequest {
   // The resource name of the RequisitionMetadata to mark as deleted.
   string name = 1 [
