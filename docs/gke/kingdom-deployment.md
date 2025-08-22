@@ -234,6 +234,9 @@ configuration uses one named `config-files` containing the following files:
 *   `known_event_group_metadata_type_set.pb`
     *   Protobuf `FileDescriptorSet` containing known `EventGroup` metadata
         types.
+*   `rate_limit_config.textproto`
+    *   Configuration for RPC server rate limiting. See
+        [RateLimitConfig](../../src/main/proto/wfa/measurement/config/rate_limit_config.proto).
 
 Place these files in the `src/main/k8s/dev/config_files/` path within the
 Kustomization directory.
