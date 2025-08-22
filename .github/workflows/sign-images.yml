@@ -86,22 +86,8 @@ jobs:
           GCP_KMS_KEY_RESOURCE_NAME: ${{ inputs.kms-key-resource-name }}
         run: |
           set -euo pipefail
-          re='^gcpkms://projects/([^/]+)/locations/([^/]+)/keyRings/([^/]+)/cryptoKeys/([^/]+)/cryptoKeyVersions/([^/]+)$'
-          if [[ "$GCP_KMS_KEY_RESOURCE_NAME" =~ $re ]]; then
-            PROJECT="${BASH_REMATCH[1]}"
-            LOCATION="${BASH_REMATCH[2]}"
-            KEYRING="${BASH_REMATCH[3]}"
-            KEY="${BASH_REMATCH[4]}"
-            VERSION="${BASH_REMATCH[5]}"
-          else
-            echo "Bad KMS resource name: $GCP_KMS_KEY_RESOURCE_NAME" >&2; exit 1
-          fi
-
-          gcloud kms keys versions get-public-key "$VERSION" \
-            --project "$PROJECT" --location "$LOCATION" \
-            --keyring "$KEYRING" --key "$KEY" \
-            --output-file pubkey.pem
-
+          gcloud kms keys versions get-public-key "${GCP_KMS_KEY_RESOURCE_NAME}" --output-file pubkey.pem
+            
           # See step 3 in https://codelabs.developers.google.com/signed-container-image-codelab#2
           encoded_pub_key=$(cat pubkey.pem | openssl base64 | tr -d '[:space:]' | sed 's/[=]*$//')
 
@@ -115,7 +101,7 @@ jobs:
 
       - name: Sign images
         env:
-          GCP_KMS_KEY_FOR_SIGNING: ${{ inputs.kms-key-resource-name }}
+          GCP_KMS_KEY_FOR_SIGNING: "gcpkms://${{ inputs.kms-key-resource-name }}"
           PUBLIC_KEY: ${{ steps.get-public-key.outputs.encoded_pub_key }}
         run: |
           bazelisk run //src/main/docker:sign_all_images -- \
