@@ -322,7 +322,7 @@ class ResultsFulfillerAppTest {
     val workItem = createWorkItem(workItemParams)
     workItemAttemptsServiceMock.stub {
       onBlocking { createWorkItemAttempt(any()) } doReturn testWorkItemAttempt
-
+      onBlocking { completeWorkItemAttempt(any()) } doReturn testWorkItemAttempt
       onBlocking { failWorkItemAttempt(any()) } doReturn testWorkItemAttempt
     }
     workItemsServiceMock.stub { onBlocking { failWorkItem(any()) } doReturn workItem }
@@ -740,6 +740,100 @@ class ResultsFulfillerAppTest {
 
     assertThat(result.frequency.relativeFrequencyDistribution)
       .isEqualTo(mapOf(1L to 0.75, 2L to 0.25))
+  }
+
+  @Test
+  fun `runWork throws errors if k-anonymity params not set up correctly`() = runBlocking {
+    val pubSubClient = Subscriber(projectId = PROJECT_ID, googlePubSubClient = emulatorClient)
+    val workItemsStub = WorkItemsCoroutineStub(grpcTestServerRule.channel)
+    val workItemAttemptsStub = WorkItemAttemptsCoroutineStub(grpcTestServerRule.channel)
+
+    val testWorkItemAttempt = workItemAttempt {
+      name = "workItems/workItem/workItemAttempts/workItemAttempt"
+    }
+    val workItemParams =
+      createWorkItemParams(
+        ResultsFulfillerParams.NoiseParams.NoiseType.NONE,
+        kAnonymityParams =
+          KAnonymityParams(minUsers = 0, minImpressions = 10, reachMaxFrequencyPerUser = 10),
+      )
+    val workItem = createWorkItem(workItemParams)
+    workItemAttemptsServiceMock.stub {
+      onBlocking { createWorkItemAttempt(any()) } doReturn testWorkItemAttempt
+      onBlocking { completeWorkItemAttempt(any()) } doReturn testWorkItemAttempt
+      onBlocking { failWorkItemAttempt(any()) } doReturn testWorkItemAttempt
+    }
+    workItemsServiceMock.stub { onBlocking { failWorkItem(any()) } doReturn workItem }
+
+    val tmpPath = Files.createTempDirectory(null).toFile()
+
+    // Create requisitions storage client
+    Files.createDirectories(tmpPath.resolve(REQUISITIONS_BUCKET).toPath())
+    val requisitionsStorageClient = SelectedStorageClient(REQUISITIONS_FILE_URI, tmpPath)
+
+    val requisitionValidator =
+      RequisitionsValidator(TestRequisitionData.EDP_DATA.privateEncryptionKey)
+    val groupedRequisitions =
+      SingleRequisitionGrouper(
+          requisitionsClient = requisitionsStub,
+          eventGroupsClient = eventGroupsStub,
+          requisitionValidator = requisitionValidator,
+          throttler = throttler,
+        )
+        .groupRequisitions(listOf(REQUISITION))
+    // Add requisitions to storage
+    requisitionsStorageClient.writeBlob(
+      REQUISITIONS_BLOB_KEY,
+      Any.pack(groupedRequisitions.single()).toByteString(),
+    )
+
+    val kmsClients = getKmsClientMap()
+    val kmsClient = kmsClients.getValue(EDP_NAME)
+
+    val serializedEncryptionKey = getSerializedEncryptionKey(kmsClient)
+    val mesosRecordIoStorageClient =
+      getImpressionStorageClient(tmpPath, kmsClient, serializedEncryptionKey)
+
+    val impressions =
+      List(100) {
+        LABELED_IMPRESSION.copy {
+          vid = (it % 80 + 1).toLong()
+          eventTime = FIRST_EVENT_DATE.atStartOfDay().toInstant(ZoneOffset.UTC).toProtoTime()
+        }
+      }
+
+    val impressionsFlow = flow {
+      impressions.forEach { impression -> emit(impression.toByteString()) }
+    }
+
+    // Write impressions to storage
+    mesosRecordIoStorageClient.writeBlob(IMPRESSIONS_BLOB_KEY, impressionsFlow)
+
+    writeImpressionMetadata(tmpPath, serializedEncryptionKey)
+    val typeRegistry = TypeRegistry.newBuilder().add(TestEvent.getDescriptor()).build()
+
+    val app =
+      ResultsFulfillerApp(
+        subscriptionId = SUBSCRIPTION_ID,
+        queueSubscriber = pubSubClient,
+        parser = WorkItem.parser(),
+        workItemsStub,
+        workItemAttemptsStub,
+        TestRequisitionStubFactory(
+          grpcTestServerRule.channel,
+          mapOf("some-duchy" to grpcTestServerRule.channel),
+        ),
+        kmsClients,
+        typeRegistry,
+        getStorageConfig(tmpPath),
+        getStorageConfig(tmpPath),
+        getStorageConfig(tmpPath),
+        mapOf("some-model-line" to POPULATION_SPEC),
+      )
+
+    assertFails { app.runWork(Any.pack(workItemParams)) }
+
+    verifyBlocking(requisitionsServiceMock, times(0)) { fulfillDirectRequisition(any()) }
   }
 
   private suspend fun writeImpressionMetadata(tmpPath: File, serializedEncryptionKey: ByteString) {

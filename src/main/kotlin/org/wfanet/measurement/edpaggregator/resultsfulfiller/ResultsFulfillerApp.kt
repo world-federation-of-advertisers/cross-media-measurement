@@ -148,6 +148,15 @@ class ResultsFulfillerApp(
       }
     val kAnonymityParams: KAnonymityParams? =
       if (fulfillerParams.hasKAnonymityParams()) {
+        require(fulfillerParams.kAnonymityParams.minImpressions > 0) {
+          "K-Anonymity min impressions must be > 0"
+        }
+        require(fulfillerParams.kAnonymityParams.minUsers > 0) {
+          "K-Anonymity min users must be > 0"
+        }
+        require(fulfillerParams.kAnonymityParams.reachMaxFrequencyPerUser > 0) {
+          "K-Anonymity reach maximum frequency per user must be > 0"
+        }
         KAnonymityParams(
           minImpressions = fulfillerParams.kAnonymityParams.minImpressions,
           minUsers = fulfillerParams.kAnonymityParams.minUsers,
