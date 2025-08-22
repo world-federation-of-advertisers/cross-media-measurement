@@ -146,8 +146,16 @@ class ResultsFulfillerApp(
         NoiseType.CONTINUOUS_GAUSSIAN -> ContinuousGaussianNoiseSelector()
         else -> throw Exception("Invalid noise type ${fulfillerParams.noiseParams.noiseType}")
       }
-    // TODO: Read in EDP kAnonymityParams
-    val kAnonymityParams: KAnonymityParams? = null
+    val kAnonymityParams: KAnonymityParams? =
+      if (fulfillerParams.hasKAnonymityParams()) {
+        KAnonymityParams(
+          minImpressions = fulfillerParams.kAnonymityParams.minImpressions,
+          minUsers = fulfillerParams.kAnonymityParams.minUsers,
+          reachMaxFrequencyPerUser = fulfillerParams.kAnonymityParams.reachMaxFrequencyPerUser,
+        )
+      } else {
+        null
+      }
     ResultsFulfiller(
         loadPrivateKey(encryptionPrivateKeyFile),
         requisitionsStub,
