@@ -83,6 +83,7 @@ class ResultsFulfiller(
   private val noiserSelector: NoiserSelector,
   private val eventReader: EventReader,
   private val populationSpecMap: Map<String, PopulationSpec>,
+  private val kAnonymityParams: KAnonymityParams?,
 ) {
 
   private lateinit var populationSpec: PopulationSpec
@@ -128,24 +129,38 @@ class ResultsFulfiller(
       val fulfiller =
         if (protocols.any { it.hasDirect() }) {
           // TODO: Calculate the maximum population for a given cel filter
-          // TODO: Read in EDP kAnonymityParams
           buildDirectMeasurementFulfiller(
             requisition,
             measurementSpec,
             requisitionSpec,
             maxPopulation = null,
             frequencyData,
-            kAnonymityParams = null,
+            kAnonymityParams = kAnonymityParams,
           )
         } else if (protocols.any { it.hasHonestMajorityShareShuffle() }) {
-          HMShuffleMeasurementFulfiller(
-            requisition,
-            requisitionSpec.nonce,
-            frequencyVectorBuilder.build(),
-            dataProviderSigningKeyHandle,
-            dataProviderCertificateKey,
-            requisitionFulfillmentStubMap,
-          )
+          if (kAnonymityParams == null) {
+            HMShuffleMeasurementFulfiller(
+              requisition,
+              requisitionSpec.nonce,
+              frequencyVectorBuilder.build(),
+              dataProviderSigningKeyHandle,
+              dataProviderCertificateKey,
+              requisitionFulfillmentStubMap,
+            )
+          } else {
+            HMShuffleMeasurementFulfiller.buildKAnonymized(
+              requisition,
+              requisitionSpec.nonce,
+              measurementSpec,
+              populationSpec,
+              frequencyVectorBuilder,
+              dataProviderSigningKeyHandle,
+              dataProviderCertificateKey,
+              requisitionFulfillmentStubMap,
+              kAnonymityParams,
+              maxPopulation = null,
+            )
+          }
         } else {
           throw Exception("Protocol not supported")
         }

@@ -245,6 +245,7 @@ class ResultsFulfillerTest {
         ContinuousGaussianNoiseSelector(),
         eventReader,
         mapOf("some-model-line" to POPULATION_SPEC),
+        kAnonymityParams = null,
       )
 
     resultsFulfiller.fulfillRequisitions()
@@ -337,6 +338,7 @@ class ResultsFulfillerTest {
         ContinuousGaussianNoiseSelector(),
         eventReader,
         mapOf("some-model-line" to POPULATION_SPEC),
+        kAnonymityParams = null,
       )
 
     resultsFulfiller.fulfillRequisitions()
