@@ -188,8 +188,9 @@ kt_jvm_test(
     srcs = ["FilterProcessorTest.kt"],
     test_class = "org.wfanet.measurement.edpaggregator.resultsfulfiller.FilterProcessorTest",
     deps = [
-        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:event_batch",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:filter_processor",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:filter_spec",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:event_batch",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:labeled_event",
         "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:test_event_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
