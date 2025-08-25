@@ -16,6 +16,7 @@ syntax = "proto3";
 
 package wfa.measurement.internal.edpaggregator;
 
+import "google/protobuf/timestamp.proto";
 // Import the message definitions used by this service.
 import "wfa/measurement/internal/edpaggregator/requisition_metadata.proto";
 
@@ -34,9 +35,10 @@ service RequisitionMetadataActionService {
   rpc GetRequisitionMetadataAction(GetRequisitionMetadataActionRequest)
       returns (RequisitionMetadataAction);
 
-  // Lists RequisitionMetadataAction entries for a given RequisitionMetadata.
-  rpc ListRequisitionMetadataActions(ListRequisitionMetadataActionsRequest)
-      returns (ListRequisitionMetadataActionsResponse);
+  // Streams RequisitionMetadataAction entries, ordered by action_time asc,
+  // external_action_id asc.
+  rpc StreamRequisitionMetadataActions(StreamRequisitionMetadataActionsRequest)
+      returns (stream RequisitionMetadataAction);
 }
 
 message CreateRequisitionMetadataActionRequest {
@@ -54,21 +56,28 @@ message GetRequisitionMetadataActionRequest {
   fixed64 external_action_id = 3;
 }
 
-message ListRequisitionMetadataActionsRequest {
-  fixed64 external_data_provider_id = 1;
-  fixed64 external_requisition_metadata_id = 2;
-  int32 page_size = 3;
-  string page_token = 4;
+message StreamRequisitionMetadataActionsRequest {
+  message AfterFilter {
+    google.protobuf.Timestamp action_time = 1;
+    fixed64 external_action_id = 2;
+  }
 
   message Filter {
-    RequisitionMetadataAction.ActionerType actioner_type = 1;
-    RequisitionMetadata.State prior_state = 2;
-    RequisitionMetadata.State new_state = 3;
-  }
-  Filter filter = 5;
-}
+    // Parent IDs are required.
+    fixed64 external_data_provider_id = 1;
+    fixed64 external_requisition_metadata_id = 2;
 
-message ListRequisitionMetadataActionsResponse {
-  repeated RequisitionMetadataAction requisition_metadata_actions = 1;
-  string next_page_token = 2;
+    // Optional filter criteria
+    RequisitionMetadataAction.ActionerType actioner_type = 3;
+    RequisitionMetadata.State prior_state = 4;
+    RequisitionMetadata.State new_state = 5;
+
+    // Keyset pagination
+    AfterFilter after = 6;
+  }
+  Filter filter = 1;
+
+  // The maximum number of results to return. If not specified or 0, it implies
+  // unlimited.
+  int32 limit = 2;
 }
