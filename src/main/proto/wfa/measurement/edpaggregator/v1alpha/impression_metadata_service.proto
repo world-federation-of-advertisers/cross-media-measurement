@@ -32,28 +32,16 @@ service ImpressionMetadataService {
   // Creates a new ImpressionMetadata entry.
   rpc CreateImpressionMetadata(CreateImpressionMetadataRequest)
       returns (ImpressionMetadata) {
-    option (google.api.http) = {
-      post: "/v1alpha/{parent=dataProviders/*}/impressionMetadata"
-      body: "impression_metadata"
-    };
     option (google.api.method_signature) = "parent,impression_metadata";
   }
 
   // Creates multiple new ImpressionMetadata entries in a single request.
   rpc BatchCreateImpressionMetadata(BatchCreateImpressionMetadataRequest)
-      returns (BatchCreateImpressionMetadataResponse) {
-    option (google.api.http) = {
-      post: "/v1alpha/{parent=dataProviders/*}/impressionMetadata:batchCreate"
-      body: "*"
-    };
-  }
+      returns (BatchCreateImpressionMetadataResponse) {}
 
   // Retrieves a specific ImpressionMetadata entry.
   rpc GetImpressionMetadata(GetImpressionMetadataRequest)
       returns (ImpressionMetadata) {
-    option (google.api.http) = {
-      get: "/v1alpha/{name=dataProviders/*/impressionMetadata/*}"
-    };
     option (google.api.method_signature) = "name";
   }
 
@@ -63,28 +51,19 @@ service ImpressionMetadataService {
   //     --)
   rpc ListImpressionMetadata(ListImpressionMetadataRequest)
       returns (ListImpressionMetadataResponse) {
-    option (google.api.http) = {
-      get: "/v1alpha/{parent=dataProviders/*}/impressionMetadata"
-    };
     option (google.api.method_signature) = "parent,filter";
   }
 
   // Marks an ImpressionMetadata entry as deleted.
   rpc DeleteImpressionMetadata(DeleteImpressionMetadataRequest)
       returns (ImpressionMetadata) {
-    option (google.api.http) = {
-      delete: "/v1alpha/{name=dataProviders/*/impressionMetadata/*}"
-    };
     option (google.api.method_signature) = "name";
   }
 
   // Marks multiple ImpressionMetadata entries as deleted in a single request.
   rpc BatchDeleteImpressionMetadata(BatchDeleteImpressionMetadataRequest)
       returns (BatchDeleteImpressionMetadataResponse) {
-    option (google.api.http) = {
-      post: "/v1alpha/{parent=dataProviders/*}/impressionMetadata:batchDelete"
-      body: "*"
-    };
+    f
   }
 }
 
@@ -103,6 +82,14 @@ message CreateImpressionMetadataRequest {
   // The `name` and output-only fields are ignored.
   ImpressionMetadata impression_metadata = 2
       [(google.api.field_behavior) = REQUIRED];
+
+  // A request ID provided by the client on creation to ensure idempotency.
+  //
+  // This field must be a UUID4 (RFC 4122) string.
+  string request_id = 10 [
+    (google.api.field_behavior) = OPTIONAL,
+    (google.api.field_info).format = UUID4
+  ];
 }
 
 // Request message for the `BatchCreateImpressionMetadata` method.

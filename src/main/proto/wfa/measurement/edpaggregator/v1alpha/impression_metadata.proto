@@ -58,34 +58,33 @@ message ImpressionMetadata {
     (google.api.field_behavior) = IMMUTABLE
   ];
 
+  // Type URL of the blob.
+  //
+  // (-- api-linter: core::0140::uri=disabled
+  //     aip.dev/not-precedent: this is mirroring the type_url field in
+  //     protobuf.Any. --)
+  string blob_type_url = 3 [(google.api.field_behavior) = REQUIRED];
+
   // The reference ID of the EventGroup associated with these impressions.
-  string event_group_reference_id = 3 [(google.api.field_behavior) = REQUIRED];
+  string event_group_reference_id = 4 [(google.api.field_behavior) = REQUIRED];
 
   // The resource name of the ModelLine associated with these impressions.
-  string model_line = 4 [
+  string model_line = 5 [
     (google.api.field_behavior) = REQUIRED,
     (google.api.resource_reference) = { type: "halo.wfanet.org/ModelLine" }
   ];
 
   // The time interval that the impressions in the blob cover.
-  google.type.Interval interval = 5 [(google.api.field_behavior) = REQUIRED];
+  google.type.Interval interval = 6 [(google.api.field_behavior) = REQUIRED];
 
   // The current state of the metadata.
-  State state = 6 [(google.api.field_behavior) = OUTPUT_ONLY];
+  State state = 7 [(google.api.field_behavior) = OUTPUT_ONLY];
 
   // The timestamp when this metadata entry was created.
-  google.protobuf.Timestamp create_time = 7
+  google.protobuf.Timestamp create_time = 8
       [(google.api.field_behavior) = OUTPUT_ONLY];
 
   // The timestamp when this metadata entry was last updated (e.g., deleted).
-  google.protobuf.Timestamp update_time = 8
+  google.protobuf.Timestamp update_time = 9
       [(google.api.field_behavior) = OUTPUT_ONLY];
-
-  // A request ID provided by the client on creation to ensure idempotency.
-  //
-  // This field must be a UUID4 (RFC 4122) string.
-  string request_id = 10 [
-    (google.api.field_behavior) = OPTIONAL,
-    (google.api.field_info).format = UUID4
-  ];
 }
