@@ -180,4 +180,5 @@ PANEL_EXCHANGE_CLIENT_TEST_GOOGLE_CLOUD_SETTINGS = struct(
 TEST_EDPA_SETTINGS = struct(
     auth_id_token = "$(auth_id_token)",
     requisition_fetcher_endpoint = "$(requisition_fetcher_endpoint)",
+    storage_bucket = "$(storage_bucket)",
 )

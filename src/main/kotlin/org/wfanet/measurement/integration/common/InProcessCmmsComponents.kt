@@ -94,7 +94,7 @@ class InProcessCmmsComponents(
     )
   }
 
-  private val duchies: List<InProcessDuchy> by lazy {
+  val duchies: List<InProcessDuchy> by lazy {
     ALL_DUCHY_NAMES.map {
       InProcessDuchy(
         externalDuchyId = it,

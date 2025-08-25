@@ -159,6 +159,12 @@ resource "google_storage_bucket_object" "upload_results_fulfiller_proto_descript
   source = var.results_fulfiller_event_descriptor.local_path
 }
 
+resource "google_storage_bucket_object" "upload_results_fulfiller_population_spec" {
+  name   = var.results_fulfiller_population_spec.destination
+  bucket = module.config_files_bucket.storage_bucket.name
+  source = var.results_fulfiller_population_spec.local_path
+}
+
 resource "google_project_iam_member" "eventarc_service_agent" {
   project = data.google_project.project.project_id
   role    = "roles/eventarc.serviceAgent"

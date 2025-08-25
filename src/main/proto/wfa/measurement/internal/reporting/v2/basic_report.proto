@@ -71,4 +71,15 @@ message BasicReport {
   }
   // `BasicReport` state.
   State state = 9;
+
+  // Request ID for`CreateReportRequest` to create a `Report` associated with
+  // `BasicReport`.
+  //
+  // Only set when `Report` is intended to be associated with `BasicReport`.
+  string create_report_request_id = 10;
+
+  // External ID of `Report` associated with `BasicReport`.
+  //
+  // Only set when `Report` is associated with `BasicReport`.
+  string external_report_id = 11;
 }

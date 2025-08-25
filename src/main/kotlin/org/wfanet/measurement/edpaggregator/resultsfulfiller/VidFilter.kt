@@ -16,7 +16,6 @@
 
 package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
-import com.google.common.hash.Hashing
 import com.google.protobuf.Descriptors
 import com.google.protobuf.DynamicMessage
 import com.google.protobuf.TypeRegistry
@@ -30,7 +29,6 @@ import org.wfanet.measurement.api.v2alpha.RequisitionSpec.EventFilter
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
 import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters
-import org.wfanet.sampling.VidSampler
 
 object VidFilter {
   /**
@@ -41,22 +39,13 @@ object VidFilter {
    */
   fun filterAndExtractVids(
     labeledImpressions: Flow<LabeledImpression>,
-    vidSamplingIntervalStart: Float,
-    vidSamplingIntervalWidth: Float,
     eventFilter: EventFilter,
     collectionInterval: Interval,
     typeRegistry: TypeRegistry,
   ): Flow<Long> {
     return labeledImpressions
       .filter { labeledImpression ->
-        isValidImpression(
-          labeledImpression,
-          vidSamplingIntervalStart,
-          vidSamplingIntervalWidth,
-          eventFilter,
-          collectionInterval,
-          typeRegistry,
-        )
+        isValidImpression(labeledImpression, eventFilter, collectionInterval, typeRegistry)
       }
       .map { labeledImpression -> labeledImpression.vid }
   }
@@ -65,8 +54,6 @@ object VidFilter {
    * Determines if an impression is valid based on various criteria.
    *
    * @param labeledImpression The impression to validate
-   * @param vidSamplingIntervalStart The start of the VID sampling interval
-   * @param vidSamplingIntervalWidth The width of the VID sampling interval
    * @param eventFilter The event filter criteria
    * @param collectionInterval The time interval for collection
    * @param typeRegistry The registry for looking up protobuf descriptors
@@ -74,21 +61,10 @@ object VidFilter {
    */
   private fun isValidImpression(
     labeledImpression: LabeledImpression,
-    vidSamplingIntervalStart: Float,
-    vidSamplingIntervalWidth: Float,
     eventFilter: EventFilter,
     collectionInterval: Interval,
     typeRegistry: TypeRegistry,
   ): Boolean {
-    require(
-      vidSamplingIntervalStart < 1 &&
-        vidSamplingIntervalStart >= 0 &&
-        vidSamplingIntervalWidth > 0 &&
-        vidSamplingIntervalStart + vidSamplingIntervalWidth <= 1.0
-    ) {
-      "Invalid vidSamplingInterval: start = $vidSamplingIntervalStart, width = " +
-        "$vidSamplingIntervalWidth"
-    }
 
     // Check if impression is within collection time interval
     val isInCollectionInterval =
@@ -96,19 +72,6 @@ object VidFilter {
         labeledImpression.eventTime.toInstant() < collectionInterval.endTime.toInstant()
 
     if (!isInCollectionInterval) {
-      return false
-    }
-
-    val sampler = VidSampler(Hashing.farmHashFingerprint64())
-    // Check if VID is in sampling bucket
-    val isInSamplingInterval =
-      sampler.vidIsInSamplingBucket(
-        labeledImpression.vid,
-        vidSamplingIntervalStart,
-        vidSamplingIntervalWidth,
-      )
-
-    if (!isInSamplingInterval) {
       return false
     }
 

@@ -24,13 +24,35 @@ option java_multiple_files = true;
 
 // Internal service for persistence of Basic Report entities.
 service BasicReports {
+  // Inserts a `BasicReport` into the database in the
+  // `BasicReport.State.SUCCEEDED` state.
+  //
+  // The `BasicReport` must already be considered in the
+  // `BasicReport.State.SUCCEEDED` state.
+  //
   // Error reasons:
   // * `REPORTING_SET_NOT_FOUND`
   // * `IMPRESSION_QUALIFICATION_FILTER_NOT_FOUND`
   // * `BASIC_REPORT_ALREADY_EXISTS`
   rpc InsertBasicReport(InsertBasicReportRequest) returns (BasicReport);
 
+  // Creates a `BasicReport` in the `BasicReport.State.CREATED` state.
+  //
   // Error reasons:
+  // * `REPORTING_SET_NOT_FOUND`
+  // * `BASIC_REPORT_ALREADY_EXISTS`
+  rpc CreateBasicReport(CreateBasicReportRequest) returns (BasicReport);
+
+  // Sets the `BasicReport.external_report_id` field and transitions the
+  // `BasicReport` to the `BasicReport.State.REPORT_CREATED` state.
+  //
+  // Error reasons:
+  // * `REQUIRED_FIELD_NOT_SET`
+  // * `BASIC_REPORT_NOT_FOUND`
+  rpc SetExternalReportId(SetExternalReportIdRequest) returns (BasicReport);
+
+  // Error reasons:
+  // * `REQUIRED_FIELD_NOT_SET`
   // * `BASIC_REPORT_NOT_FOUND`
   rpc GetBasicReport(GetBasicReportRequest) returns (BasicReport);
 
@@ -41,6 +63,16 @@ service BasicReports {
 
 message InsertBasicReportRequest {
   BasicReport basic_report = 1;
+}
+
+message CreateBasicReportRequest {
+  BasicReport basic_report = 1;
+}
+
+message SetExternalReportIdRequest {
+  string cmms_measurement_consumer_id = 1;
+  string external_basic_report_id = 2;
+  string external_report_id = 3;
 }
 
 message GetBasicReportRequest {

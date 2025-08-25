@@ -20,6 +20,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.frequencycount.frequencyVector
+import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.impression
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reach
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reachAndFrequency
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.vidSamplingInterval
@@ -32,22 +33,25 @@ import org.wfanet.measurement.api.v2alpha.populationSpec
 class FrequencyVectorBuilderTest {
 
   @Test
-  fun `construction fails when measurement spec does not have reach or reach and frequency`() {
-    assertFailsWith<IllegalArgumentException>("expected exception") {
-      FrequencyVectorBuilder(
-        SMALL_POPULATION_SPEC,
-        measurementSpec { vidSamplingInterval = FULL_SAMPLING_INTERVAL },
-      )
-    }
-  }
-
-  @Test
   fun `construction fails on reach and frequency measurement spec without max frequency`() {
     assertFailsWith<IllegalArgumentException>("expected exception") {
       FrequencyVectorBuilder(
         SMALL_POPULATION_SPEC,
         measurementSpec {
           reachAndFrequency = reachAndFrequency {}
+          vidSamplingInterval = FULL_SAMPLING_INTERVAL
+        },
+      )
+    }
+  }
+
+  @Test
+  fun `construction fails on impression measurement spec without max frequency`() {
+    assertFailsWith<IllegalArgumentException>("expected exception") {
+      FrequencyVectorBuilder(
+        SMALL_POPULATION_SPEC,
+        measurementSpec {
+          impression = impression {}
           vidSamplingInterval = FULL_SAMPLING_INTERVAL
         },
       )

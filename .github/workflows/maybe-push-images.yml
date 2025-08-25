@@ -70,9 +70,9 @@ jobs:
     secrets: inherit
     with:
       image-tag: ${{ needs.get-image-tag.outputs.image-tag }}
-      kms-key-resource-name: "gcpkms://${{ vars.IMAGE_SIGNING_DEV_KEY_RESOURCE_NAME }}"
-      service-account: ${{ vars.IMAGE_SIGNING_DEV_SA }}
-      workload-identity-provider: ${{ vars.IMAGE_SIGNING_DEV_WORKLOAD_IDENTITY_PROVIDER }}
+      kms-key-resource-name: "gcpkms://${{ vars.IMAGE_SIGNING_TEST_KEY_RESOURCE_NAME }}"
+      service-account: ${{ vars.IMAGE_SIGNING_TEST_SA }}
+      workload-identity-provider: ${{ vars.IMAGE_SIGNING_TEST_WORKLOAD_IDENTITY_PROVIDER }}
 
   sign-images-with-release-key:
     uses: ./.github/workflows/sign-images.yml

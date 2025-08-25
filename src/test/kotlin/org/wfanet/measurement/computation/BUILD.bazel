@@ -1,0 +1,35 @@
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_test")
+
+package(default_testonly = True)
+
+kt_jvm_test(
+    name = "ImpressionComputationsTest",
+    srcs = ["ImpressionComputationsTest.kt"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/computation:differential_privacy_params",
+        "//src/main/kotlin/org/wfanet/measurement/computation:impression_computations",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+    ],
+)
+
+kt_jvm_test(
+    name = "HistogramComputationsTest",
+    srcs = ["HistogramComputationsTest.kt"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/computation:histogram_computations",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+    ],
+)
+
+kt_jvm_test(
+    name = "ReachAndFrequencyComputationsTest",
+    srcs = ["ReachAndFrequencyComputationsTest.kt"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/computation:differential_privacy_params",
+        "//src/main/kotlin/org/wfanet/measurement/computation:reach_and_frequency_computations",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+    ],
+)

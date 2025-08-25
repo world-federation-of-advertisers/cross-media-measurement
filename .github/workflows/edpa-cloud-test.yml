@@ -68,6 +68,8 @@ jobs:
           MC_API_KEY: ${{ secrets.MC_API_KEY }}
           AUTH_ID_TOKEN: ${{ steps.auth.outputs.id_token }}
           REQUISITION_FETCHER_ENDPOINT: ${{ vars.REQUISITION_FETCHER_ENDPOINT }}
+          STORAGE_BUCKET: secure-computation-storage-${{ inputs.environment }}-bucket
+
         run: |
           cat << EOF > ~/.bazelrc
           common --config=ci
@@ -76,6 +78,7 @@ jobs:
           build --define mc_api_key=$MC_API_KEY
           build --define auth_id_token=$AUTH_ID_TOKEN
           build --define requisition_fetcher_endpoint=$REQUISITION_FETCHER_ENDPOINT
+          build --define storage_bucket=$STORAGE_BUCKET
           test --test_output=streamed
           test --test_timeout=3600
           EOF

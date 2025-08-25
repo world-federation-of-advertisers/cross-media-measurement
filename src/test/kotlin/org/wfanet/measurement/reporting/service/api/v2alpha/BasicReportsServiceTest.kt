@@ -5461,6 +5461,124 @@ class BasicReportsServiceTest {
   }
 
   @Test
+  fun `listBasicReports with createTimeAfter returns next token after prev token used`(): Unit =
+    runBlocking {
+      val cmmsMeasurementConsumerId = "1234"
+      val reportingSetId = "4322"
+      val basicReportId = "4321"
+
+      measurementConsumersService.createMeasurementConsumer(
+        measurementConsumer { this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId }
+      )
+
+      internalReportingSetsService.createReportingSet(
+        createReportingSetRequest {
+          reportingSet =
+            INTERNAL_CAMPAIGN_GROUP.copy {
+              this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
+              this.externalCampaignGroupId = reportingSetId
+            }
+          externalReportingSetId = reportingSetId
+        }
+      )
+
+      val internalBasicReport = internalBasicReport {
+        this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
+        externalBasicReportId = basicReportId
+        externalCampaignGroupId = reportingSetId
+        campaignGroupDisplayName = INTERNAL_CAMPAIGN_GROUP.displayName
+        details = basicReportDetails {
+          title = "title"
+          reportingInterval = internalReportingInterval {
+            reportStart = dateTime { day = 3 }
+            reportEnd = date { day = 5 }
+          }
+        }
+        resultDetails = basicReportResultDetails {}
+      }
+
+      val internalBasicReport1 =
+        internalBasicReportsService.insertBasicReport(
+          insertBasicReportRequest {
+            basicReport = internalBasicReport.copy { externalBasicReportId += "1" }
+          }
+        )
+
+      internalBasicReportsService.insertBasicReport(
+        insertBasicReportRequest {
+          basicReport = internalBasicReport.copy { externalBasicReportId += "2" }
+        }
+      )
+
+      val listBasicReportsResponse =
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) {
+          service.listBasicReports(
+            listBasicReportsRequest {
+              parent = MeasurementConsumerKey(cmmsMeasurementConsumerId).toName()
+              pageSize = 1
+              filter =
+                ListBasicReportsRequestKt.filter { createTimeAfter = timestamp { seconds = 1 } }
+              pageToken =
+                listBasicReportsPageToken {
+                    filter =
+                      ListBasicReportsPageTokenKt.filter {
+                        createTimeAfter = timestamp { seconds = 1 }
+                      }
+                    lastBasicReport =
+                      ListBasicReportsPageTokenKt.previousPageEnd {
+                        createTime = timestamp { seconds = 5 }
+                        externalBasicReportId = "1234"
+                      }
+                  }
+                  .toByteString()
+                  .base64UrlEncode()
+            }
+          )
+        }
+
+      assertThat(listBasicReportsResponse.basicReportsList)
+        .containsExactly(
+          basicReport {
+            name =
+              BasicReportKey(
+                  cmmsMeasurementConsumerId = cmmsMeasurementConsumerId,
+                  basicReportId = internalBasicReport1.externalBasicReportId,
+                )
+                .toName()
+            campaignGroup =
+              ReportingSetKey(
+                  cmmsMeasurementConsumerId = cmmsMeasurementConsumerId,
+                  reportingSetId = reportingSetId,
+                )
+                .toName()
+            campaignGroupDisplayName = INTERNAL_CAMPAIGN_GROUP.displayName
+            title = "title"
+            reportingInterval = reportingInterval {
+              reportStart = dateTime { day = 3 }
+              reportEnd = date { day = 5 }
+            }
+            createTime = internalBasicReport1.createTime
+            state = BasicReport.State.SUCCEEDED
+          }
+        )
+      assertThat(listBasicReportsResponse.nextPageToken)
+        .isEqualTo(
+          listBasicReportsPageToken {
+              this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
+              filter =
+                ListBasicReportsPageTokenKt.filter { createTimeAfter = timestamp { seconds = 1 } }
+              lastBasicReport =
+                ListBasicReportsPageTokenKt.previousPageEnd {
+                  createTime = internalBasicReport1.createTime
+                  externalBasicReportId = internalBasicReport1.externalBasicReportId
+                }
+            }
+            .toByteString()
+            .base64UrlEncode()
+        )
+    }
+
+  @Test
   fun `listBasicReports returns basic report when using page token`(): Unit = runBlocking {
     val cmmsMeasurementConsumerId = "1234"
     val reportingSetId = "4322"
