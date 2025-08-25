@@ -476,7 +476,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         dummyThrottler,
         PrivacyBudgets.createNoOpPrivacyBudgetManager(),
         TRUSTED_CERTIFICATES,
-        HMSS_VID_INDEX_MAP,
+        VID_INDEX_MAP,
       )
 
     runBlocking { edpSimulator.executeRequisitionFulfillingWorkflow() }
