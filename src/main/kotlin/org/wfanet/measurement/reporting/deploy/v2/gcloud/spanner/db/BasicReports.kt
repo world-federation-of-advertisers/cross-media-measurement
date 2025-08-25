@@ -74,13 +74,12 @@ suspend fun AsyncDatabaseClient.ReadContext.getBasicReportByRequestId(
       .trimIndent()
   val row: Struct =
     executeQuery(
-      statement(sql) {
-        bind("measurementConsumerId").to(measurementConsumerId)
-        bind("createRequestId").to(createRequestId)
-      }
-    )
-      .singleOrNullIfEmpty()
-      ?: return null
+        statement(sql) {
+          bind("measurementConsumerId").to(measurementConsumerId)
+          bind("createRequestId").to(createRequestId)
+        }
+      )
+      .singleOrNullIfEmpty() ?: return null
 
   return BasicReportResult(
     row.getLong("MeasurementConsumerId"),
