@@ -19,21 +19,23 @@ package wfa.measurement.internal.reporting.v2;
 option java_package = "org.wfanet.measurement.internal.reporting.v2";
 option java_multiple_files = true;
 
+message DataProviderKey {
+  string external_data_provider_id = 1;
+}
+
+message ReportingSetKey {
+  string cmms_measurement_consumer_id = 1;
+  string external_reporting_set_id = 2;
+}
+
 // Specifies the units to report on.
 message ReportingUnit {
-  message DataProviderIds {
-    message DataProviderId {
-      string external_data_provider_id = 1;
-    }
-    repeated DataProviderId data_provider_ids = 1;
+  message DataProviderKeys {
+    repeated DataProviderKey data_provider_keys = 1;
   }
 
-  message ReportingSetIds {
-    message ReportingSetId {
-      string cmms_measurement_consumer_id = 1;
-      string external_reporting_set_id = 2;
-    }
-    repeated ReportingSetId reporting_set_ids = 1;
+  message ReportingSetKeys {
+    repeated ReportingSetKey reporting_set_keys = 1;
   }
 
   // A list of resource IDs to report on.
@@ -41,7 +43,7 @@ message ReportingUnit {
   // For use with BasicReport these must be DataProvider resource IDs.
   // For use with AdvancedReport these must be ReportingSet resource IDs.
   oneof Components {
-    DataProviderIds dataProviderIds = 1;
-    ReportingSetIds reportingSetIds = 2;
+    DataProviderKeys dataProviderKeys = 1;
+    ReportingSetKeys reportingSetKeys = 2;
   }
 }

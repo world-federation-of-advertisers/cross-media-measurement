@@ -50,6 +50,7 @@ import org.wfanet.measurement.internal.reporting.v2.basicReportResultDetails
 import org.wfanet.measurement.internal.reporting.v2.copy
 import org.wfanet.measurement.internal.reporting.v2.createBasicReportRequest
 import org.wfanet.measurement.internal.reporting.v2.createReportingSetRequest
+import org.wfanet.measurement.internal.reporting.v2.dataProviderKey
 import org.wfanet.measurement.internal.reporting.v2.dimensionSpec
 import org.wfanet.measurement.internal.reporting.v2.eventFilter
 import org.wfanet.measurement.internal.reporting.v2.eventTemplateField
@@ -118,10 +119,10 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
         resultGroupSpecs += resultGroupSpec {
           title = "title"
           reportingUnit = reportingUnit {
-            dataProviderIds =
-              ReportingUnitKt.dataProviderIds {
-                dataProviderIds +=
-                  ReportingUnitKt.DataProviderIdsKt.dataProviderId {
+            dataProviderKeys =
+              ReportingUnitKt.dataProviderKeys {
+                dataProviderKeys +=
+                  dataProviderKey {
                     externalDataProviderId = "1234"
                   }
               }
@@ -437,10 +438,10 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
         resultGroupSpecs += resultGroupSpec {
           title = "title"
           reportingUnit = reportingUnit {
-            dataProviderIds =
-              ReportingUnitKt.dataProviderIds {
-                dataProviderIds +=
-                  ReportingUnitKt.DataProviderIdsKt.dataProviderId {
+            dataProviderKeys =
+              ReportingUnitKt.dataProviderKeys {
+                dataProviderKeys +=
+                  dataProviderKey {
                     externalDataProviderId = "1234"
                   }
               }
