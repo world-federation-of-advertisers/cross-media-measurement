@@ -224,6 +224,8 @@ MESSAGE_LIBS = [
     "result_group",
     "reporting_impression_qualification_filter",
     "reporting_interval",
+    "reporting_unit",
+    "result_group_spec",
 ]
 
 proto_library(
@@ -233,6 +235,7 @@ proto_library(
     deps = [
         ":reporting_impression_qualification_filter_proto",
         ":reporting_interval_proto",
+        ":result_group_spec_proto",
     ],
 )
 
@@ -320,6 +323,12 @@ proto_library(
 )
 
 proto_library(
+    name = "reporting_unit_proto",
+    srcs = ["reporting_unit.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+)
+
+proto_library(
     name = "result_group_proto",
     srcs = ["result_group.proto"],
     strip_import_prefix = IMPORT_PREFIX,
@@ -329,6 +338,17 @@ proto_library(
         ":metric_frequency_spec_proto",
         ":reporting_impression_qualification_filter_proto",
         "@com_google_protobuf//:timestamp_proto",
+    ],
+)
+
+proto_library(
+    name = "result_group_spec_proto",
+    srcs = ["result_group_spec.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        ":event_filter_proto",
+        ":metric_frequency_spec_proto",
+        ":reporting_unit_proto",
     ],
 )
 
@@ -374,6 +394,8 @@ proto_descriptor_set(
         ":metric_frequency_spec_proto",
         ":reporting_impression_qualification_filter_proto",
         ":reporting_interval_proto",
+        ":reporting_unit_proto",
         ":result_group_proto",
+        ":result_group_spec_proto",
     ],
 )
