@@ -16,6 +16,7 @@
 
 package org.wfanet.measurement.loadtest.dataprovider
 
+import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.trustee.FulfillRequisitionRequestBuilder as TrusTeeFulfillRequisitionRequestBuilder
 import com.google.protobuf.ByteString
 import io.grpc.ManagedChannel
 import java.io.File
@@ -33,13 +34,9 @@ import org.wfanet.measurement.api.v2alpha.eventGroupMetadata
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
 import org.wfanet.measurement.common.SettableHealth
 import org.wfanet.measurement.common.commandLineMain
-import org.wfanet.measurement.common.crypto.tink.GCloudWifCredentials
-import org.wfanet.measurement.common.crypto.tink.KmsClientFactory
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.InMemoryVidIndexMap
-import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.trustee.FulfillRequisitionRequestBuilder as TrusTeeFulfillRequisitionRequestBuilder
-import org.wfanet.measurement.gcloud.kms.GCloudKmsClientFactory
 import org.wfanet.measurement.loadtest.config.PrivacyBudgets
 import picocli.CommandLine
 
@@ -114,9 +111,6 @@ class EdpSimulatorRunner : AbstractEdpSimulatorRunner() {
 
   override val eventGroupsOptions: List<EdpSimulator.EventGroupOptions>
     get() = _eventGroupsOptions
-
-  override val kmsClientFactory: KmsClientFactory<GCloudWifCredentials>
-    get() = GCloudKmsClientFactory()
 
   override fun buildEdpSimulator(
     measurementConsumerName: String,

@@ -39,8 +39,6 @@ import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.SettableHealth
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.crypto.testing.loadSigningKey
-import org.wfanet.measurement.common.crypto.tink.GCloudWifCredentials
-import org.wfanet.measurement.common.crypto.tink.KmsClientFactory
 import org.wfanet.measurement.common.crypto.tink.loadPrivateKey
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.parseTextProto
@@ -93,8 +91,6 @@ abstract class AbstractEdpSimulatorRunner : Runnable {
   protected abstract val eventGroupsOptions: List<AbstractEdpSimulator.EventGroupOptions>
 
   open val additionalMessageTypes: Collection<Descriptors.Descriptor> = emptyList()
-
-  protected abstract val kmsClientFactory: KmsClientFactory<GCloudWifCredentials>
 
   abstract fun buildEdpSimulator(
     measurementConsumerName: String,
