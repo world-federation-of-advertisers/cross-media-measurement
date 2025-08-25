@@ -46,6 +46,54 @@ data class BasicReportResult(
  *
  * @throws BasicReportNotFoundException
  */
+suspend fun AsyncDatabaseClient.ReadContext.getBasicReportByRequestId(
+  measurementConsumerId: Long,
+  createRequestId: String,
+): BasicReportResult? {
+  val sql =
+    """
+    SELECT
+      MeasurementConsumerId,
+      BasicReportId,
+      CmmsMeasurementConsumerId,
+      ExternalBasicReportId,
+      BasicReports.CreateTime,
+      ExternalCampaignGroupId,
+      BasicReportDetails,
+      BasicReportResultDetails,
+      State,
+      CreateReportRequestId,
+      ExternalReportId
+    FROM
+      MeasurementConsumers
+      JOIN BasicReports USING (MeasurementConsumerId)
+    WHERE
+      MeasurementConsumerId = @measurementConsumerId
+      AND CreateRequestId = @createRequestId
+    """
+      .trimIndent()
+  val row: Struct =
+    executeQuery(
+      statement(sql) {
+        bind("measurementConsumerId").to(measurementConsumerId)
+        bind("createRequestId").to(createRequestId)
+      }
+    )
+      .singleOrNullIfEmpty()
+      ?: return null
+
+  return BasicReportResult(
+    row.getLong("MeasurementConsumerId"),
+    row.getLong("BasicReportId"),
+    buildBasicReport(row),
+  )
+}
+
+/**
+ * Reads a [BasicReport] by its external ID.
+ *
+ * @throws BasicReportNotFoundException
+ */
 suspend fun AsyncDatabaseClient.ReadContext.getBasicReportByExternalId(
   cmmsMeasurementConsumerId: String,
   externalBasicReportId: String,
@@ -177,6 +225,7 @@ fun AsyncDatabaseClient.TransactionContext.insertBasicReport(
   measurementConsumerId: Long,
   basicReport: BasicReport,
   state: BasicReport.State,
+  requestId: String?,
 ) {
   bufferInsertMutation("BasicReports") {
     set("MeasurementConsumerId").to(measurementConsumerId)
@@ -193,6 +242,7 @@ fun AsyncDatabaseClient.TransactionContext.insertBasicReport(
     if (basicReport.externalReportId.isNotEmpty()) {
       set("ExternalReportId").to(basicReport.externalReportId)
     }
+    set("CreateRequestId").to(requestId)
   }
 }
 

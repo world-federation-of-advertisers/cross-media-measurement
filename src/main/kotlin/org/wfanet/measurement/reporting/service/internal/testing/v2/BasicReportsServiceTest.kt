@@ -118,6 +118,49 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
   }
 
   @Test
+  fun `createBasicReport with same request id succeeds twice`(): Unit = runBlocking {
+    measurementConsumersService.createMeasurementConsumer(
+      measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
+    )
+
+    reportingSetsService.createReportingSet(
+      createReportingSetRequest {
+        reportingSet = REPORTING_SET
+        externalReportingSetId = REPORTING_SET.externalReportingSetId
+      }
+    )
+
+    val basicReport = basicReport {
+      cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+      externalBasicReportId = "1237"
+      externalCampaignGroupId = REPORTING_SET.externalReportingSetId
+      campaignGroupDisplayName = REPORTING_SET.displayName
+      details = basicReportDetails { title = "title" }
+      createReportRequestId = "1235"
+    }
+
+    val request = createBasicReportRequest {
+      this.basicReport = basicReport
+      requestId = "1234"
+    }
+
+    val response = service.createBasicReport(request)
+
+    assertThat(response)
+      .ignoringFields(BasicReport.CREATE_TIME_FIELD_NUMBER, BasicReport.STATE_FIELD_NUMBER)
+      .isEqualTo(basicReport)
+
+    assertThat(response.state).isEqualTo(BasicReport.State.CREATED)
+    assertThat(response.hasCreateTime())
+
+    val response2 = service.createBasicReport(request)
+
+    assertThat(response2)
+      .ignoringFields(BasicReport.RESULT_DETAILS_FIELD_NUMBER)
+      .isEqualTo(response)
+  }
+
+  @Test
   fun `createBasicReport throws FAILED_PRECONDITION when reporting set not found`(): Unit =
     runBlocking {
       measurementConsumersService.createMeasurementConsumer(

@@ -50,6 +50,7 @@ import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.BasicReportR
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.MeasurementConsumerResult
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.basicReportExists
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.getBasicReportByExternalId
+import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.getBasicReportByRequestId
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.getMeasurementConsumerByCmmsMeasurementConsumerId
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.insertBasicReport
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.insertMeasurementConsumer
@@ -204,6 +205,7 @@ class SpannerBasicReportsService(
   override suspend fun createBasicReport(request: CreateBasicReportRequest): BasicReport {
     val transactionRunner = spannerClient.readWriteTransaction()
 
+    var existingBasicReport: BasicReport? = null
     try {
       transactionRunner.run { txn ->
         checkReportingSet(request.basicReport)
@@ -234,6 +236,17 @@ class SpannerBasicReportsService(
             )
           }
 
+        val existingBasicReportResult: BasicReportResult? =
+          txn.getBasicReportByRequestId(
+            measurementConsumerId = measurementConsumerResult.measurementConsumerId,
+            createRequestId = request.requestId,
+          )
+
+        if (existingBasicReportResult != null) {
+          existingBasicReport = existingBasicReportResult.basicReport
+          return@run
+        }
+
         val basicReportId =
           idGenerator.generateNewId { id ->
             txn.basicReportExists(measurementConsumerResult.measurementConsumerId, id)
@@ -244,6 +257,7 @@ class SpannerBasicReportsService(
           measurementConsumerId = measurementConsumerResult.measurementConsumerId,
           basicReport = request.basicReport,
           state = BasicReport.State.CREATED,
+          requestId = request.requestId.ifEmpty { null },
         )
       }
     } catch (e: SpannerException) {
@@ -260,6 +274,23 @@ class SpannerBasicReportsService(
       throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
     } catch (e: ReportingSetNotFoundException) {
       throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+    }
+
+    if (existingBasicReport != null) {
+      val reportingSetResult: ReportingSetReader.Result =
+        try {
+          getReportingSets(
+            existingBasicReport!!.cmmsMeasurementConsumerId,
+            listOf(existingBasicReport!!.externalCampaignGroupId),
+          )
+            .first()
+        } catch (e: ReportingSetNotFoundException) {
+          throw e.asStatusRuntimeException(Status.Code.INTERNAL)
+        }
+
+      return existingBasicReport!!.copy {
+        campaignGroupDisplayName = reportingSetResult.reportingSet.displayName
+      }
     }
 
     val commitTimestamp: Timestamp = transactionRunner.getCommitTimestamp().toProto()
@@ -377,6 +408,7 @@ class SpannerBasicReportsService(
           measurementConsumerId = measurementConsumerResult.measurementConsumerId,
           basicReport = request.basicReport,
           state = BasicReport.State.SUCCEEDED,
+          requestId = null,
         )
       }
     } catch (e: SpannerException) {
