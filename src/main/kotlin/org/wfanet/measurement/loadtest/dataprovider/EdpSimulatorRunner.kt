@@ -33,9 +33,13 @@ import org.wfanet.measurement.api.v2alpha.eventGroupMetadata
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
 import org.wfanet.measurement.common.SettableHealth
 import org.wfanet.measurement.common.commandLineMain
+import org.wfanet.measurement.common.crypto.tink.GCloudWifCredentials
+import org.wfanet.measurement.common.crypto.tink.KmsClientFactory
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.InMemoryVidIndexMap
+import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.trustee.FulfillRequisitionRequestBuilder as TrusTeeFulfillRequisitionRequestBuilder
+import org.wfanet.measurement.gcloud.kms.GCloudKmsClientFactory
 import org.wfanet.measurement.loadtest.config.PrivacyBudgets
 import picocli.CommandLine
 
@@ -111,6 +115,9 @@ class EdpSimulatorRunner : AbstractEdpSimulatorRunner() {
   override val eventGroupsOptions: List<EdpSimulator.EventGroupOptions>
     get() = _eventGroupsOptions
 
+  override val kmsClientFactory: KmsClientFactory<GCloudWifCredentials>
+    get() = GCloudKmsClientFactory()
+
   override fun buildEdpSimulator(
     measurementConsumerName: String,
     kingdomPublicApiChannel: ManagedChannel,
@@ -118,11 +125,12 @@ class EdpSimulatorRunner : AbstractEdpSimulatorRunner() {
       Map<String, RequisitionFulfillmentGrpcKt.RequisitionFulfillmentCoroutineStub>,
     trustedCertificates: Map<ByteString, X509Certificate>,
     eventQuery: SyntheticGeneratorEventQuery,
-    hmssVidIndexMap: InMemoryVidIndexMap?,
+    vidIndexMap: InMemoryVidIndexMap?,
     logSketchDetails: Boolean,
     throttler: MinimumIntervalThrottler,
     health: SettableHealth,
     random: Random,
+    trusTeeEncryptionParams: TrusTeeFulfillRequisitionRequestBuilder.EncryptionParams?,
   ): AbstractEdpSimulator {
     return EdpSimulator(
       edpData,
@@ -138,10 +146,11 @@ class EdpSimulatorRunner : AbstractEdpSimulatorRunner() {
       throttler,
       PrivacyBudgets.createNoOpPrivacyBudgetManager(),
       trustedCertificates,
-      hmssVidIndexMap,
+      vidIndexMap,
       random = random,
       logSketchDetails = logSketchDetails,
       health = health,
+      trusTeeEncryptionParams = trusTeeEncryptionParams,
     )
   }
 

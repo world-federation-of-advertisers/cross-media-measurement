@@ -14,6 +14,7 @@
 
 package org.wfanet.measurement.loadtest.dataprovider
 
+import com.google.crypto.tink.integration.gcpkms.GcpKmsClient
 import com.google.protobuf.ByteString
 import com.google.protobuf.DescriptorProtos
 import com.google.protobuf.Descriptors
@@ -38,12 +39,15 @@ import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.SettableHealth
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.crypto.testing.loadSigningKey
+import org.wfanet.measurement.common.crypto.tink.GCloudWifCredentials
+import org.wfanet.measurement.common.crypto.tink.KmsClientFactory
 import org.wfanet.measurement.common.crypto.tink.loadPrivateKey
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.dataprovider.DataProviderData
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.InMemoryVidIndexMap
+import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.trustee.FulfillRequisitionRequestBuilder as TrusTeeFulfillRequisitionRequestBuilder
 import picocli.CommandLine
 
 /** The base class of the EdpSimulator runner. */
@@ -90,17 +94,20 @@ abstract class AbstractEdpSimulatorRunner : Runnable {
 
   open val additionalMessageTypes: Collection<Descriptors.Descriptor> = emptyList()
 
+  protected abstract val kmsClientFactory: KmsClientFactory<GCloudWifCredentials>
+
   abstract fun buildEdpSimulator(
     measurementConsumerName: String,
     kingdomPublicApiChannel: ManagedChannel,
     requisitionFulfillmentStubsByDuchyId: Map<String, RequisitionFulfillmentCoroutineStub>,
     trustedCertificates: Map<ByteString, X509Certificate>,
     eventQuery: SyntheticGeneratorEventQuery,
-    hmssVidIndexMap: InMemoryVidIndexMap?,
+    vidIndexMap: InMemoryVidIndexMap?,
     logSketchDetails: Boolean,
     throttler: MinimumIntervalThrottler,
     health: SettableHealth,
     random: Random,
+    trusTeeEncryptionParams: TrusTeeFulfillRequisitionRequestBuilder.EncryptionParams?,
   ): AbstractEdpSimulator
 
   private fun TypeRegistry.Builder.addEventMessageDescriptors() {
@@ -133,7 +140,7 @@ abstract class AbstractEdpSimulatorRunner : Runnable {
         it.duchyId to stub
       }
 
-    val hmssVidIndexMap: InMemoryVidIndexMap? =
+    val vidIndexMap: InMemoryVidIndexMap? =
       if (flags.supportHmss) {
         InMemoryVidIndexMap.build(syntheticPopulationSpec.toPopulationSpec())
       } else {
@@ -160,6 +167,19 @@ abstract class AbstractEdpSimulatorRunner : Runnable {
         eventGroupsOptions,
       )
 
+    val trusTeeEncryptionParams: TrusTeeFulfillRequisitionRequestBuilder.EncryptionParams? =
+      if (flags.trusTeeParams != null) {
+        // TODO(lindreamdeyi): Swap the KMS client for local cluster runs.
+        TrusTeeFulfillRequisitionRequestBuilder.EncryptionParams(
+          GcpKmsClient(),
+          flags.trusTeeParams.kmsKekUri,
+          flags.trusTeeParams.workloadIdentityProvider,
+          flags.trusTeeParams.impersonatedServiceAccount,
+        )
+      } else {
+        null
+      }
+
     val edpSimulator: AbstractEdpSimulator =
       buildEdpSimulator(
         flags.mcResourceName,
@@ -167,11 +187,12 @@ abstract class AbstractEdpSimulatorRunner : Runnable {
         requisitionFulfillmentStubsByDuchyId,
         clientCerts.trustedCertificates,
         eventQuery,
-        hmssVidIndexMap,
+        vidIndexMap,
         flags.logSketchDetails,
         MinimumIntervalThrottler(Clock.systemUTC(), flags.throttlerMinimumInterval),
         health,
         random,
+        trusTeeEncryptionParams,
       )
     runBlocking {
       edpSimulator.ensureEventGroups()
