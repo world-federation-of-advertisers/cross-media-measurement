@@ -10,7 +10,9 @@ kt_jvm_library(
     tags = ["maven_coordinates=" + MAVEN_COORDINATES],
     visibility = [
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller/fulfillers:__pkg__",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:__pkg__",
         "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/requisition/v2alpha:__pkg__",
+        "//src/test/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:__pkg__",
         "//src/test/kotlin/org/wfanet/measurement/eventdataprovider/requisition/v2alpha/shareshuffle:__pkg__",
     ],
     deps = [
