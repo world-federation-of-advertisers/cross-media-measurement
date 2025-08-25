@@ -615,9 +615,8 @@ fun validateReportingImpressionQualificationFilters(
         )
     } else if (impressionQualificationFilter.hasCustom()) {
       if (customImpressionQualificationFilterUsed) {
-        throw InvalidFieldValueException(
-          "basic_report.impression_qualification_filters"
-        ) { fieldName ->
+        throw InvalidFieldValueException("basic_report.impression_qualification_filters") {
+          fieldName ->
           "$fieldName can only have one custom filter"
         }
       }
