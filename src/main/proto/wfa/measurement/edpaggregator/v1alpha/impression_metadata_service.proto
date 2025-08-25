@@ -19,6 +19,7 @@ package wfa.measurement.edpaggregator.v1alpha;
 import "google/api/annotations.proto";
 import "google/api/client.proto";
 import "google/api/field_behavior.proto";
+import "google/api/field_info.proto";
 import "google/api/resource.proto";
 import "google/type/interval.proto";
 import "wfa/measurement/edpaggregator/v1alpha/impression_metadata.proto";
@@ -62,9 +63,7 @@ service ImpressionMetadataService {
 
   // Marks multiple ImpressionMetadata entries as deleted in a single request.
   rpc BatchDeleteImpressionMetadata(BatchDeleteImpressionMetadataRequest)
-      returns (BatchDeleteImpressionMetadataResponse) {
-    f
-  }
+      returns (BatchDeleteImpressionMetadataResponse) {}
 }
 
 // Request message for the `CreateImpressionMetadata` method.
