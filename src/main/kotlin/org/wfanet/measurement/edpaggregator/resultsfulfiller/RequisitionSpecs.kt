@@ -25,8 +25,12 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.flatMapConcat
+import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec
+import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.common.toInstant
+import org.wfanet.measurement.common.toProtoTime
+import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
 
 /** Utility functions for working with VIDs (Virtual IDs) in the EDP Aggregator. */
 object RequisitionSpecs {
@@ -66,8 +70,16 @@ object RequisitionSpecs {
       val dates = startDate.datesUntil(endDate.plusDays(1)).asSequence()
       // Iterates through all dates up to the end date in the collection interval(inclusive)
       val impressions =
-        dates.asFlow().flatMapConcat { date ->
-          eventReader.getLabeledImpressions(date, eventGroupMap.getValue(eventGroup.key))
+        dates.asFlow().flatMapConcat { _ ->
+          eventReader.readEvents()
+        }.flatMapConcat { eventBatch ->
+          eventBatch.asFlow()
+        }.map { labeledEvent ->
+          LabeledImpression.newBuilder()
+            .setEventTime(labeledEvent.timestamp.toProtoTime())
+            .setVid(labeledEvent.vid)
+            .setEvent(labeledEvent.message.pack())
+            .build()
         }
 
       VidFilter.filterAndExtractVids(

@@ -17,6 +17,7 @@
 package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
 import com.google.common.truth.Truth.assertThat
+import com.google.protobuf.DynamicMessage
 import com.google.protobuf.TypeRegistry
 import com.google.protobuf.kotlin.unpack
 import com.google.type.interval
@@ -25,6 +26,7 @@ import java.time.ZoneId
 import java.time.ZoneOffset
 import kotlin.random.Random
 import kotlinx.coroutines.flow.count
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertThrows
@@ -73,24 +75,40 @@ class RequisitionSpecsTest {
           }
           .pack()
     }
-    val impressions =
-      flowOf(
-        labeledImpression,
-        labeledImpression.copy {
-          this.event =
-            this.event
-              .unpack(TestEvent::class.java)
-              .toBuilder()
-              .apply {
-                this.person = this.person.toBuilder().apply { gender = Person.Gender.MALE }.build()
-              }
-              .build()
-              .pack()
-        },
+    val testEvent1 = testEvent {
+      this.person = person {
+        gender = Person.Gender.FEMALE
+        ageGroup = Person.AgeGroup.YEARS_18_TO_34
+      }
+    }
+    val testEvent2 = testEvent {
+      this.person = person {
+        gender = Person.Gender.MALE
+        ageGroup = Person.AgeGroup.YEARS_18_TO_34
+      }
+    }
+    
+    val dynamicTestEvent1 = DynamicMessage.newBuilder(testEventDescriptor).mergeFrom(testEvent1.toByteString()).build()
+    val dynamicTestEvent2 = DynamicMessage.newBuilder(testEventDescriptor).mergeFrom(testEvent2.toByteString()).build()
+    
+    val labeledEvents = listOf(
+      LabeledEvent(
+        timestamp = FIRST_EVENT_DATE.atTime(1, 1, 1).toInstant(ZoneOffset.UTC),
+        vid = 1,
+        message = dynamicTestEvent1,
+        eventGroupReferenceId = ""
+      ),
+      LabeledEvent(
+        timestamp = FIRST_EVENT_DATE.atTime(1, 1, 1).toInstant(ZoneOffset.UTC),
+        vid = 1,
+        message = dynamicTestEvent2,
+        eventGroupReferenceId = ""
       )
+    )
+    
     val eventReader: EventReader =
       mock<EventReader> {
-        onBlocking { getLabeledImpressions(any(), any()) }.thenReturn(impressions)
+        onBlocking { readEvents() }.thenReturn(flow { emit(labeledEvents) })
       }
 
     val result =
@@ -125,17 +143,33 @@ class RequisitionSpecsTest {
           }
           .pack()
     }
-    val impressions =
-      flowOf(
-        labeledImpression,
-        labeledImpression.copy {
-          eventTime =
-            FIRST_EVENT_DATE.plusDays(1).atTime(1, 1, 1).toInstant(ZoneOffset.UTC).toProtoTime()
-        },
+    val testEvent1 = testEvent {
+      this.person = person {
+        gender = Person.Gender.FEMALE
+        ageGroup = Person.AgeGroup.YEARS_18_TO_34
+      }
+    }
+    
+    val dynamicTestEvent1 = DynamicMessage.newBuilder(testEventDescriptor).mergeFrom(testEvent1.toByteString()).build()
+    
+    val labeledEvents = listOf(
+      LabeledEvent(
+        timestamp = FIRST_EVENT_DATE.atTime(1, 1, 1).toInstant(ZoneOffset.UTC),
+        vid = 1,
+        message = dynamicTestEvent1,
+        eventGroupReferenceId = ""
+      ),
+      LabeledEvent(
+        timestamp = FIRST_EVENT_DATE.plusDays(1).atTime(1, 1, 1).toInstant(ZoneOffset.UTC),
+        vid = 1,
+        message = dynamicTestEvent1,
+        eventGroupReferenceId = ""
       )
+    )
+    
     val eventReader: EventReader =
       mock<EventReader> {
-        onBlocking { getLabeledImpressions(any(), any()) }.thenReturn(impressions)
+        onBlocking { readEvents() }.thenReturn(flow { emit(labeledEvents) })
       }
 
     val result =
@@ -148,7 +182,7 @@ class RequisitionSpecsTest {
       )
 
     assertThat(result.count()).isEqualTo(1)
-    verifyBlocking(eventReader, times(1)) { getLabeledImpressions(any(), any()) }
+    verifyBlocking(eventReader, times(1)) { readEvents() }
   }
 
   fun `throws exception for invalid vid interval`() = runBlocking {
@@ -176,10 +210,27 @@ class RequisitionSpecsTest {
           }
           .pack()
     }
-    val impressions = flowOf(labeledImpression)
+    val testEvent1 = testEvent {
+      this.person = person {
+        gender = Person.Gender.FEMALE
+        ageGroup = Person.AgeGroup.YEARS_18_TO_34
+      }
+    }
+    
+    val dynamicTestEvent1 = DynamicMessage.newBuilder(testEventDescriptor).mergeFrom(testEvent1.toByteString()).build()
+    
+    val labeledEvents = listOf(
+      LabeledEvent(
+        timestamp = FIRST_EVENT_DATE.plusDays(1).atStartOfDay().minusSeconds(1).toInstant(ZoneOffset.UTC),
+        vid = 1,
+        message = dynamicTestEvent1,
+        eventGroupReferenceId = ""
+      )
+    )
+    
     val eventReader: EventReader =
       mock<EventReader> {
-        onBlocking { getLabeledImpressions(any(), any()) }.thenReturn(impressions)
+        onBlocking { readEvents() }.thenReturn(flow { emit(labeledEvents) })
       }
 
     assertThrows(IllegalArgumentException::class.java) {
