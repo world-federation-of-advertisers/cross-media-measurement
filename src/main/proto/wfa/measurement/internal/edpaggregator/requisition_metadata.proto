@@ -24,18 +24,22 @@ option java_outer_classname = "RequisitionMetadataProto";
 
 // Internal representation of RequisitionMetadata.
 message RequisitionMetadata {
-  // The state of the requisition processing. This is an internal-only enum.
+  // The lifecycle state of the requisition.
   enum State {
     // Default, unspecified state.
     STATE_UNSPECIFIED = 0;
-    // The requisition has been received but not yet fulfilled.
-    UNFULFILLED = 1;
-    // The requisition has been fulfilled by the Data Provider.
-    FULFILLED = 2;
-    // The requisition has been confirmed by the system.
-    CONFIRMED = 3;
-    // The requisition processing has failed.
-    FAILED = 4;
+    // The requisition has been fetched and stored.
+    STORED = 1;
+    // The requisition is queued for processing.
+    QUEUED = 2;
+    // The requisition is actively being processed.
+    PROCESSING = 3;
+    // The requisition has been successfully fulfilled.
+    FULFILLED = 4;
+    // The requisition was refused.
+    REFUSED = 5;
+    // The requisition has been marked for soft deletion.
+    DELETED = 6;
   }
 
   // The ID of the DataProvider that owns this metadata.
@@ -56,43 +60,40 @@ message RequisitionMetadata {
   // The creation timestamp of the requisition in the CMMS (Kingdom).
   google.protobuf.Timestamp cmms_create_time = 6;
 
-  // The report ID from the CMMS (Kingdom).
-  string cmms_report_id = 7;
+  // The resource name of the Report in the Reporting system.
+  string report = 7;
 
-  // The ID of the work item created for processing this requisition.
-  string work_item_id = 8;
-
-  // A request ID provided by the client on creation to ensure idempotency.
-  string request_id = 9;
+  // The resource name of the WorkItem.
+  // This is set when the requisition is queued for processing.
+  string work_item = 8;
 
   // The current state of the requisition.
-  State state = 10;
+  State state = 9;
 
   // The timestamp when this metadata entry was created.
-  google.protobuf.Timestamp create_time = 11;
+  google.protobuf.Timestamp create_time = 10;
 
   // The timestamp when this metadata entry was last updated.
-  google.protobuf.Timestamp update_time = 12;
+  google.protobuf.Timestamp update_time = 11;
 
-  // Any error message associated with a failure state.
-  string error_message = 13;
+  // Human-readable message associated with refusal.
+  string error_message = 12;
 
-  // Etag for optimistic concurrency control.
-  string etag = 14;
+  // Output only.
+  string etag = 13;
 }
 
 // Internal representation of a RequisitionMetadataAction.
 // This is used for auditing and logging purposes.
 message RequisitionMetadataAction {
-  // The type of actor that initiated this state change. This is an
-  // internal-only enum.
+  // The type of actor that initiated this state change.
   enum ActionerType {
     // Default, unspecified actioner.
     ACTIONER_TYPE_UNSPECIFIED = 0;
-    // The action was initiated by the Data Provider.
-    DATA_PROVIDER = 1;
-    // The action was initiated by the system (e.g., EDP Aggregator).
-    SYSTEM = 2;
+    // Action performed by the Requisition Fetcher component.
+    REQUISITION_FETCHER = 1;
+    // Action performed by the Results Fulfiller component.
+    RESULTS_FULFILLER = 2;
   }
 
   // The ID of the DataProvider that owns the parent metadata.

@@ -1,0 +1,27 @@
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_test")
+
+package(default_testonly = 1)
+
+kt_jvm_test(
+    name = "RequisitionMetadataServiceTest",
+    srcs = ["RequisitionMetadataServiceTest.kt"],
+    test_class = "org.wfanet.measurement.edpaggregator.service.api.v1alpha.RequisitionMetadataServiceTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
+        "//src/main/kotlin/org/wfanet/measurement/common/grpc/testing",
+        "//src/main/kotlin/org/wfanet/measurement/common/identity",
+        "//src/main/kotlin/org/wfanet/measurement/common/testing",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/service/v1alpha:requisition_metadata_service",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/v1alpha:resource_key",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:requisition_metadata_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/edpaggregator:requisition_metadata_service_kt_jvm_grpc",
+        "@com_google_protobuf//:protobuf_java",
+        "@io_grpc_grpc_java//api",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/com/google/common/truth/extensions/proto",
+        "@wfa_common_jvm//imports/java/io/mockk",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines",
+    ],
+)
