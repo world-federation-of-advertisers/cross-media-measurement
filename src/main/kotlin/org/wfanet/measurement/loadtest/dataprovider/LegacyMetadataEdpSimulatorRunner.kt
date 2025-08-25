@@ -37,6 +37,7 @@ import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.InMemoryVidIndexMap
+import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.trustee.FulfillRequisitionRequestBuilder as TrusTeeFulfillRequisitionRequestBuilder
 import org.wfanet.measurement.loadtest.config.PrivacyBudgets
 import picocli.CommandLine
 
@@ -141,11 +142,12 @@ class LegacyMetadataEdpSimulatorRunner : AbstractEdpSimulatorRunner() {
       Map<String, RequisitionFulfillmentGrpcKt.RequisitionFulfillmentCoroutineStub>,
     trustedCertificates: Map<ByteString, X509Certificate>,
     eventQuery: SyntheticGeneratorEventQuery,
-    hmssVidIndexMap: InMemoryVidIndexMap?,
+    vidIndexMap: InMemoryVidIndexMap?,
     logSketchDetails: Boolean,
     throttler: MinimumIntervalThrottler,
     health: SettableHealth,
     random: Random,
+    trusTeeEncryptionParams: TrusTeeFulfillRequisitionRequestBuilder.EncryptionParams?,
   ): AbstractEdpSimulator {
     return LegacyMetadataEdpSimulator(
       edpData,
@@ -165,7 +167,7 @@ class LegacyMetadataEdpSimulatorRunner : AbstractEdpSimulatorRunner() {
       PrivacyBudgets.createNoOpPrivacyBudgetManager(),
       trustedCertificates,
       knownEventGroupMetadataTypes,
-      hmssVidIndexMap = hmssVidIndexMap,
+      vidIndexMap = vidIndexMap,
       logSketchDetails = logSketchDetails,
       health = health,
       random = random,

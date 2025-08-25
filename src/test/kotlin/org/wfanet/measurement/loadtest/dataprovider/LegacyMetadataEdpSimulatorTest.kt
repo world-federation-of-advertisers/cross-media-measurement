@@ -104,7 +104,7 @@ class LegacyMetadataEdpSimulatorTest : AbstractEdpSimulatorTest() {
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
         knownEventGroupMetadataTypes,
-        hmssVidIndexMap = HMSS_VID_INDEX_MAP,
+        vidIndexMap = VID_INDEX_MAP,
       )
 
     runBlocking { edpSimulator.ensureEventGroups() }
@@ -167,7 +167,7 @@ class LegacyMetadataEdpSimulatorTest : AbstractEdpSimulatorTest() {
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
         knownEventGroupMetadataTypes = emptyList(),
-        hmssVidIndexMap = HMSS_VID_INDEX_MAP,
+        vidIndexMap = VID_INDEX_MAP,
       )
 
     runBlocking { edpSimulator.ensureEventGroups() }
@@ -222,7 +222,7 @@ class LegacyMetadataEdpSimulatorTest : AbstractEdpSimulatorTest() {
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
         knownEventGroupMetadataTypes = emptyList(),
-        hmssVidIndexMap = HMSS_VID_INDEX_MAP,
+        vidIndexMap = VID_INDEX_MAP,
       )
 
     runBlocking { edpSimulator.ensureEventGroups() }
@@ -270,7 +270,7 @@ class LegacyMetadataEdpSimulatorTest : AbstractEdpSimulatorTest() {
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
         knownEventGroupMetadataTypes = emptyList(),
-        hmssVidIndexMap = HMSS_VID_INDEX_MAP,
+        vidIndexMap = VID_INDEX_MAP,
       )
 
     runBlocking { edpSimulator.ensureEventGroups() }
@@ -337,7 +337,7 @@ class LegacyMetadataEdpSimulatorTest : AbstractEdpSimulatorTest() {
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
         knownEventGroupMetadataTypes = emptyList(),
-        hmssVidIndexMap = HMSS_VID_INDEX_MAP,
+        vidIndexMap = VID_INDEX_MAP,
       )
 
     val exception =
