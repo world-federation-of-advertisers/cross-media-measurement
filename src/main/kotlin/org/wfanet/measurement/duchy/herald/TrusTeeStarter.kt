@@ -66,6 +66,10 @@ object TrusTeeStarter {
     val globalId: String = systemComputation.key.computationId
     val role = protocolSetupConfig.role
 
+    val apiVersion = Version.fromString(systemComputation.publicApiVersion)
+    require(apiVersion == Version.V2_ALPHA) { "Unsupported API version $apiVersion" }
+    val measurementSpec = MeasurementSpec.parseFrom(systemComputation.measurementSpec)
+
     val initialComputationDetails = computationDetails {
       blobsStoragePrefix = "$blobStorageBucket/$duchyId/$globalId"
       kingdomComputation = systemComputation.toKingdomComputationDetails()
@@ -73,7 +77,8 @@ object TrusTeeStarter {
         TrusTeeKt.computationDetails {
           this.role = role
           require(role == RoleInComputation.AGGREGATOR) { "Invalid role for TrusTEE: role" }
-          parameters = systemComputation.toTrusTeeParameters()
+          type = measurementSpec.toTrusTeeType()
+          parameters = systemComputation.toTrusTeeParameters(measurementSpec)
         }
     }
 
@@ -128,12 +133,19 @@ object TrusTeeStarter {
     }
   }
 
-  private fun Computation.toTrusTeeParameters(): TrusTee.ComputationDetails.Parameters {
-    require(mpcProtocolConfig.hasTrusTee()) { "Missing TrusTee in the duchy protocol config." }
+  private fun MeasurementSpec.toTrusTeeType(): TrusTee.ComputationDetails.Type {
+    return when (measurementTypeCase) {
+      MeasurementSpec.MeasurementTypeCase.REACH -> TrusTee.ComputationDetails.Type.REACH
+      MeasurementSpec.MeasurementTypeCase.REACH_AND_FREQUENCY ->
+        TrusTee.ComputationDetails.Type.REACH_AND_FREQUENCY
+      else -> error("Unsupported measurement type for TrusTEE: $measurementTypeCase")
+    }
+  }
 
-    val apiVersion = Version.fromString(publicApiVersion)
-    require(apiVersion == Version.V2_ALPHA) { "Unsupported API version $apiVersion" }
-    val measurementSpec = MeasurementSpec.parseFrom(measurementSpec)
+  private fun Computation.toTrusTeeParameters(
+    measurementSpec: MeasurementSpec
+  ): TrusTee.ComputationDetails.Parameters {
+    require(mpcProtocolConfig.hasTrusTee()) { "Missing TrusTee in the duchy protocol config." }
 
     return TrusTeeKt.ComputationDetailsKt.parameters {
       if (measurementSpec.hasReachAndFrequency()) {
@@ -157,6 +169,7 @@ object TrusTeeStarter {
         reachDpParams = measurementSpec.reach.privacyParams.toDuchyDifferentialPrivacyParams()
       }
       noiseMechanism = mpcProtocolConfig.trusTee.noiseMechanism.toInternalNoiseMechanism()
+      vidSamplingIntervalWidth = measurementSpec.vidSamplingInterval.width
     }
   }
 
