@@ -758,10 +758,11 @@ class ResultsFulfillerTest {
 
     private const val IMPRESSIONS_METADATA_FILE_URI_PREFIX = "file:///$IMPRESSIONS_METADATA_BUCKET"
 
-    private val MODEL_LINE_INFO = ModelLineInfo(
-      eventDescriptor = TestEvent.getDescriptor(),
-      populationSpec = POPULATION_SPEC,
-      vidIndexMap = InMemoryVidIndexMap.build(POPULATION_SPEC),
-    )
+    private val MODEL_LINE_INFO =
+      ModelLineInfo(
+        eventDescriptor = TestEvent.getDescriptor(),
+        populationSpec = POPULATION_SPEC,
+        vidIndexMap = InMemoryVidIndexMap.build(POPULATION_SPEC),
+      )
   }
 }

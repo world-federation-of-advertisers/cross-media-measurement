@@ -392,7 +392,7 @@ class ResultsFulfillerAppRunner : Runnable {
       it.modelLine to ModelLineInfo(
         populationSpec = populationSpec,
         eventDescriptor = eventDescriptor,
-        vidIndexMap = vidIndexMap
+        vidIndexMap = vidIndexMap,
       )
     }
   }

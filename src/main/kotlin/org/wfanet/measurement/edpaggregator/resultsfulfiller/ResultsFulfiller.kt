@@ -100,7 +100,6 @@ class ResultsFulfiller(
   private val orchestrator: EventProcessingOrchestrator by lazy { EventProcessingOrchestrator(privateEncryptionKey) }
   private lateinit var populationSpec: PopulationSpec
   private lateinit var vidIndexMap: VidIndexMap
-
   suspend fun fulfillRequisitions() {
     val groupedRequisitions = getRequisitions()
     val requisitions =
