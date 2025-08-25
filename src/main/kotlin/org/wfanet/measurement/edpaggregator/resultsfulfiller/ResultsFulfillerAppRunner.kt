@@ -22,9 +22,9 @@ import com.google.cloud.secretmanager.v1.SecretVersionName
 import com.google.crypto.tink.KmsClient
 import com.google.protobuf.DescriptorProtos
 import com.google.protobuf.Descriptors
+import com.google.protobuf.TypeRegistry
 import com.google.protobuf.ExtensionRegistry
 import com.google.protobuf.Parser
-import com.google.protobuf.TypeRegistry
 import java.io.File
 import java.net.URI
 import java.util.logging.Logger
@@ -216,6 +216,14 @@ class ResultsFulfillerAppRunner : Runnable {
       description = ["Blob uri to the proto."],
     )
     lateinit var populationSpecFileBlobUri: String
+
+    @CommandLine.Option(
+      names = ["--event-template-metadata-blob-uri"],
+      description =
+        ["Config storage blob URI to the FileDescriptorSet for EventTemplate metadata types."],
+      required = true,
+    )
+    lateinit var eventTemplateDescriptorBlobUri: String
   }
 
   @CommandLine.Option(
@@ -330,7 +338,6 @@ class ResultsFulfillerAppRunner : Runnable {
       )
 
     val typeRegistry: TypeRegistry = buildTypeRegistry()
-
     val modelLinesMap = runBlocking { buildModelLineMap() }
 
     val resultsFulfillerApp =
@@ -342,11 +349,11 @@ class ResultsFulfillerAppRunner : Runnable {
         workItemAttemptsClient = workItemAttemptsClient,
         requisitionStubFactory = requisitionStubFactory,
         kmsClients = kmsClientsMap,
-        typeRegistry = typeRegistry,
         getImpressionsMetadataStorageConfig = getImpressionsStorageConfig,
         getImpressionsStorageConfig = getImpressionsStorageConfig,
         getRequisitionsStorageConfig = getImpressionsStorageConfig,
         modelLineInfoMap = modelLinesMap,
+        typeRegistry = typeRegistry,
       )
 
     runBlocking { resultsFulfillerApp.run() }

@@ -30,7 +30,6 @@ import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
-import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt
@@ -52,6 +51,7 @@ import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.Frequ
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.VidIndexMap
 import org.wfanet.measurement.storage.SelectedStorageClient
 import com.google.protobuf.Descriptors
+import org.wfanet.measurement.api.v2alpha.PopulationSpec
 
 /**
  * A class responsible for fulfilling results.

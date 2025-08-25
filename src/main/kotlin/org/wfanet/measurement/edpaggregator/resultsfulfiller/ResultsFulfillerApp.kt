@@ -24,7 +24,6 @@ import java.nio.file.Paths
 import java.security.cert.X509Certificate
 import java.time.ZoneOffset
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
-import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.crypto.readPrivateKey
@@ -59,8 +58,6 @@ import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
  *   [WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineStub].
  * @param requisitionStubFactory Factory for creating requisition stubs.
  * @param kmsClient The Tink [KmsClient] for key management.
- * @param typeRegistry The protobuf [TypeRegistry] for message unpacking. Should have all necessary
- *   descriptors registered to unpack a [LabeledImpression.event].
  * @param getImpressionsMetadataStorageConfig Lambda to obtain [StorageConfig] for impressions
  *   metadata.
  * @param getImpressionsStorageConfig Lambda to obtain [StorageConfig] for impressions.
@@ -76,11 +73,11 @@ class ResultsFulfillerApp(
   workItemAttemptsClient: WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineStub,
   private val requisitionStubFactory: RequisitionStubFactory,
   private val kmsClients: MutableMap<String, KmsClient>,
-  private val typeRegistry: TypeRegistry,
   private val getImpressionsMetadataStorageConfig: (StorageParams) -> StorageConfig,
   private val getImpressionsStorageConfig: (StorageParams) -> StorageConfig,
   private val getRequisitionsStorageConfig: (StorageParams) -> StorageConfig,
   private val modelLineInfoMap: Map<String, ModelLineInfo>,
+  private val typeRegistry: TypeRegistry,
 ) :
   BaseTeeApplication(
     subscriptionId = subscriptionId,
