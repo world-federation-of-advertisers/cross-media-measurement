@@ -84,8 +84,6 @@ class ResultsFulfiller(
   private val kAnonymityParams: KAnonymityParams?,
 ) {
 
-  // private val vidIndexMap by lazy { InMemoryVidIndexMap.build(populationSpec) }
-
   suspend fun fulfillRequisitions() {
     val groupedRequisitions = getRequisitions()
     val requisitions =

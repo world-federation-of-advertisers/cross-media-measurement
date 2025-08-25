@@ -383,15 +383,6 @@ class ResultsFulfillerAppRunner : Runnable {
         configContent.inputStream().reader(Charsets.UTF_8).use { reader ->
           parseTextProto(reader, PopulationSpec.getDefaultInstance())
         }
-      /*val localDescriptorFiles = File(PROTO_DESCRIPTORS_DIR).listFiles()?.toList().orEmpty()
-      if (localDescriptorFiles.isNotEmpty()) {
-        add(
-          ProtoReflection.buildDescriptors(
-            loadFileDescriptorSets(localDescriptorFiles),
-            COMPILED_PROTOBUF_TYPES,
-          )
-        )
-      }*/
       val eventDescriptor =
         File(it.eventTemplateDescriptorBlobUri)
           .inputStream()

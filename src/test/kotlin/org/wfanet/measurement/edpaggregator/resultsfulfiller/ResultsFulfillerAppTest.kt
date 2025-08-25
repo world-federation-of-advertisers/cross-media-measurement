@@ -1131,10 +1131,11 @@ class ResultsFulfillerAppTest {
         }
     }
     private val KEK_URI = FakeKmsClient.KEY_URI_PREFIX + "kek"
-    private val MODEL_LINE_INFO = ModelLineInfo(
-      eventDescriptor = TestEvent.getDescriptor(),
-      populationSpec = POPULATION_SPEC,
-      vidIndexMap = InMemoryVidIndexMap.build(POPULATION_SPEC),
-    )
+    private val MODEL_LINE_INFO =
+      ModelLineInfo(
+        eventDescriptor = TestEvent.getDescriptor(),
+        populationSpec = POPULATION_SPEC,
+        vidIndexMap = InMemoryVidIndexMap.build(POPULATION_SPEC),
+      )
   }
 }
