@@ -57,7 +57,6 @@ class BasicReportTransformationsTest {
           }
           metricFrequency = metricFrequencySpec { weekly = DayOfWeek.WEDNESDAY }
           dimensionSpec = dimensionSpec {
-            grouping = DimensionSpecKt.grouping { eventTemplateFields += "person.gender" }
             filters += eventFilter {
               terms += eventTemplateField {
                 path = "person.age_group"
@@ -199,7 +198,6 @@ class BasicReportTransformationsTest {
           }
           metricFrequency = metricFrequencySpec { total = true }
           dimensionSpec = dimensionSpec {
-            grouping = DimensionSpecKt.grouping { eventTemplateFields += "person.gender" }
             filters += eventFilter {
               terms += eventTemplateField {
                 path = "person.age_group"
@@ -318,7 +316,6 @@ class BasicReportTransformationsTest {
           }
           metricFrequency = metricFrequencySpec { weekly = DayOfWeek.WEDNESDAY }
           dimensionSpec = dimensionSpec {
-            grouping = DimensionSpecKt.grouping { eventTemplateFields += "person.gender" }
             filters += eventFilter {
               terms += eventTemplateField {
                 path = "person.age_group"
@@ -569,7 +566,6 @@ class BasicReportTransformationsTest {
           }
           metricFrequency = metricFrequencySpec { total = true }
           dimensionSpec = dimensionSpec {
-            grouping = DimensionSpecKt.grouping { eventTemplateFields += "person.gender" }
             filters += eventFilter {
               terms += eventTemplateField {
                 path = "person.age_group"
@@ -711,7 +707,6 @@ class BasicReportTransformationsTest {
           }
           metricFrequency = metricFrequencySpec { total = true }
           dimensionSpec = dimensionSpec {
-            grouping = DimensionSpecKt.grouping { eventTemplateFields += "person.gender" }
             filters += eventFilter {
               terms += eventTemplateField {
                 path = "person.age_group"
@@ -810,7 +805,6 @@ class BasicReportTransformationsTest {
           }
           metricFrequency = metricFrequencySpec { weekly = DayOfWeek.WEDNESDAY }
           dimensionSpec = dimensionSpec {
-            grouping = DimensionSpecKt.grouping { eventTemplateFields += "person.gender" }
             filters += eventFilter {
               terms += eventTemplateField {
                 path = "person.age_group"
@@ -970,7 +964,6 @@ class BasicReportTransformationsTest {
           reportingUnit = reportingUnit { components += DATA_PROVIDER_NAME_1 }
           metricFrequency = metricFrequencySpec { weekly = DayOfWeek.WEDNESDAY }
           dimensionSpec = dimensionSpec {
-            grouping = DimensionSpecKt.grouping { eventTemplateFields += "person.gender" }
             filters += eventFilter {
               terms += eventTemplateField {
                 path = "person.age_group"
@@ -1022,7 +1015,6 @@ class BasicReportTransformationsTest {
           }
           metricFrequency = metricFrequencySpec { weekly = DayOfWeek.WEDNESDAY }
           dimensionSpec = dimensionSpec {
-            grouping = DimensionSpecKt.grouping { eventTemplateFields += "person.gender" }
             filters += eventFilter {
               terms += eventTemplateField {
                 path = "person.age_group"
@@ -1300,7 +1292,6 @@ class BasicReportTransformationsTest {
           }
           metricFrequency = metricFrequencySpec { total = true }
           dimensionSpec = dimensionSpec {
-            grouping = DimensionSpecKt.grouping { eventTemplateFields += "person.gender" }
             filters += eventFilter {
               terms += eventTemplateField {
                 path = "person.age_group"
@@ -1525,7 +1516,6 @@ class BasicReportTransformationsTest {
           reportingUnit = reportingUnit { components += DATA_PROVIDER_NAME_1 }
           metricFrequency = metricFrequencySpec { total = true }
           dimensionSpec = dimensionSpec {
-            grouping = DimensionSpecKt.grouping { eventTemplateFields += "person.gender" }
             filters += eventFilter {
               terms += eventTemplateField {
                 path = "person.age_group"
@@ -1591,7 +1581,6 @@ class BasicReportTransformationsTest {
           reportingUnit = reportingUnit { components += DATA_PROVIDER_NAME_1 }
           metricFrequency = metricFrequencySpec { total = true }
           dimensionSpec = dimensionSpec {
-            grouping = DimensionSpecKt.grouping { eventTemplateFields += "person.gender" }
             filters += eventFilter {
               terms += eventTemplateField {
                 path = "person.age_group"
@@ -1658,7 +1647,6 @@ class BasicReportTransformationsTest {
           }
           metricFrequency = metricFrequencySpec { total = true }
           dimensionSpec = dimensionSpec {
-            grouping = DimensionSpecKt.grouping { eventTemplateFields += "person.gender" }
             filters += eventFilter {
               terms += eventTemplateField {
                 path = "person.age_group"
@@ -1815,7 +1803,6 @@ class BasicReportTransformationsTest {
           reportingUnit = reportingUnit { components += DATA_PROVIDER_NAME_1 }
           metricFrequency = metricFrequencySpec { total = true }
           dimensionSpec = dimensionSpec {
-            grouping = DimensionSpecKt.grouping { eventTemplateFields += "person.gender" }
             filters += eventFilter {
               terms += eventTemplateField {
                 path = "person.age_group"
@@ -1883,7 +1870,6 @@ class BasicReportTransformationsTest {
           reportingUnit = reportingUnit { components += DATA_PROVIDER_NAME_1 }
           metricFrequency = metricFrequencySpec { total = true }
           dimensionSpec = dimensionSpec {
-            grouping = DimensionSpecKt.grouping { eventTemplateFields += "person.gender" }
             filters += eventFilter { terms += eventTemplateField { path = "person.age_group" } }
           }
           resultGroupMetricSpec = resultGroupMetricSpec {
@@ -1919,7 +1905,6 @@ class BasicReportTransformationsTest {
           }
           metricFrequency = metricFrequencySpec { weekly = DayOfWeek.WEDNESDAY }
           dimensionSpec = dimensionSpec {
-            grouping = DimensionSpecKt.grouping { eventTemplateFields += "person.gender" }
             filters += eventFilter {
               terms += eventTemplateField {
                 path = "person.age_group"
@@ -1986,7 +1971,6 @@ class BasicReportTransformationsTest {
           reportingUnit = reportingUnit { components += DATA_PROVIDER_NAME_1 }
           metricFrequency = metricFrequencySpec { total = true }
           dimensionSpec = dimensionSpec {
-            grouping = DimensionSpecKt.grouping { eventTemplateFields += "person.gender" }
             filters += eventFilter {
               terms += eventTemplateField {
                 path = "person.age_group"
@@ -2054,7 +2038,6 @@ class BasicReportTransformationsTest {
           reportingUnit = reportingUnit { components += DATA_PROVIDER_NAME_1 }
           metricFrequency = metricFrequencySpec { total = true }
           dimensionSpec = dimensionSpec {
-            grouping = DimensionSpecKt.grouping { eventTemplateFields += "person.gender" }
             filters += eventFilter {
               terms += eventTemplateField {
                 path = "person.age_group"
@@ -2118,7 +2101,6 @@ class BasicReportTransformationsTest {
           reportingUnit = reportingUnit { components += DATA_PROVIDER_NAME_1 }
           metricFrequency = metricFrequencySpec { total = true }
           dimensionSpec = dimensionSpec {
-            grouping = DimensionSpecKt.grouping { eventTemplateFields += "person.gender" }
             filters += eventFilter {
               terms += eventTemplateField {
                 path = "person.age_group"
@@ -2185,7 +2167,6 @@ class BasicReportTransformationsTest {
           reportingUnit = reportingUnit { components += DATA_PROVIDER_NAME_1 }
           metricFrequency = metricFrequencySpec { total = true }
           dimensionSpec = dimensionSpec {
-            grouping = DimensionSpecKt.grouping { eventTemplateFields += "person.gender" }
             filters += eventFilter {
               terms += eventTemplateField {
                 path = "person.age_group"
@@ -2251,7 +2232,6 @@ class BasicReportTransformationsTest {
           reportingUnit = reportingUnit { components += DATA_PROVIDER_NAME_1 }
           metricFrequency = metricFrequencySpec { total = true }
           dimensionSpec = dimensionSpec {
-            grouping = DimensionSpecKt.grouping { eventTemplateFields += "person.gender" }
             filters += eventFilter {
               terms += eventTemplateField {
                 path = "person.age_group"
@@ -2320,7 +2300,6 @@ class BasicReportTransformationsTest {
           reportingUnit = reportingUnit { components += DATA_PROVIDER_NAME_1 }
           metricFrequency = metricFrequencySpec { total = true }
           dimensionSpec = dimensionSpec {
-            grouping = DimensionSpecKt.grouping { eventTemplateFields += "person.gender" }
             filters += eventFilter {
               terms += eventTemplateField {
                 path = "person.age_group"
@@ -2386,7 +2365,6 @@ class BasicReportTransformationsTest {
           reportingUnit = reportingUnit { components += DATA_PROVIDER_NAME_1 }
           metricFrequency = metricFrequencySpec { total = true }
           dimensionSpec = dimensionSpec {
-            grouping = DimensionSpecKt.grouping { eventTemplateFields += "person.gender" }
             filters += eventFilter {
               terms += eventTemplateField {
                 path = "person.age_group"
@@ -2452,7 +2430,6 @@ class BasicReportTransformationsTest {
           reportingUnit = reportingUnit { components += DATA_PROVIDER_NAME_1 }
           metricFrequency = metricFrequencySpec { total = true }
           dimensionSpec = dimensionSpec {
-            grouping = DimensionSpecKt.grouping { eventTemplateFields += "person.gender" }
             filters += eventFilter {
               terms += eventTemplateField {
                 path = "person.age_group"
@@ -2496,6 +2473,202 @@ class BasicReportTransformationsTest {
                 MetricCalculationSpecKt.details {
                   filter =
                     "(banner_ad.viewable == true && video_ad.viewed_fraction == 1.0) && (person.age_group == 1 && person.gender == 1)"
+                  metricSpecs += metricSpec {
+                    reachAndFrequency = MetricSpecKt.reachAndFrequencyParams {}
+                  }
+                  metricSpecs += metricSpec {
+                    populationCount = MetricSpecKt.populationCountParams {}
+                  }
+                }
+            }
+          )
+        },
+      )
+  }
+  
+  @Test
+  fun `dimensionSpec Grouping with single field results in groupings with single element lists`() {
+    val impressionQualificationSpecsFilters = listOf("filter")
+    val dataProviderPrimitiveReportingSetMap = buildMap {
+      put(DATA_PROVIDER_NAME_1, PRIMITIVE_REPORTING_SET_1)
+      put(DATA_PROVIDER_NAME_2, PRIMITIVE_REPORTING_SET_2)
+    }
+    val resultGroupSpecs =
+      listOf(
+        resultGroupSpec {
+          reportingUnit = reportingUnit { components += DATA_PROVIDER_NAME_1 }
+          metricFrequency = metricFrequencySpec { total = true }
+          dimensionSpec = dimensionSpec {
+            grouping = DimensionSpecKt.grouping { eventTemplateFields += "person.gender" }
+            filters += eventFilter {
+              terms += eventTemplateField {
+                path = "person.age_group"
+                value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
+              }
+            }
+          }
+          resultGroupMetricSpec = resultGroupMetricSpec {
+            reportingUnit =
+              ResultGroupMetricSpecKt.reportingUnitMetricSetSpec {
+                cumulative = ResultGroupMetricSpecKt.basicMetricSetSpec { grps = true }
+              }
+          }
+        }
+      )
+
+    val reportingSetMetricCalculationSpecDetailsMap =
+      buildReportingSetMetricCalculationSpecDetailsMap(
+        campaignGroupName = CAMPAIGN_GROUP_NAME,
+        impressionQualificationFilterSpecsFilters = impressionQualificationSpecsFilters,
+        dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
+        resultGroupSpecs = resultGroupSpecs,
+        eventTemplateFieldsMap = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsMap,
+      )
+
+    assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(1)
+    assertThat(reportingSetMetricCalculationSpecDetailsMap)
+      .containsEntry(
+        PRIMITIVE_REPORTING_SET_1,
+        buildList {
+          add(
+            metricCalculationSpec {
+              cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
+              details =
+                MetricCalculationSpecKt.details {
+                  groupings +=
+                    MetricCalculationSpecKt.grouping { predicates += "person.gender == 0" }
+                  groupings +=
+                    MetricCalculationSpecKt.grouping { predicates += "person.gender == 1" }
+                  groupings +=
+                    MetricCalculationSpecKt.grouping { predicates += "person.gender == 2" }
+                  filter = "filter && (person.age_group == 1)"
+                  metricSpecs += metricSpec {
+                    reachAndFrequency = MetricSpecKt.reachAndFrequencyParams {}
+                  }
+                  metricSpecs += metricSpec {
+                    populationCount = MetricSpecKt.populationCountParams {}
+                  }
+                }
+            }
+          )
+        },
+      )
+  }
+  
+  @Test
+  fun `dimensionSpec Grouping with 2 fields results in cross product lists`() {
+    val impressionQualificationSpecsFilters = listOf("filter")
+    val dataProviderPrimitiveReportingSetMap = buildMap {
+      put(DATA_PROVIDER_NAME_1, PRIMITIVE_REPORTING_SET_1)
+      put(DATA_PROVIDER_NAME_2, PRIMITIVE_REPORTING_SET_2)
+    }
+    val resultGroupSpecs =
+      listOf(
+        resultGroupSpec {
+          reportingUnit = reportingUnit { components += DATA_PROVIDER_NAME_1 }
+          metricFrequency = metricFrequencySpec { total = true }
+          dimensionSpec = dimensionSpec {
+            grouping =
+              DimensionSpecKt.grouping {
+                eventTemplateFields += "person.gender"
+                eventTemplateFields += "person.age_group"
+              }
+            filters += eventFilter {
+              terms += eventTemplateField {
+                path = "person.age_group"
+                value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
+              }
+            }
+          }
+          resultGroupMetricSpec = resultGroupMetricSpec {
+            reportingUnit =
+              ResultGroupMetricSpecKt.reportingUnitMetricSetSpec {
+                cumulative = ResultGroupMetricSpecKt.basicMetricSetSpec { grps = true }
+              }
+          }
+        }
+      )
+
+    val reportingSetMetricCalculationSpecDetailsMap =
+      buildReportingSetMetricCalculationSpecDetailsMap(
+        campaignGroupName = CAMPAIGN_GROUP_NAME,
+        impressionQualificationFilterSpecsFilters = impressionQualificationSpecsFilters,
+        dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
+        resultGroupSpecs = resultGroupSpecs,
+        eventTemplateFieldsMap = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsMap,
+      )
+
+    assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(1)
+    assertThat(reportingSetMetricCalculationSpecDetailsMap)
+      .containsEntry(
+        PRIMITIVE_REPORTING_SET_1,
+        buildList {
+          add(
+            metricCalculationSpec {
+              cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
+              details =
+                MetricCalculationSpecKt.details {
+                  groupings +=
+                    MetricCalculationSpecKt.grouping {
+                      predicates += "person.gender == 0"
+                      predicates += "person.age_group == 0"
+                    }
+                  groupings +=
+                    MetricCalculationSpecKt.grouping {
+                      predicates += "person.gender == 0"
+                      predicates += "person.age_group == 1"
+                    }
+                  groupings +=
+                    MetricCalculationSpecKt.grouping {
+                      predicates += "person.gender == 0"
+                      predicates += "person.age_group == 2"
+                    }
+                  groupings +=
+                    MetricCalculationSpecKt.grouping {
+                      predicates += "person.gender == 0"
+                      predicates += "person.age_group == 3"
+                    }
+                  groupings +=
+                    MetricCalculationSpecKt.grouping {
+                      predicates += "person.gender == 1"
+                      predicates += "person.age_group == 0"
+                    }
+                  groupings +=
+                    MetricCalculationSpecKt.grouping {
+                      predicates += "person.gender == 1"
+                      predicates += "person.age_group == 1"
+                    }
+                  groupings +=
+                    MetricCalculationSpecKt.grouping {
+                      predicates += "person.gender == 1"
+                      predicates += "person.age_group == 2"
+                    }
+                  groupings +=
+                    MetricCalculationSpecKt.grouping {
+                      predicates += "person.gender == 1"
+                      predicates += "person.age_group == 3"
+                    }
+                  groupings +=
+                    MetricCalculationSpecKt.grouping {
+                      predicates += "person.gender == 2"
+                      predicates += "person.age_group == 0"
+                    }
+                  groupings +=
+                    MetricCalculationSpecKt.grouping {
+                      predicates += "person.gender == 2"
+                      predicates += "person.age_group == 1"
+                    }
+                  groupings +=
+                    MetricCalculationSpecKt.grouping {
+                      predicates += "person.gender == 2"
+                      predicates += "person.age_group == 2"
+                    }
+                  groupings +=
+                    MetricCalculationSpecKt.grouping {
+                      predicates += "person.gender == 2"
+                      predicates += "person.age_group == 3"
+                    }
+                  filter = "filter && (person.age_group == 1)"
                   metricSpecs += metricSpec {
                     reachAndFrequency = MetricSpecKt.reachAndFrequencyParams {}
                   }
