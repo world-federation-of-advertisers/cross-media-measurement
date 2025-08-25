@@ -75,7 +75,8 @@ message RequisitionMetadata {
   // Type URL of the blob.
   //
   // (-- api-linter: core::0140::uri=disabled
-  //     aip.dev/not-precedent: Referenced by blob_uri. --)
+  //     aip.dev/not-precedent: This is mirroring the type_url field in
+  //     protobuf.Any --)
   string blob_type_url = 4 [(google.api.field_behavior) = REQUIRED];
 
   // The ID for the group of requisitions this entry belongs to.
@@ -120,7 +121,7 @@ message RequisitionMetadata {
   // This is an input field on creation if the initial `state` is `REFUSED`.
   // It is an output-only field for all other methods.
   // It must not contain any sensitive information.
-  string error_message = 12 [(google.api.field_behavior) = OPTIONAL];
+  string refusal_message = 12 [(google.api.field_behavior) = OPTIONAL];
 
   // Etag for resource freshness validation.
   string etag = 13 [(google.api.field_behavior) = OUTPUT_ONLY];
@@ -155,14 +156,12 @@ message RequisitionMetadataAction {
   ActionerType actioner_type = 3 [(google.api.field_behavior) = REQUIRED];
 
   // The state of the requisition before this action.
-  // The state of the requisition before this action.
   // (-- api-linter: core::0216::state-field-output-only=disabled
   //     aip.dev/not-precedent: Input for immutable audit record. --)
   RequisitionMetadata.State prior_state = 4
       [(google.api.field_behavior) = REQUIRED];
 
   // The state of the requisition after this action.
-  // The state of the requisition before this action.
   // (-- api-linter: core::0216::state-field-output-only=disabled
   //     aip.dev/not-precedent: Input for immutable audit record. --)
   RequisitionMetadata.State new_state = 5
