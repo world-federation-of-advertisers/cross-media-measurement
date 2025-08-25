@@ -172,6 +172,7 @@ abstract class AbstractEdpSimulator(
 ) :
   RequisitionFulfiller(edpData, certificatesStub, requisitionsStub, throttler, trustedCertificates),
   Health by health {
+
   interface EventGroupOptions {
     val referenceIdSuffix: String
     val syntheticDataSpec: SyntheticEventGroupSpec
