@@ -60,7 +60,7 @@ import org.wfanet.measurement.securecomputation.teesdk.BaseTeeApplication
  *   metadata.
  * @param getImpressionsStorageConfig Lambda to obtain [StorageConfig] for impressions.
  * @param getRequisitionsStorageConfig Lambda to obtain [StorageConfig] for requisitions.
- * @param populationSpecMap map of model line to population spec
+ * @param modelLineInfoMap map of model line to [ModelLineInfo]
  * @constructor Initializes the application with all required dependencies for result fulfillment.
  */
 class ResultsFulfillerApp(
