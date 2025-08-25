@@ -65,7 +65,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
  *   metadata.
  * @param getImpressionsStorageConfig Lambda to obtain [StorageConfig] for impressions.
  * @param getRequisitionsStorageConfig Lambda to obtain [StorageConfig] for requisitions.
- * @param populationSpecMap map of model line to population spec
+ * @param modelLineInfoMap map of model line to [ModelLineInfo]
  * @constructor Initializes the application with all required dependencies for result fulfillment.
  */
 class ResultsFulfillerApp(
@@ -80,7 +80,7 @@ class ResultsFulfillerApp(
   private val getImpressionsMetadataStorageConfig: (StorageParams) -> StorageConfig,
   private val getImpressionsStorageConfig: (StorageParams) -> StorageConfig,
   private val getRequisitionsStorageConfig: (StorageParams) -> StorageConfig,
-  private val populationSpecMap: Map<String, PopulationSpec>,
+  private val modelLineInfoMap: Map<String, ModelLineInfo>,
 ) :
   BaseTeeApplication(
     subscriptionId = subscriptionId,
@@ -162,7 +162,7 @@ class ResultsFulfillerApp(
         requisitionsBlobUri = requisitionsBlobUri,
         requisitionsStorageConfig = requisitionsStorageConfig,
         noiserSelector = noiseSelector,
-        populationSpecMap = populationSpecMap,
+        modelLineInfoMap = modelLineInfoMap,
         kAnonymityParams = kAnonymityParams,
         pipelineConfiguration = pipelineConfiguration,
         eventDescriptor = eventDescriptor,

@@ -41,6 +41,8 @@ import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams.StorageParams
+import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.InMemoryVidIndexMap
+import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
 import org.wfanet.measurement.gcloud.kms.GCloudKmsClientFactory
 import org.wfanet.measurement.gcloud.pubsub.DefaultGooglePubSubClient
 import org.wfanet.measurement.gcloud.pubsub.Subscriber
@@ -344,7 +346,7 @@ class ResultsFulfillerAppRunner : Runnable {
         getImpressionsMetadataStorageConfig = getImpressionsStorageConfig,
         getImpressionsStorageConfig = getImpressionsStorageConfig,
         getRequisitionsStorageConfig = getImpressionsStorageConfig,
-        populationSpecMap = modelLinesMap,
+        modelLineInfoMap = modelLinesMap,
       )
 
     runBlocking { resultsFulfillerApp.run() }
@@ -371,14 +373,20 @@ class ResultsFulfillerAppRunner : Runnable {
     }
   }
 
-  suspend fun buildModelLineMap(): Map<String, PopulationSpec> {
+  suspend fun buildModelLineMap(): Map<String, ModelLineInfo> {
     return modelLines.associate { it: ModelLineFlags ->
       val configContent: ByteArray = getConfig(googleProjectId, it.populationSpecFileBlobUri)
       val populationSpec =
         configContent.inputStream().reader(Charsets.UTF_8).use { reader ->
           parseTextProto(reader, PopulationSpec.getDefaultInstance())
         }
-      it.modelLine to populationSpec
+      val vidIndexMap = InMemoryVidIndexMap.build(populationSpec)
+      val eventDescriptor = LabeledImpression.getDescriptor()
+      it.modelLine to ModelLineInfo(
+        populationSpec = populationSpec,
+        eventDescriptor = eventDescriptor,
+        vidIndexMap = vidIndexMap
+      )
     }
   }
 

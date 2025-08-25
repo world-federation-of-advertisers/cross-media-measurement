@@ -21,6 +21,7 @@ kt_jvm_library(
         ":event_source",
         ":frequency_vector",
         ":impression_read_exception",
+        ":model_line_info",
         ":noiser_selector",
         ":pipeline_configuration",
         ":requisition_specs",
@@ -257,6 +258,15 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
+    name = "model_line_info",
+    srcs = ["ModelLineInfo.kt"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/requisition/v2alpha/common",
+        "//src/main/proto/wfa/measurement/api/v2alpha:population_spec_kt_jvm_proto",
+    ],
+)
+
+kt_jvm_library(
     name = "legacy_event_reader",
     srcs = ["LegacyEventReader.kt"],
     deps = [
@@ -266,8 +276,8 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:blob_details_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:labeled_impression_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/crypto/tink",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:selected_storage_client",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:selected_storage_client",
     ],
 )
 
@@ -406,13 +416,13 @@ kt_jvm_library(
         ":pipeline_configuration",
         ":storage_event_source",
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:packed_messages",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
-        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/requisition/v2alpha/shareshuffle:shareshuffle",
+        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/requisition/v2alpha/shareshuffle",
         "//src/main/proto/wfa/measurement/api/v2alpha:measurement_spec_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:population_spec_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:requisition_spec_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/protobuf",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/tink",
         "@wfa_consent_signaling_client//src/main/kotlin/org/wfanet/measurement/consent/client/dataprovider",
     ],

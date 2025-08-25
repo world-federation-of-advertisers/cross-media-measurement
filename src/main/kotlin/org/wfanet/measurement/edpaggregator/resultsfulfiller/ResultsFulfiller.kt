@@ -49,7 +49,7 @@ import org.wfanet.measurement.edpaggregator.resultsfulfiller.fulfillers.DirectMe
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.fulfillers.HMShuffleMeasurementFulfiller
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.FrequencyVectorBuilder
-import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.InMemoryVidIndexMap
+import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.VidIndexMap
 import org.wfanet.measurement.storage.SelectedStorageClient
 import com.google.protobuf.Descriptors
 
@@ -67,9 +67,10 @@ import com.google.protobuf.Descriptors
  * @param zoneId Zone ID instance.
  * @param noiserSelector Selector for noise addition.
  * @param eventReader the [EventReader] to read in impressions data
- * @param populationSpecMap map of model line to population spec
- * @param pipelineConfiguration configuration for the event processing pipeline
+  * @param pipelineConfiguration configuration for the event processing pipeline
  * @param eventDescriptor descriptor for events processing
+ * @param modelLineInfoMap map of model line to [ModelLineInfo]
+ * @param kAnonymityParams [KAnonymityParams] for this measurement
  *
  * TODO(2347) - Support additional differential privacy and k-anonymization.
  */
@@ -83,7 +84,7 @@ class ResultsFulfiller(
   private val requisitionsBlobUri: String,
   private val requisitionsStorageConfig: StorageConfig,
   private val noiserSelector: NoiserSelector,
-  private val populationSpecMap: Map<String, PopulationSpec>,
+  private val modelLineInfoMap: Map<String, ModelLineInfo>,
   private val kAnonymityParams: KAnonymityParams?,
   private val pipelineConfiguration: PipelineConfiguration,
   private val eventDescriptor: Descriptors.Descriptor,
@@ -96,19 +97,22 @@ class ResultsFulfiller(
   private val zoneId: ZoneId,
 ) {
 
-  private lateinit var populationSpec: PopulationSpec
-  private val vidIndexMap by lazy { InMemoryVidIndexMap.build(populationSpec) }
   private val orchestrator: EventProcessingOrchestrator by lazy { EventProcessingOrchestrator(privateEncryptionKey) }
+  private lateinit var populationSpec: PopulationSpec
+  private lateinit var vidIndexMap: VidIndexMap
 
   suspend fun fulfillRequisitions() {
     val groupedRequisitions = getRequisitions()
     val requisitions =
       groupedRequisitions.requisitionsList.map { it.requisition.unpack(Requisition::class.java) }
     logger.info("Processing ${requisitions.size} Requisitions")
+    val modelLine = groupedRequisitions.modelLine
+    val modelInfo = modelLineInfoMap.getValue(modelLine)
+    val eventDescriptor = modelInfo.eventDescriptor
 
     // Set population spec from first requisition (assuming all have same model line)
-    val firstMeasurementSpec: MeasurementSpec = requisitions.first().measurementSpec.message.unpack()
-    populationSpec = populationSpecMap.getValue(firstMeasurementSpec.modelLine)
+    populationSpec = modelInfo.populationSpec
+    vidIndexMap = modelInfo.vidIndexMap
 
     // Create a simple event source adapter from the existing event reader
     val eventSource = createEventSourceFrom(groupedRequisitions.eventGroupMapList.map { it.details })
@@ -139,10 +143,8 @@ class ResultsFulfiller(
           throw Exception("RequisitionSpec decryption failed", e)
         }
       val requisitionSpec: RequisitionSpec = signedRequisitionSpec.unpack()
-
       val fulfiller =
         if (protocols.any { it.hasDirect() }) {
-          // TODO: Calculate the maximum population for a given cel filter
           buildDirectMeasurementFulfiller(
             requisition,
             measurementSpec,

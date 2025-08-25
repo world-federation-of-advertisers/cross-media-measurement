@@ -155,7 +155,6 @@ class InProcessEdpAggregatorComponents(
   private lateinit var kmsClients: Map<String, KmsClient>
 
   private val resultFulfillerApp by lazy {
-    val typeRegistry = TypeRegistry.newBuilder().add(TestEvent.getDescriptor()).build()
     val requisitionStubFactory = TestRequisitionStubFactory(publicApiChannel, duchyChannelMap)
     val subscriber = Subscriber(PROJECT_ID, pubSubClient)
     val getStorageConfig = { _: ResultsFulfillerParams.StorageParams ->
@@ -170,7 +169,6 @@ class InProcessEdpAggregatorComponents(
       queueSubscriber = subscriber,
       kmsClients = kmsClients.toMutableMap(),
       requisitionStubFactory = requisitionStubFactory,
-      typeRegistry = typeRegistry,
       getImpressionsMetadataStorageConfig = getStorageConfig,
       getImpressionsStorageConfig = getStorageConfig,
       getRequisitionsStorageConfig = getStorageConfig,
