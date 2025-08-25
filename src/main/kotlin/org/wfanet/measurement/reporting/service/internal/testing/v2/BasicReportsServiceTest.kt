@@ -35,7 +35,6 @@ import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.internal.reporting.v2.BasicReport
 import org.wfanet.measurement.internal.reporting.v2.BasicReportsGrpcKt.BasicReportsCoroutineImplBase
-import org.wfanet.measurement.internal.reporting.v2.DimensionSpec
 import org.wfanet.measurement.internal.reporting.v2.DimensionSpecKt
 import org.wfanet.measurement.internal.reporting.v2.EventTemplateFieldKt
 import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsPageTokenKt
@@ -119,53 +118,39 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
         resultGroupSpecs += resultGroupSpec {
           title = "title"
           reportingUnit = reportingUnit {
-            dataProviderIds = ReportingUnitKt.dataProviderIds {
-              dataProviderIds += ReportingUnitKt.DataProviderIdsKt.dataProviderId {
-                externalDataProviderId = "1234"
+            dataProviderIds =
+              ReportingUnitKt.dataProviderIds {
+                dataProviderIds +=
+                  ReportingUnitKt.DataProviderIdsKt.dataProviderId {
+                    externalDataProviderId = "1234"
+                  }
               }
-            }
           }
-          metricFrequency = metricFrequencySpec {
-            weekly = DayOfWeek.WEDNESDAY
-          }
+          metricFrequency = metricFrequencySpec { weekly = DayOfWeek.WEDNESDAY }
           dimensionSpec = dimensionSpec {
-            grouping = DimensionSpecKt.grouping {
-              eventTemplateFields += "person.gender"
-            }
+            grouping = DimensionSpecKt.grouping { eventTemplateFields += "person.gender" }
             filters += eventFilter {
               terms += eventTemplateField {
                 path = "person.age_group"
-                value = EventTemplateFieldKt.fieldValue {
-                  enumValue = "YEARS_18_TO_34"
-                }
+                value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
               }
             }
           }
           resultGroupMetricSpec = resultGroupMetricSpec {
             populationSize = true
-            reportingUnit = ResultGroupMetricSpecKt.reportingUnitMetricSetSpec {
-              nonCumulative = ResultGroupMetricSpecKt.basicMetricSetSpec {
-                reach = true
+            reportingUnit =
+              ResultGroupMetricSpecKt.reportingUnitMetricSetSpec {
+                nonCumulative = ResultGroupMetricSpecKt.basicMetricSetSpec { reach = true }
+                cumulative = ResultGroupMetricSpecKt.basicMetricSetSpec { reach = true }
+                stackedIncrementalReach = true
               }
-              cumulative = ResultGroupMetricSpecKt.basicMetricSetSpec {
-                reach = true
+            component =
+              ResultGroupMetricSpecKt.componentMetricSetSpec {
+                nonCumulative = ResultGroupMetricSpecKt.basicMetricSetSpec { reach = true }
+                cumulative = ResultGroupMetricSpecKt.basicMetricSetSpec { reach = true }
+                nonCumulativeUnique = ResultGroupMetricSpecKt.uniqueMetricSetSpec { reach = true }
+                cumulativeUnique = ResultGroupMetricSpecKt.uniqueMetricSetSpec { reach = true }
               }
-              stackedIncrementalReach = true
-            }
-            component = ResultGroupMetricSpecKt.componentMetricSetSpec {
-              nonCumulative = ResultGroupMetricSpecKt.basicMetricSetSpec {
-                reach = true
-              }
-              cumulative = ResultGroupMetricSpecKt.basicMetricSetSpec {
-                reach = true
-              }
-              nonCumulativeUnique = ResultGroupMetricSpecKt.uniqueMetricSetSpec {
-                reach = true
-              }
-              cumulativeUnique = ResultGroupMetricSpecKt.uniqueMetricSetSpec {
-                reach = true
-              }
-            }
           }
         }
       }
@@ -452,66 +437,48 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
         resultGroupSpecs += resultGroupSpec {
           title = "title"
           reportingUnit = reportingUnit {
-            dataProviderIds = ReportingUnitKt.dataProviderIds {
-              dataProviderIds += ReportingUnitKt.DataProviderIdsKt.dataProviderId {
-                externalDataProviderId = "1234"
+            dataProviderIds =
+              ReportingUnitKt.dataProviderIds {
+                dataProviderIds +=
+                  ReportingUnitKt.DataProviderIdsKt.dataProviderId {
+                    externalDataProviderId = "1234"
+                  }
               }
-            }
           }
-          metricFrequency = metricFrequencySpec {
-            weekly = DayOfWeek.WEDNESDAY
-          }
+          metricFrequency = metricFrequencySpec { weekly = DayOfWeek.WEDNESDAY }
           dimensionSpec = dimensionSpec {
-            grouping = DimensionSpecKt.grouping {
-              eventTemplateFields += "person.gender"
-            }
+            grouping = DimensionSpecKt.grouping { eventTemplateFields += "person.gender" }
             filters += eventFilter {
               terms += eventTemplateField {
                 path = "person.age_group"
-                value = EventTemplateFieldKt.fieldValue {
-                  enumValue = "YEARS_18_TO_34"
-                }
+                value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
               }
             }
           }
           resultGroupMetricSpec = resultGroupMetricSpec {
             populationSize = true
-            reportingUnit = ResultGroupMetricSpecKt.reportingUnitMetricSetSpec {
-              nonCumulative = ResultGroupMetricSpecKt.basicMetricSetSpec {
-                reach = true
+            reportingUnit =
+              ResultGroupMetricSpecKt.reportingUnitMetricSetSpec {
+                nonCumulative = ResultGroupMetricSpecKt.basicMetricSetSpec { reach = true }
+                cumulative = ResultGroupMetricSpecKt.basicMetricSetSpec { reach = true }
+                stackedIncrementalReach = true
               }
-              cumulative = ResultGroupMetricSpecKt.basicMetricSetSpec {
-                reach = true
+            component =
+              ResultGroupMetricSpecKt.componentMetricSetSpec {
+                nonCumulative = ResultGroupMetricSpecKt.basicMetricSetSpec { reach = true }
+                cumulative = ResultGroupMetricSpecKt.basicMetricSetSpec { reach = true }
+                nonCumulativeUnique = ResultGroupMetricSpecKt.uniqueMetricSetSpec { reach = true }
+                cumulativeUnique = ResultGroupMetricSpecKt.uniqueMetricSetSpec { reach = true }
               }
-              stackedIncrementalReach = true
-            }
-            component = ResultGroupMetricSpecKt.componentMetricSetSpec {
-              nonCumulative = ResultGroupMetricSpecKt.basicMetricSetSpec {
-                reach = true
-              }
-              cumulative = ResultGroupMetricSpecKt.basicMetricSetSpec {
-                reach = true
-              }
-              nonCumulativeUnique = ResultGroupMetricSpecKt.uniqueMetricSetSpec {
-                reach = true
-              }
-              cumulativeUnique = ResultGroupMetricSpecKt.uniqueMetricSetSpec {
-                reach = true
-              }
-            }
           }
         }
       }
-      resultDetails = basicReportResultDetails { }
+      resultDetails = basicReportResultDetails {}
       createReportRequestId = "1235"
     }
 
     val createdBasicReport =
-      service.createBasicReport(
-        createBasicReportRequest {
-          this.basicReport = basicReport
-        }
-      )
+      service.createBasicReport(createBasicReportRequest { this.basicReport = basicReport })
 
     val retrievedBasicReport =
       service.getBasicReport(
