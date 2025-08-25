@@ -133,6 +133,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
 import org.wfanet.measurement.edpaggregator.v1alpha.copy
+import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.InMemoryVidIndexMap
 import org.wfanet.measurement.integration.common.loadEncryptionPrivateKey
 import org.wfanet.measurement.loadtest.config.VidSampling
 import org.wfanet.measurement.storage.MesosRecordIoStorageClient
@@ -238,13 +239,12 @@ class ResultsFulfillerTest {
         emptyMap(),
         DATA_PROVIDER_CERTIFICATE_KEY,
         EDP_RESULT_SIGNING_KEY,
-        typeRegistry,
         REQUISITIONS_FILE_URI,
         StorageConfig(rootDirectory = requisitionsTmpPath),
         ZoneOffset.UTC,
         ContinuousGaussianNoiseSelector(),
         eventReader,
-        mapOf("some-model-line" to POPULATION_SPEC),
+        mapOf("some-model-line" to MODEL_LINE_INFO),
         kAnonymityParams = null,
       )
 
@@ -311,8 +311,6 @@ class ResultsFulfillerTest {
       listOf(MULTI_PARTY_REQUISITION),
     )
 
-    val typeRegistry = TypeRegistry.newBuilder().add(TestEvent.getDescriptor()).build()
-
     val eventReader =
       EventReader(
         kmsClient,
@@ -331,13 +329,12 @@ class ResultsFulfillerTest {
         ),
         DATA_PROVIDER_CERTIFICATE_KEY,
         EDP_RESULT_SIGNING_KEY,
-        typeRegistry,
         REQUISITIONS_FILE_URI,
         StorageConfig(rootDirectory = requisitionsTmpPath),
         ZoneOffset.UTC,
         ContinuousGaussianNoiseSelector(),
         eventReader,
-        mapOf("some-model-line" to POPULATION_SPEC),
+        mapOf("some-model-line" to MODEL_LINE_INFO),
         kAnonymityParams = null,
       )
 
@@ -744,5 +741,11 @@ class ResultsFulfillerTest {
     private const val IMPRESSIONS_METADATA_BUCKET = "impression-metadata-bucket"
 
     private const val IMPRESSIONS_METADATA_FILE_URI_PREFIX = "file:///$IMPRESSIONS_METADATA_BUCKET"
+
+    private val MODEL_LINE_INFO = ModelLineInfo(
+      eventDescriptor = TestEvent.getDescriptor(),
+      populationSpec = POPULATION_SPEC,
+      vidIndexMap = InMemoryVidIndexMap.build(POPULATION_SPEC),
+    )
   }
 }

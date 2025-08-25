@@ -16,6 +16,7 @@ kt_jvm_library(
     deps = [
         ":continuous_gaussian_noiser_selector",
         ":event_reader",
+        ":model_line_info",
         ":noiser_selector",
         ":requisition_specs",
         ":vid_filter",
@@ -96,6 +97,15 @@ kt_jvm_library(
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/tink",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:mesos_recordio_storage_client",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:selected_storage_client",
+    ],
+)
+
+kt_jvm_library(
+    name = "model_line_info",
+    srcs = ["ModelLineInfo.kt"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/requisition/v2alpha/common",
+        "//src/main/proto/wfa/measurement/api/v2alpha:population_spec_kt_jvm_proto",
     ],
 )
 
