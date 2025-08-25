@@ -179,6 +179,7 @@ kt_jvm_library(
         ":edp_simulator_flags",
         ":population_spec_converter",
         ":synthetic_generator_event_query",
+        "//imports/java/com/google/crypto/tink/integration/gcpkms",
         "//src/main/kotlin/org/wfanet/measurement/integration/common:configs",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/config:privacy_budgets",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/config:vid_sampling",
