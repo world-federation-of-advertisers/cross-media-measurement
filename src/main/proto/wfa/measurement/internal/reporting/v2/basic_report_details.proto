@@ -36,6 +36,6 @@ message BasicReportDetails {
   // Both the start and the end of the interval are immutable.
   ReportingInterval reporting_interval = 3;
 
-  // Specifies the ResultGroups to create
+  // Specification for results.
   repeated ResultGroupSpec result_group_specs = 4;
 }

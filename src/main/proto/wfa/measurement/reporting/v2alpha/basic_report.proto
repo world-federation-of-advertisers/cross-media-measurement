@@ -78,7 +78,7 @@ message BasicReport {
         (google.api.field_behavior) = IMMUTABLE
       ];
 
-  // Specification for results.
+  // Specifies the ResultGroups to create
   repeated ResultGroupSpec result_group_specs = 9 [
     (google.api.field_behavior) = IMMUTABLE,
     (google.api.field_behavior) = REQUIRED
