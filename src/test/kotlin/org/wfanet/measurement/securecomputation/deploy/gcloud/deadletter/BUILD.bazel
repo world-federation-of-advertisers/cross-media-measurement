@@ -1,0 +1,23 @@
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_test")
+
+kt_jvm_test(
+    name = "DeadLetterQueueListenerTest",
+    srcs = ["DeadLetterQueueListenerTest.kt"],
+    test_class = "org.wfanet.measurement.securecomputation.deploy.gcloud.deadletter.DeadLetterQueueListenerTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/common/grpc:error_info",
+        "//src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/deadletter:dead_letter_queue_listener",
+        "//src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/spanner:services",
+        "//src/main/kotlin/org/wfanet/measurement/securecomputation/service:errors",
+        "//src/main/kotlin/org/wfanet/measurement/securecomputation/service:resource_key",
+        "//src/main/proto/wfa/measurement/securecomputation/controlplane/v1alpha:work_item_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/java/io/grpc:api",
+        "@wfa_common_jvm//imports/java/io/grpc/testing",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//imports/kotlin/org/mockito/kotlin",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/queue:queue_subscriber",
+    ],
+)
