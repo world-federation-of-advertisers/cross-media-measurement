@@ -604,6 +604,7 @@ fun validateReportingImpressionQualificationFilters(
     throw RequiredFieldNotSetException("basic_report.impression_qualification_filters")
   }
 
+  var customImpressionQualificationFilterUsed = false
   for (impressionQualificationFilter in reportingImpressionQualificationFilters) {
     if (impressionQualificationFilter.hasImpressionQualificationFilter()) {
       ImpressionQualificationFilterKey.fromName(
@@ -613,6 +614,15 @@ fun validateReportingImpressionQualificationFilters(
           "basic_report.impression_qualification_filters.impression_qualification_filter"
         )
     } else if (impressionQualificationFilter.hasCustom()) {
+      if (customImpressionQualificationFilterUsed) {
+        throw InvalidFieldValueException(
+          "basic_report.impression_qualification_filters"
+        ) { fieldName ->
+          "$fieldName can only have one custom filter"
+        }
+      }
+
+      customImpressionQualificationFilterUsed = true
       validateCustomImpressionQualificationFilterSpec(
         impressionQualificationFilter.custom,
         eventTemplateFieldsMap,
