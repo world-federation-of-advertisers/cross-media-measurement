@@ -29,7 +29,6 @@ import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
-import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt
@@ -48,7 +47,6 @@ import org.wfanet.measurement.edpaggregator.resultsfulfiller.fulfillers.DirectMe
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.fulfillers.HMShuffleMeasurementFulfiller
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.FrequencyVectorBuilder
-import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.InMemoryVidIndexMap
 import org.wfanet.measurement.storage.SelectedStorageClient
 
 /**
@@ -86,7 +84,7 @@ class ResultsFulfiller(
   private val kAnonymityParams: KAnonymityParams?,
 ) {
 
-  //private val vidIndexMap by lazy { InMemoryVidIndexMap.build(populationSpec) }
+  // private val vidIndexMap by lazy { InMemoryVidIndexMap.build(populationSpec) }
 
   suspend fun fulfillRequisitions() {
     val groupedRequisitions = getRequisitions()

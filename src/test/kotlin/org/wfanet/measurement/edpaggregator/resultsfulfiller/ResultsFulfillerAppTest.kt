@@ -121,6 +121,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParamsKt.sto
 import org.wfanet.measurement.edpaggregator.v1alpha.blobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.copy
 import org.wfanet.measurement.edpaggregator.v1alpha.resultsFulfillerParams
+import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.InMemoryVidIndexMap
 import org.wfanet.measurement.gcloud.pubsub.Subscriber
 import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorClient
 import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorProvider
@@ -277,11 +278,10 @@ class ResultsFulfillerAppTest {
           mapOf("some-duchy" to grpcTestServerRule.channel),
         ),
         kmsClients,
-        typeRegistry,
         getStorageConfig(tmpPath),
         getStorageConfig(tmpPath),
         getStorageConfig(tmpPath),
-        mapOf("some-model-line" to POPULATION_SPEC),
+        mapOf("some-model-line" to MODEL_LINE_INFO),
       )
     app.runWork(Any.pack(workItemParams))
 
@@ -402,11 +402,10 @@ class ResultsFulfillerAppTest {
           mapOf("some-duchy" to grpcTestServerRule.channel),
         ),
         kmsClients,
-        typeRegistry,
         getStorageConfig(tmpPath),
         getStorageConfig(tmpPath),
         getStorageConfig(tmpPath),
-        mapOf("some-model-line" to POPULATION_SPEC),
+        mapOf("some-model-line" to MODEL_LINE_INFO),
       )
     app.runWork(Any.pack(workItemParams))
 
@@ -519,11 +518,10 @@ class ResultsFulfillerAppTest {
           mapOf("some-duchy" to grpcTestServerRule.channel),
         ),
         kmsClients,
-        typeRegistry,
         getStorageConfig(tmpPath),
         getStorageConfig(tmpPath),
         getStorageConfig(tmpPath),
-        mapOf("some-model-line" to POPULATION_SPEC),
+        mapOf("some-model-line" to MODEL_LINE_INFO),
       )
     assertFails { app.runWork(Any.pack(workItemParams)) }
 
@@ -613,11 +611,10 @@ class ResultsFulfillerAppTest {
           mapOf("some-duchy" to grpcTestServerRule.channel),
         ),
         kmsClients,
-        typeRegistry,
         getStorageConfig(tmpPath),
         getStorageConfig(tmpPath),
         getStorageConfig(tmpPath),
-        mapOf("some-model-line" to POPULATION_SPEC),
+        mapOf("some-model-line" to MODEL_LINE_INFO),
       )
     app.runWork(Any.pack(workItemParams))
 
@@ -715,11 +712,10 @@ class ResultsFulfillerAppTest {
           mapOf("some-duchy" to grpcTestServerRule.channel),
         ),
         kmsClients,
-        typeRegistry,
         getStorageConfig(tmpPath),
         getStorageConfig(tmpPath),
         getStorageConfig(tmpPath),
-        mapOf("some-model-line" to POPULATION_SPEC),
+        mapOf("some-model-line" to MODEL_LINE_INFO),
       )
     app.runWork(Any.pack(workItemParams))
 
@@ -824,11 +820,10 @@ class ResultsFulfillerAppTest {
           mapOf("some-duchy" to grpcTestServerRule.channel),
         ),
         kmsClients,
-        typeRegistry,
         getStorageConfig(tmpPath),
         getStorageConfig(tmpPath),
         getStorageConfig(tmpPath),
-        mapOf("some-model-line" to POPULATION_SPEC),
+        mapOf("some-model-line" to MODEL_LINE_INFO),
       )
 
     assertFails { app.runWork(Any.pack(workItemParams)) }
@@ -1136,5 +1131,10 @@ class ResultsFulfillerAppTest {
         }
     }
     private val KEK_URI = FakeKmsClient.KEY_URI_PREFIX + "kek"
+    private val MODEL_LINE_INFO = ModelLineInfo(
+      eventDescriptor = TestEvent.getDescriptor(),
+      populationSpec = POPULATION_SPEC,
+      vidIndexMap = InMemoryVidIndexMap.build(POPULATION_SPEC),
+    )
   }
 }

@@ -24,7 +24,6 @@ import com.google.protobuf.DescriptorProtos
 import com.google.protobuf.Descriptors
 import com.google.protobuf.ExtensionRegistry
 import com.google.protobuf.Parser
-import com.google.protobuf.TypeRegistry
 import java.io.File
 import java.net.URI
 import java.util.logging.Logger
@@ -41,6 +40,7 @@ import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams.StorageParams
+import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.InMemoryVidIndexMap
 import org.wfanet.measurement.gcloud.kms.GCloudKmsClientFactory
 import org.wfanet.measurement.gcloud.pubsub.DefaultGooglePubSubClient
 import org.wfanet.measurement.gcloud.pubsub.Subscriber
@@ -214,6 +214,14 @@ class ResultsFulfillerAppRunner : Runnable {
       description = ["Blob uri to the proto."],
     )
     lateinit var populationSpecFileBlobUri: String
+
+    @CommandLine.Option(
+      names = ["--event-template-metadata-blob-uri"],
+      description =
+        ["Config storage blob URI to the FileDescriptorSet for EventTemplate metadata types."],
+      required = true,
+    )
+    lateinit var eventTemplateDescriptorBlobUri: String
   }
 
   @CommandLine.Option(
@@ -327,8 +335,6 @@ class ResultsFulfillerAppRunner : Runnable {
         duchies = emptyMap(),
       )
 
-    val typeRegistry: TypeRegistry = buildTypeRegistry()
-
     val modelLinesMap = runBlocking { buildModelLineMap() }
 
     val resultsFulfillerApp =
@@ -340,11 +346,10 @@ class ResultsFulfillerAppRunner : Runnable {
         workItemAttemptsClient = workItemAttemptsClient,
         requisitionStubFactory = requisitionStubFactory,
         kmsClients = kmsClientsMap,
-        typeRegistry = typeRegistry,
         getImpressionsMetadataStorageConfig = getImpressionsStorageConfig,
         getImpressionsStorageConfig = getImpressionsStorageConfig,
         getRequisitionsStorageConfig = getImpressionsStorageConfig,
-        populationSpecMap = modelLinesMap,
+        modelLineInfoMap = modelLinesMap,
       )
 
     runBlocking { resultsFulfillerApp.run() }
@@ -371,43 +376,34 @@ class ResultsFulfillerAppRunner : Runnable {
     }
   }
 
-  suspend fun buildModelLineMap(): Map<String, PopulationSpec> {
+  suspend fun buildModelLineMap(): Map<String, ModelLineInfo> {
     return modelLines.associate { it: ModelLineFlags ->
       val configContent: ByteArray = getConfig(googleProjectId, it.populationSpecFileBlobUri)
       val populationSpec =
         configContent.inputStream().reader(Charsets.UTF_8).use { reader ->
           parseTextProto(reader, PopulationSpec.getDefaultInstance())
         }
-      it.modelLine to populationSpec
-    }
-  }
-
-  // @TODO(@marcopremier): Move this and `buildTypeRegistry` on common-jvm
-  private fun loadFileDescriptorSets(
-    files: Iterable<File>
-  ): List<DescriptorProtos.FileDescriptorSet> {
-    return files.map { file ->
-      file.inputStream().use { input ->
-        DescriptorProtos.FileDescriptorSet.parseFrom(input, EXTENSION_REGISTRY)
-      }
-    }
-  }
-
-  private fun buildTypeRegistry(): TypeRegistry {
-    return TypeRegistry.newBuilder()
-      .apply {
-        add(COMPILED_PROTOBUF_TYPES.flatMap { it.messageTypes })
-        val localDescriptorFiles = File(PROTO_DESCRIPTORS_DIR).listFiles()?.toList().orEmpty()
-        if (localDescriptorFiles.isNotEmpty()) {
-          add(
-            ProtoReflection.buildDescriptors(
-              loadFileDescriptorSets(localDescriptorFiles),
-              COMPILED_PROTOBUF_TYPES,
-            )
+      /*val localDescriptorFiles = File(PROTO_DESCRIPTORS_DIR).listFiles()?.toList().orEmpty()
+      if (localDescriptorFiles.isNotEmpty()) {
+        add(
+          ProtoReflection.buildDescriptors(
+            loadFileDescriptorSets(localDescriptorFiles),
+            COMPILED_PROTOBUF_TYPES,
           )
-        }
-      }
-      .build()
+        )
+      }*/
+      val eventDescriptor =
+        File(it.eventTemplateDescriptorBlobUri)
+          .inputStream()
+          .use { input -> DescriptorProtos.FileDescriptorSet.parseFrom(input, EXTENSION_REGISTRY) }
+          .descriptorForType
+      it.modelLine to
+        ModelLineInfo(
+          populationSpec = populationSpec,
+          vidIndexMap = InMemoryVidIndexMap.build(populationSpec),
+          eventDescriptor = eventDescriptor,
+        )
+    }
   }
 
   fun saveEdpaCerts() {
