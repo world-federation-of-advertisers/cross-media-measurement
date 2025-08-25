@@ -2485,10 +2485,9 @@ class BasicReportTransformationsTest {
         },
       )
   }
-  
+
   @Test
   fun `dimensionSpec Grouping with single field results in groupings with single element lists`() {
-    val impressionQualificationSpecsFilters = listOf("filter")
     val dataProviderPrimitiveReportingSetMap = buildMap {
       put(DATA_PROVIDER_NAME_1, PRIMITIVE_REPORTING_SET_1)
       put(DATA_PROVIDER_NAME_2, PRIMITIVE_REPORTING_SET_2)
@@ -2519,7 +2518,7 @@ class BasicReportTransformationsTest {
     val reportingSetMetricCalculationSpecDetailsMap =
       buildReportingSetMetricCalculationSpecDetailsMap(
         campaignGroupName = CAMPAIGN_GROUP_NAME,
-        impressionQualificationFilterSpecsFilters = impressionQualificationSpecsFilters,
+        impressionQualificationFilterSpecsLists = emptyList(),
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
         eventTemplateFieldsMap = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsMap,
@@ -2541,7 +2540,7 @@ class BasicReportTransformationsTest {
                     MetricCalculationSpecKt.grouping { predicates += "person.gender == 1" }
                   groupings +=
                     MetricCalculationSpecKt.grouping { predicates += "person.gender == 2" }
-                  filter = "filter && (person.age_group == 1)"
+                  filter = "(person.age_group == 1)"
                   metricSpecs += metricSpec {
                     reachAndFrequency = MetricSpecKt.reachAndFrequencyParams {}
                   }
@@ -2554,10 +2553,9 @@ class BasicReportTransformationsTest {
         },
       )
   }
-  
+
   @Test
   fun `dimensionSpec Grouping with 2 fields results in cross product lists`() {
-    val impressionQualificationSpecsFilters = listOf("filter")
     val dataProviderPrimitiveReportingSetMap = buildMap {
       put(DATA_PROVIDER_NAME_1, PRIMITIVE_REPORTING_SET_1)
       put(DATA_PROVIDER_NAME_2, PRIMITIVE_REPORTING_SET_2)
@@ -2592,7 +2590,7 @@ class BasicReportTransformationsTest {
     val reportingSetMetricCalculationSpecDetailsMap =
       buildReportingSetMetricCalculationSpecDetailsMap(
         campaignGroupName = CAMPAIGN_GROUP_NAME,
-        impressionQualificationFilterSpecsFilters = impressionQualificationSpecsFilters,
+        impressionQualificationFilterSpecsLists = emptyList(),
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
         eventTemplateFieldsMap = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsMap,
@@ -2668,7 +2666,7 @@ class BasicReportTransformationsTest {
                       predicates += "person.gender == 2"
                       predicates += "person.age_group == 3"
                     }
-                  filter = "filter && (person.age_group == 1)"
+                  filter = "(person.age_group == 1)"
                   metricSpecs += metricSpec {
                     reachAndFrequency = MetricSpecKt.reachAndFrequencyParams {}
                   }
@@ -2693,7 +2691,6 @@ class BasicReportTransformationsTest {
           reportingUnit = reportingUnit { components += DATA_PROVIDER_NAME_1 }
           metricFrequency = metricFrequencySpec { total = true }
           dimensionSpec = dimensionSpec {
-            grouping = DimensionSpecKt.grouping { eventTemplateFields += "person.gender" }
             filters += eventFilter {
               terms += eventTemplateField {
                 path = "person.age_group"
@@ -2755,7 +2752,6 @@ class BasicReportTransformationsTest {
           reportingUnit = reportingUnit { components += DATA_PROVIDER_NAME_1 }
           metricFrequency = metricFrequencySpec { total = true }
           dimensionSpec = dimensionSpec {
-            grouping = DimensionSpecKt.grouping { eventTemplateFields += "person.gender" }
             filters += eventFilter {
               terms += eventTemplateField {
                 path = "person.age_group"

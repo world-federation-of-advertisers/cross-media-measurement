@@ -172,7 +172,7 @@ private fun createImpressionQualificationFilterSpecsFilter(
         }
       "${term.path} == $termValue"
     }
-}    
+}
 
 /**
  * Transforms a [DimensionSpec.Grouping] into a List of [MetricCalculationSpec.Grouping]
