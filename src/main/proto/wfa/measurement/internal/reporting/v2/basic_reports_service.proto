@@ -67,6 +67,7 @@ message InsertBasicReportRequest {
 
 message CreateBasicReportRequest {
   BasicReport basic_report = 1;
+  string request_id = 2;
 }
 
 message SetExternalReportIdRequest {
