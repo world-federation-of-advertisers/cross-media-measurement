@@ -25,6 +25,7 @@ kt_jvm_library(
     srcs = ["Interceptors.kt"],
     deps = [
         "@wfa_common_jvm//imports/java/io/grpc:api",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
     ],
 )
 
@@ -53,5 +54,18 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/common/ratelimit:token_bucket",
         "//src/main/proto/wfa/measurement/config:rate_limit_config_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/io/grpc:context",
+    ],
+)
+
+kt_jvm_library(
+    name = "api_change_metrics_interceptor",
+    srcs = ["ApiChangeMetricsInterceptor.kt"],
+    deps = [
+        ":interceptors",
+        "//src/main/proto/wfa/measurement/type:future_disposition_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/java/io/grpc:api",
+        "@wfa_common_jvm//imports/java/io/opentelemetry/api",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
     ],
 )
