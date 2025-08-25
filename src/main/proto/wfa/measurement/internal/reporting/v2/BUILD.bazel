@@ -35,10 +35,6 @@ proto_and_kt_jvm_proto_library(
 )
 
 proto_and_kt_jvm_proto_library(
-    name = "report_results",
-)
-
-proto_and_kt_jvm_proto_library(
     name = "reporting_set",
 )
 
@@ -225,6 +221,7 @@ MESSAGE_LIBS = [
     "impression_qualification_filter",
     "impression_qualification_filter_spec",
     "metric_frequency_spec",
+    "report_results",
     "result_group",
     "reporting_impression_qualification_filter",
     "reporting_interval",
@@ -321,6 +318,12 @@ proto_library(
         "@com_google_googleapis//google/type:date_proto",
         "@com_google_googleapis//google/type:datetime_proto",
     ],
+)
+
+proto_library(
+    name = "report_results_proto",
+    srcs = ["report_results.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
 )
 
 proto_library(
