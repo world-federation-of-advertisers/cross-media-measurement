@@ -26,9 +26,10 @@ option java_outer_classname = "RequisitionMetadataServiceProto";
 
 // Service for managing RequisitionMetadata.
 service RequisitionMetadataService {
-  // Creates a new RequisitionMetadata entry. The request_id in the resource is
-  // used for idempotency.
-  rpc CreateRequisitionMetadata(RequisitionMetadata)
+  // Creates a new RequisitionMetadata entry.
+  // To create a resource in the REFUSED state, provide a non-empty
+  // `error_message`. Otherwise, it will be created in the STORED state.
+  rpc CreateRequisitionMetadata(CreateRequisitionMetadataRequest)
       returns (RequisitionMetadata);
 
   // Creates multiple new RequisitionMetadata entries in a single request.
@@ -43,19 +44,49 @@ service RequisitionMetadataService {
   rpc LookupRequisitionMetadata(LookupRequisitionMetadataRequest)
       returns (RequisitionMetadata);
 
-  // Lists RequisitionMetadata entries, with optional filtering.
-  rpc ListRequisitionMetadata(ListRequisitionMetadataRequest)
-      returns (ListRequisitionMetadataResponse);
+  // Streams RequisitionMetadata, ordered by update_time asc,
+  // external_data_provider_id asc, and external_requisition_metadata_id asc.
+  rpc StreamRequisitionMetadata(StreamRequisitionMetadataRequest)
+      returns (stream RequisitionMetadata);
 
   // Fetches the latest cmms_create_time for a given DataProvider. This is used
   // to determine the starting point for fetching new requisitions from the
   // Kingdom.
   rpc FetchLatestCmmsCreateTime(FetchLatestCmmsCreateTimeRequest)
       returns (google.protobuf.Timestamp);
+
+  // Transitions a RequisitionMetadata resource to the QUEUED state.
+  rpc QueueRequisitionMetadata(QueueRequisitionMetadataRequest)
+      returns (RequisitionMetadata);
+
+  // Transitions a RequisitionMetadata resource to the PROCESSING state.
+  rpc StartProcessingRequisitionMetadata(
+      StartProcessingRequisitionMetadataRequest) returns (RequisitionMetadata);
+
+  // Transitions a RequisitionMetadata resource to the FULFILLED state.
+  rpc FulfillRequisitionMetadata(FulfillRequisitionMetadataRequest)
+      returns (RequisitionMetadata);
+
+  // Transitions a RequisitionMetadata resource to the REFUSED state.
+  rpc RefuseRequisitionMetadata(RefuseRequisitionMetadataRequest)
+      returns (RequisitionMetadata);
+
+  // Transitions a RequisitionMetadata resource to the DELETED state.
+  rpc DeleteRequisitionMetadata(DeleteRequisitionMetadataRequest)
+      returns (RequisitionMetadata);
+}
+
+message CreateRequisitionMetadataRequest {
+  RequisitionMetadata requisition_metadata = 1;
+  // The request_id is used for idempotency.
+  string request_id = 2;
 }
 
 message BatchCreateRequisitionMetadataRequest {
   fixed64 external_data_provider_id = 1;
+  // To create a resource in the REFUSED state, provide a non-empty
+  // `error_message` in the RequisitionMetadata object. Otherwise, it will be
+  // created in the STORED state.
   repeated RequisitionMetadata requisitions = 2;
 }
 
@@ -78,23 +109,60 @@ message LookupRequisitionMetadataRequest {
   }
 }
 
-message ListRequisitionMetadataRequest {
-  fixed64 external_data_provider_id = 1;
-  int32 page_size = 2;
-  string page_token = 3;
+message StreamRequisitionMetadataRequest {
+  message AfterFilter {
+    google.protobuf.Timestamp update_time = 1;
+    fixed64 external_data_provider_id = 2;
+    fixed64 external_requisition_metadata_id = 3;
+  }
 
   message Filter {
-    RequisitionMetadata.State state = 1;
-    string group_id = 2;
+    fixed64 external_data_provider_id = 1;
+    RequisitionMetadata.State state = 2;
+    string group_id = 3;
+    AfterFilter after = 4;
   }
-  Filter filter = 4;
-}
+  Filter filter = 1;
 
-message ListRequisitionMetadataResponse {
-  repeated RequisitionMetadata requisition_metadata = 1;
-  string next_page_token = 2;
+  // The maximum number of results to return. If not specified or 0, it implies
+  // unlimited.
+  int32 limit = 2;
 }
 
 message FetchLatestCmmsCreateTimeRequest {
   fixed64 external_data_provider_id = 1;
+}
+
+message QueueRequisitionMetadataRequest {
+  fixed64 external_data_provider_id = 1;
+  fixed64 external_requisition_metadata_id = 2;
+  string etag = 3;
+  // The resource name of the WorkItem to associate with this requisition.
+  string work_item = 4;
+}
+
+message StartProcessingRequisitionMetadataRequest {
+  fixed64 external_data_provider_id = 1;
+  fixed64 external_requisition_metadata_id = 2;
+  string etag = 3;
+}
+
+message FulfillRequisitionMetadataRequest {
+  fixed64 external_data_provider_id = 1;
+  fixed64 external_requisition_metadata_id = 2;
+  string etag = 3;
+}
+
+message RefuseRequisitionMetadataRequest {
+  fixed64 external_data_provider_id = 1;
+  fixed64 external_requisition_metadata_id = 2;
+  string etag = 3;
+  // A human-readable message explaining the reason for refusal.
+  string error_message = 4;
+}
+
+message DeleteRequisitionMetadataRequest {
+  fixed64 external_data_provider_id = 1;
+  fixed64 external_requisition_metadata_id = 2;
+  string etag = 3;
 }
