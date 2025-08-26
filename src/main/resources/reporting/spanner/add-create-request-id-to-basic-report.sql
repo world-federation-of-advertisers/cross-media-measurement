@@ -14,7 +14,7 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
--- changeset tristanvuong2021:4 dbms:cloudspanner
+-- changeset tristanvuong2021:5 dbms:cloudspanner
 -- comment: Add Create Request ID column to BasicReport
 
 ALTER TABLE BasicReports
