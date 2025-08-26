@@ -141,29 +141,30 @@ class RequisitionGrouperByReportIdTest : AbstractRequisitionGrouperTest() {
       requisitionGrouper.groupRequisitions(listOf(TestRequisitionData.REQUISITION, requisition2))
     }
     assertThat(groupedRequisitions).hasSize(1)
-    groupedRequisitions.forEach { groupedRequisition: GroupedRequisitions ->
-      assertThat(groupedRequisition.eventGroupMapList.single())
-        .isEqualTo(
-          eventGroupMapEntry {
-            eventGroup = "dataProviders/someDataProvider/eventGroups/name"
-            details = eventGroupDetails {
-              eventGroupReferenceId = "some-event-group-reference-id"
-              collectionIntervals +=
-                listOf(
-                  interval {
-                    startTime = TestRequisitionData.TIME_RANGE.start.toProtoTime()
-                    endTime =
-                      TestRequisitionData.TIME_RANGE.endExclusive.plusSeconds(3600).toProtoTime()
-                  }
-                )
-            }
+    val groupedRequisition = groupedRequisitions.single()
+    assertThat(groupedRequisition.eventGroupMapList.single())
+      .isEqualTo(
+        eventGroupMapEntry {
+          eventGroup = "dataProviders/someDataProvider/eventGroups/name"
+          details = eventGroupDetails {
+            eventGroupReferenceId = "some-event-group-reference-id"
+            collectionIntervals +=
+              listOf(
+                interval {
+                  startTime = TestRequisitionData.TIME_RANGE.start.toProtoTime()
+                  endTime =
+                    TestRequisitionData.TIME_RANGE.endExclusive.plusSeconds(3600).toProtoTime()
+                }
+              )
           }
-        )
-      assertThat(
-          groupedRequisition.requisitionsList.map { it.requisition.unpack(Requisition::class.java) }
-        )
-        .isEqualTo(listOf(TestRequisitionData.REQUISITION, requisition2))
-    }
+        }
+      )
+    assertThat(
+        groupedRequisition.requisitionsList.map { it.requisition.unpack(Requisition::class.java) }
+      )
+      .isEqualTo(listOf(TestRequisitionData.REQUISITION, requisition2))
+
+    assertThat(groupedRequisition.modelLine).isEqualTo("some-model-line")
   }
 
   @Test
