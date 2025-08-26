@@ -34,9 +34,9 @@ ALTER PROTO BUNDLE INSERT (
   `wfa.measurement.internal.reporting.v2.ResultGroupSpec`,
   `wfa.measurement.internal.reporting.v2.ReportingUnit`,
   `wfa.measurement.internal.reporting.v2.ReportingUnit.DataProviderKeys`,
-  `wfa.measurement.internal.reporting.v2.ReportingUnit.DataProviderKey`,
+  `wfa.measurement.internal.reporting.v2.DataProviderKey`,
   `wfa.measurement.internal.reporting.v2.ReportingUnit.ReportingSetKeys`,
-  `wfa.measurement.internal.reporting.v2.ReportingUnit.ReportingSetKey`,
+  `wfa.measurement.internal.reporting.v2.ReportingSetKey`,
   `wfa.measurement.internal.reporting.v2.ResultGroup.MetricSet.UniqueMetricSet`,
 );
 
