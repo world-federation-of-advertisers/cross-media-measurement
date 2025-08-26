@@ -100,7 +100,7 @@ message CreateRequisitionMetadataRequest {
   // The RequisitionMetadata to create.
   //
   // To create a resource in the REFUSED state, provide a non-empty
-  // `error_message`. Otherwise, it will be created in the STORED state.
+  // `refusal_message`. Otherwise, it will be created in the STORED state.
   //
   // The `name` and all other output-only fields (like `state`, `etag`, etc.)
   // are ignored.
@@ -300,6 +300,6 @@ message RefuseRequisitionMetadataRequest {
   string etag = 2 [(google.api.field_behavior) = REQUIRED];
 
   // A human-readable message explaining the reason for refusal.
-  // This will be stored in the `error_message` field of the resource.
-  string error_message = 3 [(google.api.field_behavior) = REQUIRED];
+  // This will be stored in the `refusal_message` field of the resource.
+  string refusal_message = 3 [(google.api.field_behavior) = REQUIRED];
 }
