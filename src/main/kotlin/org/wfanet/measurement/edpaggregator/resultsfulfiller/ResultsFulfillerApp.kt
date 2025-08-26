@@ -42,6 +42,7 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem.Wo
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAttemptsGrpcKt
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt
 import org.wfanet.measurement.securecomputation.teesdk.BaseTeeApplication
+import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
 
 /**
  * Application for fulfilling results in the CMMS.
@@ -132,52 +133,46 @@ class ResultsFulfillerApp(
     val kmsClient = kmsClients[fulfillerParams.dataProvider]
     requireNotNull(kmsClient) { "KMS client not found for ${fulfillerParams.dataProvider}" }
 
-    val eventReader: LegacyEventReader =
-      LegacyEventReader(
-        kmsClient = kmsClient,
-        impressionsStorageConfig = impressionsStorageConfig,
-        impressionDekStorageConfig = impressionsMetadataStorageConfig,
-        labeledImpressionsDekPrefix = fulfillerParams.storageParams.labeledImpressionsBlobDetailsUriPrefix,
-      )
     val noiseSelector =
       when (fulfillerParams.noiseParams.noiseType) {
         NoiseType.NONE -> NoNoiserSelector()
         NoiseType.CONTINUOUS_GAUSSIAN -> ContinuousGaussianNoiseSelector()
         else -> throw Exception("Invalid noise type ${fulfillerParams.noiseParams.noiseType}")
       }
-    val kAnonymityParams: KAnonymityParams? =
-      if (fulfillerParams.hasKAnonymityParams()) {
-        require(fulfillerParams.kAnonymityParams.minImpressions > 0) {
-          "K-Anonymity min impressions must be > 0"
-        }
-        require(fulfillerParams.kAnonymityParams.minUsers > 0) {
-          "K-Anonymity min users must be > 0"
-        }
-        require(fulfillerParams.kAnonymityParams.reachMaxFrequencyPerUser > 0) {
-          "K-Anonymity reach maximum frequency per user must be > 0"
-        }
-        KAnonymityParams(
-          minImpressions = fulfillerParams.kAnonymityParams.minImpressions,
-          minUsers = fulfillerParams.kAnonymityParams.minUsers,
-          reachMaxFrequencyPerUser = fulfillerParams.kAnonymityParams.reachMaxFrequencyPerUser,
-        )
-      } else {
-        null
-      }
+    // TODO: Read in EDP kAnonymityParams
+    val kAnonymityParams: KAnonymityParams? = null
+
+    // Create pipeline configuration with default values
+    val pipelineConfiguration = PipelineConfiguration(
+      batchSize = 256,
+      channelCapacity = 100,
+      threadPoolSize = 4,
+      workers = 4
+    )
+
+    // Get event descriptor - use LabeledImpression which is the actual event type used
+    val eventDescriptor = LabeledImpression.getDescriptor()
+
     ResultsFulfiller(
-        loadPrivateKey(encryptionPrivateKeyFile),
-        requisitionsStub,
-        requisitionFulfillmentStubsMap,
-        dataProviderCertificateKey,
-        dataProviderResultSigningKeyHandle,
-        typeRegistry,
+        privateEncryptionKey = loadPrivateKey(encryptionPrivateKeyFile),
+        requisitionsStub = requisitionsStub,
+        requisitionFulfillmentStubMap = requisitionFulfillmentStubsMap,
+        dataProviderCertificateKey = dataProviderCertificateKey,
+        dataProviderSigningKeyHandle = dataProviderResultSigningKeyHandle,
         requisitionsBlobUri = requisitionsBlobUri,
         requisitionsStorageConfig = requisitionsStorageConfig,
-        zoneId = ZoneOffset.UTC,
         noiserSelector = noiseSelector,
-        eventReader = eventReader,
         populationSpecMap = populationSpecMap,
         kAnonymityParams = kAnonymityParams,
+        pipelineConfiguration = pipelineConfiguration,
+        eventDescriptor = eventDescriptor,
+        kmsClient = kmsClient,
+        impressionsStorageConfig = impressionsStorageConfig,
+        impressionDekStorageConfig = impressionsMetadataStorageConfig,
+        impressionsBucketUri = fulfillerParams.storageParams.labeledImpressionsBlobDetailsUriPrefix,
+        impressionsDekBucketUri = fulfillerParams.storageParams.labeledImpressionsBlobDetailsUriPrefix,
+        typeRegistry = typeRegistry,
+        zoneId = ZoneOffset.UTC,
       )
       .fulfillRequisitions()
   }

@@ -16,6 +16,7 @@
 
 package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
+import com.google.crypto.tink.KmsClient
 import com.google.protobuf.Any
 import com.google.protobuf.ByteString
 import com.google.protobuf.TypeRegistry
@@ -50,6 +51,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.FrequencyVectorBuilder
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.InMemoryVidIndexMap
 import org.wfanet.measurement.storage.SelectedStorageClient
+import com.google.protobuf.Descriptors
 
 /**
  * A class responsible for fulfilling results.
@@ -66,6 +68,8 @@ import org.wfanet.measurement.storage.SelectedStorageClient
  * @param noiserSelector Selector for noise addition.
  * @param eventReader the [EventReader] to read in impressions data
  * @param populationSpecMap map of model line to population spec
+ * @param pipelineConfiguration configuration for the event processing pipeline
+ * @param eventDescriptor descriptor for events processing
  *
  * TODO(2347) - Support additional differential privacy and k-anonymization.
  */
@@ -76,30 +80,58 @@ class ResultsFulfiller(
     Map<String, RequisitionFulfillmentGrpcKt.RequisitionFulfillmentCoroutineStub>,
   private val dataProviderCertificateKey: DataProviderCertificateKey,
   private val dataProviderSigningKeyHandle: SigningKeyHandle,
-  private val typeRegistry: TypeRegistry,
   private val requisitionsBlobUri: String,
   private val requisitionsStorageConfig: StorageConfig,
-  private val zoneId: ZoneId,
   private val noiserSelector: NoiserSelector,
-  private val eventReader: LegacyEventReader,
   private val populationSpecMap: Map<String, PopulationSpec>,
   private val kAnonymityParams: KAnonymityParams?,
+  private val pipelineConfiguration: PipelineConfiguration,
+  private val eventDescriptor: Descriptors.Descriptor,
+  private val kmsClient: KmsClient,
+  private val impressionsStorageConfig: StorageConfig,
+  private val impressionDekStorageConfig: StorageConfig,
+  private val impressionsBucketUri: String,
+  private val impressionsDekBucketUri: String,
+  private val typeRegistry: TypeRegistry,
+  private val zoneId: ZoneId,
 ) {
 
   private lateinit var populationSpec: PopulationSpec
   private val vidIndexMap by lazy { InMemoryVidIndexMap.build(populationSpec) }
+  private val orchestrator: EventProcessingOrchestrator by lazy { EventProcessingOrchestrator(privateEncryptionKey) }
 
   suspend fun fulfillRequisitions() {
     val groupedRequisitions = getRequisitions()
     val requisitions =
       groupedRequisitions.requisitionsList.map { it.requisition.unpack(Requisition::class.java) }
     logger.info("Processing ${requisitions.size} Requisitions")
-    val eventGroupMap =
-      groupedRequisitions.eventGroupMapList
-        .map { Pair(it.eventGroup, it.details.eventGroupReferenceId) }
-        .toMap()
+
+    // Set population spec from first requisition (assuming all have same model line)
+    val firstMeasurementSpec: MeasurementSpec = requisitions.first().measurementSpec.message.unpack()
+    populationSpec = populationSpecMap.getValue(firstMeasurementSpec.modelLine)
+
+    // Create a simple event source adapter from the existing event reader
+    val eventSource = createEventSourceFrom(groupedRequisitions.eventGroupMapList.map { it.details })
+
+    // Use orchestrator to get frequency vectors for all requisitions
+    val frequencyVectorMap = orchestrator.runWithRequisitions(
+      eventSource = eventSource,
+      vidIndexMap = vidIndexMap,
+      populationSpec = populationSpec,
+      requisitions = requisitions,
+      config = pipelineConfiguration,
+      eventDescriptor = eventDescriptor,
+      kAnonymityParams = kAnonymityParams ?: KAnonymityParams(minUsers = 1, minImpressions = 1)
+    )
+
     for (requisition in requisitions) {
-      logger.info("Processing requisition: ${requisition.name}")
+      logger.info("Fulfill requisition: ${requisition.name}")
+      val measurementSpec: MeasurementSpec = requisition.measurementSpec.message.unpack()
+      val frequencyVector = frequencyVectorMap[requisition.name]
+        ?: throw IllegalStateException("No frequency vector found for requisition ${requisition.name}")
+      val frequencyData: IntArray = frequencyVector.getArray()
+      val protocols: List<ProtocolConfig.Protocol> = requisition.protocolConfig.protocolsList
+      // Decrypt requisition spec for nonce and other details
       val signedRequisitionSpec: SignedMessage =
         try {
           decryptRequisitionSpec(requisition.encryptedRequisitionSpec, privateEncryptionKey)
@@ -107,25 +139,7 @@ class ResultsFulfiller(
           throw Exception("RequisitionSpec decryption failed", e)
         }
       val requisitionSpec: RequisitionSpec = signedRequisitionSpec.unpack()
-      val measurementSpec: MeasurementSpec = requisition.measurementSpec.message.unpack()
-      populationSpec = populationSpecMap.getValue(measurementSpec.modelLine)
-      val sampledVids: Flow<Long> =
-        RequisitionSpecs.getSampledVids(
-          requisitionSpec,
-          eventGroupMap,
-          typeRegistry,
-          eventReader,
-          zoneId,
-        )
-      val protocols: List<ProtocolConfig.Protocol> = requisition.protocolConfig.protocolsList
-      val frequencyVectorBuilder =
-        FrequencyVectorBuilder(
-          measurementSpec = measurementSpec,
-          populationSpec = populationSpec,
-          strict = false,
-        )
-      sampledVids.collect { frequencyVectorBuilder.increment(vidIndexMap[it]) }
-      val frequencyData: IntArray = frequencyVectorBuilder.frequencyDataArray
+
       val fulfiller =
         if (protocols.any { it.hasDirect() }) {
           // TODO: Calculate the maximum population for a given cel filter
@@ -142,7 +156,7 @@ class ResultsFulfiller(
             HMShuffleMeasurementFulfiller(
               requisition,
               requisitionSpec.nonce,
-              frequencyVectorBuilder.build(),
+              createFrequencyVectorBuilderFromArray(measurementSpec, frequencyData).build(),
               dataProviderSigningKeyHandle,
               dataProviderCertificateKey,
               requisitionFulfillmentStubMap,
@@ -153,7 +167,7 @@ class ResultsFulfiller(
               requisitionSpec.nonce,
               measurementSpec,
               populationSpec,
-              frequencyVectorBuilder,
+              createFrequencyVectorBuilderFromArray(measurementSpec, frequencyData),
               dataProviderSigningKeyHandle,
               dataProviderCertificateKey,
               requisitionFulfillmentStubMap,
@@ -166,6 +180,45 @@ class ResultsFulfiller(
         }
       fulfiller.fulfillRequisition()
     }
+  }
+
+  /**
+   * Creates a simple EventSource adapter from the existing EventReader.
+   */
+  private fun createEventSourceFrom(eventGroupDetailsList: List<GroupedRequisitions.EventGroupDetails>): EventSource {
+    return StorageEventSource(
+      kmsClient = kmsClient,
+      impressionsStorageConfig = impressionsStorageConfig,
+      impressionDekStorageConfig = impressionDekStorageConfig,
+      impressionsDekBucketUri = impressionsDekBucketUri,
+      eventGroupDetailsList = eventGroupDetailsList,
+      descriptor = eventDescriptor,
+      batchSize = pipelineConfiguration.batchSize,
+      zoneId = zoneId,
+    )
+  }
+
+  /**
+   * Creates a FrequencyVectorBuilder from frequency data array.
+   */
+  private fun createFrequencyVectorBuilderFromArray(
+    measurementSpec: MeasurementSpec,
+    frequencyData: IntArray
+  ): FrequencyVectorBuilder {
+    val builder = FrequencyVectorBuilder(
+      measurementSpec = measurementSpec,
+      populationSpec = populationSpec,
+      strict = false,
+    )
+
+    // Populate the builder with the frequency data
+    for (index in frequencyData.indices) {
+      repeat(frequencyData[index]) {
+        builder.increment(index)
+      }
+    }
+
+    return builder
   }
 
   /**
