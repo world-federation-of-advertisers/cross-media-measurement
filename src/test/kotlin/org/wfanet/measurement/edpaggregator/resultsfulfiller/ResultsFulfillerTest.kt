@@ -133,6 +133,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
 import org.wfanet.measurement.edpaggregator.v1alpha.copy
+import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.InMemoryVidIndexMap
 import org.wfanet.measurement.integration.common.loadEncryptionPrivateKey
 import org.wfanet.measurement.loadtest.config.VidSampling
 import org.wfanet.measurement.storage.MesosRecordIoStorageClient
@@ -169,7 +170,7 @@ class ResultsFulfillerTest {
           val request = invocation.getArgument<GetEventGroupRequest>(0)
           eventGroup {
             name = request.name
-            eventGroupReferenceId = "some-event-group-reference-id"
+            eventGroupReferenceId = request.name
           }
         }
     }
@@ -233,19 +234,25 @@ class ResultsFulfillerTest {
 
     val resultsFulfiller =
       ResultsFulfiller(
-        PRIVATE_ENCRYPTION_KEY,
-        requisitionsStub,
-        emptyMap(),
-        DATA_PROVIDER_CERTIFICATE_KEY,
-        EDP_RESULT_SIGNING_KEY,
-        typeRegistry,
-        REQUISITIONS_FILE_URI,
-        StorageConfig(rootDirectory = requisitionsTmpPath),
-        ZoneOffset.UTC,
-        ContinuousGaussianNoiseSelector(),
-        eventReader,
-        mapOf("some-model-line" to POPULATION_SPEC),
+        privateEncryptionKey = PRIVATE_ENCRYPTION_KEY,
+        requisitionsStub = requisitionsStub,
+        requisitionFulfillmentStubMap = emptyMap(),
+        dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
+        dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
+        requisitionsBlobUri = REQUISITIONS_FILE_URI,
+        requisitionsStorageConfig = StorageConfig(rootDirectory = requisitionsTmpPath),
+        noiserSelector = ContinuousGaussianNoiseSelector(),
+        modelLineInfoMap = mapOf("some-model-line" to MODEL_LINE_INFO),
         kAnonymityParams = null,
+        pipelineConfiguration = PipelineConfiguration(batchSize = 1000, channelCapacity = 100, threadPoolSize = 4, workers = 2),
+        eventDescriptor = TestEvent.getDescriptor(),
+        kmsClient = kmsClient,
+        impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
+        impressionDekStorageConfig = StorageConfig(rootDirectory = metadataTmpPath),
+        impressionsBucketUri = IMPRESSIONS_FILE_URI,
+        impressionsDekBucketUri = IMPRESSIONS_METADATA_FILE_URI_PREFIX,
+        typeRegistry = typeRegistry,
+        zoneId = ZoneOffset.UTC,
       )
 
     resultsFulfiller.fulfillRequisitions()
@@ -323,22 +330,28 @@ class ResultsFulfillerTest {
 
     val resultsFulfiller =
       ResultsFulfiller(
-        PRIVATE_ENCRYPTION_KEY,
-        requisitionsStub,
-        mapOf(
+        privateEncryptionKey = PRIVATE_ENCRYPTION_KEY,
+        requisitionsStub = requisitionsStub,
+        requisitionFulfillmentStubMap = mapOf(
           DUCHY_ONE_NAME to requisitionFulfillmentStub,
           DUCHY_TWO_NAME to requisitionFulfillmentStub,
         ),
-        DATA_PROVIDER_CERTIFICATE_KEY,
-        EDP_RESULT_SIGNING_KEY,
-        typeRegistry,
-        REQUISITIONS_FILE_URI,
-        StorageConfig(rootDirectory = requisitionsTmpPath),
-        ZoneOffset.UTC,
-        ContinuousGaussianNoiseSelector(),
-        eventReader,
-        mapOf("some-model-line" to POPULATION_SPEC),
+        dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
+        dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
+        requisitionsBlobUri = REQUISITIONS_FILE_URI,
+        requisitionsStorageConfig = StorageConfig(rootDirectory = requisitionsTmpPath),
+        noiserSelector = ContinuousGaussianNoiseSelector(),
+        modelLineInfoMap = mapOf("some-model-line" to MODEL_LINE_INFO),
         kAnonymityParams = null,
+        pipelineConfiguration = PipelineConfiguration(batchSize = 1000, channelCapacity = 100, threadPoolSize = 4, workers = 2),
+        eventDescriptor = TestEvent.getDescriptor(),
+        kmsClient = kmsClient,
+        impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
+        impressionDekStorageConfig = StorageConfig(rootDirectory = metadataTmpPath),
+        impressionsBucketUri = IMPRESSIONS_FILE_URI,
+        impressionsDekBucketUri = IMPRESSIONS_METADATA_FILE_URI_PREFIX,
+        typeRegistry = typeRegistry,
+        zoneId = ZoneOffset.UTC,
       )
 
     resultsFulfiller.fulfillRequisitions()
@@ -744,5 +757,12 @@ class ResultsFulfillerTest {
     private const val IMPRESSIONS_METADATA_BUCKET = "impression-metadata-bucket"
 
     private const val IMPRESSIONS_METADATA_FILE_URI_PREFIX = "file:///$IMPRESSIONS_METADATA_BUCKET"
+
+    private val MODEL_LINE_INFO =
+      ModelLineInfo(
+        eventDescriptor = TestEvent.getDescriptor(),
+        populationSpec = POPULATION_SPEC,
+        vidIndexMap = InMemoryVidIndexMap.build(POPULATION_SPEC),
+      )
   }
 }

@@ -22,9 +22,9 @@ import com.google.cloud.secretmanager.v1.SecretVersionName
 import com.google.crypto.tink.KmsClient
 import com.google.protobuf.DescriptorProtos
 import com.google.protobuf.Descriptors
+import com.google.protobuf.TypeRegistry
 import com.google.protobuf.ExtensionRegistry
 import com.google.protobuf.Parser
-import com.google.protobuf.TypeRegistry
 import java.io.File
 import java.net.URI
 import java.util.logging.Logger
@@ -41,6 +41,8 @@ import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams.StorageParams
+import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.InMemoryVidIndexMap
+import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
 import org.wfanet.measurement.gcloud.kms.GCloudKmsClientFactory
 import org.wfanet.measurement.gcloud.pubsub.DefaultGooglePubSubClient
 import org.wfanet.measurement.gcloud.pubsub.Subscriber
@@ -214,6 +216,14 @@ class ResultsFulfillerAppRunner : Runnable {
       description = ["Blob uri to the proto."],
     )
     lateinit var populationSpecFileBlobUri: String
+
+    @CommandLine.Option(
+      names = ["--event-template-metadata-blob-uri"],
+      description =
+        ["Config storage blob URI to the FileDescriptorSet for EventTemplate metadata types."],
+      required = true,
+    )
+    lateinit var eventTemplateDescriptorBlobUri: String
   }
 
   @CommandLine.Option(
@@ -328,7 +338,6 @@ class ResultsFulfillerAppRunner : Runnable {
       )
 
     val typeRegistry: TypeRegistry = buildTypeRegistry()
-
     val modelLinesMap = runBlocking { buildModelLineMap() }
 
     val resultsFulfillerApp =
@@ -340,11 +349,11 @@ class ResultsFulfillerAppRunner : Runnable {
         workItemAttemptsClient = workItemAttemptsClient,
         requisitionStubFactory = requisitionStubFactory,
         kmsClients = kmsClientsMap,
-        typeRegistry = typeRegistry,
         getImpressionsMetadataStorageConfig = getImpressionsStorageConfig,
         getImpressionsStorageConfig = getImpressionsStorageConfig,
         getRequisitionsStorageConfig = getImpressionsStorageConfig,
-        populationSpecMap = modelLinesMap,
+        modelLineInfoMap = modelLinesMap,
+        typeRegistry = typeRegistry,
       )
 
     runBlocking { resultsFulfillerApp.run() }
@@ -371,14 +380,20 @@ class ResultsFulfillerAppRunner : Runnable {
     }
   }
 
-  suspend fun buildModelLineMap(): Map<String, PopulationSpec> {
+  suspend fun buildModelLineMap(): Map<String, ModelLineInfo> {
     return modelLines.associate { it: ModelLineFlags ->
       val configContent: ByteArray = getConfig(googleProjectId, it.populationSpecFileBlobUri)
       val populationSpec =
         configContent.inputStream().reader(Charsets.UTF_8).use { reader ->
           parseTextProto(reader, PopulationSpec.getDefaultInstance())
         }
-      it.modelLine to populationSpec
+      val vidIndexMap = InMemoryVidIndexMap.build(populationSpec)
+      val eventDescriptor = LabeledImpression.getDescriptor()
+      it.modelLine to ModelLineInfo(
+        populationSpec = populationSpec,
+        eventDescriptor = eventDescriptor,
+        vidIndexMap = vidIndexMap,
+      )
     }
   }
 
