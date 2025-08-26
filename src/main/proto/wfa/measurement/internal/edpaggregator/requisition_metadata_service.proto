@@ -28,7 +28,7 @@ option java_outer_classname = "RequisitionMetadataServiceProto";
 service RequisitionMetadataService {
   // Creates a new RequisitionMetadata entry.
   // To create a resource in the REFUSED state, provide a non-empty
-  // `error_message`. Otherwise, it will be created in the STORED state.
+  // `refusal_message`. Otherwise, it will be created in the STORED state.
   rpc CreateRequisitionMetadata(CreateRequisitionMetadataRequest)
       returns (RequisitionMetadata);
 
@@ -70,10 +70,6 @@ service RequisitionMetadataService {
   // Transitions a RequisitionMetadata resource to the REFUSED state.
   rpc RefuseRequisitionMetadata(RefuseRequisitionMetadataRequest)
       returns (RequisitionMetadata);
-
-  // Transitions a RequisitionMetadata resource to the DELETED state.
-  rpc DeleteRequisitionMetadata(DeleteRequisitionMetadataRequest)
-      returns (RequisitionMetadata);
 }
 
 message CreateRequisitionMetadataRequest {
@@ -85,7 +81,7 @@ message CreateRequisitionMetadataRequest {
 message BatchCreateRequisitionMetadataRequest {
   fixed64 external_data_provider_id = 1;
   // To create a resource in the REFUSED state, provide a non-empty
-  // `error_message` in the RequisitionMetadata object. Otherwise, it will be
+  // `refusal_message` in the RequisitionMetadata object. Otherwise, it will be
   // created in the STORED state.
   repeated RequisitionMetadata requisitions = 2;
 }
@@ -158,11 +154,5 @@ message RefuseRequisitionMetadataRequest {
   fixed64 external_requisition_metadata_id = 2;
   string etag = 3;
   // A human-readable message explaining the reason for refusal.
-  string error_message = 4;
-}
-
-message DeleteRequisitionMetadataRequest {
-  fixed64 external_data_provider_id = 1;
-  fixed64 external_requisition_metadata_id = 2;
-  string etag = 3;
+  string refusal_message = 4;
 }

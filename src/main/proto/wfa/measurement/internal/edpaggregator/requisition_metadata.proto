@@ -38,8 +38,6 @@ message RequisitionMetadata {
     FULFILLED = 4;
     // The requisition was refused.
     REFUSED = 5;
-    // The requisition has been marked for soft deletion.
-    DELETED = 6;
   }
 
   // The ID of the DataProvider that owns this metadata.
@@ -54,33 +52,36 @@ message RequisitionMetadata {
   // The blob storage URI of the GroupedRequisitions file this entry belongs to.
   string blob_uri = 4;
 
+  // Type URL of the blob.
+  string blob_type_url = 5;
+
   // The ID for the group of requisitions this entry belongs to.
-  string group_id = 5;
+  string group_id = 6;
 
   // The creation timestamp of the requisition in the CMMS (Kingdom).
-  google.protobuf.Timestamp cmms_create_time = 6;
+  google.protobuf.Timestamp cmms_create_time = 7;
 
   // The resource name of the Report in the Reporting system.
-  string report = 7;
+  string report = 8;
 
   // The resource name of the WorkItem.
   // This is set when the requisition is queued for processing.
-  string work_item = 8;
+  string work_item = 9;
 
   // The current state of the requisition.
-  State state = 9;
+  State state = 10;
 
   // The timestamp when this metadata entry was created.
-  google.protobuf.Timestamp create_time = 10;
+  google.protobuf.Timestamp create_time = 11;
 
   // The timestamp when this metadata entry was last updated.
-  google.protobuf.Timestamp update_time = 11;
+  google.protobuf.Timestamp update_time = 12;
 
   // Human-readable message associated with refusal.
-  string error_message = 12;
+  string refusal_message = 13;
 
   // Output only.
-  string etag = 13;
+  string etag = 14;
 }
 
 // Internal representation of a RequisitionMetadataAction.
