@@ -21,8 +21,8 @@ import org.wfanet.measurement.api.v2alpha.CanonicalRequisitionKey
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
+import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.edpaggregator.v1alpha.CreateRequisitionMetadataRequest
-import org.wfanet.measurement.edpaggregator.v1alpha.DeleteRequisitionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.FetchLatestCmmsCreateTimeRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.FulfillRequisitionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.GetRequisitionMetadataRequest
@@ -34,7 +34,6 @@ import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGr
 import org.wfanet.measurement.edpaggregator.v1alpha.StartProcessingRequisitionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineStub as InternalRequisitionMetadataServiceCoroutineStub
 import org.wfanet.measurement.internal.edpaggregator.createRequisitionMetadataRequest as internalCreateRequisitionMetadataRequest
-import org.wfanet.measurement.internal.edpaggregator.deleteRequisitionMetadataRequest as internalDeleteRequisitionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.fetchLatestCmmsCreateTimeRequest as internalFetchLatestCmmsCreateTimeRequest
 import org.wfanet.measurement.internal.edpaggregator.fulfillRequisitionMetadataRequest as internalFulfillRequisitionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.getRequisitionMetadataRequest as internalGetRequisitionMetadataRequest
@@ -103,10 +102,12 @@ class RequisitionMetadataService(
   override suspend fun getRequisitionMetadata(
     request: GetRequisitionMetadataRequest
   ): RequisitionMetadata {
-    val key = parseRequisitionMetadataKey(request.name)
+    val key = RequisitionMetadataKey.fromName(request.name)
+      ?: failGrpc(Status.INVALID_ARGUMENT) { "Parent is either unspecified or invalid." }
+
     val internalRequest = internalGetRequisitionMetadataRequest {
-      externalDataProviderId = key.dataProviderId.toLong()
-      externalRequisitionMetadataId = key.requisitionMetadataId.toLong()
+      externalDataProviderId = apiIdToExternalId(key.dataProviderId)
+      externalRequisitionMetadataId = apiIdToExternalId(key.requisitionMetadataId)
     }
 
     return internalClient.getRequisitionMetadata(internalRequest).toRequisitionMetadata()
@@ -120,7 +121,7 @@ class RequisitionMetadataService(
         ?: failGrpc(Status.INVALID_ARGUMENT) { "Parent is either unspecified or invalid." }
 
     val internalRequest = internalLookupRequisitionMetadataRequest {
-      externalDataProviderId = parentKey.dataProviderId.toLong()
+      externalDataProviderId = apiIdToExternalId(parentKey.dataProviderId)
       when (request.lookupKeyCase) {
         LookupRequisitionMetadataRequest.LookupKeyCase.CMMS_REQUISITION ->
           cmmsRequisition = request.cmmsRequisition
@@ -140,7 +141,7 @@ class RequisitionMetadataService(
         ?: failGrpc(Status.INVALID_ARGUMENT) { "Parent is either unspecified or invalid." }
 
     val internalRequest = internalFetchLatestCmmsCreateTimeRequest {
-      externalDataProviderId = parentKey.dataProviderId.toLong()
+      externalDataProviderId = apiIdToExternalId(parentKey.dataProviderId)
     }
 
     return internalClient.fetchLatestCmmsCreateTime(internalRequest)
@@ -149,10 +150,11 @@ class RequisitionMetadataService(
   override suspend fun queueRequisitionMetadata(
     request: QueueRequisitionMetadataRequest
   ): RequisitionMetadata {
-    val key = parseRequisitionMetadataKey(request.name)
+    val key = RequisitionMetadataKey.fromName(request.name)
+      ?: failGrpc(Status.INVALID_ARGUMENT) { "RequisitionMetadata name is either unspecified or invalid." }
     val internalRequest = internalQueueRequisitionMetadataRequest {
-      externalDataProviderId = key.dataProviderId.toLong()
-      externalRequisitionMetadataId = key.requisitionMetadataId.toLong()
+      externalDataProviderId = apiIdToExternalId(key.dataProviderId)
+      externalRequisitionMetadataId = apiIdToExternalId(key.requisitionMetadataId)
       etag = request.etag
       workItem = request.workItem
     }
@@ -162,10 +164,11 @@ class RequisitionMetadataService(
   override suspend fun startProcessingRequisitionMetadata(
     request: StartProcessingRequisitionMetadataRequest
   ): RequisitionMetadata {
-    val key = parseRequisitionMetadataKey(request.name)
+    val key = RequisitionMetadataKey.fromName(request.name)
+      ?: failGrpc(Status.INVALID_ARGUMENT) { "RequisitionMetadata name is either unspecified or invalid." }
     val internalRequest = internalStartProcessingRequisitionMetadataRequest {
-      externalDataProviderId = key.dataProviderId.toLong()
-      externalRequisitionMetadataId = key.requisitionMetadataId.toLong()
+      externalDataProviderId = apiIdToExternalId(key.dataProviderId)
+      externalRequisitionMetadataId = apiIdToExternalId(key.requisitionMetadataId)
       etag = request.etag
     }
     return internalClient
@@ -176,10 +179,11 @@ class RequisitionMetadataService(
   override suspend fun fulfillRequisitionMetadata(
     request: FulfillRequisitionMetadataRequest
   ): RequisitionMetadata {
-    val key = parseRequisitionMetadataKey(request.name)
+    val key = RequisitionMetadataKey.fromName(request.name)
+      ?: failGrpc(Status.INVALID_ARGUMENT) { "RequisitionMetadata name is either unspecified or invalid." }
     val internalRequest = internalFulfillRequisitionMetadataRequest {
-      externalDataProviderId = key.dataProviderId.toLong()
-      externalRequisitionMetadataId = key.requisitionMetadataId.toLong()
+      externalDataProviderId = apiIdToExternalId(key.dataProviderId)
+      externalRequisitionMetadataId = apiIdToExternalId(key.requisitionMetadataId)
       etag = request.etag
     }
     return internalClient.fulfillRequisitionMetadata(internalRequest).toRequisitionMetadata()
@@ -188,30 +192,14 @@ class RequisitionMetadataService(
   override suspend fun refuseRequisitionMetadata(
     request: RefuseRequisitionMetadataRequest
   ): RequisitionMetadata {
-    val key = parseRequisitionMetadataKey(request.name)
+    val key = RequisitionMetadataKey.fromName(request.name)
+      ?: failGrpc(Status.INVALID_ARGUMENT) { "RequisitionMetadata name is either unspecified or invalid." }
     val internalRequest = internalRefuseRequisitionMetadataRequest {
-      externalDataProviderId = key.dataProviderId.toLong()
-      externalRequisitionMetadataId = key.requisitionMetadataId.toLong()
+      externalDataProviderId = apiIdToExternalId(key.dataProviderId)
+      externalRequisitionMetadataId = apiIdToExternalId(key.requisitionMetadataId)
       etag = request.etag
-      errorMessage = request.errorMessage
+      refusalMessage = request.refusalMessage
     }
     return internalClient.refuseRequisitionMetadata(internalRequest).toRequisitionMetadata()
-  }
-
-  override suspend fun deleteRequisitionMetadata(
-    request: DeleteRequisitionMetadataRequest
-  ): RequisitionMetadata {
-    val key = parseRequisitionMetadataKey(request.name)
-    val internalRequest = internalDeleteRequisitionMetadataRequest {
-      externalDataProviderId = key.dataProviderId.toLong()
-      externalRequisitionMetadataId = key.requisitionMetadataId.toLong()
-      etag = request.etag
-    }
-    return internalClient.deleteRequisitionMetadata(internalRequest).toRequisitionMetadata()
-  }
-
-  private fun parseRequisitionMetadataKey(name: String): RequisitionMetadataKey {
-    return RequisitionMetadataKey.fromName(name)
-      ?: failGrpc(Status.INVALID_ARGUMENT) { "Name is either unspecified or invalid." }
   }
 }
