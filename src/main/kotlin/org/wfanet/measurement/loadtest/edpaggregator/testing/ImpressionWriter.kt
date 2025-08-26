@@ -44,6 +44,7 @@ import org.wfanet.measurement.storage.SelectedStorageClient
  *
  * Impressions are written using a Mesos Record IO format using streaming envelope encryption.
  *
+ * @property eventGroupReferenceId The event group the impressions belong to.
  * @property eventGroupPath The path to the event group where impressions are stored.
  * @property kekUri The URI of the Key Encryption Key (KEK) used for envelope encryption.
  * @property kmsClient The KMS client used for encryption operations.
@@ -53,6 +54,7 @@ import org.wfanet.measurement.storage.SelectedStorageClient
  * @property schema The URI schema for storage paths, defaulting to "file:///".
  */
 class ImpressionsWriter(
+  private val eventGroupReferenceId: String,
   private val eventGroupPath: String,
   private val kekUri: String,
   private val kmsClient: KmsClient,
@@ -80,6 +82,7 @@ class ImpressionsWriter(
             vid = it.vid
             event = Any.pack(it.message)
             eventTime = it.timestamp.toProtoTime()
+            eventGroupReferenceId = this@ImpressionsWriter.eventGroupReferenceId
           }
         }
       val ds = localDate.toString()
