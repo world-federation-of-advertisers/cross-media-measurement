@@ -115,24 +115,6 @@ kt_jvm_test(
 )
 
 kt_jvm_test(
-    name = "RequisitionSpecsTest",
-    srcs = ["RequisitionSpecsTest.kt"],
-    test_class = "org.wfanet.measurement.edpaggregator.resultsfulfiller.RequisitionSpecsTest",
-    deps = [
-        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha/testing",
-        "//src/main/kotlin/org/wfanet/measurement/edpaggregator:encrypted_storage",
-        "//src/main/kotlin/org/wfanet/measurement/edpaggregator:storage_config",
-        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:requisition_specs",
-        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/testing:test_encrypted_storage",
-        "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:test_event_kt_jvm_proto",
-        "@wfa_common_jvm//imports/java/com/google/common/truth",
-        "@wfa_common_jvm//imports/java/org/junit",
-        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
-        "@wfa_common_jvm//imports/kotlin/org/mockito/kotlin",
-    ],
-)
-
-kt_jvm_test(
     name = "VidFilterTest",
     srcs = ["VidFilterTest.kt"],
     test_class = "org.wfanet.measurement.edpaggregator.resultsfulfiller.VidFilterTest",
@@ -248,7 +230,6 @@ kt_jvm_test(
 kt_jvm_test(
     name = "EventProcessingIntegrationTest",
     srcs = ["EventProcessingIntegrationTest.kt"],
-    test_class = "org.wfanet.measurement.edpaggregator.resultsfulfiller.EventProcessingIntegrationTest",
     data = [
         "//src/main/k8s/testing/secretfiles:all_configs",
         "//src/main/k8s/testing/secretfiles:all_der_files",
@@ -256,6 +237,7 @@ kt_jvm_test(
         "//src/main/k8s/testing/secretfiles:edp_trusted_certs.pem",
         "//src/main/proto/wfa/measurement/loadtest/dataprovider:small_population_spec.textproto",
     ],
+    test_class = "org.wfanet.measurement.edpaggregator.resultsfulfiller.EventProcessingIntegrationTest",
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator:encrypted_storage",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator:storage_config",
@@ -281,8 +263,8 @@ kt_jvm_test(
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/tink",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/tink/testing",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage/filesystem:client",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:mesos_recordio_storage_client",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage/filesystem:client",
         "@wfa_consent_signaling_client//src/main/kotlin/org/wfanet/measurement/consent/client/dataprovider",
         "@wfa_consent_signaling_client//src/main/kotlin/org/wfanet/measurement/consent/client/measurementconsumer",
     ],

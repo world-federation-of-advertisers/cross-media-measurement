@@ -133,6 +133,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
 import org.wfanet.measurement.edpaggregator.v1alpha.copy
+import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.InMemoryVidIndexMap
 import org.wfanet.measurement.integration.common.loadEncryptionPrivateKey
 import org.wfanet.measurement.loadtest.config.VidSampling
 import org.wfanet.measurement.storage.MesosRecordIoStorageClient
@@ -169,7 +170,7 @@ class ResultsFulfillerTest {
           val request = invocation.getArgument<GetEventGroupRequest>(0)
           eventGroup {
             name = request.name
-            eventGroupReferenceId = "some-event-group-reference-id"
+            eventGroupReferenceId = request.name
           }
         }
     }
@@ -222,30 +223,27 @@ class ResultsFulfillerTest {
     )
 
     val typeRegistry = TypeRegistry.newBuilder().add(TestEvent.getDescriptor()).build()
-
-    val eventReader: LegacyEventReader =
-      LegacyEventReader(
+    val resultsFulfiller =
+      ResultsFulfiller(
+        privateEncryptionKey = PRIVATE_ENCRYPTION_KEY,
+        requisitionsStub = requisitionsStub,
+        requisitionFulfillmentStubMap = emptyMap(),
+        dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
+        dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
+        requisitionsBlobUri = REQUISITIONS_FILE_URI,
+        requisitionsStorageConfig = StorageConfig(rootDirectory = requisitionsTmpPath),
+        noiserSelector = ContinuousGaussianNoiseSelector(),
+        modelLineInfoMap = mapOf("some-model-line" to MODEL_LINE_INFO),
+        kAnonymityParams = null,
+        pipelineConfiguration = PipelineConfiguration(batchSize = 1000, channelCapacity = 100, threadPoolSize = 4, workers = 2),
+        eventDescriptor = TestEvent.getDescriptor(),
         kmsClient = kmsClient,
         impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
         impressionDekStorageConfig = StorageConfig(rootDirectory = metadataTmpPath),
-        labeledImpressionsDekPrefix = IMPRESSIONS_METADATA_FILE_URI_PREFIX,
-      )
-
-    val resultsFulfiller =
-      ResultsFulfiller(
-        PRIVATE_ENCRYPTION_KEY,
-        requisitionsStub,
-        emptyMap(),
-        DATA_PROVIDER_CERTIFICATE_KEY,
-        EDP_RESULT_SIGNING_KEY,
-        typeRegistry,
-        REQUISITIONS_FILE_URI,
-        StorageConfig(rootDirectory = requisitionsTmpPath),
-        ZoneOffset.UTC,
-        ContinuousGaussianNoiseSelector(),
-        eventReader,
-        mapOf("some-model-line" to POPULATION_SPEC),
-        kAnonymityParams = null,
+        impressionsBucketUri = IMPRESSIONS_FILE_URI,
+        impressionsDekBucketUri = IMPRESSIONS_METADATA_FILE_URI_PREFIX,
+        typeRegistry = typeRegistry,
+        zoneId = ZoneOffset.UTC,
       )
 
     resultsFulfiller.fulfillRequisitions()
@@ -313,32 +311,30 @@ class ResultsFulfillerTest {
 
     val typeRegistry = TypeRegistry.newBuilder().add(TestEvent.getDescriptor()).build()
 
-    val eventReader: LegacyEventReader =
-      LegacyEventReader(
-        kmsClient = kmsClient,
-        impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
-        impressionDekStorageConfig = StorageConfig(rootDirectory = metadataTmpPath),
-        labeledImpressionsDekPrefix = IMPRESSIONS_METADATA_FILE_URI_PREFIX,
-      )
-
     val resultsFulfiller =
       ResultsFulfiller(
-        PRIVATE_ENCRYPTION_KEY,
-        requisitionsStub,
-        mapOf(
+        privateEncryptionKey = PRIVATE_ENCRYPTION_KEY,
+        requisitionsStub = requisitionsStub,
+        requisitionFulfillmentStubMap = mapOf(
           DUCHY_ONE_NAME to requisitionFulfillmentStub,
           DUCHY_TWO_NAME to requisitionFulfillmentStub,
         ),
-        DATA_PROVIDER_CERTIFICATE_KEY,
-        EDP_RESULT_SIGNING_KEY,
-        typeRegistry,
-        REQUISITIONS_FILE_URI,
-        StorageConfig(rootDirectory = requisitionsTmpPath),
-        ZoneOffset.UTC,
-        ContinuousGaussianNoiseSelector(),
-        eventReader,
-        mapOf("some-model-line" to POPULATION_SPEC),
+        dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
+        dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
+        requisitionsBlobUri = REQUISITIONS_FILE_URI,
+        requisitionsStorageConfig = StorageConfig(rootDirectory = requisitionsTmpPath),
+        noiserSelector = ContinuousGaussianNoiseSelector(),
+        modelLineInfoMap = mapOf("some-model-line" to MODEL_LINE_INFO),
         kAnonymityParams = null,
+        pipelineConfiguration = PipelineConfiguration(batchSize = 1000, channelCapacity = 100, threadPoolSize = 4, workers = 2),
+        eventDescriptor = TestEvent.getDescriptor(),
+        kmsClient = kmsClient,
+        impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
+        impressionDekStorageConfig = StorageConfig(rootDirectory = metadataTmpPath),
+        impressionsBucketUri = IMPRESSIONS_FILE_URI,
+        impressionsDekBucketUri = IMPRESSIONS_METADATA_FILE_URI_PREFIX,
+        typeRegistry = typeRegistry,
+        zoneId = ZoneOffset.UTC,
       )
 
     resultsFulfiller.fulfillRequisitions()
@@ -368,7 +364,7 @@ class ResultsFulfillerTest {
     impressionsTmpPath: File,
     metadataTmpPath: File,
     requisitionsTmpPath: File,
-    impressions: List<LabeledImpression>,
+    allImpressions: List<LabeledImpression>,
     requisitions: List<Requisition>,
   ) {
     // Create requisitions storage client
@@ -413,24 +409,28 @@ class ResultsFulfillerTest {
     // Wrap aead client in mesos client
     val mesosRecordIoStorageClient = MesosRecordIoStorageClient(aeadStorageClient)
 
-    val impressionsFlow = flow {
-      impressions.forEach { impression -> emit(impression.toByteString()) }
-    }
+    // Only write impressions if we have them (not empty blobs for extra days)
+    if (allImpressions.isNotEmpty()) {
+      val impressionsFlow = flow {
+        allImpressions.forEach { impression -> emit(impression.toByteString()) }
+      }
 
-    // Write impressions to storage
-    mesosRecordIoStorageClient.writeBlob(IMPRESSIONS_BLOB_KEY, impressionsFlow)
+      // Write impressions to storage
+      mesosRecordIoStorageClient.writeBlob(IMPRESSIONS_BLOB_KEY, impressionsFlow)
+    }
 
     // Create the impressions metadata store
     Files.createDirectories(metadataTmpPath.resolve(IMPRESSIONS_METADATA_BUCKET).toPath())
 
+    // Create metadata only for the days in the actual time range
     val dates =
       generateSequence(FIRST_EVENT_DATE) { date ->
-        if (date < LAST_EVENT_DATE) date.plusDays(1) else null
+        if (date <= LAST_EVENT_DATE) date.plusDays(1) else null
       }
 
     for (date in dates) {
       val impressionMetadataBlobKey =
-        "ds/$date/event-group-reference-id/some-event-group-reference-id/metadata"
+        "ds/$date/event-group-reference-id/$EVENT_GROUP_NAME/metadata"
       val impressionsMetadataFileUri =
         "file:///$IMPRESSIONS_METADATA_BUCKET/$impressionMetadataBlobKey"
 
@@ -524,7 +524,7 @@ class ResultsFulfillerTest {
 
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
-    private val LAST_EVENT_DATE = LocalDate.now(ZoneId.of("America/New_York")).minusDays(1)
+    private val LAST_EVENT_DATE = LocalDate.now(ZoneOffset.UTC).minusDays(1)
     private val FIRST_EVENT_DATE = LAST_EVENT_DATE.minusDays(1)
     private val TIME_RANGE = OpenEndTimeRange.fromClosedDateRange(FIRST_EVENT_DATE..LAST_EVENT_DATE)
     private const val FREQUENCY_DISTRIBUTION_TOLERANCE = 1.0
@@ -744,5 +744,12 @@ class ResultsFulfillerTest {
     private const val IMPRESSIONS_METADATA_BUCKET = "impression-metadata-bucket"
 
     private const val IMPRESSIONS_METADATA_FILE_URI_PREFIX = "file:///$IMPRESSIONS_METADATA_BUCKET"
+
+    private val MODEL_LINE_INFO =
+      ModelLineInfo(
+        eventDescriptor = TestEvent.getDescriptor(),
+        populationSpec = POPULATION_SPEC,
+        vidIndexMap = InMemoryVidIndexMap.build(POPULATION_SPEC),
+      )
   }
 }

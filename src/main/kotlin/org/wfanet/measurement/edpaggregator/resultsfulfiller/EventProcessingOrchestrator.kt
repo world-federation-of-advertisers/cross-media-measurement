@@ -38,12 +38,8 @@ import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.PopulationSpecKt.subPopulation
 import org.wfanet.measurement.api.v2alpha.PopulationSpecKt.vidRange
 import org.wfanet.measurement.api.v2alpha.populationSpec
-import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticPopulationSpec
-import java.io.File
-import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.computation.KAnonymityParams
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.size
-import org.wfanet.measurement.loadtest.dataprovider.toPopulationSpecWithAttributes
 
 /**
  * Orchestrates event processing pipeline for requisition fulfillment.
@@ -248,31 +244,4 @@ class EventProcessingOrchestrator(
     return requisitionSinks
   }
 
-  /**
-   * Loads a population spec from a textproto file.
-   *
-   * @param path The file path to load from
-   * @param isSynthetic If true, loads as SyntheticPopulationSpec and converts to PopulationSpec
-   * @return PopulationSpec loaded from the file
-   */
-  private fun loadPopulationSpecFromFile(path: String, isSynthetic: Boolean): PopulationSpec {
-    val file = File(path)
-    require(file.exists()) { "Population spec file not found: ${file.absolutePath}" }
-
-    logger.info("Loading population spec from: ${file.absolutePath} (synthetic=$isSynthetic)")
-
-    return if (isSynthetic) {
-      val syntheticSpec = parseTextProto(
-        file,
-        SyntheticPopulationSpec.getDefaultInstance()
-      )
-      logger.info("Converting synthetic population spec to regular population spec")
-      syntheticSpec.toPopulationSpecWithAttributes()
-    } else {
-      parseTextProto(
-        file,
-        PopulationSpec.getDefaultInstance()
-      )
-    }
-  }
 }

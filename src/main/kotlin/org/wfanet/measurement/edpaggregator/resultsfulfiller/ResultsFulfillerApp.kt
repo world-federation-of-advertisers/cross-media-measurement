@@ -24,7 +24,6 @@ import java.nio.file.Paths
 import java.security.cert.X509Certificate
 import java.time.ZoneOffset
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
-import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.crypto.readPrivateKey
@@ -42,6 +41,7 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem.Wo
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAttemptsGrpcKt
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt
 import org.wfanet.measurement.securecomputation.teesdk.BaseTeeApplication
+import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
 
 /**
  * Application for fulfilling results in the CMMS.
@@ -58,13 +58,11 @@ import org.wfanet.measurement.securecomputation.teesdk.BaseTeeApplication
  *   [WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineStub].
  * @param requisitionStubFactory Factory for creating requisition stubs.
  * @param kmsClient The Tink [KmsClient] for key management.
- * @param typeRegistry The protobuf [TypeRegistry] for message unpacking. Should have all necessary
- *   descriptors registered to unpack a [LabeledImpression.event].
  * @param getImpressionsMetadataStorageConfig Lambda to obtain [StorageConfig] for impressions
  *   metadata.
  * @param getImpressionsStorageConfig Lambda to obtain [StorageConfig] for impressions.
  * @param getRequisitionsStorageConfig Lambda to obtain [StorageConfig] for requisitions.
- * @param populationSpecMap map of model line to population spec
+ * @param modelLineInfoMap map of model line to [ModelLineInfo]
  * @constructor Initializes the application with all required dependencies for result fulfillment.
  */
 class ResultsFulfillerApp(
@@ -75,11 +73,11 @@ class ResultsFulfillerApp(
   workItemAttemptsClient: WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineStub,
   private val requisitionStubFactory: RequisitionStubFactory,
   private val kmsClients: MutableMap<String, KmsClient>,
-  private val typeRegistry: TypeRegistry,
   private val getImpressionsMetadataStorageConfig: (StorageParams) -> StorageConfig,
   private val getImpressionsStorageConfig: (StorageParams) -> StorageConfig,
   private val getRequisitionsStorageConfig: (StorageParams) -> StorageConfig,
-  private val populationSpecMap: Map<String, PopulationSpec>,
+  private val modelLineInfoMap: Map<String, ModelLineInfo>,
+  private val typeRegistry: TypeRegistry,
 ) :
   BaseTeeApplication(
     subscriptionId = subscriptionId,
@@ -132,52 +130,46 @@ class ResultsFulfillerApp(
     val kmsClient = kmsClients[fulfillerParams.dataProvider]
     requireNotNull(kmsClient) { "KMS client not found for ${fulfillerParams.dataProvider}" }
 
-    val eventReader: LegacyEventReader =
-      LegacyEventReader(
-        kmsClient = kmsClient,
-        impressionsStorageConfig = impressionsStorageConfig,
-        impressionDekStorageConfig = impressionsMetadataStorageConfig,
-        labeledImpressionsDekPrefix = fulfillerParams.storageParams.labeledImpressionsBlobDetailsUriPrefix,
-      )
     val noiseSelector =
       when (fulfillerParams.noiseParams.noiseType) {
         NoiseType.NONE -> NoNoiserSelector()
         NoiseType.CONTINUOUS_GAUSSIAN -> ContinuousGaussianNoiseSelector()
         else -> throw Exception("Invalid noise type ${fulfillerParams.noiseParams.noiseType}")
       }
-    val kAnonymityParams: KAnonymityParams? =
-      if (fulfillerParams.hasKAnonymityParams()) {
-        require(fulfillerParams.kAnonymityParams.minImpressions > 0) {
-          "K-Anonymity min impressions must be > 0"
-        }
-        require(fulfillerParams.kAnonymityParams.minUsers > 0) {
-          "K-Anonymity min users must be > 0"
-        }
-        require(fulfillerParams.kAnonymityParams.reachMaxFrequencyPerUser > 0) {
-          "K-Anonymity reach maximum frequency per user must be > 0"
-        }
-        KAnonymityParams(
-          minImpressions = fulfillerParams.kAnonymityParams.minImpressions,
-          minUsers = fulfillerParams.kAnonymityParams.minUsers,
-          reachMaxFrequencyPerUser = fulfillerParams.kAnonymityParams.reachMaxFrequencyPerUser,
-        )
-      } else {
-        null
-      }
+    // TODO: Read in EDP kAnonymityParams
+    val kAnonymityParams: KAnonymityParams? = null
+
+    // Create pipeline configuration with default values
+    val pipelineConfiguration = PipelineConfiguration(
+      batchSize = 256,
+      channelCapacity = 100,
+      threadPoolSize = 4,
+      workers = 4
+    )
+
+    // Get event descriptor - use LabeledImpression which is the actual event type used
+    val eventDescriptor = LabeledImpression.getDescriptor()
+
     ResultsFulfiller(
-        loadPrivateKey(encryptionPrivateKeyFile),
-        requisitionsStub,
-        requisitionFulfillmentStubsMap,
-        dataProviderCertificateKey,
-        dataProviderResultSigningKeyHandle,
-        typeRegistry,
+        privateEncryptionKey = loadPrivateKey(encryptionPrivateKeyFile),
+        requisitionsStub = requisitionsStub,
+        requisitionFulfillmentStubMap = requisitionFulfillmentStubsMap,
+        dataProviderCertificateKey = dataProviderCertificateKey,
+        dataProviderSigningKeyHandle = dataProviderResultSigningKeyHandle,
         requisitionsBlobUri = requisitionsBlobUri,
         requisitionsStorageConfig = requisitionsStorageConfig,
-        zoneId = ZoneOffset.UTC,
         noiserSelector = noiseSelector,
-        eventReader = eventReader,
-        populationSpecMap = populationSpecMap,
+        modelLineInfoMap = modelLineInfoMap,
         kAnonymityParams = kAnonymityParams,
+        pipelineConfiguration = pipelineConfiguration,
+        eventDescriptor = eventDescriptor,
+        kmsClient = kmsClient,
+        impressionsStorageConfig = impressionsStorageConfig,
+        impressionDekStorageConfig = impressionsMetadataStorageConfig,
+        impressionsBucketUri = fulfillerParams.storageParams.labeledImpressionsBlobDetailsUriPrefix,
+        impressionsDekBucketUri = fulfillerParams.storageParams.labeledImpressionsBlobDetailsUriPrefix,
+        typeRegistry = typeRegistry,
+        zoneId = ZoneOffset.UTC,
       )
       .fulfillRequisitions()
   }
