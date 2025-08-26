@@ -33,6 +33,57 @@ kt_jvm_library(
     ],
 )
 
+kt_jvm_library(
+    name = "results_fulfiller_performance_test_lib",
+    testonly = True,
+    srcs = [
+        "ResultsFulfillerPerformanceTest.kt",
+    ],
+    data = [
+        "//src/main/k8s/testing/secretfiles:all_configs",
+        "//src/main/k8s/testing/secretfiles:all_der_files",
+        "//src/main/k8s/testing/secretfiles:all_tink_keysets",
+        "//src/main/k8s/testing/secretfiles:edp_trusted_certs.pem",
+        "//src/main/proto/wfa/measurement/loadtest/dataprovider:specs",
+    ],
+    deps = [
+        ":no_op_fulfiller_selector",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator:storage_config",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:impression_metadata_service",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:model_line_info",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:pipeline_configuration",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:results_fulfiller",
+        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/requisition/v2alpha/common",
+        "//src/main/proto/wfa/measurement/api/v2alpha:event_groups_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:measurement_spec_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:population_spec_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:protocol_config_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:requisition_spec_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:requisitions_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_group_metadata/testing:simulator_synthetic_data_spec_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:test_event_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:grouped_requisitions_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/crypto/tink",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/java/picocli",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//imports/kotlin/org/mockito/kotlin",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/testing",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/tink",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc/testing",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/identity",
+        "@wfa_consent_signaling_client//src/main/kotlin/org/wfanet/measurement/consent/client/measurementconsumer",
+    ],
+)
+
+java_binary(
+    name = "ResultsFulfillerPerformanceTest",
+    testonly = True,
+    main_class = "org.wfanet.measurement.edpaggregator.resultsfulfiller.testing.ResultsFulfillerPerformanceTest",
+    runtime_deps = [":results_fulfiller_performance_test_lib"],
+)
+
 filegroup(
     name = "specs",
     srcs = glob(["*.textproto"]),
