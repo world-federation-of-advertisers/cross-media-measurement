@@ -33,6 +33,7 @@ fun InternalRequisitionMetadata.toRequisitionMetadata(): RequisitionMetadata {
         .toName()
     cmmsRequisition = source.cmmsRequisition
     blobUri = source.blobUri
+    blobTypeUrl = source.blobTypeUrl
     groupId = source.groupId
     cmmsCreateTime = source.cmmsCreateTime
     report = source.report
@@ -40,7 +41,7 @@ fun InternalRequisitionMetadata.toRequisitionMetadata(): RequisitionMetadata {
     state = source.state.toState()
     createTime = source.createTime
     updateTime = source.updateTime
-    errorMessage = source.errorMessage
+    refusalMessage = source.refusalMessage
     etag = source.etag
   }
 }
@@ -55,11 +56,12 @@ fun RequisitionMetadata.toInternal(dataProviderKey: DataProviderKey): InternalRe
     this.externalDataProviderId = apiIdToExternalId(dataProviderKey.dataProviderId)
     cmmsRequisition = source.cmmsRequisition
     blobUri = source.blobUri
+    blobTypeUrl = source.blobTypeUrl
     groupId = source.groupId
     cmmsCreateTime = source.cmmsCreateTime
     report = source.report
     workItem = source.workItem
-    errorMessage = source.errorMessage
+    refusalMessage = source.refusalMessage
   }
 }
 
