@@ -47,5 +47,5 @@ interface EventReader {
    *   the data format is invalid
    * @throws IllegalStateException if the reader is not properly configured
    */
-  suspend fun readEvents(): Flow<List<LabeledEvent<Message>>>
+  fun readEvents(): Flow<List<LabeledEvent<Message>>>
 }

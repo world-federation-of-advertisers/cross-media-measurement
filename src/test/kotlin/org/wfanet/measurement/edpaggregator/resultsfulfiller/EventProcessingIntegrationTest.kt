@@ -1080,7 +1080,7 @@ class EventProcessingIntegrationTest {
 
   /** EventReader that combines multiple StorageEventReaders for different event groups. */
   private class MultiGroupEventReader(private val readers: List<EventReader>) : EventReader {
-    override suspend fun readEvents(): Flow<List<LabeledEvent<Message>>> {
+    override fun readEvents(): Flow<List<LabeledEvent<Message>>> {
       return flow {
         // Read events from all readers and emit them
         readers.forEach { reader -> reader.readEvents().collect { eventList -> emit(eventList) } }

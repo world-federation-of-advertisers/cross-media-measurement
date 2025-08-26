@@ -69,8 +69,7 @@ class StorageEventReader(
    * @return flow of batches with up to [batchSize] events per batch.
    * @throws ImpressionReadException if the blob cannot be read or parsed.
    */
-  override suspend fun readEvents(): Flow<List<LabeledEvent<Message>>> =
-    readEventsFromBlob(blobDetails)
+  override fun readEvents(): Flow<List<LabeledEvent<Message>>> = readEventsFromBlob(blobDetails)
 
   /**
    * Streams and parses events from the data blob.
