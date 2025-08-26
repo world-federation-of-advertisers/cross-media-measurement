@@ -49,8 +49,6 @@ message RequisitionMetadata {
     FULFILLED = 4;
     // The requisition was refused.
     REFUSED = 5;
-    // The requisition has been marked for soft deletion.
-    DELETED = 6;
   }
 
   // The resource name of the RequisitionMetadata.
@@ -125,49 +123,4 @@ message RequisitionMetadata {
 
   // Etag for resource freshness validation.
   string etag = 13 [(google.api.field_behavior) = OUTPUT_ONLY];
-}
-
-// Represents a state change action on a RequisitionMetadata entry.
-// This is used for auditing and logging purposes.
-message RequisitionMetadataAction {
-  option (google.api.resource) = {
-    type: "edpaggregator.halo-cmm.org/RequisitionMetadataAction"
-    pattern: "dataProviders/{data_provider}/requisitionMetadata/{requisition_metadata}/actions/{action}"
-    singular: "requisitionMetadataAction"
-    plural: "requisitionMetadataActions"
-  };
-
-  // The entity that performed the action.
-  enum ActionerType {
-    // Default, unspecified value.
-    ACTIONER_TYPE_UNSPECIFIED = 0;
-    // Action performed by the Requisition Fetcher component.
-    REQUISITION_FETCHER = 1;
-    // Action performed by the Results Fulfiller component.
-    RESULTS_FULFILLER = 2;
-  }
-
-  // The resource name of the RequisitionMetadataAction.
-  // Format:
-  // `dataProviders/{data_provider}/requisitionMetadata/{requisition_metadata}/actions/{action}`
-  string name = 1 [(google.api.field_behavior) = IDENTIFIER];
-
-  // The type of actor that initiated this state change.
-  ActionerType actioner_type = 3 [(google.api.field_behavior) = REQUIRED];
-
-  // The state of the requisition before this action.
-  // (-- api-linter: core::0216::state-field-output-only=disabled
-  //     aip.dev/not-precedent: Input for immutable audit record. --)
-  RequisitionMetadata.State prior_state = 4
-      [(google.api.field_behavior) = REQUIRED];
-
-  // The state of the requisition after this action.
-  // (-- api-linter: core::0216::state-field-output-only=disabled
-  //     aip.dev/not-precedent: Input for immutable audit record. --)
-  RequisitionMetadata.State new_state = 5
-      [(google.api.field_behavior) = REQUIRED];
-
-  // The timestamp when the action occurred.
-  google.protobuf.Timestamp action_time = 6
-      [(google.api.field_behavior) = OUTPUT_ONLY];
 }
