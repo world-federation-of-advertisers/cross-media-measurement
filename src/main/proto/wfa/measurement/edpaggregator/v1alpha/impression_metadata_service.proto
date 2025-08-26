@@ -32,9 +32,7 @@ option java_outer_classname = "ImpressionMetadataServiceProto";
 service ImpressionMetadataService {
   // Creates a new ImpressionMetadata entry.
   rpc CreateImpressionMetadata(CreateImpressionMetadataRequest)
-      returns (ImpressionMetadata) {
-    option (google.api.method_signature) = "parent,impression_metadata";
-  }
+      returns (ImpressionMetadata) {}
 
   // Creates multiple new ImpressionMetadata entries in a single request.
   rpc BatchCreateImpressionMetadata(BatchCreateImpressionMetadataRequest)
@@ -42,24 +40,15 @@ service ImpressionMetadataService {
 
   // Retrieves a specific ImpressionMetadata entry.
   rpc GetImpressionMetadata(GetImpressionMetadataRequest)
-      returns (ImpressionMetadata) {
-    option (google.api.method_signature) = "name";
-  }
+      returns (ImpressionMetadata) {}
 
   // Lists ImpressionMetadata entries, with optional filtering.
-  // (-- api-linter: core::0132::method-signature=disabled
-  //     aip.dev/not-precedent: The method signature includes the filter field.
-  //     --)
   rpc ListImpressionMetadata(ListImpressionMetadataRequest)
-      returns (ListImpressionMetadataResponse) {
-    option (google.api.method_signature) = "parent,filter";
-  }
+      returns (ListImpressionMetadataResponse) {}
 
   // Marks an ImpressionMetadata entry as deleted.
   rpc DeleteImpressionMetadata(DeleteImpressionMetadataRequest)
-      returns (ImpressionMetadata) {
-    option (google.api.method_signature) = "name";
-  }
+      returns (ImpressionMetadata) {}
 
   // Marks multiple ImpressionMetadata entries as deleted in a single request.
   rpc BatchDeleteImpressionMetadata(BatchDeleteImpressionMetadataRequest)
