@@ -158,21 +158,3 @@ kt_jvm_grpc_proto_library(
     name = "requisition_metadata_service_kt_jvm_grpc_proto",
     deps = [":requisition_metadata_service_proto"],
 )
-
-proto_library(
-    name = "requisition_metadata_actions_service_proto",
-    srcs = ["requisition_metadata_actions_service.proto"],
-    strip_import_prefix = _IMPORT_PREFIX,
-    deps = [
-        ":requisition_metadata_proto",
-        "@com_google_googleapis//google/api:annotations_proto",
-        "@com_google_googleapis//google/api:client_proto",
-        "@com_google_googleapis//google/api:field_behavior_proto",
-        "@com_google_googleapis//google/api:resource_proto",
-    ],
-)
-
-kt_jvm_grpc_proto_library(
-    name = "requisition_metadata_actions_service_kt_jvm_grpc_proto",
-    deps = [":requisition_metadata_actions_service_proto"],
-)

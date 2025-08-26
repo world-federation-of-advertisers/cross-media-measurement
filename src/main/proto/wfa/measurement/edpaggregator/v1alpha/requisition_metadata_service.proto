@@ -84,11 +84,6 @@ service RequisitionMetadataService {
   // This indicates that it could not be processed.
   rpc RefuseRequisitionMetadata(RefuseRequisitionMetadataRequest)
       returns (RequisitionMetadata) {}
-
-  // Transitions a RequisitionMetadata resource to the DELETED state.
-  // This is a soft delete. The resource is not actually removed.
-  rpc DeleteRequisitionMetadata(DeleteRequisitionMetadataRequest)
-      returns (RequisitionMetadata) {}
 }
 
 // Request message for the `CreateRequisitionMetadata` method.
@@ -307,20 +302,4 @@ message RefuseRequisitionMetadataRequest {
   // A human-readable message explaining the reason for refusal.
   // This will be stored in the `error_message` field of the resource.
   string error_message = 3 [(google.api.field_behavior) = REQUIRED];
-}
-
-// Request message for the `DeleteRequisitionMetadata` method.
-// (-- api-linter: core::0135::force-field=disabled
-//     aip.dev/not-precedent: This is a soft-delete.  --)
-message DeleteRequisitionMetadataRequest {
-  // The resource name of the RequisitionMetadata to mark as deleted.
-  string name = 1 [
-    (google.api.field_behavior) = REQUIRED,
-    (google.api.resource_reference) = {
-      type: "edpaggregator.halo-cmm.org/RequisitionMetadata"
-    }
-  ];
-
-  // The etag of the RequisitionMetadata for optimistic locking.
-  string etag = 2 [(google.api.field_behavior) = REQUIRED];
 }
