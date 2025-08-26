@@ -45,6 +45,7 @@ kt_jvm_library(
     deps = [
         ":utils",
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:akid_principal_lookup",
+        "//src/main/kotlin/org/wfanet/measurement/common/grpc:api_change_metrics_interceptor",
         "//src/main/kotlin/org/wfanet/measurement/common/grpc:interceptors",
         "//src/main/kotlin/org/wfanet/measurement/common/grpc:rate_limiter_provider",
         "//src/main/kotlin/org/wfanet/measurement/common/grpc:rate_limiting_server_interceptor",
