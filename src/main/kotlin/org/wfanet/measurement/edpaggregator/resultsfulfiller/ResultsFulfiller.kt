@@ -16,24 +16,25 @@
 
 package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
+import com.google.crypto.tink.KmsClient
 import com.google.protobuf.Any
 import com.google.protobuf.ByteString
-import com.google.protobuf.TypeRegistry
 import com.google.protobuf.kotlin.unpack
 import java.security.GeneralSecurityException
-import java.time.ZoneId
+import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicLong
 import java.util.logging.Logger
-import kotlinx.coroutines.flow.Flow
-import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
-import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
-import org.wfanet.measurement.api.v2alpha.MeasurementSpec
-import org.wfanet.measurement.api.v2alpha.ProtocolConfig
-import org.wfanet.measurement.api.v2alpha.Requisition
-import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt
-import org.wfanet.measurement.api.v2alpha.RequisitionSpec
-import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt
-import org.wfanet.measurement.api.v2alpha.SignedMessage
-import org.wfanet.measurement.api.v2alpha.unpack
+import kotlin.time.TimeMark
+import kotlin.time.TimeSource
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.asFlow
+import kotlinx.coroutines.flow.flatMapMerge
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.withContext
+import org.wfanet.measurement.api.v2alpha.*
 import org.wfanet.measurement.common.crypto.PrivateKeyHandle
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.flatten
@@ -43,25 +44,44 @@ import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.compute.protocols.direct.DirectMeasurementResultFactory
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.fulfillers.DirectMeasurementFulfiller
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.fulfillers.HMShuffleMeasurementFulfiller
+import org.wfanet.measurement.edpaggregator.resultsfulfiller.fulfillers.MeasurementFulfiller
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.FrequencyVectorBuilder
 import org.wfanet.measurement.storage.SelectedStorageClient
+
+private data class RequisitionFulfillmentOutcome(
+  val requisitionName: String,
+  val success: Boolean,
+  val error: Throwable? = null,
+)
+
+private val totalRequisitions = AtomicInteger(0)
+
+private val decryptTime = AtomicLong(0)
+private val buildTime = AtomicLong(0)
+private val sendTime = AtomicLong(0)
+private val fulfillmentTime = AtomicLong(0)
+private val frequencyVectorTime = AtomicLong(0)
+
+private val DEFAULT_PARALLELISM: Int =
+  (Runtime.getRuntime().availableProcessors()).coerceAtLeast(2)
 
 /**
  * A class responsible for fulfilling results.
  *
  * @param privateEncryptionKey Handle to the private encryption key.
  * @param requisitionsStub Stub for requisitions gRPC coroutine.
- * @param requisitionFulfillmentStub Stub for requisitionFulfillment gRPC coroutine.
  * @param dataProviderCertificateKey Data provider certificate key.
  * @param dataProviderSigningKeyHandle Handle to the data provider signing key.
- * @param typeRegistry Type registry instance.
+ * @param requisitionFulfillmentStubMap Map of fulfillment stubs.
  * @param requisitionsBlobUri URI for requisitions blob storage.
  * @param requisitionsStorageConfig Configuration for requisitions storage.
- * @param zoneId Zone ID instance.
  * @param noiserSelector Selector for noise addition.
- * @param eventReader the [EventReader] to read in impressions data
- * @param populationSpecMap map of model line to population spec
+ * @param pipelineConfiguration configuration for the event processing pipeline
+ * @param eventDescriptor descriptor for events processing
+ * @param modelLineInfoMap map of model line to [ModelLineInfo]
+ * @param impressionMetadataService service for managing impression data sources
+ * @param kAnonymityParams [KAnonymityParams] for this measurement
  *
  * TODO(2347) - Support additional differential privacy and k-anonymization.
  */
@@ -74,92 +94,193 @@ class ResultsFulfiller(
   private val dataProviderSigningKeyHandle: SigningKeyHandle,
   private val requisitionsBlobUri: String,
   private val requisitionsStorageConfig: StorageConfig,
-  private val zoneId: ZoneId,
   private val noiserSelector: NoiserSelector,
-  private val eventReader: LegacyEventReader,
   private val modelLineInfoMap: Map<String, ModelLineInfo>,
   private val kAnonymityParams: KAnonymityParams?,
+  private val pipelineConfiguration: PipelineConfiguration,
+  private val impressionMetadataService: ImpressionMetadataService,
+  private val kmsClient: KmsClient,
+  private val impressionsStorageConfig: StorageConfig,
 ) {
 
-  suspend fun fulfillRequisitions() {
+  private val orchestrator: EventProcessingOrchestrator by lazy {
+    EventProcessingOrchestrator(
+      privateEncryptionKey
+    )
+  }
+
+  @OptIn(ExperimentalCoroutinesApi::class)
+  suspend fun fulfillRequisitions(
+    parallelism: Int = DEFAULT_PARALLELISM,
+  ) {
     val groupedRequisitions = getRequisitions()
     val requisitions =
       groupedRequisitions.requisitionsList.map { it.requisition.unpack(Requisition::class.java) }
     logger.info("Processing ${requisitions.size} Requisitions")
-    val eventGroupMap =
-      groupedRequisitions.eventGroupMapList
-        .map { Pair(it.eventGroup, it.details.eventGroupReferenceId) }
-        .toMap()
+    totalRequisitions.addAndGet(requisitions.size)
+
     val modelLine = groupedRequisitions.modelLine
     val modelInfo = modelLineInfoMap.getValue(modelLine)
-    val typeRegistry = TypeRegistry.newBuilder().add(modelInfo.eventDescriptor).build()
-    for (requisition in requisitions) {
-      logger.info("Processing requisition: ${requisition.name}")
-      val signedRequisitionSpec: SignedMessage =
-        try {
-          decryptRequisitionSpec(requisition.encryptedRequisitionSpec, privateEncryptionKey)
-        } catch (e: GeneralSecurityException) {
-          throw Exception("RequisitionSpec decryption failed", e)
-        }
-      val requisitionSpec: RequisitionSpec = signedRequisitionSpec.unpack()
-      val measurementSpec: MeasurementSpec = requisition.measurementSpec.message.unpack()
-      val sampledVids: Flow<Long> =
-        RequisitionSpecs.getSampledVids(
-          requisitionSpec,
-          eventGroupMap,
-          typeRegistry,
-          eventReader,
-          zoneId,
-        )
-      val protocols: List<ProtocolConfig.Protocol> = requisition.protocolConfig.protocolsList
-      val frequencyVectorBuilder =
-        FrequencyVectorBuilder(
-          measurementSpec = measurementSpec,
-          populationSpec = modelInfo.populationSpec,
-          strict = false,
-        )
-      sampledVids.collect { frequencyVectorBuilder.increment(modelInfo.vidIndexMap[it]) }
-      val frequencyData: IntArray = frequencyVectorBuilder.frequencyDataArray
-      val fulfiller =
-        if (protocols.any { it.hasDirect() }) {
-          // TODO: Calculate the maximum population for a given cel filter
-          buildDirectMeasurementFulfiller(
-            requisition,
-            measurementSpec,
-            requisitionSpec,
-            maxPopulation = null,
-            frequencyData,
-            kAnonymityParams = kAnonymityParams,
-          )
-        } else if (protocols.any { it.hasHonestMajorityShareShuffle() }) {
-          if (kAnonymityParams == null) {
-            HMShuffleMeasurementFulfiller(
-              requisition,
-              requisitionSpec.nonce,
-              frequencyVectorBuilder.build(),
-              dataProviderSigningKeyHandle,
-              dataProviderCertificateKey,
-              requisitionFulfillmentStubMap,
+    val eventDescriptor = modelInfo.eventDescriptor
+
+    val populationSpec = modelInfo.populationSpec
+    val vidIndexMap = modelInfo.vidIndexMap
+
+    val eventSource = StorageEventSource(
+      impressionMetadataService = impressionMetadataService,
+      eventGroupDetailsList = groupedRequisitions.eventGroupMapList.map { it.details },
+      modelLine = modelLine,
+      kmsClient = kmsClient,
+      impressionsStorageConfig = impressionsStorageConfig,
+      descriptor = eventDescriptor,
+      batchSize = pipelineConfiguration.batchSize,
+    )
+
+    val frequencyVectorStart = TimeSource.Monotonic.markNow()
+    val frequencyVectorMap = orchestrator.runWithRequisitions(
+      eventSource = eventSource,
+      vidIndexMap = vidIndexMap,
+      populationSpec = populationSpec,
+      requisitions = requisitions,
+      config = pipelineConfiguration,
+      eventDescriptor = eventDescriptor,
+    )
+    frequencyVectorTime.addAndGet(frequencyVectorStart.elapsedNow().inWholeNanoseconds)
+
+    requisitions
+      .asFlow()
+      .map { req -> req to frequencyVectorMap.getValue(req.name) }
+      .flatMapMerge(concurrency = parallelism) { (req, fv) ->
+        flow {
+          val start = TimeSource.Monotonic.markNow()
+          try {
+            fulfillSingleRequisition(
+              requisition = req,
+              frequencyVector = fv,
+              populationSpec = populationSpec,
             )
-          } else {
-            HMShuffleMeasurementFulfiller.buildKAnonymized(
-              requisition,
-              requisitionSpec.nonce,
-              measurementSpec,
-              modelInfo.populationSpec,
-              frequencyVectorBuilder,
-              dataProviderSigningKeyHandle,
-              dataProviderCertificateKey,
-              requisitionFulfillmentStubMap,
-              kAnonymityParams,
-              maxPopulation = null,
-            )
+            fulfillmentTime.addAndGet(start.elapsedNow().inWholeNanoseconds)
+            emit(Unit)
+          } catch (t: Throwable) {
+            logger.severe("Failed fulfilling ${req.name}: ${t.message}")
+            throw t
           }
-        } else {
-          throw Exception("Protocol not supported")
         }
+      }
+      .toList()
+  }
+
+  private suspend fun fulfillSingleRequisition(
+    requisition: Requisition,
+    frequencyVector: StripedByteFrequencyVector,
+    populationSpec: PopulationSpec,
+  ) {
+    val measurementSpec: MeasurementSpec = requisition.measurementSpec.message.unpack()
+    val freqBytes = frequencyVector.getByteArray()
+    val frequencyData: IntArray = freqBytes.map { it.toInt() and 0xFF }.toIntArray()
+
+    val decryptStart = TimeSource.Monotonic.markNow()
+    val signedRequisitionSpec: SignedMessage = try {
+      withContext(Dispatchers.IO) {
+        decryptRequisitionSpec(requisition.encryptedRequisitionSpec, privateEncryptionKey)
+      }
+    } catch (e: GeneralSecurityException) {
+      throw Exception("RequisitionSpec decryption failed", e)
+    } finally {
+      decryptTime.addAndGet(decryptStart.elapsedNow().inWholeNanoseconds)
+    }
+    val requisitionSpec: RequisitionSpec = signedRequisitionSpec.unpack()
+
+    val buildStart = TimeSource.Monotonic.markNow()
+    val fulfiller = selectFulfiller(
+      requisition = requisition,
+      measurementSpec = measurementSpec,
+      requisitionSpec = requisitionSpec,
+      frequencyData = frequencyData,
+      populationSpec = populationSpec,
+    )
+    buildTime.addAndGet(buildStart.elapsedNow().inWholeNanoseconds)
+
+    logger.info("Fulfill requisition: ${requisition.name}")
+
+    val sendStart = TimeSource.Monotonic.markNow()
+    withContext(Dispatchers.IO) {
       fulfiller.fulfillRequisition()
     }
+    sendTime.addAndGet(sendStart.elapsedNow().inWholeNanoseconds)
+  }
+
+  private suspend fun selectFulfiller(
+    requisition: Requisition,
+    measurementSpec: MeasurementSpec,
+    requisitionSpec: RequisitionSpec,
+    frequencyData: IntArray,
+    populationSpec: PopulationSpec,
+  ): MeasurementFulfiller {
+    return if (requisition.protocolConfig.protocolsList.any { it.hasDirect() }) {
+      buildDirectMeasurementFulfiller(
+        requisition = requisition,
+        measurementSpec = measurementSpec,
+        requisitionSpec = requisitionSpec,
+        maxPopulation = null,
+        frequencyData = frequencyData,
+        kAnonymityParams = kAnonymityParams,
+      )
+    } else if (requisition.protocolConfig.protocolsList.any { it.hasHonestMajorityShareShuffle() }) {
+      if (kAnonymityParams == null) {
+        HMShuffleMeasurementFulfiller(
+          requisition,
+          requisitionSpec.nonce,
+          createFrequencyVectorBuilderFromArray(
+            measurementSpec,
+            populationSpec,
+            frequencyData
+          ).build(),
+          dataProviderSigningKeyHandle,
+          dataProviderCertificateKey,
+          requisitionFulfillmentStubMap,
+        )
+      } else {
+        HMShuffleMeasurementFulfiller.buildKAnonymized(
+          requisition,
+          requisitionSpec.nonce,
+          measurementSpec,
+          populationSpec,
+          createFrequencyVectorBuilderFromArray(measurementSpec, populationSpec, frequencyData),
+          dataProviderSigningKeyHandle,
+          dataProviderCertificateKey,
+          requisitionFulfillmentStubMap,
+          kAnonymityParams,
+          maxPopulation = null,
+        )
+      }
+    } else {
+      throw IllegalArgumentException("Protocol not supported for ${requisition.name}")
+    }
+  }
+
+  /**
+   * Creates a FrequencyVectorBuilder from frequency data array.
+   */
+  private fun createFrequencyVectorBuilderFromArray(
+    measurementSpec: MeasurementSpec,
+    populationSpec: PopulationSpec,
+    frequencyData: IntArray
+  ): FrequencyVectorBuilder {
+    val builder = FrequencyVectorBuilder(
+      measurementSpec = measurementSpec,
+      populationSpec = populationSpec,
+      strict = false,
+    )
+
+    // Populate the builder with the frequency data
+    for (index in frequencyData.indices) {
+      repeat(frequencyData[index]) {
+        builder.increment(index)
+      }
+    }
+
+    return builder
   }
 
   /**
@@ -230,6 +351,15 @@ class ResultsFulfiller(
       dataProviderCertificateKey,
       requisitionsStub,
     )
+  }
+
+  fun logFulfillmentStats() {
+    logger.info("Total requisitions: ${totalRequisitions.get()}")
+    logger.info("Frequency vector total ms: ${frequencyVectorTime.get() / 1_000_000}")
+    logger.info("Decrypt total ms: ${decryptTime.get() / 1_000_000}")
+    logger.info("Build total ms: ${buildTime.get() / 1_000_000}")
+    logger.info("Send total ms: ${sendTime.get() / 1_000_000}")
+    logger.info("Fulfillment total ms: ${fulfillmentTime.get() / 1_000_000}")
   }
 
   companion object {
