@@ -63,7 +63,6 @@ class FilterProcessorTest {
   private fun createTestLabeledEvent(
     vid: Long,
     timestamp: Instant = Instant.now(),
-    eventGroupReferenceId: String? = null,
     ageGroup: Person.AgeGroup = Person.AgeGroup.YEARS_18_TO_34,
     gender: Person.Gender = Person.Gender.MALE,
   ): LabeledEvent<Message> {
@@ -72,7 +71,6 @@ class FilterProcessorTest {
       timestamp = timestamp,
       vid = vid,
       message = message,
-      eventGroupReferenceId = eventGroupReferenceId ?: "test-group",
     )
   }
 
@@ -81,7 +79,7 @@ class FilterProcessorTest {
     val timestamps = events.map { it.timestamp }
     val minTime = timestamps.minOrNull() ?: Instant.now()
     val maxTime = timestamps.maxOrNull() ?: Instant.now()
-    return EventBatch(events, minTime, maxTime)
+    return EventBatch(events, minTime, maxTime, eventGroupReferenceId = "test-group")
   }
 
   /** Helper function to create a default interval that covers a wide time range. */
@@ -194,7 +192,7 @@ class FilterProcessorTest {
   @Test
   fun `processBatch filters by event group reference ID`() {
     runBlocking {
-      val targetEventGroupId = "event-group-1"
+      val targetEventGroupId = "test-group" // Match the batch's eventGroupReferenceId
 
       val filterSpec =
         createTestFilterSpec(
@@ -205,16 +203,17 @@ class FilterProcessorTest {
 
       val events =
         listOf(
-          createTestLabeledEvent(1, eventGroupReferenceId = "event-group-1"),
-          createTestLabeledEvent(2, eventGroupReferenceId = "event-group-2"),
-          createTestLabeledEvent(3, eventGroupReferenceId = "event-group-1"),
+          createTestLabeledEvent(1),
+          createTestLabeledEvent(2),
+          createTestLabeledEvent(3),
         )
 
       val batch = createEventBatch(events)
       val result = filterProcessor.processBatch(batch)
 
-      assertThat(result.events).hasSize(2)
-      assertThat(result.events.map { it.vid }).containsExactly(1L, 3L)
+      // All events should pass since the batch's eventGroupReferenceId matches
+      assertThat(result.events).hasSize(3)
+      assertThat(result.events.map { it.vid }).containsExactly(1L, 2L, 3L)
     }
   }
 
@@ -222,7 +221,7 @@ class FilterProcessorTest {
   fun `processBatch applies combined filters`() {
     runBlocking {
       val celExpression = "person.gender == 1" // MALE
-      val targetEventGroupId = "event-group-1"
+      val targetEventGroupId = "test-group" // Match the batch's eventGroupReferenceId
       val startTime = Instant.parse("2025-01-01T00:00:00Z")
       val endTime = Instant.parse("2025-01-31T23:59:59Z")
 
@@ -246,34 +245,30 @@ class FilterProcessorTest {
             1,
             gender = Person.Gender.MALE,
             timestamp = Instant.parse("2025-01-15T12:00:00Z"),
-            eventGroupReferenceId = "event-group-1",
           ),
           createTestLabeledEvent(
             2,
             gender = Person.Gender.FEMALE,
             timestamp = Instant.parse("2025-01-15T12:00:00Z"),
-            eventGroupReferenceId = "event-group-1",
           ),
           createTestLabeledEvent(
             3,
             gender = Person.Gender.MALE,
             timestamp = Instant.parse("2025-01-15T12:00:00Z"),
-            eventGroupReferenceId = "event-group-2",
           ),
           createTestLabeledEvent(
             4,
             gender = Person.Gender.MALE,
             timestamp = Instant.parse("2024-12-31T23:59:59Z"),
-            eventGroupReferenceId = "event-group-1",
           ),
         )
 
       val batch = createEventBatch(events)
       val result = filterProcessor.processBatch(batch)
 
-      // Only event 1 should match all criteria (male, correct group, within time range)
-      assertThat(result.events).hasSize(1)
-      assertThat(result.events[0].vid).isEqualTo(1L)
+      // Events 1 and 3 should match (male, within time range); event 4 is outside time range
+      assertThat(result.events).hasSize(2)
+      assertThat(result.events.map { it.vid }).containsExactly(1L, 3L)
     }
   }
 

@@ -64,12 +64,14 @@ data class FilterSpecIndex(
      * - A reverse lookup from requisition name to its canonical [FilterSpec].
      *
      * @param requisitions Requisitions to analyze.
+     * @param eventGroupReferenceIdMap Mapping from event group resource name to reference id
      * @return [FilterSpecIndex] containing the bidirectional mapping.
      * @throws IllegalArgumentException if a requisition has no event groups or groups are
      *   inconsistent in expression or interval.
      */
     fun fromRequisitions(
       requisitions: List<Requisition>,
+      eventGroupReferenceIdMap: Map<String, String>,
       privateEncryptionKey: PrivateKeyHandle,
     ): FilterSpecIndex {
       val filterSpecToReqNames = mutableMapOf<FilterSpec, MutableList<String>>()
@@ -102,12 +104,14 @@ data class FilterSpecIndex(
         }
 
         // Canonicalize eventGroupReferenceIds for deduplication
-        val eventGroupIds = eventGroups.map { it.key }.sorted()
+        val eventGroupReferenceIds =
+          eventGroups.map { eventGroupReferenceIdMap.getValue(it.key) }.sorted()
+
         val filterSpec =
           FilterSpec(
             celExpression = firstEventGroup.value.filter.expression,
             collectionInterval = firstEventGroup.value.collectionInterval,
-            eventGroupReferenceIds = eventGroupIds,
+            eventGroupReferenceIds = eventGroupReferenceIds,
           )
 
         filterSpecToReqNames.getOrPut(filterSpec) { mutableListOf() }.add(requisition.name)
@@ -168,8 +172,9 @@ class EventProcessingOrchestrator<T : Message>(private val privateEncryptionKey:
    * @param eventSource Source of events to process.
    * @param vidIndexMap Mapping from VID to population index for frequency vectors.
    * @param populationSpec Population spec defining index space for frequency vectors.
-   * @param requisitions Requisitions to fulfill.
    * @param config Pipeline configuration (batch size, workers, etc.).
+   * @param requisitions Requisitions to fulfill
+   * @param eventGroupReferenceIdMap Mapping from event group resource name to reference id.
    * @param eventDescriptor Descriptor of the packed event messages (for CEL evaluation).
    * @return Map from requisition name to computed [StripedByteFrequencyVector].
    * @throws ImpressionReadException on impression read failures
@@ -181,13 +186,16 @@ class EventProcessingOrchestrator<T : Message>(private val privateEncryptionKey:
     vidIndexMap: VidIndexMap,
     populationSpec: PopulationSpec,
     requisitions: List<Requisition>,
+    eventGroupReferenceIdMap: Map<String, String>,
     config: PipelineConfiguration,
     eventDescriptor: Descriptors.Descriptor,
   ): Map<String, StripedByteFrequencyVector> {
-    logger.info("Starting EventProcessingOrchestrator.run with ${requisitions.size} requisitions")
-    requisitions.forEach { req ->
-      logger.info("Requisition: ${req.name}, state: ${req.state}, measurement: ${req.measurement}")
-    }
+    logger.info("""
+      |Starting event processing:
+      |  Requisitions: ${requisitions.size}
+      |  Population size: ${populationSpec.size}
+      |  Pipeline config: batchSize=${config.batchSize}, workers=${config.workers}
+    """.trimMargin())
 
     config.validate()
 
@@ -196,24 +204,24 @@ class EventProcessingOrchestrator<T : Message>(private val privateEncryptionKey:
 
     try {
       // Build a mapping from requisitions to canonical FilterSpecs
-      val filterSpecIndex = FilterSpecIndex.fromRequisitions(requisitions, privateEncryptionKey)
+      val filterSpecIndex = FilterSpecIndex.fromRequisitions(
+        requisitions,
+        eventGroupReferenceIdMap,
+        privateEncryptionKey,
+      )
+      logger.info("Found ${filterSpecIndex.filterSpecToRequisitionNames.size} unique filter specs")
 
       // Create one sink per unique FilterSpec
-      val sinkByFilterSpec =
-        createSinksFromFilterSpecs(
-          filterSpecs = filterSpecIndex.filterSpecToRequisitionNames.keys,
-          vidIndexMap = vidIndexMap,
-          populationSpec = populationSpec,
-          eventDescriptor = eventDescriptor,
-        )
-
-      logger.info(
-        "Created ${sinkByFilterSpec.size} unique sinks for ${requisitions.size} requisitions"
+      val sinkByFilterSpec = createSinksFromFilterSpecs(
+        filterSpecs = filterSpecIndex.filterSpecToRequisitionNames.keys,
+        vidIndexMap = vidIndexMap,
+        populationSpec = populationSpec,
+        eventDescriptor = eventDescriptor,
       )
 
       val pipeline = createPipeline(config)
-      logger.info("Starting pipeline processing with ${sinkByFilterSpec.size} sinks")
 
+      logger.info("Processing events with ${sinkByFilterSpec.size} sinks")
       withContext(dispatcher) {
         pipeline.processEventBatches(
           eventSource = eventSource,
@@ -222,16 +230,17 @@ class EventProcessingOrchestrator<T : Message>(private val privateEncryptionKey:
       }
 
       // Map results back to requisition names using their FilterSpec
-      val results =
-        requisitions.associate { req ->
-          val spec = filterSpecIndex.requisitionNameToFilterSpec.getValue(req.name)
-          req.name to sinkByFilterSpec.getValue(spec).getFrequencyVector()
-        }
+      val results = requisitions.associate { req ->
+        val spec = filterSpecIndex.requisitionNameToFilterSpec.getValue(req.name)
+        val frequencyVector = sinkByFilterSpec.getValue(spec).getFrequencyVector()
+        req.name to frequencyVector
+      }
 
-      logger.info(
-        "EventProcessingOrchestrator completed successfully, returning ${results.size} results"
-      )
+      logger.info("Completed processing ${results.size} requisitions")
       return results
+    } catch (e: Exception) {
+      logger.severe("Fatal error in event processing: ${e.message}")
+      throw e
     } finally {
       shutdownExecutorService(executorService)
     }
@@ -247,8 +256,6 @@ class EventProcessingOrchestrator<T : Message>(private val privateEncryptionKey:
    * @return Configured [ExecutorService] suitable for coroutine dispatching.
    */
   private fun createExecutorService(size: Int): ExecutorService {
-    logger.info("Creating shared work-stealing thread pool with max size: $size")
-
     return ForkJoinPool(
       size,
       { pool ->
@@ -271,8 +278,6 @@ class EventProcessingOrchestrator<T : Message>(private val privateEncryptionKey:
    * @param executorService the ExecutorService to shut down
    */
   private fun shutdownExecutorService(executorService: ExecutorService) {
-    logger.info("Shutting down shared thread pool...")
-
     executorService.shutdown()
 
     try {
@@ -295,7 +300,6 @@ class EventProcessingOrchestrator<T : Message>(private val privateEncryptionKey:
       Thread.currentThread().interrupt()
     }
 
-    logger.info("Thread pool shut down successfully")
   }
 
   /**
@@ -308,7 +312,7 @@ class EventProcessingOrchestrator<T : Message>(private val privateEncryptionKey:
    * @return The configured [EventProcessingPipeline].
    */
   private fun createPipeline(config: PipelineConfiguration): EventProcessingPipeline<T> {
-    return ParallelBatchedPipeline(batchSize = config.batchSize, workers = config.workers)
+    return ParallelBatchedPipeline<T>(batchSize = config.batchSize, workers = config.workers)
   }
 
   /**
@@ -332,11 +336,12 @@ class EventProcessingOrchestrator<T : Message>(private val privateEncryptionKey:
     populationSpec: PopulationSpec,
     eventDescriptor: Descriptors.Descriptor,
   ): Map<FilterSpec, FrequencyVectorSink<T>> {
-    logger.info("Creating sinks for ${filterSpecs.size} unique FilterSpecs")
     return filterSpecs.associateWith { spec ->
-      FrequencyVectorSink(
-        filterProcessor = FilterProcessor(spec, eventDescriptor),
-        frequencyVector = StripedByteFrequencyVector(populationSpec.size.toInt()),
+      val filterProcessor = FilterProcessor<T>(spec, eventDescriptor)
+      val frequencyVector = StripedByteFrequencyVector(populationSpec.size.toInt())
+      FrequencyVectorSink<T>(
+        filterProcessor = filterProcessor,
+        frequencyVector = frequencyVector,
         vidIndexMap = vidIndexMap,
       )
     }
@@ -345,6 +350,5 @@ class EventProcessingOrchestrator<T : Message>(private val privateEncryptionKey:
   companion object {
     private val logger = Logger.getLogger(EventProcessingOrchestrator::class.java.name)
     private const val THREAD_POOL_SHUTDOWN_TIMEOUT_SECONDS = 10L
-    private const val THREAD_POOL_NAME = "event-processing"
   }
 }
