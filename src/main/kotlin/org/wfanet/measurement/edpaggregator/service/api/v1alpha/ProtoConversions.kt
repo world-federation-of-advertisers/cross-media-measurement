@@ -16,6 +16,7 @@ package org.wfanet.measurement.edpaggregator.service.api.v1alpha
 
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.common.identity.apiIdToExternalId
+import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.requisitionMetadata
 import org.wfanet.measurement.internal.edpaggregator.RequisitionMetadata as InternalRequisitionMetadata
@@ -27,8 +28,8 @@ fun InternalRequisitionMetadata.toRequisitionMetadata(): RequisitionMetadata {
   return requisitionMetadata {
     name =
       RequisitionMetadataKey(
-          source.externalDataProviderId.toString(),
-          source.externalRequisitionMetadataId.toString(),
+          externalIdToApiId(source.externalDataProviderId),
+          externalIdToApiId(source.externalRequisitionMetadataId),
         )
         .toName()
     cmmsRequisition = source.cmmsRequisition
