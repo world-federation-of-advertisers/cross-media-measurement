@@ -30,6 +30,7 @@ import java.net.URI
 import java.util.logging.Logger
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.EventAnnotationsProto
+import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.SigningCerts
@@ -38,6 +39,7 @@ import org.wfanet.measurement.common.edpaggregator.EdpAggregatorConfig.getResult
 import org.wfanet.measurement.common.edpaggregator.EdpAggregatorConfig.getConfigAsProtoMessage
 import org.wfanet.measurement.config.edpaggregator.EventDataProviderConfigs
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
+import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams.StorageParams
@@ -82,6 +84,26 @@ class ResultsFulfillerAppRunner : Runnable {
     required = true,
   )
   private lateinit var kingdomCertCollectionSecretId: String
+
+  @CommandLine.ArgGroup(exclusive = false, multiplicity = "1..*", heading = "Model line info\n")
+  lateinit var modelLines: List<ModelLineFlags>
+    private set
+
+  class ModelLineFlags {
+    @CommandLine.Option(
+      names = ["--model-line"],
+      required = true,
+      description = ["model line resource name"],
+    )
+    lateinit var modelLine: String
+
+    @CommandLine.Option(
+      names = ["--population-spec-file-blob-uri"],
+      required = true,
+      description = ["Blob uri to the proto."],
+    )
+    lateinit var populationSpecFileBlobUri: String
+  }
 
   @CommandLine.Option(
     names = ["--kingdom-public-api-target"],
@@ -185,14 +207,18 @@ class ResultsFulfillerAppRunner : Runnable {
     val workItemAttemptsClient = WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineStub(publicChannel)
     val kingdomCertCollectionFile = File(KINGDOM_ROOT_CA_FILE_PATH)
 
+    // TODO: Add support for duchy channels
     val requisitionStubFactory =
       RequisitionStubFactoryImpl(
         cmmsCertHost = kingdomPublicApiCertHost,
         cmmsTarget = kingdomPublicApiTarget,
         trustedCertCollection = kingdomCertCollectionFile,
+        duchies = emptyMap(),
       )
 
     val typeRegistry: TypeRegistry = buildTypeRegistry()
+
+    val modelLinesMap = runBlocking { buildModelLineMap() }
 
     val resultsFulfillerApp =
       ResultsFulfillerApp(
@@ -207,6 +233,7 @@ class ResultsFulfillerAppRunner : Runnable {
         getImpressionsMetadataStorageConfig = getImpressionsStorageConfig,
         getImpressionsStorageConfig = getImpressionsStorageConfig,
         getRequisitionsStorageConfig = getImpressionsStorageConfig,
+        populationSpecMap = modelLinesMap,
       )
 
     runBlocking { resultsFulfillerApp.run() }
@@ -230,6 +257,17 @@ class ResultsFulfillerAppRunner : Runnable {
       val kmsClient = GCloudKmsClientFactory().getKmsClient(kmsConfig)
 
       kmsClientsMap[edpConfig.dataProvider] = kmsClient
+    }
+  }
+
+  suspend fun buildModelLineMap(): Map<String, PopulationSpec> {
+    return modelLines.associate { it: ModelLineFlags ->
+      val configContent: ByteArray = getConfig(googleProjectId, it.populationSpecFileBlobUri)
+      val populationSpec =
+        configContent.inputStream().reader(Charsets.UTF_8).use { reader ->
+          parseTextProto(reader, PopulationSpec.getDefaultInstance())
+        }
+      it.modelLine to populationSpec
     }
   }
 
