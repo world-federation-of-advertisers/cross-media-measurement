@@ -42,8 +42,10 @@ import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt
 import org.wfanet.measurement.api.v2alpha.Requisition
+import org.wfanet.measurement.api.v2alpha.RequisitionSpec
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
+import org.wfanet.measurement.api.v2alpha.unpack
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.person
@@ -61,6 +63,7 @@ import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
+import org.wfanet.measurement.consent.client.dataprovider.decryptRequisitionSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.encryptRequisitionSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.signRequisitionSpec
 import org.wfanet.measurement.edpaggregator.EncryptedStorage
@@ -182,6 +185,7 @@ class EventProcessingIntegrationTest {
         vidIndexMap = vidIndexMap,
         populationSpec = populationSpec,
         requisitions = requisitions,
+        eventGroupReferenceIdMap = createEventGroupReferenceIdMap(requisitions),
         config = config,
         eventDescriptor = TestEvent.getDescriptor(),
       )
@@ -311,6 +315,7 @@ class EventProcessingIntegrationTest {
         vidIndexMap = vidIndexMap,
         populationSpec = populationSpec,
         requisitions = requisitions,
+        eventGroupReferenceIdMap = createEventGroupReferenceIdMap(requisitions),
         config = config,
         eventDescriptor = TestEvent.getDescriptor(),
       )
@@ -425,6 +430,7 @@ class EventProcessingIntegrationTest {
         vidIndexMap = vidIndexMap,
         populationSpec = populationSpec,
         requisitions = requisitions,
+        eventGroupReferenceIdMap = createEventGroupReferenceIdMap(requisitions),
         config = config,
         eventDescriptor = TestEvent.getDescriptor(),
       )
@@ -520,6 +526,7 @@ class EventProcessingIntegrationTest {
         vidIndexMap = vidIndexMap,
         populationSpec = populationSpec,
         requisitions = listOf(requisitionYesterday, requisitionBothDays),
+        eventGroupReferenceIdMap = createEventGroupReferenceIdMap(listOf(requisitionYesterday, requisitionBothDays)),
         config = config,
         eventDescriptor = TestEvent.getDescriptor(),
       )
@@ -651,6 +658,7 @@ class EventProcessingIntegrationTest {
         vidIndexMap = vidIndexMap,
         populationSpec = populationSpec,
         requisitions = requisitions,
+        eventGroupReferenceIdMap = createEventGroupReferenceIdMap(requisitions),
         config = config,
         eventDescriptor = TestEvent.getDescriptor(),
       )
@@ -778,6 +786,7 @@ class EventProcessingIntegrationTest {
         vidIndexMap = vidIndexMap,
         populationSpec = populationSpec,
         requisitions = requisitions,
+        eventGroupReferenceIdMap = createEventGroupReferenceIdMap(requisitions),
         config = config,
         eventDescriptor = TestEvent.getDescriptor(),
       )
@@ -888,6 +897,7 @@ class EventProcessingIntegrationTest {
         vidIndexMap = vidIndexMap,
         populationSpec = populationSpec,
         requisitions = requisitions,
+        eventGroupReferenceIdMap = createEventGroupReferenceIdMap(requisitions),
         config = config,
         eventDescriptor = TestEvent.getDescriptor(),
       )
@@ -1035,6 +1045,7 @@ class EventProcessingIntegrationTest {
         vidIndexMap = vidIndexMap,
         populationSpec = populationSpec,
         requisitions = requisitions,
+        eventGroupReferenceIdMap = createEventGroupReferenceIdMap(requisitions),
         config = config,
         eventDescriptor = TestEvent.getDescriptor(),
       )
@@ -1287,6 +1298,23 @@ class EventProcessingIntegrationTest {
 
   private fun createTimeRange(startDate: LocalDate, endDate: LocalDate): OpenEndTimeRange {
     return OpenEndTimeRange.fromClosedDateRange(startDate..endDate)
+  }
+
+  private fun createEventGroupReferenceIdMap(requisitions: List<Requisition>): Map<String, String> {
+    val eventGroupReferenceIdMap = mutableMapOf<String, String>()
+    for (requisition in requisitions) {
+      val signedRequisitionSpec = decryptRequisitionSpec(
+        requisition.encryptedRequisitionSpec, 
+        PRIVATE_ENCRYPTION_KEY
+      )
+      val requisitionSpec: RequisitionSpec = signedRequisitionSpec.unpack()
+      for (eventGroup in requisitionSpec.events.eventGroupsList) {
+        // Extract event group reference ID from the event group resource name
+        // In test data, the event group resource name IS the reference ID
+        eventGroupReferenceIdMap[eventGroup.key] = eventGroup.key
+      }
+    }
+    return eventGroupReferenceIdMap
   }
 
   private fun createRequisition(

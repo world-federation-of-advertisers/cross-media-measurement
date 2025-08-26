@@ -63,6 +63,7 @@ class ImpressionWriterTest {
     tempFolder.root.resolve("some-metadata-bucket").mkdirs()
     val impressionWriter =
       ImpressionsWriter(
+        "some-event-group-reference-id",
         "some-event-group-path",
         kekUri,
         kmsClient,
