@@ -164,6 +164,7 @@ class GenerateSyntheticData : Runnable {
       val impressionWriter =
         ImpressionsWriter(
           eventGroupReferenceId,
+          eventGroupReferenceId,
           kekUri,
           kmsClient,
           outputBucket,

@@ -364,9 +364,12 @@ class InProcessEdpAggregatorComponents(
           syntheticPopulationSpec,
           syntheticEventGroupMap.getValue(mappedEventGroup.eventGroupReferenceId),
         )
+      // Use the model line from the modelLineInfoMap - using the first (and only) model line
+      val modelLine = modelLineInfoMap.keys.single()
       val impressionWriter =
         ImpressionsWriter(
-          "event-group-reference-id/${mappedEventGroup.eventGroupReferenceId}",
+          mappedEventGroup.eventGroupReferenceId,
+          "model-line/$modelLine/event-group-reference-id/${mappedEventGroup.eventGroupReferenceId}",
           kekUri,
           kmsClient,
           "$IMPRESSIONS_BUCKET-$edpAggregatorShortName",
