@@ -67,6 +67,7 @@ import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.config.securecomputation.WatchedPath
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.eventgroups.EventGroupSync
+import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup.MediaType
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.MetadataKt.AdMetadataKt.campaignMetadata
@@ -159,6 +160,10 @@ class InProcessEdpAggregatorComponents(
     val getStorageConfig = { _: ResultsFulfillerParams.StorageParams ->
       StorageConfig(rootDirectory = storagePath.toFile())
     }
+    val typeRegistry = TypeRegistry.newBuilder()
+      .add(LabeledImpression.getDescriptor())
+      .build()
+    
     ResultsFulfillerApp(
       parser = WorkItem.parser(),
       subscriptionId = SUBSCRIPTION_ID,
@@ -172,6 +177,10 @@ class InProcessEdpAggregatorComponents(
       getImpressionsStorageConfig = getStorageConfig,
       getRequisitionsStorageConfig = getStorageConfig,
       modelLineInfoMap = modelLineInfoMap,
+<<<<<<< HEAD
+=======
+      typeRegistry = typeRegistry,
+>>>>>>> 357a67bbf (use pipeline for fulfillment)
     )
   }
 

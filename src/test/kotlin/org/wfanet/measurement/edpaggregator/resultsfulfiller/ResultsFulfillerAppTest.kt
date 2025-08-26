@@ -17,11 +17,7 @@
 package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
 import com.google.common.truth.Truth.assertThat
-import com.google.crypto.tink.Aead
-import com.google.crypto.tink.KeyTemplates
-import com.google.crypto.tink.KeysetHandle
-import com.google.crypto.tink.KmsClient
-import com.google.crypto.tink.TinkProtoKeysetFormat
+import com.google.crypto.tink.*
 import com.google.crypto.tink.aead.AeadConfig
 import com.google.crypto.tink.streamingaead.StreamingAeadConfig
 import com.google.protobuf.Any
@@ -37,56 +33,28 @@ import java.time.Clock
 import java.time.Duration
 import java.time.LocalDate
 import java.time.ZoneOffset
-import java.time.format.DateTimeFormatter
 import java.util.logging.Logger
 import kotlin.random.Random
 import kotlin.test.assertFails
 import kotlin.test.assertTrue
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.runBlocking
-import org.junit.After
-import org.junit.Before
-import org.junit.ClassRule
-import org.junit.Rule
-import org.junit.Test
-import org.mockito.kotlin.any
-import org.mockito.kotlin.doReturn
-import org.mockito.kotlin.stub
-import org.mockito.kotlin.times
-import org.mockito.kotlin.verifyBlocking
-import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
-import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
+import org.junit.*
+import org.mockito.kotlin.*
+import org.wfanet.measurement.api.v2alpha.*
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
-import org.wfanet.measurement.api.v2alpha.FulfillDirectRequisitionRequest
-import org.wfanet.measurement.api.v2alpha.GetEventGroupRequest
-import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reachAndFrequency
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.vidSamplingInterval
-import org.wfanet.measurement.api.v2alpha.PopulationSpecKt
-import org.wfanet.measurement.api.v2alpha.ProtocolConfig
-import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt
-import org.wfanet.measurement.api.v2alpha.Requisition
-import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventFilter
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventGroupEntry
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.events
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
-import org.wfanet.measurement.api.v2alpha.copy
-import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
-import org.wfanet.measurement.api.v2alpha.eventGroup
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.person
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.testEvent
-import org.wfanet.measurement.api.v2alpha.fulfillDirectRequisitionResponse
-import org.wfanet.measurement.api.v2alpha.measurementSpec
-import org.wfanet.measurement.api.v2alpha.populationSpec
-import org.wfanet.measurement.api.v2alpha.protocolConfig
-import org.wfanet.measurement.api.v2alpha.requisition
-import org.wfanet.measurement.api.v2alpha.requisitionSpec
-import org.wfanet.measurement.api.v2alpha.unpack
 import org.wfanet.measurement.common.crypto.Hashing
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.tink.TinkPrivateKeyHandle
@@ -113,14 +81,7 @@ import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionsValid
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.SingleRequisitionGrouper
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.testing.TestRequisitionData
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.testing.TestRequisitionStubFactory
-import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
-import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
-import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
-import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParamsKt
-import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParamsKt.storageParams
-import org.wfanet.measurement.edpaggregator.v1alpha.blobDetails
-import org.wfanet.measurement.edpaggregator.v1alpha.copy
-import org.wfanet.measurement.edpaggregator.v1alpha.resultsFulfillerParams
+import org.wfanet.measurement.edpaggregator.v1alpha.*
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.InMemoryVidIndexMap
 import org.wfanet.measurement.gcloud.pubsub.Subscriber
 import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorClient
@@ -153,7 +114,7 @@ class ResultsFulfillerAppTest {
           val request = invocation.getArgument<GetEventGroupRequest>(0)
           eventGroup {
             name = request.name
-            eventGroupReferenceId = "some-event-group-reference-id"
+            eventGroupReferenceId = EVENT_GROUP_NAME
           }
         }
     }
@@ -229,11 +190,11 @@ class ResultsFulfillerAppTest {
       RequisitionsValidator(TestRequisitionData.EDP_DATA.privateEncryptionKey)
     val groupedRequisitions =
       SingleRequisitionGrouper(
-          requisitionsClient = requisitionsStub,
-          eventGroupsClient = eventGroupsStub,
-          requisitionValidator = requisitionValidator,
-          throttler = throttler,
-        )
+        requisitionsClient = requisitionsStub,
+        eventGroupsClient = eventGroupsStub,
+        requisitionValidator = requisitionValidator,
+        throttler = throttler,
+      )
         .groupRequisitions(listOf(REQUISITION))
     // Add requisitions to storage
     requisitionsStorageClient.writeBlob(
@@ -253,6 +214,8 @@ class ResultsFulfillerAppTest {
         LABELED_IMPRESSION.copy {
           vid = (it % 80 + 1).toLong()
           eventTime = FIRST_EVENT_DATE.atStartOfDay().toInstant(ZoneOffset.UTC).toProtoTime()
+          eventGroupReferenceId = EVENT_GROUP_NAME
+          event = TEST_EVENT.pack()
         }
       }
 
@@ -264,7 +227,6 @@ class ResultsFulfillerAppTest {
     mesosRecordIoStorageClient.writeBlob(IMPRESSIONS_BLOB_KEY, impressionsFlow)
 
     writeImpressionMetadata(tmpPath, serializedEncryptionKey)
-    val typeRegistry = TypeRegistry.newBuilder().add(TestEvent.getDescriptor()).build()
 
     val app =
       ResultsFulfillerApp(
@@ -353,11 +315,11 @@ class ResultsFulfillerAppTest {
       }
     val groupedRequisitions =
       SingleRequisitionGrouper(
-          requisitionsClient = requisitionsStub,
-          eventGroupsClient = eventGroupsStub,
-          requisitionValidator = requisitionValidator,
-          throttler = throttler,
-        )
+        requisitionsClient = requisitionsStub,
+        eventGroupsClient = eventGroupsStub,
+        requisitionValidator = requisitionValidator,
+        throttler = throttler,
+      )
         .groupRequisitions(listOf(requisition2))
     // Add requisitions to storage
     requisitionsStorageClient.writeBlob(
@@ -377,6 +339,8 @@ class ResultsFulfillerAppTest {
         LABELED_IMPRESSION.copy {
           vid = (it % 80 + 1).toLong()
           eventTime = FIRST_EVENT_DATE.atStartOfDay().toInstant(ZoneOffset.UTC).toProtoTime()
+          eventGroupReferenceId = EVENT_GROUP_NAME
+          event = TEST_EVENT.pack()
         }
       }
 
@@ -388,7 +352,6 @@ class ResultsFulfillerAppTest {
     mesosRecordIoStorageClient.writeBlob(IMPRESSIONS_BLOB_KEY, impressionsFlow)
 
     writeImpressionMetadata(tmpPath, serializedEncryptionKey)
-    val typeRegistry = TypeRegistry.newBuilder().add(TestEvent.getDescriptor()).build()
 
     val app =
       ResultsFulfillerApp(
@@ -469,11 +432,11 @@ class ResultsFulfillerAppTest {
       }
     val groupedRequisitions =
       SingleRequisitionGrouper(
-          requisitionsClient = requisitionsStub,
-          eventGroupsClient = eventGroupsStub,
-          requisitionValidator = requisitionValidator,
-          throttler = throttler,
-        )
+        requisitionsClient = requisitionsStub,
+        eventGroupsClient = eventGroupsStub,
+        requisitionValidator = requisitionValidator,
+        throttler = throttler,
+      )
         .groupRequisitions(listOf(requisition2))
     // Add requisitions to storage
     requisitionsStorageClient.writeBlob(
@@ -493,6 +456,8 @@ class ResultsFulfillerAppTest {
         LABELED_IMPRESSION.copy {
           vid = (it % 80 + 1).toLong()
           eventTime = FIRST_EVENT_DATE.atStartOfDay().toInstant(ZoneOffset.UTC).toProtoTime()
+          eventGroupReferenceId = EVENT_GROUP_NAME
+          event = TEST_EVENT.pack()
         }
       }
 
@@ -504,7 +469,6 @@ class ResultsFulfillerAppTest {
     mesosRecordIoStorageClient.writeBlob(IMPRESSIONS_BLOB_KEY, impressionsFlow)
 
     writeImpressionMetadata(tmpPath, serializedEncryptionKey)
-    val typeRegistry = TypeRegistry.newBuilder().add(TestEvent.getDescriptor()).build()
 
     val app =
       ResultsFulfillerApp(
@@ -561,11 +525,11 @@ class ResultsFulfillerAppTest {
       RequisitionsValidator(TestRequisitionData.EDP_DATA.privateEncryptionKey)
     val groupedRequisitions =
       SingleRequisitionGrouper(
-          requisitionsClient = requisitionsStub,
-          eventGroupsClient = eventGroupsStub,
-          requisitionValidator = requisitionValidator,
-          throttler = throttler,
-        )
+        requisitionsClient = requisitionsStub,
+        eventGroupsClient = eventGroupsStub,
+        requisitionValidator = requisitionValidator,
+        throttler = throttler,
+      )
         .groupRequisitions(listOf(REQUISITION))
     // Add requisitions to storage
     requisitionsStorageClient.writeBlob(
@@ -585,6 +549,8 @@ class ResultsFulfillerAppTest {
         LABELED_IMPRESSION.copy {
           vid = (it % 80 + 1).toLong()
           eventTime = FIRST_EVENT_DATE.atStartOfDay().toInstant(ZoneOffset.UTC).toProtoTime()
+          eventGroupReferenceId = EVENT_GROUP_NAME
+          event = TEST_EVENT.pack()
         }
       }
 
@@ -596,8 +562,6 @@ class ResultsFulfillerAppTest {
     mesosRecordIoStorageClient.writeBlob(IMPRESSIONS_BLOB_KEY, impressionsFlow)
 
     writeImpressionMetadata(tmpPath, serializedEncryptionKey)
-
-    val typeRegistry = TypeRegistry.newBuilder().add(TestEvent.getDescriptor()).build()
 
     val app =
       ResultsFulfillerApp(
@@ -663,11 +627,11 @@ class ResultsFulfillerAppTest {
       RequisitionsValidator(TestRequisitionData.EDP_DATA.privateEncryptionKey)
     val groupedRequisitions =
       SingleRequisitionGrouper(
-          requisitionsClient = requisitionsStub,
-          eventGroupsClient = eventGroupsStub,
-          requisitionValidator = requisitionValidator,
-          throttler = throttler,
-        )
+        requisitionsClient = requisitionsStub,
+        eventGroupsClient = eventGroupsStub,
+        requisitionValidator = requisitionValidator,
+        throttler = throttler,
+      )
         .groupRequisitions(listOf(REQUISITION))
     // Add requisitions to storage
     requisitionsStorageClient.writeBlob(
@@ -687,6 +651,8 @@ class ResultsFulfillerAppTest {
         LABELED_IMPRESSION.copy {
           vid = (it % 80 + 1).toLong()
           eventTime = FIRST_EVENT_DATE.atStartOfDay().toInstant(ZoneOffset.UTC).toProtoTime()
+          eventGroupReferenceId = EVENT_GROUP_NAME
+          event = TEST_EVENT.pack()
         }
       }
 
@@ -698,7 +664,6 @@ class ResultsFulfillerAppTest {
     mesosRecordIoStorageClient.writeBlob(IMPRESSIONS_BLOB_KEY, impressionsFlow)
 
     writeImpressionMetadata(tmpPath, serializedEncryptionKey)
-    val typeRegistry = TypeRegistry.newBuilder().add(TestEvent.getDescriptor()).build()
 
     val app =
       ResultsFulfillerApp(
@@ -771,11 +736,11 @@ class ResultsFulfillerAppTest {
       RequisitionsValidator(TestRequisitionData.EDP_DATA.privateEncryptionKey)
     val groupedRequisitions =
       SingleRequisitionGrouper(
-          requisitionsClient = requisitionsStub,
-          eventGroupsClient = eventGroupsStub,
-          requisitionValidator = requisitionValidator,
-          throttler = throttler,
-        )
+        requisitionsClient = requisitionsStub,
+        eventGroupsClient = eventGroupsStub,
+        requisitionValidator = requisitionValidator,
+        throttler = throttler,
+      )
         .groupRequisitions(listOf(REQUISITION))
     // Add requisitions to storage
     requisitionsStorageClient.writeBlob(
@@ -795,6 +760,8 @@ class ResultsFulfillerAppTest {
         LABELED_IMPRESSION.copy {
           vid = (it % 80 + 1).toLong()
           eventTime = FIRST_EVENT_DATE.atStartOfDay().toInstant(ZoneOffset.UTC).toProtoTime()
+          eventGroupReferenceId = EVENT_GROUP_NAME
+          event = TEST_EVENT.pack()
         }
       }
 
@@ -905,36 +872,36 @@ class ResultsFulfillerAppTest {
     return workItemParams {
       appParams =
         resultsFulfillerParams {
-            dataProvider = EDP_NAME
-            this.storageParams =
-              ResultsFulfillerParamsKt.storageParams {
-                labeledImpressionsBlobDetailsUriPrefix = IMPRESSIONS_METADATA_FILE_URI_PREFIX
-              }
-            this.cmmsConnection =
-              ResultsFulfillerParamsKt.transportLayerSecurityParams {
-                clientCertResourcePath = SECRET_FILES_PATH.resolve("edp1_tls.pem").toString()
-                clientPrivateKeyResourcePath = SECRET_FILES_PATH.resolve("edp1_tls.key").toString()
-              }
-            this.consentParams =
-              ResultsFulfillerParamsKt.consentParams {
-                resultCsCertDerResourcePath =
-                  SECRET_FILES_PATH.resolve("edp1_result_cs_cert.der").toString()
-                resultCsPrivateKeyDerResourcePath =
-                  SECRET_FILES_PATH.resolve("edp1_result_cs_private.der").toString()
-                privateEncryptionKeyResourcePath =
-                  SECRET_FILES_PATH.resolve("edp1_enc_private.tink").toString()
-                edpCertificateName = DATA_PROVIDER_CERTIFICATE_KEY.toName()
-              }
-            this.noiseParams = ResultsFulfillerParamsKt.noiseParams { this.noiseType = noiseType }
-            if (kAnonymityParams != null) {
-              this.kAnonymityParams =
-                ResultsFulfillerParamsKt.kAnonymityParams {
-                  this.minImpressions = kAnonymityParams.minImpressions
-                  this.minUsers = kAnonymityParams.minUsers
-                  this.reachMaxFrequencyPerUser = kAnonymityParams.reachMaxFrequencyPerUser
-                }
+          dataProvider = EDP_NAME
+          this.storageParams =
+            ResultsFulfillerParamsKt.storageParams {
+              labeledImpressionsBlobDetailsUriPrefix = IMPRESSIONS_METADATA_FILE_URI_PREFIX
             }
+          this.cmmsConnection =
+            ResultsFulfillerParamsKt.transportLayerSecurityParams {
+              clientCertResourcePath = SECRET_FILES_PATH.resolve("edp1_tls.pem").toString()
+              clientPrivateKeyResourcePath = SECRET_FILES_PATH.resolve("edp1_tls.key").toString()
+            }
+          this.consentParams =
+            ResultsFulfillerParamsKt.consentParams {
+              resultCsCertDerResourcePath =
+                SECRET_FILES_PATH.resolve("edp1_result_cs_cert.der").toString()
+              resultCsPrivateKeyDerResourcePath =
+                SECRET_FILES_PATH.resolve("edp1_result_cs_private.der").toString()
+              privateEncryptionKeyResourcePath =
+                SECRET_FILES_PATH.resolve("edp1_enc_private.tink").toString()
+              edpCertificateName = DATA_PROVIDER_CERTIFICATE_KEY.toName()
+            }
+          this.noiseParams = ResultsFulfillerParamsKt.noiseParams { this.noiseType = noiseType }
+          if (kAnonymityParams != null) {
+            this.kAnonymityParams =
+              ResultsFulfillerParamsKt.kAnonymityParams {
+                this.minImpressions = kAnonymityParams.minImpressions
+                this.minUsers = kAnonymityParams.minUsers
+                this.reachMaxFrequencyPerUser = kAnonymityParams.reachMaxFrequencyPerUser
+              }
           }
+        }
           .pack()
 
       dataPathParams =
@@ -961,7 +928,9 @@ class ResultsFulfillerAppTest {
     private const val SUBSCRIPTION_ID = "test-subscription"
     private const val TOPIC_ID = "test-topic"
 
-    @get:ClassRule @JvmStatic val pubSubEmulatorProvider = GooglePubSubEmulatorProvider()
+    @get:ClassRule
+    @JvmStatic
+    val pubSubEmulatorProvider = GooglePubSubEmulatorProvider()
 
     private val LAST_EVENT_DATE = LocalDate.now()
     private val FIRST_EVENT_DATE = LAST_EVENT_DATE
@@ -1110,10 +1079,8 @@ class ResultsFulfillerAppTest {
     private const val IMPRESSIONS_FILE_URI = "file:///$IMPRESSIONS_BUCKET/$IMPRESSIONS_BLOB_KEY"
 
     private const val IMPRESSIONS_METADATA_BUCKET = "impression-metadata-bucket"
-    private const val EVENT_GROUP_REFERENCE_ID = "some-event-group-reference-id"
-    private val DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd")
     private val IMPRESSION_METADATA_BLOB_KEY =
-      "ds/${FIRST_EVENT_DATE}/event-group-reference-id/$EVENT_GROUP_REFERENCE_ID/metadata"
+      "ds/${FIRST_EVENT_DATE}/event-group-reference-id/$EVENT_GROUP_NAME/metadata"
 
     private val IMPRESSIONS_METADATA_FILE_URI =
       "file:///$IMPRESSIONS_METADATA_BUCKET/$IMPRESSION_METADATA_BLOB_KEY"
