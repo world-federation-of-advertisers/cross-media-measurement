@@ -95,7 +95,7 @@ class RequisitionGrouperByReportId(
               }
             }
         groupedRequisitions {
-          this.modelLine = modelLine
+          this.modelLine = groups.firstOrNull()?.modelLine ?: ""
           this.eventGroupMap += entries
           this.requisitions += groups.flatMap { it.requisitionsList }
         }

@@ -163,23 +163,10 @@ production code.
 
 Starting from version v0.5.23, container images are signed using cosign. All image 
 versions are signed with the test key and release versions are additionally signed 
-with the release key. 
+with the release key:
 
-Test public key:
-```
------BEGIN PUBLIC KEY-----
-MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEfaFfcZ38QaMn2p0T42CFtpKOIb4I
-IvP4UnHs8SqgLlCt4/c7KOo4IzyxEVhBkuFrc+la8vT+cAFZvtQIaOODeg==
------END PUBLIC KEY-----
-```
-
-Release public key:
-```
------BEGIN PUBLIC KEY-----
-MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE2exeQ9l/37udXos0ACvpShMt+wsm
-s2T8UK05noWBm9dh1D6rBty2tmyNIfXZZmXiMBrNYbSGNb1ILm0/osCgAQ==
------END PUBLIC KEY-----
-```
+*   [Test public key](cosign-test-pub-key.pem)
+*   [Release public key](cosign-release-pub-key.pem)
 
 ## Developer Guide
 

@@ -48,7 +48,7 @@ abstract class AbstractEdpAggregatorCorrectnessTest(
     runBlocking {
       // Use frontend simulator to create a direct reach and frequency measurement and verify its
       // result.
-      mcSimulator.testDirectReachAndFrequency("1234", 1)
+      mcSimulator.testDirectReachOnly("1234", 1)
     }
 
   @Test

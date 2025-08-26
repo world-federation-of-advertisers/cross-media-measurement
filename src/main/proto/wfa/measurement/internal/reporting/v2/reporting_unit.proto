@@ -16,26 +16,34 @@ syntax = "proto3";
 
 package wfa.measurement.internal.reporting.v2;
 
-import "wfa/measurement/internal/reporting/v2/reporting_impression_qualification_filter.proto";
-import "wfa/measurement/internal/reporting/v2/reporting_interval.proto";
-import "wfa/measurement/internal/reporting/v2/result_group_spec.proto";
-
 option java_package = "org.wfanet.measurement.internal.reporting.v2";
 option java_multiple_files = true;
 
-message BasicReportDetails {
-  // Human readable title of the report.
-  string title = 1;
+message DataProviderKey {
+  string external_data_provider_id = 1;
+}
 
-  // The impression qualification filters for the BasicReport.
-  repeated ReportingImpressionQualificationFilter
-      impression_qualification_filters = 2;
+message ReportingSetKey {
+  string cmms_measurement_consumer_id = 1;
+  string external_reporting_set_id = 2;
+}
 
-  // The interval of time that the BasicReport spans
+// Specifies the units to report on.
+message ReportingUnit {
+  message DataProviderKeys {
+    repeated DataProviderKey data_provider_keys = 1;
+  }
+
+  message ReportingSetKeys {
+    repeated ReportingSetKey reporting_set_keys = 1;
+  }
+
+  // A list of resource IDs to report on.
   //
-  // Both the start and the end of the interval are immutable.
-  ReportingInterval reporting_interval = 3;
-
-  // Specification for results.
-  repeated ResultGroupSpec result_group_specs = 4;
+  // For use with BasicReport these must be DataProvider resource IDs.
+  // For use with AdvancedReport these must be ReportingSet resource IDs.
+  oneof Components {
+    DataProviderKeys dataProviderKeys = 1;
+    ReportingSetKeys reportingSetKeys = 2;
+  }
 }
