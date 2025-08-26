@@ -184,7 +184,7 @@ class ResultsFulfiller(
   }
 
   /**
-   * Creates a simple EventSource adapter from the existing EventReader.
+   * Creates an event source for a list of event groups.
    */
   private fun createEventSourceFrom(eventGroupDetailsList: List<GroupedRequisitions.EventGroupDetails>): EventSource {
     return StorageEventSource(
