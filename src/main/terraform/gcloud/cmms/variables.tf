@@ -219,12 +219,8 @@ variable "results_fulfiller_event_proto_descriptor_blob_uri" {
   description = "GCS blob uri of the FileDescriptorSet containing the event message descriptor."
   type = string
 }
-<<<<<<< HEAD
-=======
 
 variable "results_fulfiller_population_spec_blob_uri" {
   description = "GCS blob uri of the Results Fulfiller population spec."
   type = string
 }
-
->>>>>>> eb8087761 (update results fulfiller to use ReachAndFrequencyComputations (#2770))
