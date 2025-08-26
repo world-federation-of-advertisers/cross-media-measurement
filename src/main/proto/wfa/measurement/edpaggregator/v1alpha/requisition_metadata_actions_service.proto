@@ -32,15 +32,11 @@ option java_outer_classname = "RequisitionMetadataActionsServiceProto";
 service RequisitionMetadataActionService {
   // Retrieves a specific RequisitionMetadataAction entry.
   rpc GetRequisitionMetadataAction(GetRequisitionMetadataActionRequest)
-      returns (RequisitionMetadataAction) {
-    option (google.api.method_signature) = "name";
-  }
+      returns (RequisitionMetadataAction) {}
 
   // Lists RequisitionMetadataAction entries for a given RequisitionMetadata.
   rpc ListRequisitionMetadataActions(ListRequisitionMetadataActionsRequest)
-      returns (ListRequisitionMetadataActionsResponse) {
-    option (google.api.method_signature) = "parent";
-  }
+      returns (ListRequisitionMetadataActionsResponse) {}
 }
 
 // Request message for the `GetRequisitionMetadataAction` method.
