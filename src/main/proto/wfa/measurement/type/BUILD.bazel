@@ -1,0 +1,22 @@
+load("@io_bazel_rules_go//proto:def.bzl", "go_proto_library")
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_proto_library")
+
+package(default_visibility = ["//visibility:public"])
+
+alias(
+    name = "future_disposition_proto",
+    actual = "@wfa_measurement_proto//src/main/proto/wfa/measurement/type:future_disposition_proto",
+)
+
+kt_jvm_proto_library(
+    name = "future_disposition_kt_jvm_proto",
+    deps = [":future_disposition_proto"],
+)
+
+go_proto_library(
+    name = "typepb_go_proto",
+    importpath = "github.com/world-federation-of-advertisers/cross-media-measurement/cmms/type/typepb",
+    protos = [
+        ":future_disposition_proto",
+    ],
+)

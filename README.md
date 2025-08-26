@@ -7,6 +7,7 @@
 *   [Repository Structure](#repository-structure)
     *   [Services and Daemons](#servers-and-daemons)
     *   [Common Directories](#common-directories)
+*   [Container Images](#container-images)
 *   [Developer Guide](#developer-guide)
 *   [Documentation](#documentation)
     *   [Dependencies](#dependencies)
@@ -157,6 +158,15 @@ in `//src/test`. As a result test infrastructure code used to test multiple
 packages is in a test-only package in `//src/main`. One benefit of such a
 structure is that the test infrastructure can also be tested the same way as
 production code.
+
+## Container images
+
+Starting from version v0.5.23, container images are signed using cosign. All image 
+versions are signed with the test key and release versions are additionally signed 
+with the release key:
+
+*   [Test public key](cosign-test-pub-key.pem)
+*   [Release public key](cosign-release-pub-key.pem)
 
 ## Developer Guide
 
