@@ -127,13 +127,12 @@ class ResultsFulfillerApp(
     val kmsClient = kmsClients[fulfillerParams.dataProvider]
     requireNotNull(kmsClient) { "KMS client not found for ${fulfillerParams.dataProvider}" }
 
-    val eventReader: LegacyEventReader =
-      LegacyEventReader(
-        kmsClient = kmsClient,
-        impressionsStorageConfig = impressionsStorageConfig,
-        impressionDekStorageConfig = impressionsMetadataStorageConfig,
-        labeledImpressionsDekPrefix =
+    val impressionsMetadataService =
+      StorageImpressionMetadataService(
+        impressionsMetadataStorageConfig = impressionsMetadataStorageConfig,
+        impressionsBlobDetailsUriPrefix =
           fulfillerParams.storageParams.labeledImpressionsBlobDetailsUriPrefix,
+        zoneIdForDates = ZoneOffset.UTC,
       )
     val noiseSelector =
       when (fulfillerParams.noiseParams.noiseType) {
@@ -141,38 +140,46 @@ class ResultsFulfillerApp(
         NoiseType.CONTINUOUS_GAUSSIAN -> ContinuousGaussianNoiseSelector()
         else -> throw Exception("Invalid noise type ${fulfillerParams.noiseParams.noiseType}")
       }
+
     val kAnonymityParams: KAnonymityParams? =
       if (fulfillerParams.hasKAnonymityParams()) {
-        require(fulfillerParams.kAnonymityParams.minImpressions > 0) {
-          "K-Anonymity min impressions must be > 0"
-        }
         require(fulfillerParams.kAnonymityParams.minUsers > 0) {
-          "K-Anonymity min users must be > 0"
+          "k-anonymity minUsers must be greater than 0, got ${fulfillerParams.kAnonymityParams.minUsers}"
+        }
+        require(fulfillerParams.kAnonymityParams.minImpressions > 0) {
+          "k-anonymity minImpressions must be greater than 0, got ${fulfillerParams.kAnonymityParams.minImpressions}"
         }
         require(fulfillerParams.kAnonymityParams.reachMaxFrequencyPerUser > 0) {
-          "K-Anonymity reach maximum frequency per user must be > 0"
+          "k-anonymity reachMaxFrequencyPerUser must be greater than 0, got ${fulfillerParams.kAnonymityParams.reachMaxFrequencyPerUser}"
         }
         KAnonymityParams(
-          minImpressions = fulfillerParams.kAnonymityParams.minImpressions,
           minUsers = fulfillerParams.kAnonymityParams.minUsers,
+          minImpressions = fulfillerParams.kAnonymityParams.minImpressions,
           reachMaxFrequencyPerUser = fulfillerParams.kAnonymityParams.reachMaxFrequencyPerUser,
         )
       } else {
         null
       }
+
+    // Create pipeline configuration with default values
+    val pipelineConfiguration =
+      PipelineConfiguration(batchSize = 256, channelCapacity = 128, threadPoolSize = 4, workers = 4)
+
     ResultsFulfiller(
-        loadPrivateKey(encryptionPrivateKeyFile),
-        requisitionsStub,
-        requisitionFulfillmentStubsMap,
-        dataProviderCertificateKey,
-        dataProviderResultSigningKeyHandle,
+        privateEncryptionKey = loadPrivateKey(encryptionPrivateKeyFile),
+        requisitionsStub = requisitionsStub,
+        requisitionFulfillmentStubMap = requisitionFulfillmentStubsMap,
+        dataProviderCertificateKey = dataProviderCertificateKey,
+        dataProviderSigningKeyHandle = dataProviderResultSigningKeyHandle,
         requisitionsBlobUri = requisitionsBlobUri,
         requisitionsStorageConfig = requisitionsStorageConfig,
-        zoneId = ZoneOffset.UTC,
         noiserSelector = noiseSelector,
-        eventReader = eventReader,
         modelLineInfoMap = modelLineInfoMap,
         kAnonymityParams = kAnonymityParams,
+        pipelineConfiguration = pipelineConfiguration,
+        impressionMetadataService = impressionsMetadataService,
+        impressionsStorageConfig = impressionsStorageConfig,
+        kmsClient = kmsClient,
       )
       .fulfillRequisitions()
   }
