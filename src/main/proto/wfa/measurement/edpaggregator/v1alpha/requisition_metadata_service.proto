@@ -32,9 +32,7 @@ option java_outer_classname = "RequisitionMetadataServiceProto";
 service RequisitionMetadataService {
   // Creates a new RequisitionMetadata entry.
   rpc CreateRequisitionMetadata(CreateRequisitionMetadataRequest)
-      returns (RequisitionMetadata) {
-    option (google.api.method_signature) = "parent,requisition_metadata";
-  }
+      returns (RequisitionMetadata) {}
 
   // Creates multiple new RequisitionMetadata entries in a single request.
   rpc BatchCreateRequisitionMetadata(BatchCreateRequisitionMetadataRequest)
@@ -42,9 +40,7 @@ service RequisitionMetadataService {
 
   // Retrieves a specific RequisitionMetadata entry by its resource name.
   rpc GetRequisitionMetadata(GetRequisitionMetadataRequest)
-      returns (RequisitionMetadata) {
-    option (google.api.method_signature) = "name";
-  }
+      returns (RequisitionMetadata) {}
 
   // Looks up a single RequisitionMetadata resource by an alternative key.
   //
@@ -58,9 +54,7 @@ service RequisitionMetadataService {
 
   // Lists RequisitionMetadata entries, with optional filtering and ordering.
   rpc ListRequisitionMetadata(ListRequisitionMetadataRequest)
-      returns (ListRequisitionMetadataResponse) {
-    option (google.api.method_signature) = "parent";
-  }
+      returns (ListRequisitionMetadataResponse) {}
 
   // Fetches the latest cmms_create_time from all metadata entries for a
   // data_provider.
@@ -68,44 +62,33 @@ service RequisitionMetadataService {
   // Used to determine the starting point for fetching new
   // requisitions from the Kingdom.
   rpc FetchLatestCmmsCreateTime(FetchLatestCmmsCreateTimeRequest)
-      returns (google.protobuf.Timestamp) {
-    option (google.api.method_signature) = "parent";
-  }
+      returns (google.protobuf.Timestamp) {}
 
   // Transitions a RequisitionMetadata resource to the QUEUED state.
   // This indicates it is ready to be processed.
   rpc QueueRequisitionMetadata(QueueRequisitionMetadataRequest)
-      returns (RequisitionMetadata) {
-    option (google.api.method_signature) = "name,etag,work_item";
-  }
+      returns (RequisitionMetadata) {}
 
   // Transitions a RequisitionMetadata resource to the PROCESSING state.
   // This indicates it is actively being worked on.
   rpc StartProcessingRequisitionMetadata(
       StartProcessingRequisitionMetadataRequest) returns (RequisitionMetadata) {
-    option (google.api.method_signature) = "name,etag";
   }
 
   // Transitions a RequisitionMetadata resource to the FULFILLED state.
   // This indicates it has been successfully processed.
   rpc FulfillRequisitionMetadata(FulfillRequisitionMetadataRequest)
-      returns (RequisitionMetadata) {
-    option (google.api.method_signature) = "name,etag";
-  }
+      returns (RequisitionMetadata) {}
 
   // Transitions a RequisitionMetadata resource to the REFUSED state.
   // This indicates that it could not be processed.
   rpc RefuseRequisitionMetadata(RefuseRequisitionMetadataRequest)
-      returns (RequisitionMetadata) {
-    option (google.api.method_signature) = "name,etag,error_message";
-  }
+      returns (RequisitionMetadata) {}
 
   // Transitions a RequisitionMetadata resource to the DELETED state.
   // This is a soft delete. The resource is not actually removed.
   rpc DeleteRequisitionMetadata(DeleteRequisitionMetadataRequest)
-      returns (RequisitionMetadata) {
-    option (google.api.method_signature) = "name,etag";
-  }
+      returns (RequisitionMetadata) {}
 }
 
 // Request message for the `CreateRequisitionMetadata` method.

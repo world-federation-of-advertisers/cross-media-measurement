@@ -72,16 +72,23 @@ message RequisitionMetadata {
   // It must be unique across all RequisitionMetadata.
   string blob_uri = 3 [(google.api.field_behavior) = REQUIRED];
 
+  // Type URL of the blob.
+  //
+  // (-- api-linter: core::0140::uri=disabled
+  //     aip.dev/not-precedent: This is mirroring the type_url field in
+  //     protobuf.Any --)
+  string blob_type_url = 4 [(google.api.field_behavior) = REQUIRED];
+
   // The ID for the group of requisitions this entry belongs to.
-  string group_id = 4 [(google.api.field_behavior) = REQUIRED];
+  string group_id = 5 [(google.api.field_behavior) = REQUIRED];
 
   // The creation timestamp of the requisition in the CMMS.
-  google.protobuf.Timestamp cmms_create_time = 5
+  google.protobuf.Timestamp cmms_create_time = 6
       [(google.api.field_behavior) = REQUIRED];
 
   // The resource name of the Report in the Reporting system.
   // Format: `measurementConsumers/{measurement_consumer}/reports/{report}`
-  string report = 6 [
+  string report = 7 [
     (google.api.field_behavior) = REQUIRED,
     (google.api.field_behavior) = IMMUTABLE,
     (google.api.resource_reference) = { type: "reporting.halo-cmm.org/Report" }
@@ -90,7 +97,7 @@ message RequisitionMetadata {
   // The resource name of the WorkItem.
   // This is set when the requisition is queued for processing.
   // Format `workItems/{work_item}`
-  string work_item = 7 [
+  string work_item = 8 [
     (google.api.field_behavior) = OPTIONAL,
     (google.api.field_behavior) = IMMUTABLE,
     (google.api.resource_reference) = {
@@ -99,14 +106,14 @@ message RequisitionMetadata {
   ];
 
   // The current state of the requisition.
-  State state = 8 [(google.api.field_behavior) = OUTPUT_ONLY];
+  State state = 9 [(google.api.field_behavior) = OUTPUT_ONLY];
 
   // The timestamp when this metadata entry was created.
-  google.protobuf.Timestamp create_time = 9
+  google.protobuf.Timestamp create_time = 10
       [(google.api.field_behavior) = OUTPUT_ONLY];
 
   // The timestamp when this metadata entry was last updated.
-  google.protobuf.Timestamp update_time = 10
+  google.protobuf.Timestamp update_time = 11
       [(google.api.field_behavior) = OUTPUT_ONLY];
 
   // Human-readable message associated with refusal.
@@ -114,10 +121,10 @@ message RequisitionMetadata {
   // This is an input field on creation if the initial `state` is `REFUSED`.
   // It is an output-only field for all other methods.
   // It must not contain any sensitive information.
-  string error_message = 11 [(google.api.field_behavior) = OPTIONAL];
+  string refusal_message = 12 [(google.api.field_behavior) = OPTIONAL];
 
   // Etag for resource freshness validation.
-  string etag = 12 [(google.api.field_behavior) = OUTPUT_ONLY];
+  string etag = 13 [(google.api.field_behavior) = OUTPUT_ONLY];
 }
 
 // Represents a state change action on a RequisitionMetadata entry.
@@ -149,14 +156,12 @@ message RequisitionMetadataAction {
   ActionerType actioner_type = 3 [(google.api.field_behavior) = REQUIRED];
 
   // The state of the requisition before this action.
-  // The state of the requisition before this action.
   // (-- api-linter: core::0216::state-field-output-only=disabled
   //     aip.dev/not-precedent: Input for immutable audit record. --)
   RequisitionMetadata.State prior_state = 4
       [(google.api.field_behavior) = REQUIRED];
 
   // The state of the requisition after this action.
-  // The state of the requisition before this action.
   // (-- api-linter: core::0216::state-field-output-only=disabled
   //     aip.dev/not-precedent: Input for immutable audit record. --)
   RequisitionMetadata.State new_state = 5
