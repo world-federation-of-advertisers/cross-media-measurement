@@ -230,6 +230,7 @@ module "event_group_sync_cloud_function" {
 }
 
 resource "google_secret_manager_secret_iam_member" "secret_accessor" {
+  depends_on = [module.secrets]
   for_each = local.secret_access_map
   secret_id = local.all_secrets[each.value.secret_key].secret_id
   role      = "roles/secretmanager.secretAccessor"
