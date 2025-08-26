@@ -1,4 +1,5 @@
-load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
+load("@rules_java//java:defs.bzl", "java_binary")
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library", "kt_jvm_test")
 
 package(
     default_testonly = True,
@@ -15,6 +16,20 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:results_fulfiller_params_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/protobuf",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+    ],
+)
+
+kt_jvm_library(
+    name = "no_op_fulfiller_selector",
+    srcs = ["NoOpFulfillerSelector.kt"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:results_fulfiller",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller/fulfillers:measurement_fulfiller",
+        "//src/main/proto/wfa/measurement/api/v2alpha:measurement_spec_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:population_spec_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:requisition_spec_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:requisitions_service_kt_jvm_grpc_proto",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
     ],
 )
 

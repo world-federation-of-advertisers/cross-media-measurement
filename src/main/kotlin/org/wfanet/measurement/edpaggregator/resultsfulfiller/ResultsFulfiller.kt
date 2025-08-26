@@ -16,223 +16,322 @@
 
 package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
-import com.google.protobuf.Any
-import com.google.protobuf.ByteString
-import com.google.protobuf.TypeRegistry
+import com.google.crypto.tink.KmsClient
+import com.google.protobuf.Message
 import com.google.protobuf.kotlin.unpack
 import java.security.GeneralSecurityException
-import java.time.ZoneId
+import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicLong
 import java.util.logging.Logger
-import kotlinx.coroutines.flow.Flow
-import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
-import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
-import org.wfanet.measurement.api.v2alpha.MeasurementSpec
-import org.wfanet.measurement.api.v2alpha.ProtocolConfig
-import org.wfanet.measurement.api.v2alpha.Requisition
-import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt
-import org.wfanet.measurement.api.v2alpha.RequisitionSpec
-import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt
-import org.wfanet.measurement.api.v2alpha.SignedMessage
-import org.wfanet.measurement.api.v2alpha.unpack
+import kotlin.time.TimeSource
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.asFlow
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.flatMapMerge
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.withContext
+import org.wfanet.measurement.api.v2alpha.*
 import org.wfanet.measurement.common.crypto.PrivateKeyHandle
-import org.wfanet.measurement.common.crypto.SigningKeyHandle
-import org.wfanet.measurement.common.flatten
-import org.wfanet.measurement.computation.KAnonymityParams
 import org.wfanet.measurement.consent.client.dataprovider.decryptRequisitionSpec
 import org.wfanet.measurement.edpaggregator.StorageConfig
-import org.wfanet.measurement.edpaggregator.resultsfulfiller.compute.protocols.direct.DirectMeasurementResultFactory
-import org.wfanet.measurement.edpaggregator.resultsfulfiller.fulfillers.DirectMeasurementFulfiller
-import org.wfanet.measurement.edpaggregator.resultsfulfiller.fulfillers.HMShuffleMeasurementFulfiller
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
-import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.FrequencyVectorBuilder
-import org.wfanet.measurement.storage.SelectedStorageClient
 
 /**
- * A class responsible for fulfilling results.
+ * Fulfills event-level measurement requisitions using protocol-specific fulfillers.
  *
- * @param privateEncryptionKey Handle to the private encryption key.
- * @param requisitionsStub Stub for requisitions gRPC coroutine.
- * @param requisitionFulfillmentStub Stub for requisitionFulfillment gRPC coroutine.
- * @param dataProviderCertificateKey Data provider certificate key.
- * @param dataProviderSigningKeyHandle Handle to the data provider signing key.
- * @param typeRegistry Type registry instance.
- * @param requisitionsBlobUri URI for requisitions blob storage.
- * @param requisitionsStorageConfig Configuration for requisitions storage.
- * @param zoneId Zone ID instance.
- * @param noiserSelector Selector for noise addition.
- * @param eventReader the [EventReader] to read in impressions data
- * @param populationSpecMap map of model line to population spec
+ * This orchestrates the lifecycle for a batch of requisitions: it processes grouped requisitions,
+ * calculates frequency vectors via the event processing pipeline, and dispatches fulfillment using
+ * a FulfillerSelector to choose the appropriate protocol implementation.
  *
- * TODO(2347) - Support additional differential privacy and k-anonymization.
+ * Concurrency: supports concurrent fulfillment per batch via Kotlin coroutines. Long-running or
+ * blocking operations (storage access, crypto, and RPC) execute on the IO dispatcher as
+ * appropriate.
+ *
+ * @param privateEncryptionKey Private key used to decrypt `RequisitionSpec`s.
+ * @param groupedRequisitions The grouped requisitions to fulfill.
+ * @param modelLineInfoMap Map of model line to [ModelLineInfo] providing descriptors and indexes.
+ * @param pipelineConfiguration Configuration for the event processing pipeline.
+ * @param impressionMetadataService Service to resolve impression metadata and sources.
+ * @param kmsClient KMS client for accessing encrypted resources in storage.
+ * @param impressionsStorageConfig Storage configuration for impression/event ingestion.
+ * @param fulfillerSelector Selector for choosing the appropriate fulfiller based on protocol.
  */
 class ResultsFulfiller(
   private val privateEncryptionKey: PrivateKeyHandle,
-  private val requisitionsStub: RequisitionsGrpcKt.RequisitionsCoroutineStub,
-  private val requisitionFulfillmentStubMap:
-    Map<String, RequisitionFulfillmentGrpcKt.RequisitionFulfillmentCoroutineStub>,
-  private val dataProviderCertificateKey: DataProviderCertificateKey,
-  private val dataProviderSigningKeyHandle: SigningKeyHandle,
-  private val requisitionsBlobUri: String,
-  private val requisitionsStorageConfig: StorageConfig,
-  private val zoneId: ZoneId,
-  private val noiserSelector: NoiserSelector,
-  private val eventReader: LegacyEventReader,
+  private val groupedRequisitions: GroupedRequisitions,
   private val modelLineInfoMap: Map<String, ModelLineInfo>,
-  private val kAnonymityParams: KAnonymityParams?,
+  private val pipelineConfiguration: PipelineConfiguration,
+  private val impressionMetadataService: ImpressionMetadataService,
+  private val kmsClient: KmsClient?,
+  private val impressionsStorageConfig: StorageConfig,
+  private val fulfillerSelector: FulfillerSelector,
 ) {
 
-  suspend fun fulfillRequisitions() {
-    val groupedRequisitions = getRequisitions()
-    val requisitions =
-      groupedRequisitions.requisitionsList.map { it.requisition.unpack(Requisition::class.java) }
-    logger.info("Processing ${requisitions.size} Requisitions")
-    val eventGroupMap =
-      groupedRequisitions.eventGroupMapList
-        .map { Pair(it.eventGroup, it.details.eventGroupReferenceId) }
-        .toMap()
-    val modelLine = groupedRequisitions.modelLine
-    val modelInfo = modelLineInfoMap.getValue(modelLine)
-    val typeRegistry = TypeRegistry.newBuilder().add(modelInfo.eventDescriptor).build()
-    for (requisition in requisitions) {
-      logger.info("Processing requisition: ${requisition.name}")
-      val signedRequisitionSpec: SignedMessage =
-        try {
-          decryptRequisitionSpec(requisition.encryptedRequisitionSpec, privateEncryptionKey)
-        } catch (e: GeneralSecurityException) {
-          throw Exception("RequisitionSpec decryption failed", e)
-        }
-      val requisitionSpec: RequisitionSpec = signedRequisitionSpec.unpack()
-      val measurementSpec: MeasurementSpec = requisition.measurementSpec.message.unpack()
-      val sampledVids: Flow<Long> =
-        RequisitionSpecs.getSampledVids(
-          requisitionSpec,
-          eventGroupMap,
-          typeRegistry,
-          eventReader,
-          zoneId,
-        )
-      val protocols: List<ProtocolConfig.Protocol> = requisition.protocolConfig.protocolsList
-      val frequencyVectorBuilder =
-        FrequencyVectorBuilder(
-          measurementSpec = measurementSpec,
-          populationSpec = modelInfo.populationSpec,
-          strict = false,
-        )
-      sampledVids.collect { frequencyVectorBuilder.increment(modelInfo.vidIndexMap[it]) }
-      val frequencyData: IntArray = frequencyVectorBuilder.frequencyDataArray
-      val fulfiller =
-        if (protocols.any { it.hasDirect() }) {
-          // TODO: Calculate the maximum population for a given cel filter
-          buildDirectMeasurementFulfiller(
-            requisition,
-            measurementSpec,
-            requisitionSpec,
-            maxPopulation = null,
-            frequencyData,
-            kAnonymityParams = kAnonymityParams,
-          )
-        } else if (protocols.any { it.hasHonestMajorityShareShuffle() }) {
-          if (kAnonymityParams == null) {
-            HMShuffleMeasurementFulfiller(
-              requisition,
-              requisitionSpec.nonce,
-              frequencyVectorBuilder.build(),
-              dataProviderSigningKeyHandle,
-              dataProviderCertificateKey,
-              requisitionFulfillmentStubMap,
-            )
-          } else {
-            HMShuffleMeasurementFulfiller.buildKAnonymized(
-              requisition,
-              requisitionSpec.nonce,
-              measurementSpec,
-              modelInfo.populationSpec,
-              frequencyVectorBuilder,
-              dataProviderSigningKeyHandle,
-              dataProviderCertificateKey,
-              requisitionFulfillmentStubMap,
-              kAnonymityParams,
-              maxPopulation = null,
-            )
-          }
-        } else {
-          throw Exception("Protocol not supported")
-        }
-      fulfiller.fulfillRequisition()
-    }
+  private val totalRequisitions = AtomicInteger(0)
+
+  private val buildTime = AtomicLong(0)
+  private val sendTime = AtomicLong(0)
+  private val fulfillmentTime = AtomicLong(0)
+  private val frequencyVectorTime = AtomicLong(0)
+
+  private val orchestrator: EventProcessingOrchestrator<Message> by lazy {
+    EventProcessingOrchestrator<Message>(privateEncryptionKey)
   }
 
   /**
-   * Retrieves a list of requisitions from the configured blob storage.
+   * Processes and fulfills all requisitions in the grouped requisitions.
    *
-   * @return A [GroupredRequisitions] retrieved from blob storage
-   * @throws ImpressionReadException If the requisition blob cannot be found at the specified URI
+   * Steps:
+   * - Builds frequency vectors via the event-processing pipeline.
+   * - Selects a protocol-specific fulfiller for each requisition and submits results.
+   *
+   * @param parallelism Maximum number of requisitions to fulfill concurrently.
+   * @throws IllegalArgumentException If a requisition specifies an unsupported protocol.
+   * @throws Exception If decryption or RPC fulfillment fails.
    */
-  private suspend fun getRequisitions(): GroupedRequisitions {
-    val storageClientUri = SelectedStorageClient.parseBlobUri(requisitionsBlobUri)
-    val requisitionsStorageClient =
-      SelectedStorageClient(
-        storageClientUri,
-        requisitionsStorageConfig.rootDirectory,
-        requisitionsStorageConfig.projectId,
-      )
+  @OptIn(ExperimentalCoroutinesApi::class)
+  suspend fun fulfillRequisitions(parallelism: Int = DEFAULT_FULFILLMENT_PARALLELISM) {
+    logger.info("[FULFILLER] Starting fulfillRequisitions with parallelism=$parallelism")
+    logger.info("[FULFILLER] Unpacking ${groupedRequisitions.requisitionsCount} requisitions...")
+    val requisitions =
+      groupedRequisitions.requisitionsList.mapIndexed { index, entry ->
+        if (index % 100 == 0 || index < 10) {
+          logger.info(
+            "[FULFILLER]   - Unpacking requisition ${index + 1}/${groupedRequisitions.requisitionsCount}"
+          )
+        }
+        entry.requisition.unpack(Requisition::class.java)
+      }
+    logger.info("[FULFILLER] Building event group reference ID map...")
+    val eventGroupReferenceIdMap =
+      groupedRequisitions.eventGroupMapList.associate {
+        it.eventGroup to it.details.eventGroupReferenceId
+      }
+    logger.info("[FULFILLER] Event group map built with ${eventGroupReferenceIdMap.size} entries")
 
-    val requisitionBytes: ByteString =
-      requisitionsStorageClient.getBlob(storageClientUri.key)?.read()?.flatten()
-        ?: throw ImpressionReadException(
-          storageClientUri.key,
-          ImpressionReadException.Code.BLOB_NOT_FOUND,
+    logger.info("[FULFILLER] Processing ${requisitions.size} Requisitions")
+    totalRequisitions.addAndGet(requisitions.size)
+
+    val modelLine = groupedRequisitions.modelLine
+    logger.info("[FULFILLER] Model line: $modelLine")
+    logger.info("[FULFILLER] Getting model info from map...")
+    val modelInfo = modelLineInfoMap.getValue(modelLine)
+    val eventDescriptor = modelInfo.eventDescriptor
+    logger.info("[FULFILLER] Event descriptor: ${eventDescriptor.name}")
+
+    val populationSpec = modelInfo.populationSpec
+    logger.info(
+      "[FULFILLER] Population spec has ${populationSpec.subpopulationsCount} subpopulations"
+    )
+    val vidIndexMap = modelInfo.vidIndexMap
+    logger.info("[FULFILLER] VID index map ready")
+
+    logger.info("[FULFILLER] Creating StorageEventSource...")
+    logger.info(
+      "[FULFILLER]   - Event group details count: ${groupedRequisitions.eventGroupMapCount}"
+    )
+    logger.info("[FULFILLER]   - Model line: $modelLine")
+    logger.info("[FULFILLER]   - Batch size: ${pipelineConfiguration.batchSize}")
+    val eventSource =
+      StorageEventSource(
+        impressionMetadataService = impressionMetadataService,
+        eventGroupDetailsList = groupedRequisitions.eventGroupMapList.map { it.details },
+        modelLine = modelLine,
+        kmsClient = kmsClient,
+        impressionsStorageConfig = impressionsStorageConfig,
+        descriptor = eventDescriptor,
+        batchSize = pipelineConfiguration.batchSize,
+      )
+    logger.info("[FULFILLER] StorageEventSource created successfully")
+
+    logger.info("[FULFILLER] === STARTING FREQUENCY VECTOR CALCULATION ===")
+    logger.info("[FULFILLER] Calling orchestrator.run() with:")
+    logger.info("[FULFILLER]   - ${requisitions.size} requisitions")
+    logger.info(
+      "[FULFILLER]   - Pipeline config: batchSize=${pipelineConfiguration.batchSize}, workers=${pipelineConfiguration.workers}"
+    )
+    logger.info("[FULFILLER]   - Thread pool size: ${pipelineConfiguration.threadPoolSize}")
+    logger.info("[FULFILLER]   - Channel capacity: ${pipelineConfiguration.channelCapacity}")
+
+    val frequencyVectorStart = TimeSource.Monotonic.markNow()
+    val frequencyVectorMap =
+      try {
+        logger.info("[FULFILLER] Entering orchestrator.run()...")
+        orchestrator.run(
+          eventSource = eventSource,
+          vidIndexMap = vidIndexMap,
+          populationSpec = populationSpec,
+          requisitions = requisitions,
+          eventGroupReferenceIdMap = eventGroupReferenceIdMap,
+          config = pipelineConfiguration,
+          eventDescriptor = eventDescriptor,
         )
+      } catch (e: Exception) {
+        logger.severe("[FULFILLER] ERROR in orchestrator.run(): ${e.message}")
+        logger.severe("[FULFILLER] Stack trace:")
+        e.printStackTrace()
+        throw e
+      }
+    val elapsedMs = frequencyVectorStart.elapsedNow().inWholeMilliseconds
+    frequencyVectorTime.addAndGet(frequencyVectorStart.elapsedNow().inWholeNanoseconds)
+    logger.info("[FULFILLER] === FREQUENCY VECTOR CALCULATION COMPLETED in ${elapsedMs}ms ===")
+    logger.info("[FULFILLER] Frequency vector map has ${frequencyVectorMap.size} entries")
 
-    return try {
-      Any.parseFrom(requisitionBytes).unpack(GroupedRequisitions::class.java)
-    } catch (e: Exception) {
-      throw ImpressionReadException(
-        storageClientUri.key,
-        ImpressionReadException.Code.INVALID_FORMAT,
-      )
-    }
+    logger.info("[FULFILLER] === STARTING INDIVIDUAL REQUISITION FULFILLMENT ===")
+    logger.info(
+      "[FULFILLER] Processing ${requisitions.size} requisitions with parallelism=$parallelism"
+    )
+
+    var processedCount = 0
+    requisitions
+      .asFlow()
+      .map { req: Requisition ->
+        logger.info("[FULFILLER] Mapping requisition ${req.name} to frequency vector...")
+        req to frequencyVectorMap.getValue(req.name)
+      }
+      .flatMapMerge(concurrency = parallelism) {
+        (req: Requisition, frequencyVector: StripedByteFrequencyVector) ->
+        flow {
+          val start = TimeSource.Monotonic.markNow()
+          try {
+            logger.info("[FULFILLER] Starting fulfillment for requisition ${req.name}")
+            fulfillSingleRequisition(req, frequencyVector, populationSpec)
+            val elapsedMs = start.elapsedNow().inWholeMilliseconds
+            fulfillmentTime.addAndGet(start.elapsedNow().inWholeNanoseconds)
+            processedCount++
+            logger.info(
+              "[FULFILLER] Completed requisition ${req.name} in ${elapsedMs}ms ($processedCount/${requisitions.size} done)"
+            )
+            emit(Unit)
+          } catch (t: Throwable) {
+            logger.severe("[FULFILLER] ERROR: Failed fulfilling ${req.name}: ${t.message}")
+            logger.severe("[FULFILLER] Exception type: ${t.javaClass.name}")
+            t.printStackTrace()
+            throw t
+          }
+        }
+      }
+      .collect()
+
+    logger.info("[FULFILLER] === ALL REQUISITIONS COMPLETED ===")
+    logger.info("[FULFILLER] Total requisitions processed: $processedCount")
+
+    logger.info("[FULFILLER] Calling logFulfillmentStats()...")
+    logFulfillmentStats()
+    logger.info("[FULFILLER] fulfillRequisitions() completed successfully")
   }
 
-  /** Builds a [DirectMeasurementFulfiller]. */
-  private suspend fun buildDirectMeasurementFulfiller(
+  /**
+   * Decrypts inputs, selects a protocol implementation, and fulfills a single requisition.
+   *
+   * @param requisition The `Requisition` to fulfill.
+   * @param frequencyVector Pre-computed per-VID frequency vector for this requisition.
+   * @param populationSpec Population specification associated with the model line.
+   * @throws Exception If the requisition spec cannot be decrypted or fulfillment fails.
+   */
+  private suspend fun fulfillSingleRequisition(
     requisition: Requisition,
-    measurementSpec: MeasurementSpec,
-    requisitionSpec: RequisitionSpec,
-    maxPopulation: Int?,
-    frequencyData: IntArray,
-    kAnonymityParams: KAnonymityParams?,
-  ): DirectMeasurementFulfiller {
-    val measurementEncryptionPublicKey: EncryptionPublicKey =
-      measurementSpec.measurementPublicKey.unpack()
-    val directProtocolConfig =
-      requisition.protocolConfig.protocolsList.first { it.hasDirect() }.direct
-    val noiseMechanism =
-      noiserSelector.selectNoiseMechanism(directProtocolConfig.noiseMechanismsList)
-    val result =
-      DirectMeasurementResultFactory.buildMeasurementResult(
-        directProtocolConfig,
-        noiseMechanism,
-        measurementSpec,
-        frequencyData,
-        maxPopulation,
-        kAnonymityParams = kAnonymityParams,
-      )
-    return DirectMeasurementFulfiller(
-      requisition.name,
-      requisition.dataProviderCertificate,
-      result,
-      requisitionSpec.nonce,
-      measurementEncryptionPublicKey,
-      directProtocolConfig,
-      noiseMechanism,
-      dataProviderSigningKeyHandle,
-      dataProviderCertificateKey,
-      requisitionsStub,
+    frequencyVector: StripedByteFrequencyVector,
+    populationSpec: PopulationSpec,
+  ) {
+    logger.info("[SINGLE] Processing requisition: ${requisition.name}")
+    logger.info("[SINGLE] Unpacking measurement spec...")
+    val measurementSpec: MeasurementSpec = requisition.measurementSpec.message.unpack()
+    logger.info("[SINGLE] Measurement type: ${measurementSpec.measurementTypeCase}")
+
+    logger.info("[SINGLE] Converting frequency vector to int array...")
+    val freqBytes = frequencyVector.getByteArray()
+    val frequencyData: IntArray = freqBytes.map { it.toInt() and 0xFF }.toIntArray()
+    logger.info("[SINGLE] Frequency data size: ${frequencyData.size}")
+
+    logger.info("[SINGLE] Decrypting requisition spec...")
+    val signedRequisitionSpec: SignedMessage =
+      try {
+        withContext(Dispatchers.IO) {
+          logger.info("[SINGLE] Calling decryptRequisitionSpec on IO dispatcher...")
+          val result =
+            decryptRequisitionSpec(requisition.encryptedRequisitionSpec, privateEncryptionKey)
+          logger.info("[SINGLE] Decryption successful")
+          result
+        }
+      } catch (e: GeneralSecurityException) {
+        logger.severe("[SINGLE] Decryption failed: ${e.message}")
+        throw Exception("RequisitionSpec decryption failed", e)
+      }
+    logger.info("[SINGLE] Unpacking requisition spec...")
+    val requisitionSpec: RequisitionSpec = signedRequisitionSpec.unpack()
+    logger.info("[SINGLE] Requisition spec unpacked successfully")
+
+    logger.info("[SINGLE] Selecting fulfiller via fulfillerSelector...")
+    val buildStart = TimeSource.Monotonic.markNow()
+    val fulfiller =
+      try {
+        fulfillerSelector.selectFulfiller(
+          requisition,
+          measurementSpec,
+          requisitionSpec,
+          frequencyData,
+          populationSpec,
+        )
+      } catch (e: Exception) {
+        logger.severe("[SINGLE] Fulfiller selection failed: ${e.message}")
+        throw e
+      }
+    val buildElapsedMs = buildStart.elapsedNow().inWholeMilliseconds
+    buildTime.addAndGet(buildStart.elapsedNow().inWholeNanoseconds)
+    logger.info("[SINGLE] Fulfiller selected in ${buildElapsedMs}ms")
+
+    logger.info("[SINGLE] Ready to fulfill requisition: ${requisition.name}")
+    logger.info("[SINGLE] Measurement spec type: ${measurementSpec.measurementTypeCase}")
+    logger.info(
+      "[SINGLE] Protocol configs: ${requisition.protocolConfig.protocolsList.map { it.protocolCase }}"
     )
+
+    logger.info("[SINGLE] Calling fulfiller.fulfillRequisition() on IO dispatcher...")
+    val sendStart = TimeSource.Monotonic.markNow()
+    withContext(Dispatchers.IO) {
+      logger.info("[SINGLE] Inside IO dispatcher, calling fulfillRequisition()...")
+      fulfiller.fulfillRequisition()
+      logger.info("[SINGLE] fulfillRequisition() completed")
+    }
+    val sendElapsedMs = sendStart.elapsedNow().inWholeMilliseconds
+    sendTime.addAndGet(sendStart.elapsedNow().inWholeNanoseconds)
+    logger.info("[SINGLE] Fulfillment sent in ${sendElapsedMs}ms")
+  }
+
+  /**
+   * Logs aggregate counters and timings for the current process lifetime.
+   *
+   * Includes totals for requisitions processed, frequency vector construction, builder creation,
+   * send time, and end-to-end fulfillment time.
+   */
+  fun logFulfillmentStats() {
+    val stats =
+      """
+      |=== FULFILLMENT STATISTICS ===
+      |  Total requisitions: ${totalRequisitions.get()}
+      |  Frequency vector total ms: ${frequencyVectorTime.get() / 1_000_000}
+      |  Build total ms: ${buildTime.get() / 1_000_000}
+      |  Send total ms: ${sendTime.get() / 1_000_000}
+      |  Fulfillment total ms: ${fulfillmentTime.get() / 1_000_000}
+      |  Average per requisition:
+      |    - Frequency vector: ${if (totalRequisitions.get() > 0) (frequencyVectorTime.get() / 1_000_000) / totalRequisitions.get() else 0}ms
+      |    - Build: ${if (totalRequisitions.get() > 0) (buildTime.get() / 1_000_000) / totalRequisitions.get() else 0}ms
+      |    - Send: ${if (totalRequisitions.get() > 0) (sendTime.get() / 1_000_000) / totalRequisitions.get() else 0}ms
+      |    - Total: ${if (totalRequisitions.get() > 0) (fulfillmentTime.get() / 1_000_000) / totalRequisitions.get() else 0}ms
+      |==============================
+      """
+        .trimMargin()
+    logger.info(stats)
   }
 
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
+
+    /** Utilize all cpu cores but keep one free for GC and system work. */
+    private val DEFAULT_FULFILLMENT_PARALLELISM: Int =
+      (Runtime.getRuntime().availableProcessors()).coerceAtLeast(2) - 1
   }
 }

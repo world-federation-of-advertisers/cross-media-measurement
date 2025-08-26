@@ -39,12 +39,11 @@ class FrequencyVectorSinkTest {
         timestamp = testInstant,
         vid = vid,
         message = TestEvent.getDefaultInstance(),
-        eventGroupReferenceId = "test-event-group-1",
       )
     }
 
     private fun createEventBatch(events: List<LabeledEvent<TestEvent>>): EventBatch<TestEvent> {
-      return EventBatch(events = events, minTime = testInstant, maxTime = testInstant)
+      return EventBatch(events = events, minTime = testInstant, maxTime = testInstant, eventGroupReferenceId = "test-group")
     }
 
     private fun createFilterSpec(): FilterSpec {
