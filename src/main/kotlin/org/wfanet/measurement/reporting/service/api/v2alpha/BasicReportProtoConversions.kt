@@ -117,15 +117,20 @@ fun BasicReport.toInternal(
   }
 }
 
-/** Converts the public [ReportingImpressionQualificationFilter] to the internal [InternalReportingImpressionQualificationFilter]. */
-fun ReportingImpressionQualificationFilter.toInternal(): InternalReportingImpressionQualificationFilter {
+/**
+ * Converts the public [ReportingImpressionQualificationFilter] to the internal
+ * [InternalReportingImpressionQualificationFilter].
+ */
+fun ReportingImpressionQualificationFilter.toInternal():
+  InternalReportingImpressionQualificationFilter {
   val source = this
   return internalReportingImpressionQualificationFilter {
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
     when (source.selectorCase) {
       ReportingImpressionQualificationFilter.SelectorCase.IMPRESSION_QUALIFICATION_FILTER -> {
         externalImpressionQualificationFilterId =
-          ImpressionQualificationFilterKey.fromName(source.impressionQualificationFilter)!!.impressionQualificationFilterId
+          ImpressionQualificationFilterKey.fromName(source.impressionQualificationFilter)!!
+            .impressionQualificationFilterId
       }
       ReportingImpressionQualificationFilter.SelectorCase.CUSTOM -> {
         for (filterSpec in source.custom.filterSpecList) {
@@ -168,13 +173,14 @@ fun ReportingUnit.toInternal(): InternalReportingUnit {
   val source = this
   return internalReportingUnit {
     // Only BasicReports with DataProvider components will be converted to internal BasicReports
-    dataProviderKeys = InternalReportingUnitKt.dataProviderKeys {
-      for (reportingUnitComponent in source.componentsList) {
-        dataProviderKeys += internalDataProviderKey {
-          cmmsDataProviderId = DataProviderKey.fromName(reportingUnitComponent)!!.dataProviderId
+    dataProviderKeys =
+      InternalReportingUnitKt.dataProviderKeys {
+        for (reportingUnitComponent in source.componentsList) {
+          dataProviderKeys += internalDataProviderKey {
+            cmmsDataProviderId = DataProviderKey.fromName(reportingUnitComponent)!!.dataProviderId
+          }
         }
       }
-    }
   }
 }
 
@@ -228,9 +234,10 @@ fun EventFilter.toInternal(): InternalEventFilter {
 fun DimensionSpec.toInternal(): InternalDimensionSpec {
   val source = this
   return internalDimensionSpec {
-    grouping = InternalDimensionSpecKt.grouping {
-      eventTemplateFields += source.grouping.eventTemplateFieldsList
-    }
+    grouping =
+      InternalDimensionSpecKt.grouping {
+        eventTemplateFields += source.grouping.eventTemplateFieldsList
+      }
     filters += source.filtersList.map { it.toInternal() }
   }
 }
@@ -412,7 +419,12 @@ fun InternalReportingUnit.toReportingUnit(): ReportingUnit {
       }
       InternalReportingUnit.ComponentsCase.REPORTING_SET_KEYS -> {
         for (internalReportingSetKey in source.reportingSetKeys.reportingSetKeysList) {
-          components += ReportingSetKey(internalReportingSetKey.cmmsMeasurementConsumerId, internalReportingSetKey.externalReportingSetId).toName()
+          components +=
+            ReportingSetKey(
+                internalReportingSetKey.cmmsMeasurementConsumerId,
+                internalReportingSetKey.externalReportingSetId,
+              )
+              .toName()
         }
       }
       InternalReportingUnit.ComponentsCase.COMPONENTS_NOT_SET -> {}
@@ -424,9 +436,8 @@ fun InternalReportingUnit.toReportingUnit(): ReportingUnit {
 fun InternalDimensionSpec.toDimensionSpec(): DimensionSpec {
   val source = this
   return dimensionSpec {
-    grouping = DimensionSpecKt.grouping {
-      eventTemplateFields += source.grouping.eventTemplateFieldsList
-    }
+    grouping =
+      DimensionSpecKt.grouping { eventTemplateFields += source.grouping.eventTemplateFieldsList }
     filters += source.filtersList.map { it.toEventFilter() }
   }
 }

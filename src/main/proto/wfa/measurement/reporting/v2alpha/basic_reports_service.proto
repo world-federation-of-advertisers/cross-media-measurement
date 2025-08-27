@@ -32,8 +32,7 @@ option go_package = "github.com/world-federation-of-advertisers/cross-media-meas
 // Service for managing `BasicReport` resources.
 service BasicReports {
   // Creates a `BasicReport`
-  rpc CreateBasicReport(CreateBasicReportRequest)
-      returns (BasicReport) {
+  rpc CreateBasicReport(CreateBasicReportRequest) returns (BasicReport) {
     option (google.api.http) = {
       post: "/v2alpha/{parent=measurementConsumers/*}/basicReports"
       body: "basic_report"

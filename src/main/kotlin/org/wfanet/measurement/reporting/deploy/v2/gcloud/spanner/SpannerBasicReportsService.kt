@@ -267,9 +267,9 @@ class SpannerBasicReportsService(
     val reportingSetResult: ReportingSetReader.Result =
       try {
         getReportingSets(
-          request.basicReport.cmmsMeasurementConsumerId,
-          listOf(request.basicReport.externalCampaignGroupId),
-        )
+            request.basicReport.cmmsMeasurementConsumerId,
+            listOf(request.basicReport.externalCampaignGroupId),
+          )
           .first()
       } catch (e: ReportingSetNotFoundException) {
         throw e.asStatusRuntimeException(Status.Code.INTERNAL)

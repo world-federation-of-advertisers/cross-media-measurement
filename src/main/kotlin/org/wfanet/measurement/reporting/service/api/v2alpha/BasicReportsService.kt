@@ -185,20 +185,29 @@ class BasicReportsService(
     val createReportRequestId = UUID.randomUUID().toString()
 
     return try {
-      internalBasicReportsStub.createBasicReport(
-        createBasicReportRequest {
-          basicReport = request.basicReport.toInternal(
-            cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId,
-            basicReportId = request.basicReportId,
-            campaignGroupId = campaignGroupKey.reportingSetId,
-            createReportRequestId = createReportRequestId,
-          )
-        }
-      ).toBasicReport()
+      internalBasicReportsStub
+        .createBasicReport(
+          createBasicReportRequest {
+            basicReport =
+              request.basicReport.toInternal(
+                cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId,
+                basicReportId = request.basicReportId,
+                campaignGroupId = campaignGroupKey.reportingSetId,
+                createReportRequestId = createReportRequestId,
+              )
+          }
+        )
+        .toBasicReport()
     } catch (e: StatusException) {
       throw when (InternalErrors.getReason(e)) {
         InternalErrors.Reason.BASIC_REPORT_ALREADY_EXISTS ->
-          BasicReportAlreadyExistsException(BasicReportKey(cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId, basicReportId = request.basicReportId).toName())
+          BasicReportAlreadyExistsException(
+              BasicReportKey(
+                  cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId,
+                  basicReportId = request.basicReportId,
+                )
+                .toName()
+            )
             .asStatusRuntimeException(Status.Code.ALREADY_EXISTS)
         InternalErrors.Reason.IMPRESSION_QUALIFICATION_FILTER_NOT_FOUND,
         InternalErrors.Reason.BASIC_REPORT_NOT_FOUND,
