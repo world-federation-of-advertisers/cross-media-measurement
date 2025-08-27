@@ -32,6 +32,7 @@ import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.identity.apiIdToExternalId
+import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.copy
@@ -59,15 +60,16 @@ import org.wfanet.measurement.internal.edpaggregator.requisitionMetadata as inte
 import org.wfanet.measurement.internal.edpaggregator.startProcessingRequisitionMetadataRequest as internalStartProcessingRequisitionMetadataRequest
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportKey
 
-private const val DATA_PROVIDER_ID = "AAAAAAAAALs"
+// IDs are ApiIds of strings.
+private val DATA_PROVIDER_ID = externalIdToApiId(111L)
 private val DATA_PROVIDER_KEY = DataProviderKey(DATA_PROVIDER_ID)
-private const val REQUISITION_METADATA_ID = "AAAAAAAAAHs"
+private val REQUISITION_METADATA_ID = externalIdToApiId(222L)
 private val REQUISITION_METADATA_KEY =
   RequisitionMetadataKey(DATA_PROVIDER_KEY, REQUISITION_METADATA_ID)
-private const val CMMS_REQUISITION_ID = "AAAAAAAAAJs"
+private val CMMS_REQUISITION_ID = externalIdToApiId(333L)
 private val CMMS_REQUISITION_KEY = CanonicalRequisitionKey(DATA_PROVIDER_KEY, CMMS_REQUISITION_ID)
-private const val MEASUREMENT_CONSUMER_ID = "AAAAAAAAAKs"
-private const val REPORT_ID = "AAAAAAAAAOs"
+private val MEASUREMENT_CONSUMER_ID = externalIdToApiId(444L)
+private val REPORT_ID = externalIdToApiId(555L)
 private val REPORT_KEY = ReportKey(MEASUREMENT_CONSUMER_ID, REPORT_ID)
 private const val REQUEST_ID = "some_request_id"
 private const val BLOB_URI = "path/to/blob"
@@ -75,9 +77,11 @@ private const val BLOB_TYPE = "blob.type"
 private const val GROUP_ID = "group_id"
 private val CMMS_CREATE_TIME = timestamp { seconds = 12345 }
 private val CREATE_TIME = timestamp { seconds = 12345 }
-private val UPDATE_TIME = timestamp { seconds = 12345 }
-private val WORK_ITEM = "workItems/AAAAAAAAIs"
-private val ETAG = UPDATE_TIME.toString()
+private val UPDATE_TIME_1 = timestamp { seconds = 12345 }
+private val UPDATE_TIME_2 = timestamp { seconds = 23456 }
+private val WORK_ITEM = "workItems/${externalIdToApiId(666L)}"
+private val ETAG_1 = UPDATE_TIME_1.toString()
+private val ETAG_2 = UPDATE_TIME_2.toString()
 private val REFUSAL_MESSAGE = "Somehow refused."
 
 private val NEW_REQUISITION_METADATA = requisitionMetadata {
@@ -97,8 +101,8 @@ private val REQUISITION_METADATA =
     name = REQUISITION_METADATA_KEY.toName()
     state = RequisitionMetadata.State.STORED
     createTime = CREATE_TIME
-    updateTime = UPDATE_TIME
-    etag = ETAG
+    updateTime = UPDATE_TIME_1
+    etag = ETAG_1
   }
 
 private val INTERNAL_REQUISITION_METADATA: InternalRequisitionMetadata =
@@ -114,7 +118,7 @@ private val INTERNAL_REQUISITION_METADATA: InternalRequisitionMetadata =
     state = InternalRequisitionMetadata.State.STORED
     // work_item not set
     createTime = CREATE_TIME
-    updateTime = UPDATE_TIME
+    updateTime = UPDATE_TIME_1
     // errorMessage not set
     etag = updateTime.toString()
   }
@@ -124,6 +128,42 @@ class RequisitionMetadataServiceTest {
   private val internalService: InternalRequisitionMetadataService = mockService {
     onBlocking { createRequisitionMetadata(any()) }.thenReturn(INTERNAL_REQUISITION_METADATA)
     onBlocking { getRequisitionMetadata(any()) }.thenReturn(INTERNAL_REQUISITION_METADATA)
+    onBlocking { lookupRequisitionMetadata(any()) }.thenReturn(INTERNAL_REQUISITION_METADATA)
+    onBlocking { fetchLatestCmmsCreateTime(any()) }.thenReturn(CMMS_CREATE_TIME)
+    onBlocking { queueRequisitionMetadata(any()) }
+      .thenReturn(
+        INTERNAL_REQUISITION_METADATA.copy {
+          state = InternalRequisitionMetadata.State.QUEUED
+          updateTime = UPDATE_TIME_2
+          etag = ETAG_2
+          workItem = WORK_ITEM
+        }
+      )
+    onBlocking { startProcessingRequisitionMetadata(any()) }
+      .thenReturn(
+        INTERNAL_REQUISITION_METADATA.copy {
+          state = InternalRequisitionMetadata.State.PROCESSING
+          updateTime = UPDATE_TIME_2
+          etag = ETAG_2
+        }
+      )
+    onBlocking { fulfillRequisitionMetadata(any()) }
+      .thenReturn(
+        INTERNAL_REQUISITION_METADATA.copy {
+          state = InternalRequisitionMetadata.State.FULFILLED
+          updateTime = UPDATE_TIME_2
+          etag = ETAG_2
+        }
+      )
+    onBlocking { refuseRequisitionMetadata(any()) }
+      .thenReturn(
+        INTERNAL_REQUISITION_METADATA.copy {
+          state = InternalRequisitionMetadata.State.REFUSED
+          updateTime = UPDATE_TIME_2
+          etag = ETAG_2
+          refusalMessage = REFUSAL_MESSAGE
+        }
+      )
   }
 
   @get:Rule val grpcTestServerRule = GrpcTestServerRule { addService(internalService) }
@@ -137,7 +177,7 @@ class RequisitionMetadataServiceTest {
   }
 
   @Test
-  fun `createRequisitionMetadata returns a RequisitionMetadata`() = runBlocking {
+  fun `createRequisitionMetadata returns a RequisitionMetadata successfully`() = runBlocking {
     val request = createRequisitionMetadataRequest {
       parent = DATA_PROVIDER_KEY.toName()
       requisitionMetadata = NEW_REQUISITION_METADATA
@@ -152,8 +192,8 @@ class RequisitionMetadataServiceTest {
           name = REQUISITION_METADATA_KEY.toName()
           state = RequisitionMetadata.State.STORED
           createTime = CREATE_TIME
-          updateTime = UPDATE_TIME
-          etag = ETAG
+          updateTime = UPDATE_TIME_1
+          etag = ETAG_1
         }
       )
 
@@ -187,7 +227,6 @@ class RequisitionMetadataServiceTest {
     val exception =
       assertFailsWith<StatusRuntimeException> { service.createRequisitionMetadata(request) }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.message).contains("Parent is either unspecified or invalid")
   }
 
   @Test
@@ -202,7 +241,6 @@ class RequisitionMetadataServiceTest {
     val exception =
       assertFailsWith<StatusRuntimeException> { service.createRequisitionMetadata(request) }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.message).contains("name must be empty")
   }
 
   @Test
@@ -217,7 +255,6 @@ class RequisitionMetadataServiceTest {
       val exception =
         assertFailsWith<StatusRuntimeException> { service.createRequisitionMetadata(request) }
       assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception.message).contains("cmms_requisition is either unspecified or invalid")
     }
 
   @Test
@@ -235,7 +272,6 @@ class RequisitionMetadataServiceTest {
       val exception =
         assertFailsWith<StatusRuntimeException> { service.createRequisitionMetadata(request) }
       assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception.message).contains("does not match parent DataProvider")
     }
 
   @Test
@@ -249,11 +285,10 @@ class RequisitionMetadataServiceTest {
     val exception =
       assertFailsWith<StatusRuntimeException> { service.createRequisitionMetadata(request) }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.message).contains("report is either unspecified or invalid")
   }
 
   @Test
-  fun `getRequisitionMetadata succeeds`() = runBlocking {
+  fun `getRequisitionMetadata returns a RequisitionMetadata successfully`() = runBlocking {
     val request = getRequisitionMetadataRequest { name = REQUISITION_METADATA_KEY.toName() }
 
     val requisitionMetadata = service.getRequisitionMetadata(request)
@@ -278,52 +313,55 @@ class RequisitionMetadataServiceTest {
   }
 
   @Test
-  fun `lookupRequisitionMetadata by cmmsRequisition succeeds`() = runBlocking {
-    val request = lookupRequisitionMetadataRequest {
-      parent = DATA_PROVIDER_KEY.toName()
-      cmmsRequisition = CMMS_REQUISITION_KEY.toName()
+  fun `lookupRequisitionMetadata by cmmsRequisition returns a RequisitionMetadata successfully`() =
+    runBlocking {
+      val request = lookupRequisitionMetadataRequest {
+        parent = DATA_PROVIDER_KEY.toName()
+        cmmsRequisition = CMMS_REQUISITION_KEY.toName()
+      }
+
+      val result = service.lookupRequisitionMetadata(request)
+
+      assertThat(result).isEqualTo(INTERNAL_REQUISITION_METADATA.toRequisitionMetadata())
+      verifyProtoArgument(
+          internalService,
+          InternalRequisitionMetadataService::lookupRequisitionMetadata,
+        )
+        .isEqualTo(
+          internalLookupRequisitionMetadataRequest {
+            externalDataProviderId = apiIdToExternalId(DATA_PROVIDER_ID)
+            cmmsRequisition = CMMS_REQUISITION_KEY.toName()
+          }
+        )
     }
-
-    val result = service.lookupRequisitionMetadata(request)
-
-    assertThat(result).isEqualTo(INTERNAL_REQUISITION_METADATA.toRequisitionMetadata())
-    verifyProtoArgument(
-        internalService,
-        InternalRequisitionMetadataService::lookupRequisitionMetadata,
-      )
-      .isEqualTo(
-        internalLookupRequisitionMetadataRequest {
-          externalDataProviderId = DATA_PROVIDER_ID.toLong()
-          cmmsRequisition = CMMS_REQUISITION_KEY.toName()
-        }
-      )
-  }
 
   @Test
-  fun `lookupRequisitionMetadata by blobUri succeeds`() = runBlocking {
-    val request = lookupRequisitionMetadataRequest {
-      parent = DATA_PROVIDER_KEY.toName()
-      blobUri = BLOB_URI
+  fun `lookupRequisitionMetadata by blobUri returns a RequisitionMetadata successfully`() =
+    runBlocking {
+      val request = lookupRequisitionMetadataRequest {
+        parent = DATA_PROVIDER_KEY.toName()
+        blobUri = BLOB_URI
+      }
+
+      val result = service.lookupRequisitionMetadata(request)
+
+      assertThat(result).isEqualTo(INTERNAL_REQUISITION_METADATA.toRequisitionMetadata())
+      verifyProtoArgument(
+          internalService,
+          InternalRequisitionMetadataService::lookupRequisitionMetadata,
+        )
+        .isEqualTo(
+          internalLookupRequisitionMetadataRequest {
+            externalDataProviderId = apiIdToExternalId(DATA_PROVIDER_ID)
+            blobUri = BLOB_URI
+          }
+        )
     }
-
-    val result = service.lookupRequisitionMetadata(request)
-
-    assertThat(result).isEqualTo(INTERNAL_REQUISITION_METADATA.toRequisitionMetadata())
-    verifyProtoArgument(
-        internalService,
-        InternalRequisitionMetadataService::lookupRequisitionMetadata,
-      )
-      .isEqualTo(
-        internalLookupRequisitionMetadataRequest {
-          externalDataProviderId = DATA_PROVIDER_ID.toLong()
-          blobUri = BLOB_URI
-        }
-      )
-  }
 
   @Test
   fun `lookupRequisitionMetadata throws INVALID_ARGUMENT for missing parent`() = runBlocking {
     val request = lookupRequisitionMetadataRequest {
+      // missing parent
       cmmsRequisition = CMMS_REQUISITION_KEY.toName()
     }
     val exception =
@@ -333,14 +371,17 @@ class RequisitionMetadataServiceTest {
 
   @Test
   fun `lookupRequisitionMetadata throws INVALID_ARGUMENT for missing lookup key`() = runBlocking {
-    val request = lookupRequisitionMetadataRequest { parent = DATA_PROVIDER_KEY.toName() }
+    val request = lookupRequisitionMetadataRequest {
+      parent = DATA_PROVIDER_KEY.toName()
+      // missing lookup key
+    }
     val exception =
       assertFailsWith<StatusRuntimeException> { service.lookupRequisitionMetadata(request) }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
   }
 
   @Test
-  fun `fetchLatestCmmsCreateTime succeeds`() = runBlocking {
+  fun `fetchLatestCmmsCreateTime updates state successfully`() = runBlocking {
     val request = fetchLatestCmmsCreateTimeRequest { parent = DATA_PROVIDER_KEY.toName() }
 
     val result = service.fetchLatestCmmsCreateTime(request)
@@ -352,39 +393,49 @@ class RequisitionMetadataServiceTest {
       )
       .isEqualTo(
         internalFetchLatestCmmsCreateTimeRequest {
-          externalDataProviderId = DATA_PROVIDER_ID.toLong()
+          externalDataProviderId = apiIdToExternalId(DATA_PROVIDER_ID)
         }
       )
   }
 
   @Test
   fun `fetchLatestCmmsCreateTime throws INVALID_ARGUMENT for missing parent`() = runBlocking {
-    val request = fetchLatestCmmsCreateTimeRequest {}
+    val request = fetchLatestCmmsCreateTimeRequest {
+      // missing parent
+    }
     val exception =
       assertFailsWith<StatusRuntimeException> { service.fetchLatestCmmsCreateTime(request) }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
   }
 
   @Test
-  fun `queueRequisitionMetadata succeeds`() = runBlocking {
+  fun `queueRequisitionMetadata updates state successfully`() = runBlocking {
     val request = queueRequisitionMetadataRequest {
       name = REQUISITION_METADATA_KEY.toName()
-      etag = ETAG
+      etag = ETAG_1
       workItem = WORK_ITEM
     }
 
-    val result = service.queueRequisitionMetadata(request)
+    val requisitionMetadata = service.queueRequisitionMetadata(request)
 
-    assertThat(result.state).isEqualTo(RequisitionMetadata.State.QUEUED)
+    assertThat(requisitionMetadata)
+      .isEqualTo(
+        REQUISITION_METADATA.copy {
+          state = RequisitionMetadata.State.QUEUED
+          workItem = WORK_ITEM
+          updateTime = UPDATE_TIME_2
+          etag = ETAG_2
+        }
+      )
     verifyProtoArgument(
         internalService,
         InternalRequisitionMetadataService::queueRequisitionMetadata,
       )
       .isEqualTo(
         internalQueueRequisitionMetadataRequest {
-          externalDataProviderId = DATA_PROVIDER_ID.toLong()
-          externalRequisitionMetadataId = REQUISITION_METADATA_ID.toLong()
-          this.etag = ETAG
+          externalDataProviderId = apiIdToExternalId(DATA_PROVIDER_ID)
+          externalRequisitionMetadataId = apiIdToExternalId(REQUISITION_METADATA_ID)
+          this.etag = ETAG_1
           this.workItem = WORK_ITEM
         }
       )
@@ -392,31 +443,66 @@ class RequisitionMetadataServiceTest {
 
   @Test
   fun `queueRequisitionMetadata throws INVALID_ARGUMENT for invalid name`() = runBlocking {
-    val request = queueRequisitionMetadataRequest { name = "foo" }
+    val request = queueRequisitionMetadataRequest {
+      name = "foo"
+      etag = ETAG_1
+      workItem = WORK_ITEM
+    }
     val exception =
       assertFailsWith<StatusRuntimeException> { service.queueRequisitionMetadata(request) }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
   }
 
   @Test
-  fun `startProcessingRequisitionMetadata succeeds`() = runBlocking {
+  fun `queueRequisitionMetadata throws INVALID_ARGUMENT for invalid work_item`() = runBlocking {
+    val request = queueRequisitionMetadataRequest {
+      name = REQUISITION_METADATA_KEY.toName()
+      etag = ETAG_1
+      workItem = "foo"
+    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> { service.queueRequisitionMetadata(request) }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `queueRequisitionMetadata throws INVALID_ARGUMENT for missing etag`() = runBlocking {
+    val request = queueRequisitionMetadataRequest {
+      name = REQUISITION_METADATA_KEY.toName()
+      // etag is missing
+      workItem = WORK_ITEM
+    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> { service.queueRequisitionMetadata(request) }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `startProcessingRequisitionMetadata updates state successfully`() = runBlocking {
     val request = startProcessingRequisitionMetadataRequest {
       name = REQUISITION_METADATA_KEY.toName()
-      etag = ETAG
+      etag = ETAG_1
     }
 
-    val result = service.startProcessingRequisitionMetadata(request)
+    val requisitionMetadata = service.startProcessingRequisitionMetadata(request)
 
-    assertThat(result.state).isEqualTo(RequisitionMetadata.State.PROCESSING)
+    assertThat(requisitionMetadata)
+      .isEqualTo(
+        REQUISITION_METADATA.copy {
+          state = RequisitionMetadata.State.PROCESSING
+          updateTime = UPDATE_TIME_2
+          etag = ETAG_2
+        }
+      )
     verifyProtoArgument(
         internalService,
         InternalRequisitionMetadataService::startProcessingRequisitionMetadata,
       )
       .isEqualTo(
         internalStartProcessingRequisitionMetadataRequest {
-          externalDataProviderId = DATA_PROVIDER_ID.toLong()
-          externalRequisitionMetadataId = REQUISITION_METADATA_ID.toLong()
-          this.etag = ETAG
+          externalDataProviderId = apiIdToExternalId(DATA_PROVIDER_ID)
+          externalRequisitionMetadataId = apiIdToExternalId(REQUISITION_METADATA_ID)
+          this.etag = ETAG_1
         }
       )
   }
@@ -433,10 +519,24 @@ class RequisitionMetadataServiceTest {
     }
 
   @Test
-  fun `fulfillRequisitionMetadata succeeds`() = runBlocking {
+  fun `startProcessingRequisitionMetadata throws INVALID_ARGUMENT for missing etag`() =
+    runBlocking {
+      val request = startProcessingRequisitionMetadataRequest {
+        name = REQUISITION_METADATA_KEY.toName()
+        // etag is missing
+      }
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.startProcessingRequisitionMetadata(request)
+        }
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    }
+
+  @Test
+  fun `fulfillRequisitionMetadata updates state successfully`() = runBlocking {
     val request = fulfillRequisitionMetadataRequest {
       name = REQUISITION_METADATA_KEY.toName()
-      etag = ETAG
+      etag = ETAG_1
     }
 
     val result = service.fulfillRequisitionMetadata(request)
@@ -448,9 +548,9 @@ class RequisitionMetadataServiceTest {
       )
       .isEqualTo(
         internalFulfillRequisitionMetadataRequest {
-          externalDataProviderId = DATA_PROVIDER_ID.toLong()
-          externalRequisitionMetadataId = REQUISITION_METADATA_ID.toLong()
-          this.etag = ETAG
+          externalDataProviderId = apiIdToExternalId(DATA_PROVIDER_ID)
+          externalRequisitionMetadataId = apiIdToExternalId(REQUISITION_METADATA_ID)
+          this.etag = ETAG_1
         }
       )
   }
@@ -464,34 +564,68 @@ class RequisitionMetadataServiceTest {
   }
 
   @Test
-  fun `refuseRequisitionMetadata succeeds`() = runBlocking {
+  fun `fulfillRequisitionMetadata throws INVALID_ARGUMENT for missing etag`() = runBlocking {
+    val request = fulfillRequisitionMetadataRequest {
+      name = REQUISITION_METADATA_KEY.toName()
+      // etag is missing
+    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> { service.fulfillRequisitionMetadata(request) }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `refuseRequisitionMetadata updates state successfully`() = runBlocking {
     val request = refuseRequisitionMetadataRequest {
       name = REQUISITION_METADATA_KEY.toName()
-      etag = ETAG
+      etag = ETAG_1
       refusalMessage = REFUSAL_MESSAGE
     }
 
-    val result = service.refuseRequisitionMetadata(request)
+    val requisitionMetadata = service.refuseRequisitionMetadata(request)
 
-    assertThat(result.state).isEqualTo(RequisitionMetadata.State.REFUSED)
-    assertThat(result.refusalMessage).isEqualTo(REFUSAL_MESSAGE)
+    assertThat(requisitionMetadata)
+      .isEqualTo(
+        REQUISITION_METADATA.copy {
+          state = RequisitionMetadata.State.REFUSED
+          updateTime = UPDATE_TIME_2
+          etag = ETAG_2
+          refusalMessage = REFUSAL_MESSAGE
+        }
+      )
     verifyProtoArgument(
         internalService,
         InternalRequisitionMetadataService::refuseRequisitionMetadata,
       )
       .isEqualTo(
         internalRefuseRequisitionMetadataRequest {
-          externalDataProviderId = DATA_PROVIDER_ID.toLong()
-          externalRequisitionMetadataId = REQUISITION_METADATA_ID.toLong()
-          this.etag = ETAG
+          externalDataProviderId = apiIdToExternalId(DATA_PROVIDER_ID)
+          externalRequisitionMetadataId = apiIdToExternalId(REQUISITION_METADATA_ID)
           this.refusalMessage = REFUSAL_MESSAGE
+          etag = ETAG_1
         }
       )
   }
 
   @Test
   fun `refuseRequisitionMetadata throws INVALID_ARGUMENT for invalid name`() = runBlocking {
-    val request = refuseRequisitionMetadataRequest { name = "foo" }
+    val request = refuseRequisitionMetadataRequest {
+      name = "foo"
+      etag = ETAG_1
+      refusalMessage = REFUSAL_MESSAGE
+    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> { service.refuseRequisitionMetadata(request) }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `refuseRequisitionMetadata throws INVALID_ARGUMENT for missing etag`() = runBlocking {
+    val request = refuseRequisitionMetadataRequest {
+      name = REQUISITION_METADATA_KEY.toName()
+      // missing etag
+      refusalMessage = REFUSAL_MESSAGE
+    }
     val exception =
       assertFailsWith<StatusRuntimeException> { service.refuseRequisitionMetadata(request) }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)

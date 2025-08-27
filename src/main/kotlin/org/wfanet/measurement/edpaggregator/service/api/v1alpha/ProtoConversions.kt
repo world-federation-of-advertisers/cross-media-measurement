@@ -70,5 +70,13 @@ fun RequisitionMetadata.toInternal(dataProviderKey: DataProviderKey): InternalRe
  * Converts an internal [InternalRequisitionMetadata.State] to a public [RequisitionMetadata.State].
  */
 internal fun InternalRequisitionMetadata.State.toState(): RequisitionMetadata.State {
-  return RequisitionMetadata.State.forNumber(this.number)
+  return when (this) {
+    InternalRequisitionMetadata.State.STORED -> RequisitionMetadata.State.STORED
+    InternalRequisitionMetadata.State.QUEUED -> RequisitionMetadata.State.QUEUED
+    InternalRequisitionMetadata.State.PROCESSING -> RequisitionMetadata.State.PROCESSING
+    InternalRequisitionMetadata.State.FULFILLED -> RequisitionMetadata.State.FULFILLED
+    InternalRequisitionMetadata.State.REFUSED -> RequisitionMetadata.State.REFUSED
+    InternalRequisitionMetadata.State.UNRECOGNIZED,
+    InternalRequisitionMetadata.State.STATE_UNSPECIFIED -> error("Unrecognized state")
+  }
 }

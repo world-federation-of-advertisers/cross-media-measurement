@@ -42,6 +42,7 @@ import org.wfanet.measurement.internal.edpaggregator.queueRequisitionMetadataReq
 import org.wfanet.measurement.internal.edpaggregator.refuseRequisitionMetadataRequest as internalRefuseRequisitionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.startProcessingRequisitionMetadataRequest as internalStartProcessingRequisitionMetadataRequest
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportKey
+import org.wfanet.measurement.securecomputation.service.WorkItemKey
 
 class RequisitionMetadataService(
   private val internalClient: InternalRequisitionMetadataServiceCoroutineStub
@@ -102,8 +103,9 @@ class RequisitionMetadataService(
   override suspend fun getRequisitionMetadata(
     request: GetRequisitionMetadataRequest
   ): RequisitionMetadata {
-    val key = RequisitionMetadataKey.fromName(request.name)
-      ?: failGrpc(Status.INVALID_ARGUMENT) { "Parent is either unspecified or invalid." }
+    val key =
+      RequisitionMetadataKey.fromName(request.name)
+        ?: failGrpc(Status.INVALID_ARGUMENT) { "Parent is either unspecified or invalid." }
 
     val internalRequest = internalGetRequisitionMetadataRequest {
       externalDataProviderId = apiIdToExternalId(key.dataProviderId)
@@ -150,8 +152,15 @@ class RequisitionMetadataService(
   override suspend fun queueRequisitionMetadata(
     request: QueueRequisitionMetadataRequest
   ): RequisitionMetadata {
-    val key = RequisitionMetadataKey.fromName(request.name)
-      ?: failGrpc(Status.INVALID_ARGUMENT) { "RequisitionMetadata name is either unspecified or invalid." }
+    val key =
+      RequisitionMetadataKey.fromName(request.name)
+        ?: failGrpc(Status.INVALID_ARGUMENT) {
+          "RequisitionMetadata name is either unspecified or invalid."
+        }
+    WorkItemKey.fromName(request.workItem)
+      ?: failGrpc(Status.INVALID_ARGUMENT) { "workItem is either unspecified or invalid." }
+    grpcRequire(request.etag.isNotEmpty()) { "Etag is missing." }
+
     val internalRequest = internalQueueRequisitionMetadataRequest {
       externalDataProviderId = apiIdToExternalId(key.dataProviderId)
       externalRequisitionMetadataId = apiIdToExternalId(key.requisitionMetadataId)
@@ -164,8 +173,13 @@ class RequisitionMetadataService(
   override suspend fun startProcessingRequisitionMetadata(
     request: StartProcessingRequisitionMetadataRequest
   ): RequisitionMetadata {
-    val key = RequisitionMetadataKey.fromName(request.name)
-      ?: failGrpc(Status.INVALID_ARGUMENT) { "RequisitionMetadata name is either unspecified or invalid." }
+    val key =
+      RequisitionMetadataKey.fromName(request.name)
+        ?: failGrpc(Status.INVALID_ARGUMENT) {
+          "RequisitionMetadata name is either unspecified or invalid."
+        }
+    grpcRequire(request.etag.isNotEmpty()) { "Etag is missing." }
+
     val internalRequest = internalStartProcessingRequisitionMetadataRequest {
       externalDataProviderId = apiIdToExternalId(key.dataProviderId)
       externalRequisitionMetadataId = apiIdToExternalId(key.requisitionMetadataId)
@@ -179,8 +193,13 @@ class RequisitionMetadataService(
   override suspend fun fulfillRequisitionMetadata(
     request: FulfillRequisitionMetadataRequest
   ): RequisitionMetadata {
-    val key = RequisitionMetadataKey.fromName(request.name)
-      ?: failGrpc(Status.INVALID_ARGUMENT) { "RequisitionMetadata name is either unspecified or invalid." }
+    val key =
+      RequisitionMetadataKey.fromName(request.name)
+        ?: failGrpc(Status.INVALID_ARGUMENT) {
+          "RequisitionMetadata name is either unspecified or invalid."
+        }
+    grpcRequire(request.etag.isNotEmpty()) { "Etag is missing." }
+
     val internalRequest = internalFulfillRequisitionMetadataRequest {
       externalDataProviderId = apiIdToExternalId(key.dataProviderId)
       externalRequisitionMetadataId = apiIdToExternalId(key.requisitionMetadataId)
@@ -192,8 +211,13 @@ class RequisitionMetadataService(
   override suspend fun refuseRequisitionMetadata(
     request: RefuseRequisitionMetadataRequest
   ): RequisitionMetadata {
-    val key = RequisitionMetadataKey.fromName(request.name)
-      ?: failGrpc(Status.INVALID_ARGUMENT) { "RequisitionMetadata name is either unspecified or invalid." }
+    val key =
+      RequisitionMetadataKey.fromName(request.name)
+        ?: failGrpc(Status.INVALID_ARGUMENT) {
+          "RequisitionMetadata name is either unspecified or invalid."
+        }
+    grpcRequire(request.etag.isNotEmpty()) { "Etag is missing." }
+
     val internalRequest = internalRefuseRequisitionMetadataRequest {
       externalDataProviderId = apiIdToExternalId(key.dataProviderId)
       externalRequisitionMetadataId = apiIdToExternalId(key.requisitionMetadataId)
