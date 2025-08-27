@@ -32,6 +32,7 @@ LIBS = [
     "exchange_step_attempt",
     "exchange_step",
     "exchange_workflow",
+    "impression_metadata",
     "measurement_consumer",
     "measurement_log_entry_error",
     "measurement_log_entry",
@@ -81,6 +82,7 @@ SERVICES = [
     "exchanges",
     "exchange_step_attempts",
     "exchange_steps",
+    "impression_metadata",
     "measurement_consumers",
     "measurement_log_entries",
     "measurements",
@@ -468,6 +470,28 @@ proto_library(
         ":duchy_protocol_config_proto",
         ":measurement_failure_proto",
         ":protocol_config_proto",
+    ],
+)
+
+proto_library(
+    name = "impression_metadata_proto",
+    srcs = ["impression_metadata.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        "@com_google_googleapis//google/type:interval_proto",
+        "@com_google_protobuf//:timestamp_proto",
+    ],
+)
+
+proto_library(
+    name = "impression_metadata_service_proto",
+    srcs = ["impression_metadata_service.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        ":impression_metadata_proto",
+        "@com_google_googleapis//google/type:interval_proto",
+        "@com_google_protobuf//:empty_proto",
+        "@com_google_protobuf//:timestamp_proto",
     ],
 )
 
