@@ -11,6 +11,7 @@ go_library(
         "//src/main/proto/wfa/measurement/reporting/v2alpha:reportingpb_go_grpc_proto",
         "@com_github_golang_glog//:glog",
         "@grpc_ecosystem_grpc_gateway//runtime",
+        "@org_golang_google_genproto_googleapis_rpc//errdetails",
         "@org_golang_google_grpc//:grpc",
         "@org_golang_google_grpc//credentials",
         "@org_golang_google_grpc//grpclog",

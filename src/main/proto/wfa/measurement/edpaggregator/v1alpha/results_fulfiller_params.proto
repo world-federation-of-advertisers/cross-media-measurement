@@ -108,4 +108,20 @@ message ResultsFulfillerParams {
 
   // The noise params to be applied.
   NoiseParams noise_params = 5;
+
+  // The parameters for k-anonymity that is applied to the result. Note that if
+  // the threshold is not met, a zero result is returned instead.
+  message KAnonymityParams {
+    // The minimum number of impressions.
+    int32 min_impressions = 1;
+    // The minimum number of unique users.
+    int32 min_users = 2;
+    // The maximum frequency used for impression count in reach measurements.
+    // Note that this param is also used to set sensitivity if differential
+    // privacy is also applied.
+    int32 reach_max_frequency_per_user = 3;
+  }
+
+  // The k-anonymity params to be applied.
+  KAnonymityParams k_anonymity_params = 6;
 }

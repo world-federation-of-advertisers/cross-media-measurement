@@ -1,6 +1,12 @@
 load("@rules_jvm_external//:defs.bzl", "maven_export")
+load("@wfa_common_jvm//build:defs.bzl", "test_target")
 load("@wfa_common_jvm//build/maven:defs.bzl", "artifact_version")
 load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
+
+package(default_visibility = [
+    test_target(":__pkg__"),
+    "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/requisition/v2alpha:__pkg__",
+])
 
 MAVEN_COORDINATES = "org.wfanet.measurement.eventdataprovider:requisition-shareshuffle-v2alpha:" + artifact_version()
 
@@ -8,11 +14,6 @@ kt_jvm_library(
     name = "shareshuffle",
     srcs = ["FulfillRequisitionRequestBuilder.kt"],
     tags = ["maven_coordinates=" + MAVEN_COORDINATES],
-    visibility = [
-        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller/fulfillers:__pkg__",
-        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/requisition/v2alpha:__pkg__",
-        "//src/test/kotlin/org/wfanet/measurement/eventdataprovider/requisition/v2alpha/shareshuffle:__pkg__",
-    ],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:packed_messages",
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",

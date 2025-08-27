@@ -32,6 +32,7 @@ class ImpressionComputationsTest {
         vidSamplingIntervalWidth = 1.0f,
         maxFrequency = null,
         dpParams = null,
+        kAnonymityParams = null,
       )
     assertThat(result).isEqualTo(57L)
   }
@@ -45,6 +46,7 @@ class ImpressionComputationsTest {
         vidSamplingIntervalWidth = 1.0f,
         maxFrequency = 4,
         dpParams = null,
+        kAnonymityParams = null,
       )
     assertThat(result).isEqualTo(50L) // 2*5 + 4*3 + 4*7
   }
@@ -59,6 +61,7 @@ class ImpressionComputationsTest {
         vidSamplingIntervalWidth = scale,
         maxFrequency = null,
         dpParams = null,
+        kAnonymityParams = null,
       )
     assertThat(result).isEqualTo((57L / scale).toLong())
   }
@@ -73,6 +76,7 @@ class ImpressionComputationsTest {
         vidSamplingIntervalWidth = 1.0f,
         maxFrequency = maxFrequency,
         dpParams = DP_PARAMS,
+        kAnonymityParams = null,
       )
     val rawImpressionCount =
       1 * 2 +
@@ -89,6 +93,32 @@ class ImpressionComputationsTest {
   }
 
   @Test
+  fun `impression count with DP noise is within expected tolerance with smaller interval`() {
+    val histogram = longArrayOf(2L, 4L, 0L, 8L, 0L, 0L, 10L, 0L, 2L) // 1*2 + 2*4 + 4*8 + 7*10 + 7*2
+    val maxFrequency = 4L
+    val result =
+      ImpressionComputations.computeImpressionCount(
+        rawHistogram = histogram,
+        vidSamplingIntervalWidth = 0.5f,
+        maxFrequency = maxFrequency,
+        dpParams = DP_PARAMS,
+        kAnonymityParams = null,
+      )
+    val rawImpressionCount =
+      1 * 2 +
+        min(maxFrequency, 2) * 4 +
+        min(maxFrequency, 4) * 8 +
+        min(maxFrequency, 5) * 10 +
+        min(maxFrequency, 7) * 2
+    val tolerance = calculateNoiseTolerance(DP_PARAMS, 1, maxFrequency.toDouble())
+    check(rawImpressionCount * 2 > tolerance) {
+      "Test must be set up such that raw impression count $rawImpressionCount is greater than tolerance $tolerance"
+    }
+    assertThat(result).isAtLeast((rawImpressionCount * 2 - tolerance).coerceAtLeast(0))
+    assertThat(result).isAtMost((rawImpressionCount * 2 + tolerance))
+  }
+
+  @Test
   fun `throws error if maxFrequency is not set but dp params are set`() {
     val histogram = longArrayOf(2L, 4L, 0L, 8L, 0L, 0L, 10L, 0L, 2L) // 1*2 + 2*4 + 4*8 + 7*10 + 7*2
     assertFailsWith<IllegalStateException> {
@@ -97,8 +127,84 @@ class ImpressionComputationsTest {
         vidSamplingIntervalWidth = 1.0f,
         maxFrequency = null,
         dpParams = DP_PARAMS,
+        kAnonymityParams = null,
       )
     }
+  }
+
+  @Test
+  fun `impression count with K Anonymity is zero for too few unique users`() {
+    val histogram = longArrayOf(2L, 4L, 0L, 8L, 0L, 0L, 10L, 0L, 2L) // 1*2 + 2*4 + 4*8 + 7*10 + 7*2
+    val kAnonymityParams = KAnonymityParams(minUsers = 28, minImpressions = 50)
+    val result =
+      ImpressionComputations.computeImpressionCount(
+        rawHistogram = histogram,
+        vidSamplingIntervalWidth = 1.0f,
+        dpParams = null,
+        maxFrequency = null,
+        kAnonymityParams = kAnonymityParams,
+      )
+    assertThat(result).isEqualTo(0)
+  }
+
+  @Test
+  fun `impression count with K Anonymity is zero for too few impressions`() {
+    val histogram = longArrayOf(2L, 4L, 0L, 8L, 0L, 0L, 10L, 0L, 2L) // 1*2 + 2*4 + 4*8 + 7*10 + 7*2
+    val kAnonymityParams = KAnonymityParams(minUsers = 28, minImpressions = 100)
+    val result =
+      ImpressionComputations.computeImpressionCount(
+        rawHistogram = histogram,
+        vidSamplingIntervalWidth = 1.0f,
+        dpParams = null,
+        maxFrequency = null,
+        kAnonymityParams = kAnonymityParams,
+      )
+    assertThat(result).isEqualTo(0)
+  }
+
+  @Test
+  fun `impression count with K Anonymity not changed for sufficient impressions + users`() {
+    val histogram = longArrayOf(2L, 4L, 0L, 8L, 0L, 0L, 10L, 0L, 2L) // 1*2 + 2*4 + 4*8 + 7*10 + 7*2
+    val kAnonymityParams = KAnonymityParams(minUsers = 24, minImpressions = 50)
+    val result =
+      ImpressionComputations.computeImpressionCount(
+        rawHistogram = histogram,
+        vidSamplingIntervalWidth = 1.0f,
+        dpParams = null,
+        maxFrequency = null,
+        kAnonymityParams = kAnonymityParams,
+      )
+    assertThat(result).isEqualTo(130)
+  }
+
+  @Test
+  fun `scaled impression count with K Anonymity not changed`() {
+    val histogram = longArrayOf(2L, 4L, 0L, 8L, 0L, 0L, 10L, 0L, 2L) // 1*2 + 2*4 + 4*8 + 7*10 + 7*2
+    val kAnonymityParams = KAnonymityParams(minUsers = 48, minImpressions = 100)
+    val result =
+      ImpressionComputations.computeImpressionCount(
+        rawHistogram = histogram,
+        vidSamplingIntervalWidth = 0.5f,
+        dpParams = null,
+        maxFrequency = null,
+        kAnonymityParams = kAnonymityParams,
+      )
+    assertThat(result).isEqualTo(260)
+  }
+
+  @Test
+  fun `scaled impression count with K Anonymity is zero for too few unique users`() {
+    val histogram = longArrayOf(2L, 4L, 0L, 8L, 0L, 0L, 10L, 0L, 2L) // 1*2 + 2*4 + 4*8 + 7*10 + 7*2
+    val kAnonymityParams = KAnonymityParams(minUsers = 56, minImpressions = 100)
+    val result =
+      ImpressionComputations.computeImpressionCount(
+        rawHistogram = histogram,
+        vidSamplingIntervalWidth = 0.5f,
+        dpParams = null,
+        maxFrequency = null,
+        kAnonymityParams = kAnonymityParams,
+      )
+    assertThat(result).isEqualTo(0)
   }
 
   companion object {
