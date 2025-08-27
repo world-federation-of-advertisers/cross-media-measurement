@@ -25,8 +25,6 @@ import java.security.GeneralSecurityException
 import java.time.Clock
 import java.time.Duration
 import java.util.logging.Logger
-import org.wfanet.measurement.api.Version
-import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.tink.GCloudWifCredentials
 import org.wfanet.measurement.common.crypto.tink.KmsClientFactory
@@ -34,7 +32,10 @@ import org.wfanet.measurement.duchy.db.computation.ComputationDataClients
 import org.wfanet.measurement.duchy.db.computation.ComputationDataClients.PermanentErrorException
 import org.wfanet.measurement.duchy.mill.Certificate
 import org.wfanet.measurement.duchy.mill.MillBase
-import org.wfanet.measurement.duchy.mill.trustee.crypto.TrusTeeCryptor
+import org.wfanet.measurement.duchy.mill.trustee.processor.TrusTeeParams
+import org.wfanet.measurement.duchy.mill.trustee.processor.TrusTeeProcessor
+import org.wfanet.measurement.duchy.mill.trustee.processor.TrusTeeReachAndFrequencyParams
+import org.wfanet.measurement.duchy.mill.trustee.processor.TrusTeeReachParams
 import org.wfanet.measurement.duchy.toProtocolStage
 import org.wfanet.measurement.internal.duchy.ComputationDetails
 import org.wfanet.measurement.internal.duchy.ComputationStatsGrpcKt
@@ -42,6 +43,8 @@ import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
 import org.wfanet.measurement.internal.duchy.RequisitionDetails
 import org.wfanet.measurement.internal.duchy.RequisitionMetadata
+import org.wfanet.measurement.internal.duchy.protocol.TrusTee
+import org.wfanet.measurement.internal.duchy.protocol.TrusTee.ComputationDetails as TrusTeeDetails
 import org.wfanet.measurement.internal.duchy.protocol.TrusTee.Stage
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt
 import org.wfanet.measurement.system.v1alpha.ComputationParticipant
@@ -60,7 +63,7 @@ class TrusTeeMill(
   systemComputationLogEntriesClient: ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub,
   computationStatsClient: ComputationStatsGrpcKt.ComputationStatsCoroutineStub,
   workLockDuration: Duration,
-  private val trusTeeCryptorFactory: TrusTeeCryptor.Factory,
+  private val trusTeeProcessorFactory: TrusTeeProcessor.Factory,
   private val kmsClientFactory: KmsClientFactory<GCloudWifCredentials>,
   private val attestationTokenPath: Path,
   requestChunkSizeBytes: Int = 1024 * 32,
@@ -117,32 +120,60 @@ class TrusTeeMill(
   }
 
   private suspend fun computingPhase(token: ComputationToken): ComputationToken {
-    val publicApiVersion =
-      Version.fromString(token.computationDetails.kingdomComputation.publicApiVersion)
-    val measurementSpec =
-      when (publicApiVersion) {
-        Version.V2_ALPHA ->
-          MeasurementSpec.parseFrom(token.computationDetails.kingdomComputation.measurementSpec)
-      }
+    val trusTeeDetails: TrusTeeDetails = token.computationDetails.trusTee
+    val trusTeeParams = trusTeeDetails.toTrusTeeParams()
 
-    val cryptor: TrusTeeCryptor = trusTeeCryptorFactory.create(measurementSpec)
+    val processor: TrusTeeProcessor = trusTeeProcessorFactory.create(trusTeeParams)
 
     for (requisition in token.requisitionsList) {
       val details = requisition.details
 
       val kmsClient = getKmsClient(kmsClientFactory, details.protocol.trusTee)
       val dek = getDekKeysetHandle(kmsClient, details.protocol.trusTee)
+      // TODO(world-federation-of-advertisers/cross-media-measurement#2800): Use
+      //  StreamingAeadStorage instead to read and decrypt requisition data.
       val rawRequisitionData = getRequisitionData(requisition)
       val decryptedRequisitionData = decryptRequisitionData(dek, rawRequisitionData)
 
-      cryptor.addFrequencyVector(decryptedRequisitionData)
+      processor.addFrequencyVector(decryptedRequisitionData)
     }
 
-    val computationResult = cryptor.computeResult()
+    val computationResult = processor.computeResult()
 
     sendResultToKingdom(token, computationResult)
 
     return completeComputation(token, ComputationDetails.CompletedReason.SUCCEEDED)
+  }
+
+  /** Converts internal [TrusTee.ComputationDetails] to the internal [TrusTeeParams]. */
+  fun TrusTeeDetails.toTrusTeeParams(): TrusTeeParams {
+    return when (type) {
+      TrusTeeDetails.Type.REACH -> {
+        require(parameters.hasReachDpParams()) {
+          "Reach DP params are required for a Reach-only TrusTee computation."
+        }
+        TrusTeeReachParams(parameters.vidSamplingIntervalWidth, parameters.reachDpParams)
+      }
+      TrusTeeDetails.Type.REACH_AND_FREQUENCY -> {
+        require(parameters.hasReachDpParams()) {
+          "Reach DP params are required for a Reach-and-Frequency TrusTee computation."
+        }
+        require(parameters.hasFrequencyDpParams()) {
+          "Frequency DP params are required for a Reach-and-Frequency TrusTee computation."
+        }
+        TrusTeeReachAndFrequencyParams(
+          parameters.maximumFrequency,
+          parameters.vidSamplingIntervalWidth,
+          parameters.reachDpParams,
+          parameters.frequencyDpParams,
+        )
+      }
+      TrusTeeDetails.Type.TYPE_UNSPECIFIED,
+      TrusTeeDetails.Type.UNRECOGNIZED ->
+        throw IllegalArgumentException(
+          "Unsupported or unspecified TrusTEE computation type in ComputationDetails: $type"
+        )
+    }
   }
 
   private fun getKmsClient(
@@ -187,13 +218,11 @@ class TrusTeeMill(
       ?: throw PermanentErrorException("Requisition data not found for ${requisition.externalKey}")
   }
 
-  private fun decryptRequisitionData(dek: KeysetHandle, data: ByteString): IntArray {
+  private fun decryptRequisitionData(dek: KeysetHandle, data: ByteString): ByteArray {
     try {
       val aead = dek.getPrimitive(Aead::class.java)
 
-      val decryptedBytes = aead.decrypt(data.toByteArray(), null)
-
-      return toIntArray(decryptedBytes)
+      return aead.decrypt(data.toByteArray(), null)
     } catch (e: GeneralSecurityException) {
       throw PermanentErrorException(
         "Failed to decrypt requisition data due to a cryptographic error",
