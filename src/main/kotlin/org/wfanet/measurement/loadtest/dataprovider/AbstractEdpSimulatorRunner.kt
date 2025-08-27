@@ -165,7 +165,7 @@ abstract class AbstractEdpSimulatorRunner : Runnable {
 
     val trusTeeEncryptionParams: TrusTeeFulfillRequisitionRequestBuilder.EncryptionParams? =
       if (flags.trusTeeParams != null) {
-        // TODO(lindreamdeyi): Swap the KMS client for local cluster runs.
+        // TODO(@roaminggypsy): Swap the KMS client for local cluster runs.
         TrusTeeFulfillRequisitionRequestBuilder.EncryptionParams(
           GcpKmsClient(),
           flags.trusTeeParams.kmsKekUri,
