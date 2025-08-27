@@ -27,3 +27,6 @@ databaseChangeLog:
 - include:
     file: update-proto-bundle-for-basic-report-details.sql
     relativeToChangeLogFile: true
+- include:
+    file: update-proto-bundle-to-fix-reporting-unit.sql
+    relativeToChangeLogFile: true

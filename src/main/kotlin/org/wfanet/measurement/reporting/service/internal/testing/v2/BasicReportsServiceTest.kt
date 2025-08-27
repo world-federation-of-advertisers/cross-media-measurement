@@ -113,7 +113,6 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
       cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
       externalBasicReportId = "1237"
       externalCampaignGroupId = REPORTING_SET.externalReportingSetId
-      campaignGroupDisplayName = REPORTING_SET.displayName
       details = basicReportDetails {
         title = "title"
         resultGroupSpecs += resultGroupSpec {
@@ -121,7 +120,7 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
           reportingUnit = reportingUnit {
             dataProviderKeys =
               ReportingUnitKt.dataProviderKeys {
-                dataProviderKeys += dataProviderKey { externalDataProviderId = "1234" }
+                dataProviderKeys += dataProviderKey { cmmsDataProviderId = "1234" }
               }
           }
           metricFrequency = metricFrequencySpec { weekly = DayOfWeek.WEDNESDAY }
@@ -161,7 +160,7 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
 
     assertThat(response)
       .ignoringFields(BasicReport.CREATE_TIME_FIELD_NUMBER, BasicReport.STATE_FIELD_NUMBER)
-      .isEqualTo(basicReport)
+      .isEqualTo(basicReport.copy { campaignGroupDisplayName = REPORTING_SET.displayName })
 
     assertThat(response.state).isEqualTo(BasicReport.State.CREATED)
     assertThat(response.hasCreateTime())
@@ -437,7 +436,7 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
           reportingUnit = reportingUnit {
             dataProviderKeys =
               ReportingUnitKt.dataProviderKeys {
-                dataProviderKeys += dataProviderKey { externalDataProviderId = "1234" }
+                dataProviderKeys += dataProviderKey { cmmsDataProviderId = "1234" }
               }
           }
           metricFrequency = metricFrequencySpec { weekly = DayOfWeek.WEDNESDAY }

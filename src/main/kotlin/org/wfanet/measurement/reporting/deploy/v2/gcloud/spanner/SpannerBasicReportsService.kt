@@ -264,7 +264,19 @@ class SpannerBasicReportsService(
 
     val commitTimestamp: Timestamp = transactionRunner.getCommitTimestamp().toProto()
 
+    val reportingSetResult: ReportingSetReader.Result =
+      try {
+        getReportingSets(
+          request.basicReport.cmmsMeasurementConsumerId,
+          listOf(request.basicReport.externalCampaignGroupId),
+        )
+          .first()
+      } catch (e: ReportingSetNotFoundException) {
+        throw e.asStatusRuntimeException(Status.Code.INTERNAL)
+      }
+
     return request.basicReport.copy {
+      campaignGroupDisplayName = reportingSetResult.reportingSet.displayName
       createTime = commitTimestamp
       state = BasicReport.State.CREATED
     }

@@ -16,7 +16,6 @@
 
 package org.wfanet.measurement.reporting.service.api.v2alpha
 
-import com.google.longrunning.Operation
 import com.google.protobuf.ByteString
 import com.google.protobuf.InvalidProtocolBufferException
 import io.grpc.Status
@@ -43,6 +42,7 @@ import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsRequestKt as
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt.ReportingSetsCoroutineStub as InternalReportingSetsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.StreamReportingSetsRequestKt
 import org.wfanet.measurement.internal.reporting.v2.batchGetReportingSetsRequest
+import org.wfanet.measurement.internal.reporting.v2.createBasicReportRequest
 import org.wfanet.measurement.internal.reporting.v2.createReportingSetRequest
 import org.wfanet.measurement.internal.reporting.v2.getBasicReportRequest as internalGetBasicReportRequest
 import org.wfanet.measurement.internal.reporting.v2.getImpressionQualificationFilterRequest
@@ -50,6 +50,7 @@ import org.wfanet.measurement.internal.reporting.v2.listBasicReportsPageToken
 import org.wfanet.measurement.internal.reporting.v2.listBasicReportsRequest as internalListBasicReportsRequest
 import org.wfanet.measurement.internal.reporting.v2.streamReportingSetsRequest
 import org.wfanet.measurement.reporting.service.api.ArgumentChangedInRequestForNextPageException
+import org.wfanet.measurement.reporting.service.api.BasicReportAlreadyExistsException
 import org.wfanet.measurement.reporting.service.api.BasicReportNotFoundException
 import org.wfanet.measurement.reporting.service.api.Errors
 import org.wfanet.measurement.reporting.service.api.ImpressionQualificationFilterNotFoundException
@@ -83,7 +84,7 @@ class BasicReportsService(
   coroutineContext: CoroutineContext = EmptyCoroutineContext,
 ) : BasicReportsCoroutineImplBase(coroutineContext) {
 
-  override suspend fun createBasicReport(request: CreateBasicReportRequest): Operation {
+  override suspend fun createBasicReport(request: CreateBasicReportRequest): BasicReport {
     if (request.parent.isEmpty()) {
       throw RequiredFieldNotSetException("parent")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
@@ -120,6 +121,7 @@ class BasicReportsService(
           e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
         Errors.Reason.FIELD_UNIMPLEMENTED -> e.asStatusRuntimeException(Status.Code.UNIMPLEMENTED)
         Errors.Reason.BASIC_REPORT_NOT_FOUND,
+        Errors.Reason.BASIC_REPORT_ALREADY_EXISTS,
         Errors.Reason.REPORTING_SET_NOT_FOUND,
         Errors.Reason.METRIC_NOT_FOUND,
         Errors.Reason.CAMPAIGN_GROUP_INVALID,
@@ -178,8 +180,36 @@ class BasicReportsService(
     val dataProviderPrimitiveReportingSetMap: Map<String, ReportingSet> =
       buildDataProviderPrimitiveReportingSetMap(campaignGroup, campaignGroupKey)
 
-    // TODO(@tristanvuong2021): Will be implemented for phase 2
-    return super.createBasicReport(request)
+    // TODO(@tristanvuong2021#2555): create Report asynchronously
+
+    val createReportRequestId = UUID.randomUUID().toString()
+
+    return try {
+      internalBasicReportsStub.createBasicReport(
+        createBasicReportRequest {
+          basicReport = request.basicReport.toInternal(
+            cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId,
+            basicReportId = request.basicReportId,
+            campaignGroupId = campaignGroupKey.reportingSetId,
+            createReportRequestId = createReportRequestId,
+          )
+        }
+      ).toBasicReport()
+    } catch (e: StatusException) {
+      throw when (InternalErrors.getReason(e)) {
+        InternalErrors.Reason.BASIC_REPORT_ALREADY_EXISTS ->
+          BasicReportAlreadyExistsException(BasicReportKey(cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId, basicReportId = request.basicReportId).toName())
+            .asStatusRuntimeException(Status.Code.ALREADY_EXISTS)
+        InternalErrors.Reason.IMPRESSION_QUALIFICATION_FILTER_NOT_FOUND,
+        InternalErrors.Reason.BASIC_REPORT_NOT_FOUND,
+        InternalErrors.Reason.MEASUREMENT_CONSUMER_NOT_FOUND,
+        InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
+        InternalErrors.Reason.INVALID_FIELD_VALUE,
+        InternalErrors.Reason.METRIC_NOT_FOUND,
+        InternalErrors.Reason.INVALID_METRIC_STATE_TRANSITION,
+        null -> Status.INTERNAL.withCause(e).asRuntimeException()
+      }
+    }
   }
 
   override suspend fun getBasicReport(request: GetBasicReportRequest): BasicReport {

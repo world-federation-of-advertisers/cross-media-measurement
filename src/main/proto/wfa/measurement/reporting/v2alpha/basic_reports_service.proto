@@ -21,7 +21,6 @@ import "google/api/client.proto";
 import "google/api/field_behavior.proto";
 import "google/api/field_info.proto";
 import "google/api/resource.proto";
-import "google/longrunning/operations.proto";
 import "google/protobuf/timestamp.proto";
 import "wfa/measurement/reporting/v2alpha/basic_report.proto";
 
@@ -34,14 +33,10 @@ option go_package = "github.com/world-federation-of-advertisers/cross-media-meas
 service BasicReports {
   // Creates a `BasicReport`
   rpc CreateBasicReport(CreateBasicReportRequest)
-      returns (google.longrunning.Operation) {
+      returns (BasicReport) {
     option (google.api.http) = {
       post: "/v2alpha/{parent=measurementConsumers/*}/basicReports"
       body: "basic_report"
-    };
-    option (google.longrunning.operation_info) = {
-      response_type: "BasicReport"
-      metadata_type: "CreateBasicReportOperationMetadata"
     };
     option (google.api.method_signature) =
         "parent,basic_report,basic_report_id";
@@ -157,7 +152,3 @@ message CreateBasicReportRequest {
     (google.api.field_behavior) = OPTIONAL
   ];
 }
-
-// Operation metadata message for `CreateBasicReport`
-// TODO(@kungfucraig): Additional details to be provided as the design matures.
-message CreateBasicReportOperationMetadata {}
