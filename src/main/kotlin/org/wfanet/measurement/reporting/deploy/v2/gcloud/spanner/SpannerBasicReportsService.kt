@@ -275,7 +275,7 @@ class SpannerBasicReportsService(
         throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
       } catch (e: ReportingSetNotFoundException) {
         throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
-      // run doesn't support a NULL return value
+        // run doesn't support a NULL return value
       } catch (e: NullPointerException) {
         null
       }
@@ -283,9 +283,9 @@ class SpannerBasicReportsService(
     val reportingSetResult: ReportingSetReader.Result =
       try {
         getReportingSets(
-          request.basicReport.cmmsMeasurementConsumerId,
-          listOf(request.basicReport.externalCampaignGroupId),
-        )
+            request.basicReport.cmmsMeasurementConsumerId,
+            listOf(request.basicReport.externalCampaignGroupId),
+          )
           .first()
       } catch (e: ReportingSetNotFoundException) {
         throw e.asStatusRuntimeException(Status.Code.INTERNAL)
@@ -435,9 +435,9 @@ class SpannerBasicReportsService(
     val reportingSetResult: ReportingSetReader.Result =
       try {
         getReportingSets(
-          request.basicReport.cmmsMeasurementConsumerId,
-          listOf(request.basicReport.externalCampaignGroupId),
-        )
+            request.basicReport.cmmsMeasurementConsumerId,
+            listOf(request.basicReport.externalCampaignGroupId),
+          )
           .first()
       } catch (e: ReportingSetNotFoundException) {
         throw e.asStatusRuntimeException(Status.Code.INTERNAL)

@@ -159,7 +159,11 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
     val response = service.createBasicReport(request)
 
     assertThat(response)
-      .ignoringFields(BasicReport.CAMPAIGN_GROUP_DISPLAY_NAME_FIELD_NUMBER, BasicReport.CREATE_TIME_FIELD_NUMBER, BasicReport.STATE_FIELD_NUMBER)
+      .ignoringFields(
+        BasicReport.CAMPAIGN_GROUP_DISPLAY_NAME_FIELD_NUMBER,
+        BasicReport.CREATE_TIME_FIELD_NUMBER,
+        BasicReport.STATE_FIELD_NUMBER,
+      )
       .isEqualTo(basicReport)
     assertThat(response.campaignGroupDisplayName).isEqualTo(REPORTING_SET.displayName)
     assertThat(response.state).isEqualTo(BasicReport.State.CREATED)
@@ -195,7 +199,11 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
     val response = service.createBasicReport(request)
 
     assertThat(response)
-      .ignoringFields(BasicReport.CAMPAIGN_GROUP_DISPLAY_NAME_FIELD_NUMBER, BasicReport.CREATE_TIME_FIELD_NUMBER, BasicReport.STATE_FIELD_NUMBER)
+      .ignoringFields(
+        BasicReport.CAMPAIGN_GROUP_DISPLAY_NAME_FIELD_NUMBER,
+        BasicReport.CREATE_TIME_FIELD_NUMBER,
+        BasicReport.STATE_FIELD_NUMBER,
+      )
       .isEqualTo(basicReport)
     assertThat(response.campaignGroupDisplayName).isEqualTo(REPORTING_SET.displayName)
     assertThat(response.state).isEqualTo(BasicReport.State.CREATED)
@@ -298,7 +306,11 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
       service.insertBasicReport(insertBasicReportRequest { this.basicReport = basicReport })
 
     assertThat(response)
-      .ignoringFields(BasicReport.CAMPAIGN_GROUP_DISPLAY_NAME_FIELD_NUMBER, BasicReport.CREATE_TIME_FIELD_NUMBER, BasicReport.STATE_FIELD_NUMBER)
+      .ignoringFields(
+        BasicReport.CAMPAIGN_GROUP_DISPLAY_NAME_FIELD_NUMBER,
+        BasicReport.CREATE_TIME_FIELD_NUMBER,
+        BasicReport.STATE_FIELD_NUMBER,
+      )
       .isEqualTo(basicReport)
     assertThat(response.campaignGroupDisplayName).isEqualTo(REPORTING_SET.displayName)
     assertThat(response.state).isEqualTo(BasicReport.State.SUCCEEDED)
