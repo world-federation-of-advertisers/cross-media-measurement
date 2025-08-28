@@ -27,7 +27,7 @@ import java.time.Duration
 import java.util.logging.Logger
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.crypto.SigningCerts
-import org.wfanet.measurement.common.edpaggregator.EdpaConfig.getConfigAsProtoMessage
+import org.wfanet.measurement.common.edpaggregator.EdpAggregatorConfig.getConfigAsProtoMessage
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withShutdownTimeout
 import org.wfanet.measurement.config.securecomputation.DataWatcherConfig

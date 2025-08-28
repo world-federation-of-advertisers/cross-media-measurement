@@ -19,8 +19,8 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
-    name = "edpa_config",
-    srcs = ["EdpaConfig.kt"],
+    name = "edp_aggregator_config",
+    srcs = ["EdpAggregatorConfig.kt"],
     deps = [
         ":blob_loader",
         "//src/main/kotlin/org/wfanet/measurement/common:env_vars",

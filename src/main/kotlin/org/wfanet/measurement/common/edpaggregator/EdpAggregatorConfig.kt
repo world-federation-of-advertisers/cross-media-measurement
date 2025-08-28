@@ -19,8 +19,8 @@ import com.google.protobuf.TypeRegistry
 import java.io.StringReader
 import org.wfanet.measurement.common.parseTextProto
 
-/** Function to get Cloud Functions' configurations from Storage */
-object EdpaConfig {
+/** Functions to get Edp Aggregator configurations from Storage */
+object EdpAggregatorConfig {
 
   private const val CONFIG_STORAGE_BUCKET_ENV = "EDPA_CONFIG_STORAGE_BUCKET"
   private const val GOOGLE_PROJECT_ID_ENV = "GOOGLE_PROJECT_ID"
@@ -72,7 +72,7 @@ object EdpaConfig {
    * @throws IllegalArgumentException if [blobUri] is empty or malformed.
    * @throws IllegalStateException if the blob isn’t found at the given URI.
    */
-  suspend fun getConfigAsByteArray(projectId: String, blobUri: String): ByteArray {
+  suspend fun getResultsFulfillerConfigAsByteArray(projectId: String, blobUri: String): ByteArray {
 
     val prefix = blobUri.substringBeforeLast("/")
     val key = blobUri.substringAfterLast("/")

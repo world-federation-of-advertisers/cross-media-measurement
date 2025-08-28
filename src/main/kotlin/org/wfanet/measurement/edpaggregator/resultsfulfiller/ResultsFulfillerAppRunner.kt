@@ -34,7 +34,7 @@ import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.crypto.tink.GCloudWifCredentials
-import org.wfanet.measurement.common.edpaggregator.EdpaConfig.getConfigAsByteArray
+import org.wfanet.measurement.common.edpaggregator.EdpAggregatorConfig.getResultsFulfillerConfigAsByteArray
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
@@ -404,7 +404,7 @@ class ResultsFulfillerAppRunner : Runnable {
     runBlocking {
       eventTemplateDescriptorBlobUris.forEach {
         saveByteArrayToFile(
-          getConfigAsByteArray(googleProjectId, it),
+          getResultsFulfillerConfigAsByteArray(googleProjectId, it),
           "$PROTO_DESCRIPTORS_DIR/${URI(it).path.substringAfterLast("/")}",
         )
       }

@@ -159,7 +159,7 @@ kt_jvm_library(
         ":results_fulfiller_app",
         "//imports/java/com/google/cloud/secretmanager",
         "//imports/java/com/google/crypto/tink/integration/gcpkms",
-        "//src/main/kotlin/org/wfanet/measurement/common/edpaggregator:edpa_config",
+        "//src/main/kotlin/org/wfanet/measurement/common/edpaggregator:edp_aggregator_config",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/tink",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/kms:gcp_kms_client_factory",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/pubsub:google_pub_sub_client",
