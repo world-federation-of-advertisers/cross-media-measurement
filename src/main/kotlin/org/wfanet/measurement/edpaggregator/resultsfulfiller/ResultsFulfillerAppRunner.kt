@@ -223,8 +223,7 @@ class ResultsFulfillerAppRunner : Runnable {
 
     @CommandLine.Option(
       names = ["--event-template-type-name"],
-      description =
-      ["Fully qualified type name url of the event proto message."],
+      description = ["Fully qualified type name url of the event proto message."],
       required = true,
     )
     lateinit var eventTemplateTypeName: String
@@ -383,8 +382,9 @@ class ResultsFulfillerAppRunner : Runnable {
       val descriptors: List<Descriptors.Descriptor> =
         ProtoReflection.buildDescriptors(listOf(fileDescriptorSet), COMPILED_PROTOBUF_TYPES)
       val typeName = it.eventTemplateTypeName
-      val eventDescriptor = descriptors.firstOrNull { it.fullName == typeName }
-        ?: error("Descriptor not found for type: $typeName")
+      val eventDescriptor =
+        descriptors.firstOrNull { it.fullName == typeName }
+          ?: error("Descriptor not found for type: $typeName")
       it.modelLine to
         ModelLineInfo(
           populationSpec = populationSpec,
