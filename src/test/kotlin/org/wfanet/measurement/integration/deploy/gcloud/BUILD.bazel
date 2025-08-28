@@ -231,6 +231,8 @@ java_test(
     tags = [
         "cpu:2",
         "no-remote-exec",
+        "local",  # Run without sandboxing to allow Docker access
+        "requires-docker",  # Mark that this test requires Docker
     ],
     test_class = "org.wfanet.measurement.integration.deploy.gcloud.GCloudEdpAggregatorLifeOfAMeasurementIntegrationTest",
     runtime_deps = [

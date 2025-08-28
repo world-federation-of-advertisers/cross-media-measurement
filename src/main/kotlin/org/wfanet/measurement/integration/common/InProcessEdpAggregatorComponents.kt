@@ -52,7 +52,6 @@ import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DataProviderKt
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
-import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.RequisitionKt
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
@@ -69,6 +68,7 @@ import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.config.securecomputation.WatchedPath
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.eventgroups.EventGroupSync
+import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup.MediaType
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.MetadataKt.AdMetadataKt.campaignMetadata
@@ -79,6 +79,7 @@ import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.eventGroup
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionFetcher
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionGrouperByReportId
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionsValidator
+import org.wfanet.measurement.edpaggregator.resultsfulfiller.ModelLineInfo
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.ResultsFulfillerApp
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.testing.TestRequisitionStubFactory
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
@@ -110,7 +111,7 @@ class InProcessEdpAggregatorComponents(
   private val pubSubClient: GooglePubSubEmulatorClient,
   private val syntheticPopulationSpec: SyntheticPopulationSpec,
   private val syntheticEventGroupMap: Map<String, SyntheticEventGroupSpec>,
-  private val populationSpecMap: Map<String, PopulationSpec>,
+  private val modelLineInfoMap: Map<String, ModelLineInfo>,
 ) : TestRule {
 
   private val internalServicesRule: ProviderRule<InternalApiServices> =
@@ -155,12 +156,15 @@ class InProcessEdpAggregatorComponents(
   private lateinit var kmsClients: Map<String, KmsClient>
 
   private val resultFulfillerApp by lazy {
-    val typeRegistry = TypeRegistry.newBuilder().add(TestEvent.getDescriptor()).build()
     val requisitionStubFactory = TestRequisitionStubFactory(publicApiChannel, duchyChannelMap)
     val subscriber = Subscriber(PROJECT_ID, pubSubClient)
     val getStorageConfig = { _: ResultsFulfillerParams.StorageParams ->
       StorageConfig(rootDirectory = storagePath.toFile())
     }
+    val typeRegistry = TypeRegistry.newBuilder()
+      .add(LabeledImpression.getDescriptor())
+      .build()
+    
     ResultsFulfillerApp(
       parser = WorkItem.parser(),
       subscriptionId = SUBSCRIPTION_ID,
@@ -170,11 +174,11 @@ class InProcessEdpAggregatorComponents(
       queueSubscriber = subscriber,
       kmsClients = kmsClients.toMutableMap(),
       requisitionStubFactory = requisitionStubFactory,
-      typeRegistry = typeRegistry,
       getImpressionsMetadataStorageConfig = getStorageConfig,
       getImpressionsStorageConfig = getStorageConfig,
       getRequisitionsStorageConfig = getStorageConfig,
-      populationSpecMap = populationSpecMap,
+      modelLineInfoMap = modelLineInfoMap,
+      typeRegistry = typeRegistry,
     )
   }
 

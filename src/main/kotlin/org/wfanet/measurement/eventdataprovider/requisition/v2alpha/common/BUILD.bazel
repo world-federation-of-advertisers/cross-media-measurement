@@ -5,6 +5,7 @@ load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
 
 package(default_visibility = [
     test_target(":__pkg__"),
+    "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:__subpackages__",
     "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/requisition/v2alpha:__subpackages__",
     "//src/test/kotlin/org/wfanet/measurement/eventdataprovider/requisition/v2alpha:__subpackages__",
     "//src/main/kotlin/org/wfanet/measurement/edpaggregator:__subpackages__",
