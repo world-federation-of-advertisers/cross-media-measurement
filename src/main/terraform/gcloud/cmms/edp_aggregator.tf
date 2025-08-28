@@ -200,5 +200,5 @@ module "edp_aggregator" {
   kingdom_root_ca                           = local.kingdom_root_ca
   edps_certs                                = local.edps_certs
   cloud_function_configs                    = local.cloud_function_configs
-  results_fulfiller_disk_image_family       = "confidential-space-debug"
+  results_fulfiller_disk_image_family       = "confidential-space"
 }
