@@ -69,11 +69,11 @@ message EventDataProviderConfig {
   [(google.api.resource_reference).type = "halo.wfanet.org/DataProvider"];
 
   // Kms config
-  KmsConfig kms = 2;
+  KmsConfig kms_config = 2;
   // Tls Config
-  TlsConfig tls = 3;
+  TlsConfig tls_config = 3;
   // Consent Signaling Config
-  ConsentSignalingConfig consent_signaling = 4;
+  ConsentSignalingConfig consent_signaling_config = 4;
 
 }
 
