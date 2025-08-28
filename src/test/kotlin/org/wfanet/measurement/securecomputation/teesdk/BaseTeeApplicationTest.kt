@@ -17,6 +17,9 @@ package org.wfanet.measurement.securecomputation.teesdk
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.Any
 import com.google.protobuf.Parser
+import com.google.rpc.ErrorInfo
+import io.grpc.StatusRuntimeException
+import io.grpc.protobuf.StatusProto
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.launch
@@ -45,6 +48,14 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGr
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItemAttempt
+import org.wfanet.measurement.securecomputation.service.Errors
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.withTimeout
+import org.mockito.Mockito.mock
+import org.mockito.kotlin.whenever
+import org.wfanet.measurement.queue.MessageConsumer
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.CreateWorkItemAttemptRequest
 
 class BaseTeeApplicationImpl(
   subscriptionId: String,
@@ -63,6 +74,7 @@ class BaseTeeApplicationImpl(
   val messageProcessed = CompletableDeferred<TestWork>()
 
   override suspend fun runWork(message: Any) {
+    println("------------------------- RUN WORK")
     val testWork = message.unpack(TestWork::class.java)
     messageProcessed.complete(testWork)
   }
@@ -143,6 +155,106 @@ class BaseTeeApplicationTest {
     assertThat(processedMessage).isEqualTo(testWork)
 
     job.cancelAndJoin()
+  }
+
+   @Test
+    fun `acks message when createWorkItemAttempt returns non-retriable error`() = runBlocking {
+
+     val workItemsStub = mock<WorkItemsCoroutineStub>()
+     val workItemAttemptsStub = mock<WorkItemAttemptsCoroutineStub>()
+      val nonRetriableEx = makeCreateAttemptInvalidStateException()
+
+     runBlocking {
+       whenever(workItemAttemptsStub.createWorkItemAttempt(
+         any<CreateWorkItemAttemptRequest>(),
+         any<io.grpc.Metadata>()
+       ))
+         .thenThrow(nonRetriableEx)
+     }
+
+     val fakeSubscriber = FakeQueueSubscriber()
+      val app =
+        BaseTeeApplicationImpl(
+          subscriptionId = SUBSCRIPTION_ID,
+          queueSubscriber = fakeSubscriber,
+          parser = WorkItem.parser(),
+          workItemsStub,
+          workItemAttemptsStub,
+        )
+
+      val job = launch { app.run() }
+
+      val testWork = createTestWork()
+      val workItem = createWorkItem(testWork)
+       val consumer = TestMessageConsumer()
+       fakeSubscriber.send(
+         QueueSubscriber.QueueMessage(
+           body = workItem,
+           consumer = consumer
+         )
+       )
+
+     withTimeout(1_000) {
+       while (consumer.ackCount == 0 && consumer.nackCount == 0) {
+         delay(10)
+       }
+     }
+
+     assertThat(consumer.ackCount).isEqualTo(1)
+     assertThat(consumer.nackCount).isEqualTo(0)
+
+
+     assertThat(app.messageProcessed.isCompleted).isFalse()
+      job.cancelAndJoin()
+    }
+
+  private class FakeQueueSubscriber : QueueSubscriber {
+    private val ch = Channel<QueueSubscriber.QueueMessage<*>>(capacity = Channel.UNLIMITED)
+
+    @Suppress("UNCHECKED_CAST")
+    override fun <T : com.google.protobuf.Message> subscribe(
+      subscriptionId: String,
+      parser: com.google.protobuf.Parser<T>
+    ): kotlinx.coroutines.channels.ReceiveChannel<QueueSubscriber.QueueMessage<T>> {
+      // The app will consume from this channel; we control what goes in.
+      return ch as Channel<QueueSubscriber.QueueMessage<T>>
+    }
+
+    suspend fun <T : com.google.protobuf.Message> send(msg: QueueSubscriber.QueueMessage<T>) {
+      ch.send(msg)
+    }
+
+    override fun close() {
+      ch.close()
+    }
+  }
+
+  private class TestMessageConsumer : MessageConsumer {
+    @Volatile var ackCount = 0
+    @Volatile var nackCount = 0
+
+    override fun ack() { ackCount++ }
+    override fun nack() { nackCount++ }
+  }
+
+  private fun makeCreateAttemptInvalidStateException(
+    workItemName: String = "workItems/workItem",
+    workItemState: String = "COMPLETED"
+  ): StatusRuntimeException {
+    val errorInfo = ErrorInfo.newBuilder()
+      .setReason(Errors.Reason.INVALID_WORK_ITEM_STATE.name)
+      // Mirrors Errors.Metadata.WORK_ITEM / WORK_ITEM_STATE
+      .putMetadata("work_item", workItemName)
+      .putMetadata("work_item_state", workItemState)
+      .build()
+
+    val status = com.google.rpc.Status.newBuilder()
+      .setCode(io.grpc.Status.Code.FAILED_PRECONDITION.value()) // what you'd expect for invalid state
+      .setMessage("WorkItem $workItemName is in an invalid state for this operation")
+      .addDetails(Any.pack(errorInfo))
+      .build()
+
+    return StatusProto.toStatusRuntimeException(status)
   }
 
   private fun createTestWork(): TestWork {
