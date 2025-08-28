@@ -219,12 +219,12 @@ class ResultsFulfillerAppRunner : Runnable {
     edpsConfig.eventDataProviderConfigList.forEach { edpConfig ->
       val kmsConfig =
         GCloudWifCredentials(
-          audience = edpConfig.kms.kmsAudience,
+          audience = edpConfig.kmsConfig.kmsAudience,
           subjectTokenType = SUBJECT_TOKEN_TYPE,
           tokenUrl = TOKEN_URL,
           credentialSourceFilePath = CREDENTIAL_SOURCE_FILE_PATH,
           serviceAccountImpersonationUrl =
-            EDP_TARGET_SERVICE_ACCOUNT_FORMAT.format(edpConfig.kms.serviceAccount),
+            EDP_TARGET_SERVICE_ACCOUNT_FORMAT.format(edpConfig.kmsConfig.serviceAccount),
         )
 
       val kmsClient = GCloudKmsClientFactory().getKmsClient(kmsConfig)
@@ -276,16 +276,16 @@ class ResultsFulfillerAppRunner : Runnable {
 
   fun saveEdpsCerts() {
     edpsConfig.eventDataProviderConfigList.forEach { edpConfig ->
-      val edpCertDer = accessSecretBytes(googleProjectId, edpConfig.consentSignaling.certDerSecretId, SECRET_VERSION)
-      saveByteArrayToFile(edpCertDer, edpConfig.consentSignaling.certDerLocalPath)
-      val edpPrivateDer = accessSecretBytes(googleProjectId, edpConfig.consentSignaling.encPrivateSecretId, SECRET_VERSION)
-      saveByteArrayToFile(edpPrivateDer, edpConfig.consentSignaling.encPrivateLocalPath)
-      val edpEncPrivate = accessSecretBytes(googleProjectId, edpConfig.consentSignaling.encPrivateSecretId, SECRET_VERSION)
-      saveByteArrayToFile(edpEncPrivate, edpConfig.consentSignaling.encPrivateLocalPath)
-      val edpTlsKey = accessSecretBytes(googleProjectId, edpConfig.tls.tlsKeySecretId, SECRET_VERSION)
-      saveByteArrayToFile(edpTlsKey, edpConfig.tls.tlsKeyLocalPath)
-      val edpTlsPem = accessSecretBytes(googleProjectId, edpConfig.tls.tlsPemSecretId, SECRET_VERSION)
-      saveByteArrayToFile(edpTlsPem, edpConfig.tls.tlsPemLocalPath)
+      val edpCertDer = accessSecretBytes(googleProjectId, edpConfig.consentSignalingConfig.certDerSecretId, SECRET_VERSION)
+      saveByteArrayToFile(edpCertDer, edpConfig.consentSignalingConfig.certDerLocalPath)
+      val edpPrivateDer = accessSecretBytes(googleProjectId, edpConfig.consentSignalingConfig.encPrivateSecretId, SECRET_VERSION)
+      saveByteArrayToFile(edpPrivateDer, edpConfig.consentSignalingConfig.encPrivateLocalPath)
+      val edpEncPrivate = accessSecretBytes(googleProjectId, edpConfig.consentSignalingConfig.encPrivateSecretId, SECRET_VERSION)
+      saveByteArrayToFile(edpEncPrivate, edpConfig.consentSignalingConfig.encPrivateLocalPath)
+      val edpTlsKey = accessSecretBytes(googleProjectId, edpConfig.tlsConfig.tlsKeySecretId, SECRET_VERSION)
+      saveByteArrayToFile(edpTlsKey, edpConfig.tlsConfig.tlsKeyLocalPath)
+      val edpTlsPem = accessSecretBytes(googleProjectId, edpConfig.tlsConfig.tlsPemSecretId, SECRET_VERSION)
+      saveByteArrayToFile(edpTlsPem, edpConfig.tlsConfig.tlsPemLocalPath)
     }
   }
 
