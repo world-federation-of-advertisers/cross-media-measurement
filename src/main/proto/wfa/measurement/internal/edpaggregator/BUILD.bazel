@@ -1,0 +1,45 @@
+load("@com_google_protobuf//bazel:proto_library.bzl", "proto_library")
+load(
+    "@wfa_rules_kotlin_jvm//kotlin:defs.bzl",
+    "kt_jvm_grpc_proto_library",
+    "kt_jvm_proto_library",
+)
+
+package(default_visibility = [
+    "//src/main/kotlin/org/wfanet/measurement/edpaggregator:__subpackages__",
+    "//src/test/kotlin/org/wfanet/measurement/edpaggregator:__subpackages__",
+])
+
+IMPORT_PREFIX = "/src/main/proto"
+
+proto_library(
+    name = "impression_metadata_proto",
+    srcs = ["impression_metadata.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        "@com_google_googleapis//google/type:interval_proto",
+        "@com_google_protobuf//:timestamp_proto",
+    ],
+)
+
+proto_library(
+    name = "impression_metadata_service_proto",
+    srcs = ["impression_metadata_service.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        ":impression_metadata_proto",
+        "@com_google_googleapis//google/type:interval_proto",
+        "@com_google_protobuf//:empty_proto",
+        "@com_google_protobuf//:timestamp_proto",
+    ],
+)
+
+kt_jvm_proto_library(
+    name = "impression_metadata_kt_jvm_grpc_proto",
+    deps = [":impression_metadata_proto"],
+)
+
+kt_jvm_grpc_proto_library(
+    name = "impression_metadata_service_kt_jvm_grpc_proto",
+    deps = [":impression_metadata_service_proto"],
+)
