@@ -214,6 +214,11 @@ variable "results_fulfiller_event_proto_descriptor_blob_uri" {
   type = string
 }
 
+variable "results_fulfiller_event_template_type_name" {
+  description = "Fully qualified name of the event template proto message"
+  type = string
+}
+
 variable "results_fulfiller_population_spec_blob_uri" {
   description = "GCS blob uri of the Results Fulfiller population spec."
   type = string
