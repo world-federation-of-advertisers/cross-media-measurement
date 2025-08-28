@@ -113,7 +113,6 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
       cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
       externalBasicReportId = "1237"
       externalCampaignGroupId = REPORTING_SET.externalReportingSetId
-      campaignGroupDisplayName = REPORTING_SET.displayName
       details = basicReportDetails {
         title = "title"
         resultGroupSpecs += resultGroupSpec {
@@ -160,11 +159,61 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
     val response = service.createBasicReport(request)
 
     assertThat(response)
-      .ignoringFields(BasicReport.CREATE_TIME_FIELD_NUMBER, BasicReport.STATE_FIELD_NUMBER)
+      .ignoringFields(
+        BasicReport.CAMPAIGN_GROUP_DISPLAY_NAME_FIELD_NUMBER,
+        BasicReport.CREATE_TIME_FIELD_NUMBER,
+        BasicReport.STATE_FIELD_NUMBER,
+      )
       .isEqualTo(basicReport)
-
+    assertThat(response.campaignGroupDisplayName).isEqualTo(REPORTING_SET.displayName)
     assertThat(response.state).isEqualTo(BasicReport.State.CREATED)
     assertThat(response.hasCreateTime())
+  }
+
+  @Test
+  fun `createBasicReport with same request id succeeds twice`(): Unit = runBlocking {
+    measurementConsumersService.createMeasurementConsumer(
+      measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
+    )
+
+    reportingSetsService.createReportingSet(
+      createReportingSetRequest {
+        reportingSet = REPORTING_SET
+        externalReportingSetId = REPORTING_SET.externalReportingSetId
+      }
+    )
+
+    val basicReport = basicReport {
+      cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+      externalBasicReportId = "1237"
+      externalCampaignGroupId = REPORTING_SET.externalReportingSetId
+      details = basicReportDetails { title = "title" }
+      createReportRequestId = "1235"
+    }
+
+    val request = createBasicReportRequest {
+      this.basicReport = basicReport
+      requestId = "1234"
+    }
+
+    val response = service.createBasicReport(request)
+
+    assertThat(response)
+      .ignoringFields(
+        BasicReport.CAMPAIGN_GROUP_DISPLAY_NAME_FIELD_NUMBER,
+        BasicReport.CREATE_TIME_FIELD_NUMBER,
+        BasicReport.STATE_FIELD_NUMBER,
+      )
+      .isEqualTo(basicReport)
+    assertThat(response.campaignGroupDisplayName).isEqualTo(REPORTING_SET.displayName)
+    assertThat(response.state).isEqualTo(BasicReport.State.CREATED)
+    assertThat(response.hasCreateTime())
+
+    val response2 = service.createBasicReport(request)
+
+    assertThat(response2)
+      .ignoringFields(BasicReport.RESULT_DETAILS_FIELD_NUMBER)
+      .isEqualTo(response)
   }
 
   @Test
@@ -178,7 +227,6 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
         cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
         externalBasicReportId = "1237"
         externalCampaignGroupId = REPORTING_SET.externalReportingSetId
-        campaignGroupDisplayName = REPORTING_SET.displayName
         details = basicReportDetails { title = "title" }
         createReportRequestId = "1235"
       }
@@ -207,7 +255,6 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
       cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
       externalBasicReportId = "1237"
       externalCampaignGroupId = REPORTING_SET.externalReportingSetId
-      campaignGroupDisplayName = REPORTING_SET.displayName
       details = basicReportDetails { title = "title" }
       createReportRequestId = "1235"
     }
@@ -250,7 +297,6 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
       cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
       externalBasicReportId = "1237"
       externalCampaignGroupId = REPORTING_SET.externalReportingSetId
-      campaignGroupDisplayName = REPORTING_SET.displayName
       details = basicReportDetails { title = "title" }
       resultDetails = basicReportResultDetails { resultGroups += resultGroup }
       externalReportId = "2237"
@@ -260,9 +306,13 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
       service.insertBasicReport(insertBasicReportRequest { this.basicReport = basicReport })
 
     assertThat(response)
-      .ignoringFields(BasicReport.CREATE_TIME_FIELD_NUMBER, BasicReport.STATE_FIELD_NUMBER)
+      .ignoringFields(
+        BasicReport.CAMPAIGN_GROUP_DISPLAY_NAME_FIELD_NUMBER,
+        BasicReport.CREATE_TIME_FIELD_NUMBER,
+        BasicReport.STATE_FIELD_NUMBER,
+      )
       .isEqualTo(basicReport)
-
+    assertThat(response.campaignGroupDisplayName).isEqualTo(REPORTING_SET.displayName)
     assertThat(response.state).isEqualTo(BasicReport.State.SUCCEEDED)
     assertThat(response.hasCreateTime())
   }
@@ -280,7 +330,6 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
         cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
         externalBasicReportId = "1237"
         externalCampaignGroupId = REPORTING_SET.externalReportingSetId
-        campaignGroupDisplayName = REPORTING_SET.displayName
         details = basicReportDetails { title = "title" }
         resultDetails = basicReportResultDetails { resultGroups += resultGroup }
       }
@@ -312,7 +361,6 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
       cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
       externalBasicReportId = "1237"
       externalCampaignGroupId = REPORTING_SET.externalReportingSetId
-      campaignGroupDisplayName = REPORTING_SET.displayName
       details = basicReportDetails { title = "title" }
       resultDetails = basicReportResultDetails { resultGroups += resultGroup }
     }
@@ -357,7 +405,6 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
       cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
       externalBasicReportId = "1237"
       externalCampaignGroupId = REPORTING_SET.externalReportingSetId
-      campaignGroupDisplayName = REPORTING_SET.displayName
       details = basicReportDetails {
         title = "title"
         impressionQualificationFilters += reportingImpressionQualificationFilter {
@@ -429,7 +476,6 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
       cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
       externalBasicReportId = "1237"
       externalCampaignGroupId = REPORTING_SET.externalReportingSetId
-      campaignGroupDisplayName = REPORTING_SET.displayName
       details = basicReportDetails {
         title = "title"
         resultGroupSpecs += resultGroupSpec {
@@ -1123,7 +1169,6 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
       cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
       externalBasicReportId = "1237"
       externalCampaignGroupId = REPORTING_SET.externalReportingSetId
-      campaignGroupDisplayName = REPORTING_SET.displayName
       details = basicReportDetails { title = "title" }
       resultDetails = basicReportResultDetails { resultGroups += resultGroup { title = "title" } }
     }
