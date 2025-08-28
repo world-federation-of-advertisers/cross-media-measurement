@@ -56,7 +56,7 @@ message CreateImpressionMetadataRequest {
 }
 
 message BatchCreateImpressionMetadataRequest {
-  fixed64 external_data_provider_id = 1;
+  string data_provider_resource_id = 1;
   // The request message specifying the ImpressionMetadata to create. All child
   // requests must have their `external_data_provider_id` match the
   // parent `external_data_provider_id`. A maximum of 50 ImpressionMetadata
@@ -69,12 +69,20 @@ message BatchCreateImpressionMetadataResponse {
 }
 
 message GetImpressionMetadataRequest {
-  fixed64 external_data_provider_id = 1;
-  fixed64 external_impression_metadata_id = 2;
+  string data_provider_resource_id = 1;
+  string impression_metadata_resource_id = 2;
+}
+
+message Filter {
+  string cmms_model_line = 1;
+  string event_group_reference_id = 2;
+  google.type.Interval interval_overlaps = 3;
+  ImpressionMetadata.State state = 4;
+  google.protobuf.Timestamp create_time_after = 5;
 }
 
 message ListImpressionMetadataRequest {
-  fixed64 data_provider_id = 1;
+  string data_provider_resource_id = 1;
 
   // The maximum number of results to return.
   //
@@ -83,13 +91,6 @@ message ListImpressionMetadataRequest {
   int32 page_size = 2;
   ListImpressionMetadataPageToken page_token = 3;
 
-  message Filter {
-    string model_line_id = 1;
-    string event_group_reference_id = 2;
-    google.type.Interval interval_overlaps = 3;
-    ImpressionMetadata.State state = 4;
-    google.protobuf.Timestamp update_time_after = 5;
-  }
   Filter filter = 4;
 
   bool show_deleted = 5;
@@ -101,26 +102,19 @@ message ListImpressionMetadataResponse {
 }
 
 message ListImpressionMetadataPageToken {
-  string data_provider_id = 1;
+  string data_provider_resource_id = 1;
 
   message After {
-    google.protobuf.Timestamp update_time = 1;
+    google.protobuf.Timestamp create_time = 1;
     string impression_metadata_resource_id = 2;
   }
   After after = 2;
 
-  message Filter {
-    string model_line_id = 1;
-    string event_group_reference_id = 2;
-    google.type.Interval interval_overlaps = 3;
-    ImpressionMetadata.State state = 4;
-    google.protobuf.Timestamp update_time_after = 5;
-  }
   Filter filter = 3;
 }
 
 message DeleteImpressionMetadataRequest {
-  fixed64 impression_metadata_resource_id = 1;
+  string impression_metadata_resource_id = 1;
 }
 
 message BatchDeleteImpressionMetadataRequest {
