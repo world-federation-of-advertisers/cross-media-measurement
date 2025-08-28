@@ -98,7 +98,7 @@ message ListImpressionMetadataRequest {
 
 message ListImpressionMetadataResponse {
   repeated ImpressionMetadata impression_metadata = 1;
-  ListImpressionMetadataPageToken page_token = 2;
+  ListImpressionMetadataPageToken next_page_token = 2;
 }
 
 message ListImpressionMetadataPageToken {
