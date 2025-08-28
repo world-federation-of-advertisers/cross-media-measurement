@@ -304,6 +304,7 @@ private fun createMetricCalculationSpecFilters(
       }
     }
 
+    // To represent no filter
     if (this.isEmpty()) {
       add("")
     }
