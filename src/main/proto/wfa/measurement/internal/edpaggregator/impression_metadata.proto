@@ -49,5 +49,3 @@ message ImpressionMetadata {
   google.protobuf.Timestamp create_time = 8;
   google.protobuf.Timestamp update_time = 9;
 }
-
-
