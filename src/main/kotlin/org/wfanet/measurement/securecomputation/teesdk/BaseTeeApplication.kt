@@ -93,9 +93,25 @@ abstract class BaseTeeApplication(
         val workItemAttemptId = "work-item-attempt-" + UUID.randomUUID().toString()
         createWorkItemAttempt(parent = workItemName, workItemAttemptId = workItemAttemptId)
       } catch (e: ControlPlaneApiException) {
-        logger.log(Level.WARNING, e) { "Error creating a WorkItemAttempt" }
-        return
-      }
+          // If createWorkItemAttempt failed because the WorkItem is not found or in an invalid state,
+          // ack the message and stop processing.
+          val cause = e.cause
+          if (cause is StatusRuntimeException) {
+              val reason = cause.errorInfo?.reason
+              if (
+                  reason == Errors.Reason.INVALID_WORK_ITEM_STATE.name ||
+                    reason == Errors.Reason.WORK_ITEM_NOT_FOUND.name
+                ) {
+                  logger.log(Level.WARNING, e) {
+                      "Non-retriable error. createWorkItemAttempt failure: reason=$reason"
+                    }
+                  queueMessage.ack()
+                  return
+                }
+            }
+          logger.log(Level.WARNING, e) { "Error creating a WorkItemAttempt" }
+          return
+        }
     try {
       runWork(queueMessage.body.workItemParams)
       runCatching { completeWorkItemAttempt(workItemAttempt) }
