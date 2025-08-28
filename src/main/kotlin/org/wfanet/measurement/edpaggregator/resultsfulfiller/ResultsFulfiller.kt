@@ -93,7 +93,6 @@ class ResultsFulfiller(
         .map { Pair(it.eventGroup, it.details.eventGroupReferenceId) }
         .toMap()
     val modelLine = groupedRequisitions.modelLine
-    logger.info("---------------------------- model line key: $modelLine")
     val modelInfo = modelLineInfoMap.getValue(modelLine)
     val typeRegistry = TypeRegistry.newBuilder().add(modelInfo.eventDescriptor).build()
     for (requisition in requisitions) {
