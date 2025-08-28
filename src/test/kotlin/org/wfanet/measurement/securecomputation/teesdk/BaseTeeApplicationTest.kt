@@ -21,6 +21,7 @@ import com.google.rpc.ErrorInfo
 import io.grpc.StatusRuntimeException
 import io.grpc.protobuf.StatusProto
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
@@ -50,8 +51,6 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItemAttempt
 import org.wfanet.measurement.securecomputation.service.Errors
 import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.withTimeout
 import org.mockito.Mockito.mock
 import org.mockito.kotlin.whenever
 import org.wfanet.measurement.queue.MessageConsumer
@@ -74,7 +73,6 @@ class BaseTeeApplicationImpl(
   val messageProcessed = CompletableDeferred<TestWork>()
 
   override suspend fun runWork(message: Any) {
-    println("------------------------- RUN WORK")
     val testWork = message.unpack(TestWork::class.java)
     messageProcessed.complete(testWork)
   }
@@ -194,11 +192,7 @@ class BaseTeeApplicationTest {
          )
        )
 
-     withTimeout(1_000) {
-       while (consumer.ackCount == 0 && consumer.nackCount == 0) {
-         delay(10)
-       }
-     }
+     consumer.disposition.await()
 
      assertThat(consumer.ackCount).isEqualTo(1)
      assertThat(consumer.nackCount).isEqualTo(0)
@@ -216,7 +210,6 @@ class BaseTeeApplicationTest {
       subscriptionId: String,
       parser: com.google.protobuf.Parser<T>
     ): kotlinx.coroutines.channels.ReceiveChannel<QueueSubscriber.QueueMessage<T>> {
-      // The app will consume from this channel; we control what goes in.
       return ch as Channel<QueueSubscriber.QueueMessage<T>>
     }
 
@@ -229,12 +222,24 @@ class BaseTeeApplicationTest {
     }
   }
 
+  private enum class Disposition { ACK, NACK }
+
   private class TestMessageConsumer : MessageConsumer {
     @Volatile var ackCount = 0
     @Volatile var nackCount = 0
 
-    override fun ack() { ackCount++ }
-    override fun nack() { nackCount++ }
+    private val _disposition = CompletableDeferred<Disposition>()
+    val disposition: Deferred<Disposition> get() = _disposition
+
+    override fun ack() {
+      ackCount++
+      _disposition.complete(Disposition.ACK)
+    }
+
+    override fun nack() {
+      nackCount++
+      _disposition.complete(Disposition.NACK)
+    }
   }
 
   private fun makeCreateAttemptInvalidStateException(
@@ -243,7 +248,6 @@ class BaseTeeApplicationTest {
   ): StatusRuntimeException {
     val errorInfo = ErrorInfo.newBuilder()
       .setReason(Errors.Reason.INVALID_WORK_ITEM_STATE.name)
-      // Mirrors Errors.Metadata.WORK_ITEM / WORK_ITEM_STATE
       .putMetadata("work_item", workItemName)
       .putMetadata("work_item_state", workItemState)
       .build()
