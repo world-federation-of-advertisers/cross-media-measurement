@@ -744,7 +744,7 @@ class ResultsFulfillerTest {
 
     private val MODEL_LINE_INFO =
       ModelLineInfo(
-        eventDescriptors = TestEvent.getDescriptor(),
+        eventDescriptors = listOf(TestEvent.getDescriptor()),
         populationSpec = POPULATION_SPEC,
         vidIndexMap = InMemoryVidIndexMap.build(POPULATION_SPEC),
       )

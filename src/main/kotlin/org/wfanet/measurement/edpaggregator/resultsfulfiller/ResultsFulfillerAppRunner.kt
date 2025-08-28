@@ -370,7 +370,8 @@ class ResultsFulfillerAppRunner : Runnable {
           parseTextProto(reader, PopulationSpec.getDefaultInstance())
         }
       val eventDescriptorBytes = getConfig(googleProjectId, it.eventTemplateDescriptorBlobUri)
-      val fileDescriptorSet = DescriptorProtos.FileDescriptorSet.parseFrom(eventDescriptorBytes, EXTENSION_REGISTRY)
+      val fileDescriptorSet =
+        DescriptorProtos.FileDescriptorSet.parseFrom(eventDescriptorBytes, EXTENSION_REGISTRY)
       val descriptors: List<Descriptors.Descriptor> =
         ProtoReflection.buildDescriptors(listOf(fileDescriptorSet), COMPILED_PROTOBUF_TYPES)
       it.modelLine to
@@ -444,8 +445,7 @@ class ResultsFulfillerAppRunner : Runnable {
      * a [DescriptorProtos.FileDescriptorSet].
      */
     private val COMPILED_PROTOBUF_TYPES: Iterable<Descriptors.FileDescriptor> =
-      (ProtoReflection.WELL_KNOWN_TYPES.asSequence())
-        .asIterable()
+      (ProtoReflection.WELL_KNOWN_TYPES.asSequence()).asIterable()
 
     private val EXTENSION_REGISTRY =
       ExtensionRegistry.newInstance()
