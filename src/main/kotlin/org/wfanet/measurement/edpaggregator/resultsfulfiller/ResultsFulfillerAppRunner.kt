@@ -25,7 +25,6 @@ import com.google.protobuf.Descriptors
 import com.google.protobuf.ExtensionRegistry
 import com.google.protobuf.Parser
 import java.io.File
-import java.net.URI
 import java.util.logging.Logger
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.EventAnnotationsProto
@@ -285,7 +284,6 @@ class ResultsFulfillerAppRunner : Runnable {
     // Pull certificates needed to operate from Google Secrets.
     saveEdpaCerts()
     saveEdpsCerts()
-//    saveResultsFulfillerConfig()
     // Create KMS clients for EDPs
     createKmsClients()
 
@@ -375,11 +373,6 @@ class ResultsFulfillerAppRunner : Runnable {
       val fileDescriptorSet = DescriptorProtos.FileDescriptorSet.parseFrom(eventDescriptorBytes, EXTENSION_REGISTRY)
       val descriptors: List<Descriptors.Descriptor> =
         ProtoReflection.buildDescriptors(listOf(fileDescriptorSet), COMPILED_PROTOBUF_TYPES)
-//      val eventDescriptor =
-//        File(it.eventTemplateDescriptorBlobUri)
-//          .inputStream()
-//          .use { input -> DescriptorProtos.FileDescriptorSet.parseFrom(input, EXTENSION_REGISTRY) }
-//          .descriptorForType
       it.modelLine to
         ModelLineInfo(
           populationSpec = populationSpec,
@@ -416,17 +409,6 @@ class ResultsFulfillerAppRunner : Runnable {
       saveByteArrayToFile(edpTlsPem, edp.tlsPemFilePath)
     }
   }
-
-//  fun saveResultsFulfillerConfig() {
-//    runBlocking {
-//      eventTemplateDescriptorBlobUris.forEach {
-//        saveByteArrayToFile(
-//          getConfig(googleProjectId, it),
-//          "$PROTO_DESCRIPTORS_DIR/${URI(it).path.substringAfterLast("/")}",
-//        )
-//      }
-//    }
-//  }
 
   fun saveByteArrayToFile(bytes: ByteArray, path: String) {
     val file = File(path)
