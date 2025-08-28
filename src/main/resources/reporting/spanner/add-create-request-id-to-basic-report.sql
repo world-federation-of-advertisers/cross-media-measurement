@@ -18,7 +18,7 @@
 -- comment: Add Create Request ID column to BasicReport
 
 ALTER TABLE BasicReports
-ADD COLUMN CreateRequestId STRING(MAX);
+ADD COLUMN CreateRequestId STRING(36);
 
 CREATE NULL_FILTERED INDEX BasicReportsByCreateRequestId
   ON BasicReports(MeasurementConsumerId, CreateRequestId);

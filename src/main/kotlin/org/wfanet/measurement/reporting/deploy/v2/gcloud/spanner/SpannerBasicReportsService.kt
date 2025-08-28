@@ -205,99 +205,104 @@ class SpannerBasicReportsService(
   override suspend fun createBasicReport(request: CreateBasicReportRequest): BasicReport {
     val transactionRunner = spannerClient.readWriteTransaction()
 
-    var existingBasicReport: BasicReport? = null
-    try {
-      transactionRunner.run { txn ->
-        checkReportingSet(request.basicReport)
+    val existingBasicReport: BasicReport? =
+      try {
+        transactionRunner.run { txn ->
+          checkReportingSet(request.basicReport)
 
-        val measurementConsumerResult =
-          try {
-            txn.getMeasurementConsumerByCmmsMeasurementConsumerId(
-              request.basicReport.cmmsMeasurementConsumerId
-            )
-          } catch (e: MeasurementConsumerNotFoundException) {
-            val measurementConsumerId =
-              idGenerator.generateNewId { id -> txn.measurementConsumerExists(id) }
+          val measurementConsumerResult =
+            try {
+              txn.getMeasurementConsumerByCmmsMeasurementConsumerId(
+                request.basicReport.cmmsMeasurementConsumerId
+              )
+            } catch (e: MeasurementConsumerNotFoundException) {
+              val measurementConsumerId =
+                idGenerator.generateNewId { id -> txn.measurementConsumerExists(id) }
 
-            val measurementConsumer = measurementConsumer {
-              cmmsMeasurementConsumerId = request.basicReport.cmmsMeasurementConsumerId
+              val measurementConsumer = measurementConsumer {
+                cmmsMeasurementConsumerId = request.basicReport.cmmsMeasurementConsumerId
+              }
+
+              // If the Reporting Set exists, then the Measurement Consumer exists so it should be
+              // in the Spanner database as well.
+              txn.insertMeasurementConsumer(
+                measurementConsumerId = measurementConsumerId,
+                measurementConsumer = measurementConsumer,
+              )
+
+              MeasurementConsumerResult(
+                measurementConsumerId = measurementConsumerId,
+                measurementConsumer = measurementConsumer,
+              )
             }
 
-            // If the Reporting Set exists, then the Measurement Consumer exists so it should be
-            // in the Spanner database as well.
-            txn.insertMeasurementConsumer(
-              measurementConsumerId = measurementConsumerId,
-              measurementConsumer = measurementConsumer,
+          val existingBasicReportResult: BasicReportResult? =
+            txn.getBasicReportByRequestId(
+              measurementConsumerId = measurementConsumerResult.measurementConsumerId,
+              createRequestId = request.requestId,
             )
 
-            MeasurementConsumerResult(
-              measurementConsumerId = measurementConsumerId,
-              measurementConsumer = measurementConsumer,
+          if (existingBasicReportResult != null) {
+            existingBasicReportResult.basicReport
+          } else {
+            val basicReportId =
+              idGenerator.generateNewId { id ->
+                txn.basicReportExists(measurementConsumerResult.measurementConsumerId, id)
+              }
+
+            txn.insertBasicReport(
+              basicReportId = basicReportId,
+              measurementConsumerId = measurementConsumerResult.measurementConsumerId,
+              basicReport = request.basicReport,
+              state = BasicReport.State.CREATED,
+              requestId = request.requestId.ifEmpty { null },
             )
+
+            null
           }
-
-        val existingBasicReportResult: BasicReportResult? =
-          txn.getBasicReportByRequestId(
-            measurementConsumerId = measurementConsumerResult.measurementConsumerId,
-            createRequestId = request.requestId,
-          )
-
-        if (existingBasicReportResult != null) {
-          existingBasicReport = existingBasicReportResult.basicReport
-          return@run
         }
+      } catch (e: SpannerException) {
+        if (e.errorCode == ErrorCode.ALREADY_EXISTS) {
+          throw BasicReportAlreadyExistsException(
+              request.basicReport.cmmsMeasurementConsumerId,
+              request.basicReport.externalBasicReportId,
+            )
+            .asStatusRuntimeException(Status.Code.ALREADY_EXISTS)
+        } else {
+          throw e
+        }
+      } catch (e: MeasurementConsumerNotFoundException) {
+        throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+      } catch (e: ReportingSetNotFoundException) {
+        throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+      // run doesn't support a NULL return value
+      } catch (e: NullPointerException) {
+        null
+      }
 
-        val basicReportId =
-          idGenerator.generateNewId { id ->
-            txn.basicReportExists(measurementConsumerResult.measurementConsumerId, id)
-          }
-
-        txn.insertBasicReport(
-          basicReportId = basicReportId,
-          measurementConsumerId = measurementConsumerResult.measurementConsumerId,
-          basicReport = request.basicReport,
-          state = BasicReport.State.CREATED,
-          requestId = request.requestId.ifEmpty { null },
+    val reportingSetResult: ReportingSetReader.Result =
+      try {
+        getReportingSets(
+          request.basicReport.cmmsMeasurementConsumerId,
+          listOf(request.basicReport.externalCampaignGroupId),
         )
+          .first()
+      } catch (e: ReportingSetNotFoundException) {
+        throw e.asStatusRuntimeException(Status.Code.INTERNAL)
       }
-    } catch (e: SpannerException) {
-      if (e.errorCode == ErrorCode.ALREADY_EXISTS) {
-        throw BasicReportAlreadyExistsException(
-            request.basicReport.cmmsMeasurementConsumerId,
-            request.basicReport.externalBasicReportId,
-          )
-          .asStatusRuntimeException(Status.Code.ALREADY_EXISTS)
-      } else {
-        throw e
-      }
-    } catch (e: MeasurementConsumerNotFoundException) {
-      throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
-    } catch (e: ReportingSetNotFoundException) {
-      throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
-    }
 
     if (existingBasicReport != null) {
-      val reportingSetResult: ReportingSetReader.Result =
-        try {
-          getReportingSets(
-              existingBasicReport!!.cmmsMeasurementConsumerId,
-              listOf(existingBasicReport!!.externalCampaignGroupId),
-            )
-            .first()
-        } catch (e: ReportingSetNotFoundException) {
-          throw e.asStatusRuntimeException(Status.Code.INTERNAL)
-        }
-
-      return existingBasicReport!!.copy {
+      return existingBasicReport.copy {
         campaignGroupDisplayName = reportingSetResult.reportingSet.displayName
       }
-    }
+    } else {
+      val commitTimestamp: Timestamp = transactionRunner.getCommitTimestamp().toProto()
 
-    val commitTimestamp: Timestamp = transactionRunner.getCommitTimestamp().toProto()
-
-    return request.basicReport.copy {
-      createTime = commitTimestamp
-      state = BasicReport.State.CREATED
+      return request.basicReport.copy {
+        campaignGroupDisplayName = reportingSetResult.reportingSet.displayName
+        createTime = commitTimestamp
+        state = BasicReport.State.CREATED
+      }
     }
   }
 
@@ -427,9 +432,21 @@ class SpannerBasicReportsService(
       throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
     }
 
+    val reportingSetResult: ReportingSetReader.Result =
+      try {
+        getReportingSets(
+          request.basicReport.cmmsMeasurementConsumerId,
+          listOf(request.basicReport.externalCampaignGroupId),
+        )
+          .first()
+      } catch (e: ReportingSetNotFoundException) {
+        throw e.asStatusRuntimeException(Status.Code.INTERNAL)
+      }
+
     val commitTimestamp: Timestamp = transactionRunner.getCommitTimestamp().toProto()
 
     return request.basicReport.copy {
+      campaignGroupDisplayName = reportingSetResult.reportingSet.displayName
       createTime = commitTimestamp
       state = BasicReport.State.SUCCEEDED
     }
