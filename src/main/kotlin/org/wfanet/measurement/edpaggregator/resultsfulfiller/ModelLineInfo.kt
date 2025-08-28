@@ -24,12 +24,12 @@ import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.VidIn
  * Contains all information required to fulfill a requisition for a specific model line.
  *
  * @property populationSpec Specification of the population relevant to the model line.
- * @property eventDescriptors Descriptor for the event associated with the model line.
+ * @property eventDescriptor Descriptor for the event associated with the model line.
  * @property vidIndexMap Mapping of VIDs to their corresponding FrequencyVector indices for the
  *   model line.
  */
 data class ModelLineInfo(
   val populationSpec: PopulationSpec,
-  val eventDescriptors: List<Descriptor>,
+  val eventDescriptor: Descriptor,
   val vidIndexMap: VidIndexMap,
 )

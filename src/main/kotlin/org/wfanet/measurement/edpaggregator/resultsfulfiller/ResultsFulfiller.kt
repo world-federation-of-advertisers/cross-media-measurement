@@ -94,8 +94,7 @@ class ResultsFulfiller(
         .toMap()
     val modelLine = groupedRequisitions.modelLine
     val modelInfo = modelLineInfoMap.getValue(modelLine)
-    val eventDescriptors = modelInfo.eventDescriptors
-    val typeRegistry = TypeRegistry.newBuilder().add(eventDescriptors).build()
+    val typeRegistry = TypeRegistry.newBuilder().add(modelInfo.eventDescriptor).build()
     for (requisition in requisitions) {
       logger.info("Processing requisition: ${requisition.name}")
       val signedRequisitionSpec: SignedMessage =
