@@ -32,6 +32,7 @@ message ImpressionMetadata {
 
   string event_group_reference_id = 5;
 
+  // The resource name of the ModelLine in the CMMS (Kingdom).
   string cmms_model_line = 6;
 
   google.type.Interval interval = 7;
