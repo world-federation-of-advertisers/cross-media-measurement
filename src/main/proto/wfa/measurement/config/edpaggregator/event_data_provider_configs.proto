@@ -20,7 +20,7 @@ import "google/api/resource.proto";
 
 option java_package = "org.wfanet.measurement.config.edpaggregator";
 option java_multiple_files = true;
-option java_outer_classname = "EdpConfigsProto";
+option java_outer_classname = "EventDataProviderConfigsProto";
 
 // Individual EDP config.
 message EventDataProviderConfig {
