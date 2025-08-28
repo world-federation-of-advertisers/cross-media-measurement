@@ -24,16 +24,17 @@ option java_multiple_files = true;
 
 // Proto representation of the internal ImpressionMetadata entity type.
 message ImpressionMetadata {
-  fixed64 external_data_provider_id = 1;
+  string data_provider_resource_id = 1;
+  string impression_metadata_resource_id = 2;
 
-  string blob_uri = 2;
-  string blob_type_url = 3;
+  string blob_uri = 3;
+  string blob_type_url = 4;
 
-  string event_group_reference_id = 4;
+  string event_group_reference_id = 5;
 
-  fixed64 external_model_line_id = 5;
+  string cmms_model_line = 6;
 
-  google.type.Interval interval = 6;
+  google.type.Interval interval = 7;
 
   enum State {
     // Default, unspecified state.
@@ -44,8 +45,8 @@ message ImpressionMetadata {
     // fulfillment unless explicitly requested.
     DELETED = 2;
   }
-  State state = 7;
+  State state = 8;
 
-  google.protobuf.Timestamp create_time = 8;
-  google.protobuf.Timestamp update_time = 9;
+  google.protobuf.Timestamp create_time = 9;
+  google.protobuf.Timestamp update_time = 10;
 }
