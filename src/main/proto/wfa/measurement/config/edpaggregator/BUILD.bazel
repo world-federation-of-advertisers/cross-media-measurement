@@ -79,8 +79,8 @@ kt_jvm_proto_library(
 )
 
 proto_library(
-    name = "edp_configs_proto",
-    srcs = ["edp_configs.proto"],
+    name = "event_data_provider_configs_proto",
+    srcs = ["event_data_provider_configs.proto"],
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
         "@com_google_googleapis//google/api:resource_proto",
@@ -88,6 +88,6 @@ proto_library(
 )
 
 kt_jvm_proto_library(
-    name = "edp_configs_kt_jvm_proto",
-    deps = [":edp_configs_proto"],
+    name = "event_data_provider_configs_kt_jvm_proto",
+    deps = [":event_data_provider_configs_proto"],
 )
