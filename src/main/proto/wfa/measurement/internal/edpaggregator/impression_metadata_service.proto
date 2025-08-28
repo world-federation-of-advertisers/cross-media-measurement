@@ -73,14 +73,6 @@ message GetImpressionMetadataRequest {
   string impression_metadata_resource_id = 2;
 }
 
-message Filter {
-  string cmms_model_line = 1;
-  string event_group_reference_id = 2;
-  google.type.Interval interval_overlaps = 3;
-  ImpressionMetadata.State state = 4;
-  google.protobuf.Timestamp create_time_after = 5;
-}
-
 message ListImpressionMetadataRequest {
   string data_provider_resource_id = 1;
 
@@ -91,9 +83,15 @@ message ListImpressionMetadataRequest {
   int32 page_size = 2;
   ListImpressionMetadataPageToken page_token = 3;
 
+  message Filter {
+    string cmms_model_line = 1;
+    string event_group_reference_id = 2;
+    google.type.Interval interval_overlaps = 3;
+    ImpressionMetadata.State state = 4;
+    google.protobuf.Timestamp create_time_after = 5;
+    bool show_deleted = 6;
+  }
   Filter filter = 4;
-
-  bool show_deleted = 5;
 }
 
 message ListImpressionMetadataResponse {
@@ -110,7 +108,7 @@ message ListImpressionMetadataPageToken {
   }
   After after = 2;
 
-  Filter filter = 3;
+  ListImpressionMetadataRequest.Filter filter = 3;
 }
 
 message DeleteImpressionMetadataRequest {
