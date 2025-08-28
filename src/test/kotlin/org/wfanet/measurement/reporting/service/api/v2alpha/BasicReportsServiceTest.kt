@@ -29,6 +29,7 @@ import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import java.nio.file.Paths
 import java.time.Clock
+import java.util.UUID
 import kotlin.random.Random
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.flow.toList
@@ -102,7 +103,6 @@ import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.testing.Schemat
 import org.wfanet.measurement.reporting.deploy.v2.postgres.PostgresMeasurementConsumersService
 import org.wfanet.measurement.reporting.deploy.v2.postgres.PostgresReportingSetsService
 import org.wfanet.measurement.reporting.deploy.v2.postgres.testing.Schemata as PostgresSchemata
-import java.util.UUID
 import org.wfanet.measurement.reporting.service.api.Errors
 import org.wfanet.measurement.reporting.service.internal.ImpressionQualificationFilterMapping
 import org.wfanet.measurement.reporting.v2alpha.BasicReport
@@ -385,9 +385,7 @@ class BasicReportsServiceTest {
           }
         )
 
-      val basicReport = BASIC_REPORT.copy {
-        this.campaignGroup = campaignGroupKey.toName()
-      }
+      val basicReport = BASIC_REPORT.copy { this.campaignGroup = campaignGroupKey.toName() }
 
       val request = createBasicReportRequest {
         parent = measurementConsumerKey.toName()
@@ -399,11 +397,12 @@ class BasicReportsServiceTest {
       withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
       withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
 
-      val response = withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.listBasicReports(
-        listBasicReportsRequest {
-          parent = measurementConsumerKey.toName()
+      val response =
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) {
+          service.listBasicReports(
+            listBasicReportsRequest { parent = measurementConsumerKey.toName() }
+          )
         }
-      ) }
 
       assertThat(response.basicReportsList).hasSize(1)
     }
