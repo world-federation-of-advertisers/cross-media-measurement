@@ -16,6 +16,7 @@ package org.wfanet.measurement.kingdom.service.api.v2alpha
 
 import com.google.protobuf.any
 import com.google.protobuf.util.Timestamps
+import com.google.type.Interval
 import io.grpc.Status
 import io.grpc.StatusException
 import kotlin.coroutines.CoroutineContext
@@ -35,6 +36,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementPrincipal
 import org.wfanet.measurement.api.v2alpha.ModelLineKey
 import org.wfanet.measurement.api.v2alpha.ModelProviderPrincipal
 import org.wfanet.measurement.api.v2alpha.ReplaceDataAvailabilityIntervalRequest
+import org.wfanet.measurement.api.v2alpha.ReplaceDataAvailabilityIntervalsRequest
 import org.wfanet.measurement.api.v2alpha.ReplaceDataProviderCapabilitiesRequest
 import org.wfanet.measurement.api.v2alpha.ReplaceDataProviderRequiredDuchiesRequest
 import org.wfanet.measurement.api.v2alpha.dataProvider
@@ -51,11 +53,14 @@ import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.internal.kingdom.DataProvider as InternalDataProvider
 import org.wfanet.measurement.internal.kingdom.DataProviderCapabilities as InternalDataProviderCapabilities
+import org.wfanet.measurement.internal.kingdom.DataProviderKt as InternalDataProviderKt
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.internal.kingdom.ModelLineKey as InternalModelLineKey
 import org.wfanet.measurement.internal.kingdom.dataProviderCapabilities as internalDataProviderCapabilities
 import org.wfanet.measurement.internal.kingdom.getDataProviderRequest
+import org.wfanet.measurement.internal.kingdom.modelLineKey
 import org.wfanet.measurement.internal.kingdom.replaceDataAvailabilityIntervalRequest
+import org.wfanet.measurement.internal.kingdom.replaceDataAvailabilityIntervalsRequest as internalReplaceDataAvailabilityIntervalsRequest
 import org.wfanet.measurement.internal.kingdom.replaceDataProviderCapabilitiesRequest
 import org.wfanet.measurement.internal.kingdom.replaceDataProviderRequiredDuchiesRequest
 
@@ -136,6 +141,66 @@ class DataProvidersService(
           else -> Status.UNKNOWN
         }.toExternalStatusRuntimeException(e)
       }
+    return internalDataProvider.toDataProvider()
+  }
+
+  override suspend fun replaceDataAvailabilityIntervals(
+    request: ReplaceDataAvailabilityIntervalsRequest
+  ): DataProvider {
+    val key: DataProviderKey =
+      DataProviderKey.fromName(request.name)
+        ?: throw Status.INVALID_ARGUMENT.withDescription("Resource name unspecified or invalid")
+          .asRuntimeException()
+
+    val principal: MeasurementPrincipal = principalFromCurrentContext
+    if (principal.resourceKey != key) {
+      throw permissionDeniedStatus("replaceDataAvailabilityIntervals", request.name)
+        .asRuntimeException()
+    }
+
+    val internalRequest = internalReplaceDataAvailabilityIntervalsRequest {
+      externalDataProviderId = ApiId(key.dataProviderId).externalId.value
+
+      for (entry: DataProvider.DataAvailabilityMapEntry in request.dataAvailabilityIntervalsList) {
+        val modelLineKey =
+          ModelLineKey.fromName(entry.key)
+            ?: throw Status.INVALID_ARGUMENT.withDescription("Invalid ModelLine resource name")
+              .asRuntimeException()
+        val interval: Interval = entry.value
+        if (interval.startTime.seconds == 0L) {
+          throw Status.INVALID_ARGUMENT.withDescription("start_time not set").asRuntimeException()
+        }
+        if (interval.endTime.seconds == 0L) {
+          throw Status.INVALID_ARGUMENT.withDescription("end_time not set").asRuntimeException()
+        }
+        if (Timestamps.compare(interval.startTime, interval.endTime) > 0) {
+          throw Status.INVALID_ARGUMENT.withDescription("end_time is before start_time")
+            .asRuntimeException()
+        }
+
+        dataAvailabilityIntervals +=
+          InternalDataProviderKt.dataAvailabilityMapEntry {
+            this.key = modelLineKey {
+              externalModelProviderId = ApiId(modelLineKey.modelProviderId).externalId.value
+              externalModelSuiteId = ApiId(modelLineKey.modelSuiteId).externalId.value
+              externalModelLineId = ApiId(modelLineKey.modelLineId).externalId.value
+            }
+            value = interval
+          }
+      }
+    }
+
+    val internalDataProvider: InternalDataProvider =
+      try {
+        internalClient.replaceDataAvailabilityIntervals(internalRequest)
+      } catch (e: StatusException) {
+        throw when (e.status.code) {
+          Status.Code.NOT_FOUND -> Status.NOT_FOUND
+          Status.Code.FAILED_PRECONDITION -> Status.FAILED_PRECONDITION
+          else -> Status.INTERNAL
+        }.toExternalStatusRuntimeException(e)
+      }
+
     return internalDataProvider.toDataProvider()
   }
 
@@ -222,6 +287,11 @@ class DataProvidersService(
       }
     return response.toDataProvider()
   }
+
+  private fun permissionDeniedStatus(permission: String, resourceName: String) =
+    Status.PERMISSION_DENIED.withDescription(
+      "Permission $permission denied on resource $resourceName (or it might not exist)"
+    )
 }
 
 private fun InternalDataProvider.toDataProvider(): DataProvider {

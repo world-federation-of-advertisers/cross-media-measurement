@@ -94,39 +94,6 @@ class ResultsFulfillerAppRunnerTest {
   }
 
   @Test
-  fun `saveResultsFulfillerConfig writes proto descriptor files to config directory`() {
-
-    val inputDir = tempFolder.newFolder("desc-input")
-    val descriptorName = "fooDescriptor.protoset"
-    val inputFile = File(inputDir, descriptorName)
-    val expectedBytes = "fake‐descriptor‐bytes".toByteArray()
-    inputFile.writeBytes(expectedBytes)
-
-    val runner = ResultsFulfillerAppRunner()
-    runner.javaClass.getDeclaredField("googleProjectId").apply {
-      isAccessible = true
-      set(runner, "dummyProject")
-    }
-    val uriString = inputFile.toURI().toString()
-    runner.javaClass.getDeclaredField("eventTemplateDescriptorBlobUris").apply {
-      isAccessible = true
-      set(runner, listOf(uriString))
-    }
-
-    runner.saveResultsFulfillerConfig()
-    val configDirField =
-      ResultsFulfillerAppRunner::class.java.getDeclaredField("PROTO_DESCRIPTORS_DIR")
-    configDirField.isAccessible = true
-    val configDir = configDirField.get(null) as String
-
-    // Verify the file was written in <PROTO_DESCRIPTORS_DIR>/fooDescriptor.protoset with identical
-    // contents
-    val outputFile = File(configDir, descriptorName)
-    assertThat(outputFile.exists()).isTrue()
-    assertThat(outputFile.readBytes()).isEqualTo(expectedBytes)
-  }
-
-  @Test
   fun `createKmsClients populates kmsClientsMap keys`() {
     val runner = ResultsFulfillerAppRunner()
 

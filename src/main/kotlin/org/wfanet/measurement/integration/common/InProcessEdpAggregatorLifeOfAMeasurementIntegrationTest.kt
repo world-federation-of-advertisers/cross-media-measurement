@@ -40,6 +40,8 @@ import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.testing.ProviderRule
+import org.wfanet.measurement.edpaggregator.resultsfulfiller.ModelLineInfo
+import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.InMemoryVidIndexMap
 import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorClient
 import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorProvider
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerDatabaseAdmin
@@ -98,7 +100,7 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
       pubSubClient = pubSubClient,
       syntheticEventGroupMap = syntheticEventGroupMap,
       syntheticPopulationSpec = syntheticPopulationSpec,
-      populationSpecMap = populationSpecMap,
+      modelLineInfoMap = modelLineInfoMap,
     )
 
   @Before
@@ -278,13 +280,19 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
         TEST_DATA_RUNTIME_PATH.resolve("small_data_spec.textproto").toFile(),
         SyntheticEventGroupSpec.getDefaultInstance(),
       )
-    val populationSpecMap =
+    val populationSpec =
+      parseTextProto(
+        TEST_RESULTS_FULFILLER_DATA_RUNTIME_PATH.resolve("small_population_spec.textproto")
+          .toFile(),
+        PopulationSpec.getDefaultInstance(),
+      )
+    val modelLineInfoMap =
       mapOf(
         "some-model-line" to
-          parseTextProto(
-            TEST_RESULTS_FULFILLER_DATA_RUNTIME_PATH.resolve("small_population_spec.textproto")
-              .toFile(),
-            PopulationSpec.getDefaultInstance(),
+          ModelLineInfo(
+            populationSpec = populationSpec,
+            vidIndexMap = InMemoryVidIndexMap.build(populationSpec),
+            eventDescriptor = TestEvent.getDescriptor(),
           )
       )
 

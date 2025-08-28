@@ -24,12 +24,10 @@ import java.security.GeneralSecurityException
 import java.time.ZoneId
 import java.util.logging.Logger
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
-import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt
@@ -48,7 +46,6 @@ import org.wfanet.measurement.edpaggregator.resultsfulfiller.fulfillers.DirectMe
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.fulfillers.HMShuffleMeasurementFulfiller
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.FrequencyVectorBuilder
-import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.InMemoryVidIndexMap
 import org.wfanet.measurement.storage.SelectedStorageClient
 
 /**
@@ -65,7 +62,8 @@ import org.wfanet.measurement.storage.SelectedStorageClient
  * @param zoneId Zone ID instance.
  * @param noiserSelector Selector for noise addition.
  * @param eventReader the [EventReader] to read in impressions data
- * @param populationSpecMap map of model line to population spec
+ * @param modelLineInfoMap map of model line to [ModelLineInfo]
+ * @param kAnonymityParams [KAnonymityParams] for this measurement
  *
  * TODO(2347) - Support additional differential privacy and k-anonymization.
  */
@@ -76,18 +74,14 @@ class ResultsFulfiller(
     Map<String, RequisitionFulfillmentGrpcKt.RequisitionFulfillmentCoroutineStub>,
   private val dataProviderCertificateKey: DataProviderCertificateKey,
   private val dataProviderSigningKeyHandle: SigningKeyHandle,
-  private val typeRegistry: TypeRegistry,
   private val requisitionsBlobUri: String,
   private val requisitionsStorageConfig: StorageConfig,
   private val zoneId: ZoneId,
   private val noiserSelector: NoiserSelector,
   private val eventReader: EventReader,
-  private val populationSpecMap: Map<String, PopulationSpec>,
+  private val modelLineInfoMap: Map<String, ModelLineInfo>,
   private val kAnonymityParams: KAnonymityParams?,
 ) {
-
-  private lateinit var populationSpec: PopulationSpec
-  private val vidIndexMap by lazy { InMemoryVidIndexMap.build(populationSpec) }
 
   suspend fun fulfillRequisitions() {
     val groupedRequisitions = getRequisitions()
@@ -98,6 +92,9 @@ class ResultsFulfiller(
       groupedRequisitions.eventGroupMapList
         .map { Pair(it.eventGroup, it.details.eventGroupReferenceId) }
         .toMap()
+    val modelLine = groupedRequisitions.modelLine
+    val modelInfo = modelLineInfoMap.getValue(modelLine)
+    val typeRegistry = TypeRegistry.newBuilder().add(modelInfo.eventDescriptor).build()
     for (requisition in requisitions) {
       logger.info("Processing requisition: ${requisition.name}")
       val signedRequisitionSpec: SignedMessage =
@@ -108,7 +105,6 @@ class ResultsFulfiller(
         }
       val requisitionSpec: RequisitionSpec = signedRequisitionSpec.unpack()
       val measurementSpec: MeasurementSpec = requisition.measurementSpec.message.unpack()
-      populationSpec = populationSpecMap.getValue(measurementSpec.modelLine)
       val sampledVids: Flow<Long> =
         RequisitionSpecs.getSampledVids(
           requisitionSpec,
@@ -121,10 +117,10 @@ class ResultsFulfiller(
       val frequencyVectorBuilder =
         FrequencyVectorBuilder(
           measurementSpec = measurementSpec,
-          populationSpec = populationSpec,
+          populationSpec = modelInfo.populationSpec,
           strict = false,
         )
-      sampledVids.collect { frequencyVectorBuilder.increment(vidIndexMap[it]) }
+      sampledVids.collect { frequencyVectorBuilder.increment(modelInfo.vidIndexMap[it]) }
       val frequencyData: IntArray = frequencyVectorBuilder.frequencyDataArray
       val fulfiller =
         if (protocols.any { it.hasDirect() }) {
@@ -152,7 +148,7 @@ class ResultsFulfiller(
               requisition,
               requisitionSpec.nonce,
               measurementSpec,
-              populationSpec,
+              modelInfo.populationSpec,
               frequencyVectorBuilder,
               dataProviderSigningKeyHandle,
               dataProviderCertificateKey,

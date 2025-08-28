@@ -56,6 +56,17 @@ message TrusTee {
     // For TrusTEE protocol, the role should be AGGREGATOR.
     wfa.measurement.internal.duchy.config.RoleInComputation role = 1;
 
+    // The type of computation to be performed.
+    enum Type {
+      // The computation type is unknown. This is never set intentionally.
+      TYPE_UNSPECIFIED = 0;
+      // A reach-only measurement.
+      REACH = 1;
+      // A reach and frequency measurement.
+      REACH_AND_FREQUENCY = 2;
+    }
+    Type type = 2;
+
     // Parameters used in this computation.
     message Parameters {
       // The maximum frequency to reveal in the histogram.
@@ -66,7 +77,9 @@ message TrusTee {
       DifferentialPrivacyParams frequency_dp_params = 3;
       // Noise mechanism used for generating noise.
       NoiseMechanism noise_mechanism = 4;
+      // The sampling rate.
+      float vid_sampling_interval_width = 5;
     }
-    Parameters parameters = 2;
+    Parameters parameters = 3;
   }
 }

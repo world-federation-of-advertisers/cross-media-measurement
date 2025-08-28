@@ -187,6 +187,7 @@ jobs:
         EVENT_GROUP_ENV_VAR: ${{ vars.EVENT_GROUP_ENV_VAR }}
         EVENT_GROUP_SECRET_MAPPING: ${{ vars.EVENT_GROUP_SECRET_MAPPING }}
         RESULTS_FULFILLER_EVENT_DESCRIPTOR_BLOB_URI: ${{ vars.RESULTS_FULFILLER_EVENT_DESCRIPTOR_BLOB_URI }}
+        RESULTS_FULFILLER_EVENT_TEMPLATE_TYPE_NAME: ${{ vars.RESULTS_FULFILLER_EVENT_TEMPLATE_TYPE_NAME }}
         RESULTS_FULFILLER_POPULATION_SPEC_BLOB_URI: ${{ vars.RESULTS_FULFILLER_POPULATION_SPEC_BLOB_URI }}
         EDPA_EDP_KMS_AUDIENCE: ${{ vars.EDPA_EDP_KMS_AUDIENCE }}
         EDPA_EDP_RESOURCE_NAME: ${{ vars.EDPA_EDP_RESOURCE_NAME }}
@@ -223,6 +224,7 @@ jobs:
         -var="image_tag=$IMAGE_TAG"
         -var="results_fulfiller_event_proto_descriptor_path=${{ steps.build-test-event-descriptors.outputs.event_proto_descriptors_path }}"
         -var="results_fulfiller_event_proto_descriptor_blob_uri=$RESULTS_FULFILLER_EVENT_DESCRIPTOR_BLOB_URI"
+        -var="results_fulfiller_event_template_type_name=$RESULTS_FULFILLER_EVENT_TEMPLATE_TYPE_NAME"
         -var="results_fulfiller_population_spec_blob_uri=$RESULTS_FULFILLER_POPULATION_SPEC_BLOB_URI"
         -var="results_fulfiller_population_spec_file_path=$CONFIG_DIR/results-fulfiller-population-spec.textproto"
         -var="edpa_edp_kms_audience=$EDPA_EDP_KMS_AUDIENCE"

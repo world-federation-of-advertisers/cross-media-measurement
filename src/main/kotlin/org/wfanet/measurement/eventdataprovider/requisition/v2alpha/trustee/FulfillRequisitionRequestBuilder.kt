@@ -119,8 +119,8 @@ class FulfillRequisitionRequestBuilder(
         StreamingEncryption.encryptChunked(
             dekHandle,
             frequencyVectorBytes.toByteString(),
-            RPC_CHUNK_SIZE_BYTES,
             null,
+            RPC_CHUNK_SIZE_BYTES,
           )
           .map { fulfillRequisitionRequest { bodyChunk = bodyChunk { data = it } } }
 

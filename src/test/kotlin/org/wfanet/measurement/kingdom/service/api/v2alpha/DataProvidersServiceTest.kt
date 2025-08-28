@@ -17,8 +17,11 @@ package org.wfanet.measurement.kingdom.service.api.v2alpha
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
+import com.google.protobuf.duration
 import com.google.protobuf.kotlin.toByteString
 import com.google.protobuf.timestamp
+import com.google.protobuf.util.Timestamps
+import com.google.type.copy
 import com.google.type.interval
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
@@ -43,6 +46,7 @@ import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.dataProvider
 import org.wfanet.measurement.api.v2alpha.getDataProviderRequest
 import org.wfanet.measurement.api.v2alpha.replaceDataAvailabilityIntervalRequest
+import org.wfanet.measurement.api.v2alpha.replaceDataAvailabilityIntervalsRequest
 import org.wfanet.measurement.api.v2alpha.replaceDataProviderCapabilitiesRequest
 import org.wfanet.measurement.api.v2alpha.replaceDataProviderRequiredDuchiesRequest
 import org.wfanet.measurement.api.v2alpha.setMessage
@@ -76,6 +80,7 @@ import org.wfanet.measurement.internal.kingdom.dataProviderDetails
 import org.wfanet.measurement.internal.kingdom.getDataProviderRequest as internalGetDataProviderRequest
 import org.wfanet.measurement.internal.kingdom.modelLineKey
 import org.wfanet.measurement.internal.kingdom.replaceDataAvailabilityIntervalRequest as internalReplaceDataAvailabilityIntervalRequest
+import org.wfanet.measurement.internal.kingdom.replaceDataAvailabilityIntervalsRequest as internalReplaceDataAvailabilityIntervalsRequest
 import org.wfanet.measurement.internal.kingdom.replaceDataProviderCapabilitiesRequest as internalReplaceDataProviderCapabilitiesRequest
 import org.wfanet.measurement.internal.kingdom.replaceDataProviderRequiredDuchiesRequest as internalReplaceDataProviderRequiredDuchiesRequest
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderNotFoundException
@@ -100,6 +105,7 @@ class DataProvidersServiceTest {
     onBlocking { getDataProvider(any()) }.thenReturn(INTERNAL_DATA_PROVIDER)
     onBlocking { replaceDataProviderRequiredDuchies(any()) }.thenReturn(INTERNAL_DATA_PROVIDER)
     onBlocking { replaceDataAvailabilityInterval(any()) }.thenReturn(INTERNAL_DATA_PROVIDER)
+    onBlocking { replaceDataAvailabilityIntervals(any()) }.thenReturn(INTERNAL_DATA_PROVIDER)
   }
 
   @get:Rule val grpcTestServerRule = GrpcTestServerRule { addService(internalServiceMock) }
@@ -536,6 +542,124 @@ class DataProvidersServiceTest {
           }
         }
       }
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+  }
+
+  @Test
+  fun `replaceDataAvailabilityIntervals returns data provider`() {
+    val dataAvailabilityIntervals = DATA_PROVIDER.dataAvailabilityIntervalsList
+
+    val response = runBlocking {
+      withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+        service.replaceDataAvailabilityIntervals(
+          replaceDataAvailabilityIntervalsRequest {
+            name = DATA_PROVIDER_NAME
+            this.dataAvailabilityIntervals += dataAvailabilityIntervals
+          }
+        )
+      }
+    }
+
+    verifyProtoArgument(
+        internalServiceMock,
+        InternalDataProvidersService::replaceDataAvailabilityIntervals,
+      )
+      .isEqualTo(
+        internalReplaceDataAvailabilityIntervalsRequest {
+          externalDataProviderId = DATA_PROVIDER_ID
+          this.dataAvailabilityIntervals += INTERNAL_DATA_PROVIDER.dataAvailabilityIntervalsList
+        }
+      )
+    assertThat(response).isEqualTo(DATA_PROVIDER)
+  }
+
+  @Test
+  fun `replaceDataAvailabilityIntervals throws INVALID_ARGUMENT when ModelLine name is invalid`() {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        runBlocking {
+          withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+            service.replaceDataAvailabilityIntervals(
+              replaceDataAvailabilityIntervalsRequest {
+                name = DATA_PROVIDER_NAME
+                dataAvailabilityIntervals +=
+                  DATA_PROVIDER.dataAvailabilityIntervalsList.first().copy {
+                    key = "bogus-model-line"
+                  }
+              }
+            )
+          }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception).hasMessageThat().contains("ModelLine")
+  }
+
+  @Test
+  fun `replaceDataAvailabilityIntervals throws INVALID_ARGUMENT when end_time not set`() {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        runBlocking {
+          withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+            service.replaceDataAvailabilityIntervals(
+              replaceDataAvailabilityIntervalsRequest {
+                name = DATA_PROVIDER_NAME
+                dataAvailabilityIntervals +=
+                  DATA_PROVIDER.dataAvailabilityIntervalsList.first().copy {
+                    value = value.copy { clearEndTime() }
+                  }
+              }
+            )
+          }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception).hasMessageThat().contains("end_time")
+  }
+
+  @Test
+  fun `replaceDataAvailabilityIntervals throws INVALID_ARGUMENT when end_time is before start_time`() {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        runBlocking {
+          withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+            service.replaceDataAvailabilityIntervals(
+              replaceDataAvailabilityIntervalsRequest {
+                name = DATA_PROVIDER_NAME
+                dataAvailabilityIntervals +=
+                  DATA_PROVIDER.dataAvailabilityIntervalsList.first().copy {
+                    value =
+                      value.copy { startTime = Timestamps.add(endTime, duration { seconds = 10 }) }
+                  }
+              }
+            )
+          }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception).hasMessageThat().contains("start_time")
+    assertThat(exception).hasMessageThat().contains("end_time")
+  }
+
+  @Test
+  fun `replaceDataAvailabilityIntervals throws PERMISSION_DENIED when principal does not match`() {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        runBlocking {
+          withDataProviderPrincipal(DATA_PROVIDER_NAME_2) {
+            service.replaceDataAvailabilityIntervals(
+              replaceDataAvailabilityIntervalsRequest {
+                name = DATA_PROVIDER_NAME
+                dataAvailabilityIntervals += DATA_PROVIDER.dataAvailabilityIntervalsList
+              }
+            )
+          }
+        }
+      }
+
     assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
   }
 
