@@ -105,7 +105,6 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
 
   @Before
   fun setup() {
-    println("--------------------------- BEFORE")
     runBlocking {
       pubSubClient.createTopic(PROJECT_ID, FULFILLER_TOPIC_ID)
       pubSubClient.createSubscription(PROJECT_ID, SUBSCRIPTION_ID, FULFILLER_TOPIC_ID)
@@ -124,7 +123,6 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
       duchyMap,
     )
     initMcSimulator()
-    println("--------------------------- BEFORE2")
   }
 
   private lateinit var mcSimulator: EdpAggregatorMeasurementConsumerSimulator

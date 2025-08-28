@@ -382,9 +382,9 @@ class ResultsFulfillerAppRunner : Runnable {
         DescriptorProtos.FileDescriptorSet.parseFrom(eventDescriptorBytes, EXTENSION_REGISTRY)
       val descriptors: List<Descriptors.Descriptor> =
         ProtoReflection.buildDescriptors(listOf(fileDescriptorSet), COMPILED_PROTOBUF_TYPES)
-      val typeUrl = it.eventTemplateTypeName
-      val eventDescriptor = descriptors.firstOrNull { it.fullName == typeUrl }
-        ?: error("Descriptor not found for type: $typeUrl")
+      val typeName = it.eventTemplateTypeName
+      val eventDescriptor = descriptors.firstOrNull { it.fullName == typeName }
+        ?: error("Descriptor not found for type: $typeName")
       it.modelLine to
         ModelLineInfo(
           populationSpec = populationSpec,
