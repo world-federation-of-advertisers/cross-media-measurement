@@ -124,8 +124,8 @@ message DeleteImpressionMetadataRequest {
 }
 
 message BatchDeleteImpressionMetadataRequest {
-  // The request message specifying the ImpressionMetadata to permanently delete.
-  // A maximum of 1000 ImpressionMetadata can be deleted in a batch.
+  // The request message specifying the ImpressionMetadata to permanently
+  // delete. A maximum of 1000 ImpressionMetadata can be deleted in a batch.
   repeated DeleteImpressionMetadataRequest requests = 1;
 }
 
