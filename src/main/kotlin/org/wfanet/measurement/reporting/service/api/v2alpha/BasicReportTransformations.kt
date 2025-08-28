@@ -304,7 +304,8 @@ private fun createMetricCalculationSpecFilters(
       }
     }
 
-    // To represent no filter
+    // This function is expected to return a list of filters so an empty filter is returned in the
+    // case that there are no ImpressionQualificationSpec filters nor DimensionSpec filters.
     if (this.isEmpty()) {
       add("")
     }
