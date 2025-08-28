@@ -331,6 +331,10 @@ class ResultsFulfillerAppRunner : Runnable {
 
     val modelLinesMap = runBlocking { buildModelLineMap() }
 
+    modelLinesMap.keys.forEach { key ->
+      logger.info("----------------------- key for model line map: $key")
+    }
+
     val resultsFulfillerApp =
       ResultsFulfillerApp(
         subscriptionId = subscriptionId,
@@ -382,7 +386,13 @@ class ResultsFulfillerAppRunner : Runnable {
         DescriptorProtos.FileDescriptorSet.parseFrom(eventDescriptorBytes, EXTENSION_REGISTRY)
       val descriptors: List<Descriptors.Descriptor> =
         ProtoReflection.buildDescriptors(listOf(fileDescriptorSet), COMPILED_PROTOBUF_TYPES)
+
+      descriptors.forEach { descriptor ->
+        logger.info("-------------------------------------- descriptor full name: ${descriptor.fullName}")
+      }
+
       val typeName = it.eventTemplateTypeName
+      logger.info("------------------- type name: $typeName")
       val eventDescriptor = descriptors.firstOrNull { it.fullName == typeName }
         ?: error("Descriptor not found for type: $typeName")
       it.modelLine to
