@@ -251,11 +251,11 @@ class BasicReportsServiceTest {
         custom =
           ReportingImpressionQualificationFilterKt.customImpressionQualificationFilterSpec {
             filterSpec += impressionQualificationFilterSpec {
-              mediaType = MediaType.VIDEO
+              mediaType = MediaType.DISPLAY
               filters += eventFilter {
                 terms += eventTemplateField {
-                  path = "person.gender"
-                  value = EventTemplateFieldKt.fieldValue { enumValue = "MALE" }
+                  path = "banner_ad.viewable"
+                  value = EventTemplateFieldKt.fieldValue { boolValue = true }
                 }
               }
             }
@@ -4753,26 +4753,25 @@ class BasicReportsServiceTest {
       }
     )
 
-    val campaignGroup =
-      internalReportingSetsService.createReportingSet(
-        createReportingSetRequest {
-          reportingSet = internalReportingSet {
-            cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
-            externalCampaignGroupId = campaignGroupKey.reportingSetId
-            displayName = "displayName"
-            filter = "filter"
-            primitive =
-              ReportingSetKt.primitive {
-                eventGroupKeys +=
-                  ReportingSetKt.PrimitiveKt.eventGroupKey {
-                    cmmsDataProviderId = DATA_PROVIDER_KEY.dataProviderId
-                    cmmsEventGroupId = "1235"
-                  }
-              }
-          }
-          externalReportingSetId = campaignGroupKey.reportingSetId
+    internalReportingSetsService.createReportingSet(
+      createReportingSetRequest {
+        reportingSet = internalReportingSet {
+          cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+          externalCampaignGroupId = campaignGroupKey.reportingSetId
+          displayName = "displayName"
+          filter = "filter"
+          primitive =
+            ReportingSetKt.primitive {
+              eventGroupKeys +=
+                ReportingSetKt.PrimitiveKt.eventGroupKey {
+                  cmmsDataProviderId = DATA_PROVIDER_KEY.dataProviderId
+                  cmmsEventGroupId = "1235"
+                }
+            }
         }
-      )
+        externalReportingSetId = campaignGroupKey.reportingSetId
+      }
+    )
 
     val basicReport = basicReport {
       title = "title"
@@ -4798,11 +4797,11 @@ class BasicReportsServiceTest {
         custom =
           ReportingImpressionQualificationFilterKt.customImpressionQualificationFilterSpec {
             filterSpec += impressionQualificationFilterSpec {
-              mediaType = MediaType.VIDEO
+              mediaType = MediaType.DISPLAY
               filters += eventFilter {
                 terms += eventTemplateField {
-                  path = "person.gender"
-                  value = EventTemplateFieldKt.fieldValue { enumValue = "MALE" }
+                  path = "banner_ad.viewable"
+                  value = EventTemplateFieldKt.fieldValue { boolValue = true }
                 }
               }
             }
