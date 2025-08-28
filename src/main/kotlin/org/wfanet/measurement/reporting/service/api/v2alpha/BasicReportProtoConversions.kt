@@ -19,18 +19,41 @@ package org.wfanet.measurement.reporting.service.api.v2alpha
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerEventGroupKey
 import org.wfanet.measurement.internal.reporting.v2.BasicReport as InternalBasicReport
+import org.wfanet.measurement.internal.reporting.v2.DimensionSpec as InternalDimensionSpec
+import org.wfanet.measurement.internal.reporting.v2.DimensionSpecKt as InternalDimensionSpecKt
 import org.wfanet.measurement.internal.reporting.v2.EventFilter as InternalEventFilter
 import org.wfanet.measurement.internal.reporting.v2.EventTemplateField as InternalEventTemplateField
+import org.wfanet.measurement.internal.reporting.v2.EventTemplateFieldKt as InternalEventTemplateFieldKt
 import org.wfanet.measurement.internal.reporting.v2.ImpressionQualificationFilter as InternalImpressionQualificationFilter
 import org.wfanet.measurement.internal.reporting.v2.ImpressionQualificationFilterSpec as InternalImpressionQualificationFilterSpec
 import org.wfanet.measurement.internal.reporting.v2.ImpressionQualificationFilterSpec.MediaType as InternalMediaType
 import org.wfanet.measurement.internal.reporting.v2.MetricFrequencySpec as InternalMetricFrequencySpec
 import org.wfanet.measurement.internal.reporting.v2.ReportingImpressionQualificationFilter as InternalReportingImpressionQualificationFilter
+import org.wfanet.measurement.internal.reporting.v2.ReportingUnit as InternalReportingUnit
+import org.wfanet.measurement.internal.reporting.v2.ReportingUnitKt as InternalReportingUnitKt
 import org.wfanet.measurement.internal.reporting.v2.ResultGroup as InternalResultGroup
 import org.wfanet.measurement.internal.reporting.v2.ResultGroup.MetricMetadata as InternalMetricMetadata
 import org.wfanet.measurement.internal.reporting.v2.ResultGroup.MetricSet as InternalMetricSet
 import org.wfanet.measurement.internal.reporting.v2.ResultGroup.MetricSet.BasicMetricSet as InternalBasicMetricSet
+import org.wfanet.measurement.internal.reporting.v2.ResultGroupMetricSpec as InternalResultGroupMetricSpec
+import org.wfanet.measurement.internal.reporting.v2.ResultGroupMetricSpecKt as InternalResultGroupMetricSpecKt
+import org.wfanet.measurement.internal.reporting.v2.ResultGroupSpec as InternalResultGroupSpec
+import org.wfanet.measurement.internal.reporting.v2.basicReport as internalBasicReport
+import org.wfanet.measurement.internal.reporting.v2.basicReportDetails as internalBasicReportDetails
+import org.wfanet.measurement.internal.reporting.v2.dataProviderKey as internalDataProviderKey
+import org.wfanet.measurement.internal.reporting.v2.dimensionSpec as internalDimensionSpec
+import org.wfanet.measurement.internal.reporting.v2.eventFilter as internalEventFilter
+import org.wfanet.measurement.internal.reporting.v2.eventTemplateField as internalEventTemplateField
+import org.wfanet.measurement.internal.reporting.v2.impressionQualificationFilterSpec as internalImpressionQualificationFilterSpec
+import org.wfanet.measurement.internal.reporting.v2.metricFrequencySpec as internalMetricFrequencySpec
+import org.wfanet.measurement.internal.reporting.v2.reportingImpressionQualificationFilter as internalReportingImpressionQualificationFilter
+import org.wfanet.measurement.internal.reporting.v2.reportingInterval as internalReportingInterval
+import org.wfanet.measurement.internal.reporting.v2.reportingUnit as internalReportingUnit
+import org.wfanet.measurement.internal.reporting.v2.resultGroupMetricSpec as internalResultGroupMetricSpec
+import org.wfanet.measurement.internal.reporting.v2.resultGroupSpec as internalResultGroupSpec
 import org.wfanet.measurement.reporting.v2alpha.BasicReport
+import org.wfanet.measurement.reporting.v2alpha.DimensionSpec
+import org.wfanet.measurement.reporting.v2alpha.DimensionSpecKt
 import org.wfanet.measurement.reporting.v2alpha.EventFilter
 import org.wfanet.measurement.reporting.v2alpha.EventTemplateField
 import org.wfanet.measurement.reporting.v2alpha.EventTemplateFieldKt
@@ -39,13 +62,18 @@ import org.wfanet.measurement.reporting.v2alpha.MediaType
 import org.wfanet.measurement.reporting.v2alpha.MetricFrequencySpec
 import org.wfanet.measurement.reporting.v2alpha.ReportingImpressionQualificationFilter
 import org.wfanet.measurement.reporting.v2alpha.ReportingImpressionQualificationFilterKt.customImpressionQualificationFilterSpec
+import org.wfanet.measurement.reporting.v2alpha.ReportingUnit
 import org.wfanet.measurement.reporting.v2alpha.ResultGroup
 import org.wfanet.measurement.reporting.v2alpha.ResultGroup.MetricMetadata
 import org.wfanet.measurement.reporting.v2alpha.ResultGroup.MetricSet
 import org.wfanet.measurement.reporting.v2alpha.ResultGroup.MetricSet.BasicMetricSet
 import org.wfanet.measurement.reporting.v2alpha.ResultGroupKt
 import org.wfanet.measurement.reporting.v2alpha.ResultGroupKt.MetricMetadataKt.dimensionSpecSummary
+import org.wfanet.measurement.reporting.v2alpha.ResultGroupMetricSpec
+import org.wfanet.measurement.reporting.v2alpha.ResultGroupMetricSpecKt
+import org.wfanet.measurement.reporting.v2alpha.ResultGroupSpec
 import org.wfanet.measurement.reporting.v2alpha.basicReport
+import org.wfanet.measurement.reporting.v2alpha.dimensionSpec
 import org.wfanet.measurement.reporting.v2alpha.eventFilter
 import org.wfanet.measurement.reporting.v2alpha.eventTemplateField
 import org.wfanet.measurement.reporting.v2alpha.impressionQualificationFilter
@@ -53,7 +81,277 @@ import org.wfanet.measurement.reporting.v2alpha.impressionQualificationFilterSpe
 import org.wfanet.measurement.reporting.v2alpha.metricFrequencySpec
 import org.wfanet.measurement.reporting.v2alpha.reportingImpressionQualificationFilter
 import org.wfanet.measurement.reporting.v2alpha.reportingInterval
+import org.wfanet.measurement.reporting.v2alpha.reportingUnit
 import org.wfanet.measurement.reporting.v2alpha.resultGroup
+import org.wfanet.measurement.reporting.v2alpha.resultGroupMetricSpec
+import org.wfanet.measurement.reporting.v2alpha.resultGroupSpec
+
+/** Converts the public [BasicReport] to the internal [InternalBasicReport]. */
+fun BasicReport.toInternal(
+  cmmsMeasurementConsumerId: String,
+  basicReportId: String,
+  campaignGroupId: String,
+  createReportRequestId: String,
+): InternalBasicReport {
+  val source = this
+  return internalBasicReport {
+    this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
+    externalBasicReportId = basicReportId
+    externalCampaignGroupId = campaignGroupId
+
+    details = internalBasicReportDetails {
+      title = source.title
+      for (reportingImpressionQualificationFilter in source.impressionQualificationFiltersList) {
+        impressionQualificationFilters += reportingImpressionQualificationFilter.toInternal()
+      }
+      reportingInterval = internalReportingInterval {
+        reportStart = source.reportingInterval.reportStart
+        reportEnd = source.reportingInterval.reportEnd
+      }
+      for (resultGroupSpec in source.resultGroupSpecsList) {
+        resultGroupSpecs += resultGroupSpec.toInternal()
+      }
+    }
+
+    this.createReportRequestId = createReportRequestId
+  }
+}
+
+/**
+ * Converts the public [ReportingImpressionQualificationFilter] to the internal
+ * [InternalReportingImpressionQualificationFilter].
+ */
+fun ReportingImpressionQualificationFilter.toInternal():
+  InternalReportingImpressionQualificationFilter {
+  val source = this
+  return internalReportingImpressionQualificationFilter {
+    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
+    when (source.selectorCase) {
+      ReportingImpressionQualificationFilter.SelectorCase.IMPRESSION_QUALIFICATION_FILTER -> {
+        externalImpressionQualificationFilterId =
+          ImpressionQualificationFilterKey.fromName(source.impressionQualificationFilter)!!
+            .impressionQualificationFilterId
+      }
+      ReportingImpressionQualificationFilter.SelectorCase.CUSTOM -> {
+        for (filterSpec in source.custom.filterSpecList) {
+          filterSpecs += internalImpressionQualificationFilterSpec {
+            mediaType = filterSpec.mediaType.toInternal()
+            filters += filterSpec.filtersList.map { it.toInternal() }
+          }
+        }
+      }
+      ReportingImpressionQualificationFilter.SelectorCase.SELECTOR_NOT_SET -> {}
+    }
+  }
+}
+
+/** Converts the public [MediaType] to the internal [InternalMediaType]. */
+fun MediaType.toInternal(): InternalMediaType {
+  return when (this) {
+    MediaType.VIDEO -> InternalMediaType.VIDEO
+    MediaType.DISPLAY -> InternalMediaType.DISPLAY
+    MediaType.OTHER -> InternalMediaType.OTHER
+    MediaType.MEDIA_TYPE_UNSPECIFIED,
+    MediaType.UNRECOGNIZED -> InternalMediaType.MEDIA_TYPE_UNSPECIFIED
+  }
+}
+
+/** Converts the public [ResultGroupSpec] to the internal [InternalResultGroupSpec]. */
+fun ResultGroupSpec.toInternal(): InternalResultGroupSpec {
+  val source = this
+  return internalResultGroupSpec {
+    title = source.title
+    reportingUnit = source.reportingUnit.toInternal()
+    metricFrequency = source.metricFrequency.toInternal()
+    dimensionSpec = source.dimensionSpec.toInternal()
+    resultGroupMetricSpec = source.resultGroupMetricSpec.toInternal()
+  }
+}
+
+/** Converts the public [ReportingUnit] to the internal [InternalReportingUnit]. */
+fun ReportingUnit.toInternal(): InternalReportingUnit {
+  val source = this
+  return internalReportingUnit {
+    // Only BasicReports with DataProvider components will be converted to internal BasicReports
+    dataProviderKeys =
+      InternalReportingUnitKt.dataProviderKeys {
+        for (reportingUnitComponent in source.componentsList) {
+          dataProviderKeys += internalDataProviderKey {
+            cmmsDataProviderId = DataProviderKey.fromName(reportingUnitComponent)!!.dataProviderId
+          }
+        }
+      }
+  }
+}
+
+/** Converts the public [MetricFrequencySpec] to the internal [InternalMetricFrequencySpec]. */
+fun MetricFrequencySpec.toInternal(): InternalMetricFrequencySpec {
+  val source = this
+  return internalMetricFrequencySpec {
+    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
+    when (source.selectorCase) {
+      MetricFrequencySpec.SelectorCase.WEEKLY -> {
+        weekly = source.weekly
+      }
+      MetricFrequencySpec.SelectorCase.TOTAL -> {
+        total = source.total
+      }
+      MetricFrequencySpec.SelectorCase.SELECTOR_NOT_SET -> {}
+    }
+  }
+}
+
+fun EventFilter.toInternal(): InternalEventFilter {
+  return internalEventFilter {
+    for (term in termsList) {
+      terms += internalEventTemplateField {
+        path = term.path
+        value =
+          InternalEventTemplateFieldKt.fieldValue {
+            @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
+            when (term.value.selectorCase) {
+              EventTemplateField.FieldValue.SelectorCase.STRING_VALUE -> {
+                stringValue = term.value.stringValue
+              }
+              EventTemplateField.FieldValue.SelectorCase.ENUM_VALUE -> {
+                enumValue = term.value.enumValue
+              }
+              EventTemplateField.FieldValue.SelectorCase.BOOL_VALUE -> {
+                boolValue = term.value.boolValue
+              }
+              EventTemplateField.FieldValue.SelectorCase.FLOAT_VALUE -> {
+                floatValue = term.value.floatValue
+              }
+              EventTemplateField.FieldValue.SelectorCase.SELECTOR_NOT_SET -> {}
+            }
+          }
+      }
+    }
+  }
+}
+
+/** Converts the public [DimensionSpec] to the internal [InternalDimensionSpec]. */
+fun DimensionSpec.toInternal(): InternalDimensionSpec {
+  val source = this
+  return internalDimensionSpec {
+    grouping =
+      InternalDimensionSpecKt.grouping {
+        eventTemplateFields += source.grouping.eventTemplateFieldsList
+      }
+    filters += source.filtersList.map { it.toInternal() }
+  }
+}
+
+/** Converts the public [ResultGroupMetricSpec] to the internal [InternalResultGroupMetricSpec]. */
+fun ResultGroupMetricSpec.toInternal(): InternalResultGroupMetricSpec {
+  val source = this
+  return internalResultGroupMetricSpec {
+    populationSize = source.populationSize
+    if (source.hasReportingUnit()) {
+      reportingUnit =
+        InternalResultGroupMetricSpecKt.reportingUnitMetricSetSpec {
+          if (source.reportingUnit.hasNonCumulative()) {
+            nonCumulative =
+              InternalResultGroupMetricSpecKt.basicMetricSetSpec {
+                reach = source.reportingUnit.nonCumulative.reach
+                percentReach = source.reportingUnit.nonCumulative.percentReach
+                kPlusReach = source.reportingUnit.nonCumulative.kPlusReach
+                percentKPlusReach = source.reportingUnit.nonCumulative.percentKPlusReach
+                averageFrequency = source.reportingUnit.nonCumulative.averageFrequency
+                impressions = source.reportingUnit.nonCumulative.impressions
+                grps = source.reportingUnit.nonCumulative.grps
+              }
+          }
+          if (source.reportingUnit.hasCumulative()) {
+            cumulative =
+              InternalResultGroupMetricSpecKt.basicMetricSetSpec {
+                reach = source.reportingUnit.cumulative.reach
+                percentReach = source.reportingUnit.cumulative.percentReach
+                kPlusReach = source.reportingUnit.cumulative.kPlusReach
+                percentKPlusReach = source.reportingUnit.cumulative.percentKPlusReach
+                averageFrequency = source.reportingUnit.cumulative.averageFrequency
+                impressions = source.reportingUnit.cumulative.impressions
+                grps = source.reportingUnit.cumulative.grps
+              }
+          }
+          stackedIncrementalReach = source.reportingUnit.stackedIncrementalReach
+        }
+    }
+
+    if (source.hasComponent()) {
+      component =
+        InternalResultGroupMetricSpecKt.componentMetricSetSpec {
+          if (source.component.hasNonCumulative()) {
+            nonCumulative =
+              InternalResultGroupMetricSpecKt.basicMetricSetSpec {
+                reach = source.component.nonCumulative.reach
+                percentReach = source.component.nonCumulative.percentReach
+                kPlusReach = source.component.nonCumulative.kPlusReach
+                percentKPlusReach = source.component.nonCumulative.percentKPlusReach
+                averageFrequency = source.component.nonCumulative.averageFrequency
+                impressions = source.component.nonCumulative.impressions
+                grps = source.component.nonCumulative.grps
+              }
+          }
+          if (source.component.hasCumulative()) {
+            cumulative =
+              InternalResultGroupMetricSpecKt.basicMetricSetSpec {
+                reach = source.component.cumulative.reach
+                percentReach = source.component.cumulative.percentReach
+                kPlusReach = source.component.cumulative.kPlusReach
+                percentKPlusReach = source.component.cumulative.percentKPlusReach
+                averageFrequency = source.component.cumulative.averageFrequency
+                impressions = source.component.cumulative.impressions
+                grps = source.component.cumulative.grps
+              }
+          }
+          if (source.component.hasNonCumulativeUnique()) {
+            nonCumulativeUnique =
+              InternalResultGroupMetricSpecKt.uniqueMetricSetSpec {
+                reach = source.component.nonCumulativeUnique.reach
+              }
+          }
+          if (source.component.hasCumulativeUnique()) {
+            cumulativeUnique =
+              InternalResultGroupMetricSpecKt.uniqueMetricSetSpec {
+                reach = source.component.cumulativeUnique.reach
+              }
+          }
+        }
+    }
+
+    if (source.hasComponentIntersection()) {
+      componentIntersection =
+        InternalResultGroupMetricSpecKt.componentIntersectionMetricSetSpec {
+          contributorCount += source.componentIntersection.contributorCountList
+          if (source.componentIntersection.hasNonCumulative()) {
+            nonCumulative =
+              InternalResultGroupMetricSpecKt.basicMetricSetSpec {
+                reach = source.componentIntersection.nonCumulative.reach
+                percentReach = source.componentIntersection.nonCumulative.percentReach
+                kPlusReach = source.componentIntersection.nonCumulative.kPlusReach
+                percentKPlusReach = source.componentIntersection.nonCumulative.percentKPlusReach
+                averageFrequency = source.componentIntersection.nonCumulative.averageFrequency
+                impressions = source.componentIntersection.nonCumulative.impressions
+                grps = source.componentIntersection.nonCumulative.grps
+              }
+          }
+          if (source.componentIntersection.hasCumulative()) {
+            cumulative =
+              InternalResultGroupMetricSpecKt.basicMetricSetSpec {
+                reach = source.componentIntersection.cumulative.reach
+                percentReach = source.componentIntersection.cumulative.percentReach
+                kPlusReach = source.componentIntersection.cumulative.kPlusReach
+                percentKPlusReach = source.componentIntersection.cumulative.percentKPlusReach
+                averageFrequency = source.componentIntersection.cumulative.averageFrequency
+                impressions = source.componentIntersection.cumulative.impressions
+                grps = source.componentIntersection.cumulative.grps
+              }
+          }
+        }
+    }
+  }
+}
 
 /** Converts the internal [InternalBasicReport] to the public [BasicReport]. */
 fun InternalBasicReport.toBasicReport(): BasicReport {
@@ -73,6 +371,9 @@ fun InternalBasicReport.toBasicReport(): BasicReport {
       impressionQualificationFilters +=
         internalImpressionQualificationFilter.toReportingImpressionQualificationFilter()
     }
+    for (internalResultGroupSpec in source.details.resultGroupSpecsList) {
+      resultGroupSpecs += internalResultGroupSpec.toResultGroupSpec()
+    }
     for (internalResultGroup in source.resultDetails.resultGroupsList) {
       resultGroups += internalResultGroup.toResultGroup()
     }
@@ -90,6 +391,165 @@ fun InternalBasicReport.toBasicReport(): BasicReport {
         InternalBasicReport.State.STATE_UNSPECIFIED -> BasicReport.State.STATE_UNSPECIFIED
         InternalBasicReport.State.UNRECOGNIZED -> BasicReport.State.UNRECOGNIZED
       }
+  }
+}
+
+/** Converts the internal [InternalResultGroupSpec] to the public [ResultGroupSpec]. */
+fun InternalResultGroupSpec.toResultGroupSpec(): ResultGroupSpec {
+  val source = this
+  return resultGroupSpec {
+    title = source.title
+    reportingUnit = source.reportingUnit.toReportingUnit()
+    metricFrequency = source.metricFrequency.toMetricFrequencySpec()
+    dimensionSpec = source.dimensionSpec.toDimensionSpec()
+    resultGroupMetricSpec = source.resultGroupMetricSpec.toResultGroupMetricSpec()
+  }
+}
+
+/** Converts the internal [InternalReportingUnit] to the public [ReportingUnit]. */
+fun InternalReportingUnit.toReportingUnit(): ReportingUnit {
+  val source = this
+  return reportingUnit {
+    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
+    when (source.componentsCase) {
+      InternalReportingUnit.ComponentsCase.DATA_PROVIDER_KEYS -> {
+        for (internalDataProviderKey in source.dataProviderKeys.dataProviderKeysList) {
+          components += DataProviderKey(internalDataProviderKey.cmmsDataProviderId).toName()
+        }
+      }
+      InternalReportingUnit.ComponentsCase.REPORTING_SET_KEYS -> {
+        for (internalReportingSetKey in source.reportingSetKeys.reportingSetKeysList) {
+          components +=
+            ReportingSetKey(
+                internalReportingSetKey.cmmsMeasurementConsumerId,
+                internalReportingSetKey.externalReportingSetId,
+              )
+              .toName()
+        }
+      }
+      InternalReportingUnit.ComponentsCase.COMPONENTS_NOT_SET -> {}
+    }
+  }
+}
+
+/** Converts the internal [InternalDimensionSpec] to the public [DimensionSpec]. */
+fun InternalDimensionSpec.toDimensionSpec(): DimensionSpec {
+  val source = this
+  return dimensionSpec {
+    grouping =
+      DimensionSpecKt.grouping { eventTemplateFields += source.grouping.eventTemplateFieldsList }
+    filters += source.filtersList.map { it.toEventFilter() }
+  }
+}
+
+/** Converts the internal [InternalResultGroupMetricSpec] to the public [ResultGroupMetricSpec]. */
+fun InternalResultGroupMetricSpec.toResultGroupMetricSpec(): ResultGroupMetricSpec {
+  val source = this
+  return resultGroupMetricSpec {
+    populationSize = source.populationSize
+    if (source.hasReportingUnit()) {
+      reportingUnit =
+        ResultGroupMetricSpecKt.reportingUnitMetricSetSpec {
+          if (source.reportingUnit.hasNonCumulative()) {
+            nonCumulative =
+              ResultGroupMetricSpecKt.basicMetricSetSpec {
+                reach = source.reportingUnit.nonCumulative.reach
+                percentReach = source.reportingUnit.nonCumulative.percentReach
+                kPlusReach = source.reportingUnit.nonCumulative.kPlusReach
+                percentKPlusReach = source.reportingUnit.nonCumulative.percentKPlusReach
+                averageFrequency = source.reportingUnit.nonCumulative.averageFrequency
+                impressions = source.reportingUnit.nonCumulative.impressions
+                grps = source.reportingUnit.nonCumulative.grps
+              }
+          }
+          if (source.reportingUnit.hasCumulative()) {
+            cumulative =
+              ResultGroupMetricSpecKt.basicMetricSetSpec {
+                reach = source.reportingUnit.cumulative.reach
+                percentReach = source.reportingUnit.cumulative.percentReach
+                kPlusReach = source.reportingUnit.cumulative.kPlusReach
+                percentKPlusReach = source.reportingUnit.cumulative.percentKPlusReach
+                averageFrequency = source.reportingUnit.cumulative.averageFrequency
+                impressions = source.reportingUnit.cumulative.impressions
+                grps = source.reportingUnit.cumulative.grps
+              }
+          }
+          stackedIncrementalReach = source.reportingUnit.stackedIncrementalReach
+        }
+    }
+
+    if (source.hasComponent()) {
+      component =
+        ResultGroupMetricSpecKt.componentMetricSetSpec {
+          if (source.component.hasNonCumulative()) {
+            nonCumulative =
+              ResultGroupMetricSpecKt.basicMetricSetSpec {
+                reach = source.component.nonCumulative.reach
+                percentReach = source.component.nonCumulative.percentReach
+                kPlusReach = source.component.nonCumulative.kPlusReach
+                percentKPlusReach = source.component.nonCumulative.percentKPlusReach
+                averageFrequency = source.component.nonCumulative.averageFrequency
+                impressions = source.component.nonCumulative.impressions
+                grps = source.component.nonCumulative.grps
+              }
+          }
+          if (source.component.hasCumulative()) {
+            cumulative =
+              ResultGroupMetricSpecKt.basicMetricSetSpec {
+                reach = source.component.cumulative.reach
+                percentReach = source.component.cumulative.percentReach
+                kPlusReach = source.component.cumulative.kPlusReach
+                percentKPlusReach = source.component.cumulative.percentKPlusReach
+                averageFrequency = source.component.cumulative.averageFrequency
+                impressions = source.component.cumulative.impressions
+                grps = source.component.cumulative.grps
+              }
+          }
+          if (source.component.hasNonCumulativeUnique()) {
+            nonCumulativeUnique =
+              ResultGroupMetricSpecKt.uniqueMetricSetSpec {
+                reach = source.component.nonCumulativeUnique.reach
+              }
+          }
+          if (source.component.hasCumulativeUnique()) {
+            cumulativeUnique =
+              ResultGroupMetricSpecKt.uniqueMetricSetSpec {
+                reach = source.component.cumulativeUnique.reach
+              }
+          }
+        }
+    }
+
+    if (source.hasComponentIntersection()) {
+      componentIntersection =
+        ResultGroupMetricSpecKt.componentIntersectionMetricSetSpec {
+          contributorCount += source.componentIntersection.contributorCountList
+          if (source.componentIntersection.hasNonCumulative()) {
+            nonCumulative =
+              ResultGroupMetricSpecKt.basicMetricSetSpec {
+                reach = source.componentIntersection.nonCumulative.reach
+                percentReach = source.componentIntersection.nonCumulative.percentReach
+                kPlusReach = source.componentIntersection.nonCumulative.kPlusReach
+                percentKPlusReach = source.componentIntersection.nonCumulative.percentKPlusReach
+                averageFrequency = source.componentIntersection.nonCumulative.averageFrequency
+                impressions = source.componentIntersection.nonCumulative.impressions
+                grps = source.componentIntersection.nonCumulative.grps
+              }
+          }
+          if (source.componentIntersection.hasCumulative()) {
+            cumulative =
+              ResultGroupMetricSpecKt.basicMetricSetSpec {
+                reach = source.componentIntersection.cumulative.reach
+                percentReach = source.componentIntersection.cumulative.percentReach
+                kPlusReach = source.componentIntersection.cumulative.kPlusReach
+                percentKPlusReach = source.componentIntersection.cumulative.percentKPlusReach
+                averageFrequency = source.componentIntersection.cumulative.averageFrequency
+                impressions = source.componentIntersection.cumulative.impressions
+                grps = source.componentIntersection.cumulative.grps
+              }
+          }
+        }
+    }
   }
 }
 
@@ -340,7 +800,7 @@ fun InternalImpressionQualificationFilter.toImpressionQualificationFilter():
       source.filterSpecsList.map { it ->
         impressionQualificationFilterSpec {
           mediaType = it.mediaType.toMediaType()
-          filters += it.filtersList.map { it -> it.toEventFilter() }
+          filters += it.filtersList.map { it.toEventFilter() }
         }
       }
   }
