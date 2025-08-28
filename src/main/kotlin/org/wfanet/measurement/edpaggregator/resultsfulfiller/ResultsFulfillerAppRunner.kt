@@ -262,7 +262,7 @@ class ResultsFulfillerAppRunner : Runnable {
 
   suspend fun buildModelLineMap(): Map<String, PopulationSpec> {
     return modelLines.associate { it: ModelLineFlags ->
-      val configContent: ByteArray = getConfig(googleProjectId, it.populationSpecFileBlobUri)
+      val configContent: ByteArray = getResultsFulfillerConfigAsByteArray(googleProjectId, it.populationSpecFileBlobUri)
       val populationSpec =
         configContent.inputStream().reader(Charsets.UTF_8).use { reader ->
           parseTextProto(reader, PopulationSpec.getDefaultInstance())
