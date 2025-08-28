@@ -278,8 +278,8 @@ class ResultsFulfillerAppRunner : Runnable {
     edpsConfig.eventDataProviderConfigList.forEach { edpConfig ->
       val edpCertDer = accessSecretBytes(googleProjectId, edpConfig.consentSignalingConfig.certDerSecretId, SECRET_VERSION)
       saveByteArrayToFile(edpCertDer, edpConfig.consentSignalingConfig.certDerLocalPath)
-      val edpPrivateDer = accessSecretBytes(googleProjectId, edpConfig.consentSignalingConfig.encPrivateSecretId, SECRET_VERSION)
-      saveByteArrayToFile(edpPrivateDer, edpConfig.consentSignalingConfig.encPrivateLocalPath)
+      val edpPrivateDer = accessSecretBytes(googleProjectId, edpConfig.consentSignalingConfig.encPrivateDerSecretId, SECRET_VERSION)
+      saveByteArrayToFile(edpPrivateDer, edpConfig.consentSignalingConfig.encPrivateDerLocalPath)
       val edpEncPrivate = accessSecretBytes(googleProjectId, edpConfig.consentSignalingConfig.encPrivateSecretId, SECRET_VERSION)
       saveByteArrayToFile(edpEncPrivate, edpConfig.consentSignalingConfig.encPrivateLocalPath)
       val edpTlsKey = accessSecretBytes(googleProjectId, edpConfig.tlsConfig.tlsKeySecretId, SECRET_VERSION)
