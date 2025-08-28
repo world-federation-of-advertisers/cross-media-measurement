@@ -68,6 +68,10 @@ resource "google_sql_database_instance" "postgres" {
       name  = "max_pred_locks_per_page"
       value = "64"
     }
+    database_flags {
+      name  = "idle_in_transaction_session_timeout"
+      value = "120000"
+    }
   }
 }
 

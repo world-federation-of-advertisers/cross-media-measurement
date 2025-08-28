@@ -1,0 +1,23 @@
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
+
+package(default_visibility = ["//visibility:public"])
+
+kt_jvm_library(
+    name = "trus_tee_processor",
+    srcs = ["TrusTeeProcessor.kt"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/duchy/utils:computation_conversions",
+    ],
+)
+
+kt_jvm_library(
+    name = "trus_tee_processor_impl",
+    srcs = ["TrusTeeProcessorImpl.kt"],
+    deps = [
+        ":trus_tee_processor",
+        "//src/main/kotlin/org/wfanet/measurement/computation:histogram_computations",
+        "//src/main/kotlin/org/wfanet/measurement/computation:reach_and_frequency_computations",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/utils:computation_conversions",
+        "//src/main/kotlin/org/wfanet/measurement/measurementconsumer/stats:covariances",
+    ],
+)
