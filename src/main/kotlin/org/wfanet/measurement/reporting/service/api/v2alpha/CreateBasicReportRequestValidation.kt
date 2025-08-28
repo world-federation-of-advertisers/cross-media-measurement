@@ -23,8 +23,8 @@ import kotlin.collections.Set
 import org.wfanet.measurement.api.v2alpha.DataProvider
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.EventGroupKey
-import org.wfanet.measurement.api.v2alpha.MediaType as EventAnnotationMediaType
 import org.wfanet.measurement.common.api.ResourceIds
+import org.wfanet.measurement.common.mediatype.toEventAnnotationMediaType
 import org.wfanet.measurement.reporting.service.api.FieldUnimplementedException
 import org.wfanet.measurement.reporting.service.api.InvalidFieldValueException
 import org.wfanet.measurement.reporting.service.api.RequiredFieldNotSetException
@@ -275,16 +275,6 @@ fun validateDimensionSpecGrouping(
         "$fieldName contains event template field that is not a population attribute"
       }
     }
-  }
-}
-
-fun MediaType.toEventAnnotationMediaType(): EventAnnotationMediaType {
-  return when (this) {
-    MediaType.VIDEO -> EventAnnotationMediaType.VIDEO
-    MediaType.DISPLAY -> EventAnnotationMediaType.DISPLAY
-    MediaType.OTHER -> EventAnnotationMediaType.OTHER
-    MediaType.MEDIA_TYPE_UNSPECIFIED,
-    MediaType.UNRECOGNIZED -> throw UnsupportedOperationException()
   }
 }
 

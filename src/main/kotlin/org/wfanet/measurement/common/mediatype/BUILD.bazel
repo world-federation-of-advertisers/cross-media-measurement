@@ -1,0 +1,12 @@
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
+
+package(default_visibility = ["//visibility:public"])
+
+kt_jvm_library(
+    name = "media_type",
+    srcs = ["MediaType.kt"],
+    deps = [
+        "//src/main/proto/wfa/measurement/api/v2alpha:media_type_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/reporting/v2alpha:media_type_kt_jvm_proto",
+    ],
+)
