@@ -24,7 +24,6 @@ import java.security.GeneralSecurityException
 import java.time.ZoneId
 import java.util.logging.Logger
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
@@ -95,8 +94,8 @@ class ResultsFulfiller(
         .toMap()
     val modelLine = groupedRequisitions.modelLine
     val modelInfo = modelLineInfoMap.getValue(modelLine)
-    val eventDescriptor = modelInfo.eventDescriptor
-    val typeRegistry = TypeRegistry.newBuilder().add(eventDescriptor).build()
+    val eventDescriptors = modelInfo.eventDescriptors
+    val typeRegistry = TypeRegistry.newBuilder().add(eventDescriptors).build()
     for (requisition in requisitions) {
       logger.info("Processing requisition: ${requisition.name}")
       val signedRequisitionSpec: SignedMessage =

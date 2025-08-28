@@ -121,9 +121,9 @@ locals {
                                           "--secure-computation-public-api-target", var.secure_computation_public_api_target,
                                           "--subscription-id", "results-fulfiller-subscription",
                                           "--google-project-id", data.google_client_config.default.project,
-                                          "--event-template-metadata-blob-uri", var.results_fulfiller_event_proto_descriptor_blob_uri,
                                           "--model-line", "some-model-line",
-                                          "--population-spec-file-blob-uri", var.results_fulfiller_population_spec_blob_uri
+                                          "--population-spec-file-blob-uri", var.results_fulfiller_population_spec_blob_uri,
+                                          "--event-template-descriptor-blob-uri", var.results_fulfiller_event_proto_descriptor_blob_uri,
                                         ]
     }
   }
@@ -200,5 +200,5 @@ module "edp_aggregator" {
   kingdom_root_ca                           = local.kingdom_root_ca
   edps_certs                                = local.edps_certs
   cloud_function_configs                    = local.cloud_function_configs
-  results_fulfiller_disk_image_family       = "confidential-space"
+  results_fulfiller_disk_image_family       = "confidential-space-debug"
 }

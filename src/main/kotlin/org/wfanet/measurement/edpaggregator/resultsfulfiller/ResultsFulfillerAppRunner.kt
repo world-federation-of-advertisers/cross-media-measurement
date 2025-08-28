@@ -38,7 +38,6 @@ import org.wfanet.measurement.common.edpaggregator.TeeAppConfig.getConfig
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.edpaggregator.StorageConfig
-import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams.StorageParams
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.InMemoryVidIndexMap
 import org.wfanet.measurement.gcloud.kms.GCloudKmsClientFactory
@@ -216,7 +215,7 @@ class ResultsFulfillerAppRunner : Runnable {
     lateinit var populationSpecFileBlobUri: String
 
     @CommandLine.Option(
-      names = ["--event-template-metadata-blob-uri"],
+      names = ["--event-template-descriptor-blob-uri"],
       description =
         ["Config storage blob URI to the FileDescriptorSet for EventTemplate metadata types."],
       required = true,
@@ -275,17 +274,6 @@ class ResultsFulfillerAppRunner : Runnable {
   lateinit var googleProjectId: String
     private set
 
-  @CommandLine.Option(
-    names = ["--event-template-metadata-blob-uri"],
-    description =
-      [
-        "Config storage blob URI to the FileDescriptorSet for EventTemplate metadata types.",
-        "This can be specified multiple times.",
-      ],
-    required = true,
-  )
-  private lateinit var eventTemplateDescriptorBlobUris: List<String>
-
   private lateinit var kmsClientsMap: MutableMap<String, KmsClient>
 
   private val getImpressionsStorageConfig: (StorageParams) -> StorageConfig = { storageParams ->
@@ -297,7 +285,7 @@ class ResultsFulfillerAppRunner : Runnable {
     // Pull certificates needed to operate from Google Secrets.
     saveEdpaCerts()
     saveEdpsCerts()
-    saveResultsFulfillerConfig()
+//    saveResultsFulfillerConfig()
     // Create KMS clients for EDPs
     createKmsClients()
 
@@ -383,16 +371,20 @@ class ResultsFulfillerAppRunner : Runnable {
         configContent.inputStream().reader(Charsets.UTF_8).use { reader ->
           parseTextProto(reader, PopulationSpec.getDefaultInstance())
         }
-      val eventDescriptor =
-        File(it.eventTemplateDescriptorBlobUri)
-          .inputStream()
-          .use { input -> DescriptorProtos.FileDescriptorSet.parseFrom(input, EXTENSION_REGISTRY) }
-          .descriptorForType
+      val eventDescriptorBytes = getConfig(googleProjectId, it.eventTemplateDescriptorBlobUri)
+      val fileDescriptorSet = DescriptorProtos.FileDescriptorSet.parseFrom(eventDescriptorBytes, EXTENSION_REGISTRY)
+      val descriptors: List<Descriptors.Descriptor> =
+        ProtoReflection.buildDescriptors(listOf(fileDescriptorSet), COMPILED_PROTOBUF_TYPES)
+//      val eventDescriptor =
+//        File(it.eventTemplateDescriptorBlobUri)
+//          .inputStream()
+//          .use { input -> DescriptorProtos.FileDescriptorSet.parseFrom(input, EXTENSION_REGISTRY) }
+//          .descriptorForType
       it.modelLine to
         ModelLineInfo(
           populationSpec = populationSpec,
           vidIndexMap = InMemoryVidIndexMap.build(populationSpec),
-          eventDescriptor = eventDescriptor,
+          eventDescriptors = descriptors,
         )
     }
   }
@@ -425,16 +417,16 @@ class ResultsFulfillerAppRunner : Runnable {
     }
   }
 
-  fun saveResultsFulfillerConfig() {
-    runBlocking {
-      eventTemplateDescriptorBlobUris.forEach {
-        saveByteArrayToFile(
-          getConfig(googleProjectId, it),
-          "$PROTO_DESCRIPTORS_DIR/${URI(it).path.substringAfterLast("/")}",
-        )
-      }
-    }
-  }
+//  fun saveResultsFulfillerConfig() {
+//    runBlocking {
+//      eventTemplateDescriptorBlobUris.forEach {
+//        saveByteArrayToFile(
+//          getConfig(googleProjectId, it),
+//          "$PROTO_DESCRIPTORS_DIR/${URI(it).path.substringAfterLast("/")}",
+//        )
+//      }
+//    }
+//  }
 
   fun saveByteArrayToFile(bytes: ByteArray, path: String) {
     val file = File(path)
@@ -470,7 +462,7 @@ class ResultsFulfillerAppRunner : Runnable {
      * a [DescriptorProtos.FileDescriptorSet].
      */
     private val COMPILED_PROTOBUF_TYPES: Iterable<Descriptors.FileDescriptor> =
-      (ProtoReflection.WELL_KNOWN_TYPES.asSequence() + ResultsFulfillerParams.getDescriptor().file)
+      (ProtoReflection.WELL_KNOWN_TYPES.asSequence())
         .asIterable()
 
     private val EXTENSION_REGISTRY =
@@ -486,8 +478,6 @@ class ResultsFulfillerAppRunner : Runnable {
     private const val SECURE_COMPUTATION_ROOT_CA_FILE_PATH =
       "/tmp/edpa_certs/secure_computation_root.pem"
     private const val KINGDOM_ROOT_CA_FILE_PATH = "/tmp/edpa_certs/kingdom_root.pem"
-
-    private const val PROTO_DESCRIPTORS_DIR = "/tmp/proto_descriptors"
 
     private const val SUBJECT_TOKEN_TYPE = "urn:ietf:params:oauth:token-type:jwt"
     private const val TOKEN_URL = "https://sts.googleapis.com/v1/token"
