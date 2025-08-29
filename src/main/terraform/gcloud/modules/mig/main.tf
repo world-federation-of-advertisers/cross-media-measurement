@@ -16,10 +16,16 @@ data "google_project" "project" {}
 
 locals {
 
-  metadata_map = {
-    "tee-image-reference"           = var.docker_image
-    "tee-cmd"                       = jsonencode(var.tee_cmd)
-  }
+  metadata_map = merge(
+      {
+        "tee-image-reference"        = var.docker_image
+        "tee-container-log-redirect" = "true"
+        "tee-cmd"                    = jsonencode(var.tee_cmd)
+      },
+      var.config_storage_bucket == null ? {} : {
+        "tee-env-EDPA_CONFIG_STORAGE_BUCKET" = "gs://${var.config_storage_bucket}"
+      }
+    )
 }
 
 resource "google_service_account" "mig_service_account" {

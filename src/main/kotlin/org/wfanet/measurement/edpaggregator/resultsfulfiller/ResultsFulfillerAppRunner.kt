@@ -329,6 +329,8 @@ class ResultsFulfillerAppRunner : Runnable {
 
   companion object {
 
+    private val logger = Logger.getLogger(this::class.java.name)
+
     /**
      * [Descriptors.FileDescriptor]s of protobuf types known at compile-time that may be loaded from
      * a [DescriptorProtos.FileDescriptorSet].
@@ -342,15 +344,12 @@ class ResultsFulfillerAppRunner : Runnable {
         .also { EventAnnotationsProto.registerAllExtensions(it) }
         .unmodifiable
 
-    private val logger = Logger.getLogger(this::class.java.name)
-
     private const val SECRET_VERSION = "latest"
     private const val EDPA_TLS_CERT_FILE_PATH = "/tmp/edpa_certs/edpa_tee_app_tls.pem"
     private const val EDPA_TLS_KEY_FILE_PATH = "/tmp/edpa_certs/edpa_tee_app_tls.key"
     private const val SECURE_COMPUTATION_ROOT_CA_FILE_PATH =
       "/tmp/edpa_certs/secure_computation_root.pem"
     private const val KINGDOM_ROOT_CA_FILE_PATH = "/tmp/edpa_certs/kingdom_root.pem"
-
     private const val PROTO_DESCRIPTORS_DIR = "/tmp/proto_descriptors"
 
     private const val SUBJECT_TOKEN_TYPE = "urn:ietf:params:oauth:token-type:jwt"
