@@ -45,7 +45,7 @@ object RequisitionSpecs {
     requisitionSpec: RequisitionSpec,
     eventGroupMap: Map<String, String>,
     typeRegistry: TypeRegistry,
-    eventReader: EventReader,
+    eventReader: LegacyEventReader,
     zoneId: ZoneId,
   ): Flow<Long> {
 

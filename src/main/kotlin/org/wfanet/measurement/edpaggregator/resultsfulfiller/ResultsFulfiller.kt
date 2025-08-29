@@ -81,7 +81,7 @@ class ResultsFulfiller(
   private val requisitionsStorageConfig: StorageConfig,
   private val zoneId: ZoneId,
   private val noiserSelector: NoiserSelector,
-  private val eventReader: EventReader,
+  private val eventReader: LegacyEventReader,
   private val populationSpecMap: Map<String, PopulationSpec>,
   private val kAnonymityParams: KAnonymityParams?,
 ) {
