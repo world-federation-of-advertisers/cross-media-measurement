@@ -25,7 +25,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
-          STARTING_COMMIT: "f9b1752b3a1c89fb65b7d5150146181a97430be5"
+          # DO_NOT_SUBMIT: sha of nightly/20250808.1
+          STARTING_COMMIT: "313f0d05acbe4f4d56ff3c28232b0d4149503797" 
         run: |
           set -euo pipefail
           highlights=()
@@ -41,7 +42,7 @@ jobs:
               echo "Number: ${pr_number}"
               pr_body="$(gh pr view "${pr_number}" --repo "${REPO}" --json body -q .body)"
               echo "Body: ${pr_body}"
-              trailers=$(echo "${pr_body}" | git interpret-trailers --trim-empty --parse)
+              trailers=$(printf "\n%s" "${pr_body}" | git interpret-trailers --trim-empty --parse)
               echo "Trailers:"
               echo "-------------------"
 
@@ -68,10 +69,10 @@ jobs:
                   -H "Accept: application/vnd.github+json" \
                   -H "X-GitHub-Api-Version: 2022-11-28" \
                   "/repos/${REPO}/issues/${issue_number}" | jq -r '(.type // {"name": "_NO_TYPE_"}) | .name')
-                # DO_NOT_SUBMIT: replace "_NO_TYPE_" evaluation to the name of the type "Bug"
                 echo "-------------------------------------------_HERE--------------------------------------------"
                 echo "$issue_type"
-                if [[ "${issue_type}" == "_NO_TYPE_" ]]; then
+                # DO_NOT_SUBMIT: replace "_NO_TYPE_" evaluation to the name of the type "Bug"
+                if [[ "${issue_type}" == "Bug" ]]; then
                   issue_title=$(gh issue view "${issue_number}" --json title -q .title)
                   issues_addressed+=("${issue_title}. See #${issue_number}")
                   echo "${issues_addressed[*]}"
