@@ -106,6 +106,7 @@ Before adding other reviewers, please:
 *   Check for typos
 *   Check for style guide violations (see the next subsection)
 *   Make sure there’s sufficient documentation
+*   Check that the build is functioning correctly. If the coverage fails due to a Jacoco issue, adjust the exclusion filter (see [Developer guidelines for handling Jacoco issues](kotlin-code-coverage.md#developer-guidelines-for-handling-jacoco-issues).
 
 ### Code Style
 
