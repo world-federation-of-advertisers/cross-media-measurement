@@ -7,6 +7,8 @@ package(default_visibility = [
     test_target(":__pkg__"),
     "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/requisition/v2alpha:__subpackages__",
     "//src/test/kotlin/org/wfanet/measurement/eventdataprovider/requisition/v2alpha:__subpackages__",
+    "//src/main/kotlin/org/wfanet/measurement/edpaggregator:__subpackages__",
+    "//src/test/kotlin/org/wfanet/measurement/edpaggregator:__subpackages__",
 ])
 
 MAVEN_COORDINATES = "org.wfanet.measurement.eventdataprovider:requisition-common-v2alpha:" + artifact_version()
