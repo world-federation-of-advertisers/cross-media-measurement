@@ -1,0 +1,148 @@
+name: Test generate relnotes
+
+on:
+  # DO_NOT_SUBMIT: remove pull_request event
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  scan:
+    name: Generate relnotes
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+      issues: read
+
+    steps:
+      - name: Checkout (full history)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Scan commits
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          # DO_NOT_SUBMIT: sha of nightly/20250728.1
+          STARTING_COMMIT: "d18f4e63a0bbc1d478a27f6e77e3cedabc6fb8f5"
+        run: |
+          set -euo pipefail
+          highlights=()
+          breaking_changes=()
+          issues_addressed=()
+          
+          IFS=$'\n'; for pr_title in $(git log --format='%s' "${STARTING_COMMIT}..HEAD"); do 
+            echo "=============="
+            echo "Processing: $pr_title"
+            echo "=============="
+            if [[ $pr_title =~ \(#([0-9]+)\)$ ]]; then 
+              pr_number="${BASH_REMATCH[1]}"
+              pr_body="$(gh pr view ${pr_number} --repo ${REPO} --json body -q .body)"
+              echo "Body:"
+              echo "${pr_body}"
+
+              issue_numbers=()
+              trailers=$(printf "\n%s" "${pr_body}" | git interpret-trailers --trim-empty --parse)
+
+              echo "-------------------"
+              echo "Trailers:"
+
+              # DO_NOT_SUBMIT: i think we don't want to do anything extra for handling cases like this (no blank line before trailers): https://github.com/world-federation-of-advertisers/cross-media-measurement/pull/2845
+
+              for trailer in ${trailers}; do
+                # DO_NOT_SUBMIT: code duplication (regex) when splitting the trailers again for relnotes and breaking changes
+                if [[ "${trailer}" =~ ^([^:]+):[[:space:]](.*)$ ]]; then
+                  key="${BASH_REMATCH[1]}"
+                  value="${BASH_REMATCH[2]}"
+                  echo "$key -> $value"
+                  # DO_NOT_SUBMIT: TODO: avoid values that are links instead of "#123", like in this PR https://github.com/world-federation-of-advertisers/cross-media-measurement/pull/2776
+                  if [[ ${key} == "Issue" ]] && [[ "${value}" =~ ^#[0-9]+$ ]]; then
+                    issue_numbers+=(${value#\#})
+                  fi
+                fi
+              done
+
+              echo "-------------------"
+              echo "Processing issues:"
+
+              # Generate issues addressed section (issues with type=bug)
+
+              # DO_NOT_SUBMIT: TODO: prevent 1 issue N PRs showing multiple times in the issues addressed section.
+              for issue_number in "${issue_numbers[@]}"; do
+                # DO_NOT_SUBMIT: only one request (title + type)?
+                issue_type=$(gh api \
+                  -H "Accept: application/vnd.github+json" \
+                  -H "X-GitHub-Api-Version: 2022-11-28" \
+                  "/repos/${REPO}/issues/${issue_number}" | jq -r '(.type // {"name": "_NO_TYPE_"}) | .name')
+                echo "Processing issue: ${issue_number}, type=${issue_type}"
+                # DO_NOT_SUBMIT: replace "_NO_TYPE_" evaluation to the name of the type "Bug"
+                if [[ "${issue_type}" == "Bug" ]]; then
+                  issue_title=$(gh issue view "${issue_number}" --json title -q .title)
+                  # DO_NOT_SUBMIT: remove PR number (used for debugging)
+                  note="${issue_title}. See #${issue_number} myPR#${pr_number}"
+                  echo "Adding note for issues addressed: ${note}"
+                  issues_addressed+=("${note}")
+                fi
+              done
+
+  
+              # Generate hightlights and breaking changes sections
+
+              echo "-------------------"
+              echo "Processing relnotes and breaking changes:"
+              
+              reference=""
+              if ((${#issue_numbers[@]})); then
+                for n in "${issue_numbers[@]}"; do
+                  reference+="myIssue#${n} "
+                done
+                reference="${reference% }"
+              else
+                reference="myPR#${pr_number}"
+              fi
+
+              for trailer in ${trailers}; do
+                if [[ "${trailer}" =~ ^([^:]+):[[:space:]](.*)$ ]]; then
+                  key="${BASH_REMATCH[1]}"
+                  value="${BASH_REMATCH[2]}"
+                  note="${value} See ${reference}"
+                  case "${key}" in
+                    RELNOTES)
+                      echo "Adding note for highlight: ${note}"
+                      highlights+=("${note}")
+                      ;;
+                    BREAKING-CHANGE)
+                      echo "Adding note for breaking change: ${note}"
+                      breaking_changes+=("${note}")
+                      ;;
+                    *)
+                      :
+                      ;;
+                  esac
+                fi
+              done
+            fi 
+          done
+
+          echo "========== SUMMARY =========="
+          echo
+          render_bullets() {
+            local -n _arr=$1   # bash nameref
+            if ((${#_arr[@]})); then
+              for x in "${_arr[@]}"; do printf -- '- %s\n' "$x"; done
+            else
+              printf '(none)\n'
+            fi
+          }
+
+          echo "Highlights:"
+          render_bullets highlights
+          echo
+          echo "Potentially requiring action"
+          render_bullets breaking_changes
+          echo
+          echo "Issues addressed"
+          render_bullets issues_addressed
+          
