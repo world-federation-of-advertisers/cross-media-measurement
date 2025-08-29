@@ -86,7 +86,7 @@ jobs:
         mkdir -p "$CONFIG_DIR"
         echo "$DATA_WATCHER_CONFIG_CONTENT" > "$CONFIG_DIR/data-watcher-config.textproto"
         echo "$REQUISITION_FETCHER_CONFIG_CONTENT" > "$CONFIG_DIR/requisition-fetcher-config.textproto"
-        echo "$EDPA_EDPS_CONFIG" > "$CONFIG_DIR/edps-config.textproto"
+        echo "$EDPA_EDPS_CONFIG" > "$CONFIG_DIR/event-data-provider-configs.textproto"
 
     - name: Set up Maven GitHub Packages auth
       run: |
@@ -202,7 +202,7 @@ jobs:
         -var="postgres_password=$POSTGRES_PASSWORD"
         -var="data_watcher_config_file_path=$CONFIG_DIR/data-watcher-config.textproto"
         -var="requisition_fetcher_config_file_path=$CONFIG_DIR/requisition-fetcher-config.textproto"
-        -var="edps_config_file_path=$CONFIG_DIR/edps-config.textproto"
+        -var="event_data_provider_configs_file_path=$CONFIG_DIR/event-data-provider-configs.textproto"
         -var="kingdom_public_api_target=$KINGDOM_PUBLIC_API_TARGET"
         -var="secure_computation_public_api_target=$SECURE_COMPUTATION_PUBLIC_API_TARGET"
         -var="data_watcher_function_name=$DATA_WATCHER_FUNCTION_NAME"

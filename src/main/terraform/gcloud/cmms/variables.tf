@@ -120,8 +120,8 @@ variable "requisition_fetcher_config_file_path" {
   nullable    = false
 }
 
-variable "edps_config_file_path" {
-  description = "Path to the edps config file for the ResultsFulfiller TEE app."
+variable "event_data_provider_configs_file_path" {
+  description = "Path to the event data provider config file for the ResultsFulfiller TEE app."
   type        = string
   nullable    = false
 }

@@ -124,8 +124,8 @@ locals {
   }
 
   edps_config = {
-      local_path  = var.edps_config_file_path
-      destination = "edps-config.textproto"
+      local_path  = var.event_data_provider_configs_file_path
+      destination = "event-data-provider-configs.textproto"
     }
 
   results_fulfiller_event_descriptor = {
