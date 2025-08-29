@@ -19,6 +19,7 @@ package wfa.measurement.internal.edpaggregator;
 import "google/protobuf/timestamp.proto";
 // Import the message definitions used by this service.
 import "wfa/measurement/internal/edpaggregator/requisition_metadata.proto";
+import "wfa/measurement/internal/edpaggregator/requisition_metadata_state.proto";
 
 option java_package = "org.wfanet.measurement.internal.edpaggregator";
 option java_multiple_files = true;
@@ -114,7 +115,7 @@ message StreamRequisitionMetadataRequest {
 
   message Filter {
     fixed64 external_data_provider_id = 1;
-    RequisitionMetadata.State state = 2;
+    RequisitionMetadataState state = 2;
     string group_id = 3;
     AfterFilter after = 4;
   }

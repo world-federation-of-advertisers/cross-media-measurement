@@ -21,10 +21,12 @@
 START BATCH DDL;
 
 CREATE TABLE RequisitionMetadata (
-  -- The CMMS assigned ID of the DataProvider that owns this requisition.
-  CmmsDataProviderId STRING(MAX) NOT NULL,
-  -- The external ID of this RequisitionMetadata, unique per DataProvider.
-  ExternalRequisitionMetadataId INT64 NOT NULL,
+  -- The globally unique resource ID of the DataProvider that owns this requisition.
+  DataProviderResourceId STRING(MAX) NOT NULL,
+  -- Internal, system-generated ID of the RequisitionMetadata, unique per provider.
+  RequisitionMetadataId INT64 NOT NULL,
+  -- The resource ID of this RequisitionMetadata, unique per DataProvider.
+  RequisitionMetadataResourceId STRING(63) NOT NULL,
   -- The request ID from the creation request, used for idempotency. Optional.
   -- Must be a UUID formatted as a 36-character string.
   CreateRequestId STRING(36),
@@ -49,67 +51,67 @@ CREATE TABLE RequisitionMetadata (
   UpdateTime TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp=true),
   -- A human-readable message explaining the reason for refusal.
   RefusalMessage STRING(MAX),
-) PRIMARY KEY (ExternalDataProviderId, ExternalRequisitionMetadataId);
+) PRIMARY KEY (DataProviderResourceId, RequisitionMetadataId);
+
+-- Index for looking up by resource ID, unique per DataProvider.
+CREATE UNIQUE INDEX RequisitionMetadataByResourceId
+  ON RequisitionMetadata(DataProviderResourceId, RequisitionMetadataResourceId);
 
 -- Index for idempotency check on creation.
 CREATE UNIQUE INDEX RequisitionMetadataByCreateRequestId
-  ON RequisitionMetadata(ExternalDataProviderId, CreateRequestId);
+  ON RequisitionMetadata(DataProviderResourceId, CreateRequestId);
 
 -- Index for looking up by CMMS requisition.
 CREATE UNIQUE INDEX RequisitionMetadataByCmmsRequisition
-  ON RequisitionMetadata(ExternalDataProviderId, CmmsRequisition);
+  ON RequisitionMetadata(DataProviderResourceId, CmmsRequisition);
 
 -- Index for looking up by blob URI.
 CREATE UNIQUE INDEX RequisitionMetadataByBlobUri
-  ON RequisitionMetadata(ExternalDataProviderId, BlobUri);
+  ON RequisitionMetadata(DataProviderResourceId, BlobUri);
 
 -- Index for streaming by state for a single DataProvider.
 CREATE INDEX RequisitionMetadataByState
-  ON RequisitionMetadata(ExternalDataProviderId, State, UpdateTime, ExternalRequisitionMetadataId);
+  ON RequisitionMetadata(DataProviderResourceId, State, UpdateTime, RequisitionMetadataId);
 
 -- Index for streaming by group ID for a single DataProvider.
 CREATE INDEX RequisitionMetadataByGroupId
-  ON RequisitionMetadata(ExternalDataProviderId, GroupId, UpdateTime, ExternalRequisitionMetadataId);
+  ON RequisitionMetadata(DataProviderResourceId, GroupId, UpdateTime, RequisitionMetadataId);
 
 -- Index for fetching the latest CmmsCreateTime for a DataProvider.
 CREATE INDEX RequisitionMetadataByCmmsCreateTime
-  ON RequisitionMetadata(ExternalDataProviderId, CmmsCreateTime DESC);
+  ON RequisitionMetadata(DataProviderResourceId, CmmsCreateTime DESC);
 
 -- Index for streaming for a single DataProvider with pagination.
 CREATE INDEX RequisitionMetadataByUpdateTime
-  ON RequisitionMetadata(ExternalDataProviderId, UpdateTime, ExternalRequisitionMetadataId);
+  ON RequisitionMetadata(DataProviderResourceId, UpdateTime, RequisitionMetadataId);
 
 -- Stores the history of actions taken on a RequisitionMetadata entry.
 CREATE TABLE RequisitionMetadataActions (
-  -- The external ID of the DataProvider that owns this requisition.
-  ExternalDataProviderId INT64 NOT NULL,
-  -- The external ID of this RequisitionMetadata, unique per DataProvider.
-  ExternalRequisitionMetadataId INT64 NOT NULL,
+  -- The resource ID of the DataProvider that owns this requisition.
+  DataProviderResourceId STRING(MAX) NOT NULL,
+  -- The internal ID of the parent RequisitionMetadata.
+  RequisitionMetadataId INT64 NOT NULL,
   -- A unique ID for the action taken on the RequisitionMetadata.
   ActionId INT64 NOT NULL,
   -- The time the action record was created.
   CreateTime TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp=true),
-  -- The type of actor that initiated this state change.
-  ActionerType INT64 NOT NULL,
   -- The state of the RequisitionMetadata before this action.
   PreviousState INT64 NOT NULL,
   -- The state of the RequisitionMetadata after this action.
   CurrentState INT64 NOT NULL,
-) PRIMARY KEY (ExternalDataProviderId, ExternalRequisitionMetadataId, ActionId),
+) PRIMARY KEY (DataProviderResourceId, RequisitionMetadataId, ActionId),
   INTERLEAVE IN PARENT RequisitionMetadata ON DELETE CASCADE;
 
 -- Index for streaming actions for a given requisition, ordered by time.
 CREATE INDEX RequisitionMetadataActionsByCreateTime
-  ON RequisitionMetadataActions(ExternalDataProviderId, ExternalRequisitionMetadataId, CreateTime, ActionId);
-
--- Index for streaming actions filtered by ActionerType.
-CREATE INDEX RequisitionMetadataActionsByActionerType
-  ON RequisitionMetadataActions(ExternalDataProviderId, ExternalRequisitionMetadataId, ActionerType, CreateTime, ActionId);
+  ON RequisitionMetadataActions(DataProviderResourceId, RequisitionMetadataId, CreateTime, ActionId);
 
 -- Index for streaming actions filtered by PreviousState.
 CREATE INDEX RequisitionMetadataActionsByPreviousState
-  ON RequisitionMetadataActions(ExternalDataProviderId, ExternalRequisitionMetadataId, PreviousState, CreateTime, ActionId);
+  ON RequisitionMetadataActions(DataProviderResourceId, RequisitionMetadataId, PreviousState, CreateTime, ActionId);
 
 -- Index for streaming actions filtered by CurrentState.
 CREATE INDEX RequisitionMetadataActionsByCurrentState
-  ON RequisitionMetadataActions(ExternalDataProviderId, ExternalRequisitionMetadataId, CurrentState, CreateTime, ActionId);
+  ON RequisitionMetadataActions(DataProviderResourceId, RequisitionMetadataId, CurrentState, CreateTime, ActionId);
+
+RUN BATCH;
