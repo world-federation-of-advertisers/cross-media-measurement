@@ -360,9 +360,9 @@ class ResultsFulfillerAppRunner : Runnable {
     private const val EDP_TARGET_SERVICE_ACCOUNT_FORMAT =
       "https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/%s:generateAccessToken"
 
-    private const val CONFIG_BLOB_KEY = "edps-config.textproto"
+    private const val EVENT_DATA_PROVIDER_CONFIGS_BLOB_KEY = "event-data-provider-configs.textproto"
     private val edpsConfig by lazy {
-      runBlocking { getConfigAsProtoMessage(CONFIG_BLOB_KEY, EventDataProviderConfigs.getDefaultInstance()) }
+      runBlocking { getConfigAsProtoMessage(EVENT_DATA_PROVIDER_CONFIGS_BLOB_KEY, EventDataProviderConfigs.getDefaultInstance()) }
     }
 
     @JvmStatic fun main(args: Array<String>) = commandLineMain(ResultsFulfillerAppRunner(), args)
