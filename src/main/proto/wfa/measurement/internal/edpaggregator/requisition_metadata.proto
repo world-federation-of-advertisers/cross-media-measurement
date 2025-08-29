@@ -17,6 +17,7 @@ syntax = "proto3";
 package wfa.measurement.internal.edpaggregator;
 
 import "google/protobuf/timestamp.proto";
+import "wfa/measurement/internal/edpaggregator/requisition_metadata_state.proto";
 
 option java_package = "org.wfanet.measurement.internal.edpaggregator";
 option java_multiple_files = true;
@@ -24,27 +25,16 @@ option java_outer_classname = "RequisitionMetadataProto";
 
 // Internal representation of RequisitionMetadata.
 message RequisitionMetadata {
-  // The lifecycle state of the requisition.
-  enum State {
-    // Default, unspecified state.
-    STATE_UNSPECIFIED = 0;
-    // The requisition has been fetched and stored.
-    STORED = 1;
-    // The requisition is queued for processing.
-    QUEUED = 2;
-    // The requisition is actively being processed.
-    PROCESSING = 3;
-    // The requisition has been successfully fulfilled.
-    FULFILLED = 4;
-    // The requisition was refused.
-    REFUSED = 5;
-  }
+  // The globally unique resource ID of the DataProvider that owns this
+  // requisition.
+  string data_provider_resource_id = 1;
 
-  // The ID of the DataProvider that owns this metadata.
-  fixed64 external_data_provider_id = 1;
+  // The internal, system-generated ID of the RequisitionMetadata, unique per
+  // provider.
+  int64 requisition_metadata_id = 2;
 
-  // The unique ID for this RequisitionMetadata.
-  fixed64 external_requisition_metadata_id = 2;
+  // The resource ID of this RequisitionMetadata, unique per DataProvider.
+  string requisition_metadata_resource_id = 14;
 
   // The resource name of the requisition in the CMMS (Kingdom).
   string cmms_requisition = 3;
@@ -52,10 +42,7 @@ message RequisitionMetadata {
   // The blob storage URI of the GroupedRequisitions file this entry belongs to.
   string blob_uri = 4;
 
-  // Type URL of the blob.
-  string blob_type_url = 5;
-
-  // The ID for the group of requisitions this entry belongs to.
+  // An identifier for the group of requisitions this entry belongs to.
   string group_id = 6;
 
   // The creation timestamp of the requisition in the CMMS (Kingdom).
@@ -69,7 +56,7 @@ message RequisitionMetadata {
   string work_item = 9;
 
   // The current state of the requisition.
-  State state = 10;
+  RequisitionMetadataState state = 10;
 
   // The timestamp when this metadata entry was created.
   google.protobuf.Timestamp create_time = 11;
@@ -79,42 +66,26 @@ message RequisitionMetadata {
 
   // Human-readable message associated with refusal.
   string refusal_message = 13;
-
-  // Output only.
-  string etag = 14;
 }
 
 // Internal representation of a RequisitionMetadataAction.
 // This is used for auditing and logging purposes.
 message RequisitionMetadataAction {
-  // The type of actor that initiated this state change.
-  enum ActionerType {
-    // Default, unspecified actioner.
-    ACTIONER_TYPE_UNSPECIFIED = 0;
-    // Action performed by the Requisition Fetcher component.
-    REQUISITION_FETCHER = 1;
-    // Action performed by the Results Fulfiller component.
-    RESULTS_FULFILLER = 2;
-  }
+  // The resource ID of the DataProvider that owns the parent metadata.
+  string data_provider_resource_id = 1;
 
-  // The ID of the DataProvider that owns the parent metadata.
-  fixed64 external_data_provider_id = 1;
-
-  // The ID of the parent RequisitionMetadata.
-  fixed64 external_requisition_metadata_id = 2;
+  // The internal ID of the parent RequisitionMetadata.
+  int64 requisition_metadata_id = 2;
 
   // The unique ID for this action.
-  fixed64 external_action_id = 3;
-
-  // The type of actor that initiated this state change.
-  ActionerType actioner_type = 4;
+  int64 action_id = 3;
 
   // The state of the requisition before this action.
-  RequisitionMetadata.State prior_state = 5;
+  RequisitionMetadataState previous_state = 4;
 
   // The state of the requisition after this action.
-  RequisitionMetadata.State new_state = 6;
+  RequisitionMetadataState current_state = 5;
 
   // The timestamp when the action occurred.
-  google.protobuf.Timestamp action_time = 7;
+  google.protobuf.Timestamp create_time = 6;
 }
