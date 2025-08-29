@@ -17,21 +17,17 @@
 -- changeset renjiezh:1 dbms:cloudspanner
 
 -- Cloud Spanner database schema for the EDP Aggregator.
---
--- Table hierarchy:
---   Root
---   └── RequisitionMetadata
---       └── RequisitionMetadataActions
 
 START BATCH DDL;
 
 CREATE TABLE RequisitionMetadata (
-  -- The external ID of the DataProvider that owns this requisition.
-  ExternalDataProviderId INT64 NOT NULL,
+  -- The CMMS assigned ID of the DataProvider that owns this requisition.
+  CmmsDataProviderId STRING(MAX) NOT NULL,
   -- The external ID of this RequisitionMetadata, unique per DataProvider.
   ExternalRequisitionMetadataId INT64 NOT NULL,
-  -- The request ID from the creation request, used for idempotency.
-  CreateRequestId STRING(MAX) NOT NULL,
+  -- The request ID from the creation request, used for idempotency. Optional.
+  -- Must be a UUID formatted as a 36-character string.
+  CreateRequestId STRING(36),
   -- The resource name of the requisition in the CMMS (Kingdom).
   CmmsRequisition STRING(MAX) NOT NULL,
   -- The URI of the encrypted data blob.
