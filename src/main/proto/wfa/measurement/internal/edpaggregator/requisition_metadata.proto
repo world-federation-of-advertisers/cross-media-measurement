@@ -29,12 +29,8 @@ message RequisitionMetadata {
   // requisition.
   string data_provider_resource_id = 1;
 
-  // The internal, system-generated ID of the RequisitionMetadata, unique per
-  // provider.
-  int64 requisition_metadata_id = 2;
-
   // The resource ID of this RequisitionMetadata, unique per DataProvider.
-  string requisition_metadata_resource_id = 14;
+  string requisition_metadata_resource_id = 2;
 
   // The resource name of the requisition in the CMMS (Kingdom).
   string cmms_requisition = 3;
@@ -43,29 +39,29 @@ message RequisitionMetadata {
   string blob_uri = 4;
 
   // An identifier for the group of requisitions this entry belongs to.
-  string group_id = 6;
+  string group_id = 5;
 
   // The creation timestamp of the requisition in the CMMS (Kingdom).
-  google.protobuf.Timestamp cmms_create_time = 7;
+  google.protobuf.Timestamp cmms_create_time = 6;
 
   // The resource name of the Report in the Reporting system.
-  string report = 8;
+  string report = 7;
 
   // The resource name of the WorkItem.
   // This is set when the requisition is queued for processing.
-  string work_item = 9;
+  string work_item = 8;
 
   // The current state of the requisition.
-  RequisitionMetadataState state = 10;
+  RequisitionMetadataState state = 9;
 
   // The timestamp when this metadata entry was created.
-  google.protobuf.Timestamp create_time = 11;
+  google.protobuf.Timestamp create_time = 10;
 
   // The timestamp when this metadata entry was last updated.
-  google.protobuf.Timestamp update_time = 12;
+  google.protobuf.Timestamp update_time = 11;
 
   // Human-readable message associated with refusal.
-  string refusal_message = 13;
+  string refusal_message = 12;
 }
 
 // Internal representation of a RequisitionMetadataAction.
@@ -74,10 +70,10 @@ message RequisitionMetadataAction {
   // The resource ID of the DataProvider that owns the parent metadata.
   string data_provider_resource_id = 1;
 
-  // The internal ID of the parent RequisitionMetadata.
-  int64 requisition_metadata_id = 2;
+  // The resource ID of this RequisitionMetadata, unique per DataProvider.
+  string requisition_metadata_resource_id = 2;
 
-  // The unique ID for this action.
+  // The ID for this action.
   int64 action_id = 3;
 
   // The state of the requisition before this action.

@@ -37,7 +37,7 @@ service RequisitionMetadataService {
   rpc BatchCreateRequisitionMetadata(BatchCreateRequisitionMetadataRequest)
       returns (BatchCreateRequisitionMetadataResponse);
 
-  // Retrieves a specific RequisitionMetadata entry by its IDs.
+  // Retrieves a specific RequisitionMetadata entry by its resource ID.
   rpc GetRequisitionMetadata(GetRequisitionMetadataRequest)
       returns (RequisitionMetadata);
 
@@ -45,8 +45,8 @@ service RequisitionMetadataService {
   rpc LookupRequisitionMetadata(LookupRequisitionMetadataRequest)
       returns (RequisitionMetadata);
 
-  // Streams RequisitionMetadata, ordered by update_time asc,
-  // external_data_provider_id asc, and external_requisition_metadata_id asc.
+  // Streams RequisitionMetadata, ordered by update_time asc and
+  // requisition_metadata_resource_id asc.
   rpc StreamRequisitionMetadata(StreamRequisitionMetadataRequest)
       returns (stream RequisitionMetadata);
 
@@ -80,7 +80,7 @@ message CreateRequisitionMetadataRequest {
 }
 
 message BatchCreateRequisitionMetadataRequest {
-  fixed64 external_data_provider_id = 1;
+  string data_provider_resource_id = 1;
   // To create a resource in the REFUSED state, provide a non-empty
   // `refusal_message` in the RequisitionMetadata object. Otherwise, it will be
   // created in the STORED state.
@@ -92,12 +92,12 @@ message BatchCreateRequisitionMetadataResponse {
 }
 
 message GetRequisitionMetadataRequest {
-  fixed64 external_data_provider_id = 1;
-  fixed64 external_requisition_metadata_id = 2;
+  string data_provider_resource_id = 1;
+  string requisition_metadata_resource_id = 2;
 }
 
 message LookupRequisitionMetadataRequest {
-  fixed64 external_data_provider_id = 1;
+  string data_provider_resource_id = 1;
   oneof lookup_key {
     // The resource name of the requisition in the CMMS (Kingdom).
     string cmms_requisition = 2;
@@ -109,50 +109,48 @@ message LookupRequisitionMetadataRequest {
 message StreamRequisitionMetadataRequest {
   message AfterFilter {
     google.protobuf.Timestamp update_time = 1;
-    fixed64 external_data_provider_id = 2;
-    fixed64 external_requisition_metadata_id = 3;
+    string data_provider_resource_id = 2;
+    string requisition_metadata_resource_id = 3;
   }
 
   message Filter {
-    fixed64 external_data_provider_id = 1;
+    string data_provider_resource_id = 1;
     RequisitionMetadataState state = 2;
     string group_id = 3;
     AfterFilter after = 4;
   }
   Filter filter = 1;
 
-  // The maximum number of results to return. If not specified or 0, it implies
-  // unlimited.
   int32 limit = 2;
 }
 
 message FetchLatestCmmsCreateTimeRequest {
-  fixed64 external_data_provider_id = 1;
+  string data_provider_resource_id = 1;
 }
 
 message QueueRequisitionMetadataRequest {
-  fixed64 external_data_provider_id = 1;
-  fixed64 external_requisition_metadata_id = 2;
+  string data_provider_resource_id = 1;
+  string requisition_metadata_resource_id = 2;
   string etag = 3;
   // The resource name of the WorkItem to associate with this requisition.
   string work_item = 4;
 }
 
 message StartProcessingRequisitionMetadataRequest {
-  fixed64 external_data_provider_id = 1;
-  fixed64 external_requisition_metadata_id = 2;
+  string data_provider_resource_id = 1;
+  string requisition_metadata_resource_id = 2;
   string etag = 3;
 }
 
 message FulfillRequisitionMetadataRequest {
-  fixed64 external_data_provider_id = 1;
-  fixed64 external_requisition_metadata_id = 2;
+  string data_provider_resource_id = 1;
+  string requisition_metadata_resource_id = 2;
   string etag = 3;
 }
 
 message RefuseRequisitionMetadataRequest {
-  fixed64 external_data_provider_id = 1;
-  fixed64 external_requisition_metadata_id = 2;
+  string data_provider_resource_id = 1;
+  string requisition_metadata_resource_id = 2;
   string etag = 3;
   // A human-readable message explaining the reason for refusal.
   string refusal_message = 4;
