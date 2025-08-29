@@ -48,6 +48,9 @@ import org.wfanet.measurement.api.v2alpha.event_templates.testing.testEvent
 import org.wfanet.measurement.api.v2alpha.requisitionSpec
 import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.common.toInstant
+import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
+import org.wfanet.measurement.edpaggregator.v1alpha.labeledImpression
+import com.google.protobuf.timestamp
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.edpaggregator.v1alpha.copy
 import org.wfanet.measurement.edpaggregator.v1alpha.labeledImpression
@@ -91,24 +94,30 @@ class RequisitionSpecsTest {
     val dynamicTestEvent1 = DynamicMessage.newBuilder(testEventDescriptor).mergeFrom(testEvent1.toByteString()).build()
     val dynamicTestEvent2 = DynamicMessage.newBuilder(testEventDescriptor).mergeFrom(testEvent2.toByteString()).build()
     
-    val labeledEvents = listOf(
-      LabeledEvent(
-        timestamp = FIRST_EVENT_DATE.atTime(1, 1, 1).toInstant(ZoneOffset.UTC),
-        vid = 1,
-        message = dynamicTestEvent1,
-        eventGroupReferenceId = ""
-      ),
-      LabeledEvent(
-        timestamp = FIRST_EVENT_DATE.atTime(1, 1, 1).toInstant(ZoneOffset.UTC),
-        vid = 1,
-        message = dynamicTestEvent2,
-        eventGroupReferenceId = ""
-      )
+    val labeledImpressions = listOf(
+      labeledImpression {
+        eventTime = timestamp {
+          val instant = FIRST_EVENT_DATE.atTime(1, 1, 1).toInstant(ZoneOffset.UTC)
+          seconds = instant.epochSecond
+          nanos = instant.nano
+        }
+        vid = 1
+        event = dynamicTestEvent1.pack()
+      },
+      labeledImpression {
+        eventTime = timestamp {
+          val instant = FIRST_EVENT_DATE.atTime(1, 1, 1).toInstant(ZoneOffset.UTC)
+          seconds = instant.epochSecond
+          nanos = instant.nano
+        }
+        vid = 1
+        event = dynamicTestEvent2.pack()
+      }
     )
     
-    val eventReader: EventReader =
-      mock<EventReader> {
-        onBlocking { readEvents() }.thenReturn(flow { emit(labeledEvents) })
+    val eventReader: LegacyEventReader =
+      mock<LegacyEventReader> {
+        onBlocking { getLabeledImpressions(any(), any()) }.thenReturn(flowOf(*labeledImpressions.toTypedArray()))
       }
 
     val result =
@@ -152,24 +161,30 @@ class RequisitionSpecsTest {
     
     val dynamicTestEvent1 = DynamicMessage.newBuilder(testEventDescriptor).mergeFrom(testEvent1.toByteString()).build()
     
-    val labeledEvents = listOf(
-      LabeledEvent(
-        timestamp = FIRST_EVENT_DATE.atTime(1, 1, 1).toInstant(ZoneOffset.UTC),
-        vid = 1,
-        message = dynamicTestEvent1,
-        eventGroupReferenceId = ""
-      ),
-      LabeledEvent(
-        timestamp = FIRST_EVENT_DATE.plusDays(1).atTime(1, 1, 1).toInstant(ZoneOffset.UTC),
-        vid = 1,
-        message = dynamicTestEvent1,
-        eventGroupReferenceId = ""
-      )
+    val labeledImpressions = listOf(
+      labeledImpression {
+        eventTime = timestamp {
+          val instant = FIRST_EVENT_DATE.atTime(1, 1, 1).toInstant(ZoneOffset.UTC)
+          seconds = instant.epochSecond
+          nanos = instant.nano
+        }
+        vid = 1
+        event = dynamicTestEvent1.pack()
+      },
+      labeledImpression {
+        eventTime = timestamp {
+          val instant = FIRST_EVENT_DATE.plusDays(1).atTime(1, 1, 1).toInstant(ZoneOffset.UTC)
+          seconds = instant.epochSecond
+          nanos = instant.nano
+        }
+        vid = 1
+        event = dynamicTestEvent1.pack()
+      }
     )
     
-    val eventReader: EventReader =
-      mock<EventReader> {
-        onBlocking { readEvents() }.thenReturn(flow { emit(labeledEvents) })
+    val eventReader: LegacyEventReader =
+      mock<LegacyEventReader> {
+        onBlocking { getLabeledImpressions(any(), any()) }.thenReturn(flowOf(*labeledImpressions.toTypedArray()))
       }
 
     val result =
@@ -182,7 +197,7 @@ class RequisitionSpecsTest {
       )
 
     assertThat(result.count()).isEqualTo(1)
-    verifyBlocking(eventReader, times(1)) { readEvents() }
+    verifyBlocking(eventReader, times(1)) { getLabeledImpressions(any(), any()) }
   }
 
   fun `throws exception for invalid vid interval`() = runBlocking {
@@ -219,18 +234,21 @@ class RequisitionSpecsTest {
     
     val dynamicTestEvent1 = DynamicMessage.newBuilder(testEventDescriptor).mergeFrom(testEvent1.toByteString()).build()
     
-    val labeledEvents = listOf(
-      LabeledEvent(
-        timestamp = FIRST_EVENT_DATE.plusDays(1).atStartOfDay().minusSeconds(1).toInstant(ZoneOffset.UTC),
-        vid = 1,
-        message = dynamicTestEvent1,
-        eventGroupReferenceId = ""
-      )
+    val labeledImpressions = listOf(
+      labeledImpression {
+        eventTime = timestamp {
+          val instant = FIRST_EVENT_DATE.plusDays(1).atStartOfDay().minusSeconds(1).toInstant(ZoneOffset.UTC)
+          seconds = instant.epochSecond
+          nanos = instant.nano
+        }
+        vid = 1
+        event = dynamicTestEvent1.pack()
+      }
     )
     
-    val eventReader: EventReader =
-      mock<EventReader> {
-        onBlocking { readEvents() }.thenReturn(flow { emit(labeledEvents) })
+    val eventReader: LegacyEventReader =
+      mock<LegacyEventReader> {
+        onBlocking { getLabeledImpressions(any(), any()) }.thenReturn(flowOf(*labeledImpressions.toTypedArray()))
       }
 
     assertThrows(IllegalArgumentException::class.java) {
