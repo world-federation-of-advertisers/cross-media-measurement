@@ -1,0 +1,64 @@
+// Copyright 2025 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.internal.kingdom;
+
+import "google/protobuf/any.proto";
+
+option java_package = "org.wfanet.measurement.internal.kingdom";
+option java_multiple_files = true;
+
+message PopulationDetails {
+  // Specification of a population.
+  message PopulationSpec {
+    // A range of Virtual Person IDs (VIDs).
+    message VidRange {
+      // The starting ID for this range of VIDs. Required.
+      int64 start_vid = 1;
+
+      // The ending ID for this range of VIDs, inclusive. Required.
+      int64 end_vid_inclusive = 2;
+    }
+
+    // A sub-population of the population defined by the `PopulationSpec`.
+    //
+    // A `SubPopulation` is composed of a set of `VidRange`s,
+    // all of which share the same attributes.
+    message SubPopulation {
+      // The set of disjoint VID ranges for this sub-population. Required.
+      repeated VidRange vid_ranges = 1;
+
+      // The unique attributes of the sub-population. Required.
+      //
+      // Each element represents a single event template. Therefore the
+      // `type_url` of each element must reference a known event template type,
+      // i.e. a message type annotated with the `event_template` message option.
+      //
+      // All population attributes fields must be set. Population attribute
+      // fields are those with the `population_attribute` field set to true on
+      // the corresponding `EventFieldDescriptor`.
+      repeated google.protobuf.Any attributes = 2;
+    }
+
+    // The set of `SubPopulations` that comprise this `PopulationSpec`.
+    //
+    // `vid_ranges` must be disjoint across all elements, and the set of
+    // `attributes` must be unique across all elements.
+    repeated SubPopulation subpopulations = 3;
+  }
+  // Population spec for the `Population`. Required.
+  PopulationSpec population_spec = 1;
+}

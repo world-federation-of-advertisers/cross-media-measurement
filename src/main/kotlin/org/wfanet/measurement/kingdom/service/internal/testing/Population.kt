@@ -53,7 +53,8 @@ import org.wfanet.measurement.internal.kingdom.ModelReleasesGrpcKt.ModelReleases
 import org.wfanet.measurement.internal.kingdom.ModelSuite
 import org.wfanet.measurement.internal.kingdom.ModelSuitesGrpcKt.ModelSuitesCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.Population
-import org.wfanet.measurement.internal.kingdom.PopulationKt
+import org.wfanet.measurement.internal.kingdom.PopulationDetails
+import org.wfanet.measurement.internal.kingdom.PopulationDetailsKt
 import org.wfanet.measurement.internal.kingdom.PopulationsGrpcKt
 import org.wfanet.measurement.internal.kingdom.ProtocolConfig
 import org.wfanet.measurement.internal.kingdom.ProtocolConfigKt
@@ -64,10 +65,10 @@ import org.wfanet.measurement.internal.kingdom.certificateDetails
 import org.wfanet.measurement.internal.kingdom.createMeasurementConsumerCreationTokenRequest
 import org.wfanet.measurement.internal.kingdom.createMeasurementConsumerRequest
 import org.wfanet.measurement.internal.kingdom.createMeasurementRequest
+import org.wfanet.measurement.internal.kingdom.createPopulationRequest
 import org.wfanet.measurement.internal.kingdom.dataProvider
 import org.wfanet.measurement.internal.kingdom.dataProviderDetails
 import org.wfanet.measurement.internal.kingdom.duchyProtocolConfig
-import org.wfanet.measurement.internal.kingdom.eventTemplate
 import org.wfanet.measurement.internal.kingdom.generateOpenIdRequestParamsRequest
 import org.wfanet.measurement.internal.kingdom.measurement
 import org.wfanet.measurement.internal.kingdom.measurementConsumer
@@ -78,6 +79,7 @@ import org.wfanet.measurement.internal.kingdom.modelProvider
 import org.wfanet.measurement.internal.kingdom.modelRelease
 import org.wfanet.measurement.internal.kingdom.modelSuite
 import org.wfanet.measurement.internal.kingdom.population
+import org.wfanet.measurement.internal.kingdom.populationDetails
 import org.wfanet.measurement.internal.kingdom.protocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 
@@ -92,6 +94,18 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
     val WORKER1_DUCHY = DuchyIds.Entry(2, "worker1", VALID_ACTIVE_START_TIME..VALID_ACTIVE_END_TIME)
     val WORKER2_DUCHY = DuchyIds.Entry(3, "worker2", VALID_ACTIVE_START_TIME..VALID_ACTIVE_END_TIME)
     val DUCHIES = listOf(AGGREGATOR_DUCHY, WORKER1_DUCHY, WORKER2_DUCHY)
+
+    val DEFAULT_POPULATION_SPEC =
+      PopulationDetailsKt.populationSpec {
+        subpopulations +=
+          PopulationDetailsKt.PopulationSpecKt.subPopulation {
+            vidRanges +=
+              PopulationDetailsKt.PopulationSpecKt.vidRange {
+                startVid = 1
+                endVidInclusive = 10_000
+              }
+          }
+      }
   }
 
   private fun buildRequestCertificate(
@@ -220,14 +234,16 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
   suspend fun createPopulation(
     dataProvider: DataProvider,
     populationsService: PopulationsGrpcKt.PopulationsCoroutineImplBase,
+    populationSpec: PopulationDetails.PopulationSpec = DEFAULT_POPULATION_SPEC,
   ): Population {
     val population =
       populationsService.createPopulation(
-        population {
-          externalDataProviderId = dataProvider.externalDataProviderId
-          description = "DESCRIPTION"
-          populationBlob = PopulationKt.populationBlob { modelBlobUri = "BLOB_URI" }
-          eventTemplate = eventTemplate { fullyQualifiedType = "TYPE" }
+        createPopulationRequest {
+          population = population {
+            externalDataProviderId = dataProvider.externalDataProviderId
+            description = "DESCRIPTION"
+            details = populationDetails { this.populationSpec = populationSpec }
+          }
         }
       )
     return population
@@ -539,7 +555,7 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
   }
 }
 
-fun DataProvider.toDataProviderValue(nonce: Long = Random.Default.nextLong()) = dataProviderValue {
+fun DataProvider.toDataProviderValue(nonce: Long = Random.nextLong()) = dataProviderValue {
   externalDataProviderCertificateId = certificate.externalCertificateId
   dataProviderPublicKey = details.publicKey
   encryptedRequisitionSpec = "Encrypted RequisitionSpec $nonce".toByteStringUtf8()

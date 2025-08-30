@@ -107,3 +107,6 @@ databaseChangeLog:
 - include:
     file: swap-event-groups.sql
     relativeToChangeLogFile: true
+- include:
+    file: add-population-details.sql
+    relativeToChangeLogFile: true

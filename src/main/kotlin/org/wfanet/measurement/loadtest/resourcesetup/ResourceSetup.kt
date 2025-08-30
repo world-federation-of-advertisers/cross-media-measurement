@@ -68,14 +68,14 @@ import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt
 import org.wfanet.measurement.internal.kingdom.ModelProvider as InternalModelProvider
 import org.wfanet.measurement.internal.kingdom.ModelProvidersGrpcKt
 import org.wfanet.measurement.internal.kingdom.Population as InternalPopulation
-import org.wfanet.measurement.internal.kingdom.PopulationKt
+import org.wfanet.measurement.internal.kingdom.PopulationDetails
 import org.wfanet.measurement.internal.kingdom.PopulationsGrpcKt
 import org.wfanet.measurement.internal.kingdom.account as internalAccount
 import org.wfanet.measurement.internal.kingdom.certificate as internalCertificate
 import org.wfanet.measurement.internal.kingdom.createMeasurementConsumerCreationTokenRequest
+import org.wfanet.measurement.internal.kingdom.createPopulationRequest
 import org.wfanet.measurement.internal.kingdom.dataProvider as internalDataProvider
 import org.wfanet.measurement.internal.kingdom.dataProviderDetails
-import org.wfanet.measurement.internal.kingdom.eventTemplate
 import org.wfanet.measurement.internal.kingdom.modelProvider as internalModelProvider
 import org.wfanet.measurement.internal.kingdom.population as internalPopulation
 import org.wfanet.measurement.kingdom.service.api.v2alpha.fillCertificateFromDer
@@ -336,14 +336,18 @@ class ResourceSetup(
     }
   }
 
-  suspend fun createInternalPopulation(dataProvider: InternalDataProvider): InternalPopulation {
+  suspend fun createInternalPopulation(
+    dataProvider: InternalDataProvider,
+    details: PopulationDetails,
+  ): InternalPopulation {
     require(internalPopulationsClient != null)
     return internalPopulationsClient.createPopulation(
-      internalPopulation {
-        externalDataProviderId = dataProvider.externalDataProviderId
-        description = "DESCRIPTION"
-        populationBlob = PopulationKt.populationBlob { modelBlobUri = "BLOB_URI" }
-        eventTemplate = eventTemplate { fullyQualifiedType = "TYPE" }
+      createPopulationRequest {
+        population = internalPopulation {
+          externalDataProviderId = dataProvider.externalDataProviderId
+          description = "DESCRIPTION"
+          this.details = details
+        }
       }
     )
   }

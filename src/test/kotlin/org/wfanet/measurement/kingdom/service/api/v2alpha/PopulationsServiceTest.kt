@@ -18,10 +18,12 @@ package org.wfanet.measurement.kingdom.service.api.v2alpha
 
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
+import com.google.protobuf.Any as ProtoAny
 import com.google.protobuf.Timestamp
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import java.time.Instant
+import java.util.UUID
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
@@ -37,15 +39,17 @@ import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.ListPopulationsPageTokenKt.previousPageEnd
 import org.wfanet.measurement.api.v2alpha.Population
 import org.wfanet.measurement.api.v2alpha.PopulationKey
-import org.wfanet.measurement.api.v2alpha.PopulationKt.populationBlob
+import org.wfanet.measurement.api.v2alpha.PopulationSpecKt
 import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.createPopulationRequest
-import org.wfanet.measurement.api.v2alpha.eventTemplate
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.person
 import org.wfanet.measurement.api.v2alpha.getPopulationRequest
 import org.wfanet.measurement.api.v2alpha.listPopulationsPageToken
 import org.wfanet.measurement.api.v2alpha.listPopulationsRequest
 import org.wfanet.measurement.api.v2alpha.listPopulationsResponse
 import org.wfanet.measurement.api.v2alpha.population
+import org.wfanet.measurement.api.v2alpha.populationSpec
 import org.wfanet.measurement.api.v2alpha.withDataProviderPrincipal
 import org.wfanet.measurement.api.v2alpha.withMeasurementConsumerPrincipal
 import org.wfanet.measurement.api.v2alpha.withModelProviderPrincipal
@@ -59,17 +63,19 @@ import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.testing.captureFirst
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.common.toProtoTime
+import org.wfanet.measurement.internal.kingdom.CreatePopulationRequest as InternalCreatePopulationRequest
 import org.wfanet.measurement.internal.kingdom.Population as InternalPopulation
-import org.wfanet.measurement.internal.kingdom.PopulationKt.populationBlob as internalPopulationBlob
+import org.wfanet.measurement.internal.kingdom.PopulationDetailsKt
 import org.wfanet.measurement.internal.kingdom.PopulationsGrpcKt
 import org.wfanet.measurement.internal.kingdom.PopulationsGrpcKt.PopulationsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.StreamPopulationsRequest
 import org.wfanet.measurement.internal.kingdom.StreamPopulationsRequestKt
 import org.wfanet.measurement.internal.kingdom.StreamPopulationsRequestKt.afterFilter
 import org.wfanet.measurement.internal.kingdom.copy
-import org.wfanet.measurement.internal.kingdom.eventTemplate as internalEventTemplate
+import org.wfanet.measurement.internal.kingdom.createPopulationRequest as internalCreatePopulationRequest
 import org.wfanet.measurement.internal.kingdom.getPopulationRequest as internalGetPopulationRequest
 import org.wfanet.measurement.internal.kingdom.population as internalPopulation
+import org.wfanet.measurement.internal.kingdom.populationDetails
 import org.wfanet.measurement.internal.kingdom.streamPopulationsRequest as internalStreamPopulationsRequest
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.PopulationNotFoundException
@@ -93,24 +99,52 @@ private val EXTERNAL_POPULATION_ID_3 =
   apiIdToExternalId(PopulationKey.fromName(POPULATION_NAME_3)!!.populationId)
 private const val DESCRIPTION = "Description"
 private val CREATE_TIME: Timestamp = Instant.ofEpochSecond(123).toProtoTime()
-private const val MODEL_BLOB_URI = "Blob URI"
-private const val EVENT_TEMPLATE_TYPE = "Type 1"
+
+private val PERSON_ATTRIBUTES =
+  ProtoAny.pack(
+    person {
+      gender = Person.Gender.MALE
+      ageGroup = Person.AgeGroup.YEARS_18_TO_34
+      socialGradeGroup = Person.SocialGradeGroup.A_B_C1
+    }
+  )
 
 private val INTERNAL_POPULATION: InternalPopulation = internalPopulation {
   externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
   externalPopulationId = EXTERNAL_POPULATION_ID
   description = DESCRIPTION
   createTime = CREATE_TIME
-  populationBlob = internalPopulationBlob { modelBlobUri = MODEL_BLOB_URI }
-  eventTemplate = internalEventTemplate { fullyQualifiedType = EVENT_TEMPLATE_TYPE }
+  details = populationDetails {
+    populationSpec =
+      PopulationDetailsKt.populationSpec {
+        subpopulations +=
+          PopulationDetailsKt.PopulationSpecKt.subPopulation {
+            vidRanges +=
+              PopulationDetailsKt.PopulationSpecKt.vidRange {
+                startVid = 1
+                endVidInclusive = 10_000
+              }
+            attributes += PERSON_ATTRIBUTES
+          }
+      }
+  }
 }
 
 private val POPULATION: Population = population {
   name = POPULATION_NAME
   description = DESCRIPTION
   createTime = CREATE_TIME
-  populationBlob = populationBlob { blobUri = MODEL_BLOB_URI }
-  eventTemplate = eventTemplate { type = EVENT_TEMPLATE_TYPE }
+  populationSpec = populationSpec {
+    subpopulations +=
+      PopulationSpecKt.subPopulation {
+        vidRanges +=
+          PopulationSpecKt.vidRange {
+            startVid = 1
+            endVidInclusive = 10_000
+          }
+        attributes += PERSON_ATTRIBUTES
+      }
+  }
 }
 
 @RunWith(JUnit4::class)
@@ -119,8 +153,8 @@ class PopulationsServiceTest {
   private val internalPopulationsMock: PopulationsCoroutineImplBase = mockService {
     onBlocking { createPopulation(any()) }
       .thenAnswer {
-        val request = it.getArgument<InternalPopulation>(0)
-        if (request.externalDataProviderId != 123L) {
+        val request = it.getArgument<InternalCreatePopulationRequest>(0)
+        if (request.population.externalDataProviderId != 123L) {
           failGrpc(Status.NOT_FOUND) { "DataProvider not found" }
         } else {
           INTERNAL_POPULATION
@@ -152,6 +186,7 @@ class PopulationsServiceTest {
     val request = createPopulationRequest {
       parent = DATA_PROVIDER_NAME
       population = POPULATION
+      requestId = UUID.randomUUID().toString()
     }
     val result =
       withDataProviderPrincipal(DATA_PROVIDER_NAME) {
@@ -162,9 +197,13 @@ class PopulationsServiceTest {
 
     verifyProtoArgument(internalPopulationsMock, PopulationsCoroutineImplBase::createPopulation)
       .isEqualTo(
-        INTERNAL_POPULATION.copy {
-          clearCreateTime()
-          clearExternalPopulationId()
+        internalCreatePopulationRequest {
+          population =
+            INTERNAL_POPULATION.copy {
+              clearCreateTime()
+              clearExternalPopulationId()
+            }
+          requestId = request.requestId
         }
       )
 

@@ -34,6 +34,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementPrincipal
 import org.wfanet.measurement.api.v2alpha.ModelProviderPrincipal
 import org.wfanet.measurement.api.v2alpha.Population
 import org.wfanet.measurement.api.v2alpha.PopulationKey
+import org.wfanet.measurement.api.v2alpha.PopulationSpecValidator
 import org.wfanet.measurement.api.v2alpha.PopulationsGrpcKt.PopulationsCoroutineImplBase as PopulationsCoroutineService
 import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.listPopulationsPageToken
@@ -49,6 +50,7 @@ import org.wfanet.measurement.internal.kingdom.PopulationsGrpcKt.PopulationsCoro
 import org.wfanet.measurement.internal.kingdom.StreamPopulationsRequest
 import org.wfanet.measurement.internal.kingdom.StreamPopulationsRequestKt.afterFilter
 import org.wfanet.measurement.internal.kingdom.StreamPopulationsRequestKt.filter
+import org.wfanet.measurement.internal.kingdom.createPopulationRequest
 import org.wfanet.measurement.internal.kingdom.getPopulationRequest
 import org.wfanet.measurement.internal.kingdom.streamPopulationsRequest
 
@@ -86,15 +88,42 @@ class PopulationsService(
       throw permissionDeniedStatus().asRuntimeException()
     }
 
-    val createPopulationRequest = request.population.toInternal(parentKey)
-    return try {
-      internalClient.createPopulation(createPopulationRequest).toPopulation()
-    } catch (e: StatusException) {
-      throw when (e.status.code) {
-        Status.Code.NOT_FOUND -> Status.NOT_FOUND
-        else -> Status.UNKNOWN
-      }.toExternalStatusRuntimeException(e)
+    when (request.population.populationSpecRefCase) {
+      Population.PopulationSpecRefCase.POPULATION_SPEC -> {
+        val validationResult =
+          PopulationSpecValidator.validateVidRangesList(request.population.populationSpec)
+        if (validationResult.isFailure) {
+          throw Status.INVALID_ARGUMENT.withDescription("Invalid PopulationSpec")
+            .withCause(validationResult.exceptionOrNull()!!)
+            .asRuntimeException()
+        }
+      }
+
+      Population.PopulationSpecRefCase.POPULATION_BLOB -> {
+        // No-op.
+      }
+
+      Population.PopulationSpecRefCase.POPULATIONSPECREF_NOT_SET ->
+        throw Status.INVALID_ARGUMENT.withDescription("population_spec_ref not set")
+          .asRuntimeException()
     }
+
+    val internalRequest = createPopulationRequest {
+      population = request.population.toInternal(parentKey)
+      requestId = request.requestId
+    }
+
+    val internalResponse: InternalPopulation =
+      try {
+        internalClient.createPopulation(internalRequest)
+      } catch (e: StatusException) {
+        throw when (e.status.code) {
+          Status.Code.NOT_FOUND -> Status.NOT_FOUND
+          else -> Status.INTERNAL
+        }.toExternalStatusRuntimeException(e)
+      }
+
+    return internalResponse.toPopulation()
   }
 
   override suspend fun getPopulation(request: GetPopulationRequest): Population {
