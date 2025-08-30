@@ -54,7 +54,8 @@ jobs:
                   value="${BASH_REMATCH[2]}"
                   echo $key
                   echo $value
-                  if [[ ${key} == "Issue" ]]; then
+                  # DO_NOT_SUBMIT: TODO: avoid values that are links instead of "#123", like in this PR https://github.com/world-federation-of-advertisers/cross-media-measurement/pull/2776
+                  if [[ ${key} == "Issue" ]] && [[ "${value}" =~ ^#[0-9]+$ ]]; then
                     issue_numbers+=(${value#\#})
                   fi
                 fi
