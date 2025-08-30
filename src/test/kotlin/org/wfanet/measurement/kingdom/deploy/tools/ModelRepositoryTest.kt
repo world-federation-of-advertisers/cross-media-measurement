@@ -16,7 +16,9 @@
 
 package org.wfanet.measurement.kingdom.deploy.tools
 
+import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
+import com.google.protobuf.Any as ProtoAny
 import com.google.protobuf.Timestamp
 import com.google.protobuf.util.Timestamps
 import io.grpc.Server
@@ -79,6 +81,8 @@ import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.createModelLineRequest
 import org.wfanet.measurement.api.v2alpha.createModelSuiteRequest
 import org.wfanet.measurement.api.v2alpha.createPopulationRequest
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.person
 import org.wfanet.measurement.api.v2alpha.getModelLineRequest
 import org.wfanet.measurement.api.v2alpha.getModelProviderRequest
 import org.wfanet.measurement.api.v2alpha.getModelSuiteRequest
@@ -111,6 +115,7 @@ import org.wfanet.measurement.common.grpc.toServerTlsContext
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.testing.CommandLineTesting
+import org.wfanet.measurement.common.testing.ExitInterceptingSecurityManager
 import org.wfanet.measurement.common.testing.captureFirst
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.common.toProtoDate
@@ -374,6 +379,8 @@ class ModelRepositoryTest {
           "--parent=$DATA_PROVIDER_NAME",
           "--description=$DESCRIPTION",
           "--population-spec=${populationSpecFile.path}",
+          "--event-message-descriptor-set=$EVENT_MESSAGE_DESCRIPTOR_SET_PATH",
+          "--event-message-type-url=$EVENT_MESSAGE_TYPE_URL",
         )
 
     val output = callCli(args)
@@ -395,6 +402,34 @@ class ModelRepositoryTest {
       )
     assertThat(parseTextProto(output.reader(), Population.getDefaultInstance()))
       .isEqualTo(POPULATION)
+  }
+
+  @Test
+  fun `populations create validates PopulationSpec`() {
+    val populationSpecFile: File = tempDir.root.resolve("population-spec.binpb")
+    populationSpecFile.writeBytes(
+      POPULATION.populationSpec
+        .copy { subpopulations[0] = subpopulations[0].copy { attributes.clear() } }
+        .toByteArray()
+    )
+    val args =
+      commonArgs +
+        arrayOf(
+          "populations",
+          "create",
+          "--parent=$DATA_PROVIDER_NAME",
+          "--description=$DESCRIPTION",
+          "--population-spec=${populationSpecFile.path}",
+          "--event-message-descriptor-set=$EVENT_MESSAGE_DESCRIPTOR_SET_PATH",
+          "--event-message-type-url=$EVENT_MESSAGE_TYPE_URL",
+        )
+
+    val capturedOutput: CommandLineTesting.CapturedOutput =
+      CommandLineTesting.capturingOutput(args, ModelRepository::main)
+
+    // Assert fails due to invalid PopulationSpec.
+    CommandLineTesting.assertThat(capturedOutput).status().isNotEqualTo(0)
+    assertThat(capturedOutput.err).contains("PopulationSpec")
   }
 
   @Test
@@ -572,11 +607,14 @@ class ModelRepositoryTest {
   }
 
   companion object {
+    init {
+      System.setSecurityManager(ExitInterceptingSecurityManager)
+    }
+
     private const val HOST = "localhost"
+    private const val MODULE_REPO_NAME = "wfa_measurement_system"
     private val SECRETS_DIR: Path =
-      getRuntimePath(
-        Paths.get("wfa_measurement_system", "src", "main", "k8s", "testing", "secretfiles")
-      )!!
+      getRuntimePath(Paths.get(MODULE_REPO_NAME, "src", "main", "k8s", "testing", "secretfiles"))!!
 
     private const val DISPLAY_NAME = "Display name"
     private const val DESCRIPTION = "Description"
@@ -671,6 +709,14 @@ class ModelRepositoryTest {
                 startVid = 1
                 endVidInclusive = 100
               }
+            attributes +=
+              ProtoAny.pack(
+                person {
+                  gender = Person.Gender.FEMALE
+                  ageGroup = Person.AgeGroup.YEARS_18_TO_34
+                  socialGradeGroup = Person.SocialGradeGroup.A_B_C1
+                }
+              )
           }
       }
     }
@@ -689,6 +735,24 @@ class ModelRepositoryTest {
           }
       }
     }
+    private const val EVENT_MESSAGE_TYPE_URL =
+      "type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.TestEvent"
+    private val EVENT_MESSAGE_DESCRIPTOR_SET_PATH =
+      getRuntimePath(
+        Paths.get(
+          MODULE_REPO_NAME,
+          "src",
+          "main",
+          "proto",
+          "wfa",
+          "measurement",
+          "api",
+          "v2alpha",
+          "event_templates",
+          "testing",
+          "test_event_descriptor_set.pb",
+        )
+      )!!
 
     private const val MODEL_LINE_NAME = "$MODEL_SUITE_NAME/modelLines/AAAAAAAAAHs"
     private const val MODEL_LINE_NAME_2 = "$MODEL_SUITE_NAME/modelLines/AAAAAAAAAJs"

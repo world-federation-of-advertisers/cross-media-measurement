@@ -16,12 +16,17 @@
 
 package org.wfanet.measurement.kingdom.deploy.tools
 
+import com.google.protobuf.DescriptorProtos
+import com.google.protobuf.ExtensionRegistry
+import com.google.protobuf.TypeRegistry
 import com.google.protobuf.util.Timestamps
 import io.grpc.ManagedChannel
 import java.io.File
 import java.time.Duration
 import java.time.Instant
 import java.time.ZoneOffset
+import kotlin.io.inputStream
+import org.wfanet.measurement.api.v2alpha.EventAnnotationsProto
 import org.wfanet.measurement.api.v2alpha.ListModelLinesRequestKt
 import org.wfanet.measurement.api.v2alpha.ListModelLinesResponse
 import org.wfanet.measurement.api.v2alpha.ListModelProvidersResponse
@@ -38,6 +43,7 @@ import org.wfanet.measurement.api.v2alpha.ModelRolloutsGrpc.ModelRolloutsBlockin
 import org.wfanet.measurement.api.v2alpha.ModelSuitesGrpc
 import org.wfanet.measurement.api.v2alpha.ModelSuitesGrpc.ModelSuitesBlockingStub
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
+import org.wfanet.measurement.api.v2alpha.PopulationSpecValidator
 import org.wfanet.measurement.api.v2alpha.PopulationsGrpc
 import org.wfanet.measurement.api.v2alpha.PopulationsGrpc.PopulationsBlockingStub
 import org.wfanet.measurement.api.v2alpha.createModelLineRequest
@@ -59,6 +65,7 @@ import org.wfanet.measurement.api.v2alpha.modelRollout
 import org.wfanet.measurement.api.v2alpha.modelSuite
 import org.wfanet.measurement.api.v2alpha.population
 import org.wfanet.measurement.api.v2alpha.setModelLineActiveEndTimeRequest
+import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.ProtobufMessages
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.grpc.TlsFlags
@@ -334,14 +341,39 @@ class CreatePopulation : Runnable {
 
   @Option(
     names = ["--population-spec"],
-    description = ["Filesystem path to serialized PopulationSpec message"],
+    description = ["Filesystem path to PopulationSpec message"],
     required = true,
   )
   private lateinit var populationSpecFile: File
 
+  @Option(
+    names = ["--event-message-descriptor-set"],
+    description =
+      [
+        "Serialized FileDescriptorSet for the event message and its dependencies.",
+        "This can be specified multiple times.",
+      ],
+    required = true,
+  )
+  private lateinit var eventMessageDescriptorSetFiles: List<File>
+
+  @Option(
+    names = ["--event-message-type-url"],
+    description = ["Protobuf type URL of the event message for the CMMS instance"],
+    required = true,
+  )
+  private lateinit var eventMessageTypeUrl: String
+
   override fun run() {
     val populationSpec =
       ProtobufMessages.parseMessage(populationSpecFile, PopulationSpec.getDefaultInstance())
+    val typeRegistry: TypeRegistry = buildTypeRegistry()
+    val eventMessageDescriptor =
+      requireNotNull(typeRegistry.getDescriptorForTypeUrl(eventMessageTypeUrl)) {
+        "Event message descriptor not found"
+      }
+    PopulationSpecValidator.validate(populationSpec, eventMessageDescriptor)
+
     val population =
       parentCommand.populationsClient.createPopulation(
         createPopulationRequest {
@@ -354,6 +386,25 @@ class CreatePopulation : Runnable {
       )
 
     println(population)
+  }
+
+  private fun buildTypeRegistry(): TypeRegistry {
+    val fileDescriptorSets: List<DescriptorProtos.FileDescriptorSet> =
+      eventMessageDescriptorSetFiles.map {
+        it.inputStream().use { input ->
+          DescriptorProtos.FileDescriptorSet.parseFrom(input, EXTENSION_REGISTRY)
+        }
+      }
+    return TypeRegistry.newBuilder()
+      .add(ProtoReflection.buildDescriptors(fileDescriptorSets))
+      .build()
+  }
+
+  companion object {
+    private val EXTENSION_REGISTRY =
+      ExtensionRegistry.newInstance()
+        .also { EventAnnotationsProto.registerAllExtensions(it) }
+        .unmodifiable
   }
 }
 
